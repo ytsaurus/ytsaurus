@@ -2045,10 +2045,11 @@ void TTask::UpdateAggregatedFinishedJobStatistics(const TJobletPtr& joblet, cons
 
     UpdateAggregatedJobStatistics(
         AggregatedFinishedJobStatistics_,
-        joblet,
-        jobSummary.State,
+        joblet->GetAggregationTags(jobSummary.State),
+        *joblet->JobStatistics,
+        *joblet->ControllerStatistics,
         statisticsLimit,
-        isLimitExceeded);
+        &isLimitExceeded);
 
     if (isLimitExceeded) {
         TaskHost_->SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,

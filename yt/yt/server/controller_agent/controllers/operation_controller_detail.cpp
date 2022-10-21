@@ -3441,17 +3441,18 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
 
         UpdateJobMetrics(joblet, *jobSummary, /*isJobFinished*/ false);
 
-        auto statisticsFuture = BIND(&BuildBriefStatistics, Passed(std::move(jobSummary)))
-            // TODO(max42): use another invoker here.
-            .AsyncVia(Host->GetControllerThreadPoolInvoker())
-            .Run();
+        TErrorOr<TBriefJobStatisticsPtr> briefStatisticsOrError;
 
-        statisticsFuture.Subscribe(BIND(
-            &TOperationControllerBase::AnalyzeBriefStatistics,
-            MakeWeak(this),
+        try {
+            briefStatisticsOrError = BuildBriefStatistics(std::move(jobSummary));
+        } catch (const std::exception& ex) {
+            briefStatisticsOrError = TError(ex);
+        }
+
+        AnalyzeBriefStatistics(
             joblet,
-            Config->SuspiciousJobs)
-            .Via(GetCancelableInvoker()));
+            Config->SuspiciousJobs,
+            briefStatisticsOrError);
     }
 }
 
@@ -8574,28 +8575,79 @@ void TOperationControllerBase::UpdateSuspiciousJobsYson()
 
 void TOperationControllerBase::UpdateAggregatedRunningJobStatistics()
 {
-    // TODO(max42): YT-17793.
-    // Extract heavy-lifting to a separate thread pool.
+    auto statisticsLimit = Options->CustomStatisticsCountLimit;
 
-    i64 statisticsLimit = Options->CustomStatisticsCountLimit;
-    bool isLimitExceeded = false;
+    YT_LOG_DEBUG(
+        "Updating aggregated running job statistics (StatisticsLimit: %v, RunningJobCount: %v)",
+        statisticsLimit,
+        JobletMap.size());
 
-    TAggregatedJobStatistics runningJobStatistics;
-    for (const auto& [jobId, joblet] : JobletMap) {
-        UpdateAggregatedJobStatistics(
-            runningJobStatistics,
-            joblet,
-            EJobState::Running,
-            statisticsLimit,
-            isLimitExceeded);
+    // A lightweight structure that represents a snapshot of a joblet that is safe to be used
+    // in a separate invoker. Note that job statistics and controller statistics are const-qualified,
+    // thus they are immutable.
+    struct TJobletSnapshot
+    {
+        std::shared_ptr<const TStatistics> JobStatistics;
+        std::shared_ptr<const TStatistics> ControllerStatistics;
+        TJobStatisticsTags Tags;
+    };
 
-        if (isLimitExceeded) {
-            SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
-                TError("Limit for number of custom statistics exceeded for operation, so they are truncated")
-                    << TErrorAttribute("limit", statisticsLimit));
-        }
+    std::vector<TJobletSnapshot> snapshots;
+    snapshots.reserve(JobletMap.size());
+    for (const auto& joblet : GetValues(JobletMap)) {
+        snapshots.emplace_back(TJobletSnapshot{
+            joblet->ControllerStatistics,
+            joblet->JobStatistics,
+            joblet->GetAggregationTags(EJobState::Running),
+        });
     }
-    AggregatedRunningJobStatistics_ = runningJobStatistics;
+
+    // NB: this routine will be done in a separate thread pool.
+    auto buildAggregatedStatisticsHeavy = [snapshots = std::move(snapshots), statisticsLimit, Logger = this->Logger] {
+        TAggregatedJobStatistics runningJobStatistics;
+        bool isLimitExceeded = false;
+
+        YT_LOG_DEBUG("Starting aggregated job statistics update heavy routine");
+
+        static const auto AggregationYieldPeriod = TDuration::MilliSeconds(10);
+
+        TPeriodicYielder yielder(AggregationYieldPeriod);
+
+        for (const auto& [jobStatistics, controllerStatistics, tags] : snapshots) {
+            UpdateAggregatedJobStatistics(
+                runningJobStatistics,
+                tags,
+                *jobStatistics,
+                *controllerStatistics,
+                statisticsLimit,
+                &isLimitExceeded);
+            yielder.TryYield();
+        }
+
+        YT_LOG_DEBUG("Aggregated job statistics update heavy routine finished");
+
+        return std::pair(std::move(runningJobStatistics), isLimitExceeded);
+    };
+
+    YT_LOG_DEBUG("Scheduling aggregated job statistics update heavy routine");
+
+    TWallTimer wallTimer;
+    auto [runningJobStatistics, isLimitExceeded] = WaitFor(
+        BIND(buildAggregatedStatisticsHeavy)
+            .AsyncVia(Host->GetStatisticsOffloadInvoker())
+            .Run())
+        .Value();
+
+    YT_LOG_DEBUG("New aggregated job statistics are ready (HeavyWallTime: %v)", wallTimer.GetElapsedTime());
+
+    if (isLimitExceeded) {
+        SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,
+            TError("Limit for number of custom statistics exceeded for operation, so they are truncated")
+                << TErrorAttribute("limit", statisticsLimit));
+    }
+
+    // Old aggregated statistics will be destroyed in controller invoker but I am too lazy to fix that now.
+    AggregatedRunningJobStatistics_ = std::move(runningJobStatistics);
 }
 
 void TOperationControllerBase::ReleaseJobs(const std::vector<TJobId>& jobIds)
@@ -8668,10 +8720,11 @@ void TOperationControllerBase::UpdateAggregatedFinishedJobStatistics(const TJobl
 
     UpdateAggregatedJobStatistics(
         AggregatedFinishedJobStatistics_,
-        joblet,
-        jobSummary.State,
+        joblet->GetAggregationTags(jobSummary.State),
+        *joblet->JobStatistics,
+        *joblet->ControllerStatistics,
         statisticsLimit,
-        isLimitExceeded);
+        &isLimitExceeded);
 
     if (isLimitExceeded) {
         SetOperationAlert(EOperationAlertType::CustomStatisticsLimitExceeded,

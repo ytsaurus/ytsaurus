@@ -771,6 +771,9 @@ public:
     //! Number of threads for running job spec build callbacks.
     int JobSpecBuildThreadCount;
 
+    //! Number of threads for heavy routines associated with job statistics.
+    int StatisticsOffloadThreadCount;
+
     //! Period of controller static orchid part update.
     TDuration ControllerStaticOrchidUpdatePeriod;
 

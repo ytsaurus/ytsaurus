@@ -93,6 +93,20 @@ TStatistics TJoblet::BuildCombinedStatistics() const
     return statistics;
 }
 
+TJobStatisticsTags TJoblet::GetAggregationTags(EJobState state)
+{
+    // NB: Completed restarted job is considered as lost in statistics.
+    // Actually we have lost previous incarnation of this job, but it was already considered as completed in statistics.
+    auto statisticsState = Restarted && state == EJobState::Completed
+        ? EJobState::Lost
+        : state;
+    return {
+        .JobState = statisticsState,
+        .JobType = Task->GetVertexDescriptorForJoblet(MakeStrong(this)),
+        .PoolTree = TreeId,
+    };
+}
+
 void TJoblet::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;

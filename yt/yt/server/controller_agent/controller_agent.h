@@ -67,6 +67,11 @@ public:
     /*!
      *  \note Thread affinity: any
      */
+    const IInvokerPtr& GetStatisticsOffloadInvoker();
+
+    /*!
+     *  \note Thread affinity: any
+     */
     const IInvokerPtr& GetExecNodesUpdateInvoker();
 
     /*!

@@ -246,6 +246,7 @@ public:
         , Bootstrap_(bootstrap)
         , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
         , JobSpecBuildPool_(New<TThreadPool>(Config_->JobSpecBuildThreadCount, "JobSpec"))
+        , StatisticsOffloadPool_(New<TThreadPool>(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
         , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
@@ -374,6 +375,13 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return JobSpecBuildPool_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetStatisticsOffloadInvoker()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return StatisticsOffloadPool_->GetInvoker();
     }
 
     const IInvokerPtr& GetExecNodesUpdateInvoker()
@@ -1066,6 +1074,7 @@ private:
 
     const TThreadPoolPtr ControllerThreadPool_;
     const TThreadPoolPtr JobSpecBuildPool_;
+    const TThreadPoolPtr StatisticsOffloadPool_;
     const TActionQueuePtr ExecNodesUpdateQueue_;
     const TActionQueuePtr SnapshotIOQueue_;
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;
@@ -2136,6 +2145,11 @@ const IInvokerPtr& TControllerAgent::GetControllerThreadPoolInvoker()
 const IInvokerPtr& TControllerAgent::GetJobSpecBuildPoolInvoker()
 {
     return Impl_->GetJobSpecBuildPoolInvoker();
+}
+
+const IInvokerPtr& TControllerAgent::GetStatisticsOffloadInvoker()
+{
+    return Impl_->GetStatisticsOffloadInvoker();
 }
 
 const IInvokerPtr& TControllerAgent::GetExecNodesUpdateInvoker()

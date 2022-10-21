@@ -356,6 +356,11 @@ const IInvokerPtr& TOperationControllerHost::GetJobSpecBuildPoolInvoker()
     return Bootstrap_->GetControllerAgent()->GetJobSpecBuildPoolInvoker();
 }
 
+const IInvokerPtr& TOperationControllerHost::GetStatisticsOffloadInvoker()
+{
+    return Bootstrap_->GetControllerAgent()->GetStatisticsOffloadInvoker();
+}
+
 const IInvokerPtr& TOperationControllerHost::GetExecNodesUpdateInvoker()
 {
     return Bootstrap_->GetControllerAgent()->GetExecNodesUpdateInvoker();

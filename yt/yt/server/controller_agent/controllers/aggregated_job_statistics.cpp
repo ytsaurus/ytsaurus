@@ -1,8 +1,5 @@
 #include "aggregated_job_statistics.h"
 
-#include "job_info.h"
-#include "task.h"
-
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NYson;
@@ -40,21 +37,10 @@ void Serialize(const TJobStatisticsTags& tags, IYsonConsumer* consumer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TAggregatedJobStatistics::UpdateJobStatistics(const TJobletPtr& joblet, const TStatistics& statistics, EJobState jobState)
-{
-    auto statisticsState = GetStatisticsJobState(joblet, jobState);
-    auto tags = TJobStatisticsTags{
-        .JobState = statisticsState,
-        .JobType = joblet->Task->GetVertexDescriptorForJoblet(joblet),
-        .PoolTree = joblet->TreeId,
-    };
-    TaggedJobStatistics_.AppendStatistics(statistics, tags);
-}
-
 i64 TAggregatedJobStatistics::CalculateCustomStatisticsCount() const
 {
     i64 count = 0;
-    for (const auto& [key, value] : TaggedJobStatistics_.GetData()) {
+    for (const auto& [key, value] : GetData()) {
         if (key.StartsWith("/custom/")) {
             ++count;
         }
@@ -62,28 +48,12 @@ i64 TAggregatedJobStatistics::CalculateCustomStatisticsCount() const
     return count;
 }
 
-EJobState TAggregatedJobStatistics::GetStatisticsJobState(const TJobletPtr& joblet, EJobState state)
-{
-    // NB: Completed restarted job is considered as lost in statistics.
-    // Actually we have lost previous incarnation of this job, but it was already considered as completed in statistics.
-    return joblet->Restarted && state == EJobState::Completed
-        ? EJobState::Lost
-        : state;
-}
-
-void TAggregatedJobStatistics::Persist(const TPersistenceContext& context)
-{
-    using NYT::Persist;
-
-    Persist(context, TaggedJobStatistics_);
-}
-
 i64 TAggregatedJobStatistics::GetSumByJobStateAndType(
     const TString& statisticPath,
     EJobState jobState,
     const TString& jobType) const
 {
-    auto* taggedStatistics = TaggedJobStatistics_.FindTaggedSummaries(statisticPath);
+    auto* taggedStatistics = FindTaggedSummaries(statisticPath);
     if (!taggedStatistics) {
         return 0;
     }
@@ -103,7 +73,7 @@ std::optional<TSummary> TAggregatedJobStatistics::FindSummaryByJobStateAndType(
     EJobState jobState,
     const TString& jobType) const
 {
-    auto* taggedStatistics = TaggedJobStatistics_.FindTaggedSummaries(statisticPath);
+    auto* taggedStatistics = FindTaggedSummaries(statisticPath);
     if (!taggedStatistics) {
         return std::nullopt;
     }
@@ -146,24 +116,19 @@ void TAggregatedJobStatistics::SerializeCustom(
     const std::function<void(const TTaggedSummaries&, NYson::IYsonConsumer*)>& summariesSerializer) const
 {
     SerializeYsonPathsMap<TTaggedSummaries>(
-        TaggedJobStatistics_.GetData(),
+        GetData(),
         consumer,
         summariesSerializer);
-}
-
-void Serialize(const TAggregatedJobStatistics& statistics, IYsonConsumer* consumer)
-{
-    Serialize(statistics.TaggedJobStatistics_, consumer);
 }
 
 TAggregatedJobStatistics MergeJobStatistics(const TAggregatedJobStatistics& lhs, const TAggregatedJobStatistics& rhs)
 {
     TAggregatedJobStatistics mergedJobStatistics;
-    for (const auto& [path, taggedSummaries] : lhs.TaggedJobStatistics_.GetData()) {
-        mergedJobStatistics.TaggedJobStatistics_.AppendTaggedSummary(path, taggedSummaries);
+    for (const auto& [path, taggedSummaries] : lhs.GetData()) {
+        mergedJobStatistics.AppendTaggedSummary(path, taggedSummaries);
     }
-    for (const auto& [path, taggedSummaries] : rhs.TaggedJobStatistics_.GetData()) {
-        mergedJobStatistics.TaggedJobStatistics_.AppendTaggedSummary(path, taggedSummaries);
+    for (const auto& [path, taggedSummaries] : rhs.GetData()) {
+        mergedJobStatistics.AppendTaggedSummary(path, taggedSummaries);
     }
     return mergedJobStatistics;
 }

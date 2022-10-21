@@ -59,10 +59,11 @@ NTableClient::TTableReaderOptionsPtr CreateTableReaderOptions(const NScheduler::
 
 void UpdateAggregatedJobStatistics(
     TAggregatedJobStatistics& targetStatistics,
-    const TJobletPtr& joblet,
-    EJobState jobState,
+    const TJobStatisticsTags& tags,
+    const TStatistics& jobStatistics,
+    const TStatistics& controllerStatistics,
     int customStatisticsLimit,
-    bool& wasTruncated);
+    bool* isLimitExceeded);
 
 ////////////////////////////////////////////////////////////////////////////////
 
