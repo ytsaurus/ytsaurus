@@ -176,7 +176,8 @@ private:
             ProduceAllVersions_,
             OverrideTimestamp_,
             EnablePeerProbing_,
-            EnableRejectsIfThrottling_)
+            EnableRejectsIfThrottling_,
+	    GetCurrentInvoker())
             .Apply(BIND(&TVersionedLookupReader::OnRowsLookuped, MakeStrong(this)));
     }
 

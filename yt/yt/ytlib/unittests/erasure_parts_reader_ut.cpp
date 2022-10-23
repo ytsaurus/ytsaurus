@@ -72,7 +72,8 @@ struct TMockChunkReader
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions&,
         const std::vector<int>&,
-        std::optional<i64>) override
+        std::optional<i64>,
+        IInvokerPtr /*sessionInvoker*/) override
     {
         YT_ABORT();
     }

@@ -589,7 +589,8 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> /* estimatedSize */) override
+        std::optional<i64> /* estimatedSize */,
+        IInvokerPtr /*sessionInvoker*/ = {}) override
     {
         // NB(psushin): do not use estimated size for throttling here, repair requires much more traffic than estimated.
         // When reading erasure chunks we fallback to post-throttling.

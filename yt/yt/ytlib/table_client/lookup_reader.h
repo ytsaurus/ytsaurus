@@ -34,7 +34,8 @@ struct ILookupReader
         bool produceAllVersions,
         TTimestamp overrideTimestamp,
         bool enablePeerProbing,
-        bool enableRejectsIfThrottling) = 0;
+        bool enableRejectsIfThrottling,
+        IInvokerPtr sessionInvoker = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ILookupReader)

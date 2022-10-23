@@ -214,7 +214,8 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& /*options*/,
         const std::vector<int>& /*blockIndices*/,
-        std::optional<i64> /*estimatedSize*/) override
+        std::optional<i64> /*estimatedSize*/,
+        IInvokerPtr /*sessionInvoker*/) override
     {
         return MakeFuture<std::vector<TBlock>>(MakeError());
     }
