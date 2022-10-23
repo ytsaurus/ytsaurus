@@ -443,7 +443,8 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
             BlockCache_,
             CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
             static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
-            ChunkReadOptions_);
+            ChunkReadOptions_,
+            GetCurrentInvoker());
         BlockFetcher_->Start();
     }
 }

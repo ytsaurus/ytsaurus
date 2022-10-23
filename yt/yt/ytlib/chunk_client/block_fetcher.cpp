@@ -35,15 +35,14 @@ TBlockFetcher::TBlockFetcher(
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
     double compressionRatio,
-    const TClientChunkReadOptions& chunkReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions,
+    IInvokerPtr sessionInvoker)
     : Config_(std::move(config))
     , BlockInfos_(std::move(blockInfos))
     , BlockCache_(std::move(blockCache))
-    , CompressionInvoker_(
-        codecId == NCompression::ECodec::None
-        ? nullptr
-        : GetCompressionInvoker(chunkReadOptions.WorkloadDescriptor))
-    , ReaderInvoker_(CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
+    , SessionInvoker_(std::move(sessionInvoker))
+    , CompressionInvoker_(SessionInvoker_ ? SessionInvoker_ : GetCompressionInvoker(chunkReadOptions.WorkloadDescriptor))
+    , ReaderInvoker_(SessionInvoker_ ? SessionInvoker_ : CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
     , MemoryManager_(std::move(memoryManager))
     , Codec_(NCompression::GetCodec(codecId))
@@ -551,7 +550,8 @@ void TBlockFetcher::RequestBlocks(
             return chunkReader->ReadBlocks(
                 ChunkReadOptions_,
                 blockIndices,
-                static_cast<i64>(uncompressedSize * CompressionRatio_));
+                static_cast<i64>(uncompressedSize * CompressionRatio_),
+                SessionInvoker_);
         }();
 
         // NB: Handling |OnGotBlocks| in an arbitrary thread seems OK.

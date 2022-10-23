@@ -53,7 +53,8 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize) override;
+        std::optional<i64> estimatedSize,
+        IInvokerPtr sessionInvoker = {}) override;
 
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
@@ -144,7 +145,8 @@ NErasure::TPartIndexList GetDataPartIndices(const NErasure::ICodec* codec)
 TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocks(
     const TClientChunkReadOptions& options,
     const std::vector<int>& blockIndexes,
-    std::optional<i64> estimatedSize)
+    std::optional<i64> estimatedSize,
+    IInvokerPtr /*sessionInvoker*/)
 {
     return ReadBlocksImpl(options, blockIndexes, estimatedSize, Readers_);
 }
@@ -288,7 +290,8 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize) override
+        std::optional<i64> estimatedSize,
+        IInvokerPtr /*sessionInvoker*/ = {}) override
     {
         return UnderlyingReader_->ReadBlocksImpl(
             options,

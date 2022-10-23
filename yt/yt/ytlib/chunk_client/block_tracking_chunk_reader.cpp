@@ -25,9 +25,10 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize = {}) override
+        std::optional<i64> estimatedSize,
+        IInvokerPtr sessionInvoker) override
     {
-        return TrackBlocks(Underlying_->ReadBlocks(options, blockIndexes, estimatedSize));
+        return TrackBlocks(Underlying_->ReadBlocks(options, blockIndexes, estimatedSize, sessionInvoker));
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(

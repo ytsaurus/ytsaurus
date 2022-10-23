@@ -50,7 +50,8 @@ public:
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         double compressionRatio,
-        const TClientChunkReadOptions& chunkReadOptions);
+        const TClientChunkReadOptions& chunkReadOptions,
+        IInvokerPtr compressionInvoker = nullptr);
 
     ~TBlockFetcher();
 
@@ -97,6 +98,7 @@ private:
     const TBlockFetcherConfigPtr Config_;
     std::vector<TBlockInfo> BlockInfos_;
     const IBlockCachePtr BlockCache_;
+    const IInvokerPtr SessionInvoker_;
     const IInvokerPtr CompressionInvoker_;
     const IInvokerPtr ReaderInvoker_;
     const double CompressionRatio_;

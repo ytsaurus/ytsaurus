@@ -17,7 +17,8 @@ struct IChunkReader
     virtual TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize = {}) = 0;
+        std::optional<i64> estimatedSize = {},
+        IInvokerPtr sessionInvoker = {}) = 0;
 
     //! Asynchronously reads a given range of blocks.
     //! The call may return less blocks than requested.

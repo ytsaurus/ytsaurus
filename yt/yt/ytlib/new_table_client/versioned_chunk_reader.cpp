@@ -600,7 +600,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             blockCache,
             CheckedEnumCast<NCompression::ECodec>(chunkMeta->Misc().compression_codec()),
             static_cast<double>(chunkMeta->Misc().compressed_data_size()) / chunkMeta->Misc().uncompressed_data_size(),
-            chunkReadOptions);
+            chunkReadOptions,
+            // Enable current invoker for range reads.
+            IsKeys(readItems) ? nullptr : GetCurrentInvoker());
         blockFetcher->Start();
         readerStatistics->CreateBlockFetcherTime = createBlockFetcherTimer.GetElapsedTime();
     }

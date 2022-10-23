@@ -209,7 +209,8 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize) override;
+        std::optional<i64> estimatedSize,
+        IInvokerPtr sessionInvoker = {}) override;
 
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
@@ -235,7 +236,8 @@ public:
         bool produceAllVersions,
         TTimestamp overrideTimestamp,
         bool enablePeerProbing,
-        bool enableRejectsIfThrottling) override;
+        bool enableRejectsIfThrottling,
+        IInvokerPtr sessionInvoker) override;
 
     TChunkId GetChunkId() const override
     {
@@ -470,6 +472,10 @@ protected:
     //! properly.
     const TWorkloadDescriptor WorkloadDescriptor_;
 
+    //! Either fixed priority invoker build upon CompressionPool or fair share thread pool invoker assigned to
+    //! compression fair share tag from the workload descriptor.
+    const IInvokerPtr SessionInvoker_;
+
     //! Translates node ids to node descriptors.
     const TNodeDirectoryPtr NodeDirectory_;
 
@@ -504,10 +510,6 @@ protected:
     //! Catalogue of peers, seen on current pass.
     THashMap<TString, TPeer> Peers_;
 
-    //! Either fixed priority invoker build upon CompressionPool or fair share thread pool invoker assigned to
-    //! compression fair share tag from the workload descriptor.
-    IInvokerPtr SessionInvoker_;
-
     //! The instant this session was started.
     TInstant StartTime_ = TInstant::Now();
 
@@ -521,7 +523,8 @@ protected:
         TReplicationReader* reader,
         const TClientChunkReadOptions& options,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr rpsThrottler,
+        IInvokerPtr sessionInvoker = {})
         : Reader_(reader)
         , ReaderConfig_(reader->Config_)
         , ReaderOptions_(reader->Options_)
@@ -531,6 +534,7 @@ protected:
         , WorkloadDescriptor_(ReaderConfig_->EnableWorkloadFifoScheduling
             ? options.WorkloadDescriptor.SetCurrentInstant()
             : options.WorkloadDescriptor)
+        , SessionInvoker_(sessionInvoker ? std::move(sessionInvoker) : GetCompressionInvoker(WorkloadDescriptor_))
         , NodeDirectory_(reader->NodeDirectory_)
         , Networks_(reader->Networks_)
         , BandwidthThrottler_(std::move(bandwidthThrottler))
@@ -540,7 +544,6 @@ protected:
             options.ReadSessionId,
             ChunkId_))
     {
-        SessionInvoker_ = GetCompressionInvoker(WorkloadDescriptor_);
         if (WorkloadDescriptor_.CompressionFairShareTag) {
             Logger.AddTag("CompressionFairShareTag: %v", WorkloadDescriptor_.CompressionFairShareTag);
         }
@@ -1557,12 +1560,14 @@ public:
         const std::vector<int>& blockIndexes,
         std::optional<i64> estimatedSize,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr rpsThrottler,
+        IInvokerPtr sessionInvoker)
         : TSessionBase(
             reader,
             options,
             std::move(bandwidthThrottler),
-            std::move(rpsThrottler))
+            std::move(rpsThrottler),
+            std::move(sessionInvoker))
         , Options_(options)
         , BlockIndexes_(blockIndexes)
         , EstimatedSize_(estimatedSize)
@@ -2156,7 +2161,8 @@ private:
 TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
     const TClientChunkReadOptions& options,
     const std::vector<int>& blockIndexes,
-    std::optional<i64> estimatedSize)
+    std::optional<i64> estimatedSize,
+    IInvokerPtr sessionInvoker)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -2170,7 +2176,8 @@ TFuture<std::vector<TBlock>> TReplicationReader::ReadBlocks(
         blockIndexes,
         estimatedSize,
         BandwidthThrottler_,
-        RpsThrottler_);
+        RpsThrottler_,
+        sessionInvoker);
     return session->Run();
 }
 
@@ -2471,7 +2478,8 @@ public:
             reader,
             options,
             reader->BandwidthThrottler_,
-            reader->RpsThrottler_)
+            reader->RpsThrottler_,
+            GetCurrentInvoker())
         , PartitionTag_(partitionTag)
         , ExtensionTags_(extensionTags)
     { }
@@ -2695,12 +2703,14 @@ public:
         bool enablePeerProbing,
         bool enableRejectsIfThrottling,
         IThroughputThrottlerPtr bandwidthThrottler,
-        IThroughputThrottlerPtr rpsThrottler)
+        IThroughputThrottlerPtr rpsThrottler,
+        IInvokerPtr sessionInvoker = {})
         : TSessionBase(
             reader,
             options,
             std::move(bandwidthThrottler),
-            std::move(rpsThrottler))
+            std::move(rpsThrottler),
+            std::move(sessionInvoker))
         , LookupKeys_(std::move(lookupKeys))
         , TableId_(tableId)
         , Revision_(revision)
@@ -3194,7 +3204,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     bool produceAllVersions,
     TTimestamp overrideTimestamp,
     bool enablePeerProbing,
-    bool enableRejectsIfThrottling)
+    bool enableRejectsIfThrottling,
+    IInvokerPtr sessionInvoker)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -3214,7 +3225,8 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         enablePeerProbing,
         enableRejectsIfThrottling,
         BandwidthThrottler_,
-        RpsThrottler_);
+        RpsThrottler_,
+        std::move(sessionInvoker));
     return session->Run();
 }
 
@@ -3239,7 +3251,8 @@ public:
     TFuture<std::vector<TBlock>> ReadBlocks(
         const TClientChunkReadOptions& options,
         const std::vector<int>& blockIndexes,
-        std::optional<i64> estimatedSize) override
+        std::optional<i64> estimatedSize,
+        IInvokerPtr sessionInvoker = {}) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -3253,7 +3266,8 @@ public:
             blockIndexes,
             estimatedSize,
             BandwidthThrottler_,
-            RpsThrottler_);
+            RpsThrottler_,
+            sessionInvoker);
         return session->Run();
     }
 
@@ -3303,7 +3317,8 @@ public:
         bool produceAllVersions,
         TTimestamp overrideTimestamp,
         bool enablePeerProbing,
-        bool enableRejectsIfThrottling) override
+        bool enableRejectsIfThrottling,
+        IInvokerPtr sessionInvoker = {}) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
@@ -3323,7 +3338,8 @@ public:
             enablePeerProbing,
             enableRejectsIfThrottling,
             BandwidthThrottler_,
-            RpsThrottler_);
+            RpsThrottler_,
+            std::move(sessionInvoker));
         return session->Run();
     }
 
