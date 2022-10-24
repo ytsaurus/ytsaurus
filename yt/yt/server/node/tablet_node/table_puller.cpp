@@ -615,6 +615,7 @@ private:
             modifyOptions.ReplicationCard = replicationCard;
             modifyOptions.UpstreamReplicaId = tabletSnapshot->UpstreamReplicaId;
             modifyOptions.TopmostTransaction = false;
+            modifyOptions.AllowMissingKeyColumns = true;
 
             std::vector<TRowModification> rowModifications;
             rowModifications.reserve(resultRows.size());

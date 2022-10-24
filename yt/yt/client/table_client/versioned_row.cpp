@@ -167,35 +167,49 @@ void ValidateClientDataRow(
     TVersionedRow row,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
-    const TNameTablePtr& nameTable)
+    const TNameTablePtr& nameTable,
+    bool allowMissingKeyColumns)
 {
     int keyCount = row.GetKeyCount();
-    if (keyCount != schema.GetKeyColumnCount()) {
-        THROW_ERROR_EXCEPTION("Invalid key count: expected %v, got %v",
-            schema.GetKeyColumnCount(),
-            keyCount);
-    }
-
     ValidateKeyColumnCount(keyCount);
     ValidateRowValueCount(row.GetValueCount());
 
-    if (nameTable->GetSize() < keyCount) {
-        THROW_ERROR_EXCEPTION("Name table size is too small to contain all keys: expected >=%v, got %v",
-            row.GetKeyCount(),
-            nameTable->GetSize());
-    }
-
-    for (int index = 0; index < keyCount; ++index) {
-        const auto& expectedName = schema.Columns()[index].Name();
-        auto actualName = nameTable->GetName(index);
-        if (expectedName != actualName) {
-            THROW_ERROR_EXCEPTION("Invalid key column %v in name table: expected %Qv, got %Qv",
-                index,
-                expectedName,
-                actualName);
+    if (!allowMissingKeyColumns) {
+        if (keyCount != schema.GetKeyColumnCount()) {
+            THROW_ERROR_EXCEPTION("Invalid key count: expected %v, got %v",
+                schema.GetKeyColumnCount(),
+                keyCount);
         }
-        ValidateValueType(row.BeginKeys()[index], schema, index, /*typeAnyAcceptsAllValues*/ false);
-        ValidateKeyValue(row.BeginKeys()[index]);
+
+        if (nameTable->GetSize() < keyCount) {
+            THROW_ERROR_EXCEPTION("Name table size is too small to contain all keys: expected >=%v, got %v",
+                row.GetKeyCount(),
+                nameTable->GetSize());
+        }
+
+        for (int index = 0; index < keyCount; ++index) {
+            const auto& expectedName = schema.Columns()[index].Name();
+            auto actualName = nameTable->GetName(index);
+            if (expectedName != actualName) {
+                THROW_ERROR_EXCEPTION("Invalid key column %v in name table: expected %Qv, got %Qv",
+                    index,
+                    expectedName,
+                    actualName);
+            }
+            ValidateValueType(row.BeginKeys()[index], schema, index, /*typeAnyAcceptsAllValues*/ false);
+            ValidateKeyValue(row.BeginKeys()[index]);
+        }
+    } else {
+        for (int index = 0; index < keyCount; ++index) {
+            auto name = nameTable->GetName(index);
+            int columnIndex = schema.GetColumnIndexOrThrow(name);
+            if (columnIndex >= schema.GetColumnCount()) {
+                THROW_ERROR_EXCEPTION("Invalid key column %Qv: appears as a key column in row but actually is a data column in table",
+                    name);
+            }
+            ValidateValueType(row.BeginKeys()[index], schema, columnIndex, /*typeAnyAcceptsAllValues*/ false);
+            ValidateKeyValue(row.BeginKeys()[index]);
+        }
     }
 
     auto validateTimestamps = [&] (const TTimestamp* begin, const TTimestamp* end) {

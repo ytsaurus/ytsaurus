@@ -677,19 +677,19 @@ private:
             }
 
             const auto& primarySchema = tableInfo->Schemas[ETableSchemaKind::Primary];
-            const auto& primaryIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Primary);
+            const auto& primaryIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::Primary);
 
             const auto& primarySchemaWithTabletIndex = tableInfo->Schemas[ETableSchemaKind::PrimaryWithTabletIndex];
-            const auto& primaryWithTabletIndexIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::PrimaryWithTabletIndex);
+            const auto& primaryWithTabletIndexIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::PrimaryWithTabletIndex);
 
             const auto& writeSchema = tableInfo->Schemas[ETableSchemaKind::Write];
-            const auto& writeIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Write);
+            const auto& writeIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::Write);
 
             const auto& versionedWriteSchema = tableInfo->Schemas[ETableSchemaKind::VersionedWrite];
-            const auto& versionedWriteIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::VersionedWrite);
+            const auto& versionedWriteIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::VersionedWrite);
 
             const auto& deleteSchema = tableInfo->Schemas[ETableSchemaKind::Delete];
-            const auto& deleteIdMapping = transaction->GetColumnIdMapping(tableInfo, NameTable_, ETableSchemaKind::Delete);
+            const auto& deleteIdMapping = GetColumnIdMapping(transaction, tableInfo, ETableSchemaKind::Delete);
 
             const auto& modificationSchema = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primarySchema : primarySchemaWithTabletIndex;
             const auto& modificationIdMapping = !tableInfo->IsPhysicallyLog() && !tableInfo->IsSorted() ? primaryIdMapping : primaryWithTabletIndexIdMapping;
@@ -711,7 +711,8 @@ private:
                             *writeSchema,
                             writeIdMapping,
                             NameTable_,
-                            tabletIndexColumnId);
+                            tabletIndexColumnId,
+                            Options_.AllowMissingKeyColumns);
                         break;
 
                     case ERowModificationType::VersionedWrite:
@@ -726,7 +727,8 @@ private:
                                 TVersionedRow(modification.Row),
                                 *versionedWriteSchema,
                                 versionedWriteIdMapping,
-                                NameTable_);
+                                NameTable_,
+                                Options_.AllowMissingKeyColumns);
                         } else {
                             ValidateClientDataRow(
                                 TUnversionedRow(modification.Row),
@@ -819,7 +821,8 @@ private:
                                 TVersionedRow(modification.Row),
                                 *primarySchema,
                                 primaryIdMapping,
-                                &columnPresenceBuffer);
+                                &columnPresenceBuffer,
+                                Options_.AllowMissingKeyColumns);
                             if (evaluator) {
                                 evaluator->EvaluateKeys(capturedRow, rowBuffer);
                             }
@@ -882,6 +885,14 @@ private:
                 default:
                     YT_ABORT();
             }
+        }
+
+        const TNameTableToSchemaIdMapping& GetColumnIdMapping(
+            const NYT::NApi::NNative::TTransactionPtr& transaction,
+            const TTableMountInfoPtr& tableInfo,
+            ETableSchemaKind kind)
+        {
+            return transaction->GetColumnIdMapping(tableInfo, NameTable_, kind, Options_.AllowMissingKeyColumns);
         }
     };
 
@@ -1158,7 +1169,7 @@ private:
     THashMap<TString, TPromise<NApi::ITransactionPtr>> ClusterNameToSyncReplicaTransactionPromise_;
 
     //! Caches mappings from name table ids to schema ids.
-    THashMap<std::tuple<TTableId, TNameTablePtr, ETableSchemaKind>, TNameTableToSchemaIdMapping> IdMappingCache_;
+    THashMap<std::tuple<TTableId, TNameTablePtr, ETableSchemaKind, bool>, TNameTableToSchemaIdMapping> IdMappingCache_;
 
     //! The actual options to be used during commit.
     TTransactionCommitOptions CommitOptions_;
@@ -1167,12 +1178,13 @@ private:
     const TNameTableToSchemaIdMapping& GetColumnIdMapping(
         const TTableMountInfoPtr& tableInfo,
         const TNameTablePtr& nameTable,
-        ETableSchemaKind kind)
+        ETableSchemaKind kind,
+        bool allowMissingKeyColumns)
     {
-        auto key = std::make_tuple(tableInfo->TableId, nameTable, kind);
+        auto key = std::make_tuple(tableInfo->TableId, nameTable, kind, allowMissingKeyColumns);
         auto it = IdMappingCache_.find(key);
         if (it == IdMappingCache_.end()) {
-            auto mapping = BuildColumnIdMapping(*tableInfo->Schemas[kind], nameTable);
+            auto mapping = BuildColumnIdMapping(*tableInfo->Schemas[kind], nameTable, allowMissingKeyColumns);
             it = IdMappingCache_.emplace(key, std::move(mapping)).first;
         }
         return it->second;

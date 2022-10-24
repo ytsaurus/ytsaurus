@@ -190,11 +190,15 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     TVersionedRow row,
     const TTableSchema& tableSchema,
     const TNameTableToSchemaIdMapping& idMapping,
-    std::vector<bool>* columnPresenceBuffer)
+    std::vector<bool>* columnPresenceBuffer,
+    bool allowMissingKeyColumns)
 {
     int keyColumnCount = tableSchema.GetKeyColumnCount();
-    YT_VERIFY(keyColumnCount == row.GetKeyCount());
-    YT_VERIFY(keyColumnCount <= std::ssize(idMapping));
+
+    if (!allowMissingKeyColumns) {
+        YT_VERIFY(keyColumnCount == row.GetKeyCount());
+        YT_VERIFY(keyColumnCount <= std::ssize(idMapping));
+    }
 
     int valueCount = 0;
     int deleteTimestampCount = row.GetDeleteTimestampCount();
@@ -236,12 +240,26 @@ TMutableVersionedRow TRowBuffer::CaptureAndPermuteRow(
     ::memcpy(capturedRow.BeginWriteTimestamps(), writeTimestamps.data(), sizeof (TTimestamp) * writeTimestampCount);
     ::memcpy(capturedRow.BeginDeleteTimestamps(), row.BeginDeleteTimestamps(), sizeof (TTimestamp) * deleteTimestampCount);
 
-    {
+    if (!allowMissingKeyColumns) {
         int index = 0;
         auto* dstValue = capturedRow.BeginKeys();
         for (const auto* srcValue = row.BeginKeys(); srcValue != row.EndKeys(); ++srcValue, ++index) {
             YT_VERIFY(idMapping[index] == index);
             *dstValue++ = *srcValue;
+        }
+    } else {
+        for (int index = 0; index < keyColumnCount; ++index) {
+            capturedRow.BeginKeys()[index] = MakeUnversionedNullValue(index);
+        }
+        for (const auto* srcValue = row.BeginKeys(); srcValue != row.EndKeys(); ++srcValue) {
+            ui16 originalId = srcValue->Id;
+            int mappedId = idMapping[originalId];
+            if (mappedId < 0) {
+                continue;
+            }
+            auto *dstValue = &capturedRow.BeginKeys()[mappedId];
+            *dstValue = *srcValue;
+            dstValue->Id = mappedId;
         }
     }
 

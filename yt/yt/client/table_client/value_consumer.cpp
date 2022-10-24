@@ -243,6 +243,11 @@ void TBuildingValueConsumer::SetTreatMissingAsNull(bool value)
     TreatMissingAsNull_ = value;
 }
 
+void TBuildingValueConsumer::SetAllowMissingKeyColumns(bool value)
+{
+    AllowMissingKeyColumns_ = value;
+}
+
 const TNameTablePtr& TBuildingValueConsumer::GetNameTable() const
 {
     return NameTable_;
@@ -324,7 +329,10 @@ void TBuildingValueConsumer::OnEndRow()
     for (int id = 0; id < std::ssize(WrittenFlags_); ++id) {
         if (WrittenFlags_[id]) {
             WrittenFlags_[id] = false;
-        } else if ((TreatMissingAsNull_ || id < Schema_->GetKeyColumnCount()) && !Schema_->Columns()[id].Expression()) {
+        } else if ((TreatMissingAsNull_ || id < Schema_->GetKeyColumnCount()) &&
+            !(AllowMissingKeyColumns_ && id < Schema_->GetKeyColumnCount()) &&
+            !Schema_->Columns()[id].Expression())
+        {
             auto flags = EValueFlags::None;
             if (Schema_->Columns()[id].Aggregate() && Aggregate_) {
                 flags |= EValueFlags::Aggregate;

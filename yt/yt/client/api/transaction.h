@@ -61,6 +61,9 @@ struct TModifyRowsOptions
     //!
     //! This parameter is only used by native client (in particular within RPC proxy server).
     i64 SequenceNumberSourceId = 0;
+
+    //! If set treat missing key columns as null.
+    bool AllowMissingKeyColumns = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

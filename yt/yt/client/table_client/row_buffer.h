@@ -90,7 +90,8 @@ public:
         TVersionedRow row,
         const TTableSchema& tableSchema,
         const TNameTableToSchemaIdMapping& idMapping,
-        std::vector<bool>* columnPresenceBuffer);
+        std::vector<bool>* columnPresenceBuffer,
+        bool allowMissingKeyColumns = false);
 
     i64 GetSize() const;
     i64 GetCapacity() const;

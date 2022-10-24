@@ -751,6 +751,8 @@ message TReqModifyRows
     optional bool require_sync_replica = 4;
     optional NYT.NProto.TGuid upstream_replica_id = 5;
 
+    optional bool allow_missing_key_columns = 10;
+
     required TRowsetDescriptor rowset_descriptor = 200;
 }
 

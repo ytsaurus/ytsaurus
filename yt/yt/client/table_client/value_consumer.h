@@ -94,6 +94,7 @@ public:
 
     void SetAggregate(bool value);
     void SetTreatMissingAsNull(bool value);
+    void SetAllowMissingKeyColumns(bool value);
 
 private:
     bool GetAllowUnknownColumns() const override;
@@ -117,6 +118,7 @@ private:
     bool Aggregate_ = false;
     bool TreatMissingAsNull_ = false;
     bool LogNullToEntity_ = true;
+    bool AllowMissingKeyColumns_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

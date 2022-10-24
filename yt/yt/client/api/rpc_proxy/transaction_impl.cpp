@@ -387,6 +387,7 @@ void TTransaction::ModifyRows(
     req->set_path(path);
     req->set_require_sync_replica(options.RequireSyncReplica);
     ToProto(req->mutable_upstream_replica_id(), options.UpstreamReplicaId);
+    req->set_allow_missing_key_columns(options.AllowMissingKeyColumns);
 
     std::vector<TUnversionedRow> rows;
     rows.reserve(modifications.Size());
