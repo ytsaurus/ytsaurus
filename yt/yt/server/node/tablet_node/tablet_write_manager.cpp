@@ -158,7 +158,7 @@ public:
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Non-atomic rows committed (TransactionId: %v, "
-            "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %x)",
+            "RowCount: %v, WriteRecordSize: %v, ActualTimestamp: %v)",
             transactionId,
             writeRecord.RowCount,
             writeRecord.Data.Size(),
@@ -276,7 +276,7 @@ public:
                 auto newCurrentReplicationTimestamp = std::max(oldCurrentReplicationTimestamp, commitTimestamp);
                 replicaInfo->SetCurrentReplicationTimestamp(newCurrentReplicationTimestamp);
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %x -> %x, "
+                    "Sync replicated rows committed (TransactionId: %v, ReplicaId: %v, CurrentReplicationTimestamp: %v -> %v, "
                     "TotalRowCount: %v)",
                     transaction->GetId(),
                     replicaInfo->GetId(),
@@ -377,7 +377,7 @@ public:
         auto maxTimestamp = GetReplicationProgressMaxTimestamp(*progress);
         if (maxTimestamp >= commitTimestamp) {
             YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Tablet replication progress is beyond current serialized transaction commit timestamp "
-                "(TabletId: %v, TransactionId: %v, CommitTimestamp: %x, MaxReplicationProgressTimestamp: %x, ReplicatiomProgress: %v)",
+                "(TabletId: %v, TransactionId: %v, CommitTimestamp: %v, MaxReplicationProgressTimestamp: %v, ReplicatiomProgress: %v)",
                 Tablet_->GetId(),
                 transaction->GetId(),
                 commitTimestamp,

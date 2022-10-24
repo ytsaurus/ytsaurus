@@ -908,7 +908,7 @@ private:
             auto prepareTimestampClusterTag = request->prepare_timestamp_cluster_tag();
             auto cellIdsToSyncWith = FromProto<std::vector<TCellId>>(request->cell_ids_to_sync_with());
 
-            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %x@%v, CellIdsToSyncWith: %v",
+            context->SetRequestInfo("TransactionId: %v, PrepareTimestamp: %v@%v, CellIdsToSyncWith: %v",
                 transactionId,
                 prepareTimestamp,
                 prepareTimestampClusterTag,
@@ -954,7 +954,7 @@ private:
             auto commitTimestamp = request->commit_timestamp();
             auto commitTimestampClusterTag = request->commit_timestamp_cluster_tag();
 
-            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %x@%v",
+            context->SetRequestInfo("TransactionId: %v, CommitTimestamp: %v@%v",
                 transactionId,
                 commitTimestamp,
                 commitTimestampClusterTag);
@@ -1328,7 +1328,7 @@ private:
         commit->PrepareTimestampClusterTag() = prepareTimestampClusterTag;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Distributed commit phase one started (TransactionId: %v, %v, ParticipantCellIds: %v, PrepareTimestamp: %x@%v)",
+            "Distributed commit phase one started (TransactionId: %v, %v, ParticipantCellIds: %v, PrepareTimestamp: %v@%v)",
             transactionId,
             NRpc::GetCurrentAuthenticationIdentity(),
             participantCellIds,
@@ -1754,7 +1754,7 @@ private:
         auto latePrepare = prepareMode == ETransactionCoordinatorPrepareMode::Late;
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Preparing at coordinator (TransactionId: %v, PrepareTimestamp: %x@%v, PrepareMode: %v",
+            "Preparing at coordinator (TransactionId: %v, PrepareTimestamp: %v@%v, PrepareMode: %v",
             transactionId,
             commit->PrepareTimestamp(),
             commit->PrepareTimestampClusterTag(),
@@ -1992,7 +1992,7 @@ private:
             for (auto [cellTag, commitTimestamp] : result) {
                 if (commitTimestamp > maxAllowedCommitTimestamp) {
                     YT_LOG_DEBUG("Generated commit timestamp exceeds max allowed commit timestamp "
-                        "(TransactionId: %v, CellTag: %v, CommitTimestamp: %x, MaxAllowedCommitTimestamp: %x)",
+                        "(TransactionId: %v, CellTag: %v, CommitTimestamp: %v, MaxAllowedCommitTimestamp: %v)",
                         transactionId,
                         cellTag,
                         commitTimestamp,

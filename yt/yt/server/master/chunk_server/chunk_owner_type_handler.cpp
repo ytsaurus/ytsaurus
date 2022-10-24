@@ -226,7 +226,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     YT_LOG_DEBUG_IF(
         TBase::IsMutationLoggingEnabled(),
         "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, HunkChunkListId: %v"
-        "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %x)",
+        "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %v)",
         originatingNode->GetVersionedId(),
         branchedNode->GetVersionedId(),
         NObjectServer::GetObjectId(originatingNode->GetChunkList()),

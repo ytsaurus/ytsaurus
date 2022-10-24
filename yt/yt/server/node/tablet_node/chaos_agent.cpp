@@ -182,7 +182,7 @@ private:
         ETabletWriteMode writeMode = ETabletWriteMode::Pull;
         auto progress = Tablet_->RuntimeData()->ReplicationProgress.Load();
 
-        YT_LOG_DEBUG("Checking self write mode (ReplicationProgress: %v, LastHistoryItemTimestamp: %x, IsProgressGreaterThanTimestamp: %x)",
+        YT_LOG_DEBUG("Checking self write mode (ReplicationProgress: %v, LastHistoryItemTimestamp: %v, IsProgressGreaterThanTimestamp: %v)",
             static_cast<TReplicationProgress>(*progress),
             selfReplica->History.back().Timestamp,
             IsReplicationProgressGreaterOrEqual(*progress, selfReplica->History.back().Timestamp));
@@ -221,7 +221,7 @@ private:
                     Tablet_->GetId(),
                     std::move(newProgress));
 
-                YT_LOG_DEBUG("Advanced replication progres to replication card current timestamp (CurrentTimestamp: %x)",
+                YT_LOG_DEBUG("Advanced replication progres to replication card current timestamp (CurrentTimestamp: %v)",
                     currentTimestamp);
             }
         }

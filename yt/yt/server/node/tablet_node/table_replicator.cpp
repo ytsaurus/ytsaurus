@@ -409,7 +409,7 @@ private:
             }
 
             if (lastReplicationTimestamp > newReplicationTimestamp) {
-                YT_LOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored (LastReplicationTimestamp: %x -> %x)",
+                YT_LOG_ERROR("Non-monotonic change to last replication timestamp attempted; ignored (LastReplicationTimestamp: %v -> %v)",
                     lastReplicationTimestamp,
                     newReplicationTimestamp);
             } else {
@@ -535,7 +535,7 @@ private:
 
                 if (timestamp <= replicaSnapshot->StartReplicationTimestamp) {
                     YT_VERIFY(row.GetHeader() == readerRows[0].GetHeader());
-                    YT_LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %x, LogRecordTimestamp: %x)",
+                    YT_LOG_INFO("Replication log row violates timestamp bound (StartReplicationTimestamp: %v, LogRecordTimestamp: %v)",
                         replicaSnapshot->StartReplicationTimestamp,
                         timestamp);
                     return false;
@@ -582,7 +582,7 @@ private:
         *batchDataWeight = dataWeight;
 
         YT_LOG_DEBUG("Finished building replication batch (StartRowIndex: %v, RowCount: %v, DataWeight: %v, "
-            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %x)",
+            "NewReplicationRowIndex: %v, NewReplicationTimestamp: %v)",
             startRowIndex,
             rowCount,
             dataWeight,

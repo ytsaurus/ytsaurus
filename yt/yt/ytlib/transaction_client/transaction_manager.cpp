@@ -709,7 +709,7 @@ private:
 
         Register();
 
-        YT_LOG_DEBUG("Starting transaction (StartTimestamp: %x, Type: %v)",
+        YT_LOG_DEBUG("Starting transaction (StartTimestamp: %v, Type: %v)",
             StartTimestamp_,
             Type_);
 
@@ -795,7 +795,7 @@ private:
         Id_ = FromProto<TTransactionId>(rsp->id());
 
         YT_LOG_DEBUG("Master transaction started (TransactionId: %v, CellTag: %v, ReplicatedToCellTags: %v, "
-            "StartTimestamp: %x, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
+            "StartTimestamp: %v, AutoAbort: %v, Ping: %v, PingAncestors: %v)",
             Id_,
             CoordinatorMasterCellTag_,
             ReplicatedToMasterCellTags_,
@@ -826,7 +826,7 @@ private:
 
         State_ = ETransactionState::Active;
 
-        YT_LOG_DEBUG("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %x, AutoAbort: %v)",
+        YT_LOG_DEBUG("Atomic tablet transaction started (TransactionId: %v, StartTimestamp: %v, AutoAbort: %v)",
             Id_,
             StartTimestamp_,
             AutoAbort_);

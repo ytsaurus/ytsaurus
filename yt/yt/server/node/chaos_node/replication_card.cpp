@@ -113,7 +113,7 @@ void TReplicationCard::Load(TLoadContext& context)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x, ReplicatedTableOptions: %v, CollocationId %v}",
+    builder->AppendFormat("{Id: %v, Replicas: %v, Era: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %v, ReplicatedTableOptions: %v, CollocationId %v}",
         replicationCard.GetId(),
         replicationCard.Replicas(),
         replicationCard.GetEra(),

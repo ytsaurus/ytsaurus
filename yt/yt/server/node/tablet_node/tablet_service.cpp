@@ -122,7 +122,7 @@ private:
         auto atomicity = AtomicityFromTransactionId(transactionId);
         auto durability = CheckedEnumCast<EDurability>(request->durability());
 
-        context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %x, "
+        context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
             "TransactionTimeout: %v, Atomicity: %v, Durability: %v, PrepareSignature: %x, CommitSignature: %x, "
             "Generation: %x, RowCount: %v, DataWeight: %v, RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, "
             "UpstreamReplicaId: %v, ReplicationEra: %v",
@@ -286,7 +286,7 @@ private:
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
         auto signature = request->signature();
 
-        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %x, TransactionTimeout: %v, "
+        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %v, TransactionTimeout: %v, "
             "ActionCount: %v, Signature: %x",
             transactionId,
             transactionStartTimestamp,

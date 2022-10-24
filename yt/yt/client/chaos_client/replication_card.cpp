@@ -57,7 +57,7 @@ TString ToString(const TReplicationProgress& replicationProgress)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicaHistoryItem& replicaHistoryItem, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Era: %v, Timestamp: %x, Mode: %v, State: %v}",
+    builder->AppendFormat("{Era: %v, Timestamp: %v, Mode: %v, State: %v}",
         replicaHistoryItem.Era,
         replicaHistoryItem.Timestamp,
         replicaHistoryItem.Mode,
@@ -88,7 +88,7 @@ TString ToString(const TReplicaInfo& replicaInfo)
 
 void FormatValue(TStringBuilderBase* builder, const TReplicationCard& replicationCard, TStringBuf /*spec*/)
 {
-    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %x, CollocationId: %v}",
+    builder->AppendFormat("{Era: %v, Replicas: %v, CoordinatorCellIds: %v, TableId: %v, TablePath: %v, TableClusterName: %v, CurrentTimestamp: %v, CollocationId: %v}",
         replicationCard.Era,
         replicationCard.Replicas,
         replicationCard.CoordinatorCellIds,

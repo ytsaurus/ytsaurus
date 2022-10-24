@@ -479,7 +479,7 @@ public:
 
         YT_VERIFY(table->Replicas().insert(replica).second);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %x)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %v)",
             table->GetId(),
             replica->GetId(),
             mode,
@@ -6170,7 +6170,7 @@ private:
         PopulateTableReplicaInfoFromStatistics(replicaInfo, request->statistics());
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica statistics updated (TabletId: %v, ReplicaId: %v, "
-            "CommittedReplicationRowIndex: %v, CurrentReplicationTimestamp: %x)",
+            "CommittedReplicationRowIndex: %v, CurrentReplicationTimestamp: %v)",
             tabletId,
             replicaId,
             replicaInfo->GetCommittedReplicationRowIndex(),
@@ -7382,7 +7382,7 @@ private:
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tablet stores update committed (TransactionId: %v, TableId: %v, TabletId: %v, "
             "AttachedChunkIds: %v, DetachedChunkOrViewIds: %v, "
-            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %x, UpdateReason: %v)",
+            "AttachedRowCount: %v, DetachedRowCount: %v, RetainedTimestamp: %v, UpdateReason: %v)",
             transaction->GetId(),
             table->GetId(),
             tablet->GetId(),

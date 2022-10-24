@@ -300,7 +300,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
             << TErrorAttribute("fan_in_limit", tabletSnapshot->Settings.MountConfig->MaxReadFanIn);
     }
 
-    YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %x, "
+    YT_LOG_DEBUG("Creating schemaful sorted tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, "
         "LowerBound: %v, UpperBound: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v, BoundCount: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -558,7 +558,7 @@ ISchemafulUnversionedReaderPtr CreateSchemafulPartitionReader(
     takeStores(tabletSnapshot->GetEdenStores());
     takeStores(partitionSnapshot->Stores);
 
-    YT_LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %x, WorkloadDescriptor: %v, "
+    YT_LOG_DEBUG("Creating schemaful tablet reader (TabletId: %v, CellId: %v, Timestamp: %v, WorkloadDescriptor: %v, "
         " ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
@@ -722,7 +722,7 @@ IVersionedReaderPtr CreateCompactionTabletReader(
 
     YT_LOG_DEBUG(
         "Creating versioned tablet reader (TabletId: %v, CellId: %v, LowerBound: %v, UpperBound: %v, "
-        "CurrentTimestamp: %x, MajorTimestamp: %x, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
+        "CurrentTimestamp: %v, MajorTimestamp: %v, WorkloadDescriptor: %v, ReadSessionId: %v, StoreIds: %v, StoreRanges: %v)",
         tabletSnapshot->TabletId,
         tabletSnapshot->CellId,
         lowerBound,
