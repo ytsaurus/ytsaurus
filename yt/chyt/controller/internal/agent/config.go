@@ -11,9 +11,9 @@ type Config struct {
 	Root ypath.Path `yson:"root"`
 
 	// PassPeriod defines how often agent performs its passes.
-	PassPeriod yson.Duration `yson:"pass_period"`
+	PassPeriod *yson.Duration `yson:"pass_period"`
 	// RevisionCollectPeriod defines how often agent collects Cypress node revisions via batch ListNode.
-	RevisionCollectPeriod yson.Duration `yson:"revision_collect_period"`
+	RevisionCollectPeriod *yson.Duration `yson:"revision_collect_period"`
 
 	// Stage of the controller, e.g. production, prestable, etc.
 	Stage string `yson:"stage"`
@@ -21,4 +21,23 @@ type Config struct {
 	// RobotUsername is the name of the robot from which all the operations are started.
 	// It is used to check permission to the pool during seting "pool" option.
 	RobotUsername string `yson:"robot_username"`
+}
+
+const (
+	PassPeriodDefault            = yson.Duration(5000)
+	RevisionCollectPeriodDefault = yson.Duration(5000)
+)
+
+func (c *Config) PassPeriodOrDefault() yson.Duration {
+	if c.PassPeriod != nil {
+		return *c.PassPeriod
+	}
+	return PassPeriodDefault
+}
+
+func (c *Config) RevisionCollectPeriodOrDefault() yson.Duration {
+	if c.RevisionCollectPeriod != nil {
+		return *c.RevisionCollectPeriod
+	}
+	return RevisionCollectPeriodDefault
 }
