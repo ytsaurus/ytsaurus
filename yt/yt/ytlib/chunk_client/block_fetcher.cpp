@@ -42,7 +42,7 @@ TBlockFetcher::TBlockFetcher(
     , BlockCache_(std::move(blockCache))
     , SessionInvoker_(std::move(sessionInvoker))
     , CompressionInvoker_(SessionInvoker_ ? SessionInvoker_ : GetCompressionInvoker(chunkReadOptions.WorkloadDescriptor))
-    , ReaderInvoker_(SessionInvoker_ ? SessionInvoker_ : CreateSerializedInvoker(TDispatcher::Get()->GetReaderInvoker()))
+    , ReaderInvoker_(CreateSerializedInvoker(SessionInvoker_ ? SessionInvoker_ : TDispatcher::Get()->GetReaderInvoker()))
     , CompressionRatio_(compressionRatio)
     , MemoryManager_(std::move(memoryManager))
     , Codec_(NCompression::GetCodec(codecId))

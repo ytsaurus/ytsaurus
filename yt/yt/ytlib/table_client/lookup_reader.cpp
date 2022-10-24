@@ -177,7 +177,7 @@ private:
             OverrideTimestamp_,
             EnablePeerProbing_,
             EnableRejectsIfThrottling_,
-	    GetCurrentInvoker())
+	        GetCurrentInvoker())
             .Apply(BIND(&TVersionedLookupReader::OnRowsLookuped, MakeStrong(this)));
     }
 
