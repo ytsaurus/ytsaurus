@@ -230,7 +230,7 @@ public:
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Replication transaction overlaps backup checkpoint timestamp, aborting backup "
-            "(%v, StartTimestamp: %x, CheckpointTimestamp: %x, CommitTimestamp: %x)",
+            "(%v, StartTimestamp: %v, CheckpointTimestamp: %v, CommitTimestamp: %v)",
             tablet->GetLoggingTag(),
             transaction->GetStartTimestamp(),
             checkpointTimestamp,
@@ -401,7 +401,7 @@ private:
         tablet->CheckedSetBackupStage(EBackupStage::None, EBackupStage::TimestampReceived);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Backup checkpoint set (TabletId: %v, CheckpointTimestamp: %x, BackupMode: %v, "
+            "Backup checkpoint set (TabletId: %v, CheckpointTimestamp: %v, BackupMode: %v, "
             "BackupableReplicaIds: %v)",
             tabletId,
             timestamp,
@@ -501,7 +501,7 @@ private:
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Persistently confirmed backup checkpoint feasibility "
-                "(TabletId: %v, CheckpointTimestamp: %x)",
+                "(TabletId: %v, CheckpointTimestamp: %v)",
                 tablet->GetId(),
                 timestamp);
 
@@ -527,7 +527,7 @@ private:
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Persistently rejected backup checkpoint feasibility "
-                "(TabletId: %v, CheckpointTimestamp: %x)",
+                "(TabletId: %v, CheckpointTimestamp: %v)",
                 tablet->GetId(),
                 tablet->GetBackupCheckpointTimestamp());
 
@@ -664,7 +664,7 @@ private:
 
             if (tablet->GetBackupCheckpointTimestamp() > currentTimestamp) {
                 YT_LOG_DEBUG("Transiently confirmed backup checkpoint feasibility "
-                    "(TabletId: %v, CheckpointTimestamp: %x, ClockClusterTag: %v)",
+                    "(TabletId: %v, CheckpointTimestamp: %v, ClockClusterTag: %v)",
                     tablet->GetId(),
                     tablet->GetBackupCheckpointTimestamp(),
                     clusterTag);
@@ -674,7 +674,7 @@ private:
                 confirmedInfo->set_timestamp(tablet->GetBackupCheckpointTimestamp());
             } else {
                 YT_LOG_DEBUG("Transiently rejected backup checkpoint feasibility "
-                    "(TabletId: %v, CheckpointTimestamp: %x, CurrentTimestamp: %x, "
+                    "(TabletId: %v, CheckpointTimestamp: %v, CurrentTimestamp: %v, "
                     "ClusterTag: %v)",
                     tablet->GetId(),
                     tablet->GetBackupCheckpointTimestamp(),
@@ -989,7 +989,7 @@ private:
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                 "Reported backup checkpoint passage by barrier timestamp "
-                "(TabletId: %v, CheckpointTimestamp: %x, BarrierTimestamp: %x)",
+                "(TabletId: %v, CheckpointTimestamp: %v, BarrierTimestamp: %v)",
                 tablet->GetId(),
                 tablet->GetBackupCheckpointTimestamp(),
                 barrierTimestamp);
@@ -1029,8 +1029,8 @@ private:
 
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Reported backup checkpoint passage due to a transaction "
-                    "with later timestamp (%v, CheckpointTimestamp: %x, "
-                    "NextTransactionCommitTimestamp: %x)",
+                    "with later timestamp (%v, CheckpointTimestamp: %v, "
+                    "NextTransactionCommitTimestamp: %v)",
                     tablet->GetLoggingTag(),
                     checkpointTimestamp,
                     commitTimestamp);
@@ -1038,8 +1038,8 @@ private:
             } else if (tablet->GetBackupStage() == EBackupStage::TimestampReceived) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Rejected backup checkpoint timestamp due to a transaction "
-                    "with later timestamp (%v, CheckpointTimestamp: %x, "
-                    "CommitTimestamp: %x)",
+                    "with later timestamp (%v, CheckpointTimestamp: %v, "
+                    "CommitTimestamp: %v)",
                     tablet->GetLoggingTag(),
                     checkpointTimestamp,
                     commitTimestamp);

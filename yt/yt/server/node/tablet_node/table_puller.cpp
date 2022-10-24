@@ -357,7 +357,7 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*replicationProgress);
         auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
         if (historyItemIndex == -1) {
-            YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %x, History: %v)",
+            YT_LOG_DEBUG("Will not pull rows since replica history does not cover replication progress (OldestTimestamp: %v, History: %v)",
                 oldestTimestamp,
                 selfReplica->History);
             return {};
@@ -366,7 +366,7 @@ private:
         YT_VERIFY(historyItemIndex >= 0 && historyItemIndex < std::ssize(selfReplica->History));
         const auto& historyItem = selfReplica->History[historyItemIndex];
         if (IsReplicaReallySync(historyItem.Mode, historyItem.State)) {
-            YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %x, HistoryItem: %v)",
+            YT_LOG_DEBUG("Will not pull rows since oldest progress timestamp corresponds to sync history item (OldestTimestamp: %v, HistoryItem: %v)",
                 oldestTimestamp,
                 historyItem);
             return {};
@@ -453,7 +453,7 @@ private:
         }
 
         if (auto [queueReplicaId, queueReplicaInfo, upperTimestamp] = findSyncQueueReplica(); queueReplicaInfo) {
-            YT_LOG_DEBUG("Pull rows from sync replica (ReplicaId: %v, OldestTimestamp: %x, UpperTimestamp: %x)",
+            YT_LOG_DEBUG("Pull rows from sync replica (ReplicaId: %v, OldestTimestamp: %v, UpperTimestamp: %v)",
                 queueReplicaId,
                 oldestTimestamp,
                 upperTimestamp);
@@ -507,7 +507,7 @@ private:
             options.OrderRowsByTimestamp = selfReplica->ContentType == ETableReplicaContentType::Queue;
             options.TableSchema = TableSchema_;
 
-            YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %x)",
+            YT_LOG_DEBUG("Pulling rows (ClusterName: %v, ReplicaPath: %v, ReplicationProgress: %v, ReplicationRowIndexes: %v, UpperTimestamp: %v)",
                 clusterName,
                 replicaPath,
                 options.ReplicationProgress,
@@ -552,7 +552,7 @@ private:
                     row.BeginKeys(),
                     row.EndKeys());
                 if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
-                    YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
+                    YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
                         rowTimestamp,
                         progressTimestamp,
                         row,
@@ -582,7 +582,7 @@ private:
                         *timestampColumnIndex);
                 }
                 if (auto rowTimestamp = row[*timestampColumnIndex].Data.Uint64; progressTimestamp >= rowTimestamp) {
-                    YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %x, ProgressTimestamp: %x, Row: %v, Progress: %v)",
+                    YT_LOG_ALERT("Received inappropriate timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
                         rowTimestamp,
                         progressTimestamp,
                         row,
@@ -676,12 +676,12 @@ private:
                 PivotKey_.Get(),
                 NextPivotKey_.Get());
 
-            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %x, HistoryMinTimestamp: %x)",
+            YT_LOG_DEBUG("Checking that replica has been added in non-catchup mode (ReplicationCardMinProgressTimestamp: %v, HistoryMinTimestamp: %v)",
                 progressTimestamp,
                 historyTimestamp);
 
             if (progressTimestamp == historyTimestamp && progressTimestamp != MinTimestamp) {
-                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %x)",
+                YT_LOG_DEBUG("Advance replication progress to first history item. (ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
                     static_cast<TReplicationProgress>(*progress),
                     selfReplica,
                     historyTimestamp);
@@ -707,13 +707,13 @@ private:
         auto oldestTimestamp = GetReplicationProgressMinTimestamp(*progress);
         auto historyItemIndex = selfReplica->FindHistoryItemIndex(oldestTimestamp);
 
-        YT_LOG_DEBUG("Rplica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %x, HistoryItemIndex: %v)",
+        YT_LOG_DEBUG("Rplica is in pulling mode, consider jumping (ReplicaMode: %v, OldestTimestmap: %v, HistoryItemIndex: %v)",
             ETabletWriteMode::Pull,
             oldestTimestamp,
             historyItemIndex);
 
         if (historyItemIndex == -1) {
-            YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %x)",
+            YT_LOG_WARNING("Invalid replication card: replica history does not cover its progress (ReplicationProgress: %v, Replica: %v, Timestamp: %v)",
                 static_cast<TReplicationProgress>(*progress),
                 *selfReplica,
                 oldestTimestamp);
@@ -728,7 +728,7 @@ private:
                     return {};
                 }
 
-                YT_LOG_DEBUG("Advance replication progress to next era (Era: %v, Timestamp: %x)",
+                YT_LOG_DEBUG("Advance replication progress to next era (Era: %v, Timestamp: %v)",
                     selfReplica->History[historyItemIndex].Era,
                     selfReplica->History[historyItemIndex].Timestamp);
                 return AdvanceReplicationProgress(

@@ -189,7 +189,7 @@ private:
         auto result = CurrentTimestamp_;
         CurrentTimestamp_ += count;
 
-        context->SetResponseInfo("Timestamp: %x", result);
+        context->SetResponseInfo("Timestamp: %v", result);
 
         context->Response().set_timestamp(result);
         context->Reply();
@@ -236,7 +236,7 @@ private:
 
         auto proposedTimestamp = TimestampFromUnixTime(clockUnixTime + Config_->TimestampPreallocationInterval.Seconds());
 
-        YT_LOG_DEBUG("Timestamp calibrated (CurrentTimestamp: %x, ProposedTimestamp: %x)",
+        YT_LOG_DEBUG("Timestamp calibrated (CurrentTimestamp: %v, ProposedTimestamp: %v)",
             CurrentTimestamp_,
             proposedTimestamp);
 
@@ -264,7 +264,7 @@ private:
 
         CommittedTimestamp_ = std::max(CommittedTimestamp_, timestamp);
 
-        YT_LOG_DEBUG("Timestamp committed (CommittedTimestamp: %x)",
+        YT_LOG_DEBUG("Timestamp committed (CommittedTimestamp: %v)",
             CommittedTimestamp_);
     }
 
@@ -297,7 +297,7 @@ private:
 
         TCompositeAutomatonPart::OnLeaderActive();
 
-        YT_LOG_INFO("Activating timestamp generator (PersistentTimestamp: %x)",
+        YT_LOG_INFO("Activating timestamp generator (PersistentTimestamp: %v)",
             PersistentTimestamp_);
 
         auto persistentTimestamp = PersistentTimestamp_;
@@ -316,7 +316,7 @@ private:
                 CurrentTimestamp_ = EmbedCellTagIntoTimestamp(CurrentTimestamp_, CellTag_);
             }
 
-            YT_LOG_INFO("Timestamp generator is now active (PersistentTimestamp: %x)",
+            YT_LOG_INFO("Timestamp generator is now active (PersistentTimestamp: %v)",
                 persistentTimestamp);
         }).Via(invoker);
 
@@ -360,7 +360,7 @@ private:
 
         PersistentTimestamp_ = request->timestamp();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Persistent timestamp updated (Timestamp: %x)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Persistent timestamp updated (Timestamp: %v)",
             PersistentTimestamp_);
     }
 

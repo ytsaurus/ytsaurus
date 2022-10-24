@@ -2516,7 +2516,7 @@ TPullRowsResult TClient::DoPullRows(
         THROW_ERROR_EXCEPTION("Invalid replication progress: more than one segment while ordering by timestamp requested");
     }
 
-    YT_LOG_DEBUG("Pulling rows (OrderedByTimestamp: %x, UpperTimestamp: %x, Progress: %v, StartRowIndexes: %v, Sorted: %v)",
+    YT_LOG_DEBUG("Pulling rows (OrderedByTimestamp: %v, UpperTimestamp: %v, Progress: %v, StartRowIndexes: %v, Sorted: %v)",
         options.OrderRowsByTimestamp,
         options.UpperTimestamp,
         options.ReplicationProgress,

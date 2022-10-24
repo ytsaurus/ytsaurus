@@ -164,7 +164,7 @@ public:
             RunPrepareTransactionActions(transaction, options);
 
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction commit prepared (TransactionId: %v, "
-                "PrepareTimestamp: %x@%v)",
+                "PrepareTimestamp: %v@%v)",
                 transactionId,
                 options.PrepareTimestamp,
                 options.PrepareTimestampClusterTag);
@@ -229,7 +229,7 @@ public:
         RunCommitTransactionActions(transaction, options);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Transaction committed (TransactionId: %v, CommitTimestamp: %x@%v)",
+            "Transaction committed (TransactionId: %v, CommitTimestamp: %v@%v)",
             transactionId,
             options.CommitTimestamp,
             options.CommitTimestampClusterTag);
@@ -392,7 +392,7 @@ private:
             auto state = transaction->GetPersistentState();
 
             YT_LOG_FATAL_IF(state != transaction->GetTransientState(),
-                "Found transaction in unexpected state (TransactionId: %v, PersistentState: %v, TransientState: %v, StartTimestatmp: %x)",
+                "Found transaction in unexpected state (TransactionId: %v, PersistentState: %v, TransientState: %v, StartTimestatmp: %v)",
                 transactionId,
                 state,
                 transaction->GetTransientState(),
@@ -553,7 +553,7 @@ private:
             CreateLease(transaction);
         }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, StartTimestamp: %x, StartTime: %v, "
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction started (TransactionId: %v, StartTimestamp: %v, StartTime: %v, "
             "Timeout: %v)",
             transactionId,
             startTimestamp,

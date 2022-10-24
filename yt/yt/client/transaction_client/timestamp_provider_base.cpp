@@ -63,7 +63,7 @@ TFuture<TTimestamp> TTimestampProviderBase::OnGenerateTimestamps(
     auto firstTimestamp = timestampOrError.Value();
     auto lastTimestamp = firstTimestamp + count - 1;
 
-    YT_LOG_DEBUG("Fresh timestamps generated (Timestamps: %x-%x)",
+    YT_LOG_DEBUG("Fresh timestamps generated (Timestamps: %v-%v)",
         firstTimestamp,
         lastTimestamp);
 
@@ -88,7 +88,7 @@ void TTimestampProviderBase::UpdateLatestTimestamp()
     GenerateTimestamps(1).Subscribe(
         BIND([] (const TErrorOr<TTimestamp>& timestampOrError) {
             if (timestampOrError.IsOK()) {
-                YT_LOG_DEBUG("Latest timestamp updated (Timestamp: %x)",
+                YT_LOG_DEBUG("Latest timestamp updated (Timestamp: %v)",
                     timestampOrError.Value());
             } else {
                 YT_LOG_WARNING(timestampOrError, "Error updating latest timestamp");

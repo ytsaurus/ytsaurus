@@ -95,7 +95,7 @@ TPreloadStatistics& TPreloadStatistics::operator+=(const TPreloadStatistics& oth
 void ValidateTabletRetainedTimestamp(const TTabletSnapshotPtr& tabletSnapshot, TTimestamp timestamp)
 {
     if (timestamp < tabletSnapshot->RetainedTimestamp) {
-        THROW_ERROR_EXCEPTION("Timestamp %x is less than tablet %v retained timestamp %x",
+        THROW_ERROR_EXCEPTION("Timestamp %v is less than tablet %v retained timestamp %v",
             timestamp,
             tabletSnapshot->TabletId,
             tabletSnapshot->RetainedTimestamp);

@@ -73,7 +73,7 @@ private:
         auto transactionStartTimestamp = request->transaction_start_timestamp();
         auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
 
-        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %x, TransactionTimeout: %v, ActionCount: %v",
+        context->SetRequestInfo("TransactionId: %v, TransactionStartTimestamp: %v, TransactionTimeout: %v, ActionCount: %v",
             transactionId,
             transactionStartTimestamp,
             transactionTimeout,

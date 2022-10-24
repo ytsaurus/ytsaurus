@@ -766,7 +766,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
 
         YT_LOG_DEBUG("Sorted store flush started (StoreId: %v, MergeRowsOnFlush: %v, "
             "MergeDeletionsOnFlush: %v, RetentionConfig: %v, HaveRowCache: %v, "
-            "CurrentRetainedTimestamp: %x, NewRetainedTimestamp: %x, StoreFlushIndex: %v)",
+            "CurrentRetainedTimestamp: %v, NewRetainedTimestamp: %v, StoreFlushIndex: %v)",
             store->GetId(),
             mergeRowsOnFlush,
             mountConfig->MergeDeletionsOnFlush,

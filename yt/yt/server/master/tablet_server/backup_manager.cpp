@@ -97,7 +97,7 @@ public:
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %x, "
+            "Setting backup checkpoint (TableId: %v, TransactionId: %v, CheckpointTimestamp: %v, "
             "BackupMode: %v, ClockClusterTag: %v, BackupableReplicaIds: %v)",
             table->GetId(),
             transaction->GetId(),
@@ -546,7 +546,7 @@ private:
             } else {
                 table = tablet->GetTable();
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %x, BackupMode: %v)",
+                    "Finishing table backup (TableId: %v, TransactionId: %v, Timestamp: %v, BackupMode: %v)",
                     table->GetId(),
                     transactionId,
                     table->GetBackupCheckpointTimestamp(),

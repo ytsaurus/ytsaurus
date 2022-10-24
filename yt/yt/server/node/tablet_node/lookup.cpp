@@ -402,13 +402,13 @@ protected:
             auto cachedItem = GetLatestRow(cachedItemHead);
 
             if (Timestamp_ < cachedItem->RetainedTimestamp) {
-                THROW_ERROR_EXCEPTION("Timestamp %x is less than retained timestamp %x of cached row in tablet %v",
+                THROW_ERROR_EXCEPTION("Timestamp %v is less than retained timestamp %v of cached row in tablet %v",
                     Timestamp_,
                     cachedItem->RetainedTimestamp,
                     TabletId_);
             }
 
-            YT_LOG_TRACE("Using row from cache (CacheRow: %v, Revision: %v, ReadTimestamp: %x)",
+            YT_LOG_TRACE("Using row from cache (CacheRow: %v, Revision: %v, ReadTimestamp: %v)",
                 cachedItem->GetVersionedRow(),
                 cachedItem->Revision.load(),
                 Timestamp_);
@@ -614,7 +614,7 @@ private:
         auto compactionTimestamp = NTransactionClient::InstantToTimestamp(
             NTransactionClient::TimestampToInstant(retainedTimestamp).first + mountConfig->MinDataTtl).first;
 
-        YT_LOG_DEBUG("Creating row merger for row cache (CompactionTimestamp: %x)",
+        YT_LOG_DEBUG("Creating row merger for row cache (CompactionTimestamp: %v)",
             compactionTimestamp);
 
         return compactionTimestamp;

@@ -1541,7 +1541,7 @@ private:
 
             YT_LOG_INFO("Eden partitioning started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "PartitionCount: %v, CompressedDataSize: %v, "
-                "ChunkCount: %v, CurrentTimestamp: %x, RetentionConfig: %v)",
+                "ChunkCount: %v, CurrentTimestamp: %v, RetentionConfig: %v)",
                 task->Slack,
                 task->FutureEffect,
                 task->Effect,
@@ -1923,7 +1923,7 @@ private:
 
             YT_LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "RowCount: %v, CompressedDataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %x, MajorTimestamp: %x, RetainedTimestamp: %x, RetentionConfig: %v)",
+                "CurrentTimestamp: %v, MajorTimestamp: %v, RetainedTimestamp: %v, RetentionConfig: %v)",
                 task->Slack,
                 task->FutureEffect,
                 task->Effect,

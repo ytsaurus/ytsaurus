@@ -1087,7 +1087,7 @@ private:
                 auto* response = &context->Response();
                 response->set_timestamp(timestamp);
 
-                context->SetResponseInfo("Timestamp: %x@%v",
+                context->SetResponseInfo("Timestamp: %v@%v",
                     timestamp,
                     clockClusterTag);
             });
@@ -1133,7 +1133,7 @@ private:
 
         context->SetRequestInfo("TransactionType: %v, TransactionId: %v, ParentId: %v, PrerequisiteTransactionIds: %v, "
             "Timeout: %v, Deadline: %v, AutoAbort: %v, "
-            "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v, StartTimestamp: %x",
+            "Sticky: %v, Ping: %v, PingAncestors: %v, Atomicity: %v, Durability: %v, StartTimestamp: %v",
             transactionType,
             options.Id,
             options.ParentId,
@@ -1165,7 +1165,7 @@ private:
                     StickyTransactionPool_->RegisterTransaction(transaction);
                 }
 
-                context->SetResponseInfo("TransactionId: %v, StartTimestamp: %x",
+                context->SetResponseInfo("TransactionId: %v, StartTimestamp: %v",
                     transaction->GetId(),
                     transaction->GetStartTimestamp());
             });
@@ -1230,7 +1230,7 @@ private:
                 ToProto(response->mutable_commit_timestamps(), result.CommitTimestamps);
                 response->set_primary_commit_timestamp(result.PrimaryCommitTimestamp);
 
-                context->SetResponseInfo("PrimaryCommitTimestamp: %x, CommitTimestamps: %v",
+                context->SetResponseInfo("PrimaryCommitTimestamp: %v, CommitTimestamps: %v",
                     result.PrimaryCommitTimestamp, result.CommitTimestamps);
             });
     }
@@ -3200,7 +3200,7 @@ private:
             &options,
             request->Attachments());
 
-        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %x, ReplicaConsistency: %v",
+        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
             request->path(),
             keys.Size(),
             options.Timestamp,
@@ -3261,7 +3261,7 @@ private:
             &options,
             request->Attachments());
 
-        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %x, ReplicaConsistency: %v",
+        context->SetRequestInfo("Path: %v, RowCount: %v, Timestamp: %v, ReplicaConsistency: %v",
             request->path(),
             keys.Size(),
             options.Timestamp,
@@ -3360,7 +3360,7 @@ private:
                 request->Attachments().size());
         }
 
-        context->SetRequestInfo("Timestamp: %x, ReplicaConsistency: %v, Subrequests: %v",
+        context->SetRequestInfo("Timestamp: %v, ReplicaConsistency: %v, Subrequests: %v",
             options.Timestamp,
             options.ReplicaConsistency,
             MakeFormattableView(
@@ -3484,7 +3484,7 @@ private:
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
 
-        context->SetRequestInfo("Query: %v, Timestamp: %x",
+        context->SetRequestInfo("Query: %v, Timestamp: %v",
             query,
             options.Timestamp);
 
@@ -3576,7 +3576,7 @@ private:
         SetTimeoutOptions(&options, context.Get());
         FillSelectRowsOptionsBaseFromRequest(request, &options);
 
-        context->SetRequestInfo("Query: %v, Timestamp: %x",
+        context->SetRequestInfo("Query: %v, Timestamp: %v",
             query,
             options.Timestamp);
 
@@ -3616,7 +3616,7 @@ private:
             ? std::make_optional(rowset->GetRows().Size())
             : std::nullopt;
 
-        context->SetRequestInfo("Path: %v, Timestamp: %x, KeyCount: %v",
+        context->SetRequestInfo("Path: %v, Timestamp: %v, KeyCount: %v",
             path,
             options.Timestamp,
             keyCount);

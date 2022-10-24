@@ -606,7 +606,7 @@ private:
         const auto& requestHeaderExt = context->RequestHeader().GetExtension(NQueryClient::NProto::TReqMultireadExt::req_multiread_ext);
         auto inMemoryMode = FromProto<EInMemoryMode>(requestHeaderExt.in_memory_mode());
 
-        context->SetRequestInfo("TabletIds: %v, Timestamp: %x, RetentionTimestamp: %x, RequestCodec: %v, ResponseCodec: %v, "
+        context->SetRequestInfo("TabletIds: %v, Timestamp: %v, RetentionTimestamp: %v, RequestCodec: %v, ResponseCodec: %v, "
             "ReadSessionId: %v, InMemoryMode: %v, RetentionConfig: %v",
             MakeFormattableView(request->tablet_ids(), [] (auto* builder, const auto& protoTabletId) {
                 FormatValue(builder, FromProto<TTabletId>(protoTabletId), TStringBuf());
@@ -716,7 +716,7 @@ private:
             .MaxRowsPerRead = request->max_rows_per_read()
         };
 
-        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %x, ResponseCodec: %v, ReadSessionId: %v)",
+        context->SetRequestInfo("TabletId: %v, StartReplicationRowIndex: %v, Progress: %v, UpperTimestamp: %v, ResponseCodec: %v, ReadSessionId: %v)",
             tabletId,
             startReplicationRowIndex,
             progress,
@@ -753,7 +753,7 @@ private:
                     upperTimestamp = NullTimestamp;
                 }
 
-                YT_LOG_DEBUG("Trying to get replication log batch for pull rows (ReplicationProgress: %v, UpperTimestamp: %x)",
+                YT_LOG_DEBUG("Trying to get replication log batch for pull rows (ReplicationProgress: %v, UpperTimestamp: %v)",
                     static_cast<NChaosClient::TReplicationProgress>(*replicationProgress),
                     upperTimestamp);
 
@@ -815,7 +815,7 @@ private:
                     endReplicationRowIndex = startReplicationRowIndex;
                 }
 
-                YT_LOG_DEBUG("Read replication batch (LastTimestamp: %x, ReadAllRows: %v, UpperTimestamp: %x, ProgressMinTimestamp: %x)",
+                YT_LOG_DEBUG("Read replication batch (LastTimestamp: %v, ReadAllRows: %v, UpperTimestamp: %v, ProgressMinTimestamp: %v)",
                     maxTimestamp,
                     readAllRows,
                     upperTimestamp,
@@ -938,7 +938,7 @@ private:
         auto cellId = FromProto<TCellId>(request->tablet_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
 
-        context->SetRequestInfo("StoreId: %v, TabletId: %v, CellId: %v, ReadSessionId: %v, Timestamp: %x",
+        context->SetRequestInfo("StoreId: %v, TabletId: %v, CellId: %v, ReadSessionId: %v, Timestamp: %v",
             storeId,
             tabletId,
             cellId,
@@ -1015,7 +1015,7 @@ private:
             };
 
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
-                "(TabletId: %v, StoreId: %v, Timestamp: %x, ReadSessionId: %v, "
+                "(TabletId: %v, StoreId: %v, Timestamp: %v, ReadSessionId: %v, "
                 "LowerBound: %v, UpperBound: %v, ColumnFilter: %v, RequestId: %v)",
                 tabletId,
                 storeId,
@@ -1624,7 +1624,7 @@ private:
                         *readAllRows = false;
 
                         YT_LOG_DEBUG("Stopped reading replication batch because upper timestamp has been reached "
-                            "(TabletId: %v, Timestamp: %x, UpperTimestamp: %x, LastTimestamp: %x)",
+                            "(TabletId: %v, Timestamp: %v, UpperTimestamp: %v, LastTimestamp: %v)",
                             tabletSnapshot->TabletId,
                             timestamp,
                             upperTimestamp,
@@ -1640,7 +1640,7 @@ private:
                         *readAllRows = false;
 
                         YT_LOG_DEBUG("Stopped reading replication batch because stopping conditions are met "
-                            "(TabletId: %v, Timestamp: %x, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, TimestampCountOverflow: %v",
+                            "(TabletId: %v, Timestamp: %v, ReadRowCountOverflow: %v, ReadDataWeightOverflow: %v, TimestampCountOverflow: %v",
                             tabletSnapshot->TabletId,
                             timestamp,
                             *batchRowCount >= mountConfig->MaxRowsPerReplicationCommit,

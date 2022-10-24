@@ -308,7 +308,7 @@ std::vector<TTableReplicaId> TClient::DoGetInSyncReplicas(
             : GetReplicatedTableInSyncReplicas(tableInfo, nameTable, keys, allKeys, options);
     }
 
-    YT_LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %x)",
+    YT_LOG_DEBUG("Got table in-sync replicas (TableId: %v, Replicas: %v, Timestamp: %v)",
         tableInfo->TableId,
         replicaIds,
         options.Timestamp);

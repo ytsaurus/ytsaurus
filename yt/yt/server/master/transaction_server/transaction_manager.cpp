@@ -593,7 +593,7 @@ public:
         auto time = timer.GetElapsedTime();
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %x@%v, WallTime: %v)",
+            "Transaction committed (TransactionId: %v, User: %v, CommitTimestamp: %v@%v, WallTime: %v)",
             transactionId,
             user->GetName(),
             options.CommitTimestamp,
@@ -1047,7 +1047,7 @@ public:
         }
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-            "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %x@%v)",
+            "Transaction commit prepared (TransactionId: %v, Persistent: %v, PrepareTimestamp: %v@%v)",
             transactionId,
             persistent,
             options.PrepareTimestamp,
