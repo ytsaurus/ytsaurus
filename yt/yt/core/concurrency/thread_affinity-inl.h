@@ -12,6 +12,8 @@ namespace NYT::NConcurrency {
 // Forward declaration.
 bool VerifyInvokerAffinity(const IInvokerPtr& invoker);
 
+bool VerifySerializedInvokerAffinity(const IInvokerPtr& invoker);
+
 template <class T>
 bool VerifyInvokersAffinity(const T& invokers)
 {

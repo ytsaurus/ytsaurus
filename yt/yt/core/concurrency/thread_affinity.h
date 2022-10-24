@@ -69,6 +69,9 @@ private:
 #define VERIFY_INVOKER_AFFINITY(invoker) \
     YT_VERIFY(::NYT::NConcurrency::VerifyInvokerAffinity(invoker))
 
+#define VERIFY_SERIALIZED_INVOKER_AFFINITY(invoker) \
+    YT_VERIFY(::NYT::NConcurrency::VerifySerializedInvokerAffinity(invoker))
+
 #define VERIFY_INVOKERS_AFFINITY(...) \
     YT_VERIFY(::NYT::NConcurrency::VerifyInvokersAffinity(__VA_ARGS__))
 
@@ -87,6 +90,7 @@ private:
 #define VERIFY_READER_SPINLOCK_AFFINITY(spinLock)        do { } while (false)
 #define VERIFY_WRITER_SPINLOCK_AFFINITY(spinLock)        do { } while (false)
 #define VERIFY_INVOKER_AFFINITY(invoker)                 do { } while (false)
+#define VERIFY_SERIALIZED_INVOKER_AFFINITY(invoker)      do { } while (false)
 #define VERIFY_INVOKERS_AFFINITY(...)                    do { } while (false)
 #define VERIFY_INVOKER_POOL_AFFINITY(invokerPool)        do { } while (false)
 #define VERIFY_INVOKER_THREAD_AFFINITY(invoker, slot)    do { } while (false)

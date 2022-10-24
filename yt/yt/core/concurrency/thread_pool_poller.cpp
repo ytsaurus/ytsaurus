@@ -766,6 +766,11 @@ private:
             return true;
         }
 
+        bool IsSerialized() const override
+        {
+            return false;
+        }
+
     private:
         const TIntrusivePtr<NThreading::TEventCount> HandlerEventCount_;
 

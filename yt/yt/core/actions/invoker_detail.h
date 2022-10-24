@@ -16,6 +16,7 @@ public:
 
     NConcurrency::TThreadId GetThreadId() const override;
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
+    bool IsSerialized() const override;
 
 protected:
     explicit TInvokerWrapper(IInvokerPtr underlyingInvoker);

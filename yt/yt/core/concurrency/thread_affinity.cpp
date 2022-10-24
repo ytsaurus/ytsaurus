@@ -36,6 +36,13 @@ bool VerifyInvokerAffinity(const IInvokerPtr& invoker)
         invoker->CheckAffinity(currentInvoker);
 }
 
+bool VerifySerializedInvokerAffinity(const IInvokerPtr& invoker)
+{
+    return
+        VerifyInvokerAffinity(invoker) &&
+        invoker->IsSerialized();
+}
+
 bool VerifyInvokerPoolAffinity(const IInvokerPoolPtr& invokerPool)
 {
     for (int index = 0; index < invokerPool->GetSize(); ++index) {

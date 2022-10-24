@@ -131,6 +131,11 @@ public:
         TrySchedule(std::move(guard));
     }
 
+    bool IsSerialized() const override
+    {
+        return true;
+    }
+
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
     TRingQueue<TClosure> Queue_;

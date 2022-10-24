@@ -50,6 +50,8 @@ public:
 
     bool IsEmpty() const;
 
+    bool HasSingleConsumer() const;
+
 private:
     moodycamel::ConcurrentQueue<TEnqueuedAction> Queue_;
     std::atomic<int> Size_ = 0;
@@ -71,6 +73,8 @@ public:
     TConsumerToken MakeConsumerToken();
 
     bool IsEmpty() const;
+
+    bool HasSingleConsumer() const;
 
 private:
     TMpscQueue<TEnqueuedAction> Queue_;
@@ -109,6 +113,7 @@ public:
 
     TThreadId GetThreadId() const override;
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
+    bool IsSerialized() const override;
 
     void Shutdown();
 

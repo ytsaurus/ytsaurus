@@ -27,6 +27,11 @@ bool TInvokerWrapper::CheckAffinity(const IInvokerPtr& invoker) const
         UnderlyingInvoker_->CheckAffinity(invoker);
 }
 
+bool TInvokerWrapper::IsSerialized() const
+{
+    return UnderlyingInvoker_->IsSerialized();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
