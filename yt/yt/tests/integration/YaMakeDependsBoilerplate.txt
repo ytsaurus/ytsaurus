@@ -15,8 +15,13 @@ DEPENDS(
 #proxies
 DEPENDS(
     yt/yt/tests/integration/fake_blackbox
-    passport/infra/daemons/tvmtool/cmd
 )
+
+IF (NOT OPENSOURCE)
+    DEPENDS(
+        passport/infra/daemons/tvmtool/cmd
+    )
+ENDIF()
 
 DEPENDS(
     yt/yt/tools/prepare_scheduling_usage
