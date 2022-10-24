@@ -268,7 +268,8 @@ void ValidateClientDataRow(
     TVersionedRow row,
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
-    const TNameTablePtr& nameTable);
+    const TNameTablePtr& nameTable,
+    bool allowMissingKeyColumns = false);
 
 //! Checks that #row contains no duplicate value columns and that each required column
 //! contains a value for each known write timestamp.

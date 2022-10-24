@@ -773,6 +773,8 @@ TInsertRowsCommand::TInsertRowsCommand()
         .Default(false);
     RegisterParameter("aggregate", Aggregate)
         .Default(false);
+    RegisterParameter("allow_missing_key_columns", Options.AllowMissingKeyColumns)
+        .Default(false);
 }
 
 void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
@@ -804,6 +806,7 @@ void TInsertRowsCommand::DoExecute(ICommandContextPtr context)
         typeConversionConfig);
     valueConsumer.SetAggregate(Aggregate);
     valueConsumer.SetTreatMissingAsNull(!Update);
+    valueConsumer.SetAllowMissingKeyColumns(Options.AllowMissingKeyColumns);
 
     auto rows = ParseRows(context, &valueConsumer);
     auto rowBuffer = New<TRowBuffer>(TInsertRowsBufferTag());

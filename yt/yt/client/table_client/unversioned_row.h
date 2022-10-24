@@ -432,7 +432,8 @@ void ValidateClientDataRow(
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
-    std::optional<int> tabletIndexColumnId = std::optional<int>());
+    std::optional<int> tabletIndexColumnId = std::nullopt,
+    bool allowMissingKeyColumns = false);
 
 //! Checks that #row contains no duplicate non-key columns and that all required columns are present. Skip values that map to negative ids via #idMapping.
 /*! It is assumed that ValidateClientDataRow was called before. */

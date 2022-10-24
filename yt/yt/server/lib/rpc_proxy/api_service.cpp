@@ -3817,6 +3817,9 @@ private:
         if (request.has_upstream_replica_id()) {
             FromProto(&options.UpstreamReplicaId, request.upstream_replica_id());
         }
+        if (request.has_allow_missing_key_columns()) {
+            options.AllowMissingKeyColumns = request.allow_missing_key_columns();
+        }
 
         if (Config_.Load()->EnableModifyRowsRequestReordering &&
             request.has_sequence_number())

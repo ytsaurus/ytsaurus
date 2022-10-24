@@ -805,6 +805,7 @@ void ValidateClientRow(
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
     bool isKey,
+    bool allowMissingKeyColumns = false,
     std::optional<int> tabletIndexColumnId = std::nullopt)
 {
     if (!row) {
@@ -866,10 +867,12 @@ void ValidateClientRow(
         keyColumnSeen[mappedId] = true;
     }
 
-    for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
-        if (!keyColumnSeen[index] && !schema.Columns()[index].Expression()) {
-            THROW_ERROR_EXCEPTION("Missing key column %v",
-                schema.Columns()[index].GetDiagnosticNameString());
+    if (!allowMissingKeyColumns) {
+        for (int index = 0; index < schema.GetKeyColumnCount(); ++index) {
+            if (!keyColumnSeen[index] && !schema.Columns()[index].Expression()) {
+                THROW_ERROR_EXCEPTION("Missing key column %v",
+                    schema.Columns()[index].GetDiagnosticNameString());
+            }
         }
     }
 
@@ -1244,9 +1247,10 @@ void ValidateClientDataRow(
     const TTableSchema& schema,
     const TNameTableToSchemaIdMapping& idMapping,
     const TNameTablePtr& nameTable,
-    std::optional<int> tabletIndexColumnId)
+    std::optional<int> tabletIndexColumnId,
+    bool allowMissingKeyColumns)
 {
-    ValidateClientRow(row, schema, idMapping, nameTable, false, tabletIndexColumnId);
+    ValidateClientRow(row, schema, idMapping, nameTable, false, allowMissingKeyColumns, tabletIndexColumnId);
 }
 
 void ValidateDuplicateAndRequiredValueColumns(

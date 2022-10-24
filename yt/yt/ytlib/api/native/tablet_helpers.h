@@ -49,7 +49,8 @@ void ValidateTabletMounted(
 
 NTableClient::TNameTableToSchemaIdMapping BuildColumnIdMapping(
     const NTableClient::TTableSchema& schema,
-    const NTableClient::TNameTablePtr& nameTable);
+    const NTableClient::TNameTablePtr& nameTable,
+    bool allowKeyExtension = false);
 
 NTabletClient::TTabletInfoPtr GetSortedTabletForRow(
     const NTabletClient::TTableMountInfoPtr& tableInfo,

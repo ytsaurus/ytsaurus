@@ -2848,6 +2848,50 @@ class TestChaos(ChaosTestBase):
 
     @authors("savrus")
     @pytest.mark.parametrize("schemas", [
+        ("sorted_simple", "sorted_value2"),
+        ("sorted_simple", "sorted_key2"),
+    ])
+    @pytest.mark.parametrize("tablet_count", [1, 3])
+    @pytest.mark.parametrize("mode", ["sync", "async", "async_queue"])
+    def test_schema_compatibility(self, schemas, tablet_count, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        enabled = mode != "async_queue"
+        replica_mode = "sync" if mode == "sync" else "async"
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": replica_mode, "enabled": enabled, "replica_path": "//tmp/t"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": replica_mode, "enabled": False, "replica_path": "//tmp/q"},
+            {"cluster_name": "remote_1", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/r"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas, create_replica_tables=False, sync_replication_era=False)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        pivot_keys = [[]] + [[i] for i in range(1, tablet_count)]
+        schema1, schema2 = self._get_schemas_by_name(schemas)
+        self._create_replica_tables(replicas[:2], replica_ids[:2], schema=schema2, pivot_keys=pivot_keys)
+        self._create_replica_tables(replicas[2:], replica_ids[2:], schema=schema1, pivot_keys=pivot_keys)
+
+        self._sync_alter_replica(card_id, replicas, replica_ids, 1, enabled=True)
+
+        values = [{"key": i, "value": str(i)} for i in range(4)]
+        keys = [{"key": i} for i in range(4)]
+        insert_rows("//tmp/r", values, driver=remote_driver1, allow_missing_key_columns=True)
+
+        extra_columns = list(builtins.set([c["name"] for c in schema2]) - builtins.set([c["name"] for c in schema1]))
+        expected = deepcopy(values)
+        for value in expected:
+            value.update({c: None for c in extra_columns})
+
+        if mode == "async_queue":
+            self._sync_alter_replica(card_id, replicas, replica_ids, 1, mode="sync")
+            self._sync_alter_replica(card_id, replicas, replica_ids, 2, enabled=False)
+            self._sync_alter_replica(card_id, replicas, replica_ids, 0, enabled=True)
+
+        wait(lambda: lookup_rows("//tmp/t", keys) == expected)
+
+    @authors("savrus")
+    @pytest.mark.parametrize("schemas", [
         ("sorted_value2", "sorted_simple"),
         ("sorted_key2", "sorted_simple"),
         ("sorted_simple", "sorted_hash"),
