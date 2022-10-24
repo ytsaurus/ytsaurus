@@ -33,6 +33,9 @@ message TReplicateChunkJobSpecExt
     // Replica indexes are not used.
     // Medium indexes indicate destination medium.
     repeated fixed64 target_replicas = 6;
+
+    // True if the chunk is consistently placed and this job was scheduled through pull replication.
+    optional bool is_pull_replication_job = 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
