@@ -63,6 +63,11 @@ public:
         return invoker.Get() == this;
     }
 
+    bool IsSerialized() const override
+    {
+        return false;
+    }
+
     ~TBucket();
 
     TFairShareThreadPoolTag Tag;

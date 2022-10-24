@@ -22,9 +22,13 @@ struct IInvoker
     //! returns |InvalidThreadId|.
     virtual NConcurrency::TThreadId GetThreadId() const = 0;
 
-    //! Returns |true| if this invoker is either equal to #invoker or wraps it,
+    //! Returns true if this invoker is either equal to #invoker or wraps it,
     //! in some sense.
     virtual bool CheckAffinity(const IInvokerPtr& invoker) const = 0;
+
+    //! Returns true if invoker is serialized, i.e. never executes
+    //! two callbacks concurrently.
+    virtual bool IsSerialized() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInvoker)

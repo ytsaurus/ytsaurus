@@ -88,6 +88,11 @@ bool TMpmcQueueImpl::IsEmpty() const
     return Size_.load() <= 0;
 }
 
+bool TMpmcQueueImpl::HasSingleConsumer() const
+{
+    return false;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 Y_FORCE_INLINE void TMpscQueueImpl::Enqueue(TEnqueuedAction action)
@@ -118,6 +123,11 @@ TMpscQueueImpl::TConsumerToken TMpscQueueImpl::MakeConsumerToken()
 bool TMpscQueueImpl::IsEmpty() const
 {
     return Queue_.IsEmpty();
+}
+
+bool TMpscQueueImpl::HasSingleConsumer() const
+{
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -155,6 +165,15 @@ public:
     bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
+    }
+
+    bool IsSerialized() const override
+    {
+        if (auto queue = Queue_.Lock()) {
+            return queue->IsSerialized();
+        } else {
+            return true;
+        }
     }
 
 private:
@@ -275,6 +294,12 @@ template <class TQueueImpl>
 bool TInvokerQueue<TQueueImpl>::CheckAffinity(const IInvokerPtr& invoker) const
 {
     return invoker.Get() == this;
+}
+
+template <class TQueueImpl>
+bool TInvokerQueue<TQueueImpl>::IsSerialized() const
+{
+    return QueueImpl_.HasSingleConsumer();
 }
 
 template <class TQueueImpl>

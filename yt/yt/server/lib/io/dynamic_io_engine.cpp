@@ -204,6 +204,17 @@ private:
 
             return false;
         }
+
+        bool IsSerialized() const override
+        {
+            for (auto engine : State->Engines) {
+                if (engine && !engine->GetAuxPoolInvoker()->IsSerialized()) {
+                    return false;
+                }
+            }
+
+            return true;
+        }
     };
 
     TIntrusivePtr<TEngineState> State_;

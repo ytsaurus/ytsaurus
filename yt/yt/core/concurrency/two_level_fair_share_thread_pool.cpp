@@ -67,6 +67,11 @@ struct TBucket
         return invoker.Get() == this;
     }
 
+    bool IsSerialized() const override
+    {
+        return false;
+    }
+
     ~TBucket();
 
     const size_t PoolId;

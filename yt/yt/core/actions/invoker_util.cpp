@@ -63,6 +63,11 @@ public:
         return invoker.Get() == this;
     }
 
+    bool IsSerialized() const override
+    {
+        return true;
+    }
+
     TThreadId GetThreadId() const override
     {
         return InvalidThreadId;
@@ -97,6 +102,13 @@ public:
     bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override
     {
         return false;
+    }
+
+    bool IsSerialized() const override
+    {
+        // Null invoker never executes any callbacks,
+        // so formally it is serialized.
+        return true;
     }
 
     TThreadId GetThreadId() const override
