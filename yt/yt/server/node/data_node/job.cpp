@@ -159,7 +159,7 @@ void TMasterJobBase::Start()
     JobFuture_ = BIND(&TMasterJobBase::GuardedRun, MakeStrong(this))
         .AsyncVia(Bootstrap_->GetJobInvoker())
         .Run();
-    
+
     YT_VERIFY(GetPorts().empty());
 }
 
@@ -448,7 +448,7 @@ private:
 
         int sourceMediumIndex = JobSpecExt_.source_medium_index();
         auto targetReplicas = FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas());
-
+        auto isPullReplicationJob = JobSpecExt_.is_pull_replication_job();
         NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
 
         // Compute target medium index.
@@ -458,14 +458,16 @@ private:
         int targetMediumIndex = targetReplicas[0].GetMediumIndex();
         auto sessionId = TSessionId(ChunkId_, targetMediumIndex);
 
-        YT_LOG_INFO("Chunk replication job started (SourceMediumIndex: %v, TargetReplicas: %v)",
+        YT_LOG_INFO("Chunk replication job started (SourceMediumIndex: %v, TargetReplicas: %v, IsPullReplicationJob: %v)",
             sourceMediumIndex,
-            MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)));
+            MakeFormattableView(targetReplicas, TChunkReplicaAddressFormatter(NodeDirectory_)),
+            isPullReplicationJob);
 
         TWorkloadDescriptor workloadDescriptor;
         workloadDescriptor.Category = EWorkloadCategory::SystemReplication;
-        workloadDescriptor.Annotations.push_back(Format("Replication of chunk %v",
-            ChunkId_));
+        workloadDescriptor.Annotations.push_back(Format("Replication of chunk %v%v",
+            ChunkId_,
+            isPullReplicationJob ? " as a virtual pull" : ""));
 
         auto chunk = GetLocalChunkOrThrow(ChunkId_, sourceMediumIndex);
 

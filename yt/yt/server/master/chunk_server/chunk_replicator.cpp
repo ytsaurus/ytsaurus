@@ -139,6 +139,7 @@ public:
         auto* jobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
         jobSpecExt->set_source_medium_index(ChunkIdWithIndexes_.MediumIndex);
+        jobSpecExt->set_is_pull_replication_job(!!TargetNodeId_);
 
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
         for (auto replica : TargetReplicas_) {
@@ -1325,6 +1326,8 @@ bool TChunkReplicator::TryScheduleReplicationJob(
         return true;
     }
 
+    auto isPullReplicationJob = !!targetNodeId;
+
     auto finallyGuard = Finally([&] {
         if (job) {
             return;
@@ -1413,12 +1416,13 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     context->ScheduleJob(job);
 
     YT_LOG_DEBUG("Replication job scheduled "
-        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddresses: %v)",
+        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddresses: %v, IsPullReplicationJob: %v)",
         job->GetJobId(),
         job->GetJobEpoch(),
         sourceNode->GetDefaultAddress(),
         chunkWithIndexes,
-        MakeFormattableView(targetNodes, TNodePtrAddressFormatter()));
+        MakeFormattableView(targetNodes, TNodePtrAddressFormatter()),
+        isPullReplicationJob);
 
     if (targetNode) {
         replicasNeeded = 1;
