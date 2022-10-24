@@ -456,7 +456,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
      * Other setters are required.
      */
     static class HttpBuilder extends BaseBuilder<HttpBuilder> {
-        private static String ipV6RegEx  = "[0-9a-fA-F]{1,4}(:[0-9a-fA-F]{1,4}){7}";
+        private static String ipV6RegEx  = "[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}";
         @Nullable String balancerAddress;
 
         HttpBuilder setBalancerAddress(String host, int port) {
