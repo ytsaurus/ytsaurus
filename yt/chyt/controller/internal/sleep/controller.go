@@ -11,7 +11,11 @@ import (
 	"a.yandex-team.ru/yt/go/yt"
 )
 
-type Controller struct{}
+type Controller struct {
+	ytc                 yt.Client
+	root                ypath.Path
+	controllerParameter string
+}
 
 func (c Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
@@ -45,6 +49,23 @@ func (c Controller) NeedRestartOnSpecletChange(oldSpecletYson, newSpecletYson ys
 	return !reflect.DeepEqual(oldSpeclet, newSpeclet)
 }
 
+func (c *Controller) TryUpdate() (bool, error) {
+	var controllerParameter string
+	err := c.ytc.GetNode(context.Background(), c.root.Attr("controller_parameter"), &controllerParameter, nil)
+	if err != nil {
+		return false, err
+	}
+	if c.controllerParameter != controllerParameter {
+		c.controllerParameter = controllerParameter
+		return true, nil
+	}
+	return false, nil
+}
+
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {
-	return Controller{}
+	return &Controller{
+		ytc:                 ytc,
+		root:                root,
+		controllerParameter: "default",
+	}
 }

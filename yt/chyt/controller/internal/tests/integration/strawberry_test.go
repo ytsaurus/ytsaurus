@@ -420,3 +420,18 @@ func TestForceRestart(t *testing.T) {
 	setSpecletOption(t, env, "test9", "active", false)
 	waitAliases(t, env, []string{})
 }
+
+func TestControllerUpdate(t *testing.T) {
+	env, agent := helpers.PrepareAgent(t)
+	agent.Start()
+	defer agent.Stop()
+
+	createStrawberryOp(t, env, "test10")
+	waitIncarnation(t, env, "test10", 1)
+
+	err := env.YT.SetNode(env.Ctx, helpers.StrawberryRoot.Attr("controller_parameter"), "new_parameter", nil)
+	require.NoError(t, err)
+
+	time.Sleep(time.Millisecond * 400)
+	waitIncarnation(t, env, "test10", 2)
+}

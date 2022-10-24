@@ -72,7 +72,7 @@ type Oplet struct {
 	// (e.g. from RevisionTracker) and we need to reload it from a cypress during the next pass.
 	pendingUpdateFromCypressNode bool
 	// pendingRestart is set when agent scheduled a restart of coresponding yt operation on the
-	// next pass. It should be set via setPendingRestart only for proper log information.
+	// next pass. It should be set via SetPendingRestart only for proper log information.
 	pendingRestart bool
 	// pendingUpdateOpParameters is set when agent scheduled an operation parameters update on the
 	// next pass. It should be set via setPendingUpdateOpParameters only for proper log information.
@@ -199,7 +199,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 	opID := oplet.persistentState.YTOpID
 
 	if opID == yt.NullOperationID {
-		oplet.setPendingRestart("strawberry operation does not have operation id")
+		oplet.SetPendingRestart("strawberry operation does not have operation id")
 		return nil
 	}
 
@@ -208,7 +208,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 	ytOp, err := oplet.userClient.GetOperation(ctx, opID, nil)
 	if err != nil {
 		if yterrors.ContainsMessageRE(err, noSuchOperationRE) {
-			oplet.setPendingRestart("operation with current operation id does not exist")
+			oplet.SetPendingRestart("operation with current operation id does not exist")
 		} else {
 			oplet.l.Error("error getting operation info", log.Error(err))
 			oplet.setError(err)
@@ -223,7 +223,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 	oplet.persistentState.YTOpState = ytOp.State
 
 	if requiresRestart(ytOp.State) {
-		oplet.setPendingRestart("operation state requires restart")
+		oplet.SetPendingRestart("operation state requires restart")
 	}
 	return nil
 }
@@ -272,7 +272,7 @@ func (oplet *Oplet) clearError() {
 	oplet.infoState.Error = nil
 }
 
-func (oplet *Oplet) setPendingRestart(reason string) {
+func (oplet *Oplet) SetPendingRestart(reason string) {
 	if oplet.pendingRestart {
 		oplet.l.Info("pendingRestart is already set", log.String("reason", reason))
 		return
@@ -422,7 +422,7 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	}
 
 	if oplet.strawberrySpeclet.RestartOnSpecletChangeOrDefault() && oplet.persistentState.SpecletChangeRequiresRestart {
-		oplet.setPendingRestart("speclet change")
+		oplet.SetPendingRestart("speclet change")
 	}
 
 	if oplet.persistentState.OperationSpecletRevision < oplet.strawberrySpeclet.MinSpecletRevision {
@@ -432,7 +432,7 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 				log.UInt64("min_speclet_revision", uint64(oplet.strawberrySpeclet.MinSpecletRevision)),
 				log.UInt64("last_speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
 		} else {
-			oplet.setPendingRestart("unsatisfied min speclet revision")
+			oplet.SetPendingRestart("unsatisfied min speclet revision")
 		}
 	}
 

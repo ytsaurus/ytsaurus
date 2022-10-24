@@ -21,6 +21,19 @@ type Controller struct {
 	cluster           string
 }
 
+func (c *Controller) getClusterConnection(ctx context.Context) (
+	clusterConnection map[string]interface{}, err error) {
+	err = c.ytc.GetNode(ctx, ypath.Path("//sys/@cluster_connection"), &clusterConnection, nil)
+	if err != nil {
+		return
+	}
+	if _, ok := c.clusterConnection["block_cache"]; ok {
+		err = fmt.Errorf("chyt: cluster connection contains block_cache section; looks like a misconfiguration")
+		return
+	}
+	return
+}
+
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
 	alias := oplet.Alias()
@@ -116,6 +129,21 @@ func (c Controller) NeedRestartOnSpecletChange(oldSpecletYson, newSpecletYson ys
 	return !reflect.DeepEqual(oldSpeclet, newSpeclet)
 }
 
+func (c *Controller) TryUpdate() (bool, error) {
+	newClusterConnection, err := c.getClusterConnection(context.Background())
+	if err != nil {
+		c.l.Error("error getting new cluster connection", log.Error(err))
+		return false, err
+	}
+	if reflect.DeepEqual(c.clusterConnection, newClusterConnection) {
+		c.l.Debug("cluster connection is the same")
+		return false, nil
+	}
+	c.clusterConnection = newClusterConnection
+	c.l.Debug("changed cluster connection")
+	return true, nil
+}
+
 func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {
 	c := &Controller{
 		l:       l,
@@ -123,12 +151,10 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		root:    root,
 		cluster: cluster,
 	}
-	err := ytc.GetNode(context.Background(), ypath.Path("//sys/@cluster_connection"), &c.clusterConnection, nil)
+	clusterConnection, err := c.getClusterConnection(context.Background())
 	if err != nil {
 		panic(err)
 	}
-	if _, ok := c.clusterConnection["block_cache"]; ok {
-		panic(fmt.Errorf("chyt: cluster connection contains block_cache section; looks like a misconfiguration"))
-	}
+	c.clusterConnection = clusterConnection
 	return c
 }

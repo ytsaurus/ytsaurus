@@ -170,6 +170,11 @@ func (a *Agent) pass() {
 
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
 
+	if err := a.tryUpdateController(); err != nil {
+		a.isHealthy.Store(false)
+		return
+	}
+
 	if err := a.updateACLs(); err != nil {
 		a.isHealthy.Store(false)
 		return
@@ -201,9 +206,23 @@ func (a *Agent) pass() {
 	a.isHealthy.Store(true)
 }
 
-func (a *Agent) background(period time.Duration) {
-	a.l.Info("starting background activity", log.Duration("period", period))
-	ticker := time.NewTicker(period)
+func (a *Agent) tryUpdateController() error {
+	isUpdated, err := a.controller.TryUpdate()
+	if err != nil {
+		return err
+	}
+	if isUpdated {
+		for _, oplet := range a.aliasToOp {
+			oplet.SetPendingRestart("controller update")
+		}
+	}
+	return nil
+}
+
+func (a *Agent) background() {
+	passPeriod := time.Duration(a.config.PassPeriodOrDefault())
+	a.l.Info("starting background activity", log.Duration("period", passPeriod))
+	ticker := time.NewTicker(passPeriod)
 loop:
 	for {
 		select {
@@ -302,7 +321,7 @@ func (a *Agent) Start() {
 		a.registerNewOplet(alias)
 	}
 
-	go a.background(time.Duration(a.config.PassPeriod))
+	go a.background()
 	a.l.Info("agent started")
 }
 

@@ -155,11 +155,11 @@ func abortAllOperations(t *testing.T, env *yttest.Env) {
 func CreateAgent(env *yttest.Env, stage string) *agent.Agent {
 	l := log.With(env.L.Logger(), log.String("agent_stage", stage))
 
+	passPeriod := yson.Duration(time.Millisecond * 400)
 	config := &agent.Config{
-		Root:                  StrawberryRoot,
-		PassPeriod:            yson.Duration(time.Millisecond * 400),
-		RevisionCollectPeriod: yson.Duration(time.Millisecond * 100),
-		Stage:                 stage,
+		Root:       StrawberryRoot,
+		PassPeriod: &passPeriod,
+		Stage:      stage,
 	}
 
 	agent := agent.NewAgent(
@@ -182,7 +182,13 @@ func PrepareAgent(t *testing.T) (*yttest.Env, *agent.Agent) {
 
 	err := env.YT.RemoveNode(env.Ctx, StrawberryRoot, &yt.RemoveNodeOptions{Force: true, Recursive: true})
 	require.NoError(t, err)
-	_, err = env.YT.CreateNode(env.Ctx, StrawberryRoot, yt.NodeMap, &yt.CreateNodeOptions{Force: true, Recursive: true})
+	_, err = env.YT.CreateNode(env.Ctx, StrawberryRoot, yt.NodeMap, &yt.CreateNodeOptions{
+		Force:     true,
+		Recursive: true,
+		Attributes: map[string]interface{}{
+			"controller_parameter": "default",
+		},
+	})
 	require.NoError(t, err)
 
 	nsPath := strawberry.AccessControlNamespacesPath.Child("sleep")

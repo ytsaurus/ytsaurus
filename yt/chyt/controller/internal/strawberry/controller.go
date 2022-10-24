@@ -22,6 +22,9 @@ type Controller interface {
 	Family() string
 
 	NeedRestartOnSpecletChange(oldSpecletYson, newSpecletYson yson.RawValue) bool
+
+	// TryUpdate tries to update controller, returns true if controller has changed.
+	TryUpdate() (bool, error)
 }
 
 type ControllerFactory = func(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) Controller
