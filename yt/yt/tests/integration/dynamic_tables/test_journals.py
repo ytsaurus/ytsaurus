@@ -771,7 +771,7 @@ class TestJournalsChangeMedia(TestJournalsBase):
 
 
 class TestErasureJournals(TestJournalsBase):
-    NUM_TEST_PARTITIONS = 4
+    NUM_TEST_PARTITIONS = 12
     NUM_MASTERS = 3
     NUM_NODES = 20
 
