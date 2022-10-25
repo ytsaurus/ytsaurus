@@ -936,9 +936,9 @@ class TestSchedulerRemoteCopyNetworks(TestSchedulerRemoteCopyCommandsBase):
         )
         assert read_table("//tmp/t2") == [{"a": "b"}]
 
-    @authors("egor-gutrov")
+    @authors("ignat")
     def test_network_with_spec_template(self):
-        update_controller_agent_config("remote_copy_operation_options/networks", ["undefined"], False)
+        update_controller_agent_config("remote_copy_operation_options/networks", ["undefined"])
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table("//tmp/t1", {"a": "b"}, driver=self.remote_driver)
 
