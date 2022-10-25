@@ -87,6 +87,17 @@ public:
         Incumbents_[type] = std::move(incumbent);
     }
 
+    int GetIncumbentCount(NIncumbentClient::EIncumbentType type) const override
+    {
+        TCompactSet<TString, 7> addresses;
+        for (auto& address : CurrentIncumbentMap_[type].Addresses) {
+            if (address) {
+                addresses.insert(*address);
+            }
+        }
+        return std::ssize(addresses);
+    }
+
 private:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
