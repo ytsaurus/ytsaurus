@@ -1832,6 +1832,36 @@ void ValidateColumnUniqueness(const TTableSchema& schema)
     }
 }
 
+void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schema, const TStringBuf& keyType, bool validateRequired)
+{
+    if (static_cast<int>(pivotKey.GetCount()) > schema.GetKeyColumnCount()) {
+        auto titleKeyType = TString(keyType);
+        titleKeyType.to_title();
+        THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::SchemaViolation, "%v key must form a prefix of key", titleKeyType);
+    }
+
+    for (int index = 0; index < static_cast<int>(pivotKey.GetCount()); ++index) {
+        if (pivotKey[index].Type != EValueType::Null && pivotKey[index].Type != schema.Columns()[index].GetWireType()) {
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::SchemaViolation,
+                "Mismatched type of column %v in %v key: expected %Qlv, found %Qlv",
+                schema.Columns()[index].GetDiagnosticNameString(),
+                keyType,
+                schema.Columns()[index].GetWireType(),
+                pivotKey[index].Type);
+        }
+        if (validateRequired && pivotKey[index].Type == EValueType::Null && !schema.Columns()[index].LogicalType()->IsNullable()) {
+            THROW_ERROR_EXCEPTION(
+                NTableClient::EErrorCode::SchemaViolation,
+                "Unexpected null for required column %v in %v key",
+                schema.Columns()[index].GetDiagnosticNameString(),
+                keyType);
+        }
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Validates that number of locks doesn't exceed #MaxColumnLockCount.
 void ValidateLocks(const TTableSchema& schema)
 {

@@ -44,15 +44,17 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
-
 #include <yt/yt/ytlib/tablet_client/backup.h>
 #include <yt/yt/ytlib/tablet_client/config.h>
+
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 

@@ -465,6 +465,12 @@ void ValidateNoRenamedColumns(const TTableSchema& schema);
 
 void ValidateColumnUniqueness(const TTableSchema& schema);
 
+void ValidatePivotKey(
+    const TUnversionedRow& pivotKey,
+    const TTableSchema& schema,
+    const TStringBuf& keyType = "pivot",
+    bool validateRequired = false);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 THashMap<TString, int> GetLocksMapping(

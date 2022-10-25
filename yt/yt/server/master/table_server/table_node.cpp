@@ -25,7 +25,7 @@
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 

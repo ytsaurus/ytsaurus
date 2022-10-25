@@ -44,13 +44,13 @@
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
-#include <yt/yt/ytlib/table_client/schema.h>
 #include <yt/yt/ytlib/table_client/table_read_spec.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 #include <yt/yt/ytlib/table_client/virtual_value_directory.h>
 
 #include <yt/yt/client/table_client/key_bound.h>
 #include <yt/yt/client/table_client/comparator.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 

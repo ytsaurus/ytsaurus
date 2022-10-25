@@ -19,13 +19,16 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
+
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/tablet_client/config.h>
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
 #include <yt/yt/client/transaction_client/timestamp_provider.h>

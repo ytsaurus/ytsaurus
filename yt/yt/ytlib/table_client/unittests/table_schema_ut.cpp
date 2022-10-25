@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/table_client/schema.h>
 
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/schema.h>

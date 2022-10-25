@@ -14,16 +14,6 @@
 #include <yt/yt/ytlib/chaos_client/coordinator_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
 
-#include <yt/yt/client/tablet_client/table_mount_cache.h>
-
-#include <yt/yt/client/table_client/helpers.h>
-#include <yt/yt/client/table_client/logical_type.h>
-#include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/wire_protocol.h>
-#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
-
-#include <yt/yt/client/transaction_client/timestamp_provider.h>
-
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
 #include <yt/yt/library/query/engine/column_evaluator.h>
 #include <yt/yt/library/query/base/query_preparer.h>
@@ -64,19 +54,30 @@
 #include <yt/yt/ytlib/table_client/chunk_slice_size_fetcher.h>
 #include <yt/yt/ytlib/table_client/pivot_keys_builder.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
-#include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
+
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/client/chaos_client/helpers.h>
 #include <yt/yt/client/chaos_client/replication_card.h>
 #include <yt/yt/client/chaos_client/replication_card_cache.h>
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
+#include <yt/yt/client/tablet_client/table_mount_cache.h>
 #include <yt/yt/client/tablet_client/helpers.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/logical_type.h>
+#include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/schema.h>
+
+#include <yt/yt_proto/yt/client/table_chunk_format/proto/wire_protocol.pb.h>
+
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>

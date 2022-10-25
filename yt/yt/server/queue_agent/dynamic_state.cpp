@@ -1,7 +1,5 @@
 #include "dynamic_state.h"
 
-#include <yt/yt/ytlib/table_client/schema.h>
-
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
