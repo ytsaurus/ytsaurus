@@ -1680,11 +1680,14 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
             (resourceUsage.replication_slots() == 0 || resourceUsage.replication_data_size() < resourceLimits.replication_data_size());
     };
 
+    const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+    auto incumbentCount = incumbentManager->GetIncumbentCount(EIncumbentType::ChunkReplicator);
     auto hasSparePullReplicationResources = [&] {
+        auto maxPullReplicationJobs = GetDynamicConfig()->MaxRunningReplicationJobsPerTargetNode / std::max(incumbentCount, 1);
         return
             // TODO(gritukan): Use some better bounds.
             misscheduledReplicationJobs < GetDynamicConfig()->MaxMisscheduledReplicationJobsPerHeartbeat &&
-            std::ssize(node->ChunksBeingPulled()) < GetDynamicConfig()->MaxRunningReplicationJobsPerTargetNode;
+            std::ssize(node->ChunksBeingPulled()) < maxPullReplicationJobs;
     };
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
