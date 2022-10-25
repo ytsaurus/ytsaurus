@@ -170,7 +170,7 @@ func TestDataRegexp(t *testing.T) {
 			Start: tLow,
 			End:   tHigh,
 		},
-		MatadataPatterns: map[string]string{
+		MetadataPatterns: map[string]string{
 			"BinaryVersion": "-c1.*",
 		},
 	}

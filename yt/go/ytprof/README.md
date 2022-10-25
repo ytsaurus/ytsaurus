@@ -46,7 +46,7 @@ Example: `curl https://ytprof.yt.yandex-team.ru/api/merge?profile_ids=92699db6-2
 * `https://ytprof.yt.yandex-team.ru/api/merge_all`: find and merge profiles specified by the same query as `list` (type POST)
 Example: `curl -X POST -d '{"metaquery":{"time_period":{"period_start_time":"2022-04-24T00:00:00.000000Z","period_end_time":"2022-04-29T00:00:00.000000Z"},"metadata_pattern":{"host":"sas6.*node.*freud."}}}' https://ytprof.yt.yandex-team.ru/api/merge_all`
 
-See `requsts` and `responces` [here](https://a.yandex-team.ru/arcadia/yt/go/ytprof/api/api.proto).
+See `requests` and `responses` [here](https://a.yandex-team.ru/arcadia/yt/go/ytprof/api/api.proto).
 
 ### Run Service
 

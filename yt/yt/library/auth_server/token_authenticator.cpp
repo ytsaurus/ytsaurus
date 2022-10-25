@@ -39,7 +39,7 @@ public:
     {
         profiler = profiler.WithPrefix("/blackbox_token_authenticator");
         RejectedTokens_ = profiler.Counter("/rejected_tokens");
-        InvalidBlackboxResponces_ = profiler.Counter("/invalid_responces");
+        InvalidBlackboxResponses_ = profiler.Counter("/invalid_responses");
         TokenScopeCheckErrors_ = profiler.Counter("/scope_check_errors");
     }
 
@@ -75,7 +75,7 @@ private:
     const IBlackboxServicePtr Blackbox_;
 
     TCounter RejectedTokens_;
-    TCounter InvalidBlackboxResponces_;
+    TCounter InvalidBlackboxResponses_;
     TCounter TokenScopeCheckErrors_;
 
 private:
@@ -101,7 +101,7 @@ private:
         // See https://doc.yandex-team.ru/blackbox/reference/method-oauth-response-json.xml for reference.
         auto statusId = GetByYPath<int>(data, "/status/id");
         if (!statusId.IsOK()) {
-            InvalidBlackboxResponces_.Increment();
+            InvalidBlackboxResponses_.Increment();
             return TError("Blackbox returned invalid response");
         }
 
@@ -126,7 +126,7 @@ private:
             if (!oauthClientName.IsOK()) error.MutableInnerErrors()->push_back(oauthClientName);
             if (!oauthScope.IsOK()) error.MutableInnerErrors()->push_back(oauthScope);
 
-            InvalidBlackboxResponces_.Increment();
+            InvalidBlackboxResponses_.Increment();
             return error;
         }
 

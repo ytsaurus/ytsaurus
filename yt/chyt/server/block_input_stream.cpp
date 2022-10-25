@@ -193,7 +193,7 @@ void TBlockInputStream::readSuffixImpl()
     IdleTimer_.Stop();
 
     YT_LOG_DEBUG(
-        "Block input stream timing statistics (ColumnarConversionCpuTime: %v, NonColumnarConvertionCpuTime: %v, "
+        "Block input stream timing statistics (ColumnarConversionCpuTime: %v, NonColumnarConversionCpuTime: %v, "
         "ConversionSyncWaitTime: %v, IdleTime: %v, ReadCount: %v)",
         ColumnarConversionCpuTime_,
         NonColumnarConversionCpuTime_,

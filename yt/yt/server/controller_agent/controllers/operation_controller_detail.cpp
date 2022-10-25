@@ -3953,7 +3953,7 @@ void TOperationControllerBase::SafeTerminate(EControllerState finalState)
 
     YT_LOG_INFO("Terminating operation controller");
 
-    if (Spec_->TestingOperationOptions->ThrowExceptionDuringOprationAbort) {
+    if (Spec_->TestingOperationOptions->ThrowExceptionDuringOperationAbort) {
         THROW_ERROR_EXCEPTION("Test exception");
     }
 

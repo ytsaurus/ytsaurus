@@ -610,7 +610,7 @@ public:
     //! Think twice before using!
     bool CrashControllerAgent;
 
-    bool ThrowExceptionDuringOprationAbort;
+    bool ThrowExceptionDuringOperationAbort;
 
     REGISTER_YSON_STRUCT(TTestingOperationOptions);
 

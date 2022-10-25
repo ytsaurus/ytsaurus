@@ -7,7 +7,7 @@ Package provides special classes for all yson types, see :mod:`yson_types <yt.ys
 Also it provides methods for serialization and deserialization yson data:
 :func:`load <yt.yson.parser.load>`, :func:`loads <yt.yson.parser.loads>`,
 :func:`dump <yt.yson.writer.dump>`, :func:`dumps <yt.yson.writer.dumps>`.
-And finally it provides method :func:`to_yson_type <yt.yson.convert.to_yson_type>` for convertion
+And finally it provides method :func:`to_yson_type <yt.yson.convert.to_yson_type>` for conversion
 python objects to special yson types.
 
 In special variable `TYPE` you can find implementation type of the library.

@@ -19,7 +19,7 @@ var (
 
 var runFetcherCmd = &cobra.Command{
 	Use:   "run-fetcher",
-	Short: "Manualy run profile fetcher based on config",
+	Short: "Manually run profile fetcher based on config",
 	RunE:  runFetcher,
 	Args:  cobra.ExactArgs(0),
 }
@@ -61,8 +61,8 @@ func runFetcher(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	l.Debug("config reading succseded", log.String("config", fmt.Sprintf("%v", config)), log.String("config_path", flagConfig))
+	l.Debug("config reading succeeded", log.String("config", fmt.Sprintf("%v", config)), log.String("config_path", flagConfig))
 
 	f := fetcher.NewFetcher(YT, config, l)
-	return f.RunFetcherContinious()
+	return f.RunFetcherContinuous()
 }

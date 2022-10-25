@@ -102,7 +102,7 @@ TString ConvertYson(
     return convertedYson;
 }
 
-void CheckYsonConvertion(
+void CheckYsonConversion(
     bool namedToPositional,
     const TLogicalTypePtr& type,
     TStringBuf sourceYson,
@@ -112,7 +112,7 @@ void CheckYsonConvertion(
     try {
         convertedYson = ConvertYson(namedToPositional, type, sourceYson);
     } catch (const std::exception& ex) {
-        ADD_FAILURE() << "convertion error: " << ex.what();
+        ADD_FAILURE() << "conversion error: " << ex.what();
         return;
     }
 
@@ -122,13 +122,13 @@ void CheckYsonConvertion(
 #define CHECK_POSITIONAL_TO_NAMED(type, positionalYson, namedYson) \
     do { \
         SCOPED_TRACE("positional -> named error"); \
-        CheckYsonConvertion(false, type, positionalYson, namedYson); \
+        CheckYsonConversion(false, type, positionalYson, namedYson); \
     } while (0)
 
 #define CHECK_NAMED_TO_POSITIONAL(type, namedYson, positionalYson) \
     do { \
         SCOPED_TRACE("named -> positional error"); \
-        CheckYsonConvertion(true, type, namedYson, positionalYson); \
+        CheckYsonConversion(true, type, namedYson, positionalYson); \
     } while (0)
 
 #define CHECK_NAMED_TO_POSITIONAL_THROWS(type, namedYson, exceptionSubstring) \

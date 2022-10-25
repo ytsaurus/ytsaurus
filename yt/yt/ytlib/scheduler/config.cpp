@@ -245,7 +245,7 @@ void TTestingOperationOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("crash_controller_agent", &TThis::CrashControllerAgent)
         .Default(false);
-    registrar.Parameter("throw_exception_during_operation_abort", &TThis::ThrowExceptionDuringOprationAbort)
+    registrar.Parameter("throw_exception_during_operation_abort", &TThis::ThrowExceptionDuringOperationAbort)
         .Default(false);
 }
 

@@ -38,7 +38,7 @@ type Metaquery struct {
 	QueryLimit       int
 	ResultSkip       int
 	ResultLimit      int
-	MatadataPatterns map[string]string
+	MetadataPatterns map[string]string
 }
 
 type TableStorage struct {
@@ -76,7 +76,7 @@ func NewTableStorageMigrate(yt yt.Client, path ypath.Path, l *logzap.Logger) (*T
 	err := ytprof.MigrateTables(yt, path)
 
 	if err != nil {
-		l.Error("migraton failed", log.Error(err), log.String("table_path", path.String()))
+		l.Error("migration failed", log.Error(err), log.String("table_path", path.String()))
 		return nil, err
 	}
 
@@ -253,7 +253,7 @@ func (m *TableStorage) MetadataQueryExpr(ctx context.Context, metaquery Metaquer
 
 	results := make([]ytprof.ProfileMetadata, 0)
 
-	expr, err := expressions.NewExpression(metaquery.Query, metaquery.MatadataPatterns)
+	expr, err := expressions.NewExpression(metaquery.Query, metaquery.MetadataPatterns)
 	if err != nil {
 		return nil, err
 	}
@@ -304,7 +304,7 @@ func (m *TableStorage) MetadataIdsQueryExpr(ctx context.Context, metaquery Metaq
 
 	resultIDs := make([]ytprof.ProfID, 0)
 
-	expr, err := expressions.NewExpression(metaquery.Query, metaquery.MatadataPatterns)
+	expr, err := expressions.NewExpression(metaquery.Query, metaquery.MetadataPatterns)
 	if err != nil {
 		return nil, err
 	}

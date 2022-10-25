@@ -41,28 +41,28 @@ func (a *App) apiMetaqueryToStorage(am *api.Metaquery) (storage.Metaquery, error
 		Period:           period,
 		ResultSkip:       int(am.ResultSkip),
 		ResultLimit:      int(am.ResultLimit),
-		MatadataPatterns: am.MetadataPattern.UserTags,
+		MetadataPatterns: am.MetadataPattern.UserTags,
 	}
-	if metaquery.MatadataPatterns == nil {
-		metaquery.MatadataPatterns = map[string]string{}
+	if metaquery.MetadataPatterns == nil {
+		metaquery.MetadataPatterns = map[string]string{}
 	}
 	if metaquery.Query == "" {
 		metaquery.Query = "true"
 	}
 	if len(am.MetadataPattern.ProfileType) > 0 {
-		metaquery.MatadataPatterns["ProfileType"] = am.MetadataPattern.ProfileType
+		metaquery.MetadataPatterns["ProfileType"] = am.MetadataPattern.ProfileType
 	}
 	if len(am.MetadataPattern.Host) > 0 {
-		metaquery.MatadataPatterns["Host"] = am.MetadataPattern.Host
+		metaquery.MetadataPatterns["Host"] = am.MetadataPattern.Host
 	}
 	if len(am.MetadataPattern.ArcRevision) > 0 {
-		metaquery.MatadataPatterns["ArcRevision"] = am.MetadataPattern.ArcRevision
+		metaquery.MetadataPatterns["ArcRevision"] = am.MetadataPattern.ArcRevision
 	}
 
 	return metaquery, err
 }
 
-func (a *App) storageMatadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, error) {
+func (a *App) storageMetadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, error) {
 	am := &api.Metadata{
 		ProfileType: sm.Metadata.MapData["ProfileType"],
 		Host:        sm.Metadata.MapData["Host"],
@@ -84,7 +84,7 @@ func (a *App) storageMatadataToAPI(sm ytprof.ProfileMetadata) (*api.Metadata, er
 func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOption) (*api.ListResponse, error) {
 	metaquery, err := a.apiMetaqueryToStorage(in.Metaquery)
 	if err != nil {
-		a.l.Error("time convertion failed", log.Error(err))
+		a.l.Error("time conversion failed", log.Error(err))
 		return nil, err
 	}
 
@@ -106,14 +106,14 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 	res := make([]*api.Metadata, len(resp))
 
 	for id, metadata := range resp {
-		res[id], err = a.storageMatadataToAPI(metadata)
+		res[id], err = a.storageMetadataToAPI(metadata)
 		if err != nil {
-			a.l.Error("metadata convertion failed", log.Error(err))
+			a.l.Error("metadata conversion failed", log.Error(err))
 			return nil, err
 		}
 	}
 
-	a.l.Debug("list request succeded", log.Int("profiles_found", len(res)))
+	a.l.Debug("list request succeeded", log.Int("profiles_found", len(res)))
 
 	return &api.ListResponse{Metadata: res, Size: int32(len(respLen))}, nil
 }
@@ -131,7 +131,7 @@ func (a *App) Get(ctx context.Context, in *api.GetRequest, opts ...grpc.CallOpti
 		return nil, err
 	}
 
-	a.l.Debug("get request succeded", log.String("ProfileID", in.ProfileId))
+	a.l.Debug("get request succeeded", log.String("ProfileID", in.ProfileId))
 
 	return &httpbody.HttpBody{
 		ContentType: "application/pprof",
@@ -164,7 +164,7 @@ func (a *App) Merge(ctx context.Context, in *api.MergeRequest, opts ...grpc.Call
 		return nil, err
 	}
 
-	a.l.Debug("merge request succeded", log.Int("total", len(profileGUIDs)))
+	a.l.Debug("merge request succeeded", log.Int("total", len(profileGUIDs)))
 
 	return &httpbody.HttpBody{
 		ContentType: "application/pprof",
@@ -175,7 +175,7 @@ func (a *App) Merge(ctx context.Context, in *api.MergeRequest, opts ...grpc.Call
 func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
 	metaquery, err := a.apiMetaqueryToStorage(in.Metaquery)
 	if err != nil {
-		a.l.Error("time convertion failed", log.Error(err))
+		a.l.Error("time conversion failed", log.Error(err))
 		return nil, err
 	}
 
@@ -203,7 +203,7 @@ func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grp
 		return nil, err
 	}
 
-	a.l.Debug("merge all request succeded", log.Int("total", len(resp)))
+	a.l.Debug("merge all request succeeded", log.Int("total", len(resp)))
 
 	return &httpbody.HttpBody{
 		ContentType: "application/pprof",
@@ -219,7 +219,7 @@ func (a *App) SuggestTags(ctx context.Context, in *emptypb.Empty, opts ...grpc.C
 		return nil, err
 	}
 
-	a.l.Error("find_tags request succeded")
+	a.l.Error("find_tags request succeeded")
 
 	return &api.SuggestTagsResponse{
 		Tag: resp,
@@ -233,7 +233,7 @@ func (a *App) SuggestValues(ctx context.Context, in *api.SuggestValuesRequest, o
 		return nil, err
 	}
 
-	a.l.Error("find_values request succeded")
+	a.l.Error("find_values request succeeded")
 
 	return &api.SuggestValuesResponse{
 		Value: resp,
@@ -264,7 +264,7 @@ func (a *App) UIHandler(w http.ResponseWriter, r *http.Request) {
 
 	strippedURL := strings.TrimPrefix(r.URL.Path, fullPrefix)
 
-	a.l.Debug("finding profile succesed",
+	a.l.Debug("finding profile succeeded",
 		log.String("profile_id", profileGUID.String()),
 		log.String("stripped_url", strippedURL))
 
@@ -295,5 +295,5 @@ func (a *App) UIHandler(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, err.Error(), http.StatusBadRequest)
 		return
 	}
-	a.l.Debug("request to pprof UI succseeded")
+	a.l.Debug("request to pprof UI succeeded")
 }
