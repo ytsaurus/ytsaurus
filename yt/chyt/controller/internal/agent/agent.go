@@ -7,12 +7,12 @@ import (
 	"reflect"
 	"time"
 
-	"go.uber.org/atomic"
-
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/yt/chyt/controller/internal/monitoring"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 type Agent struct {
@@ -34,7 +34,7 @@ type Agent struct {
 	cancelCtx context.CancelFunc
 
 	backgroundStopCh chan struct{}
-	isHealthy        *atomic.Bool
+	healthState      *HealthState
 }
 
 func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.Controller, config *Config) *Agent {
@@ -51,7 +51,7 @@ func NewAgent(proxy string, ytc yt.Client, l log.Logger, controller strawberry.C
 		hostname:         hostname,
 		proxy:            proxy,
 		backgroundStopCh: make(chan struct{}),
-		isHealthy:        atomic.NewBool(false),
+		healthState:      NewHealthState(),
 	}
 }
 
@@ -171,12 +171,12 @@ func (a *Agent) pass() {
 	a.l.Info("starting pass", log.Int("oplet_count", len(a.aliasToOp)))
 
 	if err := a.tryUpdateController(); err != nil {
-		a.isHealthy.Store(false)
+		a.healthState.Store(yterrors.Err("failed to update controller", err))
 		return
 	}
 
 	if err := a.updateACLs(); err != nil {
-		a.isHealthy.Store(false)
+		a.healthState.Store(yterrors.Err("failed to update ACL", err))
 		return
 	}
 
@@ -191,7 +191,7 @@ func (a *Agent) pass() {
 	// and filtering those which are not listed in our idToOp.
 
 	if err := a.abortDangling(); err != nil {
-		a.isHealthy.Store(false)
+		a.healthState.Store(yterrors.Err("failed to abort dangling operations", err))
 		return
 	}
 
@@ -203,7 +203,7 @@ func (a *Agent) pass() {
 	}
 
 	a.l.Info("pass completed", log.Duration("elapsed_time", time.Since(startedAt)))
-	a.isHealthy.Store(true)
+	a.healthState.Store(nil)
 }
 
 func (a *Agent) tryUpdateController() error {
@@ -346,6 +346,6 @@ func (a *Agent) OperationNamespace() string {
 	return a.controller.Family() + ":" + a.config.Stage
 }
 
-func (a *Agent) IsHealthy() bool {
-	return a.isHealthy.Load()
+func (a *Agent) GetHealthStatus() monitoring.HealthStatus {
+	return a.healthState.Load()
 }

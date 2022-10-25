@@ -12,7 +12,7 @@ func RegisterHTTPMonitoring(c HTTPMonitoringConfig, l log.Logger, leader LeaderC
 	monitoring := NewHTTPLeaderMonitoring(leader, l)
 	r.Get("/is_leader", monitoring.HandleIsLeader)
 	for _, cluster := range c.Clusters {
-		monitoring := NewHTTPHealthMonitoring(healthers[cluster], leader, l)
+		monitoring := NewHTTPHealthMonitoring(healthers[cluster], leader, c, l)
 		r.Get("/is_healthy/"+cluster, monitoring.HandleIsHealthy)
 	}
 	return r
