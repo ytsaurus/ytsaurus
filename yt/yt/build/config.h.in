@@ -1,5 +1,7 @@
 #pragma once
 
+#ifndef _win_
+
 #ifndef HAVE_CXXABI_H
     #cmakedefine HAVE_CXXABI_H
 #endif
@@ -38,6 +40,8 @@
 
 #ifndef HAVE_UNISTD_H
     #cmakedefine HAVE_UNISTD_H
+#endif
+
 #endif
 
 #cmakedefine PC_FROM_UCONTEXT @PC_FROM_UCONTEXT@

@@ -32,14 +32,18 @@ constexpr i64 TailScanLength = MaxZstdFrameLength + 2 * ZstdSyncTagLength;
 static std::optional<i64> FindSyncTag(const char* buf, size_t size, i64 offset)
 {
     const char* syncTag = nullptr;
+    TStringBuf data(buf, size);
+    TStringBuf zstdSyncTagView(ZstdSyncTag, sizeof(ZstdSyncTag));
+    while (true) {
+        size_t tagPos = data.find(zstdSyncTagView);
+        if (tagPos == TStringBuf::npos) {
+            break;
+        }
 
-    const char* data = buf;
-    const char* end = buf + size;
+        const char* tag = data.data() + tagPos;
+        data.remove_prefix(tagPos + 1);
 
-    while (const char* tag = (char*)memmem(data, end - data, ZstdSyncTag, sizeof(ZstdSyncTag))) {
-        data = tag + 1;
-
-        if (tag + ZstdSyncTagLength > end) {
+        if (ZstdSyncTagLength - 1 > data.size()) {
             continue;
         }
 
@@ -110,7 +114,7 @@ public:
 
         i64 fileSize = file->GetLength();
         i64 bufSize = fileSize;
-        i64 pos = Max(bufSize - TailScanLength, 0L);
+        i64 pos = Max<i64>(bufSize - TailScanLength, 0);
         bufSize -= pos;
 
         TBuffer buffer;
@@ -129,8 +133,8 @@ public:
                 break;
             }
 
-            i64 newPos = Max(pos - TailScanLength, 0L);
-            bufSize = Max(pos + scanOverlap - newPos, 0L);
+            i64 newPos = Max<i64>(pos - TailScanLength, 0);
+            bufSize = Max<i64>(pos + scanOverlap - newPos, 0);
             pos = newPos;
         }
         file->Resize(outputPosition);

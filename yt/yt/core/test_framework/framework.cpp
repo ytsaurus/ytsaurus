@@ -140,8 +140,10 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
     ::signal(SIGPIPE, SIG_IGN);
 #endif
     NYT::EnableShutdownLoggingToFile((GetOutputPath() / "shutdown.log").GetPath());
+#ifdef _unix_
     NYT::TSignalRegistry::Get()->PushCallback(NYT::AllCrashSignals, NYT::CrashSignalHandler);
     NYT::TSignalRegistry::Get()->PushDefaultSignalHandler(NYT::AllCrashSignals);
+#endif
     NYT::NYTAlloc::EnableYTLogging();
     NYT::NYTAlloc::EnableYTProfiling();
     NYT::NYTAlloc::InitializeLibunwindInterop();
@@ -174,4 +176,3 @@ Y_TEST_HOOK_AFTER_RUN(GTEST_YT_TEARDOWN)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-

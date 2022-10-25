@@ -66,6 +66,8 @@ struct TLoggingThreadName
     int Length; // not including zero terminator
 };
 
+TLoggingThreadName GetLoggingThreadName();
+
 ////////////////////////////////////////////////////////////////////////////////
 // Declare some type aliases to avoid circular dependencies.
 using TThreadId = size_t;
