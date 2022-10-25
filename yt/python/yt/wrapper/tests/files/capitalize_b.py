@@ -15,7 +15,7 @@ def capitalizeB(rec):
         rec["b"] = rec["b"].upper()
     return rec
 
-""" Methods for records convertion """
+""" Methods for records conversion """
 def record_to_line(rec, eoln=True):
     body = "\t".join("=".join(imap(str, item)) for item in rec.items())
     return "%s%s" % (body, "\n" if eoln else "")

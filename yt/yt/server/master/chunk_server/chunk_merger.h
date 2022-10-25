@@ -166,7 +166,7 @@ private:
     THashSet<NCypressClient::TObjectId> NodesBeingMerged_;
     i64 ConfigVersion_ = 0;
 
-    i64 ChunkReplacementSucceded_ = 0;
+    i64 ChunkReplacementSucceeded_ = 0;
     i64 ChunkReplacementFailed_ = 0;
     i64 ChunkCountSaving_ = 0;
 
@@ -200,7 +200,7 @@ private:
         TChunkMergerTraversalInfo TraversalInfo;
         int JobCount = 0;
     };
-    std::queue<TMergeSessionResult> SessionsAwaitingFinalizaton_;
+    std::queue<TMergeSessionResult> SessionsAwaitingFinalization_;
 
     void OnLeaderActive() override;
     void OnStopLeading() override;

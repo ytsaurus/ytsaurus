@@ -763,7 +763,7 @@ void TTcpConnection::OnEvent(EPollControl control)
                 if (!PendingControl_.compare_exchange_weak(rawPendingControl, static_cast<ui64>(pendingControl | control))) {
                     continue;
                 }
-                // CAS succeded, bail out.
+                // CAS succeeded, bail out.
                 YT_LOG_TRACE("Event handler is already running (PendingControl: %v)",
                     pendingControl);
                 return;
@@ -773,13 +773,13 @@ void TTcpConnection::OnEvent(EPollControl control)
 
             // Clear Read/Write before operation. Consequent event will raise it
             // back and retry handling. OnSocketRead() always consumes all backlog
-            // or aborts connection if something went wrong, othwewise if somehting
+            // or aborts connection if something went wrong, otherwise if something
             // left then handling should raise Read in PendingControl_ back.
             if (!PendingControl_.compare_exchange_weak(rawPendingControl, static_cast<ui64>(EPollControl::Running))) {
                 continue;
             }
 
-            // CAS succeded, bail out.
+            // CAS succeeded, bail out.
             break;
         }
     }

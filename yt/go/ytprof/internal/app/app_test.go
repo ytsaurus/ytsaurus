@@ -94,7 +94,7 @@ func TestAppList(t *testing.T) {
 		Post(a.URL() + "/api/list")
 
 	require.NoError(t, err)
-	l.Debug("responce status",
+	l.Debug("response status",
 		log.Int("status code", rsp.StatusCode()),
 		log.String("status", rsp.Status()),
 		log.String("url", a.URL()+"/api/list"),
@@ -131,7 +131,7 @@ func TestAppGet(t *testing.T) {
 		Get(a.URL() + "/api/get")
 
 	require.NoError(t, err)
-	l.Debug("responce status",
+	l.Debug("response status",
 		log.Int("status code", rsp.StatusCode()),
 		log.String("status", rsp.Status()),
 		log.String("url", a.URL()+"/api/get"),

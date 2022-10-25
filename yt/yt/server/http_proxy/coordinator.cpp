@@ -282,7 +282,7 @@ void TCoordinator::UpdateState()
     }
 
     auto onUpdateSuccess = [&] {
-        YT_LOG_DEBUG("Coordinator update succeded");
+        YT_LOG_DEBUG("Coordinator update succeeded");
         BannedGauge_.Update(Self_->Entry->IsBanned ? 1 : 0);
         AvailableAt_.Store(TInstant::Now());
         FirstUpdateIterationFinished_.TrySet();

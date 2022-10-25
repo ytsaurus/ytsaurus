@@ -653,11 +653,11 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
     buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", JobsUndergoingChunkCreation_.size());
     buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", JobsAwaitingNodeHeartbeat_.size());
 
-    buffer->AddCounter("/chunk_merger_chunk_replacement_succeeded", ChunkReplacementSucceded_);
+    buffer->AddCounter("/chunk_merger_chunk_replacement_succeeded", ChunkReplacementSucceeded_);
     buffer->AddCounter("/chunk_merger_chunk_replacement_failed", ChunkReplacementFailed_);
     buffer->AddCounter("/chunk_merger_chunk_count_saving", ChunkCountSaving_);
 
-    buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalizaton_.size());
+    buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalization_.size());
 
     for (auto mergerMode : TEnumTraits<NChunkClient::EChunkMergerMode>::GetDomainValues()) {
         if (mergerMode == NChunkClient::EChunkMergerMode::None) {
@@ -754,7 +754,7 @@ void TChunkMerger::OnLeaderActive()
     for (auto nodeId : NodesBeingMerged_) {
         auto* node = FindChunkOwner(nodeId);
         if (!CanScheduleMerge(node)) {
-            SessionsAwaitingFinalizaton_.push({
+            SessionsAwaitingFinalization_.push({
                 .NodeId = nodeId,
                 .Result = EMergeSessionResult::PermanentFailure
             });
@@ -824,7 +824,7 @@ void TChunkMerger::ResetTransientState()
     JobsUndergoingChunkCreation_ = {};
     JobsAwaitingNodeHeartbeat_ = {};
     RunningSessions_ = {};
-    SessionsAwaitingFinalizaton_ = {};
+    SessionsAwaitingFinalization_ = {};
 }
 
 bool TChunkMerger::IsMergeTransactionAlive() const
@@ -1057,7 +1057,7 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
         session.Result,
         session.TraversalInfo);
 
-    SessionsAwaitingFinalizaton_.push({
+    SessionsAwaitingFinalization_.push({
         .NodeId = nodeId,
         .Result = session.Result,
         .TraversalInfo = session.TraversalInfo,
@@ -1068,15 +1068,15 @@ void TChunkMerger::ScheduleSessionFinalization(TObjectId nodeId, EMergeSessionRe
 
 void TChunkMerger::FinalizeSessions()
 {
-    if (SessionsAwaitingFinalizaton_.empty()) {
+    if (SessionsAwaitingFinalization_.empty()) {
         return;
     }
 
     const auto& config = GetDynamicConfig();
     TReqFinalizeChunkMergeSessions request;
-    for (auto index = 0; index < config->SessionFinalizationBatchSize && !SessionsAwaitingFinalizaton_.empty(); ++index) {
+    for (auto index = 0; index < config->SessionFinalizationBatchSize && !SessionsAwaitingFinalization_.empty(); ++index) {
         auto* req = request.add_subrequests();
-        const auto& sessionResult = SessionsAwaitingFinalizaton_.front();
+        const auto& sessionResult = SessionsAwaitingFinalization_.front();
         ToProto(req->mutable_node_id(), sessionResult.NodeId);
         req->set_result(ToProto<int>(sessionResult.Result));
 
@@ -1084,7 +1084,7 @@ void TChunkMerger::FinalizeSessions()
             ToProto(req->mutable_traversal_info(), sessionResult.TraversalInfo);
         }
         req->set_job_count(sessionResult.JobCount);
-        SessionsAwaitingFinalizaton_.pop();
+        SessionsAwaitingFinalization_.pop();
     }
 
     CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
@@ -1253,13 +1253,13 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         inputChunks.push_back(chunk);
     }
 
-    auto* chunkRequstitionRegistry = chunkManager->GetChunkRequisitionRegistry();
+    auto* chunkRequisitionRegistry = chunkManager->GetChunkRequisitionRegistry();
     auto* outputChunk = chunkManager->FindChunk(jobInfo.OutputChunkId);
     if (!IsObjectAlive(outputChunk)) {
         return false;
     }
 
-    const auto& requisition = outputChunk->GetAggregatedRequisition(chunkRequstitionRegistry);
+    const auto& requisition = outputChunk->GetAggregatedRequisition(chunkRequisitionRegistry);
     TChunkIdWithIndexes chunkIdWithIndexes(
         jobInfo.OutputChunkId,
         GenericChunkReplicaIndex,
@@ -1268,7 +1268,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
     int targetCount = erasureCodec == NErasure::ECodec::None
         ? outputChunk->GetAggregatedReplicationFactor(
             chunkIdWithIndexes.MediumIndex,
-            chunkRequstitionRegistry)
+            chunkRequisitionRegistry)
         : NErasure::GetCodec(erasureCodec)->GetTotalPartCount();
 
     auto targetNodes = chunkManager->AllocateWriteTargets(
@@ -1577,7 +1577,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto chunkReplacementSucceded = 0;
+    auto chunkReplacementSucceeded = 0;
     for (int index = 0; index < replacementCount; ++index) {
         const auto& replacement = request->replacements()[index];
         auto newChunkId = FromProto<TChunkId>(replacement.new_chunk_id());
@@ -1607,8 +1607,8 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 chunkIds,
                 newChunkId);
 
-            ++ChunkReplacementSucceded_;
-            ++chunkReplacementSucceded;
+            ++ChunkReplacementSucceeded_;
+            ++chunkReplacementSucceeded;
             auto chunkCountDiff = std::ssize(chunkIds) - 1;
             ChunkCountSaving_ += chunkCountDiff;
             if (IsLeader()) {
@@ -1634,12 +1634,12 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         }
     }
 
-    auto result = chunkReplacementSucceded == replacementCount
+    auto result = chunkReplacementSucceeded == replacementCount
         ? EMergeSessionResult::OK
         : EMergeSessionResult::TransientFailure;
     FinalizeReplacement(nodeId, chunkListId, result);
 
-    if (chunkReplacementSucceded == 0) {
+    if (chunkReplacementSucceeded == 0) {
         return;
     }
 

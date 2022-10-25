@@ -18,7 +18,7 @@ class SuccessfullyFinished(BaseException):
 
 def run_command_with_lock(
         path, command, popen_kwargs=None,
-        lock_confict_callback=None, ping_failed_callback=None,
+        lock_conflict_callback=None, ping_failed_callback=None,
         set_address=True, address_path=None,
         create_lock_options=None, poll_period=None,
         forward_signals=None, client=None):
@@ -41,7 +41,7 @@ def run_command_with_lock(
             except YtResponseError as error:
                 if error.is_concurrent_transaction_lock_conflict():
                     logger.info("Failed to take lock at %s", path)
-                    lock_confict_callback()
+                    lock_conflict_callback()
                 raise
 
             if set_address:

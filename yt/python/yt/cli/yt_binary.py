@@ -2245,10 +2245,10 @@ def run_command_with_lock_handler(**kwargs):
 
     conflict_exit_code = kwargs.pop("conflict_exit_code")
 
-    def lock_confict_callback():
+    def lock_conflict_callback():
         sys.exit(conflict_exit_code)
 
-    kwargs["lock_confict_callback"] = lock_confict_callback
+    kwargs["lock_conflict_callback"] = lock_conflict_callback
 
     def ping_failed_callback(proc):
         proc.send_signal(2)

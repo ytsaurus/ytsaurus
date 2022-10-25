@@ -91,27 +91,27 @@ func NewResolverFetcher(resolver Resolver, sf *ServiceFetcher) *ResolverFetcher 
 	return rf
 }
 
-func (f *Fetcher) RunFetcherContinious() error {
+func (f *Fetcher) RunFetcherContinuous() error {
 	err := ytprof.MigrateTables(f.yc, f.tableYTPath)
 
 	if err != nil {
-		f.l.Fatal("migraton failed", log.Error(err), log.String("table_path", f.tableYTPath.String()))
+		f.l.Fatal("migration failed", log.Error(err), log.String("table_path", f.tableYTPath.String()))
 	}
 
-	f.l.Debug("migraton succeded", log.String("table_path", f.tableYTPath.String()))
+	f.l.Debug("migration succeeded", log.String("table_path", f.tableYTPath.String()))
 
 	rand.Seed(time.Now().UnixMicro())
 
 	for _, service := range f.services {
 		go func(serviceFetcher ServiceFetcher) {
-			serviceFetcher.runServiceFetcherContinious()
+			serviceFetcher.runServiceFetcherContinuous()
 		}(service)
 	}
 
 	select {}
 }
 
-func (sf *ServiceFetcher) runServiceFetcherContinious() {
+func (sf *ServiceFetcher) runServiceFetcherContinuous() {
 	for {
 		go sf.fetchService()
 
@@ -128,7 +128,7 @@ func (sf *ServiceFetcher) fetchService() {
 	hostslice := make([]string, 0)
 	errs := make([][]error, sz)
 
-	sf.f.l.Debug("all corutines getting started", log.String("profile_service", sf.service.ProfilePath))
+	sf.f.l.Debug("all coroutines getting started", log.String("profile_service", sf.service.ProfilePath))
 
 	var wg sync.WaitGroup
 	wg.Add(sz)
@@ -139,11 +139,11 @@ func (sf *ServiceFetcher) fetchService() {
 		}(id, resolver)
 	}
 
-	sf.f.l.Debug("all corutines started", log.String("profile_service", sf.service.ProfilePath))
+	sf.f.l.Debug("all coroutines started", log.String("profile_service", sf.service.ProfilePath))
 
 	wg.Wait()
 
-	sf.f.l.Debug("all corutines finished", log.String("profile_service", sf.service.ProfilePath))
+	sf.f.l.Debug("all coroutines finished", log.String("profile_service", sf.service.ProfilePath))
 
 	for i := 0; i < len(results); i++ {
 		for j := 0; j < len(results[i]); j++ {
@@ -285,7 +285,7 @@ func (rf *ResolverFetcher) fetchURL(url string) (*profile.Profile, error) {
 
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("not ok response stasus (%v)", resp.Status)
+		return nil, fmt.Errorf("not ok response status (%v)", resp.Status)
 	}
 
 	body, err := io.ReadAll(resp.Body)
