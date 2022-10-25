@@ -3,7 +3,7 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
+#include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
 

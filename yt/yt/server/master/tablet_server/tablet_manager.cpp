@@ -89,7 +89,6 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/client/table_client/schema.h>
 
@@ -102,6 +101,7 @@
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/tablet_client/helpers.h>
 

@@ -8,10 +8,6 @@
 #include "master_table_schema.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/table_client/schema.h>
-
-#include <yt/yt/ytlib/chunk_client/helpers.h>
-
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/config.h>
 #include <yt/yt/server/master/cell_master/config_manager.h>
@@ -31,6 +27,12 @@
 
 #include <yt/yt/server/lib/tablet_server/config.h>
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
+
+#include <yt/yt/ytlib/chunk_client/helpers.h>
+
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 

@@ -59,16 +59,10 @@
 
 #include <yt/yt/ytlib/security_client/helpers.h>
 
-#include <yt/yt/library/query/engine/column_evaluator.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
-#include <yt/yt/library/query/base/query.h>
-#include <yt/yt/library/query/base/query_preparer.h>
-#include <yt/yt/library/query/engine/range_inferrer.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
-
-#include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
@@ -89,6 +83,15 @@
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 #include <yt/yt/ytlib/object_client/helpers.h>
+
+#include <yt/yt/library/query/engine/column_evaluator.h>
+#include <yt/yt/library/query/base/query.h>
+#include <yt/yt/library/query/base/query_preparer.h>
+#include <yt/yt/library/query/engine/range_inferrer.h>
+
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
+#include <yt/yt/client/security_client/acl.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/read_limit.h>

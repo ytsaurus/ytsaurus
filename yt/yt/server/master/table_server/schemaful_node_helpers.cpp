@@ -5,7 +5,9 @@
 
 #include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
+#include <yt/yt/library/heavy_schema_validation/schema_validation.h>
+
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/ytree/attributes.h>
 

@@ -25,7 +25,6 @@
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
-#include <yt/yt/ytlib/table_client/schema.h>
 #include <yt/yt/ytlib/table_client/schema_inferer.h>
 
 #include <yt/yt/ytlib/transaction_client/action.h>
@@ -38,6 +37,7 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 

@@ -25,13 +25,13 @@
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
-#include <yt/yt/ytlib/table_client/schema.h>
 
 #include <yt/yt/library/query/base/query.h>
 
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
+#include <yt/yt/client/table_client/schema.h>
 
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 

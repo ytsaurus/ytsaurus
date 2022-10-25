@@ -5,8 +5,6 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 
-#include <yt/yt/ytlib/table_client/schema.h>
-
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/guid.h>
