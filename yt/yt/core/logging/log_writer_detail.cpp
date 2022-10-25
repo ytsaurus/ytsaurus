@@ -143,9 +143,16 @@ void TStreamLogWriterBase::OnException(const std::exception& ex)
     formatter.AppendString("\n*** Unhandled exception in log writer: ");
     formatter.AppendString(ex.what());
     formatter.AppendString("\n*** Aborting ***\n");
-
+#ifdef _unix_
     HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
-
+#else
+    ::WriteFile(
+        GetStdHandle(STD_ERROR_HANDLE),
+        formatter.GetData(),
+        formatter.GetBytesWritten(),
+        /*lpNumberOfBytesWritten*/ nullptr,
+        /*lpOverlapped*/ nullptr);
+#endif
     _exit(100);
     YT_ABORT();
 }

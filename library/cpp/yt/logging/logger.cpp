@@ -2,7 +2,10 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
+#include <library/cpp/yt/cpu_clock/clock.h>
+
 #include <util/system/compiler.h>
+#include <util/system/thread.h>
 
 namespace NYT::NLogging {
 
@@ -93,12 +96,31 @@ thread_local bool TMessageStringBuilder::CacheDestroyed_;
 
 Y_WEAK TLoggingContext GetLoggingContext()
 {
-    return {};
+    return {
+        .Instant = GetCpuInstant(),
+        .ThreadId = TThread::CurrentThreadId(),
+        .ThreadName = GetLoggingThreadName(),
+    };
 }
 
 Y_WEAK ILogManager* GetDefaultLogManager()
 {
     return nullptr;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoggingThreadName GetLoggingThreadName()
+{
+    static thread_local TLoggingThreadName loggingThreadName;
+    if (loggingThreadName.Length == 0) {
+        if (auto name = TThread::CurrentThreadName()) {
+            auto length = std::min(TLoggingThreadName::BufferCapacity - 1, static_cast<int>(name.length()));
+            loggingThreadName.Length = length;
+            ::memcpy(loggingThreadName.Buffer.data(), name.data(), length);
+        }
+    }
+    return loggingThreadName;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

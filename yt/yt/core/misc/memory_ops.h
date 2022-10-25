@@ -1,6 +1,6 @@
 #pragma once
 
-#include <sys/types.h>
+#include <util/system/types.h>
 
 namespace NYT {
 

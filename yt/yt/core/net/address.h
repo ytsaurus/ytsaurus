@@ -263,7 +263,9 @@ struct THash<NYT::NNet::TNetworkAddress>
 {
     inline size_t operator()(const NYT::NNet::TNetworkAddress& address) const
     {
-        TStringBuf rawAddress{reinterpret_cast<const char*>(address.GetSockAddr()), address.GetLength()};
+        TStringBuf rawAddress{
+            reinterpret_cast<const char*>(address.GetSockAddr()),
+            static_cast<size_t>(address.GetLength())};
         return ComputeHash(rawAddress);
     }
 };

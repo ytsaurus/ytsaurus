@@ -11,41 +11,24 @@ namespace NYT::NLogging {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-thread_local TLoggingThreadName CachedLoggingThreadName;
-
-void CacheThreadName()
-{
-    if (auto name = TThread::CurrentThreadName()) {
-        auto length = std::min(TLoggingThreadName::BufferCapacity - 1, static_cast<int>(name.length()));
-        CachedLoggingThreadName.Length = length;
-        ::memcpy(CachedLoggingThreadName.Buffer.data(), name.data(), length);
-    }
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
+#ifndef _win_
 
 TLoggingContext GetLoggingContext()
 {
-    if (CachedLoggingThreadName.Length == 0) {
-        CacheThreadName();
-    }
-
     auto* traceContext = NTracing::GetCurrentTraceContext();
 
     return TLoggingContext{
         .Instant = GetCpuInstant(),
         .ThreadId = TThread::CurrentThreadId(),
-        .ThreadName = CachedLoggingThreadName,
+        .ThreadName = GetLoggingThreadName(),
         .FiberId = NConcurrency::GetCurrentFiberId(),
         .TraceId = traceContext ? traceContext->GetTraceId() : TTraceId{},
         .RequestId = traceContext ? traceContext->GetRequestId() : NTracing::TRequestId(),
         .TraceLoggingTag = traceContext ? traceContext->GetLoggingTag() : TStringBuf(),
     };
 }
+
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 
