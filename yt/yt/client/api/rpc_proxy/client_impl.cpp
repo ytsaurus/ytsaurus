@@ -1447,6 +1447,10 @@ TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
     const std::vector<NYPath::TRichYPath>& paths,
     const TPartitionTablesOptions& options)
 {
+    if (options.PartitionMode == NTableClient::ETablePartitionMode::Sorted) {
+        THROW_ERROR_EXCEPTION("Sorted partitioning is not supported yet");
+    }
+
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.PartitionTables();

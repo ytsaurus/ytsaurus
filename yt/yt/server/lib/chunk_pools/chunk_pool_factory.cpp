@@ -62,7 +62,7 @@ IChunkPoolPtr CreateChunkPool(
                 TInputStreamDirectory());
 
         case ETablePartitionMode::Sorted:
-            YT_UNIMPLEMENTED();
+            THROW_ERROR_EXCEPTION("Sorted partitioning is not supported yet");
 
         case ETablePartitionMode::Unordered:
             return CreateUnorderedChunkPool(
