@@ -144,6 +144,17 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
             this.objectClazz = objectClazz;
         }
 
+        private SerializationContext(ERowsetFormat desiredRowsetFormat) {
+            this.deserializer = null;
+            this.serializer = null;
+            this.objectClazz = null;
+            this.desiredRowsetFormat = desiredRowsetFormat;
+        }
+
+        public static <T> SerializationContext<T> binaryArrow() {
+            return new SerializationContext<>(ERowsetFormat.RF_ARROW);
+        }
+
         public Optional<WireRowDeserializer<T>> getDeserializer() {
             return Optional.ofNullable(this.deserializer);
         }
