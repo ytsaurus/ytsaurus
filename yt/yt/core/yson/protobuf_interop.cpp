@@ -407,6 +407,11 @@ public:
         return Underlying_->is_repeated() && !IsYsonMap();
     }
 
+    bool IsPacked() const
+    {
+        return Underlying_->is_packed() && !IsYsonMap();
+    }
+
     bool IsRequired() const
     {
         return Underlying_->is_required() || Required_;
@@ -957,6 +962,9 @@ private:
                             << TErrorAttribute("ypath", YPathStack_.GetPath())
                             << TErrorAttribute("proto_type", enumType->GetFullName());
                     }
+                    if (field->IsPacked()) {
+                        BodyCodedStream_.WriteVarint64(BodyCodedStream_.VarintSize32SignExtended(*optionalValue));
+                    }
                     BodyCodedStream_.WriteVarint32SignExtended(*optionalValue);
                     break;
                 }
@@ -987,12 +995,18 @@ private:
             switch (field->GetType()) {
                 case FieldDescriptor::TYPE_DOUBLE: {
                     auto encodedValue = WireFormatLite::EncodeDouble(value);
+                    if (field->IsPacked()) {
+                        BodyCodedStream_.WriteVarint64(sizeof(encodedValue));
+                    }
                     BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
                     break;
                 }
 
                 case FieldDescriptor::TYPE_FLOAT: {
                     auto encodedValue = WireFormatLite::EncodeFloat(value);
+                    if (field->IsPacked()) {
+                        BodyCodedStream_.WriteVarint64(sizeof(encodedValue));
+                    }
                     BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
                     break;
                 }
@@ -1016,6 +1030,9 @@ private:
                     YPathStack_.GetPath())
                     << TErrorAttribute("ypath", YPathStack_.GetPath())
                     << TErrorAttribute("proto_field", field->GetFullName());
+            }
+            if (field->IsPacked()) {
+                BodyCodedStream_.WriteVarint64(1);
             }
             BodyCodedStream_.WriteVarint32(value ? 1 : 0);
         });
@@ -1515,60 +1532,92 @@ private:
         switch (field->GetType()) {
             case FieldDescriptor::TYPE_INT32: {
                 auto i32Value = CheckedCastField<i32>(value, TStringBuf("i32"), field);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(BodyCodedStream_.VarintSize32SignExtended(i32Value));
+                }
                 BodyCodedStream_.WriteVarint32SignExtended(i32Value);
                 break;
             }
 
             case FieldDescriptor::TYPE_INT64: {
                 auto i64Value = CheckedCastField<i64>(value, TStringBuf("i64"), field);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(BodyCodedStream_.VarintSize64(i64Value));
+                }
                 BodyCodedStream_.WriteVarint64(static_cast<ui64>(i64Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_SINT32: {
                 auto i32Value = CheckedCastField<i32>(value, TStringBuf("i32"), field);
-                BodyCodedStream_.WriteVarint64(ZigZagEncode64(i32Value));
+                auto encodedValue = ZigZagEncode64(i32Value);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(BodyCodedStream_.VarintSize64(encodedValue));
+                }
+                BodyCodedStream_.WriteVarint64(encodedValue);
                 break;
             }
 
             case FieldDescriptor::TYPE_SINT64: {
                 auto i64Value = CheckedCastField<i64>(value, TStringBuf("i64"), field);
-                BodyCodedStream_.WriteVarint64(ZigZagEncode64(i64Value));
+                auto encodedValue = ZigZagEncode64(i64Value);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(BodyCodedStream_.VarintSize64(encodedValue));
+                }
+                BodyCodedStream_.WriteVarint64(encodedValue);
                 break;
             }
 
             case FieldDescriptor::TYPE_UINT32: {
                 auto ui32Value = CheckedCastField<ui32>(value, TStringBuf("ui32"), field);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(BodyCodedStream_.VarintSize32(ui32Value));
+                }
                 BodyCodedStream_.WriteVarint32(ui32Value);
                 break;
             }
 
             case FieldDescriptor::TYPE_UINT64: {
                 auto ui64Value = CheckedCastField<ui64>(value, TStringBuf("ui64"), field);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(BodyCodedStream_.VarintSize64(ui64Value));
+                }
                 BodyCodedStream_.WriteVarint64(ui64Value);
                 break;
             }
 
             case FieldDescriptor::TYPE_FIXED32: {
                 auto ui32Value = CheckedCastField<ui32>(value, TStringBuf("ui32"), field);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(sizeof(ui32Value));
+                }
                 BodyCodedStream_.WriteRaw(&ui32Value, sizeof(ui32Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_FIXED64: {
                 auto ui64Value = CheckedCastField<ui64>(value, TStringBuf("ui64"), field);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(sizeof(ui64Value));
+                }
                 BodyCodedStream_.WriteRaw(&ui64Value, sizeof(ui64Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_SFIXED32: {
                 auto i32Value = CheckedCastField<i32>(value, TStringBuf("i32"), field);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(sizeof(i32Value));
+                }
                 BodyCodedStream_.WriteRaw(&i32Value, sizeof(i32Value));
                 break;
             }
 
             case FieldDescriptor::TYPE_SFIXED64: {
                 auto i64Value = CheckedCastField<i64>(value, TStringBuf("i64"), field);
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(sizeof(i64Value));
+                }
                 BodyCodedStream_.WriteRaw(&i64Value, sizeof(i64Value));
                 break;
             }
@@ -1584,18 +1633,27 @@ private:
                         << TErrorAttribute("ypath", YPathStack_.GetPath())
                         << TErrorAttribute("proto_field", field->GetFullName());
                 }
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(BodyCodedStream_.VarintSize32SignExtended(i32Value));
+                }
                 BodyCodedStream_.WriteVarint32SignExtended(i32Value);
                 break;
             }
 
             case FieldDescriptor::TYPE_DOUBLE: {
                 auto encodedValue = WireFormatLite::EncodeDouble(static_cast<double>(value));
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(sizeof(encodedValue));
+                }
                 BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
                 break;
             }
 
             case FieldDescriptor::TYPE_FLOAT: {
                 auto encodedValue = WireFormatLite::EncodeFloat(static_cast<double>(value));
+                if (field->IsPacked()) {
+                    BodyCodedStream_.WriteVarint64(sizeof(encodedValue));
+                }
                 BodyCodedStream_.WriteRaw(&encodedValue, sizeof(encodedValue));
                 break;
             }
@@ -2422,7 +2480,7 @@ private:
                     }
 
                     case FieldDescriptor::TYPE_FLOAT: {
-                        ParseFixedPacked<ui32>(length, field, 
+                        ParseFixedPacked<ui32>(length, field,
                             [&] (auto value) {
                                 auto floatValue = WireFormatLite::DecodeFloat(value);
                                 Consumer_->OnDoubleScalar(floatValue);
@@ -2431,7 +2489,7 @@ private:
                     }
 
                     case FieldDescriptor::TYPE_DOUBLE: {
-                        ParseFixedPacked<ui64>(length, field, 
+                        ParseFixedPacked<ui64>(length, field,
                             [&] (auto value) {
                                 auto doubleValue = WireFormatLite::DecodeDouble(value);
                                 Consumer_->OnDoubleScalar(doubleValue);

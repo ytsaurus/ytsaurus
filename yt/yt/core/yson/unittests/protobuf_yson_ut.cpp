@@ -2452,9 +2452,9 @@ void CopyToProto(const TNodeList& from, TRepeated& rep)
     }
 }
 
-TEST(TPackedRepeatedProtobufTest, Parse)
+TEST(TPackedRepeatedProtobufTest, TestSerializeDeserialize)
 {
-    auto expectedYsonNode = BuildYsonNodeFluently()
+    auto node = BuildYsonNodeFluently()
         .BeginMap()
             .Item("int32_rep").BeginList()
                 .Item().Value(0)
@@ -2528,31 +2528,58 @@ TEST(TPackedRepeatedProtobufTest, Parse)
             .EndList()
         .EndMap();
 
-    NProto::TPackedRepeatedMessage msg;
-    auto map = expectedYsonNode->AsMap();
-    CopyToProto<i64>(map->FindChild("int32_rep")->AsList(), *msg.mutable_int32_rep());
-    CopyToProto<i64>(map->FindChild("int64_rep")->AsList(), *msg.mutable_int64_rep());
-    CopyToProto<ui64>(map->FindChild("uint32_rep")->AsList(), *msg.mutable_uint32_rep());
-    CopyToProto<ui64>(map->FindChild("uint64_rep")->AsList(), *msg.mutable_uint64_rep());
-    CopyToProto<double>(map->FindChild("float_rep")->AsList(), *msg.mutable_float_rep());
-    CopyToProto<double>(map->FindChild("double_rep")->AsList(), *msg.mutable_double_rep());
-    CopyToProto<ui64>(map->FindChild("fixed32_rep")->AsList(), *msg.mutable_fixed32_rep());
-    CopyToProto<ui64>(map->FindChild("fixed64_rep")->AsList(), *msg.mutable_fixed64_rep());
-    CopyToProto<i64>(map->FindChild("sfixed32_rep")->AsList(), *msg.mutable_sfixed32_rep());
-    CopyToProto<i64>(map->FindChild("sfixed64_rep")->AsList(), *msg.mutable_sfixed64_rep());
-    CopyToProto<i64>(map->FindChild("enum_rep")->AsList(), *msg.mutable_enum_rep());
 
-    TString protobufString;
-    Y_UNUSED(msg.SerializeToString(&protobufString));
+    NProto::TPackedRepeatedMessage serializedMessage;
+    TProtobufWriterOptions options;
+    DeserializeProtobufMessage(
+        serializedMessage,
+        ReflectProtobufMessageType<NProto::TPackedRepeatedMessage>(),
+        node,
+        options);
 
-    TString newYsonString;
-    TStringOutput newYsonOutputStream(newYsonString);
-    TYsonWriter ysonWriter(&newYsonOutputStream, NYT::NYson::EYsonFormat::Pretty);
-    ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
-    EXPECT_NO_THROW(ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NYson::NProto::TPackedRepeatedMessage>()));
+    NProto::TPackedRepeatedMessage manuallyBuildMessage;
+    {
+        auto map = node->AsMap();
+        CopyToProto<i64>(map->FindChild("int32_rep")->AsList(), *manuallyBuildMessage.mutable_int32_rep());
+        CopyToProto<i64>(map->FindChild("int64_rep")->AsList(), *manuallyBuildMessage.mutable_int64_rep());
+        CopyToProto<ui64>(map->FindChild("uint32_rep")->AsList(), *manuallyBuildMessage.mutable_uint32_rep());
+        CopyToProto<ui64>(map->FindChild("uint64_rep")->AsList(), *manuallyBuildMessage.mutable_uint64_rep());
+        CopyToProto<double>(map->FindChild("float_rep")->AsList(), *manuallyBuildMessage.mutable_float_rep());
+        CopyToProto<double>(map->FindChild("double_rep")->AsList(), *manuallyBuildMessage.mutable_double_rep());
+        CopyToProto<ui64>(map->FindChild("fixed32_rep")->AsList(), *manuallyBuildMessage.mutable_fixed32_rep());
+        CopyToProto<ui64>(map->FindChild("fixed64_rep")->AsList(), *manuallyBuildMessage.mutable_fixed64_rep());
+        CopyToProto<i64>(map->FindChild("sfixed32_rep")->AsList(), *manuallyBuildMessage.mutable_sfixed32_rep());
+        CopyToProto<i64>(map->FindChild("sfixed64_rep")->AsList(), *manuallyBuildMessage.mutable_sfixed64_rep());
+        CopyToProto<i64>(map->FindChild("enum_rep")->AsList(), *manuallyBuildMessage.mutable_enum_rep());
+    }
 
-    auto actualYsonNode = ConvertToNode(TYsonString(newYsonString));
-    EXPECT_TRUE(AreNodesEqual(actualYsonNode, expectedYsonNode));
+    // Check manuallyBuildMessage
+    {
+        TString protobufString;
+        Y_UNUSED(manuallyBuildMessage.SerializeToString(&protobufString));
+
+        TString newYsonString;
+        TStringOutput newYsonOutputStream(newYsonString);
+        TYsonWriter ysonWriter(&newYsonOutputStream, EYsonFormat::Pretty);
+        ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+        EXPECT_NO_THROW(ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NYson::NProto::TPackedRepeatedMessage>()));
+
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(newYsonString)), node));
+    }
+
+    // Check serializedMessage
+    {
+        TString protobufString;
+        Y_UNUSED(serializedMessage.SerializeToString(&protobufString));
+
+        TString newYsonString;
+        TStringOutput newYsonOutputStream(newYsonString);
+        TYsonWriter ysonWriter(&newYsonOutputStream, EYsonFormat::Pretty);
+        ArrayInputStream protobufInput(protobufString.data(), protobufString.length());
+        EXPECT_NO_THROW(ParseProtobuf(&ysonWriter, &protobufInput, ReflectProtobufMessageType<NYT::NYson::NProto::TPackedRepeatedMessage>()));
+
+        EXPECT_TRUE(AreNodesEqual(ConvertToNode(TYsonString(newYsonString)), node));
+    }
 }
 
 } // namespace
