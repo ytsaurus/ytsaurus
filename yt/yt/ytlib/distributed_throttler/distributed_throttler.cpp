@@ -100,7 +100,7 @@ public:
         }
 
         auto future = Underlying_->Throttle(amount);
-        future.Subscribe(BIND([=] (const TError& error) {
+        future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
             if (error.IsOK()) {
                 UpdateHistoricUsage(amount);
             }
