@@ -43,9 +43,24 @@ type Config struct {
 	// Controller contains opaque controller config.
 	Controller yson.RawValue `yson:"controller"`
 
-	HTTPAPIEndpoint        string   `yson:"http_api_endpoint"`
-	HTTPMonitoringEndpoint string   `yson:"http_monitoring_endpoint"`
-	BaseACL                []yt.ACE `yson:"base_acl"`
+	HTTPAPIEndpoint        string `yson:"http_api_endpoint"`
+	HTTPMonitoringEndpoint string `yson:"http_monitoring_endpoint"`
+
+	// HealthStatusExpirationPeriod defines when agent health status becomes outdated.
+	HealthStatusExpirationPeriod *time.Duration `yson:"health_status_expiration_period"`
+
+	BaseACL []yt.ACE `yson:"base_acl"`
+}
+
+const (
+	DefaultHealthStatusExpirationPeriod = time.Duration(time.Minute)
+)
+
+func (c *Config) HealthStatusExpirationPeriodOrDefault() time.Duration {
+	if c.HealthStatusExpirationPeriod != nil {
+		return *c.HealthStatusExpirationPeriod
+	}
+	return DefaultHealthStatusExpirationPeriod
 }
 
 // Location defines an operating cluster.
@@ -161,8 +176,9 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 	app.HTTPAPIServer = api.NewServer(apiConfig, l)
 
 	var monitoringConfig = monitoring.HTTPMonitoringConfig{
-		Clusters: config.LocationProxies,
-		Endpoint: config.HTTPMonitoringEndpoint,
+		Clusters:                     config.LocationProxies,
+		Endpoint:                     config.HTTPMonitoringEndpoint,
+		HealthStatusExpirationPeriod: config.HealthStatusExpirationPeriodOrDefault(),
 	}
 	app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthers)
 

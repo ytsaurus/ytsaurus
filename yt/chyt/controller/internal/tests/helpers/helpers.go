@@ -219,8 +219,9 @@ func PrepareMonitoring(t *testing.T) (*yttest.Env, *agent.Agent, *RequestClient)
 	proxy := os.Getenv("YT_PROXY")
 
 	c := monitoring.HTTPMonitoringConfig{
-		Clusters: []string{proxy},
-		Endpoint: ":2223",
+		Clusters:                     []string{proxy},
+		Endpoint:                     ":2223",
+		HealthStatusExpirationPeriod: time.Duration(time.Minute),
 	}
 
 	server := monitoring.NewServer(c, env.L.Logger(), DummyLeader{}, map[string]monitoring.Healther{

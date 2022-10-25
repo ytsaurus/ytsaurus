@@ -2,9 +2,11 @@ package monitoring
 
 import (
 	"net/http"
+	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/httpserver"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 type HTTPLeaderMonitoring struct {
@@ -14,8 +16,9 @@ type HTTPLeaderMonitoring struct {
 
 type HTTPHealthMonitoring struct {
 	httpserver.HTTPResponser
-	healther Healther
-	leader   LeaderChecker
+	healther                     Healther
+	leader                       LeaderChecker
+	healthStatusExpirationPeriod time.Duration
 }
 
 func NewHTTPLeaderMonitoring(leader LeaderChecker, l log.Logger) HTTPLeaderMonitoring {
@@ -25,11 +28,12 @@ func NewHTTPLeaderMonitoring(leader LeaderChecker, l log.Logger) HTTPLeaderMonit
 	}
 }
 
-func NewHTTPHealthMonitoring(healther Healther, leader LeaderChecker, l log.Logger) HTTPHealthMonitoring {
+func NewHTTPHealthMonitoring(healther Healther, leader LeaderChecker, c HTTPMonitoringConfig, l log.Logger) HTTPHealthMonitoring {
 	return HTTPHealthMonitoring{
-		HTTPResponser: httpserver.NewHTTPResponser(l),
-		healther:      healther,
-		leader:        leader,
+		HTTPResponser:                httpserver.NewHTTPResponser(l),
+		healther:                     healther,
+		leader:                       leader,
+		healthStatusExpirationPeriod: c.HealthStatusExpirationPeriod,
 	}
 }
 
@@ -42,9 +46,33 @@ func (a HTTPLeaderMonitoring) HandleIsLeader(w http.ResponseWriter, r *http.Requ
 }
 
 func (a HTTPHealthMonitoring) HandleIsHealthy(w http.ResponseWriter, r *http.Request) {
-	if a.leader.IsLeader() && a.healther.IsHealthy() {
+	isLeader := a.leader.IsLeader()
+	healthStatus := a.healther.GetHealthStatus()
+	timeDelta := time.Since(healthStatus.ModificationTime)
+
+	if isLeader && healthStatus.Err == nil && timeDelta <= a.healthStatusExpirationPeriod {
 		a.ReplyOK(w, struct{}{})
-	} else {
-		a.Reply(w, http.StatusServiceUnavailable, struct{}{})
+		return
 	}
+
+	if !isLeader {
+		a.Reply(w, http.StatusServiceUnavailable, struct{}{})
+		return
+	}
+
+	if timeDelta > a.healthStatusExpirationPeriod {
+		a.Reply(w, http.StatusServiceUnavailable, map[string]any{
+			"error": yterrors.Err("health status has expired"),
+		})
+		return
+	}
+
+	if healthStatus.Err != nil {
+		a.Reply(w, http.StatusServiceUnavailable, map[string]any{
+			"error": yterrors.FromError(healthStatus.Err),
+		})
+		return
+	}
+
+	a.Reply(w, http.StatusServiceUnavailable, struct{}{})
 }
