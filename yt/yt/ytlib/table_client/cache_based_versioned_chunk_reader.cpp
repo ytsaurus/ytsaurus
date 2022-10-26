@@ -315,6 +315,59 @@ private:
 };
 
 template <>
+class TBlockReaderFactory<TIndexedVersionedBlockReader>
+    : public TCacheBasedVersionedChunkReaderBase
+{
+public:
+    TBlockReaderFactory(
+        TChunkId chunkId,
+        TChunkStatePtr state,
+        const TCachedVersionedChunkMetaPtr& chunkMeta,
+        const TColumnFilter& columnFilter,
+        TTimestamp timestamp,
+        bool produceAllVersions)
+        : TCacheBasedVersionedChunkReaderBase(
+            chunkId,
+            std::move(state),
+            chunkMeta)
+        , SchemaIdMapping_(
+            ChunkState_->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter))
+        , Timestamp_(timestamp)
+        , ProduceAllVersions_(produceAllVersions)
+    {
+        YT_VERIFY(CheckedEnumCast<ETableChunkBlockFormat>(ChunkMeta_->DataBlockMeta()->block_format()) ==
+            ETableChunkBlockFormat::IndexedVersioned);
+    }
+
+    TIndexedVersionedBlockReader* CreateBlockReader(
+        const TSharedRef& block,
+        const NProto::TDataBlockMeta& meta,
+        bool initialize = true)
+    {
+        BlockReader_.emplace(
+            block,
+            meta,
+            ChunkMeta_->GetChunkSchema(),
+            ChunkState_->TableSchema->GetKeyColumnCount(),
+            SchemaIdMapping_,
+            KeyComparer_,
+            Timestamp_,
+            ProduceAllVersions_,
+            initialize);
+
+        return &BlockReader_.value();
+    }
+
+protected:
+    const std::vector<TColumnIdMapping> SchemaIdMapping_;
+    const TTimestamp Timestamp_;
+    const bool ProduceAllVersions_;
+
+private:
+    std::optional<TIndexedVersionedBlockReader> BlockReader_;
+};
+
+template <>
 class TBlockReaderFactory<THorizontalSchemalessVersionedBlockReader>
     : public TCacheBasedVersionedChunkReaderBase
 {
@@ -540,14 +593,31 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         }
 
         case EChunkFormat::TableVersionedSimple:
-            return New<TCacheBasedSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>(
-                chunkId,
-                chunkState,
-                chunkMeta,
-                keys,
-                columnFilter,
-                timestamp,
-                produceAllVersions);
+            switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+                case ETableChunkBlockFormat::Default:
+                    return New<TCacheBasedSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>(
+                        chunkId,
+                        chunkState,
+                        chunkMeta,
+                        keys,
+                        columnFilter,
+                        timestamp,
+                        produceAllVersions);
+
+                case ETableChunkBlockFormat::IndexedVersioned:
+                    return New<TCacheBasedSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>(
+                        chunkId,
+                        chunkState,
+                        chunkMeta,
+                        keys,
+                        columnFilter,
+                        timestamp,
+                        produceAllVersions);
+
+                default:
+                    YT_ABORT();
+            }
+
 
         case EChunkFormat::TableUnversionedColumnar:
         case EChunkFormat::TableVersionedColumnar:
@@ -766,15 +836,32 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         }
 
         case EChunkFormat::TableVersionedSimple:
-            return New<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(
-                chunkId,
-                chunkState,
-                chunkMeta,
-                std::move(ranges),
-                columnFilter,
-                timestamp,
-                produceAllVersions,
-                singletonClippingRange);
+            switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+                case ETableChunkBlockFormat::Default:
+                    return New<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(
+                        chunkId,
+                        chunkState,
+                        chunkMeta,
+                        std::move(ranges),
+                        columnFilter,
+                        timestamp,
+                        produceAllVersions,
+                        singletonClippingRange);
+
+                case ETableChunkBlockFormat::IndexedVersioned:
+                    return New<TSimpleCacheBasedVersionedRangeChunkReader<TIndexedVersionedBlockReader>>(
+                        chunkId,
+                        chunkState,
+                        chunkMeta,
+                        std::move(ranges),
+                        columnFilter,
+                        timestamp,
+                        produceAllVersions,
+                        singletonClippingRange);
+
+                default:
+                    YT_ABORT();
+            }
 
         case EChunkFormat::TableUnversionedColumnar:
         case EChunkFormat::TableVersionedColumnar:

@@ -10,26 +10,6 @@ class TChunkIndexBuilder
     : public IChunkIndexBuilder
 {
 public:
-    i64 GetSectorAlignmentSize() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    bool IsGroupReorderingEnabled() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    int GetGroupCount() const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    int GetGroupIdFromValueId(int /*valueId*/) const override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     void ProcessRow(
         TVersionedRow /*row*/,
         int /*blockIndex*/,
@@ -38,12 +18,12 @@ public:
         TRange<int> /*groupOffsets*/,
         TRange<int> /*groupIndexes*/) override
     {
-        YT_UNIMPLEMENTED();
+        return;
     }
 
     TSharedRef BuildIndex() override
     {
-        YT_UNIMPLEMENTED();
+        return {};
     }
 };
 
