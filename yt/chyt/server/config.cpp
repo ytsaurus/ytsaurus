@@ -352,6 +352,17 @@ void TQueryRegistryConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQuerySamplingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("query_sampling_rate", &TThis::QuerySamplingRate)
+        .InRange(0, 1)
+        .Default(1);
+    registrar.Parameter("user_agent_regexp", &TThis::UserAgentRegExp)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TYtConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("clique_id", &TThis::CliqueId)
@@ -453,6 +464,9 @@ void TYtConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("query_registry", &TThis::QueryRegistry)
+        .DefaultNew();
+
+    registrar.Parameter("query_sampling", &TThis::QuerySampling)
         .DefaultNew();
 
     registrar.Preprocessor([] (TThis* config) {
