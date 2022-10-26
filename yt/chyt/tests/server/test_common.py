@@ -1525,6 +1525,22 @@ class TestClickHouseCommon(ClickHouseTestBase):
             check_with_castom_settings({"max_result_rows": 1, "result_overflow_mode": "break"})
             check_with_castom_settings({"max_result_bytes": 1, "result_overflow_mode": "break"})
 
+    @authors("gudqeit")
+    def test_query_sampling(self):
+        patch = {
+            "yt": {
+                "query_sampling": {
+                    "query_sampling_rate": 0,
+                    "user_agent_regexp": "some_user_agent"
+                }
+            }
+        }
+        with Clique(1, config_patch=patch) as clique:
+            assert clique.make_query("select 1 as a") == [{"a": 1}]
+
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select 1 as a", headers={"User-Agent": "some_user_agent"})
+
 
 class TestClickHouseNoCache(ClickHouseTestBase):
     @authors("dakovalkov")

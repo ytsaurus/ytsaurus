@@ -120,6 +120,15 @@ public:
             return;
         }
 
+        if (TryDiscardQueryDueToSampling(userAgent)) {
+            replyError(
+                DB::HTTPResponse::HTTP_BAD_REQUEST,
+                TError(
+                    "Discarding query due to query sampling with rate %v",
+                    Host_->GetConfig()->QuerySampling->QuerySamplingRate));
+            return;
+        }
+
         YT_LOG_DEBUG("Registering new user (UserName: %v)", userName);
         RegisterNewUser(Server_.context()->getAccessControlManager(), TString(userName));
         YT_LOG_DEBUG("User registered");
@@ -193,6 +202,16 @@ private:
         }
 
         return New<TTraceContext>(parentSpan, "HttpHandler");
+    }
+
+    bool TryDiscardQueryDueToSampling(const std::string& userAgent)
+    {
+        auto querySamplingConfig = Host_->GetConfig()->QuerySampling;
+        auto userAgentRegExp = querySamplingConfig->UserAgentRegExp;
+        if (userAgentRegExp && NRe2::TRe2::FullMatch(userAgent, *userAgentRegExp)) {
+            return THash<TQueryId>()(QueryId_) > querySamplingConfig->QuerySamplingRate * std::numeric_limits<size_t>::max();
+        }
+        return false;
     }
 };
 

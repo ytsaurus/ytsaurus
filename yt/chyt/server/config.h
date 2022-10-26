@@ -465,6 +465,22 @@ DEFINE_REFCOUNTED_TYPE(TQueryRegistryConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TQuerySamplingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    double QuerySamplingRate;
+    NRe2::TRe2Ptr UserAgentRegExp;
+
+    REGISTER_YSON_STRUCT(TQuerySamplingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQuerySamplingConfig);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYtConfig
     : public NYTree::TYsonStruct
 {
@@ -541,6 +557,8 @@ public:
     TQueryStatisticsReporterConfigPtr QueryStatisticsReporter;
 
     TQueryRegistryConfigPtr QueryRegistry;
+
+    TQuerySamplingConfigPtr QuerySampling;
 
     REGISTER_YSON_STRUCT(TYtConfig);
 
