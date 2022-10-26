@@ -66,15 +66,24 @@ void THunkTablet::Load(TLoadContext& context)
 
 TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector<TSharedRef> payloads)
 {
+    ++WriteLockCount_;
+    auto writeLockGuard = Finally([this] {
+        --WriteLockCount_;
+        YT_VERIFY(WriteLockCount_ >= 0);
+    });
+
     auto automatonInvoker = GetCurrentInvoker();
 
-    auto doWriteHunks = [=] (std::vector<TSharedRef> payloads, THunkStorePtr store) {
+    auto doWriteHunks =
+        [=, this, writeLockGuard = std::move(writeLockGuard)] (std::vector<TSharedRef> payloads, THunkStorePtr store) mutable
+    {
         auto tabletId = GetId();
-
         store->SetLastWriteTime(TInstant::Now());
 
         auto future = store->WriteHunks(std::move(payloads));
-        future.Subscribe(BIND([=] (const TErrorOr<std::vector<TJournalHunkDescriptor>>& descriptorsOrError) {
+        future.Subscribe(
+            BIND([=, this, writeLockGuard = std::move(writeLockGuard)] (const TErrorOr<std::vector<TJournalHunkDescriptor>>& descriptorsOrError) mutable
+        {
             store->SetLastWriteTime(TInstant::Now());
 
             if (!descriptorsOrError.IsOK() && ActiveStore_ == store) {
@@ -98,7 +107,7 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkTablet::WriteHunks(std::vector
 
     // Slow path.
     auto future = ActiveStorePromise_.ToFuture();
-    return future.Apply(BIND(doWriteHunks, payloads).AsyncVia(automatonInvoker));
+    return future.Apply(BIND(std::move(doWriteHunks), payloads).AsyncVia(automatonInvoker));
 }
 
 void THunkTablet::Reconfigure(const THunkStorageSettings& settings)
@@ -201,6 +210,11 @@ bool THunkTablet::IsFullyUnlocked(bool forceUnmount) const
 
     // Tablet scanner is scanning tablet now.
     if (LockedByScan_) {
+        return false;
+    }
+
+    // Some write is still in progress.
+    if (WriteLockCount_ > 0) {
         return false;
     }
 
@@ -342,6 +356,10 @@ void THunkTablet::BuildOrchidYson(IYsonConsumer* consumer) const
         .DoIf(static_cast<bool>(ActiveStore_), [&] (auto fluent) {
             fluent.Item("active_store_id").Value(ActiveStore_->GetId());
         })
+        .DoIf(static_cast<bool>(LockTransactionId_), [&] (auto fluent) {
+            fluent.Item("lock_transaction_id").Value(LockTransactionId_);
+        })
+        .Item("write_lock_count").Value(WriteLockCount_)
     .EndMap();
 }
 
