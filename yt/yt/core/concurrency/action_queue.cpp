@@ -243,6 +243,10 @@ private:
 
 IInvokerPtr CreateSerializedInvoker(IInvokerPtr underlyingInvoker)
 {
+    if (underlyingInvoker->IsSerialized()) {
+        return underlyingInvoker;
+    }
+
     return New<TSerializedInvoker>(std::move(underlyingInvoker));
 }
 
