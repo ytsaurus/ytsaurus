@@ -930,7 +930,7 @@ private:
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             timestampProviderConfig,
             CreateTimestampProviderChannel(timestampProviderConfig, Connection_->GetChannelFactory()));
-        RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider, NativeAuthenticator_));
+        RpcServer_->RegisterService(CreateTimestampProxyService(timestampProvider, /*authenticator*/ nullptr));
 
         ObjectServiceCache_ = New<TObjectServiceCache>(
             Config_->CachingObjectService,

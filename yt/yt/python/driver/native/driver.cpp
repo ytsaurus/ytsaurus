@@ -10,9 +10,13 @@
 
 #include <yt/yt/ytlib/arbitrage_service/arbitrage_service_proxy.h>
 
+#include <yt/yt/ytlib/driver/config.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
+
+#include <yt/yt/library/auth_server/tvm_service.h>
 
 #include <yt/yt/client/api/transaction.h>
 
@@ -49,11 +53,21 @@ public:
 
         try {
             configNode = ConvertToNode(configDict);
-            auto connection = CreateConnection(configNode);
+
+            auto driverConfig = ConvertTo<TNativeDriverConfigPtr>(configNode);
+
+            NAuth::IDynamicTvmServicePtr tvmService;
+            if (driverConfig->TvmService) {
+                tvmService = NAuth::CreateDynamicTvmService(driverConfig->TvmService);
+            }
+            auto connection = CreateConnection(
+                configNode,
+                /*options*/ {},
+                std::move(tvmService));
             Connection_ = connection;
-            auto driverConfig = ConvertTo<TDriverConfigPtr>(configNode);
+
             driver = CreateDriver(std::move(connection), std::move(driverConfig));
-        } catch(const std::exception& ex) {
+        } catch (const std::exception& ex) {
             throw Py::RuntimeError(TString("Error creating driver\n") + ex.what());
         }
 

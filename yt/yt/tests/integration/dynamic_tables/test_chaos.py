@@ -43,6 +43,9 @@ class ChaosTestBase(DynamicTablesBase):
     NUM_NODES = 5
     NUM_CHAOS_NODES = 1
 
+    # TODO(gepardo): Re-enable native auth when YT-17837 is complete.
+    USE_NATIVE_AUTH = False
+
     class CellsDisabled():
         def __init__(self, clusters=[], tablet_bundles=[], chaos_bundles=[]):
             self._clusters = clusters

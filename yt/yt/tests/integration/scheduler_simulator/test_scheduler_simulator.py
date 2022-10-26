@@ -527,6 +527,11 @@ class TestSchedulerSimulator(YTEnvSetup, PrepareTables):
 
 @authors("ignat")
 class TestSchedulerSimulatorWithRemoteEventLog(TestSchedulerSimulator):
+    # We are going to remove remote event log in scheduler simulator anyway. This is the only
+    # thing in scheduler simulator that requires native authentication, so there's no reason to
+    # add authentication into scheduler simulator.
+    USE_NATIVE_AUTH = False
+
     def _set_scheduler_simulator_config_params(self, simulator_files_path):
         super(TestSchedulerSimulatorWithRemoteEventLog, self)._set_scheduler_simulator_config_params(
             simulator_files_path

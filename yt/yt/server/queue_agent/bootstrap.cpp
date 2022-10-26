@@ -160,6 +160,7 @@ void TBootstrap::DoRun()
 
     QueueAgent_ = New<TQueueAgent>(
         Config_->QueueAgent,
+        NativeConnection_,
         ClientDirectory_,
         ControlInvoker_,
         DynamicState_,

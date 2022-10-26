@@ -55,8 +55,10 @@ class TestNodeIOTrackingBase(YTEnvSetup):
     def _default_filter(self, event):
         return event.get("user@") != "scheduler"
 
-    def write_log_barrier(self, *args, **kwargs):
-        return write_log_barrier(*args, **kwargs)
+    def write_log_barrier(self, address, category="Barrier", driver=None, cluster_index=0):
+        return write_log_barrier(
+            address, category=category, driver=driver,
+            cluster_name=self.get_cluster_name(cluster_index))
 
     def _read_events(self, category, from_barrier=None, to_barrier=None, node_id=0, cluster_index=0,
                      filter=lambda _: True):
@@ -73,12 +75,12 @@ class TestNodeIOTrackingBase(YTEnvSetup):
     def _wait_for_events(self, category, count, from_barrier=None, node_id=0, cluster_index=0,
                          filter=lambda _: True, check_event_count=True):
         def is_ready():
-            to_barrier = self.write_log_barrier(self.get_node_address(node_id, cluster_index))
+            to_barrier = self.write_log_barrier(self.get_node_address(node_id, cluster_index), cluster_index=cluster_index)
             events = self._read_events(category, from_barrier, to_barrier, node_id, cluster_index, filter)
             return count <= len(events)
 
         wait(is_ready)
-        to_barrier = self.write_log_barrier(self.get_node_address(node_id, cluster_index))
+        to_barrier = self.write_log_barrier(self.get_node_address(node_id, cluster_index), cluster_index=cluster_index)
         events = self._read_events(category, from_barrier, to_barrier, node_id, cluster_index, filter)
         if check_event_count:
             assert count == len(events)
@@ -132,7 +134,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_simple_write(self):
-        from_barrier = write_log_barrier(self.get_node_address())
+        from_barrier = self.write_log_barrier(self.get_node_address())
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
         raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
@@ -147,7 +149,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_path_aggregation(self):
-        from_barrier = write_log_barrier(self.get_node_address())
+        from_barrier = self.write_log_barrier(self.get_node_address())
         create("table", "//tmp/table1")
         write_table("//tmp/table1", [{"a": 1, "b": 2, "c": 3}])
         assert read_table("//tmp/table1") == [{"a": 1, "b": 2, "c": 3}]
@@ -205,7 +207,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_two_chunks(self):
-        from_barrier = write_log_barrier(self.get_node_address())
+        from_barrier = self.write_log_barrier(self.get_node_address())
         create("table", "//tmp/table")
         write_table("//tmp/table", [{"number": 42, "good": True}])
         write_table("<append=%true>//tmp/table", [{"number": 43, "good": False}])
@@ -227,7 +229,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
 
     @authors("gepardo")
     def test_read_table(self):
-        from_barrier = write_log_barrier(self.get_node_address())
+        from_barrier = self.write_log_barrier(self.get_node_address())
         create("table", "//tmp/table", attributes={"compression_codec": "zlib_5"})
         write_table("//tmp/table", [{"a": 1, "b": 2, "c": 3}])
         assert read_table("//tmp/table") == [{"a": 1, "b": 2, "c": 3}]
@@ -262,7 +264,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             large_data, large_data_size = self.generate_large_data()
 
             old_disk_space = get("//tmp/table/@resource_usage/disk_space")
-            from_barrier = write_log_barrier(self.get_node_address())
+            from_barrier = self.write_log_barrier(self.get_node_address())
             write_table("<append=%true>//tmp/table", large_data, verbose=False)
             raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
             new_disk_space = get("//tmp/table/@resource_usage/disk_space")
@@ -275,7 +277,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             assert min_data_bound <= raw_events[0]["bytes"] <= max_data_bound
             assert raw_events[0]["io_requests"] > 0
 
-            from_barrier = write_log_barrier(self.get_node_address())
+            from_barrier = self.write_log_barrier(self.get_node_address())
             assert read_table("//tmp/table[#{}:]".format(i * len(large_data)), verbose=False) == large_data
             raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
 
@@ -288,7 +290,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
     def test_journal(self):
         data = [{"payload":  str(i)} for i in range(20)]
 
-        from_barrier = write_log_barrier(self.get_node_address())
+        from_barrier = self.write_log_barrier(self.get_node_address())
         create("journal", "//tmp/journal")
         write_journal("//tmp/journal", data)
         raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
@@ -300,7 +302,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
         assert raw_events[0]["bytes"] > 0
         assert raw_events[0]["io_requests"] > 0
 
-        from_barrier = write_log_barrier(self.get_node_address())
+        from_barrier = self.write_log_barrier(self.get_node_address())
         assert read_journal("//tmp/journal") == data
         raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
 
@@ -319,7 +321,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             min_data_bound = 0.9 * large_journal_size
             max_data_bound = 1.1 * large_journal_size
 
-            from_barrier = write_log_barrier(self.get_node_address())
+            from_barrier = self.write_log_barrier(self.get_node_address())
             write_journal("//tmp/journal", large_journal)
             raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
 
@@ -328,7 +330,7 @@ class TestDataNodeIOTracking(TestNodeIOTrackingBase):
             assert min_data_bound <= raw_events[0]["bytes"] <= max_data_bound
             assert raw_events[0]["io_requests"] > 0
 
-            from_barrier = write_log_barrier(self.get_node_address())
+            from_barrier = self.write_log_barrier(self.get_node_address())
             read_result = read_journal("//tmp/journal[#{}:#{}]".format(i * len(large_journal), (i + 1) * len(large_journal)))
             assert read_result == large_journal
             raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier)
@@ -524,7 +526,7 @@ class TestMasterJobIOTracking(TestNodeIOTrackingBase):
     @authors("gepardo")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_merge_chunks(self, merge_mode):
-        from_barrier = write_log_barrier(self.get_node_address(node_id=0))
+        from_barrier = self.write_log_barrier(self.get_node_address(node_id=0))
 
         create("table", "//tmp/table")
         write_table("<append=true>//tmp/table", {"name": "cheetah", "type": "cat"})
@@ -545,7 +547,7 @@ class TestMasterJobIOTracking(TestNodeIOTrackingBase):
     def test_large_merge(self, merge_mode):
         large_data, large_data_size = self.generate_large_data()
 
-        from_barrier = write_log_barrier(self.get_node_address(node_id=0))
+        from_barrier = self.write_log_barrier(self.get_node_address(node_id=0))
 
         create("table", "//tmp/table")
         for row in large_data:
@@ -880,7 +882,7 @@ class TestClientRpcProxyIOTracking(TestClientIOTracking):
 
     def write_log_barrier(self, *args, **kwargs):
         kwargs["driver"] = self.__native_driver
-        return write_log_barrier(*args, **kwargs)
+        return super(TestClientRpcProxyIOTracking, self).write_log_barrier(*args, **kwargs)
 
     def setup_method(self, method):
         super(TestClientRpcProxyIOTracking, self).setup_method(method)
@@ -2152,8 +2154,8 @@ class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
         create("table", "//tmp/table_in", driver=self.remote_driver)
         write_table("//tmp/table_in", table_data, driver=self.remote_driver)
 
-        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        from_barrier_remote = self.write_log_barrier(self.get_node_address(cluster_index=1), "Barrier")
+        from_barrier = self.write_log_barrier(self.get_node_address())
+        from_barrier_remote = self.write_log_barrier(self.get_node_address(cluster_index=1), cluster_index=1)
         create("table", "//tmp/table_out")
         op = remote_copy(
             in_="//tmp/table_in",
@@ -2198,8 +2200,8 @@ class TestRemoteCopyIOTracking(TestRemoteCopyIOTrackingBase):
 
         create_dynamic_table("//tmp/dyntable_out", schema=schema)
 
-        from_barrier = self.write_log_barrier(self.get_node_address(), "Barrier")
-        from_barrier_remote = self.write_log_barrier(self.get_node_address(cluster_index=1), "Barrier")
+        from_barrier = self.write_log_barrier(self.get_node_address())
+        from_barrier_remote = self.write_log_barrier(self.get_node_address(cluster_index=1), cluster_index=1)
         create("table", "//tmp/table_out")
         op = remote_copy(
             in_="//tmp/dyntable_in",
@@ -2237,7 +2239,7 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
 
     def _write_remote_erasure_table(self, path):
         from_barriers = [
-            write_log_barrier(self.get_node_address(node_id, cluster_index=1))
+            self.write_log_barrier(self.get_node_address(node_id, cluster_index=1), cluster_index=1)
             for node_id in range(self.NUM_NODES_0)]
         create("table", path, attributes={"erasure_codec": "reed_solomon_3_3"},
                driver=self.remote_driver)
@@ -2253,7 +2255,7 @@ class TestRemoteCopyErasureIOTracking(TestRemoteCopyIOTrackingBase):
 
         from_barriers = [write_log_barrier(self.get_node_address(node_id)) for node_id in range(self.NUM_NODES)]
         from_barriers_remote = [
-            write_log_barrier(self.get_node_address(node_id, cluster_index=1))
+            self.write_log_barrier(self.get_node_address(node_id, cluster_index=1), cluster_index=1)
             for node_id in range(self.NUM_NODES_0)]
 
         create("table", "//tmp/table_out", attributes={"erasure_codec": "reed_solomon_3_3"})

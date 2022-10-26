@@ -10,6 +10,9 @@ class TestMapCommandsCompatNewCA(BaseTestMapCommands):
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
+
     # TODO(levysotsky, gritukan): Drop me!
     @authors("levysotsky")
     def test_rename_with_both_columns_in_filter(self):
@@ -23,3 +26,6 @@ class TestMapCommandsCompatNewNodes(BaseTestMapCommands):
         "22_3": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
     }
+
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False

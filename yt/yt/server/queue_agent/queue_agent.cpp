@@ -7,6 +7,10 @@
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
+
 #include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/client/object_client/public.h>
@@ -139,6 +143,7 @@ TClusterProfilingCounters::TClusterProfilingCounters(TProfiler profiler)
 
 TQueueAgent::TQueueAgent(
     TQueueAgentConfigPtr config,
+    NApi::NNative::IConnectionPtr nativeConnection,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
     TDynamicStatePtr dynamicState,
@@ -157,7 +162,9 @@ TQueueAgent::TQueueAgent(
         DynamicConfig_->PollPeriod))
     , AgentId_(std::move(agentId))
     , QueueAgentChannelFactory_(
-        CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)))
+        NNative::CreateNativeAuthenticationInjectingChannelFactory(
+            CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)),
+            nativeConnection->GetConfig()->TvmId))
 {
     QueueObjectServiceNode_ = CreateVirtualNode(
         New<TCollectionBoundService<TQueue>>(

@@ -30,6 +30,9 @@ class TestLogTailer(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
+    # TODO(gepardo): Re-enable native auth when CHYT will support it.
+    USE_NATIVE_AUTH = False
+
     @authors("gritukan")
     def test_log_rotation(self):
         log_tailer_config = get_log_tailer_config()

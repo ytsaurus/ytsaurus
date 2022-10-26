@@ -31,6 +31,9 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "node", "job-proxy", "exec", "tools"],
     }
 
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
+
     def teardown_method(self, method):
         master_path = os.path.join(self.bin_path, "ytserver-master")
         if os.path.exists(master_path + "__BACKUP"):
@@ -54,6 +57,9 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
 
 
 class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
+
     @authors("gritukan", "kvk1920")
     @pytest.mark.timeout(150)
     def test(self):
@@ -75,6 +81,9 @@ class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
         "22_3": ["master", "node"],
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy", "job-proxy", "exec", "tools"],
     }
+
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
 
     @authors("aleksandra-zh")
     def test(self):

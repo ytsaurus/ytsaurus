@@ -8,6 +8,9 @@ class TestMergeCommandsCompatNewCA(BaseTestMergeCommands):
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
+
 
 class TestMergeCommandsCompatNewNodes(BaseTestMergeCommands):
     UPLOAD_DEBUG_ARTIFACT_CHUNKS = True
@@ -16,3 +19,6 @@ class TestMergeCommandsCompatNewNodes(BaseTestMergeCommands):
         "22_3": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
     }
+
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False

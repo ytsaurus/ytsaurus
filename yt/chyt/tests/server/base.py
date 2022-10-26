@@ -559,6 +559,9 @@ class ClickHouseTestBase(YTEnvSetup):
 
     ENABLE_HTTP_PROXY = True
 
+    # TODO(gepardo): Re-enable native auth when CHYT will support it.
+    USE_NATIVE_AUTH = False
+
     DELTA_PROXY_CONFIG = {
         "clickhouse": {
             "discovery_cache": {

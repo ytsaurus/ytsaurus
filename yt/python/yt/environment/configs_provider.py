@@ -941,10 +941,25 @@ def _build_native_driver_configs(master_connection_configs,
                     "default_ping_period": DEFAULT_TRANSACTION_PING_PERIOD
                 }
             }
+
+            if yt_config.mock_tvm_id is not None:
+                cell_connection_config["tvm_id"] = yt_config.mock_tvm_id
+
             update_inplace(cell_connection_config["primary_master"], _get_retrying_channel_config())
             update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
 
             update_inplace(config, cell_connection_config)
+
+        if yt_config.mock_tvm_id is not None:
+            config["tvm_service"] = {
+                "enable_mock": True,
+                "client_self_id": yt_config.mock_tvm_id,
+                "client_enable_service_ticket_fetching": True,
+                "client_enable_service_ticket_checking": True,
+                "client_dst_map": {
+                    "self": yt_config.mock_tvm_id,
+                }
+            }
 
         configs[tag] = config
 

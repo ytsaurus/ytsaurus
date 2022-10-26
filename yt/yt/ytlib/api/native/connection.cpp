@@ -148,7 +148,8 @@ public:
             CreateCachingChannelFactory(
                 NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
                 Config_->IdleChannelTtl),
-            Config_->TvmId);
+            Config_->TvmId,
+            Options_.TvmService);
     }
 
     void Initialize()
@@ -814,7 +815,10 @@ private:
 
     void SetupTvmIdSynchronization()
     {
-        auto tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
+        auto tvmService = Options_.TvmService;
+        if (!tvmService) {
+            tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
+        }
         if (!tvmService) {
             return;
         }

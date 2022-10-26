@@ -20,6 +20,9 @@ class TestMapReduceCommandsCompatNewCA(BaseTestMapReduceCommands):
         },
     })
 
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
+
     @authors("levysotsky")
     def test_several_intermediate_schemas_failing(self):
         pass
@@ -40,6 +43,9 @@ class TestMapReduceCommandsCompatNewNodes(BaseTestMapReduceCommands):
             },
         },
     })
+
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
 
     # TODO(gritukan, levysotsky): Drop me!
     @authors("levysotsky")

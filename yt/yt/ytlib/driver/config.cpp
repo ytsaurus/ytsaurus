@@ -1,0 +1,15 @@
+#include "config.h"
+
+namespace NYT::NDriver {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNativeDriverConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tvm_service", &TThis::TvmService)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NDriver
