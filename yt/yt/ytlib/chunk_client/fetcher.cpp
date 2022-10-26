@@ -88,6 +88,8 @@ private:
 
     TFuture<void> DoScrapeChunks(const THashSet<TInputChunkPtr>& chunkSpecs)
     {
+        VERIFY_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
         THashSet<TChunkId> chunkIds;
         ChunkMap_.clear();
         for (const auto& chunkSpec : chunkSpecs) {
@@ -209,7 +211,7 @@ TFetcherBase::TFetcherBase(
     const NLogging::TLogger& logger)
     : Config_(std::move(config))
     , NodeDirectory_(std::move(nodeDirectory))
-    , Invoker_(invoker)
+    , Invoker_(CreateSerializedInvoker(invoker))
     , ChunkScraper_(std::move(chunkScraper))
     , Logger(logger)
     , Client_(std::move(client))
@@ -329,6 +331,8 @@ void TFetcherBase::PerformFetchingRoundFromNode(NNodeTrackerClient::TNodeId node
 
 void TFetcherBase::StartFetchingRound(const TError& preparationError)
 {
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(Invoker_);
+
     if (!preparationError.IsOK()) {
         YT_LOG_ERROR(preparationError, "Fetching preparation failed, abort fetching round");
         Promise_.TrySet(preparationError);

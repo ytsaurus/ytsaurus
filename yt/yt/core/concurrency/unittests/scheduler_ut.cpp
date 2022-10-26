@@ -333,6 +333,32 @@ TEST_W(TSchedulerTest, InvokerAffinity2)
     VERIFY_INVOKER_AFFINITY(Queue1->GetInvoker());
 }
 
+using TSchedulerDeathTest = TSchedulerTest;
+
+TEST_W(TSchedulerDeathTest, SerializedInvokerAffinity)
+{
+    auto actionQueueInvoker = Queue1->GetInvoker();
+
+    auto threadPool = New<TThreadPool>(4, "TestThreads");
+    auto threadPoolInvoker = threadPool->GetInvoker();
+    auto serializedThreadPoolInvoker = CreateSerializedInvoker(threadPoolInvoker);
+
+    SwitchTo(actionQueueInvoker);
+
+    VERIFY_INVOKER_AFFINITY(actionQueueInvoker);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(actionQueueInvoker);
+
+    SwitchTo(serializedThreadPoolInvoker);
+
+    VERIFY_INVOKER_AFFINITY(serializedThreadPoolInvoker);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(serializedThreadPoolInvoker);
+
+    SwitchTo(threadPoolInvoker);
+
+    VERIFY_INVOKER_AFFINITY(threadPoolInvoker);
+    ASSERT_DEATH({ VERIFY_SERIALIZED_INVOKER_AFFINITY(threadPoolInvoker); }, ".*");
+}
+
 #endif
 
 TEST_F(TSchedulerTest, CurrentInvokerSync)
