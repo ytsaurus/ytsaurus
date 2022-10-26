@@ -69,6 +69,11 @@ IInvokerPtr TSchedulerStrategyHost::GetOrchidWorkerInvoker() const
     return GetCurrentInvoker();
 }
 
+int TSchedulerStrategyHost::GetNodeShardId(NNodeTrackerClient::TNodeId /*nodeId*/) const
+{
+    return 0;
+}
+
 const std::vector<IInvokerPtr>& TSchedulerStrategyHost::GetNodeShardInvokers() const
 {
     return NodeShardsInvokers_;
@@ -153,19 +158,9 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
     return result;
 }
 
-TFuture<void> TSchedulerStrategyHost::UpdateExecNodeDescriptorsOutOfBand()
-{
-    YT_UNIMPLEMENTED();
-}
-
 void TSchedulerStrategyHost::AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
 {
     // Nothing to do.
-}
-
-void TSchedulerStrategyHost::SetSchedulingSegmentsForNodes(NScheduler::TSetNodeSchedulingSegmentOptionsList /*nodesWithNewSegments*/)
-{
-    YT_UNIMPLEMENTED();
 }
 
 void TSchedulerStrategyHost::UpdateOperationSchedulingSegmentModules(const THashMap<TString, NScheduler::TOperationIdWithSchedulingSegmentModuleList>& /*updatesPerTree*/)

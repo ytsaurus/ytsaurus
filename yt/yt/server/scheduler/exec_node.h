@@ -67,9 +67,6 @@ public:
     //! Last time when missing jobs were checked on this node.
     DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastCheckMissingJobsTime);
 
-    //! Last time when running job statistics were updated.
-    DEFINE_BYVAL_RW_PROPERTY(std::optional<NProfiling::TCpuInstant>, LastRunningJobStatisticsUpdateTime);
-
     //! Last time when heartbeat from node was processed.
     DEFINE_BYVAL_RW_PROPERTY(TInstant, LastSeenTime);
 
@@ -122,13 +119,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TScheduleJobsStatistics, LastPreemptiveHeartbeatStatistics);
     DEFINE_BYVAL_RW_PROPERTY(TScheduleJobsStatistics, LastNonPreemptiveHeartbeatStatistics);
 
-    //! Time statistics of currently running jobs. Used as penalties in scheduling segments rebalancing.
-    DEFINE_BYVAL_RW_PROPERTY(TRunningJobStatistics, RunningJobStatistics);
-
-    DEFINE_BYVAL_RW_PROPERTY(ESchedulingSegment, SchedulingSegment, ESchedulingSegment::Default);
-    DEFINE_BYVAL_RW_PROPERTY(bool, SchedulingSegmentFrozen, false);
-
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, InfinibandCluster);
+
+    DEFINE_BYVAL_RW_PROPERTY(NYTree::IAttributeDictionaryPtr, SchedulingOptions);
 
 public:
     TExecNode(

@@ -448,6 +448,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduling_preemption_priority_scope", &TThis::SchedulingPreemptionPriorityScope)
         .Default(EOperationPreemptionPriorityScope::OperationAndAncestors);
 
+    registrar.Parameter("running_job_statistics_update_period", &TThis::RunningJobStatisticsUpdatePeriod)
+        .Default(TDuration::Seconds(1));
+
     registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
         if (config->AggressivePreemptionSatisfactionThreshold > config->PreemptionSatisfactionThreshold) {
             THROW_ERROR_EXCEPTION("Aggressive starvation satisfaction threshold must be less than starvation satisfaction threshold")
@@ -828,8 +831,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("running_jobs_update_period", &TThis::RunningJobsUpdatePeriod)
         .Default(TDuration::Seconds(10));
-    registrar.Parameter("running_job_statistics_update_period", &TThis::RunningJobStatisticsUpdatePeriod)
-        .Default(TDuration::Seconds(1));
     registrar.Parameter("missing_jobs_check_period", &TThis::MissingJobsCheckPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("transient_operation_queue_scan_period", &TThis::TransientOperationQueueScanPeriod)

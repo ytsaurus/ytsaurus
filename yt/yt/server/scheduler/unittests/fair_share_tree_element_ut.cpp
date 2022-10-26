@@ -76,6 +76,11 @@ public:
         return GetCurrentInvoker();
     }
 
+    int GetNodeShardId(NNodeTrackerClient::TNodeId /*nodeId*/) const override
+    {
+        return 0;
+    }
+
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return NodeShardInvokers_;
@@ -142,17 +147,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TFuture<void> UpdateExecNodeDescriptorsOutOfBand() override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     void AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList /*nodesWithNewSegments*/) override
     {
         YT_UNIMPLEMENTED();
     }

@@ -20,6 +20,7 @@ namespace NYT::NScheduler {
 struct TMasterHandshakeResult
 {
     std::vector<TOperationPtr> Operations;
+    // TODO(eshcherbin): This is ad-hoc, needs refactoring.
     TPersistentSchedulingSegmentsStatePtr SchedulingSegmentsState;
     TInstant LastMeteringLogTime;
 };

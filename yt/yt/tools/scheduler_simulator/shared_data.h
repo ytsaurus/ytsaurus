@@ -211,6 +211,17 @@ public:
 
     void UnregisterOperation(NScheduler::IOperationStrategyHost* operation);
 
+    void BuildSchedulingAttributesStringForNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const;
+    void BuildSchedulingAttributesForNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags,
+        NYTree::TFluentMap fluent) const;
+
 private:
     NScheduler::ISchedulerStrategyPtr SchedulerStrategy_;
     TSchedulerStrategyHost& StrategyHost_;

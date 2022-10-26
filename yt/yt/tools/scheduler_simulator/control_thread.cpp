@@ -125,6 +125,11 @@ void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
         .ThrowOnError();
 
     for (const auto& execNode : *ExecNodes_) {
+        WaitFor(BIND(&ISchedulerStrategy::RegisterOrUpdateNode, SchedulerStrategy_)
+            .AsyncVia(ActionQueue_->GetInvoker())
+            .Run(execNode->GetId(), execNode->GetDefaultAddress(), execNode->Tags()))
+            .ThrowOnError();
+
         const auto& nodeShard = NodeShards_[GetNodeShardId(execNode->GetId(), NodeShards_.size())];
         WaitFor(
             BIND(&TSimulatorNodeShard::RegisterNode, nodeShard, execNode)

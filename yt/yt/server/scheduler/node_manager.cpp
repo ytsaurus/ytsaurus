@@ -88,11 +88,9 @@ void TNodeManager::UpdateConfig(const TSchedulerConfigPtr& config)
     }
 }
 
-void TNodeManager::OnMasterConnected(const TMasterHandshakeResult& result, TInstant schedulingSegmentsInitializationDeadline)
+void TNodeManager::OnMasterConnected(const TMasterHandshakeResult& result)
 {
     auto nodeShardResult = New<TNodeShardMasterHandshakeResult>();
-    nodeShardResult->InitialSchedulingSegmentsState = result.SchedulingSegmentsState;
-    nodeShardResult->SchedulingSegmentInitializationDeadline = schedulingSegmentsInitializationDeadline;
     nodeShardResult->OperationIds.reserve(std::size(result.Operations));
     for (const auto& operation : result.Operations) {
         nodeShardResult->OperationIds.insert(operation->GetId());
@@ -464,26 +462,6 @@ int TNodeManager::GetJobReporterQueueIsTooLargeNodeCount()
     }
     return result;
 }
-
-void TNodeManager::SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments)
-{
-    std::vector<TSetNodeSchedulingSegmentOptionsList> nodesWithNewSegmentsPerShard(NodeShards_.size());
-    for (auto& nodeWithSegment : nodesWithNewSegments) {
-        auto shardId = GetNodeShardId(nodeWithSegment.NodeId);
-        nodesWithNewSegmentsPerShard[shardId].push_back(std::move(nodeWithSegment));
-    }
-
-    std::vector<TFuture<void>> futures;
-    for (int shardId = 0; shardId < std::ssize(NodeShards_); ++shardId) {
-        const auto& nodeShard = NodeShards_[shardId];
-        futures.push_back(BIND(&TNodeShard::SetSchedulingSegmentsForNodes, nodeShard, nodesWithNewSegmentsPerShard[shardId])
-            .AsyncVia(nodeShard->GetInvoker())
-            .Run());
-    }
-    WaitFor(AllSucceeded(futures))
-        .ThrowOnError();
-}
-
 
 int TNodeManager::GetNodeShardCount() const
 {

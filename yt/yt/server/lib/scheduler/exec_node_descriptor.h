@@ -20,24 +20,6 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRunningJobStatistics
-{
-    //! In CPU*seconds.
-    double TotalCpuTime = 0.0;
-    double PreemptibleCpuTime = 0.0;
-
-    //! In GPU*seconds.
-    double TotalGpuTime = 0.0;
-    double PreemptibleGpuTime = 0.0;
-};
-
-void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */);
-TString ToString(const TRunningJobStatistics& statistics);
-TString FormatRunningJobStatisticsCompact(const TRunningJobStatistics& statistics);
-void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer);
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! An immutable snapshot of TExecNode.
 struct TExecNodeDescriptor
 {
@@ -53,10 +35,8 @@ struct TExecNodeDescriptor
         const TJobResources& resourceLimits,
         const NNodeTrackerClient::NProto::TDiskResources& diskResources,
         const TBooleanFormulaTags& tags,
-        const TRunningJobStatistics& runningJobStatistics,
-        ESchedulingSegment schedulingSegment,
-        bool schedulingSegmentFrozen,
-        std::optional<TString> infinibandCluster);
+        std::optional<TString> infinibandCluster,
+        NYTree::IAttributeDictionaryPtr schedulingOptions);
 
     bool CanSchedule(const TSchedulingTagFilter& filter) const;
 
@@ -69,10 +49,8 @@ struct TExecNodeDescriptor
     TJobResources ResourceLimits;
     NNodeTrackerClient::NProto::TDiskResources DiskResources;
     TBooleanFormulaTags Tags;
-    TRunningJobStatistics RunningJobStatistics;
-    ESchedulingSegment SchedulingSegment;
-    bool SchedulingSegmentFrozen;
     std::optional<TString> InfinibandCluster;
+    NYTree::IAttributeDictionaryPtr SchedulingOptions;
 
     void Persist(const TStreamPersistenceContext& context);
 };

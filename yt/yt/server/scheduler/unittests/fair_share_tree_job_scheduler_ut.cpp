@@ -79,6 +79,11 @@ public:
         return GetCurrentInvoker();
     }
 
+    int GetNodeShardId(NNodeTrackerClient::TNodeId /*nodeId*/) const override
+    {
+        return 0;
+    }
+
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return NodeShardInvokers_;
@@ -145,17 +150,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    TFuture<void> UpdateExecNodeDescriptorsOutOfBand() override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     void AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, EAbortReason /*reason*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
-    void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList /*nodesWithNewSegments*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -271,6 +266,21 @@ private:
 };
 
 using TSchedulerStrategyHostMockPtr = TIntrusivePtr<TSchedulerStrategyHostMock>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareTreeHostMock
+    : public TRefCounted
+    , public IFairShareTreeHost
+{
+public:
+    TPersistentSchedulingSegmentsStateWithDeadline GetInitialSchedulingSegmentsState() override
+    {
+        return {nullptr, TInstant()};
+    }
+};
+
+using TFairShareTreeHostMockPtr = TIntrusivePtr<TFairShareTreeHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -496,6 +506,7 @@ public:
 
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
+    TFairShareTreeHostMockPtr FairShareTreeHostMock_ = New<TFairShareTreeHostMock>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TFairShareTreeElementHostMockPtr FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
 
@@ -514,6 +525,7 @@ protected:
         return New<TFairShareTreeJobScheduler>(
             /*treeId*/ "default",
             StrategyLogger,
+            FairShareTreeHostMock_.Get(),
             strategyHost,
             TreeConfig_,
             NProfiling::TProfiler());
@@ -763,6 +775,7 @@ protected:
             schedulingContext,
             treeSnapshot,
             /*registeredSchedulingTagFilters*/ {},
+            /*nodeSchedulingSegment*/ ESchedulingSegment::Default,
             /*enableSchedulingInfoLogging*/ true,
             strategyHost,
             SchedulerLogger);

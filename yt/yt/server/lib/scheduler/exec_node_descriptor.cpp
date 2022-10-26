@@ -4,12 +4,11 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/core/ytree/fluent.h>
-
 namespace NYT::NScheduler {
 
 using namespace NNodeTrackerClient;
 using namespace NConcurrency;
+using namespace NYTree;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -74,42 +73,6 @@ void FromProto(TDiskResources* diskResources, const NNodeTrackerClient::NProto::
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FormatValue(TStringBuilderBase* builder, const TRunningJobStatistics& statistics, TStringBuf /* format */)
-{
-    builder->AppendFormat("{TotalCpuTime: %v, PreemptibleCpuTime: %v, TotalGpuTime: %v, PreemptibleGpuTime: %v}",
-        statistics.TotalCpuTime,
-        statistics.PreemptibleCpuTime,
-        statistics.TotalGpuTime,
-        statistics.PreemptibleGpuTime);
-}
-
-TString ToString(const TRunningJobStatistics& statistics)
-{
-    return ToStringViaBuilder(statistics);
-}
-
-TString FormatRunningJobStatisticsCompact(const TRunningJobStatistics& statistics)
-{
-    return Format("{TCT: %v, PCT: %v, TGT: %v, PGT: %v}",
-        statistics.TotalCpuTime,
-        statistics.PreemptibleCpuTime,
-        statistics.TotalGpuTime,
-        statistics.PreemptibleGpuTime);
-}
-
-void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* consumer)
-{
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("total_cpu_time").Value(statistics.TotalCpuTime)
-            .Item("preemptible_cpu_time").Value(statistics.PreemptibleCpuTime)
-            .Item("total_gpu_time").Value(statistics.TotalGpuTime)
-            .Item("preemptible_gpu_time").Value(statistics.PreemptibleGpuTime)
-        .EndMap();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TExecNodeDescriptor::TExecNodeDescriptor(
     NNodeTrackerClient::TNodeId id,
     TString address,
@@ -120,10 +83,8 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     const TJobResources& resourceLimits,
     const NNodeTrackerClient::NProto::TDiskResources& diskResources,
     const TBooleanFormulaTags& tags,
-    const TRunningJobStatistics& runningJobStatistics,
-    ESchedulingSegment schedulingSegment,
-    bool schedulingSegmentFrozen,
-    std::optional<TString> infinibandCluster)
+    std::optional<TString> infinibandCluster,
+    IAttributeDictionaryPtr schedulingOptions)
     : Id(id)
     , Address(std::move(address))
     , DataCenter(std::move(dataCenter))
@@ -133,10 +94,8 @@ TExecNodeDescriptor::TExecNodeDescriptor(
     , ResourceLimits(resourceLimits)
     , DiskResources(diskResources)
     , Tags(tags)
-    , RunningJobStatistics(runningJobStatistics)
-    , SchedulingSegment(schedulingSegment)
-    , SchedulingSegmentFrozen(schedulingSegmentFrozen)
     , InfinibandCluster(std::move(infinibandCluster))
+    , SchedulingOptions(std::move(schedulingOptions))
 { }
 
 bool TExecNodeDescriptor::CanSchedule(const TSchedulingTagFilter& filter) const

@@ -3,6 +3,7 @@
 #include "private.h"
 #include "scheduler_tree_structs.h"
 #include "scheduler_strategy.h"
+#include "persistent_scheduler_state.h"
 
 #include <yt/yt/server/lib/scheduler/resource_metering.h>
 
@@ -48,8 +49,8 @@ struct TPoolsUpdateResult
 
 struct TManageSchedulingSegmentsResult
 {
-    TSetNodeSchedulingSegmentOptionsList MovedNodes;
     TOperationIdWithSchedulingSegmentModuleList OperationSchedulingSegmentModuleUpdates;
+    TPersistentNodeSchedulingSegmentStateMap PersistentNodeStates;
     TError Error;
 };
 
@@ -67,7 +68,9 @@ struct IFairShareTreeHost
 {
     virtual ~IFairShareTreeHost() = default;
 
-    virtual const THashSet<NNodeTrackerClient::TNodeId>& GetTreeNodeIds(const TString& treeId) const = 0;
+    // NB(eshcherbin): Temporary.
+    using TPersistentSchedulingSegmentsStateWithDeadline = std::pair<TPersistentSchedulingSegmentsStatePtr, TInstant>;
+    virtual TPersistentSchedulingSegmentsStateWithDeadline GetInitialSchedulingSegmentsState() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -91,7 +94,12 @@ struct IFairShareTree
     virtual TFairShareStrategyTreeConfigPtr GetSnapshottedConfig() const = 0;
     virtual TJobResources GetSnapshottedTotalResourceLimits() const = 0;
     virtual std::optional<TSchedulerElementStateSnapshot> GetMaybeStateSnapshotForPool(const TString& poolId) const = 0;
-    virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const = 0;
+    virtual void BuildSchedulingAttributesStringForNode(NNodeTrackerClient::TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+    virtual void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const = 0;
+    virtual void BuildSchedulingAttributesStringForOngoingJobs(
+        const std::vector<TJobPtr>& jobs,
+        TInstant now,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
     virtual void ApplyJobMetricsDelta(THashMap<TOperationId, TJobMetrics> jobMetricsPerOperation) = 0;
 
@@ -114,7 +122,7 @@ struct IFairShareTree
     virtual TFuture<std::pair<IFairShareTreePtr, TError>> OnFairShareUpdateAt(TInstant now) = 0;
     virtual void FinishFairShareUpdate() = 0;
 
-    //! Methods below manipute directly with tree structure and fields, it should be used in serialized manner.
+    //! Methods below manipulate directly with tree structure and fields, it should be used in serialized manner.
     virtual TFairShareStrategyTreeConfigPtr GetConfig() const = 0;
     virtual bool UpdateConfig(const TFairShareStrategyTreeConfigPtr& config) = 0;
     virtual void UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config) = 0;
@@ -143,6 +151,11 @@ struct IFairShareTree
         const TOperationFairShareTreeRuntimeParametersPtr& runtimeParameters) = 0;
 
     virtual void RegisterJobsFromRevivedOperation(TOperationId operationId, const std::vector<TJobPtr>& jobs) = 0;
+
+    virtual void RegisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
+    virtual void UnregisterNode(NNodeTrackerClient::TNodeId nodeId) = 0;
+
+    virtual TString GetId() const = 0;
 
     virtual TError CheckOperationIsHung(
         TOperationId operationId,

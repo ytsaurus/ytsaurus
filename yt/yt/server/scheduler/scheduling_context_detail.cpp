@@ -212,11 +212,6 @@ void TSchedulingContextBase::SetSchedulingStatistics(TScheduleJobsStatistics sta
     SchedulingStatistics_ = statistics;
 }
 
-ESchedulingSegment TSchedulingContextBase::GetSchedulingSegment() const
-{
-    return Node_->GetSchedulingSegment();
-}
-
 void TSchedulingContextBase::ResetUsageDiscounts()
 {
     UnconditionalResourceUsageDiscount_ = {};

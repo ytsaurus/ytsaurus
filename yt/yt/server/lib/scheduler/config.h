@@ -386,6 +386,8 @@ public:
 
     EOperationPreemptionPriorityScope SchedulingPreemptionPriorityScope;
 
+    TDuration RunningJobStatisticsUpdatePeriod;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyTreeConfig);
 
     static void Register(TRegistrar registrar);
@@ -755,8 +757,6 @@ public:
     //! Statistics and resource usages of jobs running on a node are updated
     //! not more often then this period.
     TDuration RunningJobsUpdatePeriod;
-
-    TDuration RunningJobStatisticsUpdatePeriod;
 
     //! Missing jobs are checked not more often then this period.
     TDuration MissingJobsCheckPeriod;

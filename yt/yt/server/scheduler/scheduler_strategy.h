@@ -42,7 +42,6 @@ struct ISchedulerStrategyHost
     virtual IInvokerPtr GetFairShareUpdateInvoker() const = 0;
     virtual IInvokerPtr GetBackgroundInvoker() const = 0;
     virtual IInvokerPtr GetOrchidWorkerInvoker() const = 0;
-    virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const = 0;
 
     virtual NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) = 0;
     virtual NEventLog::TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant now) = 0;
@@ -52,11 +51,11 @@ struct ISchedulerStrategyHost
     virtual TJobResources GetResourceLimits(const TSchedulingTagFilter& filter) const = 0;
     virtual TJobResources GetResourceUsage(const TSchedulingTagFilter& filter) const = 0;
     virtual TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(const TSchedulingTagFilter& filter = {}) const = 0;
-    virtual TFuture<void> UpdateExecNodeDescriptorsOutOfBand() = 0;
 
     // TODO(eshcherbin): Add interface for node manager to be used by strategy.
+    virtual const std::vector<IInvokerPtr>& GetNodeShardInvokers() const = 0;
+    virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
-    virtual void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments) = 0;
 
     virtual void UpdateOperationSchedulingSegmentModules(const THashMap<TString, TOperationIdWithSchedulingSegmentModuleList>& updatesPerTree) = 0;
 
@@ -308,9 +307,23 @@ struct ISchedulerStrategy
 
     virtual TFuture<void> GetFullFairShareUpdateFinished() = 0;
 
-    virtual TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
+    //! These methods are used for diagnostics.
+    virtual void BuildSchedulingAttributesStringForNode(
+        NNodeTrackerClient::TNodeId nodeId,
         const TString& nodeAddress,
-        const TBooleanFormulaTags& nodeTags) const = 0;
+        const TBooleanFormulaTags& nodeTags,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
+    virtual void BuildSchedulingAttributesForNode(
+        NNodeTrackerClient::TNodeId nodeId,
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags,
+        NYTree::TFluentMap fluent) const = 0;
+    virtual void BuildSchedulingAttributesStringForOngoingJobs(
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags,
+        const std::vector<TJobPtr>& jobs,
+        TInstant now,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const = 0;
 
     //! These OnFairShare*At methods used for testing purposes in simulator.
     //! Called periodically to collect the metrics of tree elements.

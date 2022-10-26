@@ -68,25 +68,6 @@ using NYT::ToProto;
 
 namespace {
 
-std::optional<EJobPreemptionStatus> GetJobPreemptionStatus(
-    const TJobPtr& job,
-    const TCachedJobPreemptionStatuses& jobPreemptionStatuses)
-{
-    if (!jobPreemptionStatuses.Value) {
-        // Tree snapshot is missing.
-        return {};
-    }
-
-    auto operationIt = jobPreemptionStatuses.Value->find(job->GetOperationId());
-    if (operationIt == jobPreemptionStatuses.Value->end()) {
-        return {};
-    }
-
-    const auto& jobIdToStatus = operationIt->second;
-    auto jobIt = jobIdToStatus.find(job->GetId());
-    return jobIt != jobIdToStatus.end() ? std::make_optional(jobIt->second) : std::nullopt;
-};
-
 void SetControllerAgentInfo(const TControllerAgentPtr& agent, auto proto)
 {
     ToProto(proto->mutable_addresses(), agent->GetAgentAddresses());
@@ -245,9 +226,6 @@ IInvokerPtr TNodeShard::OnMasterConnected(const TNodeShardMasterHandshakeResultP
     CachedExecNodeDescriptorsRefresher_->Start();
     SubmitJobsToStrategyExecutor_->Start();
 
-    InitialSchedulingSegmentsState_ = result->InitialSchedulingSegmentsState;
-    SchedulingSegmentInitializationDeadline_ = result->SchedulingSegmentInitializationDeadline;
-
     return CancelableInvoker_;
 }
 
@@ -307,9 +285,6 @@ void TNodeShard::DoCleanup()
     OperationIdToJobIterators_.clear();
 
     SubmitJobsToStrategy();
-
-    InitialSchedulingSegmentsState_.Reset();
-    SchedulingSegmentInitializationDeadline_ = TInstant::Zero();
 }
 
 void TNodeShard::RegisterOperation(
@@ -661,13 +636,20 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         /*requestContext*/ context);
 
     context->SetResponseInfo(
-        "NodeId: %v, NodeAddress: %v, IsThrottling: %v, "
-        "SchedulingSegment: %v, RunningJobStatistics: %v",
+        "NodeId: %v, NodeAddress: %v, IsThrottling: %v",
         nodeId,
         descriptor.GetDefaultAddress(),
-        isThrottlingActive,
-        node->GetSchedulingSegment(),
-        FormatRunningJobStatisticsCompact(node->GetRunningJobStatistics()));
+        isThrottlingActive);
+
+    TStringBuilder schedulingAttributesBuilder;
+    TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
+    ManagerHost_->GetStrategy()->BuildSchedulingAttributesStringForNode(
+        nodeId,
+        node->GetDefaultAddress(),
+        node->Tags(),
+        delimitedSchedulingAttributesBuilder);
+    context->SetRawResponseInfo(schedulingAttributesBuilder.Flush(), /*incremental*/ true);
+
     if (!skipScheduleJobs) {
         HeartbeatWithScheduleJobsCounter_.Increment();
 
@@ -844,8 +826,8 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
         auto nodeId = NodeIdFromObjectId(objectId);
         auto newState = attributes.Get<NNodeTrackerClient::ENodeState>("state");
         auto ioWeights = attributes.Get<THashMap<TString, double>>("io_weights", {});
-        auto specifiedSchedulingSegment = attributes.Find<ESchedulingSegment>("scheduling_segment");
         auto annotationsYson = attributes.FindYson("annotations");
+        auto schedulingOptionsYson = attributes.FindYson("scheduling_options");
 
         YT_LOG_DEBUG("Handling node attributes (NodeId: %v, NodeAddress: %v, ObjectId: %v, NewState: %v)",
             nodeId,
@@ -889,11 +871,7 @@ std::vector<TError> TNodeShard::HandleNodesAttributes(const std::vector<std::pai
 
         execNode->SetIOWeights(ioWeights);
 
-        execNode->SetSchedulingSegmentFrozen(false);
-        if (specifiedSchedulingSegment) {
-            SetNodeSchedulingSegment(execNode, *specifiedSchedulingSegment);
-            execNode->SetSchedulingSegmentFrozen(true);
-        }
+        execNode->SetSchedulingOptions(schedulingOptionsYson ? ConvertToAttributes(schedulingOptionsYson) : nullptr);
 
         static const TString InfinibandClusterAnnotationsPath = "/" + InfinibandClusterNameKey;
         auto infinibandCluster = annotationsYson
@@ -1431,25 +1409,6 @@ int TNodeShard::GetJobReporterQueueIsTooLargeNodeCount()
     return JobReporterQueueIsTooLargeNodeCount_.load();
 }
 
-void TNodeShard::SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOptionsList& nodesWithSegments)
-{
-    std::vector<std::pair<TNodeId, ESchedulingSegment>> missingNodeIdsWithSegments;
-    for (const auto& [nodeId, segment] : nodesWithSegments) {
-        auto it = IdToNode_.find(nodeId);
-        if (it == IdToNode_.end()) {
-            missingNodeIdsWithSegments.emplace_back(nodeId, segment);
-            continue;
-        }
-
-        const auto& node = it->second;
-        SetNodeSchedulingSegment(node, segment);
-    }
-
-    YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),
-        "Trying to set scheduling segments for missing nodes (MissingNodeIdsWithSegments: %v)",
-        missingNodeIdsWithSegments);
-}
-
 TControllerEpoch TNodeShard::GetOperationControllerEpoch(TOperationId operationId)
 {
     VERIFY_INVOKER_AFFINITY(GetInvoker());
@@ -1496,19 +1455,6 @@ bool TNodeShard::AreNewJobsForbiddenForOperation(const TOperationId operationId)
 int TNodeShard::GetOnGoingHeartbeatsCount() const noexcept
 {
     return ConcurrentHeartbeatCount_;
-}
-
-void TNodeShard::SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment)
-{
-    YT_VERIFY(!node->GetSchedulingSegmentFrozen());
-
-    if (node->GetSchedulingSegment() != segment) {
-        YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v)",
-            node->GetDefaultAddress(),
-            segment);
-
-        node->SetSchedulingSegment(segment);
-    }
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor, ENodeState state)
@@ -1577,19 +1523,6 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
     auto node = New<TExecNode>(nodeId, descriptor, state);
     const auto& address = node->GetDefaultAddress();
 
-    auto now = TInstant::Now();
-    if (InitialSchedulingSegmentsState_) {
-        if (now < SchedulingSegmentInitializationDeadline_) {
-            auto it = InitialSchedulingSegmentsState_->NodeStates.find(nodeId);
-            if (it != InitialSchedulingSegmentsState_->NodeStates.end()) {
-                SetNodeSchedulingSegment(node, it->second.Segment);
-                InitialSchedulingSegmentsState_->NodeStates.erase(it);
-            }
-        } else {
-            InitialSchedulingSegmentsState_.Reset();
-        }
-    }
-
     {
         auto lease = TLeaseManager::CreateLease(
             Config_->NodeRegistrationTimeout,
@@ -1597,6 +1530,7 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
                 .Via(GetInvoker()));
         node->SetRegistrationLease(lease);
     }
+
     {
         auto lease = TLeaseManager::CreateLease(
             Config_->NodeHeartbeatTimeout,
@@ -1605,9 +1539,9 @@ TExecNodePtr TNodeShard::RegisterNode(TNodeId nodeId, const TNodeDescriptor& des
         node->SetHeartbeatLease(lease);
     }
 
-    YT_VERIFY(IdToNode_.emplace(node->GetId(), node).second);
+    EmplaceOrCrash(IdToNode_, node->GetId(), node);
 
-    node->SetLastSeenTime(now);
+    node->SetLastSeenTime(TInstant::Now());
 
     YT_LOG_INFO("Node registered (Address: %v)", address);
 
@@ -1695,10 +1629,6 @@ void TNodeShard::DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason rea
     for (const auto& job : jobs) {
         OnJobAborted(job, error);
     }
-
-    if (reason == EAbortReason::NodeFairShareTreeChanged && !node->GetSchedulingSegmentFrozen()) {
-        SetNodeSchedulingSegment(node, ESchedulingSegment::Default);
-    }
 }
 
 void TNodeShard::AbortUnconfirmedJobs(
@@ -1772,15 +1702,6 @@ void TNodeShard::ProcessHeartbeatJobs(
     {
         checkMissingJobs = true;
         node->SetLastCheckMissingJobsTime(now);
-    }
-
-    bool shouldUpdateRunningJobStatistics = false;
-    auto lastRunningJobStatisticsUpdateTime = node->GetLastRunningJobStatisticsUpdateTime();
-    if (!lastRunningJobStatisticsUpdateTime ||
-        now > *lastRunningJobStatisticsUpdateTime + DurationToCpuDuration(Config_->RunningJobStatisticsUpdatePeriod))
-    {
-        shouldUpdateRunningJobStatistics = true;
-        node->SetLastRunningJobStatisticsUpdateTime(now);
     }
 
     const auto& nodeId = node->GetId();
@@ -1896,10 +1817,6 @@ void TNodeShard::ProcessHeartbeatJobs(
     HeartbeatJobCount_.Increment(request->jobs_size());
     HeartbeatCount_.Increment();
 
-    if (shouldUpdateRunningJobStatistics) {
-        UpdateRunningJobStatistics(node, *runningJobs, CpuInstantToInstant(now));
-    }
-
     YT_LOG_DEBUG_UNLESS(
         recentlyFinishedJobIdsToLog.empty(),
         "Jobs are skipped since they were recently finished and are currently being stored "
@@ -1956,57 +1873,22 @@ void TNodeShard::ProcessHeartbeatJobs(
     }
 }
 
-void TNodeShard::UpdateRunningJobStatistics(const TExecNodePtr& node, const std::vector<TJobPtr>& runningJobs, TInstant now)
-{
-    // TODO(eshcherbin): Think about how to partially move this logic to tree job scheduler.
-    auto cachedJobPreemptionStatuses =
-        ManagerHost_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
-    TRunningJobStatistics runningJobStatistics;
-    for (const auto& job : runningJobs) {
-        // Technically it's an overestimation of the job's duration, however, we feel it's more fair this way.
-        auto duration = (now - job->GetStartTime()).SecondsFloat();
-        auto jobCpuTime = static_cast<double>(job->ResourceLimits().GetCpu()) * duration;
-        auto jobGpuTime = job->ResourceLimits().GetGpu() * duration;
-
-        runningJobStatistics.TotalCpuTime += jobCpuTime;
-        runningJobStatistics.TotalGpuTime += jobGpuTime;
-
-        if (GetJobPreemptionStatus(job, cachedJobPreemptionStatuses) == EJobPreemptionStatus::Preemptible) {
-            runningJobStatistics.PreemptibleCpuTime += jobCpuTime;
-            runningJobStatistics.PreemptibleGpuTime += jobGpuTime;
-        }
-    }
-
-    node->SetRunningJobStatistics(runningJobStatistics);
-}
-
 void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const
 {
-    // TODO(eshcherbin): Think about how to partially move this logic to tree job scheduler.
-    auto cachedJobPreemptionStatuses =
-        ManagerHost_->GetStrategy()->GetCachedJobPreemptionStatusesForNode(node->GetDefaultAddress(), node->Tags());
-    for (const auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
+    const auto& strategy = ManagerHost_->GetStrategy();
+    for (auto allocationState : TEnumTraits<EAllocationState>::GetDomainValues()) {
         const auto& jobs = ongoingJobsByAllocationState[allocationState];
-
         if (jobs.empty()) {
             continue;
         }
 
-        TEnumIndexedVector<EJobPreemptionStatus, std::vector<TJobId>> jobIdsByPreemptionStatus;
-        std::vector<TJobId> unknownStatusJobIds;
-        for (const auto& job : jobs) {
-            if (auto status = GetJobPreemptionStatus(job, cachedJobPreemptionStatuses)) {
-                jobIdsByPreemptionStatus[*status].push_back(job->GetId());
-            } else {
-                unknownStatusJobIds.push_back(job->GetId());
-            }
-        }
+        TStringBuilder attributesBuilder;
+        TDelimitedStringBuilderWrapper delimitedAttributesBuilder(&attributesBuilder);
+        strategy->BuildSchedulingAttributesStringForOngoingJobs(node->GetDefaultAddress(), node->Tags(), jobs, now, delimitedAttributesBuilder);
 
-        YT_LOG_DEBUG("Jobs are %lv (JobIdsByPreemptionStatus: %v, UnknownStatusJobIds: %v, TimeSinceLastPreemptionStatusUpdateSeconds: %v)",
+        YT_LOG_DEBUG("Jobs are %lv (%v)",
             allocationState,
-            jobIdsByPreemptionStatus,
-            unknownStatusJobIds,
-            (now - cachedJobPreemptionStatuses.UpdateTime).SecondsFloat());
+            attributesBuilder.Flush());
     }
 }
 
@@ -2808,10 +2690,14 @@ const TNodeShard::TOperationState& TNodeShard::GetOperationState(TOperationId op
 
 void TNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap fluent)
 {
+    const auto& strategy = ManagerHost_->GetStrategy();
     fluent
         .Item(node->GetDefaultAddress()).BeginMap()
             .Do([&] (TFluentMap fluent) {
                 node->BuildAttributes(fluent);
+            })
+            .Do([&] (TFluentMap fluent) {
+                strategy->BuildSchedulingAttributesForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), fluent);
             })
         .EndMap();
 }

@@ -118,9 +118,9 @@ class TestSchedulingSegments(YTEnvSetup):
             requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
-                    "remove",
-                    path="//sys/cluster_nodes/{}/@scheduling_segment".format(node),
-                    force=True
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
                 ))
             for response in execute_batch(requests):
                 assert not get_batch_error(response)
@@ -800,9 +800,9 @@ class TestSchedulingSegments(YTEnvSetup):
     @authors("eshcherbin")
     def test_manual_move_node_from_segment_and_back(self):
         node = list(ls("//sys/cluster_nodes"))[0]
-        set("//sys/cluster_nodes/{}/@scheduling_segment".format(node), "large_gpu")
+        set("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node), "large_gpu")
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
-        set("//sys/cluster_nodes/{}/@scheduling_segment".format(node), "default")
+        set("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node), "default")
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
 
     @authors("eshcherbin")
@@ -826,7 +826,7 @@ class TestSchedulingSegments(YTEnvSetup):
 
         node = list(ls("//sys/cluster_nodes"))[0]
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
-        set("//sys/cluster_nodes/{}/@scheduling_segment".format(node), "default")
+        set("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node), "default")
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
 
         set("//sys/pools/large_gpu/@strong_guarantee_resources", {"gpu": 72})
@@ -837,7 +837,7 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "default")
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 0.9))
 
-        remove("//sys/cluster_nodes/{}/@scheduling_segment".format(node))
+        remove("//sys/cluster_nodes/{}/@scheduling_options/scheduling_segment".format(node))
         wait(lambda: get(scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment".format(node), "") == "large_gpu")
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
 
@@ -872,6 +872,19 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(gang_op.id) + "/scheduling_segment", default=None) == "large_gpu")
         wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/scheduling_segment", default=None) == "default")
 
+    @authors("eshcherbin")
+    def test_initialization_timeout_prevents_rebalancing(self):
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            set("//sys/scheduler/config/scheduling_segments_initialization_timeout", 1000000000)
+
+        op = run_sleeping_vanilla(
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False},
+        )
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.0))
+
+        time.sleep(5.0)
+        wait(lambda: are_almost_equal(self._get_usage_ratio(op.id), 0.0))
 
 ##################################################################
 
@@ -1002,9 +1015,9 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
-                    "remove",
-                    path="//sys/cluster_nodes/{}/@scheduling_segment".format(node),
-                    force=True
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
                 ))
             for response in execute_batch(requests):
                 assert not get_batch_error(response)
@@ -1584,9 +1597,9 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
             requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
-                    "remove",
-                    path="//sys/cluster_nodes/{}/@scheduling_segment".format(node),
-                    force=True
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
                 ))
             for response in execute_batch(requests):
                 assert not get_batch_error(response)
@@ -1713,9 +1726,9 @@ class TestRunningJobStatistics(YTEnvSetup):
             requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
             for node in ls("//sys/cluster_nodes"):
                 requests.append(make_batch_request(
-                    "remove",
-                    path="//sys/cluster_nodes/{}/@scheduling_segment".format(node),
-                    force=True
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
                 ))
             for response in execute_batch(requests):
                 assert not get_batch_error(response)

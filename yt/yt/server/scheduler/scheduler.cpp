@@ -1391,6 +1391,11 @@ public:
         return OrchidWorkerPool_->GetInvoker();
     }
 
+    int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const override
+    {
+        return NodeManager_->GetNodeShardId(nodeId);
+    }
+
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override
     {
         return NodeManager_->GetNodeShardInvokers();
@@ -2022,9 +2027,8 @@ private:
         {
             YT_LOG_INFO("Connecting node manager");
 
-            auto segmentsInitializationDeadline = TInstant::Now() + Config_->SchedulingSegmentsInitializationTimeout;
             // TODO(eshcherbin): Rename to OnMasterHandshake?
-            NodeManager_->OnMasterConnected(result, segmentsInitializationDeadline);
+            NodeManager_->OnMasterConnected(result);
         }
 
         {
@@ -2275,7 +2279,6 @@ private:
         Strategy_->UpdatePoolTrees(poolTreesNode, strategyState);
     }
 
-
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
     {
         YT_LOG_INFO("Requesting exec nodes information");
@@ -2286,9 +2289,9 @@ private:
             "tags",
             "state",
             "io_weights",
-            "scheduling_segment",
             "data_center",
             "annotations",
+            "scheduling_options",
         });
         batchReq->AddRequest(req, "get_nodes");
     }
@@ -2605,15 +2608,6 @@ private:
         return result;
     }
 
-    // NB(eshcherbin): Temporary, remove when scheduling segment are fully inside strategy.
-    TFuture<void> UpdateExecNodeDescriptorsOutOfBand() override
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-
-        UpdateExecNodeDescriptorsExecutor_->ScheduleOutOfBand();
-        return UpdateExecNodeDescriptorsExecutor_->GetExecutedEvent();
-    }
-
     TMemoryDistribution CalculateMemoryDistribution(const TSchedulingTagFilter& filter) const
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -2636,11 +2630,6 @@ private:
     void AbortJobsAtNode(TNodeId nodeId, EAbortReason reason) override
     {
         NodeManager_->AbortJobsAtNode(nodeId, reason);
-    }
-
-    void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments) override
-    {
-        NodeManager_->SetSchedulingSegmentsForNodes(std::move(nodesWithNewSegments));
     }
 
     void DoStartOperation(const TOperationPtr& operation)

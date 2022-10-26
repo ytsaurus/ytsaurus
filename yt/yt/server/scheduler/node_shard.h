@@ -3,7 +3,6 @@
 #include "private.h"
 #include "scheduler.h"
 #include "scheduler_strategy.h"
-#include "scheduling_segment_manager.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
@@ -71,8 +70,6 @@ struct TJobTimeStatisticsDelta
 
 struct TNodeShardMasterHandshakeResult final
 {
-    TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState;
-    TInstant SchedulingSegmentInitializationDeadline;
     THashSet<TOperationId> OperationIds;
 };
 
@@ -158,8 +155,6 @@ public:
 
     int ExtractJobReporterWriteFailuresCount();
     int GetJobReporterQueueIsTooLargeNodeCount();
-
-    void SetSchedulingSegmentsForNodes(const TSetNodeSchedulingSegmentOptionsList& nodesWithNewSegments);
 
     TControllerEpoch GetOperationControllerEpoch(TOperationId operationId);
     TControllerEpoch GetJobControllerEpoch(TJobId jobId);
@@ -278,9 +273,6 @@ private:
     THashSet<TOperationId> WaitingForRegisterOperationIds_;
     TShardEpoch CurrentEpoch_ = 0;
 
-    TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState_;
-    TInstant SchedulingSegmentInitializationDeadline_;
-
     void ValidateConnected();
 
     void DoCleanup();
@@ -304,8 +296,6 @@ private:
     // NB: 'node' passed by value since we want to own it after remove.
     void RemoveNode(TExecNodePtr node);
 
-    void SetNodeSchedulingSegment(const TExecNodePtr& node, ESchedulingSegment segment);
-
     void AbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
     void DoAbortAllJobsAtNode(const TExecNodePtr& node, EAbortReason reason);
 
@@ -326,8 +316,6 @@ private:
         const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
         NJobTrackerClient::NProto::TRspHeartbeat* response,
         TJobStatus* jobStatus);
-
-    void UpdateRunningJobStatistics(const TExecNodePtr& node, const std::vector<TJobPtr>& runningJobs, TInstant now);
 
     using TAllocationStateToJobList = TEnumIndexedVector<EAllocationState, std::vector<TJobPtr>>;
     void LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const;
