@@ -68,8 +68,6 @@ public:
     TScheduleJobsStatistics GetSchedulingStatistics() const override;
     void SetSchedulingStatistics(TScheduleJobsStatistics statistics) override;
 
-    ESchedulingSegment GetSchedulingSegment() const override;
-
 private:
     const int NodeShardId_;
     const TSchedulerConfigPtr Config_;

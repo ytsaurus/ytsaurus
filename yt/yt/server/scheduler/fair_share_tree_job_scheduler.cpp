@@ -116,6 +116,27 @@ void SortJobsWithPreemptionInfo(std::vector<TJobWithPreemptionInfo>* jobInfos)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<EJobPreemptionStatus> GetCachedJobPreemptionStatus(
+    const TJobPtr& job,
+    const TCachedJobPreemptionStatuses& jobPreemptionStatuses)
+{
+    if (!jobPreemptionStatuses.Value) {
+        // Tree snapshot is missing.
+        return {};
+    }
+
+    auto operationIt = jobPreemptionStatuses.Value->find(job->GetOperationId());
+    if (operationIt == jobPreemptionStatuses.Value->end()) {
+        return {};
+    }
+
+    const auto& jobIdToStatus = operationIt->second;
+    auto jobIt = jobIdToStatus.find(job->GetId());
+    return jobIt != jobIdToStatus.end() ? std::make_optional(jobIt->second) : std::nullopt;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -668,12 +689,14 @@ TScheduleJobsContext::TScheduleJobsContext(
     ISchedulingContextPtr schedulingContext,
     TFairShareTreeSnapshotPtr treeSnapshot,
     std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
+    ESchedulingSegment nodeSchedulingSegment,
     bool enableSchedulingInfoLogging,
     ISchedulerStrategyHost* strategyHost,
     const NLogging::TLogger& logger)
     : SchedulingContext_(std::move(schedulingContext))
     , TreeSnapshot_(std::move(treeSnapshot))
     , KnownSchedulingTagFilters_(std::move(knownSchedulingTagFilters))
+    , NodeSchedulingSegment_(nodeSchedulingSegment)
     , EnableSchedulingInfoLogging_(enableSchedulingInfoLogging)
     , StrategyHost_(strategyHost)
     , Logger(logger)
@@ -784,7 +807,7 @@ void TScheduleJobsContext::AnalyzePreemptibleJobs(
                 job->GetId(),
                 operationElement->GetId(),
                 operationElement->SchedulingSegment(),
-                SchedulingContext_->GetSchedulingSegment(),
+                NodeSchedulingSegment_,
                 SchedulingContext_->GetNodeDescriptor().Address,
                 SchedulingContext_->GetNodeDescriptor().DataCenter);
 
@@ -1864,7 +1887,6 @@ bool TScheduleJobsContext::IsSchedulingSegmentCompatibleWithNode(const TSchedule
         return false;
     }
 
-    auto nodeSegment = SchedulingContext_->GetSchedulingSegment();
     const auto& nodeModule = TNodeSchedulingSegmentManager::GetNodeModule(
         SchedulingContext_->GetNodeDescriptor(),
         TreeSnapshot_->TreeConfig()->SchedulingSegments->ModuleType);
@@ -1874,13 +1896,13 @@ bool TScheduleJobsContext::IsSchedulingSegmentCompatibleWithNode(const TSchedule
             return false;
         }
 
-        return element->SchedulingSegment() == nodeSegment &&
+        return element->SchedulingSegment() == NodeSchedulingSegment_ &&
             element->PersistentAttributes().SchedulingSegmentModule == nodeModule;
     }
 
     YT_VERIFY(!element->PersistentAttributes().SchedulingSegmentModule);
 
-    return *element->SchedulingSegment() == nodeSegment;
+    return *element->SchedulingSegment() == NodeSchedulingSegment_;
 }
 
 bool TScheduleJobsContext::IsOperationResourceUsageOutdated(const TSchedulerOperationElement* element) const
@@ -2072,7 +2094,7 @@ void TScheduleJobsContext::LogStageStatistics()
         StageState_->DeactivationReasons,
         SchedulingContext_->CanStartMoreJobs(),
         SchedulingContext_->GetNodeDescriptor().Address,
-        SchedulingContext_->GetSchedulingSegment(),
+        NodeSchedulingSegment_,
         StageState_->MaxSchedulingIndex);
 }
 
@@ -2120,11 +2142,13 @@ bool TScheduleJobsContext::IsEligibleForSsdPriorityPreemption(const THashSet<int
 TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     TString treeId,
     NLogging::TLogger logger,
+    IFairShareTreeHost* host,
     ISchedulerStrategyHost* strategyHost,
     TFairShareStrategyTreeConfigPtr config,
     NProfiling::TProfiler profiler)
     : TreeId_(std::move(treeId))
     , Logger(std::move(logger))
+    , Host_(host)
     , StrategyHost_(strategyHost)
     , Config_(std::move(config))
     , Profiler_(std::move(profiler))
@@ -2145,12 +2169,84 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     }
 }
 
+void TFairShareTreeJobScheduler::RegisterNode(TNodeId nodeId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    ESchedulingSegment initialSchedulingSegment = ESchedulingSegment::Default;
+    auto [initialSegmentsState, _] = Host_->GetInitialSchedulingSegmentsState();
+    if (initialSegmentsState) {
+        auto it = initialSegmentsState->NodeStates.find(nodeId);
+        if (it != initialSegmentsState->NodeStates.end()) {
+            initialSchedulingSegment = it->second.Segment;
+            initialSegmentsState->NodeStates.erase(it);
+        }
+    }
+
+    auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
+    const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
+    nodeShardInvoker->Invoke(BIND([this, this_ = MakeStrong(this), nodeId, nodeShardId, initialSchedulingSegment] {
+        EmplaceOrCrash(
+            NodeStateShards_[nodeShardId].NodeIdToState,
+            nodeId,
+            TFairShareTreeJobSchedulerNodeState{
+                .SchedulingSegment = initialSchedulingSegment,
+            });
+    }));
+}
+
+void TFairShareTreeJobScheduler::UnregisterNode(TNodeId nodeId)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
+    const auto& nodeShardInvoker = StrategyHost_->GetNodeShardInvokers()[nodeShardId];
+    nodeShardInvoker->Invoke(BIND([this, this_ = MakeStrong(this), nodeId, nodeShardId] {
+        EraseOrCrash(NodeStateShards_[nodeShardId].NodeIdToState, nodeId);
+    }));
+}
+
 void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
     const ISchedulingContextPtr& schedulingContext,
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     bool skipScheduleJobs)
 {
-    VERIFY_THREAD_AFFINITY_ANY();
+    auto nodeId = schedulingContext->GetNodeDescriptor().Id;
+    auto* nodeState = FindNodeState(nodeId);
+    if (!nodeState) {
+        YT_LOG_DEBUG("Skipping scheduling heartbeat because node is not registered in tree (NodeId: %v, NodeAddress: %v)",
+            nodeId,
+            schedulingContext->GetNodeDescriptor().Address);
+
+        return;
+    }
+
+    const auto& treeConfig = treeSnapshot->TreeConfig();
+    bool shouldUpdateRunningJobStatistics = !nodeState->LastRunningJobStatisticsUpdateTime ||
+        schedulingContext->GetNow() > *nodeState->LastRunningJobStatisticsUpdateTime + DurationToCpuDuration(treeConfig->RunningJobStatisticsUpdatePeriod);
+    if (shouldUpdateRunningJobStatistics) {
+        nodeState->RunningJobStatistics = ComputeRunningJobStatistics(schedulingContext, treeSnapshot);
+        nodeState->LastRunningJobStatisticsUpdateTime = schedulingContext->GetNow();
+    }
+
+    nodeState->Descriptor = schedulingContext->GetNodeDescriptor();
+    nodeState->SpecifiedSchedulingSegment = [&] () -> std::optional<ESchedulingSegment> {
+        const auto& schedulingOptions = nodeState->Descriptor->SchedulingOptions;
+        if (!schedulingOptions) {
+            return {};
+        }
+
+        // TODO(eshcherbin): Improve error handing. Ideally scheduling options parsing error should lead to a scheduler alert.
+        try {
+            return schedulingOptions->Find<ESchedulingSegment>("scheduling_segment");
+        } catch (const std::exception& ex) {
+            YT_LOG_DEBUG(ex, "Failed to parse specified scheduling segment (NodeId: %v, NodeAddress: %v)",
+                nodeState->Descriptor->Id,
+                nodeState->Descriptor->Address);
+
+            return {};
+        }
+    }();
 
     // TODO(eshcherbin): Remove this profiling in favour of custom per-tree counters.
     YT_PROFILE_TIMING("/scheduler/graceful_preemption_time") {
@@ -2159,13 +2255,14 @@ void TFairShareTreeJobScheduler::ProcessSchedulingHeartbeat(
 
     if (!skipScheduleJobs) {
         YT_PROFILE_TIMING("/scheduler/schedule_time") {
-            ScheduleJobs(schedulingContext, treeSnapshot);
+            ScheduleJobs(schedulingContext, nodeState->SchedulingSegment, treeSnapshot);
         }
     }
 }
 
 void TFairShareTreeJobScheduler::ScheduleJobs(
     const ISchedulingContextPtr& schedulingContext,
+    ESchedulingSegment nodeSchedulingSegment,
     const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -2180,10 +2277,12 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
         LastSchedulingInformationLoggedTime_ = now;
     }
 
+    // TODO(eshcherbin): Create context outside of this method to avoid passing scheduling segment as an argument.
     TScheduleJobsContext context(
         schedulingContext,
         treeSnapshot,
         treeSnapshot->SchedulingSnapshot()->KnownSchedulingTagFilters(),
+        nodeSchedulingSegment,
         enableSchedulingInfoLogging,
         StrategyHost_,
         Logger);
@@ -2410,6 +2509,54 @@ void TFairShareTreeJobScheduler::ProcessFinishedJob(
     operationSharedState->OnJobFinished(element, jobId);
 }
 
+void TFairShareTreeJobScheduler::BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const
+{
+    const auto* nodeState = FindNodeState(nodeId);
+    if (!nodeState) {
+        return;
+    }
+
+    delimitedBuilder->AppendFormat("SchedulingSegment: %v", nodeState->SchedulingSegment);
+    delimitedBuilder->AppendFormat("RunningJobStatistics: %v", nodeState->RunningJobStatistics);
+}
+
+void TFairShareTreeJobScheduler::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
+{
+    const auto* nodeState = FindNodeState(nodeId);
+    if (!nodeState) {
+        return;
+    }
+
+    fluent
+        .Item("scheduling_segment").Value(nodeState->SchedulingSegment)
+        .Item("running_job_statistics").Value(nodeState->RunningJobStatistics);
+}
+
+void TFairShareTreeJobScheduler::BuildSchedulingAttributesStringForOngoingJobs(
+    const TFairShareTreeSnapshotPtr& treeSnapshot,
+    const std::vector<TJobPtr>& jobs,
+    TInstant now,
+    TDelimitedStringBuilderWrapper& delimitedBuilder) const
+{
+    auto cachedJobPreemptionStatuses = treeSnapshot
+        ? treeSnapshot->SchedulingSnapshot()->CachedJobPreemptionStatuses()
+        : TCachedJobPreemptionStatuses{.UpdateTime = now};
+
+    TEnumIndexedVector<EJobPreemptionStatus, std::vector<TJobId>> jobIdsByPreemptionStatus;
+    std::vector<TJobId> unknownStatusJobIds;
+    for (const auto& job : jobs) {
+        if (auto status = GetCachedJobPreemptionStatus(job, cachedJobPreemptionStatuses)) {
+            jobIdsByPreemptionStatus[*status].push_back(job->GetId());
+        } else {
+            unknownStatusJobIds.push_back(job->GetId());
+        }
+    }
+
+    delimitedBuilder->AppendFormat("JobIdsByPreemptionStatus: %v", jobIdsByPreemptionStatus);
+    delimitedBuilder->AppendFormat("UnknownStatusJobIds: %v", unknownStatusJobIds);
+    delimitedBuilder->AppendFormat("TimeSinceLastPreemptionStatusUpdateSeconds: %v", (now - cachedJobPreemptionStatuses.UpdateTime).SecondsFloat());
+}
+
 TError TFairShareTreeJobScheduler::CheckOperationIsHung(
     const TFairShareTreeSnapshotPtr& treeSnapshot,
     const TSchedulerOperationElement* element,
@@ -2633,6 +2780,34 @@ void TFairShareTreeJobScheduler::InitSchedulingStages()
             .ProfilingCounters = TScheduleJobsProfilingCounters(Profiler_.WithTag("scheduling_stage", FormatEnum(stage))),
         };
     }
+}
+
+TRunningJobStatistics TFairShareTreeJobScheduler::ComputeRunningJobStatistics(
+    const ISchedulingContextPtr& schedulingContext,
+    const TFairShareTreeSnapshotPtr& treeSnapshot)
+{
+    auto cachedJobPreemptionStatuses = treeSnapshot->SchedulingSnapshot()->CachedJobPreemptionStatuses();
+    auto now = CpuInstantToInstant(schedulingContext->GetNow());
+
+    TRunningJobStatistics runningJobStatistics;
+    for (const auto& job : schedulingContext->RunningJobs()) {
+        // Technically it's an overestimation of the job's duration, however, we feel it's more fair this way.
+        auto duration = (now - job->GetStartTime()).SecondsFloat();
+        auto jobCpuTime = static_cast<double>(job->ResourceLimits().GetCpu()) * duration;
+        auto jobGpuTime = job->ResourceLimits().GetGpu() * duration;
+
+        runningJobStatistics.TotalCpuTime += jobCpuTime;
+        runningJobStatistics.TotalGpuTime += jobGpuTime;
+
+        // TODO(eshcherbin): Do we really still need to use cached preemption statuses?
+        // Now that this code has been moved to job scheduler, we can use operation shared state directly.
+        if (GetCachedJobPreemptionStatus(job, cachedJobPreemptionStatuses) == EJobPreemptionStatus::Preemptible) {
+            runningJobStatistics.PreemptibleCpuTime += jobCpuTime;
+            runningJobStatistics.PreemptibleGpuTime += jobGpuTime;
+        }
+    }
+
+    return runningJobStatistics;
 }
 
 TPreemptiveScheduleJobsStageList TFairShareTreeJobScheduler::BuildPreemptiveSchedulingStageList(TScheduleJobsContext* context)
@@ -3084,32 +3259,128 @@ std::optional<bool> TFairShareTreeJobScheduler::IsAggressivePreemptionAllowed(co
     }
 }
 
-std::pair<TSetNodeSchedulingSegmentOptionsList, TError> TFairShareTreeJobScheduler::ManageNodeSchedulingSegments(
-    const TFairShareTreeSnapshotPtr& treeSnapshot,
-    const THashSet<TNodeId>& treeNodeIds)
+const TFairShareTreeJobSchedulerNodeState* TFairShareTreeJobScheduler::FindNodeState(TNodeId nodeId) const
+{
+    return const_cast<const TFairShareTreeJobSchedulerNodeState*>(const_cast<TFairShareTreeJobScheduler*>(this)->FindNodeState(nodeId));
+}
+
+TFairShareTreeJobSchedulerNodeState* TFairShareTreeJobScheduler::FindNodeState(TNodeId nodeId)
+{
+    auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
+
+    VERIFY_INVOKER_AFFINITY(StrategyHost_->GetNodeShardInvokers()[nodeShardId]);
+
+    auto& nodeStates = NodeStateShards_[nodeShardId].NodeIdToState;
+    auto it = nodeStates.find(nodeId);
+    return it != nodeStates.end() ? &it->second : nullptr;
+}
+
+TFairShareTreeJobSchedulerNodeStateMap TFairShareTreeJobScheduler::CollectNodeStates() const
+{
+    const auto& nodeShardInvokers = StrategyHost_->GetNodeShardInvokers();
+    std::vector<TFuture<TFairShareTreeJobSchedulerNodeStateMap>> futures;
+    for (int shardId = 0; shardId < std::ssize(nodeShardInvokers); ++shardId) {
+        const auto& invoker = nodeShardInvokers[shardId];
+        futures.push_back(
+            BIND([&, this_ = MakeStrong(this), shardId] {
+                return NodeStateShards_[shardId].NodeIdToState;
+            })
+            .AsyncVia(invoker)
+            .Run());
+    }
+    auto shardResults = WaitFor(AllSucceeded(std::move(futures)))
+        .ValueOrThrow();
+
+    TFairShareTreeJobSchedulerNodeStateMap nodeStates;
+    for (auto&& shardNodeStates: shardResults) {
+        for (auto&& [nodeId, nodeState]: shardNodeStates) {
+            // NB(eshcherbin): Descriptor may be missing if the node has only just registered and we haven't processed any heartbeats from it.
+            if (nodeState.Descriptor) {
+                EmplaceOrCrash(nodeStates, nodeId, std::move(nodeState));
+            }
+        }
+    }
+
+    return nodeStates;
+}
+
+void TFairShareTreeJobScheduler::ApplyNewNodeSchedulingSegments(const TSetNodeSchedulingSegmentOptionsList& movedNodes)
+{
+    YT_LOG_DEBUG("Moving nodes to new scheduling segments (TotalMovedNodeCount: %v)",
+        movedNodes.size());
+
+    std::array<TSetNodeSchedulingSegmentOptionsList, MaxNodeShardCount> movedNodesPerNodeShard;
+    for (auto [nodeId, newSegment] : movedNodes) {
+        auto shardId = StrategyHost_->GetNodeShardId(nodeId);
+        movedNodesPerNodeShard[shardId].push_back(TSetNodeSchedulingSegmentOptions{
+            .NodeId = nodeId,
+            .Segment = newSegment,
+        });
+    }
+
+    const auto& nodeShardInvokers = StrategyHost_->GetNodeShardInvokers();
+    std::vector<TFuture<void>> futures;
+    for (int shardId = 0; shardId < std::ssize(nodeShardInvokers); ++shardId) {
+        futures.push_back(BIND(
+            [&, this_ = MakeStrong(this), shardId, movedNodes = std::move(movedNodesPerNodeShard[shardId])] {
+                auto& nodeStates = NodeStateShards_[shardId].NodeIdToState;
+                std::vector<std::pair<TNodeId, ESchedulingSegment>> missingNodeIdsWithSegments;
+                for (auto [nodeId, newSegment] : movedNodes) {
+                    auto it = nodeStates.find(nodeId);
+                    if (it == nodeStates.end()) {
+                        missingNodeIdsWithSegments.emplace_back(nodeId, newSegment);
+                        continue;
+                    }
+                    auto& node = it->second;
+
+                    YT_VERIFY(node.SchedulingSegment != newSegment);
+
+                    YT_LOG_DEBUG("Setting new scheduling segment for node (Address: %v, Segment: %v)",
+                        node.Descriptor->Address,
+                        newSegment);
+
+                    node.SchedulingSegment = newSegment;
+                }
+
+                YT_LOG_DEBUG_UNLESS(missingNodeIdsWithSegments.empty(),
+                    "Trying to set scheduling segments for missing nodes (MissingNodeIdsWithSegments: %v)",
+                    missingNodeIdsWithSegments);
+            })
+            .AsyncVia(nodeShardInvokers[shardId])
+            .Run());
+    }
+
+    WaitFor(AllSucceeded(std::move(futures)))
+        .ThrowOnError();
+}
+
+std::pair<TPersistentNodeSchedulingSegmentStateMap, TError> TFairShareTreeJobScheduler::ManageNodeSchedulingSegments(
+    const TFairShareTreeSnapshotPtr& treeSnapshot)
 {
     VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
     YT_LOG_DEBUG("Started managing node scheduling segments");
 
-    TManageNodeSchedulingSegmentsContext context;
-    context.Now = TInstant::Now();
-    if (treeSnapshot) {
-        context.TreeSegmentsState = treeSnapshot->SchedulingSnapshot()->SchedulingSegmentsState();
+    if (!NodeSchedulingSegmentManagerInitialized_) {
+        auto [_, segmentsInitializationDeadline] = Host_->GetInitialSchedulingSegmentsState();
+        NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(segmentsInitializationDeadline);
     }
-    context.ExecNodeDescriptors = StrategyHost_->CalculateExecNodeDescriptors();
 
-    for (auto nodeId : treeNodeIds) {
-        if (context.ExecNodeDescriptors->contains(nodeId)) {
-            context.TreeNodeIds.push_back(nodeId);
-        }
-    }
+    TManageNodeSchedulingSegmentsContext context{
+        .Now = TInstant::Now(),
+        .TreeSegmentsState = treeSnapshot
+            ? treeSnapshot->SchedulingSnapshot()->SchedulingSegmentsState()
+            : TTreeSchedulingSegmentsState{},
+        .NodeStates = CollectNodeStates(),
+    };
 
     NodeSchedulingSegmentManager_.ManageNodeSegments(&context);
 
+    ApplyNewNodeSchedulingSegments(context.MovedNodes);
+
     YT_LOG_DEBUG("Finished managing node scheduling segments");
 
-    return {std::move(context.MovedNodes), std::move(context.Error)};
+    return {std::move(context.PersistentNodeStates), std::move(context.Error)};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -352,6 +352,24 @@ void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationSt
         .ThrowOnError();
 }
 
+void TSharedSchedulerStrategy::BuildSchedulingAttributesStringForNode(
+    TNodeId nodeId,
+    const TString& nodeAddress,
+    const TBooleanFormulaTags& nodeTags,
+    TDelimitedStringBuilderWrapper& delimitedBuilder) const
+{
+    return SchedulerStrategy_->BuildSchedulingAttributesStringForNode(nodeId, nodeAddress, nodeTags, delimitedBuilder);
+}
+
+void TSharedSchedulerStrategy::BuildSchedulingAttributesForNode(
+    TNodeId nodeId,
+    const TString& nodeAddress,
+    const TBooleanFormulaTags& nodeTags,
+    TFluentMap fluent) const
+{
+    return SchedulerStrategy_->BuildSchedulingAttributesForNode(nodeId, nodeAddress, nodeTags, fluent);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSchedulerSimulator

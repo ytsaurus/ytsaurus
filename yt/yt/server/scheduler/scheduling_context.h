@@ -20,6 +20,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Refactor TScheduleJobsStatistics to allow for different scheduling strategies.
 struct TScheduleJobsStatistics
 {
     int ControllerScheduleJobCount = 0;
@@ -110,8 +111,6 @@ struct ISchedulingContext
 
     virtual TScheduleJobsStatistics GetSchedulingStatistics() const = 0;
     virtual void SetSchedulingStatistics(TScheduleJobsStatistics statistics) = 0;
-
-    virtual ESchedulingSegment GetSchedulingSegment() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ISchedulingContext)

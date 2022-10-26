@@ -52,7 +52,7 @@ public:
 
     void UpdateConfig(const TSchedulerConfigPtr& config);
 
-    void OnMasterConnected(const TMasterHandshakeResult& result, TInstant schedulingSegmentsInitializationDeadline);
+    void OnMasterConnected(const TMasterHandshakeResult& result);
     void OnMasterDisconnected();
 
     void RegisterOperation(
@@ -96,8 +96,6 @@ public:
 
     int ExtractJobReporterWriteFailuresCount();
     int GetJobReporterQueueIsTooLargeNodeCount();
-
-    void SetSchedulingSegmentsForNodes(TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments);
 
     // TODO(eshcherbin): Think how to hide node shards behind node manager completely.
     // Invoker affinity: any.

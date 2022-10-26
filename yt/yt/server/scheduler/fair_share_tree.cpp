@@ -240,6 +240,7 @@ public:
         , TreeScheduler_(New<TFairShareTreeJobScheduler>(
             TreeId_,
             Logger,
+            Host_,
             StrategyHost_,
             Config_,
             TreeProfiler_->GetProfiler()))
@@ -527,6 +528,27 @@ public:
 
         const auto& element = FindOperationElement(operationId);
         TreeScheduler_->RegisterJobsFromRevivedOperation(element.Get(), jobs);
+    }
+
+    void RegisterNode(TNodeId nodeId) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        TreeScheduler_->RegisterNode(nodeId);
+    }
+
+    void UnregisterNode(TNodeId nodeId) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        TreeScheduler_->UnregisterNode(nodeId);
+    }
+
+    TString GetId() const override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        return TreeId_;
     }
 
     // TODO(eshcherbin): Move this method to tree scheduler?
@@ -929,15 +951,14 @@ public:
 
     TFuture<TManageSchedulingSegmentsResult> ManageSchedulingSegments() override
     {
-        // TODO(eshcherbin): Maybe job scheduler should be notified of all node updates instead of passing full set of nodes here?
-        auto future = BIND(&TFairShareTreeJobScheduler::ManageNodeSchedulingSegments, TreeScheduler_, GetTreeSnapshot(), Host_->GetTreeNodeIds(TreeId_))
+        auto future = BIND(&TFairShareTreeJobScheduler::ManageNodeSchedulingSegments, TreeScheduler_, GetTreeSnapshot())
             .AsyncVia(GetCurrentInvoker())
             .Run();
-        return future.ApplyUnique(BIND([this, this_ = MakeStrong(this)] (std::pair<TSetNodeSchedulingSegmentOptionsList, TError>&& nodeResult) {
-            auto& [movedNodes, error] = nodeResult;
+        return future.ApplyUnique(BIND([this, this_ = MakeStrong(this)] (std::pair<TPersistentNodeSchedulingSegmentStateMap, TError>&& result) {
+            auto&& [persistentNodeStates, error] = result;
             return TManageSchedulingSegmentsResult{
-                .MovedNodes = std::move(movedNodes),
                 .OperationSchedulingSegmentModuleUpdates = GetOperationSchedulingSegmentModuleUpdates(),
+                .PersistentNodeStates = std::move(persistentNodeStates),
                 .Error = std::move(error),
             };
         }));
@@ -2360,13 +2381,22 @@ private:
         *customMeteringTags = treeSnapshot->TreeConfig()->MeteringTags;
     }
 
-    TCachedJobPreemptionStatuses GetCachedJobPreemptionStatuses() const override
+    void BuildSchedulingAttributesStringForNode(TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
-        auto treeSnapshot = GetTreeSnapshot();
+        TreeScheduler_->BuildSchedulingAttributesStringForNode(nodeId, delimitedBuilder);
+    }
 
-        YT_VERIFY(treeSnapshot);
+    void BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const override
+    {
+        TreeScheduler_->BuildSchedulingAttributesForNode(nodeId, fluent);
+    }
 
-        return treeSnapshot->SchedulingSnapshot()->CachedJobPreemptionStatuses();
+    void BuildSchedulingAttributesStringForOngoingJobs(
+        const std::vector<TJobPtr>& jobs,
+        TInstant now,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+    {
+        TreeScheduler_->BuildSchedulingAttributesStringForOngoingJobs(GetTreeSnapshot(), jobs, now, delimitedBuilder);
     }
 
     void ProfileFairShare() const override

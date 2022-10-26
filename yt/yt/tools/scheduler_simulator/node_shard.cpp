@@ -225,6 +225,10 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         Events_->InsertNodeShardEvent(ShardId_, nextHeartbeat);
     }
 
+    TStringBuilder schedulingAttributesBuilder;
+    TDelimitedStringBuilderWrapper delimitedSchedulingAttributesBuilder(&schedulingAttributesBuilder);
+    SchedulingStrategy_->BuildSchedulingAttributesStringForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), delimitedSchedulingAttributesBuilder);
+
     const auto& statistics = context->GetSchedulingStatistics();
     YT_LOG_DEBUG(
         "Heartbeat finished "
@@ -233,7 +237,7 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         "JobsScheduledDuringPreemption: %v, UnconditionallyPreemptibleJobCount: %v, UnconditionalDiscount: %v, "
         "TotalConditionalJobCount: %v, MaxConditionalJobCountPerPool: %v, MaxConditionalDiscount: %v, "
         "ControllerScheduleJobCount: %v, ScheduleJobAttemptCountPerStage: %v, "
-        "OperationCountByPreemptionPriority: %v)",
+        "OperationCountByPreemptionPriority: %v, %v)",
         event.Time,
         event.NodeId,
         node->GetDefaultAddress(),
@@ -247,8 +251,8 @@ void TSimulatorNodeShard::OnHeartbeat(const TNodeShardEvent& event)
         FormatResources(statistics.MaxConditionalResourceUsageDiscount),
         statistics.ControllerScheduleJobCount,
         statistics.ScheduleJobAttemptCountPerStage,
-        statistics.OperationCountByPreemptionPriority);
-
+        statistics.OperationCountByPreemptionPriority,
+        schedulingAttributesBuilder.Flush());
 }
 
 void TSimulatorNodeShard::OnJobFinished(const TNodeShardEvent& event)
@@ -344,6 +348,9 @@ void TSimulatorNodeShard::BuildNodeYson(const TExecNodePtr& node, TFluentMap flu
         .Item(node->GetDefaultAddress()).BeginMap()
             .Do([&] (TFluentMap fluent) {
                 node->BuildAttributes(fluent);
+            })
+            .Do([&] (TFluentMap fluent) {
+                SchedulingStrategy_->BuildSchedulingAttributesForNode(node->GetId(), node->GetDefaultAddress(), node->Tags(), fluent);
             })
         .EndMap();
 }

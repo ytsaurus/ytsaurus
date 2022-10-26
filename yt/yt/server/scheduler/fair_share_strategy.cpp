@@ -5,7 +5,6 @@
 #include "public.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
-#include "scheduling_segment_manager.h"
 #include "fair_share_strategy_operation_controller.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
@@ -111,9 +110,12 @@ public:
 
     void OnMasterHandshake(const TMasterHandshakeResult& result) override
     {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
         LastMeteringStatisticsUpdateTime_ = result.LastMeteringLogTime;
         ConnectionTime_ = TInstant::Now();
-        NodeSegmentsInitializationDeadline_ = ConnectionTime_ + Config_->SchedulingSegmentsInitializationTimeout;
+        InitialSchedulingSegmentsState_ = result.SchedulingSegmentsState;
+        SchedulingSegmentsInitializationDeadline_ = ConnectionTime_ + Config_->SchedulingSegmentsInitializationTimeout;
     }
 
     void OnMasterConnected() override
@@ -1077,26 +1079,47 @@ public:
                 auto it = NodeIdToDescriptor_.find(nodeId);
                 if (it == NodeIdToDescriptor_.end()) {
                     YT_LOG_WARNING("Node is not registered at strategy (Address: %v)", nodeAddress);
-                } else {
-                    if (auto treeId = it->second.TreeId) {
-                        auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, *treeId);
-                        EraseOrCrash(treeNodeIds, nodeId);
-                    }
 
-                    EraseOrCrash(NodeAddresses_, nodeAddress);
-                    NodeIdToDescriptor_.erase(it);
-
-                    YT_LOG_INFO("Node unregistered from strategy (Address: %v)", nodeAddress);
+                    return;
                 }
-                NodeIdsWithoutTree_.erase(nodeId);
+
+                if (auto treeId = it->second.TreeId) {
+                    const auto& tree = GetOrCrash(IdToTree_, *treeId);
+                    UnregisterNodeInTree(tree, nodeId);
+                } else {
+                    NodeIdsWithoutTree_.erase(nodeId);
+                }
+
+                EraseOrCrash(NodeAddresses_, nodeAddress);
+                NodeIdToDescriptor_.erase(it);
+
+                YT_LOG_INFO("Node unregistered from strategy (Address: %v)", nodeAddress);
             }));
     }
 
-    const THashSet<TNodeId>& GetTreeNodeIds(const TString& treeId) const override
+    void RegisterNodeInTree(const IFairShareTreePtr& tree, TNodeId nodeId)
+    {
+        auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, tree->GetId());
+        InsertOrCrash(treeNodeIds, nodeId);
+        tree->RegisterNode(nodeId);
+    }
+
+    void UnregisterNodeInTree(const IFairShareTreePtr& tree, TNodeId nodeId)
+    {
+        auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, tree->GetId());
+        EraseOrCrash(treeNodeIds, nodeId);
+        tree->UnregisterNode(nodeId);
+    }
+
+    TPersistentSchedulingSegmentsStateWithDeadline GetInitialSchedulingSegmentsState() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        return GetOrCrash(NodeIdsPerTree_, treeId);
+        if (InitialSchedulingSegmentsState_ && TInstant::Now() > SchedulingSegmentsInitializationDeadline_) {
+            InitialSchedulingSegmentsState_.Reset();
+        }
+
+        return {InitialSchedulingSegmentsState_, SchedulingSegmentsInitializationDeadline_};
     }
 
     TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
@@ -1250,14 +1273,38 @@ public:
         return result;
     }
 
-    TCachedJobPreemptionStatuses GetCachedJobPreemptionStatusesForNode(
+    void BuildSchedulingAttributesStringForNode(
+        TNodeId nodeId,
         const TString& nodeAddress,
-        const TBooleanFormulaTags& nodeTags) const override
+        const TBooleanFormulaTags& nodeTags,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
     {
         if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
-            return tree->GetCachedJobPreemptionStatuses();
+            tree->BuildSchedulingAttributesStringForNode(nodeId, delimitedBuilder);
         }
-        return {};
+    }
+
+    void BuildSchedulingAttributesForNode(
+        TNodeId nodeId,
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags,
+        TFluentMap fluent) const override
+    {
+        if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
+            tree->BuildSchedulingAttributesForNode(nodeId, fluent);
+        }
+    }
+
+    void BuildSchedulingAttributesStringForOngoingJobs(
+        const TString& nodeAddress,
+        const TBooleanFormulaTags& nodeTags,
+        const std::vector<TJobPtr>& jobs,
+        TInstant now,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const override
+    {
+        if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
+            tree->BuildSchedulingAttributesStringForOngoingJobs(jobs, now, delimitedBuilder);
+        }
     }
 
 private:
@@ -1311,7 +1358,8 @@ private:
     THashMap<TString, THashSet<TNodeId>> NodeIdsPerTree_;
     THashSet<TNodeId> NodeIdsWithoutTree_;
 
-    TInstant NodeSegmentsInitializationDeadline_;
+    TInstant SchedulingSegmentsInitializationDeadline_;
+    TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState_;
 
     struct TPoolTreeDescription
     {
@@ -1837,8 +1885,8 @@ private:
             NodeAddresses_.insert(nodeAddress);
 
             if (treeId) {
-                auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, *treeId);
-                InsertOrCrash(treeNodeIds, nodeId);
+                const auto& tree = GetOrCrash(IdToTree_, *treeId);
+                RegisterNodeInTree(tree, nodeId);
             }
 
             YT_LOG_INFO("Node is registered at strategy (NodeId: %v, Address: %v, Tags: %v, TreeId: %v)",
@@ -1849,7 +1897,7 @@ private:
         } else {
             auto& currentDescriptor = it->second;
             if (treeId != currentDescriptor.TreeId) {
-                OnNodeChangedFairShareTree(nodeId, treeId);
+                OnNodeChangedFairShareTree(IdToTree_, nodeId, treeId);
             }
 
             currentDescriptor.Tags = tags;
@@ -1866,7 +1914,7 @@ private:
     }
 
     void UpdateNodesOnChangedTrees(
-        const TFairShareTreeMap& idToTree,
+        const TFairShareTreeMap& newIdToTree,
         const THashSet<TString> treeIdsToAdd,
         const THashSet<TString> treeIdsToRemove)
     {
@@ -1880,7 +1928,7 @@ private:
         // This is why we add new trees before this cycle and remove old trees after it.
         for (const auto& [nodeId, descriptor] : NodeIdToDescriptor_) {
             std::optional<TString> newTreeId;
-            for (const auto& [treeId, tree] : idToTree) {
+            for (const auto& [treeId, tree] : newIdToTree) {
                 if (tree->GetNodesFilter().CanSchedule(descriptor.Tags)) {
                     YT_VERIFY(!newTreeId);
                     newTreeId = treeId;
@@ -1892,7 +1940,7 @@ private:
                 NodeIdsWithoutTree_.insert(nodeId);
             }
             if (newTreeId != descriptor.TreeId) {
-                OnNodeChangedFairShareTree(nodeId, newTreeId);
+                OnNodeChangedFairShareTree(newIdToTree, nodeId, newTreeId);
             }
         }
 
@@ -1906,6 +1954,7 @@ private:
     }
 
     void OnNodeChangedFairShareTree(
+        const TFairShareTreeMap& idToTree,
         TNodeId nodeId,
         const std::optional<TString>& newTreeId)
     {
@@ -1924,12 +1973,12 @@ private:
             newTreeId);
 
         if (auto oldTreeId = currentDescriptor.TreeId) {
-            auto& oldTreeNodeIds = GetOrCrash(NodeIdsPerTree_, *oldTreeId);
-            EraseOrCrash(oldTreeNodeIds, nodeId);
+            const auto& oldTree = GetOrCrash(IdToTree_, *oldTreeId);
+            UnregisterNodeInTree(oldTree, nodeId);
         }
         if (newTreeId) {
-            auto& newTreeNodeIds = GetOrCrash(NodeIdsPerTree_, *newTreeId);
-            InsertOrCrash(newTreeNodeIds, nodeId);
+            const auto& newTree = GetOrCrash(idToTree, *newTreeId);
+            RegisterNodeInTree(newTree, nodeId);
         }
 
         currentDescriptor.TreeId = newTreeId;
@@ -2089,17 +2138,18 @@ private:
             return;
         }
 
-        TSetNodeSchedulingSegmentOptionsList movedNodes;
         THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> operationModuleUpdatesPerTree;
+        TPersistentNodeSchedulingSegmentStateMap persistentNodeStates;
         std::vector<TError> errors;
         for (auto&& [treeResult, treeId] : resultsOrError.Value()) {
-            auto& [treeMovedNodes, treeModuleUpdates, treeError] = treeResult;
-            for (auto movedNode : treeMovedNodes) {
-                movedNodes.push_back(movedNode);
-            }
+            auto&& [treeModuleUpdates, treePersistentNodeStates, treeError] = treeResult;
             EmplaceOrCrash(operationModuleUpdatesPerTree, std::move(treeId), std::move(treeModuleUpdates));
             if (!treeError.IsOK()) {
                 errors.push_back(std::move(treeError));
+            }
+
+            for (auto&& [nodeId, persistentNodeState] : treePersistentNodeStates) {
+                EmplaceOrCrash(persistentNodeStates, nodeId, std::move(persistentNodeState));
             }
         }
 
@@ -2110,53 +2160,13 @@ private:
         }
         Host_->SetSchedulerAlert(ESchedulerAlertType::ManageNodeSchedulingSegments, error);
 
-        if (!movedNodes.empty()) {
-            YT_LOG_DEBUG("Moving nodes to new scheduling segments (TotalMovedNodeCount: %v)",
-                movedNodes.size());
-
-            Host_->SetSchedulingSegmentsForNodes(std::move(movedNodes));
-
-            // We want to update the descriptors after moving nodes between segments to send the most recent state to master.
-            WaitFor(Host_->UpdateExecNodeDescriptorsOutOfBand())
-                .ThrowOnError();
-        }
-
         Host_->UpdateOperationSchedulingSegmentModules(operationModuleUpdatesPerTree);
-        if (TInstant::Now() > NodeSegmentsInitializationDeadline_) {
+        if (TInstant::Now() > SchedulingSegmentsInitializationDeadline_) {
             auto segmentsState = New<TPersistentSchedulingSegmentsState>();
-            segmentsState->NodeStates = BuildPersistentNodeSchedulingSegmentsState();
+            segmentsState->NodeStates = std::move(persistentNodeStates);
 
             Host_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
         }
-    }
-
-    TPersistentNodeSchedulingSegmentStateMap BuildPersistentNodeSchedulingSegmentsState() const
-    {
-        TPersistentNodeSchedulingSegmentStateMap nodeStates;
-        auto execNodeDescriptors = Host_->CalculateExecNodeDescriptors();
-        for (auto [nodeId, strategyDescriptor] : NodeIdToDescriptor_) {
-            auto it = execNodeDescriptors->find(nodeId);
-            if (it == execNodeDescriptors->end() || !strategyDescriptor.TreeId) {
-                // NB(eshcherbin): This should not happen usually but the exec node descriptors map here might differ
-                // from the one used for rebalancing, because we need to update the segments at the moved nodes.
-                // So I don't want to put any hard constraints here.
-                continue;
-            }
-            const auto& node = it->second;
-
-            if (node.SchedulingSegment != ESchedulingSegment::Default) {
-                EmplaceOrCrash(
-                    nodeStates,
-                    nodeId,
-                    TPersistentNodeSchedulingSegmentState{
-                        .Segment = node.SchedulingSegment,
-                        .Address = strategyDescriptor.Address,
-                        .Tree = *strategyDescriptor.TreeId,
-                    });
-            }
-        }
-
-        return nodeStates;
     }
 
     class TPoolTreeService

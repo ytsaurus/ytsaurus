@@ -1,10 +1,10 @@
 #pragma once
 
 #include "public.h"
-#include "node_shard.h"
 #include "persistent_scheduler_state.h"
 #include "scheduler_strategy.h"
 #include "scheduler_tree_structs.h"
+#include "fair_share_tree_job_scheduler_structs.h"
 
 #include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 
@@ -31,7 +31,7 @@ TString ToString(const TNodeMovePenalty& penalty);
 
 struct TNodeWithMovePenalty
 {
-    const TExecNodeDescriptor* Descriptor = nullptr;
+    TFairShareTreeJobSchedulerNodeState* Node = nullptr;
     TNodeMovePenalty MovePenalty;
 };
 
@@ -39,16 +39,25 @@ using TNodeWithMovePenaltyList = std::vector<TNodeWithMovePenalty>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSetNodeSchedulingSegmentOptions
+{
+    NNodeTrackerClient::TNodeId NodeId = NNodeTrackerClient::InvalidNodeId;
+    ESchedulingSegment Segment = ESchedulingSegment::Default;
+};
+
+using TSetNodeSchedulingSegmentOptionsList = std::vector<TSetNodeSchedulingSegmentOptions>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TManageNodeSchedulingSegmentsContext
 {
-    TInstant Now;
-    TTreeSchedulingSegmentsState TreeSegmentsState;
-    TRefCountedExecNodeDescriptorMapPtr ExecNodeDescriptors;
-    // NB(eshcherbin): |TreeNodeIds| may only contain nodes which are present in |ExecNodeDescriptors|.
-    std::vector<NNodeTrackerClient::TNodeId> TreeNodeIds;
+    const TInstant Now;
+    const TTreeSchedulingSegmentsState TreeSegmentsState;
+    TFairShareTreeJobSchedulerNodeStateMap NodeStates;
 
     TError Error;
     TSetNodeSchedulingSegmentOptionsList MovedNodes;
+    TPersistentNodeSchedulingSegmentStateMap PersistentNodeStates;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -57,8 +66,6 @@ class TNodeSchedulingSegmentManager
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, NodeSegmentsInitializationDeadline);
-
-    static EJobResourceType GetSegmentBalancingKeyResource(ESegmentedSchedulingMode mode);
 
     static const TSchedulingSegmentModule& GetNodeModule(
         const std::optional<TString>& nodeDataCenter,
@@ -69,10 +76,6 @@ public:
         ESchedulingSegmentModuleType moduleType);
 
     static TString GetNodeTagFromModuleName(const TString& moduleName, ESchedulingSegmentModuleType moduleType);
-
-    static TNodeMovePenalty GetMovePenaltyForNode(
-        const TExecNodeDescriptor& node,
-        const TTreeSchedulingSegmentsState& strategyTreeState);
 
     TNodeSchedulingSegmentManager(TString treeId, NLogging::TLogger logger, const NProfiling::TProfiler& profiler);
 
@@ -90,6 +93,10 @@ private:
     void Reset(TManageNodeSchedulingSegmentsContext* context);
 
     void ValidateInfinibandClusterTags(TManageNodeSchedulingSegmentsContext* context) const;
+
+    void SetNodeSegment(TFairShareTreeJobSchedulerNodeState* node, ESchedulingSegment segment, TManageNodeSchedulingSegmentsContext* context);
+
+    void ApplySpecifiedSegments(TManageNodeSchedulingSegmentsContext* context);
 
     void LogAndProfileSegments(
         TManageNodeSchedulingSegmentsContext* context,
@@ -109,6 +116,8 @@ private:
     std::pair<TSchedulingSegmentMap<bool>, bool> FindUnsatisfiedSegments(
         TManageNodeSchedulingSegmentsContext* context,
         const TSegmentToResourceAmount& currentResourceAmountPerSegment) const;
+
+    TPersistentNodeSchedulingSegmentStateMap BuildPersistentNodeSchedulingSegmentsState(TManageNodeSchedulingSegmentsContext* context) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

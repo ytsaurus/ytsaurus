@@ -1,6 +1,7 @@
 #pragma once
 
 #include "private.h"
+#include "fair_share_tree_job_scheduler_structs.h"
 #include "fair_share_tree_element.h"
 #include "fair_share_tree_snapshot.h"
 #include "fields_filter.h"
@@ -290,6 +291,7 @@ public:
         ISchedulingContextPtr schedulingContext,
         TFairShareTreeSnapshotPtr treeSnapshot,
         std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
+        ESchedulingSegment nodeSchedulingSegment,
         bool enableSchedulingInfoLogging,
         ISchedulerStrategyHost* strategyHost,
         const NLogging::TLogger& logger);
@@ -352,6 +354,8 @@ public:
 private:
     const TFairShareTreeSnapshotPtr TreeSnapshot_;
     const std::vector<TSchedulingTagFilter> KnownSchedulingTagFilters_;
+    // TODO(eshcherbin): Think about storing the entire node state here.
+    const ESchedulingSegment NodeSchedulingSegment_;
     const bool EnableSchedulingInfoLogging_;
     ISchedulerStrategyHost* const StrategyHost_;
     const NLogging::TLogger Logger;
@@ -559,11 +563,16 @@ public:
     TFairShareTreeJobScheduler(
         TString treeId,
         NLogging::TLogger logger,
+        IFairShareTreeHost* host,
         ISchedulerStrategyHost* strategyHost,
         TFairShareStrategyTreeConfigPtr config,
         NProfiling::TProfiler profiler);
 
-    //! Process node heartbeat.
+    //! Node management.
+    void RegisterNode(NNodeTrackerClient::TNodeId nodeId);
+    void UnregisterNode(NNodeTrackerClient::TNodeId nodeId);
+
+    //! Process scheduling heartbeat.
     void ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot, bool skipScheduleJobs);
 
     //! Operation management.
@@ -588,6 +597,14 @@ public:
         TJobId jobId) const;
 
     //! Diagnostics.
+    void BuildSchedulingAttributesStringForNode(NNodeTrackerClient::TNodeId nodeId, TDelimitedStringBuilderWrapper& delimitedBuilder) const;
+    void BuildSchedulingAttributesForNode(NNodeTrackerClient::TNodeId nodeId, NYTree::TFluentMap fluent) const;
+    void BuildSchedulingAttributesStringForOngoingJobs(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const std::vector<TJobPtr>& jobs,
+        TInstant now,
+        TDelimitedStringBuilderWrapper& delimitedBuilder) const;
+
     static TError CheckOperationIsHung(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TSchedulerOperationElement* element,
@@ -596,6 +613,7 @@ public:
         TDuration safeTimeout,
         int minScheduleJobCallAttempts,
         const THashSet<EDeactivationReason>& deactivationReasons);
+
     static void BuildOperationProgress(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TSchedulerOperationElement* element,
@@ -635,13 +653,12 @@ public:
         const TJobResources& jobResources);
     EJobPreemptionStatus GetJobPreemptionStatusInTest(const TSchedulerOperationElement* element, TJobId jobId) const;
 
-    std::pair<TSetNodeSchedulingSegmentOptionsList, TError> ManageNodeSchedulingSegments(
-        const TFairShareTreeSnapshotPtr& treeSnapshot,
-        const THashSet<NNodeTrackerClient::TNodeId>& treeNodeIds);
+    std::pair<TPersistentNodeSchedulingSegmentStateMap, TError> ManageNodeSchedulingSegments(const TFairShareTreeSnapshotPtr& treeSnapshot);
 
 private:
     const TString TreeId_;
     const NLogging::TLogger Logger;
+    IFairShareTreeHost* const Host_;
     ISchedulerStrategyHost* const StrategyHost_;
 
     TFairShareStrategyTreeConfigPtr Config_;
@@ -669,13 +686,26 @@ private:
     std::optional<THashSet<int>> SsdPriorityPreemptionMedia_;
 
     TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
+    bool NodeSchedulingSegmentManagerInitialized_ = false;
+
+    // TODO(eshcherbin): Add generic data structure for state sharding.
+    struct alignas(NThreading::CacheLineSize) TNodeStateShard
+    {
+        TFairShareTreeJobSchedulerNodeStateMap NodeIdToState;
+    };
+    std::array<TNodeStateShard, MaxNodeShardCount> NodeStateShards_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    void ScheduleJobs(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot);
-    void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot) const;
-
+    //! Initialization.
     void InitSchedulingStages();
+
+    //! Process node heartbeat, including job scheduling.
+    TRunningJobStatistics ComputeRunningJobStatistics(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot);
+
+    void PreemptJobsGracefully(const ISchedulingContextPtr& schedulingContext, const TFairShareTreeSnapshotPtr& treeSnapshot) const;
+    void ScheduleJobs(const ISchedulingContextPtr& schedulingContext, ESchedulingSegment nodeSchedulingSegment, const TFairShareTreeSnapshotPtr& treeSnapshot);
+
     TPreemptiveScheduleJobsStageList BuildPreemptiveSchedulingStageList(TScheduleJobsContext* context);
 
     void ScheduleJobsWithoutPreemption(
@@ -703,6 +733,7 @@ private:
 
     const TFairShareTreeJobSchedulerOperationSharedStatePtr& GetOperationSharedState(TOperationId operationId) const;
 
+    //! Post update.
     void UpdateSsdPriorityPreemptionMedia();
 
     void InitializeStaticAttributes(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
@@ -720,6 +751,14 @@ private:
     void UpdateSsdNodeSchedulingAttributes(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
 
     static std::optional<bool> IsAggressivePreemptionAllowed(const TSchedulerElement* element);
+
+    //! Miscellaneous
+    const TFairShareTreeJobSchedulerNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId) const;
+    TFairShareTreeJobSchedulerNodeState* FindNodeState(NNodeTrackerClient::TNodeId nodeId);
+
+    TFairShareTreeJobSchedulerNodeStateMap CollectNodeStates() const;
+
+    void ApplyNewNodeSchedulingSegments(const TSetNodeSchedulingSegmentOptionsList& movedNodes);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeJobScheduler)

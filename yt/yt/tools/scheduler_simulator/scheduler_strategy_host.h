@@ -39,7 +39,6 @@ public:
     IInvokerPtr GetFairShareUpdateInvoker() const override;
     IInvokerPtr GetBackgroundInvoker() const override;
     IInvokerPtr GetOrchidWorkerInvoker() const override;
-    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
 
     NEventLog::TFluentLogEvent LogFairShareEventFluently(TInstant now) override;
     NEventLog::TFluentLogEvent LogAccumulatedUsageEventFluently(TInstant now) override;
@@ -55,10 +54,10 @@ public:
 
     NScheduler::TRefCountedExecNodeDescriptorMapPtr CalculateExecNodeDescriptors(
         const NScheduler::TSchedulingTagFilter& filter) const override;
-    TFuture<void> UpdateExecNodeDescriptorsOutOfBand() override;
 
+    const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
+    int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const override;
     void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
-    void SetSchedulingSegmentsForNodes(NScheduler::TSetNodeSchedulingSegmentOptionsList nodesWithNewSegments) override;
     void UpdateOperationSchedulingSegmentModules(const THashMap<TString, NScheduler::TOperationIdWithSchedulingSegmentModuleList>& updatesPerTree) override;
 
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override;
