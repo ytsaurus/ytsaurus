@@ -6,6 +6,8 @@ import java.util.Map;
 import java.util.Set;
 import java.util.function.Function;
 
+import tech.ytsaurus.yson.YsonConsumer;
+
 import ru.yandex.inside.yt.kosher.ytree.YTreeBooleanNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeDoubleNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeEntityNode;
@@ -14,7 +16,6 @@ import ru.yandex.inside.yt.kosher.ytree.YTreeListNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
-import ru.yandex.yson.YsonConsumer;
 
 public class YTreeNodeUtils {
     private YTreeNodeUtils() {

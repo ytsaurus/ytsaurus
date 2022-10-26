@@ -16,6 +16,8 @@ import java.util.function.Function;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.yson.YsonConsumer;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBooleanNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeDoubleNodeImpl;
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeEntityNodeImpl;
@@ -27,7 +29,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeStringNodeImpl;
 import ru.yandex.inside.yt.kosher.ytree.YTreeListNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.yson.YsonConsumer;
 
 /**
  * Builder for {@link YTreeNode}

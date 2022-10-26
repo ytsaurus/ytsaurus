@@ -1,4 +1,4 @@
-package ru.yandex.yson;
+package tech.ytsaurus.yson;
 
 public class YsonError extends RuntimeException {
     public YsonError() {

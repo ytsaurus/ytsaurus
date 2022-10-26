@@ -5,6 +5,10 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.util.List;
 
+import tech.ytsaurus.yson.ClosableYsonConsumer;
+import tech.ytsaurus.yson.YsonBinaryWriter;
+import tech.ytsaurus.yson.YsonParser;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
@@ -14,9 +18,6 @@ import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.inside.yt.kosher.tables.CloseableIterator;
 import ru.yandex.inside.yt.kosher.ytree.YTreeEntityNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.yson.ClosableYsonConsumer;
-import ru.yandex.yson.YsonBinaryWriter;
-import ru.yandex.yson.YsonParser;
 
 public class YTreeBinarySerializer extends ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer {
     public static <T> void serializeAllObjects(List<T> objects, YTreeSerializer<T> serializer, OutputStream output) {

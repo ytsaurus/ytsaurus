@@ -2,7 +2,7 @@ package ru.yandex.type_info;
 
 import java.util.Objects;
 
-import ru.yandex.yson.YsonConsumer;
+import tech.ytsaurus.yson.YsonConsumer;
 
 public class DictType extends TiType {
     private final TiType key;

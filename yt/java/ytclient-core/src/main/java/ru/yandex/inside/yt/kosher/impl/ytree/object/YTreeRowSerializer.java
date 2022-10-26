@@ -2,9 +2,10 @@ package ru.yandex.inside.yt.kosher.impl.ytree.object;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.yson.YsonConsumer;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yson.YsonConsumer;
 
 /**
  * Serializer for T that can represent a table row. For example: YTreeMapNode or YTreeObject

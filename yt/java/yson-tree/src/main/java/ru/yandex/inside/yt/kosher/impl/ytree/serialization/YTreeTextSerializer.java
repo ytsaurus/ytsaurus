@@ -4,13 +4,14 @@ import java.io.ByteArrayInputStream;
 import java.io.InputStream;
 import java.nio.charset.StandardCharsets;
 
+import tech.ytsaurus.yson.ClosableYsonConsumer;
+import tech.ytsaurus.yson.YsonParser;
+import tech.ytsaurus.yson.YsonTextWriter;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.yson.ClosableYsonConsumer;
-import ru.yandex.yson.YsonParser;
-import ru.yandex.yson.YsonTextWriter;
 
 /**
  * @author sankear

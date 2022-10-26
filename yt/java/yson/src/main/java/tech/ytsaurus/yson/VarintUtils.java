@@ -1,4 +1,4 @@
-package ru.yandex.yson;
+package tech.ytsaurus.yson;
 
 class VarintUtils {
     static final int MAX_VARINT32_SIZE = 5;
