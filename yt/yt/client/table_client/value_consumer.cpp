@@ -372,15 +372,15 @@ TFuture<void> TWritingValueConsumer::Flush()
     // To make writing safe, we must double check that the writer is really ready, before flushing rows.
 
     return
-        BIND([=, rows = std::move(Rows_)] () {
-            while (!Writer_->GetReadyEvent().IsSet() || !Writer_->GetReadyEvent().Get().IsOK()) {
-                WaitFor(Writer_->GetReadyEvent())
+        BIND([writer = Writer_, rowBuffer = RowBuffer_, rows = std::move(Rows_)] {
+            while (!writer->GetReadyEvent().IsSet() || !writer->GetReadyEvent().Get().IsOK()) {
+                WaitFor(writer->GetReadyEvent())
                     .ThrowOnError();
             }
 
-            Writer_->Write(rows);
-            RowBuffer_->Clear();
-            return Writer_->GetReadyEvent();
+            writer->Write(rows);
+            rowBuffer->Clear();
+            return writer->GetReadyEvent();
         })
         .AsyncVia(GetCurrentInvoker())
         .Run();
