@@ -2516,8 +2516,9 @@ void TFairShareTreeJobScheduler::BuildSchedulingAttributesStringForNode(TNodeId 
         return;
     }
 
-    delimitedBuilder->AppendFormat("SchedulingSegment: %v", nodeState->SchedulingSegment);
-    delimitedBuilder->AppendFormat("RunningJobStatistics: %v", nodeState->RunningJobStatistics);
+    delimitedBuilder->AppendFormat("SchedulingSegment: %v, RunningJobStatistics: %v",
+        nodeState->SchedulingSegment,
+        nodeState->RunningJobStatistics);
 }
 
 void TFairShareTreeJobScheduler::BuildSchedulingAttributesForNode(TNodeId nodeId, TFluentMap fluent) const
@@ -2552,9 +2553,10 @@ void TFairShareTreeJobScheduler::BuildSchedulingAttributesStringForOngoingJobs(
         }
     }
 
-    delimitedBuilder->AppendFormat("JobIdsByPreemptionStatus: %v", jobIdsByPreemptionStatus);
-    delimitedBuilder->AppendFormat("UnknownStatusJobIds: %v", unknownStatusJobIds);
-    delimitedBuilder->AppendFormat("TimeSinceLastPreemptionStatusUpdateSeconds: %v", (now - cachedJobPreemptionStatuses.UpdateTime).SecondsFloat());
+    delimitedBuilder->AppendFormat("JobIdsByPreemptionStatus: %v, UnknownStatusJobIds: %v, TimeSinceLastPreemptionStatusUpdateSeconds: %v",
+        jobIdsByPreemptionStatus,
+        unknownStatusJobIds,
+        (now - cachedJobPreemptionStatuses.UpdateTime).SecondsFloat());
 }
 
 TError TFairShareTreeJobScheduler::CheckOperationIsHung(
@@ -2733,11 +2735,14 @@ void TFairShareTreeJobScheduler::BuildElementLoggingStringAttributes(
         const auto& operationSharedState = treeSnapshot->IsElementEnabled(operationElement)
             ? treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(operationElement)
             : treeSnapshot->SchedulingSnapshot()->GetOperationSharedState(operationElement);
-        delimitedBuilder->AppendFormat("PreemptibleRunningJobs: %v", operationSharedState->GetPreemptibleJobCount());
-        delimitedBuilder->AppendFormat("AggressivelyPreemptibleRunningJobs: %v", operationSharedState->GetAggressivelyPreemptibleJobCount());
-        delimitedBuilder->AppendFormat("PreemptionStatusStatistics: %v", operationSharedState->GetPreemptionStatusStatistics());
-        delimitedBuilder->AppendFormat("DeactivationReasons: %v", operationSharedState->GetDeactivationReasons());
-        delimitedBuilder->AppendFormat("MinNeededResourcesUnsatisfiedCount: %v", operationSharedState->GetMinNeededResourcesUnsatisfiedCount());
+        delimitedBuilder->AppendFormat(
+            "PreemptibleRunningJobs: %v, AggressivelyPreemptibleRunningJobs: %v, PreemptionStatusStatistics: %v, "
+            "DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v",
+            operationSharedState->GetPreemptibleJobCount(),
+            operationSharedState->GetAggressivelyPreemptibleJobCount(),
+            operationSharedState->GetPreemptionStatusStatistics(),
+            operationSharedState->GetDeactivationReasons(),
+            operationSharedState->GetMinNeededResourcesUnsatisfiedCount());
     }
 }
 

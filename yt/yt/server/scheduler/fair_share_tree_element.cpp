@@ -123,19 +123,23 @@ const TSchedulingTagFilter& TSchedulerElement::GetSchedulingTagFilter() const
 
 void TSchedulerElement::BuildLoggingStringAttributes(TDelimitedStringBuilderWrapper& delimitedBuilder) const
 {
-    delimitedBuilder->AppendFormat("Status: %v", GetStatus());
-    delimitedBuilder->AppendFormat("DominantResource: %v", Attributes_.DominantResource);
-    delimitedBuilder->AppendFormat("DemandShare: %.6g", Attributes_.DemandShare);
-    delimitedBuilder->AppendFormat("UsageShare: %.6g", Attributes_.UsageShare);
-    delimitedBuilder->AppendFormat("LimitsShare: %.6g", Attributes_.LimitsShare);
-    delimitedBuilder->AppendFormat("StrongGuaranteeShare: %.6g", Attributes_.StrongGuaranteeShare);
-    delimitedBuilder->AppendFormat("FairShare: %.6g", Attributes_.FairShare);
-    delimitedBuilder->AppendFormat("Satisfaction: %.4lg", PostUpdateAttributes_.SatisfactionRatio);
-    delimitedBuilder->AppendFormat("LocalSatisfaction: %.4lg", PostUpdateAttributes_.LocalSatisfactionRatio);
-    delimitedBuilder->AppendFormat("PromisedFairShare: %.6g", Attributes_.PromisedFairShare);
-    delimitedBuilder->AppendFormat("StarvationStatus: %v", GetStarvationStatus());
-    delimitedBuilder->AppendFormat("Weight: %v", GetWeight());
-    delimitedBuilder->AppendFormat("Volume: %v", GetAccumulatedResourceRatioVolume());
+    delimitedBuilder->AppendFormat(
+        "Status: %v, DominantResource: %v, DemandShare: %.6g, UsageShare: %.6g, LimitsShare: %.6g, "
+        "StrongGuaranteeShare: %.6g, FairShare: %.6g, Satisfaction: %.4lg, LocalSatisfaction: %.4lg, "
+        "PromisedFairShare: %.6g, StarvationStatus: %v, Weight: %v, Volume: %v",
+        GetStatus(),
+        Attributes_.DominantResource,
+        Attributes_.DemandShare,
+        Attributes_.UsageShare,
+        Attributes_.LimitsShare,
+        Attributes_.StrongGuaranteeShare,
+        Attributes_.FairShare,
+        PostUpdateAttributes_.SatisfactionRatio,
+        PostUpdateAttributes_.LocalSatisfactionRatio,
+        Attributes_.PromisedFairShare,
+        GetStarvationStatus(),
+        GetWeight(),
+        GetAccumulatedResourceRatioVolume());
 }
 
 TString TSchedulerElement::GetLoggingString(const TFairShareTreeSnapshotPtr& treeSnapshot) const
@@ -1681,10 +1685,11 @@ void TSchedulerOperationElement::BuildLoggingStringAttributes(TDelimitedStringBu
 {
     TSchedulerElement::BuildLoggingStringAttributes(delimitedBuilder);
 
-    delimitedBuilder->AppendFormat("PendingJobs: %v", PendingJobCount_);
-    delimitedBuilder->AppendFormat("AggregatedMinNeededResources: %v", AggregatedMinNeededJobResources_);
-    delimitedBuilder->AppendFormat("SchedulingSegment: %v", SchedulingSegment());
-    delimitedBuilder->AppendFormat("SchedulingSegmentModule: %v", PersistentAttributes_.SchedulingSegmentModule);
+    delimitedBuilder->AppendFormat("PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, SchedulingSegmentModule: %v",
+        PendingJobCount_,
+        AggregatedMinNeededJobResources_,
+        SchedulingSegment(),
+        PersistentAttributes_.SchedulingSegmentModule);
 }
 
 bool TSchedulerOperationElement::AreDetailedLogsEnabled() const
