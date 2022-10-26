@@ -86,6 +86,9 @@ class TestSchedulerUpdate(YTEnvSetup):
 
     FORCE_CREATE_ENVIRONMENT = True
 
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
+
     @authors("ignat")
     def test(self):
         CHECKER_LIST = [check_running_operation]
@@ -137,6 +140,9 @@ class TestSchedulerUpdateWithOperationsCleaner(YTEnvSetup):
     }
 
     FORCE_CREATE_ENVIRONMENT = True
+
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
 
     def setup_method(self, method):
         super(TestSchedulerUpdateWithOperationsCleaner, self).setup_method(method)

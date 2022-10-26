@@ -19,11 +19,14 @@ NRpc::IAuthenticatorPtr CreateNativeAuthenticator(const IConnectionPtr& connecti
 //! authentication. #tvmId is the TVM id of the destination cluster (if set to nullopt,
 //! then the destination cluster doesn't require service tickets).
 //!
-//! If either there native TVM service is not configured or tvm ID is empty, the channel
+//! If either the native TVM service is not configured or tvm ID is empty, the channel
 //! is unchanged.
+//!
+//! If #tvmService is non-null, then it overrides the native TVM service.
 NRpc::IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
     NRpc::IChannelFactoryPtr channelFactory,
-    std::optional<NAuth::TTvmId> tvmId);
+    std::optional<NAuth::TTvmId> tvmId,
+    NAuth::IDynamicTvmServicePtr tvmService = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

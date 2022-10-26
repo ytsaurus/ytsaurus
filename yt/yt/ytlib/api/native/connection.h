@@ -158,6 +158,9 @@ struct TConnectionOptions
     //! If non-null, provides an externally-controlled chunk meta cache.
     NChunkClient::IClientChunkMetaCachePtr ChunkMetaCache;
 
+    //! If non-null, provides a TVM service for authentication.
+    NAuth::IDynamicTvmServicePtr TvmService;
+
     explicit TConnectionOptions(IInvokerPtr connectionInvoker);
     TConnectionOptions() = default;
 };

@@ -10,13 +10,15 @@
 
 namespace NYT::NApi {
 
+using namespace NAuth;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 IConnectionPtr CreateConnection(
     INodePtr config,
-    TConnectionOptions options)
+    TConnectionOptions options,
+    IDynamicTvmServicePtr tvmService)
 {
     if (config->GetType() != ENodeType::Map) {
         THROW_ERROR_EXCEPTION("Cluster configuration must be a map node");
@@ -28,6 +30,7 @@ IConnectionPtr CreateConnection(
             auto typedConfig = ConvertTo<NNative::TConnectionConfigPtr>(config);
             NNative::TConnectionOptions typedOptions;
             typedOptions.ConnectionInvoker = std::move(options.ConnectionInvoker);
+            typedOptions.TvmService = std::move(tvmService);
             return NNative::CreateConnection(
                 std::move(typedConfig),
                 std::move(typedOptions));

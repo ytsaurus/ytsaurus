@@ -10,6 +10,9 @@ class TestRemoteCopyCommandsCompatUpNewCA(BaseTestRemoteCopyCommands):
         "trunk": ["scheduler", "controller-agent", "proxy", "http-proxy"],
     }
 
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
+
     @authors("akozhikhov")
     def test_seed_replicas(self):
         pass
@@ -20,3 +23,6 @@ class TestRemoteCopyCommandsCompatNewNodes(BaseTestRemoteCopyCommands):
         "22_3": ["master", "scheduler", "controller-agent"],
         "trunk": ["node", "job-proxy", "exec", "tools", "proxy", "http-proxy"],
     }
+
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False

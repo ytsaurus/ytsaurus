@@ -871,7 +871,7 @@ void TBootstrap::DoInitialize()
             HydraFacade_->GetHydraManager(),
             HydraFacade_->GetAutomaton(),
             GetCellTag(),
-            NativeAuthenticator_);
+            /*authenticator*/ nullptr);
     }
 
     TransactionSupervisor_ = CreateTransactionSupervisor(
@@ -1063,7 +1063,7 @@ void TBootstrap::InitializeTimestampProvider()
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(
             Config_->TimestampProvider,
             std::move(timestampProviderChannel));
-        RpcServer_->RegisterService(CreateTimestampProxyService(TimestampProvider_, NativeAuthenticator_));
+        RpcServer_->RegisterService(CreateTimestampProxyService(TimestampProvider_, /*authenticator*/ nullptr));
     } else {
         TimestampProvider_ = CreateRemoteTimestampProvider(
             Config_->TimestampProvider,

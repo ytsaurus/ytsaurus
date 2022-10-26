@@ -358,6 +358,8 @@ class YTEnvSetup(object):
 
         yt.logger.info("Creating cluster instance")
 
+        use_native_auth = not hasattr(cls, "USE_NATIVE_AUTH") or getattr(cls, "USE_NATIVE_AUTH")
+
         yt_config = LocalYtConfig(
             use_porto_for_servers=cls.USE_PORTO,
             use_native_client=True,
@@ -403,6 +405,7 @@ class YTEnvSetup(object):
             cluster_name=cls.get_cluster_name(index),
             enable_resource_tracking=cls.get_param("ENABLE_RESOURCE_TRACKING", index),
             enable_tvm_only_proxies=cls.get_param("ENABLE_TVM_ONLY_PROXIES", index),
+            mock_tvm_id=(1000 + index if use_native_auth else None),
         )
 
         instance = YTInstance(
@@ -543,6 +546,8 @@ class YTEnvSetup(object):
                     "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"],
                 }
+                if "tvm_id" in instance.configs["driver"]:
+                    clusters[instance._cluster_name]["tvm_id"] = instance.configs["driver"]["tvm_id"]
 
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 cluster_name = cls.get_cluster_name(cluster_index)

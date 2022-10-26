@@ -8,3 +8,6 @@ class TestGetFeaturesNewProxy(BaseTestGetFeatures):
         "trunk": ["proxy", "http-proxy"],
     }
     SKIP_STATISTICS_DESCRIPTIONS = True
+
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False

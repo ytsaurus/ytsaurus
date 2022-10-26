@@ -31,9 +31,12 @@ IAuthenticatorPtr CreateNativeAuthenticator(const IConnectionPtr& connection)
 
 IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
     IChannelFactoryPtr channelFactory,
-    std::optional<TTvmId> tvmId)
+    std::optional<TTvmId> tvmId,
+    IDynamicTvmServicePtr tvmService)
 {
-    auto tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
+    if (!tvmService) {
+        tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
+    }
     if (tvmId && !tvmService) {
         THROW_ERROR_EXCEPTION("Cluster connection requires TVM authentification, but TVM service is unset");
     }

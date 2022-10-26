@@ -155,9 +155,9 @@ def skip_if_renaming_disabled(env):
     skip_if_old(env, (22, 2), "do not support column renaming")
 
 
-def write_log_barrier(address, category="Barrier", driver=None):
+def write_log_barrier(address, category="Barrier", driver=None, cluster_name="primary"):
     if driver is None:
-        driver = get_driver()
+        driver = get_driver(cluster=cluster_name)
     return driver.write_log_barrier(address=address, category=category)
 
 
