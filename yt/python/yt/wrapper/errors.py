@@ -83,6 +83,8 @@ def create_response_error(underlying_error):
         error = YtBlockedRowWaitTimeout(underlying_error)
     elif sample_error.is_no_such_cell():
         error = YtNoSuchCell(underlying_error)
+    elif sample_error.is_chunk_not_preloaded():
+        error = YtChunkNotPreloaded(underlying_error)
     else:
         error = sample_error
     return error
@@ -274,4 +276,9 @@ class YtRowIsBlocked(YtResponseError):
 
 class YtBlockedRowWaitTimeout(YtResponseError):
     """Timed out waiting on blocked row"""
+    pass
+
+
+class YtChunkNotPreloaded(YtResponseError):
+    """Chunk data is not preloaded yet"""
     pass

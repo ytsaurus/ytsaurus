@@ -342,6 +342,10 @@ class YtError(Exception):
         """Timed out waiting on blocked row"""
         return self.contains_code(1713)
 
+    def is_chunk_not_preloaded(self):
+        """Chunk data is not preloaded yet"""
+        return self.contains_code(1735)
+
 
 class YtResponseError(YtError):
     """Represents an error in YT response."""
