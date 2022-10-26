@@ -175,22 +175,39 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
         switch (chunkFormat) {
             case EChunkFormat::TableVersionedSimple: {
-                YT_VERIFY(CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format()) ==
-                    ETableChunkBlockFormat::Default);
+                switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+                    case ETableChunkBlockFormat::Default:
+                        fillHashTable(TSimpleVersionedBlockReader(
+                            uncompressedBlock.Data,
+                            blockMeta,
+                            chunkMeta->GetChunkSchema(),
+                            tableSchema->GetKeyColumnCount(),
+                            TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+                                .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
+                            keyComparer,
+                            AllCommittedTimestamp,
+                            true,
+                            true));
+                        break;
 
-                TSimpleVersionedBlockReader blockReader(
-                    uncompressedBlock.Data,
-                    blockMeta,
-                    chunkMeta->GetChunkSchema(),
-                    tableSchema->GetKeyColumnCount(),
-                    TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
-                        .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
-                    keyComparer,
-                    AllCommittedTimestamp,
-                    true,
-                    true);
+                    case ETableChunkBlockFormat::IndexedVersioned:
+                        fillHashTable(TIndexedVersionedBlockReader(
+                            uncompressedBlock.Data,
+                            blockMeta,
+                            chunkMeta->GetChunkSchema(),
+                            tableSchema->GetKeyColumnCount(),
+                            TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+                                .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
+                            keyComparer,
+                            AllCommittedTimestamp,
+                            true,
+                            true));
+                        break;
 
-                fillHashTable(blockReader);
+                    default:
+                        YT_ABORT();
+                }
+
                 break;
             }
 

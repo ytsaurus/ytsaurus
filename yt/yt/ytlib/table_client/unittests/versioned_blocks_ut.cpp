@@ -1,3 +1,4 @@
+#include <yt/yt/ytlib/table_client/chunk_index_builder.h>
 #include <yt/yt/ytlib/table_client/versioned_block_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_block_writer.h>
 
@@ -19,47 +20,78 @@ using namespace NCompression;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedBlocksTestBase
+struct TMockSimpleBlockFormatAdapter
+{
+    using TBlockReader = TSimpleVersionedBlockReader;
+
+    static TSimpleVersionedBlockWriter CreateBlockWriter(const TTableSchemaPtr& schema)
+    {
+        return TSimpleVersionedBlockWriter(schema);
+    }
+};
+
+class TMockChunkIndexBuilder
+    : public IChunkIndexBuilder
+{
+public:
+    void ProcessRow(
+        TVersionedRow /*row*/,
+        int /*blockIndex*/,
+        i64 /*rowOffset*/,
+        i64 /*rowLength*/,
+        TRange<int> /*groupOffsets*/,
+        TRange<int> /*groupIndexes*/) override
+    {
+        return;
+    }
+
+    TSharedRef BuildIndex() override
+    {
+        return {};
+    }
+};
+
+struct TMockIndexedBlockFormatAdapter
+{
+    using TBlockReader = TIndexedVersionedBlockReader;
+
+    static TIndexedVersionedBlockWriter CreateBlockWriter(const TTableSchemaPtr& schema)
+    {
+        static std::optional<TIndexedVersionedBlockFormatDetail> blockFormatDetail;
+        blockFormatDetail.emplace(schema);
+
+        return TIndexedVersionedBlockWriter(
+            schema,
+            /*blockIndex*/ 0,
+            *blockFormatDetail,
+            New<TMockChunkIndexBuilder>());
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TMockBlockFormatAdapter>
+class TVersionedBlocksTestOneRowBase
     : public ::testing::Test
 {
 protected:
-    void CheckResult(TSimpleVersionedBlockReader& reader, const std::vector<TVersionedRow>& rows)
-    {
-        int i = 0;
-        do {
-            EXPECT_LT(i, std::ssize(rows));
-            auto row = reader.GetRow(&MemoryPool);
-            ExpectSchemafulRowsEqual(rows[i], row);
-        } while (reader.NextRow());
-    }
+    TVersionedBlocksTestOneRowBase(TTableSchemaPtr schema)
+        : Schema(std::move(schema))
+    { }
 
-    TTableSchemaPtr Schema;
+    const TTableSchemaPtr Schema;
+
+    TKeyComparer KeyComparer;
 
     TSharedRef Data;
     NProto::TDataBlockMeta Meta;
 
     TChunkedMemoryPool MemoryPool;
 
-};
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TVersionedBlocksTestOneRow
-    : public TVersionedBlocksTestBase
-{
-protected:
     void SetUp() override
     {
-        Schema = New<TTableSchema>(std::vector{
-            TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("v1", EValueType::Int64),
-            TColumnSchema("v2", EValueType::Boolean),
-            TColumnSchema("v3", EValueType::Int64)
-        });
-
-        TSimpleVersionedBlockWriter blockWriter(Schema);
+        auto blockWriter = TMockBlockFormatAdapter::CreateBlockWriter(Schema);
 
         auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 5, 3, 1);
         row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
@@ -84,32 +116,71 @@ protected:
         blockWriter.WriteRow(row);
 
         auto block = blockWriter.FlushBlock();
-        auto* codec = GetCodec(ECodec::None);
-
-        Data = codec->Compress(block.Data);
+        Data = GetCodec(ECodec::None)->Compress(block.Data);
         Meta = block.Meta;
     }
 
-    TKeyComparer KeyComparer_;
+    void DoCheck(
+        const std::vector<TVersionedRow>& rows,
+        int keyColumnCount,
+        const std::vector<TColumnIdMapping>& schemaIdMapping,
+        TTimestamp timestamp,
+        bool produceAllVersions,
+        bool initialize)
+    {
+        typename TMockBlockFormatAdapter::TBlockReader reader(
+            Data,
+            Meta,
+            Schema,
+            keyColumnCount,
+            schemaIdMapping,
+            KeyComparer,
+            timestamp,
+            produceAllVersions,
+            initialize);
+
+        int i = 0;
+        do {
+            EXPECT_LT(i, std::ssize(rows));
+            auto row = reader.GetRow(&MemoryPool);
+            ExpectSchemafulRowsEqual(rows[i++], row);
+        } while (reader.NextRow());
+        EXPECT_EQ(i, std::ssize(rows));
+    }
 };
 
-TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
+////////////////////////////////////////////////////////////////////////////////
+
+static const TTableSchemaPtr SimpleSchema = New<TTableSchema>(std::vector{
+    TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("v1", EValueType::Int64),
+    TColumnSchema("v2", EValueType::Boolean),
+    TColumnSchema("v3", EValueType::Int64)
+});
+
+template <typename TMockBlockFormatAdapter>
+class TVersionedBlocksTestOneRow
+    : public TVersionedBlocksTestOneRowBase<TMockBlockFormatAdapter>
 {
-    // Reorder value columns in reading schema.
-    std::vector<TColumnIdMapping> schemaIdMapping = {{5, 5}, {3, 6}, {4, 7}};
+public:
+    TVersionedBlocksTestOneRow()
+        : TVersionedBlocksTestOneRowBase<TMockBlockFormatAdapter>(SimpleSchema)
+    { }
+};
 
-    TSimpleVersionedBlockReader blockReader(
-        Data,
-        Meta,
-        Schema,
-        Schema->GetKeyColumnCount() + 2, // Two padding key columns.
-        schemaIdMapping,
-        KeyComparer_,
-        7,
-        false,
-        true);
+using TVersionedBlockFormatAdapters = ::testing::Types<
+    TMockSimpleBlockFormatAdapter,
+    TMockIndexedBlockFormatAdapter>;
 
-    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 5, 3, 1, 0);
+TYPED_TEST_SUITE(TVersionedBlocksTestOneRow, TVersionedBlockFormatAdapters);
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
+{
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 5, 3, 1, 0);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -123,26 +194,21 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp1)
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
 
-    CheckResult(blockReader, rows);
+    // Reorder value columns in reading schema.
+    std::vector<TColumnIdMapping> schemaIdMapping = {{5, 5}, {3, 6}, {4, 7}};
+
+    this->DoCheck(
+        rows,
+        this->Schema->GetKeyColumnCount() + 2, // Two padding key columns.
+        schemaIdMapping,
+        /*timestamp*/ 7,
+        /*produceAllVersions*/ false,
+        /*initialize*/ true);
 }
 
-
-TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
+TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
 {
-    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 5}};
-
-    TSimpleVersionedBlockReader blockReader(
-        Data,
-        Meta,
-        Schema,
-        Schema->GetKeyColumnCount(),
-        schemaIdMapping,
-        KeyComparer_,
-        9,
-        false,
-        true);
-
-    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 0, 1);
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 0, 0, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -151,25 +217,20 @@ TEST_F(TVersionedBlocksTestOneRow, ReadByTimestamp2)
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
 
-    CheckResult(blockReader, rows);
+    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 5}};
+
+    this->DoCheck(
+        rows,
+        this->Schema->GetKeyColumnCount(),
+        schemaIdMapping,
+        /*timestamp*/ 9,
+        /*produceAllVersions*/ false,
+        /*initialize*/ true);
 }
 
-TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
+TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
 {
-    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}};
-
-    TSimpleVersionedBlockReader blockReader(
-        Data,
-        Meta,
-        Schema,
-        Schema->GetKeyColumnCount(),
-        schemaIdMapping,
-        KeyComparer_,
-        SyncLastCommittedTimestamp,
-        false,
-        true);
-
-    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 0, 1, 1);
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 0, 1, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -179,26 +240,20 @@ TEST_F(TVersionedBlocksTestOneRow, ReadLastCommitted)
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
 
-    CheckResult(blockReader, rows);
+    std::vector<TColumnIdMapping> schemaIdMapping = {{4, 3}};
+
+    this->DoCheck(
+        rows,
+        this->Schema->GetKeyColumnCount(),
+        schemaIdMapping,
+        SyncLastCommittedTimestamp,
+        /*produceAllVersions*/ false,
+        /*initialize*/ true);
 }
 
-TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
+TYPED_TEST(TVersionedBlocksTestOneRow, ReadAllCommitted)
 {
-    // Read only last non-key column.
-    std::vector<TColumnIdMapping> schemaIdMapping = {{5, 3}};
-
-    TSimpleVersionedBlockReader blockReader(
-        Data,
-        Meta,
-        Schema,
-        Schema->GetKeyColumnCount(),
-        schemaIdMapping,
-        KeyComparer_,
-        AllCommittedTimestamp,
-        true,
-        true);
-
-    auto row = TMutableVersionedRow::Allocate(&MemoryPool, 3, 1, 3, 1);
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 3, 1, 3, 1);
     row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
     row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
     row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
@@ -215,7 +270,72 @@ TEST_F(TVersionedBlocksTestOneRow, ReadAllCommitted)
     std::vector<TVersionedRow> rows;
     rows.push_back(row);
 
-    CheckResult(blockReader, rows);
+    // Read only last non-key column.
+    std::vector<TColumnIdMapping> schemaIdMapping = {{5, 3}};
+
+    this->DoCheck(
+        rows,
+        this->Schema->GetKeyColumnCount(),
+        schemaIdMapping,
+        AllCommittedTimestamp,
+        /*produceAllVersions*/ true,
+        /*initialize*/ true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const TTableSchemaPtr SchemaWithGroups = New<TTableSchema>(std::vector{
+    TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
+    TColumnSchema("v1", EValueType::Int64).SetGroup("a"),
+    TColumnSchema("v2", EValueType::Boolean),
+    TColumnSchema("v3", EValueType::Int64).SetGroup("a")
+});
+
+class TIndexedVersionedBlocksTestOneRow
+    : public TVersionedBlocksTestOneRowBase<TMockIndexedBlockFormatAdapter>
+{
+public:
+    TIndexedVersionedBlocksTestOneRow()
+        : TVersionedBlocksTestOneRowBase<TMockIndexedBlockFormatAdapter>(SchemaWithGroups)
+    { }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_F(TIndexedVersionedBlocksTestOneRow, IndexedBlockIsSectorAligned)
+{
+    EXPECT_TRUE(this->Data.Size() > 0);
+    EXPECT_TRUE(AlignUpSpace<i64>(this->Data.Size(), THashTableChunkIndexFormatDetail::SectorSize) == 0);
+}
+
+TEST_F(TIndexedVersionedBlocksTestOneRow, IndexedBlockWithGroups)
+{
+    auto row = TMutableVersionedRow::Allocate(&this->MemoryPool, 5, 3, 1, 0);
+    row.BeginKeys()[0] = MakeUnversionedStringValue("a", 0);
+    row.BeginKeys()[1] = MakeUnversionedInt64Value(1, 1);
+    row.BeginKeys()[2] = MakeUnversionedDoubleValue(1.5, 2);
+    row.BeginKeys()[3] = MakeUnversionedSentinelValue(EValueType::Null, 3);
+    row.BeginKeys()[4] = MakeUnversionedSentinelValue(EValueType::Null, 4);
+    row.BeginValues()[0] = MakeVersionedSentinelValue(EValueType::Null, 5, 5);
+    row.BeginValues()[1] = MakeVersionedInt64Value(7, 3, 6);
+    row.BeginValues()[2] = MakeVersionedBooleanValue(true, 5, 7);
+    row.BeginWriteTimestamps()[0] = 5;
+
+    std::vector<TVersionedRow> rows;
+    rows.push_back(row);
+
+    // Reorder value columns in reading schema.
+    std::vector<TColumnIdMapping> schemaIdMapping = {{5, 5}, {3, 6}, {4, 7}};
+
+    this->DoCheck(
+        rows,
+        this->Schema->GetKeyColumnCount() + 2, // Two padding key columns.
+        schemaIdMapping,
+        /*timestamp*/ 7,
+        /*produceAllVersions*/ false,
+        /*initialize*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

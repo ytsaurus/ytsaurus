@@ -3,6 +3,7 @@
 #include "public.h"
 #include "private.h"
 #include "block.h"
+#include "chunk_index.h"
 #include "chunk_meta_extensions.h"
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -18,9 +19,6 @@
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-constexpr int SimpleVersionedBlockValueSize = 16;
-constexpr int SimpleVersionedBlockTimestampSize = 8;
 
 int GetSimpleVersionedBlockPaddedKeySize(int keyColumnCount, int schemaColumnCount);
 
@@ -105,6 +103,7 @@ public:
     TIndexedVersionedBlockWriter(
         TTableSchemaPtr schema,
         int blockIndex,
+        const TIndexedVersionedBlockFormatDetail& blockFormatDetail,
         IChunkIndexBuilderPtr chunkIndexBuilder,
         TMemoryUsageTrackerGuard guard = {});
 
@@ -115,8 +114,7 @@ public:
     i64 GetBlockSize() const;
 
 private:
-    static constexpr int TypicalGroupCount = 1;
-
+    const TIndexedVersionedBlockFormatDetail& BlockFormatDetail_;
     const IChunkIndexBuilderPtr ChunkIndexBuilder_;
     const int BlockIndex_;
     const int GroupCount_;
@@ -149,8 +147,8 @@ private:
                 i64 SectorAlignmentSize;
             };
 
-            TCompactVector<TGroupData, TypicalGroupCount> Groups;
-            TCompactVector<int, TypicalGroupCount> GroupOrder;
+            TCompactVector<TGroupData, IndexedRowTypicalGroupCount> Groups;
+            TCompactVector<int, IndexedRowTypicalGroupCount> GroupOrder;
         };
 
         TKeyData KeyData;
@@ -182,7 +180,7 @@ private:
     char* EncodeValueData(char* buffer);
     char* EncodeValueGroupData(char* buffer, int groupIndex) const;
 
-    TCompactVector<int, TypicalGroupCount> ComputeGroupAlignmentAndReordering();
+    TCompactVector<int, IndexedRowTypicalGroupCount> ComputeGroupAlignmentAndReordering();
 
     void DoWriteValue(
         char** buffer,

@@ -13,13 +13,6 @@ namespace NYT::NTableClient {
 struct IChunkIndexBuilder
     : public TRefCounted
 {
-    virtual i64 GetSectorAlignmentSize() const = 0;
-
-    virtual bool IsGroupReorderingEnabled() const = 0;
-
-    virtual int GetGroupCount() const = 0;
-    virtual int GetGroupIdFromValueId(int valueId) const = 0;
-
     virtual void ProcessRow(
         TVersionedRow row,
         int blockIndex,

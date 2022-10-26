@@ -301,13 +301,18 @@ protected:
 
 class TSimpleBlockFormatAdapter
 {
-public:
-    void ResetBlockWriter(
-        TTableSchemaPtr schema,
-        IMemoryUsageTrackerPtr memoryTracker)
+protected:
+    TSimpleBlockFormatAdapter(TTableSchemaPtr schema)
+        : Schema_(std::move(schema))
+    { }
+
+    std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
+
+
+    void ResetBlockWriter(IMemoryUsageTrackerPtr memoryTracker)
     {
         BlockWriter_ = std::make_unique<TSimpleVersionedBlockWriter>(
-            std::move(schema),
+            Schema_,
             TMemoryUsageTrackerGuard::Acquire(
                 std::move(memoryTracker),
                 /*size*/ 0));
@@ -321,20 +326,27 @@ public:
         return ETableChunkBlockFormat::Default;
     }
 
-protected:
-    std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
+private:
+    const TTableSchemaPtr Schema_;
 };
 
 class TIndexedBlockFormatAdapter
 {
-public:
-    void ResetBlockWriter(
-        TTableSchemaPtr schema,
-        IMemoryUsageTrackerPtr memoryTracker)
+protected:
+    TIndexedBlockFormatAdapter(TTableSchemaPtr schema)
+        : Schema_(std::move(schema))
+        , BlockFormatDetail_(Schema_)
+    { }
+
+    std::unique_ptr<TIndexedVersionedBlockWriter> BlockWriter_;
+
+
+    void ResetBlockWriter(IMemoryUsageTrackerPtr memoryTracker)
     {
         BlockWriter_ = std::make_unique<TIndexedVersionedBlockWriter>(
-            std::move(schema),
+            Schema_,
             BlockCount_++,
+            BlockFormatDetail_,
             ChunkIndexBuilder_,
             TMemoryUsageTrackerGuard::Acquire(
                 std::move(memoryTracker),
@@ -356,10 +368,9 @@ public:
         return ETableChunkBlockFormat::IndexedVersioned;
     }
 
-protected:
-    std::unique_ptr<TIndexedVersionedBlockWriter> BlockWriter_;
-
 private:
+    const TTableSchemaPtr Schema_;
+    const TIndexedVersionedBlockFormatDetail BlockFormatDetail_;
     const IChunkIndexBuilderPtr ChunkIndexBuilder_ = CreateChunkIndexBuilder();
 
     int BlockCount_ = 0;
@@ -387,8 +398,9 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             dataSink)
+        , TBlockFormatAdapter(Schema_)
     {
-        ResetBlockWriter(Schema_, Options_->MemoryTracker);
+        ResetBlockWriter(Options_->MemoryTracker);
     }
 
     i64 GetCompressedDataSize() const override
@@ -471,7 +483,7 @@ private:
         }
 
         FinishBlock(row.BeginKeys(), row.EndKeys());
-        ResetBlockWriter(Schema_, Options_->MemoryTracker);
+        ResetBlockWriter(Options_->MemoryTracker);
     }
 
     void FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)

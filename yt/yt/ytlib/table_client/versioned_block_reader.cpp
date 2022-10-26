@@ -7,6 +7,7 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
+#include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/algorithm_helpers.h>
 
@@ -17,357 +18,149 @@ using namespace NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSimpleVersionedBlockReader::TSimpleVersionedBlockReader(
-    TSharedRef block,
-    const TDataBlockMeta& meta,
-    TTableSchemaPtr chunkSchema,
-    int keyColumnCount,
-    const std::vector<TColumnIdMapping>& schemaIdMapping,
-    const TKeyComparer& keyComparer,
-    TTimestamp timestamp,
-    bool produceAllVersions,
-    bool initialize)
-    : Block_(std::move(block))
-    , Timestamp_(timestamp)
-    , ProduceAllVersions_(produceAllVersions)
-    , ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
+TVersionedRowParserBase::TVersionedRowParserBase(
+    const TTableSchemaPtr& chunkSchema)
+    : ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
     , ChunkColumnCount_(chunkSchema->GetColumnCount())
-    , KeyColumnCount_(keyColumnCount)
-    , SchemaIdMapping_(schemaIdMapping)
-    , Meta_(meta)
-    , VersionedMeta_(Meta_.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext))
     , ColumnHunkFlags_(new bool[ChunkColumnCount_])
     , ColumnAggregateFlags_(new bool[ChunkColumnCount_])
     , ColumnTypes_(new EValueType[ChunkColumnCount_])
-    , KeyComparer_(keyComparer)
 {
-    YT_VERIFY(Meta_.row_count() > 0);
-    YT_VERIFY(KeyColumnCount_ >= ChunkKeyColumnCount_);
-
     for (int id = 0; id < chunkSchema->GetColumnCount(); ++id) {
         const auto& columnSchema = chunkSchema->Columns()[id];
-        ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().operator bool();
-        ColumnAggregateFlags_[id] = columnSchema.Aggregate().operator bool();
+        ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().has_value();
+        ColumnAggregateFlags_[id] = columnSchema.Aggregate().has_value();
         ColumnTypes_[id] = columnSchema.GetWireType();
     }
+}
 
-    auto keyDataSize = GetUnversionedRowByteSize(KeyColumnCount_);
-    KeyBuffer_.reserve(keyDataSize);
-    Key_ = TLegacyMutableKey::Create(KeyBuffer_.data(), KeyColumnCount_);
+////////////////////////////////////////////////////////////////////////////////
 
-    for (int index = 0; index < KeyColumnCount_; ++index) {
-        Key_[index] = MakeUnversionedNullValue(index);
-    }
+TSimpleVersionedBlockParser::TSimpleVersionedBlockParser(
+    TSharedRef block,
+    const NProto::TDataBlockMeta& blockMeta,
+    const TTableSchemaPtr& chunkSchema)
+    : TVersionedRowParserBase(chunkSchema)
+    , RowCount_(blockMeta.row_count())
+    , Block_(std::move(block))
+{
+    YT_VERIFY(RowCount_ > 0);
 
-    KeyData_ = TRef(const_cast<char*>(Block_.Begin()), GetSimpleVersionedBlockPaddedKeySize(
-        ChunkKeyColumnCount_,
-        ChunkColumnCount_) * Meta_.row_count());
+   const auto& simpleVersionedBlockMetaExt = blockMeta.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext);
+
+    KeyData_ = TRef(
+        const_cast<char*>(Block_.Begin()),
+        GetSimpleVersionedBlockPaddedKeySize(
+            ChunkKeyColumnCount_,
+            ChunkColumnCount_) * RowCount_);
 
     ValueData_ = TRef(
         KeyData_.End(),
-        SimpleVersionedBlockValueSize * VersionedMeta_.value_count());
+        VersionedBlockValueSize * simpleVersionedBlockMetaExt.value_count());
 
-    TimestampsData_ = TRef(ValueData_.End(),
-        SimpleVersionedBlockTimestampSize * VersionedMeta_.timestamp_count());
+    TimestampsData_ = TRef(
+        ValueData_.End(),
+        sizeof(TTimestamp) * simpleVersionedBlockMetaExt.timestamp_count());
 
     const char* ptr = TimestampsData_.End();
-    KeyNullFlags_.Reset(ptr, ChunkKeyColumnCount_ * Meta_.row_count());
+    KeyNullFlags_.Reset(ptr, ChunkKeyColumnCount_ * RowCount_);
     ptr += AlignUp(KeyNullFlags_.GetByteSize(), SerializationAlignment);
 
-    ValueNullFlags_.Reset(ptr, VersionedMeta_.value_count());
+    ValueNullFlags_.Reset(ptr, simpleVersionedBlockMetaExt.value_count());
     ptr += AlignUp(ValueNullFlags_.GetByteSize(), SerializationAlignment);
 
     for (bool aggregate : MakeRange(ColumnAggregateFlags_.get(), ChunkColumnCount_)) {
         if (aggregate) {
-            ValueAggregateFlags_ = TReadOnlyBitmap(ptr, VersionedMeta_.value_count());
+            ValueAggregateFlags_ = TReadOnlyBitmap(ptr, simpleVersionedBlockMetaExt.value_count());
             ptr += AlignUp(ValueAggregateFlags_->GetByteSize(), SerializationAlignment);
             break;
         }
     }
 
     StringData_ = TRef(const_cast<char*>(ptr), const_cast<char*>(Block_.End()));
-
-    if (initialize) {
-        JumpToRowIndex(0);
-    } else {
-        RowIndex_ = -1;
-    }
 }
 
-bool TSimpleVersionedBlockReader::NextRow()
-{
-    YT_VERIFY(!Closed_);
-    return JumpToRowIndex(RowIndex_ + 1);
-}
-
-bool TSimpleVersionedBlockReader::SkipToRowIndex(i64 rowIndex)
-{
-    YT_VERIFY(!Closed_);
-    YT_VERIFY(rowIndex >= RowIndex_);
-    return JumpToRowIndex(rowIndex);
-}
-
-bool TSimpleVersionedBlockReader::SkipToKey(TLegacyKey bound)
+bool TSimpleVersionedBlockParser::JumpToRowIndex(i64 rowIndex, TRowMetadata* rowMetadata)
 {
     YT_VERIFY(!Closed_);
 
-    auto inBound = [&] (TUnversionedRow key) -> bool {
-        // Key is already widened here.
-        return CompareKeys(key, bound, KeyComparer_.Get()) >= 0;
-    };
-
-    if (inBound(GetKey())) {
-        // We are already further than pivot key.
-        return true;
-    }
-
-    auto index = BinarySearch(
-        RowIndex_,
-        Meta_.row_count(),
-        [&] (int index) -> bool {
-            YT_VERIFY(JumpToRowIndex(index));
-            return !inBound(GetKey());
-        });
-
-    return JumpToRowIndex(index);
-}
-
-bool TSimpleVersionedBlockReader::JumpToRowIndex(i64 index)
-{
-    YT_VERIFY(!Closed_);
-
-    if (index >= Meta_.row_count()) {
+    if (rowIndex >= RowCount_) {
         Closed_ = true;
         return false;
     }
 
-    RowIndex_ = index;
-    KeyDataPtr_ = KeyData_.Begin() + GetSimpleVersionedBlockPaddedKeySize(
+    const char* keyDataPtr = KeyData_.Begin() + GetSimpleVersionedBlockPaddedKeySize(
         ChunkKeyColumnCount_,
-        ChunkColumnCount_) * RowIndex_;
+        ChunkColumnCount_) * rowIndex;
 
     for (int id = 0; id < ChunkKeyColumnCount_; ++id) {
-        ReadKeyValue(&Key_[id], id);
+        ReadKeyValue(&rowMetadata->Key[id], id, keyDataPtr, rowIndex);
+        keyDataPtr += 8;
     }
 
-    TimestampOffset_ = *reinterpret_cast<const i64*>(KeyDataPtr_);
-    KeyDataPtr_ += sizeof(i64);
+    TimestampOffset_ = *reinterpret_cast<const i64*>(keyDataPtr);
+    keyDataPtr += sizeof(i64);
 
-    ValueOffset_ = *reinterpret_cast<const i64*>(KeyDataPtr_);
-    KeyDataPtr_ += sizeof(i64);
+    ValueOffset_ = *reinterpret_cast<const i64*>(keyDataPtr);
+    keyDataPtr += sizeof(i64);
 
-    WriteTimestampCount_ = *reinterpret_cast<const ui16*>(KeyDataPtr_);
-    KeyDataPtr_ += sizeof(ui16);
+    auto writeTimestampCount = *reinterpret_cast<const ui16*>(keyDataPtr);
+    keyDataPtr += sizeof(ui16);
 
-    DeleteTimestampCount_ = *reinterpret_cast<const ui16*>(KeyDataPtr_);
-    KeyDataPtr_ += sizeof(ui16);
+    auto deleteTimestampCount = *reinterpret_cast<const ui16*>(keyDataPtr);
+    keyDataPtr += sizeof(ui16);
+
+    rowMetadata->WriteTimestamps = TRange(
+        reinterpret_cast<const TTimestamp*>(
+            TimestampsData_.Begin() +
+            TimestampOffset_ * sizeof(TTimestamp)),
+        writeTimestampCount);
+    rowMetadata->DeleteTimestamps = TRange(
+        reinterpret_cast<const TTimestamp*>(
+            TimestampsData_.Begin() +
+            (TimestampOffset_ + writeTimestampCount) * sizeof(TTimestamp)),
+        deleteTimestampCount);
+
+    ColumnValueCounts_ = keyDataPtr;
+    rowMetadata->ValueCount = GetColumnValueCount(ChunkColumnCount_ - 1);
 
     return true;
 }
 
-TMutableVersionedRow TSimpleVersionedBlockReader::GetRow(TChunkedMemoryPool* memoryPool)
+ui32 TSimpleVersionedBlockParser::GetColumnValueCount(int chunkSchemaId) const
 {
-    YT_VERIFY(!Closed_);
-    return ProduceAllVersions_
-        ? ReadAllVersions(memoryPool)
-        : ReadOneVersion(memoryPool);
+    YT_ASSERT(chunkSchemaId >= ChunkKeyColumnCount_);
+    return *(reinterpret_cast<const ui32*>(ColumnValueCounts_) + chunkSchemaId - ChunkKeyColumnCount_);
 }
 
-ui32 TSimpleVersionedBlockReader::GetColumnValueCount(int schemaColumnId) const
+TSimpleVersionedBlockParser::TColumnDescriptor
+TSimpleVersionedBlockParser::GetColumnDescriptor(
+    const TColumnIdMapping& mapping) const
 {
-    YT_ASSERT(schemaColumnId >= ChunkKeyColumnCount_);
-    return *(reinterpret_cast<const ui32*>(KeyDataPtr_) + schemaColumnId - ChunkKeyColumnCount_);
-}
+    int valueId = mapping.ReaderSchemaIndex;
+    int chunkSchemaId = mapping.ChunkSchemaIndex;
 
-TMutableVersionedRow TSimpleVersionedBlockReader::ReadAllVersions(TChunkedMemoryPool* memoryPool)
-{
-    int writeTimestampIndex = 0;
-    int deleteTimestampIndex = 0;
+    int lowerValueIndex = chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
+    int upperValueIndex = GetColumnValueCount(chunkSchemaId);
+    lowerValueIndex += ValueOffset_;
+    upperValueIndex += ValueOffset_;
 
-    if (Timestamp_ < MaxTimestamp) {
-        writeTimestampIndex = BinarySearch(0, WriteTimestampCount_, [&] (int index) {
-            return ReadTimestamp(TimestampOffset_ + index) > Timestamp_;
-        });
-        deleteTimestampIndex = BinarySearch(0, DeleteTimestampCount_, [&] (int index) {
-            return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
-        });
-
-        if (writeTimestampIndex == WriteTimestampCount_ && deleteTimestampIndex == DeleteTimestampCount_) {
-            return {};
-        }
-    }
-
-    // Produce output row.
-    auto row = TMutableVersionedRow::Allocate(
-        memoryPool,
-        KeyColumnCount_,
-        GetColumnValueCount(ChunkColumnCount_ - 1), // shrinkable
-        WriteTimestampCount_ - writeTimestampIndex,
-        DeleteTimestampCount_ - deleteTimestampIndex);
-
-    // Write timestamps.
-    auto* beginWriteTimestamps = row.BeginWriteTimestamps();
-    auto* currentWriteTimestamp = beginWriteTimestamps;
-    for (int i = writeTimestampIndex; i < WriteTimestampCount_; ++i) {
-        *currentWriteTimestamp = ReadTimestamp(TimestampOffset_ + i);
-        ++currentWriteTimestamp;
-    }
-    YT_ASSERT(row.GetWriteTimestampCount() == currentWriteTimestamp - beginWriteTimestamps);
-
-    // Delete timestamps.
-    auto* beginDeleteTimestamps = row.BeginDeleteTimestamps();
-    auto* currentDeleteTimestamp = beginDeleteTimestamps;
-    for (int i = deleteTimestampIndex; i < DeleteTimestampCount_; ++i) {
-        *currentDeleteTimestamp = ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + i);
-        ++currentDeleteTimestamp;
-    }
-    YT_ASSERT(row.GetDeleteTimestampCount() == currentDeleteTimestamp - beginDeleteTimestamps);
-
-    // Keys.
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-
-    // Values.
-    auto* beginValues = row.BeginValues();
-    auto* currentValue = beginValues;
-    for (const auto& mapping : SchemaIdMapping_) {
-        int valueId = mapping.ReaderSchemaIndex;
-        int chunkSchemaId = mapping.ChunkSchemaIndex;
-
-        int lowerValueIndex = chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
-        int upperValueIndex = GetColumnValueCount(chunkSchemaId);
-
-        for (int index = lowerValueIndex; index < upperValueIndex; ++index) {
-            ReadValue(
-                currentValue,
-                ValueOffset_ + index,
-                valueId,
-                chunkSchemaId);
-            if (currentValue->Timestamp <= Timestamp_) {
-                ++currentValue;
-            }
-        }
-    }
-
-    // Shrink memory.
-    auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
-    row.SetValueCount(currentValue - beginValues);
-    auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
-    memoryPool->Free(memoryFrom, memoryTo);
-
-    return row;
-}
-
-TMutableVersionedRow TSimpleVersionedBlockReader::ReadOneVersion(TChunkedMemoryPool* memoryPool)
-{
-    int writeTimestampIndex = 0;
-    int deleteTimestampIndex = 0;
-
-    if (Timestamp_ < MaxTimestamp) {
-        writeTimestampIndex = BinarySearch(0, WriteTimestampCount_, [&] (int index) {
-            return ReadTimestamp(TimestampOffset_ + index) > Timestamp_;
-        });
-        deleteTimestampIndex = BinarySearch(0, DeleteTimestampCount_, [&] (int index) {
-            return ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + index) > Timestamp_;
-        });
-    }
-
-    bool hasWriteTimestamp = writeTimestampIndex < WriteTimestampCount_;
-    bool hasDeleteTimestamp = deleteTimestampIndex < DeleteTimestampCount_;
-
-    if (!hasWriteTimestamp & !hasDeleteTimestamp) {
-        // Row didn't exist at given timestamp.
-        return TMutableVersionedRow();
-    }
-
-    auto writeTimestamp = hasWriteTimestamp
-        ? ReadTimestamp(TimestampOffset_ + writeTimestampIndex)
-        : NullTimestamp;
-    auto deleteTimestamp = hasDeleteTimestamp
-        ? ReadTimestamp(TimestampOffset_ + WriteTimestampCount_ + deleteTimestampIndex)
-        : NullTimestamp;
-
-    if (deleteTimestamp > writeTimestamp) {
-        // Row has been deleted at given timestamp.
-        auto row = TMutableVersionedRow::Allocate(
-            memoryPool,
-            KeyColumnCount_,
-            0, // no values
-            0, // no write timestamps
-            1);
-        row.BeginDeleteTimestamps()[0] = deleteTimestamp;
-        ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-        return row;
-    }
-
-    YT_VERIFY(hasWriteTimestamp);
-
-    // Produce output row.
-    auto row = TMutableVersionedRow::Allocate(
-        memoryPool,
-        KeyColumnCount_,
-        GetColumnValueCount(ChunkColumnCount_ - 1), // shrinkable
-        1,
-        hasDeleteTimestamp ? 1 : 0);
-
-    // Write, delete timestamps.
-    row.BeginWriteTimestamps()[0] = writeTimestamp;
-    if (hasDeleteTimestamp) {
-        row.BeginDeleteTimestamps()[0] = deleteTimestamp;
-    }
-
-    // Keys.
-    ::memcpy(row.BeginKeys(), Key_.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
-
-    auto isValueAlive = [&] (int index) -> bool {
-        return ReadValueTimestamp(ValueOffset_ + index) > deleteTimestamp;
+    return TColumnDescriptor{
+        .ValueId = valueId,
+        .ChunkSchemaId = chunkSchemaId,
+        .LowerValueIndex = lowerValueIndex,
+        .UpperValueIndex = upperValueIndex,
+        .Aggregate = ColumnAggregateFlags_[chunkSchemaId],
     };
-
-    auto* beginValues = row.BeginValues();
-    auto* currentValue = beginValues;
-    for (const auto& mapping : SchemaIdMapping_) {
-        int valueId = mapping.ReaderSchemaIndex;
-        int chunkSchemaId = mapping.ChunkSchemaIndex;
-
-        int lowerValueIndex = chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
-        int upperValueIndex = GetColumnValueCount(chunkSchemaId);
-
-        int valueBeginIndex = BinarySearch(
-            lowerValueIndex,
-            upperValueIndex,
-            [&] (int index) {
-                return ReadValueTimestamp(ValueOffset_ + index) > Timestamp_;
-            });
-        int valueEndIndex = valueBeginIndex;
-
-        if (ColumnAggregateFlags_[chunkSchemaId]) {
-            valueEndIndex = BinarySearch(lowerValueIndex, upperValueIndex, isValueAlive);
-        } else if (valueBeginIndex < upperValueIndex && isValueAlive(valueBeginIndex)) {
-            valueEndIndex = valueBeginIndex + 1;
-        }
-
-        for (int index = valueBeginIndex; index < valueEndIndex; ++index) {
-            ReadValue(currentValue, ValueOffset_ + index, valueId, chunkSchemaId);
-            if (currentValue->Timestamp <= Timestamp_) {
-                ++currentValue;
-            }
-        }
-    }
-
-    // Shrink memory.
-    auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
-    row.SetValueCount(currentValue - beginValues);
-    auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
-    memoryPool->Free(memoryFrom, memoryTo);
-
-    return row;
 }
 
-void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
+void TSimpleVersionedBlockParser::ReadKeyValue(
+    TUnversionedValue* value,
+    int id,
+    const char* ptr,
+    i64 rowIndex) const
 {
-    const char* ptr = KeyDataPtr_;
-    KeyDataPtr_ += 8;
-
-    bool isNull = KeyNullFlags_[RowIndex_ * ChunkKeyColumnCount_ + id];
+    bool isNull = KeyNullFlags_[rowIndex * ChunkKeyColumnCount_ + id];
     if (Y_UNLIKELY(isNull)) {
         value->Type = EValueType::Null;
         return;
@@ -398,15 +191,18 @@ void TSimpleVersionedBlockReader::ReadKeyValue(TUnversionedValue* value, int id)
     }
 }
 
-void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueIndex, int id, int chunkSchemaId)
+void TSimpleVersionedBlockParser::ReadValue(
+    TVersionedValue* value,
+    const TColumnDescriptor& columnDescriptor,
+    int valueIndex) const
 {
-    YT_ASSERT(id >= ChunkKeyColumnCount_);
+    YT_ASSERT(columnDescriptor.ValueId >= ChunkKeyColumnCount_);
 
-    const char* ptr = ValueData_.Begin() + SimpleVersionedBlockValueSize * valueIndex;
+    const char* ptr = ValueData_.Begin() + VersionedBlockValueSize * valueIndex;
     auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
 
     *value = {};
-    value->Id = id;
+    value->Id = columnDescriptor.ValueId;
     value->Timestamp = timestamp;
 
     if (ValueAggregateFlags_ && (*ValueAggregateFlags_)[valueIndex]) {
@@ -418,11 +214,11 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
         return;
     }
 
-    if (ColumnHunkFlags_[chunkSchemaId]) {
+    if (ColumnHunkFlags_[columnDescriptor.ChunkSchemaId]) {
         value->Flags |= EValueFlags::Hunk;
     }
 
-    auto type = ColumnTypes_[chunkSchemaId];
+    auto type = ColumnTypes_[columnDescriptor.ChunkSchemaId];
     value->Type = type;
 
     switch (type) {
@@ -447,7 +243,15 @@ void TSimpleVersionedBlockReader::ReadValue(TVersionedValue* value, int valueInd
     }
 }
 
-void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, const char* ptr)
+TTimestamp TSimpleVersionedBlockParser::ReadValueTimestamp(
+    const TColumnDescriptor& /*columnDescriptor*/,
+    int valueIndex) const
+{
+    const char* ptr = ValueData_.Begin() + VersionedBlockValueSize * valueIndex;
+    return *reinterpret_cast<const TTimestamp*>(ptr + 8);
+}
+
+void TSimpleVersionedBlockParser::ReadStringLike(TUnversionedValue* value, const char* ptr) const
 {
     ui32 offset = *reinterpret_cast<const ui32*>(ptr);
     ptr += sizeof(ui32);
@@ -458,34 +262,344 @@ void TSimpleVersionedBlockReader::ReadStringLike(TUnversionedValue* value, const
     value->Length = length;
 }
 
-TTimestamp TSimpleVersionedBlockReader::ReadValueTimestamp(int valueIndex)
+////////////////////////////////////////////////////////////////////////////////
+
+TIndexedVersionedRowParser::TIndexedVersionedRowParser(
+    const TTableSchemaPtr& chunkSchema,
+    TCompactVector<int, IndexedRowTypicalGroupCount> groupIndexesToRead)
+    : TVersionedRowParserBase(chunkSchema)
+    , BlockFormatDetail_(chunkSchema)
+    , GroupCount_(BlockFormatDetail_.GetGroupCount())
+    , HasAggregateColumns_(chunkSchema->HasAggregateColumns())
+    , GroupIndexesToRead_(std::move(groupIndexesToRead))
 {
-    const char* ptr = ValueData_.Begin() + SimpleVersionedBlockValueSize * valueIndex;
-    return *reinterpret_cast<const TTimestamp*>(ptr + 8);
+    GroupInfos_.resize(GroupCount_);
 }
 
-TLegacyKey TSimpleVersionedBlockReader::GetKey() const
+TIndexedVersionedRowParser::TColumnDescriptor
+TIndexedVersionedRowParser::GetColumnDescriptor(const TColumnIdMapping& mapping)
 {
-    return Key_;
+    int valueId = mapping.ReaderSchemaIndex;
+    int chunkSchemaId = mapping.ChunkSchemaIndex;
+
+    auto columnInfo = BlockFormatDetail_.GetValueColumnInfo(chunkSchemaId);
+
+    const auto& groupInfo = GetGroupInfo(columnInfo.GroupIndex, columnInfo.ColumnCountInGroup);
+
+    int lowerValueIndex = groupInfo.ColumnValueCounts[columnInfo.ColumnIndexInGroup];
+    int upperValueIndex = columnInfo.ColumnIndexInGroup + 1 == columnInfo.ColumnCountInGroup
+        ? groupInfo.ValueCount
+        : groupInfo.ColumnValueCounts[columnInfo.ColumnIndexInGroup + 1];
+
+    return TColumnDescriptor{
+        .GroupInfo = groupInfo,
+        .ValueId = valueId,
+        .ChunkSchemaId = chunkSchemaId,
+        .LowerValueIndex = lowerValueIndex,
+        .UpperValueIndex = upperValueIndex,
+        .Aggregate = ColumnAggregateFlags_[chunkSchemaId],
+    };
 }
 
-TTimestamp TSimpleVersionedBlockReader::ReadTimestamp(int timestampIndex)
+void TIndexedVersionedRowParser::ReadValue(
+    TVersionedValue* value,
+    const TIndexedVersionedRowParser::TColumnDescriptor& columnDescriptor,
+    int valueIndex) const
 {
-    return *reinterpret_cast<const TTimestamp*>(
-        TimestampsData_.Begin() +
-        timestampIndex * SimpleVersionedBlockTimestampSize);
+    YT_ASSERT(columnDescriptor.ValueId >= ChunkKeyColumnCount_);
+
+    const char* ptr = columnDescriptor.GroupInfo.ValuesBegin + VersionedBlockValueSize * valueIndex;
+    auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
+
+    *value = {};
+    value->Id = columnDescriptor.ValueId;
+    value->Timestamp = timestamp;
+
+    const auto& aggregateFlags = columnDescriptor.GroupInfo.AggregateFlags;
+    if (aggregateFlags && (*aggregateFlags)[valueIndex]) {
+        value->Flags |= EValueFlags::Aggregate;
+    }
+
+    if (Y_UNLIKELY(columnDescriptor.GroupInfo.NullFlags[valueIndex])) {
+        value->Type = EValueType::Null;
+        return;
+    }
+
+    if (ColumnHunkFlags_[columnDescriptor.ChunkSchemaId]) {
+        value->Flags |= EValueFlags::Hunk;
+    }
+
+    auto type = ColumnTypes_[columnDescriptor.ChunkSchemaId];
+    value->Type = type;
+
+    switch (type) {
+        case EValueType::Int64:
+        case EValueType::Uint64:
+        case EValueType::Double:
+        case EValueType::Boolean:
+            value->Data.Int64 = *reinterpret_cast<const i64*>(ptr);
+            break;
+
+        case EValueType::String:
+        case EValueType::Any:
+        case EValueType::Composite:
+            ReadStringLike(value, ptr);
+            break;
+
+        case EValueType::Null:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            YT_ABORT();
+    }
 }
 
-i64 TSimpleVersionedBlockReader::GetRowIndex() const
+TTimestamp TIndexedVersionedRowParser::ReadValueTimestamp(
+    const TColumnDescriptor& columnDescriptor,
+    int valueIndex) const
 {
-    return RowIndex_;
+    const char* ptr = columnDescriptor.GroupInfo.ValuesBegin + VersionedBlockValueSize * valueIndex;
+    return *reinterpret_cast<const TTimestamp*>(ptr + sizeof(i64));
+}
+
+void TIndexedVersionedRowParser::PreprocessRow(
+    const TCompactVector<TRef, IndexedRowTypicalGroupCount>& rowData,
+    const int* groupOffsets,
+    const int* groupIndexes,
+    bool validateChecksums,
+    TRowMetadata* rowMetadata)
+{
+    auto validateChecksum = [] (TRef data) {
+        auto dataWithoutChecksum = data.Slice(0, data.Size() - sizeof(TChecksum));
+        auto expectedChecksum = *reinterpret_cast<const TChecksum*>(dataWithoutChecksum.End());
+        auto actualChecksum = GetChecksum(dataWithoutChecksum);
+        if (expectedChecksum != actualChecksum) {
+            THROW_ERROR_EXCEPTION(
+                NChunkClient::EErrorCode::IncorrectChunkFileChecksum,
+                "Incorrect checksum detected for indexed row: expected %v, actual %v",
+                expectedChecksum,
+                actualChecksum);
+        }
+    };
+
+    if (validateChecksums) {
+        validateChecksum(rowData[0]);
+    }
+
+    auto* rowDataBegin = rowData[0].Begin();
+
+    auto* rowDataPtr = rowDataBegin;
+    auto* keyColumns = rowDataPtr;
+    rowDataPtr += ChunkKeyColumnCount_ * sizeof(i64);
+
+    KeyNullFlags_.Reset(rowDataPtr, ChunkKeyColumnCount_);
+    rowDataPtr += KeyNullFlags_.GetByteSize();
+
+    for (int i = 0; i < ChunkKeyColumnCount_; ++i) {
+        ReadKeyValue(&rowMetadata->Key[i], i, keyColumns, &rowDataPtr);
+        keyColumns += sizeof(i64);
+    }
+
+    rowDataPtr += AlignUpSpace<i64>(rowDataPtr - rowDataBegin, SerializationAlignment);
+
+    auto writeTimestampCount = *reinterpret_cast<const i32*>(rowDataPtr);
+    rowDataPtr += sizeof(i32);
+    auto deleteTimestampCount = *reinterpret_cast<const i32*>(rowDataPtr);
+    rowDataPtr += sizeof(i32);
+
+    rowMetadata->WriteTimestamps = TRange(reinterpret_cast<const TTimestamp*>(rowDataPtr), writeTimestampCount);
+    rowDataPtr += sizeof(TTimestamp) * writeTimestampCount;
+    rowMetadata->DeleteTimestamps = TRange(reinterpret_cast<const TTimestamp*>(rowDataPtr), deleteTimestampCount);
+    rowDataPtr += sizeof(TTimestamp) * deleteTimestampCount;
+
+    rowMetadata->ValueCount = 0;
+
+    auto processGroup = [&] (const char* groupDataBegin, int groupIndex) {
+        GroupInfos_[groupIndex].Initialized = false;
+        GroupInfos_[groupIndex].GroupDataBegin = groupDataBegin;
+
+        auto valueCount = *reinterpret_cast<const i32*>(groupDataBegin);
+        GroupInfos_[groupIndex].ValueCount = valueCount;
+        rowMetadata->ValueCount += valueCount;
+    };
+
+    if (rowData.size() == 1) {
+        if (GroupCount_ == 1) {
+            processGroup(rowDataPtr, 0);
+        } else {
+            for (auto groupIndex = 0; groupIndex < GroupCount_; ++groupIndex) {
+                auto physicalGroupIndex = groupIndexes ? groupIndexes[groupIndex] : groupIndex;
+                processGroup(rowData[0].Begin() + groupOffsets[physicalGroupIndex], groupIndex);
+            }
+        }
+    } else {
+        YT_VERIFY(rowData.size() == GroupIndexesToRead_.size() + 1);
+        YT_VERIFY(validateChecksums);
+
+        for (int refIndex = 1; refIndex < std::ssize(rowData) - 1; ++refIndex) {
+            validateChecksum(rowData[refIndex]);
+        }
+        // Ignore full row checksum.
+        validateChecksum(rowData.back().Slice(0, rowData.back().Size() - sizeof(TChecksum)));
+
+        for (int groupIndex = 0; groupIndex < std::ssize(GroupIndexesToRead_); ++groupIndex) {
+            processGroup(rowData[groupIndex + 1].Begin(), GroupIndexesToRead_[groupIndex]);
+        }
+    }
+}
+
+void TIndexedVersionedRowParser::ReadKeyValue(
+    TUnversionedValue* value,
+    int id,
+    const char* ptr,
+    const char** rowData) const
+{
+    bool isNull = KeyNullFlags_[id];
+    if (Y_UNLIKELY(isNull)) {
+        value->Type = EValueType::Null;
+        return;
+    }
+
+    auto type = ColumnTypes_[id];
+    value->Type = type;
+
+    switch (type) {
+        case EValueType::Int64:
+        case EValueType::Uint64:
+        case EValueType::Double:
+        case EValueType::Boolean:
+            value->Data.Int64 = *reinterpret_cast<const i64*>(ptr);
+            break;
+
+        case EValueType::String:
+        case EValueType::Any:
+            ReadStringLike(value, ptr);
+            *rowData += value->Length;
+            break;
+
+        case EValueType::Null:
+        case EValueType::Composite:
+        case EValueType::Min:
+        case EValueType::Max:
+        case EValueType::TheBottom:
+            YT_ABORT();
+    }
+}
+
+void TIndexedVersionedRowParser::ReadStringLike(
+    TUnversionedValue* value,
+    const char* ptr) const
+{
+    ui32 offset = *reinterpret_cast<const ui32*>(ptr);
+    value->Data.String = ptr + offset;
+    ptr += sizeof(ui32);
+
+    ui32 length = *reinterpret_cast<const ui32*>(ptr);
+    value->Length = length;
+}
+
+const TIndexedVersionedRowParser::TGroupInfo& TIndexedVersionedRowParser::GetGroupInfo(
+    int groupIndex,
+    int columnCountInGroup)
+{
+    auto& groupInfo = GroupInfos_[groupIndex];
+    if (groupInfo.Initialized) {
+        return groupInfo;
+    }
+
+    groupInfo.Initialized = true;
+
+    auto* groupData = groupInfo.GroupDataBegin;
+    groupData += sizeof(i32);
+    groupInfo.ColumnValueCounts = reinterpret_cast<const i32*>(groupData);
+    groupData += sizeof(i32) * columnCountInGroup;
+
+    groupInfo.NullFlags.Reset(groupData, groupInfo.ValueCount);
+    groupData += groupInfo.NullFlags.GetByteSize();
+    if (HasAggregateColumns_) {
+        groupInfo.AggregateFlags.emplace().Reset(groupData, groupInfo.ValueCount);
+        groupData += groupInfo.AggregateFlags->GetByteSize();
+    }
+    groupData += AlignUpSpace<i64>(groupData - groupInfo.GroupDataBegin, SerializationAlignment);
+
+    groupInfo.ValuesBegin = groupData;
+
+    return groupInfo;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TIndexedVersionedBlockParser::TIndexedVersionedBlockParser(
+    TSharedRef block,
+    const NProto::TDataBlockMeta& blockMeta,
+    const TTableSchemaPtr& chunkSchema)
+    : TIndexedVersionedRowParser(chunkSchema)
+    , RowCount_(blockMeta.row_count())
+    , Block_(std::move(block))
+{
+    const auto& indexedVersionedBlockMetaExt = blockMeta.GetExtension(TIndexedVersionedBlockMeta::block_meta_ext);
+    if (indexedVersionedBlockMetaExt.format_version() != 0) {
+        THROW_ERROR_EXCEPTION("Unsupported indexed block format version %v",
+            indexedVersionedBlockMetaExt.format_version());
+    }
+
+    GroupReorderingEnabled_ = indexedVersionedBlockMetaExt.group_reordering_enabled();
+    YT_VERIFY(!GroupReorderingEnabled_);
+
+    auto* blockEnd = Block_.End();
+
+    if (GroupCount_ > 1) {
+        if (GroupReorderingEnabled_) {
+            blockEnd -= sizeof(i32) * RowCount_ * GroupCount_;
+            GroupIndexes_ = reinterpret_cast<const i32*>(blockEnd);
+        }
+
+        blockEnd -= sizeof(i32) * RowCount_ * GroupCount_;
+        GroupOffsets_ = reinterpret_cast<const i32*>(blockEnd);
+    }
+
+    blockEnd -= sizeof(i64) * RowCount_;
+    RowOffsets_ = reinterpret_cast<const i64*>(blockEnd);
+}
+
+bool TIndexedVersionedBlockParser::JumpToRowIndex(i64 rowIndex, TRowMetadata* rowMetadata)
+{
+    YT_VERIFY(!Closed_);
+
+    if (rowIndex >= RowCount_) {
+        Closed_ = true;
+        return false;
+    }
+
+    auto rowBegin = RowOffsets_[rowIndex];
+    auto rowEnd = rowIndex + 1 < RowCount_
+        ? RowOffsets_[rowIndex + 1]
+        : Block_.Size();
+
+    const int* groupOffsets = nullptr;
+    const int* groupIndexes = nullptr;
+    if (GroupCount_ > 1) {
+        if (GroupReorderingEnabled_) {
+            groupIndexes = GroupIndexes_ + rowIndex * GroupCount_;
+        }
+        groupOffsets = GroupOffsets_ + rowIndex * GroupCount_;
+    }
+
+    PreprocessRow(
+        {TRef(Block_).Slice(rowBegin, rowEnd)},
+        groupOffsets,
+        groupIndexes,
+        /*validateChecksums*/ false,
+        rowMetadata);
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockReader(
     const TSharedRef& block,
-    const NProto::TDataBlockMeta& meta,
+    const NProto::TDataBlockMeta& blockMeta,
     const std::vector<bool>& compositeColumnFlags,
     const std::vector<int>& chunkToReaderIdMapping,
     TRange<ESortOrder> sortOrders,
@@ -493,7 +607,7 @@ THorizontalSchemalessVersionedBlockReader::THorizontalSchemalessVersionedBlockRe
     TTimestamp timestamp)
     : THorizontalBlockReader(
         block,
-        meta,
+        blockMeta,
         compositeColumnFlags,
         chunkToReaderIdMapping,
         sortOrders,

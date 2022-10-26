@@ -299,6 +299,7 @@ void MakeSerializationAligned(char** buffer, i64 byteSize)
     WritePadding(buffer, AlignUpSpace<i64>(byteSize, SerializationAlignment));
 }
 
+// TODO(akozhikhov): Write checksum ahead of the blob as in hunk checksums?
 void AppendChecksum(char** buffer, i64 byteSize)
 {
     CopyPod(buffer, GetChecksum(TRef(*buffer - byteSize, byteSize)));
@@ -314,17 +315,20 @@ struct TIndexedVersionedBlockWriterTag
 TIndexedVersionedBlockWriter::TIndexedVersionedBlockWriter(
     TTableSchemaPtr schema,
     int blockIndex,
+    const TIndexedVersionedBlockFormatDetail& blockFormatDetail,
     IChunkIndexBuilderPtr chunkIndexBuilder,
     TMemoryUsageTrackerGuard guard)
     : TVersionedBlockWriterBase(
         std::move(schema),
         std::move(guard))
+    , BlockFormatDetail_(blockFormatDetail)
     , ChunkIndexBuilder_(std::move(chunkIndexBuilder))
     , BlockIndex_(blockIndex)
-    , GroupCount_(ChunkIndexBuilder_->GetGroupCount())
+    , GroupCount_(BlockFormatDetail_.GetGroupCount())
     , HasAggregateColumns_(Schema_->HasAggregateColumns())
-    , SectorAlignmentSize_(ChunkIndexBuilder_->GetSectorAlignmentSize())
-    , GroupReorderingEnabled_(ChunkIndexBuilder_->IsGroupReorderingEnabled())
+    , SectorAlignmentSize_(THashTableChunkIndexFormatDetail::SectorSize)
+    // TODO(akozhikhov).
+    , GroupReorderingEnabled_(false)
     , Stream_(TIndexedVersionedBlockWriterTag())
 {
     YT_VERIFY(AlignUpSpace<i64>(SectorAlignmentSize_, SerializationAlignment) == 0);
@@ -403,6 +407,7 @@ TBlock TIndexedVersionedBlockWriter::FlushBlock()
     TDataBlockMeta meta;
     auto* metaExt = meta.MutableExtension(TIndexedVersionedBlockMeta::block_meta_ext);
     metaExt->set_group_reordering_enabled(GroupReorderingEnabled_);
+    metaExt->set_format_version(0);
 
     return TVersionedBlockWriterBase::FlushBlock(Stream_.Flush(), std::move(meta));
 }
@@ -484,13 +489,14 @@ void TIndexedVersionedBlockWriter::ResetValueData()
     for (auto& group : groups) {
         group.ValueCount = 0;
         group.StringDataSize = 0;
+        // FIXME(akozhikhov): reserve.
         group.ColumnValueRanges.clear();
         group.SectorAlignmentSize = 0;
     }
 
-    int currentId = KeyColumnCount_ + 1;
+    int currentId = KeyColumnCount_;
     int currentIdBeginIndex = 0;
-    int groupId = ChunkIndexBuilder_->GetGroupIdFromValueId(currentId);
+    int groupId = BlockFormatDetail_.GetValueColumnInfo(currentId).GroupIndex;
 
     auto fillValueRange = [&] (int valueIndex) {
         auto& group = groups[groupId];
@@ -499,7 +505,9 @@ void TIndexedVersionedBlockWriter::ResetValueData()
 
         currentIdBeginIndex = valueIndex;
         ++currentId;
-        groupId = ChunkIndexBuilder_->GetGroupIdFromValueId(currentId);
+        if (currentId != SchemaColumnCount_) {
+            groupId = BlockFormatDetail_.GetValueColumnInfo(currentId).GroupIndex;
+        }
     };
 
     for (int valueIndex = 0; valueIndex < row.GetValueCount(); ++valueIndex) {
@@ -535,17 +543,16 @@ i64 TIndexedVersionedBlockWriter::GetRowMetadataByteSize() const
     return
         GetKeyDataByteSize() +
         GetTimestampDataByteSize() +
-        GroupCount_ > 1 ? sizeof(TChecksum) : 0;
+        (GroupCount_ > 1 ? sizeof(TChecksum) : 0);
 }
 
 i64 TIndexedVersionedBlockWriter::GetKeyDataByteSize() const
 {
     auto result =
         sizeof(i64) * KeyColumnCount_ +
-        NBitmapDetail::GetByteSize(KeyColumnCount_);
+        NBitmapDetail::GetByteSize(KeyColumnCount_) +
+        RowData_.KeyData.StringDataSize;
     result = AlignUp<i64>(result, SerializationAlignment);
-
-    result += AlignUp<i64>(RowData_.KeyData.StringDataSize, SerializationAlignment);
 
     AssertSerializationAligned(result);
 
@@ -587,9 +594,9 @@ i64 TIndexedVersionedBlockWriter::GetValueGroupDataByteSize(
 
     auto result =
         sizeof(group.ValueCount) +
-        sizeof(int) * group.ValueCount +
+        sizeof(i32) * std::ssize(group.ColumnValueRanges) +
         NBitmapDetail::GetByteSize(group.ValueCount) +
-        HasAggregateColumns_ ? NBitmapDetail::GetByteSize(group.ValueCount) : 0;
+        (HasAggregateColumns_ ? NBitmapDetail::GetByteSize(group.ValueCount) : 0);
     result = AlignUp<i64>(result, SerializationAlignment);
 
     result += 2 * sizeof(i64) * group.ValueCount;
@@ -635,8 +642,6 @@ char* TIndexedVersionedBlockWriter::EncodeKeyData(char* buffer) const
     TMutableBitmap nullFlagsBitmap(buffer);
     buffer += NBitmapDetail::GetByteSize(KeyColumnCount_);
 
-    MakeSerializationAligned(&buffer, buffer - bufferStart);
-
     auto* stringDataBuffer = buffer;
     std::optional<TMutableBitmap> nullAggregateFlagsBitmap;
     for (int keyColumnIndex = 0; keyColumnIndex < KeyColumnCount_; ++keyColumnIndex) {
@@ -650,7 +655,7 @@ char* TIndexedVersionedBlockWriter::EncodeKeyData(char* buffer) const
             &nullAggregateFlagsBitmap);
     }
 
-    MakeSerializationAligned(&stringDataBuffer, RowData_.KeyData.StringDataSize);
+    MakeSerializationAligned(&stringDataBuffer, stringDataBuffer - bufferStart);
 
     YT_ASSERT(stringDataBuffer - bufferStart == GetKeyDataByteSize());
 
@@ -720,7 +725,7 @@ char* TIndexedVersionedBlockWriter::EncodeValueGroupData(char* buffer, int group
     CopyPod(&buffer, group.ValueCount);
 
     char* columnOffsetsBuffer = buffer;
-    buffer += sizeof(int) * group.ValueCount;
+    buffer += sizeof(i32) * std::ssize(group.ColumnValueRanges);
 
     TMutableBitmap nullFlagsBitmap(buffer);
     buffer += NBitmapDetail::GetByteSize(group.ValueCount);
@@ -761,7 +766,7 @@ char* TIndexedVersionedBlockWriter::EncodeValueGroupData(char* buffer, int group
     return stringDataBuffer;
 }
 
-TCompactVector<int, TIndexedVersionedBlockWriter::TypicalGroupCount>
+TCompactVector<int, IndexedRowTypicalGroupCount>
 TIndexedVersionedBlockWriter::ComputeGroupAlignmentAndReordering()
 {
     /*
@@ -825,7 +830,7 @@ TIndexedVersionedBlockWriter::ComputeGroupAlignmentAndReordering()
             bufferSize += groupSize;
         }
 
-        TCompactVector<int, TIndexedVersionedBlockWriter::TypicalGroupCount> groupIndexes(GroupCount_);
+        TCompactVector<int, IndexedRowTypicalGroupCount> groupIndexes(GroupCount_);
         std::iota(groupIndexes.begin(), groupIndexes.end(), 0);
         return groupIndexes;
     }
@@ -875,7 +880,7 @@ TIndexedVersionedBlockWriter::ComputeGroupAlignmentAndReordering()
         binSpaceToGroupIndexes.insert(std::move(node));
     }
 
-    TCompactVector<int, TIndexedVersionedBlockWriter::TypicalGroupCount> reorderedGroupIndexes;
+    TCompactVector<int, IndexedRowTypicalGroupCount> reorderedGroupIndexes;
     reorderedGroupIndexes.reserve(GroupCount_);
 
     reorderedGroupIndexes.insert(

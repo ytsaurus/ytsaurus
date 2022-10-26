@@ -162,6 +162,7 @@ message TIndexedVersionedBlockMeta
     }
 
     optional bool group_reordering_enabled = 1;
+    optional int32 format_version = 2;
 }
 
 message TDataBlockMetaExt

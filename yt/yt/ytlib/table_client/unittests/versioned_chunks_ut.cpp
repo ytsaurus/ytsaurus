@@ -72,7 +72,9 @@ class TVersionedChunksLookupTestBase
     : public ::testing::Test
 {
 protected:
-    TTableSchemaPtr Schema;
+    const TTableSchemaPtr Schema;
+    const EOptimizeFor OptimizeFor;
+    const bool EnableHashChunkIndex;
 
     IVersionedReaderPtr ChunkReader;
     IVersionedWriterPtr ChunkWriter;
@@ -82,9 +84,9 @@ protected:
 
     TChunkedMemoryPool MemoryPool;
 
-    EOptimizeFor OptimizeFor;
-
-    explicit TVersionedChunksLookupTestBase(EOptimizeFor optimizeFor)
+    explicit TVersionedChunksLookupTestBase(
+        EOptimizeFor optimizeFor,
+        bool enableHashChunkIndex)
         : Schema(New<TTableSchema>(std::vector{
             TColumnSchema("k1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending),
@@ -96,6 +98,7 @@ protected:
             TColumnSchema("v2", EValueType::Int64)
         }))
         , OptimizeFor(optimizeFor)
+        , EnableHashChunkIndex(enableHashChunkIndex)
     { }
 
     void SetUp() override
@@ -106,6 +109,7 @@ protected:
         config->BlockSize = 1025;
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = OptimizeFor;
+        options->EnableHashChunkIndex = EnableHashChunkIndex;
         ChunkWriter = CreateVersionedChunkWriter(
             config,
             options,
@@ -124,17 +128,21 @@ protected:
             MemoryWriter->GetBlocks());
     }
 
-    void FillKey(TMutableVersionedRow row, std::optional<TString> k1, std::optional<i64> k2, std::optional<double> k3)
+    void FillKey(
+        TMutableVersionedRow row,
+        std::optional<TString> k1,
+        std::optional<i64> k2,
+        std::optional<double> k3)
     {
         row.BeginKeys()[0] = k1
-                             ? MakeUnversionedStringValue(*k1, 0)
-                             : MakeUnversionedSentinelValue(EValueType::Null, 0);
+            ? MakeUnversionedStringValue(*k1, 0)
+            : MakeUnversionedSentinelValue(EValueType::Null, 0);
         row.BeginKeys()[1] = k2
-                             ? MakeUnversionedInt64Value(*k2, 1)
-                             : MakeUnversionedSentinelValue(EValueType::Null, 1);
+            ? MakeUnversionedInt64Value(*k2, 1)
+            : MakeUnversionedSentinelValue(EValueType::Null, 1);
         row.BeginKeys()[2] = k3
-                             ? MakeUnversionedDoubleValue(*k3, 2)
-                             : MakeUnversionedSentinelValue(EValueType::Null, 2);
+            ? MakeUnversionedDoubleValue(*k3, 2)
+            : MakeUnversionedSentinelValue(EValueType::Null, 2);
     }
 
     TVersionedRow CreateSingleRow(int index)
@@ -318,14 +326,60 @@ class TSimpleVersionedChunksLookupTest
 {
 public:
     TSimpleVersionedChunksLookupTest()
-        : TVersionedChunksLookupTestBase(EOptimizeFor::Lookup)
+        : TVersionedChunksLookupTestBase(
+            EOptimizeFor::Lookup,
+            /*enableHashChunkIndex*/ false)
     { }
 };
-
 
 TEST_F(TSimpleVersionedChunksLookupTest, Test)
 {
     DoTest();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TIndexedVersionedChunksLookupTest
+    : public TVersionedChunksLookupTestBase
+{
+public:
+    TIndexedVersionedChunksLookupTest()
+        : TVersionedChunksLookupTestBase(
+            EOptimizeFor::Lookup,
+            /*enableHashChunkIndex*/ true)
+    { }
+};
+
+TEST_F(TIndexedVersionedChunksLookupTest, Test)
+{
+    DoTest();
+}
+
+TEST_F(TIndexedVersionedChunksLookupTest, TestMetadata)
+{
+    WriteManyRows();
+
+    auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
+        .Get()
+        .ValueOrThrow();
+
+    auto versionedChunkMeta = TCachedVersionedChunkMeta::Create(
+        /*prepareColumnarMeta*/ false,
+        /*memoryTracker*/ nullptr,
+        chunkMeta);
+
+    auto features = NYT::FromProto<EChunkFeatures>(chunkMeta->features());
+    EXPECT_TRUE((features & EChunkFeatures::IndexedBlockFormat) == EChunkFeatures::IndexedBlockFormat);
+
+    // TODO(akozhikhov): Check system blocks ext.
+
+    auto dataBlockFormat = CheckedEnumCast<ETableChunkBlockFormat>(
+        versionedChunkMeta->DataBlockMeta()->block_format());
+    EXPECT_TRUE(dataBlockFormat == ETableChunkBlockFormat::IndexedVersioned);
+
+    const auto& dataBlockMeta = versionedChunkMeta->DataBlockMeta()->data_blocks(0);
+    EXPECT_TRUE(dataBlockMeta.HasExtension(NProto::TIndexedVersionedBlockMeta::block_meta_ext));
+    EXPECT_TRUE(!dataBlockMeta.HasExtension(NProto::TSimpleVersionedBlockMeta::block_meta_ext));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -335,7 +389,9 @@ class TColumnarVersionedChunksLookupTest
 {
 public:
     TColumnarVersionedChunksLookupTest()
-        : TVersionedChunksLookupTestBase(EOptimizeFor::Scan)
+        : TVersionedChunksLookupTestBase(
+            EOptimizeFor::Scan,
+            /*enableHashChunkIndex*/ false)
     { }
 };
 
@@ -346,7 +402,7 @@ TEST_F(TColumnarVersionedChunksLookupTest, Test)
 
 TEST_F(TColumnarVersionedChunksLookupTest, TestNew)
 {
-    DoTest(true);
+    DoTest(/*testNewReader*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -401,7 +457,8 @@ struct TRandomValueGenerator
             case EValueType::String: {
                 constexpr char Letters[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZ";
 
-                auto length = Rng.Uniform(std::min<i64>(DomainSize, 200));
+                static constexpr int MaxStringLength = 200;
+                auto length = Rng.Uniform(std::min<i64>(DomainSize, MaxStringLength));
 
                 auto data = RowBuffer_->GetPool()->AllocateUnaligned(length);
                 for (size_t index = 0; index < length; ++index) {
@@ -472,19 +529,23 @@ protected:
         TTableSchemaPtr writeSchema,
         TTableSchemaPtr readSchema,
         TSharedRange<TRowRange> ranges,
+        TColumnFilter columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions,
-        bool testNewReader)
+        bool testNewReader,
+        bool enableHashChunkIndex)
     {
-        auto expected = CreateExpected(initialRows, writeSchema, readSchema, ranges, timestamp);
+        auto expected = CreateExpected(initialRows, writeSchema, readSchema, ranges, timestamp, columnFilter);
 
         auto memoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
-        config->BlockSize = 1025;
+        config->BlockSize = 4096;
         config->MaxSegmentValueCount = 128;
+        config->SampleRate = 0.0;
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
+        options->EnableHashChunkIndex = enableHashChunkIndex;
         auto chunkWriter = CreateVersionedChunkWriter(
             config,
             options,
@@ -517,7 +578,7 @@ protected:
                 timestamp,
                 chunkMeta,
                 readSchema,
-                TColumnFilter(),
+                columnFilter,
                 nullptr,
                 chunkState->BlockCache,
                 TChunkReaderConfig::GetDefault(),
@@ -533,7 +594,7 @@ protected:
                 std::move(chunkMeta),
                 /* chunkReadOptions */ {},
                 ranges,
-                TColumnFilter(),
+                columnFilter,
                 timestamp,
                 produceAllVersions);
         }
@@ -550,7 +611,8 @@ protected:
         TLegacyOwningKey upperKey,
         TTimestamp timestamp,
         bool produceAllVersions,
-        bool testNewReader)
+        bool testNewReader,
+        bool enableHashChunkIndex)
     {
         TestRangeReader(
             initialRows,
@@ -558,9 +620,11 @@ protected:
             writeSchema,
             readSchema,
             MakeSingletonRowRange(lowerKey, upperKey),
+            TColumnFilter(),
             timestamp,
             produceAllVersions,
-            testNewReader);
+            testNewReader,
+            enableHashChunkIndex);
     }
 
     void TestLookupReader(
@@ -569,19 +633,23 @@ protected:
         TTableSchemaPtr writeSchema,
         TTableSchemaPtr readSchema,
         TSharedRange<TUnversionedRow> lookupKeys,
+        TColumnFilter columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions,
-        bool testNewReader)
+        bool testNewReader,
+        bool enableHashChunkIndex)
     {
-        auto expected = CreateExpected(initialRows, writeSchema, readSchema, lookupKeys, timestamp);
+        auto expected = CreateExpected(initialRows, writeSchema, readSchema, lookupKeys, timestamp, columnFilter);
 
         auto memoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
-        config->BlockSize = 1025;
+        config->BlockSize = 4096;
         config->MaxSegmentValueCount = 128;
+        config->SampleRate = 0.0;
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
+        options->EnableHashChunkIndex = enableHashChunkIndex;
         auto chunkWriter = CreateVersionedChunkWriter(
             config,
             options,
@@ -614,13 +682,13 @@ protected:
                 timestamp,
                 chunkMeta,
                 readSchema,
-                TColumnFilter(),
+                columnFilter,
                 nullptr,
                 chunkState->BlockCache,
                 TChunkReaderConfig::GetDefault(),
                 memoryReader,
                 chunkState->PerformanceCounters,
-                /* chunkReadOptions */ {},
+                /*chunkReadOptions*/ {},
                 produceAllVersions);
         } else {
             chunkReader = CreateVersionedChunkReader(
@@ -628,9 +696,9 @@ protected:
                 memoryReader,
                 std::move(chunkState),
                 std::move(chunkMeta),
-                /* chunkReadOptions */ {},
+                /*chunkReadOptions*/ {},
                 lookupKeys,
-                TColumnFilter(),
+                columnFilter,
                 timestamp,
                 produceAllVersions);
         }
@@ -653,7 +721,7 @@ protected:
         YT_ABORT();
     }
 
-    std::vector<TVersionedRow> CreateRows(int count = 10000)
+    std::vector<TVersionedRow> CreateRows(int rowCount = 10000)
     {
         std::vector<char> stringValue(100, 'a');
         srand(0);
@@ -661,9 +729,10 @@ protected:
         std::vector<TTimestamp> timestamps = {10, 20, 30, 40, 50, 60, 70, 80, 90};
 
         std::vector<TVersionedRow> rows;
+        rows.reserve(rowCount);
         TVersionedRowBuilder builder(RowBuffer_);
 
-        for (int rowIndex = 0; rowIndex < count; ++rowIndex) {
+        for (int rowIndex = 0; rowIndex < rowCount; ++rowIndex) {
             builder.AddKey(MakeUnversionedInt64Value(-10 + (rowIndex / 16), 0)); // k0
 
             builder.AddKey(MakeUnversionedUint64Value((rowIndex / 8) * 128, 1)); // k1
@@ -724,27 +793,469 @@ protected:
         return rows;
     }
 
-    static std::vector<TUnversionedValue> GenerateRandomValues(
-        EValueType type,
-        TRandomValueGenerator* valueGenerator,
-        int distinctValueCount)
+    std::vector<int> BuildIdMapping(
+        const TTableSchemaPtr& writeSchema,
+        const TTableSchemaPtr& readSchema,
+        const TColumnFilter& columnFilter)
     {
-        std::vector<TUnversionedValue> values;
-
-        values.push_back(MakeUnversionedSentinelValue(EValueType::Null));
-
-        for (int index = 0; index < distinctValueCount; ++index) {
-            values.push_back(valueGenerator->GetRandomValue(type));
+        std::vector<int> idMapping(writeSchema->GetColumnCount(), -1);
+        for (int i = 0; i < writeSchema->GetColumnCount(); ++i) {
+            const auto& writeColumnSchema = writeSchema->Columns()[i];
+            for (int j = 0; j < readSchema->GetColumnCount(); ++j) {
+                const auto& readColumnSchema = readSchema->Columns()[j];
+                if (writeColumnSchema.Name() == readColumnSchema.Name() && columnFilter.ContainsIndex(j)) {
+                    idMapping[i] = j;
+                }
+            }
         }
-
-        std::sort(values.begin(), values.end());
-        values.erase(
-            std::unique(values.begin(), values.end()),
-            values.end());
-
-        return values;
+        return idMapping;
     }
 
+    bool CreateExpectedRow(
+        TVersionedRowBuilder* builder,
+        TVersionedRow row,
+        TTimestamp timestamp,
+        TRange<int> idMapping,
+        TRange<TColumnSchema> readSchemaColumns)
+    {
+        if (timestamp == AllCommittedTimestamp) {
+            for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
+                builder->AddDeleteTimestamp(*deleteIt);
+            }
+
+            for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
+                if (idMapping[valueIt->Id] > 0) {
+                    auto value = *valueIt;
+                    value.Id = idMapping[valueIt->Id];
+                    builder->AddValue(value);
+                }
+            }
+        } else {
+            // Find delete timestamp.
+            TTimestamp deleteTimestamp = NullTimestamp;
+            for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
+                if (*deleteIt <= timestamp) {
+                    deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
+                }
+            }
+            if (deleteTimestamp != NullTimestamp) {
+                builder->AddDeleteTimestamp(deleteTimestamp);
+            }
+
+            TTimestamp writeTimestamp = NullTimestamp;
+            for (auto writeIt = row.BeginWriteTimestamps(); writeIt != row.EndWriteTimestamps(); ++writeIt) {
+                if (*writeIt <= timestamp && *writeIt > deleteTimestamp) {
+                    writeTimestamp = std::max(*writeIt, writeTimestamp);
+                    builder->AddWriteTimestamp(*writeIt);
+                }
+            }
+
+            std::vector<TVersionedValue> values;
+            for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
+                if (idMapping[valueIt->Id] > 0 && valueIt->Timestamp <= timestamp && valueIt->Timestamp > deleteTimestamp) {
+                    auto value = *valueIt;
+                    value.Id = idMapping[valueIt->Id];
+                    values.push_back(value);
+                }
+            }
+
+            if (deleteTimestamp == NullTimestamp && writeTimestamp == NullTimestamp) {
+                // Row didn't exist at this timestamp.
+                return false;
+            }
+
+            std::sort(
+                values.begin(),
+                values.end(),
+                [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
+                    // Sort in reverse order
+                    return lhs.Timestamp > rhs.Timestamp;
+                });
+
+            std::set<int> usedIds;
+            for (const auto& value : values) {
+                if (usedIds.insert(value.Id).second || readSchemaColumns[value.Id].Aggregate()) {
+                    builder->AddValue(value);
+                }
+            }
+        }
+
+        return true;
+    }
+
+    std::vector<TVersionedRow> CreateExpected(
+        TRange<TVersionedRow> rows,
+        const TTableSchemaPtr& writeSchema,
+        const TTableSchemaPtr& readSchema,
+        const TSharedRange<TRowRange>& ranges,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter)
+    {
+        YT_VERIFY(writeSchema->GetKeyColumnCount() <= readSchema->GetKeyColumnCount());
+
+        if (ranges.empty()) {
+            return {};
+        }
+
+        std::vector<TVersionedRow> expected;
+
+        auto idMapping = BuildIdMapping(writeSchema, readSchema, columnFilter);
+
+        const auto* currentRange = ranges.begin();
+
+        std::vector<EValueType> columnWireTypes;
+        columnWireTypes.reserve(readSchema->GetKeyColumnCount());
+        for (int i = 0; i < readSchema->GetKeyColumnCount(); ++i) {
+            columnWireTypes.push_back(readSchema->Columns()[i].GetWireType());
+        }
+
+        for (auto row : rows) {
+            std::vector<TUnversionedValue> key;
+            YT_VERIFY(row.GetKeyCount() <= readSchema->GetKeyColumnCount());
+            for (int i = 0; i < row.GetKeyCount() && i < readSchema->GetKeyColumnCount(); ++i) {
+                auto actualType = row.BeginKeys()[i].Type;
+                YT_VERIFY(actualType == columnWireTypes[i] || actualType == EValueType::Null);
+                key.push_back(row.BeginKeys()[i]);
+            }
+
+            for (int i = row.GetKeyCount(); i < readSchema->GetKeyColumnCount(); ++i) {
+                key.push_back(MakeUnversionedSentinelValue(EValueType::Null, i));
+            }
+
+            while (CompareRows(
+                key.data(),
+                key.data() + key.size(),
+                currentRange->second.Begin(),
+                currentRange->second.End()) >= 0)
+            {
+                ++currentRange;
+                if (currentRange == ranges.end()) {
+                    return expected;
+                }
+            }
+
+            if (CompareRows(
+                key.data(),
+                key.data() + key.size(),
+                currentRange->first.Begin(), currentRange->first.End()) < 0)
+            {
+                continue;
+            }
+
+            TVersionedRowBuilder builder(RowBuffer_, timestamp == AllCommittedTimestamp);
+            for (const auto& value : key) {
+                builder.AddKey(value);
+            }
+
+            if (CreateExpectedRow(&builder, row, timestamp, idMapping, readSchema->Columns())) {
+                expected.push_back(builder.FinishRow());
+            } else {
+                expected.push_back(TVersionedRow());
+            }
+        }
+
+        return expected;
+    }
+
+    std::vector<TVersionedRow> CreateExpected(
+        TRange<TVersionedRow> rows,
+        const TTableSchemaPtr& writeSchema,
+        const TTableSchemaPtr& readSchema,
+        const TSharedRange<TUnversionedRow>& keys,
+        TTimestamp timestamp,
+        const TColumnFilter& columnFilter)
+    {
+        YT_VERIFY(writeSchema->GetKeyColumnCount() <= readSchema->GetKeyColumnCount());
+        int keyColumnCount = writeSchema->GetKeyColumnCount();
+
+        std::vector<TVersionedRow> expected;
+        expected.reserve(keys.size());
+
+        auto idMapping = BuildIdMapping(writeSchema, readSchema, columnFilter);
+
+        auto rowsIt = rows.begin();
+
+        for (auto key : keys) {
+            rowsIt = ExponentialSearch(rowsIt, rows.end(), [&] (auto rowsIt) {
+                return CompareRows(rowsIt->BeginKeys(), rowsIt->EndKeys(), key.Begin(), key.Begin() + keyColumnCount) < 0;
+            });
+
+            bool nullPadding = true;
+            for (auto paddedKeyValue = key.Begin() + keyColumnCount; paddedKeyValue != key.End(); ++paddedKeyValue) {
+                if (paddedKeyValue->Type != EValueType::Null) {
+                    nullPadding = false;
+                }
+            }
+
+            if (rowsIt != rows.end() &&
+                nullPadding &&
+                CompareRows(rowsIt->BeginKeys(), rowsIt->EndKeys(), key.Begin(), key.Begin() + keyColumnCount) == 0)
+            {
+                TVersionedRowBuilder builder(RowBuffer_, timestamp == AllCommittedTimestamp);
+                for (const auto& value : key) {
+                    builder.AddKey(value);
+                }
+
+                if (CreateExpectedRow(&builder, *rowsIt, timestamp, idMapping, readSchema->Columns())) {
+                    expected.push_back(builder.FinishRow());
+                } else {
+                    expected.push_back(TVersionedRow());
+                }
+            } else {
+                expected.push_back(TVersionedRow());
+            }
+        }
+
+        return expected;
+    }
+
+    void DoFullScanCompaction(
+        EOptimizeFor optimizeFor,
+        bool testNewReader = false,
+        bool enableHashChunkIndex = false)
+    {
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+        auto readSchema = New<TTableSchema>(ColumnSchemas_);
+
+        TestRangeReader(
+            InitialRows_,
+            optimizeFor,
+            writeSchema,
+            readSchema,
+            MinKey(),
+            MaxKey(),
+            AllCommittedTimestamp,
+            true,
+            testNewReader,
+            enableHashChunkIndex);
+    }
+
+    void DoTimestampFullScanExtraKeyColumn(
+        EOptimizeFor optimizeFor,
+        TTimestamp timestamp,
+        bool testNewReader = false,
+        bool enableHashChunkIndex = false)
+    {
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+
+        auto columnSchemas = ColumnSchemas_;
+        columnSchemas.insert(
+            columnSchemas.begin() + 5,
+            TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
+
+        auto readSchema = New<TTableSchema>(columnSchemas);
+
+        TestRangeReader(
+            InitialRows_,
+            optimizeFor,
+            writeSchema,
+            readSchema,
+            MinKey(),
+            MaxKey(),
+            timestamp,
+            false,
+            testNewReader,
+            enableHashChunkIndex);
+    }
+
+    void DoEmptyReadWideSchema(
+        EOptimizeFor optimizeFor,
+        bool testNewReader = false,
+        bool enableHashChunkIndex = false)
+    {
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+
+        auto columnSchemas = ColumnSchemas_;
+        columnSchemas.insert(
+            columnSchemas.begin() + 5,
+            TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
+        auto readSchema = New<TTableSchema>(columnSchemas);
+
+        TUnversionedOwningRowBuilder lowerKeyBuilder;
+        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
+            lowerKeyBuilder.AddValue(*it);
+        }
+        lowerKeyBuilder.AddValue(MakeUnversionedBooleanValue(false));
+        auto lowerKey = lowerKeyBuilder.FinishRow();
+
+        TUnversionedOwningRowBuilder upperKeyBuilder;
+        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
+            upperKeyBuilder.AddValue(*it);
+        }
+        upperKeyBuilder.AddValue(MakeUnversionedBooleanValue(true));
+        auto upperKey = upperKeyBuilder.FinishRow();
+
+        TestRangeReader(
+            InitialRows_,
+            optimizeFor,
+            writeSchema,
+            readSchema,
+            lowerKey,
+            upperKey,
+            25,
+            false,
+            testNewReader,
+            enableHashChunkIndex);
+    }
+
+    void DoGroupsLimitsAndSchemaChange(
+        EOptimizeFor optimizeFor,
+        bool testNewReader = false,
+        bool enableHashChunkIndex = false)
+    {
+        auto writeColumnSchemas = ColumnSchemas_;
+        writeColumnSchemas[5].SetGroup(TString("G1"));
+        writeColumnSchemas[9].SetGroup(TString("G1"));
+
+        writeColumnSchemas[6].SetGroup(TString("G2"));
+        writeColumnSchemas[7].SetGroup(TString("G2"));
+        writeColumnSchemas[8].SetGroup(TString("G2"));
+        auto writeSchema = New<TTableSchema>(writeColumnSchemas);
+
+        auto readColumnSchemas = ColumnSchemas_;
+        readColumnSchemas.erase(readColumnSchemas.begin() + 7, readColumnSchemas.end());
+        readColumnSchemas.insert(readColumnSchemas.end(), TColumnSchema("extraValue", EValueType::Boolean));
+        auto readSchema = New<TTableSchema>(readColumnSchemas);
+
+        int lowerIndex = InitialRows_.size() / 3;
+
+        auto lowerKey = TLegacyOwningKey(InitialRows_[lowerIndex].BeginKeys(), InitialRows_[lowerIndex].EndKeys());
+        auto upperRowIndex = InitialRows_.size() - 1;
+        auto upperKey = TLegacyOwningKey(
+            InitialRows_[upperRowIndex].BeginKeys(),
+            InitialRows_[upperRowIndex].EndKeys());
+
+        TestRangeReader(
+            InitialRows_,
+            optimizeFor,
+            writeSchema,
+            readSchema,
+            lowerKey,
+            upperKey,
+            SyncLastCommittedTimestamp,
+            false,
+            testNewReader,
+            enableHashChunkIndex);
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Good combination to test all types of segments.
+static const std::vector<EValueType> KeyTypes = {
+    EValueType::Int64,
+    EValueType::Double,
+    EValueType::Uint64,
+    EValueType::String,
+    EValueType::Boolean
+};
+
+class TVersionedChunksStressTest
+    : public TVersionedChunksHeavyTest
+{
+protected:
+    TTableSchemaPtr WriteSchema_;
+    TTableSchemaPtr ReadSchema_;
+
+
+    void ProduceSchemas(bool useColumnGroups)
+    {
+        auto keyColumnCount = std::ssize(KeyTypes);
+        std::vector<TColumnSchema> writeSchemaColumns;
+        for (int index = 0; index < keyColumnCount; ++index) {
+            writeSchemaColumns.push_back(TColumnSchema(Format("k%v", index), KeyTypes[index])
+                .SetSortOrder(ESortOrder::Ascending));
+        }
+
+        writeSchemaColumns.push_back(TColumnSchema("v1", EValueType::Int64).SetAggregate(TString("min")));
+        writeSchemaColumns.push_back(TColumnSchema("v2", EValueType::Int64));
+        writeSchemaColumns.push_back(TColumnSchema("v3", EValueType::Uint64));
+        writeSchemaColumns.push_back(TColumnSchema("v4", EValueType::String));
+        writeSchemaColumns.push_back(TColumnSchema("v5", EValueType::Double));
+        writeSchemaColumns.push_back(TColumnSchema("v6", EValueType::Boolean));
+
+        if (useColumnGroups) {
+            writeSchemaColumns[2].SetGroup("a");
+            writeSchemaColumns[4].SetGroup("a");
+            writeSchemaColumns[5].SetGroup("b");
+        }
+
+        auto readSchemaColumns = writeSchemaColumns;
+        readSchemaColumns.insert(
+            readSchemaColumns.begin() + keyColumnCount,
+            TColumnSchema(Format("k%v", keyColumnCount), EValueType::Int64)
+                .SetSortOrder(ESortOrder::Ascending));
+
+        readSchemaColumns.push_back(TColumnSchema("v7", EValueType::Double));
+        readSchemaColumns.push_back(TColumnSchema("v8", EValueType::Uint64));
+        std::swap(readSchemaColumns[keyColumnCount + 1], readSchemaColumns[keyColumnCount + 5]);
+        std::swap(readSchemaColumns[keyColumnCount + 2], readSchemaColumns[keyColumnCount + 8]);
+
+        WriteSchema_ = New<TTableSchema>(writeSchemaColumns);
+        ReadSchema_ = New<TTableSchema>(readSchemaColumns);
+    }
+
+    void DoStressTest(
+        EOptimizeFor optimizeFor,
+        bool testNewReader = false,
+        bool enableHashChunkIndex = false,
+        bool useColumnGroups = false)
+    {
+        ProduceSchemas(useColumnGroups);
+
+        int distinctValueCount = 10;
+        for (i64 valueDomainSize : {10, 100, 100000000}) {
+            // Generate random values for each type.
+            TRandomValueGenerator valueGenerator{Rng_, RowBuffer_, valueDomainSize};
+            TRadomKeyGenerator keyGenerator(&valueGenerator, distinctValueCount);
+            auto rows = GenerateRandomRows(&valueGenerator, &keyGenerator);
+
+            for (auto readSchema : {WriteSchema_, ReadSchema_}) {
+                for (auto generateColumnFilter : {false, true}) {
+                    for (TTimestamp timestamp : {TTimestamp(50), AllCommittedTimestamp}) {
+                        if (generateColumnFilter && timestamp == AllCommittedTimestamp) {
+                            continue;
+                        }
+
+                        StressTestLookup(
+                            timestamp,
+                            &keyGenerator,
+                            readSchema,
+                            rows,
+                            generateColumnFilter,
+                            optimizeFor,
+                            testNewReader,
+                            enableHashChunkIndex);
+
+                        StressTestRangesWithCommonPrefix(
+                            timestamp,
+                            &keyGenerator,
+                            readSchema,
+                            rows,
+                            generateColumnFilter,
+                            optimizeFor,
+                            testNewReader,
+                            enableHashChunkIndex);
+
+                        StressTestArbitraryRanges(
+                            timestamp,
+                            &keyGenerator,
+                            &valueGenerator,
+                            readSchema,
+                            rows,
+                            generateColumnFilter,
+                            optimizeFor,
+                            testNewReader,
+                            enableHashChunkIndex);
+                    }
+                }
+            }
+
+            RowBuffer_->Clear();
+        }
+    }
+
+private:
     static TUnversionedValue MakeUnversionedValue(
         TUnversionedValue value,
         ui16 id)
@@ -767,27 +1278,37 @@ protected:
         return result;
     }
 
+    static std::vector<TUnversionedValue> GenerateRandomValues(
+        EValueType type,
+        TRandomValueGenerator* valueGenerator,
+        int distinctValueCount)
+    {
+        std::vector<TUnversionedValue> values;
+        values.reserve(distinctValueCount + 1);
+
+        values.push_back(MakeUnversionedSentinelValue(EValueType::Null));
+        for (int index = 0; index < distinctValueCount; ++index) {
+            values.push_back(valueGenerator->GetRandomValue(type));
+        }
+
+        SortUnique(values);
+
+        return values;
+    }
+
     struct TRadomKeyGenerator
     {
-        const std::vector<EValueType> KeyTypes;
-
-        std::vector<TUnversionedValue> IntValues;
-        std::vector<TUnversionedValue> UintValues;
-        std::vector<TUnversionedValue> StringValues;
-        std::vector<TUnversionedValue> DoubleValues;
-        std::vector<TUnversionedValue> BooleanValues;
-
         TRadomKeyGenerator(
             TRandomValueGenerator* valueGenerator,
-            int distinctValueCount,
-            std::vector<EValueType> keyTypes)
-            : KeyTypes(keyTypes)
+            int distinctValueCount)
         {
-            GetValues(EValueType::Int64) = GenerateRandomValues(EValueType::Int64, valueGenerator, distinctValueCount);
-            GetValues(EValueType::Uint64) = GenerateRandomValues(EValueType::Uint64, valueGenerator, distinctValueCount);
-            GetValues(EValueType::String) = GenerateRandomValues(EValueType::String, valueGenerator, distinctValueCount);
-            GetValues(EValueType::Double) = GenerateRandomValues(EValueType::Double, valueGenerator, distinctValueCount);
-            GetValues(EValueType::Boolean) = GenerateRandomValues(EValueType::Boolean, valueGenerator, distinctValueCount);
+            for (auto keyType : KeyTypes) {
+                GetValues(keyType) = GenerateRandomValues(keyType, valueGenerator, distinctValueCount);
+                GetValues(keyType) = GenerateRandomValues(keyType, valueGenerator, distinctValueCount);
+                GetValues(keyType) = GenerateRandomValues(keyType, valueGenerator, distinctValueCount);
+                GetValues(keyType) = GenerateRandomValues(keyType, valueGenerator, distinctValueCount);
+                GetValues(keyType) = GenerateRandomValues(keyType, valueGenerator, distinctValueCount);
+            }
         }
 
         size_t GetDistinctKeyCount()
@@ -804,17 +1325,17 @@ protected:
         {
             switch (type) {
                 case EValueType::Int64:
-                    return IntValues;
+                    return IntValues_;
                 case EValueType::Uint64:
-                    return UintValues;
+                    return UintValues_;
                 case EValueType::String:
-                    return StringValues;
+                    return StringValues_;
                 case EValueType::Double:
-                    return DoubleValues;
+                    return DoubleValues_;
                 case EValueType::Boolean:
-                    return BooleanValues;
+                    return BooleanValues_;
                 default:
-                    Y_UNREACHABLE();
+                    YT_ABORT();
             }
         }
 
@@ -823,12 +1344,13 @@ protected:
         void Generate(TVersionedRowBuilder* builder, size_t index)
         {
             ValueStack.clear();
-            for (int id = KeyTypes.size(); id > 0; --id) {
-                const auto& values = GetValues(KeyTypes[id - 1]);
+
+            for (int id = KeyTypes.size() - 1; id >= 0; --id) {
+                const auto& values = GetValues(KeyTypes[id]);
 
                 auto value = values[index % values.size()];
                 index /= values.size();
-                value.Id = id - 1;
+                value.Id = id;
 
                 ValueStack.push_back(value);
             }
@@ -839,15 +1361,30 @@ protected:
             }
         }
 
-        void Generate(TUnversionedRowBuilder* builder, size_t index)
+        void Generate(
+            TUnversionedRowBuilder* builder,
+            size_t index,
+            const TTableSchemaPtr& schema,
+            bool padWithNulls)
         {
             ValueStack.clear();
-            for (int id = KeyTypes.size(); id > 0; --id) {
-                const auto& values = GetValues(KeyTypes[id - 1]);
+
+            for (int id = schema->GetKeyColumnCount() - 1; id >= 0; --id) {
+                const auto& values = GetValues(schema->Columns()[id].GetWireType());
+
+                if (id >= std::ssize(KeyTypes)) {
+                    if (padWithNulls) {
+                        ValueStack.push_back(MakeUnversionedNullValue(id));
+                    } else {
+                        ValueStack.push_back(values[index % values.size()]);
+                        ValueStack.back().Id = id;
+                    }
+                    continue;
+                }
 
                 auto value = values[index % values.size()];
                 index /= values.size();
-                value.Id = id - 1;
+                value.Id = id;
 
                 ValueStack.push_back(value);
             }
@@ -858,7 +1395,10 @@ protected:
             }
         }
 
-        void GenerateBound(TUnversionedRowBuilder* builder, TRandomValueGenerator* valueGenerator, TFastRng64* rng)
+        void GenerateBound(
+            TUnversionedRowBuilder* builder,
+            TRandomValueGenerator* valueGenerator,
+            TFastRng64* rng)
         {
             auto prefixSize = rng->Uniform(12);
 
@@ -889,6 +1429,13 @@ protected:
                 builder->AddValue(MakeUnversionedSentinelValue(EValueType::Max));
             }
         }
+
+        private:
+            std::vector<TUnversionedValue> IntValues_;
+            std::vector<TUnversionedValue> UintValues_;
+            std::vector<TUnversionedValue> StringValues_;
+            std::vector<TUnversionedValue> DoubleValues_;
+            std::vector<TUnversionedValue> BooleanValues_;
     };
 
     // Greater value domain size for direct segment encoding.
@@ -907,6 +1454,7 @@ protected:
         TVersionedRowBuilder builder(RowBuffer_);
 
         std::vector<TVersionedRow> rows;
+        rows.reserve(std::ssize(randomUniqueSequence));
         std::vector<TTimestamp> timestamps = {10, 20, 30, 40, 50, 60, 70, 80, 90};
 
         constexpr int SegmentModeSwitchLimit = 500;
@@ -1009,460 +1557,172 @@ protected:
         return rows;
     }
 
-    std::vector<int> BuildIdMapping(TTableSchemaPtr writeSchema, TTableSchemaPtr readSchema)
+    TColumnFilter GenerateColumnFilter(const TTableSchemaPtr& readSchema)
     {
-        std::vector<int> idMapping(writeSchema->GetColumnCount(), -1);
-        for (int i = 0; i < writeSchema->GetColumnCount(); ++i) {
-            auto writeColumnSchema = writeSchema->Columns()[i];
-            for (int j = 0; j < readSchema->GetColumnCount(); ++j) {
-                auto readColumnSchema = readSchema->Columns()[j];
-                if (writeColumnSchema.Name() == readColumnSchema.Name()) {
-                    idMapping[i] = j;
-                }
+        std::vector<int> indexes;
+        for (int columnIndex = 0; columnIndex < readSchema->GetColumnCount(); ++columnIndex) {
+            if (Rng_.Uniform(2) == 0) {
+                indexes.push_back(columnIndex);
             }
         }
-        return idMapping;
+        return TColumnFilter{indexes};
     }
 
-    bool CreateExpectedRow(
-        TVersionedRowBuilder* builder,
-        TVersionedRow row,
+    void StressTestLookup(
         TTimestamp timestamp,
-        TRange<int> idMapping,
-        TRange<TColumnSchema> readSchemaColumns)
+        TRadomKeyGenerator* keyGenerator,
+        const TTableSchemaPtr& readSchema,
+        const std::vector<TVersionedRow>& rows,
+        bool generateColumnFilter,
+        EOptimizeFor optimizeFor,
+        bool testNewReader,
+        bool enableHashChunkIndex)
     {
-        if (timestamp == AllCommittedTimestamp) {
-            for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
-                builder->AddDeleteTimestamp(*deleteIt);
+        // Test lookup keys.
+        for (size_t keyCount : {1, 2, 3, 10, 100, 200, 5000}) {
+            TUnversionedRowBuilder builder;
+
+            auto randomUniqueSequence = GetRandomUniqueSequence(
+                Rng_,
+                std::min(keyCount, keyGenerator->GetDistinctKeyCount() * 2 / 3),
+                0,
+                keyGenerator->GetDistinctKeyCount());
+
+            std::vector<TUnversionedRow> lookupKeys;
+            for (auto index : randomUniqueSequence) {
+                builder.Reset();
+                keyGenerator->Generate(&builder, index, readSchema, /*padWithNulls*/ lookupKeys.size() % 2 == 0);
+                lookupKeys.push_back(RowBuffer_->CaptureRow(builder.GetRow(), false));
             }
 
-            for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
-                if (idMapping[valueIt->Id] > 0) {
-                    auto value = *valueIt;
-                    value.Id = idMapping[valueIt->Id];
-                    builder->AddValue(value);
-                }
-            }
-        } else {
-            // Find delete timestamp.
-            TTimestamp deleteTimestamp = NullTimestamp;
-            for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
-                if (*deleteIt <= timestamp) {
-                    deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
-                }
-            }
-            if (deleteTimestamp != NullTimestamp) {
-                builder->AddDeleteTimestamp(deleteTimestamp);
-            }
+            auto columnFilter = generateColumnFilter
+                ? GenerateColumnFilter(readSchema)
+                : TColumnFilter();
 
-            TTimestamp writeTimestamp = NullTimestamp;
-            for (auto writeIt = row.BeginWriteTimestamps(); writeIt != row.EndWriteTimestamps(); ++writeIt) {
-                if (*writeIt <= timestamp && *writeIt > deleteTimestamp) {
-                    writeTimestamp = std::max(*writeIt, writeTimestamp);
-                    builder->AddWriteTimestamp(*writeIt);
-                }
-            }
-
-            std::vector<TVersionedValue> values;
-            for (auto valueIt = row.BeginValues(); valueIt != row.EndValues(); ++valueIt) {
-                if (idMapping[valueIt->Id] > 0 && valueIt->Timestamp <= timestamp && valueIt->Timestamp > deleteTimestamp) {
-                    auto value = *valueIt;
-                    value.Id = idMapping[valueIt->Id];
-                    values.push_back(value);
-                }
-            }
-
-            if (deleteTimestamp == NullTimestamp && writeTimestamp == NullTimestamp) {
-                // Row didn't exist at this timestamp.
-                return false;
-            }
-
-            std::sort(
-                values.begin(),
-                values.end(),
-                [] (const TVersionedValue& lhs, const TVersionedValue& rhs) {
-                    // Sort in reverse order
-                    return lhs.Timestamp > rhs.Timestamp;
-                });
-
-            std::set<int> usedIds;
-            for (const auto& value : values) {
-                if (usedIds.insert(value.Id).second || readSchemaColumns[value.Id].Aggregate()) {
-                    builder->AddValue(value);
-                }
-            }
+            TestLookupReader(
+                rows,
+                optimizeFor,
+                WriteSchema_,
+                readSchema,
+                MakeSharedRange(lookupKeys, RowBuffer_),
+                columnFilter,
+                timestamp,
+                timestamp == AllCommittedTimestamp,
+                testNewReader,
+                enableHashChunkIndex);
         }
-
-        return true;
     }
 
-    std::vector<TVersionedRow> CreateExpected(
-        TRange<TVersionedRow> rows,
-        TTableSchemaPtr writeSchema,
-        TTableSchemaPtr readSchema,
-        TSharedRange<TRowRange> ranges,
-        TTimestamp timestamp)
+    void StressTestRangesWithCommonPrefix(
+        TTimestamp timestamp,
+        TRadomKeyGenerator* keyGenerator,
+        const TTableSchemaPtr& readSchema,
+        const std::vector<TVersionedRow>& rows,
+        bool generateColumnFilter,
+        EOptimizeFor optimizeFor,
+        bool testNewReader,
+        bool enableHashChunkIndex)
     {
-        if (ranges.empty()) {
-            return {};
-        }
+        for (size_t keyCount : {2, 4, 7, 30, 100, 200, 5000}) {
+            TUnversionedRowBuilder builder;
 
-        std::vector<TVersionedRow> expected;
+            auto randomUniqueSequence = GetRandomUniqueSequence(
+                Rng_,
+                std::min(keyCount, keyGenerator->GetDistinctKeyCount() * 2 / 3),
+                0,
+                keyGenerator->GetDistinctKeyCount());
 
-        auto idMapping = BuildIdMapping(writeSchema, readSchema);
+            std::vector<TUnversionedRow> lookupKeys;
+            for (auto index : randomUniqueSequence) {
+                builder.Reset();
+                keyGenerator->Generate(&builder, index, WriteSchema_, false);
 
-        const auto* currentRange = ranges.begin();
-
-        for (auto row : rows) {
-            std::vector<TUnversionedValue> key;
-            YT_VERIFY(row.GetKeyCount() <= readSchema->GetKeyColumnCount());
-            for (int i = 0; i < row.GetKeyCount() && i < readSchema->GetKeyColumnCount(); ++i) {
-                auto columnType = readSchema->Columns()[i].GetWireType();
-                auto actualType = row.BeginKeys()[i].Type;
-                YT_VERIFY(actualType == columnType || actualType == EValueType::Null);
-                key.push_back(row.BeginKeys()[i]);
-            }
-
-            for (int i = row.GetKeyCount(); i < readSchema->GetKeyColumnCount(); ++i) {
-                key.push_back(MakeUnversionedSentinelValue(EValueType::Null, i));
-            }
-
-            while (CompareRows(
-                key.data(),
-                key.data() + key.size(),
-                currentRange->second.Begin(),
-                currentRange->second.End()) >= 0)
-            {
-                ++currentRange;
-                if (currentRange == ranges.end()) {
-                    return expected;
+                auto sentinel = Rng_.Uniform(7);
+                if (sentinel == 0) {
+                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Min));
                 }
+
+                if (sentinel == 1) {
+                    builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
+                }
+
+                lookupKeys.push_back(RowBuffer_->CaptureRow(builder.GetRow(), false));
             }
 
-            if (CompareRows(
-                key.data(),
-                key.data() + key.size(),
-                currentRange->first.Begin(), currentRange->first.End()) < 0)
-            {
+            std::vector<TRowRange> readRanges;
+            for (int rangeIndex = 0; rangeIndex < std::ssize(lookupKeys) / 2; ++rangeIndex) {
+                readRanges.push_back(TRowRange(lookupKeys[2 * rangeIndex], lookupKeys[2 * rangeIndex + 1]));
+            }
+
+            if (readRanges.empty()) {
                 continue;
             }
 
-            TVersionedRowBuilder builder(RowBuffer_, timestamp == AllCommittedTimestamp);
-            for (const auto& value : key) {
-                builder.AddKey(value);
+            auto columnFilter = generateColumnFilter
+                ? GenerateColumnFilter(readSchema)
+                : TColumnFilter();
+
+            TestRangeReader(
+                rows,
+                optimizeFor,
+                WriteSchema_,
+                readSchema,
+                MakeSharedRange(readRanges, RowBuffer_),
+                columnFilter,
+                timestamp,
+                timestamp == AllCommittedTimestamp,
+                testNewReader,
+                enableHashChunkIndex);
+        }
+    }
+
+    void StressTestArbitraryRanges(
+        TTimestamp timestamp,
+        TRadomKeyGenerator* keyGenerator,
+        TRandomValueGenerator* valueGenerator,
+        const TTableSchemaPtr& readSchema,
+        const std::vector<TVersionedRow>& rows,
+        bool generateColumnFilter,
+        EOptimizeFor optimizeFor,
+        bool testNewReader,
+        bool enableHashChunkIndex)
+    {
+        for (i64 rangeCount : {1, 2, 3, 13, 29, 30, 36, 37, 83, 297}) {
+            for (int iteration = 0; iteration < 3; ++iteration) {
+                TUnversionedRowBuilder builder;
+
+                std::vector<TUnversionedRow> bounds;
+                for (int boundIndex = 0; boundIndex < rangeCount * 2; ++boundIndex) {
+                    builder.Reset();
+                    keyGenerator->GenerateBound(&builder, valueGenerator, &Rng_);
+                    bounds.push_back(RowBuffer_->CaptureRow(builder.GetRow(), false));
+                }
+
+                std::sort(bounds.begin(), bounds.end());
+
+                YT_VERIFY(bounds.size() % 2 == 0);
+
+                std::vector<TRowRange> readRanges;
+                for (int rangeIndex = 0; rangeIndex < std::ssize(bounds) / 2; ++rangeIndex) {
+                    readRanges.push_back(TRowRange(bounds[2 * rangeIndex], bounds[2 * rangeIndex + 1]));
+                }
+
+                auto columnFilter = generateColumnFilter
+                    ? GenerateColumnFilter(readSchema)
+                    : TColumnFilter();
+
+                TestRangeReader(
+                    rows,
+                    optimizeFor,
+                    WriteSchema_,
+                    readSchema,
+                    MakeSharedRange(readRanges, RowBuffer_),
+                    columnFilter,
+                    timestamp,
+                    timestamp == AllCommittedTimestamp,
+                    testNewReader,
+                    enableHashChunkIndex);
             }
-
-            if (CreateExpectedRow(&builder, row, timestamp, idMapping, readSchema->Columns())) {
-                expected.push_back(builder.FinishRow());
-            } else {
-                expected.push_back(TVersionedRow());
-            }
-        }
-        return expected;
-    }
-
-    std::vector<TVersionedRow> CreateExpected(
-        TRange<TVersionedRow> rows,
-        TTableSchemaPtr writeSchema,
-        TTableSchemaPtr readSchema,
-        TSharedRange<TUnversionedRow> keys,
-        TTimestamp timestamp)
-    {
-        std::vector<TVersionedRow> expected;
-
-        auto idMapping = BuildIdMapping(writeSchema, readSchema);
-
-        auto rowsIt = rows.begin();
-
-        for (auto key : keys) {
-            rowsIt = ExponentialSearch(rowsIt, rows.end(), [&] (auto rowsIt) {
-                return CompareRows(rowsIt->BeginKeys(), rowsIt->EndKeys(), key.Begin(), key.End()) < 0;
-            });
-
-            if (rowsIt != rows.end() &&
-                CompareRows(rowsIt->BeginKeys(), rowsIt->EndKeys(), key.Begin(), key.End()) == 0)
-            {
-                TVersionedRowBuilder builder(RowBuffer_, timestamp == AllCommittedTimestamp);
-                for (const auto& value : key) {
-                    builder.AddKey(value);
-                }
-
-                if (CreateExpectedRow(&builder, *rowsIt, timestamp, idMapping, readSchema->Columns())) {
-                    expected.push_back(builder.FinishRow());
-                } else {
-                    expected.push_back(TVersionedRow());
-                }
-            } else {
-                expected.push_back(TVersionedRow());
-            }
-        }
-
-        return expected;
-    }
-
-    void DoFullScanCompaction(EOptimizeFor optimizeFor, bool testNewReader = false)
-    {
-        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
-        auto readSchema = New<TTableSchema>(ColumnSchemas_);
-
-        TestRangeReader(
-            InitialRows_,
-            optimizeFor,
-            writeSchema,
-            readSchema,
-            MinKey(),
-            MaxKey(),
-            AllCommittedTimestamp,
-            true,
-            testNewReader);
-    }
-
-    void DoTimestampFullScanExtraKeyColumn(EOptimizeFor optimizeFor, TTimestamp timestamp, bool testNewReader = false)
-    {
-        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
-
-        auto columnSchemas = ColumnSchemas_;
-        columnSchemas.insert(
-            columnSchemas.begin() + 5,
-            TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
-
-        auto readSchema = New<TTableSchema>(columnSchemas);
-
-        TestRangeReader(
-            InitialRows_,
-            optimizeFor,
-            writeSchema,
-            readSchema,
-            MinKey(),
-            MaxKey(),
-            timestamp,
-            false,
-            testNewReader);
-    }
-
-    void DoEmptyReadWideSchema(EOptimizeFor optimizeFor, bool testNewReader = false)
-    {
-        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
-
-        auto columnSchemas = ColumnSchemas_;
-        columnSchemas.insert(
-            columnSchemas.begin() + 5,
-            TColumnSchema("extraKey", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending));
-        auto readSchema = New<TTableSchema>(columnSchemas);
-
-        TUnversionedOwningRowBuilder lowerKeyBuilder;
-        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
-            lowerKeyBuilder.AddValue(*it);
-        }
-        lowerKeyBuilder.AddValue(MakeUnversionedBooleanValue(false));
-        auto lowerKey = lowerKeyBuilder.FinishRow();
-
-        TUnversionedOwningRowBuilder upperKeyBuilder;
-        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
-            upperKeyBuilder.AddValue(*it);
-        }
-        upperKeyBuilder.AddValue(MakeUnversionedBooleanValue(true));
-        auto upperKey = upperKeyBuilder.FinishRow();
-
-        TestRangeReader(
-            InitialRows_,
-            optimizeFor,
-            writeSchema,
-            readSchema,
-            lowerKey,
-            upperKey,
-            25,
-            false,
-            testNewReader);
-    }
-
-    void DoGroupsLimitsAndSchemaChange(bool testNewReader = false)
-    {
-        auto writeColumnSchemas = ColumnSchemas_;
-        writeColumnSchemas[5].SetGroup(TString("G1"));
-        writeColumnSchemas[9].SetGroup(TString("G1"));
-
-        writeColumnSchemas[6].SetGroup(TString("G2"));
-        writeColumnSchemas[7].SetGroup(TString("G2"));
-        writeColumnSchemas[8].SetGroup(TString("G2"));
-        auto writeSchema = New<TTableSchema>(writeColumnSchemas);
-
-        auto readColumnSchemas = ColumnSchemas_;
-        readColumnSchemas.erase(readColumnSchemas.begin() + 7, readColumnSchemas.end());
-        readColumnSchemas.insert(readColumnSchemas.end(), TColumnSchema("extraValue", EValueType::Boolean));
-        auto readSchema = New<TTableSchema>(readColumnSchemas);
-
-        int lowerIndex = InitialRows_.size() / 3;
-
-        auto lowerKey = TLegacyOwningKey(InitialRows_[lowerIndex].BeginKeys(), InitialRows_[lowerIndex].EndKeys());
-        auto upperRowIndex = InitialRows_.size() - 1;
-        auto upperKey = TLegacyOwningKey(
-            InitialRows_[upperRowIndex].BeginKeys(),
-            InitialRows_[upperRowIndex].EndKeys());
-
-        TestRangeReader(
-            InitialRows_,
-            EOptimizeFor::Scan,
-            writeSchema,
-            readSchema,
-            lowerKey,
-            upperKey,
-            SyncLastCommittedTimestamp,
-            false,
-            testNewReader);
-    }
-
-    void DoStressTest(EOptimizeFor optimizeFor, bool testNewReader = false)
-    {
-        // Good combination to test all types of segments.
-        std::vector<EValueType> keyTypes = {
-            EValueType::Int64,
-            EValueType::Double,
-            EValueType::Uint64,
-            EValueType::String,
-            EValueType::Boolean
-        };
-
-        std::vector<TColumnSchema> columnSchemas;
-        for (int index = 0; index < std::ssize(keyTypes); ++index) {
-            columnSchemas.push_back(TColumnSchema(Format("k%v", index), keyTypes[index])
-                .SetSortOrder(ESortOrder::Ascending));
-        }
-
-        columnSchemas.push_back(TColumnSchema("v1", EValueType::Int64).SetAggregate(TString("min")));
-        columnSchemas.push_back(TColumnSchema("v2", EValueType::Int64));
-        columnSchemas.push_back(TColumnSchema("v3", EValueType::Uint64));
-        columnSchemas.push_back(TColumnSchema("v4", EValueType::String));
-        columnSchemas.push_back(TColumnSchema("v5", EValueType::Double));
-        columnSchemas.push_back(TColumnSchema("v6", EValueType::Boolean));
-
-        int distinctValueCount = 10;
-        for (i64 valueDomainSize : {10, 20, 100, 100000000}) {
-            // Generate random values for each type.
-            TRandomValueGenerator valueGenerator{Rng_, RowBuffer_, valueDomainSize};
-            TRadomKeyGenerator keyGenerator(&valueGenerator, distinctValueCount, keyTypes);
-            auto rows = GenerateRandomRows(&valueGenerator, &keyGenerator);
-
-            for (TTimestamp timestamp : {TTimestamp(50), AllCommittedTimestamp}) {
-                // Test lookup keys.
-                for (size_t keyCount : {1, 2, 3, 4, 5, 6, 7, 10, 20, 30, 40, 50, 60, 100, 200, 500, 1000, 5000}) {
-                    TUnversionedRowBuilder builder;
-
-                    auto randomUniqueSequence = GetRandomUniqueSequence(
-                        Rng_,
-                        std::min(keyCount, keyGenerator.GetDistinctKeyCount() * 2 / 3),
-                        0,
-                        keyGenerator.GetDistinctKeyCount());
-
-                    std::vector<TUnversionedRow> lookupKeys;
-                    for (auto index : randomUniqueSequence) {
-                        builder.Reset();
-                        keyGenerator.Generate(&builder, index);
-                        lookupKeys.push_back(RowBuffer_->CaptureRow(builder.GetRow(), false));
-                    }
-
-                    auto writeSchema = New<TTableSchema>(columnSchemas);
-                    auto readSchema = New<TTableSchema>(columnSchemas);
-
-                    TestLookupReader(
-                        rows,
-                        optimizeFor,
-                        writeSchema,
-                        readSchema,
-                        MakeSharedRange(lookupKeys, RowBuffer_),
-                        timestamp,
-                        timestamp == AllCommittedTimestamp,
-                        testNewReader);
-                }
-
-                // Test ranges with common prefix.
-                for (size_t keyCount : {2, 3, 4, 5, 6, 7, 10, 20, 30, 40, 50, 60, 100, 200, 500, 1000, 5000}) {
-                    TUnversionedRowBuilder builder;
-
-                    auto randomUniqueSequence = GetRandomUniqueSequence(
-                        Rng_,
-                        std::min(keyCount, keyGenerator.GetDistinctKeyCount() * 2 / 3),
-                        0,
-                        keyGenerator.GetDistinctKeyCount());
-
-                    std::vector<TUnversionedRow> lookupKeys;
-                    for (auto index : randomUniqueSequence) {
-                        builder.Reset();
-                        keyGenerator.Generate(&builder, index);
-
-                        auto sentinel = Rng_.Uniform(7);
-                        if (sentinel == 0) {
-                            builder.AddValue(MakeUnversionedSentinelValue(EValueType::Min));
-                        }
-
-                        if (sentinel == 1) {
-                            builder.AddValue(MakeUnversionedSentinelValue(EValueType::Max));
-                        }
-
-                        lookupKeys.push_back(RowBuffer_->CaptureRow(builder.GetRow(), false));
-                    }
-
-                    std::vector<TRowRange> readRanges;
-                    for (int rangeIndex = 0; rangeIndex < std::ssize(lookupKeys) / 2; ++rangeIndex) {
-                        readRanges.push_back(TRowRange(lookupKeys[2 * rangeIndex], lookupKeys[2 * rangeIndex + 1]));
-                    }
-
-                    if (readRanges.empty()) {
-                        continue;
-                    }
-
-                    auto writeSchema = New<TTableSchema>(columnSchemas);
-                    auto readSchema = New<TTableSchema>(columnSchemas);
-
-                    TestRangeReader(
-                        rows,
-                        optimizeFor,
-                        writeSchema,
-                        readSchema,
-                        MakeSharedRange(readRanges, RowBuffer_),
-                        timestamp,
-                        timestamp == AllCommittedTimestamp,
-                        testNewReader);
-                }
-
-                // Test arbitrary ranges.
-                for (i64 rangeCount : {1, 2, 3, 4, 5, 9, 13, 21, 25, 29, 30, 36, 37, 70, 83, 100, 297}) {
-                    for (int iteration = 0; iteration < 3; ++iteration) {
-                        TUnversionedRowBuilder builder;
-
-                        std::vector<TUnversionedRow> bounds;
-                        for (int boundIndex = 0; boundIndex < rangeCount * 2; ++boundIndex) {
-                            builder.Reset();
-                            keyGenerator.GenerateBound(&builder, &valueGenerator, &Rng_);
-                            bounds.push_back(RowBuffer_->CaptureRow(builder.GetRow(), false));
-                        }
-
-                        std::sort(bounds.begin(), bounds.end());
-
-                        YT_VERIFY(bounds.size() % 2 == 0);
-
-                        std::vector<TRowRange> readRanges;
-                        for (int rangeIndex = 0; rangeIndex < std::ssize(bounds) / 2; ++rangeIndex) {
-                            readRanges.push_back(TRowRange(bounds[2 * rangeIndex], bounds[2 * rangeIndex + 1]));
-                        }
-
-                        auto writeSchema = New<TTableSchema>(columnSchemas);
-                        auto readSchema = New<TTableSchema>(columnSchemas);
-
-                        TestRangeReader(
-                            rows,
-                            optimizeFor,
-                            writeSchema,
-                            readSchema,
-                            MakeSharedRange(readRanges, RowBuffer_),
-                            timestamp,
-                            timestamp == AllCommittedTimestamp,
-                            testNewReader);
-                    }
-                }
-            }
-
-            RowBuffer_->Clear();
         }
     }
 };
@@ -1477,7 +1737,8 @@ protected:
     void DoReadWideSchemaWithSpecifiedBounds(
         EOptimizeFor optimizeFor,
         const std::pair<TUnversionedValue, TUnversionedValue>& bounds,
-        bool testNewReader = false)
+        bool testNewReader = false,
+        bool enableHashChunkIndex = false)
     {
         auto writeSchema = New<TTableSchema>(ColumnSchemas_);
 
@@ -1510,7 +1771,8 @@ protected:
             upperKey,
             25,
             false,
-            testNewReader);
+            testNewReader,
+            enableHashChunkIndex);
     }
 };
 
@@ -1531,6 +1793,14 @@ TEST_F(TVersionedChunksHeavyTest, FullScanCompactionLookup)
     DoFullScanCompaction(EOptimizeFor::Lookup);
 }
 
+TEST_F(TVersionedChunksHeavyTest, FullScanCompactionIndexedLookup)
+{
+    DoFullScanCompaction(
+        EOptimizeFor::Lookup,
+        /*testNewReader*/ false,
+        /*enableHashChunkIndex*/ true);
+}
+
 TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScan)
 {
     DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan, 50);
@@ -1544,6 +1814,15 @@ TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScanNew)
 TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnLookup)
 {
     DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup, 50);
+}
+
+TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnIndexedLookup)
+{
+    DoTimestampFullScanExtraKeyColumn(
+        EOptimizeFor::Lookup,
+        50,
+        /*testNewReader*/ false,
+        /*enableHashChunkIndex*/ true);
 }
 
 TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScanSyncLastCommitted)
@@ -1561,14 +1840,31 @@ TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnLookupSyncLastC
     DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup, SyncLastCommittedTimestamp);
 }
 
+TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnIndexedLookupSyncLastCommitted)
+{
+    DoTimestampFullScanExtraKeyColumn(
+        EOptimizeFor::Lookup,
+        SyncLastCommittedTimestamp,
+        /*testNewReader*/ false,
+        /*enableHashChunkIndex*/ true);
+}
+
 TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
 {
-    DoGroupsLimitsAndSchemaChange();
+    DoGroupsLimitsAndSchemaChange(EOptimizeFor::Scan);
 }
 
 TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChangeNew)
 {
-    DoGroupsLimitsAndSchemaChange(true);
+    DoGroupsLimitsAndSchemaChange(EOptimizeFor::Scan, true);
+}
+
+TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChangeIndexedLookup)
+{
+    DoGroupsLimitsAndSchemaChange(
+        EOptimizeFor::Lookup,
+        /*testNewReader*/ false,
+        /*enableHashChunkIndex*/ true);
 }
 
 TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)
@@ -1586,23 +1882,57 @@ TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaLookup)
     DoEmptyReadWideSchema(EOptimizeFor::Lookup);
 }
 
+TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaIndexedLookup)
+{
+    DoEmptyReadWideSchema(
+        EOptimizeFor::Lookup,
+        /*testNewReader*/ false,
+        /*enableHashChunkIndex*/ true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 // TODO(lukyan): Fix and enable test.
 #if 0
-TEST_F(TVersionedChunksHeavyTest, StressTestScan)
+TEST_F(TVersionedChunksStressTest, StressTestScan)
 {
     DoStressTest(EOptimizeFor::Scan);
 }
 #endif
 
-TEST_F(TVersionedChunksHeavyTest, StressTestScanNew)
+TEST_F(TVersionedChunksStressTest, StressTestScanNew)
 {
     DoStressTest(EOptimizeFor::Scan, true);
 }
 
-TEST_F(TVersionedChunksHeavyTest, StressTestLookup)
+TEST_F(TVersionedChunksStressTest, StressTestLookup)
 {
     DoStressTest(EOptimizeFor::Lookup);
 }
+
+// TODO(akozhikhov): Speed up.
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+
+TEST_F(TVersionedChunksStressTest, StressTestIndexedLookup)
+{
+    DoStressTest(
+        EOptimizeFor::Lookup,
+        /*testNewReader*/ false,
+        /*enableHashChunkIndex*/ true);
+}
+
+// TEST_F(TVersionedChunksStressTest, StressTestIndexedLookupWithGroups)
+// {
+//     DoStressTest(
+//         EOptimizeFor::Lookup,
+//         /*testNewReader*/ false,
+//         /*enableHashChunkIndex*/ true,
+//         /*useColumnGroups*/ true);
+// }
+
+#endif
+
+// TODO(akozhikhov): More thorough test for aggregate columns.
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1622,6 +1952,16 @@ TEST_P(TVersionedChunksHeavyTestWithParametrizedBounds, ReadWideSchemaWithNonsca
 {
     auto bounds = GetParam();
     DoReadWideSchemaWithSpecifiedBounds(EOptimizeFor::Lookup, bounds);
+}
+
+TEST_P(TVersionedChunksHeavyTestWithParametrizedBounds, ReadWideSchemaWithNonscalarBoundsIndexedLookup)
+{
+    auto bounds = GetParam();
+    DoReadWideSchemaWithSpecifiedBounds(
+        EOptimizeFor::Lookup,
+        bounds,
+        /*testNewReader*/ false,
+        /*enableHashChunkIndex*/ true);
 }
 
 INSTANTIATE_TEST_SUITE_P(

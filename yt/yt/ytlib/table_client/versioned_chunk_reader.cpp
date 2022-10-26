@@ -60,6 +60,49 @@ static constexpr i64 MinRowsPerRead = 32;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TBlockReader>
+class TBlockReaderAdapter
+{
+public:
+    TBlockReaderAdapter(
+        TTimestamp timestamp,
+        bool produceAllVersions,
+        const std::vector<TColumnIdMapping>& schemaIdMapping)
+        : Timestamp_(timestamp)
+        , ProduceAllVersions_(produceAllVersions)
+        , SchemaIdMapping_(schemaIdMapping)
+    { }
+
+    void ResetBlockReader(
+        TSharedRef block,
+        const TCachedVersionedChunkMetaPtr& chunkMeta,
+        int keyColumnCount,
+        const TKeyComparer& keyComparer,
+        int chunkBlockIndex)
+    {
+        BlockReader_ = std::make_unique<TBlockReader>(
+            std::move(block),
+            chunkMeta->DataBlockMeta()->data_blocks(chunkBlockIndex),
+            chunkMeta->GetChunkSchema(),
+            keyColumnCount,
+            SchemaIdMapping_,
+            keyComparer,
+            Timestamp_,
+            ProduceAllVersions_,
+            true);
+    }
+
+protected:
+    std::unique_ptr<TBlockReader> BlockReader_;
+
+private:
+    const TTimestamp Timestamp_;
+    const bool ProduceAllVersions_;
+    const std::vector<TColumnIdMapping> SchemaIdMapping_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TVersionedChunkReaderPoolTag { };
 
 class TSimpleVersionedChunkReaderBase
@@ -74,10 +117,8 @@ public:
         IChunkReaderPtr underlyingReader,
         IBlockCachePtr blockCache,
         const TClientChunkReadOptions& chunkReadOptions,
-        const std::vector<TColumnIdMapping>& schemaIdMapping,
         TChunkReaderPerformanceCountersPtr performanceCounters,
-        TTimestamp timestamp,
-        bool produceAllVersions,
+        int keyColumnCount,
         const TChunkReaderMemoryManagerPtr& memoryManager,
         TKeyComparer keyComparer = {});
 
@@ -96,13 +137,9 @@ public:
 
 protected:
     const TCachedVersionedChunkMetaPtr ChunkMeta_;
-    const TTimestamp Timestamp_;
-    const bool ProduceAllVersions_;
+    const int CommonKeyPrefix_;
+    const int KeyColumnCount_;
     const TKeyComparer KeyComparer_;
-
-    const std::vector<TColumnIdMapping> SchemaIdMapping_;
-
-    std::unique_ptr<TSimpleVersionedBlockReader> BlockReader_;
 
     TChunkedMemoryPool MemoryPool_;
 
@@ -119,10 +156,8 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     IChunkReaderPtr underlyingReader,
     IBlockCachePtr blockCache,
     const TClientChunkReadOptions& chunkReadOptions,
-    const std::vector<TColumnIdMapping>& schemaIdMapping,
     TChunkReaderPerformanceCountersPtr performanceCounters,
-    TTimestamp timestamp,
-    bool produceAllVersions,
+    int keyColumnCount,
     const TChunkReaderMemoryManagerPtr& memoryManager,
     TKeyComparer keyComparer)
     : TChunkReaderBase(
@@ -132,10 +167,9 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
         chunkReadOptions,
         memoryManager)
     , ChunkMeta_(std::move(chunkMeta))
-    , Timestamp_(timestamp)
-    , ProduceAllVersions_(produceAllVersions)
+    , CommonKeyPrefix_(ChunkMeta_->GetChunkKeyColumnCount())
+    , KeyColumnCount_(keyColumnCount)
     , KeyComparer_(std::move(keyComparer))
-    , SchemaIdMapping_(schemaIdMapping)
     , MemoryPool_(TVersionedChunkReaderPoolTag())
     , PerformanceCounters_(std::move(performanceCounters))
 {
@@ -143,8 +177,6 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
     YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
     YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedSimple);
     YT_VERIFY(PerformanceCounters_);
-    YT_VERIFY(CheckedEnumCast<ETableChunkBlockFormat>(ChunkMeta_->DataBlockMeta()->block_format()) ==
-        ETableChunkBlockFormat::Default);
 
     if (dataSource) {
         PackBaggageForChunkReader(TraceContext_, *dataSource, MakeExtraChunkTags(ChunkMeta_->Misc()));
@@ -153,8 +185,10 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TBlockReader>
 class TSimpleVersionedRangeChunkReader
     : public TSimpleVersionedChunkReaderBase
+    , protected TBlockReaderAdapter<TBlockReader>
 {
 public:
     TSimpleVersionedRangeChunkReader(
@@ -179,13 +213,13 @@ public:
             std::move(underlyingReader),
             std::move(blockCache),
             chunkReadOptions,
-            schemaIdMapping,
             std::move(performanceCounters),
+            keyColumnCount,
+            memoryManager)
+        , TBlockReaderAdapter<TBlockReader>(
             timestamp,
             produceAllVersions,
-            memoryManager)
-        , KeyColumnCount_(keyColumnCount)
-        , CommonKeyPrefix_(ChunkMeta_->GetChunkKeyColumnCount())
+            schemaIdMapping)
         , Ranges_(std::move(ranges))
         , ClippingRange_(singletonClippingRange)
     {
@@ -278,13 +312,15 @@ public:
     }
 
 private:
-    const int KeyColumnCount_;
-    const int CommonKeyPrefix_;
+    using TBlockReaderAdapter<TBlockReader>::ResetBlockReader;
+    using TBlockReaderAdapter<TBlockReader>::BlockReader_;
+
     std::vector<size_t> BlockIndexes_;
     size_t NextBlockIndex_ = 0;
     TSharedRange<TRowRange> Ranges_;
     size_t RangeIndex_ = 0;
     TSharedRange<TRowRange> ClippingRange_;
+
 
     const TLegacyKey& GetCurrentRangeLowerKey() const
     {
@@ -390,16 +426,12 @@ private:
             CommonKeyPrefix_);
 
         YT_VERIFY(CurrentBlock_ && CurrentBlock_.IsSet());
-        BlockReader_.reset(new TSimpleVersionedBlockReader(
+        ResetBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
-            ChunkMeta_->DataBlockMeta()->data_blocks(chunkBlockIndex),
-            ChunkMeta_->GetChunkSchema(),
+            ChunkMeta_,
             KeyColumnCount_,
-            SchemaIdMapping_,
             KeyComparer_,
-            Timestamp_,
-            ProduceAllVersions_,
-            true));
+            chunkBlockIndex);
     }
 
     void InitFirstBlock() override
@@ -413,13 +445,14 @@ private:
         YT_VERIFY(BlockReader_->SkipToKey(GetCurrentRangeLowerKey()));
         ++NextBlockIndex_;
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename TBlockReader>
 class TSimpleVersionedLookupChunkReader
     : public TSimpleVersionedChunkReaderBase
+    , protected TBlockReaderAdapter<TBlockReader>
 {
 public:
     TSimpleVersionedLookupChunkReader(
@@ -444,14 +477,14 @@ public:
             std::move(underlyingReader),
             std::move(blockCache),
             chunkReadOptions,
-            schemaIdMapping,
             std::move(performanceCounters),
-            timestamp,
-            produceAllVersions,
+            keyColumnCount,
             memoryManager,
             std::move(keyComparer))
-        , KeyColumnCount_(keyColumnCount)
-        , CommonKeyPrefix_(ChunkMeta_->GetChunkKeyColumnCount())
+        , TBlockReaderAdapter<TBlockReader>(
+            timestamp,
+            produceAllVersions,
+            schemaIdMapping)
         , Keys_(keys)
         , KeyFilterTest_(Keys_.Size(), true)
     {
@@ -552,8 +585,8 @@ public:
     }
 
 private:
-    const int KeyColumnCount_;
-    const int CommonKeyPrefix_;
+    using TBlockReaderAdapter<TBlockReader>::ResetBlockReader;
+    using TBlockReaderAdapter<TBlockReader>::BlockReader_;
 
     const TSharedRange<TLegacyKey> Keys_;
 
@@ -563,6 +596,7 @@ private:
     int NextBlockIndex_ = 0;
     i64 KeyIndex_ = 0;
     bool HasMoreBlocks_ = true;
+
 
     std::vector<TBlockFetcher::TBlockInfo> GetBlockSequence()
     {
@@ -625,17 +659,12 @@ private:
 
     void InitNextBlock() override
     {
-        int chunkBlockIndex = BlockIndexes_[NextBlockIndex_];
-        BlockReader_.reset(new TSimpleVersionedBlockReader(
+        ResetBlockReader(
             CurrentBlock_.Get().ValueOrThrow().Data,
-            ChunkMeta_->DataBlockMeta()->data_blocks(chunkBlockIndex),
-            ChunkMeta_->GetChunkSchema(),
+            ChunkMeta_,
             KeyColumnCount_,
-            SchemaIdMapping_,
             KeyComparer_,
-            Timestamp_,
-            ProduceAllVersions_,
-            true));
+            BlockIndexes_[NextBlockIndex_]);
         ++NextBlockIndex_;
     }
 };
@@ -1751,21 +1780,47 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableVersionedSimple:
-            reader = New<TSimpleVersionedRangeChunkReader>(
-                std::move(config),
-                chunkMeta,
-                chunkState->TableSchema->GetKeyColumnCount(),
-                chunkState->DataSource,
-                std::move(chunkReader),
-                blockCache,
-                chunkReadOptions,
-                std::move(ranges),
-                schemaIdMapping,
-                performanceCounters,
-                timestamp,
-                produceAllVersions,
-                singletonClippingRange,
-                memoryManager);
+            switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+                case ETableChunkBlockFormat::Default:
+                    reader = New<TSimpleVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(
+                        std::move(config),
+                        chunkMeta,
+                        chunkState->TableSchema->GetKeyColumnCount(),
+                        chunkState->DataSource,
+                        std::move(chunkReader),
+                        blockCache,
+                        chunkReadOptions,
+                        std::move(ranges),
+                        schemaIdMapping,
+                        performanceCounters,
+                        timestamp,
+                        produceAllVersions,
+                        singletonClippingRange,
+                        memoryManager);
+                    break;
+
+                case ETableChunkBlockFormat::IndexedVersioned:
+                    reader = New<TSimpleVersionedRangeChunkReader<TIndexedVersionedBlockReader>>(
+                        std::move(config),
+                        chunkMeta,
+                        chunkState->TableSchema->GetKeyColumnCount(),
+                        chunkState->DataSource,
+                        std::move(chunkReader),
+                        blockCache,
+                        chunkReadOptions,
+                        std::move(ranges),
+                        schemaIdMapping,
+                        performanceCounters,
+                        timestamp,
+                        produceAllVersions,
+                        singletonClippingRange,
+                        memoryManager);
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+
             break;
 
         case EChunkFormat::TableVersionedColumnar: {
@@ -1941,21 +1996,47 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableVersionedSimple:
-            reader = New<TSimpleVersionedLookupChunkReader>(
-                std::move(config),
-                chunkMeta,
-                chunkState->TableSchema->GetKeyColumnCount(),
-                chunkState->DataSource,
-                std::move(chunkReader),
-                blockCache,
-                chunkReadOptions,
-                keys,
-                schemaIdMapping,
-                performanceCounters,
-                keyComparer,
-                timestamp,
-                produceAllVersions,
-                memoryManager);
+            switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+                case ETableChunkBlockFormat::Default:
+                    reader = New<TSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>(
+                        std::move(config),
+                        chunkMeta,
+                        chunkState->TableSchema->GetKeyColumnCount(),
+                        chunkState->DataSource,
+                        std::move(chunkReader),
+                        blockCache,
+                        chunkReadOptions,
+                        keys,
+                        schemaIdMapping,
+                        performanceCounters,
+                        keyComparer,
+                        timestamp,
+                        produceAllVersions,
+                        memoryManager);
+                    break;
+
+                case ETableChunkBlockFormat::IndexedVersioned:
+                    reader = New<TSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>(
+                        std::move(config),
+                        chunkMeta,
+                        chunkState->TableSchema->GetKeyColumnCount(),
+                        chunkState->DataSource,
+                        std::move(chunkReader),
+                        blockCache,
+                        chunkReadOptions,
+                        keys,
+                        schemaIdMapping,
+                        performanceCounters,
+                        keyComparer,
+                        timestamp,
+                        produceAllVersions,
+                        memoryManager);
+                    break;
+
+                default:
+                    YT_ABORT();
+            }
+
             break;
 
         case EChunkFormat::TableVersionedColumnar: {
