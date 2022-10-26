@@ -130,6 +130,7 @@ struct TAllocatorOptions
     bool YTAllocEagerMemoryRelease = false;
 
     bool TCMallocOptimizeSize = false;
+    std::optional<i64> TCMallocGuardedSamplingRate = 128_MB;
 };
 
 void ConfigureAllocator(TAllocatorOptions options);

@@ -56,6 +56,10 @@ public:
     i64 AggressiveReleaseSize;
     TDuration AggressiveReleasePeriod;
 
+    //! Approximately 1/#GuardedSamplingRate of all allocations of
+    //! size <= 256 KiB will be under GWP-ASAN.
+    std::optional<i64> GuardedSamplingRate;
+
     REGISTER_YSON_STRUCT(TTCMallocConfig);
 
     static void Register(TRegistrar registrar);

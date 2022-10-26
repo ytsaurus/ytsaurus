@@ -59,6 +59,11 @@ void ConfigureTCMalloc(const TTCMallocConfigPtr& config)
 
     tcmalloc::MallocExtension::SetMaxPerCpuCacheSize(config->MaxPerCpuCacheSize);
 
+    if (config->GuardedSamplingRate) {
+        tcmalloc::MallocExtension::SetGuardedSamplingRate(*config->GuardedSamplingRate);
+        tcmalloc::MallocExtension::ActivateGuardedSampling();
+    }
+
     LeakySingleton<TAtomicObject<TTCMallocConfigPtr>>()->Store(config);
 
     if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {

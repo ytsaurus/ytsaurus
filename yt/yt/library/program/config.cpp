@@ -27,6 +27,8 @@ void TTCMallocConfig::Register(TRegistrar registrar)
         .Default(128_MB);
     registrar.Parameter("aggressive_release_period", &TThis::AggressiveReleasePeriod)
         .Default(TDuration::MilliSeconds(100));
+    registrar.Parameter("guarded_sampling_rate", &TThis::GuardedSamplingRate)
+        .Default(128_MB);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
