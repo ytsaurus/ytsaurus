@@ -1143,11 +1143,11 @@ public:
         auto chunkId = FromProto<TChunkId>(request.chunk_id());
         YT_VERIFY(!IsJournalChunkId(chunkId));
 
-        const auto& chunkMeta = request.chunk_meta();
-        const auto& chunkInfo = request.chunk_info();
-
         return transaction->Start(/*startOptions*/ {})
             .Apply(BIND([=, request = std::move(request), this_ = MakeStrong(this)] () mutable {
+                const auto& chunkMeta = request.chunk_meta();
+                const auto& chunkInfo = request.chunk_info();
+
                 const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
                 TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow;
                 chunkMetaExtensionRow.IdHash = chunkId.Parts32[0];
