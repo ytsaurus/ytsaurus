@@ -7,11 +7,12 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.yson.YsonConsumer;
+import tech.ytsaurus.yson.YsonError;
+import tech.ytsaurus.yson.YsonParser;
+import tech.ytsaurus.yson.YsonTextWriter;
+
 import ru.yandex.lang.NonNullApi;
-import ru.yandex.yson.YsonConsumer;
-import ru.yandex.yson.YsonError;
-import ru.yandex.yson.YsonParser;
-import ru.yandex.yson.YsonTextWriter;
 import ru.yandex.yt.TError;
 import ru.yandex.yt.ytree.TAttribute;
 

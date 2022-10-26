@@ -17,9 +17,9 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import ru.yandex.yson.YsonConsumer;
-import ru.yandex.yson.YsonParser;
-import ru.yandex.yson.YsonTextWriter;
+import tech.ytsaurus.yson.YsonConsumer;
+import tech.ytsaurus.yson.YsonParser;
+import tech.ytsaurus.yson.YsonTextWriter;
 
 public class TypeIO {
     private TypeIO() {

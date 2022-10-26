@@ -4,10 +4,11 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import tech.ytsaurus.yson.YsonConsumer;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.yson.YsonConsumer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class VersionedRow {

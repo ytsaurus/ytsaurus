@@ -1,4 +1,4 @@
-package ru.yandex.yson;
+package tech.ytsaurus.yson;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;

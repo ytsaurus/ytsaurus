@@ -2,7 +2,7 @@ package ru.yandex.type_info;
 
 import java.util.Objects;
 
-import ru.yandex.yson.YsonConsumer;
+import tech.ytsaurus.yson.YsonConsumer;
 
 public class OptionalType extends ItemizedType {
     OptionalType(TiType element) {

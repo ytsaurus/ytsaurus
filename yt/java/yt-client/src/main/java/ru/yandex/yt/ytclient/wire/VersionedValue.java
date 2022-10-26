@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.wire;
 
-import ru.yandex.yson.YsonConsumer;
+import tech.ytsaurus.yson.YsonConsumer;
+
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
 public class VersionedValue extends UnversionedValue {

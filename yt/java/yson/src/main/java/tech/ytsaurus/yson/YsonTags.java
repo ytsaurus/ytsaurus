@@ -1,4 +1,4 @@
-package ru.yandex.yson;
+package tech.ytsaurus.yson;
 
 public final class YsonTags {
     public static final byte ENTITY = '#';

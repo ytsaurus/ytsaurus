@@ -5,7 +5,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.yson.YsonConsumer;
+import tech.ytsaurus.yson.YsonConsumer;
 
 /**
  * Description of the type.

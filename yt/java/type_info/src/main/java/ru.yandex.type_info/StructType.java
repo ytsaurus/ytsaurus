@@ -8,7 +8,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.yson.YsonConsumer;
+import tech.ytsaurus.yson.YsonConsumer;
 
 public class StructType extends TiType {
     private final List<Member> members;
