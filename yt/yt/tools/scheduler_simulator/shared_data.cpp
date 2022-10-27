@@ -17,37 +17,32 @@ using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TNodeShardEvent::TNodeShardEvent(EEventType type, TInstant time)
-    : Type(type)
-    , Time(time)
-    , NodeId(0)
-    , Job(nullptr)
-{ }
-
-TNodeShardEvent TNodeShardEvent::Heartbeat(TInstant time, TNodeId nodeId, bool scheduledOutOfBand)
-{
-    TNodeShardEvent event(EEventType::Heartbeat, time);
-    event.NodeId = nodeId;
-    event.ScheduledOutOfBand = scheduledOutOfBand;
-    return event;
-}
-
-TNodeShardEvent TNodeShardEvent::JobFinished(
-    TInstant time,
-    const TJobPtr& job,
-    const TExecNodePtr& execNode,
-    TNodeId nodeId)
-{
-    TNodeShardEvent event(EEventType::JobFinished, time);
-    event.Job = job;
-    event.JobNode = execNode;
-    event.NodeId = nodeId;
-    return event;
-}
-
-bool operator<(const TNodeShardEvent& lhs, const TNodeShardEvent& rhs)
+bool operator<(const TNodeEvent& lhs, const TNodeEvent& rhs)
 {
     return lhs.Time < rhs.Time;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TNodeEvent CreateHeartbeatNodeEvent(TInstant time, TNodeId nodeId, bool scheduledOutOfBand)
+{
+    return TNodeEvent{
+        .Type = ENodeEventType::Heartbeat,
+        .Time = time,
+        .NodeId = nodeId,
+        .ScheduledOutOfBand = scheduledOutOfBand,
+    };
+}
+
+TNodeEvent CreateJobFinishedNodeEvent(TInstant time, const TJobPtr& job, const TExecNodePtr& execNode, TNodeId nodeId)
+{
+    return TNodeEvent{
+        .Type = ENodeEventType::JobFinished,
+        .Time = time,
+        .NodeId = nodeId,
+        .Job = job,
+        .JobNode = execNode,
+    };
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -138,15 +133,15 @@ TSharedEventQueue::TSharedEventQueue(
     const std::vector<TExecNodePtr>& execNodes,
     int heartbeatPeriod,
     TInstant earliestTime,
-    int nodeShardCount,
+    int nodeWorkerCount,
     TDuration maxAllowedOutrunning)
-    : NodeShardEvents_(nodeShardCount)
+    : NodeWorkerEvents_(nodeWorkerCount)
     , ControlThreadTime_(earliestTime)
-    , NodeShardClocks_(nodeShardCount)
+    , NodeWorkerClocks_(nodeWorkerCount)
     , MaxAllowedOutrunning_(maxAllowedOutrunning)
 {
-    for (int shardId = 0; shardId < nodeShardCount; ++shardId) {
-        NodeShardClocks_[shardId]->store(earliestTime);
+    for (int shardId = 0; shardId < nodeWorkerCount; ++shardId) {
+        NodeWorkerClocks_[shardId]->store(earliestTime);
     }
 
     auto heartbeatStartTime = earliestTime - TDuration::MilliSeconds(heartbeatPeriod);
@@ -154,33 +149,31 @@ TSharedEventQueue::TSharedEventQueue(
     std::uniform_int_distribution<int> distribution(0, heartbeatPeriod - 1);
 
     for (const auto& execNode : execNodes) {
-        const int nodeShardId = GetNodeShardId(execNode->GetId(), nodeShardCount);
-
-        const auto heartbeatStartDelay = TDuration::MilliSeconds(distribution(randomGenerator));
-        auto heartbeat = TNodeShardEvent::Heartbeat(
+        auto heartbeatStartDelay = TDuration::MilliSeconds(distribution(randomGenerator));
+        InsertNodeEvent(CreateHeartbeatNodeEvent(
             heartbeatStartTime + heartbeatStartDelay,
             execNode->GetId(),
-            false);
-        InsertNodeShardEvent(nodeShardId, heartbeat);
+            /*scheduledOutOfBand*/ false));
     }
 }
 
-void TSharedEventQueue::InsertNodeShardEvent(int workerId, TNodeShardEvent event)
+void TSharedEventQueue::InsertNodeEvent(TNodeEvent event)
 {
-    NodeShardEvents_[workerId]->insert(event);
+    int workerId = GetNodeWorkerId(event.NodeId);
+    NodeWorkerEvents_[workerId]->insert(std::move(event));
 }
 
-std::optional<TNodeShardEvent> TSharedEventQueue::PopNodeShardEvent(int workerId)
+std::optional<TNodeEvent> TSharedEventQueue::PopNodeEvent(int workerId)
 {
-    auto& localEventsSet = NodeShardEvents_[workerId];
+    auto& localEventsSet = NodeWorkerEvents_[workerId];
     if (localEventsSet->empty()) {
-        NodeShardClocks_[workerId]->store(ControlThreadTime_.load() + MaxAllowedOutrunning_);
+        NodeWorkerClocks_[workerId]->store(ControlThreadTime_.load() + MaxAllowedOutrunning_);
         return std::nullopt;
     }
     auto beginIt = localEventsSet->begin();
     auto event = *beginIt;
 
-    NodeShardClocks_[workerId]->store(event.Time);
+    NodeWorkerClocks_[workerId]->store(event.Time);
     if (event.Time > ControlThreadTime_.load() + MaxAllowedOutrunning_) {
         return std::nullopt;
     }
@@ -189,11 +182,11 @@ std::optional<TNodeShardEvent> TSharedEventQueue::PopNodeShardEvent(int workerId
     return event;
 }
 
-void TSharedEventQueue::WaitForStrugglingNodeShards(TInstant timeBarrier)
+void TSharedEventQueue::WaitForStrugglingNodeWorkers(TInstant timeBarrier)
 {
-    for (auto& nodeShardClock : NodeShardClocks_) {
+    for (auto& nodeWorkerClock : NodeWorkerClocks_) {
         // Actively waiting.
-        while (nodeShardClock->load() < timeBarrier) {
+        while (nodeWorkerClock->load() < timeBarrier) {
             Yield();
         }
     }
@@ -204,9 +197,14 @@ void TSharedEventQueue::UpdateControlThreadTime(TInstant time)
     ControlThreadTime_.store(time);
 }
 
-void TSharedEventQueue::OnNodeShardSimulationFinished(int workerId)
+void TSharedEventQueue::OnNodeWorkerSimulationFinished(int workerId)
 {
-    NodeShardClocks_[workerId]->store(TInstant::Max());
+    NodeWorkerClocks_[workerId]->store(TInstant::Max());
+}
+
+int TSharedEventQueue::GetNodeWorkerId(TNodeId nodeId) const
+{
+    return THash<TNodeId>()(nodeId) % std::ssize(NodeWorkerEvents_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

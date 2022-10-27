@@ -1,6 +1,7 @@
 #include "control_thread.h"
 #include "operation_controller.h"
 #include "node_shard.h"
+#include "node_worker.h"
 
 #include <yt/yt/server/scheduler/fair_share_strategy.h>
 #include <yt/yt/server/scheduler/fair_share_tree.h>
@@ -14,7 +15,6 @@
 
 #include <yt/yt/core/yson/public.h>
 
-
 namespace NYT::NSchedulerSimulator {
 
 using namespace NScheduler;
@@ -24,8 +24,6 @@ using namespace NYTree;
 using namespace NYson;
 
 using std::placeholders::_1;
-
-static const auto& Logger = SchedulerSimulatorLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -74,21 +72,21 @@ TSimulatorControlThread::TSimulatorControlThread(
     , FairShareUpdateAndLogPeriod_(schedulerConfig->FairShareUpdatePeriod)
     , NodesInfoLoggingPeriod_(schedulerConfig->NodesInfoLoggingPeriod)
     , Config_(config)
-    , ExecNodes_(execNodes)
     , ActionQueue_(New<TActionQueue>(Format("ControlThread")))
-    , NodeShardEventQueue_(
+    , ExecNodes_(execNodes)
+    , NodeEventQueue_(
         *execNodes,
         config->HeartbeatPeriod,
         earliestTime,
-        config->NodeShardCount,
-        /* maxAllowedOutrunning */ FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
-    , NodeShardThreadPool_(New<TThreadPool>(config->ThreadCount, "NodeShardPool"))
-    , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog, NodeShardThreadPool_->GetInvoker())
+        config->NodeWorkerCount,
+        /*maxAllowedOutrunning*/ FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
+    , NodeWorkerThreadPool_(New<TThreadPool>(config->NodeWorkerThreadCount, "NodeWorkerPool"))
+    , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog, NodeShardInvokers_)
     , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
-    , SchedulerStrategyForNodeShards_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
+    , SharedSchedulerStrategy_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())
     , OperationStatistics_(operations)
     , JobAndOperationCounter_(operations.size())
-    , Logger(NSchedulerSimulator::Logger.WithTag("ControlThread"))
+    , Logger(SchedulerSimulatorLogger.WithTag("ControlThread"))
 {
     for (const auto& operation : operations) {
         InsertControlThreadEvent(TControlThreadEvent::OperationStarted(operation.StartTime, operation.Id));
@@ -98,20 +96,29 @@ TSimulatorControlThread::TSimulatorControlThread(
 
     for (int shardId = 0; shardId < config->NodeShardCount; ++shardId) {
         auto nodeShard = New<TSimulatorNodeShard>(
-            NodeShardThreadPool_->GetInvoker(),
+            shardId,
+            &NodeEventQueue_,
             &StrategyHost_,
-            &NodeShardEventQueue_,
-            &SchedulerStrategyForNodeShards_,
+            &SharedSchedulerStrategy_,
             &OperationStatistics_,
             operationStatisticsOutput,
             &RunningOperationsMap_,
             &JobAndOperationCounter_,
-            Config_,
-            schedulerConfig,
             earliestTime,
-            shardId);
+            Config_,
+            schedulerConfig);
+        NodeShardInvokers_.push_back(nodeShard->GetInvoker());
+        NodeShards_.push_back(std::move(nodeShard));
+    }
 
-        NodeShards_.push_back(nodeShard);
+    for (int workerId = 0; workerId < config->NodeWorkerCount; ++workerId) {
+        auto nodeWorker = New<TSimulatorNodeWorker>(
+            workerId,
+            &NodeEventQueue_,
+            &JobAndOperationCounter_,
+            NodeWorkerThreadPool_->GetInvoker(),
+            NodeShards_);
+        NodeWorkers_.push_back(nodeWorker);
     }
 }
 
@@ -130,11 +137,10 @@ void TSimulatorControlThread::Initialize(const NYTree::INodePtr& poolTreesNode)
             .Run(execNode->GetId(), execNode->GetDefaultAddress(), execNode->Tags()))
             .ThrowOnError();
 
-        const auto& nodeShard = NodeShards_[GetNodeShardId(execNode->GetId(), NodeShards_.size())];
-        WaitFor(
-            BIND(&TSimulatorNodeShard::RegisterNode, nodeShard, execNode)
-                .AsyncVia(nodeShard->GetInvoker())
-                .Run())
+        const auto& nodeShard = NodeShards_[TSimulatorNodeShard::GetNodeShardId(execNode->GetId(), std::ssize(NodeShards_))];
+        WaitFor(BIND(&TSimulatorNodeShard::RegisterNode, nodeShard, execNode)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run())
             .ThrowOnError();
     }
 
@@ -156,23 +162,24 @@ TFuture<void> TSimulatorControlThread::AsyncRun()
 
 void TSimulatorControlThread::Run()
 {
-    YT_LOG_INFO("Simulation started (ThreadCount %v, NodeShardCount: %v)",
-        Config_->ThreadCount,
+    YT_LOG_INFO("Simulation started (NodeWorkerCount: %v, NodeWorkerThreadCount %v, NodeShardCount: %v)",
+        Config_->NodeWorkerCount,
+        Config_->NodeWorkerThreadCount,
         Config_->NodeShardCount);
 
     std::vector<TFuture<void>> asyncWorkerResults;
-    for (const auto& nodeShard : NodeShards_) {
-        asyncWorkerResults.emplace_back(nodeShard->AsyncRun());
+    for (const auto& nodeWorker : NodeWorkers_) {
+        asyncWorkerResults.emplace_back(nodeWorker->AsyncRun());
     }
 
-    int iter = 0;
+    int iteration = 0;
     while (JobAndOperationCounter_.HasUnfinishedOperations()) {
-        iter += 1;
-        if (iter % Config_->CyclesPerFlush == 0) {
+        ++iteration;
+        if (iteration % Config_->CyclesPerFlush == 0) {
             YT_LOG_INFO(
                 "Simulated %v cycles (FinishedOperations: %v, RunningOperation: %v, "
                 "TotalOperations: %v, RunningJobs: %v)",
-                iter,
+                iteration,
                 JobAndOperationCounter_.GetFinishedOperationCount(),
                 JobAndOperationCounter_.GetStartedOperationCount(),
                 JobAndOperationCounter_.GetTotalOperationCount(),
@@ -191,6 +198,16 @@ void TSimulatorControlThread::Run()
     }
 
     WaitFor(AllSucceeded(asyncWorkerResults))
+        .ThrowOnError();
+
+    std::vector<TFuture<void>> nodeShardFinalizationFutures;
+    for (const auto& nodeShard : NodeShards_) {
+        nodeShardFinalizationFutures.push_back(BIND(&TSimulatorNodeShard::OnSimulationFinished, nodeShard)
+            .AsyncVia(nodeShard->GetInvoker())
+            .Run());
+    }
+
+    WaitFor(AllSucceeded(nodeShardFinalizationFutures))
         .ThrowOnError();
 
     SchedulerStrategy_->OnMasterDisconnected();
@@ -264,9 +281,11 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
 {
     auto updateTime = event.Time;
 
-    YT_LOG_INFO("Started waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
-    NodeShardEventQueue_.WaitForStrugglingNodeShards(updateTime);
-    YT_LOG_INFO("Finished waiting for struggling node shards (VirtualTimestamp: %v)", event.Time);
+    YT_LOG_INFO("Started waiting for struggling node workers (VirtualTimestamp: %v)", event.Time);
+
+    NodeEventQueue_.WaitForStrugglingNodeWorkers(updateTime);
+
+    YT_LOG_INFO("Finished waiting for struggling node workers (VirtualTimestamp: %v)", event.Time);
 
     SchedulerStrategy_->OnFairShareUpdateAt(updateTime);
     SchedulerStrategy_->OnFairShareProfilingAt(updateTime);
@@ -276,7 +295,7 @@ void TSimulatorControlThread::OnFairShareUpdateAndLog(const TControlThreadEvent&
         SchedulerStrategy_->OnFairShareEssentialLoggingAt(updateTime);
     }
 
-    NodeShardEventQueue_.UpdateControlThreadTime(updateTime);
+    NodeEventQueue_.UpdateControlThreadTime(updateTime);
     InsertControlThreadEvent(TControlThreadEvent::FairShareUpdateAndLog(event.Time + FairShareUpdateAndLogPeriod_));
 }
 

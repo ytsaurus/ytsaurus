@@ -1,4 +1,5 @@
 #include "scheduler_strategy_host.h"
+#include "node_shard.h"
 
 #include "event_log.h"
 
@@ -9,6 +10,7 @@ namespace NYT::NSchedulerSimulator {
 using namespace NScheduler;
 using namespace NConcurrency;
 using namespace NEventLog;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,10 +22,10 @@ TSchedulerStrategyHost::TSchedulerStrategyHost(
     const std::vector<NScheduler::TExecNodePtr>* execNodes,
     IOutputStream* eventLogOutputStream,
     const TRemoteEventLogConfigPtr& remoteEventLogConfig,
-    const IInvokerPtr& nodeShardsInvoker)
+    const std::vector<IInvokerPtr>& nodeShardInvokers)
     : ExecNodes_(execNodes)
     , MediumDirectory_(CreateDefaultMediumDirectory())
-    , NodeShardsInvokers_({nodeShardsInvoker})
+    , NodeShardInvokers_(nodeShardInvokers)
 {
     YT_VERIFY(eventLogOutputStream || remoteEventLogConfig);
 
@@ -69,14 +71,14 @@ IInvokerPtr TSchedulerStrategyHost::GetOrchidWorkerInvoker() const
     return GetCurrentInvoker();
 }
 
-int TSchedulerStrategyHost::GetNodeShardId(NNodeTrackerClient::TNodeId /*nodeId*/) const
+int TSchedulerStrategyHost::GetNodeShardId(TNodeId nodeId) const
 {
-    return 0;
+    return TSimulatorNodeShard::GetNodeShardId(nodeId, std::ssize(NodeShardInvokers_));
 }
 
 const std::vector<IInvokerPtr>& TSchedulerStrategyHost::GetNodeShardInvokers() const
 {
-    return NodeShardsInvokers_;
+    return NodeShardInvokers_;
 }
 
 TFluentLogEvent TSchedulerStrategyHost::LogFairShareEventFluently(TInstant now)
@@ -158,7 +160,7 @@ TRefCountedExecNodeDescriptorMapPtr TSchedulerStrategyHost::CalculateExecNodeDes
     return result;
 }
 
-void TSchedulerStrategyHost::AbortJobsAtNode(NNodeTrackerClient::TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
+void TSchedulerStrategyHost::AbortJobsAtNode(TNodeId /*nodeId*/, NScheduler::EAbortReason /*reason*/)
 {
     // Nothing to do.
 }

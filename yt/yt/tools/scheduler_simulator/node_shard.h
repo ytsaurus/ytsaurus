@@ -11,8 +11,9 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-
 namespace NYT::NSchedulerSimulator {
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TSimulatorNodeShard
     : public NYT::TRefCounted
@@ -20,66 +21,64 @@ class TSimulatorNodeShard
 {
 public:
     TSimulatorNodeShard(
-        const IInvokerPtr& commonNodeShardInvoker,
-        TSchedulerStrategyHost* strategyHost,
+        int shardId,
         TSharedEventQueue* events,
+        TSchedulerStrategyHost* strategyHost,
         TSharedSchedulerStrategy* schedulingStrategy,
         TSharedOperationStatistics* operationStatistics,
         IOperationStatisticsOutput* operationStatisticsOutput,
         TSharedRunningOperationsMap* runningOperationsMap,
         TSharedJobAndOperationCounter* jobAndOperationCounter,
-        const TSchedulerSimulatorConfigPtr& config,
-        const NScheduler::TSchedulerConfigPtr& schedulerConfig,
         TInstant earliestTime,
-        int shardId);
+        TSchedulerSimulatorConfigPtr config,
+        NScheduler::TSchedulerConfigPtr schedulerConfig);
+
+    void RegisterNode(const NScheduler::TExecNodePtr& node);
+    void BuildNodesYson(NYTree::TFluentMap fluent);
+
+    void OnHeartbeat(const TNodeEvent& event);
+    void OnJobFinished(const TNodeEvent& event);
 
     const IInvokerPtr& GetInvoker() const;
 
-    TFuture<void> AsyncRun();
+    void OnSimulationFinished();
 
-    void RegisterNode(const NScheduler::TExecNodePtr& node);
-
-    void BuildNodesYson(NYTree::TFluentMap fluent);
+    static int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId, int nodeShardCount);
 
 private:
-    THashMap<NNodeTrackerClient::TNodeId, NScheduler::TExecNodePtr> IdToNode_;
-    TSharedEventQueue* Events_;
-    TSchedulerStrategyHost* StrategyHost_;
-    TSharedSchedulerStrategy* SchedulingStrategy_;
-    TSharedOperationStatistics* OperationStatistics_;
-    IOperationStatisticsOutput* OperationStatisticsOutput_;
-    TSharedRunningOperationsMap* RunningOperationsMap_;
-    TSharedJobAndOperationCounter* JobAndOperationCounter_;
+    const int Id_;
+    TSharedEventQueue* const Events_;
+    TSchedulerStrategyHost* const StrategyHost_;
+    TSharedSchedulerStrategy* const SchedulingStrategy_;
+    TSharedOperationStatistics* const OperationStatistics_;
+    IOperationStatisticsOutput* const OperationStatisticsOutput_;
+    TSharedRunningOperationsMap* const RunningOperationsMap_;
+    TSharedJobAndOperationCounter* const JobAndOperationCounter_;
+    const TInstant EarliestTime_;
 
     const TSchedulerSimulatorConfigPtr Config_;
     const NScheduler::TSchedulerConfigPtr SchedulerConfig_;
-    const TInstant EarliestTime_;
-    const int ShardId_;
-    const IInvokerPtr Invoker_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
+    const NLogging::TLogger Logger;
 
-    NLogging::TLogger Logger;
+    THashMap<NNodeTrackerClient::TNodeId, NScheduler::TExecNodePtr> IdToNode_;
 
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
 
     NEventLog::IEventLogWriterPtr RemoteEventLogWriter_;
     std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;
 
-    void Run();
-    void RunOnce();
-
-    void OnHeartbeat(const TNodeShardEvent& event);
-    void OnJobFinished(const TNodeShardEvent& event);
     void BuildNodeYson(const NScheduler::TExecNodePtr& node, NYTree::TFluentMap fluent);
-
     void PreemptJob(const NScheduler::TJobPtr& job, bool shouldLogEvent);
 
     NYson::IYsonConsumer* GetEventLogConsumer() override;
-
     const NLogging::TLogger* GetEventLogger() override;
 
     NEventLog::TFluentLogEvent LogFinishedJobFluently(NScheduler::ELogEventType eventType, const NScheduler::TJobPtr& job);
 };
 
-int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId, int nodeShardCount);
+DEFINE_REFCOUNTED_TYPE(TSimulatorNodeShard)
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSchedulerSimulator
