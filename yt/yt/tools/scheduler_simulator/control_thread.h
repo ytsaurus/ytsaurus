@@ -62,17 +62,21 @@ private:
     const TDuration FairShareUpdateAndLogPeriod_;
     const TDuration NodesInfoLoggingPeriod_;
     const TSchedulerSimulatorConfigPtr Config_;
+    const NConcurrency::TActionQueuePtr ActionQueue_;
     const std::vector<NScheduler::TExecNodePtr>* ExecNodes_;
 
     std::multiset<TControlThreadEvent> ControlThreadEvents_;
-    std::vector<TSimulatorNodeShardPtr> NodeShards_;
 
-    const NConcurrency::TActionQueuePtr ActionQueue_;
-    TSharedEventQueue NodeShardEventQueue_;
-    const NConcurrency::TThreadPoolPtr NodeShardThreadPool_;
+    TSharedEventQueue NodeEventQueue_;
+    const NConcurrency::TThreadPoolPtr NodeWorkerThreadPool_;
+    std::vector<TSimulatorNodeWorkerPtr> NodeWorkers_;
+
+    std::vector<TSimulatorNodeShardPtr> NodeShards_;
+    std::vector<IInvokerPtr> NodeShardInvokers_;
+
     TSchedulerStrategyHost StrategyHost_;
     NScheduler::ISchedulerStrategyPtr SchedulerStrategy_;
-    TSharedSchedulerStrategy SchedulerStrategyForNodeShards_;
+    TSharedSchedulerStrategy SharedSchedulerStrategy_;
 
     TSharedOperationStatistics OperationStatistics_;
     TSharedRunningOperationsMap RunningOperationsMap_;

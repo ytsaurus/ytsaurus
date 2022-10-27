@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/server/lib/scheduler/public.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -144,7 +146,9 @@ public:
 
     int CyclesPerFlush;
 
-    int ThreadCount;
+    int NodeWorkerCount;
+    int NodeWorkerThreadCount;
+
     int NodeShardCount;
 
     NScheduler::TDelayConfigPtr ScheduleJobDelay;
@@ -175,12 +179,16 @@ public:
             .Default(100000)
             .GreaterThan(0);
 
-        registrar.Parameter("thread_count", &TThis::ThreadCount)
+        registrar.Parameter("node_worker_count", &TThis::NodeWorkerCount)
             .Default(1)
             .GreaterThan(0);
+        registrar.Parameter("node_worker_thread_count", &TThis::NodeWorkerThreadCount)
+            .Default(1)
+            .GreaterThan(0);
+
         registrar.Parameter("node_shard_count", &TThis::NodeShardCount)
             .Default(1)
-            .GreaterThan(0);
+            .InRange(1, NScheduler::MaxNodeShardCount);
 
         registrar.Parameter("schedule_job_delay", &TThis::ScheduleJobDelay)
             .Default();

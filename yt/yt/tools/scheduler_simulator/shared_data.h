@@ -18,34 +18,34 @@ namespace NYT::NSchedulerSimulator {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EEventType,
+DEFINE_ENUM(ENodeEventType,
     (Heartbeat)
     (JobFinished)
 );
 
-struct TNodeShardEvent
+struct TNodeEvent
 {
-    EEventType Type;
+    ENodeEventType Type;
     TInstant Time;
     NNodeTrackerClient::TNodeId NodeId;
     NScheduler::TJobPtr Job;
     NScheduler::TExecNodePtr JobNode;
-    bool ScheduledOutOfBand;
-
-    static TNodeShardEvent Heartbeat(TInstant time, NNodeTrackerClient::TNodeId nodeId, bool scheduledOutOfBand);
-
-    static TNodeShardEvent JobFinished(
-        TInstant time,
-        const NScheduler::TJobPtr& job,
-        const NScheduler::TExecNodePtr& execNode,
-        NNodeTrackerClient::TNodeId nodeId);
-
-private:
-    TNodeShardEvent(EEventType type, TInstant time);
+    bool ScheduledOutOfBand = false;
 };
 
-bool operator<(const TNodeShardEvent& lhs, const TNodeShardEvent& rhs);
+bool operator<(const TNodeEvent& lhs, const TNodeEvent& rhs);
 
+////////////////////////////////////////////////////////////////////////////////
+
+TNodeEvent CreateHeartbeatNodeEvent(TInstant time, NNodeTrackerClient::TNodeId nodeId, bool scheduledOutOfBand);
+
+TNodeEvent CreateJobFinishedNodeEvent(
+    TInstant time,
+    const NScheduler::TJobPtr& job,
+    const NScheduler::TExecNodePtr& execNode,
+    NNodeTrackerClient::TNodeId nodeId);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TOperationStatistics
 {
@@ -101,6 +101,7 @@ private:
     const TOperationStatisticsMap IdToOperationStorage_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
 class TSharedEventQueue
 {
@@ -109,27 +110,30 @@ public:
         const std::vector<NScheduler::TExecNodePtr>& execNodes,
         int heartbeatPeriod,
         TInstant earliestTime,
-        int nodeShardCount,
+        int nodeWorkerCount,
         TDuration maxAllowedOutrunning);
 
-    void InsertNodeShardEvent(int workerId, TNodeShardEvent event);
+    void InsertNodeEvent(TNodeEvent event);
 
-    std::optional<TNodeShardEvent> PopNodeShardEvent(int workerId);
+    std::optional<TNodeEvent> PopNodeEvent(int workerId);
 
-    void WaitForStrugglingNodeShards(TInstant timeBarrier);
+    void WaitForStrugglingNodeWorkers(TInstant timeBarrier);
     void UpdateControlThreadTime(TInstant time);
 
-    void OnNodeShardSimulationFinished(int workerId);
+    void OnNodeWorkerSimulationFinished(int workerId);
 
 private:
-    const std::vector<TMutable<std::multiset<TNodeShardEvent>>> NodeShardEvents_;
+    const std::vector<TMutable<std::multiset<TNodeEvent>>> NodeWorkerEvents_;
 
     std::atomic<TInstant> ControlThreadTime_;
-    const std::vector<TMutable<std::atomic<TInstant>>> NodeShardClocks_;
+    const std::vector<TMutable<std::atomic<TInstant>>> NodeWorkerClocks_;
 
     const TDuration MaxAllowedOutrunning_;
+
+    int GetNodeWorkerId(NNodeTrackerClient::TNodeId nodeId) const;
 };
 
+////////////////////////////////////////////////////////////////////////////////
 
 class TSharedJobAndOperationCounter
 {
@@ -163,6 +167,8 @@ private:
     const int TotalOperationCount_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class IOperationStatisticsOutput
 {
 public:
@@ -188,9 +194,9 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 };
 
-
 using TSharedRunningOperationsMap = TLockProtectedMap<NScheduler::TOperationId, NSchedulerSimulator::TOperationPtr>;
 
+////////////////////////////////////////////////////////////////////////////////
 
 class TSharedSchedulerStrategy
 {

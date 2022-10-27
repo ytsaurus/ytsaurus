@@ -31,7 +31,7 @@ public:
         const std::vector<NScheduler::TExecNodePtr>* execNodes,
         IOutputStream* eventLogOutputStream,
         const TRemoteEventLogConfigPtr& remoteEventLogConfig,
-        const IInvokerPtr& nodeShardsInvoker);
+        const std::vector<IInvokerPtr>& nodeShardInvoker);
 
     IInvokerPtr GetControlInvoker(NScheduler::EControlQueue queue) const override;
     IInvokerPtr GetFairShareLoggingInvoker() const override;
@@ -125,7 +125,8 @@ private:
     std::unique_ptr<NYson::IYsonConsumer> RemoteEventLogConsumer_;
 
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
-    std::vector<IInvokerPtr> NodeShardsInvokers_;
+
+    const std::vector<IInvokerPtr>& NodeShardInvokers_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
