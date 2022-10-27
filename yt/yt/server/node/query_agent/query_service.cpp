@@ -492,15 +492,6 @@ private:
 
         // TODO(lukyan): Use memoryChunkProvider in FromProto.
         auto dataSources = FromProto<std::vector<TDataSource>>(request->data_sources());
-        // COMPAT(babenko)
-        for (const auto& dataSource : dataSources) {
-            if (!dataSource.CellId) {
-                YT_LOG_DEBUG("Missing cell id in QueryService.Execute request (RequestId: %v, User: %v)",
-                    context->GetRequestId(),
-                    context->RequestHeader().user());
-                break;
-            }
-        }
 
         YT_LOG_DEBUG("Query deserialized (FragmentId: %v, InputRowLimit: %v, OutputRowLimit: %v, "
             "RangeExpansionLimit: %v, MaxSubqueries: %v, EnableCodeCache: %v, WorkloadDescriptor: %v, "
@@ -515,8 +506,6 @@ private:
             queryOptions.ReadSessionId,
             queryOptions.MemoryLimitPerNode,
             dataSources.size());
-
-
 
         if (RejectUponThrottlerOverdraft_.load()) {
             TClientChunkReadOptions chunkReadOptions{
@@ -593,9 +582,14 @@ private:
 
         int tabletCount = request->tablet_ids_size();
         if (tabletCount != request->mount_revisions_size()) {
-            THROW_ERROR_EXCEPTION("Wrong number of revisions: expected %v, got %v",
+            THROW_ERROR_EXCEPTION("Wrong number of mount revisions: expected %v, got %v",
                 tabletCount,
                 request->mount_revisions_size());
+        }
+        if (tabletCount != request->cell_ids_size()) {
+            THROW_ERROR_EXCEPTION("Wrong number of cell ids: expected %v, got %v",
+                tabletCount,
+                request->cell_ids_size());
         }
         if (tabletCount != std::ssize(request->Attachments())) {
             THROW_ERROR_EXCEPTION("Wrong number of attachments: expected %v, got %v",
@@ -618,13 +612,6 @@ private:
             chunkReadOptions.ReadSessionId,
             inMemoryMode,
             retentionConfig);
-
-        // COMPAT(babenko)
-        if (request->cell_ids_size() == 0 && request->tablet_ids_size() > 0) {
-            YT_LOG_DEBUG("Missing cell id in QueryService.Multiread request (RequestId: %v, User: %v)",
-                context->GetRequestId(),
-                context->RequestHeader().user());
-        }
 
         auto* requestCodec = NCompression::GetCodec(requestCodecId);
         auto* responseCodec = NCompression::GetCodec(responseCodecId);
@@ -662,7 +649,7 @@ private:
 
         for (int index = 0; index < tabletCount; ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
-            auto cellId = index < request->cell_ids_size() ? FromProto<TCellId>(request->cell_ids(index)) : TCellId();
+            auto cellId = FromProto<TCellId>(request->cell_ids(index));
             auto mountRevision = request->mount_revisions(index);
 
             // TODO(akozhikhov): Consider compressing/decompressing all requests' data at once.
@@ -868,19 +855,18 @@ private:
             }),
             request->request_errors());
 
-        // COMPAT(babenko)
-        if (request->cell_ids_size() == 0 && request->tablet_ids_size() > 0) {
-            YT_LOG_DEBUG("Missing cell id in QueryService.GetTabletInfo request (RequestId: %v, User: %v)",
-                context->GetRequestId(),
-                context->RequestHeader().user());
-        }
-
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
 
-        for (int index = 0; index < request->tablet_ids_size(); ++index) {
+        int tabletCount = request->tablet_ids_size();
+        if (tabletCount != request->cell_ids_size()) {
+            THROW_ERROR_EXCEPTION("Wrong number of cell ids: expected %v, got %v",
+                tabletCount,
+                request->cell_ids_size());
+        }
+
+        for (int index = 0; index < tabletCount; ++index) {
             auto tabletId = FromProto<TTabletId>(request->tablet_ids(index));
-            // COMPAT(babenko)
-            auto cellId = index < request->cell_ids_size() ? FromProto<TCellId>(request->cell_ids(index)) : TCellId();
+            auto cellId = FromProto<TCellId>(request->cell_ids(index));
 
             auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
 
@@ -935,7 +921,7 @@ private:
     {
         auto storeId = FromProto<TDynamicStoreId>(request->store_id());
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto cellId = FromProto<TCellId>(request->tablet_id());
+        auto cellId = FromProto<TCellId>(request->cell_id());
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
 
         context->SetRequestInfo("StoreId: %v, TabletId: %v, CellId: %v, ReadSessionId: %v, Timestamp: %v",
@@ -944,12 +930,6 @@ private:
             cellId,
             readSessionId,
             request->timestamp());
-
-        if (!cellId) {
-            YT_LOG_DEBUG("Missing cell id in QueryService.ReadDynamicStore request (RequestId: %v, User: %v)",
-                context->GetRequestId(),
-                context->RequestHeader().user());
-        }
 
         const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
         auto tabletSnapshot = snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
@@ -994,7 +974,7 @@ private:
             auto upperBound = request->has_upper_bound()
                 ? FromProto<TLegacyOwningKey>(request->upper_bound())
                 : MaxKey();
-            TTimestamp timestamp = request->timestamp();
+            auto timestamp = request->timestamp();
 
             // NB: Options and throttler are not used by the reader.
             auto reader = dynamicStore->AsSorted()->CreateReader(
@@ -1004,7 +984,7 @@ private:
                 /*produceAllVersions*/ false,
                 columnFilter,
                 /*chunkReadOptions*/ {},
-                /*workloadCategory*/ std::nullopt);
+                /*workloadCategory*/ {});
             WaitFor(reader->Open())
                 .ThrowOnError();
 
@@ -1080,7 +1060,7 @@ private:
                 endRowIndex,
                 columnFilter,
                 /*chunkReadOptions*/ {},
-                /*workloadCategory*/ std::nullopt);
+                /*workloadCategory*/ {});
 
             YT_LOG_DEBUG("Started serving remote dynamic store read request "
                 "(TabletId: %v, StoreId: %v, ReadSessionId: %v, "
@@ -1318,15 +1298,8 @@ private:
             auto* subresponse = response->add_subresponses();
 
             auto tabletId = FromProto<TTabletId>(subrequest.tablet_id());
-            auto cellId = FromProto<TCellId>(subrequest.tablet_id());
+            auto cellId = FromProto<TCellId>(subrequest.cell_id());
             auto tableIndex = subrequest.table_index();
-
-            // COMPAT(babenko)
-            if (!cellId) {
-                YT_LOG_DEBUG("Missing cell id in QueryService.FetchTabletStores request (RequestId: %v, User: %v)",
-                    context->GetRequestId(),
-                    context->RequestHeader().user());
-            }
 
             try {
                 NTabletNode::TTabletSnapshotPtr tabletSnapshot;

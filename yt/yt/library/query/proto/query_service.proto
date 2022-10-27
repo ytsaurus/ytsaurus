@@ -64,7 +64,6 @@ message TReqMultiread
     required uint64 timestamp = 4;
     optional uint64 retention_timestamp = 10;
     repeated NYT.NProto.TGuid tablet_ids = 5;
-    // COMPAT(babenko): legacy clients may omit this field.
     repeated NYT.NProto.TGuid cell_ids = 9;
     repeated int64 mount_revisions = 6;
     optional bool enable_partial_result = 7 [default=false];
@@ -84,8 +83,7 @@ message TReqReadDynamicStore
 {
     required NYT.NProto.TGuid store_id = 2;
     required NYT.NProto.TGuid tablet_id = 1;
-    // COMPAT(babenko): legacy clients may omit this field.
-    optional NYT.NProto.TGuid cell_id = 12;
+    required NYT.NProto.TGuid cell_id = 12;
     optional uint64 timestamp = 3;
     optional bytes lower_bound  = 4;
     optional bytes upper_bound = 5;
@@ -138,7 +136,6 @@ message TRspPullRows
 message TReqGetTabletInfo
 {
     repeated NYT.NProto.TGuid tablet_ids = 1;
-    // COMPAT(babenko): legacy clients may omit this field.
     repeated NYT.NProto.TGuid cell_ids = 2;
     optional bool request_errors = 3;
 }
@@ -178,8 +175,7 @@ message TReqFetchTabletStores
     message TSubrequest
     {
         required NYT.NProto.TGuid tablet_id = 1;
-        // COMPAT(babenko): legacy clients may omit this field.
-        optional NYT.NProto.TGuid cell_id = 9;
+        required NYT.NProto.TGuid cell_id = 9;
         optional uint64 mount_revision = 2;
         repeated NYT.NChunkClient.NProto.TReadRange ranges = 3;
         repeated int32 range_indices = 4;
