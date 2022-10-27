@@ -153,6 +153,34 @@ def test_environment_job_archive(request):
     environment = init_environment_for_test_session(
         request,
         "job_archive",
+        delta_node_config={
+            "exec_agent": {
+                "statistics_reporter": {
+                    "enabled": True,
+                    "reporting_period": 10,
+                    "min_repeat_delay": 10,
+                    "max_repeat_delay": 10,
+                }
+            },
+        },
+        delta_scheduler_config={
+            "scheduler": {
+                "enable_job_reporter": True,
+                "enable_job_spec_reporter": True,
+            },
+        },
+    )
+
+    sync_create_cell()
+    init_operation_archive.create_tables_latest_version(yt, override_tablet_cell_bundle="default")
+    return environment
+
+
+@pytest.fixture(scope="class")
+def test_environment_job_archive_porto(request):
+    environment = init_environment_for_test_session(
+        request,
+        "job_archive",
         env_options={"use_porto_for_servers": True},
         delta_node_config={
             "exec_agent": {
@@ -320,6 +348,17 @@ def yt_env_job_archive(request, test_environment_job_archive):
     test_function_setup()
     register_test_function_finalizer(request, remove_operations_archive=False)
     return test_environment_job_archive
+
+
+@pytest.fixture(scope="function")
+def yt_env_job_archive_porto(request, test_environment_job_archive_porto):
+    """ YT cluster fixture for tests that require job archive and porto
+    """
+    test_environment_job_archive_porto.check_liveness()
+    test_environment_job_archive_porto.reload_global_configuration()
+    test_function_setup()
+    register_test_function_finalizer(request, remove_operations_archive=False)
+    return test_environment_job_archive_porto
 
 
 @pytest.fixture(scope="function")

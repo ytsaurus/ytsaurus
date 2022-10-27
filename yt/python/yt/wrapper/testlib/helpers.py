@@ -19,7 +19,6 @@ import yt.environment.arcadia_interop as arcadia_interop
 from yt.wrapper.errors import YtRetriableError
 import yt.wrapper as yt
 
-import collections
 import glob
 import os
 import random
