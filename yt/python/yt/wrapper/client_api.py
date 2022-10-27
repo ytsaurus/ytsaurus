@@ -1,5 +1,5 @@
 from .idm_client import make_idm_client  # noqa
-from .cypress_commands import search, concatenate, find_free_subpath, create_revision_parameter  # noqa
+from .cypress_commands import search, concatenate, find_free_subpath, create_revision_parameter, get_table_schema  # noqa
 from .table_commands import (  # noqa
     create_temp_table, write_table, read_table, read_blob_table,
     write_table_structured, read_table_structured)

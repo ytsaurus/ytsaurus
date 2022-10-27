@@ -672,6 +672,15 @@ class YtClient(ClientState):
             client=self,
             default=default)
 
+    def get_table_schema(self, table_path):
+        """
+        Gets schema of table.
+
+        :param table_path: path to table.
+        :type table_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        """
+        return client_api.get_table_schema(table_path, client=self)
+
     def get_current_transaction_id(self):
         """
 

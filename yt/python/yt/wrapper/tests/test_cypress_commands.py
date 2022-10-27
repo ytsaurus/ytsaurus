@@ -822,3 +822,15 @@ class TestCypressCommands(object):
         cli_impl._remove_attribute(TEST_DIR, "my_attr", recursive=True)
         for path in paths:
             assert not yt.exists(path + "&/@my_attr")
+
+    @authors("aleexfi")
+    def test_get_table_schema(self):
+        expected_schema = (
+            TableSchema(strict=True)
+            .add_column("first", typing.String, sort_order="ascending")
+            .add_column("second", typing.Bool)
+        )
+        path = yt.ypath.ypath_join(TEST_DIR, "/table")
+        yt.create("table", path, recursive=True, attributes={"schema": expected_schema})
+        retrieved_schema = yt.get_table_schema(path)
+        assert expected_schema == retrieved_schema

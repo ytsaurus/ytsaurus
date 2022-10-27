@@ -8,6 +8,7 @@ from .ypath import YPath, escape_ypath_literal, ypath_join, ypath_dirname
 from .batch_response import apply_function_to_result
 from .retries import Retrier, default_chaos_monkey
 from .http_helpers import get_retriable_errors
+from .schema import TableSchema
 
 import yt.logger as logger
 
@@ -827,3 +828,22 @@ def create_revision_parameter(path, transaction_id=None, revision=None, client=N
     if transaction_id is None:
         transaction_id = get_command_param("transaction_id", client)
     return {"path": path, "transaction_id": transaction_id, "revision": revision}
+
+
+def get_table_schema(table_path, client=None):
+    """Gets schema of table.
+
+    :param table_path: path to table.
+    :type table_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+    """
+    attributes_tree = get(table_path, attributes=["type", "schema"], client=client)
+    attributes = attributes_tree.attributes
+
+    node_type = attributes["type"]
+    if node_type != "table":
+        raise YtError("Can't get schema for node '{path}' with type '{node_type}' ('table' is expected)".format(
+            path=table_path,
+            node_type=node_type,
+        ))
+
+    return TableSchema.from_yson_type(attributes["schema"])

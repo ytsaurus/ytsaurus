@@ -10,6 +10,7 @@ try:
 except ImportError:
     from six.moves import xrange
 
+import yandex.type_info as type_info
 import yt.wrapper as yt
 
 import pytest
@@ -186,6 +187,16 @@ class TestClient(object):
             with client.TempTable(TEST_DIR) as table:
                 assert client.exists(table)
             assert not client.exists(table)
+
+            expected_schema = (
+                yt.schema.TableSchema(strict=True)
+                .add_column("first", type_info.String, sort_order="ascending")
+                .add_column("second", type_info.Bool)
+            )
+            path = yt.ypath.ypath_join(TEST_DIR, "/table-with-schema")
+            client.create("table", path, recursive=True, attributes={"schema": expected_schema})
+            retrieved_schema = client.get_table_schema(path)
+            assert expected_schema == retrieved_schema
 
     @authors("asaitgalin", "ignat")
     def test_default_api_version(self):
