@@ -1703,7 +1703,7 @@ void TServiceBase::RegisterRequestQueue(
         runtimeInfo->Descriptor.Method,
         requestQueue->GetName());
 
-    auto profiler = runtimeInfo->Profiler;
+    auto profiler = runtimeInfo->Profiler.WithSparse();
     if (runtimeInfo->Descriptor.RequestQueueProvider) {
         profiler = profiler.WithTag("queue", requestQueue->GetName());
     }
