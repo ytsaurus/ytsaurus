@@ -840,6 +840,13 @@ class TestOperationCommands(object):
             assert len(job_infos) == 1
             assert job_infos[0]["stderr"] == "AAA\n"
 
+    @authors("gudqeit")
+    def test_get_operation_by_alias(self):
+        table = TEST_DIR + "/table"
+        yt.write_table(table, [{"x": "0"}])
+        op = yt.run_map("cat; echo 'AAA' >&2", table, table, spec={"alias": "*alias"})
+        assert yt.get_operation(operation_alias="*alias", include_scheduler=True)["id"] == op.id
+
     @authors("ignat")
     def test_list_operations(self):
         if yt.config["backend"] == "rpc":
