@@ -2,7 +2,8 @@ from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
-                         sync_unmount_table, sync_reshard_table, trim_rows, print_debug, abort_transaction)
+                         sync_unmount_table, sync_reshard_table, trim_rows, print_debug, abort_transaction,
+                         alter_table)
 
 from yt.common import YtError, update_inplace, update
 
@@ -221,6 +222,8 @@ class TestQueueAgentBase(YTEnvSetup):
         if partition_count != 1:
             sync_reshard_table(path, partition_count)
         sync_mount_table(path)
+
+        return schema
 
     def _create_bigrt_consumer(self, path, target_queue, **kwargs):
         attributes = {
@@ -536,7 +539,8 @@ class TestQueueController(TestQueueAgentBase):
         orchid = QueueAgentOrchid()
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
-        self._create_queue("//tmp/q", partition_count=2)
+        schema = self._create_queue("//tmp/q", partition_count=2, enable_cumulative_data_weight_column=False)
+        schema_with_cumulative_data_weight = schema + [{"name": "$cumulative_data_weight", "type": "int64"}]
         self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
 
         cypress_synchronizer_orchid.wait_fresh_poll()
@@ -568,6 +572,16 @@ class TestQueueController(TestQueueAgentBase):
         assert queue_partitions[0]["last_row_commit_time"] != null_time
         assert_partition(queue_partitions[1], 0, 0)
 
+        sync_unmount_table("//tmp/q")
+        alter_table("//tmp/q", schema=schema_with_cumulative_data_weight)
+        sync_mount_table("//tmp/q")
+
+        orchid.wait_fresh_queue_pass("primary://tmp/q")
+        queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
+        assert_partition(queue_partitions[0], 0, 1)
+        assert_partition(queue_partitions[1], 0, 0)
+        assert queue_partitions[0]["cumulative_data_weight"] == YsonEntity()
+
         trim_rows("//tmp/q", 0, 1)
 
         self._wait_for_row_count("//tmp/q", 0, 0)
@@ -586,7 +600,7 @@ class TestQueueController(TestQueueAgentBase):
         queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
 
         assert_partition(queue_partitions[0], 1, 101)
-        assert queue_partitions[0]["cumulative_data_weight"] == 2020
+        assert queue_partitions[0]["cumulative_data_weight"] == 2012
         assert queue_partitions[0]["trimmed_data_weight"] <= 2 * 20
 
         trim_rows("//tmp/q", 0, 91)
@@ -597,7 +611,7 @@ class TestQueueController(TestQueueAgentBase):
         queue_partitions = orchid.get_queue_partitions("primary://tmp/q")
 
         assert_partition(queue_partitions[0], 91, 101)
-        assert queue_partitions[0]["cumulative_data_weight"] == 2020
+        assert queue_partitions[0]["cumulative_data_weight"] == 2012
         assert 89 * 20 <= queue_partitions[0]["trimmed_data_weight"] <= 92 * 20
         assert 9 * 20 <= queue_partitions[0]["available_data_weight"] <= 11 * 20
 
