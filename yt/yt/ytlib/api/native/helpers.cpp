@@ -2,6 +2,7 @@
 
 #include "connection.h"
 #include "config.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/auth/native_authenticator.h>
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
@@ -34,19 +35,23 @@ IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
     std::optional<TTvmId> tvmId,
     IDynamicTvmServicePtr tvmService)
 {
+    if (!tvmId) {
+        return channelFactory;
+    }
+
     if (!tvmService) {
         tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
     }
-    if (tvmId && !tvmService) {
-        THROW_ERROR_EXCEPTION("Cluster connection requires TVM authentification, but TVM service is unset");
+
+    if (!tvmService) {
+        const auto& Logger = AuthLogger;
+        YT_LOG_ERROR("Cluster connection requires TVM authentification, but TVM service is unset");
     }
-    if (tvmService && tvmId) {
-        auto ticketAuth = CreateServiceTicketAuth(tvmService, *tvmId);
-        channelFactory = CreateServiceTicketInjectingChannelFactory(
-            std::move(channelFactory),
-            std::move(ticketAuth));
-    }
-    return channelFactory;
+
+    auto ticketAuth = CreateServiceTicketAuth(tvmService, *tvmId);
+    return CreateServiceTicketInjectingChannelFactory(
+        std::move(channelFactory),
+        std::move(ticketAuth));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
