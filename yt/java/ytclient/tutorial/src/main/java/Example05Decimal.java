@@ -4,10 +4,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import tech.ytsaurus.type_info.TiType;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YtDecimal;
-import ru.yandex.type_info.TiType;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;

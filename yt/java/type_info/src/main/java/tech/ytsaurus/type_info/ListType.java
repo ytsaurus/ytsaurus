@@ -1,4 +1,4 @@
-package ru.yandex.type_info;
+package tech.ytsaurus.type_info;
 
 public class ListType extends ItemizedType {
     ListType(TiType element) {

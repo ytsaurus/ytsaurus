@@ -5,9 +5,10 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
+import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.type_info.TypeIO;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
-import ru.yandex.type_info.TiType;
-import ru.yandex.type_info.TypeIO;
 import ru.yandex.yt.rpcproxy.ERowsetKind;
 import ru.yandex.yt.rpcproxy.TColumnSchema;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;

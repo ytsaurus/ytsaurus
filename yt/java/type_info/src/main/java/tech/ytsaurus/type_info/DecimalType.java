@@ -1,4 +1,4 @@
-package ru.yandex.type_info;
+package tech.ytsaurus.type_info;
 
 import java.util.Objects;
 

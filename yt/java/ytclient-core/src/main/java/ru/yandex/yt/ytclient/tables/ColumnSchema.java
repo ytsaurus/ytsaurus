@@ -4,14 +4,15 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.type_info.TypeIO;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.type_info.TiType;
-import ru.yandex.type_info.TypeIO;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
 
 /**

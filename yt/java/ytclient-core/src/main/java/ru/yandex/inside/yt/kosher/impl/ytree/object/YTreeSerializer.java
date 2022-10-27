@@ -3,11 +3,11 @@ package ru.yandex.inside.yt.kosher.impl.ytree.object;
 import java.util.Collections;
 import java.util.Map;
 
+import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.yson.YsonConsumer;
 
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.type_info.TiType;
 
 /**
  * @author sankear
