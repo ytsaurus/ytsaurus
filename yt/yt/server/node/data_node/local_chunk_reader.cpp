@@ -73,7 +73,7 @@ public:
             blockCount,
             options);
 
-        return asyncResult.Apply(BIND([=] (const TErrorOr<std::vector<TBlock>>& blocksOrError) {
+        return asyncResult.Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& blocksOrError) {
             if (!blocksOrError.IsOK()) {
                 ThrowError(blocksOrError);
             }
@@ -90,7 +90,7 @@ public:
         static_cast<TClientChunkReadOptions&>(options) = clientOptions;
 
         auto asyncResult = Chunk_->ReadMeta(options, extensionTags);
-        return asyncResult.Apply(BIND([=] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
+        return asyncResult.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TRefCountedChunkMetaPtr>& metaOrError) {
             if (!metaOrError.IsOK()) {
                 ThrowError(metaOrError);
             }
