@@ -542,7 +542,10 @@ def build_modules_arguments(modules_info, create_temp_file, file_argument_builde
 
     modules_info_filename = create_temp_file(prefix="_modules_info")
     with open(modules_info_filename, "wb") as fout:
-        standard_pickle.dump(modules_info, fout)
+        # NB: python3.8 has changes DEFAULT_PROTOCTOL to 4.
+        # We set protocol implicitly for client<->server compatibility.
+        protocol = min(standard_pickle.HIGHEST_PROTOCOL, 3)
+        standard_pickle.dump(modules_info, fout, protocol=protocol)
 
     return [file_argument_builder(modules_info_filename)], tmpfs_size
 
