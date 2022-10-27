@@ -479,6 +479,9 @@ public:
 
     TString IssueServiceTicket() override
     {
+        if (!TvmService_) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No TVM service is specified");
+        }
         return TvmService_->GetServiceTicket(DstServiceId_);
     }
 
