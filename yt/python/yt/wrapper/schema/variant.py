@@ -1,13 +1,25 @@
-try:
-    from yt.packages.six import PY3
-except ImportError:
-    from six import PY3
+from .helpers import is_schema_module_available
 
+import sys
 import types
 import typing
 
 
-GenericAlias = types.GenericAlias if PY3 else object
+# types.GenericAlias can be subclassed only since 3.9.2.
+# https://docs.python.org/3/library/types.html#types.GenericAlias
+if sys.version_info >= (3, 9, 2):
+    GenericAlias = types.GenericAlias
+elif is_schema_module_available(skiff=False):
+    # Hack to pass argument `_root=True` to the `__init_subclass__` in compatible with python2 syntax manner
+    class _RootTrue:
+        def __init_subclass__(cls, **kwargs):
+            kwargs["_root"] = True
+            super().__init_subclass__(cls, **kwargs)
+
+    class GenericAlias(_RootTrue, typing._GenericAlias):
+        pass
+else:
+    GenericAlias = object
 
 
 class _VariantGenericAlias(GenericAlias):
@@ -16,7 +28,7 @@ class _VariantGenericAlias(GenericAlias):
 
     def __eq__(self, other):
         if not isinstance(other, _VariantGenericAlias):
-            return NotImplemented
+            return NotImplementedError
         return self.__args__ == other.__args__
 
     def __hash__(self):
