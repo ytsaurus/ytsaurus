@@ -2247,7 +2247,14 @@ private:
         const auto& rsp = rspOrError.Value();
         INodePtr poolTreesNode;
         try {
-            poolTreesNode = ConvertToNode(TYsonString(rsp->value()));
+            auto future =
+                BIND([poolTreesYson = TYsonString(rsp->value())] {
+                    return ConvertToNode(poolTreesYson);
+                })
+                .AsyncVia(GetBackgroundInvoker())
+                .Run();
+            poolTreesNode = WaitFor(future)
+                .ValueOrThrow();
         } catch (const std::exception& ex) {
             auto error = TError(EErrorCode::WatcherHandlerFailed, "Error parsing pool trees")
                 << ex;
@@ -2277,6 +2284,9 @@ private:
         }
 
         Strategy_->UpdatePoolTrees(poolTreesNode, strategyState);
+        
+        // Offload destroying pool trees node.
+        GetBackgroundInvoker()->Invoke(BIND([poolTreesNode = std::move(poolTreesNode)] { }));
     }
 
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)

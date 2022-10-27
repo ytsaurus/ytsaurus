@@ -226,6 +226,7 @@ public:
         const std::vector<IInvokerPtr>& feasibleInvokers,
         TString treeId)
         : Config_(std::move(config))
+        , ConfigNode_(ConvertToNode(Config_))
         , ControllerConfig_(std::move(controllerConfig))
         , ResourceTree_(New<TResourceTree>(Config_, feasibleInvokers))
         , TreeProfiler_(New<TFairShareTreeProfileManager>(
@@ -288,11 +289,16 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        if (AreNodesEqual(ConvertToNode(config), ConvertToNode(Config_))) {
+        auto configNode = ConvertToNode(config);
+        if (AreNodesEqual(configNode, ConfigNode_)) {
+            // Offload destroying config node.
+            StrategyHost_->GetBackgroundInvoker()->Invoke(BIND([configNode = std::move(configNode)] { }));
+
             return false;
         }
 
         Config_ = config;
+        ConfigNode_ = std::move(configNode);
         RootElement_->UpdateTreeConfig(Config_);
         ResourceTree_->UpdateConfig(Config_);
 
@@ -340,11 +346,18 @@ public:
 
         YT_VERIFY(TreeSnapshotPrecommit_);
 
+        TFairShareTreeSnapshotPtr oldTreeSnapshot;
+
         {
             auto guard = WriterGuard(TreeSnapshotLock_);
+            oldTreeSnapshot = std::move(TreeSnapshot_);
             TreeSnapshot_ = std::move(TreeSnapshotPrecommit_);
         }
+
         TreeSnapshotPrecommit_.Reset();
+
+        // Offload destroying previous tree snapshot.
+        StrategyHost_->GetBackgroundInvoker()->Invoke(BIND([oldTreeSnapshot = std::move(oldTreeSnapshot)] { }));
     }
 
     bool HasOperation(TOperationId operationId) const override
@@ -1165,6 +1178,8 @@ public:
 
 private:
     TFairShareStrategyTreeConfigPtr Config_;
+    INodePtr ConfigNode_;
+
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;
 
     TResourceTreePtr ResourceTree_;
