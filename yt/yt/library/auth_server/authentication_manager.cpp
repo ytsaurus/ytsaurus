@@ -1,6 +1,9 @@
 #include "authentication_manager.h"
+
 #include "blackbox_service.h"
+#include "blackbox_cookie_authenticator.h"
 #include "cookie_authenticator.h"
+#include "cypress_cookie_manager.h"
 #include "tvm_service.h"
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
@@ -11,22 +14,26 @@
 namespace NYT::NAuth {
 
 using namespace NApi;
-using namespace NRpc;
 using namespace NConcurrency;
+using namespace NHttp;
+using namespace NProfiling;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAuthenticationManager::TImpl
+class TAuthenticationManager
+    : public IAuthenticationManager
 {
 public:
-    TImpl(
+    TAuthenticationManager(
         TAuthenticationManagerConfigPtr config,
         IPollerPtr poller,
-        IClientPtr client,
-        NProfiling::TProfiler profiler)
+        NApi::IClientPtr client,
+        TProfiler profiler)
     {
         std::vector<NRpc::IAuthenticatorPtr> rpcAuthenticators;
-        std::vector<NAuth::ITokenAuthenticatorPtr> tokenAuthenticators;
+        std::vector<ITokenAuthenticatorPtr> tokenAuthenticators;
+        std::vector<ICookieAuthenticatorPtr> cookieAuthenticators;
 
         if (config->TvmService && poller) {
             TvmService_ = CreateTvmService(
@@ -41,6 +48,14 @@ public:
                 TvmService_,
                 poller,
                 profiler.WithPrefix("/blackbox"));
+        }
+
+        if (config->CypressCookieManager) {
+            CypressCookieManager_ = CreateCypressCookieManager(
+                config->CypressCookieManager,
+                client,
+                profiler);
+            cookieAuthenticators.push_back(CypressCookieManager_->GetCookieAuthenticator());
         }
 
         if (config->BlackboxTokenAuthenticator && blackboxService) {
@@ -75,12 +90,12 @@ public:
                 config->BlackboxCookieAuthenticator->GetUserTicket = false;
             }
 
-            CookieAuthenticator_ = CreateCachingCookieAuthenticator(
+            cookieAuthenticators.push_back(CreateCachingCookieAuthenticator(
                 config->BlackboxCookieAuthenticator,
                 CreateBlackboxCookieAuthenticator(
                     config->BlackboxCookieAuthenticator,
                     blackboxService),
-                profiler.WithPrefix("/blackbox_cookie_authenticator/cache"));
+                profiler.WithPrefix("/blackbox_cookie_authenticator/cache")));
             rpcAuthenticators.push_back(
                 CreateCookieAuthenticatorWrapper(CookieAuthenticator_));
         }
@@ -104,35 +119,58 @@ public:
         }
         TokenAuthenticator_ = CreateCompositeTokenAuthenticator(tokenAuthenticators);
 
+        CookieAuthenticator_ = CreateCompositeCookieAuthenticator(
+            std::move(cookieAuthenticators));
+        rpcAuthenticators.push_back(CreateCookieAuthenticatorWrapper(CookieAuthenticator_));
+
         if (!config->RequireAuthentication) {
             rpcAuthenticators.push_back(NRpc::CreateNoopAuthenticator());
         }
         RpcAuthenticator_ = CreateCompositeAuthenticator(std::move(rpcAuthenticators));
     }
 
-    const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const
+    void Start() override
+    {
+        if (CypressCookieManager_) {
+            CypressCookieManager_->Start();
+        }
+    }
+
+    void Stop() override
+    {
+        if (CypressCookieManager_) {
+            CypressCookieManager_->Stop();
+        }
+    }
+
+    const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const override
     {
         return RpcAuthenticator_;
     }
 
-    const ITokenAuthenticatorPtr& GetTokenAuthenticator() const
+    const ITokenAuthenticatorPtr& GetTokenAuthenticator() const override
     {
         return TokenAuthenticator_;
     }
 
-    const ICookieAuthenticatorPtr& GetCookieAuthenticator() const
+    const ICookieAuthenticatorPtr& GetCookieAuthenticator() const override
     {
         return CookieAuthenticator_;
     }
 
-    const ITicketAuthenticatorPtr& GetTicketAuthenticator() const
+    const ITicketAuthenticatorPtr& GetTicketAuthenticator() const override
     {
         return TicketAuthenticator_;
     }
 
-    const ITvmServicePtr& GetTvmService() const
+    const ITvmServicePtr& GetTvmService() const override
     {
         return TvmService_;
+    }
+
+    const ICypressCookieManagerPtr& GetCypressCookieManager() const override
+    {
+        return CypressCookieManager_;
     }
 
 private:
@@ -141,48 +179,23 @@ private:
     ITokenAuthenticatorPtr TokenAuthenticator_;
     ICookieAuthenticatorPtr CookieAuthenticator_;
     ITicketAuthenticatorPtr TicketAuthenticator_;
+
+    ICypressCookieManagerPtr CypressCookieManager_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TAuthenticationManager::TAuthenticationManager(
+IAuthenticationManagerPtr CreateAuthenticationManager(
     TAuthenticationManagerConfigPtr config,
     IPollerPtr poller,
-    IClientPtr client,
-    NProfiling::TProfiler profiler)
-    : Impl_(std::make_unique<TImpl>(
+    NApi::IClientPtr client,
+    TProfiler profiler)
+{
+    return New<TAuthenticationManager>(
         std::move(config),
         std::move(poller),
         std::move(client),
-        std::move(profiler)))
-{ }
-
-TAuthenticationManager::~TAuthenticationManager()
-{ }
-
-const NRpc::IAuthenticatorPtr& TAuthenticationManager::GetRpcAuthenticator() const
-{
-    return Impl_->GetRpcAuthenticator();
-}
-
-const ITokenAuthenticatorPtr& TAuthenticationManager::GetTokenAuthenticator() const
-{
-    return Impl_->GetTokenAuthenticator();
-}
-
-const ICookieAuthenticatorPtr& TAuthenticationManager::GetCookieAuthenticator() const
-{
-    return Impl_->GetCookieAuthenticator();
-}
-
-const ITicketAuthenticatorPtr& TAuthenticationManager::GetTicketAuthenticator() const
-{
-    return Impl_->GetTicketAuthenticator();
-}
-
-const ITvmServicePtr& TAuthenticationManager::GetTvmService() const
-{
-    return Impl_->GetTvmService();
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

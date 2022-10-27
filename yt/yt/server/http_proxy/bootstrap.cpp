@@ -12,6 +12,7 @@
 #include <yt/yt/server/http_proxy/clickhouse/handler.h>
 
 #include <yt/yt/server/lib/admin/admin_service.h>
+
 #include <yt/yt/server/lib/core_dump/core_dumper.h>
 
 #include <yt/yt/server/lib/zookeeper_proxy/bootstrap.h>
@@ -19,17 +20,21 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
-#include <yt/yt/library/auth_server/authentication_manager.h>
-
-#include <yt/yt/library/monitoring/http_integration.h>
-#include <yt/yt/library/monitoring/monitoring_manager.h>
-
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/ytlib/program/helpers.h>
+
+#include <yt/yt/library/auth_server/authentication_manager.h>
+#include <yt/yt/library/auth_server/config.h>
+#include <yt/yt/library/auth_server/cypress_cookie_login.h>
+#include <yt/yt/library/auth_server/cypress_cookie_manager.h>
+
+#include <yt/yt/library/monitoring/http_integration.h>
+#include <yt/yt/library/monitoring/monitoring_manager.h>
+
+#include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/client/driver/driver.h>
 #include <yt/yt/client/driver/config.h>
@@ -177,12 +182,22 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     driverV4Config->AsMap()->AddChild("api_version", ConvertToNode<i64>(4));
     DriverV4_ = CreateDriver(Connection_, ConvertTo<TDriverConfigPtr>(driverV4Config));
 
-    AuthenticationManager_ = New<TAuthenticationManager>(
+    AuthenticationManager_ = CreateAuthenticationManager(
         Config_->Auth,
         Poller_,
         RootClient_);
 
-    auto httpAuthenticator = New<THttpAuthenticator>(this, Config_->Auth, AuthenticationManager_);
+    if (Config_->Auth->CypressCookieManager) {
+        CypressCookieLoginHandler_ = CreateCypressCookieLoginHandler(
+            Config_->Auth->CypressCookieManager->CookieGenerator,
+            RootClient_,
+            AuthenticationManager_->GetCypressCookieManager()->GetCookieStore());
+    }
+
+    auto httpAuthenticator = New<THttpAuthenticator>(
+        this,
+        Config_->Auth,
+        AuthenticationManager_);
     THashMap<int, THttpAuthenticatorPtr> authenticators{{Config_->HttpServer->Port, httpAuthenticator}};
 
     if (Config_->HttpsServer) {
@@ -191,11 +206,14 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
 
     THttpAuthenticatorPtr tvmOnlyAuthenticator = nullptr;
     if (Config_->TvmOnlyAuth) {
-        TvmOnlyAuthenticationManager_ = New<TAuthenticationManager>(
+        TvmOnlyAuthenticationManager_ = CreateAuthenticationManager(
             Config_->TvmOnlyAuth,
             Poller_,
             RootClient_);
-        tvmOnlyAuthenticator = New<THttpAuthenticator>(this, Config_->TvmOnlyAuth, TvmOnlyAuthenticationManager_);
+        tvmOnlyAuthenticator = New<THttpAuthenticator>(
+            this,
+            Config_->TvmOnlyAuth,
+            TvmOnlyAuthenticationManager_);
     }
 
     if (Config_->TvmOnlyHttpServer) {
@@ -288,6 +306,8 @@ void TBootstrap::Run()
     }
     Coordinator_->Start();
 
+    AuthenticationManager_->Start();
+
     RpcServer_->Start();
 
     if (ZookeeperBootstrap_) {
@@ -347,7 +367,7 @@ const TCompositeHttpAuthenticatorPtr& TBootstrap::GetHttpAuthenticator() const
     return HttpAuthenticator_;
 }
 
-const NAuth::TAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager() const
+const IAuthenticationManagerPtr& TBootstrap::GetAuthenticationManager() const
 {
     return AuthenticationManager_;
 }
@@ -369,7 +389,7 @@ const TApiPtr& TBootstrap::GetApi() const
 
 IHttpHandlerPtr TBootstrap::AllowCors(IHttpHandlerPtr nextHandler) const
 {
-    return New<TCallbackHandler>(BIND_NO_PROPAGATE([config=Config_, nextHandler] (
+    return New<TCallbackHandler>(BIND_NO_PROPAGATE([config = Config_, nextHandler] (
         const IRequestPtr& req,
         const IResponseWriterPtr& rsp)
     {
@@ -387,6 +407,9 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
     server->AddHandler("/api/", AllowCors(Api_));
     server->AddHandler("/hosts/", AllowCors(HostsHandler_));
     server->AddHandler("/ping/", AllowCors(PingHandler_));
+    if (CypressCookieLoginHandler_) {
+        server->AddHandler("/login/", CypressCookieLoginHandler_);
+    }
 
     server->AddHandler("/internal/discover_versions/v2", AllowCors(DiscoverVersionsHandlerV2_));
 
@@ -397,7 +420,7 @@ void TBootstrap::RegisterRoutes(const NHttp::IServerPtr& server)
     server->AddHandler("/query", AllowCors(ClickHouseHandler_));
 
     if (!Config_->UIRedirectUrl.empty()) {
-        server->AddHandler("/", New<TCallbackHandler>(BIND([config=Config_] (
+        server->AddHandler("/", New<TCallbackHandler>(BIND([config = Config_] (
             const IRequestPtr& req,
             const IResponseWriterPtr& rsp)
         {

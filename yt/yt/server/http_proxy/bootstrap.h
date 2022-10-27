@@ -60,7 +60,7 @@ public:
     const TCoordinatorPtr& GetCoordinator() const;
     const IAccessCheckerPtr& GetAccessChecker() const;
     const TCompositeHttpAuthenticatorPtr& GetHttpAuthenticator() const;
-    const NAuth::TAuthenticationManagerPtr& GetAuthenticationManager() const;
+    const NAuth::IAuthenticationManagerPtr& GetAuthenticationManager() const;
     const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
     const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
     const IDynamicConfigManagerPtr& GetDynamicConfigManager() const;
@@ -91,9 +91,11 @@ private:
     NDriver::IDriverPtr DriverV3_;
     NDriver::IDriverPtr DriverV4_;
 
-    NAuth::TAuthenticationManagerPtr AuthenticationManager_;
-    NAuth::TAuthenticationManagerPtr TvmOnlyAuthenticationManager_;
+    NAuth::IAuthenticationManagerPtr AuthenticationManager_;
+    NAuth::IAuthenticationManagerPtr TvmOnlyAuthenticationManager_;
     TCompositeHttpAuthenticatorPtr HttpAuthenticator_;
+
+    NHttp::IHttpHandlerPtr CypressCookieLoginHandler_;
 
     IDynamicConfigManagerPtr DynamicConfigManager_;
 
@@ -114,6 +116,7 @@ private:
     THostsHandlerPtr HostsHandler_;
     TPingHandlerPtr PingHandler_;
     TDiscoverVersionsHandlerPtr DiscoverVersionsHandlerV2_;
+
     IAccessCheckerPtr AccessChecker_;
 
     ICoreDumperPtr CoreDumper_;

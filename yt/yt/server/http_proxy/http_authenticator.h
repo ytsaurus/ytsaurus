@@ -28,10 +28,10 @@ class THttpAuthenticator
     : public NHttp::IHttpHandler
 {
 public:
-    explicit THttpAuthenticator(
+    THttpAuthenticator(
         TBootstrap* bootstrap,
         const NAuth::TAuthenticationManagerConfigPtr& authManagerConfig,
-        const NAuth::TAuthenticationManagerPtr& authManager);
+        const NAuth::IAuthenticationManagerPtr& authManager);
 
     void HandleRequest(
         const NHttp::IRequestPtr& req,
@@ -47,7 +47,7 @@ private:
     TBootstrap* Bootstrap_;
 
     const NAuth::TAuthenticationManagerConfigPtr Config_;
-    const NAuth::TAuthenticationManagerPtr AuthenticationManager_;
+    const NAuth::IAuthenticationManagerPtr AuthenticationManager_;
     const NAuth::ITokenAuthenticatorPtr TokenAuthenticator_;
     const NAuth::ICookieAuthenticatorPtr CookieAuthenticator_;
 };

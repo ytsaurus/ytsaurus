@@ -8,16 +8,18 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 
 #include <yt/yt/core/concurrency/config.h>
+
+#include <yt/yt/core/crypto/crypto.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NSecurityServer {
 
+using namespace NCellMaster;
+using namespace NConcurrency;
+using namespace NCrypto;
 using namespace NYson;
 using namespace NYTree;
-using namespace NConcurrency;
-
-using NYT::ToProto;
-using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -140,7 +142,7 @@ void TSerializableUserRequestLimitsOptions::Register(TRegistrar registrar)
 
 TSerializableUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::CreateFrom(
     const TUserRequestLimitsOptionsPtr& options,
-    const NCellMaster::IMulticellManagerPtr& multicellManager)
+    const IMulticellManagerPtr& multicellManager)
 {
     auto result = New<TSerializableUserRequestLimitsOptions>();
 
@@ -150,7 +152,8 @@ TSerializableUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::
     return result;
 }
 
-TUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const
+TUserRequestLimitsOptionsPtr TSerializableUserRequestLimitsOptions::ToLimitsOrThrow(
+    const IMulticellManagerPtr& multicellManager) const
 {
     auto result = New<TUserRequestLimitsOptions>();
     result->Default = Default_;
@@ -171,7 +174,7 @@ void TSerializableUserQueueSizeLimitsOptions::Register(TRegistrar registrar)
 
 TSerializableUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::CreateFrom(
     const TUserQueueSizeLimitsOptionsPtr& options,
-    const NCellMaster::IMulticellManagerPtr& multicellManager)
+    const IMulticellManagerPtr& multicellManager)
 {
     auto result = New<TSerializableUserQueueSizeLimitsOptions>();
 
@@ -181,7 +184,8 @@ TSerializableUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptio
     return result;
 }
 
-TUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::ToLimitsOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const
+TUserQueueSizeLimitsOptionsPtr TSerializableUserQueueSizeLimitsOptions::ToLimitsOrThrow(
+    const IMulticellManagerPtr& multicellManager) const
 {
     auto result = New<TUserQueueSizeLimitsOptions>();
     result->Default = Default_;
@@ -203,8 +207,8 @@ void TSerializableUserRequestLimitsConfig::Register(TRegistrar registrar)
 }
 
 TSerializableUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::CreateFrom(
-        const TUserRequestLimitsConfigPtr& config,
-        const NCellMaster::IMulticellManagerPtr& multicellManager)
+    const TUserRequestLimitsConfigPtr& config,
+    const IMulticellManagerPtr& multicellManager)
 {
     auto result = New<TSerializableUserRequestLimitsConfig>();
 
@@ -215,7 +219,8 @@ TSerializableUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::Cr
     return result;
 }
 
-TUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::ToConfigOrThrow(const NCellMaster::IMulticellManagerPtr& multicellManager) const
+TUserRequestLimitsConfigPtr TSerializableUserRequestLimitsConfig::ToConfigOrThrow(
+    const IMulticellManagerPtr& multicellManager) const
 {
     auto result = New<TUserRequestLimitsConfig>();
     result->ReadRequestRateLimits = ReadRequestRateLimits_->ToLimitsOrThrow(multicellManager);
@@ -241,26 +246,35 @@ TString TUser::GetCapitalizedObjectName() const
     return Format("User %Qv", Name_);
 }
 
-void TUser::Save(NCellMaster::TSaveContext& context) const
+void TUser::Save(TSaveContext& context) const
 {
     TSubject::Save(context);
 
     using NYT::Save;
     Save(context, Banned_);
+    Save(context, EncryptedPassword_);
+    Save(context, PasswordSalt_);
+    Save(context, PasswordRevision_);
     Save(context, *ObjectServiceRequestLimits_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestWeightThrottlerConfig_);
     TNullableIntrusivePtrSerializer<>::Save(context, ChunkServiceUserRequestBytesThrottlerConfig_);
 }
 
-void TUser::Load(NCellMaster::TLoadContext& context)
+void TUser::Load(TLoadContext& context)
 {
     TSubject::Load(context);
 
     using NYT::Load;
     Load(context, Banned_);
+    // COMPAT(gritukan)
+    if (context.GetVersion() >= EMasterReign::UserPassword) {
+        Load(context, EncryptedPassword_);
+        Load(context, PasswordSalt_);
+        Load(context, PasswordRevision_);
+    }
     Load(context, *ObjectServiceRequestLimits_);
     // COMPAT(h0pless)
-    if (context.GetVersion() >= NCellMaster::EMasterReign::AddPerUserChunkThrottlers) {
+    if (context.GetVersion() >= EMasterReign::AddPerUserChunkThrottlers) {
         TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestWeightThrottlerConfig_);
         TNullableIntrusivePtrSerializer<>::Load(context, ChunkServiceUserRequestBytesThrottlerConfig_);
     }
@@ -291,6 +305,36 @@ void TUser::SetRequestQueueSize(int size)
 void TUser::ResetRequestQueueSize()
 {
     RequestQueueSize_ = 0;
+}
+
+void TUser::SetPassword(std::optional<TString> password)
+{
+    auto* hydraContext = NHydra::GetCurrentHydraContext();
+    PasswordRevision_ = hydraContext->GetVersion().ToRevision();
+
+    if (password) {
+        constexpr int SaltLength = 32;
+        constexpr int AlphabetSize = 26;
+
+        // NB: This generator is not crypto-safe!
+        const auto& rng = hydraContext->RandomGenerator();
+
+        TString salt;
+        for (int index = 0; index < SaltLength; ++index) {
+            salt += 'A' + rng->Generate<int>() % AlphabetSize;
+        }
+
+        EncryptedPassword_ = EncryptPassword(*password, salt);
+        PasswordSalt_ = std::move(salt);
+    } else {
+        EncryptedPassword_ = std::move(password);
+        PasswordSalt_ = {};
+    }
+}
+
+bool TUser::HasPassword() const
+{
+    return static_cast<bool>(EncryptedPassword_);
 }
 
 void TUser::UpdateCounters(const TUserWorkload& workload)

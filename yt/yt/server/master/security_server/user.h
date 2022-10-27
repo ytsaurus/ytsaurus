@@ -162,9 +162,24 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestWeightThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestBytesThrottlerConfig);
 
+    //! Encrypted password used for authentication. If equals to |std::nullopt|,
+    //! authentication via password is disabled.
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, EncryptedPassword);
+    //! Salt used for password encryption.
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, PasswordSalt);
+    //! Revision of the password that increases every time
+    //! password changes.
+    DEFINE_BYVAL_RO_PROPERTY(NHydra::TRevision, PasswordRevision);
+
     int GetRequestQueueSize() const;
     void SetRequestQueueSize(int size);
     void ResetRequestQueueSize();
+
+    //! Sets password for user. |std::nullopt| removes password.
+    void SetPassword(std::optional<TString> password);
+
+    //! Returns true if password is set for user and false otherwise.
+    bool HasPassword() const;
 
     using TStatistics = TEnumIndexedVector<EUserWorkloadType, TUserWorkloadStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);

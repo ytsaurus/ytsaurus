@@ -78,7 +78,7 @@ THydraContext* TryGetCurrentHydraContext()
 THydraContext* GetCurrentHydraContext()
 {
     auto* hydraContext = TryGetCurrentHydraContext();
-    YT_ASSERT(hydraContext);
+    YT_VERIFY(hydraContext);
     return hydraContext;
 }
 

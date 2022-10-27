@@ -42,6 +42,8 @@ void SetUserAgent(const THeadersPtr& headers, const TString& value);
 
 void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonConsumer*)> producer);
 
+void ReplyError(const IResponseWriterPtr& response, const TError& error);
+
 NTracing::TTraceId GetTraceId(const IRequestPtr& req);
 void SetTraceId(const IResponseWriterPtr& rsp, NTracing::TTraceId traceId);
 

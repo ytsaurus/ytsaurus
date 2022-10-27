@@ -88,6 +88,18 @@ private:
             .SetRemovable(true)
             .SetReplicated(true)
             .SetPresent(chunkServiceBytesConfigPresent));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Password)
+            .SetWritable(true)
+            .SetRemovable(true)
+            .SetPresent(user->HasPassword())
+            .SetOpaque(true));
+        descriptors->push_back(EInternedAttributeKey::PasswordRevision);
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::EncryptedPassword)
+            .SetPresent(user->HasPassword())
+            .SetOpaque(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::PasswordSalt)
+            .SetPresent(user->HasPassword())
+            .SetOpaque(true));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
@@ -205,6 +217,36 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::Password:
+                if (!user->HasPassword()) {
+                    break;
+                }
+
+                THROW_ERROR_EXCEPTION("Plaintext password is not stored for security reasons");
+
+            case EInternedAttributeKey::PasswordRevision:
+                BuildYsonFluently(consumer)
+                    .Value(user->GetPasswordRevision());
+                return true;
+
+            case EInternedAttributeKey::EncryptedPassword:
+                if (!user->HasPassword()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(user->EncryptedPassword());
+                return true;
+
+            case EInternedAttributeKey::PasswordSalt:
+                if (!user->HasPassword()) {
+                    break;
+                }
+
+                BuildYsonFluently(consumer)
+                    .Value(user->PasswordSalt());
+                return true;
+
             default:
                 break;
         }
@@ -292,6 +334,12 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::Password: {
+                auto password = ConvertTo<TString>(value);
+                user->SetPassword(std::move(password));
+                return true;
+            }
+
             default:
                 break;
         }
@@ -312,6 +360,11 @@ private:
 
             case EInternedAttributeKey::ChunkServiceRequestBytesThrottler: {
                 securityManager->SetChunkServiceUserRequestBytesThrottlerConfig(user, nullptr);
+                return true;
+            }
+
+            case EInternedAttributeKey::Password: {
+                user->SetPassword(/*password*/ std::nullopt);
                 return true;
             }
 

@@ -394,7 +394,11 @@ public:
     {
         static const auto Realm = TString("noop");
         static const auto UserTicket = TString("");
-        TAuthenticationResult result{NRpc::RootUserName, Realm, UserTicket};
+        TAuthenticationResult result{
+            .Login = NRpc::RootUserName,
+            .Realm = Realm,
+            .UserTicket = UserTicket,
+        };
         return MakeFuture<TAuthenticationResult>(result);
     }
 };

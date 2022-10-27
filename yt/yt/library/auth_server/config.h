@@ -289,17 +289,90 @@ DEFINE_REFCOUNTED_TYPE(TCachingSecretVaultServiceConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TCypressCookieStoreConfig
+    : public NYTree::TYsonStruct
+{
+    //! Store will renew cookie list with this frequency.
+    TDuration FullFetchPeriod;
+
+    //! Errors are cached for this period of time.
+    TDuration ErrorEvictionTime;
+
+    REGISTER_YSON_STRUCT(TCypressCookieStoreConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressCookieStoreConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCypressCookieGeneratorConfig
+    : public NYTree::TYsonStruct
+{
+    //! Used to form ExpiresAt parameter.
+    TDuration CookieExpirationTimeout;
+
+    //! If cookie will expire within this period,
+    //! authenticator will try to renew it.
+    TDuration CookieRenewalPeriod;
+
+    //! Controls Secure parameter of a cookie.
+    //! If true, cookie will be used by user only
+    //! in https requests which prevents cookie
+    //! stealing because of unsecured connection,
+    //! so this field should be set to true in production
+    //! environments.
+    bool Secure;
+
+    //! Domain parameter of generated cookies.
+    std::optional<TString> Domain;
+
+    //! Path parameter of generated cookies.
+    std::optional<TString> Path;
+
+    //! If set and if cookie is generated via login page,
+    //! will redirect user to this page.
+    std::optional<TString> RedirectUrl;
+
+    REGISTER_YSON_STRUCT(TCypressCookieGeneratorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressCookieGeneratorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TCypressCookieManagerConfig
+    : public NYTree::TYsonStruct
+{
+    TCypressCookieStoreConfigPtr CookieStore;
+    TCypressCookieGeneratorConfigPtr CookieGenerator;
+    TCachingBlackboxCookieAuthenticatorConfigPtr CookieAuthenticator;
+
+    REGISTER_YSON_STRUCT(TCypressCookieManagerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressCookieManagerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TAuthenticationManagerConfig
     : public virtual NYT::NYTree::TYsonStruct
 {
 public:
     bool RequireAuthentication;
-    NAuth::TCachingBlackboxTokenAuthenticatorConfigPtr BlackboxTokenAuthenticator;
-    NAuth::TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
-    NAuth::TBlackboxServiceConfigPtr BlackboxService;
-    NAuth::TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
-    NAuth::TTvmServiceConfigPtr TvmService;
-    NAuth::TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
+    TCachingBlackboxTokenAuthenticatorConfigPtr BlackboxTokenAuthenticator;
+    TCachingBlackboxCookieAuthenticatorConfigPtr BlackboxCookieAuthenticator;
+    TBlackboxServiceConfigPtr BlackboxService;
+    TCachingCypressTokenAuthenticatorConfigPtr CypressTokenAuthenticator;
+    TTvmServiceConfigPtr TvmService;
+    TBlackboxTicketAuthenticatorConfigPtr BlackboxTicketAuthenticator;
+
+    TCypressCookieManagerConfigPtr CypressCookieManager;
 
     TString GetCsrfSecret() const;
 

@@ -200,6 +200,57 @@ void TCachingSecretVaultServiceConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCypressCookieStoreConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("full_fetch_period", &TThis::FullFetchPeriod)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("error_eviction_time", &TThis::ErrorEvictionTime)
+        .Default(TDuration::Minutes(1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCypressCookieGeneratorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cookie_expiration_timeout", &TThis::CookieExpirationTimeout)
+        .Default(TDuration::Days(90));
+    registrar.Parameter("cookie_renewal_period", &TThis::CookieRenewalPeriod)
+        .Default(TDuration::Days(30));
+
+    registrar.Parameter("secure", &TThis::Secure)
+        .Default(true);
+
+    registrar.Parameter("domain", &TThis::Domain)
+        .Default();
+    registrar.Parameter("path", &TThis::Path)
+        .Default();
+
+    registrar.Parameter("redirect_url", &TThis::RedirectUrl)
+        .Default();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->CookieRenewalPeriod > config->CookieExpirationTimeout) {
+            THROW_ERROR_EXCEPTION(
+                "\"cookie_renewal_period\" cannot be greater than \"cookie_expiration_timeout\"");
+        }
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TCypressCookieManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cookie_store", &TThis::CookieStore)
+        .DefaultNew();
+    registrar.Parameter("cookie_generator", &TThis::CookieGenerator)
+        .DefaultNew();
+    registrar.Parameter("cookie_authenticator", &TThis::CookieAuthenticator)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString TAuthenticationManagerConfig::GetCsrfSecret() const
 {
     if (BlackboxCookieAuthenticator &&
@@ -241,6 +292,8 @@ void TAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("blackbox_ticket_authenticator", &TThis::BlackboxTicketAuthenticator)
         .Optional();
+    registrar.Parameter("cypress_cookie_manager", &TThis::CypressCookieManager)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

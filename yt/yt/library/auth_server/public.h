@@ -29,7 +29,17 @@ DECLARE_REFCOUNTED_CLASS(TDefaultSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TBatchingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingSecretVaultServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TAuthenticationManagerConfig)
-DECLARE_REFCOUNTED_CLASS(TAuthenticationManager)
+
+DECLARE_REFCOUNTED_STRUCT(TCypressCookie)
+
+DECLARE_REFCOUNTED_STRUCT(TCypressCookieStoreConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressCookieGeneratorConfig)
+DECLARE_REFCOUNTED_STRUCT(TCypressCookieManagerConfig)
+
+DECLARE_REFCOUNTED_STRUCT(ICypressCookieStore)
+DECLARE_REFCOUNTED_STRUCT(ICypressCookieManager)
+
+DECLARE_REFCOUNTED_STRUCT(IAuthenticationManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
 DECLARE_REFCOUNTED_STRUCT(ITvmService)
@@ -83,8 +93,9 @@ struct TTokenCredentials
 
 struct TCookieCredentials
 {
-    TString SessionId;
-    std::optional<TString> SslSessionId;
+    // NB: Since requests are caching, pass only required
+    // subset of cookies here.
+    THashMap<TString, TString> Cookies;
 
     NNet::TNetworkAddress UserIP;
 };
@@ -104,6 +115,9 @@ struct TAuthenticationResult
     TString Login;
     TString Realm;
     TString UserTicket;
+
+    //! If set, client is advised to set this cookie.
+    std::optional<TString> SetCookie;
 };
 
 struct TParsedTicket
@@ -112,7 +126,7 @@ struct TParsedTicket
     THashSet<TString> Scopes;
 };
 
-typedef ui64 TTvmId;
+using TTvmId = ui64;
 
 struct TParsedServiceTicket
 {
@@ -123,9 +137,16 @@ inline bool operator ==(
     const TCookieCredentials& lhs,
     const TCookieCredentials& rhs)
 {
-    return std::tie(lhs.SessionId, lhs.SslSessionId, lhs.UserIP) ==
-           std::tie(rhs.SessionId, rhs.SslSessionId, rhs.UserIP);
+    return
+        std::tie(lhs.Cookies, lhs.UserIP) ==
+        std::tie(rhs.Cookies, rhs.UserIP);
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr TStringBuf BlackboxSessionIdCookieName = "Session_id";
+constexpr TStringBuf BlackboxSslSessionIdCookieName = "sessionid2";
+constexpr TStringBuf CypressCookieName = "YTCypressCookie";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -137,9 +158,18 @@ struct THash<NYT::NAuth::TCookieCredentials>
     inline size_t operator()(const NYT::NAuth::TCookieCredentials& credentials) const
     {
         size_t result = 0;
-        NYT::HashCombine(result, credentials.SessionId);
-        NYT::HashCombine(result, credentials.SslSessionId);
+
+        std::vector<std::pair<TString, TString>> cookies(
+            credentials.Cookies.begin(),
+            credentials.Cookies.end());
+        std::sort(cookies.begin(), cookies.end());
+        for (const auto& cookie : cookies) {
+            NYT::HashCombine(result, cookie.first);
+            NYT::HashCombine(result, cookie.second);
+        }
+
         NYT::HashCombine(result, credentials.UserIP);
+
         return result;
     }
 };

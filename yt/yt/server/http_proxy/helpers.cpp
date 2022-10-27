@@ -350,15 +350,6 @@ std::optional<TNetworkStatistics> GetNetworkStatistics()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ReplyError(const IResponseWriterPtr& response, const TError& error)
-{
-    FillYTErrorHeaders(response, error);
-    ReplyJson(response, [&] (NYson::IYsonConsumer* consumer) {
-        NYTree::BuildYsonFluently(consumer)
-            .Value(error);
-    });
-}
-
 void ProcessDebugHeaders(const IRequestPtr& /*request*/, const IResponseWriterPtr& response, const TCoordinatorPtr& coordinator)
 {
     response->GetHeaders()->Add("X-YT-Proxy", coordinator->GetSelf()->GetHost());

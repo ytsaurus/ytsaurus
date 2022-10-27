@@ -140,13 +140,13 @@ void TBootstrap::DoRun()
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::RootUserName);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
-    AuthenticationManager_ = New<TAuthenticationManager>(
+    AuthenticationManager_ = CreateAuthenticationManager(
         Config_,
         HttpPoller_,
         NativeClient_);
 
     if (Config_->TvmOnlyRpcPort && Config_->TvmOnlyAuth) {
-        TvmOnlyAuthenticationManager_ = New<TAuthenticationManager>(
+        TvmOnlyAuthenticationManager_ = CreateAuthenticationManager(
             Config_->TvmOnlyAuth,
             HttpPoller_,
             NativeClient_);
@@ -301,7 +301,7 @@ const IAuthenticatorPtr& TBootstrap::GetRpcAuthenticator() const
     return AuthenticationManager_->GetRpcAuthenticator();
 }
 
-NAuth::TAuthenticationManagerConfigPtr TBootstrap::GetConfigAuthenticationManager() const
+TAuthenticationManagerConfigPtr TBootstrap::GetConfigAuthenticationManager() const
 {
     return Config_;
 }

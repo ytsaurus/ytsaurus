@@ -9,8 +9,11 @@
 #include <library/cpp/string_utils/quote/quote.h>
 #include <library/cpp/string_utils/url/url.h>
 
+#include <util/string/split.h>
+
 namespace NYT::NAuth {
 
+using namespace NCrypto;
 using namespace NYson;
 using namespace NYTree;
 using namespace NRpc::NProto;
@@ -21,7 +24,7 @@ TString GetCryptoHash(TStringBuf secret)
 {
     return NCrypto::TSha1Hasher()
         .Append(secret)
-        .GetHexDigestLower();
+        .GetHexDigestLowerCase();
 }
 
 TString FormatUserIP(const NNet::TNetworkAddress& address)
@@ -122,6 +125,43 @@ void Serialize(const THashedCredentials& hashedCredentials, IYsonConsumer* consu
         .BeginMap()
             .OptionalItem("token_hash", hashedCredentials.TokenHash)
         .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString SignCsrfToken(const TString& userId, const TString& key, TInstant now)
+{
+    auto msg = userId + ":" + ToString(now.TimeT());
+    return CreateSha256Hmac(key, msg) + ":" + ToString(now.TimeT());
+}
+
+TError CheckCsrfToken(
+    const TString& csrfToken,
+    const TString& userId,
+    const TString& key,
+    TInstant expirationTime)
+{
+    std::vector<TString> parts;
+    StringSplitter(csrfToken).Split(':').AddTo(&parts);
+    if (parts.size() != 2) {
+        return TError("Malformed CSRF token");
+    }
+
+    auto signTime = TInstant::Seconds(FromString<time_t>(parts[1]));
+    if (signTime < expirationTime) {
+        return TError(NRpc::EErrorCode::InvalidCsrfToken, "CSRF token expired")
+            << TErrorAttribute("sign_time", signTime);
+    }
+
+    auto msg = userId + ":" + ToString(signTime.TimeT());
+    auto expectedToken = CreateSha256Hmac(key, msg);
+    if (!ConstantTimeCompare(expectedToken, parts[0])) {
+        return TError(NRpc::EErrorCode::InvalidCsrfToken, "Invalid CSFR token signature")
+            << TErrorAttribute("provided_signature", parts[0])
+            << TErrorAttribute("user_fingerprint", msg);
+    }
+
+    return {};
 }
 
 ////////////////////////////////////////////////////////////////////////////////

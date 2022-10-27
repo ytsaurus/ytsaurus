@@ -16,30 +16,31 @@ namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TAuthenticationManager
+struct IAuthenticationManager
     : public TRefCounted
 {
-public:
-    TAuthenticationManager(
-        TAuthenticationManagerConfigPtr config,
-        NConcurrency::IPollerPtr poller,
-        NApi::IClientPtr client,
-        NProfiling::TProfiler profiler = AuthProfiler);
+    virtual void Start() = 0;
+    virtual void Stop() = 0;
 
-    ~TAuthenticationManager();
+    virtual const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const = 0;
+    virtual const ITokenAuthenticatorPtr& GetTokenAuthenticator() const = 0;
+    virtual const ICookieAuthenticatorPtr& GetCookieAuthenticator() const = 0;
+    virtual const ITicketAuthenticatorPtr& GetTicketAuthenticator() const = 0;
 
-    const NRpc::IAuthenticatorPtr& GetRpcAuthenticator() const;
-    const NAuth::ITokenAuthenticatorPtr& GetTokenAuthenticator() const;
-    const NAuth::ICookieAuthenticatorPtr& GetCookieAuthenticator() const;
-    const NAuth::ITicketAuthenticatorPtr& GetTicketAuthenticator() const;
-    const NAuth::ITvmServicePtr& GetTvmService() const;
+    virtual const ITvmServicePtr& GetTvmService() const = 0;
 
-private:
-    class TImpl;
-    const std::unique_ptr<TImpl> Impl_;
+    virtual const ICypressCookieManagerPtr& GetCypressCookieManager() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TAuthenticationManager)
+DEFINE_REFCOUNTED_TYPE(IAuthenticationManager)
+
+////////////////////////////////////////////////////////////////////////////////
+
+IAuthenticationManagerPtr CreateAuthenticationManager(
+    TAuthenticationManagerConfigPtr config,
+    NConcurrency::IPollerPtr poller,
+    NApi::IClientPtr client,
+    NProfiling::TProfiler profiler = AuthProfiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

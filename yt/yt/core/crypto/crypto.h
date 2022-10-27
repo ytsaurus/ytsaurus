@@ -28,8 +28,8 @@ public:
     TMD5Hasher& Append(TRef data);
 
     TMD5Hash GetDigest();
-    TString GetHexDigestLower();
-    TString GetHexDigestUpper();
+    TString GetHexDigestLowerCase();
+    TString GetHexDigestUpperCase();
 
     const TMD5State& GetState() const;
 
@@ -39,6 +39,11 @@ private:
     //! Erasing openssl struct type... brutally.
     TMD5State State_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString GetMD5HexDigestUpperCase(TStringBuf data);
+TString GetMD5HexDigestLowerCase(TStringBuf data);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -54,8 +59,8 @@ public:
     TSha1Hasher& Append(TStringBuf data);
 
     TSha1Hash GetDigest();
-    TString GetHexDigestLower();
-    TString GetHexDigestUpper();
+    TString GetHexDigestLowerCase();
+    TString GetHexDigestUpperCase();
 
 private:
     std::array<char, 96> CtxStorage_;
@@ -63,8 +68,46 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSha256Hasher
+{
+public:
+    TSha256Hasher();
+
+    TSha256Hasher& Append(TStringBuf data);
+
+    using TDigest = std::array<char, 32>;
+    TDigest GetDigest();
+
+    TString GetHexDigestLowerCase();
+    TString GetHexDigestUpperCase();
+
+private:
+    constexpr static int CtxSize = 112;
+    std::array<char, CtxSize> CtxStorage_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString GetSha256HexDigestUpperCase(TStringBuf data);
+TString GetSha256HexDigestLowerCase(TStringBuf data);
+
+////////////////////////////////////////////////////////////////////////////////
+
 TString CreateSha256Hmac(const TString& key, const TString& message);
 bool ConstantTimeCompare(const TString& trusted, const TString& untrusted);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Encrypts password with given (random) salt.
+// BEWARE: Think twice before changing this function's semantics!
+TString EncryptPassword(const TString& password, const TString& salt);
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! Returns string of given length filled with random bytes fetched
+//! from cryptographically strong generator.
+// NB: May throw on RNG failure.
+TString GenerateCryptoStrongRandomString(int length);
 
 ////////////////////////////////////////////////////////////////////////////////
 

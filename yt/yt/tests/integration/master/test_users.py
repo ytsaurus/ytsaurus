@@ -1,15 +1,16 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, wait, create, ls, get, set, exists,
+    authors, wait, create, ls, get, set, exists, remove,
     create_account, create_network_project,
-    create_user, create_group, create_tablet_cell_bundle, make_ace, add_member, remove_member, remove_group, remove_user, remove_network_project, start_transaction)
+    create_user, create_group, create_tablet_cell_bundle, make_ace,
+    add_member, remove_member, remove_group, remove_user,
+    remove_network_project, start_transaction, raises_yt_error)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
 
 import pytest
-
 import builtins
 
 
@@ -533,6 +534,42 @@ class TestUsers(YTEnvSetup):
 
         assert_items_equal(get("//sys/users/u/@member_of_closure"), ["g1", "everyone", "users"])
         assert_items_equal(get("//sys/groups/g1/@member_of_closure"), [])
+
+    @authors("gritukan")
+    def test_password(self):
+        create_user("u")
+
+        assert not exists("//sys/users/u/@encrypted_password")
+        assert not exists("//sys/users/u/@password_salt")
+        assert not exists("//sys/users/u/@password")
+        rev1 = get("//sys/users/u/@password_revision")
+
+        set("//sys/users/u/@password", "admin")
+        enc2 = get("//sys/users/u/@encrypted_password")
+        assert len(enc2) == 64
+        salt2 = get("//sys/users/u/@password_salt")
+        assert len(salt2) == 32
+        rev2 = get("//sys/users/u/@password_revision")
+        assert rev2 > rev1
+
+        # Same password, another salt.
+        set("//sys/users/u/@password", "admin")
+        assert get("//sys/users/u/@encrypted_password") != enc2
+        assert get("//sys/users/u/@password_salt") != salt2
+        rev3 = get("//sys/users/u/@password_revision")
+        assert rev3 > rev2
+
+        with raises_yt_error("for security reasons"):
+            get("//sys/users/u/@password")
+        # Just in case: list attributes should not throw since
+        # @password attribute is opaque.
+        assert "encrypted_password" in ls("//sys/users/u/@")
+
+        remove("//sys/users/u/@password")
+        assert not exists("//sys/users/u/@encrypted_password")
+        assert not exists("//sys/users/u/@password_salt")
+        rev4 = get("//sys/users/u/@password_revision")
+        assert rev4 > rev3
 
 
 ##################################################################
