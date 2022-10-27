@@ -1063,7 +1063,7 @@ protected:
 
         return DoProbeAndSelectBestPeers(candidates, blockIndexes)
             .ApplyUnique(BIND(
-                [=, this_ = MakeWeak(this)]
+                [=, this_ = MakeStrong(this)]
                 (TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>&& peerAndProbeResultsOrError)
             {
                 YT_VERIFY(peerAndProbeResultsOrError.IsOK());
