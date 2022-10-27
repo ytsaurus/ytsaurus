@@ -65,7 +65,9 @@ typedef TParser::token_type TToken;
     double_quoted_string = '"' ( [^"\\] | /\\./ )* '"';
     string_literal = single_quoted_string | double_quoted_string;
 
-    quoted_identifier := |*
+    backtick_quoted_identifier = "`" ( [^`\\] | /\\./ )* "`";
+
+    square_bracket_quoted_identifier := |*
         '[' => {
             if (++rd == 1) {
                 rs = fpc + 1;
@@ -75,7 +77,7 @@ typedef TParser::token_type TToken;
             if (--rd == 0) {
                 re = fpc;
                 type = TToken::Identifier;
-                value->build(TStringBuf(rs, re));
+                value->build(TString(rs, re - rs));
                 fnext main;
                 fbreak;
             }
@@ -114,7 +116,7 @@ typedef TParser::token_type TToken;
 
         identifier => {
             type = TToken::Identifier;
-            value->build(TStringBuf(ts, te));
+            value->build(TString(ts, te - ts));
             fbreak;
         };
         int64_literal => {
@@ -138,9 +140,15 @@ typedef TParser::token_type TToken;
             fbreak;
         };
 
+        backtick_quoted_identifier => {
+            type = TToken::Identifier;
+            value->build(UnescapeC(ts + 1, te - ts - 2));
+            fbreak;
+        };
+
         '[' => {
             fhold;
-            fgoto quoted_identifier;
+            fgoto square_bracket_quoted_identifier;
         };
         ']' => {
             THROW_ERROR_EXCEPTION("Unexpected symbol \"]\" at position %v", ts - p);

@@ -90,7 +90,7 @@
 %token KwFalse "keyword `TRUE`"
 %token KwTrue "keyword `FALSE`"
 
-%token <TStringBuf> Identifier "identifier"
+%token <TString> Identifier "identifier"
 
 %token <i64> Int64Literal "int64 literal"
 %token <ui64> Uint64Literal "uint64 literal"
@@ -206,15 +206,15 @@ select-clause
 table-descriptor
     : Identifier[path] Identifier[alias]
         {
-            $$ = TTableDescriptor(TString($path), TString($alias));
+            $$ = TTableDescriptor($path, $alias);
         }
     | Identifier[path] KwAs Identifier[alias]
         {
-            $$ = TTableDescriptor(TString($path), TString($alias));
+            $$ = TTableDescriptor($path, $alias);
         }
     |   Identifier[path]
         {
-            $$ = TTableDescriptor(TString($path));
+            $$ = TTableDescriptor($path);
         }
 ;
 
@@ -373,7 +373,7 @@ expression
             if ($expr.size() != 1) {
                 THROW_ERROR_EXCEPTION("Aliased expression %Qv must be scalar", GetSource(@$, source));
             }
-            auto inserted = head->AliasMap.emplace(TString($name), $expr.front()).second;
+            auto inserted = head->AliasMap.emplace($name, $expr.front()).second;
             if (!inserted) {
                 THROW_ERROR_EXCEPTION("Alias %Qv has been already used", $name);
             }
@@ -563,11 +563,11 @@ unary-op
 qualified-identifier
     : Identifier[name]
         {
-            $$ = head->New<TReferenceExpression>(@$, TString($name));
+            $$ = head->New<TReferenceExpression>(@$, $name);
         }
     | Identifier[table] Dot Identifier[name]
         {
-            $$ = head->New<TReferenceExpression>(@$, TString($name), TString($table));
+            $$ = head->New<TReferenceExpression>(@$, $name, $table);
         }
 ;
 

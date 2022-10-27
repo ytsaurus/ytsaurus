@@ -6674,5 +6674,34 @@ INSTANTIATE_TEST_SUITE_P(1, TQueryEvaluateComplexTest,
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TEST_F(TQueryEvaluateTest, QuotedColumnNames)
+{
+    {
+        auto split = MakeSplit({{"column ]]] \n \t \x42 \u2019 ` ", EValueType::Int64}});
+        auto source = std::vector<TString>{
+            R"("column ]]] \n \t \x42 \u2019 ` "=4)",
+            R"("column ]]] \n \t \x42 \u2019 ` "=10)",
+        };
+
+        auto result = YsonToRows(source, split);
+
+        Evaluate("`column ]]] \\n \\t \\x42 \\u2019 \\` ` FROM `//t`", split, source, ResultMatcher(result));
+    }
+
+    {
+        auto split = MakeSplit({{"where", EValueType::Int64}});
+        auto source = std::vector<TString>{
+            R"("where"=4)",
+            R"("where"=10)",
+        };
+
+        auto result = YsonToRows(source, split);
+
+        Evaluate("`where` FROM `//t`", split, source, ResultMatcher(result));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 } // namespace NYT::NQueryClient
