@@ -226,6 +226,14 @@ class TestClickhouseFromHost(ClickhouseTestBase):
         # Here 'JSON' is an alias for the subquery 'format'
         # chyt.execute('WITH format AS (SELECT * FROM "//tmp/t") SELECT * FROM format JSON', "*format")
 
+    @authors("gudqeit")
+    def test_abort_existing_clique(self):
+        o1 = chyt.start_clique(1, alias="*f")
+        with pytest.raises(yt.YtError, match=r"There is already an operation with alias"):
+            chyt.start_clique(1, alias="*f")
+        o2 = chyt.start_clique(1, alias="*f", abort_existing=True)
+        assert o1.id != o2.id
+
 
 @pytest.mark.usefixtures("yt_env")
 class TestNonTrivialClient(ClickhouseTestBase):

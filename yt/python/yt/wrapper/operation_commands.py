@@ -120,7 +120,9 @@ def complete_operation(operation, client=None):
 def get_operation(operation_id=None, operation_alias=None, attributes=None, include_scheduler=None, format=None, client=None):
     """Get operation attributes through API.
     """
-    params = {"operation_id": operation_id}
+    params = {}
+    set_param(params, "operation_id", operation_id)
+    set_param(params, "operation_alias", operation_alias)
     set_param(params, "attributes", attributes)
     set_param(params, "include_scheduler", include_scheduler)
 

@@ -35,7 +35,7 @@ def _resolve_alias(operation_alias, client=None):
     try:
         return get_operation(
             operation_alias=operation_alias,
-            include_scheduler=include_scheduler,
+            include_scheduler=True,
             attributes=["id", "state"],
             client=client)
     except:
