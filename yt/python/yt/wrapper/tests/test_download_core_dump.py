@@ -18,7 +18,7 @@ import subprocess
 import time
 
 
-@pytest.mark.usefixtures("yt_env_job_archive")
+@pytest.mark.usefixtures("yt_env_job_archive_porto")
 class TestDownloadCoreDump(object):
     @authors("akinshchikov")
     def test_download_core_dump(self):
