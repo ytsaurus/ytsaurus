@@ -91,9 +91,13 @@ THashMap<int, THashMap<i64, i64>> CollectCumulativeDataWeights(
 
         auto tabletIndex = FromUnversionedValue<int>(row[0]);
         auto rowIndex = FromUnversionedValue<i64>(row[1]);
-        auto cumulativeDataWeight = FromUnversionedValue<i64>(row[2]);
+        auto cumulativeDataWeight = FromUnversionedValue<std::optional<i64>>(row[2]);
 
-        result[tabletIndex].emplace(rowIndex, cumulativeDataWeight);
+        if (!cumulativeDataWeight) {
+            continue;
+        }
+
+        result[tabletIndex].emplace(rowIndex, *cumulativeDataWeight);
     }
 
     return result;
