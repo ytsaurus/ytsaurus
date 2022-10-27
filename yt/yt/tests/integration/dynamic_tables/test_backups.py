@@ -1159,5 +1159,40 @@ class TestBackupsMulticell(TestBackups):
 
 
 @authors("ifsmirnov")
+class TestBackupsShardedTx(TestBackups):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["transaction_coordinator"]},
+    }
+
+    def test_external(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t1", external=False)
+        self._create_sorted_table("//tmp/t2", external=True)
+        sync_mount_table("//tmp/t1")
+        sync_mount_table("//tmp/t2")
+        insert_rows("//tmp/t1", [{"key": 1, "value": "a"}])
+        insert_rows("//tmp/t2", [{"key": 2, "value": "b"}])
+        create_table_backup(["//tmp/t1", "//tmp/bak1"], ["//tmp/t2", "//tmp/bak2"])
+        sync_freeze_table("//tmp/t1")
+        sync_freeze_table("//tmp/t2")
+        restore_table_backup(["//tmp/bak1", "//tmp/res1"], ["//tmp/bak2", "//tmp/res2"])
+        sync_mount_table("//tmp/res1")
+        sync_mount_table("//tmp/res2")
+        assert_items_equal(select_rows("* from [//tmp/res1]"), [{"key": 1, "value": "a"}])
+        assert_items_equal(select_rows("* from [//tmp/res2]"), [{"key": 2, "value": "b"}])
+
+
+@authors("ifsmirnov")
 class TestReplicatedTableBackupsMulticell(TestReplicatedTableBackups):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+
+@authors("ifsmirnov")
+class TestReplicatedTableBackupsShardedTx(TestReplicatedTableBackups):
+    NUM_SECONDARY_MASTER_CELLS = 2
+    MASTER_CELL_DESCRIPTORS = {
+        "10": {"roles": ["cypress_node_host"]},
+        "12": {"roles": ["transaction_coordinator"]},
+    }
