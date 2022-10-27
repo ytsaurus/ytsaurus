@@ -47,7 +47,7 @@ public:
                 auto adjustedOptions = options;
                 auto now = TInstant::Now();
                 adjustedOptions.Timeout = timeout
-                    ? std::make_optional(now > sendTime + *timeout ? TDuration::Zero() : *timeout - (now - sendTime))
+                    ? std::make_optional(*timeout - (now - sendTime))
                     : std::nullopt;
 
                 auto requestControl = UnderlyingChannel_->Send(
