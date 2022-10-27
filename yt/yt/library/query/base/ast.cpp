@@ -346,15 +346,25 @@ bool IsValidId(TStringBuf str)
     return true;
 }
 
+bool BackticksNeeded(TStringBuf id)
+{
+    return id.Contains('[') || id.Contains(']');
+}
+
 void FormatId(TStringBuilderBase* builder, TStringBuf id, bool isFinal = false)
 {
     if (isFinal || IsValidId(id)) {
         builder->AppendString(id);
     } else {
-        // TODO(babenko): escaping
-        builder->AppendChar('[');
-        builder->AppendString(id);
-        builder->AppendChar(']');
+        if (BackticksNeeded(id)) {
+            builder->AppendChar('`');
+            builder->AppendString(EscapeC(id));
+            builder->AppendChar('`');
+        } else {
+            builder->AppendChar('[');
+            builder->AppendString(id);
+            builder->AppendChar(']');
+        }
     }
 }
 

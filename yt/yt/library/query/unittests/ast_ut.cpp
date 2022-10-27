@@ -121,11 +121,25 @@ TEST_F(TAstFormatTest, Expression)
     TestExpression("f(a, b, c)");
     TestExpression("(a + 1 as x) * x");
     TestExpression("([x-y] as [x-y])");
+    TestExpression("(`x-y` as `x-y`)");
+    TestExpression("`[`");
+    TestExpression("`]`");
+    TestExpression("`[]`");
+    TestExpression("`][`");
+    TestExpression("`]]]`");
+    TestExpression("`[[[`");
+    TestExpression("(`x \\- y` as `x \\- y`)");
     TestExpression("[a]");
+    TestExpression("`a`");
+    TestExpression("`\\n \\x42 \\u2019 \\` `");
     TestExpression("[t.a]");
+    TestExpression("`t.a`");
     TestExpression("t.[a]");
+    TestExpression("t.`a`");
     TestExpression("[t.a] + b");
+    TestExpression("`t.a` + b");
     TestExpression("t.[a] + b");
+    TestExpression("t.`a` + b");
 }
 
 TEST_F(TAstFormatTest, Query)
