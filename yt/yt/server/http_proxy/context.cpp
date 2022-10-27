@@ -197,6 +197,10 @@ bool TContext::TryParseUser()
     Auth_ = authResult.Value();
     const auto& authenticatedUser = Auth_->Result.Login;
 
+    if (auto setCookie = Auth_->Result.SetCookie) {
+        Response_->GetHeaders()->Add("Set-Cookie", *setCookie);
+    }
+
     if (DriverRequest_.CommandName == "ping_tx" || DriverRequest_.CommandName == "parse_ypath") {
         DriverRequest_.AuthenticatedUser = authenticatedUser;
         return true;

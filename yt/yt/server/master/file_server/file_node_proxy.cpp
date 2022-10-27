@@ -61,7 +61,7 @@ private:
                 auto hasher = node->GetMD5Hasher();
                 if (hasher) {
                     BuildYsonFluently(consumer)
-                        .Value(hasher->GetHexDigestLower());
+                        .Value(hasher->GetHexDigestLowerCase());
                     return true;
                 }
                 return false;

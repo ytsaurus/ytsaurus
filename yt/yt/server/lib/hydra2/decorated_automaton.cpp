@@ -699,7 +699,13 @@ void TDecoratedAutomaton::ResetState()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+    AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
+        THydraContext hydraContext(
+            TVersion(),
+            TInstant::Zero(),
+            /*randomSeed*/ 0);
+        THydraContextGuard hydraContextGuard(&hydraContext);
+
         ClearState();
         Automaton_->SetZeroState();
     }));

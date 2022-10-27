@@ -20,6 +20,7 @@ from yt.environment.helpers import (  # noqa
     MASTERS_SERVICE,
     QUEUE_AGENTS_SERVICE,
     RPC_PROXIES_SERVICE,
+    HTTP_PROXIES_SERVICE,
 )
 
 from yt.test_helpers import wait, WaitFailed

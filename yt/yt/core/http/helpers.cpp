@@ -12,6 +12,8 @@
 #include <yt/yt/core/json/json_parser.h>
 #include <yt/yt/core/json/config.h>
 
+#include <yt/yt/core/ytree/fluent.h>
+
 #include <util/stream/buffer.h>
 
 #include <util/generic/buffer.h>
@@ -320,6 +322,15 @@ void ReplyJson(const IResponseWriterPtr& rsp, std::function<void(NYson::IYsonCon
     out.Buffer().AsString(body);
     WaitFor(rsp->WriteBody(TSharedRef::FromString(body)))
         .ThrowOnError();
+}
+
+void ReplyError(const IResponseWriterPtr& response, const TError& error)
+{
+    FillYTErrorHeaders(response, error);
+    ReplyJson(response, [&] (NYson::IYsonConsumer* consumer) {
+        BuildYsonFluently(consumer)
+            .Value(error);
+    });
 }
 
 NTracing::TTraceId GetTraceId(const IRequestPtr& req)

@@ -747,6 +747,11 @@ private:
                 transactionId,
                 EObjectType::ZookeeperShardMap);
 
+            ScheduleCreateNode(
+                "//sys/cypress_cookies",
+                transactionId,
+                EObjectType::MapNode);
+
             FlushScheduled();
 
             // Level 3

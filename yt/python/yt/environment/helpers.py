@@ -394,6 +394,7 @@ MASTERS_SERVICE = "masters"
 MASTER_CACHES_SERVICE = "master_caches"
 QUEUE_AGENTS_SERVICE = "queue_agents"
 RPC_PROXIES_SERVICE = "rpc_proxies"
+HTTP_PROXIES_SERVICE = "http_proxies"
 
 
 class Restarter(object):
@@ -415,6 +416,7 @@ class Restarter(object):
             MASTER_CACHES_SERVICE: self.yt_instance.start_master_caches,
             QUEUE_AGENTS_SERVICE: self.yt_instance.start_queue_agents,
             RPC_PROXIES_SERVICE: self.yt_instance.start_rpc_proxy,
+            HTTP_PROXIES_SERVICE: self.yt_instance.start_http_proxy,
         }
         self.kill_dict = {
             SCHEDULERS_SERVICE: lambda: self.yt_instance.kill_schedulers(*self.kill_args, **self.kill_kwargs),
@@ -425,6 +427,7 @@ class Restarter(object):
             MASTER_CACHES_SERVICE: lambda: self.yt_instance.kill_master_caches(*self.kill_args, **self.kill_kwargs),
             QUEUE_AGENTS_SERVICE: lambda: self.yt_instance.kill_queue_agents(*self.kill_args, **self.kill_kwargs),
             RPC_PROXIES_SERVICE: lambda: self.yt_instance.kill_rpc_proxies(*self.kill_args, **self.kill_kwargs),
+            HTTP_PROXIES_SERVICE: lambda: self.yt_instance.kill_http_proxies(*self.kill_args, **self.kill_kwargs),
         }
 
     def __enter__(self):

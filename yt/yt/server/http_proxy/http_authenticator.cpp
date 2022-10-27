@@ -47,8 +47,8 @@ void SetStatusFromAuthError(const NHttp::IResponseWriterPtr& rsp, const TError& 
 
 THttpAuthenticator::THttpAuthenticator(
     TBootstrap* bootstrap,
-    const NAuth::TAuthenticationManagerConfigPtr& authManagerConfig,
-    const NAuth::TAuthenticationManagerPtr& authManager)
+    const TAuthenticationManagerConfigPtr& authManagerConfig,
+    const IAuthenticationManagerPtr& authManager)
     : Bootstrap_(bootstrap)
     , Config_(authManagerConfig)
     , AuthenticationManager_(authManager)
@@ -95,7 +95,12 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
             user = *userNameHeader;
         }
         static const auto UserTicket = TString();
-        return TAuthenticationResultAndToken{TAuthenticationResult{user, "YT", UserTicket}, TString()};
+        TAuthenticationResult result{
+            .Login = user,
+            .Realm = "YT",
+            .UserTicket = UserTicket,
+        };
+        return TAuthenticationResultAndToken{result, TString()};
     }
 
     auto userIP = request->GetRemoteAddress();
@@ -109,7 +114,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
 
     NTracing::TChildTraceContextGuard authSpan("HttpProxy.Auth");
 
-    static const TString AuthorizationHeaderName("Authorization");
+    constexpr TStringBuf AuthorizationHeaderName = "Authorization";
     if (auto authorizationHeader = request->GetHeaders()->Find(AuthorizationHeaderName)) {
         static const TStringBuf Prefix = "OAuth ";
         if (!authorizationHeader->StartsWith(Prefix)) {
@@ -140,64 +145,44 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         }
     }
 
-    static const TString CookieHeaderName("Cookie");
+    constexpr TStringBuf CookieHeaderName = "Cookie";
     if (auto cookieHeader = request->GetHeaders()->Find(CookieHeaderName)) {
-        auto cookies = ParseCookies(*cookieHeader);
-
-        TCookieCredentials credentials;
-        credentials.UserIP = userIP;
-        static const TString SessionIdCookieName("Session_id");
-        auto sessionIdIt = cookies.find(SessionIdCookieName);
-        if (sessionIdIt == cookies.end()) {
-            return TError(
-                NRpc::EErrorCode::InvalidCredentials,
-                "Request is missing %Qv cookie",
-                SessionIdCookieName);
-        }
-        credentials.SessionId = sessionIdIt->second;
-
-        static const TString SessionId2CookieName("sessionid2");
-        auto sessionId2It = cookies.find(SessionId2CookieName);
-        if (sessionId2It != cookies.end()) {
-            credentials.SslSessionId = sessionId2It->second;
-        }
-
-        if (!CookieAuthenticator_) {
-            return TError(
-                NRpc::EErrorCode::InvalidCredentials,
-                "Client has provided a cookie but no cookie authenticator is configured");
-        }
-
-        auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
-        if (!authResult.IsOK()) {
-            return TError(authResult);
-        }
-
-        if (request->GetMethod() != EMethod::Get && !disableCsrfTokenCheck) {
-            static const TString CrfTokenHeaderName("X-Csrf-Token");
-            auto csrfTokenHeader = request->GetHeaders()->Find(CrfTokenHeaderName);
-            if (!csrfTokenHeader) {
-                return TError(
-                    NRpc::EErrorCode::InvalidCredentials,
-                    "CSRF token is missing");
+        TCookieCredentials credentials{
+            .Cookies = ParseCookies(*cookieHeader),
+            .UserIP = userIP,
+        };
+        if (CookieAuthenticator_->CanAuthenticate(credentials)) {
+            auto authResult = WaitFor(CookieAuthenticator_->Authenticate(credentials));
+            if (!authResult.IsOK()) {
+                return TError(authResult);
             }
 
-            auto error = CheckCsrfToken(
-                Strip(*csrfTokenHeader),
-                authResult.Value().Login,
-                Config_->GetCsrfSecret(),
-                Config_->GetCsrfTokenExpirationTime());
+            if (request->GetMethod() != EMethod::Get && !disableCsrfTokenCheck) {
+                constexpr TStringBuf CrfTokenHeaderName = "X-Csrf-Token";
+                auto csrfTokenHeader = request->GetHeaders()->Find(CrfTokenHeaderName);
+                if (!csrfTokenHeader) {
+                    return TError(
+                        NRpc::EErrorCode::InvalidCredentials,
+                        "CSRF token is missing");
+                }
 
-            auto dynamicConfig = Bootstrap_->GetDynamicConfig();
-            if (!error.IsOK() && !dynamicConfig->RelaxCsrfCheck) {
-                return error;
+                auto error = CheckCsrfToken(
+                    Strip(*csrfTokenHeader),
+                    authResult.Value().Login,
+                    Config_->GetCsrfSecret(),
+                    Config_->GetCsrfTokenExpirationTime());
+
+                auto dynamicConfig = Bootstrap_->GetDynamicConfig();
+                if (!error.IsOK() && !dynamicConfig->RelaxCsrfCheck) {
+                    return error;
+                }
             }
-        }
 
-        return TAuthenticationResultAndToken{authResult.Value(), TString()};
+            return TAuthenticationResultAndToken{authResult.Value(), TString()};
+        }
     }
 
-    static const TString UserTicketHeaderName("X-Ya-User-Ticket");
+    constexpr TStringBuf UserTicketHeaderName = "X-Ya-User-Ticket";
     if (auto userTicketHeader = request->GetHeaders()->Find(UserTicketHeaderName)) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
 
@@ -218,7 +203,7 @@ TErrorOr<TAuthenticationResultAndToken> THttpAuthenticator::Authenticate(
         return TAuthenticationResultAndToken{authResult.Value(), {}};
     }
 
-    static const TString ServiceTicketHeaderName("X-Ya-Service-Ticket");
+    constexpr TStringBuf ServiceTicketHeaderName = "X-Ya-Service-Ticket";
     if (auto serviceTicketHeader = request->GetHeaders()->Find(ServiceTicketHeaderName)) {
         const auto& ticketAuthenticator = AuthenticationManager_->GetTicketAuthenticator();
 

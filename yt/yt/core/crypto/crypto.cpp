@@ -6,8 +6,10 @@
 
 #include <openssl/hmac.h>
 #include <openssl/md5.h>
+#include <openssl/err.h>
 #include <openssl/evp.h>
 #include <openssl/sha.h>
+#include <openssl/rand.h>
 
 namespace NYT::NCrypto {
 
@@ -61,15 +63,15 @@ TMD5Hash TMD5Hasher::GetDigest()
     return hash;
 }
 
-TString TMD5Hasher::GetHexDigestUpper()
+TString TMD5Hasher::GetHexDigestUpperCase()
 {
     auto md5 = GetDigest();
     return HexEncode(md5.data(), md5.size());
 }
 
-TString TMD5Hasher::GetHexDigestLower()
+TString TMD5Hasher::GetHexDigestLowerCase()
 {
-    return to_lower(GetHexDigestUpper());
+    return to_lower(GetHexDigestUpperCase());
 }
 
 void TMD5Hasher::Persist(const TStreamPersistenceContext& context)
@@ -82,6 +84,22 @@ void TMD5Hasher::Persist(const TStreamPersistenceContext& context)
 const TMD5State& TMD5Hasher::GetState() const
 {
     return State_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString GetMD5HexDigestUpperCase(TStringBuf data)
+{
+    TMD5Hasher hasher;
+    hasher.Append(data);
+    return hasher.GetHexDigestUpperCase();
+}
+
+TString GetMD5HexDigestLowerCase(TStringBuf data)
+{
+    TMD5Hasher hasher;
+    hasher.Append(data);
+    return hasher.GetHexDigestLowerCase();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -123,15 +141,71 @@ TSha1Hash TSha1Hasher::GetDigest()
     return hash;
 }
 
-TString TSha1Hasher::GetHexDigestUpper()
+TString TSha1Hasher::GetHexDigestUpperCase()
 {
     auto sha1 = GetDigest();
     return HexEncode(sha1.data(), sha1.size());
 }
 
-TString TSha1Hasher::GetHexDigestLower()
+TString TSha1Hasher::GetHexDigestLowerCase()
 {
-    return to_lower(GetHexDigestUpper());
+    return to_lower(GetHexDigestUpperCase());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSha256Hasher::TSha256Hasher()
+{
+    static_assert(
+        sizeof(CtxStorage_) == sizeof(SHA256_CTX),
+        "Invalid ctx storage size");
+
+    SHA256_Init(reinterpret_cast<SHA256_CTX*>(CtxStorage_.data()));
+}
+
+TSha256Hasher& TSha256Hasher::Append(TStringBuf data)
+{
+    SHA256_Update(
+        reinterpret_cast<SHA256_CTX*>(CtxStorage_.data()),
+        data.data(),
+        data.size());
+    return *this;
+}
+
+TSha256Hasher::TDigest TSha256Hasher::GetDigest()
+{
+    TDigest digest;
+    SHA256_Final(
+        reinterpret_cast<unsigned char*>(digest.data()),
+        reinterpret_cast<SHA256_CTX*>(CtxStorage_.data()));
+    return digest;
+}
+
+TString TSha256Hasher::GetHexDigestUpperCase()
+{
+    auto digest = GetDigest();
+    return HexEncode(digest.data(), digest.size());
+}
+
+TString TSha256Hasher::GetHexDigestLowerCase()
+{
+    return to_lower(GetHexDigestUpperCase());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString GetSha256HexDigestUpperCase(TStringBuf data)
+{
+    TSha256Hasher hasher;
+    hasher.Append(data);
+    return hasher.GetHexDigestUpperCase();
+}
+
+TString GetSha256HexDigestLowerCase(TStringBuf data)
+{
+    TSha256Hasher hasher;
+    hasher.Append(data);
+    return hasher.GetHexDigestLowerCase();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,6 +250,28 @@ bool ConstantTimeCompare(const TString& trusted, const TString& untrusted)
     }
 
     return total == 0;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString EncryptPassword(const TString& password, const TString& salt)
+{
+    auto saltedPassword = salt + password;
+    return GetSha256HexDigestUpperCase(GetSha256HexDigestUpperCase(saltedPassword));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TString GenerateCryptoStrongRandomString(int length)
+{
+    std::vector<unsigned char> bytes(length);
+    if (RAND_bytes(bytes.data(), bytes.size())) {
+        auto data = reinterpret_cast<char*>(bytes.data());
+        return TString{data, static_cast<size_t>(length)};
+    } else {
+        THROW_ERROR_EXCEPTION("Failed to generate %v random bytes")
+            << TErrorAttribute("openssl_error_code", ERR_get_error());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

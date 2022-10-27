@@ -4,6 +4,7 @@
 #include <yt/yt/server/http_proxy/compression.h>
 
 #include <yt/yt/library/auth_server/cookie_authenticator.h>
+#include <yt/yt/library/auth_server/helpers.h>
 
 #include <yt/yt/core/misc/error.h>
 

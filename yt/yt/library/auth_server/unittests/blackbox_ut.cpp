@@ -1,9 +1,10 @@
 #include "mock_http_server.h"
 #include "mock_tvm_service.h"
 
+#include <yt/yt/library/auth_server/blackbox_cookie_authenticator.h>
 #include <yt/yt/library/auth_server/blackbox_service.h>
-#include <yt/yt/library/auth_server/config.h>
 #include <yt/yt/library/auth_server/cookie_authenticator.h>
+#include <yt/yt/library/auth_server/config.h>
 #include <yt/yt/library/auth_server/helpers.h>
 #include <yt/yt/library/auth_server/ticket_authenticator.h>
 #include <yt/yt/library/auth_server/token_authenticator.h>
@@ -509,8 +510,8 @@ protected:
         const TString& userIP)
     {
         TCookieCredentials credentials;
-        credentials.SessionId = sessionId;
-        credentials.SslSessionId = sslSessionId;
+        credentials.Cookies[BlackboxSessionIdCookieName] = sessionId;
+        credentials.Cookies[BlackboxSslSessionIdCookieName] = sslSessionId;
         credentials.UserIP = NNet::TNetworkAddress::Parse(userIP);
         return Authenticator_->Authenticate(credentials);
     }

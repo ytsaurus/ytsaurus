@@ -49,8 +49,6 @@ std::optional<TNetworkStatistics> GetNetworkStatistics();
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ReplyError(const NHttp::IResponseWriterPtr& response, const TError& error);
-
 void ProcessDebugHeaders(
     const NHttp::IRequestPtr& request,
     const NHttp::IResponseWriterPtr& response,

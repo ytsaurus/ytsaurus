@@ -68,4 +68,16 @@ TString GetLoginForTvmId(TTvmId tvmId);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString SignCsrfToken(
+    const TString& userId,
+    const TString& key,
+    TInstant now);
+TError CheckCsrfToken(
+    const TString& csrfToken,
+    const TString& userId,
+    const TString& key,
+    TInstant expirationTime);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NAuth

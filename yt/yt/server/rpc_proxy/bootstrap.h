@@ -76,8 +76,8 @@ private:
     NApi::NNative::IConnectionPtr NativeConnection_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
     NApi::NNative::IClientPtr NativeClient_;
-    NAuth::TAuthenticationManagerPtr AuthenticationManager_;
-    NAuth::TAuthenticationManagerPtr TvmOnlyAuthenticationManager_;
+    NAuth::IAuthenticationManagerPtr AuthenticationManager_;
+    NAuth::IAuthenticationManagerPtr TvmOnlyAuthenticationManager_;
     NRpcProxy::IProxyCoordinatorPtr ProxyCoordinator_;
     NTracing::TSamplerPtr TraceSampler_;
     NNodeTrackerClient::TAddressMap LocalAddresses_;

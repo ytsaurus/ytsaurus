@@ -704,6 +704,12 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 void TDecoratedAutomaton::Initialize()
 {
     AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+        THydraContext hydraContext(
+            TVersion(),
+            TInstant::Zero(),
+            /*randomSeed*/ 0);
+        THydraContextGuard hydraContextGuard(&hydraContext);
+
         Automaton_->Clear();
         Automaton_->SetZeroState();
     }));
