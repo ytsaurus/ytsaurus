@@ -1,4 +1,4 @@
-package ru.yandex.type_info;
+package tech.ytsaurus.type_info;
 
 public abstract class ExtensionType extends TiType {
     final String system;

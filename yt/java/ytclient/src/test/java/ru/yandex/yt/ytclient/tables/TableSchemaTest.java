@@ -1,10 +1,10 @@
 package ru.yandex.yt.ytclient.tables;
 
 import org.junit.Test;
+import tech.ytsaurus.type_info.TiType;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.type_info.TiType;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.contains;

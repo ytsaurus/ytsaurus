@@ -8,13 +8,13 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.type_info.TiType;
 
 import ru.yandex.inside.yt.kosher.common.DataSize;
 import ru.yandex.inside.yt.kosher.cypress.RangeLimit;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.type_info.TiType;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;

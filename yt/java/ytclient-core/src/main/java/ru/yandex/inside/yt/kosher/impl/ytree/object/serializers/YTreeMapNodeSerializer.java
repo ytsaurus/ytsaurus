@@ -1,12 +1,12 @@
 package ru.yandex.inside.yt.kosher.impl.ytree.object.serializers;
 
+import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.yson.YsonConsumer;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.type_info.TiType;
 
 public class YTreeMapNodeSerializer implements YTreeRowSerializer<YTreeMapNode> {
     private Class<YTreeMapNode> clazz;

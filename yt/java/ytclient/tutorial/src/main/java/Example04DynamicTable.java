@@ -1,8 +1,9 @@
 import java.util.List;
 import java.util.Map;
 
+import tech.ytsaurus.type_info.TiType;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.type_info.TiType;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
 import ru.yandex.yt.ytclient.proxy.ModifyRowsRequest;

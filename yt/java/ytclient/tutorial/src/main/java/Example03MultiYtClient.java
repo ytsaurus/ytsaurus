@@ -1,4 +1,5 @@
-import ru.yandex.type_info.TiType;
+import tech.ytsaurus.type_info.TiType;
+
 import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
 import ru.yandex.yt.ytclient.proxy.MultiYtClient;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
