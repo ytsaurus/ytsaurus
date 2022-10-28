@@ -7,7 +7,7 @@ services:
     network_mode: host
     user: root
     volumes:
-      # приложение (корень в taxi/dmp/spark)
+      # приложение (корень в yt/spark)
       - ../../../.:/app
       # опциональный кеш и сбор репортов, если переменные не заданы -- будут использованы
       # fallback-тома
