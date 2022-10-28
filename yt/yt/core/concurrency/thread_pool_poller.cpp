@@ -739,6 +739,13 @@ private:
             HandlerEventCount_->NotifyOne();
         }
 
+        void Invoke(TMutableRange<TClosure> callbacks) override
+        {
+            for (auto& callback : callbacks) {
+                Invoke(std::move(callback));
+            }
+        }
+
         TClosure DequeCallback()
         {
             if (ShutdownStarted_.load()) {

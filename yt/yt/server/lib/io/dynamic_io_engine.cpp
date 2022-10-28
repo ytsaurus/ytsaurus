@@ -181,6 +181,13 @@ private:
             return State->Engines[State->CurrentType.load()]->GetAuxPoolInvoker()->Invoke(callback);
         }
 
+        void Invoke(TMutableRange<TClosure> callbacks) override
+        {
+            for (auto& callback : callbacks) {
+                Invoke(std::move(callback));
+            }
+        }
+
         NConcurrency::TThreadId GetThreadId() const override
         {
             return NConcurrency::InvalidThreadId;

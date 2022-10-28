@@ -17,6 +17,9 @@ struct IInvoker
     //! Schedules invocation of a given callback.
     virtual void Invoke(TClosure callback) = 0;
 
+    //! Schedules multiple callbacks.
+    virtual void Invoke(TMutableRange<TClosure> callbacks) = 0;
+
     //! Returns the thread id this invoker is bound to.
     //! For invokers not bound to any particular thread,
     //! returns |InvalidThreadId|.

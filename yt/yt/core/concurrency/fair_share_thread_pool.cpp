@@ -48,6 +48,8 @@ public:
 
     void Invoke(TClosure callback) override;
 
+    void Invoke(TMutableRange<TClosure> callbacks) override;
+
     void Drain()
     {
         Queue.clear();
@@ -429,6 +431,15 @@ void TBucket::Invoke(TClosure callback)
 {
     if (auto parent = Parent.Lock()) {
         parent->Invoke(std::move(callback), this);
+    }
+}
+
+void TBucket::Invoke(TMutableRange<TClosure> callbacks)
+{
+    if (auto parent = Parent.Lock()) {
+        for (auto& callback : callbacks) {
+            parent->Invoke(std::move(callback), this);
+        }
     }
 }
 

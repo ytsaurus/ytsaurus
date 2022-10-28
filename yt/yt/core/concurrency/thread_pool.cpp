@@ -79,6 +79,12 @@ public:
         NotifyFromInvoke(cpuInstant, ActiveThreads_.load() == 0);
     }
 
+    void Invoke(TMutableRange<TClosure> callbacks) override
+    {
+        auto cpuInstant = TMpmcInvokerQueue::EnqueueCallbacks(callbacks);
+        NotifyFromInvoke(cpuInstant, ActiveThreads_.load() == 0);
+    }
+
     void Configure(int threadCount)
     {
         ThreadCount_.store(threadCount);

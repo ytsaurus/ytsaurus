@@ -41,6 +41,7 @@ public:
     using TConsumerToken = moodycamel::ConsumerToken;
 
     void Enqueue(TEnqueuedAction action);
+    void Enqueue(TMutableRange<TEnqueuedAction> actions);
     bool TryDequeue(TEnqueuedAction *action, TConsumerToken* token = nullptr);
 
     void DrainProducer();
@@ -65,6 +66,7 @@ public:
     using TConsumerToken = std::monostate;
 
     void Enqueue(TEnqueuedAction action);
+    void Enqueue(TMutableRange<TEnqueuedAction> actions);
     bool TryDequeue(TEnqueuedAction* action, TConsumerToken* token = nullptr);
 
     void DrainProducer();
@@ -101,15 +103,28 @@ public:
 
     void Invoke(TClosure callback) override;
 
+    void Invoke(TMutableRange<TClosure> callbacks) override;
+
     void Invoke(
         TClosure callback,
         NProfiling::TTagId profilingTag,
         NYTProf::TProfilerTagPtr profilerTag);
 
+    TEnqueuedAction MakeAction(
+        TClosure callback,
+        NProfiling::TTagId profilingTag,
+        NYTProf::TProfilerTagPtr profilerTag,
+        TCpuInstant cpuInstant);
+
     TCpuInstant EnqueueCallback(
         TClosure callback,
         NProfiling::TTagId profilingTag,
         NYTProf::TProfilerTagPtr profilerTag);
+
+    TCpuInstant EnqueueCallbacks(
+        TMutableRange<TClosure> callbacks,
+        NProfiling::TTagId profilingTag = 0,
+        NYTProf::TProfilerTagPtr profilerTag = nullptr);
 
     TThreadId GetThreadId() const override;
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
