@@ -279,9 +279,9 @@ class ObjectIdmSnapshot(object):
         responsible_params = dict(
             version=self.version,
             responsible=dict(
-                responsible=subjects_to_json(self.responsibles),
-                read_approvers=subjects_to_json(self.read_approvers),
-                auditors=subjects_to_json(self.auditors),
+                responsible=subjects_to_json([r for r in self.responsibles if not r.inherited]),
+                read_approvers=subjects_to_json([r for r in self.read_approvers if not r.inherited]),
+                auditors=subjects_to_json([r for r in self.auditors if not r.inherited]),
                 require_boss_approval=self.require_boss_approval,
             ),
             **self.object_id
