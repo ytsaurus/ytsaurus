@@ -54,6 +54,30 @@ IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
         std::move(ticketAuth));
 }
 
+IChannelPtr CreateNativeAuthenticationInjectingChannel(
+    IChannelPtr channel,
+    std::optional<TTvmId> tvmId,
+    IDynamicTvmServicePtr tvmService)
+{
+    if (!tvmId) {
+        return channel;
+    }
+
+    if (!tvmService) {
+        tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
+    }
+
+    if (!tvmService) {
+        const auto& Logger = AuthLogger;
+        YT_LOG_ERROR("Cluster connection requires TVM authentification, but TVM service is unset");
+    }
+
+    auto ticketAuth = CreateServiceTicketAuth(tvmService, *tvmId);
+    return CreateServiceTicketInjectingChannel(
+        std::move(channel),
+        TAuthenticationOptions::FromServiceTicketAuth(std::move(ticketAuth)));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

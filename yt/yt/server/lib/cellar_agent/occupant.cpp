@@ -372,7 +372,9 @@ public:
         }
 
         const auto& channelFactory = connection->GetChannelFactory();
-        auto alienChannelFactory = CreateAlienCellPeerChannelFactory(connection->GetCellDirectory());
+        auto alienChannelFactory = CreateAlienCellPeerChannelFactory(
+            connection->GetCellDirectory(),
+            connection->GetClusterDirectory());
 
         auto cellConfig = CellDescriptor_.ToConfig(Bootstrap_->GetLocalNetworks());
         CellManager_ = New<TCellManager>(
