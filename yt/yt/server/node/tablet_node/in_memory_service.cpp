@@ -29,8 +29,6 @@
 #include <yt/yt/core/misc/memory_reference_tracker.h>
 #include <yt/yt/core/misc/optional.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NRpc;

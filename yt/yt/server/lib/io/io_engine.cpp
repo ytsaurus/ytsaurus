@@ -23,8 +23,6 @@
 #include <util/generic/size_literals.h>
 #include <util/generic/xrange.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
 #include <array>
@@ -43,7 +41,6 @@ namespace NYT::NIO {
 
 using namespace NConcurrency;
 using namespace NProfiling;
-using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

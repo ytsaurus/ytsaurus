@@ -12,8 +12,6 @@
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/fs.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 #include <yt/yt/client/misc/workload.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
@@ -23,7 +21,6 @@ namespace NYT::NIO {
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NConcurrency;
-using namespace NYTAlloc;
 
 ////////////////////////////////////////////////////////////////////////////////
 

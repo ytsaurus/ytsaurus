@@ -71,8 +71,6 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
-#include <yt/yt/core/ytalloc/bindings.h>
-
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/bus/server.h>
 #include <yt/yt/core/rpc/helpers.h>
@@ -80,8 +78,6 @@
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/core/ytree/public.h>
-
-#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <util/system/fs.h>
 #include <util/system/execpath.h>
@@ -706,12 +702,6 @@ TJobResult TJobProxy::RunJob()
             RootSpan_->SetSampled();
         }
 
-        if (schedulerJobSpecExt.has_yt_alloc_min_large_unreclaimable_bytes()) {
-            NYTAlloc::SetMinLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_min_large_unreclaimable_bytes());
-        }
-        if (schedulerJobSpecExt.has_yt_alloc_max_large_unreclaimable_bytes()) {
-            NYTAlloc::SetMaxLargeUnreclaimableBytes(schedulerJobSpecExt.yt_alloc_max_large_unreclaimable_bytes());
-        }
         JobProxyMemoryOvercommitLimit_ = schedulerJobSpecExt.has_job_proxy_memory_overcommit_limit()
             ? std::make_optional(schedulerJobSpecExt.job_proxy_memory_overcommit_limit())
             : std::nullopt;
@@ -1142,8 +1132,6 @@ void TJobProxy::CheckMemoryUsage()
         JobProxyMaxMemoryUsage_.load(),
         JobProxyMemoryReserve_,
         UserJobCurrentMemoryUsage_.load());
-
-    YT_LOG_DEBUG("YTAlloc counters (%v)", NYTAlloc::FormatAllocationCounters());
 
     constexpr double JobProxyMaxMemoryUsageLoggingExponentialFactor = 1.2;
 

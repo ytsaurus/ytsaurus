@@ -174,8 +174,6 @@
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/yt/core/ytalloc/statistics_producer.h>
-
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/local_channel.h>

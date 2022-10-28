@@ -55,8 +55,6 @@
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/memory_reference_tracker.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 #include <yt/yt/core/rpc/local_channel.h>
 
 #include <yt/yt/library/undumpable/ref.h>
@@ -74,7 +72,6 @@ using namespace NHydra;
 using namespace NNodeTrackerClient;
 using namespace NTableClient;
 using namespace NTabletClient;
-using namespace NYTAlloc;
 
 using NChunkClient::NProto::TChunkMeta;
 using NChunkClient::NProto::TMiscExt;

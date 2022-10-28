@@ -12,18 +12,13 @@
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/file_log_writer.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
-
 #include <yt/yt/core/misc/shutdown.h>
-
-#include <yt/yt/core/ytalloc/bindings.h>
 
 #include <util/system/thread.h>
 
@@ -89,13 +84,7 @@ protected:
         ConfigureExitZeroOnSigterm();
         EnablePhdrCache();
         ConfigureAllocator({});
-
-        NYTAlloc::EnableYTLogging();
-        NYTAlloc::EnableYTProfiling();
-        NYTAlloc::InitializeLibunwindInterop();
-        NYTAlloc::SetEnableEagerMemoryRelease(false);
-        NYTAlloc::EnableStockpile();
-        NYT::MlockFileMappings();
+        MlockFileMappings();
 
         if (HandleSetsidOptions()) {
             return;

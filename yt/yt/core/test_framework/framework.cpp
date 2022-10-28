@@ -15,11 +15,7 @@
 #include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/yt/core/ytalloc/bindings.h>
-
 #include <yt/yt/library/profiling/solomon/registry.h>
-
-#include <library/cpp/ytalloc/api/ytalloc.h>
 
 #include <library/cpp/testing/gtest/gtest.h>
 #include <library/cpp/testing/hook/hook.h>
@@ -144,11 +140,6 @@ Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_SETUP)
     NYT::TSignalRegistry::Get()->PushCallback(NYT::AllCrashSignals, NYT::CrashSignalHandler);
     NYT::TSignalRegistry::Get()->PushDefaultSignalHandler(NYT::AllCrashSignals);
 #endif
-    NYT::NYTAlloc::EnableYTLogging();
-    NYT::NYTAlloc::EnableYTProfiling();
-    NYT::NYTAlloc::InitializeLibunwindInterop();
-    NYT::NYTAlloc::EnableStockpile();
-    NYT::NYTAlloc::ConfigureFromEnv();
 
     auto config = NYT::NLogging::TLogManagerConfig::CreateYTServer("unittester", GetOutputPath().GetPath());
     NYT::NLogging::TLogManager::Get()->Configure(config);

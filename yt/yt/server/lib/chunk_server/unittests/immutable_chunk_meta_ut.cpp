@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 #include <util/system/sanitizers.h>
 
 namespace NYT::NChunkServer {

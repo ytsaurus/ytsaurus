@@ -40,8 +40,6 @@
 
 #include <yt/yt/core/http/config.h>
 
-#include <yt/yt/core/ytalloc/config.h>
-
 namespace NYT::NClusterNode {
 
 ////////////////////////////////////////////////////////////////////////////////

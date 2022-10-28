@@ -12,13 +12,9 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
-
-#include <yt/yt/core/ytalloc/bindings.h>
 
 #include <util/system/thread.h>
 

@@ -57,8 +57,6 @@
 
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 #include <yt/yt/core/rpc/hedging_channel.h>
 
 #include <util/generic/algorithm.h>
@@ -81,7 +79,6 @@ using namespace NCypressClient;
 using namespace NNodeTrackerClient;
 using namespace NChunkClient;
 using namespace NNet;
-using namespace NYTAlloc;
 using namespace NTableClient;
 
 using NNodeTrackerClient::TNodeId;

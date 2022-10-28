@@ -45,7 +45,6 @@ def test_debug(test_url):
 @pytest.mark.parametrize('format', ["application/json", "application/x-spack"])
 def test_get_last(test_url, format):
     check_ok(test_url + "/solomon/all", headers={"Accept": format})
-    check_ok(test_url + "/solomon/shard/ytalloc", headers={"Accept": format})
     check_ok(test_url + "/solomon/shard/internal", headers={"Accept": format})
     check_ok(test_url + "/solomon/shard/default", headers={"Accept": format})
 
@@ -70,9 +69,6 @@ def test_timestamp_args(test_url, format):
     # test reply cache
     for i in range(10):
         check_ok(test_url + f"/solomon/all?now={now}&period=6s", headers={"Accept": format})
-
-    now = format_now(grid=6)
-    check_ok(test_url + f"/solomon/shard/ytalloc?now={now}&period=12s", headers={"Accept": format})
 
 
 @pytest.mark.parametrize('format', ["application/json", "application/x-spack"])

@@ -83,8 +83,6 @@
 
 #include <yt/yt/core/yson/consumer.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 #include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT::NTabletNode {
@@ -100,7 +98,6 @@ using namespace NTabletClient;
 using namespace NTabletNode::NProto;
 using namespace NTransactionClient;
 using namespace NYTree;
-using namespace NYTAlloc;
 using namespace NYson;
 using namespace NProfiling;
 using namespace NTracing;
