@@ -5,8 +5,8 @@ import ru.yandex.inside.yt.kosher.impl.ytree.YTreeMapNodeImpl;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.request.AbortJob;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
+import ru.yandex.yt.ytclient.request.AbortJob;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getCredentials;
@@ -24,7 +24,7 @@ public class JobsExample {
                 GetJob j = new GetJob(operation, job);
                 YTreeMapNodeImpl n = (YTreeMapNodeImpl) client.getJob(j).join();
                 printState(job, n);
-                AbortJob aj = new AbortJob(job, null);
+                AbortJob aj = new AbortJob(job);
                 client.abortJob(aj).join();
                 while (true) {
                     n = (YTreeMapNodeImpl) client.getJob(j).join();

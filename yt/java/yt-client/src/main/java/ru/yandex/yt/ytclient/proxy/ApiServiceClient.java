@@ -57,7 +57,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction);
 
     /**
-     * @deprected prefer to use {@link #startTransaction(StartTransaction)}
+     * @deprecated  prefer to use {@link #startTransaction(StartTransaction)}
      */
     @Deprecated
     default CompletableFuture<ApiServiceTransaction> startTransaction(
@@ -148,7 +148,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> mountTable(MountTable req);
 
     /**
-     * @deprected prefer to use {@link #mountTable(MountTable)}
+     * @deprecated prefer to use {@link #mountTable(MountTable)}
      */
     @Deprecated
     default CompletableFuture<Void> mountTable(MountTable.BuilderBase<?> req) {
@@ -157,7 +157,7 @@ public interface ApiServiceClient extends TransactionalClient {
 
     /**
      * Unmount table.
-     *
+     * <p>
      * This method doesn't wait until tablets become unmounted.
      *
      * @see UnmountTable
@@ -166,7 +166,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> unmountTable(UnmountTable req);
 
     /**
-     * @deprected prefer to use {@link #unmountTable(UnmountTable)}
+     * @deprecated prefer to use {@link #unmountTable(UnmountTable)}
      */
     @Deprecated
     default CompletableFuture<Void> unmountTable(UnmountTable.BuilderBase<?> req) {
@@ -180,7 +180,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> remountTable(RemountTable req);
 
     /**
-     * @deprected prefer to use {@link #remountTable(RemountTable)}
+     * @deprecated prefer to use {@link #remountTable(RemountTable)}
      */
     @Deprecated
     default CompletableFuture<Void> remountTable(RemountTable.BuilderBase<?> req) {
@@ -198,7 +198,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> freezeTable(FreezeTable req);
 
     /**
-     * @deprected prefer to use {@link #freezeTable(FreezeTable)}
+     * @deprecated prefer to use {@link #freezeTable(FreezeTable)}
      */
     @Deprecated
     default CompletableFuture<Void> freezeTable(FreezeTable.BuilderBase<?> req) {
@@ -222,7 +222,7 @@ public interface ApiServiceClient extends TransactionalClient {
     }
 
     /**
-     * @deprected prefer to use {@link #unfreezeTable(FreezeTable)}
+     * @deprecated prefer to use {@link #unfreezeTable(FreezeTable)}
      */
     @Deprecated
     default CompletableFuture<Void> unfreezeTable(FreezeTable.BuilderBase<?> req) {
@@ -232,7 +232,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> unfreezeTable(UnfreezeTable req);
 
     /**
-     * @deprected prefer to use {@link #unfreezeTable(UnfreezeTable)}
+     * @deprecated prefer to use {@link #unfreezeTable(UnfreezeTable)}
      */
     @Deprecated
     default CompletableFuture<Void> unfreezeTable(UnfreezeTable.BuilderBase<?> req) {
@@ -270,7 +270,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> reshardTable(ReshardTable req);
 
     /**
-     * @deprected prefer to use {@link #reshardTable(ReshardTable)}
+     * @deprecated prefer to use {@link #reshardTable(ReshardTable)}
      */
     @Deprecated
     default CompletableFuture<Void> reshardTable(ReshardTable.BuilderBase<?> req) {
@@ -287,7 +287,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> alterTable(AlterTable req);
 
     /**
-     * @deprected prefer to use {@link #alterTable(AlterTable)}
+     * @deprecated prefer to use {@link #alterTable(AlterTable)}
      */
     @Deprecated
     default CompletableFuture<Void> alterTable(AlterTable.BuilderBase<?> req) {
@@ -307,7 +307,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<YTreeNode> getOperation(GetOperation req);
 
     /**
-     * @deprected prefer to use {@link #getOperation(GetOperation)}
+     * @deprecated prefer to use {@link #getOperation(GetOperation)}
      */
     @Deprecated
     default CompletableFuture<YTreeNode> getOperation(GetOperation.BuilderBase<?> req) {
@@ -319,7 +319,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> suspendOperation(SuspendOperation req);
 
     /**
-     * @deprected prefer to use {@link #suspendOperation(SuspendOperation)}
+     * @deprecated prefer to use {@link #suspendOperation(SuspendOperation)}
      */
     @Deprecated
     default CompletableFuture<Void> suspendOperation(SuspendOperation.BuilderBase<?> req) {
@@ -329,7 +329,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> resumeOperation(ResumeOperation req);
 
     /**
-     * @deprected prefer to use {@link #resumeOperation(ResumeOperation)}
+     * @deprecated prefer to use {@link #resumeOperation(ResumeOperation)}
      */
     @Deprecated
     default CompletableFuture<Void> resumeOperation(ResumeOperation.BuilderBase<?> req) {
@@ -339,7 +339,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<YTreeNode> getJob(GetJob req);
 
     /**
-     * @deprected prefer to use {@link #getJob(GetJob)}
+     * @deprecated prefer to use {@link #getJob(GetJob)}
      */
     @Deprecated
     default CompletableFuture<YTreeNode> getJob(GetJob.BuilderBase<?> req) {
@@ -348,14 +348,6 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<Void> abortJob(AbortJob req);
 
-    /**
-     * @deprected prefer to use {@link #abortJob(AbortJob)}
-     */
-    @Deprecated
-    default CompletableFuture<Void> abortJob(AbortJob.BuilderBase<?> req) {
-        return abortJob(req.build());
-    }
-
     CompletableFuture<ListJobsResult> listJobs(ListJobs req);
 
     CompletableFuture<GetJobStderrResult> getJobStderr(GetJobStderr req);
@@ -363,7 +355,7 @@ public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<Void> updateOperationParameters(UpdateOperationParameters req);
 
     /**
-     * @deprected prefer to use {@link #updateOperationParameters(UpdateOperationParameters)}
+     * @deprecated prefer to use {@link #updateOperationParameters(UpdateOperationParameters)}
      */
     @Deprecated
     default CompletableFuture<Void> updateOperationParameters(
