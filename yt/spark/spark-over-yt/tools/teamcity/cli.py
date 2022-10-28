@@ -10,7 +10,7 @@ import typing
 import click
 
 
-ARCADIA_PROJECT_ROOT = 'taxi/dmp/spark/'
+ARCADIA_PROJECT_ROOT = 'yt/spark/'
 
 
 class ComponentVersion(typing.NamedTuple):

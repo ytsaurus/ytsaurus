@@ -45,7 +45,7 @@ Note: cli.py также напрямую вызывается из билд-аг
 
 E2E-тесты запускаются автоматически каждые два часа на транке. Также их можно запустить вручную на ветке,
 соответсвующей пулл-реквесту, для этого берем id пулл-реквеста и в TeamCity запускаем сборку, в Changes выбрав
-ветку `users/robot-stark/taxi/dmp/spark/spark-over-yt/{id_пулл_реквеста}`:
+ветку `users/robot-stark/yt/spark/spark-over-yt/{id_пулл_реквеста}`:
 
 ![скриншот](https://jing.yandex-team.ru/files/devsagul/Firefox_Screenshot_2022-09-09T08-58-03.373Z.png)
 
