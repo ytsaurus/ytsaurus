@@ -15,7 +15,7 @@ namespace NYT::NConcurrency {
 
 //! A shutdown-aware thread wrapper.
 class TThread
-    : public TRefCounted
+    : public virtual TRefCounted
 {
 public:
     TThread(

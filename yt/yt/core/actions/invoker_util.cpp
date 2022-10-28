@@ -58,6 +58,13 @@ public:
         }
     }
 
+    void Invoke(TMutableRange<TClosure> callbacks) override
+    {
+        for (auto& callback : callbacks) {
+            Invoke(std::move(callback));
+        }
+    }
+
     bool CheckAffinity(const IInvokerPtr& invoker) const override
     {
         return invoker.Get() == this;
@@ -97,6 +104,9 @@ class TNullInvoker
 {
 public:
     void Invoke(TClosure /*callback*/) override
+    { }
+
+    void Invoke(TMutableRange<TClosure> /*callbacks*/) override
     { }
 
     bool CheckAffinity(const IInvokerPtr& /*invoker*/) const override

@@ -29,6 +29,15 @@ Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TEnqueuedAction action)
     Size_.fetch_add(1, std::memory_order_release);
 }
 
+Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TMutableRange<TEnqueuedAction> actions)
+{
+    auto size = std::ssize(actions);
+    Queue_.enqueue_bulk(
+        std::make_move_iterator(actions.Begin()),
+        size);
+    Size_.fetch_add(size, std::memory_order_release);
+}
+
 Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* token)
 {
     if (Size_.load() <= 0) {
@@ -100,6 +109,13 @@ Y_FORCE_INLINE void TMpscQueueImpl::Enqueue(TEnqueuedAction action)
     Queue_.Enqueue(std::move(action));
 }
 
+Y_FORCE_INLINE void TMpscQueueImpl::Enqueue(TMutableRange<TEnqueuedAction> actions)
+{
+    for (auto& action : actions) {
+        Enqueue(std::move(action));
+    }
+}
+
 Y_FORCE_INLINE bool TMpscQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* /*token*/)
 {
     return Queue_.TryDequeue(action);
@@ -139,7 +155,7 @@ class TProfilingTagSettingInvoker
 public:
     TProfilingTagSettingInvoker(
         TWeakPtr<TInvokerQueue<TQueueImpl>> queue,
-        int profilingTag,
+        NProfiling::TTagId profilingTag,
         TProfilerTagPtr profilerTag)
         : Queue_(std::move(queue))
         , ProfilingTag_(profilingTag)
@@ -150,6 +166,15 @@ public:
     {
         if (auto queue = Queue_.Lock()) {
             queue->Invoke(std::move(callback), ProfilingTag_, ProfilerTag_);
+        }
+    }
+
+    void Invoke(TMutableRange<TClosure> callbacks) override
+    {
+        if (auto queue = Queue_.Lock()) {
+            for (auto& callback : callbacks) {
+                queue->Invoke(std::move(callback), ProfilingTag_, ProfilerTag_);
+            }
         }
     }
 
@@ -231,9 +256,16 @@ void TInvokerQueue<TQueueImpl>::Invoke(TClosure callback)
 }
 
 template <class TQueueImpl>
+void TInvokerQueue<TQueueImpl>::Invoke(TMutableRange<TClosure> callbacks)
+{
+    EnqueueCallbacks(callbacks);
+    CallbackEventCount_->NotifyMany(std::ssize(callbacks));
+}
+
+template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::Invoke(
     TClosure callback,
-    int profilingTag,
+    NProfiling::TTagId profilingTag,
     TProfilerTagPtr profilerTag)
 {
     EnqueueCallback(std::move(callback), profilingTag, profilerTag);
@@ -241,10 +273,11 @@ void TInvokerQueue<TQueueImpl>::Invoke(
 }
 
 template <class TQueueImpl>
-TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallback(
+TEnqueuedAction TInvokerQueue<TQueueImpl>::MakeAction(
     TClosure callback,
-    int profilingTag,
-    TProfilerTagPtr profilerTag)
+    NProfiling::TTagId profilingTag,
+    TProfilerTagPtr profilerTag,
+    TCpuInstant cpuInstant)
 {
     YT_ASSERT(callback);
     YT_ASSERT(profilingTag >= 0 && profilingTag < std::ssize(Counters_));
@@ -253,7 +286,32 @@ TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallback(
         callback.GetHandle(),
         profilingTag);
 
+    return {
+        .Finished = false,
+        .EnqueuedAt = cpuInstant,
+        .Callback = std::move(callback),
+        .ProfilingTag = profilingTag,
+        .ProfilerTag = std::move(profilerTag)
+    };
+}
+
+template <class TQueueImpl>
+TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallback(
+    TClosure callback,
+    NProfiling::TTagId profilingTag,
+    TProfilerTagPtr profilerTag)
+{
+    if (!Running_.load(std::memory_order_relaxed)) {
+        DrainProducer();
+        YT_LOG_TRACE(
+            "Queue had been shut down, incoming action ignored (Callback: %v)",
+            callback.GetHandle());
+        return GetCpuInstant();
+    }
+
     auto cpuInstant = GetCpuInstant();
+
+    auto action = MakeAction(std::move(callback), profilingTag, std::move(profilerTag), cpuInstant);
 
     auto updateCounters = [&] (const TCountersPtr& counters) {
         if (counters) {
@@ -264,23 +322,40 @@ TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallback(
     updateCounters(Counters_[profilingTag]);
     updateCounters(CumulativeCounters_);
 
-    TEnqueuedAction action{
-        .Finished = false,
-        .EnqueuedAt = cpuInstant,
-        .Callback = std::move(callback),
-        .ProfilingTag = profilingTag,
-        .ProfilerTag = std::move(profilerTag)
-    };
     QueueImpl_.Enqueue(std::move(action));
+    return cpuInstant;
+}
+
+template <class TQueueImpl>
+TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallbacks(
+    TMutableRange<TClosure> callbacks,
+    NProfiling::TTagId profilingTag,
+    TProfilerTagPtr profilerTag)
+{
+    auto cpuInstant = GetCpuInstant();
 
     if (!Running_.load(std::memory_order_relaxed)) {
         DrainProducer();
-        YT_LOG_TRACE(
-            "Queue had been shut down, incoming action ignored (Callback: %v)",
-            callback.GetHandle());
         return cpuInstant;
     }
 
+    std::vector<TEnqueuedAction> actions;
+    actions.reserve(std::ssize(callbacks));
+
+    for (auto& callback : callbacks) {
+        actions.push_back(MakeAction(std::move(callback), profilingTag, profilerTag, cpuInstant));
+    }
+
+    auto updateCounters = [&] (const TCountersPtr& counters) {
+        if (counters) {
+            counters->ActiveCallbacks += std::ssize(actions);
+            counters->EnqueuedCounter.Increment(std::ssize(actions));
+        }
+    };
+    updateCounters(Counters_[profilingTag]);
+    updateCounters(CumulativeCounters_);
+
+    QueueImpl_.Enqueue(actions);
     return cpuInstant;
 }
 

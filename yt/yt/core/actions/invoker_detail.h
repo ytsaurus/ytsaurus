@@ -11,8 +11,9 @@ class TInvokerWrapper
     : public virtual IInvoker
 {
 public:
-    //! Schedules invocation of a given callback.
     void Invoke(TClosure callback) override;
+
+    void Invoke(TMutableRange<TClosure> callbacks) override;
 
     NConcurrency::TThreadId GetThreadId() const override;
     bool CheckAffinity(const IInvokerPtr& invoker) const override;
