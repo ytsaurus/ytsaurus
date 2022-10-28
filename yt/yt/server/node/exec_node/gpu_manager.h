@@ -44,7 +44,8 @@ struct TGpuStatistics
     i64 CumulativeUtilizationPower = 0;
     i64 CumulativePower = 0;
     i64 CumulativeUtilizationClocksSm = 0;
-    i64 CumulativeClocksSm = 0;
+    i64 CumulativeSMUtilization = 0;
+    i64 CumulativeSMOccupancy = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

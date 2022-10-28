@@ -107,6 +107,8 @@ private:
                                         .Item("power_limit").Value(gpuInfo.PowerLimit)
                                         .Item("clocks_sm_used").Value(gpuInfo.ClocksSm)
                                         .Item("clocks_sm_limit").Value(gpuInfo.ClocksMaxSm)
+                                        .Item("sm_utilization_rate").Value(gpuInfo.SMUtilizationRate)
+                                        .Item("sm_occupancy_rate").Value(gpuInfo.SMOccupancyRate)
                                     .EndMap();
                             })
                         .Item("slot_manager").DoMap(std::bind(

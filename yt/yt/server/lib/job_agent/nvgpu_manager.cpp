@@ -22,6 +22,8 @@ void FromProto(TGpuInfo* gpuInfo, int index, const nvgpu::GpuDevice& device)
     gpuInfo->MemoryTotal = spec.memory_size_mb() * 1_MB;
     gpuInfo->PowerDraw = status.power();
     gpuInfo->PowerLimit = spec.power();
+    gpuInfo->SMUtilizationRate = std::max(0.0, static_cast<double>(status.sm_utilization())) / 100.0;
+    gpuInfo->SMOccupancyRate = std::max(0.0, static_cast<double>(status.sm_occupancy())) / 100.0;
     gpuInfo->Name = spec.uuid();
 }
 

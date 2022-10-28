@@ -21,6 +21,8 @@ struct TGpuInfo
     double PowerLimit = 0.0;
     i64 ClocksSm = 0;
     i64 ClocksMaxSm = 0;
+    double SMUtilizationRate = 0.0;
+    double SMOccupancyRate = 0.0;
     TString Name;
 };
 
