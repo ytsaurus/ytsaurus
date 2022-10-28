@@ -90,6 +90,8 @@ struct IInstance
     //! Returns the list of externally visible pids of processes running inside container.
     virtual std::vector<pid_t> GetPids() const = 0;
 
+    virtual i64 GetMajorPageFaultCount() const = 0;
+
     //! Future is set when container reaches terminal state (stopped or dead).
     //! Resulting error is OK iff container exited with code 0.
     virtual TFuture<void> Wait() = 0;

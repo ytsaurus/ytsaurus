@@ -169,6 +169,11 @@ public:
         return 0;
     }
 
+    i64 GetMajorPageFaultCount() const override
+    {
+        return 0;
+    }
+
     TFuture<void> RunSetupCommands(
         int /*slotIndex*/,
         ESlotType /*slotType*/,
@@ -471,6 +476,7 @@ private:
     IPortoExecutorPtr DestroyPortoExecutor_;
     NProfiling::TCounter ContainerDestroyFailureCounter;
 
+    IInstancePtr SelfInstance_;
     IInstancePtr MetaInstance_;
     IInstancePtr MetaIdleInstance_;
 
@@ -540,12 +546,12 @@ private:
         CpuLimit_ = cpuLimit;
 
         PortoExecutor_->SubscribeFailed(portoFatalErrorHandler);
-        auto selfInstance = GetSelfPortoInstance(PortoExecutor_);
+        SelfInstance_ = GetSelfPortoInstance(PortoExecutor_);
 
-        YT_VERIFY(!Config_->UseDaemonSubcontainer || selfInstance->GetParentName());
+        YT_VERIFY(!Config_->UseDaemonSubcontainer || SelfInstance_->GetParentName());
         auto baseContainer = Config_->UseDaemonSubcontainer
-            ? *selfInstance->GetParentName()
-            : selfInstance->GetName();
+            ? *SelfInstance_->GetParentName()
+            : SelfInstance_->GetName();
 
         // If we are in the top-level container of current namespace, use names without prefix.
         auto metaInstanceName = baseContainer.empty()
@@ -709,7 +715,7 @@ private:
             UpdateSlotCpuSet(slotIndex, ESlotType::Common, EmptyCpuSet);
             UpdateSlotCpuSet(slotIndex, ESlotType::Idle, EmptyCpuSet);
         }
-   }
+    }
 
     double GetCpuLimit(ESlotType slotType) const override
     {
@@ -721,6 +727,11 @@ private:
                 return IdleCpuLimit_;
             }
         }
+    }
+
+    i64 GetMajorPageFaultCount() const override
+    {
+        return SelfInstance_->GetMajorPageFaultCount();
     }
 
     IInstanceLauncherPtr CreateSetupInstanceLauncher(

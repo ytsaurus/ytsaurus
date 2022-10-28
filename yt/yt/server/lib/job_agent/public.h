@@ -12,6 +12,7 @@ struct TTimeStatistics;
 DECLARE_REFCOUNTED_CLASS(TGpuInfoSourceConfig)
 DECLARE_REFCOUNTED_CLASS(TGpuManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TMappedMemoryControllerConfig)
+DECLARE_REFCOUNTED_CLASS(TMemoryPressureDetectorConfig)
 DECLARE_REFCOUNTED_CLASS(TResourceLimitsConfig)
 DECLARE_REFCOUNTED_CLASS(TJobControllerConfig)
 DECLARE_REFCOUNTED_CLASS(TJobReporterConfig)
