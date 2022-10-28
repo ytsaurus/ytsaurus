@@ -104,14 +104,14 @@ TString GetGpuDeviceName(int deviceNumber)
 
 void ProfileGpuInfo(NProfiling::ISensorWriter* writer, const TGpuInfo& gpuInfo)
 {
-    writer->AddGauge("/utilization_gpu_rate_x1000", gpuInfo.UtilizationGpuRate);
-    writer->AddGauge("/utilization_memory_rate_x1000", gpuInfo.UtilizationMemoryRate);
+    writer->AddGauge("/utilization_gpu_rate", gpuInfo.UtilizationGpuRate);
+    writer->AddGauge("/utilization_memory_rate", gpuInfo.UtilizationMemoryRate);
     writer->AddGauge("/memory_used", gpuInfo.MemoryUsed);
     writer->AddGauge("/memory_limit", gpuInfo.MemoryTotal);
     writer->AddGauge("/power_used", gpuInfo.PowerDraw);
     writer->AddGauge("/power_limit", gpuInfo.PowerLimit);
-    writer->AddGauge("/clocks_sm_used", gpuInfo.ClocksSm);
-    writer->AddGauge("/clocks_sm_limit", gpuInfo.ClocksMaxSm);
+    writer->AddGauge("/sm_utilization_rate", gpuInfo.SMUtilizationRate);
+    writer->AddGauge("/sm_occupancy_rate", gpuInfo.SMOccupancyRate);
 }
 
 TGpuDriverVersion TGpuDriverVersion::FromString(TStringBuf driverVersionString)

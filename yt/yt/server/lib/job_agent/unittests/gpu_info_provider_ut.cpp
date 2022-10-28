@@ -58,6 +58,8 @@ public:
             status->set_memory_utilization(25);
             status->set_memory_used_mb(100);
             status->set_power(100);
+            status->set_sm_utilization(20.0);
+            status->set_sm_occupancy(10.0);
         }
 
         response->add_devices();
@@ -73,6 +75,8 @@ public:
             status->set_memory_utilization(50);
             status->set_memory_used_mb(200);
             status->set_power(200);
+            status->set_sm_utilization(25.0);
+            status->set_sm_occupancy(10.0);
         }
 
         context->Reply();
@@ -135,6 +139,8 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
         EXPECT_EQ(gpuInfo.PowerDraw, 100);
         EXPECT_EQ(gpuInfo.PowerLimit, 123);
         EXPECT_EQ(gpuInfo.Name, "dev1");
+        EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.2);
+        EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
     }
 
     {
@@ -147,6 +153,8 @@ TEST_F(TTestNvManagerGpuInfoProvider, Simple)
         EXPECT_EQ(gpuInfo.PowerDraw, 200);
         EXPECT_EQ(gpuInfo.PowerLimit, 234);
         EXPECT_EQ(gpuInfo.Name, "dev2");
+        EXPECT_EQ(gpuInfo.SMUtilizationRate, 0.25);
+        EXPECT_EQ(gpuInfo.SMOccupancyRate, 0.1);
     }
 }
 
