@@ -439,6 +439,8 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
         "cpu/throttled",
         "cpu/context_switches",
         "current_memory/rss",
+        "current_memory/mapped_file",
+        "current_memory/major_page_faults",
         "tmpfs_size",
         "disk/usage",
         "disk/limit",
