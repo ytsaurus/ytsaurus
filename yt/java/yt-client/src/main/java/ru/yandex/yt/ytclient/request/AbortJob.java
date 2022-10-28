@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.request;
 
+import java.time.Duration;
 import java.util.Objects;
 
 import javax.annotation.Nullable;
@@ -11,33 +12,47 @@ import ru.yandex.yt.rpcproxy.TReqAbortJob;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
+/**
+ * Request to abort job.
+ * <p>
+ * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#abortJob(AbortJob)
+ */
 public class AbortJob
         extends RequestBase<AbortJob.Builder, AbortJob>
         implements HighLevelRequest<TReqAbortJob.Builder> {
     private final GUID jobId;
     @Nullable
-    private final Long interruptTimeout;
+    private final Duration interruptTimeout;
 
+    /**
+     * Construct abort job request from jobId with other options set to defaults.
+     */
     public AbortJob(GUID jobId) {
         this(builder().setJobId(jobId));
     }
 
-    public AbortJob(BuilderBase<?> builder) {
+    AbortJob(Builder builder) {
         super(builder);
         this.jobId = Objects.requireNonNull(builder.jobId);
         this.interruptTimeout = builder.interruptTimeout;
     }
 
+    /**
+     * Construct empty builder for abort job request.
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqAbortJob.Builder, ?> requestBuilder) {
         TReqAbortJob.Builder messageBuilder = requestBuilder.body();
         messageBuilder.setJobId(RpcUtil.toProto(jobId));
         if (interruptTimeout != null) {
-            messageBuilder.setInterruptTimeout(interruptTimeout);
+            messageBuilder.setInterruptTimeout(interruptTimeout.toNanos() / 1000L);
         }
     }
 
@@ -48,6 +63,9 @@ public class AbortJob
         sb.append("interruptTimeout: ").append(interruptTimeout).append(";");
     }
 
+    /**
+     * Construct a builder with options set from this request.
+     */
     @Override
     public Builder toBuilder() {
         Builder builder = builder().setJobId(jobId);
@@ -62,38 +80,45 @@ public class AbortJob
         return builder;
     }
 
-    public static class Builder extends BuilderBase<Builder> {
-        @Override
-        protected Builder self() {
-            return this;
-        }
-    }
-
     @NonNullApi
     @NonNullFields
-    public abstract static class BuilderBase<
-            TBuilder extends BuilderBase<TBuilder>>
-            extends RequestBase.Builder<TBuilder, AbortJob> {
+    public static class Builder extends RequestBase.Builder<Builder, AbortJob> {
         @Nullable
         private GUID jobId;
         @Nullable
-        private Long interruptTimeout;
+        private Duration interruptTimeout;
 
-        public BuilderBase() {
+        /**
+         * Construct empty builder.
+         */
+        public Builder() {
         }
 
-        public BuilderBase(BuilderBase<?> builder) {
+        /**
+         * Copy builder.
+         */
+        public Builder(Builder builder) {
             super(builder);
             jobId = builder.jobId;
             interruptTimeout = builder.interruptTimeout;
         }
 
-        public TBuilder setJobId(GUID jobId) {
+        /**
+         * Set id of a job to abort.
+         */
+        public Builder setJobId(GUID jobId) {
             this.jobId = jobId;
             return self();
         }
 
-        public TBuilder setInterruptTimeout(Long interruptTimeout) {
+        /**
+         * Set interrupt timeout.
+         * <p>
+         * Interrupt timeout is a time that is given to the job to gracefully complete execution.
+         * If job successfully completes within this timeout YT accepts its result and marks job completed,
+         * otherwise job is aborted.
+         */
+        public Builder setInterruptTimeout(Duration interruptTimeout) {
             this.interruptTimeout = interruptTimeout;
             return self();
         }
@@ -105,9 +130,18 @@ public class AbortJob
             sb.append("interruptTimeout: ").append(interruptTimeout).append(";");
         }
 
+        /**
+         * Create instance of AbortJob.
+         */
         @Override
         public AbortJob build() {
             return new AbortJob(this);
         }
+
+        @Override
+        protected Builder self() {
+            return this;
+        }
+
     }
 }
