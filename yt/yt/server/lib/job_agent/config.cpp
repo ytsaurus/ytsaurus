@@ -162,6 +162,22 @@ void TMappedMemoryControllerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TMemoryPressureDetectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+    registrar.Parameter("check_period", &TThis::CheckPeriod)
+        .Default(TDuration::Seconds(60));
+    registrar.Parameter("major_page_fault_count_threshold", &TThis::MajorPageFaultCountThreshold)
+        .Default(500);
+    registrar.Parameter("memory_watermark_multiplier_increase_step", &TThis::MemoryWatermarkMultiplierIncreaseStep)
+        .Default(0.1);
+    registrar.Parameter("max_memory_watermark_multiplier", &TThis::MaxMemoryWatermarkMultiplier)
+        .Default(2);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("get_job_specs_timeout", &TThis::GetJobSpecsTimeout)
@@ -208,6 +224,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("job_proxy", &TThis::JobProxy)
         .Default();
+
+    registrar.Parameter("memory_pressure_detector", &TThis::MemoryPressureDetector)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->CpuToVCpuFactor && *config->CpuToVCpuFactor <= 0) {

@@ -534,6 +534,13 @@ public:
         return std::stoi(pid);
     }
 
+    i64 GetMajorPageFaultCount() const override
+    {
+        auto faults = *WaitFor(Executor_->GetContainerProperty(Name_, "major_faults"))
+            .ValueOrThrow();
+        return std::stoll(faults);
+    }
+
     std::vector<pid_t> GetPids() const override
     {
         auto getPidCgroup = [&] (const TString& cgroups) {

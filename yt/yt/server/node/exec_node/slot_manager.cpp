@@ -300,6 +300,11 @@ double TSlotManager::GetIdleCpuFraction() const
         : Config_->IdleCpuFraction;
 }
 
+int64_t TSlotManager::GetMajorPageFaultCount() const
+{
+    return JobEnvironment_->GetMajorPageFaultCount();
+}
+
 bool TSlotManager::EnableNumaNodeScheduling() const
 {
     auto dynamicConfig = DynamicConfig_.Load();

@@ -89,6 +89,8 @@ public:
     int GetSlotCount() const;
     int GetUsedSlotCount() const;
 
+    i64 GetMajorPageFaultCount() const;
+
     bool IsInitialized() const;
     bool IsEnabled() const;
     bool HasFatalAlert() const;

@@ -76,7 +76,7 @@ public:
     DEFINE_SIGNAL_OVERRIDE(
         void(i64 mapped),
         ReservedMemoryOvercommited);
-    
+
 public:
     explicit TImpl(IBootstrapBase* bootstrap)
         : Config_(bootstrap->GetConfig()->ExecNode->JobController)
@@ -85,6 +85,9 @@ public:
         , SystemMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::SystemJobs))
         , UserMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::UserJobs))
         , Profiler_("/job_controller")
+        , MajorPageFaultsGauge_(Profiler_.Gauge("major_page_faults"))
+        , FreeMemoryWatermarkMultiplierGauge_(Profiler_.Gauge("free_memory_watermark_multiplier"))
+        , FreeMemoryWatermarkAddedMemoryGauge_(Profiler_.Gauge("free_memory_watermark_added_memory"))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
@@ -111,12 +114,19 @@ public:
 
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
             dynamicConfigManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TImpl::OnDynamicConfigChanged, MakeWeak(this)));
-        
+
         if (Config_->MappedMemoryController) {
             ReservedMappedMemoryChecker_ = New<TPeriodicExecutor>(
                 Bootstrap_->GetJobInvoker(),
                 BIND_NO_PROPAGATE(&TImpl::CheckReservedMappedMemory, MakeWeak(this)),
                 Config_->MappedMemoryController->CheckPeriod);
+        }
+
+        if (Bootstrap_->IsExecNode()) {
+            MemoryPressureDetector_ = New<TPeriodicExecutor>(
+                Bootstrap_->GetJobInvoker(),
+                BIND_NO_PROPAGATE(&TImpl::CheckMemoryPressure, MakeWeak(this)),
+                DynamicConfig_.Load()->MemoryPressureDetector->CheckPeriod);
         }
     }
 
@@ -154,6 +164,15 @@ public:
         ResourceLimitsBuffer_->Update([this] (ISensorWriter* writer) {
             ProfileResources(writer, GetResourceLimits());
         });
+
+        if (Bootstrap_->IsExecNode()) {
+            MajorPageFaultsGauge_.Update(LastMajorPageFaultCount_);
+
+            if (FreeMemoryWatermarkMultiplier_ != 1.0 && DynamicConfig_.Load()->MemoryPressureDetector->Enabled) {
+                FreeMemoryWatermarkMultiplierGauge_.Update(FreeMemoryWatermarkMultiplier_);
+                FreeMemoryWatermarkAddedMemoryGauge_.Update(GetFreeMemoryWatermark() - Config_->FreeMemoryWatermark);
+            }
+        }
     }
 
     TNodeResources GetResourceLimits() const override
@@ -201,7 +220,7 @@ public:
         auto getUsedMemory = [&] (ITypedNodeMemoryTracker* memoryUsageTracker) {
             return std::max<i64>(
                 0,
-                memoryUsageTracker->GetUsed() + NodeMemoryUsageTracker_->GetTotalFree() - Config_->FreeMemoryWatermark);
+                memoryUsageTracker->GetUsed() + NodeMemoryUsageTracker_->GetTotalFree() - GetFreeMemoryWatermark());
         };
         result.set_user_memory(std::min(
             UserMemoryUsageTracker_->GetLimit(),
@@ -225,7 +244,7 @@ public:
         if (includeWaiting) {
             result += WaitingResources_;
         }
-        
+
         if (Bootstrap_->IsExecNode()) {
             const auto& slotManager = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager();
             auto userSlotCount = slotManager->GetUsedSlotCount();
@@ -237,7 +256,7 @@ public:
                 ResourceUsage_.user_slots(),
                 userSlotCount,
                 slotManager->IsEnabled());
-            
+
             result.set_user_slots(slotManager->IsEnabled() ? userSlotCount : 0);
 
             const auto& gpuManager = Bootstrap_->GetExecNodeBootstrap()->GetGpuManager();
@@ -261,7 +280,7 @@ public:
         // Other resources are not reported by job proxy (see TSupervisorService::UpdateResourceUsage).
 
         if (delta.user_memory() > 0) {
-            bool watermarkReached = NodeMemoryUsageTracker_->GetTotalFree() <= Config_->FreeMemoryWatermark;
+            bool watermarkReached = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
             if (watermarkReached) {
                 return true;
             }
@@ -273,6 +292,13 @@ public:
         }
 
         return false;
+    }
+
+    i64 GetFreeMemoryWatermark() const
+    {
+        return DynamicConfig_.Load()->MemoryPressureDetector->Enabled
+            ? Config_->FreeMemoryWatermark * FreeMemoryWatermarkMultiplier_
+            : Config_->FreeMemoryWatermark;
     }
 
     void OnResourceAcquiringStarted()
@@ -359,7 +385,7 @@ public:
             FormatResources(resources),
             FormatResources(ResourceUsage_),
             FormatResources(WaitingResources_));
-        
+
         NotifyResourcesReleased();
     }
 
@@ -373,7 +399,7 @@ public:
             FormatResources(resourceDelta),
             FormatResources(ResourceUsage_),
             FormatResources(WaitingResources_));
-        
+
         if (!Dominates(resourceDelta, ZeroNodeResources())) {
             NotifyResourcesReleased();
         }
@@ -448,7 +474,7 @@ public:
         i64 userMemory = neededResources.user_memory();
         i64 systemMemory = neededResources.system_memory();
         if (userMemory > 0 || systemMemory > 0) {
-            bool reachedWatermark = NodeMemoryUsageTracker_->GetTotalFree() <= Config_->FreeMemoryWatermark;
+            bool reachedWatermark = NodeMemoryUsageTracker_->GetTotalFree() <= GetFreeMemoryWatermark();
             if (reachedWatermark) {
                 YT_LOG_DEBUG("Not enough memory; reached free memory watermark");
                 return false;
@@ -557,10 +583,18 @@ private:
     TBufferedProducerPtr ResourceLimitsBuffer_ = New<TBufferedProducer>();
     TBufferedProducerPtr ResourceUsageBuffer_ = New<TBufferedProducer>();
 
+    TGauge MajorPageFaultsGauge_;
+    TGauge FreeMemoryWatermarkMultiplierGauge_;
+    TGauge FreeMemoryWatermarkAddedMemoryGauge_;
+
     TNodeResources ResourceUsage_ = ZeroNodeResources();
     TNodeResources WaitingResources_ = ZeroNodeResources();
 
     TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
+    TPeriodicExecutorPtr MemoryPressureDetector_;
+
+    int64_t LastMajorPageFaultCount_ = 0;
+    double FreeMemoryWatermarkMultiplier_ = 1.0;
 
     bool ShouldNotifyResourcesUpdated_ = false;
 
@@ -606,6 +640,48 @@ private:
         }
 
         ReservedMemoryOvercommited_.Fire(mappedMemory);
+    }
+
+    void CheckMemoryPressure()
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto currentFaultCount = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->GetMajorPageFaultCount();
+        if (currentFaultCount != LastMajorPageFaultCount_) {
+            auto config = DynamicConfig_.Load()->MemoryPressureDetector;
+            YT_LOG_DEBUG(
+                "Major page faults in root YT container detected (MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v)",
+                LastMajorPageFaultCount_,
+                currentFaultCount,
+                currentFaultCount - LastMajorPageFaultCount_,
+                config->MajorPageFaultCountThreshold,
+                config->CheckPeriod);
+
+            if (config->Enabled &&
+                currentFaultCount - LastMajorPageFaultCount_ > config->MajorPageFaultCountThreshold)
+            {
+                auto previousMemoryWatermarkMultiplier = FreeMemoryWatermarkMultiplier_;
+                FreeMemoryWatermarkMultiplier_ = std::min(
+                    FreeMemoryWatermarkMultiplier_ + config->MemoryWatermarkMultiplierIncreaseStep,
+                    config->MaxMemoryWatermarkMultiplier);
+
+                YT_LOG_DEBUG(
+                    "Increasing memory watermark multiplier "
+                    "(MemoryWatermarkMultiplier: %v -> %v, ",
+                    "UpdatedFreeMemoryWatermark: %v, "
+                    "UserMemoryUsageTrackerLimit: %v, ",
+                    "UserMemoryUsageTrackerUsed: %v, ",
+                    "NodeMemoryUsageTrackerTotalFree: %v)",
+                    previousMemoryWatermarkMultiplier,
+                    FreeMemoryWatermarkMultiplier_,
+                    GetFreeMemoryWatermark(),
+                    UserMemoryUsageTracker_->GetLimit(),
+                    UserMemoryUsageTracker_->GetUsed(),
+                    NodeMemoryUsageTracker_->GetTotalFree());
+            }
+
+            LastMajorPageFaultCount_ = currentFaultCount;
+        }
     }
 
     //! Returns |true| if a acquiring with given #neededResources can succeed.

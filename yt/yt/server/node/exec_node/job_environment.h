@@ -48,6 +48,8 @@ struct IJobEnvironment
 
     virtual double GetCpuLimit(ESlotType slotType) const = 0;
 
+    virtual i64 GetMajorPageFaultCount() const = 0;
+
     virtual TFuture<void> RunSetupCommands(
         int slotIndex,
         ESlotType slotType,

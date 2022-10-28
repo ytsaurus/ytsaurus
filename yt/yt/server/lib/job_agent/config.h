@@ -160,6 +160,32 @@ DEFINE_REFCOUNTED_TYPE(TMappedMemoryControllerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TMemoryPressureDetectorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+
+    TDuration CheckPeriod;
+
+    // Free memory watermark multiplier will be increased upon reaching this threshold.
+    int MajorPageFaultCountThreshold;
+
+    // The value by which free memory watermark multiplier is increased.
+    double MemoryWatermarkMultiplierIncreaseStep;
+
+    // Max value of free memory watermark multiplier.
+    double MaxMemoryWatermarkMultiplier;
+
+    REGISTER_YSON_STRUCT(TMemoryPressureDetectorConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryPressureDetectorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TJobControllerDynamicConfig
     : public NYTree::TYsonStruct
 {
@@ -187,6 +213,8 @@ public:
     TGpuManagerDynamicConfigPtr GpuManager;
 
     NJobProxy::TJobProxyDynamicConfigPtr JobProxy;
+
+    TMemoryPressureDetectorConfigPtr MemoryPressureDetector;
 
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
