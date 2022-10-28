@@ -89,13 +89,6 @@ class TestJobTool(object):
         with open(os.path.join(self._tmpdir, job_id + ".input")) as canonical_input:
             assert canonical_input.read() == open(os.path.join(job_path, "input")).read()
 
-        run_config = os.path.join(job_path, "run_config")
-        assert os.path.exists(run_config)
-        with open(run_config, "r") as fin:
-            config = json.load(fin)
-        assert config["operation_id"] == operation_id
-        assert config["job_id"] == job_id
-
         if not check_running:
             run_script = os.path.join(job_path, "run.sh")
             proc = subprocess.Popen(
@@ -329,3 +322,75 @@ class TestJobTool(object):
                 job_path = os.path.join(yt_env_job_archive.env.path, "test_job_tool", "job_" + job_id)
                 sandbox_path = os.path.join(job_path, "sandbox")
                 assert os.listdir(sandbox_path)[0] == "_test_file"
+
+    @authors("ermolovd")
+    def test_vanilla_operation_no_outputs(self, yt_env_job_archive):
+        job_file_data = b"testresource"
+
+        job_file = TEST_DIR + "/job_file"
+        output_table = TEST_DIR + "/output_table"
+        yt.write_file(job_file, job_file_data)
+        yt.create("table", output_table)
+
+        task_spec = yt.TaskSpecBuilder() \
+            .job_count(1) \
+            .command("cat job_file >&2") \
+            .add_file_path(job_file)
+
+        vanilla_spec = yt.VanillaSpecBuilder() \
+            .task("foo", task_spec)
+
+        op = yt.run_operation(vanilla_spec)
+
+        job_id = yt.list_jobs(op.id)["jobs"][0]["id"]
+        job_path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=yt_job_tool.FULL_INPUT_MODE)
+
+        p = subprocess.Popen([os.path.join(job_path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, p_stderr = p.communicate()
+        assert p_stderr == job_file_data
+
+    @authors("ermolovd")
+    def test_vanilla_operation_with_outputs(self, yt_env_job_archive):
+        job_file_data_0 = b"""{"foo": 42}"""
+        job_file_data_1 = b"""{"foo": 54}"""
+
+        job_file_0 = TEST_DIR + "/job_file_0"
+        job_file_1 = TEST_DIR + "/job_file_1"
+        output_table_0 = TEST_DIR + "/output_table_0"
+        output_table_1 = TEST_DIR + "/output_table_1"
+        yt.write_file(job_file_0, job_file_data_0)
+        yt.write_file(job_file_1, job_file_data_1)
+        yt.create("table", output_table_0)
+        yt.create("table", output_table_1)
+
+        task_spec = yt.TaskSpecBuilder() \
+            .job_count(1) \
+            .command("cat job_file_0 && echo OK_FROM_JOB >&2 && cat job_file_1 >&4") \
+            .add_file_path(job_file_0) \
+            .add_file_path(job_file_1) \
+            .format("json") \
+            .spec({"output_table_paths": [output_table_0, output_table_1]})
+
+        vanilla_spec = yt.VanillaSpecBuilder() \
+            .task("foo", task_spec)
+
+        op = yt.run_operation(vanilla_spec)
+
+        job_id = yt.list_jobs(op.id)["jobs"][0]["id"]
+        job_path = self._prepare_job_environment(yt_env_job_archive, op.id, job_id, get_context_mode=yt_job_tool.FULL_INPUT_MODE)
+
+        with open(os.path.join(job_path, "sandbox", "job_file_0"), "rb") as inf:
+            assert inf.read() == job_file_data_0
+
+        with open(os.path.join(job_path, "sandbox", "job_file_1"), "rb") as inf:
+            assert inf.read() == job_file_data_1
+
+        p = subprocess.Popen([os.path.join(job_path, "run.sh")], env={"PATH": "/bin:/usr/bin:" + os.environ["PATH"]}, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        _, p_stderr = p.communicate()
+        assert p_stderr == u"OK_FROM_JOB\n".encode("ascii")
+
+        with open(os.path.join(job_path, "output", "1"), "rb") as fin:
+            assert job_file_data_0 == fin.read()
+
+        with open(os.path.join(job_path, "output", "4"), "rb") as fin:
+            assert job_file_data_1 == fin.read()
