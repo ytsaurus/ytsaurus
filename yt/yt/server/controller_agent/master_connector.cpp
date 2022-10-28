@@ -392,6 +392,7 @@ private:
             Config_->ConfigUpdatePeriod);
         UpdateConfigExecutor_->Start();
 
+        YT_VERIFY(!AlertsExecutor_);
         AlertsExecutor_ = New<TPeriodicExecutor>(
             CancelableControlInvoker_,
             BIND(&TImpl::UpdateAlerts, MakeWeak(this)),
