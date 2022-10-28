@@ -9,7 +9,8 @@ namespace NYT::NElection {
 ////////////////////////////////////////////////////////////////////////////////
 
 IAlienCellPeerChannelFactoryPtr CreateAlienCellPeerChannelFactory(
-    NHiveClient::ICellDirectoryPtr cellDirectory);
+    NHiveClient::ICellDirectoryPtr cellDirectory,
+    NHiveClient::TClusterDirectoryPtr clusterDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////
 

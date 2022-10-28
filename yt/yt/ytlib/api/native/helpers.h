@@ -28,6 +28,13 @@ NRpc::IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
     std::optional<NAuth::TTvmId> tvmId,
     NAuth::IDynamicTvmServicePtr tvmService = nullptr);
 
+//! Same as CreateNativeAuthenticationInjectingChannelFactory, but creates a single channel
+//! instead. See the docs above for more information.
+NRpc::IChannelPtr CreateNativeAuthenticationInjectingChannel(
+    NRpc::IChannelPtr channel,
+    std::optional<NAuth::TTvmId> tvmId,
+    NAuth::IDynamicTvmServicePtr tvmService = nullptr);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi::NNative

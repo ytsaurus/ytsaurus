@@ -1,8 +1,18 @@
 #include "alien_cell_peer_channel_factory.h"
 
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/helpers.h>
+
+#include <yt/yt/ytlib/auth/native_authentication_manager.h>
+
 #include <yt/yt/ytlib/election/alien_cell_peer_channel_factory.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/library/auth/credentials_injecting_channel.h>
+
+#include <yt/yt/library/auth_server/tvm_service.h>
 
 #include <yt/yt/core/misc/public.h>
 
@@ -18,6 +28,7 @@
 
 namespace NYT::NElection {
 
+using namespace NAuth;
 using namespace NRpc;
 using namespace NHiveClient;
 using namespace NYTree;
@@ -32,11 +43,15 @@ public:
         const TString& cluster,
         TCellId cellId,
         int peerId,
-        ICellDirectoryPtr cellDirectory)
+        ICellDirectoryPtr cellDirectory,
+        TClusterDirectoryPtr clusterDirectory,
+        ITvmServicePtr tvmService)
         : Cluster_(cluster)
         , CellId_(cellId)
         , PeerId_(peerId)
         , CellDirectory_(std::move(cellDirectory))
+        , ClusterDirectory_(std::move(clusterDirectory))
+        , TvmService_(std::move(tvmService))
         , EndpointDescription_(Format("%v:%v:%v",
             Cluster_,
             CellId_,
@@ -73,7 +88,20 @@ public:
         auto channel = CreateRealmChannel(
             channelFactory->CreateChannel(*address),
             CellId_);
-        return MakeFuture(channel);
+
+        auto connection = ClusterDirectory_->FindConnection(Cluster_);
+        if (!connection) {
+            return MakeFuture<IChannelPtr>(
+                    TError(NRpc::EErrorCode::Unavailable, "Cannot find such cluster")
+                        << TErrorAttribute("cluster", Cluster_));
+        }
+        auto clusterConfig = connection->GetConfig();
+
+        channel = NApi::NNative::CreateNativeAuthenticationInjectingChannel(
+            std::move(channel),
+            clusterConfig->TvmId);
+
+        return MakeFuture(std::move(channel));
     }
 
     TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
@@ -94,13 +122,13 @@ private:
     const TCellId CellId_;
     const int PeerId_;
     const ICellDirectoryPtr CellDirectory_;
+    const TClusterDirectoryPtr ClusterDirectory_;
+    const ITvmServicePtr TvmService_;
 
     const TString EndpointDescription_;
     const IAttributeDictionaryPtr EndpointAttributes_;
 
     const TError UnavailableError_;
-
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,8 +137,12 @@ class TAlienCellPeerChannelFactory
     : public NElection::IAlienCellPeerChannelFactory
 {
 public:
-    explicit TAlienCellPeerChannelFactory(ICellDirectoryPtr cellDirectory)
+    TAlienCellPeerChannelFactory(
+        ICellDirectoryPtr cellDirectory,
+        TClusterDirectoryPtr clusterDirectory)
         : CellDirectory_(std::move(cellDirectory))
+        , ClusterDirectory_(std::move(clusterDirectory))
+        , TvmService_(TNativeAuthenticationManager::Get()->GetTvmService())
     { }
 
     NRpc::IChannelPtr CreateChannel(
@@ -122,7 +154,10 @@ public:
             cluster,
             cellId,
             peerId,
-            CellDirectory_);
+            CellDirectory_,
+            ClusterDirectory_,
+            TvmService_);
+
         return CreateRealmChannel(
             CreateRoamingChannel(std::move(provider)),
             cellId);
@@ -130,14 +165,19 @@ public:
 
 private:
     const ICellDirectoryPtr CellDirectory_;
+    const TClusterDirectoryPtr ClusterDirectory_;
+    const ITvmServicePtr TvmService_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IAlienCellPeerChannelFactoryPtr CreateAlienCellPeerChannelFactory(ICellDirectoryPtr cellDirectory)
+IAlienCellPeerChannelFactoryPtr CreateAlienCellPeerChannelFactory(
+    ICellDirectoryPtr cellDirectory,
+    TClusterDirectoryPtr clusterDirectory)
 {
     return New<TAlienCellPeerChannelFactory>(
-        std::move(cellDirectory));
+        std::move(cellDirectory),
+        std::move(clusterDirectory));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
