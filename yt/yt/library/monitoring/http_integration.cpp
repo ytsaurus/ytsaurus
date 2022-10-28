@@ -23,8 +23,6 @@
 #include <yt/yt/core/http/helpers.h>
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/ytalloc/statistics_producer.h>
-
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
 #include <yt/yt/core/profiling/profile_manager.h>
@@ -55,7 +53,6 @@ void Initialize(
     NYTree::IMapNodePtr* orchidRoot)
 {
     *monitoringManager = New<TMonitoringManager>();
-    (*monitoringManager)->Register("/yt_alloc", NYTAlloc::CreateStatisticsProducer());
     (*monitoringManager)->Register("/ref_counted", CreateRefCountedTrackerStatisticsProducer());
     (*monitoringManager)->Register("/solomon", BIND([] (NYson::IYsonConsumer* consumer) {
         auto tags = NProfiling::TSolomonRegistry::Get()->GetDynamicTags();

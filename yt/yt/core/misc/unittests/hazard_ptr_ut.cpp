@@ -28,7 +28,7 @@ public:
         ++AllocatedCount_;
 
         size += sizeof(void*);
-        auto ptr = NYTAlloc::Allocate(size);
+        auto* ptr = ::malloc(size);
         auto* header = static_cast<TTestAllocator**>(ptr);
         *header = this;
         return header + 1;
@@ -42,7 +42,7 @@ public:
         *allocator->Output_ << 'F';
         ++allocator->DeallocatedCount_;
 
-        NYTAlloc::Free(header);
+        ::free(header);
     }
 
     ~TTestAllocator()

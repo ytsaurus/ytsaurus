@@ -79,8 +79,6 @@
 
 #include <yt/yt/core/yson/string.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 namespace NYT::NControllerAgent::NControllers {
 
 ////////////////////////////////////////////////////////////////////////////////

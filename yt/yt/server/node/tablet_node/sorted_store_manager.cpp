@@ -46,8 +46,6 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 #include <yt/yt/core/misc/finally.h>
 
 #include <util/generic/cast.h>
@@ -67,7 +65,6 @@ using namespace NObjectClient;
 using namespace NNodeTrackerClient;
 using namespace NTabletNode::NProto;
 using namespace NHydra;
-using namespace NYTAlloc;
 
 using NTableClient::TLegacyKey;
 using NYT::FromProto;

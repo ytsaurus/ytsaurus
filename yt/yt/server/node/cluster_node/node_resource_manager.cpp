@@ -231,16 +231,8 @@ void TNodeResourceManager::UpdateMemoryFootprint()
 
     const auto& memoryUsageTracker = Bootstrap_->GetMemoryUsageTracker();
 
-    auto tcmallocBytesUsed = tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes");
-    auto tcmallocBytesCommitted = tcmalloc::MallocExtension::GetNumericProperty("generic.heap_size");
-
-    auto allocCounters = NYTAlloc::GetTotalAllocationCounters();
-    auto ytallocBytesUsed = allocCounters[NYTAlloc::ETotalCounter::BytesUsed];
-    auto ytallocBytesCommitted = allocCounters[NYTAlloc::ETotalCounter::BytesCommitted];
-
-    auto bytesUsed = tcmallocBytesUsed.value_or(ytallocBytesUsed);
-    auto bytesCommitted = tcmallocBytesCommitted.value_or(ytallocBytesCommitted);
-
+    i64 bytesUsed = tcmalloc::MallocExtension::GetNumericProperty("generic.current_allocated_bytes").value_or(0);
+    i64 bytesCommitted = tcmalloc::MallocExtension::GetNumericProperty("generic.heap_size").value_or(0);
     auto newFragmentation = std::max<i64>(0, bytesCommitted - bytesUsed);
 
     auto newFootprint = bytesUsed;

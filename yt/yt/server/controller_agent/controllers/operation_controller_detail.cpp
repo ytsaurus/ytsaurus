@@ -4320,9 +4320,6 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
 
     auto* schedulerJobSpecExt = jobSpec->MutableExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
-    schedulerJobSpecExt->set_yt_alloc_min_large_unreclaimable_bytes(GetYTAllocMinLargeUnreclaimableBytes());
-    schedulerJobSpecExt->set_yt_alloc_max_large_unreclaimable_bytes(GetYTAllocMaxLargeUnreclaimableBytes());
-
     schedulerJobSpecExt->set_testing_options(ConvertToYsonString(Spec_->JobTestingOptions).ToString());
 
     schedulerJobSpecExt->set_enable_prefetching_job_throttler(Spec_->EnablePrefetchingJobThrottler);

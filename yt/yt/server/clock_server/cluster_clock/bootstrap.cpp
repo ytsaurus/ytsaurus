@@ -47,8 +47,6 @@
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/yt/core/ytalloc/statistics_producer.h>
-
 #include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/rpc/caching_channel_factory.h>

@@ -57,8 +57,6 @@
 
 #include <yt/yt/core/rpc/bus/server.h>
 
-#include <yt/yt/core/ytalloc/statistics_producer.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_client.h>

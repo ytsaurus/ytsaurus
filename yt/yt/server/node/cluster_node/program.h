@@ -12,8 +12,6 @@
 #include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
-
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
 #include <library/cpp/yt/mlock/mlock.h>
@@ -21,8 +19,6 @@
 #include <yt/yt/core/bus/tcp/dispatcher.h>
 
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
-
-#include <yt/yt/core/ytalloc/bindings.h>
 
 #include <util/system/thread.h>
 

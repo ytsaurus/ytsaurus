@@ -35,7 +35,6 @@ using namespace NIO;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NProfiling;
-using namespace NYTAlloc;
 
 using NChunkClient::TChunkReaderStatistics;
 

@@ -167,9 +167,6 @@
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/yt/core/ytalloc/statistics_producer.h>
-#include <yt/yt/core/ytalloc/bindings.h>
-
 #include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/rpc/bus/channel.h>
@@ -183,8 +180,6 @@
 #include <yt/yt/core/ytree/virtual.h>
 
 #include <yt/yt/core/bus/tcp/dispatcher.h>
-
-#include <library/cpp/ytalloc/api/ytalloc.h>
 
 namespace NYT::NClusterNode {
 

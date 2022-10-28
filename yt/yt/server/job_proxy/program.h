@@ -14,10 +14,7 @@
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/shutdown.h>
 
-#include <library/cpp/ytalloc/api/ytalloc.h>
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
-
-#include <yt/yt/core/ytalloc/bindings.h>
 
 #include <util/system/thread.h>
 
@@ -74,8 +71,6 @@ protected:
             .YTAllocEagerMemoryRelease = true,
             .TCMallocOptimizeSize = true,
         });
-        NYTAlloc::EnableYTLogging();
-        NYTAlloc::InitializeLibunwindInterop();
 
         try {
             SafeCreateStderrFile(StderrPath_);

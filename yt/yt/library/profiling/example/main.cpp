@@ -10,8 +10,6 @@
 
 #include <yt/yt/core/utilex/random.h>
 
-#include <yt/yt/core/ytalloc/bindings.h>
-
 #include <yt/yt/core/misc/ref_counted_tracker_profiler.h>
 
 #include <yt/yt/library/profiling/sensor.h>
@@ -52,22 +50,12 @@ int main(int argc, char* argv[])
         auto internalShardConfig = New<TShardConfig>();
         internalShardConfig->Filter = {"yt/solomon"};
 
-        auto ytallocShardConfig = New<TShardConfig>();
-        ytallocShardConfig->Filter = {"yt/yt_alloc"};
-
-        if (!fast) {
-            ytallocShardConfig->GridStep = TDuration::Seconds(30);
-        } else {
-            ytallocShardConfig->GridStep = TDuration::Seconds(6);
-        }
-
         auto defaultShardConfig = New<TShardConfig>();
         defaultShardConfig->Filter = {""};
 
         auto config = New<TSolomonExporterConfig>();
         config->Shards = {
             {"internal", internalShardConfig},
-            {"ytalloc", ytallocShardConfig},
             {"default", defaultShardConfig},
         };
 
@@ -87,7 +75,6 @@ int main(int argc, char* argv[])
 
         server->Start();
 
-        NYTAlloc::EnableYTProfiling();
         EnableRefCountedTrackerProfiling();
 
         TProfiler r{"/my_loop"};
