@@ -10,6 +10,7 @@ import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request._
+import ru.yandex.yt.ytclient.request.LockMode
 
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal
