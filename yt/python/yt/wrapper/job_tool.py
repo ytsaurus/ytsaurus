@@ -14,7 +14,6 @@ except ImportError:
     from six.moves import xrange
 
 import collections
-import json
 import os
 import stat
 import subprocess
@@ -35,19 +34,9 @@ $ yt-job-tool prepare-job-environment 84702787-e6196e33-3fe03e8-f0f415f8 3c9a3b9
 $ yt-job-tool run-job <job_path>
 """
 
-JOB_TYPE_TO_SPEC_TYPE = {
-    "partition_reduce": "reducer",
-    "partition_map": "mapper",
-    "ordered_map": "mapper",
-    "reduce_combiner": "reducer",
-    "join_reduce": "reducer",
-    "sorted_reduce": "reducer",
-    "map": "mapper"
-}
-
 OPERATION_ARCHIVE_JOBS_PATH = "//sys/operations_archive/jobs"
 
-JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running"])
+JobInfo = collections.namedtuple("JobInfo", ["job_type", "is_running", "task_name"])
 
 FULL_INPUT_MODE = "full_input"
 INPUT_CONTEXT_MODE = "input_context"
@@ -224,7 +213,7 @@ def download_job_input(operation_id, job_id, job_input_path, get_context_action,
 def get_job_info(operation_id, job_id, client):
     job_info = client.get_job(operation_id, job_id)
     job_is_running = job_info["state"] == "running"
-    return JobInfo(job_info["type"], is_running=job_is_running)
+    return JobInfo(job_info["type"], is_running=job_is_running, task_name=job_info.get("task_name", None))
 
 
 def ensure_backend_is_supported(client):
@@ -237,9 +226,20 @@ def ensure_backend_is_supported(client):
         exit(1)
 
 
+def get_user_job_spec_section(op_spec, job_info):
+    if job_info.job_type in ("map", "partition_map", "ordered_map"):
+        return op_spec["mapper"]
+    elif job_info.job_type in ("partition_reduce", "reduce_combiner", "join_reduce", "sorted_reduce"):
+        return op_spec["reducer"]
+    elif job_info.job_type == "vanilla":
+        return op_spec["tasks"][job_info.task_name]
+    else:
+        raise yt.YtError("Unknown job type \"{0}\"".format(job_info.job_type))
+
+
 def prepare_job_environment(operation_id, job_id, job_path, run=False, get_context_mode=INPUT_CONTEXT_MODE):
-    def _download_files(op_spec, sandbox_path, client):
-        for index, file_ in enumerate(op_spec[job_spec_section]["file_paths"]):
+    def _download_files(user_job_spec_section, sandbox_path, client):
+        for index, file_ in enumerate(user_job_spec_section["file_paths"]):
             file_original_attrs = client.get(file_ + "&/@", attributes=["key", "file_name"])
             file_attrs = client.get(file_ + "/@", attributes=["type"])
 
@@ -302,36 +302,39 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
     else:
         get_context_action = "get_job_fail_context"
 
-    if job_info.job_type not in JOB_TYPE_TO_SPEC_TYPE:
-        raise yt.YtError("Unknown job type \"{0}\"".format(repr(job_info.job_type)))
-
     full_info = client.get_operation(operation_id)
 
-    job_spec_section = JOB_TYPE_TO_SPEC_TYPE[job_info.job_type]
+    user_job_spec_section = get_user_job_spec_section(op_spec, job_info)
 
     makedirp(job_path)
     job_input_path = os.path.join(job_path, "input")
 
-    download_job_input(operation_id, job_id, job_input_path, get_context_action, client)
+    if job_info.job_type == "vanilla":
+        # We create empty input file.
+        # Our running script requires it and we don't want to patch this script for vanilla case.
+        with open(job_input_path, "w"):
+            pass
+    else:
+        download_job_input(operation_id, job_id, job_input_path, get_context_action, client)
 
     # Sandbox files
     sandbox_path = os.path.join(job_path, "sandbox")
     makedirp(sandbox_path)
 
-    file_count = len(op_spec[job_spec_section]["file_paths"])
+    file_count = len(user_job_spec_section["file_paths"])
 
     downloaded_with_user_tx = False
     if "user_transaction_id" in full_info:
         try:
             with client.Transaction(transaction_id=full_info["user_transaction_id"]):
-                _download_files(op_spec, sandbox_path, client)
+                _download_files(user_job_spec_section, sandbox_path, client)
                 downloaded_with_user_tx = True
         except YtResponseError as err:
             if not err.is_no_such_transaction():
                 raise
 
     if not downloaded_with_user_tx:
-        _download_files(op_spec, sandbox_path, client)
+        _download_files(user_job_spec_section, sandbox_path, client)
 
     if file_count > 0:
         logger.info("Job files were downloaded to %s", sandbox_path)
@@ -339,33 +342,24 @@ def prepare_job_environment(operation_id, job_id, job_path, run=False, get_conte
         logger.info("Job has no files to download")
 
     command_path = os.path.join(job_path, "command")
-    job_command = op_spec[job_spec_section]["command"]
-    job_environment = op_spec[job_spec_section].get("environment", {})
+    job_command = user_job_spec_section["command"]
+    job_environment = user_job_spec_section.get("environment", {})
     with open(command_path, "w") as fout:
         fout.write(job_command)
     logger.info("Command was written to %s", command_path)
 
-    output_table_count = len(op_spec["output_table_paths"])
-    use_yamr_descriptors = op_spec[job_spec_section].get("use_yamr_descriptors", False)
+    if job_info.job_type == "vanilla":
+        output_table_count = len(user_job_spec_section.get("output_table_paths", []))
+    else:
+        output_table_count = len(op_spec["output_table_paths"])
+
+    use_yamr_descriptors = user_job_spec_section.get("use_yamr_descriptors", False)
 
     output_path = os.path.join(job_path, "output")
-    run_config = {
-        "command_path": command_path,
-        "sandbox_path": sandbox_path,
-        "input_path": job_input_path,
-        "output_path": output_path,
-        "output_table_count": output_table_count,
-        "use_yamr_descriptors": use_yamr_descriptors,
-        "job_id": job_id,
-        "operation_id": operation_id,
-        "environment": job_environment,
-    }
-    with open(os.path.join(job_path, "run_config"), "w") as fout:
-        json.dump(run_config, fout)
     make_run_sh(
         job_path,
-        operation_id=run_config["operation_id"],
-        job_id=run_config["job_id"],
+        operation_id=operation_id,
+        job_id=job_id,
         sandbox_path=sandbox_path,
         command=job_command,
         environment=job_environment,
