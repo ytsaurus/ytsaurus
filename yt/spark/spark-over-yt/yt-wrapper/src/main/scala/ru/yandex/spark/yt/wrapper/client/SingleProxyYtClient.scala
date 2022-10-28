@@ -3,6 +3,7 @@ package ru.yandex.spark.yt.wrapper.client
 import com.google.protobuf.MessageLite
 import io.netty.channel.nio.NioEventLoopGroup
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toJavaDuration
+import ru.yandex.yt.ytclient.DefaultSerializationResolver
 import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
 import ru.yandex.yt.ytclient.proxy.CompoundClientImpl
 import ru.yandex.yt.ytclient.proxy.internal.HostPort
@@ -17,7 +18,7 @@ class SingleProxyYtClient(connector: BusConnector,
                           rpcCredentials: RpcCredentials,
                           rpcOptions: RpcOptions,
                           address: HostPort)
-  extends CompoundClientImpl(connector.executorService(), rpcOptions, ForkJoinPool.commonPool) {
+  extends CompoundClientImpl(connector.executorService(), rpcOptions, ForkJoinPool.commonPool, DefaultSerializationResolver.getInstance()) {
 
   private val client = SingleProxyYtClient.createClient(address, connector, rpcCredentials)
   private val rpcClientPool = new RpcClientPool {

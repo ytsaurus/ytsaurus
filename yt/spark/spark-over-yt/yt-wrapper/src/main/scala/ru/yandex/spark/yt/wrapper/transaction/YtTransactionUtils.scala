@@ -8,6 +8,7 @@ import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper._
 import ru.yandex.yt.ytclient.proxy.request._
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
+import ru.yandex.yt.ytclient.request.{GetLikeReq, MutateNode, TransactionalRequest}
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -98,15 +99,7 @@ trait YtTransactionUtils {
     yt.existsNode(s"//sys/transactions/$transaction").get()
   }
 
-  implicit class RichGetLikeRequest[T <: GetLikeReq[_]](val request: T) {
-    def optionalTransaction(transaction: Option[String]): T = {
-      transaction.map { t =>
-        request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
-      }.getOrElse(request)
-    }
-  }
-
-  implicit class RichMutateNodeRequest[T <: MutateNode[_]](val request: T) {
+  implicit class RichTransactionalRequestBuilder[T <: TransactionalRequest.Builder[_, _]](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
@@ -133,7 +126,7 @@ trait YtTransactionUtils {
   implicit class RichStartOperationRequest[T <: StartOperation](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
-        request.setTransactionOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
+        request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
       }.getOrElse(request)
     }
   }

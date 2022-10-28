@@ -11,11 +11,12 @@ import ru.yandex.spark.yt.wrapper.Utils
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
-import ru.yandex.yt.rpcproxy.{EOperationType, ERowsetFormat}
+import ru.yandex.yt.rpcproxy.EOperationType
 import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentByteBufferReader
 import ru.yandex.yt.ytclient.proxy.request._
+import ru.yandex.yt.ytclient.request.ReadTable.SerializationContext
 
 import java.nio.ByteBuffer
 import java.nio.file.Paths
@@ -78,7 +79,7 @@ trait YtTableUtils {
                            reportBytesRead: Long => Unit)
                           (implicit yt: CompoundClient): YtArrowInputStream = {
     val request = new ReadTable[ByteBuffer](path, null.asInstanceOf[WireRowDeserializer[ByteBuffer]])
-      .setDesiredRowsetFormat(ERowsetFormat.RF_ARROW)
+      .setSerializationContext(SerializationContext.binaryArrow())
       .optionalTransaction(transaction)
     val reader = yt.readTable(request, new TableAttachmentByteBufferReader).join()
     new TableCopyByteStream(reader, timeout, reportBytesRead)
