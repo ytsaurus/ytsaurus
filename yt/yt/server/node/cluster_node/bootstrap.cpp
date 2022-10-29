@@ -12,6 +12,7 @@
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
 #include <yt/yt/server/node/cellar_node/config.h>
+#include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
 #include <yt/yt/server/node/cellar_node/master_connector.h>
 
 #include <yt/yt/server/node/chaos_node/bootstrap.h>
@@ -358,6 +359,11 @@ public:
         return DynamicConfigManager_;
     }
 
+    const NCellarNode::TBundleDynamicConfigManagerPtr& GetBundleDynamicConfigManager() const override
+    {
+        return BundleDynamicConfigManager_;
+    }
+
     const IInvokerPtr& GetControlInvoker() const override
     {
         return ControlActionQueue_->GetInvoker();
@@ -692,6 +698,7 @@ private:
 #endif
 
     TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_;
+    NCellarNode::TBundleDynamicConfigManagerPtr BundleDynamicConfigManager_;
 
     NApi::NNative::IClientPtr Client_;
     NApi::NNative::IConnectionPtr Connection_;
@@ -881,6 +888,7 @@ private:
 
         DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+        BundleDynamicConfigManager_ = New<NCellarNode::TBundleDynamicConfigManager>(this);
 
         IOTracker_ = CreateIOTracker(DynamicConfigManager_->GetConfig()->IOTracker);
 
@@ -1064,6 +1072,10 @@ private:
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
         DynamicConfigManager_->Start();
+
+        if (IsCellarNode() || IsTabletNode()) {
+            BundleDynamicConfigManager_->Start();
+        }
 
         NodeResourceManager_->Start();
 
@@ -1415,6 +1427,11 @@ const TClusterNodeConfigPtr& TBootstrapBase::GetConfig() const
 const TClusterNodeDynamicConfigManagerPtr& TBootstrapBase::GetDynamicConfigManager() const
 {
     return Bootstrap_->GetDynamicConfigManager();
+}
+
+const NCellarNode::TBundleDynamicConfigManagerPtr& TBootstrapBase::GetBundleDynamicConfigManager() const
+{
+    return Bootstrap_->GetBundleDynamicConfigManager();
 }
 
 const IInvokerPtr& TBootstrapBase::GetControlInvoker() const

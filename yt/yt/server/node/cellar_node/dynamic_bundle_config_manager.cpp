@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
+#include <yt/yt/server/node/cluster_node/bootstrap.h>
 
 namespace NYT::NCellarNode {
 
@@ -13,7 +14,7 @@ using namespace NDynamicConfig;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TDynamicConfigManagerConfigPtr MakeManagerConfig(IBootstrap* bootstrap)
+static TDynamicConfigManagerConfigPtr MakeManagerConfig(NClusterNode::IBootstrap* bootstrap)
 {
     auto config = CloneYsonSerializable(bootstrap->GetConfig()->DynamicConfigManager);
     config->IgnoreConfigAbsence = true;
@@ -22,7 +23,7 @@ static TDynamicConfigManagerConfigPtr MakeManagerConfig(IBootstrap* bootstrap)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBundleDynamicConfigManager::TBundleDynamicConfigManager(IBootstrap* bootstrap)
+TBundleDynamicConfigManager::TBundleDynamicConfigManager(NClusterNode::IBootstrap* bootstrap)
     : TDynamicConfigManagerBase(
         TDynamicConfigManagerOptions{
             .ConfigPath = "//sys/tablet_cell_bundles/@config",

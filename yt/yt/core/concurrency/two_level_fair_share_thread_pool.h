@@ -11,6 +11,7 @@ namespace NYT::NConcurrency {
 struct ITwoLevelFairShareThreadPool
     : public virtual TRefCounted
 {
+    virtual int GetThreadCount() = 0;
     virtual void Configure(int threadCount) = 0;
 
     virtual IInvokerPtr GetInvoker(

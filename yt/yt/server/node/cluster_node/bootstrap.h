@@ -78,6 +78,7 @@ struct IBootstrapBase
     // Config stuff.
     virtual const TClusterNodeConfigPtr& GetConfig() const = 0;
     virtual const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const = 0;
+    virtual const NCellarNode::TBundleDynamicConfigManagerPtr& GetBundleDynamicConfigManager() const = 0;
 
     // Common invokers.
     virtual const IInvokerPtr& GetControlInvoker() const = 0;
@@ -229,6 +230,7 @@ public:
 
     const TClusterNodeConfigPtr& GetConfig() const override;
     const NClusterNode::TClusterNodeDynamicConfigManagerPtr& GetDynamicConfigManager() const override;
+    const NCellarNode::TBundleDynamicConfigManagerPtr& GetBundleDynamicConfigManager() const override;
 
     const IInvokerPtr& GetControlInvoker() const override;
     const IInvokerPtr& GetJobInvoker() const override;

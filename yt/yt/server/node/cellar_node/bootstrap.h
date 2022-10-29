@@ -25,8 +25,6 @@ struct IBootstrap
     virtual const NCellarNode::IMasterConnectorPtr& GetMasterConnector() const = 0;
 
     virtual void ScheduleCellarHeartbeat(bool immediately) const = 0;
-
-    virtual TBundleDynamicConfigManagerPtr GetBundleDynamicConfigManager() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

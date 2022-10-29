@@ -338,11 +338,8 @@ TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> TNodeResourceManager::GetMe
 
     auto dynamicConfig = Bootstrap_->GetDynamicConfigManager()->GetConfig()->ResourceLimits;
 
-    TEnumIndexedVector<EMemoryCategory, TMemoryLimitPtr> bundleDynamicMemoryLimit;
-    if (auto* cellarBootstrap = Bootstrap_->GetCellarNodeBootstrap()) {
-        auto config = cellarBootstrap->GetBundleDynamicConfigManager()->GetConfig();
-        bundleDynamicMemoryLimit = config->MemoryLimits->AsEnumIndexedVector();
-    }
+    auto bundleDynamicMemoryLimit = Bootstrap_->GetBundleDynamicConfigManager()->GetConfig()
+        ->MemoryLimits->AsEnumIndexedVector();
 
     auto getMemoryLimit = [&] (EMemoryCategory category) {
         if (bundleDynamicMemoryLimit[category]) {

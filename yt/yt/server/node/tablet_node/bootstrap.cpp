@@ -21,6 +21,7 @@
 #include "tablet_snapshot_store.h"
 
 #include <yt/yt/server/node/cellar_node/bootstrap.h>
+#include <yt/yt/server/node/cellar_node/dynamic_bundle_config_manager.h>
 
 #include <yt/yt/server/node/data_node/bootstrap.h>
 
@@ -38,8 +39,10 @@
 #include <yt/yt/library/query/engine/column_evaluator.h>
 
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/ypath_service.h>
 
 #include <yt/yt/core/concurrency/two_level_fair_share_thread_pool.h>
+
 
 namespace NYT::NTabletNode {
 
@@ -53,6 +56,7 @@ using namespace NQueryClient;
 using namespace NSecurityServer;
 using namespace NTabletNode;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -76,6 +80,9 @@ public:
 
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+
+        GetBundleDynamicConfigManager()
+            ->SubscribeConfigChanged(BIND(&TBootstrap::OnBundleDynamicConfigChanged, this));
 
         MasterConnector_ = CreateMasterConnector(this);
 
@@ -203,6 +210,10 @@ public:
             GetOrchidRoot(),
             "/tablet_snapshot_store",
             CreateVirtualNode(TabletSnapshotStore_->GetOrchidService()));
+        SetNodeByYPath(
+            GetOrchidRoot(),
+            "/tablet_node_thread_pools",
+            CreateVirtualNode(CreateThreadPoolsOrchidService()));
 
         MasterConnector_->Initialize();
         StoreCompactor_->Start();
@@ -213,6 +224,27 @@ public:
         LsmInterop_->Start();
         HintManager_->Start();
         InMemoryManager_->Start();
+    }
+
+    NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return IYPathService::FromProducer(BIND(&TBootstrap::BuildThreadPoolsOrchid, this))
+            ->Via(GetControlInvoker());
+    }
+
+    void BuildThreadPoolsOrchid(IYsonConsumer* consumer)
+    {
+        VERIFY_INVOKER_AFFINITY(GetControlInvoker());
+
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("table_replicator_thread_pool_size").Value(TableReplicatorThreadPool_->GetThreadCount())
+                .Item("tablet_lookup_thread_pool_size").Value(TabletLookupThreadPool_->GetThreadCount())
+                .Item("tablet_fetch_thread_pool_size").Value(TabletFetchThreadPool_->GetThreadCount())
+                .Item("query_thread_pool_size").Value(QueryThreadPool_->GetThreadCount())
+            .EndMap();
     }
 
     const ITabletSnapshotStorePtr& GetTabletSnapshotStore() const override
@@ -400,14 +432,40 @@ private:
         TableReplicatorThreadPool_->Configure(
             newConfig->TabletNode->TabletManager->ReplicatorThreadPoolSize.value_or(
                 GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize));
-        QueryThreadPool_->Configure(
-            newConfig->QueryAgent->QueryThreadPoolSize.value_or(GetConfig()->QueryAgent->QueryThreadPoolSize));
-        TabletLookupThreadPool_->Configure(
-            newConfig->QueryAgent->LookupThreadPoolSize.value_or(GetConfig()->QueryAgent->LookupThreadPoolSize));
-        TabletFetchThreadPool_->Configure(
-            newConfig->QueryAgent->FetchThreadPoolSize.value_or(GetConfig()->QueryAgent->FetchThreadPoolSize));
-
         ColumnEvaluatorCache_->Configure(newConfig->TabletNode->ColumnEvaluatorCache);
+
+        auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
+        ReconfigureQueryAgent(bundleConfig, newConfig);
+    }
+
+    void OnBundleDynamicConfigChanged(
+        const TBundleDynamicConfigPtr& /*oldConfig*/,
+        const TBundleDynamicConfigPtr& newConfig)
+    {
+        auto nodeConfig = GetDynamicConfigManager()->GetConfig();
+        ReconfigureQueryAgent(newConfig, nodeConfig);
+    }
+
+    void ReconfigureQueryAgent(
+        const TBundleDynamicConfigPtr& bundleConfig,
+        const TClusterNodeDynamicConfigPtr& nodeConfig)
+    {
+        TabletFetchThreadPool_->Configure(
+            nodeConfig->QueryAgent->FetchThreadPoolSize.value_or(GetConfig()->QueryAgent->FetchThreadPoolSize));
+
+        {
+            auto fallbackQueryThreadCount = nodeConfig->QueryAgent->QueryThreadPoolSize.value_or(
+                GetConfig()->QueryAgent->QueryThreadPoolSize);
+            QueryThreadPool_->Configure(
+                bundleConfig->CpuLimits->QueryThreadPoolSize.value_or(fallbackQueryThreadCount));
+        }
+
+        {
+            auto fallbackLookupThreadCount = nodeConfig->QueryAgent->LookupThreadPoolSize.value_or(
+                GetConfig()->QueryAgent->LookupThreadPoolSize);
+            TabletLookupThreadPool_->Configure(
+                bundleConfig->CpuLimits->LookupThreadPoolSize.value_or(fallbackLookupThreadCount));
+        }
     }
 };
 
