@@ -106,10 +106,8 @@ public:
     {
         YT_LOG_INFO("Initializing cellar node");
 
-        BundleDynamicConfigManager_ = New<TBundleDynamicConfigManager>(this);
-        BundleDynamicConfigManager_
+        GetBundleDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnBundleDynamicConfigChanged, this));
-        BundleDynamicConfigManager_->Start();
 
         GetDynamicConfigManager()
             ->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
@@ -194,11 +192,6 @@ public:
         }
     }
 
-    TBundleDynamicConfigManagerPtr GetBundleDynamicConfigManager() const override
-    {
-        return BundleDynamicConfigManager_;
-    }
-
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -210,13 +203,11 @@ private:
 
     IMasterConnectorPtr MasterConnector_;
 
-    TBundleDynamicConfigManagerPtr BundleDynamicConfigManager_;
-
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
     {
-        auto bundleConfig = BundleDynamicConfigManager_->GetConfig();
+        auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
         ReconfigureCellarManager(bundleConfig, newConfig);
     }
 

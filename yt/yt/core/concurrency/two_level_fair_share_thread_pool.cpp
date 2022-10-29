@@ -636,6 +636,11 @@ public:
         TThreadPoolBase::Configure(threadCount);
     }
 
+    int GetThreadCount() override
+    {
+        return TThreadPoolBase::GetThreadCount();
+    }
+
     IInvokerPtr GetInvoker(
         const TString& poolName,
         double weight,

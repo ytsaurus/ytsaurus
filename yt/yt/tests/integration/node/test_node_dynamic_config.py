@@ -471,7 +471,11 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         def get_orchid_memory_limits(category):
             return get("//sys/tablet_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
-                        .format(node_with_tag_NodeA, category))
+                       .format(node_with_tag_NodeA, category))
+
+        def get_thread_pool_size(pool_name):
+            return get("//sys/tablet_nodes/{0}/orchid/tablet_node_thread_pools/{1}_thread_pool_size"
+                       .format(node_with_tag_NodeA, pool_name))
 
         bundle_dynamic_config = {
             "nodeA": {
@@ -489,19 +493,19 @@ class TestNodeDynamicConfig(YTEnvSetup):
 
         set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
 
-        ConfigPatch = namedtuple("ConfigPatch", ["slot_count", "tablet_static", "tablet_dynamic"])
+        ConfigPatch = namedtuple("ConfigPatch", ["slot_count", "lookup_threads", "query_threads", "tablet_static", "tablet_dynamic"])
         patches = [
-            ConfigPatch(2, 2048, 4096),
-            ConfigPatch(7, 4096, 2048),
-            ConfigPatch(3, 1024, 8192),
-            ConfigPatch(1, 8192, 1024),
-            ConfigPatch(2, 4096, 8192),
-            ConfigPatch(4, 8192, 2048),
+            ConfigPatch(2, 1, 3, 2048, 4096),
+            ConfigPatch(7, 3, 1, 4096, 2048),
+            ConfigPatch(3, 7, 2, 1024, 8192),
+            ConfigPatch(4, 2, 7, 8192, 2048),
         ]
 
         for patch in patches:
             bundle_dynamic_config["nodeA"]["cpu_limits"]["write_thread_pool_size"] = patch.slot_count
-            bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_static"]= patch.tablet_static
+            bundle_dynamic_config["nodeA"]["cpu_limits"]["lookup_thread_pool_size"] = patch.lookup_threads
+            bundle_dynamic_config["nodeA"]["cpu_limits"]["query_thread_pool_size"] = patch.query_threads
+            bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_static"] = patch.tablet_static
             bundle_dynamic_config["nodeA"]["memory_limits"]["tablet_dynamic"] = patch.tablet_dynamic
 
             set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
@@ -509,6 +513,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
             self._check_tablet_nodes_rct()
             wait(lambda: get_orchid_memory_limits("tablet_static") == patch.tablet_static)
             wait(lambda: get_orchid_memory_limits("tablet_dynamic") == patch.tablet_dynamic)
+            wait(lambda: get_thread_pool_size("tablet_lookup") == patch.lookup_threads)
+            wait(lambda: get_thread_pool_size("query") == patch.query_threads)
 
     @authors("starodub")
     def test_versioned_chunk_meta_cache(self):
