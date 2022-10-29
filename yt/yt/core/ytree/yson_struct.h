@@ -65,6 +65,8 @@ public:
         bool setDefaults = true,
         const NYPath::TYPath& path = {});
 
+    void Load(IInputStream* in);
+
     void Postprocess(const NYPath::TYPath& path = {});
 
     void SetDefaults();
@@ -72,6 +74,8 @@ public:
     void Save(
         NYson::IYsonConsumer* consumer,
         bool stable = false) const;
+
+    void Save(IOutputStream* out) const;
 
     IMapNodePtr GetLocalUnrecognized() const;
     IMapNodePtr GetRecursiveUnrecognized() const;

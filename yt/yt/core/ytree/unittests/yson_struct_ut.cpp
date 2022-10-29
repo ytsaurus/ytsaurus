@@ -10,6 +10,9 @@
 #include <yt/yt/core/ytree/yson_serializable.h>
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <util/stream/buffer.h>
+#include <util/ysaveload.h>
+
 #include <array>
 
 namespace NYT::NYTree {
@@ -148,16 +151,99 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TestCompleteSubconfig(TTestSubconfig* subconfig)
+auto GetCompleteConfigNode(int offset = 0)
 {
-    EXPECT_EQ(99, subconfig->MyInt);
-    EXPECT_EQ(101u, subconfig->MyUint);
+    return BuildYsonNodeFluently()
+        .BeginMap()
+            .Item("my_string").Value("TestString" + std::to_string(offset))
+            .Item("sub").BeginMap()
+                .Item("my_int").Value(99 + offset)
+                .Item("my_uint").Value(101 + offset)
+                .Item("my_bool").Value(true)
+                .Item("my_enum").Value("value2")
+                .Item("my_string_list").BeginList()
+                    .Item().Value("ListItem0")
+                    .Item().Value("ListItem1")
+                    .Item().Value("ListItem2")
+                .EndList()
+            .EndMap()
+            .Item("sub_list").BeginList()
+                .Item().BeginMap()
+                    .Item("my_int").Value(99 + offset)
+                    .Item("my_uint").Value(101 + offset)
+                    .Item("my_bool").Value(true)
+                    .Item("my_enum").Value("value2")
+                    .Item("my_string_list").BeginList()
+                        .Item().Value("ListItem0")
+                        .Item().Value("ListItem1")
+                        .Item().Value("ListItem2")
+                    .EndList()
+                .EndMap()
+                .Item().BeginMap()
+                    .Item("my_int").Value(99 + offset)
+                    .Item("my_uint").Value(101 + offset)
+                    .Item("my_bool").Value(true)
+                    .Item("my_enum").Value("value2")
+                    .Item("my_string_list").BeginList()
+                        .Item().Value("ListItem0")
+                        .Item().Value("ListItem1")
+                        .Item().Value("ListItem2")
+                    .EndList()
+                .EndMap()
+            .EndList()
+            .Item("sub_map").BeginMap()
+                .Item("sub1").BeginMap()
+                    .Item("my_int").Value(99 + offset)
+                    .Item("my_uint").Value(101 + offset)
+                    .Item("my_bool").Value(true)
+                    .Item("my_enum").Value("value2")
+                    .Item("my_string_list").BeginList()
+                        .Item().Value("ListItem0")
+                        .Item().Value("ListItem1")
+                        .Item().Value("ListItem2")
+                    .EndList()
+                .EndMap()
+                .Item("sub2").BeginMap()
+                    .Item("my_int").Value(99 + offset)
+                    .Item("my_uint").Value(101 + offset)
+                    .Item("my_bool").Value(true)
+                    .Item("my_enum").Value("value2")
+                    .Item("my_string_list").BeginList()
+                        .Item().Value("ListItem0")
+                        .Item().Value("ListItem1")
+                        .Item().Value("ListItem2")
+                    .EndList()
+                .EndMap()
+            .EndMap()
+        .EndMap();
+}
+
+void TestCompleteSubconfig(TTestSubconfig* subconfig, int offset = 0)
+{
+    EXPECT_EQ(99 + offset, subconfig->MyInt);
+    EXPECT_EQ(101u + offset, subconfig->MyUint);
     EXPECT_TRUE(subconfig->MyBool);
     EXPECT_EQ(3u, subconfig->MyStringList.size());
     EXPECT_EQ("ListItem0", subconfig->MyStringList[0]);
     EXPECT_EQ("ListItem1", subconfig->MyStringList[1]);
     EXPECT_EQ("ListItem2", subconfig->MyStringList[2]);
     EXPECT_EQ(ETestEnum::Value2, subconfig->MyEnum);
+}
+
+void TestCompleteConfig(TIntrusivePtr<TTestConfig> config, int offset = 0)
+{
+    EXPECT_EQ("TestString" + std::to_string(offset), config->MyString);
+    TestCompleteSubconfig(config->Subconfig.Get(), offset);
+    EXPECT_EQ(2u, config->SubconfigList.size());
+    TestCompleteSubconfig(config->SubconfigList[0].Get(), offset);
+    TestCompleteSubconfig(config->SubconfigList[1].Get(), offset);
+    EXPECT_EQ(2u, config->SubconfigMap.size());
+    auto it1 = config->SubconfigMap.find("sub1");
+    EXPECT_FALSE(it1 == config->SubconfigMap.end());
+    TestCompleteSubconfig(it1->second.Get(), offset);
+    auto it2 = config->SubconfigMap.find("sub2");
+    EXPECT_FALSE(it2 == config->SubconfigMap.end());
+    TestCompleteSubconfig(it2->second.Get(), offset);
 }
 
 // {LoadFromNode}
@@ -208,84 +294,11 @@ INSTANTIATE_TEST_SUITE_P(
 
 TEST_P(TYsonStructParseTest, Complete)
 {
-    auto configNode = BuildYsonNodeFluently()
-        .BeginMap()
-            .Item("my_string").Value("TestString")
-            .Item("sub").BeginMap()
-                .Item("my_int").Value(99)
-                .Item("my_uint").Value(101)
-                .Item("my_bool").Value(true)
-                .Item("my_enum").Value("value2")
-                .Item("my_string_list").BeginList()
-                    .Item().Value("ListItem0")
-                    .Item().Value("ListItem1")
-                    .Item().Value("ListItem2")
-                .EndList()
-            .EndMap()
-            .Item("sub_list").BeginList()
-                .Item().BeginMap()
-                    .Item("my_int").Value(99)
-                    .Item("my_uint").Value(101)
-                    .Item("my_bool").Value(true)
-                    .Item("my_enum").Value("value2")
-                    .Item("my_string_list").BeginList()
-                        .Item().Value("ListItem0")
-                        .Item().Value("ListItem1")
-                        .Item().Value("ListItem2")
-                    .EndList()
-                .EndMap()
-                .Item().BeginMap()
-                    .Item("my_int").Value(99)
-                    .Item("my_uint").Value(101)
-                    .Item("my_bool").Value(true)
-                    .Item("my_enum").Value("value2")
-                    .Item("my_string_list").BeginList()
-                        .Item().Value("ListItem0")
-                        .Item().Value("ListItem1")
-                        .Item().Value("ListItem2")
-                    .EndList()
-                .EndMap()
-            .EndList()
-            .Item("sub_map").BeginMap()
-                .Item("sub1").BeginMap()
-                    .Item("my_int").Value(99)
-                    .Item("my_uint").Value(101)
-                    .Item("my_bool").Value(true)
-                    .Item("my_enum").Value("value2")
-                    .Item("my_string_list").BeginList()
-                        .Item().Value("ListItem0")
-                        .Item().Value("ListItem1")
-                        .Item().Value("ListItem2")
-                    .EndList()
-                .EndMap()
-                .Item("sub2").BeginMap()
-                    .Item("my_int").Value(99)
-                    .Item("my_uint").Value(101)
-                    .Item("my_bool").Value(true)
-                    .Item("my_enum").Value("value2")
-                    .Item("my_string_list").BeginList()
-                        .Item().Value("ListItem0")
-                        .Item().Value("ListItem1")
-                        .Item().Value("ListItem2")
-                    .EndList()
-                .EndMap()
-            .EndMap()
-        .EndMap();
+    auto configNode = GetCompleteConfigNode();
 
     auto config = Load<TTestConfig>(configNode->AsMap());
 
-    EXPECT_EQ("TestString", config->MyString);
-    TestCompleteSubconfig(config->Subconfig.Get());
-    EXPECT_EQ(2u, config->SubconfigList.size());
-    TestCompleteSubconfig(config->SubconfigList[0].Get());
-    TestCompleteSubconfig(config->SubconfigList[1].Get());
-    EXPECT_EQ(2u, config->SubconfigMap.size());
-    auto it1 = config->SubconfigMap.find("sub1");
-    EXPECT_FALSE(it1 == config->SubconfigMap.end());
-    TestCompleteSubconfig(it1->second.Get());
-    auto it2 = config->SubconfigMap.find("sub2");
-    EXPECT_FALSE(it2 == config->SubconfigMap.end());
-    TestCompleteSubconfig(it2->second.Get());
+    TestCompleteConfig(config);
 }
 
 TEST_P(TYsonStructParseTest, MissingParameter)
@@ -1424,6 +1437,108 @@ TEST(TYsonStructTest, TestHierarchiesWithCustomInitializationOfBaseParameters)
     auto deserialized = ConvertTo<TIntrusivePtr<TDerivedWithCustomConfigure>>(TYsonString(TStringBuf("{}")));
     EXPECT_EQ(deserialized->Int, 10);
     EXPECT_EQ(deserialized->Double, 2.2);
+}
+
+TEST(TYsonStructTest, TestSimpleSerialization)
+{
+    TBufferStream stream;
+
+    auto initialize = [] (auto& config) {
+        config.MyString = "TestString";
+        config.NullableInt.emplace(42);
+    };
+
+    TIntrusivePtr<TTestConfig> config;
+    auto defaultConfig = New<TTestConfig>();
+
+    ::Save(&stream, config);
+    ::Load(&stream, config);
+    EXPECT_FALSE(config);
+
+    ::Save(&stream, defaultConfig);
+    ::Load(&stream, config);
+    EXPECT_TRUE(config);
+
+    EXPECT_EQ(config->MyString, defaultConfig->MyString);
+    EXPECT_FALSE(config->NullableInt);
+    EXPECT_EQ(config->Subconfig->MyInt, defaultConfig->Subconfig->MyInt);
+
+    config = New<TTestConfig>();
+    initialize(*config);
+    ::Save(&stream, config);
+
+    config = nullptr;
+    ::Load(&stream, config);
+    EXPECT_EQ(config->MyString, "TestString");
+    EXPECT_EQ(config->NullableInt, 42);
+
+    auto liteConfig = TTestConfigLite::Create();
+    initialize(liteConfig);
+    ::Save(&stream, liteConfig);
+
+    liteConfig.SetDefaults();
+    ::Load(&stream, liteConfig);
+    EXPECT_EQ(liteConfig.MyString, "TestString");
+    EXPECT_EQ(liteConfig.NullableInt, 42);
+}
+
+TEST(TYsonStructTest, TestComplexSerialization)
+{
+    struct TComplexStruct
+    {
+        TTestConfigPtr Config1;
+        TTestConfigPtr Config2;
+        TTestConfigLite LiteConfig = TTestConfigLite::Create();
+        TString StructName;
+
+        Y_SAVELOAD_DEFINE(Config1, Config2, LiteConfig, StructName);
+    };
+
+    TComplexStruct toSerialize{
+        .Config1 = New<TTestConfig>(),
+        .Config2 = New<TTestConfig>(),
+        .LiteConfig = TTestConfigLite::Create(),
+        .StructName = "tmp",
+    };
+    toSerialize.Config1->Load(GetCompleteConfigNode());
+    toSerialize.Config2->Load(GetCompleteConfigNode(/*offset*/ 1));
+    toSerialize.LiteConfig.MyString = "LiteConfig";
+    toSerialize.LiteConfig.NullableInt.emplace(42);
+
+    TBufferStream stream;
+
+    ::Save(&stream, toSerialize);
+
+    TComplexStruct deserialized;
+    ::Load(&stream, deserialized);
+
+    {
+        SCOPED_TRACE("First deserialized config.");
+        TestCompleteConfig(deserialized.Config1);
+    }
+    {
+        SCOPED_TRACE("Second deserialized config.");
+        TestCompleteConfig(deserialized.Config2, /*offset*/ 1);
+    }
+    EXPECT_EQ(deserialized.LiteConfig.MyString, "LiteConfig");
+    EXPECT_EQ(deserialized.LiteConfig.NullableInt, 42);
+    EXPECT_EQ(deserialized.StructName, "tmp");
+
+    std::vector<TTestConfigPtr> configsList;
+    configsList.reserve(5);
+    for (int i = 0; i < 5; ++i) {
+        auto config = New<TTestConfig>();
+        config->Load(GetCompleteConfigNode(/*offset*/ i));
+        configsList.push_back(std::move(config));
+    }
+    ::Save(&stream, configsList);
+    configsList.clear();
+    ::Load(&stream, configsList);
+
+    for (int i = 0; i < 5; ++i) {
+        SCOPED_TRACE(Format("%v-th config from configs list", i));
+        TestCompleteConfig(configsList[i], /*offset*/ i);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -54,6 +54,12 @@ void TYsonStructBase::Load(
     Meta_->LoadStruct(this, cursor, postprocess, setDefaults, path);
 }
 
+void TYsonStructBase::Load(IInputStream* in)
+{
+    NYT::TStreamLoadContext context(in);
+    NYT::TBinaryYsonStructSerializer::Load(context, *this);
+}
+
 void TYsonStructBase::Save(
     IYsonConsumer* consumer,
     bool stable) const
@@ -83,6 +89,12 @@ void TYsonStructBase::Save(
     }
 
     consumer->OnEndMap();
+}
+
+void TYsonStructBase::Save(IOutputStream* out) const
+{
+    NYT::TStreamSaveContext context(out);
+    NYT::TBinaryYsonStructSerializer::Save(context, *this);
 }
 
 void TYsonStructBase::Postprocess(const TYPath& path)
