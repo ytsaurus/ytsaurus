@@ -226,7 +226,7 @@ class ObjectIdmSnapshot(object):
         permissions = set(permissions)
 
         for role in self.roles:
-            can_remove = not permissions or set(role.permissions) <= permissions
+            can_remove = not permissions or set(role.permissions) == permissions
             if role.subject in subjects and can_remove:
                 role.comment = comment
                 self._roles_to_remove.append(role)
