@@ -3,7 +3,7 @@
 ///
 /// @file mapreduce/yt/interface/common.h
 ///
-/// Header containing miscelaneous structs and classes used in library.
+/// Header containing miscellaneous structs and classes used in library.
 
 #include "fwd.h"
 
@@ -191,7 +191,7 @@ public: \
 ///
 /// @brief Convenience class that keeps sequence of items.
 ///
-/// Designed to be used as function paramenter.
+/// Designed to be used as function parameter.
 ///
 /// Users of such function can then pass:
 ///  - single item,
@@ -217,7 +217,7 @@ struct TOneOrMany
     TOneOrMany()
     { }
 
-    // Initialize from initalizer list.
+    // Initialize from initializer list.
     template<class U>
     TOneOrMany(std::initializer_list<U> il)
     {
@@ -249,7 +249,7 @@ struct TOneOrMany
     ///
     /// @{
     ///
-    /// @brief Add all agruments to sequence
+    /// @brief Add all arguments to sequence
     template <class U, class... TArgs>
         requires std::is_convertible_v<U, T>
     TSelf& Add(U&& part, TArgs&&... args) &
@@ -313,7 +313,7 @@ enum EValueType : int
     /// Uint32, unsigned integer of 32 bits.
     VT_UINT32,
 
-    /// Utf8, byte sequnce that is valid utf8.
+    /// Utf8, byte sequence that is valid utf8.
     VT_UTF8,
 
     /// Null, absence of value (almost never used in schemas)
@@ -562,7 +562,7 @@ public:
     /// @}
 
     ///
-    /// @brief Raw yson representaion of column type
+    /// @brief Raw yson representation of column type
     /// @deprecated Prefer to use `TypeV3` methods.
     FLUENT_FIELD_OPTION_ENCAPSULATED(TNode, RawTypeV3);
 
@@ -608,7 +608,7 @@ private:
     bool Required_ = false;
 };
 
-/// Eqality check checks all fields of column schema.
+/// Equality check checks all fields of column schema.
 bool operator==(const TColumnSchema& lhs, const TColumnSchema& rhs);
 
 ///
@@ -821,7 +821,7 @@ struct TReadLimit
 };
 
 ///
-/// @breif Range of a table or a file
+/// @brief Range of a table or a file
 ///
 /// @see https://yt.yandex-team.ru/docs/description/common/ypath#rich_ypath
 struct TReadRange
@@ -831,13 +831,13 @@ struct TReadRange
     ///
     /// @brief Lower limit of the range
     ///
-    /// It is usualy inclusive (except when @ref NYT::TKeyBound with realation @ref NYT::ERelation::Greater is used).
+    /// It is usually inclusive (except when @ref NYT::TKeyBound with relation @ref NYT::ERelation::Greater is used).
     FLUENT_FIELD(TReadLimit, LowerLimit);
 
     ///
     /// @brief Lower limit of the range
     ///
-    /// It is usualy exclusive (except when @ref NYT::TKeyBound with realation @ref NYT::ERelation::LessOrEqual is used).
+    /// It is usually exclusive (except when @ref NYT::TKeyBound with relation @ref NYT::ERelation::LessOrEqual is used).
     FLUENT_FIELD(TReadLimit, UpperLimit);
 
     /// Exact key or row index.
@@ -944,7 +944,7 @@ struct TRichYPath
     FLUENT_FIELD_OPTION(i64, Timestamp);
 
     ///
-    /// @brief Specifiy transaction that should be used to access this path.
+    /// @brief Specify transaction that should be used to access this path.
     ///
     /// Allows to start cross-transactional operations.
     FLUENT_FIELD_OPTION(TTransactionId, TransactionId);
@@ -1011,7 +1011,7 @@ struct TTableColumnarStatistics
     /// Total data weight for all chunks for each of requested columns.
     THashMap<TString, i64> ColumnDataWeight;
 
-    /// Total weight of all old chunks that don't keep columnar statitics.
+    /// Total weight of all old chunks that don't keep columnar statistics.
     i64 LegacyChunksDataWeight = 0;
 
     /// Timestamps total weight (only for dynamic tables).
@@ -1058,7 +1058,7 @@ struct TTabletInfo
     /// @brief Tablet cell barrier timestamp, which lags behind the current timestamp
     ///
     /// It is guaranteed that all transactions with commit timestamp not exceeding the barrier are fully committed;
-    /// e.g. all their addes rows are visible (and are included in @ref NYT::TTabletInfo::TotalRowCount).
+    /// e.g. all their added rows are visible (and are included in @ref NYT::TTabletInfo::TotalRowCount).
     /// Mostly makes sense for ordered tablets.
     ui64 BarrierTimestamp;
 };
@@ -1090,7 +1090,7 @@ EValueType NodeTypeToValueType(TNode::EType nodeType);
 ////////////////////////////////////////////////////////////////////////////////
 
 ///
-/// @brief Enumeration for specifiying how reading from master is performed.
+/// @brief Enumeration for specifying how reading from master is performed.
 ///
 /// Used in operations like NYT::ICypressClient::Get
 enum class EMasterReadKind : int

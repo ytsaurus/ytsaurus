@@ -63,7 +63,7 @@ struct TRetryConfig
     TDuration RetriesTimeLimit = TDuration::Max();
 };
 
-/// The library uses this class to undestand how to retry individual requests.
+/// The library uses this class to understand how to retry individual requests.
 class IRetryConfigProvider
     : public virtual TThrRefBase
 {
@@ -74,7 +74,7 @@ public:
     /// CreateRetryConfig is called before ANY request.
     /// Returned config controls retries of this request.
     ///
-    /// Must be theread safe since it can be used from different threads
+    /// Must be thread safe since it can be used from different threads
     /// to perform internal library requests (e.g. pings).
     ///
     /// Some methods (e.g. IClient::Map) involve multiple requests to YT and therefore

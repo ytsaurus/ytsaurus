@@ -43,7 +43,7 @@ class TRequestRetriesTimeout
 ///
 /// @brief Error returned by YT cluster.
 ///
-/// An object of this class describe error that happend on YT server.
+/// An object of this class describe error that happened on YT server.
 /// Internally each error is a tree. Each node of the tree contains:
 ///   - integer error code;
 ///   - text description of error;
@@ -65,7 +65,7 @@ public:
     /// Constructs error with NYT::NClusterErrorCodes::Generic code and given message.
     explicit TYtError(const TString& message);
 
-    /// Constructs error with givven code and given message.
+    /// Constructs error with given code and given message.
     TYtError(int code, const TString& message);
 
     /// Construct error from json representation.
@@ -236,7 +236,7 @@ struct TFailedJobInfo
     /// @note YT doesn't store all job stderrs, check @ref NYT::IOperationClient::GetJobStderr
     /// for list of limitations.
     ///
-    /// @see NYT::IOperaitonClient::GetJobStderr
+    /// @see NYT::IOperationClient::GetJobStderr
     TString Stderr;
 };
 

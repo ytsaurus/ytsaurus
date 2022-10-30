@@ -15,18 +15,18 @@ namespace NYtBlobTable {
 // Blob table is a table that stores a number of blobs. Blobs are sliced into parts of the same size (maybe except of last part).
 // Those parts are stored in the separate rows.
 //
-// Blob table have constaints on its schema.
+// Blob table has constraints on its schema.
 //  - There must be columns that identify blob (blob id columns). These columns might be of any type.
 //  - There must be a column of int64 type that identify part inside the blob.
 //  - There must be a column of string type that stores actual data.
 //
-// Futhermore data from blob tables can be sky shared. In order to achive this blob table must satisfy additional constrains.
+// Futhermore data from blob tables can be sky shared. In order to achieve this blob table must satisfy additional constrains.
 //  - The last column of blob id columns must be named `filename' and have string type (all columns before `filename' form sky share id).
 //  - Part index column must be named `part_index' and data column must be named `data'.
 //  - Part size must be equal to 4 MB (maybe except for last part).
 //  - Special attribute must be set during creation of the table (therefore we cannot alter table to be sky sharable after it is created).
 //
-// Before blob table can be readed or sky shared it must be sorted.
+// Before blob table can be read or sky shared it must be sorted.
 //
 // NOTE: skynet share is not yet in production.
 

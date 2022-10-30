@@ -8,7 +8,7 @@
 ///
 /// @mainpage C++ library for working with YT
 ///
-/// This library provides possibilities to work with YT as a [MapReduce](https://en.wikipedia.org/wiki/MapReduce) sytem. It allows:
+/// This library provides possibilities to work with YT as a [MapReduce](https://en.wikipedia.org/wiki/MapReduce) system. It allows:
 ///   - to read/write tables and files
 ///   - to run operations
 ///   - to work with transactions.
@@ -60,7 +60,7 @@ struct TAuthorizationInfo
 
 /// @brief Part of @ref NYT::TCheckPermissionResponse.
 ///
-/// In case when 'Action == ESecurtiyAction::Deny' because of a 'deny' rule,
+/// In case when 'Action == ESecurityAction::Deny' because of a 'deny' rule,
 /// the "denying" object name and id and "denied" subject name an id may be returned.
 struct TCheckPermissionResult
 {
@@ -189,7 +189,7 @@ public:
     ///   - `LM_EXCLUSIVE`: if exclusive lock is taken no other transaction can take exclusive or shared lock.
     ///   - `LM_SHARED`: if shared lock is taken other transactions can take shared lock but not exclusive.
     ///   - `LM_SNAPSHOT`: snapshot lock always succeeds, when snapshot lock is taken current transaction snapshots object.
-    ///  It will not see changes that occured to it in other transactions.
+    ///  It will not see changes that occurred to it in other transactions.
     ///
     /// Exclusive/shared lock can be waitable or not.
     /// If nonwaitable lock cannot be taken exception is thrown.
@@ -219,7 +219,7 @@ public:
     ///
     /// @brief Commit transaction.
     ///
-    /// All changes that are made by transactions become visible globaly or to parent transaction.
+    /// All changes that are made by transactions become visible globally or to parent transaction.
     ///
     /// @see [YT doc](https://yt.yandex-team.ru/docs/api/commands.html#commit)
     virtual void Commit() = 0;
