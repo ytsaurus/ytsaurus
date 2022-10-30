@@ -2350,6 +2350,8 @@ class TestEventLog(YTEnvSetup):
             },
             track=True)
 
+        time.sleep(1)
+
         scheduler_log_file = self.path_to_run + "/logs/scheduler-0.json.log"
         to_barrier = write_log_barrier(scheduler_address)
 
@@ -2360,7 +2362,7 @@ class TestEventLog(YTEnvSetup):
             if event["event_type"] == "operation_completed":
                 assert event["operation_id"] == op.id
                 assert event["trimmed_annotations"]["tag"] == "my_value"
-                assert len(event["trimmed_annotations"]["long_key"]) < 150
+                assert len(event["trimmed_annotations"]["long_key"]) <= 150
                 assert "nested_tag" not in event["trimmed_annotations"]
 
 ##################################################################
