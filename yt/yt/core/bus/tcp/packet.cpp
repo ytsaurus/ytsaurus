@@ -5,8 +5,6 @@
 #include <yt/yt/core/misc/checksum.h>
 #include <yt/yt/core/misc/chunked_memory_allocator.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 #include <library/cpp/yt/string/guid.h>
 
 namespace NYT::NBus {

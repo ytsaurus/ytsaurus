@@ -7,8 +7,6 @@
 
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 namespace NYT::NRpc {
 
 using namespace NBus;
@@ -30,9 +28,6 @@ struct TFixedMessageHeader
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TSerializedMessageTag
-{ };
-
-struct TAdjustedMemoryZoneMessageTag
 { };
 
 namespace {

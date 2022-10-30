@@ -68,7 +68,6 @@ struct TSendOptions
 
     EDeliveryTrackingLevel TrackingLevel;
     int ChecksummedPartCount;
-    NYTAlloc::EMemoryZone MemoryZone = NYTAlloc::EMemoryZone::Normal;
     bool EnableSendCancelation = false;
 };
 

@@ -1416,9 +1416,6 @@ void TTcpConnection::ProcessQueuedMessages()
         auto flags = queuedMessage.Options.TrackingLevel == EDeliveryTrackingLevel::Full
             ? EPacketFlags::RequestAcknowledgement
             : EPacketFlags::None;
-        if (queuedMessage.Options.MemoryZone == EMemoryZone::Undumpable) {
-            flags |= EPacketFlags::UseUndumpableMemoryZone;
-        }
 
         auto* packet = EnqueuePacket(
             EPacketType::Message,

@@ -29,8 +29,6 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 namespace NYT::NRpc {
 
 using namespace NBus;
@@ -550,8 +548,6 @@ private:
     TMethodPerformanceCounters* const MethodPerformanceCounters_;
     TPerformanceCounters* const PerformanceCounters_;
 
-    EMemoryZone ResponseMemoryZone_;
-
     NCompression::ECodec RequestCodec_;
 
     TDelayedExecutorCookie TimeoutCookie_;
@@ -612,17 +608,6 @@ private:
             auto retryStart = FromProto<TInstant>(RequestHeader_->start_time());
             auto now = NProfiling::GetInstant();
             MethodPerformanceCounters_->RemoteWaitTimeCounter.Record(now - retryStart);
-        }
-
-        {
-            auto intMemoryZone = RequestHeader_->response_memory_zone();
-            if (!TryEnumCast<EMemoryZone>(intMemoryZone, &ResponseMemoryZone_)) {
-                Reply(TError(
-                    NRpc::EErrorCode::ProtocolError,
-                    "Response memory zone %v is not supported",
-                    intMemoryZone));
-                return;
-            }
         }
 
         // COMPAT(kiselyovp): legacy RPC codecs
@@ -859,7 +844,6 @@ private:
         busOptions.ChecksummedPartCount = RuntimeInfo_->Descriptor.GenerateAttachmentChecksums
             ? NBus::TSendOptions::AllParts
             : 2; // RPC header + response body
-        busOptions.MemoryZone = ResponseMemoryZone_;
         busOptions.EnableSendCancelation = Cancelable_;
 
         auto replySent = ReplyBus_->Send(responseMessage, busOptions);

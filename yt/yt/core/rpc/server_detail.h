@@ -4,8 +4,6 @@
 #include "service.h"
 #include "authentication_identity.h"
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
