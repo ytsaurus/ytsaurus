@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <library/cpp/yt/stockpile/stockpile.h>
+
 #include <library/cpp/getopt/last_getopt.h>
 
 namespace NYT {
@@ -126,14 +128,15 @@ void ConfigureExitZeroOnSigterm();
 
 struct TAllocatorOptions
 {
-    bool YTAllocStockpile = true;
+    std::optional<TStockpileOptions> Stockpile = TStockpileOptions();
+
     bool YTAllocEagerMemoryRelease = false;
 
     bool TCMallocOptimizeSize = false;
     std::optional<i64> TCMallocGuardedSamplingRate = 128_MB;
 };
 
-void ConfigureAllocator(TAllocatorOptions options);
+void ConfigureAllocator(const TAllocatorOptions& options);
 
 ////////////////////////////////////////////////////////////////////////////////
 
