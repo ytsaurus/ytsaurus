@@ -14,7 +14,6 @@ DEFINE_ENUM_WITH_UNDERLYING_TYPE(EPacketType, i16,
 DEFINE_BIT_ENUM_WITH_UNDERLYING_TYPE(EPacketFlags, ui16,
     ((None)                     (0x0000))
     ((RequestAcknowledgement)   (0x0001))
-    ((UseUndumpableMemoryZone)  (0x0002))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

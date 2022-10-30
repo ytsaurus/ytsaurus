@@ -167,10 +167,6 @@ TSharedRefArray TServiceContextBase::BuildResponseMessage()
         header.set_format(RequestHeader_->response_format());
     }
 
-    if (RequestHeader_->has_response_memory_zone()) {
-        header.set_memory_zone(RequestHeader_->response_memory_zone());
-    }
-
     // COMPAT(kiselyovp)
     if (RequestHeader_->has_response_codec()) {
         header.set_codec(static_cast<int>(ResponseCodec_));

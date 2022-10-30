@@ -9,8 +9,6 @@
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/sliding_window.h>
 
-#include <yt/yt/core/ytalloc/memory_zone.h>
-
 #include <yt/yt/core/actions/signal.h>
 #include <yt/yt/core/actions/future.h>
 

@@ -56,8 +56,6 @@ message TRequestHeader
     optional int32 request_codec = 23;  // ECodec
     optional int32 response_codec = 24; // ECodec
 
-    optional int32 response_memory_zone = 32; // EMemoryZone
-
     optional TStreamingParameters server_attachments_streaming_parameters = 33;
 
     optional bytes request_format_options = 34; // TYsonString
@@ -68,7 +66,9 @@ message TRequestHeader
 
     optional int64 logical_request_weight = 38;
 
+    reserved 32;
     extensions 100 to max;
+
     extend NRpc.NProto.TRequestHeader
     {
         optional NYT.NTracing.NProto.TTracingExt tracing_ext = 106;
@@ -113,11 +113,10 @@ message TResponseHeader
 
     optional int32 format = 3; // EMessageFormat
 
-    optional int32 memory_zone = 5; // EMemoryZone
-
     // COMPAT(kiseloyvp): this is missing when legacy mode is used
     optional int32 codec = 6; // ECodec
 
+    reserved 5;
     extensions 100 to max;
 }
 
@@ -151,7 +150,8 @@ message TStreamingPayloadHeader
     optional NYT.NProto.TGuid realm_id = 4;
     required int32 sequence_number = 5;
     optional int32 codec = 6; // ECodec
-    optional int32 memory_zone = 7; // EMemoryZone
+
+    reserved 7;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
