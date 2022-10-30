@@ -16,7 +16,7 @@ public:
     ~TOperationTracker();
 
     //
-    // Add opearation to track.
+    // Add operation to track.
     void AddOperation(IOperationPtr operation);
 
     //
@@ -38,14 +38,14 @@ public:
     TVector<IOperationPtr> WaitAllCompletedOrError();
 
     //
-    // Wait until any operaiton is complete and return this operation.
+    // Wait until any operation is complete and return this operation.
     // Throw exception if operation is failed or aborted.
     //
     // Return nullptr if all operations are complete.
     IOperationPtr WaitOneCompleted();
 
     //
-    // Wait until any operaiton is finished successfuly or with error and return this operation.
+    // Wait until any operation is finished successfully or with error and return this operation.
     // Do not throw exception if operation is failed or aborted.
     //
     // Return nullptr if all operations are complete.

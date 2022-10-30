@@ -1426,7 +1426,7 @@ struct TOperationOptions
     ///
     /// @brief Put all files required by the job into tmpfs.
     ///
-    /// This option can be set globaly using @ref NYT::TConfig::MountSandboxInTmpfs.
+    /// This option can be set globally using @ref NYT::TConfig::MountSandboxInTmpfs.
     /// @see https://yt.yandex-team.ru/docs/problems/woodpeckers
     FLUENT_FIELD_DEFAULT(bool, MountSandboxInTmpfs, false);
 
@@ -1643,7 +1643,7 @@ public:
 
     /// @brief Begin input group consisting of tables with indices from `indices`.
     ///
-    /// @tparam TCont Container with integers. Must suppport `std::begin` and `std::end` functions.
+    /// @tparam TCont Container with integers. Must support `std::begin` and `std::end` functions.
     /// @param indices Indices of tables to include in the group.
     template <typename TCont>
     TInputGroup BeginInputGroup(const TCont& indices);
@@ -1656,7 +1656,7 @@ public:
 
     /// @brief Begin input group consisting of tables with indices from `indices`.
     ///
-    /// @tparam TCont Container with integers. Must suppport `std::begin` and `std::end` functions.
+    /// @tparam TCont Container with integers. Must support `std::begin` and `std::end` functions.
     /// @param indices Indices of tables to include in the group.
     template <typename TCont>
     TOutputGroup BeginOutputGroup(const TCont& indices);
@@ -1726,7 +1726,7 @@ public:
     /// @brief Get input column filters as specified by the user.
     const TVector<TMaybe<TVector<TString>>>& GetInputColumnFilters() const;
 
-    /// @brief Get input column descrpiptions as specified by the user.
+    /// @brief Get input column descriptions as specified by the user.
     const TVector<TMaybe<TTableStructure>>& GetInputDescriptions() const;
 
     /// @brief Get output column descriptions as specified by the user.
@@ -1859,7 +1859,7 @@ public:
 };
 
 ///
-/// @brief Declare what fields of currently declare job class to save and restore on cluster node.
+/// @brief Declare what fields of currently declared job class to save and restore on cluster node.
 #define Y_SAVELOAD_JOB(...) \
     virtual void Save(IOutputStream& stream) const override { Save(&stream); } \
     virtual void Load(IInputStream& stream) override { Load(&stream); } \
@@ -2444,7 +2444,7 @@ struct TListOperationsOptions
     FLUENT_FIELD_OPTION(bool, IncludeArchive);
 
     ///
-    /// @brief Include the counters for different filter paramters in the response.
+    /// @brief Include the counters for different filter parameters in the response.
     ///
     /// Include number of operations for each pool, user, state, type
     /// and the number of operations having failed jobs.
@@ -2501,7 +2501,7 @@ struct TListOperationsResult
     ///
     /// @brief Whether some operations were not returned due to @ref NYT::TListOperationsOptions::Limit.
     ///
-    /// `Incomplete == true` means that not all operations satisisfying filters
+    /// `Incomplete == true` means that not all operations satisfying filters
     /// were returned (limit exceeded) and you need to repeat the request with new @ref NYT::TListOperationsOptions::CursorTime
     /// (e.g. `CursorTime == *Operations.back().StartTime`, but don't forget to
     /// remove the duplicates).

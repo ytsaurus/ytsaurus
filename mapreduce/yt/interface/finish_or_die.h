@@ -28,7 +28,7 @@ void FinishOrDie(T* pThis, const char* className) noexcept
         }
     } catch (...) {
         if (!std::uncaught_exception()) {
-            fail("<unkwnown exception>");
+            fail("<unknown exception>");
         }
     }
 }

@@ -39,7 +39,7 @@ public:
     TJobStatistics();
 
     ///
-    /// Construct statistcs from statistics node.
+    /// Construct statistics from statistics node.
     TJobStatistics(const NYT::TNode& statistics);
 
     TJobStatistics(const TJobStatistics& jobStatistics);
@@ -61,7 +61,7 @@ public:
     ///
     /// @param filter What job states to include (empty means all).
     ///
-    /// @note Default statistics include only (successfuly) completed jobs.
+    /// @note Default statistics include only (successfully) completed jobs.
     TJobStatistics JobState(TVector<EJobState> filter) const;
 
     ///

@@ -565,7 +565,7 @@ public:
     FLUENT_FIELD_OPTION(bool, EnableAllToStringConversion);
 
     ///
-    /// @brief Whether to convert uint64 <-> int64 when writting to schemaful table.
+    /// @brief Whether to convert uint64 <-> int64 when writing to schemaful table.
     ///
     /// On overflow the corresponding error with be raised.
     ///
@@ -680,7 +680,7 @@ struct TStartTransactionOptions
     /// @brief Set the title attribute of transaction.
     ///
     /// If title was not specified
-    /// nither using this option nor using @ref NYT::TStartTransactionOptions::Attributes option
+    /// neither using this option nor using @ref NYT::TStartTransactionOptions::Attributes option
     /// library will generate default title for transaction.
     /// Such default title includes machine name, pid, user name and some other useful info.
     FLUENT_FIELD_OPTION(TString, Title);
@@ -937,7 +937,7 @@ struct TSelectRowsOptions
     FLUENT_FIELD_OPTION(i64, InputRowLimit);
 
     ///
-    /// @brief Limitation for number of output rows on signle cluster node.
+    /// @brief Limitation for number of output rows on single cluster node.
     ///
     /// @see https://yt.yandex-team.ru/docs/description/dynamic_tables/dyn_query_language#ogranicheniya-na-slozhnost-zaprosa-(opcii)
     FLUENT_FIELD_OPTION(i64, OutputRowLimit);
@@ -974,7 +974,7 @@ struct TCreateClientOptions
 
     /// @brief Path to the file where user token is stored.
     ///
-    /// Token is looked in this places in following order:
+    /// Token is looked in these places in following order:
     ///   - @ref NYT::TCreateClientOptions::Token
     ///   - @ref NYT::TCreateClientOptions::TokenPath
     ///   - `TConfig::Get()->Token` option.
@@ -1031,7 +1031,7 @@ enum class EDurability
 };
 
 ///
-/// @brief Atomicy mode.
+/// @brief Atomicity mode.
 ///
 /// @see NYT::TTabletTransactionOptions::TDurability
 /// @see https://yt.yandex-team.ru/docs/description/dynamic_tables/sorted_dynamic_tables#sohrannost
@@ -1110,9 +1110,9 @@ struct TInsertRowsOptions
     ///
     /// @brief Whether to fail when inserting to table without sync replica.
     ///
-    /// Used for insert operation for tables without sync replica
+    /// Used for insert operation for tables without sync replica.
     /// https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables#write
-    /// Default value is 'false'. So insertion into table without sync replias fails
+    /// Default value is 'false'. So insertion into table without sync replicas fails.
     FLUENT_FIELD_OPTION(bool, RequireSyncReplica);
 };
 
@@ -1126,9 +1126,9 @@ struct TDeleteRowsOptions
     ///
     /// @brief Whether to fail when deleting from table without sync replica.
     ///
-    // Used for delete operation for tables without sync replica
+    // Used for delete operation for tables without sync replica.
     // https://yt.yandex-team.ru/docs/description/dynamic_tables/replicated_dynamic_tables#write
-    // Default value is 'false'. So deletion into table without sync replias fails
+    // Default value is 'false'. So deletion into table without sync replicas fails.
     FLUENT_FIELD_OPTION(bool, RequireSyncReplica);
 };
 
@@ -1259,7 +1259,7 @@ enum class EColumnarStatisticsFetcherMode
     ///
     /// @brief Fast mode for fetching lightweight columnar statistics.
     ///
-    /// Relative presision is 1 / 256.
+    /// Relative precision is 1 / 256.
     ///
     /// @note Might be unavailable for old tables in that case some upper bound is returned.
     FromMaster /* "from_master" */,
@@ -1286,7 +1286,7 @@ struct TGetTableColumnarStatisticsOptions
 };
 
 ///
-/// @brief Table partioning mode.
+/// @brief Table partitioning mode.
 ///
 /// @ref NYT::TGetTablePartitionsOptions::PartitionMode
 enum class ETablePartitionMode
@@ -1312,7 +1312,7 @@ struct TGetTablePartitionsOptions
     /// @endcond
 
     ///
-    /// @brief Table partioning mode.
+    /// @brief Table partitioning mode.
     ///
     /// @ref NYT::ETablePartitionMode
     FLUENT_FIELD(ETablePartitionMode, PartitionMode);

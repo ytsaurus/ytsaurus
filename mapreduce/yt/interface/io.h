@@ -425,7 +425,7 @@ public:
     /// Blobs are sliced into parts of the same size (maybe except of last part).
     /// Those parts are stored in the separate rows.
     ///
-    /// Blob table have constaints on its schema.
+    /// Blob table have constraints on its schema.
     ///  - There must be columns that identify blob (blob id columns). That columns might be of any type.
     ///  - There must be a column of `int64` type that identify part inside the blob (this column is called `part index`).
     ///  - There must be a column of `string` type that stores actual data (this column is called `data column`).

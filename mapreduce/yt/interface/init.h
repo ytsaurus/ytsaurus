@@ -27,7 +27,7 @@ struct TInitializeOptions
     FLUENT_FIELD_DEFAULT(::TIntrusivePtr<IWaitProxy>, WaitProxy, nullptr);
 
     ///
-    /// @brief Enable/disable cleanup when program execution terminates abnormaly.
+    /// @brief Enable/disable cleanup when program execution terminates abnormally.
     ///
     /// When set to true, library will abort all active transactions and running operations when program
     /// terminates on error or signal.
@@ -53,7 +53,7 @@ void JoblessInitialize(const TInitializeOptions& options = TInitializeOptions())
 ///
 /// @brief Performs basic initialization and switches to a job mode if required.
 ///
-/// This function performs basic initilization (it sets up logging reads the config, etc) and checks if binary is launched
+/// This function performs basic initialization (it sets up logging reads the config, etc) and checks if binary is launched
 /// on YT machine inside a job. If latter is true this function launches proper job and after job is done it calls exit().
 ///
 /// This function must be called if application starts any operation.
