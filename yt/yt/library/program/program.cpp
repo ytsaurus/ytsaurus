@@ -334,7 +334,7 @@ void ConfigureExitZeroOnSigterm()
 #endif
 }
 
-void ConfigureAllocator(TAllocatorOptions options)
+void ConfigureAllocator(const TAllocatorOptions& options)
 {
     NYT::MlockFileMappings();
 
@@ -343,8 +343,9 @@ void ConfigureAllocator(TAllocatorOptions options)
     NYTAlloc::EnableYTProfiling();
     NYTAlloc::InitializeLibunwindInterop();
     NYTAlloc::SetEnableEagerMemoryRelease(options.YTAllocEagerMemoryRelease);
-    if (options.YTAllocStockpile) {
-        NYTAlloc::EnableStockpile();
+
+    if (options.Stockpile) {
+        StockpileMemory(*options.Stockpile);
     }
 
     if (tcmalloc::MallocExtension::NeedsProcessBackgroundActions()) {
@@ -354,10 +355,6 @@ void ConfigureAllocator(TAllocatorOptions options)
             YT_VERIFY(false);
         });
         backgroundThread.detach();
-
-        if (options.YTAllocStockpile) {
-            StockpileMemory(TStockpileOptions{});
-        }
     }
 
     NProfiling::EnableTCMallocProfiler();

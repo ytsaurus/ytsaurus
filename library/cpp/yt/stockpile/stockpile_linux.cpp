@@ -11,20 +11,23 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 void RunStockpile(TStockpileOptions options)
 {
     TThread::SetCurrentThreadName("Stockpile");
 
-    constexpr auto MADV_STOCKPILE = 0x59410004;
+    constexpr int MADV_STOCKPILE = 0x59410004;
 
     while (true) {
-        madvise(nullptr, options.BufferSize, MADV_STOCKPILE);
-
-        Sleep(options.StockpilePeriod);
+        ::madvise(nullptr, options.BufferSize, MADV_STOCKPILE);
+        Sleep(options.Period);
     }
 }
 
-void StockpileMemory(TStockpileOptions options)
+} // namespace
+
+void StockpileMemory(const TStockpileOptions& options)
 {
     static std::once_flag OnceFlag;
     std::call_once(OnceFlag, [options] {
