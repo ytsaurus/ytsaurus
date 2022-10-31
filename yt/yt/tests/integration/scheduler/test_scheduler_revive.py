@@ -11,7 +11,8 @@ from yt_commands import (
     create, ls,
     get, set, remove, exists, create_user, create_pool, create_pool_tree, abort_transaction, read_table,
     write_table, map, vanilla, run_test_vanilla, suspend_op,
-    get_operation, get_operation_cypress_path, PrepareTables, sorted_dicts)
+    get_operation, get_operation_cypress_path, PrepareTables, sorted_dicts,
+    update_scheduler_config)
 
 from yt_helpers import get_current_time, parse_yt_time
 
@@ -69,7 +70,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
 
     DELTA_NODE_CONFIG = {"exec_agent": {"job_controller": {"total_confirmation_period": 5000}}}
 
-    OP_COUNT = 10
+    OP_COUNT = 8
 
     def _create_table(self, table):
         create("table", table)
@@ -101,10 +102,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
             ops.append(op)
 
         try:
-            set(
-                "//sys/scheduler/config",
-                {"testing_options": {"enable_random_master_disconnection": True}},
-            )
+            update_scheduler_config("testing_options/enable_random_master_disconnection", True)
             for index, op in enumerate(ops):
                 try:
                     op.track()
@@ -112,10 +110,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
                 except YtError:
                     assert op.get_state() == "failed"
         finally:
-            set(
-                "//sys/scheduler/config",
-                {"testing_options": {"enable_random_master_disconnection": False}},
-            )
+            update_scheduler_config("testing_options/enable_random_master_disconnection", False)
             time.sleep(2)
 
     @authors("ignat")
@@ -127,7 +122,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         for index in range(self.OP_COUNT):
             op = map(
                 track=False,
-                command="sleep 20; echo 'AAA' >&2; cat",
+                command="sleep 15; echo 'AAA' >&2; cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(index),
                 spec={
@@ -140,14 +135,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
             ops.append(op)
 
         try:
-            set(
-                "//sys/scheduler/config",
-                {
-                    "testing_options": {
-                        "enable_random_master_disconnection": True,
-                    }
-                },
-            )
+            update_scheduler_config("testing_options/enable_random_master_disconnection", True)
             for index, op in enumerate(ops):
                 try:
                     op.track()
@@ -155,10 +143,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
                 except YtError:
                     assert op.get_state() == "failed"
         finally:
-            set(
-                "//sys/scheduler/config",
-                {"testing_options": {"enable_random_master_disconnection": False}},
-            )
+            update_scheduler_config("testing_options/enable_random_master_disconnection", False)
             time.sleep(2)
 
     @authors("ignat")
@@ -170,7 +155,7 @@ class TestSchedulerRandomMasterDisconnections(YTEnvSetup):
         for index in range(self.OP_COUNT):
             op = map(
                 track=False,
-                command="sleep 20; echo 'AAA' >&2; cat",
+                command="sleep 15; echo 'AAA' >&2; cat",
                 in_="//tmp/t_in",
                 out="//tmp/t_out" + str(index),
                 spec={
