@@ -74,7 +74,7 @@ private:
             }));
 
         controllerAgent->ExtractJobSpecs(jobSpecRequests)
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TSharedRef>>>& resultsOrError) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TSharedRef>>>& resultsOrError) {
                 const auto& results = resultsOrError.ValueOrThrow();
                 std::vector<TSharedRef> jobSpecs;
                 jobSpecs.reserve(jobSpecRequests.size());

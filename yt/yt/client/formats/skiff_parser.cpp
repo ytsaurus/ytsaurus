@@ -549,10 +549,9 @@ public:
             tableSchema,
             consumer))
         , ParserCoroPipe_(
-            BIND(
-                [=](IZeroCopyInput* stream) {
-                    ParserImpl_->DoParse(stream);
-                }))
+            BIND([this] (IZeroCopyInput* stream) {
+                ParserImpl_->DoParse(stream);
+            }))
     {}
 
     void Read(TStringBuf data) override

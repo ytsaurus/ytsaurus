@@ -363,7 +363,7 @@ private:
             }
 
             return CheckClusterState()
-                .Apply(BIND([=, weakThis_ = MakeWeak(this)] {
+                .Apply(BIND([=, this, weakThis_ = MakeWeak(this)] {
                     if (auto this_ = weakThis_.Lock()) {
                         return CheckReplicaState();
                     } else {
@@ -384,7 +384,7 @@ private:
                 ->GetHydraFacade()
                 ->GetAutomatonInvoker(EAutomatonThreadQueue::TabletManager);
 
-            return BIND([=, this_ = MakeStrong(this)] () {
+            return BIND([=, this, this_ = MakeStrong(this)] () {
                 auto req = TTableReplicaYPathProxy::Alter(FromObjectId(Id_));
                 GenerateMutationId(req);
                 req->set_mode(static_cast<int>(mode));
@@ -395,7 +395,7 @@ private:
             })
                 .AsyncVia(automatonInvoker)
                 .Run()
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTableReplicaYPathProxy::TRspAlterPtr>& rspOrError) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TTableReplicaYPathProxy::TRspAlterPtr>& rspOrError) {
                     if (rspOrError.IsOK()) {
                         Mode_ = mode;
                         YT_LOG_DEBUG("Table replica mode switched (Path: %v, ReplicaId: %v, ClusterName: %v, Mode: %v)",
@@ -490,7 +490,7 @@ private:
 
                     const auto& bundleName = bundleNameOrError.Value();
                     return bundleHealthCache->Get({client, clusterName, bundleName});
-                })).Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<ETabletCellHealth>& healthOrError) {
+                })).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<ETabletCellHealth>& healthOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(healthOrError, "Error getting tablet cell bundle health");
 
                     auto iterationCount = IterationsWithoutAcceptableBundleHealth_.load();

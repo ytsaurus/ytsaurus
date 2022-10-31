@@ -1233,6 +1233,7 @@ private:
         NRpc::TDispatcher::Get()->GetHeavyInvoker()->Invoke(BIND(
             [
                 =,
+                this,
                 this_ = MakeStrong(this),
                 messagesToPost = std::move(messagesToPost),
                 epochAutomatonInvoker = EpochAutomatonInvoker_

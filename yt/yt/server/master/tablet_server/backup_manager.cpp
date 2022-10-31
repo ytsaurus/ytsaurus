@@ -795,7 +795,7 @@ private:
         TRequest currentReq;
         int storeCount = 0;
 
-        auto commitMutation = [=] (auto mutation) {
+        auto commitMutation = [&] (auto mutation) {
             // TODO(aleksandra-zh, gritukan): Mutation commit from non-automaton thread
             // should not be a problem for new Hydra.
             const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();

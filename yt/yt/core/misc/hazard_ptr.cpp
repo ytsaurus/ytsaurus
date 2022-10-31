@@ -181,9 +181,9 @@ static void* HazardPointerManagerInitializer = [] {
 THazardPointerManager::THazardPointerManager()
 {
     NThreading::RegisterAtForkHandlers(
-        [=] { BeforeFork(); },
-        [=] { AfterForkParent(); },
-        [=] { AfterForkChild(); });
+        [this] { BeforeFork(); },
+        [this] { AfterForkParent(); },
+        [this] { AfterForkChild(); });
 }
 
 void THazardPointerManager::Shutdown()

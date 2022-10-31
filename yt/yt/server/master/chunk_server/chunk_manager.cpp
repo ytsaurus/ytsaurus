@@ -1144,10 +1144,9 @@ public:
         YT_VERIFY(!IsJournalChunkId(chunkId));
 
         return transaction->Start(/*startOptions*/ {})
-            .Apply(BIND([=, request = std::move(request), this_ = MakeStrong(this)] () mutable {
+            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] {
                 const auto& chunkMeta = request.chunk_meta();
                 const auto& chunkInfo = request.chunk_info();
-
                 const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
                 TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow;
                 chunkMetaExtensionRow.IdHash = chunkId.Parts32[0];
@@ -1216,7 +1215,7 @@ public:
         }
 
         return transaction->Start(/*startOptions*/ {})
-            .Apply(BIND([=, request = std::move(request), this_ = MakeStrong(this)] () mutable {
+            .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] () mutable {
                 auto chunkType = CheckedEnumCast<EObjectType>(request.type());
                 auto chunkId = transaction->GenerateObjectId(chunkType, Bootstrap_->GetCellTag());
 

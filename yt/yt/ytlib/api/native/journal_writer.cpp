@@ -888,7 +888,7 @@ private:
                 .AsyncVia(Invoker_)
                 .Run()
                 .Subscribe(
-                    BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TChunkSessionPtr>& sessionOrError) {
+                    BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TChunkSessionPtr>& sessionOrError) {
                         if (!sessionOrError.IsOK()) {
                             YT_LOG_WARNING(sessionOrError, "Failed to allocate chunk session (SessionIndex: %v)",
                                 sessionIndex);

@@ -1347,7 +1347,7 @@ private:
         std::vector<TFuture<TFetchedArtifactKey>> futures;
         for (const auto& pair : CachedLayerDescriptors_) {
             auto future = BIND(
-                [=, this_ = MakeStrong(this)] () {
+                [=, this, this_ = MakeStrong(this)] () {
                     const auto& path = pair.first;
                     const auto& fetchedKey = pair.second;
                     auto revision = fetchedKey.ArtifactKey
@@ -1574,11 +1574,11 @@ public:
             }
 
             asyncLayer
-                .Subscribe(BIND([=, this_ = MakeStrong(this), cookie_ = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
-                    if (!layerOrError.IsOK()) {
-                        cookie_.Cancel(layerOrError);
+                .Subscribe(BIND([=, cookie = std::move(cookie)] (const TErrorOr<TLayerPtr>& layerOrError) mutable {
+                    if (layerOrError.IsOK()) {
+                        cookie.EndInsert(layerOrError.Value());
                     } else {
-                        cookie_.EndInsert(layerOrError.Value());
+                        cookie.Cancel(layerOrError);
                     }
                 })
                 .Via(GetCurrentInvoker()));
@@ -1759,12 +1759,12 @@ private:
 
         return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
             .Apply(
-                BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
+                BIND([=, this, this_= MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
                     YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
                         tag,
                         artifactKey.data_source().path());
 
-                    auto location = this_->PickLocation();
+                    auto location = PickLocation();
                     auto layerMeta = WaitFor(location->MountSquashfsLayer(artifactKey, artifactChunk->GetFileName(), tag))
                         .ValueOrThrow();
 
@@ -1787,7 +1787,7 @@ private:
             static_cast<bool>(targetLocation));
 
         return ChunkCache_->DownloadArtifact(artifactKey, downloadOptions)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IVolumeArtifactPtr& artifactChunk) {
                  YT_LOG_DEBUG("Layer artifact loaded, starting import (Tag: %v, ArtifactPath: %v)",
                      tag,
                      artifactKey.data_source().path());

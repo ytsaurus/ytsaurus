@@ -35,7 +35,7 @@ TFuture<void> TJournalSession::DoStart()
         Options_.EnableMultiplexing,
         Options_.WorkloadDescriptor);
 
-    return changelogFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
+    return changelogFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
         VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
         Changelog_ = changelog;
@@ -77,7 +77,7 @@ TFuture<TChunkInfo> TJournalSession::DoFinish(
             .AsyncVia(SessionInvoker_));
     }
 
-    return result.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+    return result.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
         OnFinished();
 
         error.ThrowOnError();

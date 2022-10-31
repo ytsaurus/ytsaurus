@@ -114,7 +114,7 @@ template <class T>
 
 #define MAKE_PREDICATE_MATCHER(type, arg, capture, predicate) \
     MakePredicateMatcher<type>( \
-        capture (type arg) { return (predicate); }, \
+        PP_DEPAREN(capture) (type arg) { return (predicate); }, \
         #predicate \
     )
 
@@ -167,17 +167,10 @@ template <class T>
         #method \
     )
 
-#define ON_RPC_WITH_PREDICATE(mock, method, capture, predicate) \
-    ON_CALL_WITH_MESSAGE( \
-        mock, \
-        RPC_MOCK_CALL3(mock, method, capture, predicate), \
-        #method "(" #predicate ")" \
-    )
-
 ////////////////////////////////////////////////////////////////////////////////
 
 #define HANLDE_RPC_CALL(mockType, method, capture, body) \
-    ::testing::Invoke(capture ( \
+    ::testing::Invoke(PP_DEPAREN(capture) ( \
         [[maybe_unused]] mockType::TReq##method* request, \
         [[maybe_unused]] mockType::TRsp##method* response, \
         [[maybe_unused]] mockType::TCtx##method##Ptr context) \

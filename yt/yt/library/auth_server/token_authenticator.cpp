@@ -366,7 +366,7 @@ private:
 
             const auto& authenticator = Owner_->Authenticators_[CurrentIndex_++];
             authenticator->Authenticate(Credentials_).Subscribe(
-                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TAuthenticationResult>& result) {
+                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TAuthenticationResult>& result) {
                     if (result.IsOK()) {
                         Promise_.Set(result.Value());
                     } else {

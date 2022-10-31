@@ -65,7 +65,7 @@ public:
             PartitionLowerBounds_.begin(),
             PartitionLowerBounds_.end(),
             key,
-            [=] (const TKey& key, const TKeyBound& partitionLowerBound) {
+            [this] (const TKey& key, const TKeyBound& partitionLowerBound) {
                 return !Comparator_.TestKey(key, partitionLowerBound);
             }
         );

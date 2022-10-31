@@ -82,7 +82,7 @@ public:
             ? CreateSchemalessParallelMultiReader
             : CreateSchemalessSequentialMultiReader;
 
-        ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
+        ReaderFactory_ = [=, this] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
             return readerFactory(
                 tableReaderConfig,
@@ -117,7 +117,7 @@ public:
             dataSink = dataSinkDirectory->DataSinks()[0];
         }
 
-        WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
+        WriterFactory_ = [=, this] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
             return CreateSchemalessMultiChunkWriter(
                 writerConfig,
                 options,

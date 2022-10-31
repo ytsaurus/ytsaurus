@@ -121,7 +121,7 @@ private:
             }
 
             Underlying_->GetSecrets(subrequests).Subscribe(
-                BIND([=, this_= MakeStrong(this), items = std::move(items)] (const TErrorOr<std::vector<TErrorOrSecretSubresponse>>& result) mutable {
+                BIND([=, items = std::move(items)] (const TErrorOr<std::vector<TErrorOrSecretSubresponse>>& result) mutable {
                     if (result.IsOK()) {
                         const auto& subresponses = result.Value();
                         for (size_t index = 0; index < items.size(); ++index) {

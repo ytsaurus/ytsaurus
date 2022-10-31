@@ -353,12 +353,13 @@ private:
         }
 
         const auto& transactionSupervisor = Slot_->GetTransactionSupervisor();
-        transactionSupervisor->AbortTransaction(id).Subscribe(BIND([=] (const TError& error) {
-            if (!error.IsOK()) {
-                YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
-                    id);
-            }
-        }));
+        transactionSupervisor->AbortTransaction(id)
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                if (!error.IsOK()) {
+                    YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                        id);
+                }
+            }));
     }
 
 

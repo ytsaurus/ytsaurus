@@ -1206,7 +1206,7 @@ private:
                 cellTag);
 
             batchReq->Invoke().Apply(
-                BIND([=, this_ = MakeStrong(this), cellTag = cellTag] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                BIND([=, cellTag = cellTag] (const TChunkServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                     if (!batchRspOrError.IsOK()) {
                         YT_LOG_DEBUG(batchRspOrError, "Error unstaging chunk trees (CellTag: %v)", cellTag);
                     }

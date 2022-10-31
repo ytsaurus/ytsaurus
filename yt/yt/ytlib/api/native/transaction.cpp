@@ -993,7 +993,7 @@ private:
                         .FetchOptions = {
                             .IncludeCoordinators = true
                         }
-                    }).Apply(BIND([=, this_ = MakeStrong(this)] (const TReplicationCardPtr& replicationCard) {
+                    }).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TReplicationCardPtr& replicationCard) {
                         YT_LOG_DEBUG("Got replication card from cache (Path: %v, ReplicationCardId: %v, CoordinatorCellIds: %v)",
                             TableInfo_->Path,
                             TableInfo_->ReplicationCardId,
@@ -1064,7 +1064,7 @@ private:
                         result->ValueOrThrow());
                 } else {
                     futures->push_back(future
-                        .Apply(BIND([=, this_ = MakeStrong(this)] (const TTableReplicaInfoPtrList& syncReplicas) {
+                        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TTableReplicaInfoPtrList& syncReplicas) {
                             std::vector<TFuture<void>> futures;
                             DoRegisterSyncReplicas(
                                 &futures,
@@ -1098,7 +1098,7 @@ private:
 
                 futures->push_back(
                     transaction->GetSyncReplicaTransaction(replicaInfo)
-                        .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
+                        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
                             SyncReplicas_.push_back(TSyncReplica{
                                 replicaInfo,
                                 transaction,
@@ -1222,11 +1222,11 @@ private:
                     ->GetClusterDirectorySynchronizer()
                     ->Sync();
             }()
-            .Apply(BIND([=, this_ = MakeStrong(this)] {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] {
                 const auto& clusterDirectory = Client_->GetNativeConnection()->GetClusterDirectory();
                 return clusterDirectory->GetConnectionOrThrow(replicaInfo->ClusterName);
             }) /* serialization intentionally omitted */)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::NNative::IConnectionPtr& connection) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const NApi::NNative::IConnectionPtr& connection) {
                 if (connection->GetClusterTag() == Client_->GetConnection()->GetClusterTag()) {
                     return MakeFuture<NApi::ITransactionPtr>(nullptr);
                 }
@@ -1238,7 +1238,7 @@ private:
                 auto client = connection->CreateClient(Client_->GetOptions());
                 return client->StartTransaction(ETransactionType::Tablet, options);
             }) /* serialization intentionally omitted */)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const NApi::ITransactionPtr& transaction) {
                 promise.Set(transaction);
 
                 if (transaction) {
@@ -1404,7 +1404,7 @@ private:
             }
 
             return AllSucceeded(std::move(prepareFutures))
-                .Apply(BIND([=, this_ = MakeStrong(this), pendingRequests = std::move(pendingRequests)] {
+                .Apply(BIND([=, this, this_ = MakeStrong(this), pendingRequests = std::move(pendingRequests)] {
                     for (auto* request : pendingRequests) {
                         request->SubmitRows();
                     }
@@ -1533,14 +1533,14 @@ private:
                 return needsFlush ? PrepareRequests() : VoidFuture;
             }()
             .Apply(
-                BIND([=, this_ = MakeStrong(this)] {
+                BIND([=, this, this_ = MakeStrong(this)] {
                     BuildAdjustedCommitOptions(options);
                     Transaction_->ChooseCoordinator(CommitOptions_);
 
                     return Transaction_->ValidateNoDownedParticipants();
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
-                BIND([=, this_ = MakeStrong(this)] {
+                BIND([=, this, this_ = MakeStrong(this)] {
                     std::vector<TFuture<TTransactionFlushResult>> futures;
                     if (needsFlush) {
                         for (const auto& transaction : GetAlienTransactions()) {
@@ -1552,7 +1552,7 @@ private:
                     return AllSucceeded(std::move(futures));
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
-                BIND([=, this_ = MakeStrong(this)] (const std::vector<TTransactionFlushResult>& results) {
+                BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TTransactionFlushResult>& results) {
                     for (const auto& result : results) {
                         for (auto cellId : result.ParticipantCellIds) {
                             Transaction_->RegisterParticipant(cellId);
@@ -1562,7 +1562,7 @@ private:
                     return Transaction_->Commit(CommitOptions_);
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
-                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTransactionCommitResult>& resultOrError) {
+                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TTransactionCommitResult>& resultOrError) {
                     {
                         auto guard = Guard(SpinLock_);
                         if (resultOrError.IsOK() && State_ == ETransactionState::Committing) {
@@ -1588,11 +1588,11 @@ private:
     {
         return PrepareRequests()
             .Apply(
-                BIND([=, this_ = MakeStrong(this)] {
+                BIND([this, this_ = MakeStrong(this)] {
                     return SendRequests();
                 }).AsyncVia(SerializedInvoker_))
             .Apply(
-                BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                     {
                         auto guard = Guard(SpinLock_);
                         if (error.IsOK() && State_ == ETransactionState::Flushing) {

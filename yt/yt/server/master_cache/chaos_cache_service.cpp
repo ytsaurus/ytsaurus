@@ -104,7 +104,7 @@ DEFINE_RPC_SERVICE_METHOD(TChaosCacheService, GetReplicationCard)
 
         if (cookie.IsActive()) {
             Client_->GetReplicationCard(replicationCardId, getCardOptions).Apply(
-                BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TReplicationCardPtr>& replicationCardOrError) mutable {
+                BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TReplicationCardPtr>& replicationCardOrError) mutable {
                     Cache_->EndLookup(
                         requestId,
                         std::move(cookie),

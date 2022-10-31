@@ -232,13 +232,13 @@ TFuture<TTransactionFlushResult> TTransaction::Flush()
 
     return AllSucceeded(futures)
         .Apply(
-            BIND([=, this_ = MakeStrong(this)] {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 auto req = Proxy_.FlushTransaction();
                 ToProto(req->mutable_transaction_id(), GetId());
                 return req->Invoke();
             }))
         .Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspFlushTransactionPtr& rspOrError) -> TErrorOr<TTransactionFlushResult> {
+            BIND([=, this, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspFlushTransactionPtr& rspOrError) -> TErrorOr<TTransactionFlushResult> {
                 {
                     auto guard = Guard(SpinLock_);
                     if (rspOrError.IsOK() && State_ == ETransactionState::Flushing) {
@@ -290,7 +290,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
     for (const auto& transaction : alienTransactions) {
         futures.push_back(
             transaction->Flush().Apply(
-                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TTransactionFlushResult>& resultOrError) {
+                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TTransactionFlushResult>& resultOrError) {
                     THROW_ERROR_EXCEPTION_IF_FAILED(resultOrError, "Error flushing alien transaction");
 
                     const auto& result = resultOrError.Value();
@@ -307,7 +307,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
 
     return AllSucceeded(futures)
         .Apply(
-            BIND([=, this_ = MakeStrong(this)] {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 auto req = Proxy_.CommitTransaction();
                 ToProto(req->mutable_transaction_id(), GetId());
                 ToProto(req->mutable_additional_participant_cell_ids(), AdditionalParticipantCellIds_);
@@ -315,7 +315,7 @@ TFuture<TTransactionCommitResult> TTransaction::Commit(const TTransactionCommitO
                 return req->Invoke();
             }))
         .Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) {
+            BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TApiServiceProxy::TRspCommitTransactionPtr>& rspOrError) {
                 {
                     auto guard = Guard(SpinLock_);
                     if (rspOrError.IsOK() && State_ == ETransactionState::Committing) {
@@ -468,7 +468,7 @@ void TTransaction::ModifyRows(
 
     if (future) {
         future
-            .Subscribe(BIND([=, this_ = MakeStrong(this)](const TError& error) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)](const TError& error) {
                 if (!error.IsOK()) {
                     YT_LOG_DEBUG(error, "Error sending row modifications");
                     Abort();
@@ -818,7 +818,7 @@ TFuture<void> TTransaction::DoAbort(
     ToProto(req->mutable_transaction_id(), GetId());
 
     AbortPromise_.TrySetFrom(req->Invoke().Apply(
-        BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
+        BIND([=, this, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspAbortTransactionPtr& rspOrError) {
             {
                 auto guard = Guard(SpinLock_);
 
@@ -861,7 +861,7 @@ TFuture<void> TTransaction::SendPing()
     req->set_ping_ancestors(PingAncestors_);
 
     return req->Invoke().Apply(
-        BIND([=, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
+        BIND([=, this, this_ = MakeStrong(this)] (const TApiServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
             if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Transaction pinged");
             } else if (rspOrError.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
@@ -913,7 +913,7 @@ void TTransaction::RunPeriodicPings()
         return;
     }
 
-    SendPing().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+    SendPing().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
         if (!IsPingableState()) {
             return;
         }

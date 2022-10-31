@@ -22,7 +22,7 @@ private:
 public:
     TImpl(IYsonConsumer* consumer, EYsonType parsingMode, TYsonParserConfig config)
         : ParserCoroutine_(BIND(
-            [=, config=std::move(config)] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
+            [=, this, config = std::move(config)] (TParserCoroutine& self, const char* begin, const char* end, bool finish) {
                 Parser_.DoParse(
                     TBlockReader<TParserCoroutine>(self, begin, end, finish),
                     consumer,

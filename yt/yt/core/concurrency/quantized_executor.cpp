@@ -236,7 +236,7 @@ private:
         }
 
         const auto& invoker = Invokers_[workerIndex];
-        invoker->Invoke(BIND([=, this_ = MakeStrong(this)] {
+        invoker->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
             callback.Run();
 
             OnWorkerReady(workerIndex, quantumIndex);

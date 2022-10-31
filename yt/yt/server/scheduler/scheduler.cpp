@@ -540,7 +540,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto doValidateOperationAccess = BIND([=, this_ = MakeStrong(this)] {
+        auto doValidateOperationAccess = BIND([=, this, this_ = MakeStrong(this)] {
             auto operation = GetOperationOrThrow(operationId);
             NScheduler::ValidateOperationAccess(
                 user,
@@ -563,7 +563,7 @@ public:
         const std::vector<TString>& jobShellOwners)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
-        
+
         YT_LOG_DEBUG("Validating job shell access (User: %v, Name: %v, Owners: %v)",
             user,
             jobShellName,
@@ -588,7 +588,7 @@ public:
         auto allowedSubjects = jobShellOwners;
         allowedSubjects.push_back(RootUserName);
         allowedSubjects.push_back(SuperusersGroupName);
-        
+
         for (const auto& allowedSubject : allowedSubjects) {
             if (allowedSubject == user || userClosure.contains(allowedSubject)) {
                 return;
@@ -1248,7 +1248,7 @@ public:
 
         auto expectedState = operation->GetState();
         AllSucceeded(std::move(futures)).Subscribe(
-            BIND([=, this_ = MakeStrong(this), asyncMaterializeResult = std::move(asyncMaterializeResult)] (const TError& error) {
+            BIND([=, this, this_ = MakeStrong(this), asyncMaterializeResult = std::move(asyncMaterializeResult)] (const TError& error) {
                 if (!error.IsOK()) {
                     return;
                 }

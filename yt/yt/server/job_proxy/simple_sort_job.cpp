@@ -60,7 +60,7 @@ public:
 
         TotalRowCount_ = GetCumulativeRowCount(dataSliceDescriptors);
 
-        ReaderFactory_ = [=] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+        ReaderFactory_ = [=, this] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
             auto reader = CreateSchemalessParallelMultiReader(
                 tableReaderConfig,
@@ -93,7 +93,7 @@ public:
             dataSink = dataSinkDirectory->DataSinks()[0];
         }
 
-        WriterFactory_ = [=] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
+        WriterFactory_ = [=, this] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
             return CreateSchemalessMultiChunkWriter(
                 writerConfig,
                 options,

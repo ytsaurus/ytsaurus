@@ -184,7 +184,7 @@ TFuture<std::vector<TBlock>> TAdaptiveRepairingErasureReader::ReadBlocksImpl(
         target,
         Logger);
 
-    return session->Run<std::vector<TBlock>>([=, this_ = MakeStrong(this)] (
+    return session->Run<std::vector<TBlock>>([=, this, this_ = MakeStrong(this)] (
         const NErasure::TPartIndexList& erasedParts,
         const std::vector<IChunkReaderAllowingRepairPtr>& availableReaders) {
             if (!erasedParts.empty()) {

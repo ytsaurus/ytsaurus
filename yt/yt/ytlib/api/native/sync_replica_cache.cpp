@@ -38,7 +38,7 @@ TFuture<TTableReplicaInfoPtrList> TSyncReplicaCache::DoGet(
                 tableInfoOrError->ValueOrThrow(),
                 TTabletReadOptions{});
         } else {
-            return tableInfoFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const TTableMountInfoPtr& tableInfo) {
+            return tableInfoFuture.Apply(BIND([=] (const TTableMountInfoPtr& tableInfo) {
                 return PickInSyncReplicas(
                     connection,
                     tableInfo,

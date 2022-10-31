@@ -63,8 +63,8 @@ public:
     template <typename T>
     TFuture<T> DoWithHedging(TCallback<TFuture<T>(NApi::IClientPtr)> callback)
     {
-        NProfiling::TCpuInstant now = NProfiling::GetCpuInstant();
-        auto clients = [=] () -> auto {
+        auto now = NProfiling::GetCpuInstant();
+        auto clients = [&] {
             TGuard guard(SpinLock_);
             for (auto& client : Clients_) {
                 if (client.BanUntil < now) {

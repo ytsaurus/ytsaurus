@@ -280,7 +280,7 @@ TFuture<void> TJournalChunk::PrepareToReadChunkFragments(
 
     promise.SetFrom(
         Context_->JournalDispatcher->OpenJournal(StoreLocation_, Id_)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IFileChangelogPtr& changelog) {
                 auto writerGuard = WriterGuard(LifetimeLock_);
 
                 OpenChangelogPromise_.Reset();

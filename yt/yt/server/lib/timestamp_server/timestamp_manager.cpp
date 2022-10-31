@@ -305,7 +305,7 @@ private:
             ->GetAutomatonCancelableContext()
             ->CreateInvoker(TimestampInvoker_);
 
-        auto callback = BIND([=, this_ = MakeStrong(this)] () {
+        auto callback = BIND([=, this, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
             Active_.store(true);
@@ -338,7 +338,7 @@ private:
 
         TCompositeAutomatonPart::OnStopLeading();
 
-        TimestampInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+        TimestampInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] () {
             VERIFY_THREAD_AFFINITY(TimestampThread);
 
             if (!Active_.load()) {

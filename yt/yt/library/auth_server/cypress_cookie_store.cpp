@@ -84,7 +84,7 @@ public:
             auto entry = New<TEntry>();
 
             cookieFuture = cookieFuture
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TCypressCookiePtr>& cookieOrError) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCypressCookiePtr>& cookieOrError) {
                     entry->FetchTime = TInstant::Now();
 
                     if (cookieOrError.IsOK()) {
@@ -131,7 +131,7 @@ public:
             GetCookiePath(cookie->Value),
             EObjectType::Document,
             createOptions);
-        return future.AsVoid().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        return future.AsVoid().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             if (error.IsOK()) {
                 auto entry = New<TEntry>();
                 entry->CookieFuture = MakeFuture<TCypressCookiePtr>(cookie);

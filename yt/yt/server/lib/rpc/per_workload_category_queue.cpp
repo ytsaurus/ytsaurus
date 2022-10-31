@@ -19,7 +19,7 @@ TPerWorkloadCategoryRequestQueue::TPerWorkloadCategoryRequestQueue()
 
 TRequestQueueProvider TPerWorkloadCategoryRequestQueue::GetProvider() const
 {
-    return BIND([=] (const NRpc::NProto::TRequestHeader& header) {
+    return BIND([this] (const NRpc::NProto::TRequestHeader& header) {
         auto category = header.HasExtension(NYT::NProto::TWorkloadDescriptorExt::workload_descriptor)
             ? FromProto<EWorkloadCategory>(header.GetExtension(NYT::NProto::TWorkloadDescriptorExt::workload_descriptor).category())
             : EWorkloadCategory::UserBatch;

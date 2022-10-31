@@ -80,7 +80,7 @@ public:
         const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqPrepareTransaction>(
-            [=] (TTransactionParticipantServiceProxy* proxy) {
+            [=, this] (TTransactionParticipantServiceProxy* proxy) {
                 VERIFY_THREAD_AFFINITY_ANY();
 
                 auto req = proxy->PrepareTransaction();
@@ -102,7 +102,7 @@ public:
         const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqCommitTransaction>(
-            [=] (TTransactionParticipantServiceProxy* proxy) {
+            [=, this] (TTransactionParticipantServiceProxy* proxy) {
                 VERIFY_THREAD_AFFINITY_ANY();
 
                 auto req = proxy->CommitTransaction();
@@ -121,7 +121,7 @@ public:
         const NRpc::TAuthenticationIdentity& identity) override
     {
         return SendRequest<TTransactionParticipantServiceProxy::TReqAbortTransaction>(
-            [=] (TTransactionParticipantServiceProxy* proxy) {
+            [=, this] (TTransactionParticipantServiceProxy* proxy) {
                 VERIFY_THREAD_AFFINITY_ANY();
 
                 auto req = proxy->AbortTransaction();
@@ -135,7 +135,7 @@ public:
 
     TFuture<void> CheckAvailability() override
     {
-        return GetChannel().Apply(BIND([=, this_ = MakeStrong(this)] (const NRpc::IChannelPtr& channel) {
+        return GetChannel().Apply(BIND([=, this, this_ = MakeStrong(this)] (const NRpc::IChannelPtr& channel) {
             THydraServiceProxy proxy(channel);
             auto req = proxy.Poke();
             PrepareRequest(req);
@@ -157,7 +157,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             return GetChannel().Apply(BIND([=] (const NRpc::IChannelPtr& channel) {
                 TTransactionParticipantServiceProxy proxy(channel);
                 auto req = builder(&proxy);
@@ -186,7 +186,7 @@ private:
         if (!CellDirectorySynchronizer_) {
             return MakeNoChannelError();
         }
-        return CellDirectorySynchronizer_->Sync().Apply(BIND([=, this_ = MakeStrong(this)] () {
+        return CellDirectorySynchronizer_->Sync().Apply(BIND([=, this, this_ = MakeStrong(this)] () {
             auto channel = CellDirectory_->FindChannelByCellId(CellId_);
             if (channel) {
                 return MakeFuture(channel);

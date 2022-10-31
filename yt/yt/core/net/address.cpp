@@ -949,7 +949,7 @@ TFuture<TNetworkAddress> TAddressResolver::TImpl::DoGet(const TString& hostname,
 {
     return DnsResolver_
         .ResolveName(hostname, Config_->EnableIPv4, Config_->EnableIPv6)
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TNetworkAddress>& result) {
+        .Apply(BIND([=] (const TErrorOr<TNetworkAddress>& result) {
             // Empty callback just to forward future callbacks into proper thread.
             return result.ValueOrThrow();
         })

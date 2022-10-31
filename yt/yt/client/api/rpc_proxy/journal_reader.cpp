@@ -25,7 +25,7 @@ public:
     {
         if (!OpenResult_) {
             OpenResult_ = NRpc::CreateRpcClientInputStream(Request_)
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IAsyncZeroCopyInputStreamPtr& inputStream) {
                     Underlying_ = inputStream;
                 }));
         }

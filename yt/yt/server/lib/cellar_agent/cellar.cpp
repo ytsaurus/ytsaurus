@@ -157,7 +157,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         return occupant->Finalize()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError&) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError&) {
                 VERIFY_THREAD_AFFINITY(ControlThread);
 
                 if (occupant->GetIndex() < std::ssize(Occupants_) && Occupants_[occupant->GetIndex()] == occupant) {

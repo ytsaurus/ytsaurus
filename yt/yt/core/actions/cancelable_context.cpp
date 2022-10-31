@@ -30,7 +30,7 @@ public:
             return;
         }
 
-        return UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, this_ = MakeStrong(this), callback = std::move(callback)] {
+        return UnderlyingInvoker_->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT([this, this_ = MakeStrong(this), callback = std::move(callback)] {
             if (Context_->Canceled_) {
                 return;
             }
@@ -116,7 +116,7 @@ void TCancelableContext::PropagateTo(const TCancelableContextPtr& context)
         PropagateToContexts_.insert(context);
     }
 
-    context->SubscribeCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError& /*error*/) {
+    context->SubscribeCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, this, weakThis = MakeWeak(this)] (const TError& /*error*/) {
         if (auto this_ = weakThis.Lock()) {
             auto guard = Guard(SpinLock_);
             PropagateToContexts_.erase(context);
@@ -137,7 +137,7 @@ void TCancelableContext::PropagateTo(const TFuture<void>& future)
         PropagateToFutures_.insert(future);
     }
 
-    future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, weakThis = MakeWeak(this)] (const TError&) {
+    future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, this, weakThis = MakeWeak(this)] (const TError&) {
         if (auto this_ = weakThis.Lock()) {
             auto guard = Guard(SpinLock_);
             PropagateToFutures_.erase(future);

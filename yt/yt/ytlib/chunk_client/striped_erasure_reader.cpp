@@ -276,7 +276,7 @@ private:
 
         auto partsFuture = AllSucceeded(std::move(partFutures))
             .ApplyUnique(
-                BIND([=, this_ = MakeStrong(this)] (std::vector<TBlock>&& parts) {
+                BIND([=, this, this_ = MakeStrong(this)] (std::vector<TBlock>&& parts) {
                     for (auto partIndex : partsToFetch) {
                         ValidateChecksum(getPartDescriptor(partIndex), &parts[partIndex]);
                     }
@@ -304,7 +304,7 @@ private:
         }
 
         auto repairFuture = partsFuture.ApplyUnique(
-            BIND([=, this_ = MakeStrong(this)] (std::vector<TBlock>&& blocks) {
+            BIND([=, this, this_ = MakeStrong(this)] (std::vector<TBlock>&& blocks) {
                 std::vector<TSharedRef> repairParts;
                 repairParts.reserve(repairIndices.size());
                 for (auto partIndex : repairIndices) {
@@ -340,7 +340,7 @@ private:
 
         return BlockFetcher_->FetchBlock(readerIndex, descriptor.SegmentIndex)
             .ApplyUnique(
-                BIND([=, this_ = MakeStrong(this)] (TBlock&& block) {
+                BIND([=, this, this_ = MakeStrong(this)] (TBlock&& block) {
                     ValidateChecksum(descriptor, &block);
 
                     return block;

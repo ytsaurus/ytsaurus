@@ -221,7 +221,7 @@ TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
     req->set_group_id(GroupId_);
     ToProto(req->mutable_options(), Options_);
 
-    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspListMembersPtr>& rspOrError){
+    return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspListMembersPtr>& rspOrError){
         if (!rspOrError.IsOK() && !rspOrError.FindMatching(NDiscoveryClient::EErrorCode::NoSuchGroup)) {
             return TError(rspOrError);
         }
@@ -283,7 +283,7 @@ TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const TString& address)
 
     auto req = proxy.GetGroupMeta();
     req->set_group_id(GroupId_);
-    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspGetGroupMetaPtr>& rspOrError) {
+    return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspGetGroupMetaPtr>& rspOrError) {
         if (!rspOrError.IsOK() && !rspOrError.FindMatching(NDiscoveryClient::EErrorCode::NoSuchGroup)) {
             return TError(rspOrError);
         }
@@ -351,7 +351,7 @@ TFuture<void> THeartbeatSession::MakeRequest(const TString& address)
     }
     req->set_lease_timeout(ToProto<i64>(Config_->LeaseTimeout));
 
-    return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspHeartbeatPtr>& rspOrError) {
+    return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspHeartbeatPtr>& rspOrError) {
         if (!rspOrError.IsOK()) {
             if (rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidGroupId) ||
                 rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidMemberId))

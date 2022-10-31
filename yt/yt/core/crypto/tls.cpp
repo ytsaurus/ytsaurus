@@ -357,7 +357,7 @@ private:
             UnderlyingReadActive_ = true;
             HandleUnderlyingIOResult(
                 Underlying_->Read(InputBuffer_),
-                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<size_t>& result) {
+                BIND([this, this_ = MakeStrong(this)] (const TErrorOr<size_t>& result) {
                     UnderlyingReadActive_ = false;
                     if (result.IsOK()) {
                         if (result.Value() > 0) {
@@ -384,7 +384,7 @@ private:
 
             HandleUnderlyingIOResult(
                 Underlying_->Write(OutputBuffer_.Slice(0, count)),
-                BIND([=, this_ = MakeStrong(this)] (const TError& result) {
+                BIND([this, this_ = MakeStrong(this)] (const TError& result) {
                     UnderlyingWriteActive_ = false;
                     if (result.IsOK()) {
                         // Hooray!

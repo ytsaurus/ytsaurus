@@ -69,7 +69,7 @@ TRequestQueuePtr TPerUserRequestQueues::GetOrCreateUserQueue(const TString& user
 
 TRequestQueueProvider TPerUserRequestQueues::GetProvider()
 {
-    return BIND_NO_PROPAGATE([=] (const NRpc::NProto::TRequestHeader& header) {
+    return BIND_NO_PROPAGATE([this] (const NRpc::NProto::TRequestHeader& header) {
         const auto& name = header.has_user()
             ? header.user()
             : RootUserName;

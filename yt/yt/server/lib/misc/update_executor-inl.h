@@ -158,7 +158,7 @@ TCallback<TFuture<void>()> TUpdateExecutor<TKey, TUpdateParameters>::CreateUpdat
 
     return BIND([key, this, updateAction = std::move(updateAction), this_ = MakeStrong(this)] () {
             return updateAction().Apply(
-                BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+                BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                     if (!error.IsOK()) {
                         OnUpdateFailed_(TError("Update of item failed (Key: %v)", key) << error);
                     }

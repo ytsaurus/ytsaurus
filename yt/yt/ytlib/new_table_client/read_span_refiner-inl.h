@@ -84,7 +84,7 @@ TReadSpan TColumnIterator<Type>::SkipWhile(TPredicate pred)
     YT_ASSERT(LowerRowBound(Position_) <= Span_.Lower);
 
     auto lower = Span_.Lower;
-    auto upper = SkipWhileImpl(Span_.Upper, [=] (ui32 position) {
+    auto upper = SkipWhileImpl(Span_.Upper, [&] (ui32 position) {
         return pred(GetValue(position));
     });
 
@@ -126,7 +126,7 @@ void TColumnIterator<Type>::SkipToSegment(ui32 rowIndex)
     auto segmentIt = ExponentialSearch(
         SegmentsMeta_.begin() + SegmentIndex_,
         SegmentsMeta_.end(),
-        [=] (auto segmentMetaIt) {
+        [&] (auto segmentMetaIt) {
             return segmentMetaIt->ChunkRowCount <= rowIndex;
         });
 
@@ -143,7 +143,7 @@ void TColumnIterator<Type>::SkipTo(ui32 rowIndex)
         SkipToSegment(rowIndex);
     }
 
-    Position_ = ExponentialSearch(Position_, GetCount(), [=] (auto position) {
+    Position_ = ExponentialSearch(Position_, GetCount(), [&] (auto position) {
         return UpperRowBound(position) <= rowIndex;
     });
 
@@ -155,7 +155,7 @@ template <EValueType Type>
 template <class TPredicate>
 ui32 TColumnIterator<Type>::SkipInSegment(ui32 upperRowBound, TPredicate pred, ui32 position)
 {
-    return ExponentialSearch(position, GetCount(), [=] (auto position) {
+    return ExponentialSearch(position, GetCount(), [&] (auto position) {
         return UpperRowBound(position) < upperRowBound && pred(position);
     });
 }
@@ -227,7 +227,7 @@ TReadSpan TBoundsIteratorBase<TDerived>::SkipWhileEqual(TUnversionedValue value)
     YT_ASSERT(BoundIndex != Limit);
     YT_ASSERT(GetItem(BoundIndex) == value);
     auto start = BoundIndex;
-    BoundIndex = ExponentialSearch(BoundIndex + 1, Limit, [=] (auto index) {
+    BoundIndex = ExponentialSearch(BoundIndex + 1, Limit, [&] (auto index) {
         return CompareValues<Type>(GetItem(index), value) == 0;
     });
 
@@ -238,7 +238,7 @@ template <class TDerived>
 template <EValueType Type>
 bool TBoundsIteratorBase<TDerived>::SkipTo(TUnversionedValue value)
 {
-    BoundIndex = ExponentialSearch(BoundIndex, Limit, [=] (auto index) {
+    BoundIndex = ExponentialSearch(BoundIndex, Limit, [&] (auto index) {
         return CompareValues<Type>(GetItem(index), value) < 0;
     });
 
@@ -381,7 +381,7 @@ void BuildReadRowRanges(
 
         if (CompareValues<Type>(currentValue, controlValue) == 0) {
             // Need to skip anyway to update currentValue.
-            auto chunkSpan = chunk->SkipWhile([=] (TUnversionedValue value) {
+            auto chunkSpan = chunk->SkipWhile([&] (TUnversionedValue value) {
                 return CompareValues<Type>(value, controlValue) == 0;
             });
 
@@ -390,7 +390,7 @@ void BuildReadRowRanges(
             }
         } else {
             // Need to skip anyway to update currentValue.
-            auto chunkSpan = chunk->SkipWhile([=] (TUnversionedValue value) {
+            auto chunkSpan = chunk->SkipWhile([&] (TUnversionedValue value) {
                 return CompareValues<Type>(value, controlValue) < 0;
             });
 

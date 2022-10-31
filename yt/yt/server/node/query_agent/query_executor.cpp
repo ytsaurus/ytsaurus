@@ -620,6 +620,7 @@ private:
 
                 asyncStatistics = asyncStatistics.Apply(BIND([
                     =,
+                    this,
                     this_ = MakeStrong(this)
                 ] (const TErrorOr<TQueryStatistics>& result) -> TFuture<TQueryStatistics>
                 {
@@ -633,6 +634,7 @@ private:
                         return AllSucceeded(*asyncSubqueryResults)
                         .Apply(BIND([
                             =,
+                            this,
                             this_ = MakeStrong(this)
                         ] (const std::vector<TQueryStatistics>& subqueryResults) mutable {
                             for (const auto& subqueryResult : subqueryResults) {
@@ -820,7 +822,7 @@ private:
                 }
             });
 
-            subreaderCreators.push_back([=, groupedSplit = std::move(groupedSplit)] () {
+            subreaderCreators.push_back([=, this, groupedSplit = std::move(groupedSplit)] {
                 size_t rangesCount = std::accumulate(
                     groupedSplit.begin(),
                     groupedSplit.end(),
@@ -836,6 +838,7 @@ private:
 
                 auto bottomSplitReaderGenerator = [
                     =,
+                    this,
                     this_ = MakeStrong(this),
                     groupedSplit = std::move(groupedSplit),
                     index = 0
@@ -885,7 +888,7 @@ private:
                     return expr;
                 }
             });
-            subreaderCreators.push_back([=, keys = std::move(keys)] {
+            subreaderCreators.push_back([=, this, keys = std::move(keys)] {
                 return GetTabletReader(tabletId, keys);
             });
         };
@@ -1004,6 +1007,7 @@ private:
         if (!tabletSnapshot->TableSchema->IsSorted()) {
             auto bottomSplitReaderGenerator = [
                 =,
+                this,
                 this_ = MakeStrong(this),
                 tabletSnapshot = std::move(tabletSnapshot),
                 bounds = std::move(bounds),

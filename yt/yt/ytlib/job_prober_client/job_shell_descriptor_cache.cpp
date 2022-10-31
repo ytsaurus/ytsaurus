@@ -101,7 +101,7 @@ private:
             req->set_shell_name(*key.ShellName);
         }
 
-        return req->Invoke().Apply(BIND([=, this_ = MakeStrong(this)] (const TJobProberServiceProxy::TErrorOrRspGetJobShellDescriptorPtr& rspOrError) {
+        return req->Invoke().Apply(BIND([=] (const TJobProberServiceProxy::TErrorOrRspGetJobShellDescriptorPtr& rspOrError) {
             if (!rspOrError.IsOK()) {
                 YT_LOG_DEBUG(rspOrError, "Failed to get job shell descriptor (Key: %v)",
                     key);

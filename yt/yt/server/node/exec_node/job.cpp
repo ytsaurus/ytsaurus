@@ -244,7 +244,7 @@ void TJob::Start()
                         .Via(Invoker_),
                     prepareTimeLimit);
             }
-            
+
             if (auto prepareTimeLimit = Config_->JobPrepareTimeLimit) {
                 TDelayedExecutor::Submit(
                     BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), *prepareTimeLimit, /*fatal*/ true)
@@ -1624,7 +1624,7 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
         YT_LOG_FATAL_IF(
             !Error_ || Error_->IsOK(),
             "Job error is not set (Error: %v)", Error_);
-        
+
         auto initialError = std::move(*Error_);
         // Reset Error_ to set it with checkError
         Error_ = TError{};
@@ -2093,7 +2093,7 @@ TJobProxyConfigPtr TJob::CreateConfig()
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable = false;
         proxyConfig->JobThrottler->RpsPrefetch->Enable = false;
     }
-    YT_LOG_DEBUG("Prefetching job throttler init (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)", 
+    YT_LOG_DEBUG("Prefetching job throttler init (DynamicConfigEnable: %v, JobSpecEnable: %v, PrefetchEnable: %v)",
         DynamicConfig_->JobThrottler->BandwidthPrefetch->Enable,
         SchedulerJobSpecExt_->enable_prefetching_job_throttler(),
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
@@ -2278,7 +2278,7 @@ TFuture<std::vector<NDataNode::IChunkPtr>> TJob::DownloadArtifacts()
         auto downloadOptions = MakeArtifactDownloadOptions();
         bool fetchedFromCache = false;
         auto asyncChunk = chunkCache->DownloadArtifact(artifact.Key, downloadOptions, &fetchedFromCache)
-            .Apply(BIND([=, fileName = artifact.Name, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
+            .Apply(BIND([=, fileName = artifact.Name, this, this_ = MakeStrong(this)] (const TErrorOr<IChunkPtr>& chunkOrError) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(chunkOrError,
                     EErrorCode::ArtifactDownloadFailed,
                     "Failed to prepare user file %Qv",

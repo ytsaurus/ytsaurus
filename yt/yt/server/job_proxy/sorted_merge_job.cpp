@@ -75,7 +75,7 @@ public:
 
         YT_VERIFY(!dataSourceDirectory->DataSources().empty());
 
-        ReaderFactory_ = [=] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+        ReaderFactory_ = [=, this] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
             std::vector<ISchemalessMultiChunkReaderPtr> readers;
             for (const auto& inputSpec : SchedulerJobSpecExt_.input_table_specs()) {
                 auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -128,7 +128,7 @@ public:
             dataSink = dataSinkDirectory->DataSinks()[0];
         }
 
-        WriterFactory_ = [=] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
+        WriterFactory_ = [=, this] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
             return CreateSchemalessMultiChunkWriter(
                 writerConfig,
                 options,

@@ -224,9 +224,9 @@ private:
                     }));
 
             case EInternedAttributeKey::ResourceUsage:
-                return GetAggregatedResourceUsageMap().Apply(BIND([=, this_ = MakeStrong(this)] (const TAccountResourcesMap& usageMap) {
+                return GetAggregatedResourceUsageMap().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TAccountResourcesMap& usageMap) {
                     return BuildYsonStringFluently()
-                        .DoMapFor(usageMap, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
+                        .DoMapFor(usageMap, [&] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
                             fluent
                                 .Item(nameAndUsage.first);
                             SerializeClusterResources(nameAndUsage.second, fluent.GetConsumer(), Bootstrap_);
@@ -234,12 +234,12 @@ private:
                 }).AsyncVia(GetCurrentInvoker()));
 
             case EInternedAttributeKey::MulticellResourceUsage:
-                return GetMulticellResourceUsageMap().Apply(BIND([=, this_ = MakeStrong(this)] (const TMulticellAccountResourcesMap& multicellUsageMap) {
+                return GetMulticellResourceUsageMap().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TMulticellAccountResourcesMap& multicellUsageMap) {
                     return BuildYsonStringFluently()
-                        .DoMapFor(multicellUsageMap, [=] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
+                        .DoMapFor(multicellUsageMap, [&] (TFluentMap fluent, const TMulticellAccountResourcesMap::value_type& cellTagAndUsageMap) {
                             fluent
                                 .Item(ToString(cellTagAndUsageMap.first))
-                                .DoMapFor(cellTagAndUsageMap.second, [=] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
+                                .DoMapFor(cellTagAndUsageMap.second, [&] (TFluentMap fluent, const TAccountResourcesMap::value_type& nameAndUsage) {
                                     fluent
                                         .Item(nameAndUsage.first);
                                     SerializeClusterResources(nameAndUsage.second, fluent.GetConsumer(), Bootstrap_);
@@ -250,82 +250,80 @@ private:
             case EInternedAttributeKey::StagedNodeIds: {
                 return FetchMergeableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return BuildYsonStringFluently().DoListFor(transaction->StagedNodes(), [] (TFluentList fluent, const TCypressNode* node) {
                             fluent.Item().Value(node->GetId());
                         });
-                    }));
+                    });
             }
 
             case EInternedAttributeKey::BranchedNodeIds: {
                 return FetchMergeableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return BuildYsonStringFluently().DoListFor(transaction->BranchedNodes(), [] (TFluentList fluent, const TCypressNode* node) {
                             fluent.Item().Value(node->GetId());
                         });
-                    }));
-
-
+                    });
             }
 
             case EInternedAttributeKey::LockedNodeIds: {
                 return FetchMergeableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return BuildYsonStringFluently().DoListFor(transaction->LockedNodes(), [] (TFluentList fluent, const TCypressNode* node) {
                             fluent.Item().Value(node->GetId());
                         });
-                    }));
+                    });
             }
 
             case EInternedAttributeKey::LockIds: {
                 return FetchMergeableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return BuildYsonStringFluently().DoListFor(transaction->Locks(), [] (TFluentList fluent, const TLock* lock) {
                             fluent.Item().Value(lock->GetId());
                         });
-                    }));
+                    });
             }
 
             case EInternedAttributeKey::StagedObjectIds: {
                 return FetchMergeableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return BuildYsonStringFluently().DoListFor(transaction->StagedObjects(), [] (TFluentList fluent, const TObject* object) {
                             fluent.Item().Value(object->GetId());
                         });
-                    }));
+                    });
             }
 
             case EInternedAttributeKey::ImportedObjectCount:
                 return FetchSummableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return ConvertToYsonString(transaction->ImportedObjects().size());
-                    }));
+                    });
 
             case EInternedAttributeKey::ImportedObjectIds:
                 return FetchMergeableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return BuildYsonStringFluently().DoListFor(transaction->ImportedObjects(), [] (TFluentList fluent, const TObject* object) {
                             fluent.Item().Value(object->GetId());
                         });
-                    }));
+                    });
 
             case EInternedAttributeKey::ExportedObjectCount:
                 return FetchSummableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return ConvertToYsonString(transaction->ExportedObjects().size());
-                    }));
+                    });
 
             case EInternedAttributeKey::ExportedObjects:
                 return FetchMergeableAttribute(
                     key.Unintern(),
-                    BIND([=, this_ = MakeStrong(this)] {
+                    [&] {
                         return BuildYsonStringFluently().DoListFor(transaction->ExportedObjects(), [] (TFluentList fluent, const TTransaction::TExportEntry& entry) {
                             fluent
                                 .Item().BeginMap()
@@ -333,7 +331,7 @@ private:
                                     .Item("destination_cell_tag").Value(entry.DestinationCellTag)
                                 .EndMap();
                         });
-                    }));
+                    });
 
             default:
                 break;
@@ -407,7 +405,7 @@ private:
         batchReq->AddRequest(req);
 
         return batchReq->Invoke()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                 auto cumulativeError = GetCumulativeError(batchRspOrError);
                 if (cumulativeError.FindMatching(NYTree::EErrorCode::ResolveError)) {
                     return std::make_pair(cellTag, TAccountResourcesMap());
@@ -439,7 +437,7 @@ private:
         const TIntrusivePtr<TSession>& session,
         const TString& attributeKey,
         TCellTag cellTag,
-        const TCallback<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator)
+        const std::function<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator)
     {
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
@@ -476,9 +474,9 @@ private:
     template <class TSession>
     TFuture<TYsonString> FetchCombinedAttribute(
         const TString& attributeKey,
-        const TCallback<TYsonString()>& localFetcher,
-        const TCallback<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator,
-        const TCallback<TYsonString(const TIntrusivePtr<TSession>& session)>& finalizer)
+        const std::function<TYsonString()>& localFetcher,
+        const std::function<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator,
+        const std::function<TYsonString(const TIntrusivePtr<TSession>& session)>& finalizer)
     {
         auto invoker = CreateSerializedInvoker(NRpc::TDispatcher::Get()->GetHeavyInvoker());
 
@@ -494,7 +492,7 @@ private:
             }
         }
 
-        return AllSucceeded(asyncResults).Apply(BIND([=] {
+        return AllSucceeded(asyncResults).Apply(BIND([=, this_ = MakeStrong(this)] {
             return finalizer(session);
         }));
     }
@@ -502,7 +500,7 @@ private:
 
     TFuture<TYsonString> FetchMergeableAttribute(
         const TString& attributeKey,
-        const TCallback<TYsonString()>& localFetcher)
+        const std::function<TYsonString()>& localFetcher)
     {
         struct TSession
             : public TRefCounted
@@ -514,29 +512,29 @@ private:
 
         return FetchCombinedAttribute<TSession>(
             attributeKey,
-            BIND([=, this_ = MakeStrong(this)] () {
+            [&] {
                 return BuildYsonStringFluently()
                     .BeginMap()
                         .Item(ToString(Bootstrap_->GetMulticellManager()->GetCellTag())).Value(localFetcher())
                     .EndMap();
-            }),
-            BIND([] (const TSessionPtr& session, const TYsonString& yson) {
+            },
+            [] (const TSessionPtr& session, const TYsonString& yson) {
                 auto map = ConvertTo<THashMap<TString, INodePtr>>(yson);
                 for (const auto& [key, value] : map) {
                     session->Map.emplace(key, ConvertToYsonString(value));
                 }
-            }),
-            BIND([] (const TSessionPtr& session) {
+            },
+            [] (const TSessionPtr& session) {
                 return BuildYsonStringFluently()
                     .DoMapFor(session->Map, [&] (TFluentMap fluent, const std::pair<const TString&, TYsonString>& pair) {
                         fluent.Item(pair.first).Value(pair.second);
                     });
-            }));
+            });
     }
 
     TFuture<TYsonString> FetchSummableAttribute(
         const TString& attributeKey,
-        const TCallback<TYsonString()>& localFetcher)
+        const std::function<TYsonString()>& localFetcher)
     {
         struct TSession
             : public TRefCounted
@@ -548,13 +546,13 @@ private:
 
         return FetchCombinedAttribute<TSession>(
             attributeKey,
-            std::move(localFetcher),
-            BIND([] (const TSessionPtr& session, const TYsonString& yson) {
+            localFetcher,
+            [] (const TSessionPtr& session, const TYsonString& yson) {
                 session->Value += ConvertTo<i64>(yson);
-            }),
-            BIND([] (const TSessionPtr& session) {
+            },
+            [] (const TSessionPtr& session) {
                 return ConvertToYsonString(session->Value);
-            }));
+            });
 
     }
 };

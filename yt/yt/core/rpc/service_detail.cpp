@@ -1392,7 +1392,7 @@ void TRequestQueue::SubscribeToThrottlers()
     }
 
     AllSucceeded(std::move(futures))
-        .Subscribe(BIND([=, weakService = MakeWeak(Service_)] (const TError&) {
+        .Subscribe(BIND([=, this, this_ = MakeStrong(this), weakService = MakeWeak(Service_)] (const TError&) {
             if (auto service = weakService.Lock()) {
                 Throttled_.store(false, std::memory_order::release);
                 ScheduleRequestsFromQueue();
@@ -1448,7 +1448,7 @@ TServiceBase::TServiceBase(
         .SetConcurrencyLimit(1'000'000)
         .SetSystem(true));
 
-    Profiler_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [=] {
+    Profiler_.AddFuncGauge("/authentication_queue_size", MakeStrong(this), [this] {
         return AuthenticationQueueSize_.load(std::memory_order::relaxed);
     });
 

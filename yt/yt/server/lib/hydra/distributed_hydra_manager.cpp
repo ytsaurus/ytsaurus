@@ -385,7 +385,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        return BIND([=, this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             VERIFY_THREAD_AFFINITY_ANY();
 
             BuildYsonFluently(consumer)
@@ -1043,7 +1043,7 @@ private:
             Config_->LeaderSwitchTimeout);
 
         TDelayedExecutor::Submit(
-            BIND([=, this_ = MakeWeak(this)] {
+            BIND([=, this, this_ = MakeWeak(this)] {
                 ScheduleRestart(
                     epochContext,
                     TError("Leader switch did not complete within timeout"));
@@ -2230,7 +2230,7 @@ private:
 
         CommitMutation(TMutationRequest{.Reign = GetCurrentReign()})
             .WithTimeout(Config_->HeartbeatMutationTimeout)
-            .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this), weakEpochContext = MakeWeak(AutomatonEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
                     return;

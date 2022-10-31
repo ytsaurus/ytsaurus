@@ -191,7 +191,7 @@ private:
         TWallTimer timer;
 
         return Writer_->Open().Apply(
-            BIND([=, this_ = MakeStrong(this)] {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
                 YT_LOG_DEBUG("Finished opening blob chunk writer (Time: %v)",
@@ -220,7 +220,7 @@ private:
         YT_VERIFY(!Writer_->WriteBlocks(blocks));
 
         return Writer_->GetReadyEvent().Apply(
-            BIND([=, this_ = MakeStrong(this)] {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
                 YT_LOG_DEBUG("Finished writing blocks (BlockIndexes: %v-%v, Time: %v)",
@@ -250,7 +250,7 @@ private:
         TWallTimer timer;
 
         return Writer_->Close(deferredChunkMeta).Apply(
-            BIND([=, this_ = MakeStrong(this)] {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
                 YT_LOG_DEBUG("Finished closing chunk writer (Time: %v)",
@@ -270,7 +270,7 @@ private:
         TWallTimer timer;
 
         return Writer_->Cancel().Apply(
-            BIND([=, this_ = MakeStrong(this)] {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 
                 YT_LOG_DEBUG("Finished aborting chunk writer (Time: %v)",

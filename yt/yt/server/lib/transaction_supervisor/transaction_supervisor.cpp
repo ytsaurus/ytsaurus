@@ -486,7 +486,7 @@ private:
             }
 
             // Slow path.
-            auto sender = [=, underlying = std::move(underlying), identity = commit->AuthenticationIdentity()] {
+            auto sender = [=, this, this_ = MakeStrong(this), underlying = std::move(underlying), identity = commit->AuthenticationIdentity()] {
                 NRpc::TCurrentAuthenticationIdentityGuard identityGuard(&identity);
                 switch (underlying->GetState()) {
                     case ETransactionParticipantState::Valid:

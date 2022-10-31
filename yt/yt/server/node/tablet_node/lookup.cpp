@@ -669,7 +669,8 @@ protected:
 
         // Being rigorous we should wrap the callback into AsyncVia but that does not matter in practice.
         return DecodeHunks(std::move(sharedRows))
-            .Apply(BIND([=, owner = std::move(owner)] (const TSharedRange<TMutableRow>& rows) {
+            // NB: owner captures this by strong ref.
+            .Apply(BIND([this, owner = std::move(owner)] (const TSharedRange<TMutableRow>& rows) {
                 for (auto row : rows) {
                     TBasePipeline::WriteRow(row);
                 }

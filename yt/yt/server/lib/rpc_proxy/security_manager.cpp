@@ -47,7 +47,7 @@ private:
         auto options = TGetNodeOptions();
         options.ReadFrom = EMasterChannelKind::Cache;
         return client->GetNode("//sys/users/" + ToYPathLiteral(user) + "/@banned", options).Apply(
-            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
+            BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
                 if (!resultOrError.IsOK()) {
                     auto wrappedError = TError("Error getting user info for user %Qv",
                         user)

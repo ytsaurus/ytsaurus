@@ -396,7 +396,7 @@ bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
             currentRecordId,
             currentRecordId + recordsRead - 1);
 
-        auto future = BIND([=, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
+        auto future = BIND([=, this, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
                 for (const auto& recordData : recordsData)  {
                     DecoratedAutomaton_->ApplyMutationDuringRecovery(recordData);
                 }

@@ -515,7 +515,7 @@ public:
         options.Attributes = std::move(attributes);
         const auto& lockTransaction = Bootstrap_->GetScheduler()->GetMasterConnector()->GetLockTransaction();
         lockTransaction->StartTransaction(NTransactionClient::ETransactionType::Master, options)
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<NApi::ITransactionPtr>& transactionOrError) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<NApi::ITransactionPtr>& transactionOrError) {
                 VERIFY_THREAD_AFFINITY(ControlThread);
 
                 if (!transactionOrError.IsOK()) {
@@ -1015,7 +1015,7 @@ private:
 
         agent->SetState(EControllerAgentState::Unregistering);
         agent->GetIncarnationTransaction()->Abort()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 VERIFY_THREAD_AFFINITY(ControlThread);
 
                 if (!error.IsOK()) {

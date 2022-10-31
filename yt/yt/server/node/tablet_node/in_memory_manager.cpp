@@ -684,7 +684,7 @@ struct TNode
         req->SetTimeout(ControlRpcTimeout);
         ToProto(req->mutable_session_id(), SessionId);
         req->Invoke().Subscribe(
-            BIND([=, this_ = MakeStrong(this)] (const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError) {
+            BIND([=, this, this_ = MakeStrong(this)] (const TInMemoryServiceProxy::TErrorOrRspPingSessionPtr& rspOrError) {
                 if (!rspOrError.IsOK()) {
                     YT_LOG_WARNING(rspOrError, "Ping failed (Address: %v, SessionId: %v)",
                         Descriptor.GetDefaultAddress(),

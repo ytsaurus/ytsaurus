@@ -233,8 +233,8 @@ public:
                 return;
             }
 
-            TCurrentEpochIdGuard guard1(owner->GetEpochId());
-            TCurrentInvokerGuard guard2(this_);
+            TCurrentEpochIdGuard epochIdGuard(owner->GetEpochId());
+            TCurrentInvokerGuard invokerGuard(this_);
             callback();
         };
 
@@ -699,7 +699,7 @@ void TDecoratedAutomaton::ResetState()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
+    AutomatonInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
         THydraContext hydraContext(
             TVersion(),
             TInstant::Zero(),

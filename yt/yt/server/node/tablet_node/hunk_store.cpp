@@ -35,7 +35,7 @@ TFuture<std::vector<TJournalHunkDescriptor>> THunkStore::WriteHunks(std::vector<
     }
 
     // Slow path.
-    return WriterOpenedFuture_.Apply(BIND([=, this_ = MakeStrong(this)] {
+    return WriterOpenedFuture_.Apply(BIND([=, this, this_ = MakeStrong(this)] {
         return Writer_->WriteHunks(std::move(payloads));
     }));
 }

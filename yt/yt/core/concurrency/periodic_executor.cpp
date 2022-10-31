@@ -192,7 +192,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
         }
     }
 
-    auto cleanup = [=] (bool aborted) {
+    auto cleanup = [=, this] (bool aborted) {
         if (aborted) {
             return;
         }
@@ -232,7 +232,7 @@ void TPeriodicExecutor::OnCallbackSuccess()
     };
 
     try {
-        Callback_.Run();
+        Callback_();
     } catch (const TFiberCanceledException&) {
         // There's very little we can do here safely;
         // in particular, we should refrain from setting promises;

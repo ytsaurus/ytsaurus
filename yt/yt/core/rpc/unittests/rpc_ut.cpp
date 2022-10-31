@@ -1042,7 +1042,7 @@ protected:
         return New<TAttachmentsOutputStream>(
             NCompression::ECodec::None,
             nullptr,
-            BIND([=] {
+            BIND([this] {
                 ++PullCallbackCounter_;
             }),
             windowSize,

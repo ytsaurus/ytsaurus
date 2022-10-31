@@ -506,7 +506,7 @@ public:
             DB::QueryPipeline::unitePipelines(std::move(pipelines), {}));
         result->addTransform(std::make_shared<DB::ResizeProcessor>(DB::Block(), Pipes_.size(), 1));
         result->setSinks(
-            [=] (const DB::Block & header, DB::QueryPipeline::StreamType) mutable -> DB::ProcessorPtr {
+            [=, this] (const DB::Block & header, DB::QueryPipeline::StreamType) mutable -> DB::ProcessorPtr {
                 return std::make_shared<TSink>(Logger, header, std::move(commitCallback));
             });
 

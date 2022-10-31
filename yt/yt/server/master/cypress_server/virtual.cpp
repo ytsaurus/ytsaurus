@@ -138,7 +138,7 @@ void TVirtualMulticellMapBase::GetSelf(
     auto asyncOwningNodeAttributes = GetOwningNodeAttributes(attributeFilter);
 
     FetchItems(limit, attributeFilter)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
+        .Subscribe(BIND([=] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
             if (!sessionOrError.IsOK()) {
                 context->Reply(TError(sessionOrError));
                 return;
@@ -206,7 +206,7 @@ void TVirtualMulticellMapBase::ListSelf(
     context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
 
     FetchItems(limit, attributeFilter)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
+        .Subscribe(BIND([=] (const TErrorOr<TFetchItemsSessionPtr>& sessionOrError) {
             if (!sessionOrError.IsOK()) {
                 context->Reply(TError(sessionOrError));
                 return;
@@ -331,7 +331,7 @@ TFuture<std::vector<std::pair<TCellTag, i64>>> TVirtualMulticellMapBase::FetchSi
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
 {
     return GetSize()
-        .Apply(BIND([=, this_ = MakeStrong(this)] (i64 size) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (i64 size) {
             return std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size);
         }));
 }
@@ -353,7 +353,7 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(
     batchReq->AddRequest(req, "get_count");
 
     return batchReq->Invoke()
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+        .Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto cumulativeError = GetCumulativeError(batchRspOrError);
             if (!cumulativeError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error fetching size of virtual map %v from cell %v",
@@ -398,7 +398,7 @@ TFuture<TVirtualMulticellMapBase::TFetchItemsSessionPtr> TVirtualMulticellMapBas
 TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSessionPtr& session)
 {
     return GetKeys(session->Limit)
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TObjectId>& keys) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TObjectId>& keys) {
             session->Incomplete |= (std::ssize(keys) == session->Limit);
 
             const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -466,7 +466,7 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSe
     batchReq->AddRequest(req, "enumerate");
 
     return batchReq->Invoke()
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+        .Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto cumulativeError = GetCumulativeError(batchRspOrError);
             if (!cumulativeError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error fetching content of virtual map %v from cell %v",
@@ -525,7 +525,7 @@ DEFINE_YPATH_SERVICE_METHOD(TVirtualMulticellMapBase, Enumerate)
     context->SetRequestInfo("Limit: %v, AttributeFilter: %v", limit, attributeFilter);
 
     GetKeys(limit)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TObjectId>>& keysOrError) {
+        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TObjectId>>& keysOrError) {
             if (!keysOrError.IsOK()) {
                 context->Reply(keysOrError);
                 return;

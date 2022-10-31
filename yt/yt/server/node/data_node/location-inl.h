@@ -11,7 +11,7 @@ namespace NYT::NDataNode {
 template <class T>
 TCallback<T()> TChunkLocation::DisableOnError(const TCallback<T()> callback)
 {
-    return BIND([=, this_ = MakeStrong(this)] {
+    return BIND([=, this, this_ = MakeStrong(this)] {
         try {
             return callback.Run();
         } catch (const std::exception& ex) {

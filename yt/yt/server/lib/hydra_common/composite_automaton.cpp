@@ -105,10 +105,10 @@ void TCompositeAutomatonPart::RegisterLoader(
 {
     TCompositeAutomaton::TLoaderDescriptor descriptor;
     descriptor.Name = name;
-    descriptor.Callback = BIND([=] (TLoadContext& context) {
+    descriptor.Callback = BIND([=, this] (TLoadContext& context) {
         if (!ValidateSnapshotVersion(context.GetVersion())) {
             THROW_ERROR_EXCEPTION(
-                EErrorCode::InvalidSnapshotVersion,
+                NHydra::EErrorCode::InvalidSnapshotVersion,
                 "Unsupported snapshot version %v in part %v",
                 context.GetVersion(),
                 name);
@@ -375,7 +375,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
 
     // NB: Hold the parts strongly during the async phase.
     return
-        BIND([=, this_ = MakeStrong(this), parts_ = GetParts()] () {
+        BIND([=, this, this_ = MakeStrong(this), parts_ = GetParts()] () {
             DoSaveSnapshot(
                 writer,
                 // NB: Can yield in async part.

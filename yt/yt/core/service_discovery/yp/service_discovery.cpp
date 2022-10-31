@@ -201,10 +201,10 @@ public:
 protected:
     TFuture<TEndpointSet> DoGet(
         const TClusterEndpointSetIdPair& clusterEndpointSetIdPair,
-        bool /* isPeriodicUpdate */) noexcept override
+        bool /*isPeriodicUpdate*/) noexcept override
     {
         return Client_->ResolveEndpoints(clusterEndpointSetIdPair.first, clusterEndpointSetIdPair.second).Apply(BIND(
-            [=, this_ = MakeStrong(this)] (const TErrorOr<NDetail::TResolveEndpointsResponse>& rawResponseOrError) {
+            [=, this, this_ = MakeStrong(this)] (const TErrorOr<NDetail::TResolveEndpointsResponse>& rawResponseOrError) {
                 auto responseOrError = UpdateAndGetMostActualSuccessfulResponse(
                     clusterEndpointSetIdPair,
                     rawResponseOrError);

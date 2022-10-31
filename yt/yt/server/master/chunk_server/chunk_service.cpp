@@ -652,7 +652,7 @@ private:
                 std::move(transactionIds),
                 context->GetRequestId());
 
-            preparationFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            preparationFuture.Apply(BIND([=] (const TError& error) {
                 if (error.IsOK()) {
                     auto preparedRequest = chunkManager->PrepareExecuteBatchRequest(context->Request());
                     auto mutation = chunkManager->CreateExecuteBatchMutation(
@@ -664,7 +664,7 @@ private:
                         chunkManager->ExecuteBatchSequoia(preparedRequest),
                     });
                     return AllSucceeded(std::move(futures))
-                        .Apply(BIND([=, this_ = MakeStrong(this)] () mutable {
+                        .Apply(BIND([=] {
                             chunkManager->PrepareExecuteBatchResponse(preparedRequest, &context->Response());
                             context->Reply();
                         }).AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker()));

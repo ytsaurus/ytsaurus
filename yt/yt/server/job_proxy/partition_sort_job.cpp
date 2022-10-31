@@ -72,7 +72,7 @@ public:
         TTableSchemaPtr outputSchema;
         DeserializeFromWireProto(&outputSchema, outputSpec.table_schema());
 
-        ReaderFactory_ = [=] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
+        ReaderFactory_ = [=, this] (TNameTablePtr /*nameTable*/, const TColumnFilter& /*columnFilter*/) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
             return CreatePartitionSortReader(
@@ -111,7 +111,7 @@ public:
             dataSink = dataSinkDirectory->DataSinks()[0];
         }
 
-        WriterFactory_ = [=] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
+        WriterFactory_ = [=, this] (TNameTablePtr /*nameTable*/, TTableSchemaPtr /*schema*/) {
             return CreateSchemalessMultiChunkWriter(
                 writerConfig,
                 options,

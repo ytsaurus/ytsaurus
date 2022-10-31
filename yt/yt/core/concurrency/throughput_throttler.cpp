@@ -626,7 +626,7 @@ public:
     TFuture<void> Throttle(i64 amount) override
     {
         auto future = Stealer_->Throttle(amount);
-        future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             if (error.IsOK()) {
                 Underlying_->Acquire(amount);
             }

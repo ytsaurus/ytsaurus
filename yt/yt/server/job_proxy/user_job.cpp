@@ -492,7 +492,7 @@ public:
         if (!Prepared_) {
             return 0;
         }
-        auto result = WaitFor(BIND([=] { return ErrorOutput_->GetCurrentSize(); })
+        auto result = WaitFor(BIND([this, this_ = MakeStrong(this)] { return ErrorOutput_->GetCurrentSize(); })
             .AsyncVia(ReadStderrInvoker_)
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr size");
@@ -849,7 +849,7 @@ private:
     {
         ValidatePrepared();
 
-        auto result = WaitFor(BIND([=] () { return ErrorOutput_->GetCurrentData(); })
+        auto result = WaitFor(BIND([this, this_ = MakeStrong(this)] { return ErrorOutput_->GetCurrentData(); })
             .AsyncVia(ReadStderrInvoker_)
             .Run());
         THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error collecting job stderr");
@@ -1017,7 +1017,7 @@ private:
             TablePipeReaders_.push_back(reader);
         }
 
-        FinalizeActions_.push_back(BIND([=] () {
+        FinalizeActions_.push_back(BIND([this, this_ = MakeStrong(this)] {
             auto checkErrors = [&] (const std::vector<TFuture<void>>& asyncErrors) {
                 auto error = WaitFor(AllSucceeded(asyncErrors));
                 THROW_ERROR_EXCEPTION_IF_FAILED(error, "Error closing table output");
@@ -1054,7 +1054,7 @@ private:
 
         auto asyncInput = pipe->CreateAsyncReader();
 
-        actions->push_back(BIND([=] () {
+        actions->push_back(BIND([=, this, this_ = MakeStrong(this)] {
             try {
                 PipeInputToOutput(asyncInput, output, BufferSize);
                 YT_LOG_INFO("Data successfully read from pipe (Pipe: %v)", path);
@@ -1106,7 +1106,7 @@ private:
             }
         }));
 
-        FinalizeActions_.push_back(BIND([=] {
+        FinalizeActions_.push_back(BIND([=, this, this_ = MakeStrong(this)] {
             bool throwOnFailure = UserJobSpec_.check_input_fully_consumed();
 
             try {
@@ -1454,15 +1454,15 @@ private:
 
     void DoJobIO()
     {
-        auto onIOError = BIND([=] (const TError& error) {
+        auto onIOError = BIND([this, this_ = MakeStrong(this)] (const TError& error) {
             OnIOErrorOrFinished(error, "Job input/output error, aborting");
         });
 
-        auto onStartIOError = BIND([=] (const TError& error) {
+        auto onStartIOError = BIND([this, this_ = MakeStrong(this)] (const TError& error) {
             OnIOErrorOrFinished(error, "Executor input/output error, aborting");
         });
 
-        auto onProcessFinished = BIND([=, this_ = MakeStrong(this)] (const TError& userJobError) {
+        auto onProcessFinished = BIND([=, this, this_ = MakeStrong(this)] (const TError& userJobError) {
             YT_LOG_INFO("Process finished (UserJobError: %v)", userJobError);
 
             OnIOErrorOrFinished(userJobError, "Job control process has finished, aborting");

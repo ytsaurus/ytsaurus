@@ -1913,7 +1913,7 @@ TCallback<void(TSaveContext& context)> TSortedDynamicStore::AsyncSave()
     auto tableReader = CreateSnapshotReader();
     auto revision = GetLatestRevision();
 
-    return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
+    return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
         YT_LOG_DEBUG("Store snapshot serialization started");
 
         YT_LOG_DEBUG("Opening table reader");

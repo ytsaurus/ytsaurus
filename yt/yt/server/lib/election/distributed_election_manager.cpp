@@ -681,7 +681,7 @@ TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
     VERIFY_THREAD_AFFINITY_ANY();
 
     return
-        IYPathService::FromProducer(BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        IYPathService::FromProducer(BIND([=, this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             VERIFY_THREAD_AFFINITY(ControlThread);
 
             BuildYsonFluently(consumer)
@@ -691,7 +691,7 @@ TYsonProducer TDistributedElectionManager::GetMonitoringProducer()
                         fluent
                             .Item("self_peer_id").Value(EpochContext_->CellManager->GetSelfPeerId())
                             .Item("peers").BeginList()
-                                .DoFor(0, EpochContext_->CellManager->GetTotalPeerCount(), [=] (TFluentList fluent, TPeerId id) {
+                                .DoFor(0, EpochContext_->CellManager->GetTotalPeerCount(), [this] (TFluentList fluent, TPeerId id) {
                                     fluent.Item().Value(EpochContext_->CellManager->GetPeerConfig(id));
                                 })
                             .EndList()

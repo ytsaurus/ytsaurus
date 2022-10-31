@@ -535,7 +535,8 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
     auto* schedulerJobSpecExt = jobSpec.MutableExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
     auto nodeDirectory = New<NNodeTrackerClient::TNodeDirectory>();
-    auto locateChunks = BIND([=] {
+
+    auto locateChunksResult = WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         std::vector<TChunkSpec*> chunkSpecList;
         for (auto& tableSpec : *schedulerJobSpecExt->mutable_input_table_specs()) {
             for (auto& chunkSpec : *tableSpec.mutable_chunk_specs()) {
@@ -556,9 +557,7 @@ IAsyncZeroCopyInputStreamPtr TClient::DoGetJobInput(
             nodeDirectory,
             Logger);
         nodeDirectory->DumpTo(schedulerJobSpecExt->mutable_input_node_directory());
-    });
-
-    auto locateChunksResult = WaitFor(locateChunks
+    })
         .AsyncVia(GetConnection()->GetInvoker())
         .Run());
 

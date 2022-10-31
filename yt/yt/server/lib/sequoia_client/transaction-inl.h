@@ -12,7 +12,7 @@ namespace NYT::NSequoiaClient {
 
 template <class TRow>
 TFuture<std::vector<TRow>> ISequoiaTransaction::LookupRows(
-    std::vector<TRow> keys,
+    const std::vector<TRow>& keys,
     NTransactionClient::TTimestamp timestamp,
     const NTableClient::TColumnFilter& columnFilter)
 {
@@ -26,17 +26,17 @@ TFuture<std::vector<TRow>> ISequoiaTransaction::LookupRows(
 
     auto asyncRowset = LookupRows(
         tableDescriptor->GetType(),
-        rawKeys,
+        MakeSharedRange(std::move(rawKeys), GetRowBuffer()),
         timestamp,
         columnFilter);
-    return asyncRowset.Apply(BIND([=, this_ = MakeStrong(this)] (const NApi::IUnversionedRowsetPtr& rowset) {
-        const auto& wireRows = rowset->GetRows();
-        YT_VERIFY(wireRows.size() == keys.size());
+    return asyncRowset.Apply(BIND([=, keyCount = std::ssize(keys)] (const NApi::IUnversionedRowsetPtr& rowset) {
+        auto wireRows = rowset->GetRows();
+        YT_VERIFY(std::ssize(wireRows) == keyCount);
 
         std::vector<TRow> rows;
         rows.reserve(wireRows.size());
-        for (const auto& row : wireRows) {
-            rows.push_back(tableDescriptor->FromUnversionedRow(row, rowset->GetNameTable()));
+        for (auto wireRow : wireRows) {
+            rows.push_back(tableDescriptor->FromUnversionedRow(wireRow, rowset->GetNameTable()));
         }
 
         return rows;

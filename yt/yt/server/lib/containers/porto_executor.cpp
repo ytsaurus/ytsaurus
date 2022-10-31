@@ -148,7 +148,7 @@ public:
         const TString& container,
         const TString& property) override
     {
-        return BIND([=, this_ = MakeStrong(this)] () -> std::optional<TString> {
+        return BIND([=, this, this_ = MakeStrong(this)] () -> std::optional<TString> {
             auto response = DoGetContainerProperties({container}, {property});
             auto parsedResponse = ParseSinglePortoGetResponse(container, response);
             auto it = parsedResponse.find(property);
@@ -166,7 +166,7 @@ public:
         const TString& container,
         const std::vector<TString>& properties) override
     {
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             auto response = DoGetContainerProperties({container}, properties);
             return ParseSinglePortoGetResponse(container, response);
         })
@@ -178,7 +178,7 @@ public:
         const std::vector<TString>& containers,
         const std::vector<TString>& properties) override
     {
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             auto response = DoGetContainerProperties(containers, properties);
             return ParseMultiplePortoGetResponse(response);
         })
@@ -190,7 +190,7 @@ public:
         const std::vector<TString>& containers,
         const TString& metric) override
     {
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             return DoGetContainerMetrics(containers, metric);
         })
         .AsyncVia(Queue_->GetInvoker())
@@ -601,8 +601,8 @@ private:
     TFuture<int> DoWaitContainer(const TString& container)
     {
         auto result = NewPromise<int>();
-        auto waitCallback = [=, this_ = MakeStrong(this)] (const Porto::TWaitResponse& rsp) {
-            return this_->OnContainerTerminated(rsp, result);
+        auto waitCallback = [=, this, this_ = MakeStrong(this)] (const Porto::TWaitResponse& rsp) {
+            return OnContainerTerminated(rsp, result);
         };
 
         ExecuteApiCall(
@@ -625,7 +625,7 @@ private:
         }
 
         GetContainerProperty(container, "exit_status").Apply(BIND(
-            [=, this_ = MakeStrong(this)] (const TErrorOr<std::optional<TString>>& errorOrExitCode) {
+            [=] (const TErrorOr<std::optional<TString>>& errorOrExitCode) {
                 if (!errorOrExitCode.IsOK()) {
                     result.TrySet(TError("Container finished, but exit status is unknown")
                         << errorOrExitCode);

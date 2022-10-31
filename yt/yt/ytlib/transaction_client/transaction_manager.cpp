@@ -1087,7 +1087,7 @@ private:
 
             auto asyncRspOrError = req->Invoke();
             asyncResults.push_back(asyncRspOrError.Apply(
-                BIND([=, this_ = MakeStrong(this)] (const TTransactionSupervisorServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
+                BIND([=, this, this_ = MakeStrong(this)] (const TTransactionSupervisorServiceProxy::TErrorOrRspPingTransactionPtr& rspOrError) {
                     if (rspOrError.IsOK()) {
                         YT_LOG_DEBUG("Transaction pinged (TransactionId: %v, CellId: %v)",
                             Id_,
@@ -1144,7 +1144,7 @@ private:
             return;
         }
 
-        SendPing().Subscribe(BIND([=, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
+        SendPing().Subscribe(BIND([=, this, this_ = MakeStrong(this), startTime = TInstant::Now()] (const TError& /*error*/) {
             if (!IsPingableState()) {
                 YT_LOG_DEBUG("Transaction is not in pingable state (TransactionId: %v, State: %v)",
                     Id_,

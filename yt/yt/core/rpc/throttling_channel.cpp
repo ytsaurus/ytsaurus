@@ -36,7 +36,7 @@ public:
         auto requestControlThunk = New<TClientRequestControlThunk>();
         Throttler_->Throttle(1)
             .WithTimeout(timeout)
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
                     auto wrappedError = TError("Error throttling RPC request")
                         << error;

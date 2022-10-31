@@ -857,7 +857,7 @@ private:
             auto proxy = handler->GetProxy(node, transaction);
 
             auto asyncResourceUsage = proxy->GetBuiltinAttributeAsync(EInternedAttributeKey::RecursiveResourceUsage)
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TYsonString& ysonResourceUsage) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TYsonString& ysonResourceUsage) {
                     TRichClusterResources result;
                     DeserializeRichClusterResources(result, ConvertToNode(ysonResourceUsage), Bootstrap_);
                     return result;
@@ -879,7 +879,7 @@ private:
     void OnCompleted() override
     {
         AllSucceeded(std::move(RemoteCellResourceUsage_))
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TRichClusterResources>>& resourceUsageOrError) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TRichClusterResources>>& resourceUsageOrError) {
                 if (!resourceUsageOrError.IsOK()) {
                     OnError(resourceUsageOrError);
                     return;

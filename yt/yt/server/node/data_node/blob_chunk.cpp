@@ -112,7 +112,7 @@ TFuture<TRefCountedChunkMetaPtr> TBlobChunkBase::ReadMeta(
     }
 
     return
-        asyncMeta.Apply(BIND([=, this_ = MakeStrong(this), session = std::move(session)] (const TCachedChunkMetaPtr& cachedMeta) {
+        asyncMeta.Apply(BIND([=, this, this_ = MakeStrong(this), session = std::move(session)] (const TCachedChunkMetaPtr& cachedMeta) {
             ProfileReadMetaLatency(session);
             return FilterMeta(cachedMeta->GetMeta(), extensionTags);
         })
@@ -364,7 +364,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
         session->DiskFetchPromise = NewPromise<void>();
         session->AsyncResults.push_back(session->DiskFetchPromise.ToFuture());
 
-        auto readCallback = BIND([=, this_ = MakeStrong(this)] {
+        auto readCallback = BIND([=, this, this_ = MakeStrong(this)] {
             DoReadSession(session, pendingDataSize);
         });
 
@@ -381,7 +381,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
     }
 
     AllSucceeded(session->AsyncResults)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             if (error.IsOK()) {
                 CompleteSession(session);
             } else {
@@ -716,7 +716,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
         auto asyncBlocksExt = cookie.GetValue();
         if (cookie.IsActive()) {
             ReadMeta(options)
-                .Subscribe(BIND([=, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
+                .Subscribe(BIND([=, this, this_ = MakeStrong(this), cookie = std::move(cookie)] (const TErrorOr<TRefCountedChunkMetaPtr>& result) mutable {
                     if (result.IsOK()) {
                         auto blocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(result.Value()->extensions()));
                         {
@@ -730,7 +730,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
                 }));
         }
         asyncBlocksExt.Subscribe(
-            BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TCachedBlocksExtPtr>& cachedBlocksExtOrError) {
+            BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TCachedBlocksExtPtr>& cachedBlocksExtOrError) {
                 if (cachedBlocksExtOrError.IsOK()) {
                     const auto& cachedBlocksExt = cachedBlocksExtOrError.Value();
                     OnBlocksExtLoaded(session, cachedBlocksExt->GetBlocksExt());
@@ -809,7 +809,7 @@ TFuture<void> TBlobChunkBase::PrepareToReadChunkFragments(
     writerGuard.Release();
 
     return prepareFuture
-        .Apply(BIND([=, this_ = MakeStrong(this)] {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             auto writerGuard = WriterGuard(LifetimeLock_);
 
             if (ReadLockCounter_.load() == 0 || PreparedReader_) {

@@ -179,13 +179,13 @@ public:
             flushResult);
 
         return multiplexedFlushResult
-            .Apply(BIND([=, this_ = MakeStrong(this)] (bool skipped) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (bool skipped) {
                 // We provide the most strong semantic possible.
                 // Concurrent Append()-s are permitted. Successful completetion of last append,
                 // guarantees that all previous records are committed to disk.
                 if (skipped) {
                     ++RejectedMultiplexedAppends_;
-                    flushResult.Apply(BIND([=, this_ = MakeStrong(this)] {
+                    flushResult.Apply(BIND([=, this, this_ = MakeStrong(this)] {
                         YT_VERIFY(--RejectedMultiplexedAppends_ >= 0);
                     }));
                 }
@@ -223,7 +223,7 @@ public:
 
     TFuture<void> Close() override
     {
-        return UnderlyingChangelog_->Close().Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        return UnderlyingChangelog_->Close().Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             Owner_->TryRemoveValue(this, /*forbidResurrection*/ true);
             return error;
         })).ToUncancelable();

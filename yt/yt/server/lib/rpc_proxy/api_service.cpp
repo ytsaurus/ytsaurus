@@ -963,7 +963,7 @@ private:
             using TResult = typename decltype(future)::TValueType;
 
             future.Subscribe(
-                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TResult>& resultOrError) {
+                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TResult>& resultOrError) {
                     if (!resultOrError.IsOK()) {
                         HandleError(resultOrError);
                         return;
@@ -1153,7 +1153,7 @@ private:
             [=] {
                 return client->StartTransaction(transactionType, options);
             },
-            [=, this_ = MakeStrong(this)] (const auto& context, const auto& transaction) {
+            [=, this, this_ = MakeStrong(this)] (const auto& context, const auto& transaction) {
                 auto* response = &context->Response();
                 ToProto(response->mutable_id(), transaction->GetId());
                 response->set_start_timestamp(transaction->GetStartTimestamp());
@@ -3218,7 +3218,7 @@ private:
                     std::move(keys),
                     options);
             },
-            [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
+            [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
             (const auto& context, const auto& rowset) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
@@ -3284,7 +3284,7 @@ private:
                     std::move(keys),
                     options);
             },
-            [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
+            [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
             (const auto& context, const auto& rowset) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, rowset);
@@ -3383,7 +3383,7 @@ private:
                     std::move(subrequests),
                     std::move(options));
             },
-            [=, this_ = MakeStrong(this), profilingInfos = std::move(profilingInfos)]
+            [=, this, this_ = MakeStrong(this), profilingInfos = std::move(profilingInfos)]
             (const auto& context, const auto& rowsets) {
                 auto* response = &context->Response();
 
@@ -3493,7 +3493,7 @@ private:
             [=] {
                 return client->SelectRows(query, options);
             },
-            [=, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
+            [=, this, this_ = MakeStrong(this), detailedProfilingInfo = std::move(detailedProfilingInfo)]
             (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, result.Rowset);
@@ -3542,7 +3542,7 @@ private:
             [=] {
                 return client->PullRows(path, options);
             },
-            [=, this_ = MakeStrong(this)] (const auto& context, const auto& result) {
+            [=] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
                 response->set_row_count(result.RowCount);
                 response->set_data_weight(result.DataWeight);
@@ -3753,7 +3753,7 @@ private:
                     rowBatchReadOptions,
                     options);
             },
-            [=, this_ = MakeStrong(this)] (const auto& context, const auto& queueRowset) {
+            [=] (const auto& context, const auto& queueRowset) {
                 auto* response = &context->Response();
                 response->Attachments() = PrepareRowsetForAttachment(response, static_cast<IUnversionedRowsetPtr>(queueRowset));
                 response->set_start_offset(queueRowset->GetStartOffset());

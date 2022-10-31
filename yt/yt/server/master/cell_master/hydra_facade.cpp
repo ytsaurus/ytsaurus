@@ -93,7 +93,7 @@ public:
 
         NObjectServer::SetupMasterBootstrap(bootstrap);
 
-        BIND([=] {
+        BIND([this, this_ = MakeStrong(this)] {
             NObjectServer::SetupAutomatonThread();
 
             // COMPAT(gritukan): This is required for traverser during hunk chunk migration

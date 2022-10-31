@@ -233,14 +233,14 @@ TOperationControllerBase::TOperationControllerBase(
     , AuthenticatedUser(operation->GetAuthenticatedUser())
     , SecureVault(operation->GetSecureVault())
     , UserTransactionId(operation->GetUserTransactionId())
-    , Logger([=] {
-            auto logger = ControllerLogger;
-            logger = logger.WithTag("OperationId: %v", OperationId);
-            if (spec->EnableTraceLogging) {
-                logger = logger.WithMinLevel(ELogLevel::Trace);
-            }
-            return logger;
-        }())
+    , Logger([&] {
+        auto logger = ControllerLogger;
+        logger = logger.WithTag("OperationId: %v", OperationId);
+        if (spec->EnableTraceLogging) {
+            logger = logger.WithMinLevel(ELogLevel::Trace);
+        }
+        return logger;
+    }())
     , CoreNotes_({Format("OperationId: %v", OperationId)})
     , Acl(operation->GetAcl())
     , ControllerEpoch(operation->GetControllerEpoch())
@@ -839,18 +839,23 @@ void TOperationControllerBase::InitializeOrchid()
 {
     YT_LOG_DEBUG("Initializing orchid");
 
-    auto createService = [=] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
-        return IYPathService::FromProducer(BIND([
-            =,
-            fluentMethod = std::move(fluentMethod),
-            weakThis = MakeWeak(this)] (IYsonConsumer* consumer) {
-                YT_LOG_DEBUG(
-                    "Handling orchid request in controller (Key: %v)",
-                    key);
+    auto createService = [&] (auto fluentMethod, const TString& key) {
+        return IYPathService::FromProducer(BIND(
+            [
+                =,
+                fluentMethod = std::move(fluentMethod),
+                this,
+                weakThis = MakeWeak(this)
+            ] (IYsonConsumer* consumer) {
                 auto strongThis = weakThis.Lock();
                 if (!strongThis) {
                     THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "Operation controller was destroyed");
                 }
+
+                YT_LOG_DEBUG(
+                    "Handling orchid request in controller (Key: %v)",
+                    key);
+
                 BuildYsonFluently(consumer)
                     .Do(fluentMethod);
             }),
@@ -870,12 +875,12 @@ void TOperationControllerBase::InitializeOrchid()
         };
     };
 
-    auto createServiceWithInvoker = [=] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
+    auto createServiceWithInvoker = [&] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
         return createService(std::move(fluentMethod), key)
             ->Via(InvokerPool->GetInvoker(EOperationControllerQueue::Default));
     };
 
-    auto createMapServiceWithInvoker = [=] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
+    auto createMapServiceWithInvoker = [&] (auto fluentMethod, const TString& key) -> IYPathServicePtr {
         return createServiceWithInvoker(wrapWithMap(std::move(fluentMethod)), key);
     };
 
@@ -1578,7 +1583,7 @@ TFuture<ITransactionPtr> TOperationControllerBase::StartTransaction(
 
     auto transactionFuture = client->StartTransaction(NTransactionClient::ETransactionType::Master, options);
 
-    return transactionFuture.Apply(BIND([=] (const TErrorOr<ITransactionPtr>& transactionOrError){
+    return transactionFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<ITransactionPtr>& transactionOrError){
         THROW_ERROR_EXCEPTION_IF_FAILED(
             transactionOrError,
             "Error starting %Qlv transaction",
@@ -4809,7 +4814,7 @@ void TOperationControllerBase::OnOperationFailed(const TError& error, bool flush
 {
     VERIFY_INVOKER_POOL_AFFINITY(InvokerPool);
 
-    WaitFor(BIND([=, this_ = MakeStrong(this)] {
+    WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         YT_LOG_DEBUG(error, "Operation controller failed (Flush: %v)", flush);
 
         // During operation failing job aborting can lead to another operation fail, we don't want to invoke it twice.
@@ -8297,12 +8302,12 @@ void TOperationControllerBase::BuildProgress(TFluentMap fluent) const
             .Do(BIND(&TDataFlowGraph::BuildLegacyYson, DataFlowGraph_))
         .EndMap()
         // COMPAT(gritukan): Drop it in favour of per-task histograms.
-        .DoIf(static_cast<bool>(EstimatedInputDataSizeHistogram_), [=] (TFluentMap fluent) {
+        .DoIf(static_cast<bool>(EstimatedInputDataSizeHistogram_), [&] (TFluentMap fluent) {
             EstimatedInputDataSizeHistogram_->BuildHistogramView();
             fluent
                 .Item("estimated_input_data_size_histogram").Value(*EstimatedInputDataSizeHistogram_);
         })
-        .DoIf(static_cast<bool>(InputDataSizeHistogram_), [=] (TFluentMap fluent) {
+        .DoIf(static_cast<bool>(InputDataSizeHistogram_), [&] (TFluentMap fluent) {
             InputDataSizeHistogram_->BuildHistogramView();
             fluent
                 .Item("input_data_size_histogram").Value(*InputDataSizeHistogram_);
@@ -8343,7 +8348,7 @@ void TOperationControllerBase::BuildAndSaveProgress()
 
     auto progressString = BuildYsonStringFluently()
         .BeginMap()
-        .Do([=] (TFluentMap fluent) {
+        .Do([&] (TFluentMap fluent) {
             auto asyncResult = WaitFor(
                 BIND(&TOperationControllerBase::BuildProgress, MakeStrong(this))
                     .AsyncVia(GetInvoker())
@@ -8355,7 +8360,7 @@ void TOperationControllerBase::BuildAndSaveProgress()
 
     auto briefProgressString = BuildYsonStringFluently()
         .BeginMap()
-            .Do([=] (TFluentMap fluent) {
+            .Do([&] (TFluentMap fluent) {
                 auto asyncResult = WaitFor(
                     BIND(&TOperationControllerBase::BuildBriefProgress, MakeStrong(this))
                         .AsyncVia(GetInvoker())
@@ -9246,7 +9251,7 @@ void TOperationControllerBase::UpdateExecNodes()
 
     const auto& controllerInvoker = CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default);
     controllerInvoker->Invoke(
-        BIND([=, this_ = MakeWeak(this)] {
+        BIND([=, this, this_ = MakeWeak(this)] {
             auto strongThis = this_.Lock();
             if (!strongThis) {
                 return;

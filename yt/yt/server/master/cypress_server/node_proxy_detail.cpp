@@ -365,7 +365,7 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
         NHydra::EPeerKind::Follower);
 
     TObjectServiceProxy proxy(channel);
-    return proxy.Execute(req).Apply(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
+    return proxy.Execute(req).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
         if (!rspOrError.IsOK()) {
             auto code = rspOrError.GetCode();
             if (code == NYTree::EErrorCode::ResolveError || code == NTransactionClient::EErrorCode::NoSuchTransaction) {
@@ -1039,7 +1039,7 @@ void TNontemplateCypressNodeProxyBase::GetSelf(
         Transaction_,
         std::move(attributeFilter));
     visitor.Run(TrunkNode_);
-    visitor.Finish().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
+    visitor.Finish().Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
         if (resultOrError.IsOK()) {
             response->set_value(resultOrError.Value().ToString());
             context->Reply();
@@ -2820,7 +2820,7 @@ void TMapNodeProxy::ListSelf(
     writer.OnEndList();
 
     writer.Finish()
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TYsonString>& resultOrError) {
+        .Subscribe(BIND([=] (const TErrorOr<TYsonString>& resultOrError) {
             if (resultOrError.IsOK()) {
                 response->set_value(resultOrError.Value().ToString());
                 context->Reply();

@@ -15,7 +15,7 @@ TFuture<ITransactionPtr> TClient::StartNativeTransaction(
     const TNativeTransactionStartOptions& options)
 {
     return TransactionManager_->Start(type, options).Apply(
-        BIND([=, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& transaction) {
+        BIND([this, this_ = MakeStrong(this)] (const NTransactionClient::TTransactionPtr& transaction) {
             auto wrappedTransaction = CreateTransaction(this_, transaction, Logger);
             return wrappedTransaction;
         }));

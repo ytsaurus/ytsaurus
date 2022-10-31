@@ -311,7 +311,7 @@ private:
         }
 
         return AllSucceeded(futures)
-            .ApplyUnique(BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>>&& requestedRowLists) {
+            .ApplyUnique(BIND([=, this, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>>&& requestedRowLists) {
                 auto rowCount = Max<i64>();
                 for (const auto& rowList : requestedRowLists) {
                     rowCount = std::min<i64>(rowCount, std::ssize(rowList));
@@ -401,7 +401,7 @@ private:
         }
 
         return AllSucceeded(futures)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>> fetchedRowLists) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (std::vector<std::vector<TSharedRef>> fetchedRowLists) {
                 i64 rowCount = Max<i64>();
                 for (const auto& fetchedRowList : fetchedRowLists) {
                     rowCount = std::min<i64>(rowCount, fetchedRowList.size());
@@ -455,7 +455,7 @@ private:
             partIndex,
             estimatedSize);
         return replica.ChunkReader->ReadBlocks(Options_, FirstRowIndex_, AdjustedReadRowCount_, estimatedSize)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& blocksOrError) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& blocksOrError) {
                 if (!blocksOrError.IsOK()) {
                     YT_LOG_DEBUG(blocksOrError, "Error requesting rows from replica (PartIndex: %v)",
                         partIndex);

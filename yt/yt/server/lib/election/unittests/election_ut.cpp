@@ -1,4 +1,5 @@
 #include <yt/yt/core/test_framework/framework.h>
+
 #include "election_manager_mock.h"
 #include "election_service_mock.h"
 
@@ -104,7 +105,7 @@ public:
 
     void RunElections()
     {
-        BIND([&] {
+        BIND([this] {
             ElectionManager->Participate();
             Sleep();
             ElectionManager->Abandon(TError("oops"));
@@ -179,7 +180,7 @@ TEST_F(TElectionTest, JoinActiveQuorumNoResponseThenResponse)
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillOnce(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], { }))
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
-                response->set_state(static_cast<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
+                response->set_state(ToProto<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                 response->set_vote_id(2);
                 ToProto(response->mutable_vote_epoch_id(), TEpochId());
                 ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0LL, id));
@@ -206,7 +207,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
@@ -215,7 +216,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
                 EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
                 const auto& rsp = rspOrError.Value();
 
-                response->set_state(static_cast<int>(EPeerState::Following));
+                response->set_state(ToProto<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
@@ -229,7 +230,7 @@ TEST_F(TElectionTest, BecomeLeaderOneHealthyFollower)
                 }));
         } else {
             EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
-                .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
+                .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [], {
                     // Do not reply.
                 }));
         }
@@ -253,7 +254,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
@@ -262,7 +263,7 @@ TEST_F(TElectionTest, BecomeLeaderTwoHealthyFollowers)
                 EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
                 const auto& rsp = rspOrError.Value();
 
-                response->set_state(static_cast<int>(EPeerState::Following));
+                response->set_state(ToProto<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
@@ -294,7 +295,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
     int startLeadingCounter = 0;
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
@@ -303,7 +304,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
                 EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
                 const auto& rsp = rspOrError.Value();
 
-                response->set_state(static_cast<int>(EPeerState::Following));
+                response->set_state(ToProto<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
@@ -311,7 +312,7 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
                 context->Reply();
             }));
         EXPECT_RPC_CALL(*PeerMocks[id], PingFollower)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [&], {
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, PingFollower, [=], {
                 if (startLeadingCounter > 1) {
                     context->Reply();
                 }
@@ -321,15 +322,15 @@ TEST_F(TElectionTest, BecomeLeaderQuorumLostOnce)
     {
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
-            .WillOnce(::testing::Invoke([&] (TEpochContextPtr /*epochContext*/) {
+            .WillOnce(::testing::Invoke([&startLeadingCounter] (TEpochContextPtr /*epochContext*/) {
                 ++startLeadingCounter;
             }));
         EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
-            .WillOnce(::testing::Invoke([&] (const TError&) {
+            .WillOnce(::testing::Invoke([this] (const TError&) {
                 ElectionManager->Participate();
             }));
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_))
-            .WillOnce(::testing::Invoke([&] (TEpochContextPtr /*epochContext*/) {
+            .WillOnce(::testing::Invoke([&startLeadingCounter] (TEpochContextPtr /*epochContext*/) {
                 ++startLeadingCounter;
             }));
         EXPECT_CALL(*CallbacksMock, OnStopLeading(_));
@@ -343,11 +344,11 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
     Configure(3, 0);
 
     EXPECT_CALL(*CallbacksMock, GetPriority())
-        .WillRepeatedly(Return(std::make_pair(0LL, 0LL)));
+        .WillRepeatedly(Return(std::make_pair<i64, i64>(0, 0)));
 
     for (int id = 1; id < 3; id++) {
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
-            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
+            .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, ([=, this]), {
                 auto channel = ChannelFactory->CreateChannel(GetPeerAddress(0));
                 TElectionServiceProxy proxy(channel);
                 proxy.SetDefaultTimeout(RpcTimeout);
@@ -356,7 +357,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
                 EXPECT_TRUE(rspOrError.IsOK()) << ToString(rspOrError);
                 const auto& rsp = rspOrError.Value();
 
-                response->set_state(static_cast<int>(EPeerState::Following));
+                response->set_state(ToProto<int>(EPeerState::Following));
                 response->set_vote_id(0);
                 ToProto(response->mutable_vote_epoch_id(), rsp->vote_epoch_id());
                 ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
@@ -373,7 +374,7 @@ TEST_F(TElectionTest, BecomeLeaderGracePeriod)
         InSequence dummy;
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
         EXPECT_CALL(*CallbacksMock, OnStopLeading(_))
-            .WillOnce(::testing::Invoke([&] (const TError&) {
+            .WillOnce(::testing::Invoke([this] (const TError& /*error*/) {
                 ElectionManager->Participate();
             }));
         EXPECT_CALL(*CallbacksMock, OnStartLeading(_));
@@ -438,7 +439,7 @@ TEST_P(TElectionGenericTest, Basic)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 const auto& status = data.Statuses[id - 1];
                 if (status) {
-                    response->set_state(static_cast<int>(status->State));
+                    response->set_state(ToProto<int>(status->State));
                     response->set_vote_id(status->VoteId);
                     ToProto(response->mutable_vote_epoch_id(), status->VoteEpochId);
                     ToProto(response->mutable_priority(), status->Priority);
@@ -525,7 +526,7 @@ TEST_P(TElectionDelayedTest, JoinActiveQuorum)
         EXPECT_RPC_CALL(*PeerMocks[id], GetStatus)
             .WillRepeatedly(HANLDE_RPC_CALL(TElectionServiceMock, GetStatus, [=], {
                 TDelayedExecutor::Submit(BIND([=] () {
-                    response->set_state(static_cast<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
+                    response->set_state(ToProto<int>(id == 2 ? EPeerState::Leading : EPeerState::Following));
                     response->set_vote_id(2);
                     ToProto(response->mutable_vote_epoch_id(), TEpochId());
                     ToProto(response->mutable_priority(), std::make_pair<i64, i64>(0, id));
