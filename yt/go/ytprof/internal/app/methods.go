@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"sort"
 	"strings"
 	"time"
 
@@ -221,6 +222,8 @@ func (a *App) SuggestTags(ctx context.Context, in *emptypb.Empty, opts ...grpc.C
 
 	a.l.Error("find_tags request succeeded")
 
+	sort.Strings(resp)
+
 	return &api.SuggestTagsResponse{
 		Tag: resp,
 	}, nil
@@ -234,6 +237,8 @@ func (a *App) SuggestValues(ctx context.Context, in *api.SuggestValuesRequest, o
 	}
 
 	a.l.Error("find_values request succeeded")
+
+	sort.Strings(resp)
 
 	return &api.SuggestValuesResponse{
 		Value: resp,

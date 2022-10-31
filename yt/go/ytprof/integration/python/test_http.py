@@ -30,7 +30,7 @@ def running_app():
             try:
                 requests.get(f"http://localhost:{port}")
                 break
-            except:
+            except Exception:
                 time.sleep(1)
         else:
             raise Exception("server not started in 15 sec")

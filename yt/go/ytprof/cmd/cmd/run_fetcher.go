@@ -1,20 +1,29 @@
 package main
 
 import (
+	"context"
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
 
 	"github.com/spf13/cobra"
+	"golang.org/x/sync/errgroup"
 
 	"a.yandex-team.ru/library/go/core/log"
+	logzap "a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/ytlog"
+	"a.yandex-team.ru/yt/go/ytprof"
 	"a.yandex-team.ru/yt/go/ytprof/internal/fetcher"
+	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 )
 
 var (
-	flagConfig string
+	flagConfig      string
+	flagLogsDir     string
+	flagLogToStderr bool
 )
 
 var runFetcherCmd = &cobra.Command{
@@ -26,15 +35,27 @@ var runFetcherCmd = &cobra.Command{
 
 func init() {
 	runFetcherCmd.Flags().StringVar(&flagConfig, "config", "", "config to run fetcher from")
+	runFetcherCmd.Flags().StringVar(&flagLogsDir, "log-dir", "/logs", "path to the log directory")
+	runFetcherCmd.Flags().BoolVar(&flagLogToStderr, "log-to-stderr", false, "write logs to stderr")
 
 	rootCmd.AddCommand(runFetcherCmd)
 }
 
-func runFetcher(cmd *cobra.Command, args []string) error {
-	l, err := ytlog.New()
+func newLogger(name string) *logzap.Logger {
+	if flagLogToStderr {
+		return ytlog.Must()
+	}
+
+	l, _, err := ytlog.NewSelfrotate(filepath.Join(flagLogsDir, name+".log"))
 	if err != nil {
 		panic(err)
 	}
+
+	return l
+}
+
+func runFetcher(cmd *cobra.Command, args []string) error {
+	l := newLogger("ytprof-fetcher")
 
 	file, err := os.Open(flagConfig)
 	if err != nil {
@@ -53,16 +74,31 @@ func runFetcher(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	config := fetcher.Config{}
+	configs := fetcher.Configs{}
 
-	err = yson.Unmarshal(data, &config)
+	err = yson.Unmarshal(data, &configs)
 	if err != nil {
 		l.Fatal("unmarshaling file failed", log.Error(err), log.String("config_path", flagConfig))
 		return err
 	}
 
-	l.Debug("config reading succeeded", log.String("config", fmt.Sprintf("%v", config)), log.String("config_path", flagConfig))
+	l.Debug("config reading succseded", log.String("config", fmt.Sprintf("%v", configs)), log.String("config_path", flagConfig))
 
-	f := fetcher.NewFetcher(YT, config, l)
-	return f.RunFetcherContinuous()
+	errs, _ := errgroup.WithContext(context.Background())
+	ts := storage.NewTableStorage(YT, ypath.Path(configs.TablePath), l)
+	err = ytprof.MigrateTables(YT, ypath.Path(configs.TablePath))
+	if err != nil {
+		l.Fatal("migraton failed", log.Error(err), log.String("table_path", configs.TablePath))
+		return err
+	}
+
+	l.Debug("migraton succeded", log.String("table_path", configs.TablePath))
+
+	for _, config := range configs.Configs {
+		f := fetcher.NewFetcher(YT, config, l, ts, configs.TablePath)
+		errs.Go(func() error {
+			return f.RunFetcherContinious()
+		})
+	}
+	return errs.Wait()
 }

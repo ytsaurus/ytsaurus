@@ -63,6 +63,11 @@ func main() {
 	if err != nil {
 		l.Fatal("failed to read config", log.Error(err))
 	}
+	l.Debug("reading config succeeded",
+		log.Int("query_limit", config.QueryLimit),
+		log.String("http_endpoint", config.HTTPEndpoint),
+		log.String("proxy", config.Proxy),
+		log.String("table_path", config.TablePath))
 
 	_ = app.NewApp(l, config)
 	select {}
