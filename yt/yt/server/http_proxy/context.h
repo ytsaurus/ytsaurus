@@ -113,6 +113,7 @@ private:
     bool OmitTrailers_ = false;
 
     bool IsFramingEnabled_ = false;
+    TFramingAsyncOutputStreamPtr FramingStream_;
     NConcurrency::TPeriodicExecutorPtr SendKeepAliveExecutor_;
 
     template <class TJsonProducer>

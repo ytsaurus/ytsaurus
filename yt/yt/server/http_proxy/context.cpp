@@ -636,8 +636,8 @@ void TContext::SetupOutputStream()
 
     if (IsFramingEnabled_) {
         auto invoker = Api_->GetPoller()->GetInvoker();
-        auto framingStream = New<TFramingAsyncOutputStream>(DriverRequest_.OutputStream, invoker);
-        DriverRequest_.OutputStream = framingStream;
+        FramingStream_ = New<TFramingAsyncOutputStream>(DriverRequest_.OutputStream, invoker);
+        DriverRequest_.OutputStream = FramingStream_;
 
         // NB: This lambda should not capture |this| (by strong reference) to avoid cyclic references.
         auto sendKeepAliveFrame = [Logger=Logger] (const TFramingAsyncOutputStreamPtr& stream) {
@@ -656,7 +656,7 @@ void TContext::SetupOutputStream()
                 *keepAlivePeriod);
             SendKeepAliveExecutor_ = New<TPeriodicExecutor>(
                 invoker,
-                BIND(sendKeepAliveFrame, framingStream),
+                BIND(sendKeepAliveFrame, FramingStream_),
                 *keepAlivePeriod);
         }
     }
@@ -878,6 +878,7 @@ void TContext::Finalize()
     if (SendKeepAliveExecutor_) {
         YT_LOG_DEBUG("Stopping periodic executor that sends keep_alive frames");
         SendKeepAliveExecutor_->Stop();
+        Y_UNUSED(WaitFor(FramingStream_->Flush()));
     }
 
     if (EnableRequestBodyWorkaround(Request_)) {

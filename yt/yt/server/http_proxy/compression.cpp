@@ -86,6 +86,7 @@ public:
 
     TFuture<void> Flush() override
     {
+        CreateCompressor();
         Compressor_->Flush();
         return VoidFuture;
     }
