@@ -7,6 +7,7 @@ import (
 	"sort"
 	"time"
 
+	"github.com/google/pprof/profile"
 	"github.com/spf13/cobra"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -19,9 +20,16 @@ import (
 	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 )
 
+const (
+	defaultNone = "none"
+)
+
 var (
 	flagProfileGUID          string
 	flagProfileType          string
+	flagProfileCluster       string
+	flagProfileService       string
+	flagProfileHost          string
 	flagMetadataDisplayLimit int
 )
 
@@ -46,14 +54,43 @@ var getDataCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(0),
 }
 
+var pushDataCmd = &cobra.Command{
+	Use:   "push",
+	Short: "pushes profile from given file to the table and returns a display link",
+	RunE:  pushData,
+	Args:  cobra.ExactArgs(0),
+}
+
+var getServicesCmd = &cobra.Command{
+	Use:   "services",
+	Short: "displays available services",
+	RunE:  getServices,
+	Args:  cobra.ExactArgs(0),
+}
+
+var getClustersCmd = &cobra.Command{
+	Use:   "clusters",
+	Short: "displays available clusters",
+	RunE:  getClusters,
+	Args:  cobra.ExactArgs(0),
+}
+
 func init() {
 	getDataCmd.Flags().StringVar(&flagProfileGUID, "guid", "", "guid of the profiles")
 	findDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type default - cpu")
+	pushDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type default - cpu")
+	pushDataCmd.Flags().StringVar(&flagProfileHost, "host", defaultNone, "service of profile default - none")
+	pushDataCmd.Flags().StringVar(&flagProfileCluster, "cluster", defaultNone, "cluster of profile default - none, run subcommand 'clusters', to see supported")
+	pushDataCmd.Flags().StringVar(&flagProfileService, "service", defaultNone, "service of profile default - none, run subcommand 'services', to see supported")
 	findMetadataCmd.Flags().IntVar(&flagMetadataDisplayLimit, "displaylimit", 1000000000, "max number of metadata elements to display")
 
 	rootCmd.AddCommand(getDataCmd)
 	rootCmd.AddCommand(findDataCmd)
+	rootCmd.AddCommand(pushDataCmd)
 	rootCmd.AddCommand(findMetadataCmd)
+
+	pushDataCmd.AddCommand(getClustersCmd)
+	pushDataCmd.AddCommand(getServicesCmd)
 }
 
 type cmdPeriod struct {
@@ -281,4 +318,127 @@ func getData(cmd *cobra.Command, args []string) error {
 	l.Debug("preparing to write to file")
 
 	return profile.Write(file)
+}
+
+func contains(s []string, e string) bool {
+	for _, a := range s {
+		if a == e {
+			return true
+		}
+	}
+	return false
+}
+
+func pushData(cmd *cobra.Command, args []string) error {
+	l, err := ytlog.New()
+	ctx := context.Background()
+	if err != nil {
+		return err
+	}
+
+	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
+	if err != nil {
+		l.Fatal("storage creation failed", log.Error(err))
+		return err
+	}
+
+	clusters, err := s.FindTagValues(ctx, "Cluster")
+	if err != nil {
+		l.Fatal("can't find available clusters", log.Error(err))
+		return err
+	}
+
+	services, err := s.FindTagValues(ctx, "Service")
+	if err != nil {
+		l.Fatal("can't find available services", log.Error(err))
+		return err
+	}
+
+	if !contains(clusters, flagProfileCluster) {
+		flagProfileCluster = defaultNone
+	}
+
+	if !contains(services, flagProfileService) {
+		flagProfileService = defaultNone
+	}
+
+	f, err := os.Open(flagFilePath)
+	if err != nil {
+		l.Fatal("can't open file", log.Error(err), log.String("path", flagFilePath))
+		return err
+	}
+
+	curProfile, err := profile.Parse(f)
+	if err != nil {
+		l.Fatal("parsing profile failed", log.Error(err))
+		return err
+	}
+
+	guids, err := s.PushData(
+		ctx,
+		[]*profile.Profile{curProfile},
+		[]string{flagProfileHost},
+		flagProfileType,
+		flagProfileCluster,
+		flagProfileService,
+	)
+	if err != nil {
+		l.Fatal("pushing data failed", log.Error(err))
+		return err
+	}
+	if len(guids) != 1 {
+		l.Fatal("wrong response length", log.Int("length", len(guids)))
+		return fmt.Errorf("wrong response length")
+	}
+
+	fmt.Fprintln(os.Stderr, "Link to view your profile:")
+	fmt.Fprintf(os.Stderr, "https://ytprof.yt.yandex-team.ru/ui/%s/\n", guids[0])
+
+	return nil
+}
+
+func getClusters(cmd *cobra.Command, args []string) error {
+	l, err := ytlog.New()
+	ctx := context.Background()
+	if err != nil {
+		return err
+	}
+
+	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
+	if err != nil {
+		l.Fatal("storage creation failed", log.Error(err))
+		return err
+	}
+
+	clusters, err := s.FindTagValues(ctx, "Cluster")
+	if err != nil {
+		l.Fatal("can't find available clusters", log.Error(err))
+		return err
+	}
+	fmt.Fprintln(os.Stderr, clusters)
+
+	return nil
+}
+
+func getServices(cmd *cobra.Command, args []string) error {
+	l, err := ytlog.New()
+	ctx := context.Background()
+	if err != nil {
+		return err
+	}
+
+	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
+	if err != nil {
+		l.Fatal("storage creation failed", log.Error(err))
+		return err
+	}
+
+	services, err := s.FindTagValues(ctx, "Service")
+	if err != nil {
+		l.Fatal("can't find available services", log.Error(err))
+		return err
+	}
+	fmt.Fprintln(os.Stderr, services)
+
+	return nil
 }

@@ -8,7 +8,7 @@ API for storing and finding profiles and their metadata & more
 
 ## <a name="s-CommandLine"></a> Command Line
 
-Here is an instruction how to directly run ytprof commands localy from `arcadia/yt/go/ytprof` directory:
+Here is an instruction how to directly run ytprof commands locally from `arcadia/yt/go/ytprof` directory:
 
 Build
 ```
@@ -50,7 +50,7 @@ See `requests` and `responses` [here](https://a.yandex-team.ru/arcadia/yt/go/ytp
 
 ### Run Service
 
-Here is an instruction how to run API & UI sevice localy from `arcadia/yt/go/ytprof` directory:
+Here is an instruction how to run API & UI service locally from `arcadia/yt/go/ytprof` directory:
 
 Build
 ```
