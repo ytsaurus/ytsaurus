@@ -1,5 +1,7 @@
 #!/usr/bin/python
 
+from __future__ import print_function
+
 import re
 import sys
 
@@ -19,12 +21,14 @@ ESCAPE_DICT = {
     "_": "\\_",
 }
 
+
 def make_heading(text, add_upper_line=True):
     s = "=" * len(text)
     if add_upper_line:
         return "{0}\n{1}\n{0}".format(s, text)
     else:
         return "{0}\n{1}".format(text, s)
+
 
 def extract_date(line, line_no):
     # Line will have the following format:
@@ -42,12 +46,14 @@ def extract_date(line, line_no):
 
     return match.group(2).strip()
 
+
 def process_st_tickets(line):
     def replace(match):
         ticket = match.group(1).strip()
         return "`{0} <{1}/{0}>`_".format(ticket, ST_URL)
 
     return YT_ST_TIKET_PATTERN.sub(replace, line)
+
 
 def escape(line, line_no):
     def replace(match):
@@ -58,6 +64,7 @@ def escape(line, line_no):
         raise RuntimeError('Incorrect changelog line {0}, line does not contain "*" symbol'
                            .format(line_no))
     return line[:first_star_pos+1] + ESCAPE.sub(replace, line[first_star_pos+1:])
+
 
 def main():
     with open("debian/changelog") as changelog, open("docs/package_changelog.rst", "w") as changelog_rst:
@@ -85,11 +92,12 @@ def main():
                 changelog_rst.write("\n")
                 version_block = []
             else:
-                print >>sys.stderr, "Unexpected line {0}, skipping".format(line_no)
+                print("Unexpected line {0}, skipping".format(line_no), file=sys.stderr)
+
 
 if __name__ == "__main__":
     try:
         main()
     except RuntimeError as err:
-        print >>sys.stderr, str(err)
+        print(str(err), file=sys.stderr)
         sys.exit(1)
