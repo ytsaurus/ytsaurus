@@ -39,16 +39,16 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&flagProxy, "proxy", "", "name of the YT cluster, e.g \"hume\"")
-	rootCmd.PersistentFlags().StringVar(&flagTablePath, "path", "", "path to directory with table data & metadata")
+	rootCmd.PersistentFlags().StringVar(&flagProxy, "proxy", "freud", "name of the YT cluster, e.g \"hume\"")
+	rootCmd.PersistentFlags().StringVar(&flagTablePath, "path", "//sys/ytprof/testing", "path to directory with table data & metadata")
 	rootCmd.PersistentFlags().StringVar(&flagMetaquery, "metaquery", "true", "query to metadata like (\"Metadata['BinaryVersion'] == '22.1.9091469-stable-ya~42704c91e804aabc'\")")
 	rootCmd.PersistentFlags().StringVar(&flagTimestampMin, "mintime", "", "start of the time period")
 	rootCmd.PersistentFlags().StringVar(&flagTimestampMax, "maxtime", "", "end of the time period")
-	rootCmd.PersistentFlags().StringVar(&flagTimeLast, "last", "", "alternate way to to desctibe period: [now-last, now]")
+	rootCmd.PersistentFlags().StringVar(&flagTimeLast, "last", "", "alternate way to to describe period: [now-last, now]")
 	rootCmd.PersistentFlags().StringVar(&flagFilePath, "file", "", "file to save profiles in")
 	rootCmd.PersistentFlags().BoolVar(&flagStats, "stats", false, "option to display found stats")
 	rootCmd.PersistentFlags().IntVar(&flagStatsMax, "statsmax", 5, "maximum length of metadata parm values list to display")
-	rootCmd.PersistentFlags().IntVar(&flagQueryLimit, "limit", 50000, "limit of rows proccesed in query")
+	rootCmd.PersistentFlags().IntVar(&flagQueryLimit, "limit", 50000, "limit of rows proceeded in query")
 }
 
 func Execute() {

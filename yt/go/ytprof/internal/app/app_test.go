@@ -113,7 +113,8 @@ func TestAppGet(t *testing.T) {
 
 	ctx := context.Background()
 
-	require.NoError(t, ts.PushData(ctx, TestProfiles, TestHosts, "t1", "t2", "t3"))
+	_, err := ts.PushData(ctx, TestProfiles, TestHosts, "t1", "t2", "t3")
+	require.NoError(t, err)
 
 	tLow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
 	require.NoError(t, err)

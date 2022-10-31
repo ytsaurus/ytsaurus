@@ -90,19 +90,19 @@ func NewResolverFetcher(resolver Resolver, sf *ServiceFetcher) *ResolverFetcher 
 	return rf
 }
 
-func (f *Fetcher) RunFetcherContinious() error {
+func (f *Fetcher) RunFetcherContinuous() error {
 	rand.Seed(time.Now().UnixMicro())
 
 	for _, service := range f.services {
 		go func(serviceFetcher ServiceFetcher) {
-			serviceFetcher.runServiceFetcherContinious(context.Background())
+			serviceFetcher.runServiceFetcherContinuous(context.Background())
 		}(service)
 	}
 
 	select {}
 }
 
-func (sf *ServiceFetcher) runServiceFetcherContinious(ctx context.Context) {
+func (sf *ServiceFetcher) runServiceFetcherContinuous(ctx context.Context) {
 	ticker := time.NewTicker(sf.service.Period)
 	defer ticker.Stop()
 
@@ -130,7 +130,7 @@ func (sf *ServiceFetcher) fetchService() {
 	hostslice := make([]string, 0)
 	errs := make([][]error, sz)
 
-	sf.f.l.Debug("all corutines getting started", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
+	sf.f.l.Debug("all coroutines getting started", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
 
 	var wg sync.WaitGroup
 	wg.Add(sz)
@@ -141,11 +141,11 @@ func (sf *ServiceFetcher) fetchService() {
 		}(id, resolver)
 	}
 
-	sf.f.l.Debug("all corutines started", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
+	sf.f.l.Debug("all coroutines started", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
 
 	wg.Wait()
 
-	sf.f.l.Debug("all corutines finished", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
+	sf.f.l.Debug("all coroutines finished", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
 
 	for i := 0; i < len(results); i++ {
 		for j := 0; j < len(results[i]); j++ {
@@ -165,7 +165,7 @@ func (sf *ServiceFetcher) fetchService() {
 	}
 
 	sf.f.l.Debug("getting ready to push data", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType), log.Int("data_size", len(resultslice)))
-	err := sf.f.storage.PushData(context.Background(), resultslice, hostslice, sf.service.ProfileType, sf.f.config.Cluster, sf.service.ServiceType)
+	_, err := sf.f.storage.PushData(context.Background(), resultslice, hostslice, sf.service.ProfileType, sf.f.config.Cluster, sf.service.ServiceType)
 	if err != nil {
 		sf.f.l.Error("error while storing profiles", log.String("cluster", sf.f.config.Cluster), log.Error(err))
 	}

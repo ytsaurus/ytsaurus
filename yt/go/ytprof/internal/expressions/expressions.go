@@ -32,7 +32,7 @@ type Expression struct {
 }
 
 func NewExpression(metaquery string, metadataPatterns map[string]string) (*Expression, error) {
-	envOnce.Do(DeclareMetadataEnviroment)
+	envOnce.Do(DeclareMetadataEnvironment)
 
 	if envErr != nil {
 		return nil, envErr
@@ -47,7 +47,7 @@ func NewExpression(metaquery string, metadataPatterns map[string]string) (*Expre
 	return &Expression{expr: prg, metadataPatterns: metadataPatterns}, err
 }
 
-func DeclareMetadataEnviroment() {
+func DeclareMetadataEnvironment() {
 	var metadata ytprof.Metadata
 	types := metadata.Types()
 

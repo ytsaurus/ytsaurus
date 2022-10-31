@@ -61,7 +61,7 @@ func NewApp(l *zap.Logger, config Config) *App {
 
 	app.yt, err = ythttp.NewClient(&ytConfig)
 	if err != nil {
-		l.Fatal("creating YT client falied", log.Error(err))
+		l.Fatal("creating YT client failed", log.Error(err))
 	}
 
 	app.ts, err = storage.NewTableStorageMigrate(app.yt, ypath.Path(config.TablePath), l)

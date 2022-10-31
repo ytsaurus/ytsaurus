@@ -12,6 +12,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/schema"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
@@ -111,25 +112,27 @@ func (m *TableStorage) FormMetadata(profile *profile.Profile, host string, profi
 	return metadata
 }
 
-func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile, hosts []string, profileType string, cluster string, service string) error {
+func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile, hosts []string, profileType string, cluster string, service string) ([]guid.GUID, error) {
 	rowsData := make([]interface{}, 0, len(profiles))
 	rowsMetadata := make([]interface{}, 0, len(profiles))
 	rowsMetadataTags := make([]interface{}, 0, len(profiles))
 	rowsMetadataTagsValues := make([]interface{}, 0, len(profiles))
+	guids := make([]guid.GUID, 0, len(profiles))
 
 	curTime := time.Now()
 	timestamp, err := schema.NewTimestamp(curTime)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	for id, profileData := range profiles {
 		var buf bytes.Buffer
 		err := profileData.Write(&buf)
 		if err != nil {
-			return err
+			return nil, err
 		}
 		uID := GenerateNewUID()
+		guids = append(guids, ytprof.GUIDFormProfID(uID))
 
 		metadata := m.FormMetadata(profileData, hosts[id], profileType, cluster, service)
 
@@ -157,42 +160,42 @@ func (m *TableStorage) PushData(ctx context.Context, profiles []*profile.Profile
 
 	tx, err := m.yc.BeginTabletTx(ctx, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = tx.Abort() }()
 
 	err = tx.InsertRows(ctx, m.tableData, rowsData, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = tx.InsertRows(ctx, m.tableMetadata, rowsMetadata, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = tx.Commit()
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	txtags, err := m.yc.BeginTabletTx(ctx, &yt.StartTabletTxOptions{Atomicity: &yt.AtomicityNone})
 	if err != nil {
-		return err
+		return nil, err
 	}
 	defer func() { _ = txtags.Abort() }()
 
 	err = txtags.InsertRows(ctx, m.tableMetadataTags, rowsMetadataTags, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
 	err = txtags.InsertRows(ctx, m.tableMetadataTagsValues, rowsMetadataTagsValues, nil)
 	if err != nil {
-		return err
+		return nil, err
 	}
 
-	return txtags.Commit()
+	return guids, txtags.Commit()
 }
 
 func (m *TableStorage) MetadataIdsQuery(ctx context.Context, minTime schema.Timestamp, maxTime schema.Timestamp, queryLimit int) ([]ytprof.ProfID, error) {

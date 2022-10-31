@@ -78,26 +78,26 @@ func runFetcher(cmd *cobra.Command, args []string) error {
 
 	err = yson.Unmarshal(data, &configs)
 	if err != nil {
-		l.Fatal("unmarshaling file failed", log.Error(err), log.String("config_path", flagConfig))
+		l.Fatal("unmarshalling file failed", log.Error(err), log.String("config_path", flagConfig))
 		return err
 	}
 
-	l.Debug("config reading succseded", log.String("config", fmt.Sprintf("%v", configs)), log.String("config_path", flagConfig))
+	l.Debug("config reading succeeded", log.String("config", fmt.Sprintf("%v", configs)), log.String("config_path", flagConfig))
 
 	errs, _ := errgroup.WithContext(context.Background())
 	ts := storage.NewTableStorage(YT, ypath.Path(configs.TablePath), l)
 	err = ytprof.MigrateTables(YT, ypath.Path(configs.TablePath))
 	if err != nil {
-		l.Fatal("migraton failed", log.Error(err), log.String("table_path", configs.TablePath))
+		l.Fatal("migration failed", log.Error(err), log.String("table_path", configs.TablePath))
 		return err
 	}
 
-	l.Debug("migraton succeded", log.String("table_path", configs.TablePath))
+	l.Debug("migration succeeded", log.String("table_path", configs.TablePath))
 
 	for _, config := range configs.Configs {
 		f := fetcher.NewFetcher(YT, config, l, ts, configs.TablePath)
 		errs.Go(func() error {
-			return f.RunFetcherContinious()
+			return f.RunFetcherContinuous()
 		})
 	}
 	return errs.Wait()
