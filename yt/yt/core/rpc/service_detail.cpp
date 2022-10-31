@@ -37,7 +37,6 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTracing;
 using namespace NConcurrency;
-using namespace NYTAlloc;
 
 using NYT::FromProto;
 using NYT::ToProto;

@@ -136,7 +136,7 @@ struct TAllocatorOptions
     std::optional<i64> TCMallocGuardedSamplingRate = 128_MB;
 };
 
-void ConfigureAllocator(const TAllocatorOptions& options);
+void ConfigureAllocator(const TAllocatorOptions& options = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
