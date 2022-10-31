@@ -68,7 +68,6 @@ protected:
         CloseAllDescriptors();
         ConfigureAllocator({
             .Stockpile = {},
-            .YTAllocEagerMemoryRelease = true,
             .TCMallocOptimizeSize = true,
         });
 

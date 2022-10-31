@@ -13,7 +13,7 @@ namespace NYT {
 
 namespace {
 
-void RunStockpile(TStockpileOptions options)
+void RunStockpile(const TStockpileOptions& options)
 {
     TThread::SetCurrentThreadName("Stockpile");
 

@@ -96,9 +96,7 @@ private:
         ConfigureIgnoreSigpipe();
         // NB: ConfigureCrashHandler() is not called intentionally; crash handlers is set up in bootstrap.
         ConfigureExitZeroOnSigterm();
-        ConfigureAllocator({
-            .YTAllocEagerMemoryRelease = true,
-        });
+        ConfigureAllocator();
 
         if (HandleSetsidOptions()) {
             return;

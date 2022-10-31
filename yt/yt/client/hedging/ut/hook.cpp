@@ -2,16 +2,10 @@
 
 #include <yt/yt/core/misc/shutdown.h>
 
-#include <yt/yt/core/ytalloc/bindings.h>
-
 #include <library/cpp/testing/hook/hook.h>
-
-#include <library/cpp/ytalloc/api/ytalloc.h>
 
 Y_TEST_HOOK_BEFORE_RUN(TEST_YT_SETUP)
 {
-    NYT::NYTAlloc::ConfigureFromEnv();
-    NYT::NYTAlloc::EnableStockpile();
     NYT::NLogging::TLogManager::Get()->ConfigureFromEnv();
 }
 
