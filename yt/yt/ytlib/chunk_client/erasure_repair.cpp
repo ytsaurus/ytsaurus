@@ -78,7 +78,7 @@ public:
         if (index < std::ssize(blockIndexes)) {
             auto blockIndexesToRequest = std::vector<int>(blockIndexes.begin() + index, blockIndexes.end());
             auto blocksFuture = UnderlyingReader_->ReadBlocks(ChunkReadOptions_, blockIndexesToRequest);
-            return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
+            return blocksFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
                 for (int index = 0; index < std::ssize(blockIndexesToRequest); ++index) {
                     auto blockIndex = blockIndexesToRequest[index];
                     auto block = blocks[index];
@@ -108,7 +108,7 @@ public:
             }
         }
         auto blocksFuture = UnderlyingReader_->ReadBlocks(ChunkReadOptions_, indexesToRead);
-        return blocksFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
+        return blocksFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TBlock>& blocks) mutable {
             for (int index = 0; index < std::ssize(blocks); ++index) {
                 int savedBlocksIndex = GetOrCrash(blockIndexToSavedBlocksIndex, index);
                 SavedBlocks_[savedBlocksIndex] = blocks[index];
@@ -595,7 +595,7 @@ public:
         // NB(psushin): do not use estimated size for throttling here, repair requires much more traffic than estimated.
         // When reading erasure chunks we fallback to post-throttling.
         return PreparePlacementMeta(options).Apply(
-            BIND([=, this_ = MakeStrong(this)] {
+            BIND([=, this, this_ = MakeStrong(this)] {
                 auto session = New<TRepairingErasureReaderSession>(
                     GetChunkId(),
                     Codec_,

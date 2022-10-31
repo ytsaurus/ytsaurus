@@ -315,7 +315,7 @@ private:
             ? New<TRefCountedChunkMeta>(std::move(*request->mutable_chunk_meta()))
             : nullptr;
         session->Finish(meta, blockCount)
-            .Subscribe(BIND([=] (const TErrorOr<TChunkInfo>& chunkInfoOrError) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TChunkInfo>& chunkInfoOrError) {
                 if (!chunkInfoOrError.IsOK()) {
                     context->Reply(chunkInfoOrError);
                     return;
@@ -419,9 +419,9 @@ private:
         // Flush blocks if needed.
         if (flushBlocks) {
             result = result
-                .Apply(BIND([=, this_ = MakeStrong(this)] () mutable {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] () mutable {
                     auto result = session->FlushBlocks(lastBlockIndex);
-                    result.Subscribe(BIND([=, this_ = MakeStrong(this)] (TErrorOr<TIOCounters> result) {
+                    result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (TErrorOr<TIOCounters> result) {
                         if (!result.IsOK()) {
                             return;
                         }
@@ -503,7 +503,7 @@ private:
         auto result = session->FlushBlocks(blockIndex);
 
         response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
-        result.Subscribe(BIND([=, this_ = MakeStrong(this)] (TErrorOr<TIOCounters> result) {
+        result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (TErrorOr<TIOCounters> result) {
             if (result.IsOK()) {
                 // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
                 // the data to disk in FinishChunk(), not in FlushBlocks().
@@ -1150,6 +1150,7 @@ private:
         auto afterReadersPrepared =
             [
                 =,
+                this,
                 this_ = MakeStrong(this),
                 requestedLocations = std::move(requestedLocations),
                 chunkRequestInfos = std::move(chunkRequestInfos)
@@ -1219,6 +1220,7 @@ private:
                     .SubscribeUnique(BIND(
                         [
                             =,
+                            this,
                             this_ = MakeStrong(this),
                             chunkRequestInfos = std::move(chunkRequestInfos),
                             locationFragmentIndices = std::move(locationFragmentIndices),
@@ -1380,7 +1382,7 @@ private:
             populateCache);
 
         context->ReplyFrom(lookupSession->Run()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TSharedRef& result) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TSharedRef& result) {
                 context->SetResponseInfo(
                     "ChunkId: %v, ReadSessionId: %v, Workload: %v, "
                     "DiskThrottling: %v, DiskQueueSize: %v, NetThrottling: %v, NetQueueSize: %v",
@@ -1469,7 +1471,7 @@ private:
             options,
             extensionTags);
 
-        context->ReplyFrom(chunkMetaFuture.Apply(BIND([=] (const TRefCountedChunkMetaPtr& meta) {
+        context->ReplyFrom(chunkMetaFuture.Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
             if (context->IsCanceled()) {
                 throw TFiberCanceledException();
             }
@@ -1536,7 +1538,7 @@ private:
         ValidateOnline();
 
         GetChunkMetasForRequests(workloadDescriptor, request->chunk_requests())
-            .Subscribe(BIND([=, this_ = MakeStrong(this)](const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)](const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
                     return;
@@ -1612,7 +1614,7 @@ private:
         ValidateOnline();
 
         GetChunkMetasForRequests(workloadDescriptor, request->slice_requests())
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
                     return;
@@ -1701,7 +1703,7 @@ private:
         ValidateOnline();
 
         GetChunkMetasForRequests(workloadDescriptor, request->sample_requests())
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<NChunkClient::TRefCountedChunkMetaPtr>>>& resultsError) {
                 if (!resultsError.IsOK()) {
                     context->Reply(resultsError);
                     return;

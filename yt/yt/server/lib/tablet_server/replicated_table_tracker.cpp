@@ -1315,7 +1315,7 @@ private:
 
     void OnReplicatedTableCreated(TReplicatedTableData data)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this), data = std::move(data)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] {
             auto tableId = data.Id;
 
             YT_LOG_DEBUG("Replicated table created (TableId: %v, Options: %v)",
@@ -1333,7 +1333,7 @@ private:
 
     void OnReplicatedTableDestroyed(TTableId tableId)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Replicated table destroyed (TableId: %v)",
                 tableId);
 
@@ -1350,7 +1350,7 @@ private:
 
     void OnReplicatedTableOptionsUpdated(TTableId tableId, TReplicatedTableOptionsPtr options)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this), options = std::move(options)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), options = std::move(options)] {
             YT_LOG_DEBUG("Replicated table options updated (TableId: %v, Options: %v)",
                 tableId,
                 ConvertToYsonString(options, EYsonFormat::Text).AsStringBuf());
@@ -1361,7 +1361,7 @@ private:
 
     void OnReplicaCreated(TReplicaData data)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this), data = std::move(data)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] {
             auto tableId = data.TableId;
             auto replicaId = data.Id;
 
@@ -1400,7 +1400,7 @@ private:
 
     void OnReplicaDestroyed(TTableReplicaId replicaId)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Table replica destroyed (ReplicaId: %v)",
                 replicaId);
 
@@ -1414,7 +1414,7 @@ private:
 
     void OnReplicaModeUpdated(TTableReplicaId replicaId, ETableReplicaMode mode)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Replica mode updated (ReplicaId: %v, Mode: %v)",
                 replicaId,
                 mode);
@@ -1425,7 +1425,7 @@ private:
 
     void OnReplicaEnablementUpdated(TTableReplicaId replicaId, bool enabled)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Replica enablement updated (ReplicaId: %v, Enabled: %v)",
                 replicaId,
                 enabled);
@@ -1436,7 +1436,7 @@ private:
 
     void OnReplicaTrackingPolicyUpdated(TTableReplicaId replicaId, bool enableTracking)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Replica tracking policy updated (ReplicaId: %v, EnableTracking: %v)",
                 replicaId,
                 enableTracking);
@@ -1447,7 +1447,7 @@ private:
 
     void OnReplicationCollocationUpdated(TTableCollocationData data)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this), data = std::move(data)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), data = std::move(data)] {
             YT_LOG_DEBUG("Replication collocation updated (CollocationId: %v)",
                 data.Id);
 
@@ -1469,7 +1469,7 @@ private:
 
     void OnReplicationCollocationDestroyed(TTableCollocationId collocationId)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG("Replication collocation destroyed (CollocationId: %v)",
                 collocationId);
 
@@ -1486,7 +1486,7 @@ private:
 
     void OnConfigChanged(TDynamicReplicatedTableTrackerConfigPtr config)
     {
-        EnqueueAction(BIND([=, this_ = MakeStrong(this), config = std::move(config)] {
+        EnqueueAction(BIND([=, this, this_ = MakeStrong(this), config = std::move(config)] {
             YT_LOG_DEBUG("Replicated table tracker config changed");
 
             if (UseNewReplicatedTableTracker(Config_) != UseNewReplicatedTableTracker(config)) {

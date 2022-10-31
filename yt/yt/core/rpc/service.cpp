@@ -27,7 +27,7 @@ void IServiceContext::SetResponseInfo()
 
 void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> asyncMessage)
 {
-    asyncMessage.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>& result) {
+    asyncMessage.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>& result) {
         if (result.IsOK()) {
             Reply(result.Value());
         } else {
@@ -41,7 +41,7 @@ void IServiceContext::ReplyFrom(TFuture<TSharedRefArray> asyncMessage)
 
 void IServiceContext::ReplyFrom(TFuture<void> asyncError)
 {
-    asyncError.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+    asyncError.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
         Reply(error);
     }));
     SubscribeCanceled(BIND([asyncError = std::move(asyncError)] {
@@ -51,7 +51,7 @@ void IServiceContext::ReplyFrom(TFuture<void> asyncError)
 
 void IServiceContext::ReplyFrom(TFuture<void> asyncError, const IInvokerPtr& invoker)
 {
-    asyncError.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+    asyncError.Subscribe(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
         Reply(error);
     })
         .Via(invoker));

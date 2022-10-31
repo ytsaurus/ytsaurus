@@ -211,7 +211,7 @@ public:
 
     TFuture<void> RunRequest(TDuration latency, ui32 failingProbability = 0)
     {
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=] {
             Sleep(latency);
             if (failingProbability && RandomNumber<ui32>(100) < failingProbability) {
                 THROW_ERROR_EXCEPTION("Mock request failed");

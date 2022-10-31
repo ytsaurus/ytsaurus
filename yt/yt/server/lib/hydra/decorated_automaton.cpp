@@ -243,7 +243,7 @@ public:
         if (!lockGuard)
             return;
 
-        auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] () {
+        auto doInvoke = [=, this, this_ = MakeStrong(this), callback = std::move(callback)] () {
             if (Owner_->GetState() != EPeerState::Leading &&
                 Owner_->GetState() != EPeerState::Following)
                 return;
@@ -703,7 +703,7 @@ TDecoratedAutomaton::TDecoratedAutomaton(
 
 void TDecoratedAutomaton::Initialize()
 {
-    AutomatonInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] () {
+    AutomatonInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] () {
         THydraContext hydraContext(
             TVersion(),
             TInstant::Zero(),
@@ -1094,7 +1094,7 @@ void TDecoratedAutomaton::DoRotateChangelog()
                 preallocatedChangelogId);
             NextChangelogFuture_ =
                 EpochContext_->ChangelogStore->CreateChangelog(preallocatedChangelogId, /* meta */{})
-                    .Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<IChangelogPtr>& changelogOrError) {
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<IChangelogPtr>& changelogOrError) {
                         if (changelogOrError.IsOK()) {
                             YT_LOG_INFO("Finished preallocating changelog (ChangelogId: %v)",
                                 preallocatedChangelogId);

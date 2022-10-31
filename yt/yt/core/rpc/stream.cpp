@@ -241,7 +241,7 @@ TFuture<void> TAttachmentsOutputStream::Write(const TSharedRef& data)
         OnWindowPacketsReady(TMutableRange(&packet, 1), guard);
     } else {
         auto sequenceNumber = CompressionSequenceNumber_++;
-        CompressionInvoker_->Invoke(BIND([=, this_ = MakeStrong(this)] {
+        CompressionInvoker_->Invoke(BIND([=, this, this_ = MakeStrong(this)] {
             auto* codec = NCompression::GetCodec(Codec_);
             auto compressedData = codec->Compress(data);
             auto guard = Guard(Lock_);

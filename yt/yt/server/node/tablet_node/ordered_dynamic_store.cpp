@@ -328,7 +328,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
 
     auto tableReader = CreateSnapshotReader();
 
-    return BIND([=, this_ = MakeStrong(this)] (TSaveContext& context) {
+    return BIND([=, this, this_ = MakeStrong(this)] (TSaveContext& context) {
         YT_LOG_DEBUG("Store snapshot serialization started");
 
         auto chunkWriter = New<TMemoryWriter>();

@@ -89,7 +89,7 @@ public:
             return MakeFuture(std::vector<TBlob>());
         }
 
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             std::vector<TBlob> result;
             for (const auto& input : FormatWriters_) {
                 result.push_back(input->GetContext());
@@ -203,7 +203,7 @@ private:
         TPipeReaderToWriterOptions options;
         options.BufferRowCount = JobSpecHelper_->GetJobIOConfig()->BufferRowCount;
         options.PipeDelay = JobSpecHelper_->GetJobIOConfig()->Testing->PipeDelay;
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             PipeReaderToWriter(
                 Reader_,
                 writer,
@@ -227,7 +227,7 @@ private:
             return Reader_;
         };
 
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             RunQuery(
                 querySpec,
                 readerFactory,

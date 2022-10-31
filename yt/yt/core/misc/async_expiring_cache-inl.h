@@ -111,7 +111,7 @@ typename TAsyncExpiringCache<TKey, TValue>::TExtendedGetResult TAsyncExpiringCac
             key);
 
         DoGet(key, nullptr, EUpdateReason::InitialFetch)
-            .Subscribe(BIND([=, weakEntry = MakeWeak(entry), this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
+            .Subscribe(BIND([=, weakEntry = MakeWeak(entry), this, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
                 SetResult(weakEntry, key, valueOrError, false);
             }));
 
@@ -335,7 +335,7 @@ void TAsyncExpiringCache<TKey, TValue>::ForceRefresh(const TKey& key, const T& v
             guard.Release();
 
             DoGet(key, &valueOrError, EUpdateReason::ForcedUpdate)
-                .Subscribe(BIND([=, weakEntry = MakeWeak(newEntry), this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
+                .Subscribe(BIND([=, weakEntry = MakeWeak(newEntry), this, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
                     SetResult(weakEntry, key, valueOrError, false);
                 }));
         }
@@ -521,7 +521,7 @@ void TAsyncExpiringCache<TKey, TValue>::InvokeGet(
     const auto& oldValue = entry->Future.Get();
 
     DoGet(key, &oldValue, EUpdateReason::PeriodicUpdate)
-        .Subscribe(BIND([=, weakEntry = MakeWeak(entry), this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
+        .Subscribe(BIND([=, weakEntry = MakeWeak(entry), this, this_ = MakeStrong(this)] (const TErrorOr<TValue>& valueOrError) {
             SetResult(weakEntry, key, valueOrError, true);
         }));
 }
@@ -562,7 +562,7 @@ void TAsyncExpiringCache<TKey, TValue>::InvokeGetMany(
     auto isPeriodicUpdate = periodicRefreshTime.has_value();
 
     DoGetMany(keys, isPeriodicUpdate)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TValue>>>& valuesOrError) {
+        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TErrorOr<TValue>>>& valuesOrError) {
             for (size_t index = 0; index < keys.size(); ++index) {
                 SetResult(
                     entries[index],

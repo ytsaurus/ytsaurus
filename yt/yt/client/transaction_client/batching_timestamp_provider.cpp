@@ -86,14 +86,16 @@ public:
             SendGenerateRequest(guard);
         } else if (!FlushScheduled_) {
             FlushScheduled_ = true;
-            TDelayedExecutor::Submit(BIND([=, this_ = MakeStrong(this)] {
-                auto guard = Guard(SpinLock_);
-                FlushScheduled_ = false;
-                if (GenerateInProgress_) {
-                    return;
-                }
-                SendGenerateRequest(guard);
-            }), BatchPeriod_ - (now - LastRequestTime_));
+            TDelayedExecutor::Submit(
+                BIND([this, this_ = MakeStrong(this)] {
+                    auto guard = Guard(SpinLock_);
+                    FlushScheduled_ = false;
+                    if (GenerateInProgress_) {
+                        return;
+                    }
+                    SendGenerateRequest(guard);
+                }),
+                BatchPeriod_ - (now - LastRequestTime_));
         }
     }
 

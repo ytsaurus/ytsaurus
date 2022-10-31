@@ -47,7 +47,7 @@ private:
     TFuture<void> DoStop(bool graceful) override
     {
         return TServerBase::DoStop(graceful)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            .Apply(BIND([this, this_ = MakeStrong(this)] (const TError& error) {
                 // NB: Stop the bus server anyway.
                 auto future = BusServer_->Stop();
                 BusServer_.Reset();

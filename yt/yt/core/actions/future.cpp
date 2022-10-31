@@ -243,7 +243,7 @@ void TFutureState<void>::OnLastPromiseRefLost()
     }
 
     // Slow path: notify the subscribers in a dedicated thread.
-    GetFinalizerInvoker()->Invoke(BIND([=] () {
+    GetFinalizerInvoker()->Invoke(BIND([this] {
         // Set the promise if the value is still missing.
         TrySetError(NDetail::MakeAbandonedError());
         // Kill the fake weak reference.

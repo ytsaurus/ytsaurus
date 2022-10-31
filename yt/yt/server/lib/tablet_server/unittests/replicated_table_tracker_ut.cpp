@@ -74,6 +74,7 @@ public:
         return SnapshotPromise_.ToFuture().Apply(BIND(
             [
                 =,
+                this,
                 this_ = MakeStrong(this)
             ] (const TReplicatedTableTrackerSnapshot& snapshot)
         {

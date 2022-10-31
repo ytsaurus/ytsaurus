@@ -91,7 +91,7 @@ TFuture<TSharedRef> IIOEngine::ReadAll(
     TSessionId sessionId)
 {
     return Open({path, OpenExisting | RdOnly | Seq | CloseOnExec}, category)
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& handle) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& handle) {
             struct TReadAllBufferTag
             { };
             return Read<TReadAllBufferTag>(
@@ -99,7 +99,7 @@ TFuture<TSharedRef> IIOEngine::ReadAll(
                     category,
                     sessionId
                 ).Apply(BIND(
-                    [=, this_ = MakeStrong(this), handle = handle]
+                    [=, this, this_ = MakeStrong(this), handle = handle]
                     (const TReadResponse& response)
                 {
                     YT_VERIFY(response.OutputBuffers.size() == 1);

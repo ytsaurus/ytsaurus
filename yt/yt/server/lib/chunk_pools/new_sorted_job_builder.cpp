@@ -456,7 +456,7 @@ private:
         std::stable_sort(
             ForeignSlices_.begin(),
             ForeignSlices_.end(),
-            [=] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+            [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
                 return ForeignComparator_.CompareKeyBounds(lhs->LowerLimit().KeyBound, rhs->LowerLimit().KeyBound) < 0;
             });
     }
@@ -501,7 +501,7 @@ private:
         std::sort(
             endpoints.begin(),
             endpoints.end(),
-            [=] (const TPrimaryEndpoint& lhs, const TPrimaryEndpoint& rhs) {
+            [&] (const TPrimaryEndpoint& lhs, const TPrimaryEndpoint& rhs) {
                 auto result = PrimaryComparator_.CompareKeyBounds(lhs.KeyBound, rhs.KeyBound);
                 if (result != 0) {
                     return result < 0;
@@ -792,7 +792,7 @@ private:
     //! Partition data slices into singletons and long data slices keeping their original order among each input stream.
     void PartitionSingletonAndLongDataSlices(TKeyBound lowerBound, std::deque<TLegacyDataSlicePtr>& dataSlices)
     {
-        std::stable_sort(dataSlices.begin(), dataSlices.end(), [=] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+        std::stable_sort(dataSlices.begin(), dataSlices.end(), [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
             bool lhsToEnd = !PrimaryComparator_.IsInteriorEmpty(lowerBound, lhs->UpperLimit().KeyBound);
             bool rhsToEnd = !PrimaryComparator_.IsInteriorEmpty(lowerBound, rhs->UpperLimit().KeyBound);
             return lhsToEnd < rhsToEnd;

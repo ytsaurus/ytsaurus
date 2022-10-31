@@ -41,7 +41,7 @@ struct TSchemafulPipe::TData
     void ResetReaderReadyEvent()
     {
         ReaderReadyEvent = NewPromise<void>();
-        ReaderReadyEvent.OnCanceled(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        ReaderReadyEvent.OnCanceled(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             Fail(TError(NYT::EErrorCode::Canceled, "Pipe reader canceled")
                 << error);
         }));

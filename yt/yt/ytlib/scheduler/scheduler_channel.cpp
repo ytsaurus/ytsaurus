@@ -71,7 +71,7 @@ public:
         auto batchReq = proxy.ExecuteBatch();
         batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@addresses"));
         return batchReq->Invoke()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) -> IChannelPtr {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) -> IChannelPtr {
                 auto rsp = batchRsp->GetResponse<TYPathProxy::TRspGet>(0);
                 if (rsp.FindMatching(NYT::NYTree::EErrorCode::ResolveError)) {
                     THROW_ERROR_EXCEPTION("No scheduler is configured");

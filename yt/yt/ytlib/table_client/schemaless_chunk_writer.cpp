@@ -1356,7 +1356,7 @@ public:
             CurrentBufferCapacity_ += BlockWriters_.back()->GetCapacity();
         }
 
-        ChunkWriterFactory_ = [=] (IChunkWriterPtr underlyingWriter) {
+        ChunkWriterFactory_ = [=, this] (IChunkWriterPtr underlyingWriter) {
             return New<TPartitionChunkWriter>(
                 config,
                 options,

@@ -512,7 +512,7 @@ private:
                 FlushResult_ = PendingRecordsFlushed_;
             }
 
-            FlushResult_.Subscribe(BIND_NEW([=, this_ = MakeStrong(this)] (const TError& error) {
+            FlushResult_.Subscribe(BIND_NEW([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (error.IsOK()) {
                     DataSize_ += recordsDataSize;
                     RecordCount_ += recordCount;

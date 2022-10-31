@@ -54,7 +54,7 @@ TFuture<void> TSimpleTransactionSupervisor::PrepareTransactionCommit(
     TTimestamp prepareTimestamp)
 {
     if (!persistent) {
-        return BIND([=, this_ = MakeStrong(this)] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             TTransactionPrepareOptions options{
                 .Persistent = persistent,
                 .PrepareTimestamp = prepareTimestamp,

@@ -96,7 +96,7 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
         }
     }
 
-    MakeRequest(address).Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+    MakeRequest(address).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
         if (!error.IsOK()) {
             AddError(error);
             TryMakeNextRequest(false);

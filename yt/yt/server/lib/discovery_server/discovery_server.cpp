@@ -312,7 +312,7 @@ private:
                 protoMember->set_lease_deadline(ToProto<i64>(member->GetLeaseDeadline()));
             }
             req->Invoke().Subscribe(
-                BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryServerServiceProxy::TRspProcessGossipPtr>& rspOrError) {
+                BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryServerServiceProxy::TRspProcessGossipPtr>& rspOrError) {
                     if (rspOrError.IsOK()) {
                         YT_LOG_DEBUG("Gossip succeeded (Address: %v)", address);
                     } else {

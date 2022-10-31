@@ -152,7 +152,7 @@ TSortedMergingReaderBase::TSortedMergingReaderBase(
     , ReduceComparator_(std::move(reduceComparator))
     , InterruptAtKeyEdge_(interruptAtKeyEdge)
 {
-    CompareSessions_ = [=] (const TSession* lhs, const TSession* rhs) {
+    CompareSessions_ = [this] (const TSession* lhs, const TSession* rhs) {
         auto lhsKey = lhs->GetCurrentKey(SortComparator_.GetLength());
         auto rhsKey = rhs->GetCurrentKey(SortComparator_.GetLength());
 

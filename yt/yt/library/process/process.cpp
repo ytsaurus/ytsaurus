@@ -430,7 +430,7 @@ void TSimpleProcess::DoSpawn()
     }
 
     SpawnActions_.push_back(TSpawnAction{
-        [=] () {
+        [this] {
             for (int retryIndex = 0; retryIndex < ExecveRetryCount; ++retryIndex) {
                 // Execve may fail, if called binary is being updated, e.g. during yandex-yt package update.
                 // So we'd better retry several times.

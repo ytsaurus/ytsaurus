@@ -234,7 +234,7 @@ public:
             this);
         mutation->SetCurrentTraceContext();
         mutation->CommitAndReply(context)
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& /*error*/) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& /*error*/) {
                 // NB: May be missing if OnLeadingStopped was called prior to mutation failure.
                 PendingRegisterNodeAddreses_.erase(address);
 

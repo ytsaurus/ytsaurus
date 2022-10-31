@@ -26,13 +26,13 @@ public:
 
     virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         ESequoiaTable table,
-        std::vector<NTableClient::TLegacyKey> keys,
+        TSharedRange<NTableClient::TLegacyKey> keys,
         NTransactionClient::TTimestamp timestamp,
         const NTableClient::TColumnFilter& columnFilter) = 0;
 
     template <class TRow>
     TFuture<std::vector<TRow>> LookupRows(
-        std::vector<TRow> keys,
+        const std::vector<TRow>& keys,
         NTransactionClient::TTimestamp timestamp,
         const NTableClient::TColumnFilter& columnFilter = {});
 

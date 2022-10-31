@@ -80,7 +80,7 @@ public:
     {
         YT_LOG_INFO("Stopping Bus server");
         UnarmPoller();
-        return Poller_->Unregister(this).Apply(BIND([=, this_ = MakeStrong(this)] {
+        return Poller_->Unregister(this).Apply(BIND([this, this_ = MakeStrong(this)] {
             YT_LOG_INFO("Bus server stopped");
         }));
     }

@@ -121,7 +121,7 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
     batchReq->AddRequest(MakeRequest(connection, key));
 
     return batchReq->Invoke()
-        .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
             if (key.Object) {
                 auto rspOrError = batchRsp->GetResponse<TObjectYPathProxy::TRspCheckPermission>(0);
                 ParseCheckPermissionResponse(key, rspOrError)
@@ -160,7 +160,7 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
     }
 
     return batchReq->Invoke()
-        .Apply(BIND([=] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp) {
             std::vector<TError> results;
             results.reserve(keys.size());
             YT_ASSERT(std::ssize(keys) == batchRsp->GetResponseCount());

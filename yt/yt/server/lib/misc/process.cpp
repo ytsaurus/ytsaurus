@@ -88,7 +88,7 @@ void TPortoProcess::DoSpawn()
         ProcessId_,
         instance->GetName());
 
-    FinishedPromise_.ToFuture().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& exitStatus) {
+    FinishedPromise_.ToFuture().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& exitStatus) {
         Finished_ = true;
         if (exitStatus.IsOK()) {
             YT_LOG_DEBUG("Process inside Porto exited gracefully (ExternalPid: %v, Container: %v)",

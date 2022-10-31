@@ -237,7 +237,7 @@ protected:
         // Schedule continuation.
         Context_->OnTimeSpent(timer.GetElapsedTime());
         rescheduleAfterFuture.Subscribe(
-            BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (error.IsOK()) {
                     DoTraverse();
                 } else {

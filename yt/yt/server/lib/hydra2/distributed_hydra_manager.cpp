@@ -251,7 +251,7 @@ public:
 
         auto error = TError("Hydra instance is finalizing");
         return ElectionManager_->Abandon(error)
-            .Apply(BIND([=, this_ = MakeStrong(this)] {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] {
                 CancelableContext_->Cancel(error);
 
                 if (ControlState_ != EPeerState::None) {
@@ -388,7 +388,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return BIND([=, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
+        return BIND([=, this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             VERIFY_THREAD_AFFINITY_ANY();
 
             BuildYsonFluently(consumer)
@@ -1468,7 +1468,7 @@ private:
             Config_->LeaderSwitchTimeout);
 
         TDelayedExecutor::Submit(
-            BIND([=, this_ = MakeWeak(this)] {
+            BIND([=, this, this_ = MakeWeak(this)] {
                 ScheduleRestart(
                     epochContext,
                     TError("Leader switch did not complete within timeout"));
@@ -2672,7 +2672,7 @@ private:
             return;
         }
 
-        request->Invoke().Subscribe(BIND([=, this_ = MakeStrong(this)] (const TInternalHydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
+        request->Invoke().Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TInternalHydraServiceProxy::TErrorOrRspReportMutationsStateHashesPtr& rspOrError) {
             if (rspOrError.IsOK()) {
                 YT_LOG_DEBUG("Mutations state hashes reported (StartSequenceNumber: %v, EndSequenceNumber: %v)",
                     startSequenceNumber,
@@ -2697,7 +2697,7 @@ private:
 
         CommitMutation(MakeHeartbeatMutationRequest())
             .WithTimeout(Config_->HeartbeatMutationTimeout)
-            .Subscribe(BIND([=, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result){
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");
                     return;

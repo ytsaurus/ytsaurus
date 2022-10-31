@@ -1531,7 +1531,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        WaitFor(BIND([=, this_ = MakeStrong(this)] {
+        WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationIndex: %v)",
                 locationIndex);
 

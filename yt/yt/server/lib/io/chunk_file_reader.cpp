@@ -168,7 +168,7 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
         guard.Release();
 
         chunkFragmentFuture = OpenDataFile(directIOFlag)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& /*handle*/) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& /*handle*/) {
                 {
                     auto guard = Guard(ChunkFragmentReadsLock_);
 
@@ -188,7 +188,7 @@ TFuture<void> TChunkFileReader::PrepareToReadChunkFragments(
                 }
 
                 return DoReadMeta(options, std::nullopt)
-                    .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                         auto guard = Guard(ChunkFragmentReadsLock_);
                         BlocksExt_ = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
                         if (BlocksExtCache_) {
@@ -320,7 +320,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
 
     if (!blocksExt) {
         return DoReadMeta(options, std::nullopt)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TRefCountedChunkMetaPtr& meta) {
                 auto loadedBlocksExt = New<NIO::TBlocksExt>(GetProtoExtension<NChunkClient::NProto::TBlocksExt>(meta->extensions()));
                 if (BlocksExtCache_) {
                     BlocksExtCache_->Put(meta, loadedBlocksExt);
@@ -335,7 +335,7 @@ TFuture<std::vector<TBlock>> TChunkFileReader::DoReadBlocks(
         auto optionalDataFileOrError = asyncDataFile.TryGet();
         if (!optionalDataFileOrError || !optionalDataFileOrError->IsOK()) {
             return asyncDataFile
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& dataFile) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& dataFile) {
                     return DoReadBlocks(options, firstBlockIndex, blockCount, blocksExt, dataFile);
                 }));
         }

@@ -1328,7 +1328,7 @@ private:
 
         for (auto& [cellTag, batch] : batchMap) {
             batch.BatchReq->Invoke().Subscribe(
-                BIND([=, this_ = MakeStrong(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                BIND([=, this, this_ = MakeStrong(this), batch = std::move(batch)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                     if (batchRspOrError.IsOK()) {
                         YT_LOG_DEBUG("Forwarded request succeeded (RequestId: %v -> %v, SubrequestIndexes: %v)",
                             RequestId_,
@@ -1722,7 +1722,7 @@ private:
                 .WithTimeout(timeLeft);
         }
 
-        auto doExecuteSubrequest = [=, this_ = MakeStrong(this)] (const TError& error) {
+        auto doExecuteSubrequest = [=, this, this_ = MakeStrong(this)] (const TError& error) {
             if (!error.IsOK()) {
                 subrequest->RpcContext->Reply(error);
                 return;
@@ -1749,7 +1749,7 @@ private:
                 doExecuteSubrequest(subrequest->RemoteTransactionReplicationFuture.Get());
                 return true;
             } else {
-                auto doReschedule = [=, this_ = MakeStrong(this)] (const TError& error) {
+                auto doReschedule = [=, this, this_ = MakeStrong(this)] (const TError& error) {
                     if (!error.IsOK()) {
                         subrequest->RpcContext->Reply(error);
                         return;

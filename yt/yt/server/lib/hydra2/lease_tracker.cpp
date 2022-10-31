@@ -236,7 +236,7 @@ void TLeaseTracker::Finalize()
 TFuture<void> TLeaseTracker::GetNextQuorumFuture()
 {
     auto result =
-        BIND([=, this_ = MakeStrong(this)] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_THREAD_AFFINITY(ControlThread);
 
             while (!Finalized_) {

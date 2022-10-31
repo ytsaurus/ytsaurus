@@ -91,7 +91,7 @@ private:
                 batchReq->AddRequest(req);
 
                 return batchReq->Invoke()
-                    .Apply(BIND([=, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+                    .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                         auto cumulativeError = GetCumulativeError(batchRspOrError);
                         THROW_ERROR_EXCEPTION_IF_FAILED(cumulativeError, "Error fetching attribute %Qv of portal exit %v from cell %v",
                             key.Unintern(),

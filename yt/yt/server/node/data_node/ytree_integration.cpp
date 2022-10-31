@@ -69,7 +69,7 @@ private:
             return nullptr;
         }
 
-        return IYPathService::FromProducer(BIND([=] (IYsonConsumer* consumer) {
+        return IYPathService::FromProducer(BIND([=, this, this_ = MakeStrong(this)] (IYsonConsumer* consumer) {
             TChunkReadOptions options;
             options.ChunkReaderStatistics = New<TChunkReaderStatistics>();
             auto chunkMeta = NYT::NConcurrency::WaitFor(chunk->ReadMeta(options))

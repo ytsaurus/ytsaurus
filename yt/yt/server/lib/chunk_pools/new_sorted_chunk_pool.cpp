@@ -542,7 +542,7 @@ private:
         std::sort(
             teleportDataSlices.begin(),
             teleportDataSlices.end(),
-            [=] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
+            [&] (const TLegacyDataSlicePtr& lhs, const TLegacyDataSlicePtr& rhs) {
                 const auto& lhsLowerBound = lhs->LowerLimit().KeyBound;
                 const auto& lhsUpperBound = lhs->UpperLimit().KeyBound;
                 const auto& rhsLowerBound = rhs->LowerLimit().KeyBound;

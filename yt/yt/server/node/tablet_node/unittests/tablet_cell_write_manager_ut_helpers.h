@@ -340,7 +340,7 @@ protected:
         TTransactionSignature commitSignature)
     {
         auto* tablet = TabletSlot_->TabletManager()->GetTablet();
-        RunInAutomaton([=] {
+        RunInAutomaton([=, this] {
             auto writer = CreateWireProtocolWriter();
             i64 dataWeight = 0;
             for (const auto& row : rows) {

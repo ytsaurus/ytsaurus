@@ -100,7 +100,7 @@ void TTransactionListener::ProbeTransaction(const ITransactionPtr& transaction)
 {
     // TODO(babenko): replace with Probe
     transaction->Ping()
-        .Subscribe(BIND([=, this_ = MakeStrong(this), transactionId = transaction->GetId()] (const TError& error) {
+        .Subscribe(BIND([this, this_ = MakeStrong(this), transactionId = transaction->GetId()] (const TError& error) {
             if (error.GetCode() == NTransactionClient::EErrorCode::NoSuchTransaction) {
                 OnTransactionAborted(transactionId, error);
             }

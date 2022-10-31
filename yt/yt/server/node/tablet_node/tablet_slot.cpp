@@ -229,7 +229,7 @@ public:
     void CommitTabletMutation(const ::google::protobuf::MessageLite& message) override
     {
         auto mutation = CreateMutation(GetHydraManager(), message);
-        GetEpochAutomatonInvoker()->Invoke(BIND([=, this_ = MakeStrong(this), mutation = std::move(mutation)] {
+        GetEpochAutomatonInvoker()->Invoke(BIND([=, this, this_ = MakeStrong(this), mutation = std::move(mutation)] {
             mutation->CommitAndLog(Logger);
         }));
     }

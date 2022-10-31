@@ -582,7 +582,7 @@ protected:
         auto throttlerFuture = throttler->Throttle(count);
         SetSessionFuture(throttlerFuture);
         throttlerFuture
-            .Subscribe(BIND([=, this_ = MakeStrong(this), onSuccess = std::move(onSuccess)] (const TError& throttleResult) {
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this), onSuccess = std::move(onSuccess)] (const TError& throttleResult) {
                 if (!throttleResult.IsOK()) {
                     auto error = TError(
                         NChunkClient::EErrorCode::ReaderThrottlingFailed,
@@ -1060,7 +1060,7 @@ protected:
 
         return DoProbeAndSelectBestPeers(candidates, blockIndexes)
             .ApplyUnique(BIND(
-                [=, this_ = MakeStrong(this)]
+                [=, this, this_ = MakeStrong(this)]
                 (TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>&& peerAndProbeResultsOrError)
             {
                 YT_VERIFY(peerAndProbeResultsOrError.IsOK());
@@ -1356,7 +1356,7 @@ private:
 
         if (peer.NodeSuspicionMarkTime) {
             return req->Invoke().Apply(BIND(
-                [=, this_ = MakeStrong(this), seedsFuture = SeedsFuture_, totalPeerCount = std::ssize(Peers_)]
+                [=, this, this_ = MakeStrong(this), seedsFuture = SeedsFuture_, totalPeerCount = std::ssize(Peers_)]
                 (const TDataNodeServiceProxy::TErrorOrRspProbeBlockSetPtr& rspOrError)
                 {
                     return ParseSuspiciousPeerAndProbeResponse(
@@ -1412,7 +1412,8 @@ private:
             return AllSucceeded(std::move(asyncResults))
                 .Apply(BIND(
                 [
-                    =,
+                    this,
+                    this_ = MakeStrong(this),
                     asyncSuspiciousResults = std::move(asyncSuspiciousResults)
                 ] (const TErrorOr<std::vector<std::pair<TPeer, TErrorOrPeerProbeResult>>>& resultsOrError) {
                     YT_VERIFY(resultsOrError.IsOK());
@@ -2864,6 +2865,7 @@ private:
                     .Subscribe(BIND(
                         [
                             =,
+                            this,
                             this_ = MakeStrong(this),
                             pickPeerTimer = std::move(pickPeerTimer)
                         ] (const TErrorOr<TPeerList>& result) {
@@ -3014,8 +3016,8 @@ private:
 
         NProfiling::TWallTimer dataWaitTimer;
         req->Invoke()
-            .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError) {
-                this_->OnResponse(
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TDataNodeServiceProxy::TErrorOrRspLookupRowsPtr& rspOrError) {
+                OnResponse(
                     std::move(rspOrError),
                     std::move(channel),
                     std::move(dataWaitTimer),

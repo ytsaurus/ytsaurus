@@ -564,7 +564,7 @@ private:
             Invoker_,
             Config_->MaxChunksPerFetch,
             Config_->MaxChunksPerLocateRequest,
-            [=] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
+            [=, this] (const TChunkOwnerYPathProxy::TReqFetchPtr& req, int /*tableIndex*/) {
                 req->set_fetch_all_meta_extensions(false);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);
@@ -581,7 +581,7 @@ private:
         TTabletChunkSpecFetcher::TOptions options{
             .Client = Client_,
             .RowBuffer = RowBuffer_,
-            .InitializeFetchRequest = [=] (TTabletChunkSpecFetcher::TRequest* req) {
+            .InitializeFetchRequest = [=, this] (TTabletChunkSpecFetcher::TRequest* req) {
                 req->set_fetch_all_meta_extensions(true);
                 req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
                 req->add_extension_tags(TProtoExtensionTag<NTableClient::NProto::TBoundaryKeysExt>::Value);

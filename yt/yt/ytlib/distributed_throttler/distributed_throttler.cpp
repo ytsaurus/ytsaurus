@@ -100,7 +100,7 @@ public:
         }
 
         auto future = Underlying_->Throttle(amount);
-        future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             if (error.IsOK()) {
                 UpdateHistoricUsage(amount);
             }
@@ -1059,6 +1059,7 @@ private:
         req->Invoke().Subscribe(
             BIND([
                 =,
+                this,
                 this_ = MakeStrong(this),
                 throttlers = std::move(throttlers)
             ] (const TErrorOr<TDistributedThrottlerProxy::TRspHeartbeatPtr>& rspOrError) {

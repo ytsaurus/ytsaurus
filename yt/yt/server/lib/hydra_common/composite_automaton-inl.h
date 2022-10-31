@@ -24,7 +24,7 @@ void TCompositeAutomatonPart::RegisterSaver(
         priority,
         name,
         BIND_NO_PROPAGATE([=] (TSaveContext& context) {
-            saver.Run(dynamic_cast<TContext&>(context));
+            saver(dynamic_cast<TContext&>(context));
         }));
 }
 
@@ -38,9 +38,9 @@ void TCompositeAutomatonPart::RegisterSaver(
         priority,
         name,
         BIND_NO_PROPAGATE([=] () -> TCallback<void(TSaveContext&)> {
-            auto continuation = callback.Run();
+            auto continuation = callback();
             return BIND_NO_PROPAGATE([=] (TSaveContext& context) {
-                return continuation.Run(dynamic_cast<TContext&>(context));
+                return continuation(dynamic_cast<TContext&>(context));
             });
         }));
 }
@@ -53,7 +53,7 @@ void TCompositeAutomatonPart::RegisterLoader(
     TCompositeAutomatonPart::RegisterLoader(
         name,
         BIND([=] (TLoadContext& context) {
-            loader.Run(dynamic_cast<TContext&>(context));
+            loader(dynamic_cast<TContext&>(context));
         }));
 }
 
@@ -82,7 +82,7 @@ void TCompositeAutomaton::RegisterMethod(
     TCallback<void(TRequest*)> callback,
     const std::vector<TString>& aliases)
 {
-    auto mutationHandler = BIND([=] (TMutationContext* context) {
+    auto mutationHandler = BIND([=, this] (TMutationContext* context) {
         auto request = ObjectPool<TRequest>().Allocate();
         auto* descriptor = GetMethodDescriptor(TRequest::default_instance().GetTypeName());
         DeserializeRequestAndProfile(
@@ -93,7 +93,7 @@ void TCompositeAutomaton::RegisterMethod(
         NProfiling::TWallTimer timer;
 
         try {
-            callback.Run(request.get());
+            callback(request.get());
             static auto cachedResponseMessage = NRpc::CreateResponseMessage(NProto::TVoidMutationResponse());
             context->SetResponseData(cachedResponseMessage);
         } catch (const std::exception& ex) {
@@ -116,7 +116,7 @@ void TCompositeAutomaton::RegisterMethod(
     TCallback<void(const TIntrusivePtr<NRpc::TTypedServiceContext<TRpcRequest, TRpcResponse>>&, THandlerRequest*, THandlerResponse*)> callback,
     const std::vector<TString>& aliases)
 {
-    auto mutationHandler = BIND_NO_PROPAGATE([=] (TMutationContext* context) {
+    auto mutationHandler = BIND_NO_PROPAGATE([=, this] (TMutationContext* context) {
         auto request = ObjectPool<THandlerRequest>().Allocate();
         auto response = ObjectPool<THandlerResponse>().Allocate();
 
@@ -128,7 +128,7 @@ void TCompositeAutomaton::RegisterMethod(
 
         NProfiling::TWallTimer timer;
         try {
-            callback.Run(nullptr, request.get(), response.get());
+            callback(nullptr, request.get(), response.get());
             context->SetResponseData(NRpc::CreateResponseMessage(*response));
         } catch (const std::exception& ex) {
             auto error = TError(ex);

@@ -667,7 +667,7 @@ public:
 #ifdef _unix_
         TSignalRegistry::Get()->PushCallback(
             SIGHUP,
-            [=] { Reopen(); });
+            [this] { Reopen(); });
 #endif
     }
 

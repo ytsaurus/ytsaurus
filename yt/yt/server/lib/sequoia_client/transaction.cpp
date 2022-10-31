@@ -96,7 +96,7 @@ public:
 
     TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         ESequoiaTable table,
-        std::vector<TLegacyKey> keys,
+        TSharedRange<TLegacyKey> keys,
         TTimestamp timestamp,
         const TColumnFilter& columnFilter) override
     {
@@ -111,7 +111,7 @@ public:
         return Client_->LookupRows(
             GetTablePath(table),
             tableDescriptor->GetNameTable(),
-            MakeSharedRange(keys),
+            std::move(keys),
             options);
     }
 

@@ -95,7 +95,7 @@ TFuture<void> TSlotLocation::Initialize()
 {
     Enabled_ = true;
 
-    return BIND([=, this_ = MakeStrong(this)] {
+    return BIND([=, this, this_ = MakeStrong(this)] {
         try {
             DoInitialize();
         } catch (const std::exception& ex) {
@@ -153,7 +153,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    bool sandboxInsideTmpfs = WaitFor(BIND([=, this_ = MakeStrong(this)] {
+    bool sandboxInsideTmpfs = WaitFor(BIND([=] {
         for (const auto& tmpfsVolume : options.TmpfsVolumes) {
             // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
             // real path without filesystem access.
@@ -175,7 +175,7 @@ TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotI
         ? LightInvoker_
         : HeavyInvoker_;
 
-    return BIND([=, this_ = MakeStrong(this)] {
+    return BIND([=, this, this_ = MakeStrong(this)] {
         ValidateEnabled();
 
         YT_LOG_DEBUG("Preparing sandbox directiories (SlotIndex: %v, SandboxInsideTmpfs: %v)",
@@ -312,7 +312,7 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
         sandboxKind,
         canUseLightInvoker);
 
-    return BIND([=, this_ = MakeStrong(this)] {
+    return BIND([=, this, this_ = MakeStrong(this)] {
         ValidateEnabled();
 
         auto onError = [&] (const TError& error) {
@@ -379,7 +379,7 @@ TFuture<void> TSlotLocation::MakeSandboxCopy(
         slotIndex,
         artifactName,
         sandboxKind,
-        BIND([=] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG(
                 "Started copying file to sandbox "
                 "(JobId: %v, ArtifactName: %v, SandboxKind: %v, SourcePath: %v, DestinationPath: %v)",
@@ -446,7 +446,7 @@ TFuture<void> TSlotLocation::MakeSandboxLink(
         slotIndex,
         artifactName,
         sandboxKind,
-        BIND([=] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG(
                 "Started making sandbox symlink "
                 "(JobId: %v, ArtifactName: %v, SandboxKind: %v, TargetPath: %v, LinkPath: %v)",
@@ -500,7 +500,7 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
         slotIndex,
         artifactName,
         sandboxKind,
-        BIND([=] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             YT_LOG_DEBUG(
                 "Started building sandbox file "
                 "(JobId: %v, ArtifactName: %v, SandboxKind: %v, DestinationPath: %v)",
@@ -544,7 +544,7 @@ TFuture<void> TSlotLocation::MakeSandboxFile(
 
 TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
 {
-    return BIND([=, this_ = MakeStrong(this)] {
+    return BIND([=, this, this_ = MakeStrong(this)] {
         YT_LOG_DEBUG("Making job proxy config (SlotIndex: %v)",
             slotIndex);
 
@@ -577,7 +577,7 @@ TFuture<void> TSlotLocation::MakeConfig(int slotIndex, INodePtr config)
 
 TFuture<void> TSlotLocation::CleanSandboxes(int slotIndex)
 {
-    return BIND([=, this_ = MakeStrong(this)] {
+    return BIND([=, this, this_ = MakeStrong(this)] {
         YT_LOG_DEBUG("Sandboxes cleaning started (SlotIndex: %v)",
             slotIndex);
 
@@ -790,7 +790,7 @@ void TSlotLocation::OnArtifactPreparationFailed(
 
 TFuture<void> TSlotLocation::Repair()
 {
-    return BIND([=, this_ = MakeStrong(this)] {
+    return BIND([=, this, this_ = MakeStrong(this)] {
         if (Enabled_) {
             YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
             return;
@@ -862,7 +862,7 @@ void TSlotLocation::ValidateEnabled() const
 
 void TSlotLocation::Disable(const TError& error)
 {
-    WaitFor(BIND([=, this_ = MakeStrong(this)] {
+    WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         if (!Enabled_.exchange(false)) {
             return;
         }

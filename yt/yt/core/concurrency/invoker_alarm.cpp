@@ -25,7 +25,7 @@ void TInvokerAlarm::Arm(TClosure callback, TInstant deadline)
     Deadline_ = deadline;
 
     TDelayedExecutor::Submit(
-        BIND([=, weakThis = MakeWeak(this)] {
+        BIND([=, this, weakThis = MakeWeak(this)] {
             auto strongThis = weakThis.Lock();
             if (!strongThis) {
                 return;

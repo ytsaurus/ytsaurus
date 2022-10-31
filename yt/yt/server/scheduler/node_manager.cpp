@@ -67,7 +67,7 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
         }
     }
 
-    unregisterFuture.Subscribe(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+    unregisterFuture.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
         if (!error.IsOK()) {
             context->Reply(error);
             return;

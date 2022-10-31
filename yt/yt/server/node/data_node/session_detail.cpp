@@ -105,7 +105,7 @@ TFuture<void> TSessionBase::Start()
         BIND(&TSessionBase::DoStart, MakeStrong(this))
             .AsyncVia(SessionInvoker_)
             .Run()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
                 YT_VERIFY(!Active_);
@@ -141,7 +141,7 @@ void TSessionBase::Cancel(const TError& error)
     YT_VERIFY(!error.IsOK());
 
     SessionInvoker_->Invoke(
-        BIND([=, this_ = MakeStrong(this)] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
             if (Canceled_.load()) {
@@ -185,7 +185,7 @@ TFuture<NChunkClient::NProto::TChunkInfo> TSessionBase::Finish(
     VERIFY_THREAD_AFFINITY_ANY();
 
     return
-        BIND([=, this_ = MakeStrong(this)] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();
@@ -209,7 +209,7 @@ TFuture<void> TSessionBase::PutBlocks(
     VERIFY_THREAD_AFFINITY_ANY();
 
     return
-        BIND([=, this_ = MakeStrong(this)] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();
@@ -229,7 +229,7 @@ TFuture<TDataNodeServiceProxy::TRspPutBlocksPtr> TSessionBase::SendBlocks(
     VERIFY_THREAD_AFFINITY_ANY();
 
     return
-        BIND([=, this_ = MakeStrong(this)] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();
@@ -246,7 +246,7 @@ TFuture<NIO::TIOCounters> TSessionBase::FlushBlocks(int blockIndex)
     VERIFY_THREAD_AFFINITY_ANY();
 
     return
-        BIND([=, this_ = MakeStrong(this)] {
+        BIND([=, this, this_ = MakeStrong(this)] {
             VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
             ValidateActive();

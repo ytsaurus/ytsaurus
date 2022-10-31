@@ -75,7 +75,7 @@ public:
             partitionTag = SchedulerJobSpecExt_.partition_tag();
         }
 
-        ReaderFactory_ = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
+        ReaderFactory_ = [=, this] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
             const auto& tableReaderConfig = Host_->GetJobSpecHelper()->GetJobIOConfig()->TableReader;
 
             auto factory = PartitionJobSpecExt_.use_sequential_reader()
@@ -118,7 +118,7 @@ public:
             dataSink = dataSinkDirectory->DataSinks()[0];
         }
 
-        WriterFactory_ = [=] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
+        WriterFactory_ = [=, this] (TNameTablePtr nameTable, TTableSchemaPtr /*schema*/) {
             return CreatePartitionMultiChunkWriter(
                 writerConfig,
                 options,

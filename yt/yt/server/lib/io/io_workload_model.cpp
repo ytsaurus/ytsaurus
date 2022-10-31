@@ -362,7 +362,7 @@ public:
             sessionId,
             useDedicatedAllocations);
 
-        future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const NYT::TErrorOr<TReadResponse>&) {
+        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const NYT::TErrorOr<TReadResponse>&) {
             auto duration = requestTimer.GetElapsedTime();
             for (const auto& request : requests) {
                 ModelManager_->RegisterRead(request, category, duration);
@@ -381,7 +381,7 @@ public:
 
         auto future = Underlying_->Write(request, category, sessionId);
 
-        future.Subscribe(BIND([=, this_ = MakeStrong(this)] (const NYT::TErrorOr<void>&) {
+        future.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const NYT::TErrorOr<void>&) {
             ModelManager_->RegisterWrite(request, category, requestTimer.GetElapsedTime());
         }));
 

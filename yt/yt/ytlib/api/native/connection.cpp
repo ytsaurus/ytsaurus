@@ -613,7 +613,7 @@ public:
         ToProto(req->mutable_src_cell_ids(), srcCellIds);
 
         return req->Invoke()
-            .Apply(BIND([=] (const THiveServiceProxy::TErrorOrRspSyncWithOthersPtr& rspOrError) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const THiveServiceProxy::TErrorOrRspSyncWithOthersPtr& rspOrError) {
                 THROW_ERROR_EXCEPTION_IF_FAILED(
                     rspOrError,
                     "Error synchronizing Hive cell %v with %v",

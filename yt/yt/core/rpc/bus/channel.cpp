@@ -348,6 +348,7 @@ private:
                 readyFuture.Subscribe(BIND(
                     [
                         =,
+                        this,
                         this_ = MakeStrong(this),
                         request = std::move(request)
                     ] (const TError& error) {

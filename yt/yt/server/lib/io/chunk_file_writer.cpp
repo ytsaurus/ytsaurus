@@ -105,7 +105,7 @@ TFuture<void> TChunkFileWriter::Open()
     // NB: Races are possible between file creation and a call to flock.
     // Unfortunately in Linux we can't create'n'flock a file atomically.
     return IOEngine_->Open({FileName_ + NFS::TempFileSuffix, FileMode})
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& file) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& file) {
             YT_VERIFY(State_.load() == EState::Opening);
 
             DataFile_ = file;
@@ -114,7 +114,7 @@ TFuture<void> TChunkFileWriter::Open()
             TryLockDataFile(promise);
             return promise.ToFuture();
         }).AsyncVia(IOEngine_->GetAuxPoolInvoker()))
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
             YT_VERIFY(State_.load() == EState::Opening);
 
             if (!error.IsOK()) {
@@ -166,7 +166,7 @@ bool TChunkFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
             std::move(buffers),
             SyncOnClose_
         })
-        .Apply(BIND([=, this_ = MakeStrong(this), newDataSize = currentOffset] (const TError& error) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this), newDataSize = currentOffset] (const TError& error) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
             if (!error.IsOK()) {
@@ -201,7 +201,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 
     auto metaFileName = FileName_ + ChunkMetaSuffix;
     return IOEngine_->Close({std::move(DataFile_), DataSize_, SyncOnClose_})
-        .Apply(BIND([=, _this = MakeStrong(this)] {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
 
             if (!chunkMeta->IsFinalized()) {
@@ -212,7 +212,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
 
             return IOEngine_->Open({metaFileName + NFS::TempFileSuffix, FileMode});
         }))
-        .Apply(BIND([=, _this = MakeStrong(this)] (const TIOEngineHandlePtr& chunkMetaFile) {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& chunkMetaFile) {
             YT_VERIFY(State_.load() == EState::Closing);
 
             auto metaData = SerializeProtoToRefWithEnvelope(*ChunkMeta_);
@@ -245,7 +245,7 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
                 },
                 EWorkloadCategory::Idle));
         }))
-        .Apply(BIND([=, _this = MakeStrong(this)] () {
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);
 
             NFS::Rename(metaFileName + NFS::TempFileSuffix, metaFileName);
@@ -291,7 +291,7 @@ TFuture<void> TChunkFileWriter::Cancel()
         state != EState::Closing);
 
     return
-        BIND([=, _this = MakeStrong(this)] {
+        BIND([this, this_ = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Aborting);
 
             DataFile_.Reset();

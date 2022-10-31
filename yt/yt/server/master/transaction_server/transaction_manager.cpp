@@ -1788,12 +1788,13 @@ private:
         }
 
         const auto& transactionSupervisor = Bootstrap_->GetTransactionSupervisor();
-        transactionSupervisor->AbortTransaction(transactionId).Subscribe(BIND([=] (const TError& error) {
-            if (!error.IsOK()) {
-                YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
-                    transactionId);
-            }
-        }));
+        transactionSupervisor->AbortTransaction(transactionId)
+            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
+                if (!error.IsOK()) {
+                    YT_LOG_DEBUG(error, "Error aborting expired transaction (TransactionId: %v)",
+                        transactionId);
+                }
+            }));
     }
 
     std::unique_ptr<TSequoiaContextGuard> CreateSequoiaContextGuard(TTransaction* transaction)

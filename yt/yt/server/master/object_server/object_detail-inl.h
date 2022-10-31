@@ -40,7 +40,7 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
     batchReq->AddRequest(req);
 
     return batchReq->Invoke()
-        .Apply(BIND([=, this_ = MakeStrong(this)] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+        .Apply(BIND([=] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
             auto cumulativeError = GetCumulativeError(batchRspOrError);
             if (!cumulativeError.IsOK()) {
                 THROW_ERROR_EXCEPTION("Error fetching %v from primary cell",
@@ -80,7 +80,7 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
         batchReq->AddRequest(req, "get");
 
         auto result = batchReq->Invoke()
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
+            .Apply(BIND([=] (const NObjectClient::TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
                 auto cumulativeError = GetCumulativeError(batchRspOrError);
                 if (!cumulativeError.IsOK()) {
                     THROW_ERROR_EXCEPTION("Error fetching attribute %Qv from cell %v",

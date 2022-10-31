@@ -694,6 +694,7 @@ std::vector<IUnversionedRowsetPtr> TClient::DoMultiLookup(
         asyncRowsets.push_back(BIND(
             [
                 =,
+                this,
                 this_ = MakeStrong(this),
                 lookupRowsOptions = std::move(lookupRowsOptions)
             ] {

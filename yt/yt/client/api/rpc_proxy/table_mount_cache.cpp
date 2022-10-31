@@ -48,7 +48,7 @@ private:
         req->set_path(path);
 
         return req->Invoke().Apply(
-            BIND([= , this_ = MakeStrong(this)] (const TApiServiceProxy::TRspGetTableMountInfoPtr& rsp) {
+            BIND([=, this, this_ = MakeStrong(this)] (const TApiServiceProxy::TRspGetTableMountInfoPtr& rsp) {
                 auto tableInfo = New<TTableMountInfo>();
                 tableInfo->Path = path;
                 auto tableId = FromProto<NObjectClient::TObjectId>(rsp->table_id());

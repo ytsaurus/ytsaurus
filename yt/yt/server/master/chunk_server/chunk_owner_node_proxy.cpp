@@ -317,7 +317,8 @@ TFuture<void> FetchChunkMetasFromSequoia(
     std::vector<NChunkClient::NProto::TChunkSpec*> chunkSpecs,
     TBootstrap* bootstrap)
 {
-    const auto& client = bootstrap->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
+    // TODO(babenko): don't create a fresh client on each request, use a global one
+    auto client = bootstrap->GetClusterConnection()->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
     auto transaction = CreateSequoiaTransaction(client, ChunkServerLogger);
 
     TColumnFilter columnFilter;
@@ -341,7 +342,8 @@ TFuture<void> FetchChunkMetasFromSequoia(
         std::move(keys),
         NTransactionClient::SyncLastCommittedTimestamp,
         columnFilter);
-    return asyncMetas.Apply(BIND([chunkSpecs = std::move(chunkSpecs)] (const std::vector<TRow>& rows) {
+    // TODO(babenko): capturing client is needed to ensure its in-flight requests get executed properly
+    return asyncMetas.Apply(BIND([chunkSpecs = std::move(chunkSpecs), client] (const std::vector<TRow>& rows) {
         YT_VERIFY(rows.size() == chunkSpecs.size());
 
         auto table = DynamicPointerCast<TChunkMetaExtensionsTableDescriptor>(GetTableDescriptor(ESequoiaTable::ChunkMetaExtensions));

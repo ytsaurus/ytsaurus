@@ -57,7 +57,7 @@ void TBootstrap::Run()
     LogTailer_->Run();
 
     // Bootstrap never dies, so it is _kinda_ safe.
-    TSignalRegistry::Get()->PushCallback(SIGINT, [=] { SigintHandler(); });
+    TSignalRegistry::Get()->PushCallback(SIGINT, [this] { SigintHandler(); });
 
     Sleep(TDuration::Max());
 }

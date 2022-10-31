@@ -1429,7 +1429,7 @@ public:
             resultTypes = genericAssignments;
         }
 
-        return std::make_pair(resultTypes, [=] (EValueType type) {
+        return std::make_pair(resultTypes, [=, this] (EValueType type) {
             EValueType argType;
             if (resultType) {
                 YT_VERIFY(!genericAssignments.IsEmpty());
@@ -1478,7 +1478,7 @@ public:
             arguments,
             subexprName);
 
-        TExpressionGenerator generator = [=] (EValueType type) {
+        TExpressionGenerator generator = [=, this] (EValueType type) {
             auto found = AggregateLookup.find(std::make_pair(subexprName, type));
             if (found != AggregateLookup.end()) {
                 TBaseColumn columnInfo = found->second;

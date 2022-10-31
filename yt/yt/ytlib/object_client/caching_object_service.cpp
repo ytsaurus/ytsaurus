@@ -261,7 +261,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
     }
 
     AllSucceeded(cacheEntryFutures)
-        .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TObjectServiceCacheEntryPtr>>& cacheEntriesOrError) {
+        .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TObjectServiceCacheEntryPtr>>& cacheEntriesOrError) {
             if (!cacheEntriesOrError.IsOK()) {
                 context->Reply(cacheEntriesOrError);
                 return;

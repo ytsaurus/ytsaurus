@@ -159,10 +159,10 @@ private:
 
     TFuture<IResponsePtr> WrapError(const TString& url, TCallback<IResponsePtr()> action)
     {
-        return BIND([=] {
+        return BIND([=, this, this_ = MakeStrong(this)] {
             try {
                 return action();
-            } catch(const std::exception& ex) {
+            } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("HTTP request failed")
                     << TErrorAttribute("url", SanitizeUrl(url))
                     << ex;
@@ -178,7 +178,7 @@ private:
         const std::optional<TSharedRef>& body,
         const THeadersPtr& headers)
     {
-        return WrapError(url, BIND([=, this_ = MakeStrong(this)] {
+        return WrapError(url, BIND([=, this, this_ = MakeStrong(this)] {
             THttpOutputPtr request;
             THttpInputPtr response;
 

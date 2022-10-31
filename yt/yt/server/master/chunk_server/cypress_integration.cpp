@@ -324,7 +324,7 @@ private:
             }
 
             return AllSucceeded(std::move(responseFutures))
-                .Apply(BIND([=, this_ = MakeStrong(this)] (const std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRsps) {
+                .Apply(BIND([=] (const std::vector<TObjectServiceProxy::TRspExecuteBatchPtr>& batchRsps) {
                     std::vector<TObjectId> keys;
                     for (const auto& batchRsp : batchRsps) {
                         auto rspOrError = batchRsp->GetResponse<TCypressYPathProxy::TRspEnumerate>("enumerate");
@@ -402,7 +402,7 @@ private:
     {
         if (!IsMulticell()) {
             return GetSize()
-                .Apply(BIND([=, this_ = MakeStrong(this)] (i64 size) {
+                .Apply(BIND([=, this, this_ = MakeStrong(this)] (i64 size) {
                     return std::vector{std::make_pair(Bootstrap_->GetMulticellManager()->GetCellTag(), size)};
                 }));
         }

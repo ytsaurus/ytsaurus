@@ -176,7 +176,7 @@ private:
             : ProcessStartSessionRequest(connection, request);
 
         connection->PostMessage(response)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const TError& error) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TError& error) {
                 if (!error.IsOK()) {
                     YT_LOG_ERROR("XXX %v", error);
                     OnConnectionFailure(connection, error);

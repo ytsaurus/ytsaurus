@@ -192,10 +192,9 @@ TSkiffMultiTableParser<TConsumer>::TSkiffMultiTableParser(
         tablesColumnIds,
         rangeIndexColumnName,
         rowIndexColumnName))
-    , ParserCoroPipe_(BIND(
-        [=] (IZeroCopyInput* stream) {
-            ParserImpl_->DoParse(stream);
-        }))
+    , ParserCoroPipe_(BIND([this] (IZeroCopyInput* stream) {
+        ParserImpl_->DoParse(stream);
+    }))
 { }
 
 template <class TConsumer>

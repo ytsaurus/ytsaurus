@@ -663,7 +663,7 @@ public:
     TFuture<void> SetTerm(int term) override
     {
         return Factory_->WriteTerm(term)
-            .Apply(BIND([=, this_ = MakeStrong(this)] {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] {
                 Term_.store(term);
             }));
     }
@@ -686,7 +686,7 @@ public:
     TFuture<IChangelogPtr> CreateChangelog(int id, const TChangelogMeta& meta) override
     {
         return Factory_->CreateChangelog(id, Epoch_, meta)
-            .Apply(BIND([=, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
+            .Apply(BIND([=, this, this_ = MakeStrong(this)] (const IChangelogPtr& changelog) {
                 UpdateLatestChangelogId(id);
                 return changelog;
             }));

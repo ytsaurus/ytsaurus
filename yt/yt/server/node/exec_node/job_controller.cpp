@@ -148,7 +148,7 @@ public:
     TJobPtr FindJob(TJobId jobId) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        
+
         auto guard = ReaderGuard(JobMapLock_);
         auto it = JobMap_.find(jobId);
         return it == JobMap_.end() ? nullptr : it->second;
@@ -187,7 +187,7 @@ public:
         for (const auto& [id, job] : JobMap_) {
             result.push_back(job);
         }
-        
+
         return result;
     }
 
@@ -200,7 +200,7 @@ public:
         if (value) {
             TError error{"All scheduler jobs are disabled"};
 
-            Bootstrap_->GetJobInvoker()->Invoke(BIND([=, this_ = MakeStrong(this), error{std::move(error)}] {
+            Bootstrap_->GetJobInvoker()->Invoke(BIND([=, this, this_ = MakeStrong(this), error{std::move(error)}] {
                 VERIFY_THREAD_AFFINITY(JobThread);
 
                 InterruptAllJobs(std::move(error));
@@ -224,7 +224,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return 
+        return
             BIND(&TJobController::DoProcessHeartbeatResponse, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(response);
@@ -383,7 +383,7 @@ private:
     TCounter CacheHitArtifactsSizeCounter_;
     TCounter CacheMissArtifactsSizeCounter_;
     TCounter CacheBypassedArtifactsSizeCounter_;
-    
+
     TGauge TmpfsSizeGauge_;
     TGauge TmpfsUsageGauge_;
     TGauge JobProxyMaxMemoryGauge_;
@@ -733,7 +733,7 @@ private:
 
     void DoProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response)
-    {   
+    {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         for (const auto& protoJobToRemove : response->jobs_to_remove()) {
@@ -844,7 +844,7 @@ private:
 
             jobIdsToConfirm.push_back(jobId);
         }
-        
+
         JobIdsToConfirm_.clear();
         if (!jobIdsToConfirm.empty()) {
             JobIdsToConfirm_.insert(std::cbegin(jobIdsToConfirm), std::cend(jobIdsToConfirm));
@@ -857,11 +857,11 @@ private:
         for (const auto& startInfo : response->jobs_to_start()) {
             jobStartInfos.push_back(startInfo);
 
-            // We get vcpu here. Need to replace it with real cpu back. 
+            // We get vcpu here. Need to replace it with real cpu back.
             auto& resourceLimits = *jobStartInfos.back().mutable_resource_limits();
             resourceLimits.set_cpu(static_cast<double>(NVectorHdrf::TCpuResource(resourceLimits.cpu() / LastHeartbeatCpuToVCpuFactor_)));
         }
-        
+
         auto error = WaitFor(RequestJobSpecsAndStartJobs(std::move(jobStartInfos)));
         YT_LOG_DEBUG_UNLESS(
             error.IsOK(),
@@ -1077,7 +1077,7 @@ private:
         job->SubscribeResourcesUpdated(
             BIND_NO_PROPAGATE(&TJobController::OnJobResourcesUpdated, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
-        
+
         job->SubscribeJobPrepared(
             BIND_NO_PROPAGATE(&TJobController::OnJobPrepared, MakeWeak(this), MakeWeak(job))
                 .Via(Bootstrap_->GetJobInvoker()));
@@ -1135,7 +1135,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
         YT_VERIFY(job->GetPhase() >= EJobPhase::Cleanup);
-        
+
         {
             auto oneUserSlotResources = ZeroNodeResources();
             oneUserSlotResources.set_user_slots(1);

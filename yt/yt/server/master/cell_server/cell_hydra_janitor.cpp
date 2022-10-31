@@ -203,7 +203,7 @@ private:
 
             auto removeReq = TYPathProxy::Remove(filePath);
             ExecuteVerb(rootService, removeReq)
-                .Subscribe(BIND([=, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspRemovePtr& removeRspOrError) {
+                .Subscribe(BIND([=] (const TYPathProxy::TErrorOrRspRemovePtr& removeRspOrError) {
                     if (removeRspOrError.IsOK()) {
                         YT_LOG_DEBUG("Janitor has successfully removed Hydra file (Path: %v)", filePath);
                     } else {
