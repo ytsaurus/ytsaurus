@@ -264,6 +264,7 @@ class _TestProxyFormatConfigBase(metaclass=ABCMeta):
         pytest.param("good_user", True, True, True),
         pytest.param("bad_user", False, False, True),
     ])
+    @pytest.mark.timeout(120)
     def test_format_enable(self, user, yamr, yamred_dsv, yson):
         if user != "root":
             create_user(user)
