@@ -8,6 +8,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/test/yatest"
 	"a.yandex-team.ru/yt/chyt/controller/internal/tests/helpers"
 	"a.yandex-team.ru/yt/go/yttest"
 )
@@ -33,7 +34,9 @@ func (r *cliRunner) RunYTWithOutput(args ...string) ([]byte, error) {
 	r.env.L.Debug("running command", log.Strings("args", args))
 	require.GreaterOrEqual(r.t, len(args), 1)
 
-	ytPath := os.Getenv("ARCADIA_BUILD_ROOT") + "/yt/python/yt/wrapper/bin/yt_make/yt"
+	ytPath, _ := yatest.BinaryPath("yt/python/yt/wrapper/bin/yt_make/yt")
+	_ = os.Setenv("TEST_TOOL", yatest.TestToolPath())
+
 	cmd := exec.Command(ytPath, args...)
 	cmd.Env = os.Environ()
 	for key, value := range r.EnvVariables {
