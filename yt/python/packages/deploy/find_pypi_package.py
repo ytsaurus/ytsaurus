@@ -3,15 +3,14 @@
 import os
 import sys
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../teamcity-build/python/python_packaging"))
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../../teamcity-build/python/python_packaging"))
+from helpers import get_version, import_file
 
-from helpers import get_version
 
-from pypi_helpers import get_package_versions
-
-def main():
-    package_name = sys.argv[1]
+def find_pypi_package(package_name):
+    try:
+        import pypi_helpers
+    except ImportError:
+        pypi_helpers = import_file("pypi_helpers", "./pypi_helpers.py")
 
     version = get_version()
     if "-" in version:
@@ -33,8 +32,13 @@ def main():
         version = version + "a1"
 
     part_count = len(version.replace("-", ".").split("."))
+    return version in pypi_helpers.get_package_versions(package_name, version_part_count=part_count)
 
-    sys.stdout.write(str(int(version in get_package_versions(package_name, version_part_count=part_count))))
+
+def main():
+    package_name = sys.argv[1]
+    sys.stdout.write(str(int(find_pypi_package(package_name))))
+
 
 if __name__ == "__main__":
     main()
