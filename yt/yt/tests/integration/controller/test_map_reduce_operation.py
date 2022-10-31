@@ -2995,6 +2995,27 @@ done
         except YtError as err:
             assert "Exception thrown in operation controller" not in str(err)
 
+    @authors("gepardo")
+    def test_yt17852(self):
+        if self.Env.get_component_version("ytserver-controller-agent").abi <= (22, 3):
+            pytest.skip()
+
+        create("table", "//tmp/in",
+               attributes={"schema": [{"name": "a", "type": "int64"}]})
+        write_table("//tmp/in", [{"a": 1}, {"a": 42}, {"a": 84}])
+        create("table", "//tmp/out")
+
+        with raises_yt_error("Error parsing operation spec"):
+            map_reduce(
+                in_="//tmp/in",
+                out="//tmp/out",
+                reducer_command="cat",
+                reduce_by=["a"],
+                spec={
+                    "mapper_output_table_count": 2,
+                }
+            )
+
 
 ##################################################################
 

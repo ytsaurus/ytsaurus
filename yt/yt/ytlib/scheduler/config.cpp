@@ -670,7 +670,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
 
     registrar.Parameter("chunk_availability_policy", &TThis::ChunkAvailabilityPolicy)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
-    
+
     registrar.Parameter("sanity_check_delay", &TThis::SanityCheckDelay)
         .Default();
 
@@ -1620,11 +1620,13 @@ void TMapReduceOperationSpec::Register(TRegistrar registrar)
         if (spec->MapperOutputTableCount >= std::ssize(spec->OutputTablePaths) ||
             (spec->HasNontrivialMapper() && !spec->Mapper->OutputStreams.empty() && spec->MapperOutputTableCount >= std::ssize(spec->Mapper->OutputStreams)))
         {
-            THROW_ERROR_EXCEPTION(
-                "There should be at least one non-mapper output table; maybe you need Map operation instead?")
+            auto error = TError("There should be at least one non-mapper output table; maybe you need \"map\" operation instead?")
                 << TErrorAttribute("mapper_output_table_count", spec->MapperOutputTableCount)
-                << TErrorAttribute("output_table_count", spec->OutputTablePaths.size())
-                << TErrorAttribute("mapper_output_stream_count", spec->Mapper->OutputStreams.size());
+                << TErrorAttribute("output_table_count", spec->OutputTablePaths.size());
+            if (spec->HasNontrivialMapper()) {
+                error = error << TErrorAttribute("mapper_output_stream_count", spec->Mapper->OutputStreams.size());
+            }
+            THROW_ERROR error;
         }
     });
 }
