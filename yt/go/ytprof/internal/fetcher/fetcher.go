@@ -17,7 +17,6 @@ import (
 	logzap "a.yandex-team.ru/library/go/core/log/zap"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/ytprof"
 	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 )
 
@@ -48,13 +47,13 @@ type (
 	}
 )
 
-func NewFetcher(yc yt.Client, config Config, l *logzap.Logger) *Fetcher {
+func NewFetcher(yc yt.Client, config Config, l *logzap.Logger, s *storage.TableStorage, tablePath string) *Fetcher {
 	f := new(Fetcher)
 	f.yc = yc
 	f.config = config
 	f.l = l
-	f.tableYTPath = ypath.Path(config.TablePath)
-	f.storage = storage.NewTableStorage(yc, f.tableYTPath, l)
+	f.tableYTPath = ypath.Path(tablePath)
+	f.storage = s //storage.NewTableStorage(yc, f.tableYTPath, l)
 
 	f.services = make([]ServiceFetcher, len(config.Services))
 	for id, service := range config.Services {
@@ -91,31 +90,34 @@ func NewResolverFetcher(resolver Resolver, sf *ServiceFetcher) *ResolverFetcher 
 	return rf
 }
 
-func (f *Fetcher) RunFetcherContinuous() error {
-	err := ytprof.MigrateTables(f.yc, f.tableYTPath)
-
-	if err != nil {
-		f.l.Fatal("migration failed", log.Error(err), log.String("table_path", f.tableYTPath.String()))
-	}
-
-	f.l.Debug("migration succeeded", log.String("table_path", f.tableYTPath.String()))
-
+func (f *Fetcher) RunFetcherContinious() error {
 	rand.Seed(time.Now().UnixMicro())
 
 	for _, service := range f.services {
 		go func(serviceFetcher ServiceFetcher) {
-			serviceFetcher.runServiceFetcherContinuous()
+			serviceFetcher.runServiceFetcherContinious(context.Background())
 		}(service)
 	}
 
 	select {}
 }
 
-func (sf *ServiceFetcher) runServiceFetcherContinuous() {
-	for {
-		go sf.fetchService()
+func (sf *ServiceFetcher) runServiceFetcherContinious(ctx context.Context) {
+	ticker := time.NewTicker(sf.service.Period)
+	defer ticker.Stop()
 
-		time.Sleep(sf.service.Period)
+	sf.f.l.Debug("starting service fetcher", log.String("service", sf.service.ServiceType))
+
+	for {
+		sf.fetchService()
+
+		select {
+		case <-ticker.C:
+			continue
+		case <-ctx.Done():
+			sf.f.l.Debug("stopping service fetcher", log.String("service", sf.service.ServiceType), log.Error(ctx.Err()))
+			return
+		}
 	}
 }
 
@@ -128,7 +130,7 @@ func (sf *ServiceFetcher) fetchService() {
 	hostslice := make([]string, 0)
 	errs := make([][]error, sz)
 
-	sf.f.l.Debug("all coroutines getting started", log.String("profile_service", sf.service.ProfilePath))
+	sf.f.l.Debug("all corutines getting started", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
 
 	var wg sync.WaitGroup
 	wg.Add(sz)
@@ -139,11 +141,11 @@ func (sf *ServiceFetcher) fetchService() {
 		}(id, resolver)
 	}
 
-	sf.f.l.Debug("all coroutines started", log.String("profile_service", sf.service.ProfilePath))
+	sf.f.l.Debug("all corutines started", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
 
 	wg.Wait()
 
-	sf.f.l.Debug("all coroutines finished", log.String("profile_service", sf.service.ProfilePath))
+	sf.f.l.Debug("all corutines finished", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType))
 
 	for i := 0; i < len(results); i++ {
 		for j := 0; j < len(results[i]); j++ {
@@ -162,7 +164,7 @@ func (sf *ServiceFetcher) fetchService() {
 		}
 	}
 
-	sf.f.l.Debug("getting ready to push data", log.String("service_type", sf.service.ServiceType), log.Int("data_size", len(resultslice)))
+	sf.f.l.Debug("getting ready to push data", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType), log.Int("data_size", len(resultslice)))
 	err := sf.f.storage.PushData(context.Background(), resultslice, hostslice, sf.service.ProfileType, sf.f.config.Cluster, sf.service.ServiceType)
 	if err != nil {
 		sf.f.l.Error("error while storing profiles", log.String("cluster", sf.f.config.Cluster), log.Error(err))
@@ -181,6 +183,8 @@ func (rf *ResolverFetcher) resolveFQDNs() ([]string, error) {
 
 		if respEndpoint.ResolveStatus != resolver.StatusEndpointOK {
 			rf.sf.f.l.Error("not ok response status of endpoint",
+				log.String("cluster", rf.resolver.YPCluster),
+				log.String("endpoint", rf.resolver.YPEndpoint),
 				log.Int("status", respEndpoint.ResolveStatus),
 				log.Int("statusOK", int(resolver.StatusEndpointOK)),
 				log.Int("statusEmpty", int(resolver.StatusEndpointEmpty)),
@@ -210,6 +214,8 @@ func (rf *ResolverFetcher) resolveFQDNs() ([]string, error) {
 
 		if respPodSet.ResolveStatus != resolver.StatusPodOK {
 			rf.sf.f.l.Error("not ok response status of podset",
+				log.String("cluster", rf.resolver.YPCluster),
+				log.String("podset", rf.resolver.YPPodSet),
 				log.Int("status", respPodSet.ResolveStatus),
 				log.Int("statusOK", int(resolver.StatusPodOK)),
 				log.Int("statusEmpty", int(resolver.StatusPodEmpty)),
@@ -247,6 +253,11 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []erro
 		}
 	}
 
+	rf.sf.f.l.Debug("starting to resolve profiles",
+		log.String("cluster", rf.sf.f.config.Cluster),
+		log.String("service", rf.sf.service.ServiceType),
+		log.Int("size", len(usedIDs)))
+
 	errs := make([]error, len(usedIDs))
 	results := make([]*profile.Profile, len(usedIDs))
 	hosts := make([]string, len(usedIDs))
@@ -263,12 +274,15 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []erro
 
 	wg.Wait()
 
-	rf.sf.f.l.Debug("service resolver finished", log.String("service", rf.sf.service.ServiceType), log.Int("profiles_fetched", len(results)))
+	rf.sf.f.l.Debug("service resolver finished",
+		log.String("cluster", rf.sf.f.config.Cluster),
+		log.String("service", rf.sf.service.ServiceType),
+		log.Int("size", len(results)))
 	return results, hosts, errs
 }
 
 func (rf *ResolverFetcher) fetchURL(url string) (*profile.Profile, error) {
-	ctx, cancel := context.WithTimeout(context.Background(), 3*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), rf.sf.service.Period)
 	defer cancel()
 
 	requestURL := fmt.Sprintf("%v:%d/%v", url, rf.resolver.Port, rf.sf.service.ProfilePath)

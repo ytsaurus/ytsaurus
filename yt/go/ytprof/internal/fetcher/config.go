@@ -54,9 +54,14 @@ type Config struct {
 	// Cluster name ("hume")
 	Cluster string `yson:"cluster"`
 
+	// Descriptions of what profiles to fetch
+	Services []Service `yson:"services"`
+}
+
+type Configs struct {
 	// Path to the table ("//home/kristevalex/ytprof")
 	TablePath string `yson:"table_path"`
 
-	// Descriptions of what profiles to fetch
-	Services []Service `yson:"services"`
+	// Configs per cluster
+	Configs []Config `yson:"configs"`
 }
