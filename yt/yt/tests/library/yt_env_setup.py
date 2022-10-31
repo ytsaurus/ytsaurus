@@ -730,12 +730,11 @@ class YTEnvSetup(object):
 
         if class_duration > class_limit:
             pytest.fail(
-                (
-                    "Execution of class {} took more than {} seconds ({} seconds).\n"
-                    "Check test stdout for detailed duration report.\n"
-                    "You can split class into smaller partitions, using NUM_TEST_PARTITIONS option (current value is {}).")
-                    .format(cls.__name__, class_limit, class_duration, cls.NUM_TEST_PARTITIONS)
-                )
+                "Execution of class {} took more than {} seconds ({} seconds).\n"
+                "Check test stdout for detailed duration report.\n"
+                "You can split class into smaller partitions, using NUM_TEST_PARTITIONS option (current value is {})."
+                .format(cls.__name__, class_limit, class_duration, cls.NUM_TEST_PARTITIONS)
+            )
 
     def setup_method(self, method):
         for cluster_index in range(self.NUM_REMOTE_CLUSTERS + 1):
