@@ -479,9 +479,6 @@ public:
 
     TString IssueServiceTicket() override
     {
-        if (!TvmService_) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No TVM service is specified");
-        }
         return TvmService_->GetServiceTicket(DstServiceId_);
     }
 
@@ -524,6 +521,8 @@ IServiceTicketAuthPtr CreateServiceTicketAuth(
     ITvmServicePtr tvmService,
     TTvmId dstServiceId)
 {
+    YT_VERIFY(tvmService);
+
     return New<TServiceTicketAuth>(std::move(tvmService), dstServiceId);
 }
 
