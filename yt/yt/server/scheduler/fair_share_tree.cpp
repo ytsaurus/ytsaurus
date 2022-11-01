@@ -13,6 +13,7 @@
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_profiling.h"
 #include "fields_filter.h"
+#include "helpers.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -1064,7 +1065,7 @@ public:
     }
 
     static IYPathServicePtr FromProducer(
-        NYson::TExtendedYsonProducer<const TFieldsFilter&> producer)
+        TExtendedYsonProducer<const TFieldsFilter&> producer)
     {
         return IYPathService::FromProducer(BIND(
             [producer{std::move(producer)}] (IYsonConsumer* consumer, const IAttributeDictionaryPtr& options) {
@@ -2445,6 +2446,7 @@ private:
 
             auto fairShareInfo = BuildSerializedFairShareInfo(
                 treeSnapshot,
+                treeSnapshot->TreeConfig()->MaxEventLogPoolBatchSize,
                 treeSnapshot->TreeConfig()->MaxEventLogOperationBatchSize);
             auto logFairShareEventFluently = [&] {
                 return StrategyHost_->LogFairShareEventFluently(now)
@@ -2452,18 +2454,27 @@ private:
                     .Item("tree_snapshot_id").Value(treeSnapshotId);
             };
 
-            // NB(eshcherbin, YTADMIN-11230): First we log a single event with pools info and resource distribution info.
-            // Then we split all operations' info into several batches and log every batch in a separate event.
+            // NB(eshcherbin, YTADMIN-11230): First we log a single event with general pools info and resource distribution info.
+            // Then we split all pools' and operations' info into several batches and log every batch in a separate event.
             logFairShareEventFluently()
-                .Items(fairShareInfo.PoolsInfo)
+                .Items(fairShareInfo.PoolCount)
                 .Items(fairShareInfo.ResourceDistributionInfo);
 
+            for (int batchIndex = 0; batchIndex < std::ssize(fairShareInfo.SplitPoolsInfo); ++batchIndex) {
+                const auto& batch = fairShareInfo.SplitPoolsInfo[batchIndex];
+                logFairShareEventFluently()
+                    .Item("pools_batch_index").Value(batchIndex)
+                    .Item("pools").BeginMap()
+                        .Items(batch)
+                    .EndMap();
+            }
+
             for (int batchIndex = 0; batchIndex < std::ssize(fairShareInfo.SplitOperationsInfo); ++batchIndex) {
-                const auto& operationsInfoBatch = fairShareInfo.SplitOperationsInfo[batchIndex];
+                const auto& batch = fairShareInfo.SplitOperationsInfo[batchIndex];
                 logFairShareEventFluently()
                     .Item("operations_batch_index").Value(batchIndex)
                     .Item("operations").BeginMap()
-                        .Items(operationsInfoBatch)
+                        .Items(batch)
                     .EndMap();
             }
         }
@@ -2604,76 +2615,76 @@ private:
 
         auto fairShareInfo = BuildSerializedFairShareInfo(treeSnapshot);
         fluent
-            .Items(fairShareInfo.PoolsInfo)
-            .Items(fairShareInfo.ResourceDistributionInfo)
-            .Item("operations").BeginMap()
-                .DoFor(fairShareInfo.SplitOperationsInfo, [&] (TFluentMap fluent, const TYsonString& operationsInfoBatch) {
-                    fluent.Items(operationsInfoBatch);
+            .Items(fairShareInfo.PoolCount)
+            .Item("pools").BeginMap()
+                .DoFor(fairShareInfo.SplitPoolsInfo, [&] (TFluentMap fluent, const TYsonString& batch) {
+                    fluent.Items(batch);
                 })
-            .EndMap();
+            .EndMap()
+            .Item("operations").BeginMap()
+                .DoFor(fairShareInfo.SplitOperationsInfo, [&] (TFluentMap fluent, const TYsonString& batch) {
+                    fluent.Items(batch);
+                })
+            .EndMap()
+            .Items(fairShareInfo.ResourceDistributionInfo);
     }
 
     struct TSerializedFairShareInfo
     {
-        NYson::TYsonString PoolsInfo;
-        NYson::TYsonString ResourceDistributionInfo;
-        std::vector<NYson::TYsonString> SplitOperationsInfo;
+        TYsonString PoolCount;
+        std::vector<TYsonString> SplitPoolsInfo;
+        std::vector<TYsonString> SplitOperationsInfo;
+        TYsonString ResourceDistributionInfo;
     };
 
     TSerializedFairShareInfo BuildSerializedFairShareInfo(
         const TFairShareTreeSnapshotPtr& treeSnapshot,
+        int maxPoolBatchSize = std::numeric_limits<int>::max(),
         int maxOperationBatchSize = std::numeric_limits<int>::max()) const
     {
-        YT_LOG_DEBUG("Started building serialized fair share info (MaxOperationBatchSize: %v)",
+        YT_LOG_DEBUG("Started building serialized fair share info (MaxPoolBatchSize: %v, MaxOperationBatchSize: %v)",
+            maxPoolBatchSize,
             maxOperationBatchSize);
 
         TSerializedFairShareInfo fairShareInfo;
-        fairShareInfo.PoolsInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
+        fairShareInfo.PoolCount = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Item("pool_count").Value(treeSnapshot->PoolMap().size())
-            .Item("pools").BeginMap()
-                .Do(std::bind(&TFairShareTree::BuildPoolsInfo, std::cref(treeSnapshot), TFieldsFilter{}, std::placeholders::_1))
-            .EndMap()
             .Finish();
         fairShareInfo.ResourceDistributionInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Item("resource_distribution_info").BeginMap()
-                .Do(BIND(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshot->RootElement()))
+                .Do(std::bind(&TSchedulerRootElement::BuildResourceDistributionInfo, treeSnapshot->RootElement(), std::placeholders::_1))
             .EndMap()
             .Finish();
 
-        std::vector<TSchedulerOperationElement*> operations;
-        operations.reserve(treeSnapshot->EnabledOperationMap().size() + treeSnapshot->DisabledOperationMap().size());
-        for (const auto& [_, element] : treeSnapshot->EnabledOperationMap()) {
-            operations.push_back(element);
-        }
-        for (const auto& [_, element] : treeSnapshot->DisabledOperationMap()) {
-            operations.push_back(element);
-        }
+        TYsonMapFragmentBatcher poolsConsumer(&fairShareInfo.SplitPoolsInfo, maxPoolBatchSize);
+        BuildYsonMapFragmentFluently(&poolsConsumer)
+            .Do(std::bind(&TFairShareTree::BuildPoolsInfo, std::cref(treeSnapshot), TFieldsFilter{}, std::placeholders::_1));
+        poolsConsumer.Flush();
 
-        int operationBatchCount = 0;
-        auto batchStart = operations.begin();
-        while (batchStart < operations.end()) {
-            auto batchEnd = (std::distance(batchStart, operations.end()) > maxOperationBatchSize)
-                ? std::next(batchStart, maxOperationBatchSize)
-                : operations.end();
-            auto operationsInfoBatch = BuildYsonStringFluently<EYsonType::MapFragment>()
-                .DoFor(batchStart, batchEnd, [&] (TFluentMap fluent, std::vector<TSchedulerOperationElement*>::iterator it) {
-                    auto* element = *it;
-                    fluent
-                        .Item(element->GetId()).BeginMap()
-                            .Do(BIND(&TFairShareTree::DoBuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), StrategyHost_))
-                        .EndMap();
-                })
-                .Finish();
-            fairShareInfo.SplitOperationsInfo.push_back(std::move(operationsInfoBatch));
+        auto buildOperationInfo = [&] (TFluentMap fluent, const TNonOwningOperationElementMap::value_type& pair) {
+            const auto& [_, element] = pair;
+            fluent
+                .Item(element->GetId()).BeginMap()
+                    .Do(std::bind(&TFairShareTree::DoBuildOperationProgress, std::cref(treeSnapshot), element, StrategyHost_, std::placeholders::_1))
+                .EndMap();
+        };
 
-            batchStart = batchEnd;
-            ++operationBatchCount;
-        }
+        TYsonMapFragmentBatcher operationsConsumer(&fairShareInfo.SplitOperationsInfo, maxOperationBatchSize);
+        BuildYsonMapFragmentFluently(&operationsConsumer)
+            .DoFor(treeSnapshot->EnabledOperationMap(), buildOperationInfo)
+            .DoFor(treeSnapshot->DisabledOperationMap(), buildOperationInfo);
+        operationsConsumer.Flush();
 
-        YT_LOG_DEBUG("Finished building serialized fair share info (MaxOperationBatchSize: %v, OperationCount: %v, OperationBatchCount: %v)",
+        YT_LOG_DEBUG(
+            "Finished building serialized fair share info "
+            "(MaxPoolBatchSize: %v, PoolCount: %v, PoolBatchCount: %v, "
+            "MaxOperationBatchSize: %v, OperationCount: %v, OperationBatchCount: %v)",
+            maxPoolBatchSize,
+            treeSnapshot->PoolMap().size() + 1,
+            fairShareInfo.SplitPoolsInfo.size(),
             maxOperationBatchSize,
-            operations.size(),
-            operationBatchCount);
+            treeSnapshot->EnabledOperationMap().size() + treeSnapshot->DisabledOperationMap().size(),
+            fairShareInfo.SplitOperationsInfo.size());
 
         return fairShareInfo;
     }
@@ -2739,20 +2750,31 @@ private:
 
     static void BuildPoolsInfo(const TFairShareTreeSnapshotPtr& treeSnapshot, const TFieldsFilter& filter, TFluentMap fluent)
     {
+        const auto& poolMap = treeSnapshot->PoolMap();
         fluent
-            .DoFor(treeSnapshot->PoolMap(), [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
-                fluent.Item(pair.second->GetId()).BeginMap()
-                    .Do(std::bind(&TFairShareTree::BuildPoolInfo, treeSnapshot, pair.second, filter, std::placeholders::_1))
-                .EndMap();
+            .DoFor(poolMap, [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
+                const auto& [poolName, pool] = pair;
+                fluent.Item(poolName)
+                    .BeginMap()
+                        .Do(std::bind(&TFairShareTree::BuildPoolInfo, std::cref(treeSnapshot), pool, std::cref(filter), std::placeholders::_1))
+                    .EndMap();
             })
+            .Do(std::bind(&TFairShareTree::DoBuildRootElementInfo, std::cref(treeSnapshot), std::cref(filter), std::placeholders::_1));
+    }
+
+    static void DoBuildRootElementInfo(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TFieldsFilter& filter,
+        TFluentMap fluent)
+    {
+        fluent
             .Item(RootPoolName).BeginMap()
-                .Do(
-                    std::bind(
-                        &TFairShareTree::BuildCompositeElementInfo,
-                        std::cref(treeSnapshot),
-                        treeSnapshot->RootElement().Get(),
-                        std::cref(filter),
-                        std::placeholders::_1))
+                .Do(std::bind(
+                    &TFairShareTree::BuildCompositeElementInfo,
+                    std::cref(treeSnapshot),
+                    treeSnapshot->RootElement().Get(),
+                    std::cref(filter),
+                    std::placeholders::_1))
             .EndMap();
     }
 

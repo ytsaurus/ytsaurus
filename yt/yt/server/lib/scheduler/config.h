@@ -360,6 +360,7 @@ public:
 
     bool EnableResourceUsageSnapshot;
 
+    int MaxEventLogPoolBatchSize;
     int MaxEventLogOperationBatchSize;
 
     TDuration AccumulatedResourceUsageUpdatePeriod;
