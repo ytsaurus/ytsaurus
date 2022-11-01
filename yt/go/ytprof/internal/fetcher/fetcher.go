@@ -53,7 +53,7 @@ func NewFetcher(yc yt.Client, config Config, l *logzap.Logger, s *storage.TableS
 	f.config = config
 	f.l = l
 	f.tableYTPath = ypath.Path(tablePath)
-	f.storage = s //storage.NewTableStorage(yc, f.tableYTPath, l)
+	f.storage = s
 
 	f.services = make([]ServiceFetcher, len(config.Services))
 	for id, service := range config.Services {

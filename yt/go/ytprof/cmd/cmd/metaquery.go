@@ -3,6 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
+	"math/rand"
 	"os"
 	"sort"
 	"time"
@@ -12,6 +13,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/library/go/slices"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/ytlog"
@@ -77,11 +79,11 @@ var getClustersCmd = &cobra.Command{
 
 func init() {
 	getDataCmd.Flags().StringVar(&flagProfileGUID, "guid", "", "guid of the profiles")
-	findDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type default - cpu")
-	pushDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type default - cpu")
-	pushDataCmd.Flags().StringVar(&flagProfileHost, "host", defaultNone, "service of profile default - none")
-	pushDataCmd.Flags().StringVar(&flagProfileCluster, "cluster", defaultNone, "cluster of profile default - none, run subcommand 'clusters', to see supported")
-	pushDataCmd.Flags().StringVar(&flagProfileService, "service", defaultNone, "service of profile default - none, run subcommand 'services', to see supported")
+	findDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type")
+	pushDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type")
+	pushDataCmd.Flags().StringVar(&flagProfileHost, "host", defaultNone, "service of profile")
+	pushDataCmd.Flags().StringVar(&flagProfileCluster, "cluster", defaultNone, "cluster of profile, run subcommand 'clusters', to see supported")
+	pushDataCmd.Flags().StringVar(&flagProfileService, "service", defaultNone, "service of profile, run subcommand 'services', to see supported")
 	findMetadataCmd.Flags().IntVar(&flagMetadataDisplayLimit, "displaylimit", 1000000000, "max number of metadata elements to display")
 
 	rootCmd.AddCommand(getDataCmd)
@@ -144,7 +146,7 @@ func (p cmdPeriod) storagePeriod() storage.TimestampPeriod {
 }
 
 func displayStats(metadataSlice []ytprof.ProfileMetadata) {
-	fmt.Fprintf(os.Stdout, "%d\t - Total\n", len(metadataSlice))
+	fmt.Printf("%d\t - Total\n", len(metadataSlice))
 
 	metaParams := map[string]map[string]int{}
 
@@ -175,14 +177,14 @@ func displayStats(metadataSlice []ytprof.ProfileMetadata) {
 			return toSort[i].Value > toSort[j].Value
 		})
 
-		fmt.Fprintf(os.Stderr, "%d\t - Total of %v\n", totalOfParam, key)
+		fmt.Printf("%d\t - Total of %v\n", totalOfParam, key)
 
 		for id, kv := range toSort {
 			if id == flagStatsMax {
-				fmt.Fprintf(os.Stderr, "\t%d\t - ...\n", totalOfParam)
+				fmt.Printf("\t%d\t - ...\n", totalOfParam)
 				break
 			}
-			fmt.Fprintf(os.Stderr, "\t%d\t - of %v.\n", kv.Value, kv.Key)
+			fmt.Printf("\t%d\t - of %v.\n", kv.Value, kv.Key)
 			totalOfParam -= kv.Value
 		}
 	}
@@ -204,10 +206,7 @@ func getMetaquery(query string, l *zap.Logger) storage.Metaquery {
 }
 
 func findMetadata(cmd *cobra.Command, args []string) error {
-	l, err := ytlog.New()
-	if err != nil {
-		return err
-	}
+	l := ytlog.Must()
 
 	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
@@ -226,10 +225,10 @@ func findMetadata(cmd *cobra.Command, args []string) error {
 
 	for id, metadata := range resp {
 		if id == flagMetadataDisplayLimit {
-			fmt.Fprintf(os.Stderr, "... %d more left\n", len(resp)-flagMetadataDisplayLimit)
+			fmt.Printf("... %d more left\n", len(resp)-flagMetadataDisplayLimit)
 			break
 		}
-		fmt.Fprintln(os.Stderr, metadata.String())
+		fmt.Println(metadata.String())
 	}
 
 	if flagStats {
@@ -244,10 +243,7 @@ func metaqueryWithProfileType(metaquery string, profileType string) string {
 }
 
 func findData(cmd *cobra.Command, args []string) error {
-	l, err := ytlog.New()
-	if err != nil {
-		return err
-	}
+	l := ytlog.Must()
 
 	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
@@ -285,32 +281,29 @@ func findData(cmd *cobra.Command, args []string) error {
 }
 
 func getData(cmd *cobra.Command, args []string) error {
-	l, err := ytlog.New()
-	if err != nil {
-		return err
-	}
+	l := ytlog.Must()
 
 	profileGUID, err := guid.ParseString(flagProfileGUID)
 	if err != nil {
-		l.Fatal("parsing of GUID failed", log.Error(err), log.String("GUID", flagProfileGUID))
+		l.Error("parsing of GUID failed", log.Error(err), log.String("GUID", flagProfileGUID))
 		return err
 	}
 
 	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
-		l.Fatal("storage creation failed", log.Error(err))
+		l.Error("storage creation failed", log.Error(err))
 		return err
 	}
 
 	profile, err := s.FindProfile(context.Background(), ytprof.ProfIDFromGUID(profileGUID))
 	if err != nil {
-		l.Fatal("get profile query failed", log.Error(err))
+		l.Error("get profile query failed", log.Error(err))
 		return err
 	}
 
 	file, err := os.OpenFile(flagFilePath, os.O_RDWR|os.O_CREATE, 0666)
 	if err != nil {
-		l.Fatal("opening file failed", log.Error(err), log.String("file_path", flagFilePath))
+		l.Error("opening file failed", log.Error(err), log.String("file_path", flagFilePath))
 		return err
 	}
 	defer file.Close()
@@ -320,59 +313,52 @@ func getData(cmd *cobra.Command, args []string) error {
 	return profile.Write(file)
 }
 
-func contains(s []string, e string) bool {
-	for _, a := range s {
-		if a == e {
-			return true
-		}
-	}
-	return false
-}
-
 func pushData(cmd *cobra.Command, args []string) error {
-	l, err := ytlog.New()
 	ctx := context.Background()
-	if err != nil {
-		return err
-	}
+	l := ytlog.Must()
 
 	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
 		l.Fatal("storage creation failed", log.Error(err))
-		return err
 	}
 
 	clusters, err := s.FindTagValues(ctx, "Cluster")
 	if err != nil {
-		l.Fatal("can't find available clusters", log.Error(err))
+		l.Error("can't find available clusters", log.Error(err))
 		return err
 	}
 
 	services, err := s.FindTagValues(ctx, "Service")
 	if err != nil {
-		l.Fatal("can't find available services", log.Error(err))
+		l.Error("can't find available services", log.Error(err))
 		return err
 	}
 
-	if !contains(clusters, flagProfileCluster) {
-		flagProfileCluster = defaultNone
+	ok, err := slices.Contains(clusters, flagProfileCluster)
+	if !ok || err != nil {
+		l.Error("unsupported cluster", log.String("cluster", flagProfileCluster), log.Error(err))
+		return fmt.Errorf("unsupported cluster")
 	}
 
-	if !contains(services, flagProfileService) {
-		flagProfileService = defaultNone
+	ok, err = slices.Contains(services, flagProfileService)
+	if !ok || err != nil {
+		l.Error("unsupported service", log.String("service", flagProfileService), log.Error(err))
+		return fmt.Errorf("unsupported service")
 	}
 
 	f, err := os.Open(flagFilePath)
 	if err != nil {
-		l.Fatal("can't open file", log.Error(err), log.String("path", flagFilePath))
+		l.Error("can't open file", log.Error(err), log.String("path", flagFilePath))
 		return err
 	}
 
 	curProfile, err := profile.Parse(f)
 	if err != nil {
-		l.Fatal("parsing profile failed", log.Error(err))
+		l.Error("parsing profile failed", log.Error(err))
 		return err
 	}
+
+	rand.Seed(time.Now().UnixMicro())
 
 	guids, err := s.PushData(
 		ctx,
@@ -383,62 +369,52 @@ func pushData(cmd *cobra.Command, args []string) error {
 		flagProfileService,
 	)
 	if err != nil {
-		l.Fatal("pushing data failed", log.Error(err))
+		l.Error("pushing data failed", log.Error(err))
 		return err
 	}
 	if len(guids) != 1 {
-		l.Fatal("wrong response length", log.Int("length", len(guids)))
+		l.Error("wrong response length", log.Int("length", len(guids)))
 		return fmt.Errorf("wrong response length")
 	}
 
-	fmt.Fprintln(os.Stderr, "Link to view your profile:")
-	fmt.Fprintf(os.Stderr, "https://ytprof.yt.yandex-team.ru/ui/%s/\n", guids[0])
+	fmt.Println("Link to view your profile:")
+	fmt.Printf("https://ytprof.yt.yandex-team.ru/ui/%s/\n", guids[0])
 
 	return nil
 }
 
 func getClusters(cmd *cobra.Command, args []string) error {
-	l, err := ytlog.New()
-	ctx := context.Background()
-	if err != nil {
-		return err
-	}
+	l := ytlog.Must()
 
 	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
 		l.Fatal("storage creation failed", log.Error(err))
-		return err
 	}
 
-	clusters, err := s.FindTagValues(ctx, "Cluster")
+	clusters, err := s.FindTagValues(context.Background(), "Cluster")
 	if err != nil {
-		l.Fatal("can't find available clusters", log.Error(err))
+		l.Error("can't find available clusters", log.Error(err))
 		return err
 	}
-	fmt.Fprintln(os.Stderr, clusters)
+	fmt.Println(clusters)
 
 	return nil
 }
 
 func getServices(cmd *cobra.Command, args []string) error {
-	l, err := ytlog.New()
-	ctx := context.Background()
-	if err != nil {
-		return err
-	}
+	l := ytlog.Must()
 
 	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
 	if err != nil {
 		l.Fatal("storage creation failed", log.Error(err))
-		return err
 	}
 
-	services, err := s.FindTagValues(ctx, "Service")
+	services, err := s.FindTagValues(context.Background(), "Service")
 	if err != nil {
-		l.Fatal("can't find available services", log.Error(err))
+		l.Error("can't find available services", log.Error(err))
 		return err
 	}
-	fmt.Fprintln(os.Stderr, services)
+	fmt.Println(services)
 
 	return nil
 }
