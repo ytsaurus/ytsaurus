@@ -14,13 +14,13 @@ from yt_commands import (
     map_reduce, merge, sort, get_job,
     run_test_vanilla, run_sleeping_vanilla, get_job_fail_context, dump_job_context,
     get_singular_chunk_id, PrepareTables,
-    raises_yt_error, update_scheduler_config, update_controller_agent_config,
+    raises_yt_error, update_scheduler_config, update_pool_tree_config, update_controller_agent_config,
     assert_statistics, sorted_dicts,
     set_banned_flag)
 
 from yt_type_helpers import make_schema
 
-from yt_scheduler_helpers import scheduler_orchid_default_pool_tree_config_path, scheduler_orchid_path
+from yt_scheduler_helpers import scheduler_orchid_path
 
 from yt_helpers import profiler_factory, read_structured_log, write_log_barrier
 
@@ -2247,43 +2247,60 @@ class TestEventLog(YTEnvSetup):
 
             return events_by_timestamp[max(events_by_timestamp)]
 
-        def check_events(expected_operation_batch_sizes):
+        def check_events(expected_pools_batch_sizes, expected_operations_batch_sizes):
             events = read_latest_fair_share_info()
             if events is None:
                 return False
 
-            base_event_keys = ["pools", "pool_count", "resource_distribution_info"]
+            base_event_keys = ["pool_count", "resource_distribution_info"]
+            pools_info_event_keys = ["pools", "pools_batch_index"]
             operations_info_event_keys = ["operations", "operations_batch_index"]
 
             base_event_count = 0
+            actual_pool_batch_sizes = {}
             actual_operation_batch_sizes = {}
             for event in events:
                 if "pools" in event:
-                    check_keys(event, included_keys=base_event_keys, excluded_keys=operations_info_event_keys)
-                    base_event_count += 1
-                else:
-                    check_keys(event, included_keys=operations_info_event_keys, excluded_keys=base_event_keys)
+                    check_keys(event, included_keys=pools_info_event_keys, excluded_keys=base_event_keys + operations_info_event_keys)
+                    actual_pool_batch_sizes[event["pools_batch_index"]] = len(event["pools"])
+                elif "operations" in event:
+                    check_keys(event, included_keys=operations_info_event_keys, excluded_keys=base_event_keys + pools_info_event_keys)
                     actual_operation_batch_sizes[event["operations_batch_index"]] = len(event["operations"])
+                else:
+                    check_keys(event, included_keys=base_event_keys, excluded_keys=pools_info_event_keys + operations_info_event_keys)
+                    base_event_count += 1
 
             assert base_event_count == 1
+
+            assert sorted(actual_pool_batch_sizes) == list(range(len(actual_pool_batch_sizes)))
+            actual_pool_batch_sizes = [actual_pool_batch_sizes[batch_index]
+                                       for batch_index in range(len(actual_pool_batch_sizes))]
+
             assert sorted(actual_operation_batch_sizes) == list(range(len(actual_operation_batch_sizes)))
             actual_operation_batch_sizes = [actual_operation_batch_sizes[batch_index]
                                             for batch_index in range(len(actual_operation_batch_sizes))]
-            return expected_operation_batch_sizes == actual_operation_batch_sizes
 
-        wait(lambda: check_events([]))
+            return expected_pools_batch_sizes == actual_pool_batch_sizes and \
+                expected_operations_batch_sizes == actual_operation_batch_sizes
 
-        set("//sys/pool_trees/default/@config/max_event_log_operation_batch_size", 4)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_event_log_operation_batch_size") == 4)
+        wait(lambda: check_events([1], []))
+
+        update_pool_tree_config("default", {
+            "max_event_log_pool_batch_size": 2,
+            "max_event_log_operation_batch_size": 4,
+        })
+
         for i in range(4):
             run_sleeping_vanilla()
 
-        wait(lambda: check_events([4]))
+        wait(lambda: check_events([2], [4]))
 
-        set("//sys/pool_trees/default/@config/max_event_log_operation_batch_size", 3)
-        wait(lambda: get(scheduler_orchid_default_pool_tree_config_path() + "/max_event_log_operation_batch_size") == 3)
+        update_pool_tree_config("default", {
+            "max_event_log_pool_batch_size": 1,
+            "max_event_log_operation_batch_size": 3,
+        })
 
-        wait(lambda: check_events([3, 1]))
+        wait(lambda: check_events([1, 1], [3, 1]))
 
     @authors("ignat")
     def test_accumulated_usage(self):

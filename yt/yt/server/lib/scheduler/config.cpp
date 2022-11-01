@@ -413,6 +413,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_resource_usage_snapshot", &TThis::EnableResourceUsageSnapshot)
         .Default(true);
 
+    registrar.Parameter("max_event_log_pool_batch_size", &TThis::MaxEventLogPoolBatchSize)
+        .Default(1000);
+
     registrar.Parameter("max_event_log_operation_batch_size", &TThis::MaxEventLogOperationBatchSize)
         .Default(1000);
 

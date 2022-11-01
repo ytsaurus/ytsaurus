@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/yson/public.h>
+#include <yt/yt/core/yson/forwarding_consumer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 
@@ -62,6 +63,34 @@ std::vector<std::pair<TInstant, TInstant>> SplitTimeIntervalByHours(TInstant sta
 ////////////////////////////////////////////////////////////////////////////////
 
 THashSet<int> GetDiskQuotaMedia(const TDiskQuota& diskQuota);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonMapFragmentBatcher final
+    : public NYson::TForwardingYsonConsumer
+    , public NYson::IFlushableYsonConsumer
+    , private TNonCopyable
+{
+public:
+    TYsonMapFragmentBatcher(
+        std::vector<NYson::TYsonString>* batchOutput,
+        int maxBatchSize,
+        NYson::EYsonFormat format = NYson::EYsonFormat::Binary);
+
+    //! Flushes current batch if it's non-empty.
+    void Flush() override;
+
+protected:
+    void OnMyKeyedItem(TStringBuf key) override;
+
+private:
+    std::vector<NYson::TYsonString>* const BatchOutput_;
+    const int MaxBatchSize_;
+
+    int BatchSize_ = 0;
+    TStringStream BatchStream_;
+    std::unique_ptr<NYson::IFlushableYsonConsumer> BatchWriter_;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
