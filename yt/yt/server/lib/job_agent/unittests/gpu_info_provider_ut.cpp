@@ -126,7 +126,7 @@ protected:
 
 TEST_F(TTestNvManagerGpuInfoProvider, Simple)
 {
-    auto provider = New<TNvManagerGpuInfoProvider>(Address_, ServiceName);
+    auto provider = New<TNvManagerGpuInfoProvider>(Address_, ServiceName, /*getGpuIndexesFromNvidiaSmi*/ false);
     auto gpuInfos = provider->GetGpuInfos(TDuration::Max());
 
     {

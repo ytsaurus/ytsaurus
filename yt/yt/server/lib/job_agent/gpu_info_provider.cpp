@@ -261,13 +261,20 @@ static NRpc::IChannelPtr CreateChannel(const TString& address)
     return NRpc::NGrpc::CreateGrpcChannel(channelConfig);
 }
 
-TNvManagerGpuInfoProvider::TNvManagerGpuInfoProvider(const TString& address, const TString serviceName)
+TNvManagerGpuInfoProvider::TNvManagerGpuInfoProvider(const TString& address, const TString serviceName, bool getGpuIndexesFromNvidiaSmi)
     : Channel_(CreateChannel(address))
     , ServiceName_(std::move(serviceName))
+    , GetGpuIndexesFromNvidiaSmi_(getGpuIndexesFromNvidiaSmi)
 { }
 
 std::vector<TGpuInfo> TNvManagerGpuInfoProvider::GetGpuInfos(TDuration checkTimeout)
 {
+    // COMPAT(ignat): temporary fix for stable numeration.
+    THashMap<TString, int> gpuIdToNumber;
+    if (GetGpuIndexesFromNvidiaSmi_) {
+        gpuIdToNumber = GetGpuIds(checkTimeout);
+    }
+
     TNvGpuManagerService proxy(Channel_, ServiceName_);
     auto req = proxy.ListDevices();
     auto rsp = WaitFor(
@@ -276,10 +283,26 @@ std::vector<TGpuInfo> TNvManagerGpuInfoProvider::GetGpuInfos(TDuration checkTime
         .ValueOrThrow();
     std::vector<TGpuInfo> gpuInfos;
     gpuInfos.reserve(rsp->devices_size());
-    for (int i = 0; i < rsp->devices_size(); ++i) {
-        if (rsp->devices(i).spec().has_nvidia() && rsp->devices(i).status().has_nvidia()) {
-            FromProto(&gpuInfos.emplace_back(), i, rsp->devices(i));
+
+    int index = 0;
+    for (const auto& device : rsp->devices()) {
+        if (device.spec().has_nvidia() && device.status().has_nvidia()) {
+            int deviceIndex;
+            if (GetGpuIndexesFromNvidiaSmi_) {
+                const auto& gpuId = device.spec().nvidia().uuid();
+                auto it = gpuIdToNumber.find(gpuId);
+                if (it == gpuIdToNumber.end()) {
+                    THROW_ERROR_EXCEPTION("Invalid 'nvidia-smi --query-gpu' output, gpu id %Qv is not found in 'nvidia-smi -q' output",
+                        gpuId);
+                }
+                deviceIndex = it->second;
+            } else {
+                deviceIndex = index;
+            }
+
+            FromProto(&gpuInfos.emplace_back(), deviceIndex, device);
         }
+        ++index;
     }
     return gpuInfos;
 }

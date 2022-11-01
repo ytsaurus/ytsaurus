@@ -38,13 +38,14 @@ class TNvManagerGpuInfoProvider
     : public IGpuInfoProvider
 {
 public:
-    TNvManagerGpuInfoProvider(const TString& address, const TString serviceName);
+    TNvManagerGpuInfoProvider(const TString& address, const TString serviceName, bool getGpuIndexesFromNvidiaSmi = true);
 
     virtual std::vector<TGpuInfo> GetGpuInfos(TDuration checkTimeout) override;
 
 private:
     NRpc::IChannelPtr Channel_;
     TString ServiceName_;
+    bool GetGpuIndexesFromNvidiaSmi_;
 };
 
 IGpuInfoProviderPtr CreateGpuInfoProvider(const TGpuInfoSourceConfigPtr& gpuInfoSource);
