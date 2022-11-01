@@ -18,6 +18,10 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = AuthLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 bool IsValidSourceTvmId(const IConnectionPtr& connection, TTvmId tvmId)
 {
     return tvmId == connection->GetConfig()->TvmId || connection->GetClusterDirectory()->HasTvmId(tvmId);
@@ -44,8 +48,8 @@ IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
     }
 
     if (!tvmService) {
-        const auto& Logger = AuthLogger;
         YT_LOG_ERROR("Cluster connection requires TVM authentification, but TVM service is unset");
+        return channelFactory;
     }
 
     auto ticketAuth = CreateServiceTicketAuth(tvmService, *tvmId);
@@ -68,8 +72,8 @@ IChannelPtr CreateNativeAuthenticationInjectingChannel(
     }
 
     if (!tvmService) {
-        const auto& Logger = AuthLogger;
         YT_LOG_ERROR("Cluster connection requires TVM authentification, but TVM service is unset");
+        return channel;
     }
 
     auto ticketAuth = CreateServiceTicketAuth(tvmService, *tvmId);
