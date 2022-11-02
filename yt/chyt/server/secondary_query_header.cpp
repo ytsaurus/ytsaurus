@@ -18,6 +18,7 @@ void TSecondaryQueryHeader::Register(TRegistrar registrar)
     registrar.Parameter("query_id", &TSecondaryQueryHeader::QueryId);
     registrar.Parameter("parent_query_id", &TSecondaryQueryHeader::ParentQueryId);
     registrar.Parameter("span_context", &TSecondaryQueryHeader::SpanContext);
+    registrar.Parameter("transaction_id", &TThis::TransactionId);
     registrar.Parameter("storage_index", &TSecondaryQueryHeader::StorageIndex);
     registrar.Parameter("query_depth", &TSecondaryQueryHeader::QueryDepth);
 }

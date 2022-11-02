@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/ytlib/transaction_client/public.h>
+
 #include <yt/yt/core/tracing/trace_context.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -31,6 +33,7 @@ public:
     TQueryId QueryId;
     TQueryId ParentQueryId;
     TSerializableSpanContextPtr SpanContext;
+    NTransactionClient::TTransactionId TransactionId;
     // These values should always be initialized explicitly.
     // Set default values for easier debugging if we forget to initialize them.
     int StorageIndex = -42;

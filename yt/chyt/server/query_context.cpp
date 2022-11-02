@@ -8,6 +8,7 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
@@ -25,6 +26,7 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NTracing;
 using namespace NLogging;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -88,6 +90,7 @@ TQueryContext::TQueryContext(
         YT_VERIFY(secondaryQueryHeader);
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
         SelectQueryIndex = secondaryQueryHeader->StorageIndex;
+        TransactionId = secondaryQueryHeader->TransactionId;
 
         QueryDepth = secondaryQueryHeader->QueryDepth;
 
@@ -313,6 +316,16 @@ void TQueryContext::DeleteObjectAttributesFromSnapshot(
     for (const auto& path : paths) {
         ObjectAttributesSnapshot_.erase(path);
     }
+}
+
+void TQueryContext::InitializeQueryTransaction()
+{
+    if (InitialQueryTransaction || TransactionId) {
+        return;
+    }
+    InitialQueryTransaction = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
+        .ValueOrThrow();
+    TransactionId = InitialQueryTransaction->GetId();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

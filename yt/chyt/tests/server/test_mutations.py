@@ -10,6 +10,7 @@ from helpers import get_object_attribute_cache_config, get_schema_from_descripti
 
 import time
 import copy
+import random
 
 
 class TestMutations(ClickHouseTestBase):
@@ -268,6 +269,36 @@ class TestMutations(ClickHouseTestBase):
             clique.make_query("insert into `<append=%false>//tmp/t_out` select 1 union all select 2 union all select 3")
             assert_items_equal(read_table("//tmp/t_out", verbose=False), [{"a": 1}, {"a": 2}, {"a": 3}])
             assert get("//tmp/t_out/@chunk_count") == 1
+
+    @authors("gudqeit")
+    def test_distributed_insert_select_error(self):
+        schema = [{"name": "a", "type": "int64"}]
+        create("table", "//tmp/t_in", attributes={"schema": schema})
+        rows = [{"a": i} for i in range(100)]
+        write_table("//tmp/t_in", rows, verbose=False)
+        create("table", "//tmp/t_out", attributes={"schema": schema})
+
+        config_patch = {
+            "clickhouse": {
+                "settings": {
+                    "max_threads": 1,
+                    "parallel_distributed_insert_select": 1,
+                }
+            },
+            "yt": {
+                "subquery": {
+                    "min_data_weight_per_subquery": 1
+                }
+            }
+        }
+        with Clique(3, config_patch=config_patch) as clique:
+
+            for _ in range(5):
+                number = random.randint(0, 99)
+                with raises_yt_error(QueryFailedError):
+                    clique.make_query("insert into `//tmp/t_out` select throwIf(a = {}, 'Generate error') from `//tmp/t_in`".format(number))
+                read_table("//tmp/t_out", verbose=False) == []
+                assert get("//tmp/t_out/@chunk_count") == 0
 
     @authors("max42")
     def test_create_table_simple(self):
