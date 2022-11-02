@@ -717,7 +717,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 spec={"cluster_name": self.REMOTE_CLUSTER_NAME},
             )
 
-    @authors("egor-gutrov")
+    @authors("egor-gutrov", "eshcherbin")
     def test_user_slots_validation(self):
         update_pool_tree_config_option("default", "fail_remote_copy_on_missing_resource_limits", True)
         update_pool_tree_config_option("default", "required_resource_limits_for_remote_copy", {"user_slots": 10})
@@ -744,16 +744,15 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 },
             )
 
-        remote_copy(
-            in_="//tmp/t1",
-            out="//tmp/t2",
-            spec={
-                "cluster_name": self.REMOTE_CLUSTER_NAME,
-                "resource_limits": {"user_slots": 10},
-            },
-        )
-        assert read_table("//tmp/t2") == [{"a": "b"}]
-        assert not get("//tmp/t2/@sorted")
+        with pytest.raises(YtError):
+            remote_copy(
+                in_="//tmp/t1",
+                out="//tmp/t2",
+                spec={
+                    "cluster_name": self.REMOTE_CLUSTER_NAME,
+                    "resource_limits": {"user_slots": 10},
+                },
+            )
 
         create_pool("cool_pool", attributes={"resource_limits": {"user_slots": 10}})
         remote_copy(

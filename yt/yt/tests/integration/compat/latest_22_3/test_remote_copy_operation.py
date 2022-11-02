@@ -26,3 +26,7 @@ class TestRemoteCopyCommandsCompatNewNodes(BaseTestRemoteCopyCommands):
 
     # COMPAT(gepardo): Remove this after 22.4.
     USE_NATIVE_AUTH = False
+
+    @authors("eshcherbin")
+    def test_user_slots_validation(self):
+        pass

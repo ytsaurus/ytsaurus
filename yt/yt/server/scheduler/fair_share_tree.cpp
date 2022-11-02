@@ -2108,34 +2108,34 @@ private:
     void ValidateSpecifiedResourceLimits(
         const IOperationStrategyHost* operation,
         const TSchedulerCompositeElementPtr& pool,
-        const TJobResourcesConfigPtr& requiredResourceLimits) const
+        const TJobResourcesConfigPtr& requiredLimitsConfig) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        // TODO(egor-gutrov): remove after fixing test_user_slots_validation
-        YT_LOG_DEBUG("Validating resource limits (RequiredResourceLimits.UserSlots: %v, Pool: %v, OperationId: %v)",
-            requiredResourceLimits->UserSlots,
+        auto requiredLimits = ToJobResources(requiredLimitsConfig, TJobResources::Infinite());
+
+        YT_LOG_DEBUG("Validating operation resource limits (RequiredResourceLimits: %v, Pool: %v, OperationId: %v)",
+            requiredLimits,
             pool->GetId(),
             operation->GetId());
-        auto requiredLimits = ToJobResources(requiredResourceLimits, TJobResources::Infinite());
-        auto actualLimits = ToJobResources(operation->GetStrategySpec()->ResourceLimits, TJobResources::Infinite());
-        if (Dominates(requiredLimits, actualLimits)) {
-            return;
-        }
+
+        auto actualLimits = TJobResources::Infinite();
         const auto* current = pool.Get();
         while (!current->IsRoot()) {
             actualLimits = Min(actualLimits, current->GetSpecifiedResourceLimits());
             if (Dominates(requiredLimits, actualLimits)) {
                 return;
             }
+
             current = current->GetParent();
         }
+
         THROW_ERROR_EXCEPTION(
             "Operations of type %Qlv must have small enough specified resource limits in spec or in some of ancestor pools",
             operation->GetType())
             << TErrorAttribute("operation_id", operation->GetId())
             << TErrorAttribute("pool", pool->GetId())
-            << TErrorAttribute("required_resource_limits", requiredResourceLimits)
+            << TErrorAttribute("required_resource_limits", requiredLimitsConfig)
             << TErrorAttribute("tree_id", TreeId_);
     }
 
