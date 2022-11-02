@@ -112,6 +112,7 @@
 #include <yt/yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/yt/ytlib/hive/cell_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/misc/config.h>
 #include <yt/yt/ytlib/misc/memory_reference_tracker.h>
@@ -1083,6 +1084,8 @@ private:
 
         // Force start node directory synchronizer.
         Connection_->GetNodeDirectorySynchronizer()->Start();
+
+        Connection_->GetClusterDirectorySynchronizer()->Start();
 
         NMonitoring::Initialize(
             HttpServer_,
