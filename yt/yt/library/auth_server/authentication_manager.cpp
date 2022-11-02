@@ -96,8 +96,6 @@ public:
                     config->BlackboxCookieAuthenticator,
                     blackboxService),
                 profiler.WithPrefix("/blackbox_cookie_authenticator/cache")));
-            rpcAuthenticators.push_back(
-                CreateCookieAuthenticatorWrapper(CookieAuthenticator_));
         }
 
         if (blackboxService && config->BlackboxTicketAuthenticator) {
