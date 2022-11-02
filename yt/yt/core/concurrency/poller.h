@@ -102,6 +102,7 @@ struct IPoller
     virtual TFuture<void> Unregister(const IPollablePtr& pollable) = 0;
 
     //! Arms the poller to handle events of a given type for a given entity.
+    //! Can be called multiple times if one-shot mode is used.
     virtual void Arm(TFileDescriptor fd, const IPollablePtr& pollable, EPollControl control) = 0;
 
     //! Schedule call of #IPollable::OnEvent with EPollControl::Retry.
