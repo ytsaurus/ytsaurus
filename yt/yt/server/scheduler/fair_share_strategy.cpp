@@ -154,6 +154,8 @@ public:
         NodeAddresses_.clear();
         NodeIdsPerTree_.clear();
         NodeIdsWithoutTree_.clear();
+        LastPoolTreesYson_ = {};
+        LastTemplatePoolTreeConfigMapYson_ = {};
     }
 
     void OnFairShareProfiling()
@@ -304,9 +306,35 @@ public:
         state->SetEnabled(false);
     }
 
-    void UpdatePoolTrees(const INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) override
+    void UpdatePoolTrees(const TYsonString& poolTreesYson, const TPersistentStrategyStatePtr& persistentStrategyState) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        if (Config_->EnablePoolTreesConfigCache && poolTreesYson == LastPoolTreesYson_ && ConvertToYsonString(Config_->TemplatePoolTreeConfigMap) == LastTemplatePoolTreeConfigMapYson_) {
+            YT_LOG_INFO("Pool trees and pools did not change, skipping update");
+            return;
+        }
+
+        LastPoolTreesYson_ = {};
+        LastTemplatePoolTreeConfigMapYson_ = {};
+
+        auto tempatePoolTreeConfigMap = Config_->TemplatePoolTreeConfigMap;
+
+        INodePtr poolTreesNode;
+        try {
+            auto future =
+                BIND([&] {
+                    return ConvertToNode(poolTreesYson);
+                })
+                .AsyncVia(Host_->GetBackgroundInvoker())
+                .Run();
+            poolTreesNode = WaitFor(future)
+                .ValueOrThrow();
+        } catch (const std::exception& ex) {
+            auto error = TError(EErrorCode::WatcherHandlerFailed, "Error parsing pool trees")
+                << ex;
+            THROW_ERROR(error);
+        }
 
         std::vector<TOperationId> orphanedOperationIds;
         std::vector<TOperationId> changedOperationIds;
@@ -345,6 +373,7 @@ public:
                 poolsMap,
                 treeIdsToAdd,
                 treeIdsToRemove,
+                tempatePoolTreeConfigMap,
                 &errors);
 
             // Check default tree pointer. It should point to some valid tree,
@@ -371,7 +400,12 @@ public:
             // Update configs and pools structure of all trees.
             // NB: it updates already existing trees inplace.
             std::vector<TString> updatedTreeIds;
-            UpdateTreesConfigs(poolsMap, idToTree, &errors, &updatedTreeIds);
+            UpdateTreesConfigs(
+                poolsMap,
+                idToTree,
+                tempatePoolTreeConfigMap,
+                &errors,
+                &updatedTreeIds);
 
             // Update node at scheduler.
             UpdateNodesOnChangedTrees(idToTree, treeIdsToAdd, treeIdsToRemove);
@@ -406,6 +440,9 @@ public:
             }
         }
 
+        // Offload destroying pool trees node.
+        Host_->GetBackgroundInvoker()->Invoke(BIND([poolTreesNode = std::move(poolTreesNode)] { }));
+
         // Invokes operation node flushes.
         FlushOperationNodes(changedOperationIds);
 
@@ -413,6 +450,9 @@ public:
         AbortOrphanedOperations(orphanedOperationIds);
 
         THROW_ERROR_EXCEPTION_IF_FAILED(error);
+
+        LastPoolTreesYson_ = poolTreesYson;
+        LastTemplatePoolTreeConfigMapYson_ = ConvertToYsonString(tempatePoolTreeConfigMap);
     }
 
     TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) override
@@ -1361,6 +1401,9 @@ private:
     TInstant SchedulingSegmentsInitializationDeadline_;
     TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState_;
 
+    TYsonString LastPoolTreesYson_;
+    TYsonString LastTemplatePoolTreeConfigMapYson_;
+
     struct TPoolTreeDescription
     {
         TString Name;
@@ -1589,7 +1632,10 @@ private:
             : ConvertTo<TFairShareStrategyTreeConfigPtr>(PatchNode(commonConfig, attributes.ToMap()));
     }
 
-    TFairShareStrategyTreeConfigPtr BuildConfig(const IMapNodePtr& poolTreesMap, const TString& treeId) const
+    TFairShareStrategyTreeConfigPtr BuildConfig(
+        const IMapNodePtr& poolTreesMap,
+        const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
+        const TString& treeId) const
     {
         struct TPoolTreesTemplateConfigInfoView
         {
@@ -1601,7 +1647,7 @@ private:
 
         std::vector<TPoolTreesTemplateConfigInfoView> matchedTemplateConfigs;
 
-        for (const auto& [name, value] : Config_->TemplatePoolTreeConfigMap) {
+        for (const auto& [name, value] : templatePoolTreeConfigMap) {
             if (value->Filter && NRe2::TRe2::FullMatch(treeId.data(), *value->Filter)) {
                 matchedTemplateConfigs.push_back({name, value.Get()});
             }
@@ -1671,6 +1717,7 @@ private:
         const IMapNodePtr& poolTreesMap,
         const THashSet<TString>& treesToAdd,
         const THashSet<TString>& treesToRemove,
+        const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
         std::vector<TError>* errors)
     {
         TFairShareTreeMap trees;
@@ -1678,7 +1725,7 @@ private:
         for (const auto& treeId : treesToAdd) {
             TFairShareStrategyTreeConfigPtr treeConfig;
             try {
-                treeConfig = BuildConfig(poolTreesMap, treeId);
+                treeConfig = BuildConfig(poolTreesMap, templatePoolTreeConfigMap, treeId);
             } catch (const std::exception& ex) {
                 auto error = TError("Error parsing configuration of tree %Qv", treeId)
                     << ex;
@@ -1733,6 +1780,7 @@ private:
     void UpdateTreesConfigs(
         const IMapNodePtr& poolTreesMap,
         const TFairShareTreeMap& trees,
+        const THashMap<TString, TPoolTreesTemplateConfigPtr>& templatePoolTreeConfigMap,
         std::vector<TError>* errors,
         std::vector<TString>* updatedTreeIds) const
     {
@@ -1741,7 +1789,7 @@ private:
 
             bool treeConfigChanged = false;
             try {
-                const auto& config = BuildConfig(poolTreesMap, treeId);
+                const auto& config = BuildConfig(poolTreesMap, templatePoolTreeConfigMap, treeId);
                 treeConfigChanged = tree->UpdateConfig(config);
             } catch (const std::exception& ex) {
                 auto error = TError("Failed to configure tree %Qv, defaults will be used", treeId)

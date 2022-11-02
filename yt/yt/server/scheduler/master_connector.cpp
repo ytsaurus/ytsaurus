@@ -1901,7 +1901,8 @@ private:
             THROW_ERROR transactionOrError.Wrap("Failed to start lock transaction for watcher")
                 << TErrorAttribute("watcher_type", watcher.WatcherType);
         }
-        YT_LOG_INFO("Watcher lock transaction craeted (WatcherType: %v, TransactionId: %v)",
+
+        YT_LOG_INFO("Watcher lock transaction created (WatcherType: %v, TransactionId: %v)",
             watcher.WatcherType,
             transactionOrError.Value()->GetId());
 
