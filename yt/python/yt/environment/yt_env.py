@@ -972,7 +972,7 @@ class YTInstance(object):
             tags.append("pid: {}".format(p.pid))
             tags.append("current_process_pid: {}".format(os.getpid()))
 
-            logger.debug("Process %s started (%s)", name, ", ".join(tags))
+            logger.info("Process %s started (%s)", name, ", ".join(tags))
 
             return p
 
