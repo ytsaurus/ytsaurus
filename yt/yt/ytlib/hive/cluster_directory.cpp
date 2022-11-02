@@ -126,11 +126,12 @@ void TClusterDirectory::UpdateCluster(const TString& name, INodePtr nativeConnec
     } else if (!AreNodesEqual(nameIt->second.NativeConnectionConfig, nativeConnectionConfig)) {
         auto cluster = CreateCluster(name, nativeConnectionConfig);
         auto guard = Guard(Lock_);
+        auto oldTvmId = nameIt->second.Connection->GetConfig()->TvmId;
         nameIt->second.Connection->Terminate();
         ClusterTagToCluster_.erase(GetClusterTag(nameIt->second));
         NameToCluster_.erase(nameIt);
-        if (auto tvmId = cluster.Connection->GetConfig()->TvmId) {
-            auto tvmIdsIt = ClusterTvmIds_.find(*tvmId);
+        if (oldTvmId) {
+            auto tvmIdsIt = ClusterTvmIds_.find(*oldTvmId);
             YT_VERIFY(tvmIdsIt != ClusterTvmIds_.end());
             ClusterTvmIds_.erase(tvmIdsIt);
         }
