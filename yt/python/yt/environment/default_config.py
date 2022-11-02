@@ -672,6 +672,9 @@ def get_chaos_node_config():
                             lock_transaction_timeout = 3000;
                         };
                         use_new_hydra = %true;
+                        hive_manager = {
+                            ping_period = 1000;
+                        };
                     };
                 };
             };

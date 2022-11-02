@@ -2596,7 +2596,7 @@ class TestChaos(ChaosTestBase):
         alter_replication_card(card1, enable_replicated_table_tracker=True)
         alter_replication_card(card2, enable_replicated_table_tracker=True)
 
-        if snapshotting:
+        if snapshotting == "snapshot":
             _, remote_driver0, remote_driver1 = self._get_drivers()
             for cell in cells:
                 def _get_snapshots(cell):
