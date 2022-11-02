@@ -148,7 +148,6 @@
     XX(EnableReplicatedTableTracker, enable_replicated_table_tracker) \
     XX(EnableSkynetSharing, enable_skynet_sharing) \
     XX(EnableStripedErasure, enable_striped_erasure) \
-    XX(EncryptedPassword, encrypted_password) \
     XX(EndorsementRequired, endorsement_required) \
     XX(EntranceCellTag, entrance_cell_tag) \
     XX(EntranceNodeId, entrance_node_id) \
@@ -198,6 +197,7 @@
     XX(Freeze, freeze) \
     XX(Full, full) \
     XX(FullNodeCount, full_node_count) \
+    XX(HashedPassword, hashed_password) \
     XX(Health, health) \
     XX(HistoricUsageConfig, historic_usage_config) \
     XX(Host, host) \
@@ -329,7 +329,6 @@
     XX(ParentIds, parent_ids) \
     XX(ParentName, parent_name) \
     XX(PartLossTime, part_loss_time) \
-    XX(Password, password) \
     XX(PasswordRevision, password_revision) \
     XX(PasswordSalt, password_salt) \
     XX(Path, path) \

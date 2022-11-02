@@ -162,9 +162,9 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestWeightThrottlerConfig);
     DEFINE_BYVAL_RW_PROPERTY(NConcurrency::TThroughputThrottlerConfigPtr, ChunkServiceUserRequestBytesThrottlerConfig);
 
-    //! Encrypted password used for authentication. If equals to |std::nullopt|,
+    //! Hashed password used for authentication. If equals to |std::nullopt|,
     //! authentication via password is disabled.
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, EncryptedPassword);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, HashedPassword);
     //! Salt used for password encryption.
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, PasswordSalt);
     //! Revision of the password that increases every time
@@ -175,11 +175,10 @@ public:
     void SetRequestQueueSize(int size);
     void ResetRequestQueueSize();
 
-    //! Sets password for user. |std::nullopt| removes password.
-    void SetPassword(std::optional<TString> password);
-
-    //! Returns true if password is set for user and false otherwise.
-    bool HasPassword() const;
+    //! Sets (encrypted) password for user. |std::nullopt| removes password.
+    void SetHashedPassword(std::optional<TString> hashedPassword);
+    //! Sets password salt for user. |std::nullopt| removes salt.
+    void SetPasswordSalt(std::optional<TString> passwordSalt);
 
     using TStatistics = TEnumIndexedVector<EUserWorkloadType, TUserWorkloadStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TStatistics, Statistics);
@@ -219,6 +218,8 @@ private:
     NProfiling::TCounter ReadRequestCounter_;
     NProfiling::TCounter WriteRequestCounter_;
     NProfiling::TSummary RequestQueueSizeSummary_;
+
+    void UpdatePasswordRevision();
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TUser)

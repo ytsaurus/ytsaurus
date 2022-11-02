@@ -254,10 +254,16 @@ bool ConstantTimeCompare(const TString& trusted, const TString& untrusted)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TString EncryptPassword(const TString& password, const TString& salt)
+TString HashPassword(const TString& password, const TString& salt)
 {
-    auto saltedPassword = salt + password;
-    return GetSha256HexDigestUpperCase(GetSha256HexDigestUpperCase(saltedPassword));
+    auto passwordSha256 = GetSha256HexDigestLowerCase(password);
+    return HashPasswordSha256(passwordSha256, salt);
+}
+
+TString HashPasswordSha256(const TString& passwordSha256, const TString& salt)
+{
+    auto saltedPassword = salt + passwordSha256;
+    return GetSha256HexDigestLowerCase(saltedPassword);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

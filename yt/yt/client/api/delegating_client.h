@@ -493,6 +493,12 @@ public:
         const TString& query,
         const TStartYqlQueryOptions& options = {}) override;
 
+    virtual TFuture<void> SetUserPassword(
+        const TString& user,
+        const TString& currentPasswordSha256,
+        const TString& newPasswordSha256,
+        const TSetUserPasswordOptions& options) override;
+
 protected:
     const IClientPtr Underlying_;
 };

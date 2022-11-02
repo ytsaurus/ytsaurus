@@ -43,7 +43,8 @@ TEST(TMD5Test, Simple)
         16, 56, 0, 0, 0, 0, 0, 0, 0, 97, 98, 97, 99, 97, 98, 97, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
-        0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0};
+        0, 0, 0, 0, 0, 0, 0, 7, 0, 0, 0,
+    };
     EXPECT_EQ(state, md5State);
 }
 
@@ -51,14 +52,17 @@ TEST(TEncryptPasswordTest, Simple)
 {
     // Some canonical values.
     EXPECT_EQ(
-        "5DE4BE05019FD8B24E74CC72756B091FF677C2C0B93F2827A6948B6A0018B958",
-        EncryptPassword(/*password*/ "pass", /*salt*/ "salt"));
+        "711a9ab5749d53639ed06e66110dd2fe680f977610a1b56b3814d04cbd9e3c51",
+        HashPassword(/*password*/ "pass", /*salt*/ "salt"));
     EXPECT_EQ(
-        "E9B20A4C9B200F7C7966448892B37BCCF26CB671CF6B23918CE4554C6EB76608",
-        EncryptPassword(/*password*/ "pass", /*salt*/ "another_salt"));
+        "1679f6a1d0e1fcc1771bfa819e6d3171f73abf7c5aec9d64099f2ada6396414f",
+        HashPassword(/*password*/ "pass", /*salt*/ "another_salt"));
     EXPECT_EQ(
-        "7A336C6C16A6511B88732B7D2AF9F1E3DBF80F50B135544CE19F59E06AAAF39F",
-        EncryptPassword(/*password*/ "another_pass", /*salt*/ "salt"));
+        "e821ff94d0202254a1d7dd492e79f82a4c38dfc5782570a560feff066129385e",
+        HashPassword(/*password*/ "another_pass", /*salt*/ "salt"));
+
+    auto passwordSha256 = GetSha256HexDigestLowerCase("pass");
+    EXPECT_EQ(HashPassword("pass", "salt"), HashPasswordSha256(passwordSha256, "salt"));
 }
 
 TEST(TRngTest, Simple)

@@ -2636,7 +2636,8 @@ private:
         userHolder->SetName(name);
 
         // Not really necessary, but fills password revision with sane value.
-        userHolder->SetPassword(/*password*/ std::nullopt);
+        userHolder->SetHashedPassword(/*hashedPassword*/ std::nullopt);
+        userHolder->SetPasswordSalt(/*passwordSalt*/ std::nullopt);
 
         auto* user = UserMap_.Insert(id, std::move(userHolder));
         YT_VERIFY(UserNameMap_.emplace(user->GetName(), user).second);

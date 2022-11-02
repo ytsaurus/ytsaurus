@@ -788,6 +788,19 @@ TFuture<TStartYqlQueryResult> TDelegatingClient::StartYqlQuery(
     return Underlying_->StartYqlQuery(query, options);
 }
 
+TFuture<void> TDelegatingClient::SetUserPassword(
+    const TString& user,
+    const TString& currentPasswordSha256,
+    const TString& newPasswordSha256,
+    const TSetUserPasswordOptions& options)
+{
+    return Underlying_->SetUserPassword(
+        user,
+        currentPasswordSha256,
+        newPasswordSha256,
+        options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi

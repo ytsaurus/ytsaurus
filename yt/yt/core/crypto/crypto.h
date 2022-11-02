@@ -98,9 +98,12 @@ bool ConstantTimeCompare(const TString& trusted, const TString& untrusted);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Encrypts password with given (random) salt.
+//! Hashes password with given (random) salt.
 // BEWARE: Think twice before changing this function's semantics!
-TString EncryptPassword(const TString& password, const TString& salt);
+TString HashPassword(const TString& password, const TString& salt);
+
+//! Hashes SHA256-hashed password with given (random) salt.
+TString HashPasswordSha256(const TString& passwordSha256, const TString& salt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

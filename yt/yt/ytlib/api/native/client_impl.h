@@ -598,6 +598,13 @@ public:
         const TUnlockHunkStoreOptions& options),
         (path, tabletIndex, storeId, lockerTabletId, options))
 
+    IMPLEMENT_METHOD(void, SetUserPassword, (
+        const TString& user,
+        const TString& currentPasswordSha256,
+        const TString& newPasswordSha256,
+        const TSetUserPasswordOptions& options),
+        (user, currentPasswordSha256, newPasswordSha256, options))
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -1488,6 +1495,16 @@ private:
     TStartYqlQueryResult DoStartYqlQuery(
         const TString& query,
         const TStartYqlQueryOptions& options);
+
+    //
+    // Authentication
+    //
+
+    void DoSetUserPassword(
+        const TString& user,
+        const TString& currentPasswordSha256,
+        const TString& newPasswordSha256,
+        const TSetUserPasswordOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

@@ -252,7 +252,7 @@ void TUser::Save(TSaveContext& context) const
 
     using NYT::Save;
     Save(context, Banned_);
-    Save(context, EncryptedPassword_);
+    Save(context, HashedPassword_);
     Save(context, PasswordSalt_);
     Save(context, PasswordRevision_);
     Save(context, *ObjectServiceRequestLimits_);
@@ -268,7 +268,7 @@ void TUser::Load(TLoadContext& context)
     Load(context, Banned_);
     // COMPAT(gritukan)
     if (context.GetVersion() >= EMasterReign::UserPassword) {
-        Load(context, EncryptedPassword_);
+        Load(context, HashedPassword_);
         Load(context, PasswordSalt_);
         Load(context, PasswordRevision_);
     }
@@ -307,34 +307,18 @@ void TUser::ResetRequestQueueSize()
     RequestQueueSize_ = 0;
 }
 
-void TUser::SetPassword(std::optional<TString> password)
+void TUser::SetHashedPassword(std::optional<TString> hashedPassword)
 {
-    auto* hydraContext = NHydra::GetCurrentHydraContext();
-    PasswordRevision_ = hydraContext->GetVersion().ToRevision();
+    HashedPassword_ = std::move(hashedPassword);
 
-    if (password) {
-        constexpr int SaltLength = 32;
-        constexpr int AlphabetSize = 26;
-
-        // NB: This generator is not crypto-safe!
-        const auto& rng = hydraContext->RandomGenerator();
-
-        TString salt;
-        for (int index = 0; index < SaltLength; ++index) {
-            salt += 'A' + rng->Generate<int>() % AlphabetSize;
-        }
-
-        EncryptedPassword_ = EncryptPassword(*password, salt);
-        PasswordSalt_ = std::move(salt);
-    } else {
-        EncryptedPassword_ = std::move(password);
-        PasswordSalt_ = {};
-    }
+    UpdatePasswordRevision();
 }
 
-bool TUser::HasPassword() const
+void TUser::SetPasswordSalt(std::optional<TString> passwordSalt)
 {
-    return static_cast<bool>(EncryptedPassword_);
+    PasswordSalt_ = std::move(passwordSalt);
+
+    UpdatePasswordRevision();
 }
 
 void TUser::UpdateCounters(const TUserWorkload& workload)
@@ -418,6 +402,12 @@ int TUser::GetRequestQueueSizeLimit(NObjectServer::TCellTag cellTag) const
 void TUser::SetRequestQueueSizeLimit(int limit, NObjectServer::TCellTag cellTag)
 {
     ObjectServiceRequestLimits_->RequestQueueSizeLimits->SetValue(cellTag, limit);
+}
+
+void TUser::UpdatePasswordRevision()
+{
+    auto* hydraContext = NHydra::GetCurrentHydraContext();
+    PasswordRevision_ = hydraContext->GetVersion().ToRevision();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

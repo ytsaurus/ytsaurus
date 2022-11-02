@@ -26,6 +26,7 @@ import copy as pycopy
 import os
 import pytest
 import random
+import hashlib
 import stat
 import sys
 import tempfile
@@ -1637,6 +1638,16 @@ def suspend_coordinator(coordinator_cell_id, **kwargs):
 def resume_coordinator(coordinator_cell_id, **kwargs):
     parameters = {"coordinator_cell_id": coordinator_cell_id}
     return execute_command("resume_coordinator", parameters, **kwargs)
+
+
+def set_user_password(user, new_password, current_password=None, **kwargs):
+    def encode_password(password):
+        return hashlib.sha256(password.encode("utf-8")).hexdigest()
+    kwargs["user"] = user
+    kwargs["new_password_sha256"] = encode_password(new_password)
+    if current_password:
+        kwargs["current_password_sha256"] = encode_password(current_password)
+    return execute_command("set_user_password", kwargs)
 
 
 def migrate_replication_cards(chaos_cell_id, replication_card_ids, **kwargs):

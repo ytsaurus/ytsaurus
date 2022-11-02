@@ -1,5 +1,8 @@
 from yt_env_setup import YTEnvSetup, Restarter, HTTP_PROXIES_SERVICE
-from yt_commands import authors, get, create_user, set, exists, print_debug
+from yt_commands import (
+    authors, get, create_user, exists,
+    print_debug, set_user_password,
+)
 
 import dateutil
 import datetime
@@ -86,7 +89,7 @@ class TestCypressCookieAuth(YTEnvSetup):
     @authors("gritukan")
     def test_cookie_in_cypress(self):
         create_user("u")
-        set("//sys/users/u/@password", "1234")
+        set_user_password("u", "1234")
         password_revision = get("//sys/users/u/@password_revision")
 
         cookie = self._login("u", "1234")
@@ -102,7 +105,7 @@ class TestCypressCookieAuth(YTEnvSetup):
     @authors("gritukan")
     def test_cookie_format(self):
         create_user("u")
-        set("//sys/users/u/@password", "u")
+        set_user_password("u", "u")
         rsp = self._try_login("u", "u")
         header = rsp.headers["Set-Cookie"]
         cookie, expire, secure = header.split(';')
@@ -129,7 +132,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         # User has no password set.
         self._check_login_page(self._try_login("u", ""))
 
-        set("//sys/users/u/@password", "1234")
+        set_user_password("u", "1234")
         # Invalid password.
         self._check_login_page(self._try_login("u", "123"))
 
@@ -138,13 +141,13 @@ class TestCypressCookieAuth(YTEnvSetup):
         PASSWORD = "  :  -_-"
 
         create_user("u")
-        set("//sys/users/u/@password", PASSWORD)
+        set_user_password("u", PASSWORD)
         self._login("u", PASSWORD)
 
     @authors("gritukan")
     def test_request_with_cookie(self):
         create_user("u")
-        set("//sys/users/u/@password", "1234")
+        set_user_password("u", "1234")
         cookie = self._login("u", "1234")
         rsp = self._make_request(cookie)
         rsp.raise_for_status()
@@ -159,10 +162,10 @@ class TestCypressCookieAuth(YTEnvSetup):
 
         # Password changed.
         create_user("u")
-        set("//sys/users/u/@password", "1234")
+        set_user_password("u", "1234")
         cookie = self._login("u", "1234")
         self._check_allow(cookie)
-        set("//sys/users/u/@password", "1235")
+        set_user_password("u", "1235")
         # Create another cookie that should not be used for rotation on failure.
         self._login("u", "1235")
         time.sleep(0.5)
@@ -180,7 +183,7 @@ class TestCypressCookieAuth(YTEnvSetup):
     @authors("gritukan")
     def test_cookie_rotation(self):
         create_user("u")
-        set("//sys/users/u/@password", "1234")
+        set_user_password("u", "1234")
         cookie1 = self._login("u", "1234")
 
         time.sleep(2.2)
@@ -199,7 +202,7 @@ class TestCypressCookieAuth(YTEnvSetup):
     @authors("gritukan")
     def test_periodic_cookie_fetch(self):
         create_user("u")
-        set("//sys/users/u/@password", "1234")
+        set_user_password("u", "1234")
         cookie1 = self._login("u", "1234")
         time.sleep(2.2)
         cookie2 = self._login("u", "1234")

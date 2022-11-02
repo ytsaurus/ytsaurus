@@ -496,6 +496,13 @@ public:
 
     MOCK_METHOD(TFuture<TStartYqlQueryResult>, StartYqlQuery, (
         const TString& query, const TStartYqlQueryOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, SetUserPassword, (
+        const TString& user,
+        const TString& currentPasswordSha256,
+        const TString& newPasswordSha256,
+        const TSetUserPasswordOptions& options),
+        (override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockClient)
