@@ -474,6 +474,8 @@ public:
     TDuration SchedulingSegmentsManagePeriod;
     TDuration SchedulingSegmentsInitializationTimeout;
 
+    bool EnablePoolTreesConfigCache;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 
     static void Register(TRegistrar registrar);

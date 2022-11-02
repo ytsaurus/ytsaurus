@@ -35,6 +35,7 @@ namespace NYT {
 using namespace NSchedulerSimulator;
 using namespace NNodeTrackerClient;
 using namespace NYTree;
+using namespace NYson;
 using namespace NPhoenix;
 using namespace NJobTrackerClient;
 using namespace NScheduler;
@@ -146,11 +147,11 @@ std::vector<TOperationDescription> LoadOperations(bool shiftOperationsToStart)
     return operations;
 }
 
-INodePtr LoadPoolTrees(const TString& poolTreesFilename)
+TYsonString LoadPoolTreesYson(const TString& poolTreesFilename)
 {
     try {
         TIFStream configStream(poolTreesFilename);
-        return ConvertToNode(&configStream);
+        return ConvertToYsonString(&configStream);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error reading pool trees") << ex;
     }
@@ -176,7 +177,7 @@ void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
     TFixedBufferFileOutput eventLogOutputStream(config->EventLogFilename);
 
     auto schedulerConfig = LoadSchedulerConfigFromFile(config->SchedulerConfigFilename);
-    auto poolTreesNode = LoadPoolTrees(config->PoolTreesFilename);
+    auto poolTreesYson = LoadPoolTreesYson(config->PoolTreesFilename);
 
     TSharedOperationStatisticsOutput statisticsOutput(config->OperationsStatsFilename);
 
@@ -189,7 +190,7 @@ void RunSimulation(const TSchedulerSimulatorConfigPtr& config)
         operations,
         earliestTime);
 
-    simulatorControlThread->Initialize(poolTreesNode);
+    simulatorControlThread->Initialize(poolTreesYson);
     WaitFor(simulatorControlThread->AsyncRun())
         .ThrowOnError();
 }

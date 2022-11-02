@@ -556,6 +556,9 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduling_segments_initialization_timeout", &TThis::SchedulingSegmentsInitializationTimeout)
         .Default(TDuration::Minutes(5));
 
+    registrar.Parameter("enable_pool_trees_config_cache", &TThis::EnablePoolTreesConfigCache)
+        .Default(true);
+
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));
@@ -993,7 +996,7 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("crash_on_job_heartbeat_processing_exception", &TThis::CrashOnJobHeartbeatProcessingException)
         .Default(false);
-    
+
     registrar.Parameter("min_required_archive_version", &TThis::MinRequiredArchiveVersion)
         .Default(45);
 

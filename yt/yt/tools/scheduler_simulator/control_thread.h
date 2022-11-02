@@ -50,7 +50,7 @@ public:
         const std::vector<TOperationDescription>& operations,
         TInstant earliestTime);
 
-    void Initialize(const NYTree::INodePtr& poolTreesNode);
+    void Initialize(const NYson::TYsonString& poolTreesNode);
 
     bool IsInitialized() const;
 

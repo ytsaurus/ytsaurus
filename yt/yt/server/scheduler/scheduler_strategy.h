@@ -243,7 +243,7 @@ struct ISchedulerStrategy
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
-    virtual void UpdatePoolTrees(const NYTree::INodePtr& poolTreesNode, const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
+    virtual void UpdatePoolTrees(const NYson::TYsonString& poolTreesYson, const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
 
     virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 

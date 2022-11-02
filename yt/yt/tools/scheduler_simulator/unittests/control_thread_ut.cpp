@@ -20,6 +20,7 @@ using namespace NScheduler;
 using namespace NControllerAgent;
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
+using namespace NYson;
 
 using NJobTrackerClient::EJobType;
 
@@ -67,7 +68,7 @@ std::vector<TJobDescription> CreateJobDescriptions(
     return jobs;
 }
 
-NYTree::INodePtr CreatePoolTreesConfig()
+TYsonString CreatePoolTreesConfig()
 {
     auto physicalTreeConfig = New<TFairShareStrategyTreeConfig>();
     physicalTreeConfig->NodesFilter = NYTree::ConvertTo<TSchedulingTagFilter>("internal");
@@ -84,7 +85,7 @@ NYTree::INodePtr CreatePoolTreesConfig()
     // Intentionally disables profiling since simulator is not ready for profiling.
     physicalTreeConfig->EnableScheduledAndPreemptedResourcesProfiling = false;
 
-    return NYTree::BuildYsonNodeFluently()
+    return ConvertToYsonString(NYTree::BuildYsonNodeFluently()
         .BeginAttributes()
             .Item("default_tree").Value("physical")
         .EndAttributes()
@@ -102,7 +103,7 @@ NYTree::INodePtr CreatePoolTreesConfig()
                 .EndMap()
                 .Item("test20").BeginMap().EndMap()
             .EndMap()
-        .EndMap();
+        .EndMap());
 }
 
 class TStatisticsOutputMock
@@ -181,7 +182,7 @@ protected:
 
         auto spec = New<TOperationSpecBase>();
         spec->Pool = std::move(pool);
-        operation.Spec = NYson::ConvertToYsonString(spec);
+        operation.Spec = ConvertToYsonString(spec);
 
         NextOperationId_ += 1;
         return operation;
