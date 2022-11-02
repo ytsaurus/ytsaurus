@@ -2382,3 +2382,31 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         sync_compact_table("//tmp/t")
 
         reshard_and_check(tablet_count)
+
+    @authors("alexelexa")
+    @pytest.mark.parametrize("optimize_for", ["lookup", "scan"])
+    def test_too_small_chunk_views(self, optimize_for):
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            optimize_for=optimize_for)
+        set("//tmp/t/@chunk_writer", {"block_size": 1000})
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+
+        sync_mount_table("//tmp/t")
+
+        value = self._value_by_optimize_for(optimize_for)
+        rows = [{"key": i, "value": value} for i in range(150)]
+        insert_rows("//tmp/t", rows)
+
+        sync_flush_table("//tmp/t")
+
+        sync_unmount_table("//tmp/t")
+        sync_reshard_table("//tmp/t", [[]] + [[x] for x in range(1, 50)])
+        assert(get("//tmp/t/@tablet_count") == 50)
+
+        sync_mount_table("//tmp/t")
+
+        sync_unmount_table("//tmp/t")
+        with pytest.raises(YtError):
+            sync_reshard_table("//tmp/t", 4, enable_slicing=True, first_tablet_index=0, last_tablet_index=1)

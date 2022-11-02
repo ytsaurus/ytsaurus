@@ -70,6 +70,11 @@ void TReshardPivotKeysBuilder::AddChunk(const NYT::NChunkClient::NProto::TChunkS
 
 void TReshardPivotKeysBuilder::AddChunk(const TWeightedInputChunkPtr& chunk)
 {
+    if (chunk->GetDataWeight() == 0) {
+        // Chunk view contains less than one block so data weight is zero.
+        return;
+    }
+
     auto chunkMinKey = TOwningKeyBound::FromRow() >= chunk->GetInputChunk()->BoundaryKeys()->MinKey;
     auto chunkMaxKey = TOwningKeyBound::FromRow() <= chunk->GetInputChunk()->BoundaryKeys()->MaxKey;
 
