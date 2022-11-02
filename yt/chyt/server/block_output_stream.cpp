@@ -26,6 +26,7 @@ using namespace NTransactionClient;
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NYPath;
+using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -102,6 +103,7 @@ public:
         TTableWriterConfigPtr config,
         TCompositeSettingsPtr compositeSettings,
         NNative::IClientPtr client,
+        const TTransactionId& transactionId,
         std::function<void()> onFinished,
         const TLogger& logger)
         : TBlockOutputStreamBase(
@@ -111,6 +113,10 @@ public:
             std::move(onFinished),
             logger)
     {
+        NApi::ITransactionPtr transaction;
+        if (!transactionId.IsEmpty()) {
+            transaction = client->AttachTransaction(transactionId);
+        }
         Writer_ = WaitFor(CreateSchemalessTableWriter(
             std::move(config),
             New<NTableClient::TTableWriterOptions>(),
@@ -118,7 +124,7 @@ public:
             NameTable_,
             std::move(client),
             /*localHostName*/ TString(), // Locality is not important for CHYT.
-            /*transaction*/ nullptr))
+            std::move(transaction)))
             .ValueOrThrow();
     }
 
@@ -265,6 +271,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
     TTableWriterConfigPtr config,
     TCompositeSettingsPtr compositeSettings,
     NNative::IClientPtr client,
+    const NTransactionClient::TTransactionId& transactionId,
     std::function<void()> onFinished,
     const TLogger& logger)
 {
@@ -275,6 +282,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
         std::move(config),
         std::move(compositeSettings),
         std::move(client),
+        transactionId,
         std::move(onFinished),
         logger);
 }

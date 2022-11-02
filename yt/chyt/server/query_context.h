@@ -77,7 +77,10 @@ public:
     std::optional<TString> HttpUserAgent;
     std::optional<TString> DataLensRequestId;
     std::optional<TString> YqlOperationId;
-
+    //! InitialQueryTransaction is initialized only on the initiator to ping the transaction during the query execution.
+    NApi::NNative::ITransactionPtr InitialQueryTransaction;
+    //! TransactionId is the id of the query transaction in which all read and write operations should be performed.
+    NTransactionClient::TTransactionId TransactionId;
 
     // Fields for a statistics reporter.
     std::vector<TString> SelectQueries;
@@ -135,6 +138,8 @@ public:
     std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> GetObjectAttributesSnapshot(
         const std::vector<NYPath::TYPath>& paths);
     void DeleteObjectAttributesFromSnapshot(const std::vector<NYPath::TYPath>& paths);
+
+    void InitializeQueryTransaction();
 
 private:
     TInstant StartTime_;

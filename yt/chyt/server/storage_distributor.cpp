@@ -18,6 +18,7 @@
 #include "table.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 
@@ -70,6 +71,8 @@ using namespace NChunkClient;
 using namespace NTracing;
 using namespace NLogging;
 using namespace NConcurrency;
+using namespace NTransactionClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -196,6 +199,9 @@ DB::Pipe CreateRemoteSource(
     static_cast<TSpanContext&>(*queryHeader->SpanContext) = traceContext->GetSpanContext();
     queryHeader->StorageIndex = storageIndex;
     queryHeader->QueryDepth = queryContext->QueryDepth + 1;
+    if (queryContext->TransactionId) {
+        queryHeader->TransactionId = queryContext->TransactionId;
+    }
 
     auto serializedQueryHeader = ConvertToYsonString(queryHeader, EYsonFormat::Text).ToString();
 
@@ -1040,6 +1046,7 @@ public:
                 QueryContext_->Logger);
         } else {
             // Set append if it is not set.
+            auto* queryContext = GetQueryContext(context);
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
             outputStream = CreateStaticTableBlockOutputStream(
                 path,
@@ -1048,6 +1055,7 @@ public:
                 QueryContext_->Settings->TableWriter,
                 QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
+                queryContext->TransactionId,
                 std::move(invalidateCachedObjectAttributesCallback),
                 QueryContext_->Logger);
         }
@@ -1128,6 +1136,8 @@ public:
             return nullptr;
         }
 
+        queryContext->InitializeQueryTransaction();
+
         auto preparer = sourceStorage->BuildPreparer(
             selectInterpreter.getRequiredColumns(),
             /*metadataSnapshot*/ nullptr,
@@ -1154,12 +1164,16 @@ public:
 
         preparer.Fire();
 
-        // Callback to invalidate cached object attributes after the query is completed.
-        std::vector<TYPath> paths{table->GetPath()};
-        auto invalidateCachedObjectAttributesCallback = std::bind(InvalidateCache, queryContext, paths, /*invalidateMode*/ std::nullopt);
+        // Callback to commit transaction and invalidate cached object attributes after the query is completed.
+        auto finalCallback = [context, path = table->GetPath()] {
+            auto* queryContext = GetQueryContext(context);
+            WaitFor(queryContext->InitialQueryTransaction->Commit())
+                .ThrowOnError();
+            InvalidateCache(queryContext, {path}, std::nullopt);
+        };
 
         // Finally, build pipeline of all those pipes.
-        auto pipeline = preparer.ExtractPipeline(std::move(invalidateCachedObjectAttributesCallback));
+        auto pipeline = preparer.ExtractPipeline(std::move(finalCallback));
 
         return std::move(pipeline);
     }
@@ -1316,7 +1330,9 @@ private:
         const auto& path = Tables_[0]->Path.GetPath();
 
         YT_LOG_DEBUG("Erasing table (Path: %v)", path);
-        WaitFor(client->ConcatenateNodes({}, TRichYPath(path)))
+        TConcatenateNodesOptions options;
+        options.TransactionId = queryContext->TransactionId;
+        WaitFor(client->ConcatenateNodes({}, TRichYPath(path), options))
             .ThrowOnError();
         YT_LOG_DEBUG("Table erased (Path: %v)", path);
     }
