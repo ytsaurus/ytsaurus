@@ -1568,6 +1568,10 @@ struct TStartYqlQueryResult
     NYson::TYsonString TaskInfo;
 };
 
+struct TSetUserPasswordOptions
+    : public TTimeoutOptions
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -2077,6 +2081,14 @@ struct IClient
     virtual TFuture<TStartYqlQueryResult> StartYqlQuery(
         const TString& query,
         const TStartYqlQueryOptions& options = {}) = 0;
+
+    // Authentication
+
+    virtual TFuture<void> SetUserPassword(
+        const TString& user,
+        const TString& currentPasswordSha256,
+        const TString& newPasswordSha256,
+        const TSetUserPasswordOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

@@ -344,17 +344,25 @@ public:
 
     TFuture<void> SuspendTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
-        const TSuspendTabletCellsOptions& options = {}) override;
+        const TSuspendTabletCellsOptions& options) override;
 
     TFuture<void> ResumeTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
-        const TResumeTabletCellsOptions& options = {}) override;
+        const TResumeTabletCellsOptions& options) override;
 
     // YQL
 
     TFuture<TStartYqlQueryResult> StartYqlQuery(
         const TString& query,
-        const TStartYqlQueryOptions& options = {}) override;
+        const TStartYqlQueryOptions& options) override;
+
+    // Authentication
+
+    virtual TFuture<void> SetUserPassword(
+        const TString& user,
+        const TString& currentPasswordSha256,
+        const TString& newPasswordSha256,
+        const TSetUserPasswordOptions& options) override;
 
 private:
     const TConnectionPtr Connection_;

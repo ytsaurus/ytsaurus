@@ -5,7 +5,8 @@ from yt_commands import (
     create_account, create_network_project,
     create_user, create_group, create_tablet_cell_bundle, make_ace,
     add_member, remove_member, remove_group, remove_user,
-    remove_network_project, start_transaction, raises_yt_error)
+    remove_network_project, start_transaction, raises_yt_error,
+    set_user_password)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -536,37 +537,54 @@ class TestUsers(YTEnvSetup):
         assert_items_equal(get("//sys/groups/g1/@member_of_closure"), [])
 
     @authors("gritukan")
-    def test_password(self):
-        create_user("u")
+    def test_set_user_password(self):
+        if self.DRIVER_BACKEND == "rpc":
+            return
 
-        assert not exists("//sys/users/u/@encrypted_password")
+        create_user("u")
+        create_user("v")
+
+        assert not exists("//sys/users/u/@hashed_password")
         assert not exists("//sys/users/u/@password_salt")
         assert not exists("//sys/users/u/@password")
         rev1 = get("//sys/users/u/@password_revision")
 
-        set("//sys/users/u/@password", "admin")
-        enc2 = get("//sys/users/u/@encrypted_password")
+        set_user_password("u", "admin")
+        enc2 = get("//sys/users/u/@hashed_password")
         assert len(enc2) == 64
         salt2 = get("//sys/users/u/@password_salt")
         assert len(salt2) == 32
         rev2 = get("//sys/users/u/@password_revision")
         assert rev2 > rev1
 
-        # Same password, another salt.
-        set("//sys/users/u/@password", "admin")
-        assert get("//sys/users/u/@encrypted_password") != enc2
-        assert get("//sys/users/u/@password_salt") != salt2
+        with raises_yt_error("User provided invalid password"):
+            set_user_password("u", "admin2", authenticated_user="u")
+        with raises_yt_error("User provided invalid password"):
+            set_user_password("u", "admin2", "123456", authenticated_user="u")
+        with raises_yt_error("Password can be changed either"):
+            set_user_password("u", "admin2", "admin", authenticated_user="v")
+        set_user_password("u", "admin2", "admin", authenticated_user="u")
+
+        enc3 = get("//sys/users/u/@hashed_password")
+        assert enc3 != enc2
+        salt3 = get("//sys/users/u/@password_salt")
+        assert salt3 != salt2
         rev3 = get("//sys/users/u/@password_revision")
         assert rev3 > rev2
 
-        with raises_yt_error("for security reasons"):
-            get("//sys/users/u/@password")
-        # Just in case: list attributes should not throw since
-        # @password attribute is opaque.
-        assert "encrypted_password" in ls("//sys/users/u/@")
+        add_member("v", "superusers")
 
-        remove("//sys/users/u/@password")
-        assert not exists("//sys/users/u/@encrypted_password")
+        # Same password, another salt.
+        set_user_password("u", "admin2", authenticated_user="v")
+        set("//sys/users/u/@password", "admin")
+        assert get("//sys/users/u/@hashed_password") != enc3
+        assert get("//sys/users/u/@password_salt") != salt3
+        rev3 = get("//sys/users/u/@password_revision")
+        assert rev3 > rev2
+
+        remove("//sys/users/u/@hashed_password")
+        remove("//sys/users/u/@password_salt")
+        assert not exists("//sys/users/u/@hashed_password")
         assert not exists("//sys/users/u/@password_salt")
         rev4 = get("//sys/users/u/@password_revision")
         assert rev4 > rev3

@@ -68,7 +68,7 @@ private:
 
     struct TUserInfo
     {
-        TString EncryptedPassword;
+        TString HashedPassword;
         TString PasswordSalt;
         ui64 PasswordRevision;
     };
@@ -133,7 +133,7 @@ private:
             throw;
         }
 
-        if (EncryptPassword(TString{password}, userInfo.PasswordSalt) != userInfo.EncryptedPassword) {
+        if (HashPassword(TString{password}, userInfo.PasswordSalt) != userInfo.HashedPassword) {
             HandleRegularRequest(rsp);
 
             auto error = TError("Invalid password");
@@ -180,13 +180,13 @@ private:
     {
         auto path = Format("//sys/users/%v", ToYPathLiteral(user));
 
-        constexpr TStringBuf EncryptedPasswordAttribute = "encrypted_password";
+        constexpr TStringBuf HashedPasswordAttribute = "hashed_password";
         constexpr TStringBuf PasswordSaltAttribute = "password_salt";
         constexpr TStringBuf PasswordRevisionAttribute = "password_revision";
 
         TGetNodeOptions options;
         options.Attributes = std::vector<TString>({
-            TString{EncryptedPasswordAttribute},
+            TString{HashedPasswordAttribute},
             TString{PasswordSaltAttribute},
             TString{PasswordRevisionAttribute},
         });
@@ -197,7 +197,7 @@ private:
         const auto& attributes = rspNode->Attributes();
 
         return TUserInfo{
-            .EncryptedPassword = attributes.Get<TString>(EncryptedPasswordAttribute),
+            .HashedPassword = attributes.Get<TString>(HashedPasswordAttribute),
             .PasswordSalt = attributes.Get<TString>(PasswordSaltAttribute),
             .PasswordRevision = attributes.Get<ui64>(PasswordRevisionAttribute),
         };

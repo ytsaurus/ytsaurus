@@ -68,6 +68,7 @@ DEFINE_ENUM(EMasterReign,
     ((ZookeeperShards)                                              (2200))  // gritukan
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
     ((UserPassword)                                                 (2202))  // gritukan
+    ((SetUserPassword)                                              (2203))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

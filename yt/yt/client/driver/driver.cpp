@@ -1,4 +1,6 @@
 #include "driver.h"
+
+#include "authentication_commands.h"
 #include "chaos_commands.h"
 #include "command.h"
 #include "config.h"
@@ -319,6 +321,8 @@ public:
         REGISTER_ALL(TResumeTabletCellsCommand,            "resume_tablet_cells",             Null,       Structured, false,  false);
 
         REGISTER    (TStartYqlQueryCommand,                "start_yql_query",                 Null,       Structured, false,  false, ApiVersion4);
+
+        REGISTER_ALL(TSetUserPasswordCommand,              "set_user_password",               Null,       Structured, false,  false);
 
         if (Config_->EnableInternalCommands) {
             REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );

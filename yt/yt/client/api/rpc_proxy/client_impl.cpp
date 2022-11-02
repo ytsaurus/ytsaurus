@@ -1648,6 +1648,15 @@ TFuture<TStartYqlQueryResult> TClient::StartYqlQuery(
     ThrowUnimplemented("StartYqlQuery");
 }
 
+TFuture<void> TClient::SetUserPassword(
+    const TString& /*user*/,
+    const TString& /*currentPasswordSha256*/,
+    const TString& /*newPasswordSha256*/,
+    const TSetUserPasswordOptions& /*options*/)
+{
+    ThrowUnimplemented("SetUserPassword");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpcProxy
