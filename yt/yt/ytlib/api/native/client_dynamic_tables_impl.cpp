@@ -1914,45 +1914,51 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
     auto firstTabletIndex = options.FirstTabletIndex.value_or(0);
     reshardBuilder.SetFirstPivotKey(tableInfo->GetTabletByIndexOrThrow(firstTabletIndex)->PivotKey);
 
-    if (reshardBuilder.GetChunksForSlicing().empty() || reshardBuilder.AreAllPivotsFound()) {
+    if (reshardBuilder.AreAllPivotsFound()) {
         YT_LOG_DEBUG("Picked pivot keys without slicing");
         return reshardBuilder.GetPivotKeys();
     }
 
-    if (!reshardBuilder.GetChunksForSlicing().empty()) {
-        auto rowBuffer = New<TRowBuffer>();
-        auto chunkSliceFetcher = CreateChunkSliceFetcher(
-            Connection_->GetConfig()->ChunkSliceFetcher,
-            Connection_->GetNodeDirectory(),
-            CreateSerializedInvoker(Connection_->GetInvoker()),
-            /*chunkScraper*/ nullptr,
-            MakeStrong(this),
-            rowBuffer,
-            Logger);
+    if (reshardBuilder.GetChunksForSlicing().empty()) {
+        THROW_ERROR_EXCEPTION("Could not reshard table %v to desired tablet count; consider reducing tablet count or specifying pivot keys manually",
+            path)
+            << TErrorAttribute("tablet_count", tabletCount)
+            << TErrorAttribute("max_block_size", maxBlockSize)
+            << TErrorAttribute("split_chunk_count", std::ssize(splitChunks));
+    }
 
-        for (const auto& [inputChunk, size] : reshardBuilder.GetChunksForSlicing()) {
-            auto chunkSlice = CreateInputChunkSlice(inputChunk);
-            InferLimitsFromBoundaryKeys(chunkSlice, rowBuffer);
-            auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
-            dataSlice->TransformToNew(rowBuffer, comparator.GetLength());
+    auto rowBuffer = New<TRowBuffer>();
+    auto chunkSliceFetcher = CreateChunkSliceFetcher(
+        Connection_->GetConfig()->ChunkSliceFetcher,
+        Connection_->GetNodeDirectory(),
+        CreateSerializedInvoker(Connection_->GetInvoker()),
+        /*chunkScraper*/ nullptr,
+        MakeStrong(this),
+        rowBuffer,
+        Logger);
 
-            auto sliceCount = DivCeil<i64>(size, minSliceSize);
-            auto sliceSize = DivCeil<i64>(size, sliceCount);
-            sliceSize = std::max(minSliceSize, sliceSize);
+    for (const auto& [inputChunk, size] : reshardBuilder.GetChunksForSlicing()) {
+        auto chunkSlice = CreateInputChunkSlice(inputChunk);
+        InferLimitsFromBoundaryKeys(chunkSlice, rowBuffer);
+        auto dataSlice = CreateUnversionedInputDataSlice(chunkSlice);
+        dataSlice->TransformToNew(rowBuffer, comparator.GetLength());
 
-            chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true);
-        }
+        auto sliceCount = DivCeil<i64>(size, minSliceSize);
+        auto sliceSize = DivCeil<i64>(size, sliceCount);
+        sliceSize = std::max(minSliceSize, sliceSize);
 
-        YT_LOG_DEBUG("Fetching chunk slices");
+        chunkSliceFetcher->AddDataSliceForSlicing(dataSlice, comparator, sliceSize, /*sliceByKeys*/ true);
+    }
 
-        WaitFor(chunkSliceFetcher->Fetch())
-            .ThrowOnError();
+    YT_LOG_DEBUG("Fetching chunk slices");
 
-        YT_LOG_DEBUG("Chunk slices fetched");
+    WaitFor(chunkSliceFetcher->Fetch())
+        .ThrowOnError();
 
-        for (const auto& slice : chunkSliceFetcher->GetChunkSlices()) {
-            reshardBuilder.AddSlice(slice);
-        }
+    YT_LOG_DEBUG("Chunk slices fetched");
+
+    for (const auto& slice : chunkSliceFetcher->GetChunkSlices()) {
+        reshardBuilder.AddSlice(slice);
     }
 
     YT_LOG_DEBUG("Computing pivot keys after slicing");
