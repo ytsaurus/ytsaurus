@@ -12,7 +12,7 @@ from yt_env_setup import YTEnvSetup, is_asan_build
 
 from yt.wrapper.common import simplify_structure
 
-from yt.common import update, update_inplace, YtError, wait, parts_to_uuid
+from yt.common import update, update_inplace, YtError, wait, parts_to_uuid, YtResponseError
 
 import yt.packages.requests as requests
 
@@ -185,15 +185,15 @@ class Clique(object):
         assert len(self.discovery_servers) > 0
         discovery_server = self.discovery_servers[0]
         group_id = self.get_group_id()
-        if exists("//sys/discovery_servers/{}/orchid/discovery_server/chyt".format(discovery_server)):
+        try:
             instances = ls(
                 "//sys/discovery_servers/{}/orchid/discovery_server/chyt/{}/@members"
                 .format(discovery_server, group_id),
                 attributes=["host", "http_port", "monitoring_port", "job_cookie", "pid"],
                 verbose=False,
             )
-            return instances
-        else:
+            return [instance for instance in instances if instance.attributes]
+        except YtResponseError:
             return []
 
     def get_active_instances(self):

@@ -73,7 +73,10 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
         patch = {
             "yt": {
                 "discovery": {
-                    "version": discovery_version
+                    "version": discovery_version,
+                    "update_period": 2000,
+                    "heartbeat_period": 400,
+                    "lease_timeout": 1000,
                 }
             }
         }
@@ -90,7 +93,7 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
 
             print_debug("Aborting job", jobs[0])
             abort_job(jobs[0])
-            clique.wait_instance_count(1, unwanted_jobs=jobs)
+            clique.wait_instance_count(1, unwanted_jobs=jobs, wait_discovery_sync=True)
 
             proxy_response = clique.make_query_via_proxy("select * from system.clique")
             response = clique.make_query("select * from system.clique")
