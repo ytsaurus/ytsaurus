@@ -172,7 +172,9 @@ class TCookieAuthenticatorWrapper
 public:
     explicit TCookieAuthenticatorWrapper(ICookieAuthenticatorPtr underlying)
         : Underlying_(std::move(underlying))
-    { }
+    {
+        YT_VERIFY(Underlying_);
+    }
 
     bool CanAuthenticate(const NRpc::TAuthenticationContext& context) override
     {
