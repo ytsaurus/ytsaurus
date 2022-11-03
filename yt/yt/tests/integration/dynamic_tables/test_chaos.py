@@ -47,10 +47,11 @@ class ChaosTestBase(DynamicTablesBase):
     USE_NATIVE_AUTH = False
 
     class CellsDisabled():
-        def __init__(self, clusters=[], tablet_bundles=[], chaos_bundles=[]):
+        def __init__(self, clusters=[], tablet_bundles=[], chaos_bundles=[], area_ids=[]):
             self._clusters = clusters
             self._tablet_bundles = tablet_bundles
             self._chaos_bundles = chaos_bundles
+            self._area_ids = area_ids
 
         def __enter__(self):
             self._set_tag_filters("invalid")
@@ -67,6 +68,8 @@ class ChaosTestBase(DynamicTablesBase):
                     set("//sys/tablet_cell_bundles/{0}/@node_tag_filter".format(bundle), tag_filter, driver=driver)
                 for bundle in self._chaos_bundles:
                     set("//sys/chaos_cell_bundles/{0}/@node_tag_filter".format(bundle), tag_filter, driver=driver)
+                for area_id in self._area_ids:
+                    set("#{0}/@node_tag_filter".format(area_id), tag_filter, driver=driver)
 
         def _wait_for_cells(self, state):
             for cluster in self._clusters:
@@ -75,6 +78,10 @@ class ChaosTestBase(DynamicTablesBase):
                     wait(lambda: get("//sys/tablet_cell_bundles/{0}/@health".format(bundle), driver=driver) == state)
                 for bundle in self._chaos_bundles:
                     for cell in get("//sys/chaos_cell_bundles/{0}/@tablet_cell_ids".format(bundle), driver=driver):
+                        target = ["good"] if state == "good" else ["failed", "degraded"]
+                        wait(lambda: get("#{0}/@local_health".format(cell), driver=driver) in target)
+                for area_id in self._area_ids:
+                    for cell in get("#{0}/@cell_ids".format(area_id), driver=driver):
                         target = ["good"] if state == "good" else ["failed", "degraded"]
                         wait(lambda: get("#{0}/@local_health".format(cell), driver=driver) in target)
 
@@ -3178,6 +3185,7 @@ class TestChaosMetaCluster(ChaosTestBase):
     def test_remove_migrated_replication_card(self):
         cells = self._create_dedicated_areas_and_cells()
         drivers = self._get_drivers()
+        cluster_names = self.get_cluster_names()
 
         replicas = [
             {"cluster_name": "primary", "content_type": "data", "mode": "sync", "enabled": True, "replica_path": "//tmp/t"},
@@ -3199,14 +3207,11 @@ class TestChaosMetaCluster(ChaosTestBase):
         wait(lambda: exists(migrated_card_path, driver=drivers[-1]))
 
         area_id = get("#{0}/@area_id".format(cells[0]), driver=drivers[-2])
-        set("#{0}/@node_tag_filter".format(area_id), "invalid", driver=drivers[-2])
+        with self.CellsDisabled(clusters=cluster_names[-2:-1], area_ids=[area_id]):
+            remove("#{0}".format(card_id))
+            with pytest.raises(YtError):
+                exists("#{0}".format(card_id))
 
-        remove("#{0}".format(card_id))
-        with pytest.raises(YtError):
-            exists("#{0}".format(card_id))
-
-        set("#{0}/@node_tag_filter".format(area_id), "", driver=drivers[-2])
-        cluster_names = self.get_cluster_names()
         wait_for_chaos_cell(cells[0], cluster_names[-2:-1])
 
         def _check():
