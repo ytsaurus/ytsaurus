@@ -292,11 +292,10 @@ public:
 
         auto batchReq = StartObjectBatchRequest();
 
-        auto attributes = ConvertToAttributes(BuildYsonStringFluently()
-            .BeginMap()
-                .Do(BIND(&BuildFullOperationAttributes, operation, /*includeOperationId*/ true))
-                .Item("brief_spec").Value(operation->BriefSpecString())
-            .EndMap());
+        auto attributes = BuildAttributeDictionaryFluently()
+            .Do(BIND(&BuildFullOperationAttributes, operation, /*includeOperationId*/ true))
+            .Item("brief_spec").Value(operation->BriefSpecString())
+            .Finish();
 
         auto req = TYPathProxy::Multiset(GetOperationPath(operationId) + "/@");
         GenerateMutationId(req);

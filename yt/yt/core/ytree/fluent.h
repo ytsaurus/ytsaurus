@@ -4,6 +4,8 @@
 #include "tree_visitor.h"
 #include "tree_builder.h"
 #include "convert.h"
+#include "attribute_consumer.h"
+#include "helpers.h"
 
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/producer.h>
@@ -13,7 +15,6 @@
 
 #include <yt/yt/core/misc/string.h>
 
-#include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NYTree {
 
@@ -697,6 +698,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TFluentAttributeConsumerState
+    : public TRefCounted
+{
+public:
+    using TValue = IAttributeDictionaryPtr;
+
+    explicit TFluentAttributeConsumerState(std::optional<int> ysonNestingLevelLimit)
+        : Dictionary_(CreateEphemeralAttributes(ysonNestingLevelLimit))
+        , Consumer_(std::make_unique<TAttributeConsumer>(Dictionary_.Get()))
+    { }
+
+    IAttributeDictionaryPtr GetValue()
+    {
+        return Dictionary_;
+    }
+
+    NYson::IYsonConsumer* GetConsumer()
+    {
+        return Consumer_.get();
+    }
+
+private:
+    const IAttributeDictionaryPtr Dictionary_;
+    const std::unique_ptr<TAttributeConsumer> Consumer_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class TState>
 class TFluentYsonHolder
 {
@@ -754,6 +783,12 @@ inline auto BuildYsonNodeFluently(INodeFactory* factory = GetEphemeralNodeFactor
     -> typename TFluentType<NYson::EYsonType::Node>::template TValue<TFluentYsonHolder<TFluentYsonBuilderState>>
 {
     return BuildYsonFluentlyWithState<TFluentYsonBuilderState, NYson::EYsonType::Node>(New<TFluentYsonBuilderState>(factory));
+}
+
+inline auto BuildAttributeDictionaryFluently(std::optional<int> ysonNestingLevelLimit = {})
+    -> typename TFluentType<NYson::EYsonType::MapFragment>::template TValue<TFluentYsonHolder<TFluentAttributeConsumerState>>
+{
+    return BuildYsonFluentlyWithState<TFluentAttributeConsumerState, NYson::EYsonType::MapFragment>(New<TFluentAttributeConsumerState>(ysonNestingLevelLimit));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
