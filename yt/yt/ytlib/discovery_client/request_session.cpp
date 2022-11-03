@@ -119,13 +119,15 @@ void TServerAddressPool::SetConfig(const TDiscoveryConnectionConfigPtr& config)
 
 void TServerAddressPool::UpdateEndpoints()
 {
-    auto guard = Guard(Lock_);
-
     std::vector<TFuture<TEndpointSet>> endpointSetFutures;
-    for (const auto& cluster : Config_->Endpoints->Clusters) {
-        endpointSetFutures.push_back(ServiceDiscovery_->ResolveEndpoints(
-            cluster,
-            Config_->Endpoints->EndpointSetId));
+
+    {
+        auto guard = Guard(Lock_);
+        for (const auto& cluster : Config_->Endpoints->Clusters) {
+            endpointSetFutures.push_back(ServiceDiscovery_->ResolveEndpoints(
+                cluster,
+                Config_->Endpoints->EndpointSetId));
+        }
     }
 
     AllSet(endpointSetFutures)
