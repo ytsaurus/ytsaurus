@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/memory/ref.h>
 
+#include <util/generic/size_literals.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////

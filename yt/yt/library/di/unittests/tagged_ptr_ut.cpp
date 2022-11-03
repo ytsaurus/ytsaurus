@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/memory/new.h>
 
+#include <library/cpp/yt/misc/enum.h>
+
 namespace NYT::NDI {
 namespace {
 

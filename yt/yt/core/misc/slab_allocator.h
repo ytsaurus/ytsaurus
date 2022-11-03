@@ -12,6 +12,8 @@
 
 #include <yt/yt/core/profiling/profiler.h>
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 #include <array>
 
 namespace NYT {

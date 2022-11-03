@@ -2,6 +2,8 @@
 
 #include "undumpable.h"
 
+#include <util/generic/size_literals.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -32,7 +34,7 @@ struct TUndumpableHolder
 TSharedRef MarkUndumpable(const TSharedRef& ref)
 {
     if (ref.Size() >= MinUndumpableSize) {
-        return TSharedRef{ref, New<TUndumpableHolder>(ref)};   
+        return TSharedRef{ref, New<TUndumpableHolder>(ref)};
     } else {
         return ref;
     }

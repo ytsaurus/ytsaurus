@@ -12,6 +12,8 @@
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////

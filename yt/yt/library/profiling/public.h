@@ -2,6 +2,8 @@
 
 #include <library/cpp/yt/memory/ref_counted.h>
 
+#include <util/datetime/base.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////

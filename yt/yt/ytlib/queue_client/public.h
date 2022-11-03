@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/public.h>
 
 namespace NYT::NQueueClient {
 

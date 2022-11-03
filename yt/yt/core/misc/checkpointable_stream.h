@@ -5,6 +5,8 @@
 #include <util/stream/input.h>
 #include <util/stream/output.h>
 
+#include <util/generic/size_literals.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
