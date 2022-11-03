@@ -1,6 +1,7 @@
 package NYT.NQueryClient.NProto;
 import "yt/library/query/proto/query.proto";
 import "yt/library/query/proto/functions_cache.proto";
+import "yt_proto/yt/client/misc/proto/workload.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/wire_protocol.proto";
 import "yt_proto/yt/client/query_client/proto/query_statistics.proto";
@@ -211,6 +212,34 @@ message TRspFetchTabletStores
 
     // Attachments contain wire-encoded samples keys. For each subrequest with
     // |fetch_samples| = true there are len(|ranges|) attachments with samples.
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqFetchTableRows
+{
+    message TOptions
+    {
+        optional NYT.NProto.TWorkloadDescriptor workload_descriptor = 1;
+    }
+
+    required NYT.NProto.TGuid tablet_id = 1;
+    required NYT.NProto.TGuid cell_id = 2;
+    optional uint64 mount_revision = 3;
+
+    // The fields below *must* be set.
+    // They are marked optional for potential future extensions.
+    optional int32 tablet_index = 4;
+    optional int64 row_index = 5;
+    optional int64 max_row_count = 6;
+    optional int64 max_data_weight = 7;
+
+    optional TOptions options = 8;
+}
+
+message TRspFetchTableRows
+{
+    // Attachment contains wire-encoded rows.
 }
 
 ////////////////////////////////////////////////////////////////////////////////

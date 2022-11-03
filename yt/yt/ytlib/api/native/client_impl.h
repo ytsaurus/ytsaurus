@@ -968,6 +968,20 @@ private:
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
+        NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions,
+        const TPullQueueOptions& options);
+
+    IUnversionedRowsetPtr DoPullQueueViaSelectRows(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options);
+
+    IUnversionedRowsetPtr DoPullQueueViaTabletNodeApi(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options);
 

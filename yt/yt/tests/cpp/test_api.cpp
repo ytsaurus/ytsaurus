@@ -749,7 +749,7 @@ TEST_F(TOrderedDynamicTablesTest, TestOrderedTableWrite)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueApiTest
-    : public TOrderedDynamicTablesTest
+    : public TOrderedDynamicTablesTest, public testing::WithParamInterface<bool>
 {
 public:
     static void WaitForRowCount(i64 rowCount)
@@ -765,8 +765,18 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TQueueApiTest, TestQueueApi)
+TEST_P(TQueueApiTest, TestQueueApi)
 {
+    CreateTable(
+        Format("//tmp/test_queue_api_%v", GetParam()), // tablePath
+        "[" // schema
+        "{name=v1;type=int64};"
+        "{name=v2;type=int64};"
+        "{name=v3;type=int64}]");
+
+    TPullQueueOptions pullQueueOptions;
+    pullQueueOptions.UseNativeTabletNodeApi = GetParam();
+
     WriteUnversionedRow(
         {"v3", "v1", "v2"},
         "<id=0> 15; <id=1> 13; <id=2> 14;");
@@ -774,8 +784,13 @@ TEST_F(TQueueApiTest, TestQueueApi)
         {"v2", "v3", "v1"},
         "<id=0> 24; <id=1> 25; <id=2> 23;");
 
+    // Remount table to cause stores to flush.
+    SyncUnmountTable(Table_);
+    SyncMountTable(Table_);
+
     auto options = TQueueRowBatchReadOptions{.MaxRowCount = 1};
-    auto res = WaitFor(Client_->PullQueue(Table_, 0, 0, options)).ValueOrThrow();
+    auto res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
+        .ValueOrThrow();
     EXPECT_EQ(res->GetStartOffset(), 0);
     EXPECT_EQ(res->GetFinishOffset(), 1);
     auto rows = res->GetRows();
@@ -791,7 +806,8 @@ TEST_F(TQueueApiTest, TestQueueApi)
         "<id=0> 123; <id=1> 124; <id=2> 125;");
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 10};
-    res = WaitFor(Client_->PullQueue(Table_, 1, 0, options)).ValueOrThrow();
+    res = WaitFor(Client_->PullQueue(Table_, 1, 0, options))
+        .ValueOrThrow();
     EXPECT_EQ(res->GetStartOffset(), 1);
     EXPECT_LE(res->GetFinishOffset(), 3);
     rows = res->GetRows();
@@ -811,7 +827,8 @@ TEST_F(TQueueApiTest, TestQueueApi)
         "<id=0> 1123; <id=1> 1124; <id=2> 1125;");
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
-    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options)).ValueOrThrow();
+    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
+        .ValueOrThrow();
     EXPECT_EQ(res->GetStartOffset(), 1);
     EXPECT_LE(res->GetFinishOffset(), 3);
     rows = res->GetRows();
@@ -827,7 +844,8 @@ TEST_F(TQueueApiTest, TestQueueApi)
     WaitForRowCount(2);
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
-    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options)).ValueOrThrow();
+    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
+        .ValueOrThrow();
     EXPECT_EQ(res->GetStartOffset(), 2);
     EXPECT_LE(res->GetFinishOffset(), 4);
     rows = res->GetRows();
@@ -840,14 +858,16 @@ TEST_F(TQueueApiTest, TestQueueApi)
     EXPECT_EQ(expected, actual);
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 2};
-    res = WaitFor(Client_->PullQueue(Table_, 10, 0, options)).ValueOrThrow();
+    res = WaitFor(Client_->PullQueue(Table_, 10, 0, options, pullQueueOptions))
+        .ValueOrThrow();
     EXPECT_EQ(res->GetStartOffset(), 10);
     EXPECT_EQ(res->GetFinishOffset(), 10);
     rows = res->GetRows();
     ASSERT_EQ(rows.size(), 0u);
 
     options = TQueueRowBatchReadOptions{.MaxRowCount = 10, .MaxDataWeight = 5, .DataWeightPerRowHint = 3};
-    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options)).ValueOrThrow();
+    res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
+        .ValueOrThrow();
     EXPECT_EQ(res->GetStartOffset(), 2);
     EXPECT_EQ(res->GetFinishOffset(), 3);
     rows = res->GetRows();
@@ -857,7 +877,15 @@ TEST_F(TQueueApiTest, TestQueueApi)
     expected = ToString(YsonToSchemalessRow(
         "<id=0> 0; <id=1> 2; <id=2> 123; <id=3> 124; <id=4> 125;"));
     EXPECT_EQ(expected, actual);
+
+    // TODO(achulkov2): Add test with trimming and several chunks.
+
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    UseNativeTabletNodeApi,
+    TQueueApiTest,
+    testing::Values(false, true));
 
 ////////////////////////////////////////////////////////////////////////////////
 

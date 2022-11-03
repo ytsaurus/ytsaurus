@@ -978,7 +978,9 @@ struct TTableWriterOptions
 
 struct TPullQueueOptions
     : public TSelectRowsOptions
-{ };
+{
+    bool UseNativeTabletNodeApi = false;
+};
 
 struct TGetColumnarStatisticsOptions
     : public TTransactionalOptions

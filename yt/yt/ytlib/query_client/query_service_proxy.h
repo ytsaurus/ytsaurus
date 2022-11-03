@@ -24,6 +24,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, ReadDynamicStore,
         .SetStreamingEnabled(true));
     DEFINE_RPC_PROXY_METHOD(NProto, FetchTabletStores);
+    DEFINE_RPC_PROXY_METHOD(NProto, FetchTableRows);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

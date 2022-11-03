@@ -3743,6 +3743,9 @@ private:
             rowBatchReadOptions.DataWeightPerRowHint = request->row_batch_read_options().data_weight_per_row_hint();
         }
 
+        // TODO(achulkov2): Support WorkloadDescriptor.
+        options.UseNativeTabletNodeApi = request->use_native_tablet_node_api();
+
         ExecuteCall(
             context,
             [=] {

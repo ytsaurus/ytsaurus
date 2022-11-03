@@ -19,6 +19,7 @@ public:
     int QueryThreadPoolSize;
     int LookupThreadPoolSize;
     int FetchThreadPoolSize;
+    int TableRowFetchThreadPoolSize;
     int MaxSubsplitsPerTablet;
     int MaxSubqueries;
     int MaxQueryRetries;
@@ -46,6 +47,7 @@ public:
     std::optional<int> QueryThreadPoolSize;
     std::optional<int> LookupThreadPoolSize;
     std::optional<int> FetchThreadPoolSize;
+    std::optional<int> TableRowFetchThreadPoolSize;
 
     std::optional<bool> RejectUponThrottlerOverdraft;
 

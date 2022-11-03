@@ -112,6 +112,9 @@ public:
         TabletFetchThreadPool_ = New<TThreadPool>(
             GetConfig()->QueryAgent->FetchThreadPoolSize,
             "TabletFetch");
+        TableRowFetchThreadPool_ = New<TThreadPool>(
+            GetConfig()->QueryAgent->TableRowFetchThreadPoolSize,
+            "TableRowFetch");
 
         if (GetConfig()->EnableFairThrottler) {
             for (auto kind : {
@@ -243,6 +246,7 @@ public:
                 .Item("table_replicator_thread_pool_size").Value(TableReplicatorThreadPool_->GetThreadCount())
                 .Item("tablet_lookup_thread_pool_size").Value(TabletLookupThreadPool_->GetThreadCount())
                 .Item("tablet_fetch_thread_pool_size").Value(TabletFetchThreadPool_->GetThreadCount())
+                .Item("table_row_fetch_thread_pool_size").Value(TableRowFetchThreadPool_->GetThreadCount())
                 .Item("query_thread_pool_size").Value(QueryThreadPool_->GetThreadCount())
             .EndMap();
     }
@@ -305,6 +309,11 @@ public:
     const IInvokerPtr& GetTabletFetchPoolInvoker() const override
     {
         return TabletFetchThreadPool_->GetInvoker();
+    }
+
+    const IInvokerPtr& GetTableRowFetchPoolInvoker() const override
+    {
+        return TableRowFetchThreadPool_->GetInvoker();
     }
 
     IInvokerPtr GetQueryPoolInvoker(
@@ -398,6 +407,8 @@ private:
     TThreadPoolPtr TableReplicatorThreadPool_;
     TThreadPoolPtr TabletLookupThreadPool_;
     TThreadPoolPtr TabletFetchThreadPool_;
+    TThreadPoolPtr TableRowFetchThreadPool_;
+
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
 
     TEnumIndexedVector<ETabletNodeThrottlerKind, IReconfigurableThroughputThrottlerPtr> LegacyRawThrottlers_;
@@ -452,6 +463,8 @@ private:
     {
         TabletFetchThreadPool_->Configure(
             nodeConfig->QueryAgent->FetchThreadPoolSize.value_or(GetConfig()->QueryAgent->FetchThreadPoolSize));
+        TableRowFetchThreadPool_->Configure(
+            nodeConfig->QueryAgent->TableRowFetchThreadPoolSize.value_or(GetConfig()->QueryAgent->TableRowFetchThreadPoolSize));
 
         {
             auto fallbackQueryThreadCount = nodeConfig->QueryAgent->QueryThreadPoolSize.value_or(

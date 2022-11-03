@@ -18,6 +18,8 @@ public:
     //! If set, this value is used to compute the number of rows to read considering the given MaxDataWeight.
     std::optional<i64> DataWeightPerRowHint;
 
+    bool UseNativeTabletNodeApi;
+
     REGISTER_YSON_STRUCT(TPartitionReaderConfig)
 
     static void Register(TRegistrar registrar);

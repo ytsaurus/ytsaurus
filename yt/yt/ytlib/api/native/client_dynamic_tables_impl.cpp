@@ -106,6 +106,7 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryClient;
+using namespace NQueueClient;
 using namespace NRpc;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -2241,18 +2242,56 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
     return tabletActions;
 }
 
-NQueueClient::IQueueRowsetPtr TClient::DoPullQueue(
+IQueueRowsetPtr TClient::DoPullQueue(
     const NYPath::TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
-    const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+    TQueueRowBatchReadOptions rowBatchReadOptions,
     const TPullQueueOptions& options)
 {
-    THROW_ERROR_EXCEPTION_IF(offset < 0, "Cannot read table %v at a negative offset %v",
+    THROW_ERROR_EXCEPTION_IF(
+        offset < 0,
+        "Cannot read table %v at a negative offset %v",
         queuePath,
         offset);
 
-    auto rowsToRead = NQueueClient::ComputeRowsToRead(rowBatchReadOptions);
+    rowBatchReadOptions.MaxRowCount = ComputeRowsToRead(rowBatchReadOptions);
+
+    IUnversionedRowsetPtr rowset;
+
+    if (options.UseNativeTabletNodeApi) {
+        rowset = DoPullQueueViaTabletNodeApi(
+            queuePath,
+            offset,
+            partitionIndex,
+            rowBatchReadOptions,
+            options);
+    } else {
+        rowset = DoPullQueueViaSelectRows(
+            queuePath,
+            offset,
+            partitionIndex,
+            rowBatchReadOptions,
+            options);
+    }
+
+    auto startOffset = offset;
+
+    if (!rowset->GetRows().Empty()) {
+        startOffset = GetStartOffset(rowset);
+    }
+
+    return CreateQueueRowset(rowset, startOffset);
+}
+
+IUnversionedRowsetPtr TClient::DoPullQueueViaSelectRows(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullQueueOptions& options)
+{
+    auto rowsToRead = rowBatchReadOptions.MaxRowCount;
 
     auto readResult = DoSelectRows(
         Format(
@@ -2274,13 +2313,57 @@ NQueueClient::IQueueRowsetPtr TClient::DoPullQueue(
             options);
     }
 
-    auto startOffset = offset;
+    return readResult.Rowset;
+}
 
-    if (!readResult.Rowset->GetRows().Empty()) {
-        startOffset = NQueueClient::GetStartOffset(readResult.Rowset);
-    }
+IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullQueueOptions& options)
+{
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto tableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
+        .ValueOrThrow();
 
-    return NQueueClient::CreateQueueRowset(readResult.Rowset, startOffset);
+    tableInfo->ValidateDynamic();
+    tableInfo->ValidateOrdered();
+
+    NSecurityClient::TPermissionKey permissionKey{
+        .Object = FromObjectId(tableInfo->TableId),
+        .User = Options_.GetAuthenticatedUser(),
+        .Permission = EPermission::Read,
+    };
+    const auto& permissionCache = Connection_->GetPermissionCache();
+    WaitFor(permissionCache->Get(permissionKey))
+        .ThrowOnError();
+
+    auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(partitionIndex);
+
+    auto channel = GetReadCellChannelOrThrow(tabletInfo->CellId);
+    TQueryServiceProxy proxy(channel);
+    proxy.SetDefaultTimeout(options.Timeout.value_or(Connection_->GetConfig()->DefaultFetchTableRowsTimeout));
+
+    auto req = proxy.FetchTableRows();
+    ToProto(req->mutable_tablet_id(), tabletInfo->TabletId);
+    ToProto(req->mutable_cell_id(), tabletInfo->CellId);
+    req->set_mount_revision(tabletInfo->MountRevision);
+    req->set_tablet_index(partitionIndex);
+    req->set_row_index(offset);
+    req->set_max_row_count(rowBatchReadOptions.MaxRowCount);
+    req->set_max_data_weight(rowBatchReadOptions.MaxDataWeight);
+    ToProto(req->mutable_options()->mutable_workload_descriptor(), options.WorkloadDescriptor);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+
+    struct TPullQueueTag {};
+    auto responseData = MergeRefsToRef<TPullQueueTag>(rsp->Attachments());
+    auto reader = CreateWireProtocolReader(responseData, New<TRowBuffer>(TPullQueueTag{}));
+    auto rows = reader->ReadUnversionedRowset(/*captureValues*/ true);
+
+    return CreateRowset(tableInfo->Schemas[ETableSchemaKind::Query], rows);
 }
 
 std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(

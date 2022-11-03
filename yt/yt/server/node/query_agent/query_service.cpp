@@ -415,6 +415,8 @@ public:
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTabletStores)
             .SetInvoker(Bootstrap_->GetTabletFetchPoolInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTableRows)
+            .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
             &TQueryService::OnDynamicConfigChanged,
@@ -1460,6 +1462,183 @@ private:
         }
 
         context->Reply();
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, FetchTableRows)
+    {
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto cellId = FromProto<TCellId>(request->cell_id());
+        auto tabletSnapshot = request->has_mount_revision()
+            ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, request->mount_revision())
+            : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
+        snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
+
+        if (tabletSnapshot->PhysicalSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Fetching rows for sorted tablets is not implemented");
+        }
+
+        if (!request->has_tablet_index()) {
+            THROW_ERROR_EXCEPTION("Missing obligatory \"tablet_index\" parameter");
+        }
+
+        if (!request->has_row_index()) {
+            THROW_ERROR_EXCEPTION("Missing obligatory \"row_index\" parameter");
+        }
+
+        if (!request->has_max_row_count()) {
+            THROW_ERROR_EXCEPTION("Missing obligatory \"max_row_count\" parameter");
+        }
+
+        if (!request->has_max_data_weight()) {
+            THROW_ERROR_EXCEPTION("Missing obligatory \"max_data_weight\" parameter");
+        }
+
+        context->SetRequestInfo(
+            "TabletId: %v, CellId: %v, TabletIndex: %v, RowIndex: %v, MaxRowCount: %v, MaxDataWeight: %v",
+            tabletId,
+            cellId,
+            request->tablet_index(),
+            request->row_index(),
+            request->max_row_count(),
+            request->max_data_weight());
+
+        auto trimmedRowCount = tabletSnapshot->TabletRuntimeData->TrimmedRowCount.load();
+        YT_LOG_DEBUG(
+            "Loading current trimmed row count from tablet runtime data (TabletId: %v, TrimmedRowCount: %v)",
+            tabletId,
+            trimmedRowCount);
+
+        auto rowIndex = request->row_index();
+        if (trimmedRowCount > rowIndex) {
+            YT_LOG_DEBUG(
+                "Some of the desired rows are trimmed; reading from first untrimmed row (RowIndex: %v, TrimmedRowCount: %v)",
+                rowIndex,
+                trimmedRowCount);
+            rowIndex = trimmedRowCount;
+        }
+
+        const auto& orderedStores = tabletSnapshot->OrderedStores;
+
+        IOrderedStorePtr desiredStore;
+
+        YT_LOG_DEBUG(
+            "Searching for appropriate ordered store to fetch rows from (TabletId: %v, StoreCount: %v, RowIndex: %v)",
+            tabletId,
+            orderedStores.size(),
+            rowIndex);
+
+        if (!orderedStores.empty()) {
+            // We want to find the first store containing rows with row indices >= rowIndex.
+            // Ex:
+            //    0      1      2       3
+            // [3....][11...][23....][30...]
+            // For rowIndex = 3-10 we want to read from store 0, for 11-22 from store 1, etc.
+            // For rowIndex < 3 we want to read from store 0.
+            auto desiredStoreIt = std::upper_bound(
+                orderedStores.begin(),
+                orderedStores.end(),
+                rowIndex,
+                [] (i64 rowIndex, const IOrderedStorePtr& store) {
+                    return store->GetStartingRowIndex() > rowIndex;
+                });
+
+            desiredStore = *std::ranges::prev(desiredStoreIt, /*n*/ 1, /*bound*/ orderedStores.begin());
+        }
+
+        TSharedRange<TUnversionedRow> resultingRows;
+
+        if (desiredStore) {
+            YT_LOG_DEBUG(
+                "Found store to read from (StoreId: %v, StartingRowIndex: %v, RowCount: %v)",
+                desiredStore->GetId(),
+                desiredStore->GetStartingRowIndex(),
+                desiredStore->GetRowCount());
+
+
+            TClientChunkReadOptions chunkReadOptions;
+            if (request->options().has_workload_descriptor()) {
+                chunkReadOptions.WorkloadDescriptor =
+                    FromProto<TWorkloadDescriptor>(request->options().workload_descriptor());
+            }
+            chunkReadOptions.ReadSessionId = TReadSessionId::Create();
+
+            resultingRows = FetchRowsFromOrderedStore(
+                tabletSnapshot,
+                desiredStore,
+                request->tablet_index(),
+                rowIndex,
+                request->max_row_count(),
+                request->max_data_weight(),
+                chunkReadOptions);
+        }
+
+        auto writer = CreateWireProtocolWriter();
+        writer->WriteUnversionedRowset(resultingRows);
+        response->Attachments() = writer->Finish();
+
+        context->SetResponseInfo("RowCount: %v", resultingRows.size());
+        context->Reply();
+    }
+
+    TSharedRange<TUnversionedRow> FetchRowsFromOrderedStore(
+        const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
+        const IOrderedStorePtr& store,
+        int tabletIndex,
+        i64 rowIndex,
+        i64 maxRowCount,
+        i64 maxDataWeight,
+        const TClientChunkReadOptions& chunkReadOptions)
+    {
+        auto tabletId = tabletSnapshot->TabletId;
+
+        YT_LOG_DEBUG(
+            "Fetching rows from ordered store (TabletId: %v, Store: %v, StartingRowIndex: %v, RowIndex: %v, "
+            "MaxRowCount: %v, MaxDataWeight: %v)",
+            tabletId,
+            store->GetId(),
+            store->GetStartingRowIndex(),
+            rowIndex,
+            maxRowCount,
+            maxDataWeight);
+
+        auto reader = store->CreateReader(
+            tabletSnapshot,
+            tabletIndex,
+            /*lowerRowIndex*/ rowIndex,
+            /*upperRowIndex*/ std::numeric_limits<i64>::max(),
+            TColumnFilter::MakeUniversal(),
+            chunkReadOptions,
+            chunkReadOptions.WorkloadDescriptor.Category);
+
+        TRowBatchReadOptions options{
+            .MaxRowsPerRead = maxRowCount,
+            .MaxDataWeightPerRead = maxDataWeight,
+        };
+
+        auto batch = reader->Read(options);
+
+        if (batch && batch->IsEmpty()) {
+            YT_LOG_DEBUG(
+                "Waiting for rows from ordered store (TabletId: %v, RowIndex: %v)",
+                tabletId,
+                rowIndex);
+            WaitFor(reader->GetReadyEvent())
+                .ThrowOnError();
+            batch = reader->Read(options);
+        }
+
+        if (batch) {
+            YT_LOG_DEBUG(
+                "Fetched rows from ordered store (TabletId: %v, RowCount: %v)",
+                tabletId,
+                batch->GetRowCount());
+            return batch->MaterializeRows();
+        } else {
+            YT_LOG_DEBUG("Received null batch from ordered store (TabletId: %v)", tabletId);
+            return {};
+        }
     }
 
     void ReadReplicationBatch(
