@@ -753,6 +753,8 @@ TFuture<IQueueRowsetPtr> TClient::PullQueue(
         protoOptions->set_data_weight_per_row_hint(*rowBatchReadOptions.DataWeightPerRowHint);
     }
 
+    req->set_use_native_tablet_node_api(options.UseNativeTabletNodeApi);
+
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullQueuePtr& rsp) -> IQueueRowsetPtr {
         auto rowset = DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),

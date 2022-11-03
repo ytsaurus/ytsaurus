@@ -16,6 +16,9 @@ void TQueryAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("fetch_thread_pool_size", &TThis::FetchThreadPoolSize)
         .GreaterThan(0)
         .Default(4);
+    registrar.Parameter("table_row_fetch_thread_pool_size", &TThis::TableRowFetchThreadPoolSize)
+        .GreaterThan(0)
+        .Default(4);
     registrar.Parameter("max_subsplits_per_tablet", &TThis::MaxSubsplitsPerTablet)
         .GreaterThan(0)
         .Default(4096);
@@ -55,6 +58,9 @@ void TQueryAgentDynamicConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Optional();
     registrar.Parameter("fetch_thread_pool_size", &TThis::FetchThreadPoolSize)
+        .GreaterThan(0)
+        .Optional();
+    registrar.Parameter("table_row_fetch_thread_pool_size", &TThis::TableRowFetchThreadPoolSize)
         .GreaterThan(0)
         .Optional();
     registrar.Parameter("reject_upon_throttler_overdraft", &TThis::RejectUponThrottlerOverdraft)

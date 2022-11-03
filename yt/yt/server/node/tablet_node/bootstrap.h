@@ -39,6 +39,7 @@ struct IBootstrap
     virtual const IInvokerPtr& GetTableReplicatorPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTabletLookupPoolInvoker() const = 0;
     virtual const IInvokerPtr& GetTabletFetchPoolInvoker() const = 0;
+    virtual const IInvokerPtr& GetTableRowFetchPoolInvoker() const = 0;
 
     virtual IInvokerPtr GetQueryPoolInvoker(
         const TString& poolName,

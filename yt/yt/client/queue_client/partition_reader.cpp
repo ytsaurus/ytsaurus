@@ -37,6 +37,7 @@ public:
         , PartitionIndex_(partitionIndex)
         , Logger(QueueClientLogger.WithTag("Consumer: %Qv, Partition: %v", ConsumerPath_, PartitionIndex_))
         , RowBatchReadOptions_({Config_->MaxRowCount, Config_->MaxDataWeight, Config_->DataWeightPerRowHint})
+        , PullQueueOptions_({.UseNativeTabletNodeApi = Config_->UseNativeTabletNodeApi})
     { }
 
     TFuture<void> Open() override
@@ -68,6 +69,7 @@ private:
     i64 ApproximateDataWeightPerRow_ = 0;
     IConsumerClientPtr ConsumerClient_;
     TQueueRowBatchReadOptions RowBatchReadOptions_;
+    TPullQueueOptions PullQueueOptions_;
 
     class TPersistentQueueRowset
         : public IPersistentQueueRowset
@@ -153,7 +155,12 @@ private:
             RowBatchReadOptions_.MaxRowCount,
             RowBatchReadOptions_.MaxDataWeight,
             RowBatchReadOptions_.DataWeightPerRowHint);
-        auto rowset = WaitFor(Client_->PullQueue(QueuePath_, currentOffset, PartitionIndex_, RowBatchReadOptions_))
+        auto rowset = WaitFor(Client_->PullQueue(
+            QueuePath_,
+            currentOffset,
+            PartitionIndex_,
+            RowBatchReadOptions_,
+            PullQueueOptions_))
             .ValueOrThrow();
 
         HandleRowset(rowset);
