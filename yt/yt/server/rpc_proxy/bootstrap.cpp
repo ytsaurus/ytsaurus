@@ -21,6 +21,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
@@ -131,6 +133,7 @@ void TBootstrap::DoRun()
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
     NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection, std::move(connectionOptions));
 
+    NativeConnection_->GetClusterDirectorySynchronizer()->Start();
     NativeConnection_->GetNodeDirectorySynchronizer()->Start();
 
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
