@@ -74,7 +74,8 @@ class TMemberClient
 {
 public:
     TMemberClient(
-        TMemberClientConfigPtr config,
+        TDiscoveryConnectionConfigPtr connectionConfig,
+        TMemberClientConfigPtr clientConfig,
         IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
         TMemberId memberId,
@@ -84,15 +85,16 @@ public:
         , PeriodicExecutor_(New<TPeriodicExecutor>(
             std::move(invoker),
             BIND(&TMemberClient::OnHeartbeat, MakeWeak(this)),
-            config->HeartbeatPeriod))
+            clientConfig->HeartbeatPeriod))
         , ChannelFactory_(std::move(channelFactory))
         , Logger(DiscoveryClientLogger.WithTag("GroupId: %v, MemberId: %v",
             GroupId_,
             Id_))
         , AddressPool_(New<TServerAddressPool>(
             Logger,
-            config))
-        , Config_(std::move(config))
+            connectionConfig))
+        , ConnectionConfig_(std::move(connectionConfig))
+        , ClientConfig_(std::move(clientConfig))
         , Attributes_(CreateMemberAttributes(CreateEphemeralAttributes()))
         , ThreadSafeAttributes_(CreateThreadSafeAttributes(Attributes_.Get()))
     { }
@@ -129,12 +131,11 @@ public:
     {
         auto guard = WriterGuard(Lock_);
 
-        if (config->HeartbeatPeriod != Config_->HeartbeatPeriod) {
+        if (config->HeartbeatPeriod != ClientConfig_->HeartbeatPeriod) {
             PeriodicExecutor_->SetPeriod(config->HeartbeatPeriod);
         }
 
-        Config_ = std::move(config);
-        AddressPool_->SetConfig(Config_);
+        ClientConfig_ = std::move(config);
     }
 
 private:
@@ -144,9 +145,10 @@ private:
     const IChannelFactoryPtr ChannelFactory_;
     const NLogging::TLogger Logger;
     const TServerAddressPoolPtr AddressPool_;
+    const TDiscoveryConnectionConfigPtr ConnectionConfig_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, Lock_);
-    TMemberClientConfigPtr Config_;
+    TMemberClientConfigPtr ClientConfig_;
 
     std::atomic<i64> Priority_ = std::numeric_limits<i64>::max();
     i64 Revision_ = 0;
@@ -168,13 +170,14 @@ private:
         THeartbeatSessionPtr session;
         {
             auto guard = ReaderGuard(Lock_);
-            if (now - LastAttributesUpdateTime_ > Config_->AttributeUpdatePeriod) {
+            if (now - LastAttributesUpdateTime_ > ClientConfig_->AttributeUpdatePeriod) {
                 attributes = ThreadSafeAttributes_->Clone();
             }
 
             session = New<THeartbeatSession>(
                 AddressPool_,
-                Config_,
+                ConnectionConfig_,
+                ClientConfig_,
                 ChannelFactory_,
                 Logger,
                 GroupId_,
@@ -191,9 +194,9 @@ private:
                 rspOrError.FindMatching(NDiscoveryClient::EErrorCode::InvalidMemberId))
             {
                 FirstSuccessPromise_.TrySet(rspOrError);
-            } else if (!FirstSuccessPromise_.IsSet() && Revision_ > Config_->MaxFailedHeartbeatsOnStartup) {
+            } else if (!FirstSuccessPromise_.IsSet() && Revision_ > ClientConfig_->MaxFailedHeartbeatsOnStartup) {
                 FirstSuccessPromise_.TrySet(
-                    TError("Error reporting heartbeat %v times on startup", Config_->MaxFailedHeartbeatsOnStartup)
+                    TError("Error reporting heartbeat %v times on startup", ClientConfig_->MaxFailedHeartbeatsOnStartup)
                         << rspOrError);
             }
         } else {
@@ -207,14 +210,16 @@ private:
 };
 
 IMemberClientPtr CreateMemberClient(
-    TMemberClientConfigPtr config,
+    TDiscoveryConnectionConfigPtr connectionConfig,
+    TMemberClientConfigPtr clientConfig,
     IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
     TString memberId,
     TString groupId)
 {
     return New<TMemberClient>(
-        std::move(config),
+        std::move(connectionConfig),
+        std::move(clientConfig),
         std::move(channelFactory),
         std::move(invoker),
         std::move(memberId),

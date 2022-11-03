@@ -28,7 +28,8 @@ struct IDiscoveryClient
 DEFINE_REFCOUNTED_TYPE(IDiscoveryClient)
 
 IDiscoveryClientPtr CreateDiscoveryClient(
-    TDiscoveryClientConfigPtr config,
+    TDiscoveryConnectionConfigPtr connectionConfig,
+    TDiscoveryClientConfigPtr clientConfig,
     NRpc::IChannelFactoryPtr channelFactory);
 
 ////////////////////////////////////////////////////////////////////////////////

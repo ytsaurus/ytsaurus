@@ -4,6 +4,16 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDiscoveryConnectionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
+        .Default(TDuration::Seconds(5));
+    registrar.Parameter("server_ban_timeout", &TThis::ServerBanTimeout)
+        .Default(TDuration::Seconds(30));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TMemberClientConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("heartbeat_period", &TThis::HeartbeatPeriod)
@@ -15,7 +25,8 @@ void TMemberClientConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_failed_heartbeats_on_startup", &TThis::MaxFailedHeartbeatsOnStartup)
         .Default(10);
     registrar.Parameter("write_quorum", &TThis::WriteQuorum)
-        .Default(2);
+        .GreaterThan(0)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -23,21 +34,8 @@ void TMemberClientConfig::Register(TRegistrar registrar)
 void TDiscoveryClientConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("read_quorum", &TThis::ReadQuorum)
-        .Default(2);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TDiscoveryClientBaseConfig::Register(TRegistrar registrar)
-{
-    registrar.Parameter("server_addresses", &TThis::ServerAddresses)
-        .Optional();
-    registrar.Parameter("endpoints", &TThis::Endpoints)
-        .Optional();
-    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
-        .Default(TDuration::Seconds(5));
-    registrar.Parameter("server_ban_timeout", &TThis::ServerBanTimeout)
-        .Default(TDuration::Seconds(30));
+        .GreaterThan(0)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

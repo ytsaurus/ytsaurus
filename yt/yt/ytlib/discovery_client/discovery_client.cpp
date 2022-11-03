@@ -28,13 +28,15 @@ class TDiscoveryClient
 {
 public:
     TDiscoveryClient(
-        TDiscoveryClientConfigPtr config,
+        TDiscoveryConnectionConfigPtr connectionConfig,
+        TDiscoveryClientConfigPtr clientConfig,
         NRpc::IChannelFactoryPtr channelFactory)
         : ChannelFactory_(CreateCachingChannelFactory(std::move(channelFactory)))
         , AddressPool_(New<TServerAddressPool>(
             DiscoveryClientLogger,
-            config))
-        , Config_(std::move(config))
+            connectionConfig))
+        , ConnectionConfig_(std::move(connectionConfig))
+        , ClientConfig_(std::move(clientConfig))
     { }
 
     TFuture<std::vector<TMemberInfo>> ListMembers(
@@ -45,7 +47,8 @@ public:
 
         return New<TListMembersRequestSession>(
             AddressPool_,
-            Config_,
+            ConnectionConfig_,
+            ClientConfig_,
             ChannelFactory_,
             Logger,
             groupId,
@@ -59,7 +62,8 @@ public:
 
         return New<TGetGroupMetaRequestSession>(
             AddressPool_,
-            Config_,
+            ConnectionConfig_,
+            ClientConfig_,
             ChannelFactory_,
             Logger,
             groupId)
@@ -70,25 +74,27 @@ public:
     {
         auto guard = WriterGuard(Lock_);
 
-        Config_ = std::move(config);
-        AddressPool_->SetConfig(Config_);
+        ClientConfig_ = std::move(config);
     }
 
 private:
     const NLogging::TLogger Logger;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TServerAddressPoolPtr AddressPool_;
+    const TDiscoveryConnectionConfigPtr ConnectionConfig_;
 
     NThreading::TReaderWriterSpinLock Lock_;
-    TDiscoveryClientConfigPtr Config_;
+    TDiscoveryClientConfigPtr ClientConfig_;
 };
 
 IDiscoveryClientPtr CreateDiscoveryClient(
-    TDiscoveryClientConfigPtr config,
+    TDiscoveryConnectionConfigPtr connectionConfig,
+    TDiscoveryClientConfigPtr clientConfig,
     NRpc::IChannelFactoryPtr channelFactory)
 {
     return New<TDiscoveryClient>(
-        std::move(config),
+        std::move(connectionConfig),
+        std::move(clientConfig),
         std::move(channelFactory));
 }
 

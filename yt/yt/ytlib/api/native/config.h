@@ -14,6 +14,8 @@
 
 #include <yt/yt/library/query/engine/config.h>
 
+#include <yt/yt/ytlib/discovery_client/public.h>
+
 #include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/ytlib/queue_client/public.h>
@@ -112,6 +114,8 @@ public:
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
     NChaosClient::TChaosCellDirectorySynchronizerConfigPtr ChaosCellDirectorySynchronizer;
     TClockServersConfigPtr ClockServers;
+
+    NDiscoveryClient::TDiscoveryConnectionConfigPtr DiscoveryConnection;
 
     NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
 

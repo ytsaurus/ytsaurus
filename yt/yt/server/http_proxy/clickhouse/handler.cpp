@@ -56,6 +56,7 @@ using namespace NTracing;
 using namespace NScheduler;
 using namespace NSecurityClient;
 using namespace NRpc::NBus;
+using namespace NDiscoveryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -625,7 +626,8 @@ private:
     {
         auto config = New<TDiscoveryV2Config>();
         config->GroupId = GetDiscoveryGroupId();
-        config->ServerAddresses = DiscoveryServers_;
+        config->DiscoveryConnection = New<TDiscoveryConnectionConfig>();
+        config->DiscoveryConnection->Addresses = DiscoveryServers_;
         config->ReadQuorum = 1;
         config->WriteQuorum = 1;
         config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;

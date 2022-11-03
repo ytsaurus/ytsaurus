@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/discovery_client/public.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 namespace NYT::NDistributedThrottler {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +32,7 @@ DEFINE_REFCOUNTED_TYPE(IDistributedThrottlerFactory)
 IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     TDistributedThrottlerConfigPtr config,
     NRpc::IChannelFactoryPtr channelFactory,
+    NApi::NNative::IConnectionPtr connection,
     IInvokerPtr invoker,
     NDiscoveryClient::TGroupId groupId,
     NDiscoveryClient::TMemberId memberId,

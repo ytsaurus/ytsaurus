@@ -18,7 +18,9 @@ class TServerAddressPool
 public:
     TServerAddressPool(
         const NLogging::TLogger& Logger,
-        const TDiscoveryClientBaseConfigPtr& config);
+        const TDiscoveryConnectionConfigPtr& config);
+
+    int GetAddressCount() const;
 
     std::vector<TString> GetUpAddresses();
     std::vector<TString> GetProbationAddresses();
@@ -27,16 +29,18 @@ public:
     void UnbanAddress(const TString& address);
 
     void SetBanTimeout(TDuration banTimeout);
-    void SetConfig(const TDiscoveryClientBaseConfigPtr& config);
+    void SetConfig(const TDiscoveryConnectionConfigPtr& config);
 
 private:
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    TDiscoveryClientBaseConfigPtr Config_;
+    TDiscoveryConnectionConfigPtr Config_;
     THashSet<TString> UpAddresses_;
     THashSet<TString> ProbationAddresses_;
     THashSet<TString> DownAddresses_;
+
+    std::atomic<int> AddressCount_ = 0;
 
     NServiceDiscovery::IServiceDiscoveryPtr ServiceDiscovery_;
     NConcurrency::TPeriodicExecutorPtr EndpointsUpdateExecutor_;
@@ -61,17 +65,19 @@ class TRequestSession
 {
 public:
     TRequestSession(
-        int requiredSuccessCount,
+        std::optional<int> requiredSuccessCount,
         TServerAddressPoolPtr addressPool,
         const NLogging::TLogger& logger);
 
     TFuture<TResponse> Run();
 
 protected:
-    const int RequiredSuccessCount_;
+    const std::optional<int> OptionalRequiredSuccessCount_;
     const TPromise<TResponse> Promise_;
 
     virtual TFuture<void> MakeRequest(const TString& address) = 0;
+
+    int GetRequiredSuccessCount() const;
 
 private:
     const TServerAddressPoolPtr AddressPool_;
@@ -109,14 +115,16 @@ class TListMembersRequestSession
 public:
     TListMembersRequestSession(
         TServerAddressPoolPtr addressPool,
-        TDiscoveryClientConfigPtr config,
+        TDiscoveryConnectionConfigPtr connectionConfig,
+        TDiscoveryClientConfigPtr clientConfig,
         NRpc::IChannelFactoryPtr channelFactory,
         const NLogging::TLogger& logger,
         TGroupId groupId,
         TListMembersOptions options);
 
 private:
-    const TDiscoveryClientConfigPtr Config_;
+    const TDiscoveryConnectionConfigPtr ConnectionConfig_;
+    const TDiscoveryClientConfigPtr ClientConfig_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TGroupId GroupId_;
     const TListMembersOptions Options_;
@@ -138,13 +146,15 @@ class TGetGroupMetaRequestSession
 public:
     TGetGroupMetaRequestSession(
         TServerAddressPoolPtr addressPool,
-        TDiscoveryClientConfigPtr config,
+        TDiscoveryConnectionConfigPtr connectionConfig,
+        TDiscoveryClientConfigPtr clientConfig,
         NRpc::IChannelFactoryPtr channelFactory,
         const NLogging::TLogger& logger,
         TGroupId groupId);
 
 private:
-    const TDiscoveryClientConfigPtr Config_;
+    const TDiscoveryConnectionConfigPtr ConnectionConfig_;
+    const TDiscoveryClientConfigPtr ClientConfig_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TGroupId GroupId_;
 
@@ -165,7 +175,8 @@ class THeartbeatSession
 public:
     THeartbeatSession(
         TServerAddressPoolPtr addressPool,
-        TMemberClientConfigPtr config,
+        TDiscoveryConnectionConfigPtr connectionConfig,
+        TMemberClientConfigPtr clientConfig,
         NRpc::IChannelFactoryPtr channelFactory,
         const NLogging::TLogger& logger,
         TGroupId groupId,
@@ -175,7 +186,8 @@ public:
         NYTree::IAttributeDictionaryPtr attributes);
 
 private:
-    const TMemberClientConfigPtr Config_;
+    const TDiscoveryConnectionConfigPtr ConnectionConfig_;
+    const TMemberClientConfigPtr ClientConfig_;
     const NRpc::IChannelFactoryPtr ChannelFactory_;
     const TGroupId GroupId_;
     const TMemberId MemberId_;

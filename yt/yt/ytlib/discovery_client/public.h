@@ -25,7 +25,7 @@ class TRspHeartbeat;
 
 } // namespace NProto
 
-DECLARE_REFCOUNTED_CLASS(TDiscoveryClientBaseConfig)
+DECLARE_REFCOUNTED_CLASS(TDiscoveryConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TMemberClientConfig)
 DECLARE_REFCOUNTED_CLASS(TDiscoveryClientConfig)
 DECLARE_REFCOUNTED_CLASS(TServerAddressPool)

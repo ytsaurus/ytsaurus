@@ -41,6 +41,9 @@
 
 #include <yt/yt/ytlib/yql_client/config.h>
 
+#include <yt/yt/ytlib/discovery_client/discovery_client.h>
+#include <yt/yt/ytlib/discovery_client/member_client.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_addresses_provider.h>
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
@@ -108,6 +111,8 @@ using namespace NTabletClient;
 using namespace NTransactionClient;
 using namespace NYTree;
 using namespace NYson;
+using namespace NDiscoveryClient;
+using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -563,6 +568,40 @@ public:
             this,
             cellId,
             options);
+    }
+
+    NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
+        TDiscoveryClientConfigPtr clientConfig,
+        IChannelFactoryPtr channelFactory) override
+    {
+        if (!Config_->DiscoveryConnection) {
+            THROW_ERROR_EXCEPTION("Missing \"discovery_connection\" parameter in connection configuration");
+        }
+
+        return NDiscoveryClient::CreateDiscoveryClient(
+            Config_->DiscoveryConnection,
+            std::move(clientConfig),
+            std::move(channelFactory));
+    }
+
+    virtual NDiscoveryClient::IMemberClientPtr CreateMemberClient(
+        TMemberClientConfigPtr clientConfig,
+        IChannelFactoryPtr channelFactory,
+        IInvokerPtr invoker,
+        TString id,
+        TString groupId) override
+    {
+        if (!Config_->DiscoveryConnection) {
+            THROW_ERROR_EXCEPTION("Missing \"discovery_connection\" parameter in connection configuration");
+        }
+
+        return NDiscoveryClient::CreateMemberClient(
+            Config_->DiscoveryConnection,
+            std::move(clientConfig),
+            std::move(channelFactory),
+            std::move(invoker),
+            std::move(id),
+            std::move(groupId));
     }
 
     IYPathServicePtr GetOrchidService() override

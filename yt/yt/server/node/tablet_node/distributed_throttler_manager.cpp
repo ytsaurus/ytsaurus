@@ -104,17 +104,10 @@ private:
 
     NDistributedThrottler::IDistributedThrottlerFactoryPtr DoCreateFactory(
         const TString& factoryName,
-        NObjectClient::TCellTag cellTag,
+        NObjectClient::TCellTag /*cellTag*/,
         NDistributedThrottler::EDistributedThrottlerMode mode)
     {
         auto config = New<TDistributedThrottlerConfig>();
-
-        auto serverAddresses = Bootstrap_->GetMasterAddressesOrThrow(cellTag);
-        config->MemberClient->ServerAddresses = serverAddresses;
-        config->DiscoveryClient->ServerAddresses = serverAddresses;
-        config->MemberClient->WriteQuorum = (serverAddresses.size() + 1) / 2;
-        config->DiscoveryClient->ReadQuorum = (serverAddresses.size() + 1) / 2;
-
         config->Mode = mode;
 
         // TODO(ifsmirnov,aleksandra-zh): YT-13318, reconfigure factories on the fly
@@ -123,6 +116,7 @@ private:
         return CreateDistributedThrottlerFactory(
             config,
             Bootstrap_->GetConnection()->GetChannelFactory(),
+            Bootstrap_->GetConnection(),
             Bootstrap_->GetControlInvoker(),
             factoryName,
             MemberId_,

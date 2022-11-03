@@ -534,6 +534,7 @@ NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
     return NDistributedThrottler::CreateDistributedThrottlerFactory(
         std::move(config),
         ChannelFactory_,
+        ClusterConnection_,
         std::move(invoker),
         Format("%v/%v", groupIdPrefix, CellTag_),
         ToString(GetCellManager()->GetSelfPeerId()),
@@ -790,16 +791,6 @@ void TBootstrap::DoInitialize()
             addresses.push_back(*peer.Address);
         }
     }
-
-    auto getDiscoveryServerAddresses = [&] () {
-        if (Config_->DiscoveryServer && Config_->DiscoveryServer->Addresses) {
-            return *Config_->DiscoveryServer->Addresses;
-        }
-        return addresses;
-    };
-    const auto& discoveryServerAddresses = getDiscoveryServerAddresses();
-    Config_->SecurityManager->UserThrottler->MemberClient->ServerAddresses = discoveryServerAddresses;
-    Config_->SecurityManager->UserThrottler->DiscoveryClient->ServerAddresses = discoveryServerAddresses;
 
     // NB: This is exactly the order in which parts get registered and there are some
     // dependencies in Clear methods.

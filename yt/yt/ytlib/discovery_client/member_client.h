@@ -29,7 +29,8 @@ struct IMemberClient
 DEFINE_REFCOUNTED_TYPE(IMemberClient)
 
 IMemberClientPtr CreateMemberClient(
-    TMemberClientConfigPtr config,
+    TDiscoveryConnectionConfigPtr connectionConfig,
+    TMemberClientConfigPtr clientConfig,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
     TString id,

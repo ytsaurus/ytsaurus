@@ -23,10 +23,10 @@ namespace NYT::NDiscoveryClient {
 
 template <class TResponse>
 TRequestSession<TResponse>::TRequestSession(
-    int requiredSuccessCount,
+    std::optional<int> requiredSuccessCount,
     TServerAddressPoolPtr addressPool,
     const NLogging::TLogger& logger)
-    : RequiredSuccessCount_(requiredSuccessCount)
+    : OptionalRequiredSuccessCount_(requiredSuccessCount)
     , Promise_(NewPromise<TResponse>())
     , AddressPool_(std::move(addressPool))
     , Logger(logger)
@@ -50,7 +50,7 @@ TFuture<TResponse> TRequestSession<TResponse>::Run()
         TryMakeNextRequest(true);
     }
 
-    for (int i = 0; i < RequiredSuccessCount_; ++i) {
+    for (int i = 0; i < GetRequiredSuccessCount(); ++i) {
         TryMakeNextRequest(false);
     }
 
@@ -105,6 +105,16 @@ void TRequestSession<TResponse>::TryMakeNextRequest(bool forceProbation)
             AddressPool_->UnbanAddress(address);
         }
     }));
+}
+
+template <class TResponse>
+int TRequestSession<TResponse>::GetRequiredSuccessCount() const
+{
+    if (OptionalRequiredSuccessCount_) {
+        return *OptionalRequiredSuccessCount_;
+    }
+
+    return std::max(1, (AddressPool_->GetAddressCount() + 1) / 2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

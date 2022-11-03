@@ -14,6 +14,8 @@
 #include <yt/yt/server/lib/discovery_server/config.h>
 #include <yt/yt/server/lib/discovery_server/discovery_server.h>
 
+#include <yt/yt/server/lib/discovery_server/unittests/mock/connection.h>
+
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/local_server.h>
 #include <yt/yt/core/rpc/server.h>
@@ -69,14 +71,19 @@ public:
     TDistributedThrottlerConfigPtr GenerateThrottlerConfig()
     {
         auto config = New<TDistributedThrottlerConfig>();
-        config->MemberClient->ServerAddresses = Addresses_;
         config->MemberClient->AttributeUpdatePeriod = TDuration::MilliSeconds(300);
         config->MemberClient->HeartbeatPeriod = TDuration::MilliSeconds(50);
-        config->DiscoveryClient->ServerAddresses = Addresses_;
         config->LimitUpdatePeriod = TDuration::MilliSeconds(100);
         config->LeaderUpdatePeriod = TDuration::MilliSeconds(1500);
         config->HeartbeatThrottlerCountLimit = 2;
         return config;
+    }
+
+    TDiscoveryConnectionConfigPtr CreateConnectionConfig()
+    {
+        auto connectionConfig = New<TDiscoveryConnectionConfig>();
+        connectionConfig->Addresses = Addresses_;
+        return connectionConfig;
     }
 
     const TStaticChannelFactoryPtr& GetChannelFactory()
@@ -126,6 +133,9 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     auto address = "ThrottlerService";
     channelFactory->Add(address, CreateLocalChannel(rpcServer));
 
+    auto connectionConfig = CreateConnectionConfig();
+    auto connection = New<TMockDistributedThrottlerConnection>(connectionConfig);
+
     std::vector<TActionQueuePtr> actionQueues;
 
     std::vector<IDistributedThrottlerFactoryPtr> factories;
@@ -138,6 +148,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
         auto factory = CreateDistributedThrottlerFactory(
             config,
             channelFactory,
+            connection,
             memberActionQueue->GetInvoker(),
             "/group",
             "throttler" + ToString(i),
@@ -153,6 +164,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitUniform)
     }
 
     auto discoveryClient = CreateDiscoveryClient(
+        connectionConfig,
         config->DiscoveryClient,
         channelFactory);
 
@@ -222,6 +234,9 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
     auto address = "ThrottlerService";
     channelFactory->Add(address, CreateLocalChannel(rpcServer));
 
+    auto connectionConfig = CreateConnectionConfig();
+    auto connection = New<TMockDistributedThrottlerConnection>(connectionConfig);
+
     std::vector<TActionQueuePtr> actionQueues;
 
     std::vector<IDistributedThrottlerFactoryPtr> factories;
@@ -234,6 +249,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
         auto factory = CreateDistributedThrottlerFactory(
             config,
             channelFactory,
+            connection,
             memberActionQueue->GetInvoker(),
             "/group",
             "throttler" + ToString(i),
@@ -249,6 +265,7 @@ TEST_F(TDistributedThrottlerTest, TestLimitAdaptive)
     }
 
     auto discoveryClient = CreateDiscoveryClient(
+        connectionConfig,
         config->DiscoveryClient,
         channelFactory);
 

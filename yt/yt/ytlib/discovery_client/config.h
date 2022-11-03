@@ -12,26 +12,24 @@ namespace NYT::NDiscoveryClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiscoveryClientBaseConfig
-    : public virtual NYTree::TYsonStruct
+class TDiscoveryConnectionConfig
+    : public virtual NRpc::TBalancingChannelConfig
 {
 public:
-    std::optional<std::vector<TString>> ServerAddresses;
-    NRpc::TServiceDiscoveryEndpointsConfigPtr Endpoints;
     TDuration RpcTimeout;
     TDuration ServerBanTimeout;
 
-    REGISTER_YSON_STRUCT(TDiscoveryClientBaseConfig);
+    REGISTER_YSON_STRUCT(TDiscoveryConnectionConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TDiscoveryClientBaseConfig)
+DEFINE_REFCOUNTED_TYPE(TDiscoveryConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMemberClientConfig
-    : public virtual TDiscoveryClientBaseConfig
+    : public virtual NYTree::TYsonStruct
 {
 public:
     TDuration HeartbeatPeriod;
@@ -39,7 +37,7 @@ public:
     TDuration LeaseTimeout;
     int MaxFailedHeartbeatsOnStartup;
 
-    int WriteQuorum;
+    std::optional<int> WriteQuorum;
 
     REGISTER_YSON_STRUCT(TMemberClientConfig);
 
@@ -52,10 +50,10 @@ DEFINE_REFCOUNTED_TYPE(TMemberClientConfig)
 
 class TDiscoveryClientConfig
     : public virtual NRpc::TRetryingChannelConfig
-    , public virtual TDiscoveryClientBaseConfig
+    , public virtual NYTree::TYsonStruct
 {
 public:
-    int ReadQuorum;
+    std::optional<int> ReadQuorum;
 
     REGISTER_YSON_STRUCT(TDiscoveryClientConfig);
 
