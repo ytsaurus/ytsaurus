@@ -16,6 +16,8 @@
 
 #include <util/system/getpid.h>
 
+#include <util/generic/size_literals.h>
+
 #include <type_traits>
 
 namespace NYT {

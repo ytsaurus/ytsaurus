@@ -13,6 +13,8 @@
 
 #include <yt/yt/core/actions/invoker_util.h>
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 #include <util/thread/lfstack.h>
 
 #include <util/system/context.h>

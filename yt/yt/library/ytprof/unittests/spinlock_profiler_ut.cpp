@@ -15,10 +15,16 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 
 #include <util/string/cast.h>
+
 #include <util/stream/file.h>
+
 #include <util/datetime/base.h>
+
 #include <util/system/shellcommand.h>
+
 #include <util/thread/lfstack.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT::NYTProf {
 namespace {

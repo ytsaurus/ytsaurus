@@ -13,6 +13,8 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
+#include <library/cpp/ytalloc/api/ytalloc.h>
+
 namespace NYT::NConcurrency {
 
 static const auto& Logger = ConcurrencyLogger;

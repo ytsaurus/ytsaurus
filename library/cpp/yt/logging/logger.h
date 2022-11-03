@@ -16,6 +16,8 @@
 
 #include <util/system/src_location.h>
 
+#include <util/generic/size_literals.h>
+
 #include <atomic>
 
 namespace NYT::NLogging {
