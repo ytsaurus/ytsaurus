@@ -30,7 +30,12 @@ public:
         IClientResponseHandlerPtr responseHandler,
         const TSendOptions& options) override
     {
-        DoInject(request);
+        try {
+            DoInject(request);
+        } catch (const std::exception& ex) {
+            responseHandler->HandleError(TError(ex));
+            return nullptr;
+        }
 
         return TChannelWrapper::Send(
             std::move(request),
