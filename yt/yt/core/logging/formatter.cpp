@@ -113,7 +113,7 @@ TPlainTextLogFormatter::TPlainTextLogFormatter(
     bool enableSourceLocation)
     : Buffer_(std::make_unique<TRawFormatter<MessageBufferSize>>())
     , CachingDateFormatter_(std::make_unique<TCachingDateFormatter>())
-    , EnableSystemMessages_(enableSystemMessages)
+    , EnableSystemMessages_(enableSystemMessages && Logger)
     , EnableSourceLocation_(enableSourceLocation)
 { }
 

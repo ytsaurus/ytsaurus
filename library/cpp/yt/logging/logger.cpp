@@ -128,7 +128,7 @@ TLoggingThreadName GetLoggingThreadName()
 TLogger::TLogger(ILogManager* logManager, TStringBuf categoryName)
     : LogManager_(logManager)
     , Category_(LogManager_ ? LogManager_->GetCategory(categoryName) : nullptr)
-    , MinLevel_(LoggerDefaultMinLevel)
+    , MinLevel_(LogManager_ ? LoggerDefaultMinLevel : NullLoggerMinLevel)
 { }
 
 TLogger::TLogger(TStringBuf categoryName)
@@ -209,7 +209,9 @@ TLogger TLogger::WithEssential(bool essential) const
 TLogger TLogger::WithMinLevel(ELogLevel minLevel) const
 {
     auto result = *this;
-    result.MinLevel_ = minLevel;
+    if (result) {
+        result.MinLevel_ = minLevel;
+    }
     return result;
 }
 
