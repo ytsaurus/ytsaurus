@@ -16,6 +16,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/core/bus/tcp/server.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -145,6 +147,7 @@ private:
             &OrchidRoot_);
 
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+        Connection_->GetClusterDirectorySynchronizer()->Start();
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 

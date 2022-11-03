@@ -20,6 +20,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
@@ -121,6 +123,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
     Connection_ = CreateConnection(connectionConfig, connectionOptions);
+    Connection_->GetClusterDirectorySynchronizer()->Start();
     // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
     SetupClients();
