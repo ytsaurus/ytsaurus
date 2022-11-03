@@ -32,15 +32,15 @@ def _get_timestamp_provider_addresses(yt_config,
 
 
 def build_configs(yt_config, ports_generator, dirs, logs_dir):
+    discovery_configs = _build_discovery_server_configs(
+        yt_config,
+        ports_generator,
+        logs_dir)
+
     clock_configs, clock_connection_config = _build_clock_configs(
         yt_config,
         dirs["clock"],
         dirs["clock_tmpfs"],
-        ports_generator,
-        logs_dir)
-
-    discovery_configs = _build_discovery_server_configs(
-        yt_config,
         ports_generator,
         logs_dir)
 
@@ -69,6 +69,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         yt_config,
         master_connection_configs,
         clock_connection_config,
+        discovery_configs,
         timestamp_provider_addresses,
         ports_generator,
         logs_dir)
@@ -77,6 +78,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         yt_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         ports_generator,
@@ -88,6 +90,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         dirs["node_tmpfs"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         ports_generator,
@@ -98,6 +101,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         dirs["chaos_node"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         ports_generator,
@@ -107,6 +111,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
     queue_agent_configs = _build_queue_agent_configs(
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         queue_agent_rpc_ports,
@@ -118,6 +123,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         dirs["scheduler"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         ports_generator,
@@ -128,6 +134,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         dirs["controller_agent"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         ports_generator,
@@ -138,6 +145,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         dirs["http_proxy"],
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         ports_generator,
@@ -152,6 +160,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         logs_dir,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         ports_generator,
@@ -172,6 +181,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
     driver_configs = _build_native_driver_configs(
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         yt_config=yt_config)
@@ -189,6 +199,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         yt_config,
         deepcopy(master_connection_configs),
         deepcopy(clock_connection_config),
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
         ports_generator,
@@ -267,6 +278,7 @@ def _build_master_configs(yt_config,
             yt_config,
             connection_configs,
             clock_connection_config,
+            discovery_configs,
             timestamp_provider_addresses=[],
             master_cache_addresses=[],
             queue_agent_rpc_ports=queue_agent_rpc_ports)
@@ -430,8 +442,15 @@ def _build_discovery_server_configs(yt_config, ports_generator, logs_dir):
     return configs
 
 
-def _build_queue_agent_configs(master_connection_configs, clock_connection_config, timestamp_provider_addresses,
-                               master_cache_addresses, rpc_ports, ports_generator, logs_dir, yt_config):
+def _build_queue_agent_configs(master_connection_configs,
+                               clock_connection_config,
+                               discovery_configs,
+                               timestamp_provider_addresses,
+                               master_cache_addresses,
+                               rpc_ports,
+                               ports_generator,
+                               logs_dir,
+                               yt_config):
     configs = []
     for i in xrange(yt_config.queue_agent_count):
         config = default_config.get_queue_agent_config()
@@ -450,6 +469,7 @@ def _build_queue_agent_configs(master_connection_configs, clock_connection_confi
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses)
 
@@ -499,6 +519,7 @@ def _build_timestamp_provider_configs(yt_config,
 def _build_cell_balancer_configs(yt_config,
                                  master_connection_configs,
                                  clock_connection_config,
+                                 discovery_configs,
                                  timestamp_provider_addresses,
                                  master_cache_addresses,
                                  ports_generator,
@@ -520,6 +541,7 @@ def _build_cell_balancer_configs(yt_config,
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
                 config_template=config["cluster_connection"])
@@ -540,6 +562,7 @@ def _build_cell_balancer_configs(yt_config,
 def _build_master_cache_configs(yt_config,
                                 master_connection_configs,
                                 clock_connection_config,
+                                discovery_configs,
                                 timestamp_provider_addresses,
                                 ports_generator,
                                 logs_dir):
@@ -558,6 +581,7 @@ def _build_master_cache_configs(yt_config,
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 [],  # master cache addresses
                 config_template=config["cluster_connection"])
@@ -578,6 +602,7 @@ def _build_master_cache_configs(yt_config,
 def _build_scheduler_configs(scheduler_dirs,
                              master_connection_configs,
                              clock_connection_config,
+                             discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
                              ports_generator,
@@ -597,6 +622,7 @@ def _build_scheduler_configs(scheduler_dirs,
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
                 config_template=config["cluster_connection"])
@@ -616,6 +642,7 @@ def _build_scheduler_configs(scheduler_dirs,
 def _build_controller_agent_configs(controller_agent_dirs,
                                     master_connection_configs,
                                     clock_connection_config,
+                                    discovery_configs,
                                     timestamp_provider_addresses,
                                     master_cache_addresses,
                                     ports_generator,
@@ -635,6 +662,7 @@ def _build_controller_agent_configs(controller_agent_dirs,
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
                 config_template=config["cluster_connection"])
@@ -655,6 +683,7 @@ def _build_node_configs(node_dirs,
                         node_tmpfs_dirs,
                         master_connection_configs,
                         clock_connection_config,
+                        discovery_configs,
                         timestamp_provider_addresses,
                         master_cache_addresses,
                         ports_generator,
@@ -688,6 +717,7 @@ def _build_node_configs(node_dirs,
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
                 config_template=config["cluster_connection"])
@@ -803,6 +833,7 @@ def _build_node_configs(node_dirs,
 def _build_chaos_node_configs(chaos_node_dirs,
                               master_connection_configs,
                               clock_connection_config,
+                              discovery_configs,
                               timestamp_provider_addresses,
                               master_cache_addresses,
                               ports_generator,
@@ -830,6 +861,7 @@ def _build_chaos_node_configs(chaos_node_dirs,
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
                 config_template=config["cluster_connection"])
@@ -856,6 +888,7 @@ def _build_chaos_node_configs(chaos_node_dirs,
 def _build_http_proxy_config(proxy_dir,
                              master_connection_configs,
                              clock_connection_config,
+                             discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
                              ports_generator,
@@ -866,6 +899,7 @@ def _build_http_proxy_config(proxy_dir,
         yt_config,
         master_connection_configs,
         clock_connection_config,
+        discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses))
 
@@ -904,6 +938,7 @@ def _build_http_proxy_config(proxy_dir,
 
 def _build_native_driver_configs(master_connection_configs,
                                  clock_connection_config,
+                                 discovery_configs,
                                  timestamp_provider_addresses,
                                  master_cache_addresses,
                                  yt_config):
@@ -920,6 +955,7 @@ def _build_native_driver_configs(master_connection_configs,
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses))
         else:
@@ -944,6 +980,14 @@ def _build_native_driver_configs(master_connection_configs,
 
             if yt_config.mock_tvm_id is not None:
                 cell_connection_config["tvm_id"] = yt_config.mock_tvm_id
+
+            discovery_server_addresses = master_connection_configs[primary_cell_tag]["addresses"]
+            if yt_config.discovery_server_count > 0:
+                discovery_server_addresses = discovery_configs[0]["discovery_server"]["server_addresses"]
+
+            discovery_connection_config = {}
+            discovery_connection_config["addresses"] = discovery_server_addresses
+            cell_connection_config["discovery_connection"] = discovery_connection_config
 
             update_inplace(cell_connection_config["primary_master"], _get_retrying_channel_config())
             update_inplace(cell_connection_config["primary_master"], _get_rpc_config())
@@ -997,6 +1041,7 @@ def _build_rpc_driver_config(master_connection_configs,
 def _build_rpc_proxy_configs(logs_dir,
                              master_connection_configs,
                              clock_connection_config,
+                             discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
                              ports_generator,
@@ -1048,6 +1093,7 @@ def _build_rpc_proxy_configs(logs_dir,
             yt_config,
             master_connection_configs,
             clock_connection_config,
+            discovery_configs,
             timestamp_provider_addresses,
             master_cache_addresses)
         config["logging"] = _init_logging(logs_dir, "rpc-proxy-{}".format(rpc_proxy_index), yt_config)
@@ -1065,6 +1111,7 @@ def _build_rpc_proxy_configs(logs_dir,
 def _build_cluster_connection_config(yt_config,
                                      master_connection_configs,
                                      clock_connection_config,
+                                     discovery_configs,
                                      timestamp_provider_addresses,
                                      master_cache_addresses,
                                      queue_agent_rpc_ports=None,
@@ -1162,6 +1209,14 @@ def _build_cluster_connection_config(yt_config,
     if config_template is not None:
         cluster_connection = update_inplace(config_template, cluster_connection)
 
+    discovery_server_addresses = cluster_connection["primary_master"]["addresses"]
+    if yt_config.discovery_server_count > 0:
+        discovery_server_addresses = discovery_configs[0]["discovery_server"]["server_addresses"]
+
+    discovery_connection_config = {}
+    discovery_connection_config["addresses"] = discovery_server_addresses
+    cluster_connection["discovery_connection"] = discovery_connection_config
+
     if yt_config.enable_master_cache:
         cluster_connection["master_cache"] = {
             "enable_master_cache_discovery": len(master_cache_addresses) == 0,
@@ -1221,6 +1276,7 @@ def _build_cluster_connection_config(yt_config,
 def _build_tablet_balancer_configs(yt_config,
                                    master_connection_configs,
                                    clock_connection_config,
+                                   discovery_configs,
                                    timestamp_provider_addresses,
                                    master_cache_addresses,
                                    ports_generator,
@@ -1240,6 +1296,7 @@ def _build_tablet_balancer_configs(yt_config,
                 yt_config,
                 master_connection_configs,
                 clock_connection_config,
+                discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses)
 

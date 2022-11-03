@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/config.h>
 
+#include <yt/yt/ytlib/discovery_client/config.h>
+
 #include <yt/yt/ytlib/scheduler/config.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
@@ -24,6 +26,7 @@ namespace NYT::NApi::NNative {
 
 using namespace NObjectClient;
 using namespace NTransactionClient;
+using namespace NDiscoveryClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +109,8 @@ void TConnectionConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("chunk_slice_fetcher", &TThis::ChunkSliceFetcher)
         .DefaultNew();
+    registrar.Parameter("discovery_connection", &TThis::DiscoveryConnection)
+        .Optional();
 
     registrar.Parameter("query_evaluator", &TThis::QueryEvaluator)
         .DefaultNew();
@@ -286,6 +291,13 @@ void TConnectionConfig::Register(TRegistrar registrar)
 
         config->SyncReplicaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
         config->SyncReplicaCache->RefreshTime = TDuration::Seconds(5);
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (!config->DiscoveryConnection && config->PrimaryMaster) {
+            config->DiscoveryConnection = New<TDiscoveryConnectionConfig>();
+            config->DiscoveryConnection->Addresses = config->PrimaryMaster->Addresses;
+        }
     });
 }
 

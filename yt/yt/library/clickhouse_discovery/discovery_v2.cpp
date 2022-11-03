@@ -26,7 +26,7 @@ public:
         : TDiscoveryBase(config, invoker, logger)
         , Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
-        , DiscoveryClient_(CreateDiscoveryClient(Config_, ChannelFactory_))
+        , DiscoveryClient_(CreateDiscoveryClient(Config_->DiscoveryConnection, Config_, ChannelFactory_))
     {
         ListOptions_.AttributeKeys = extraAttributes;
     }
@@ -35,7 +35,9 @@ public:
     {
         {
             auto guard = WriterGuard(Lock_);
+            // TODO: Make sure there is discovery connection at this point.
             MemberClient_ = CreateMemberClient(
+                Config_->DiscoveryConnection,
                 Config_,
                 ChannelFactory_,
                 Invoker_,

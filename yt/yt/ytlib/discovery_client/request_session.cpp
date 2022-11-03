@@ -28,13 +28,18 @@ using NYT::FromProto;
 
 TServerAddressPool::TServerAddressPool(
     const NLogging::TLogger& logger,
-    const TDiscoveryClientBaseConfigPtr& config)
+    const TDiscoveryConnectionConfigPtr& config)
     : Logger(logger)
 {
     EndpointsUpdateExecutor_ = New<TPeriodicExecutor>(
         TDispatcher::Get()->GetHeavyInvoker(),
         BIND(&TServerAddressPool::UpdateEndpoints, MakeWeak(this)));
     SetConfig(config);
+}
+
+int TServerAddressPool::GetAddressCount() const
+{
+    return AddressCount_.load();
 }
 
 std::vector<TString> TServerAddressPool::GetUpAddresses()
@@ -82,19 +87,19 @@ void TServerAddressPool::UnbanAddress(const TString& address)
     UpAddresses_.insert(address);
 }
 
-void TServerAddressPool::SetConfig(const TDiscoveryClientBaseConfigPtr& config)
+void TServerAddressPool::SetConfig(const TDiscoveryConnectionConfigPtr& config)
 {
-    YT_VERIFY(!config->ServerAddresses != !config->Endpoints);
+    YT_VERIFY(!config->Addresses != !config->Endpoints);
 
     auto guard = Guard(Lock_);
 
-    if (config->ServerAddresses && (!Config_ || config->ServerAddresses != Config_->ServerAddresses)) {
+    if (config->Addresses && (!Config_ || config->Addresses != Config_->Addresses)) {
         YT_LOG_INFO("Server address pool config changed (Addresses: %v)",
-            config->ServerAddresses);
+            config->Addresses);
 
         EndpointsUpdateExecutor_->Stop();
 
-        SetAddresses(*config->ServerAddresses);
+        SetAddresses(*config->Addresses);
     } else if (config->Endpoints && (!Config_ || config->Endpoints != Config_->Endpoints)) {
         YT_LOG_INFO("Server address pool config changed (EndpointSetId: %v)",
             config->Endpoints->EndpointSetId);
@@ -165,6 +170,7 @@ void TServerAddressPool::SetAddresses(const std::vector<TString>& addresses)
     DownAddresses_.clear();
     UpAddresses_.clear();
     ProbationAddresses_ = {addresses.begin(), addresses.end()};
+    AddressCount_ = std::ssize(addresses);
 }
 
 void TServerAddressPool::OnBanTimeoutExpired(const TString& address)
@@ -184,13 +190,14 @@ void TServerAddressPool::OnBanTimeoutExpired(const TString& address)
 ////////////////////////////////////////////////////////////////////////////////
 
 TDiscoveryClientServiceProxy CreateProxy(
-    const TDiscoveryClientConfigPtr& config,
+    const TDiscoveryClientConfigPtr& clientConfig,
+    const TDiscoveryConnectionConfigPtr& connectionConfig,
     const IChannelFactoryPtr& channelFactory,
     const TString& address)
 {
     auto channel = channelFactory->CreateChannel(address);
-    TDiscoveryClientServiceProxy proxy(CreateRetryingChannel(config, std::move(channel)));
-    proxy.SetDefaultTimeout(config->RpcTimeout);
+    TDiscoveryClientServiceProxy proxy(CreateRetryingChannel(clientConfig, std::move(channel)));
+    proxy.SetDefaultTimeout(connectionConfig->RpcTimeout);
     return proxy;
 }
 
@@ -198,16 +205,18 @@ TDiscoveryClientServiceProxy CreateProxy(
 
 TListMembersRequestSession::TListMembersRequestSession(
     TServerAddressPoolPtr addressPool,
-    TDiscoveryClientConfigPtr config,
+    TDiscoveryConnectionConfigPtr connectionConfig,
+    TDiscoveryClientConfigPtr clientConfig,
     IChannelFactoryPtr channelFactory,
     const NLogging::TLogger& logger,
     TGroupId groupId,
     TListMembersOptions options)
     : TRequestSession<std::vector<TMemberInfo>>(
-        config->ReadQuorum,
+        clientConfig->ReadQuorum,
         std::move(addressPool),
         logger)
-    , Config_(std::move(config))
+    , ConnectionConfig_(std::move(connectionConfig))
+    , ClientConfig_(std::move(clientConfig))
     , ChannelFactory_(std::move(channelFactory))
     , GroupId_(std::move(groupId))
     , Options_(std::move(options))
@@ -215,7 +224,11 @@ TListMembersRequestSession::TListMembersRequestSession(
 
 TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
 {
-    auto proxy = CreateProxy(Config_, ChannelFactory_, address);
+    auto proxy = CreateProxy(
+        ClientConfig_,
+        ConnectionConfig_,
+        ChannelFactory_,
+        address);
 
     auto req = proxy.ListMembers();
     req->set_group_id(GroupId_);
@@ -237,7 +250,7 @@ TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
                 }
             }
         }
-        if (++SuccessCount_ == RequiredSuccessCount_) {
+        if (++SuccessCount_ == GetRequiredSuccessCount()) {
             std::vector<TMemberInfo> members;
             for (auto& [id, member] : IdToMember_) {
                 members.emplace_back(std::move(member));
@@ -264,22 +277,28 @@ TFuture<void> TListMembersRequestSession::MakeRequest(const TString& address)
 
 TGetGroupMetaRequestSession::TGetGroupMetaRequestSession(
     TServerAddressPoolPtr addressPool,
-    TDiscoveryClientConfigPtr config,
+    TDiscoveryConnectionConfigPtr connectionConfig,
+    TDiscoveryClientConfigPtr clientConfig,
     IChannelFactoryPtr channelFactory,
     const NLogging::TLogger& logger,
     TGroupId groupId)
     : TRequestSession<TGroupMeta>(
-        config->ReadQuorum,
+        clientConfig->ReadQuorum,
         std::move(addressPool),
         logger)
-    , Config_(std::move(config))
+    , ConnectionConfig_(std::move(connectionConfig))
+    , ClientConfig_(std::move(clientConfig))
     , ChannelFactory_(std::move(channelFactory))
     , GroupId_(std::move(groupId))
 { }
 
 TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const TString& address)
 {
-    auto proxy = CreateProxy(Config_, ChannelFactory_, address);
+    auto proxy = CreateProxy(
+        ClientConfig_,
+        ConnectionConfig_,
+        ChannelFactory_,
+        address);
 
     auto req = proxy.GetGroupMeta();
     req->set_group_id(GroupId_);
@@ -295,7 +314,7 @@ TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const TString& address)
             GroupMeta_.MemberCount = std::max(GroupMeta_.MemberCount, groupMeta.MemberCount);
         }
 
-        if (++SuccessCount_ == RequiredSuccessCount_) {
+        if (++SuccessCount_ == GetRequiredSuccessCount()) {
             auto groupMeta = GroupMeta_;
             guard.Release();
             if (groupMeta.MemberCount == 0) {
@@ -312,7 +331,8 @@ TFuture<void> TGetGroupMetaRequestSession::MakeRequest(const TString& address)
 
 THeartbeatSession::THeartbeatSession(
     TServerAddressPoolPtr addressPool,
-    TMemberClientConfigPtr config,
+    TDiscoveryConnectionConfigPtr connectionConfig,
+    TMemberClientConfigPtr clientConfig,
     IChannelFactoryPtr channelFactory,
     const NLogging::TLogger& logger,
     TGroupId groupId,
@@ -321,10 +341,11 @@ THeartbeatSession::THeartbeatSession(
     i64 revision,
     IAttributeDictionaryPtr attributes)
     : TRequestSession<void>(
-        config->WriteQuorum,
+        clientConfig->WriteQuorum,
         std::move(addressPool),
         logger)
-    , Config_(std::move(config))
+    , ConnectionConfig_(std::move(connectionConfig))
+    , ClientConfig_(std::move(clientConfig))
     , ChannelFactory_(std::move(channelFactory))
     , GroupId_(std::move(groupId))
     , MemberId_(std::move(memberId))
@@ -337,7 +358,7 @@ TFuture<void> THeartbeatSession::MakeRequest(const TString& address)
 {
     auto channel = ChannelFactory_->CreateChannel(address);
     TDiscoveryClientServiceProxy proxy(std::move(channel));
-    proxy.SetDefaultTimeout(Config_->RpcTimeout);
+    proxy.SetDefaultTimeout(ConnectionConfig_->RpcTimeout);
 
     auto req = proxy.Heartbeat();
 
@@ -349,7 +370,7 @@ TFuture<void> THeartbeatSession::MakeRequest(const TString& address)
     if (Attributes_) {
         ToProto(protoMemberInfo->mutable_attributes(), *Attributes_);
     }
-    req->set_lease_timeout(ToProto<i64>(Config_->LeaseTimeout));
+    req->set_lease_timeout(ToProto<i64>(ClientConfig_->LeaseTimeout));
 
     return req->Invoke().Apply(BIND([this, this_ = MakeStrong(this)] (const TErrorOr<TDiscoveryClientServiceProxy::TRspHeartbeatPtr>& rspOrError) {
         if (!rspOrError.IsOK()) {
@@ -363,7 +384,7 @@ TFuture<void> THeartbeatSession::MakeRequest(const TString& address)
             }
         }
 
-        if (++SuccessCount_ == RequiredSuccessCount_) {
+        if (++SuccessCount_ == GetRequiredSuccessCount()) {
             Promise_.TrySet();
         }
         return TError();

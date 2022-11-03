@@ -11,6 +11,8 @@
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
 #include <yt/yt/ytlib/discovery_client/member_client.h>
 
@@ -23,6 +25,7 @@ namespace NYT::NDistributedThrottler {
 using namespace NRpc;
 using namespace NDiscoveryClient;
 using namespace NConcurrency;
+using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -727,6 +730,7 @@ public:
     TDistributedThrottlerFactory(
         TDistributedThrottlerConfigPtr config,
         IChannelFactoryPtr channelFactory,
+        IConnectionPtr connection,
         IInvokerPtr invoker,
         TGroupId groupId,
         TMemberId memberId,
@@ -735,15 +739,16 @@ public:
         const NLogging::TLogger& logger,
         IAuthenticatorPtr authenticator)
         : ChannelFactory_(std::move(channelFactory))
+        , Connection_(std::move(connection))
         , GroupId_(std::move(groupId))
         , MemberId_(std::move(memberId))
-        , MemberClient_(CreateMemberClient(
+        , MemberClient_(Connection_->CreateMemberClient(
             config->MemberClient,
             ChannelFactory_,
             invoker,
             MemberId_,
             GroupId_))
-        , DiscoveryClient_(CreateDiscoveryClient(
+        , DiscoveryClient_(Connection_->CreateDiscoveryClient(
             config->DiscoveryClient,
             ChannelFactory_))
         , UpdateLimitsExecutor_(New<TPeriodicExecutor>(
@@ -881,6 +886,7 @@ public:
 
 private:
     const IChannelFactoryPtr ChannelFactory_;
+    const IConnectionPtr Connection_;
     const TGroupId GroupId_;
     const TMemberId MemberId_;
     const IMemberClientPtr MemberClient_;
@@ -1177,6 +1183,7 @@ private:
 IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     TDistributedThrottlerConfigPtr config,
     IChannelFactoryPtr channelFactory,
+    IConnectionPtr connection,
     IInvokerPtr invoker,
     TGroupId groupId,
     TMemberId memberId,
@@ -1188,6 +1195,7 @@ IDistributedThrottlerFactoryPtr CreateDistributedThrottlerFactory(
     return New<TDistributedThrottlerFactory>(
         CloneYsonStruct(std::move(config)),
         std::move(channelFactory),
+        std::move(connection),
         std::move(invoker),
         std::move(groupId),
         std::move(memberId),

@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/chaos_client/public.h>
 
+#include <yt/yt/ytlib/discovery_client/public.h>
+
 #include <yt/yt/library/query/base/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -102,6 +104,16 @@ struct IConnection
     virtual const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
+
+    virtual NDiscoveryClient::IDiscoveryClientPtr CreateDiscoveryClient(
+        NDiscoveryClient::TDiscoveryClientConfigPtr config,
+        NRpc::IChannelFactoryPtr channelFactory) = 0;
+    virtual NDiscoveryClient::IMemberClientPtr CreateMemberClient(
+        NDiscoveryClient::TMemberClientConfigPtr config,
+        NRpc::IChannelFactoryPtr channelFactory,
+        IInvokerPtr invoker,
+        TString id,
+        TString groupId) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() = 0;
 

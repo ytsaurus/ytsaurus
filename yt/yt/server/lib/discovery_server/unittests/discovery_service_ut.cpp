@@ -101,32 +101,36 @@ public:
     }
 
     IDiscoveryClientPtr CreateDiscoveryClient(
-        const TDiscoveryClientConfigPtr& discoveryClientConfig = New<TDiscoveryClientConfig>())
+        const TDiscoveryConnectionConfigPtr& connectionConfig = New<TDiscoveryConnectionConfig>())
     {
-        if (!discoveryClientConfig->ServerAddresses) {
-            discoveryClientConfig->ServerAddresses = Addresses_;
+        if (!connectionConfig->Addresses) {
+            connectionConfig->Addresses = Addresses_;
         }
-        discoveryClientConfig->ReadQuorum = discoveryClientConfig->ServerAddresses->size();
+        auto clientConfig = New<TDiscoveryClientConfig>();
+        clientConfig->ReadQuorum = connectionConfig->Addresses->size();
 
-        return NDiscoveryClient::CreateDiscoveryClient(discoveryClientConfig, ChannelFactory_);
+        return NDiscoveryClient::CreateDiscoveryClient(connectionConfig, clientConfig, ChannelFactory_);
     }
 
     IMemberClientPtr CreateMemberClient(
         const TString& groupId,
         const TString& memberId,
-        const TMemberClientConfigPtr& memberClientConfig = New<TMemberClientConfig>())
+        const TDiscoveryConnectionConfigPtr& connectionConfig = New<TDiscoveryConnectionConfig>(),
+        const TMemberClientConfigPtr& clientConfig = New<TMemberClientConfig>())
     {
-        if (!memberClientConfig->ServerAddresses) {
-            memberClientConfig->ServerAddresses = Addresses_;
+        if (!connectionConfig->Addresses) {
+            connectionConfig->Addresses = Addresses_;
         }
-        memberClientConfig->HeartbeatPeriod = TDuration::MilliSeconds(500);
-        memberClientConfig->LeaseTimeout = TDuration::Seconds(3);
-        memberClientConfig->AttributeUpdatePeriod = TDuration::Seconds(1);
+
+        clientConfig->HeartbeatPeriod = TDuration::MilliSeconds(500);
+        clientConfig->LeaseTimeout = TDuration::Seconds(3);
+        clientConfig->AttributeUpdatePeriod = TDuration::Seconds(1);
 
         const auto& actionQueue = New<TActionQueue>("MemberClient");
         ActionQueues_.push_back(actionQueue);
         return NDiscoveryClient::CreateMemberClient(
-            memberClientConfig,
+            connectionConfig,
+            clientConfig,
             ChannelFactory_,
             actionQueue->GetInvoker(),
             memberId,
@@ -203,15 +207,15 @@ TEST_F(TDiscoveryServiceTestSuite, TestGossip)
     const TString memberId = "sample_member";
     const auto& addresses = GetDiscoveryServersAddresses();
 
-    auto memberClientConfig = New<TMemberClientConfig>();
-    memberClientConfig->ServerAddresses = {addresses[0], addresses[1], addresses[2]};
-    auto memberClient = CreateMemberClient(groupId, memberId, memberClientConfig);
+    auto memberConnectionConfig = New<TDiscoveryConnectionConfig>();
+    memberConnectionConfig->Addresses = {addresses[0], addresses[1], addresses[2]};
+    auto memberClient = CreateMemberClient(groupId, memberId, memberConnectionConfig);
     WaitFor(memberClient->Start())
         .ThrowOnError();
 
-    auto discoveryClientConfig = New<TDiscoveryClientConfig>();
-    discoveryClientConfig->ServerAddresses = {addresses[3], addresses[4]};
-    auto discoveryClient = CreateDiscoveryClient(discoveryClientConfig);
+    auto discoveryConnectionConfig = New<TDiscoveryConnectionConfig>();
+    discoveryConnectionConfig->Addresses = {addresses[3], addresses[4]};
+    auto discoveryClient = CreateDiscoveryClient(discoveryConnectionConfig);
 
     auto checkMember = [&] () {
         auto membersFuture = discoveryClient->ListMembers(groupId, {});
@@ -235,16 +239,16 @@ TEST_F(TDiscoveryServiceTestSuite, TestAttributes)
 
     const auto& addresses = GetDiscoveryServersAddresses();
 
-    auto memberClientConfig = New<TMemberClientConfig>();
-    memberClientConfig->ServerAddresses = {addresses[0], addresses[1], addresses[2]};
-    auto memberClient = CreateMemberClient(groupId, memberId, memberClientConfig);
+    auto memberConnectionConfig = New<TDiscoveryConnectionConfig>();
+    memberConnectionConfig->Addresses = {addresses[0], addresses[1], addresses[2]};
+    auto memberClient = CreateMemberClient(groupId, memberId, memberConnectionConfig);
     WaitFor(memberClient->Start())
         .ThrowOnError();
 
-    auto discoveryClientConfig = New<TDiscoveryClientConfig>();
-    discoveryClientConfig->ServerAddresses = {addresses[3], addresses[4]};
+    auto discoveryConnectionConfig = New<TDiscoveryConnectionConfig>();
+    discoveryConnectionConfig->Addresses = {addresses[3], addresses[4]};
 
-    auto discoveryClient = CreateDiscoveryClient(discoveryClientConfig);
+    auto discoveryClient = CreateDiscoveryClient(discoveryConnectionConfig);
 
     TListMembersOptions options;
     options.AttributeKeys.push_back(key);
@@ -349,17 +353,20 @@ TEST_F(TDiscoveryServiceTestSuite, TestServerBan)
     const TString memberId = "sample_member";
     const auto& addresses = GetDiscoveryServersAddresses();
 
+    auto memberConnectionConfig = New<TDiscoveryConnectionConfig>();
+    memberConnectionConfig->Addresses = {addresses[0], addresses[1], addresses[2]};
+    memberConnectionConfig->ServerBanTimeout = TDuration::Seconds(3);
+
     auto memberClientConfig = New<TMemberClientConfig>();
-    memberClientConfig->ServerBanTimeout = TDuration::Seconds(3);
-    memberClientConfig->ServerAddresses = {addresses[0], addresses[1], addresses[2]};
     memberClientConfig->HeartbeatPeriod = TDuration::Seconds(1);
-    auto memberClient = CreateMemberClient(groupId, memberId, memberClientConfig);
+
+    auto memberClient = CreateMemberClient(groupId, memberId, memberConnectionConfig, memberClientConfig);
     WaitFor(memberClient->Start())
         .ThrowOnError();
 
-    auto discoveryClientConfig = New<TDiscoveryClientConfig>();
-    discoveryClientConfig->ServerAddresses = {addresses[3], addresses[4]};
-    auto discoveryClient = CreateDiscoveryClient(discoveryClientConfig);
+    auto discoveryConnectionConfig = New<TDiscoveryConnectionConfig>();
+    discoveryConnectionConfig->Addresses = {addresses[3], addresses[4]};
+    auto discoveryClient = CreateDiscoveryClient(discoveryConnectionConfig);
 
     KillDiscoveryServer(0);
     Sleep(TDuration::Seconds(2));
@@ -417,7 +424,6 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestNestedGroups)
     WaitFor(AllSucceeded(memberStartFutures))
         .ThrowOnError();
 
-
     auto discoveryClient = CreateDiscoveryClient();
 
     auto checkGroups = [&] () {
@@ -473,18 +479,20 @@ TEST_F(TDiscoveryServiceTestSuite, DISABLED_TestYPath)
     const TString memberId1 = "sample_member1";
     const TString memberId2 = "sample_member2";
 
+    auto discoveryConnection1Config = New<TDiscoveryConnectionConfig>();
     auto member1Config = New<TMemberClientConfig>();
     member1Config->WriteQuorum = std::ssize(GetDiscoveryServersAddresses());
 
-    auto memberClient1 = CreateMemberClient(groupId1, memberId1, member1Config);
+    auto memberClient1 = CreateMemberClient(groupId1, memberId1, discoveryConnection1Config, member1Config);
     memberClient1->SetPriority(3);
     WaitFor(memberClient1->Start())
         .ThrowOnError();
 
+    auto discoveryConnection2Config = New<TDiscoveryConnectionConfig>();
     auto member2Config = New<TMemberClientConfig>();
     member2Config->WriteQuorum = std::ssize(GetDiscoveryServersAddresses());
 
-    auto memberClient2 = CreateMemberClient(groupId2, memberId2, member2Config);
+    auto memberClient2 = CreateMemberClient(groupId2, memberId2, discoveryConnection2Config, member2Config);
     WaitFor(memberClient2->Start())
         .ThrowOnError();
 
