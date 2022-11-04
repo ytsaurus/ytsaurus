@@ -269,46 +269,6 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-template<typename T>
-void CopyPod(char** buffer, const T& object)
-{
-    memcpy(*buffer, &object, sizeof(T));
-    *buffer += sizeof(T);
-}
-
-void WritePadding(char** buffer, i64 byteSize)
-{
-    memset(*buffer, 0, byteSize);
-    *buffer += byteSize;
-}
-
-void AssertSerializationAligned(i64 byteSize)
-{
-    YT_ASSERT(AlignUpSpace<i64>(byteSize, SerializationAlignment) == 0);
-}
-
-void VerifySerializationAligned(i64 byteSize)
-{
-    YT_VERIFY(AlignUpSpace<i64>(byteSize, SerializationAlignment) == 0);
-}
-
-void MakeSerializationAligned(char** buffer, i64 byteSize)
-{
-    WritePadding(buffer, AlignUpSpace<i64>(byteSize, SerializationAlignment));
-}
-
-// TODO(akozhikhov): Write checksum ahead of the blob as in hunk checksums?
-void AppendChecksum(char** buffer, i64 byteSize)
-{
-    CopyPod(buffer, GetChecksum(TRef(*buffer - byteSize, byteSize)));
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TIndexedVersionedBlockWriterTag
 { };
 
@@ -328,7 +288,7 @@ TIndexedVersionedBlockWriter::TIndexedVersionedBlockWriter(
     , HasAggregateColumns_(Schema_->HasAggregateColumns())
     , SectorAlignmentSize_(THashTableChunkIndexFormatDetail::SectorSize)
     // TODO(akozhikhov).
-    , GroupReorderingEnabled_(false)
+    , EnableGroupReordering_(false)
     , Stream_(TIndexedVersionedBlockWriterTag())
 {
     YT_VERIFY(AlignUpSpace<i64>(SectorAlignmentSize_, SerializationAlignment) == 0);
@@ -356,26 +316,28 @@ void TIndexedVersionedBlockWriter::WriteRow(TVersionedRow row)
 
     WritePod(Stream_, rowChecksum);
 
-    TRange<int> groupOffsets;
-    TRange<int> groupIndexes;
+    TSharedRange<int> groupOffsets;
+    TSharedRange<int> groupIndexes;
     if (GroupCount_ > 1) {
-        groupOffsets = MakeRange(
-            &GroupOffsets_[std::ssize(GroupOffsets_) - GroupCount_],
-            GroupCount_);
-        if (GroupReorderingEnabled_) {
-            groupIndexes = MakeRange(
-                &GroupIndexes_[std::ssize(GroupIndexes_) - GroupCount_],
-                GroupCount_);
+        groupOffsets = MakeSharedRange(std::vector<int>(
+            GroupOffsets_.end() - GroupCount_,
+            GroupOffsets_.end()));
+        if (EnableGroupReordering_) {
+            groupIndexes = MakeSharedRange(std::vector<int>(
+                GroupIndexes_.end() - GroupCount_,
+                GroupIndexes_.end()));
         }
     }
 
-    ChunkIndexBuilder_->ProcessRow(
-        RowData_.Row,
-        BlockIndex_,
-        RowOffsets_.back(),
-        rowByteSize + sizeof(TChecksum),
-        groupOffsets,
-        groupIndexes);
+    rowByteSize += sizeof(TChecksum);
+    ChunkIndexBuilder_->ProcessRow({
+        .Row = RowData_.Row,
+        .BlockIndex = BlockIndex_,
+        .RowOffset = RowOffsets_.back(),
+        .RowLength = rowByteSize,
+        .GroupOffsets = std::move(groupOffsets),
+        .GroupIndexes = std::move(groupIndexes)
+    });
 
     if (MemoryGuard_) {
         MemoryGuard_.SetSize(GetBlockSize());
@@ -406,7 +368,7 @@ TBlock TIndexedVersionedBlockWriter::FlushBlock()
 
     TDataBlockMeta meta;
     auto* metaExt = meta.MutableExtension(TIndexedVersionedBlockMeta::block_meta_ext);
-    metaExt->set_group_reordering_enabled(GroupReorderingEnabled_);
+    metaExt->set_group_reordering_enabled(EnableGroupReordering_);
     metaExt->set_format_version(0);
 
     return TVersionedBlockWriterBase::FlushBlock(Stream_.Flush(), std::move(meta));
@@ -447,7 +409,7 @@ void TIndexedVersionedBlockWriter::ResetRowData(TVersionedRow row)
     }
 
     auto groupIndexesStart = GroupIndexes_.size();
-    if (GroupReorderingEnabled_) {
+    if (EnableGroupReordering_) {
         GroupIndexes_.resize(GroupIndexes_.size() + GroupCount_);
     }
 
@@ -459,7 +421,7 @@ void TIndexedVersionedBlockWriter::ResetRowData(TVersionedRow row)
         groupOffset += GetValueGroupDataByteSize(
             logicalGroupIndex,
             /*includeSectorAlignment*/ true);
-        if (GroupReorderingEnabled_) {
+        if (EnableGroupReordering_) {
             GroupIndexes_[groupIndexesStart + logicalGroupIndex] = physicalGroupIndex;
         }
     }
@@ -701,7 +663,7 @@ char* TIndexedVersionedBlockWriter::EncodeValueData(char* buffer)
         buffer = EncodeValueGroupData(buffer, groupIndex);
 
         if (GroupCount_ > 1) {
-            WritePadding(&buffer, RowData_.ValueData.Groups[groupIndex].SectorAlignmentSize);
+            PadBuffer(&buffer, RowData_.ValueData.Groups[groupIndex].SectorAlignmentSize);
             AppendChecksum(&buffer, buffer - groupBufferStart);
         }
 
@@ -817,7 +779,7 @@ TIndexedVersionedBlockWriter::ComputeGroupAlignmentAndReordering()
 
     bufferSize += rowMetadataSize;
 
-    if (!GroupReorderingEnabled_) {
+    if (!EnableGroupReordering_) {
         bufferSize += GetValueGroupDataByteSize(0, /*includeSectorAlignment*/ false);
         for (int groupIndex = 1; groupIndex < GroupCount_; ++groupIndex) {
             auto groupSize = GetValueGroupDataByteSize(groupIndex, /*includeSectorAlignment*/ false);

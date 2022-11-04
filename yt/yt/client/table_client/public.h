@@ -29,6 +29,7 @@ class TSortColumnsExt;
 class TBoundaryKeysExt;
 class TBlockIndexesExt;
 class TDataBlockMetaExt;
+class TSystemBlockMetaExt;
 class TColumnarStatisticsExt;
 class TDataBlockMeta;
 class TSimpleVersionedBlockMeta;
@@ -291,6 +292,9 @@ using TSchemalessWriterFactory = std::function<IUnversionedRowsetWriterPtr(
 DECLARE_REFCOUNTED_STRUCT(IVersionedReader)
 DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
+DECLARE_REFCOUNTED_CLASS(THashTableChunkIndexWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TChunkIndexesWriterConfig)
+
 DECLARE_REFCOUNTED_CLASS(TChunkWriterTestingOptions)
 
 DECLARE_REFCOUNTED_CLASS(TChunkReaderConfig)
@@ -357,6 +361,14 @@ DEFINE_ENUM(ESchemaCompatibility,
     // E.g. Int32 and Int64
     (FullyCompatible)
 )
+
+DEFINE_ENUM(EChunkIndexType,
+    ((HashTableIndex)    (0))
+);
+
+DEFINE_ENUM(ESystemBlockType,
+    ((ChunkIndex)       (0))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -122,7 +122,7 @@ private:
     // if aggregate flag bitmaps are not needed for particular groups.
     const bool HasAggregateColumns_;
     const i64 SectorAlignmentSize_;
-    const bool GroupReorderingEnabled_;
+    const bool EnableGroupReordering_;
 
     TChunkedOutputStream Stream_;
 

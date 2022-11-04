@@ -136,6 +136,8 @@ constexpr int VersionedBlockValueSize = 16;
 
 constexpr int IndexedRowTypicalGroupCount = 1;
 
+class TIndexedVersionedBlockFormatDetail;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

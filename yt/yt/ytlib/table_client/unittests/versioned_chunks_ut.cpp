@@ -107,9 +107,9 @@ protected:
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 1025;
+        config->ChunkIndexes->HashTable->Enable = EnableHashChunkIndex;
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = OptimizeFor;
-        options->EnableHashChunkIndex = EnableHashChunkIndex;
         ChunkWriter = CreateVersionedChunkWriter(
             config,
             options,
@@ -543,9 +543,9 @@ protected:
         config->BlockSize = 4096;
         config->MaxSegmentValueCount = 128;
         config->SampleRate = 0.0;
+        config->ChunkIndexes->HashTable->Enable = enableHashChunkIndex;
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
-        options->EnableHashChunkIndex = enableHashChunkIndex;
         auto chunkWriter = CreateVersionedChunkWriter(
             config,
             options,
@@ -647,9 +647,9 @@ protected:
         config->BlockSize = 4096;
         config->MaxSegmentValueCount = 128;
         config->SampleRate = 0.0;
+        config->ChunkIndexes->HashTable->Enable = enableHashChunkIndex;
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
-        options->EnableHashChunkIndex = enableHashChunkIndex;
         auto chunkWriter = CreateVersionedChunkWriter(
             config,
             options,

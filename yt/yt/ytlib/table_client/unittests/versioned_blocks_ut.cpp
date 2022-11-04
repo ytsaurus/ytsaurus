@@ -34,18 +34,12 @@ class TMockChunkIndexBuilder
     : public IChunkIndexBuilder
 {
 public:
-    void ProcessRow(
-        TVersionedRow /*row*/,
-        int /*blockIndex*/,
-        i64 /*rowOffset*/,
-        i64 /*rowLength*/,
-        TRange<int> /*groupOffsets*/,
-        TRange<int> /*groupIndexes*/) override
+    void ProcessRow(TChunkIndexEntry /*entry*/) override
     {
         return;
     }
 
-    TSharedRef BuildIndex() override
+    std::vector<TSharedRef> BuildIndex(NProto::TSystemBlockMetaExt* /*systemBlockMetaExt*/) override
     {
         return {};
     }

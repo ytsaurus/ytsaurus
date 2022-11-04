@@ -31,6 +31,7 @@ REGISTER_PROTO_EXTENSION(TKeyColumnsExt, 14, key_columns)
 REGISTER_PROTO_EXTENSION(THunkChunkRefsExt, 62, hunk_chunk_refs)
 REGISTER_PROTO_EXTENSION(THunkChunkMiscExt, 63, hunk_chunk_misc)
 REGISTER_PROTO_EXTENSION(THunkChunkMetasExt, 64, hunk_chunk_metas)
+REGISTER_PROTO_EXTENSION(TSystemBlockMetaExt, 65, system_block_meta)
 
 ////////////////////////////////////////////////////////////////////////////////
 

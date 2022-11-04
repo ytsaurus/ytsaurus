@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/ytlib/table_client/chunk_index.h>
+
 #include <yt/yt/client/tablet_client/config.h>
 
 #include <yt/yt/core/ytree/convert.h>
@@ -59,6 +61,34 @@ void TChunkReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void THashTableChunkIndexWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("load_factor", &TThis::LoadFactor)
+        .Default(0.5)
+        .GreaterThan(0.)
+        .LessThanOrEqual(1.);
+    registrar.Parameter("rehash_trial_count", &TThis::RehashTrialCount)
+        .Default(3)
+        .GreaterThan(0);
+    registrar.Parameter("enable_group_reordering", &TThis::EnableGroupReordering)
+        .Default(false);
+    registrar.Parameter("max_block_size", &TThis::MaxBlockSize)
+        .GreaterThanOrEqual(THashTableChunkIndexFormatDetail::SectorSize)
+        .Default(128_KB);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TChunkIndexesWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("hash_table", &TThis::HashTable)
+        .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChunkWriterTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("add_unsupported_feature", &TThis::AddUnsupportedFeature)
@@ -112,6 +142,9 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
         .Default(0.03);
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
+        .DefaultNew();
+
+    registrar.Parameter("chunk_indexes", &TThis::ChunkIndexes)
         .DefaultNew();
 }
 
