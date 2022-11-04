@@ -992,6 +992,15 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
         }
 
         const auto& [job, _, operationElement] = jobInfo;
+        if (!IsJobKnown(operationElement, job->GetId())) {
+            // Job may have been terminated concurrently with scheduling, e.g. operation aborted by user request. See: YT-16429, YT-17913.
+            YT_LOG_DEBUG("Job preemption skipped, since the job is already terminated (JobId: %v, OperationId: %v)",
+                job->GetId(),
+                job->GetOperationId());
+
+            continue;
+        }
+
         if (!Dominates(operationElement->GetResourceLimits(), operationElement->GetInstantResourceUsage())) {
             job->SetPreemptionReason(Format("Preempted due to violation of resource limits of operation %v",
                 operationElement->GetId()));
