@@ -84,6 +84,13 @@ void MergeRefsToRef(const TParts& parts, TMutableRef dst);
 template <class TParts>
 TString MergeRefsToString(const TParts& parts);
 
+template <typename T>
+void CopyPod(char** buffer, const T& object);
+
+void AssertSerializationAligned(i64 byteSize);
+void VerifySerializationAligned(i64 byteSize);
+void MakeSerializationAligned(char** buffer, i64 byteSize);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TStreamSaveContext

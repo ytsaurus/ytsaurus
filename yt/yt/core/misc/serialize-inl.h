@@ -101,6 +101,13 @@ void ReadPod(TInput& input, T& obj)
     ReadRef(input, TMutableRef::FromPod(obj));
 }
 
+template <typename T>
+void CopyPod(char** buffer, const T& obj)
+{
+    memcpy(*buffer, &obj, sizeof(T));
+    *buffer += sizeof(T);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

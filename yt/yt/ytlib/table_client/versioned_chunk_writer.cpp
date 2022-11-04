@@ -3,14 +3,13 @@
 #include "chunk_index_builder.h"
 #include "chunk_meta_extensions.h"
 #include "config.h"
+#include "helpers.h"
 #include "private.h"
 #include "row_merger.h"
 #include "versioned_block_writer.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
-
-#include <yt/yt/ytlib/table_client/helpers.h>
 
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/yt/ytlib/table_chunk_format/data_block_writer.h>
@@ -205,6 +204,8 @@ protected:
     TDataBlockMetaExt BlockMetaExt_;
     i64 BlockMetaExtSize_ = 0;
 
+    TSystemBlockMetaExt SystemBlockMetaExt_;
+
     TSamplesExt SamplesExt_;
     i64 SamplesExtSize_ = 0;
 
@@ -251,6 +252,7 @@ protected:
         SetProtoExtension(meta->mutable_extensions(), BlockMetaExt_);
         SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
         SetProtoExtension(meta->mutable_extensions(), ColumnarStatisticsExt_);
+        SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
 
         meta->UpdateMemoryUsage();
 
@@ -302,7 +304,10 @@ protected:
 class TSimpleBlockFormatAdapter
 {
 protected:
-    TSimpleBlockFormatAdapter(TTableSchemaPtr schema)
+    TSimpleBlockFormatAdapter(
+        const TChunkWriterConfigPtr& /*config*/,
+        TTableSchemaPtr schema,
+        const NLogging::TLogger& /*logger*/)
         : Schema_(std::move(schema))
     { }
 
@@ -318,7 +323,9 @@ protected:
                 /*size*/ 0));
     }
 
-    void OnDataBlocksWritten(const TEncodingChunkWriterPtr& /*encodingChunkWriter*/)
+    void OnDataBlocksWritten(
+        TSystemBlockMetaExt* /*systemBlockMetaExt*/,
+        const TEncodingChunkWriterPtr& /*encodingChunkWriter*/)
     { }
 
     ETableChunkBlockFormat GetBlockFormat() const
@@ -333,10 +340,19 @@ private:
 class TIndexedBlockFormatAdapter
 {
 protected:
-    TIndexedBlockFormatAdapter(TTableSchemaPtr schema)
+    TIndexedBlockFormatAdapter(
+        const TChunkWriterConfigPtr& config,
+        TTableSchemaPtr schema,
+        const NLogging::TLogger& logger)
         : Schema_(std::move(schema))
         , BlockFormatDetail_(Schema_)
-    { }
+        , ChunkIndexBuilder_(CreateChunkIndexBuilder(
+            config->ChunkIndexes,
+            BlockFormatDetail_,
+            logger))
+    {
+        YT_VERIFY(ChunkIndexBuilder_);
+    }
 
     std::unique_ptr<TIndexedVersionedBlockWriter> BlockWriter_;
 
@@ -353,11 +369,17 @@ protected:
                 /*size*/ 0));
     }
 
-    void OnDataBlocksWritten(const TEncodingChunkWriterPtr& encodingChunkWriter)
+    void OnDataBlocksWritten(
+        TSystemBlockMetaExt* systemBlockMetaExt,
+        const TEncodingChunkWriterPtr& encodingChunkWriter)
     {
-        encodingChunkWriter->WriteBlock(ChunkIndexBuilder_->BuildIndex());
-
         const auto& meta = encodingChunkWriter->GetMeta();
+
+        auto blocks = ChunkIndexBuilder_->BuildIndex(systemBlockMetaExt);
+        for (auto& block : blocks) {
+            encodingChunkWriter->WriteBlock(std::move(block));
+        }
+
         auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
         chunkFeatures |= EChunkFeatures::IndexedBlockFormat;
         meta->set_features(ToProto<ui64>(chunkFeatures));
@@ -371,7 +393,7 @@ protected:
 private:
     const TTableSchemaPtr Schema_;
     const TIndexedVersionedBlockFormatDetail BlockFormatDetail_;
-    const IChunkIndexBuilderPtr ChunkIndexBuilder_ = CreateChunkIndexBuilder();
+    const IChunkIndexBuilderPtr ChunkIndexBuilder_;
 
     int BlockCount_ = 0;
 };
@@ -398,7 +420,10 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             dataSink)
-        , TBlockFormatAdapter(Schema_)
+        , TBlockFormatAdapter(
+            Config_,
+            Schema_,
+            Logger)
     {
         ResetBlockWriter(Options_->MemoryTracker);
     }
@@ -521,7 +546,7 @@ private:
             FinishBlock(LastKey_.Begin(), LastKey_.End());
         }
 
-        OnDataBlocksWritten(EncodingChunkWriter_);
+        OnDataBlocksWritten(&SystemBlockMetaExt_, EncodingChunkWriter_);
 
         PrepareChunkMeta();
 
@@ -808,7 +833,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
             std::move(blockCache),
             dataSink);
     } else {
-        if (options->EnableHashChunkIndex) {
+        if (ShouldBuildChunkIndex(config->ChunkIndexes)) {
             return New<TSimpleVersionedChunkWriter<TIndexedBlockFormatAdapter>>(
                 std::move(config),
                 std::move(options),

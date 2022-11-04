@@ -171,8 +171,35 @@ message TDataBlockMetaExt
     optional int32 block_format = 2; // ETableChunkBlockFormat
 }
 
+message THashTableChunkIndexBlockMeta
+{
+    extend TChunkIndexBlockMeta
+    {
+        optional THashTableChunkIndexBlockMeta hash_table_chunk_index_block_meta_ext = 200;
+    }
+
+    optional uint64 seed = 1;
+    optional bytes last_key = 2;
+}
+
+message TChunkIndexBlockMeta
+{
+    extend TSystemBlockMeta
+    {
+        optional TChunkIndexBlockMeta chunk_index_block_meta = 100;
+    }
+
+    optional int32 chunk_index_type = 1; // EChunkIndexType
+
+    extensions 200 to 299;
+}
+
 message TSystemBlockMeta
-{ }
+{
+    optional int32 system_block_type = 1; // ESystemBlockType
+
+    extensions 100 to 199;
+}
 
 message TSystemBlockMetaExt
 {

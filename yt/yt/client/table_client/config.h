@@ -78,6 +78,49 @@ DEFINE_REFCOUNTED_TYPE(TChunkWriterTestingOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class THashTableChunkIndexWriterConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+
+    //! Hash table load factor.
+    double LoadFactor;
+
+    //! Final hash table seed will be picked considering this number of rehash trials.
+    int RehashTrialCount;
+
+    // TODO(akozhikhov).
+    bool EnableGroupReordering;
+
+    //! Unless null, key set will be split to produce multiple hash tables,
+    //! each of which corresponds to a single system block and is not greater than #MaxBlockSize.
+    std::optional<int> MaxBlockSize;
+
+    REGISTER_YSON_STRUCT(THashTableChunkIndexWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(THashTableChunkIndexWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkIndexesWriterConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    THashTableChunkIndexWriterConfigPtr HashTable;
+
+    REGISTER_YSON_STRUCT(TChunkIndexesWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TChunkIndexesWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkWriterConfig
     : public NChunkClient::TEncodingWriterConfig
 {
@@ -102,6 +145,8 @@ public:
     double KeyFilterFalsePositiveRate;
 
     TChunkWriterTestingOptionsPtr TestingOptions;
+
+    TChunkIndexesWriterConfigPtr ChunkIndexes;
 
     REGISTER_YSON_STRUCT(TChunkWriterConfig);
 
@@ -228,8 +273,6 @@ public:
     ETableSchemaModification SchemaModification;
 
     EOptimizeFor OptimizeFor;
-
-    bool EnableHashChunkIndex = false;
 
     //! Maximum number of heavy columns in approximate statistics.
     int MaxHeavyColumns;
