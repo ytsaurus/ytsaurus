@@ -1,6 +1,5 @@
 #include "bootstrap.h"
 
-#include "arbitrage_service.h"
 #include "config.h"
 #include "batching_chunk_service.h"
 #include "dynamic_config_manager.h"
@@ -914,7 +913,6 @@ private:
 
         NetworkStatistics_ = std::make_unique<TNetworkStatistics>(Config_->DataNode);
 
-        RpcServer_->RegisterService(CreateArbitrageService(this));
         NodeResourceManager_ = New<TNodeResourceManager>(this);
 
         if (Config_->CoreDumper) {
