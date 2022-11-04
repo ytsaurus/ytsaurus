@@ -1267,22 +1267,13 @@ class TestSchedulerHangingOperations(YTEnvSetup):
 
     @authors("ignat")
     def test_hanging_operations(self):
-        create("table", "//tmp/t_in")
-        write_table("<append=true>//tmp/t_in", {"foo": "bar"})
-
         ops = []
-        for i in range(5):
-            table = "//tmp/t_out" + str(i)
-            create("table", table)
-            op = map(
-                track=False,
-                command="sleep 1000; cat",
-                in_=["//tmp/t_in"],
-                out=table,
+        for node in ls("//sys/cluster_nodes"):
+            op = run_test_vanilla(
+                command="sleep 1000",
                 spec={
                     "pool": "fake_pool",
-                    "locality_timeout": 0,
-                    "mapper": {"cpu_limit": 0.8},
+                    "scheduling_tag_filter": node,
                 },
             )
             ops.append(op)
@@ -1290,18 +1281,10 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         for op in ops:
             wait(lambda: len(op.get_running_jobs()) == 1)
 
-        table = "//tmp/t_out_other"
-        create("table", table)
-        op = map(
-            track=False,
-            command="sleep 1000; cat",
-            in_=["//tmp/t_in"],
-            out=table,
-            spec={
-                "pool": "fake_pool",
-                "locality_timeout": 0,
-                "mapper": {"cpu_limit": 1.5},
-            },
+        op = run_test_vanilla(
+            command="sleep 1000",
+            spec={"pool": "fake_pool"},
+            task_patch={"cpu_limit": 1.5},
         )
 
         wait(lambda: op.get_state() == "failed")

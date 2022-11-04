@@ -6,6 +6,19 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
+// NB(eshcherbin): Used in situations where counter is only incremented by a single thread
+// in order to avoid "lock add" on x86.
+inline void IncrementAtomicCounterUnsafely(std::atomic<int>* counter)
+{
+    counter->store(counter->load() + 1, std::memory_order_release);
+}
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
 static const TString InvalidCustomProfilingTag("invalid");
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -419,7 +432,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::OnMinNeededResourcesUnsatis
     auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
 #define XX(name, Name) \
         if (availableResources.Get##Name() < minNeededResources.Get##Name()) { \
-            ++shard.MinNeededResourcesUnsatisfiedCountLocal[EJobResourceType::Name]; \
+            IncrementAtomicCounterUnsafely(&shard.MinNeededResourcesUnsatisfiedCount[EJobResourceType::Name]); \
         }
     ITERATE_JOB_RESOURCES(XX)
 #undef XX
@@ -427,92 +440,78 @@ void TFairShareTreeJobSchedulerOperationSharedState::OnMinNeededResourcesUnsatis
 
 TEnumIndexedVector<EJobResourceType, int> TFairShareTreeJobSchedulerOperationSharedState::GetMinNeededResourcesUnsatisfiedCount()
 {
-    UpdateShardState();
+    UpdateDiagnosticCounters();
 
-    TEnumIndexedVector<EJobResourceType, int> result;
-    for (const auto& shard : StateShards_) {
-        for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-            result[resource] += shard.MinNeededResourcesUnsatisfiedCount[resource].load();
-        }
-    }
-    return result;
+    return MinNeededResourcesUnsatisfiedCount_;
 }
 
 void TFairShareTreeJobSchedulerOperationSharedState::OnOperationDeactivated(const ISchedulingContextPtr& schedulingContext, EDeactivationReason reason)
 {
     auto& shard = StateShards_[schedulingContext->GetNodeShardId()];
-    ++shard.DeactivationReasonsLocal[reason];
-    ++shard.DeactivationReasonsFromLastNonStarvingTimeLocal[reason];
+    IncrementAtomicCounterUnsafely(&shard.DeactivationReasons[reason]);
+    IncrementAtomicCounterUnsafely(&shard.DeactivationReasonsFromLastNonStarvingTime[reason]);
 }
 
 TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeJobSchedulerOperationSharedState::GetDeactivationReasons()
 {
-    UpdateShardState();
+    UpdateDiagnosticCounters();
 
-    TEnumIndexedVector<EDeactivationReason, int> result;
-    for (const auto& shard : StateShards_) {
-        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-            result[reason] += shard.DeactivationReasons[reason].load();
-        }
-    }
-    return result;
+    return DeactivationReasons_;
 }
 
 TEnumIndexedVector<EDeactivationReason, int> TFairShareTreeJobSchedulerOperationSharedState::GetDeactivationReasonsFromLastNonStarvingTime()
 {
-    UpdateShardState();
+    UpdateDiagnosticCounters();
 
-    TEnumIndexedVector<EDeactivationReason, int> result;
-    for (const auto& shard : StateShards_) {
-        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-            result[reason] += shard.DeactivationReasonsFromLastNonStarvingTime[reason].load();
-        }
-    }
-    return result;
+    return DeactivationReasonsFromLastNonStarvingTime_;
 }
 
 void TFairShareTreeJobSchedulerOperationSharedState::ProcessUpdatedStarvationStatus(EStarvationStatus status)
 {
     if (StarvationStatusAtLastUpdate_ == EStarvationStatus::NonStarving && status != EStarvationStatus::NonStarving) {
-        int index = 0;
+        std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
+
+        int shardId = 0;
         for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
-            invoker->Invoke(BIND([this, this_=MakeStrong(this), index] {
-                auto& shard = StateShards_[index];
+            invoker->Invoke(BIND([this, this_=MakeStrong(this), shardId] {
+                auto& shard = StateShards_[shardId];
                 for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-                    shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0);
-                    shard.DeactivationReasonsFromLastNonStarvingTimeLocal[reason] = 0;
+                    shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0, std::memory_order_release);
                 }
             }));
-            ++index;
+
+            ++shardId;
         }
     }
 
     StarvationStatusAtLastUpdate_ = status;
 }
 
-void TFairShareTreeJobSchedulerOperationSharedState::UpdateShardState()
+void TFairShareTreeJobSchedulerOperationSharedState::UpdateDiagnosticCounters()
 {
     auto now = TInstant::Now();
-    if (now < LastStateShardsUpdateTime_ + UpdateStateShardsBackoff_) {
+    if (now < LastDiagnosticCountersUpdateTime_ + UpdateStateShardsBackoff_) {
         return;
     }
-    int index = 0;
-    for (const auto& invoker : StrategyHost_->GetNodeShardInvokers()) {
-        invoker->Invoke(BIND([this, this_=MakeStrong(this), index] {
-            auto& shard = StateShards_[index];
-            for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-                shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(
-                    shard.DeactivationReasonsFromLastNonStarvingTimeLocal[reason]);
-                shard.DeactivationReasons[reason].store(shard.DeactivationReasonsLocal[reason]);
-            }
-            for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-                shard.MinNeededResourcesUnsatisfiedCount[resource].store(
-                    shard.MinNeededResourcesUnsatisfiedCountLocal[resource]);
-            }
-        }));
-        ++index;
+
+    std::fill(DeactivationReasons_.begin(), DeactivationReasons_.end(), 0);
+    std::fill(DeactivationReasonsFromLastNonStarvingTime_.begin(), DeactivationReasonsFromLastNonStarvingTime_.end(), 0);
+    std::fill(MinNeededResourcesUnsatisfiedCount_.begin(), MinNeededResourcesUnsatisfiedCount_.end(), 0);
+
+    for (int shardId = 0; shardId < std::ssize(StrategyHost_->GetNodeShardInvokers()); ++shardId) {
+        auto& shard = StateShards_[shardId];
+        for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
+            DeactivationReasons_[reason] += shard.DeactivationReasons[reason].load();
+            DeactivationReasonsFromLastNonStarvingTime_[reason] +=
+                shard.DeactivationReasonsFromLastNonStarvingTime[reason].load();
+        }
+        for (auto resource : TEnumTraits<EJobResourceType>::GetDomainValues()) {
+            MinNeededResourcesUnsatisfiedCount_[resource] +=
+                shard.MinNeededResourcesUnsatisfiedCount[resource].load();
+        }
     }
-    LastStateShardsUpdateTime_ = now;
+
+    LastDiagnosticCountersUpdateTime_ = now;
 }
 
 TInstant TFairShareTreeJobSchedulerOperationSharedState::GetLastScheduleJobSuccessTime() const
