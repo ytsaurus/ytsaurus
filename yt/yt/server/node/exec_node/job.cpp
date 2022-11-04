@@ -2566,11 +2566,6 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         totalMemoryTotal += gpuInfo.MemoryTotal;
     }
 
-    statistics->AddSample("/user_job/gpu/memory", totalCumulativeMemory);
-    statistics->AddSample("/user_job/gpu/power", totalCumulativePower);
-    statistics->AddSample("/user_job/gpu/load", totalCumulativeLoad);
-    statistics->AddSample("/user_job/gpu/memory_used", totalMaxMemoryUsed);
-
     statistics->AddSample("/user_job/gpu/cumulative_utilization_gpu", totalCumulativeUtilizationGpu);
     statistics->AddSample("/user_job/gpu/cumulative_utilization_memory", totalCumulativeUtilizationMemory);
     statistics->AddSample("/user_job/gpu/cumulative_utilization_power", totalCumulativeUtilizationPower);
@@ -2580,7 +2575,7 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     statistics->AddSample("/user_job/gpu/max_memory_used", totalMaxMemoryUsed);
     statistics->AddSample("/user_job/gpu/memory_total", totalMemoryTotal);
     statistics->AddSample("/user_job/gpu/cumulative_sm_utilization", totalCumulativeSMUtilization);
-    statistics->AddSample("/user_job/gpu/cumulative_sm_utilization", totalCumulativeSMOccupancy);
+    statistics->AddSample("/user_job/gpu/cumulative_sm_occupancy", totalCumulativeSMOccupancy);
 }
 
 void TJob::EnrichStatisticsWithDiskInfo(TStatistics* statistics)
