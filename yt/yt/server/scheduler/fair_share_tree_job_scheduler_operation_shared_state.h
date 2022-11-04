@@ -126,19 +126,19 @@ private:
 
     const NLogging::TLogger Logger;
 
-    struct TStateShard
+    //! Thread affinity: control.
+    TEnumIndexedVector<EDeactivationReason, int> DeactivationReasons_;
+    TEnumIndexedVector<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTime_;
+    TEnumIndexedVector<EJobResourceType, int> MinNeededResourcesUnsatisfiedCount_;
+    TInstant LastDiagnosticCountersUpdateTime_;
+
+    struct alignas(NThreading::CacheLineSize) TStateShard
     {
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasons;
         TEnumIndexedVector<EDeactivationReason, std::atomic<int>> DeactivationReasonsFromLastNonStarvingTime;
         TEnumIndexedVector<EJobResourceType, std::atomic<int>> MinNeededResourcesUnsatisfiedCount;
-        char Padding1[64];
-        TEnumIndexedVector<EDeactivationReason, int> DeactivationReasonsLocal;
-        TEnumIndexedVector<EDeactivationReason, int> DeactivationReasonsFromLastNonStarvingTimeLocal;
-        TEnumIndexedVector<EJobResourceType, int> MinNeededResourcesUnsatisfiedCountLocal;
-        char Padding2[64];
     };
     std::array<TStateShard, MaxNodeShardCount> StateShards_;
-    TInstant LastStateShardsUpdateTime_;
 
     bool Enabled_ = false;
 
@@ -154,8 +154,8 @@ private:
     TJobProperties* GetJobProperties(TJobId jobId);
     const TJobProperties* GetJobProperties(TJobId jobId) const;
 
-    // Update atomic values from local values in shard state.
-    void UpdateShardState();
+    // Collect up-to-date values from node shards local counters.
+    void UpdateDiagnosticCounters();
 };
 
 DEFINE_REFCOUNTED_TYPE(TFairShareTreeJobSchedulerOperationSharedState)

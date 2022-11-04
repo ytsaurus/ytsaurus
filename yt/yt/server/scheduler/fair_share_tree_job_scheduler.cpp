@@ -2570,6 +2570,10 @@ TError TFairShareTreeJobScheduler::CheckOperationIsHung(
 {
     const auto& operationSharedState = treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(element);
 
+    if (element->PersistentAttributes().StarvationStatus == EStarvationStatus::NonStarving) {
+        return TError();
+    }
+
     int deactivationCount = 0;
     auto deactivationReasonToCount = operationSharedState->GetDeactivationReasonsFromLastNonStarvingTime();
     for (auto reason : deactivationReasons) {
