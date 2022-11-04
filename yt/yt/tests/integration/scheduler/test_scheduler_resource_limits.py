@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup, is_asan_build, is_debug_build, Restarter, N
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     ls, get, set, create_pool, write_file, read_table, write_table, map, vanilla, get_job,
-    update_nodes_dynamic_config, set_node_resource_targets, update_controller_agent_config,
+    update_nodes_dynamic_config, update_controller_agent_config,
     run_test_vanilla, sync_create_cells)
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path
@@ -650,26 +650,6 @@ class TestUpdateInstanceLimits(YTEnvSetup):
             <= precision
         )
         wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 3)
-
-    @authors("gritukan")
-    def test_arbitrage(self):
-        node = ls("//sys/cluster_nodes")[0]
-        with pytest.raises(YtError):
-            set_node_resource_targets(node, cpu_limit=1, memory_limit=3*1024**3)
-
-        update_nodes_dynamic_config({
-            "resource_limits": {
-                "use_instance_limits_tracker": False,
-            }
-        })
-
-        set_node_resource_targets(node, cpu_limit=0, memory_limit=0)
-        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 0)
-        wait(lambda: get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) == 0)
-
-        set_node_resource_targets(node, cpu_limit=5000, memory_limit=5 * 1024**3)
-        wait(lambda: int(get("//sys/cluster_nodes/{}/@resource_limits/cpu".format(node))) == 4)
-        wait(lambda: get("//sys/cluster_nodes/{}/@resource_limits/user_memory".format(node)) > 0)
 
 ###############################################################################################
 
