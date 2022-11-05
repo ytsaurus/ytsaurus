@@ -1,8 +1,14 @@
 #include "thread.h"
 
+#include "private.h"
+
 #include <yt/yt/core/actions/bind.h>
 
 #include <yt/yt/core/misc/proc.h>
+
+#ifdef _linux_
+    #include <sched.h>
+#endif
 
 namespace NYT::NConcurrency {
 
@@ -11,10 +17,16 @@ namespace NYT::NConcurrency {
 static thread_local TThreadId CurrentUniqueThreadId;
 static std::atomic<TThreadId> UniqueThreadIdGenerator;
 
+static const auto& Logger = ConcurrencyLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TThread::TThread(
     TString threadName,
+    EThreadPriority threadPriority,
     int shutdownPriority)
     : ThreadName_(std::move(threadName))
+    , ThreadPriority_(threadPriority)
     , ShutdownPriority_(shutdownPriority)
     , UniqueThreadId_(++UniqueThreadIdGenerator)
     , UnderlyingThread_(&StaticThreadMainTrampoline, this)
@@ -179,6 +191,8 @@ void TThread::ThreadMainTrampoline()
     ThreadId_ = GetCurrentThreadId();
     CurrentUniqueThreadId = UniqueThreadId_;
 
+    SetThreadPriority();
+
     StartedEvent_.NotifyAll();
 
     class TExitInterceptor
@@ -225,10 +239,28 @@ void TThread::StopPrologue()
 void TThread::StopEpilogue()
 { }
 
-void TThread::EnableRealTimePriority()
+void TThread::SetThreadPriority()
 {
     YT_VERIFY(ThreadId_ != InvalidThreadId);
-    // TODO(babenko): actually set priority.
+
+#ifdef _linux_
+    if (ThreadPriority_ == EThreadPriority::RealTime) {
+        struct sched_param param{
+            .sched_priority = 1
+        };
+        int result = sched_setscheduler(ThreadId_, SCHED_FIFO, &param);
+        if (result == 0) {
+            YT_LOG_DEBUG("Thread real-time priority enabled (ThreadName: %v)",
+                ThreadName_);
+        } else {
+            YT_LOG_DEBUG(TError::FromSystem(), "Cannot enable thread real-time priority: sched_setscheduler failed (ThreadName: %v)",
+                ThreadName_);
+        }
+    }
+#else
+    Y_UNUSED(ThreadPriority_);
+    Y_UNUSED(Logger);
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////

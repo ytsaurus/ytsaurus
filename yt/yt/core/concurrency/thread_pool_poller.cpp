@@ -33,14 +33,14 @@ using namespace NProfiling;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TPollerThread;
+class TThreadPoolPoller;
 
 namespace {
 
 struct TPollableCookie
     : public TRefCounted
 {
-    explicit TPollableCookie(TPollerThread* pollerThread)
+    explicit TPollableCookie(TThreadPoolPoller* pollerThread)
         : PollerThread(pollerThread)
     { }
 
@@ -49,7 +49,7 @@ struct TPollableCookie
         return static_cast<TPollableCookie*>(pollable->GetCookie());
     }
 
-    TPollerThread* const PollerThread = nullptr;
+    TThreadPoolPoller* const PollerThread = nullptr;
 
     // Active event count is equal to 2 * (active events) + (1 for unregister flag).
     std::atomic<int> ActiveEventCount = 1;
@@ -104,14 +104,36 @@ bool TryAcquireEventCount(IPollable* pollable)
     return false;
 }
 
+EThreadPriority PollablePriorityToThreadPriority(EPollablePriority priority)
+{
+    switch (priority) {
+        case EPollablePriority::RealTime:
+            return EThreadPriority::RealTime;
+
+        default:
+            return EThreadPriority::Normal;
+    }
+}
+
+TString PollablePriorityToPollerThreadNameSuffix(EPollablePriority priority)
+{
+    switch (priority) {
+        case EPollablePriority::RealTime:
+            return "RT";
+
+        default:
+            return "";
+    }
+}
+
 } // namespace
 
-class TPollerThread
+class TThreadPoolPoller
     : public IThreadPoolPoller
     , public TThread
 {
 public:
-    TPollerThread(int threadCount, const TString& threadNamePrefix)
+    TThreadPoolPoller(int threadCount, const TString& threadNamePrefix)
         : TThread(Format("%v:%v", threadNamePrefix, "Poll"))
         , Logger(ConcurrencyLogger.WithTag("ThreadNamePrefix: %v", threadNamePrefix))
     {
@@ -120,8 +142,8 @@ public:
         for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
             HandlerThreadPool_[priority] = New<TThreadPool>(
                 threadCount,
-                threadNamePrefix);
-
+                threadNamePrefix + PollablePriorityToPollerThreadNameSuffix(priority),
+                PollablePriorityToThreadPriority(priority));
             HandlerInvoker_[priority] = HandlerThreadPool_[priority]->GetInvoker();
         }
     }
@@ -189,7 +211,7 @@ public:
 
     IInvokerPtr GetInvoker() const override
     {
-        return HandlerInvoker_[EPollablePriority::Default];
+        return HandlerInvoker_[EPollablePriority::Normal];
     }
 
     void Shutdown() override
@@ -394,7 +416,7 @@ IThreadPoolPollerPtr CreateThreadPoolPoller(
     int threadCount,
     const TString& threadNamePrefix)
 {
-    auto poller = New<TPollerThread>(threadCount, threadNamePrefix);
+    auto poller = New<TThreadPoolPoller>(threadCount, threadNamePrefix);
     poller->Start();
     return poller;
 }

@@ -44,6 +44,7 @@ private:
             CallbackEventCount_,
             ThreadName_,
             ThreadName_,
+            EThreadPriority::Normal,
             /*shutdownPriority*/ -201))
         , ShutdownCookie_(RegisterShutdownCallback(
             "FinalizerManager",

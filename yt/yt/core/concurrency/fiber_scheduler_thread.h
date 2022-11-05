@@ -9,14 +9,15 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Executes actions in fiber context.
-class TFiberScheduler
+class TFiberSchedulerThread
     : public TThread
 {
 public:
-    TFiberScheduler(
+    TFiberSchedulerThread(
         const TString& threadGroupName,
         const TString& threadName,
-        int shutdownPriority);
+        EThreadPriority threadPriority = EThreadPriority::Normal,
+        int shutdownPriority = 0);
 
     //! Empty callback signals about stopping.
     virtual TClosure OnExecute() = 0;

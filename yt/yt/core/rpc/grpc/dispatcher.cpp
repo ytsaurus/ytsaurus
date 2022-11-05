@@ -90,7 +90,10 @@ private:
     {
     public:
         explicit TDispatcherThread(int index)
-            : TThread(Format("Grpc:%v", index), GrpcDispatcherThreadShutdownPriority)
+            : TThread(
+                Format("Grpc:%v", index),
+                EThreadPriority::Normal,
+                GrpcDispatcherThreadShutdownPriority)
             , GuardedCompletionQueue_(TGrpcCompletionQueuePtr(grpc_completion_queue_create_for_next(nullptr)))
         {
             Start();

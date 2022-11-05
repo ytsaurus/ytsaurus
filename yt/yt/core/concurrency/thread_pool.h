@@ -15,7 +15,8 @@ class TThreadPool
 public:
     TThreadPool(
         int threadCount,
-        const TString& threadNamePrefix);
+        const TString& threadNamePrefix,
+        EThreadPriority threadPriority = EThreadPriority::Normal);
 
     virtual ~TThreadPool();
 

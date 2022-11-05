@@ -104,12 +104,13 @@ public:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
-        int shutdownPriority = 0)
+        EThreadPriority threadPriority)
         : TSchedulerThread(
             callbackEventCount,
             threadGroupName,
             threadName,
-            shutdownPriority)
+            threadPriority,
+            /*shutdownPriority*/ 0)
         , Queue_(std::move(queue))
     { }
 
@@ -143,8 +144,9 @@ class TThreadPool::TImpl
 public:
     TImpl(
         int threadCount,
-        const TString& threadNamePrefix)
-        : TThreadPoolBase(threadNamePrefix)
+        const TString& threadNamePrefix,
+        EThreadPriority threadPriority)
+        : TThreadPoolBase(threadNamePrefix, threadPriority)
         , Queue_(New<TInvokerQueueAdapter>(
             CallbackEventCount_,
             GetThreadTags(ThreadNamePrefix_)))
@@ -196,7 +198,8 @@ private:
             Queue_,
             CallbackEventCount_,
             ThreadNamePrefix_,
-            MakeThreadName(index));
+            MakeThreadName(index),
+            ThreadPriority_);
     }
 };
 
@@ -204,10 +207,12 @@ private:
 
 TThreadPool::TThreadPool(
     int threadCount,
-    const TString& threadNamePrefix)
+    const TString& threadNamePrefix,
+    EThreadPriority threadPriority)
     : Impl_(New<TImpl>(
         threadCount,
-        threadNamePrefix))
+        threadNamePrefix,
+        threadPriority))
 { }
 
 TThreadPool::~TThreadPool() = default;

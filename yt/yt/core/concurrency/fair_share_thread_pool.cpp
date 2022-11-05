@@ -461,11 +461,14 @@ public:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
+        EThreadPriority threadPriority,
         int index)
         : TSchedulerThread(
             std::move(callbackEventCount),
             threadGroupName,
-            threadName)
+            threadName,
+            threadPriority,
+            /*shutdownPriority*/ 0)
         , Queue_(std::move(queue))
         , Index_(index)
     { }
@@ -561,6 +564,7 @@ private:
             CallbackEventCount_,
             ThreadNamePrefix_,
             MakeThreadName(index),
+            ThreadPriority_,
             index);
     }
 };

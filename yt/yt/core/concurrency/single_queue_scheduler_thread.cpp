@@ -11,11 +11,13 @@ TSingleQueueSchedulerThread<TQueueImpl>::TSingleQueueSchedulerThread(
     TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
     const TString& threadGroupName,
     const TString& threadName,
+    EThreadPriority threadPriority,
     int shutdownPriority)
     : TSchedulerThread(
         std::move(callbackEventCount),
         threadGroupName,
         threadName,
+        threadPriority,
         shutdownPriority)
     , Queue_(std::move(queue))
     , Token_(Queue_->MakeConsumerToken())

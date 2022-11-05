@@ -16,7 +16,7 @@ void* TPollableBase::GetCookie() const
 
 EPollablePriority TPollableBase::GetPriority() const
 {
-    return EPollablePriority::Default;
+    return EPollablePriority::Normal;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

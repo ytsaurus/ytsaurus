@@ -1,4 +1,4 @@
-#include "fiber_scheduler.h"
+#include "fiber_scheduler_thread.h"
 
 #include "profiling_helpers.h"
 #include "execution_stack.h"
@@ -71,7 +71,7 @@ struct TFiberContext
     TClosure AfterSwitch;
     TFiberPtr ResumerFiber;
     TFiberPtr CurrentFiber;
-    TFiberScheduler* FiberThread = nullptr;
+    TFiberSchedulerThread* FiberThread = nullptr;
 
     TRefCountedGaugePtr WaitingFibersCounter;
 };
@@ -80,15 +80,16 @@ static thread_local TFiberContext* FiberContext;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFiberScheduler::TFiberScheduler(
+TFiberSchedulerThread::TFiberSchedulerThread(
     const TString& threadGroupName,
     const TString& threadName,
+    EThreadPriority threadPriority,
     int shutdownPriority)
-    : TThread(threadName, shutdownPriority)
+    : TThread(threadName, threadPriority, shutdownPriority)
     , ThreadGroupName_(threadGroupName)
 { }
 
-void TFiberScheduler::ThreadMain()
+void TFiberSchedulerThread::ThreadMain()
 {
     // Hold this strongly.
     auto this_ = MakeStrong(this);
@@ -268,7 +269,7 @@ Y_NO_INLINE TFiberPtr& CurrentFiber()
     return FiberContext ? FiberContext->CurrentFiber : NullFiberPtr;
 }
 
-Y_NO_INLINE TFiberScheduler* GetFiberThread()
+Y_NO_INLINE TFiberSchedulerThread* GetFiberThread()
 {
     return FiberContext->FiberThread;
 }
@@ -422,7 +423,7 @@ void FiberMain()
     }
 
     auto* currentFiber = CurrentFiber().Get();
-    TFiberScheduler* fiberThread = nullptr;
+    TFiberSchedulerThread* fiberThread = nullptr;
 
     // Break loop to terminate fiber
     while (fiberThread = GetFiberThread()) {
