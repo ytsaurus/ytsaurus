@@ -258,7 +258,7 @@ EPollablePriority TTcpConnection::GetPriority() const
         case EMultiplexingBand::RealTime:
             return EPollablePriority::RealTime;
         default:
-            return EPollablePriority::Default;
+            return EPollablePriority::Normal;
     }
 }
 

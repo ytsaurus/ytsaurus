@@ -1,6 +1,6 @@
 #pragma once
 
-#include "fiber_scheduler.h"
+#include "fiber_scheduler_thread.h"
 
 namespace NYT::NConcurrency {
 
@@ -9,7 +9,7 @@ namespace NYT::NConcurrency {
 DECLARE_REFCOUNTED_CLASS(TSchedulerThreadBase)
 
 class TSchedulerThreadBase
-    : public TFiberScheduler
+    : public TFiberSchedulerThread
 {
 public:
     ~TSchedulerThreadBase();
@@ -26,6 +26,7 @@ protected:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
+        EThreadPriority threadPriority = EThreadPriority::Normal,
         int shutdownPriority = 0);
 
     virtual void OnStart();

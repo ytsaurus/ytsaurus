@@ -18,8 +18,9 @@ class TThread
     : public virtual TRefCounted
 {
 public:
-    TThread(
+    explicit TThread(
         TString threadName,
+        EThreadPriority threadPriority = EThreadPriority::Normal,
         int shutdownPriority = 0);
     ~TThread();
 
@@ -52,10 +53,9 @@ protected:
 
     virtual void ThreadMain() = 0;
 
-    void EnableRealTimePriority();
-
 private:
     const TString ThreadName_;
+    const EThreadPriority ThreadPriority_;
     const int ShutdownPriority_;
 
     const TThreadId UniqueThreadId_;
@@ -70,6 +70,8 @@ private:
 
     TThreadId ThreadId_ = InvalidThreadId;
     ::TThread UnderlyingThread_;
+
+    void SetThreadPriority();
 
     bool StartSlow();
 

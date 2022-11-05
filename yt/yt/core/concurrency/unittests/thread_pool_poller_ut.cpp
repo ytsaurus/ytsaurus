@@ -45,7 +45,7 @@ public:
 
     EPollablePriority GetPriority() const override
     {
-        return EPollablePriority::Default;
+        return EPollablePriority::Normal;
     }
 
     void OnEvent(EPollControl control) override

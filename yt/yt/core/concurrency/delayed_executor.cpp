@@ -171,6 +171,7 @@ private:
         TPollerThread()
             : TThread(
                 "DelayedPoller",
+                EThreadPriority::Normal,
                 /*shutdownPriority*/ 200)
         { }
 

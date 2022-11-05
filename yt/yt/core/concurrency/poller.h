@@ -28,7 +28,7 @@ DEFINE_BIT_ENUM(EPollControl,
 //! Poller may provide separate sets of threads for handling pollables of
 //! various priorities.
 DEFINE_ENUM(EPollablePriority,
-    ((Default)   (0))
+    ((Normal)    (0))
     ((RealTime)  (1))
 );
 

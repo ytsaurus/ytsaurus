@@ -16,8 +16,13 @@ TSchedulerThreadBase::TSchedulerThreadBase(
     TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
     const TString& threadGroupName,
     const TString& threadName,
+    EThreadPriority threadPriority,
     int shutdownPriority)
-    : TFiberScheduler(threadGroupName, threadName, shutdownPriority)
+    : TFiberSchedulerThread(
+        threadGroupName,
+        threadName,
+        threadPriority,
+        shutdownPriority)
     , CallbackEventCount_(std::move(callbackEventCount))
 { }
 

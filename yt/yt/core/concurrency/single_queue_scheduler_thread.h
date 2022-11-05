@@ -20,6 +20,7 @@ public:
         TIntrusivePtr<NThreading::TEventCount> callbackEventCount,
         const TString& threadGroupName,
         const TString& threadName,
+        EThreadPriority threadPriority = EThreadPriority::Normal,
         int shutdownPriority = 0);
 
 protected:

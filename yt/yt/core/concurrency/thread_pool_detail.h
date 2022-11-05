@@ -16,7 +16,9 @@ class TThreadPoolBase
 public:
     static constexpr int MaxThreadCount = 64;
 
-    explicit TThreadPoolBase(TString threadNamePrefix);
+    explicit TThreadPoolBase(
+        TString threadNamePrefix,
+        EThreadPriority threadPriority = EThreadPriority::Normal);
 
     void Configure(int threadCount);
     void Shutdown();
@@ -26,6 +28,7 @@ public:
 
 protected:
     const TString ThreadNamePrefix_;
+    const EThreadPriority ThreadPriority_;
 
     const TShutdownCookie ShutdownCookie_;
 
