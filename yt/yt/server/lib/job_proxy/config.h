@@ -229,6 +229,8 @@ public:
 
     bool UploadDebugArtifactChunks;
 
+    TDuration DelayBeforeAbort;
+
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 
     static void Register(TRegistrar registrar);

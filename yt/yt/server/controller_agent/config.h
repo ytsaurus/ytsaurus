@@ -890,8 +890,9 @@ public:
     double UserJobMemoryReserveQuantile;
     double JobProxyMemoryReserveQuantile;
     double MemoryDigestResourceOverdraftFactor;
-    std::optional<double> ResourceOverdraftMemoryReserveMultiplier;
-    bool UseResourceOverdraftMemoryReserveMultiplierFromSpec;
+    std::optional<double> UserJobResourceOverdraftMemoryMultiplier;
+    std::optional<double> JobProxyResourceOverdraftMemoryMultiplier;
+    bool UseResourceOverdraftMemoryMultiplierFromSpec;
 
     //! If user job iops threshold is exceeded, iops throttling is enabled via cgroups.
     std::optional<int> IopsThreshold;
@@ -1062,6 +1063,9 @@ public:
 
     // TODO(eshcherbin): Remove this option, when we're sure aggregation is never needed. See: YT-17479.
     bool AggregateMinNeededResourcesPerJobType;
+
+    // Supposed to be used in tests.
+    std::optional<i64> FootprintMemory;
 
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 

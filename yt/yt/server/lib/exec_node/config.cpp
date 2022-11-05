@@ -461,6 +461,9 @@ void TExecNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("job_proxy_upload_debug_artifact_chunks", &TThis::JobProxyUploadDebugArtifactChunks)
         .Default(false);
 
+    registrar.Parameter("job_proxy_delay_before_abort", &TThis::JobProxyDelayBeforeAbort)
+        .Default(TDuration::Zero());
+
     registrar.Parameter("test_root_fs", &TThis::TestRootFS)
         .Default(false);
 

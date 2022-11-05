@@ -181,6 +181,9 @@ void TJobProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("upload_debug_artifact_chunks", &TThis::UploadDebugArtifactChunks)
         .Default(true);
 
+    registrar.Parameter("delay_before_abort", &TThis::DelayBeforeAbort)
+        .Default(TDuration::Zero());
+
     registrar.Parameter("tvm_bridge_connection", &TThis::TvmBridgeConnection)
         .Default();
 

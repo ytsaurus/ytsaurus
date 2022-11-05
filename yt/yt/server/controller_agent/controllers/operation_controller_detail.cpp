@@ -9070,6 +9070,9 @@ void TOperationControllerBase::InitUserJobSpec(
     ToProto(jobSpec->mutable_debug_output_transaction_id(), DebugTransaction->GetId());
 
     jobSpec->set_memory_reserve(joblet->UserJobMemoryReserve);
+    jobSpec->set_job_proxy_memory_reserve(
+        joblet->EstimatedResourceUsage.GetFootprintMemory() +
+        joblet->EstimatedResourceUsage.GetJobProxyMemory() * joblet->JobProxyMemoryReserveFactor.value());
 
     jobSpec->add_environment(Format("YT_JOB_INDEX=%v", joblet->JobIndex));
     jobSpec->add_environment(Format("YT_TASK_JOB_INDEX=%v", joblet->TaskJobIndex));

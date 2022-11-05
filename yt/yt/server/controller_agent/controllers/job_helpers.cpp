@@ -202,12 +202,20 @@ void UpdateJobletFromSummary(
         return static_cast<i64>(cumulativeMemory / 1000.0);
     };
 
+    i64 jobProxyMemoryReserve = joblet->EstimatedResourceUsage.GetJobProxyMemory() * *joblet->JobProxyMemoryReserveFactor;
+
     controllerStatistics->ReplacePathWithSample(
         "/job_proxy/estimated_memory",
         joblet->EstimatedResourceUsage.GetJobProxyMemory());
     controllerStatistics->ReplacePathWithSample(
+        "/job_proxy/memory_reserve",
+        jobProxyMemoryReserve);
+    controllerStatistics->ReplacePathWithSample(
         "/job_proxy/cumulative_estimated_memory",
         getCumulativeMemory(joblet->EstimatedResourceUsage.GetJobProxyMemory(), duration));
+    controllerStatistics->ReplacePathWithSample(
+        "/job_proxy/cumulative_memory_reserve",
+        getCumulativeMemory(jobProxyMemoryReserve, duration));
     controllerStatistics->AddSample(
         "/job_proxy/memory_reserve_factor_x10000",
         static_cast<int>(1e4 * *joblet->JobProxyMemoryReserveFactor));

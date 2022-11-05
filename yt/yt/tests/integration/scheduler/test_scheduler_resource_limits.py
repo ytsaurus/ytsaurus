@@ -8,12 +8,15 @@ from yt_commands import (
 
 from yt_scheduler_helpers import scheduler_orchid_pool_path
 
+from yt_helpers import read_structured_log, write_log_barrier
+
 import yt.environment.init_operation_archive as init_operation_archive
 
 from yt.common import YtError
 
 import pytest
 
+import string
 import socket
 import time
 import builtins
@@ -41,10 +44,17 @@ while len(a) * 100000 < {memory}:
 """
 
 
+def create_memory_script(memory, before_action=""):
+    return MEMORY_SCRIPT.format(before_action=before_action, memory=memory, after_action="time.sleep(5.0)").encode("ascii")
+
+
 def check_memory_limit(op):
     for job_id in op.list_jobs():
         inner_errors = get_job(op.id, job_id)["error"]["inner_errors"]
         assert "Memory limit exceeded" in inner_errors[0]["message"]
+
+
+###############################################################################################
 
 
 class TestSchedulerMemoryLimits(YTEnvSetup):
@@ -125,21 +135,17 @@ class TestDisabledMemoryLimit(YTEnvSetup):
         )
 
 
+###############################################################################################
+
+
 class TestMemoryReserveFactor(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 5
     NUM_SCHEDULERS = 1
     USE_PORTO = True
 
-    DELTA_SCHEDULER_CONFIG = {
-        "scheduler": {
-            "event_log": {"flush_period": 100},
-        }
-    }
-
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "event_log": {"flush_period": 100},
             "user_job_memory_digest_precision": 0.05,
         }
     }
@@ -147,11 +153,9 @@ class TestMemoryReserveFactor(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "always_abort_on_memory_reserve_overdraft": True,
+            "job_proxy_delay_before_abort": 1000,
         }
     }
-
-    def _format_script(self, memory, before_action=""):
-        return MEMORY_SCRIPT.format(before_action=before_action, memory=memory, after_action="time.sleep(5.0)").encode("ascii")
 
     @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
     @authors("ignat", "max42")
@@ -160,8 +164,10 @@ class TestMemoryReserveFactor(YTEnvSetup):
         job_count = 20
 
         create("file", "//tmp/mapper.py")
-        write_file("//tmp/mapper.py", self._format_script(memory=200 * 10 ** 6))
-        set("//tmp/mapper.py/@executable", True)
+        write_file("//tmp/mapper.py", create_memory_script(memory=200 * 10 ** 6), attributes={"executable": True})
+
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        from_barrier = write_log_barrier(controller_agent_address)
 
         op = run_test_vanilla(
             track=True,
@@ -176,9 +182,17 @@ class TestMemoryReserveFactor(YTEnvSetup):
             })
 
         time.sleep(1)
-        event_log = read_table("//sys/scheduler/event_log", verbose=False)
+
+        to_barrier = write_log_barrier(controller_agent_address)
+
+        structured_log = read_structured_log(
+            self.path_to_run + "/logs/controller-agent-0.json.log",
+            from_barrier=from_barrier,
+            to_barrier=to_barrier,
+            row_filter=lambda e: "event_type" in e)
+
         last_memory_reserve = None
-        for event in event_log:
+        for event in structured_log:
             if event["event_type"] == "job_completed" and event["operation_id"] == op.id:
                 print_debug(
                     event["job_id"],
@@ -189,22 +203,47 @@ class TestMemoryReserveFactor(YTEnvSetup):
         assert last_memory_reserve is not None
         assert 2e8 <= last_memory_reserve <= 3e8
 
-    @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
-    @pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
-    @authors("ignat")
-    def test_resource_overdraft_memory_reserve_multiplier(self):
-        update_controller_agent_config("resource_overdraft_memory_reserve_multiplier", 1.5)
+###############################################################################################
 
-        create("file", "//tmp/mapper.py")
+
+@pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")
+@pytest.mark.skipif(is_debug_build(), reason="This test does not work under Debug build")
+class TestMemoryReserveMultiplier(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+    USE_PORTO = True
+
+    DELTA_CONTROLLER_AGENT_CONFIG = {
+        "controller_agent": {
+            "user_job_memory_digest_precision": 0.05,
+        }
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "always_abort_on_memory_reserve_overdraft": True,
+            "job_proxy_heartbeat_period": 500,
+            "job_proxy_delay_before_abort": 1000,
+        }
+    }
+
+    @authors("ignat")
+    def test_user_job_resource_overdraft_memory_multiplier(self):
+        update_controller_agent_config("user_job_resource_overdraft_memory_multiplier", 1.5)
+
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        from_barrier = write_log_barrier(controller_agent_address)
+
+        create("file", "//tmp/mapper.py", attributes={"replication_factor": 1, "executable": True})
         write_file(
             "//tmp/mapper.py",
-            self._format_script(
+            create_memory_script(
                 # This sleep is necessary to report statistics from job proxy to node before abort.
                 before_action="time.sleep(5)",
                 # Higher memory is necessary due to additional ytserver-exec memory footprint.
                 memory=250 * 10 ** 6,
             ))
-        set("//tmp/mapper.py/@executable", True)
 
         op = run_test_vanilla(
             track=True,
@@ -220,10 +259,18 @@ class TestMemoryReserveFactor(YTEnvSetup):
             })
 
         time.sleep(1)
-        event_log = read_table("//sys/scheduler/event_log", verbose=False)
-        memory_reserves = []
+
+        to_barrier = write_log_barrier(controller_agent_address)
+
+        structured_log = read_structured_log(
+            self.path_to_run + "/logs/controller-agent-0.json.log",
+            from_barrier=from_barrier,
+            to_barrier=to_barrier,
+            row_filter=lambda e: "event_type" in e)
+
+        user_job_memory_reserves = []
         last_job_id = None
-        for event in event_log:
+        for event in structured_log:
             if event["event_type"] in ("job_aborted", "job_completed") and event["operation_id"] == op.id:
                 assert "user_job" in event["statistics"]
                 print_debug(
@@ -239,15 +286,84 @@ class TestMemoryReserveFactor(YTEnvSetup):
                     assert event["predecessor_type"] == "resource_overdraft"
                 last_job_id = event["job_id"]
 
-                memory_reserves.append(int(event["statistics"]["user_job"]["memory_reserve"]["sum"]))
+                user_job_memory_reserves.append(int(event["statistics"]["user_job"]["memory_reserve"]["sum"]))
 
-        print_debug("Memory reserves", memory_reserves)
-        assert memory_reserves[0] == 160 * 10 ** 6
-        assert memory_reserves[1] == 240 * 10 ** 6
-        assert memory_reserves[2] == 400 * 10 ** 6
+        assert user_job_memory_reserves[0] == 160 * 10 ** 6
+        assert user_job_memory_reserves[1] == 240 * 10 ** 6
+        assert user_job_memory_reserves[2] == 400 * 10 ** 6
 
+    @authors("ignat")
+    def test_job_proxy_resource_overdraft_memory_multiplier(self):
+        footprint = 16 * 1024 * 1024
 
-###############################################################################################
+        update_controller_agent_config("job_proxy_resource_overdraft_memory_multiplier", 1.5)
+        update_controller_agent_config("footprint_memory", footprint)
+
+        controller_agent_address = ls("//sys/controller_agents/instances")[0]
+        from_barrier = write_log_barrier(controller_agent_address)
+
+        create("table", "//tmp/in", attributes={"replication_factor": 1})
+        create("table", "//tmp/out", attributes={"replication_factor": 1})
+        write_table("//tmp/in", [{"key": string.ascii_letters + str(value)} for value in range(5 * 1000 * 1000)])
+
+        op = map(
+            track=True,
+            command="sleep 2",
+            in_="//tmp/in",
+            out="//tmp/out",
+            spec={
+                "job_count": 1,
+                "mapper": {
+                    "memory_limit": 300 * 10 ** 6,
+                    "user_job_memory_digest_default_value": 0.5,
+                    "user_job_memory_digest_lower_bound": 0.4,
+                    "job_proxy_memory_digest": {
+                        "default_value": 0.1,
+                        "lower_bound": 0.1,
+                        "upper_bound": 2.0,
+                    },
+                }
+            })
+
+        time.sleep(1)
+
+        to_barrier = write_log_barrier(controller_agent_address)
+
+        structured_log = read_structured_log(
+            self.path_to_run + "/logs/controller-agent-0.json.log",
+            from_barrier=from_barrier,
+            to_barrier=to_barrier,
+            row_filter=lambda e: "event_type" in e)
+
+        job_proxy_memory_reserves = []
+        user_job_memory_reserves = []
+        last_job_id = None
+        for event in structured_log:
+            if event["event_type"] in ("job_aborted", "job_completed") and event["operation_id"] == op.id:
+                assert "user_job" in event["statistics"]
+                print_debug(
+                    event["job_id"],
+                    event.get("predecessor_type"),
+                    event.get("predecessor_job_id"),
+                    event["statistics"]["user_job"]["memory_reserve"]["sum"],
+                    event["statistics"]["user_job"]["max_memory"]["sum"],
+                    event["statistics"]["job_proxy"]["memory_reserve"]["sum"],
+                    event["statistics"]["job_proxy"]["max_memory"]["sum"],
+                )
+
+                if last_job_id is not None:
+                    assert last_job_id == event["predecessor_job_id"]
+                    assert event["predecessor_type"] == "resource_overdraft"
+                last_job_id = event["job_id"]
+
+                job_proxy_memory_reserves.append(int(event["statistics"]["job_proxy"]["memory_reserve"]["sum"]) - footprint)
+                user_job_memory_reserves.append(int(event["statistics"]["user_job"]["memory_reserve"]["sum"]))
+
+        assert abs(job_proxy_memory_reserves[1] / job_proxy_memory_reserves[0] - 1.5) < 1e-3
+        assert abs(job_proxy_memory_reserves[2] / job_proxy_memory_reserves[0] - 20.0) < 1e-3
+
+        assert user_job_memory_reserves[1] <= user_job_memory_reserves[0]
+        assert user_job_memory_reserves[2] <= user_job_memory_reserves[0]
 
 
 @pytest.mark.skipif(is_asan_build(), reason="This test does not work under ASAN")

@@ -104,6 +104,8 @@ void TTask::Initialize()
 void TTask::Prepare()
 {
     const auto& spec = TaskHost_->GetSpec();
+    const auto& userJobSpec = GetUserJobSpec();
+
     TentativeTreeEligibility_ = TTentativeTreeEligibility(spec->TentativePoolTrees, spec->TentativeTreeEligibility, Logger);
 
     if (IsInputDataWeightHistogramSupported()) {
@@ -115,6 +117,19 @@ void TTask::Prepare()
         GetJobSplitterConfig(),
         GetChunkPoolOutput().Get(),
         Logger);
+
+    if (TaskHost_->GetConfig()->UseResourceOverdraftMemoryMultiplierFromSpec) {
+        if (userJobSpec) {
+            UserJobMemoryMultiplier_ = userJobSpec->UserJobResourceOverdraftMemoryMultiplier;
+            JobProxyMemoryMultiplier_ = userJobSpec->JobProxyResourceOverdraftMemoryMultiplier;
+        }
+        if (!JobProxyMemoryMultiplier_) {
+            JobProxyMemoryMultiplier_ = spec->JobProxyResourceOverdraftMemoryMultiplier;
+        }
+    } else {
+        UserJobMemoryMultiplier_ = TaskHost_->GetConfig()->UserJobResourceOverdraftMemoryMultiplier;
+        JobProxyMemoryMultiplier_ = TaskHost_->GetConfig()->JobProxyResourceOverdraftMemoryMultiplier;
+    }
 }
 
 TString TTask::GetTitle() const
@@ -506,9 +521,17 @@ void TTask::ScheduleJob(
         const auto& state = findIt->second;
         joblet->PredecessorJobId = state.LastJobId;
         joblet->PredecessorType = EPredecessorType::ResourceOverdraft;
-        joblet->JobProxyMemoryReserveFactor = state.DedicatedJobProxyMemoryReserveFactor;
+        if (state.JobProxyStatus != EResourceOverdraftStatus::None) {
+            joblet->JobProxyMemoryReserveFactor = state.DedicatedJobProxyMemoryReserveFactor;
+        } else {
+            joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
+        }
         if (HasUserJob()) {
-            joblet->UserJobMemoryReserveFactor = state.DedicatedUserJobMemoryReserveFactor;
+            if (state.UserJobStatus != EResourceOverdraftStatus::None) {
+                joblet->UserJobMemoryReserveFactor = state.DedicatedUserJobMemoryReserveFactor;
+            } else {
+                joblet->UserJobMemoryReserveFactor = *GetUserJobMemoryReserveFactor();
+            }
         }
     } else {
         joblet->JobProxyMemoryReserveFactor = GetJobProxyMemoryReserveFactor();
@@ -853,6 +876,11 @@ void TTask::Persist(const TPersistenceContext& context)
     Persist(context, ExhaustTimer_);
 
     Persist(context, AggregatedFinishedJobStatistics_);
+
+    if (context.GetVersion() >= ESnapshotVersion::SeparateMultipliers) {
+        Persist(context, UserJobMemoryMultiplier_);
+        Persist(context, JobProxyMemoryMultiplier_);
+    }
 }
 
 void TTask::OnJobStarted(TJobletPtr joblet)
@@ -1080,35 +1108,7 @@ TJobFinishedResult TTask::OnJobAborted(TJobletPtr joblet, const TAbortedJobSumma
     }
 
     if (jobSummary.AbortReason == EAbortReason::ResourceOverdraft) {
-        auto& state = ResourceOverdraftedOutputCookieToState_[joblet->OutputCookie];
-        auto userJobSpec = GetUserJobSpec();
-        auto multiplier =
-            (TaskHost_->GetConfig()->UseResourceOverdraftMemoryReserveMultiplierFromSpec && userJobSpec)
-            ? userJobSpec->ResourceOverdraftMemoryReserveMultiplier
-            : TaskHost_->GetConfig()->ResourceOverdraftMemoryReserveMultiplier;
-        double userJobMemoryReserveUpperBound = 1.0;
-        double jobProxyMemoryReserveUpperBound = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
-        state.LastJobId = joblet->JobId;
-        if (state.Status == EResourceOverdraftStatus::None) {
-            state.Status = EResourceOverdraftStatus::Once;
-            if (HasUserJob()) {
-                if (multiplier) {
-                    state.DedicatedUserJobMemoryReserveFactor = std::min(
-                        *joblet->UserJobMemoryReserveFactor * (*multiplier),
-                        userJobMemoryReserveUpperBound);
-                    state.DedicatedJobProxyMemoryReserveFactor = std::min(
-                        *joblet->JobProxyMemoryReserveFactor * (*multiplier),
-                        jobProxyMemoryReserveUpperBound);
-                } else {
-                    state.DedicatedUserJobMemoryReserveFactor = userJobMemoryReserveUpperBound;
-                    state.DedicatedJobProxyMemoryReserveFactor = jobProxyMemoryReserveUpperBound;
-                }
-            }
-        } else {
-            state.Status = EResourceOverdraftStatus::MultipleTimes;
-            state.DedicatedUserJobMemoryReserveFactor = userJobMemoryReserveUpperBound;
-            state.DedicatedJobProxyMemoryReserveFactor = jobProxyMemoryReserveUpperBound;
-        }
+        OnJobResourceOverdraft(joblet, jobSummary);
     }
 
     JobSplitter_->OnJobAborted(jobSummary);
@@ -1442,7 +1442,7 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft
         auto* digest = GetUserJobMemoryDigest();
         YT_VERIFY(digest);
         double actualFactor = static_cast<double>(*userJobMaxMemoryUsage) / joblet->EstimatedResourceUsage.GetUserJobMemory();
-        if (resourceOverdraft) {
+        if (resourceOverdraft && actualFactor >= 1.0) {
             // During resource overdraft actual max memory values may be outdated,
             // since statistics are updated periodically. To ensure that digest converge to large enough
             // values we introduce additional factor.
@@ -1460,7 +1460,7 @@ void TTask::UpdateMemoryDigests(const TJobletPtr& joblet, bool resourceOverdraft
         YT_VERIFY(digest);
         double actualFactor = static_cast<double>(*jobProxyMaxMemoryUsage) /
             (joblet->EstimatedResourceUsage.GetJobProxyMemory() + joblet->EstimatedResourceUsage.GetFootprintMemory());
-        if (resourceOverdraft) {
+        if (resourceOverdraft && actualFactor >= 1.0) {
             actualFactor = std::max(actualFactor, *joblet->JobProxyMemoryReserveFactor * TaskHost_->GetConfig()->MemoryDigestResourceOverdraftFactor);
         }
         YT_LOG_DEBUG("Adding sample to the job proxy memory digest (Sample: %v, JobId: %v, ResourceOverdraft: %v)",
@@ -1491,6 +1491,81 @@ TJobResources TTask::ApplyMemoryReserve(
     result.SetMemory(memory);
     result.SetNetwork(jobResources.GetNetwork());
     return result;
+}
+
+void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& jobSummary)
+{
+    auto Logger = this->Logger
+        .WithTag("JobId: %v", joblet->JobId);
+
+    auto& state = ResourceOverdraftedOutputCookieToState_[joblet->OutputCookie];
+    const auto& userJobSpec = GetUserJobSpec();
+
+    state.LastJobId = joblet->JobId;
+
+    double userJobMemoryReserveUpperBound = 1.0;
+    double jobProxyMemoryReserveUpperBound = TaskHost_->GetSpec()->JobProxyMemoryDigest->UpperBound;
+
+    auto jobProxyMaxMemory = FindNumericValue(*jobSummary.Statistics, "/job_proxy/max_memory").value_or(0);
+    auto jobProxyDedicatedMemory = joblet->EstimatedResourceUsage.GetJobProxyMemory() * joblet->JobProxyMemoryReserveFactor.value();
+    bool hasJobProxyMemoryOverdraft = jobProxyMaxMemory > jobProxyDedicatedMemory;
+
+    i64 userJobMaxMemory = FindNumericValue(*jobSummary.Statistics, "/user_job/max_memory").value_or(0);
+    bool hasUserJobMemoryOverdraft = userJobSpec
+        ? userJobMaxMemory > joblet->UserJobMemoryReserve
+        : false;
+
+    // NB: in case of outdated statistics we suppose that memory overdraft happened
+    // for the process with smallest gap between max memory and reserved memory.
+    if (!hasJobProxyMemoryOverdraft && !hasUserJobMemoryOverdraft) {
+        YT_LOG_DEBUG(
+            "Job was aborted with resource overdraft, but user job and job proxy memory does not exceed the limit; "
+            "choose overdrafted process by free memory gap "
+            "(JobProxyMaxMemory: %v, JobProxyDedicatedMemory: %v, UserJobMaxMemory: %v, UserJobMemoryReserve: %v)",
+            jobProxyMaxMemory,
+            jobProxyDedicatedMemory,
+            userJobSpec ? std::make_optional(userJobMaxMemory) : std::nullopt,
+            userJobSpec ? std::make_optional(joblet->UserJobMemoryReserve) : std::nullopt);
+        auto jobProxyMemoryGap = jobProxyDedicatedMemory - jobProxyMaxMemory;
+        auto userJobMemoryGap = joblet->UserJobMemoryReserve - userJobMaxMemory;
+        if (userJobSpec && userJobMemoryGap < jobProxyMemoryGap) {
+            hasUserJobMemoryOverdraft = true;
+        } else {
+            hasJobProxyMemoryOverdraft = true;
+        }
+    }
+
+    if (hasJobProxyMemoryOverdraft) {
+        if (state.JobProxyStatus == EResourceOverdraftStatus::None && JobProxyMemoryMultiplier_) {
+            state.JobProxyStatus = EResourceOverdraftStatus::Once;
+            state.DedicatedJobProxyMemoryReserveFactor = std::min(
+                joblet->JobProxyMemoryReserveFactor.value() * JobProxyMemoryMultiplier_.value(),
+                jobProxyMemoryReserveUpperBound);
+        } else {
+            state.JobProxyStatus = EResourceOverdraftStatus::MultipleTimes;
+            state.DedicatedJobProxyMemoryReserveFactor = jobProxyMemoryReserveUpperBound;
+        }
+    }
+
+    if (hasUserJobMemoryOverdraft) {
+        if (state.UserJobStatus == EResourceOverdraftStatus::None && UserJobMemoryMultiplier_) {
+            state.UserJobStatus = EResourceOverdraftStatus::Once;
+            state.DedicatedUserJobMemoryReserveFactor = std::min(
+                joblet->UserJobMemoryReserveFactor.value() * UserJobMemoryMultiplier_.value(),
+                userJobMemoryReserveUpperBound);
+        } else {
+            state.UserJobStatus = EResourceOverdraftStatus::MultipleTimes;
+            state.DedicatedUserJobMemoryReserveFactor = userJobMemoryReserveUpperBound;
+        }
+    }
+    
+    YT_LOG_DEBUG(
+        "Job was aborted with resource overdraft "
+        "(HasUserJobMemoryOverdraft: %v, HasJobProxyMemoryOverdraft: %v, UserJobOverdraftStatus: %v, JobProxyOverdraftStatus: %v)",
+        hasUserJobMemoryOverdraft,
+        hasJobProxyMemoryOverdraft,
+        state.UserJobStatus,
+        state.JobProxyStatus);
 }
 
 void TTask::UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics)
@@ -1626,7 +1701,7 @@ bool TTask::IsJobInterruptible() const
 
 void TTask::AddFootprintAndUserJobResources(TExtendedJobResources& jobResources) const
 {
-    jobResources.SetFootprintMemory(GetFootprintMemorySize());
+    jobResources.SetFootprintMemory(TaskHost_->GetConfig()->FootprintMemory.value_or(GetFootprintMemorySize()));
     auto userJobSpec = GetUserJobSpec();
     if (userJobSpec) {
         jobResources.SetUserJobMemory(userJobSpec->MemoryLimit);
@@ -2065,8 +2140,12 @@ void TTask::TResourceOverdraftState::Persist(const TPersistenceContext& context)
 {
     using NYT::Persist;
 
-    Persist(context, Status);
-    Persist(context, LastJobId);
+    Persist(context, UserJobStatus);
+    if (context.IsLoad() && context.GetVersion() < ESnapshotVersion::SeparateMultipliers) {
+        JobProxyStatus = UserJobStatus;
+    } else {
+        Persist(context, JobProxyStatus);
+    }
     Persist(context, DedicatedUserJobMemoryReserveFactor);
     Persist(context, DedicatedJobProxyMemoryReserveFactor);
 };

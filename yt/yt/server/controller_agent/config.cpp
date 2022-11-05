@@ -784,10 +784,15 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_digest_resource_overdraft_factor", &TThis::MemoryDigestResourceOverdraftFactor)
         .InRange(1.0, 10.0)
         .Default(1.1);
-    registrar.Parameter("resource_overdraft_memory_reserve_multiplier", &TThis::ResourceOverdraftMemoryReserveMultiplier)
+    registrar.Parameter("user_job_resource_overdraft_memory_multiplier", &TThis::UserJobResourceOverdraftMemoryMultiplier)
+        .Alias("resource_overdraft_memory_reserve_multiplier")
         .InRange(1.0, 10.0)
         .Default(std::nullopt);
-    registrar.Parameter("use_resource_overdraft_memory_reserve_multiplier_from_spec", &TThis::UseResourceOverdraftMemoryReserveMultiplierFromSpec)
+    registrar.Parameter("job_proxy_resource_overdraft_memory_multiplier", &TThis::JobProxyResourceOverdraftMemoryMultiplier)
+        .InRange(1.0, 10.0)
+        .Default(std::nullopt);
+    registrar.Parameter("use_resource_overdraft_memory_multiplier_from_spec", &TThis::UseResourceOverdraftMemoryMultiplierFromSpec)
+        .Alias("use_resource_overdraft_memory_reserve_multiplier_from_spec")
         .Default(false);
 
     registrar.Parameter("iops_threshold", &TThis::IopsThreshold)
@@ -950,6 +955,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("aggregate_min_needed_resources_per_job_type", &TThis::AggregateMinNeededResourcesPerJobType)
         .Default(false);
+
+    registrar.Parameter("footprint_memory", &TThis::FootprintMemory)
+        .Default();
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;

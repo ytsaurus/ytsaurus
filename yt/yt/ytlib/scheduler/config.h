@@ -860,8 +860,8 @@ public:
     //! Various auto-merge knobs.
     TAutoMergeConfigPtr AutoMerge;
 
-    // TODO(max42): make this field per-task.
     TLogDigestConfigPtr JobProxyMemoryDigest;
+    std::optional<double> JobProxyResourceOverdraftMemoryMultiplier;
 
     //! If set to true, any aborted/failed job will result in operation fail.
     bool FailOnJobRestart;
@@ -1033,9 +1033,10 @@ public:
     std::optional<double> MemoryReserveFactor;
     double UserJobMemoryDigestDefaultValue;
     double UserJobMemoryDigestLowerBound;
-    std::optional<double> ResourceOverdraftMemoryReserveMultiplier;
+    std::optional<double> UserJobResourceOverdraftMemoryMultiplier;
 
     TLogDigestConfigPtr JobProxyMemoryDigest;
+    std::optional<double> JobProxyResourceOverdraftMemoryMultiplier;
 
     bool IgnoreMemoryReserveFactorLessThanOne;
 
