@@ -1164,11 +1164,23 @@ void TJobProxy::CheckMemoryUsage()
     const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
     if (schedulerJobSpecExt.has_user_job_spec()) {
         const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-        if (Config_->AlwaysAbortOnMemoryReserveOverdraft && UserJobCurrentMemoryUsage_ > userJobSpec.memory_reserve()) {
-            YT_LOG_INFO("User job memory usage exceeded memory reserve (MemoryUsage: %v, MemoryReserve: %v)",
-                UserJobCurrentMemoryUsage_.load(),
-                userJobSpec.memory_reserve());
-            Abort(EJobProxyExitCode::ResourceOverdraft);
+        if (Config_->AlwaysAbortOnMemoryReserveOverdraft) {
+            bool overdraft = false;
+            if (UserJobCurrentMemoryUsage_ > userJobSpec.memory_reserve()) {
+                YT_LOG_INFO("User job memory usage exceeded memory reserve (MemoryUsage: %v, MemoryReserve: %v)",
+                    UserJobCurrentMemoryUsage_.load(),
+                    userJobSpec.memory_reserve());
+                overdraft = true;
+            }
+            if (jobProxyMemoryUsage > userJobSpec.job_proxy_memory_reserve()) {
+                YT_LOG_INFO("Job proxy memory usage exceeded memory reserve (MemoryUsage: %v, MemoryReserve: %v)",
+                    jobProxyMemoryUsage,
+                    userJobSpec.job_proxy_memory_reserve());
+                overdraft = true;
+            }
+            if (overdraft) {
+                Abort(EJobProxyExitCode::ResourceOverdraft);
+            }
         }
     }
 
@@ -1294,6 +1306,10 @@ void TJobProxy::FillStderrResult(TJobResult* jobResult)
 
 void TJobProxy::Abort(EJobProxyExitCode exitCode)
 {
+    if (Config_->DelayBeforeAbort) {
+        TDelayedExecutor::WaitForDuration(Config_->DelayBeforeAbort);
+    }
+
     if (auto job = FindJob()) {
         job->Cleanup();
     }

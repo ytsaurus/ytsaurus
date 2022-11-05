@@ -221,6 +221,9 @@ message TUserJobSpec
     optional bool enable_nat64 = 64;
 
     optional bool enable_squashfs = 65;
+    
+    // Memory size reserved for job proxy. Used in tests for checking job proxy memory overdraft.
+    optional int64 job_proxy_memory_reserve = 66;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

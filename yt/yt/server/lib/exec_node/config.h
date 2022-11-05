@@ -408,6 +408,8 @@ public:
 
     bool JobProxyUploadDebugArtifactChunks;
 
+    TDuration JobProxyDelayBeforeAbort;
+
     //! This is a special testing option.
     //! Instead of actually setting root fs, it just provides special environment variable.
     bool TestRootFS;

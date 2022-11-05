@@ -569,6 +569,10 @@ void TOperationSpecBase::Register(TRegistrar registrar)
             return config;
         });
 
+    registrar.Parameter("job_proxy_resource_overdraft_memory_multiplier", &TThis::JobProxyResourceOverdraftMemoryMultiplier)
+        .InRange(1.0, 10.0)
+        .Default(std::nullopt);
+
     registrar.Parameter("fail_on_job_restart", &TThis::FailOnJobRestart)
         .Default(false);
 
@@ -786,7 +790,8 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .LessThanOrEqual(1.);
     registrar.Parameter("ignore_memory_reserve_factor_less_than_one", &TThis::IgnoreMemoryReserveFactorLessThanOne)
         .Default(false);
-    registrar.Parameter("resource_overdraft_memory_reserve_multiplier", &TThis::ResourceOverdraftMemoryReserveMultiplier)
+    registrar.Parameter("user_job_resource_overdraft_memory_multiplier", &TThis::UserJobResourceOverdraftMemoryMultiplier)
+        .Alias("resource_overdraft_memory_reserve_multiplier")
         .InRange(1.0, 10.0)
         .Default(std::nullopt);
     registrar.Parameter("job_proxy_memory_digest", &TThis::JobProxyMemoryDigest)
@@ -797,6 +802,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
             config->DefaultValue = 1.0;
             return config;
         });
+    registrar.Parameter("job_proxy_resource_overdraft_memory_multiplier", &TThis::JobProxyResourceOverdraftMemoryMultiplier)
+        .InRange(1.0, 10.0)
+        .Default(std::nullopt);
     registrar.Parameter("include_memory_mapped_files", &TThis::IncludeMemoryMappedFiles)
         .Default(true);
     registrar.Parameter("use_yamr_descriptors", &TThis::UseYamrDescriptors)

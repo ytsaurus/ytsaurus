@@ -141,8 +141,10 @@ public:
     ~TOperationControllerWrapper() override
     {
         auto Logger = ControllerLogger.WithTag("OperationId: %v", Id_);
+
         YT_LOG_INFO("Controller wrapper destructed, controller destruction scheduled (MemoryUsage: %v)",
             GetMemoryUsageForTag(MemoryTag_));
+
         DtorInvoker_->Invoke(BIND([
             underlying = std::move(Underlying_),
             memoryTagQueue = MemoryTagQueue_,

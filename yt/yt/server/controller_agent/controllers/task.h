@@ -258,7 +258,7 @@ protected:
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
     NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
-
+    
     virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
     virtual void OnTaskCompleted();
@@ -421,10 +421,10 @@ private:
     TReadRangeRegistry InputReadRangeRegistry_;
     TControllerFeatures ControllerFeatures_;
 
-
     struct TResourceOverdraftState
     {
-        EResourceOverdraftStatus Status = EResourceOverdraftStatus::None;
+        EResourceOverdraftStatus UserJobStatus = EResourceOverdraftStatus::None;
+        EResourceOverdraftStatus JobProxyStatus = EResourceOverdraftStatus::None;
         TJobId LastJobId;
         double DedicatedUserJobMemoryReserveFactor = 0;
         double DedicatedJobProxyMemoryReserveFactor = 0;
@@ -438,10 +438,15 @@ private:
 
     TAggregatedJobStatistics AggregatedFinishedJobStatistics_;
 
+    std::optional<double> UserJobMemoryMultiplier_;
+    std::optional<double> JobProxyMemoryMultiplier_;
+
     NScheduler::TJobResources ApplyMemoryReserve(
         const TExtendedJobResources& jobResources,
         double jobProxyMemoryReserveFactor,
         std::optional<double> userJobMemoryReserveFactor) const;
+    
+    void OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
 
