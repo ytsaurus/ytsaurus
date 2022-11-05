@@ -1009,7 +1009,7 @@ void TScheduleJobsContext::PreemptJobsAfterScheduling(
         }
 
         if (auto violatedPool = findPoolWithViolatedLimitsForJob(job)) {
-            job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %v",
+            job->SetPreemptionReason(Format("Preempted due to violation of limits on pool %Qv",
                 violatedPool->GetId()));
             PreemptJob(job, operationElement, EJobPreemptionReason::ResourceLimitsViolated);
         }
