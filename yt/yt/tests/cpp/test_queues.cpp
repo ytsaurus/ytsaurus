@@ -431,12 +431,15 @@ TEST_W(TQueueTestBase, BatchSizesAreReasonable)
 
             rowsBuilder->AddRow(rowBuilder.GetRow());
 
-            if (RandomNumber(2000u) == 0 || rowIndex + 1 == rowCount) {
+            // The first condition forces some rows to be written and later flushed,
+            // so that the resulting table's flushed_row_count is not zero and the
+            // initial data weight per row hint can be computed.
+            if (rowIndex == rowCount / 14 || RandomNumber(2000u) == 0 || rowIndex + 1 == rowCount) {
                 WriteSharedRange(queue->GetPath(), queueNameTable, rowsBuilder->Build());
                 rowsBuilder = std::make_unique<TUnversionedRowsBuilder>();
             }
 
-            // Force some rows to be flushed, so that an initial data weight per row hint can be computed.
+            // For the first condition, see the comment above. Note that rowCount / 13 >= rowCount / 14.
             if (rowIndex == rowCount / 13 || RandomNumber(2500u) == 0) {
                 UnmountAndMount(queue->GetPath());
             }
