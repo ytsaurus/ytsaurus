@@ -1373,7 +1373,7 @@ private:
 
     void MaybeCancel(NScheduler::ECancelationStage cancelationStage);
 
-    void MarkJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
+    void ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType);
 
     template <class TTable, class TTransactionIdFunc, class TCellTagFunc>
     void FetchTableSchemas(

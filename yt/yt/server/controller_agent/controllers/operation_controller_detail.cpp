@@ -9860,21 +9860,21 @@ void TOperationControllerBase::InterruptJob(TJobId jobId, EInterruptReason reaso
 
 void TOperationControllerBase::OnCompetitiveJobScheduled(const TJobletPtr& joblet, EJobCompetitionType competitionType)
 {
-    MarkJobHasCompetitors(joblet, competitionType);
+    ReportJobHasCompetitors(joblet, competitionType);
     // Original job could be finished and another speculative still running.
     if (auto originalJob = FindJoblet(joblet->CompetitionIds[competitionType])) {
-        MarkJobHasCompetitors(originalJob, competitionType);
+        ReportJobHasCompetitors(originalJob, competitionType);
     }
 }
 
-void TOperationControllerBase::MarkJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType)
+void TOperationControllerBase::ReportJobHasCompetitors(const TJobletPtr& joblet, EJobCompetitionType competitionType)
 {
     if (!joblet->HasCompetitors[competitionType]) {
         joblet->HasCompetitors[competitionType] = true;
         auto jobReport = NJobAgent::TControllerJobReport()
             .OperationId(OperationId)
             .JobId(joblet->JobId)
-            .MarkHasCompetitors(/*hasCompetitors*/ true, competitionType);
+            .HasCompetitors(/*hasCompetitors*/ true, competitionType);
         Host->GetJobReporter()->HandleJobReport(std::move(jobReport));
     }
 }

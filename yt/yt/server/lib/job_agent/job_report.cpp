@@ -366,7 +366,7 @@ TControllerJobReport TControllerJobReport::JobId(NJobTrackerClient::TJobId jobId
     return std::move(*this);
 }
 
-TControllerJobReport TControllerJobReport::MarkHasCompetitors(bool hasCompetitors, EJobCompetitionType competitionType)
+TControllerJobReport TControllerJobReport::HasCompetitors(bool hasCompetitors, EJobCompetitionType competitionType)
 {
     switch (competitionType) {
         case EJobCompetitionType::Speculative:
