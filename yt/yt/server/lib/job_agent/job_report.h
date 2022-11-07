@@ -123,7 +123,7 @@ struct TControllerJobReport
 {
     TControllerJobReport OperationId(NJobTrackerClient::TOperationId operationId);
     TControllerJobReport JobId(NJobTrackerClient::TJobId jobId);
-    TControllerJobReport MarkHasCompetitors(bool hasCompetitors, NControllerAgent::EJobCompetitionType);
+    TControllerJobReport HasCompetitors(bool hasCompetitors, NControllerAgent::EJobCompetitionType);
 };
 
 struct TNodeJobReport

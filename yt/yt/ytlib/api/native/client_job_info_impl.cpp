@@ -1014,6 +1014,11 @@ TFuture<TListJobsStatistics> TClient::ListJobsStatisticsFromArchiveAsync(
     return SelectRows(builder.Build(), selectRowsOptions).Apply(BIND([=] (const TSelectRowsResult& result) {
         TListJobsStatistics statistics;
         for (auto row : result.Rowset->GetRows()) {
+            // Skip jobs that was not fully written (usually it is written only by controller).
+            if (row[jobTypeIndex].Type == EValueType::Null || row[jobStateIndex].Type == EValueType::Null) {
+                continue;
+            }
+
             ValidateNonNull(row[jobTypeIndex], "type", operationId);
             auto jobType = ParseEnum<EJobType>(FromUnversionedValue<TStringBuf>(row[jobTypeIndex]));
             ValidateNonNull(row[jobStateIndex], "state", operationId);
@@ -1080,6 +1085,11 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto rows = rowset->GetRows();
     jobs.reserve(rows.Size());
     for (auto row : rows) {
+        // Skip jobs that was not fully written (usually it is written only by controller).
+        if ((typeIndex && row[*typeIndex].Type == EValueType::Null) || (stateIndex && row[*stateIndex].Type == EValueType::Null)) {
+            continue;
+        }
+
         auto& job = jobs.emplace_back();
 
         if (jobIdHiIndex) {
