@@ -1702,7 +1702,9 @@ void TJob::OnJobAbortionTimeout()
     VERIFY_THREAD_AFFINITY(JobThread);
 
     if (JobState_ == EJobState::Aborting) {
-        auto error = TError("Failed to abort job %v within timeout", Id_)
+        auto error = TError("Failed to abort job within timeout")
+            << TErrorAttribute("job_id", Id_)
+            << TErrorAttribute("operation_id", OperationId_)
             << TErrorAttribute("job_abortion_timeout", Config_->JobAbortionTimeout);
         Bootstrap_->GetSlotManager()->Disable(error);
     }
