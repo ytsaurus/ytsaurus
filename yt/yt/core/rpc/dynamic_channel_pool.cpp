@@ -92,15 +92,24 @@ public:
         }
 
         const auto& session = sessionOrError.Value();
+
+        // TODO(achulkov2): kill GetFinished.
         auto future = IsRequestSticky(request)
-            ? session->GetFinished()
-            : session->GetFirstPeerDiscovered();
-        return future.Apply(
-            BIND(
-                &TImpl::GetChannelAfterDiscovery,
-                MakeStrong(this),
-                request,
-                hedgingOptions));
+                      ? session->GetFinished()
+                      : ViablePeerRegistry_->GetPeersAvailable();
+        YT_LOG_DEBUG_IF(!future.IsSet(), "Channel requested, waiting on peers to become available");
+        return future.Apply(BIND([this_ = MakeWeak(this), request, hedgingOptions] {
+            if (auto strongThis = this_.Lock()) {
+                auto channel = strongThis->PickViableChannel(request, hedgingOptions);
+                if (!channel) {
+                    // Not very likely but possible in theory.
+                    THROW_ERROR strongThis->MakeNoAlivePeersError();
+                }
+                return channel;
+            } else {
+                THROW_ERROR_EXCEPTION("Cannot get channel, dynamic channel pool is being destroyed");
+            }
+        }));
     }
 
     void SetPeers(std::vector<TString> addresses)
@@ -149,7 +158,7 @@ public:
     void Terminate(const TError& error)
     {
         // Holds a weak reference to this class and the callback has no meaningful side-effects,
-        // so not waiting on this future is ok.
+        // so not waiting on this future is OK.
         RandomPeerRotationExecutor_->Stop();
 
         std::vector<IChannelPtr> activeChannels;
@@ -199,7 +208,7 @@ private:
 
     IViablePeerRegistryPtr ViablePeerRegistry_;
 
-    TPeriodicExecutorPtr RandomPeerRotationExecutor_;
+    const TPeriodicExecutorPtr RandomPeerRotationExecutor_;
 
     struct TTooManyConcurrentRequests { };
     struct TNoMorePeers { };
@@ -219,11 +228,6 @@ private:
             , Logger(owner->Logger)
         { }
 
-        TFuture<void> GetFirstPeerDiscovered()
-        {
-            return FirstPeerDiscoveredPromise_;
-        }
-
         TFuture<void> GetFinished()
         {
             return FinishedPromise_;
@@ -239,7 +243,6 @@ private:
         {
             AddViablePeer(address);
             Success_.store(true);
-            FirstPeerDiscoveredPromise_.TrySet();
         }
 
     private:
@@ -247,7 +250,6 @@ private:
         const TDynamicChannelPoolConfigPtr Config_;
         const NLogging::TLogger Logger;
 
-        const TPromise<void> FirstPeerDiscoveredPromise_ = NewPromise<void>();
         const TPromise<void> FinishedPromise_ = NewPromise<void>();
         std::atomic<bool> Finished_ = false;
         std::atomic<bool> Success_ = false;
@@ -414,7 +416,7 @@ private:
         std::vector<TError> GetDiscoveryErrors()
         {
             auto guard = Guard(SpinLock_);
-            return std::vector<TError>(DiscoveryErrors_.begin(), DiscoveryErrors_.end());
+            return {DiscoveryErrors_.begin(), DiscoveryErrors_.end()};
         }
 
         void AddViablePeer(const TString& address)
@@ -449,12 +451,12 @@ private:
             }
 
             if (Success_.load()) {
-                YT_ASSERT(FirstPeerDiscoveredPromise_.IsSet());
                 FinishedPromise_.Set();
             } else {
                 auto error = owner->MakeNoAlivePeersError()
                     << GetDiscoveryErrors();
-                FirstPeerDiscoveredPromise_.Set(error);
+                YT_LOG_ERROR(error, "Error performing peer discovery");
+                owner->ViablePeerRegistry_->SetError(error);
                 FinishedPromise_.Set(error);
             }
         }
@@ -582,7 +584,6 @@ private:
         const IClientRequestPtr& request,
         const std::optional<THedgingChannelOptions>& hedgingOptions)
     {
-        auto guard = ReaderGuard(SpinLock_);
         return IsRequestSticky(request)
             ? ViablePeerRegistry_->PickStickyChannel(request)
             : ViablePeerRegistry_->PickRandomChannel(request, hedgingOptions);
@@ -644,18 +645,6 @@ private:
         return TError("Discovery request failed for peer %v", address)
             << *EndpointAttributes_
             << error;
-    }
-
-    IChannelPtr GetChannelAfterDiscovery(
-        const IClientRequestPtr& request,
-        const std::optional<THedgingChannelOptions>& hedgingOptions)
-    {
-        auto channel = PickViableChannel(request, hedgingOptions);
-        if (!channel) {
-            // Not very likely but possible in theory.
-            THROW_ERROR MakeNoAlivePeersError();
-        }
-        return channel;
     }
 
     void OnPeersSet(const TError& /*error*/)
@@ -722,8 +711,6 @@ private:
 
     void MaybeEvictRandomPeer()
     {
-        auto guard = WriterGuard(SpinLock_);
-
         ViablePeerRegistry_->MaybeRotateRandomPeer();
     }
 
@@ -835,11 +822,7 @@ private:
 
     void AddViablePeer(const TString& address)
     {
-        bool added;
-        {
-            auto guard = WriterGuard(SpinLock_);
-            added = ViablePeerRegistry_->RegisterPeer(address);
-        }
+        bool added = ViablePeerRegistry_->RegisterPeer(address);
 
         YT_LOG_DEBUG("Peer is viable (Address: %v, Added: %v)",
             address,
@@ -848,21 +831,12 @@ private:
 
     void InvalidatePeer(const TString& address)
     {
-        auto guard = WriterGuard(SpinLock_);
         ViablePeerRegistry_->UnregisterPeer(address);
     }
 
     void OnChannelFailed(const TString& address, const IChannelPtr& channel, const TError& error)
     {
-        bool evicted = false;
-
-        {
-            auto guard = WriterGuard(SpinLock_);
-            if (auto storedChannel = ViablePeerRegistry_->GetChannel(address); storedChannel && storedChannel == channel) {
-                ViablePeerRegistry_->UnregisterPeer(address);
-                evicted = true;
-            }
-        }
+        bool evicted = ViablePeerRegistry_->UnregisterChannel(address, channel);
 
         YT_LOG_DEBUG(
             error,

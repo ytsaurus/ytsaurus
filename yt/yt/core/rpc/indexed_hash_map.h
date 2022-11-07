@@ -4,6 +4,8 @@
 
 namespace NYT::NRpc {
 
+////////////////////////////////////////////////////////////////////////////////
+
 //! A hash map wrapper that supports random access to some ordering of its elements.
 //! NB: Note that the order of elements in the container can change after an element is erased.
 template <class TKey, class TValue>
@@ -133,5 +135,7 @@ private:
     THashMap<TKey, int> KeyToIndex_;
     TUnderlyingStorage Data_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpc
