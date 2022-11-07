@@ -1,8 +1,8 @@
-def create_batch_client(raise_errors=False, max_batch_size=None, client=None):
+def create_batch_client(raise_errors=False, max_batch_size=None, concurrency=None, client=None):
     """Creates client which supports batch executions."""
     # TODO: fix in YT-6615
     from .batch_execution import BatchExecutor
-    batch_executor = BatchExecutor(raise_errors, max_batch_size, client)
+    batch_executor = BatchExecutor(raise_errors, max_batch_size, concurrency, client)
     return batch_executor.get_client()
 
 

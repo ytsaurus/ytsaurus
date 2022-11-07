@@ -373,13 +373,13 @@ class YtClient(ClientState):
 
     def create_batch_client(
             self,
-            raise_errors=False, max_batch_size=None):
+            raise_errors=False, max_batch_size=None, concurrency=None):
         """
         Creates client which supports batch executions.
         """
         return client_api.create_batch_client(
             client=self,
-            raise_errors=raise_errors, max_batch_size=max_batch_size)
+            raise_errors=raise_errors, max_batch_size=max_batch_size, concurrency=concurrency)
 
     def create_revision_parameter(
             self,

@@ -25,7 +25,7 @@ class YtBatchRequestFailedError(YtError):
 
 
 class BatchRequestRetrier(Retrier):
-    def __init__(self, tasks, responses, max_batch_size, client=None):
+    def __init__(self, tasks, responses, max_batch_size, concurrency, client=None):
         retry_config = get_config(client)["batch_requests_retries"]
         request_timeout = get_config(client)["proxy"]["request_timeout"]
         chaos_monkey_enable = get_option("_ENABLE_HEAVY_REQUEST_CHAOS_MONKEY", client)
@@ -36,12 +36,13 @@ class BatchRequestRetrier(Retrier):
         self._tasks = tasks
         self._responses = responses
         self._max_batch_size = max_batch_size
+        self._concurrency = concurrency
         self._client = client
 
     def action(self):
         for tasks, responses in izip(chunk_iter_list(self._tasks, self._max_batch_size),
                                      chunk_iter_list(self._responses, self._max_batch_size)):
-            results = execute_batch(tasks, client=self._client)
+            results = execute_batch(tasks, concurrency=self._concurrency, client=self._client)
             if get_api_version(self._client) == "v4":
                 results = results["results"]
             for result, response in izip(results, responses):
@@ -63,13 +64,14 @@ class BatchRequestRetrier(Retrier):
 
 
 class BatchExecutor(object):
-    def __init__(self, raise_errors=False, max_batch_size=None, client=None):
+    def __init__(self, raise_errors=False, max_batch_size=None, concurrency=None, client=None):
         self._client = client
         self._tasks = []
         self._responses = []
         self._batch_client = None
         self._raise_errors = raise_errors
         self._max_batch_size = get_value(max_batch_size, get_config(self._client)["max_batch_size"])
+        self._concurrency = get_value(concurrency, get_config(self._client)["execute_batch_concurrency"])
 
     def get_client(self):
         config = deepcopy(get_config(self._client))
@@ -90,6 +92,7 @@ class BatchExecutor(object):
         retrier = BatchRequestRetrier(tasks=self._tasks,
                                       responses=self._responses,
                                       max_batch_size=self._max_batch_size,
+                                      concurrency=self._concurrency,
                                       client=self._client)
         try:
             retrier.run()
