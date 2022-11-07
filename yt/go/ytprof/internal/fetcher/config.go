@@ -54,6 +54,12 @@ type Config struct {
 	// Cluster name ("hume")
 	Cluster string `yson:"cluster"`
 
+	// Fills empty paths in services
+	ProfilePath string `yson:"path"`
+
+	// Fills empty types in services
+	ProfileType string `yson:"profile_type"`
+
 	// Descriptions of what profiles to fetch
 	Services []Service `yson:"services"`
 }
@@ -64,4 +70,58 @@ type Configs struct {
 
 	// Configs per cluster
 	Configs []Config `yson:"configs"`
+
+	// Ports by service type
+	Ports map[string]int `yson:"ports,omitempty"`
+}
+
+func (cs *Configs) FillInfo() {
+	for i := 0; i < len(cs.Configs); i++ {
+		if cs.Ports != nil {
+			cs.Configs[i].FillPorts(&cs.Ports)
+		}
+
+		cs.Configs[i].FillInfo()
+	}
+}
+
+func (c *Config) FillInfo() {
+	for i := 0; i < len(c.Services); i++ {
+		if c.ProfilePath != "" {
+			for j := 0; j < len(c.Services[i].Resolvers); j++ {
+				if c.Services[i].ProfilePath != "" {
+					continue
+				}
+
+				c.Services[i].ProfilePath = c.ProfilePath
+			}
+		}
+
+		if c.ProfileType != "" {
+			for j := 0; j < len(c.Services[i].Resolvers); j++ {
+				if c.Services[i].ProfileType != "" {
+					continue
+				}
+
+				c.Services[i].ProfileType = c.ProfileType
+			}
+		}
+	}
+}
+
+func (c *Config) FillPorts(ports *map[string]int) {
+	for i := 0; i < len(c.Services); i++ {
+		port, ok := (*ports)[c.Services[i].ServiceType]
+		if !ok {
+			continue
+		}
+
+		for j := 0; j < len(c.Services[i].Resolvers); j++ {
+			if c.Services[i].Resolvers[j].Port != 0 {
+				continue
+			}
+
+			c.Services[i].Resolvers[j].Port = port
+		}
+	}
 }
