@@ -598,6 +598,7 @@ default_config = {
     },
 
     "max_batch_size": 100,
+    "execute_batch_concurrency": 50,
     "batch_requests_retries": retries_config(enable=True, total_timeout=timedelta(minutes=10),
                                              backoff={"policy": "rounded_up_to_request_timeout"}),
 
