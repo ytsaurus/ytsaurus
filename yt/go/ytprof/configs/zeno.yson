@@ -1,0 +1,139 @@
+{
+    "table_path" = "//sys/ytprof/testing";
+    "ports" = {
+        "node" = 10012;
+        "dat-node" = 10012;
+        "exe-node" = 10012;
+        "exe-tab-node" = 10012;
+        "tab-node" = 10022;
+        "chaos-node" = 10023;
+        "master" = 10010;
+        "master-caches" = 10018;
+        "scheduler" = 10011;
+        "rpc-proxy" = 10017;
+        "http-proxy" = 10013;
+        "controller-agent" = 10014;
+        "clock" = 10016;
+        "discovery" = 10020;
+    };
+    "configs" = [
+        {
+            "cluster" = "zeno";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "services" = [
+                {
+                    "service_type" = "dat-node";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-dat-nodes";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "exe-tab-node";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-exe-tab-nodes";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "master";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-masters";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "master-caches";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-master-caches";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "scheduler";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-schedulers";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "clock";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-clocks";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "controller-agent";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-controller-agents";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "clock";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-clocks";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "http-proxy";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "path" = "ytprof/profile";
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-proxies";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "rpc-proxy";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-rpc-proxies";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+            ]
+        };
+    ]
+}

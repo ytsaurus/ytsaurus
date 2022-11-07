@@ -1,160 +1,145 @@
 {
     "table_path" = "//sys/ytprof/testing";
+    "ports" = {
+        "node" = 10012;
+        "dat-node" = 10012;
+        "exe-node" = 10012;
+        "exe-tab-node" = 10012;
+        "tab-node" = 10022;
+        "chaos-node" = 10023;
+        "master" = 10010;
+        "master-caches" = 10018;
+        "scheduler" = 10011;
+        "rpc-proxy" = 10017;
+        "http-proxy" = 10013;
+        "controller-agent" = 10014;
+        "clock" = 10016;
+        "discovery" = 10020;
+    };
     "configs" = [
         {
             "cluster" = "freud";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
             "services" = [
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "dat-node";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10012;
                             "podset" = "sas-yt-freud-dat-nodes";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "exe-node";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10012;
                             "podset" = "sas-yt-freud-exe-nodes";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "exe-tab-node";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10012;
                             "podset" = "sas-yt-freud-exe-tab-nodes";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "master";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10010;
                             "podset" = "sas-yt-freud-masters";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "master-caches";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10018;
                             "podset" = "sas-yt-freud-master-caches";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "scheduler";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10011;
                             "podset" = "sas-yt-freud-schedulers";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "clock";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10016;
                             "podset" = "sas-yt-freud-clocks";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "controller-agent";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10014;
                             "podset" = "sas-yt-freud-controller-agents";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "discovery";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10020;
                             "podset" = "sas-yt-freud-discovery";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "http-proxy";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10013;
                             "podset" = "sas-yt-freud-proxies";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "rpc-proxy";
                     "period" = 300000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10017;
                             "podset" = "sas-yt-freud-rpc-proxies";
-                            "cluster" = "sasx"
+                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -162,157 +147,244 @@
         };
         {
             "cluster" = "arnold";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
             "services" = [
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "dat-node";
                     "period" = 600000000000;
                     "probability" = 0.05;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10012;
                             "podset" = "vla-yt-arnold-dat-nodes-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "exe-node";
                     "period" = 600000000000;
                     "probability" = 0.2;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10012;
                             "podset" = "vla-yt-arnold-exe-nodes-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "exe-tab-node";
                     "period" = 600000000000;
                     "probability" = 0.2;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10012;
                             "podset" = "vla-yt-arnold-exe-tab-nodes-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "master";
                     "period" = 600000000000;
                     "probability" = 0.2;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10010;
                             "podset" = "vla-yt-arnold-masters-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "master-caches";
                     "period" = 600000000000;
                     "probability" = 0.2;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10018;
                             "podset" = "vla-yt-arnold-master-caches-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "scheduler";
                     "period" = 600000000000;
                     "probability" = 0.2;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10011;
                             "podset" = "vla-yt-arnold-schedulers-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "clock";
                     "period" = 600000000000;
                     "probability" = 0.2;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10016;
                             "podset" = "vla-yt-arnold-clocks-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "controller-agent";
                     "period" = 600000000000;
                     "probability" = 0.2;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10014;
                             "podset" = "vla-yt-arnold-controller-agents-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "discovery";
                     "period" = 600000000000;
                     "probability" = 0.5;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10020;
                             "podset" = "vla-yt-arnold-discovery-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "http-proxy";
                     "period" = 600000000000;
                     "probability" = 0.2;
-                    "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10013;
                             "podset" = "vla-yt-arnold-proxies-over-yp";
                             "cluster" = "vla"
                         }
                     ]
                 };
                 {
-                    "profile_type" = "cpu";
                     "service_type" = "rpc-proxy";
                     "period" = 600000000000;
                     "probability" = 0.2;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-arnold-rpc-proxies-over-yp";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+            ]
+        };
+        {
+            "cluster" = "zeno";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "services" = [
+                {
+                    "service_type" = "dat-node";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-dat-nodes";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "exe-tab-node";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-exe-tab-nodes";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "master";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-masters";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "master-caches";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-master-caches";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "scheduler";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-schedulers";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "clock";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-clocks";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "controller-agent";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-controller-agents";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "clock";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-clocks";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "http-proxy";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
                     "path" = "ytprof/profile";
                     "resolvers" = [
                         {
-                            "port" = 10017;
-                            "podset" = "vla-yt-arnold-rpc-proxies-over-yp";
+                            "podset" = "vla-yt-zeno-proxies";
+                            "cluster" = "vla"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "rpc-proxy";
+                    "period" = 300000000000;
+                    "probability" = 0.5;
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-zeno-rpc-proxies";
                             "cluster" = "vla"
                         }
                     ]
