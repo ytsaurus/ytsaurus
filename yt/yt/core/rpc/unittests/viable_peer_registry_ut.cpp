@@ -15,7 +15,8 @@
 namespace NYT::NRpc {
 namespace {
 
-using namespace NYT::NBus;
+using namespace NConcurrency;
+using namespace NBus;
 
 using testing::Pair;
 using testing::UnorderedElementsAre;
@@ -401,9 +402,78 @@ TEST_P(TParametrizedViablePeerRegistryTest, GetStickyChannel)
     EXPECT_LE(misses, 100);
 }
 
-INSTANTIATE_TEST_SUITE_P(AllPriorityStrategies,
-                         TParametrizedViablePeerRegistryTest,
-                         testing::Values(EPeerPriorityStrategy::None, EPeerPriorityStrategy::PreferLocal));
+TEST_P(TParametrizedViablePeerRegistryTest, PeersAvailablePromise)
+{
+    auto channelFactory = New<TFakeChannelFactory>();
+    auto viablePeerRegistry = CreateTestRegistry(GetParam(), channelFactory, 1);
+
+    auto peersAvailable1 = viablePeerRegistry->GetPeersAvailable();
+    EXPECT_FALSE(peersAvailable1.IsSet());
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("a"));
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().IsSet());
+    EXPECT_TRUE(peersAvailable1.IsSet());
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("b"));
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().IsSet());
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("c"));
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().IsSet());
+
+    EXPECT_TRUE(viablePeerRegistry->UnregisterPeer("c"));
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().IsSet());
+
+    EXPECT_TRUE(viablePeerRegistry->MaybeRotateRandomPeer());
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().IsSet());
+
+    EXPECT_TRUE(viablePeerRegistry->UnregisterPeer("a"));
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().IsSet());
+
+    EXPECT_TRUE(viablePeerRegistry->UnregisterPeer("b"));
+    EXPECT_FALSE(viablePeerRegistry->GetPeersAvailable().IsSet());
+
+    EXPECT_FALSE(viablePeerRegistry->UnregisterPeer("e"));
+    EXPECT_FALSE(viablePeerRegistry->GetPeersAvailable().IsSet());
+
+    viablePeerRegistry->SetError(TError("error"));
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().IsSet());
+    EXPECT_FALSE(viablePeerRegistry->GetPeersAvailable().Get().IsOK());
+
+    EXPECT_TRUE(viablePeerRegistry->RegisterPeer("f"));
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().IsSet());
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().Get().IsOK());
+
+    viablePeerRegistry->SetError(TError("another error"));
+    EXPECT_TRUE(viablePeerRegistry->GetPeersAvailable().Get().IsOK());
+
+    EXPECT_TRUE(viablePeerRegistry->UnregisterPeer("f"));
+    EXPECT_FALSE(viablePeerRegistry->GetPeersAvailable().IsSet());
+
+    auto startTime = TInstant::Now();
+
+    TDelayedExecutor::Submit(BIND([viablePeerRegistry] {
+        viablePeerRegistry->RegisterPeer("i_am_available");
+    }), TDuration::Seconds(5));
+
+    auto channel = WaitFor(viablePeerRegistry->GetPeersAvailable()
+        .Apply(BIND([viablePeerRegistry] {
+            auto req = CreateRequest();
+            return viablePeerRegistry->PickRandomChannel(req, /*hedgingOptions*/ {});
+        })))
+        .ValueOrThrow();
+
+    auto elapsedTime = TInstant::Now() - startTime;
+
+    EXPECT_GE(elapsedTime, TDuration::Seconds(3));
+    EXPECT_LE(elapsedTime, TDuration::Seconds(7));
+
+    EXPECT_EQ(channel->GetEndpointDescription(), "i_am_available");
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    AllPriorityStrategies,
+    TParametrizedViablePeerRegistryTest,
+    testing::Values(EPeerPriorityStrategy::None, EPeerPriorityStrategy::PreferLocal));
 
 TEST(TPreferLocalViablePeerRegistryTest, Simple)
 {

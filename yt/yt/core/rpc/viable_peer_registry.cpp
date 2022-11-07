@@ -16,6 +16,7 @@ namespace NYT::NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 using namespace NNet;
+using namespace NThreading;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,7 +31,12 @@ public:
         : Config_(std::move(config))
         , CreateChannel_(std::move(createChannel))
         , Logger(logger)
-    { }
+    {
+        {
+            auto guard = WriterGuard(SpinLock_);
+            InitPeersAvailablePromise();
+        }
+    }
 
     bool RegisterPeer(const TString& address) override
     {
@@ -38,29 +44,59 @@ public:
         if (Config_->PeerPriorityStrategy == EPeerPriorityStrategy::PreferLocal) {
             priority = (InferYPClusterFromHostName(address) == GetLocalYPCluster()) ? 0 : 1;
         }
-        return RegisterPeerWithPriority(address, priority);
+
+        bool wasEmpty = false;
+        bool peerAdded = false;
+        {
+            auto guard = WriterGuard(SpinLock_);
+            wasEmpty = ActivePeerToPriority_.Size() == 0;
+            peerAdded = RegisterPeerWithPriority(address, priority);
+        }
+
+        if (wasEmpty && peerAdded) {
+            GetPeersAvailablePromise(/*resetStoredError*/ true).TrySet();
+        }
+
+        return peerAdded;
     }
 
     bool UnregisterPeer(const TString& address) override
     {
-        // Check if the peer is in the backlog and erase it if so.
-        if (EraseBacklogPeer(address)) {
-            YT_LOG_DEBUG("Unregistered backlog peer (Address: %v)", address);
-            return true;
+        auto guard = WriterGuard(SpinLock_);
+        bool peerUnregistered = GuardedUnregisterPeer(address);
+
+        if (peerUnregistered) {
+            OnPeerUnregistered();
         }
 
-        // Check if the peer is active and erase it if so.
-        if (EraseActivePeer(address)) {
-            YT_LOG_DEBUG("Unregistered active peer (Address: %v)", address);
-            ActivateBacklogPeers();
-            return true;
+        return peerUnregistered;
+    }
+
+    bool UnregisterChannel(const TString& address, const IChannelPtr& channel) override
+    {
+        auto guard = WriterGuard(SpinLock_);
+
+        auto it = ActivePeerToPriority_.find(address);
+        if (it == ActivePeerToPriority_.end()) {
+            return false;
         }
 
-        return false;
+        auto storedChannel = GetOrCrash(PriorityToActivePeers_, it->second).Get(address);
+
+        if (storedChannel != channel) {
+            return false;
+        }
+
+        YT_VERIFY(GuardedUnregisterPeer(address));
+        OnPeerUnregistered();
+
+        return true;
     }
 
     std::vector<IChannelPtr> GetActiveChannels() const override
     {
+        auto guard = ReaderGuard(SpinLock_);
+
         std::vector<IChannelPtr> allActivePeers;
         allActivePeers.reserve(ActivePeerToPriority_.Size());
         for (const auto& [priority, activePeers] : PriorityToActivePeers_) {
@@ -73,14 +109,20 @@ public:
 
     void Clear() override
     {
+        auto guard = WriterGuard(SpinLock_);
+
         BacklogPeers_.Clear();
         HashToActiveChannel_.clear();
         ActivePeerToPriority_.Clear();
         PriorityToActivePeers_.clear();
+
+        InitPeersAvailablePromise();
     }
 
     std::optional<TString> MaybeRotateRandomPeer() override
     {
+        auto guard = WriterGuard(SpinLock_);
+
         if (!BacklogPeerToPriority_.empty() && ActivePeerToPriority_.Size() > 0) {
             auto lastActivePriority = PriorityToActivePeers_.rbegin()->first;
             auto firstBacklogPriority = PriorityToBacklogPeers_.begin()->first;
@@ -102,7 +144,7 @@ public:
 
             YT_LOG_DEBUG("Moving random viable peer to backlog (Address: %v)", addressToEvict);
             // This call will automatically activate a random peer from the backlog.
-            UnregisterPeer(addressToEvict);
+            GuardedUnregisterPeer(addressToEvict);
             // The rotated peer will end up in the backlog after this call.
             RegisterPeerWithPriority(addressToEvict, lastActivePriority);
 
@@ -113,9 +155,11 @@ public:
 
     IChannelPtr PickStickyChannel(const IClientRequestPtr& request) const override
     {
+        auto guard = ReaderGuard(SpinLock_);
+
         if (BacklogPeers_.Size() > 0) {
             YT_LOG_WARNING(
-                "Sticky channels are used with non-empty peer backlog, random peer rotations might hurt stickiness (MaxPeerCount: %v, ViablePeers: %v, BacklogPeers: %v)",
+                "Sticky channels are used with non-empty peer backlog, random peer rotations might hurt stickiness (MaxPeerCount: %v, ViablePeerCount: %v, BacklogPeerCount: %v)",
                 Config_->MaxPeerCount,
                 ActivePeerToPriority_.Size(),
                 BacklogPeers_.Size());
@@ -169,6 +213,8 @@ public:
         const IClientRequestPtr& request,
         const std::optional<THedgingChannelOptions>& hedgingOptions) const override
     {
+        auto guard = ReaderGuard(SpinLock_);
+
         if (ActivePeerToPriority_.Size() == 0) {
             return nullptr;
         }
@@ -208,16 +254,34 @@ public:
 
     IChannelPtr GetChannel(const TString& address) const override
     {
+        auto guard = ReaderGuard(SpinLock_);
+
         if (auto it = ActivePeerToPriority_.find(address); it != ActivePeerToPriority_.end()) {
             return GetOrCrash(PriorityToActivePeers_, it->second).Get(address);
         }
         return nullptr;
     }
 
+    TFuture<void> GetPeersAvailable() const override
+    {
+        auto guard = ReaderGuard(SpinLock_);
+
+        return PeersAvailablePromise_.ToFuture().ToUncancelable();
+    }
+
+    void SetError(const TError& error) override
+    {
+        GetPeersAvailablePromise().TrySet(error);
+    }
+
 private:
     const TViablePeerRegistryConfigPtr Config_;
     const TCallback<IChannelPtr(TString address)> CreateChannel_;
     const NLogging::TLogger Logger;
+
+    const size_t ClientStickinessRandomNumber_ = RandomNumber<size_t>();
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
 
     // Information for active peers with created channels.
     std::map<int, TIndexedHashMap<TString, IChannelPtr>> PriorityToActivePeers_;
@@ -231,12 +295,50 @@ private:
     THashMap<TString, int> BacklogPeerToPriority_;
     std::map<int, TIndexedHashMap<TString, std::monostate>> PriorityToBacklogPeers_;
 
-    const size_t ClientStickinessRandomNumber_ = RandomNumber<size_t>();
+    TPromise<void> PeersAvailablePromise_;
+
+    void InitPeersAvailablePromise()
+    {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
+        YT_LOG_DEBUG("Awaiting peer availability");
+        PeersAvailablePromise_ = NewPromise<void>();
+
+        PeersAvailablePromise_.ToFuture().Subscribe(BIND([Logger = Logger] (const TError& error) {
+            if (error.IsOK()) {
+                YT_LOG_DEBUG("Peers are available");
+            } else {
+                YT_LOG_DEBUG(error, "Error while awaiting peers");
+            }
+        }));
+    }
+
+    void OnPeerUnregistered()
+    {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
+        if (ActivePeerToPriority_.Size() == 0 && PeersAvailablePromise_.IsSet()) {
+            InitPeersAvailablePromise();
+        }
+    }
+
+    TPromise<void> GetPeersAvailablePromise(bool resetStoredError = false)
+    {
+        auto guard = WriterGuard(SpinLock_);
+
+        if (resetStoredError && PeersAvailablePromise_.IsSet() && !PeersAvailablePromise_.Get().IsOK()) {
+            InitPeersAvailablePromise();
+        }
+
+        return PeersAvailablePromise_;
+    }
 
     //! Returns true if a new peer was successfully registered and false if it already existed.
     //! Trying to call this method for a currently viable address with a different priority than stored leads to failure.
     bool RegisterPeerWithPriority(const TString& address, int priority)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         // Check for an existing active peer for this address.
         if (auto it = ActivePeerToPriority_.find(address); it != ActivePeerToPriority_.end()) {
             // Peers should have a fixed priority.
@@ -287,9 +389,12 @@ private:
         AddActivePeer(address, priority);
 
         YT_LOG_DEBUG(
-            "Activated viable peer (Address: %v, Priority: %v)",
+            "Activated viable peer (Address: %v, Priority: %v, ActivePeerCount: %v, BacklogPeerCount: %v, MaxPeerCount: %v)",
             address,
-            priority);
+            priority,
+            ActivePeerToPriority_.Size(),
+            BacklogPeerToPriority_.size(),
+            Config_->MaxPeerCount);
 
         return true;
     }
@@ -297,14 +402,48 @@ private:
     template <class F>
     void GeneratePeerHashes(const TString& address, F f)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         TRandomGenerator generator(ComputeHash(address));
         for (int index = 0; index < Config_->HashesPerPeer; ++index) {
             f(generator.Generate<size_t>());
         }
     }
 
+    bool GuardedUnregisterPeer(const TString& address)
+    {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
+        // Check if the peer is in the backlog and erase it if so.
+        if (EraseBacklogPeer(address)) {
+            YT_LOG_DEBUG(
+                "Unregistered backlog peer (Address: %v, ActivePeerCount: %v, BacklogPeerCount: %v, MaxPeerCount: %v)",
+                address,
+                ActivePeerToPriority_.Size(),
+                BacklogPeerToPriority_.size(),
+                Config_->MaxPeerCount);
+            return true;
+        }
+
+        // Check if the peer is active and erase it if so.
+        if (EraseActivePeer(address)) {
+            YT_LOG_DEBUG(
+                "Unregistered active peer (Address: %v, ActivePeerCount: %v, BacklogPeerCount: %v, MaxPeerCount: %v)",
+                address,
+                ActivePeerToPriority_.Size(),
+                BacklogPeerToPriority_.size(),
+                Config_->MaxPeerCount);
+            ActivateBacklogPeers();
+            return true;
+        }
+
+        return false;
+    }
+
     void ActivateBacklogPeers()
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+        
         while (!BacklogPeerToPriority_.empty() && ActivePeerToPriority_.Size() < Config_->MaxPeerCount) {
             auto& [priority, backlogPeers] = *PriorityToBacklogPeers_.begin();
             auto randomBacklogPeer = backlogPeers.GetRandomElement();
@@ -320,6 +459,8 @@ private:
 
     void AddActivePeer(const TString& address, int priority)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         ActivePeerToPriority_.Set(address, priority);
 
         auto channel = CreateChannel_(address);
@@ -335,12 +476,16 @@ private:
 
     void AddBacklogPeer(const TString& address, int priority)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         BacklogPeerToPriority_[address] = priority;
         PriorityToBacklogPeers_[priority].Set(address, {});
     }
 
     bool EraseActivePeer(const TString& address)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         auto activePeerIt = ActivePeerToPriority_.find(address);
 
         if (activePeerIt == ActivePeerToPriority_.end()) {
@@ -365,6 +510,8 @@ private:
 
     bool EraseBacklogPeer(const TString& address)
     {
+        VERIFY_WRITER_SPINLOCK_AFFINITY(SpinLock_);
+
         auto backlogPeerIt = BacklogPeerToPriority_.find(address);
 
         if (backlogPeerIt == BacklogPeerToPriority_.end()) {
