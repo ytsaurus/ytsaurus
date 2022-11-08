@@ -163,8 +163,10 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, BackupError);
     Load(context, ReplicaBackupDescriptors);
 
+    // COMPAT(achulkov2): Reign was moved from trunk to 22.3. This makes reigns [2200, 2201) effectively "old".
+    auto isNewReignWithOldQueueAgentStage = (context.GetVersion() >= EMasterReign::ZookeeperShards && context.GetVersion() < EMasterReign::QueueAgentStageWritabilityAndDefaults);
     // COMPAT(achulkov2): Set QueueAgentStage to std::nullopt for old reigns.
-    if (context.GetVersion() < EMasterReign::QueueAgentStageWritabilityAndDefaults) {
+    if (context.GetVersion() < EMasterReign::QueueAgentStageWritabilityAndDefaults_22_3 || isNewReignWithOldQueueAgentStage) {
         TString oldQueueAgentStage;
         Load(context, oldQueueAgentStage);
         QueueAgentStage = {};
