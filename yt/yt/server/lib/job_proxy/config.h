@@ -229,7 +229,7 @@ public:
 
     bool UploadDebugArtifactChunks;
 
-    TDuration DelayBeforeAbort;
+    bool SendHeartbeatBeforeAbort;
 
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 

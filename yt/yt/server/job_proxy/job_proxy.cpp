@@ -1037,7 +1037,10 @@ void TJobProxy::OnPrepared()
 
     auto req = SupervisorProxy_->OnJobPrepared();
     ToProto(req->mutable_job_id(), JobId_);
-    req->Invoke();
+    req->Invoke().Apply(BIND(
+        [this, this_ = MakeStrong(this)] (const TSupervisorServiceProxy::TErrorOrRspOnJobPreparedPtr& /*rspOrError*/) {
+            Prepared_.store(true);
+        }));
 }
 
 void TJobProxy::PrepareArtifact(
@@ -1164,7 +1167,8 @@ void TJobProxy::CheckMemoryUsage()
     const auto& schedulerJobSpecExt = JobSpecHelper_->GetSchedulerJobSpecExt();
     if (schedulerJobSpecExt.has_user_job_spec()) {
         const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
-        if (Config_->AlwaysAbortOnMemoryReserveOverdraft) {
+        // NB: if job proxy is not prepared yet we cannot report actual statistics by heartbeat in abort.
+        if (Config_->AlwaysAbortOnMemoryReserveOverdraft && Prepared_) {
             bool overdraft = false;
             if (UserJobCurrentMemoryUsage_ > userJobSpec.memory_reserve()) {
                 YT_LOG_INFO("User job memory usage exceeded memory reserve (MemoryUsage: %v, MemoryReserve: %v)",
@@ -1306,8 +1310,9 @@ void TJobProxy::FillStderrResult(TJobResult* jobResult)
 
 void TJobProxy::Abort(EJobProxyExitCode exitCode)
 {
-    if (Config_->DelayBeforeAbort) {
-        TDelayedExecutor::WaitForDuration(Config_->DelayBeforeAbort);
+    if (Config_->SendHeartbeatBeforeAbort) {
+        auto error = WaitFor(HeartbeatExecutor_->GetExecutedEvent());
+        YT_LOG_ERROR_UNLESS(error.IsOK(), error, "Failed to send heartbeat before abort");
     }
 
     if (auto job = FindJob()) {

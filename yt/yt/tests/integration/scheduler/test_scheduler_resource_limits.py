@@ -153,7 +153,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
     DELTA_NODE_CONFIG = {
         "exec_agent": {
             "always_abort_on_memory_reserve_overdraft": True,
-            "job_proxy_delay_before_abort": 1000,
+            "job_proxy_send_heartbeat_before_abort": True,
         }
     }
 
@@ -224,7 +224,7 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
         "exec_agent": {
             "always_abort_on_memory_reserve_overdraft": True,
             "job_proxy_heartbeat_period": 500,
-            "job_proxy_delay_before_abort": 1000,
+            "job_proxy_send_heartbeat_before_abort": True,
         }
     }
 
@@ -308,15 +308,15 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
 
         op = map(
             track=True,
-            command="sleep 2",
+            command="sleep 10",
             in_="//tmp/in",
             out="//tmp/out",
             spec={
                 "job_count": 1,
                 "mapper": {
-                    "memory_limit": 300 * 10 ** 6,
-                    "user_job_memory_digest_default_value": 0.5,
-                    "user_job_memory_digest_lower_bound": 0.4,
+                    "memory_limit": 400 * 10 ** 6,
+                    "user_job_memory_digest_default_value": 0.75,
+                    "user_job_memory_digest_lower_bound": 0.6,
                     "job_proxy_memory_digest": {
                         "default_value": 0.1,
                         "lower_bound": 0.1,

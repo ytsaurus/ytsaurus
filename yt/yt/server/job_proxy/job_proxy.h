@@ -102,6 +102,8 @@ private:
 
     std::atomic<i64> UserJobCurrentMemoryUsage_ = {0};
 
+    std::atomic<bool> Prepared_ = {false};
+
     // Job proxy and possibly user job peak memory usage.
     i64 TotalMaxMemoryUsage_ = 0;
 
