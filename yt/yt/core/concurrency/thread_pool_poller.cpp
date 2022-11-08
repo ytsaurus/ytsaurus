@@ -62,6 +62,9 @@ EContPoll ToImplControl(EPollControl control)
     if (Any(control & EPollControl::EdgeTriggered)) {
         implControl = CONT_POLL_EDGE_TRIGGERED;
     }
+    if (Any(control & EPollControl::BacklogEmpty)) {
+        implControl |= CONT_POLL_BACKLOG_EMPTY;
+    }
     if (Any(control & EPollControl::Read)) {
         implControl |= CONT_POLL_READ;
     }
