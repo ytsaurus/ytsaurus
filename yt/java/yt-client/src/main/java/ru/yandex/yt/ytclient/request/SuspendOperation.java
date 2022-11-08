@@ -20,7 +20,7 @@ import ru.yandex.yt.ytclient.rpc.RpcUtil;
 @NonNullFields
 public class SuspendOperation extends OperationReq<SuspendOperation.Builder, SuspendOperation>
         implements HighLevelRequest<TReqSuspendOperation.Builder> {
-    private boolean abortRunningJobs;
+    private final boolean abortRunningJobs;
 
     public SuspendOperation(BuilderBase<?> builder) {
         super(builder);
@@ -47,14 +47,6 @@ public class SuspendOperation extends OperationReq<SuspendOperation.Builder, Sus
      */
     public static SuspendOperation fromAlias(String operationAlias) {
         return new SuspendOperation(operationAlias);
-    }
-
-    /**
-     * Abort running jobs
-     */
-    public SuspendOperation setAbortRunningJobs(boolean abortRunningJobs) {
-        this.abortRunningJobs = abortRunningJobs;
-        return this;
     }
 
     @Override
