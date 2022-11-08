@@ -20,13 +20,6 @@ namespace NYT::NHydra2 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRecoveryResult
-{
-    int ChangelogCount = 0;
-    i64 MutationCount = 0;
-    i64 TotalChangelogSize = 0;
-};
-
 class TRecovery
     : public TRefCounted
 {
@@ -44,7 +37,7 @@ public:
         bool isLeader,
         NLogging::TLogger logger);
 
-    TFuture<TRecoveryResult> Run();
+    TFuture<void> Run();
 
 private:
     const NHydra::TDistributedHydraManagerConfigPtr Config_;
@@ -59,14 +52,12 @@ private:
     const bool IsLeader_;
     const NLogging::TLogger Logger;
 
-    TRecoveryResult RecoveryResult_;
-
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     //! Recovers to the desired state by first loading an appropriate snapshot
     //! and then applying changelogs, if necessary.
-    TRecoveryResult DoRun();
+    void DoRun();
 
     //! Synchronizes the changelog at follower with the leader, i.e.
     //! downloads missing records or truncates redundant ones.

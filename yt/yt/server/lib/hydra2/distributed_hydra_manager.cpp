@@ -1906,8 +1906,8 @@ private:
                 epochContext->ReachableState,
                 true,
                 Logger);
-            auto recoveryResult = WaitFor(epochContext->Recovery->Run())
-                .ValueOrThrow();
+            WaitFor(epochContext->Recovery->Run())
+                .ThrowOnError();
 
             if (Config_->DisableLeaderLeaseGraceDelay) {
                 YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
@@ -1964,21 +1964,31 @@ private:
 
             epochContext->HeartbeatMutationCommitExecutor->Start();
 
-            if (recoveryResult.ChangelogCount >= Config_->MaxChangelogsForRecovery
-                || recoveryResult.MutationCount >= Config_->MaxChangelogMutationCountForRecovery
-                || recoveryResult.TotalChangelogSize >= Config_->MaxTotalChangelogSizeForRecovery)
+            auto mutationCount = DecoratedAutomaton_->GetMutationCountSinceLastSnapshot();
+            auto mutationSize = DecoratedAutomaton_->GetMutationSizeSinceLastSnapshot();
+            auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
+            auto tailChangelogCount = epochContext->ReachableState.SegmentId - lastSnapshotId - 1;
+            if (tailChangelogCount >= Config_->MaxChangelogsForRecovery
+                || mutationCount >= Config_->MaxChangelogMutationCountForRecovery
+                || mutationSize >= Config_->MaxTotalChangelogSizeForRecovery)
             {
                 YT_LOG_INFO("Tail changelogs limits violated, force building snapshot "
-                    "(ChangelogCount: %v, MutationCount: %v, TotalChangelogSize: %v)",
-                    recoveryResult.ChangelogCount,
-                    recoveryResult.MutationCount,
-                    recoveryResult.TotalChangelogSize);
+                    "(TailChangelogCount: %v, MutationCount: %v, TotalChangelogSize: %v)",
+                    tailChangelogCount,
+                    mutationCount,
+                    mutationSize);
                 // If committer cannot build snapshot, then snapshot is already being built and it is ok.
                 if (leaderCommitter->CanBuildSnapshot()) {
                     leaderCommitter->BuildSnapshot(
                         /*waitForSnapshotCompletion*/ false,
                         /*setReadOnly*/ false);
                 }
+            } else {
+                YT_LOG_INFO("Tail changelogs limits are OK "
+                    "(TailChangelogCount: %v, MutationCount: %v, TotalChangelogSize: %v)",
+                    tailChangelogCount,
+                    mutationCount,
+                    mutationSize);
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
