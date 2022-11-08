@@ -325,11 +325,14 @@ struct TCypressCookieGeneratorConfig
     //! environments.
     bool Secure;
 
+    //! Controls HttpOnly parameter of a cookie.
+    bool HttpOnly;
+
     //! Domain parameter of generated cookies.
     std::optional<TString> Domain;
 
     //! Path parameter of generated cookies.
-    std::optional<TString> Path;
+    TString Path;
 
     //! If set and if cookie is generated via login page,
     //! will redirect user to this page.
