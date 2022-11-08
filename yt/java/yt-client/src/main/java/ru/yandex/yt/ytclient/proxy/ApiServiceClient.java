@@ -318,14 +318,6 @@ public interface ApiServiceClient extends TransactionalClient {
 
     CompletableFuture<Void> suspendOperation(SuspendOperation req);
 
-    /**
-     * @deprecated prefer to use {@link #suspendOperation(SuspendOperation)}
-     */
-    @Deprecated
-    default CompletableFuture<Void> suspendOperation(SuspendOperation.BuilderBase<?> req) {
-        return suspendOperation(req.build());
-    }
-
     CompletableFuture<Void> resumeOperation(ResumeOperation req);
 
     /**

@@ -4,8 +4,8 @@ import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
-import ru.yandex.yt.ytclient.proxy.request.SuspendOperation;
 import ru.yandex.yt.ytclient.request.GetOperation;
+import ru.yandex.yt.ytclient.request.SuspendOperation;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getCredentials;
@@ -48,7 +48,10 @@ public class SuspendResumeOperationExample {
     }
 
     private static void suspendOperation(YtClient client, GUID operation) throws InterruptedException {
-        var req = new SuspendOperation(operation).setAbortRunningJobs(false);
+        var req = SuspendOperation.builder()
+                .setOperationId(operation)
+                .setAbortRunningJobs(false)
+                .build();
         client.suspendOperation(req).join();
         while (!isSuspended(client, operation)) {
             Thread.sleep(100);
