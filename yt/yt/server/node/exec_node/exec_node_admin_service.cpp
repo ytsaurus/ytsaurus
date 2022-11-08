@@ -41,33 +41,13 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NProto, HealNode)
     {
-        context->SetRequestInfo("Locations: %v, AlertTypesToReset: %v, ForceReset: %v",
-            request->locations(),
-            request->alert_types_to_reset(),
-            request->force_reset());
-
         auto slotManager = Bootstrap_->GetSlotManager();
 
-        auto locations = slotManager->GetLocations();
-
-        THashSet<TString> requestLocations(
-            request->locations().begin(),
-            request->locations().end());
-
-        std::vector<TFuture<void>> futures;
-        futures.reserve(locations.size());
-
-        for (auto& location : locations) {
-            auto it = requestLocations.find(location->GetId());
-            if (it != requestLocations.end()) {
-                futures.push_back(location->Repair());
-                requestLocations.erase(it);
-            }
-        }
-
-        if (!requestLocations.empty()) {
-            THROW_ERROR_EXCEPTION("Unknown location: %Qv", requestLocations);
-        }
+        context->SetRequestInfo("Locations: %v, AlertTypesToReset: %v, ForceReset: %v, HasFatalAlert: %v",
+            request->locations(),
+            request->alert_types_to_reset(),
+            request->force_reset(),
+            slotManager->HasFatalAlert());
 
         THashSet<TString> alertTypesToReset(
             request->alert_types_to_reset().begin(),
@@ -78,10 +58,51 @@ private:
                 THROW_ERROR_EXCEPTION("Alert %Qlv is not resettable",
                     alertType);
             }
+        }
+
+        auto locations = slotManager->GetLocations();
+
+        THashSet<TString> locationIds;
+        for (const auto& location : locations) {
+            locationIds.insert(location->GetId());
+        }
+        
+        THashSet<TString> requestLocationIds(
+            request->locations().begin(),
+            request->locations().end());
+        for (const auto& locationId : requestLocationIds) {
+            if (!locationIds.contains(locationId)) {
+                THROW_ERROR_EXCEPTION("Healing requested for unknown location")
+                    << TErrorAttribute("location", locationId);
+            }
+        }
+
+        std::vector<TFuture<void>> repairFutures;
+        repairFutures.reserve(locations.size());
+
+        if (slotManager->HasFatalAlert()) {
+            // In case of fatal alert every slot can be in inconsistent state and must be forcefully repaired.
+            for (auto& location : locations) {
+                repairFutures.push_back(location->Repair(/*force*/ true));
+            }
+        } else {
+            for (auto& location : locations) {
+                if (!requestLocationIds.contains(location->GetId())) {
+                    continue;
+                }
+                repairFutures.push_back(location->Repair(/*force*/ false));
+            }
+        }
+
+        WaitFor(AllSucceeded(repairFutures))
+            .ThrowOnError();
+
+        for (const auto& alertTypeString : alertTypesToReset) {
+            auto alertType = ParseEnum<ESlotManagerAlertType>(alertTypeString);
             slotManager->ResetAlert(alertType);
         }
 
-        context->ReplyFrom(AllSucceeded(futures));
+        context->Reply();
     }
 };
 
