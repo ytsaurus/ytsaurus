@@ -277,6 +277,7 @@ public:
         // TODO(babenko): consider moving this code into HydraIO queue
         if (!IsClosed_) {
             try {
+                DoFinish();
                 if (File_) {
                     File_->Close();
                 }
