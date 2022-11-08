@@ -65,6 +65,7 @@ DEFINE_ENUM(EMasterReign,
     ((ShardedChunkLocationMap)                                      (2129))  // kvk1920
     ((ClearRevisionOnDuplicateEndorsement)                          (2130))  // ifsmirnov
     ((ShardedCellJanitor)                                           (2131))  // babenko
+    ((QueueAgentStageWritabilityAndDefaults_22_3)                   (2132))  // achulkov2
     // 22.4 starts here.
     ((ZookeeperShards)                                              (2200))  // gritukan
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
