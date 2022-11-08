@@ -203,6 +203,12 @@ std::optional<DB::Field> TryDecrementFieldValue(const DB::Field& field, const DB
             YT_VERIFY(!value.empty());
             if (value.back() != '\0') {
                 value.back() = static_cast<unsigned char>(value.back()) - 1;
+                // Strings "abcc" and "abcd" are not neighbours: there is an infinite number
+                // of strings of the form "abcc.+", which are less than "abcd" and greater than "abcc".
+                // Actually, there is no "left neighbor" for the string, if the last symbol is not '\0'.
+                // We use this dirty hack to approximate the decremented value of the string.
+                // See comments for String in GetMaximumTypeValue for more details.
+                value.append(SentinelMaxStringLength, '\xff');
             } else {
                 value.pop_back();
             }
@@ -246,11 +252,7 @@ std::optional<DB::Field> TryIncrementFieldValue(const DB::Field& field, const DB
 
         case DB::TypeIndex::String: {
             std::string value = field.get<std::string>();
-            if (!value.empty() && value.back() != '\xff') {
-                value.back() = static_cast<unsigned char>(value.back()) + 1;
-            } else {
-                value.push_back('\0');
-            }
+            value.push_back('\0');
             return DB::Field(std::move(value));
         }
 
