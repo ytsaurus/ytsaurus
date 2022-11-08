@@ -75,11 +75,11 @@ NTvmApi::TClientSettings MakeTvmApiSettings(const TTvmServiceConfigPtr& config)
 {
     NTvmApi::TClientSettings settings;
     settings.SetSelfTvmId(config->ClientSelfId);
-    if (!config->ClientDiskCacheDir.empty()) {
-        settings.SetDiskCacheDir(config->ClientDiskCacheDir);
+    if (config->ClientDiskCacheDir) {
+        settings.SetDiskCacheDir(*config->ClientDiskCacheDir);
     }
-    if (!config->TvmHost.empty() && config->TvmPort != 0) {
-        settings.SetTvmHostPort(config->TvmHost, config->TvmPort);
+    if (config->TvmHost && config->TvmPort) {
+        settings.SetTvmHostPort(*config->TvmHost, *config->TvmPort);
     }
     if (config->ClientEnableUserTicketChecking) {
         auto env = FromString<EBlackboxEnv>(config->ClientBlackboxEnv);

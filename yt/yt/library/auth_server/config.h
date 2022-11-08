@@ -61,10 +61,10 @@ public:
 
     // TvmClient settings
     TTvmId ClientSelfId = 0;
-    TString ClientDiskCacheDir;
+    std::optional<TString> ClientDiskCacheDir;
 
-    TString TvmHost;
-    ui16 TvmPort = 0;
+    std::optional<TString> TvmHost;
+    std::optional<ui16> TvmPort;
 
     bool ClientEnableUserTicketChecking = false;
     TString ClientBlackboxEnv;
