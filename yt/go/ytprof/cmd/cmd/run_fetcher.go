@@ -87,17 +87,17 @@ func runFetcher(cmd *cobra.Command, args []string) error {
 	l.Debug("config reading succeeded", log.String("config", fmt.Sprintf("%v", configs)), log.String("config_path", flagConfig))
 
 	errs, _ := errgroup.WithContext(context.Background())
-	ts := storage.NewTableStorage(YT, ypath.Path(configs.TablePath), l)
-	err = ytprof.MigrateTables(YT, ypath.Path(configs.TablePath))
+	ts := storage.NewTableStorage(YT, ypath.Path(flagTablePath), l)
+	err = ytprof.MigrateTables(YT, ypath.Path(flagTablePath))
 	if err != nil {
-		l.Fatal("migration failed", log.Error(err), log.String("table_path", configs.TablePath))
+		l.Fatal("migration failed", log.Error(err), log.String("table_path", flagTablePath))
 		return err
 	}
 
-	l.Debug("migration succeeded", log.String("table_path", configs.TablePath))
+	l.Debug("migration succeeded", log.String("table_path", flagTablePath))
 
 	for _, config := range configs.Configs {
-		f := fetcher.NewFetcher(YT, config, l, ts, configs.TablePath)
+		f := fetcher.NewFetcher(YT, config, l, ts, flagTablePath)
 		errs.Go(func() error {
 			return f.RunFetcherContinuous()
 		})
