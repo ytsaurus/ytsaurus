@@ -21,12 +21,13 @@ TString TCypressCookie::ToHeader(const TCypressCookieGeneratorConfigPtr& config)
     if (config->Secure) {
         header += "; Secure";
     }
+    if (config->HttpOnly) {
+        header += "; HttpOnly";
+    }
     if (const auto& domain = config->Domain) {
         header += Format("; Domain=%v", domain);
     }
-    if (const auto& path = config->Path) {
-        header += Format("; Path=%v", path);
-    }
+    header += Format("; Path=%v", config->Path);
 
     return header;
 }

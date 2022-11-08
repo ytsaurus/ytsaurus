@@ -221,10 +221,13 @@ void TCypressCookieGeneratorConfig::Register(TRegistrar registrar)
     registrar.Parameter("secure", &TThis::Secure)
         .Default(true);
 
+    registrar.Parameter("http_only", &TThis::HttpOnly)
+        .Default(true);
+
     registrar.Parameter("domain", &TThis::Domain)
         .Default();
     registrar.Parameter("path", &TThis::Path)
-        .Default();
+        .Default("/");
 
     registrar.Parameter("redirect_url", &TThis::RedirectUrl)
         .Default();

@@ -108,7 +108,7 @@ class TestCypressCookieAuth(YTEnvSetup):
         set_user_password("u", "u")
         rsp = self._try_login("u", "u")
         header = rsp.headers["Set-Cookie"]
-        cookie, expire, secure = header.split(';')
+        cookie, expire, secure, http_only, path = header.split(';')
 
         assert cookie.startswith("YTCypressCookie=")
         cookie = cookie[len("YTCypressCookie="):]
@@ -122,6 +122,8 @@ class TestCypressCookieAuth(YTEnvSetup):
         assert expiration_timeout <= datetime.timedelta(seconds=4)
 
         assert secure == " Secure"
+        assert http_only == " HttpOnly"
+        assert path == " Path=/"
 
     @authors("gritukan")
     def test_login_failed(self):
