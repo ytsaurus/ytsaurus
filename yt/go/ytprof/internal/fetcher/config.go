@@ -60,14 +60,17 @@ type Config struct {
 	// Fills empty types in services
 	ProfileType string `yson:"profile_type"`
 
+	// Fills empty periods in services
+	Period time.Duration `yson:"period"`
+
+	// Fills empty probabilities in services
+	Probability float64 `yson:"probability"`
+
 	// Descriptions of what profiles to fetch
 	Services []Service `yson:"services"`
 }
 
 type Configs struct {
-	// Path to the table ("//home/kristevalex/ytprof")
-	TablePath string `yson:"table_path"`
-
 	// Configs per cluster
 	Configs []Config `yson:"configs"`
 
@@ -78,7 +81,7 @@ type Configs struct {
 func (cs *Configs) FillInfo() {
 	for i := 0; i < len(cs.Configs); i++ {
 		if cs.Ports != nil {
-			cs.Configs[i].FillPorts(&cs.Ports)
+			cs.Configs[i].FillPorts(cs.Ports)
 		}
 
 		cs.Configs[i].FillInfo()
@@ -87,31 +90,27 @@ func (cs *Configs) FillInfo() {
 
 func (c *Config) FillInfo() {
 	for i := 0; i < len(c.Services); i++ {
-		if c.ProfilePath != "" {
-			for j := 0; j < len(c.Services[i].Resolvers); j++ {
-				if c.Services[i].ProfilePath != "" {
-					continue
-				}
-
-				c.Services[i].ProfilePath = c.ProfilePath
-			}
+		if c.ProfilePath != "" && c.Services[i].ProfilePath == "" {
+			c.Services[i].ProfilePath = c.ProfilePath
 		}
 
-		if c.ProfileType != "" {
-			for j := 0; j < len(c.Services[i].Resolvers); j++ {
-				if c.Services[i].ProfileType != "" {
-					continue
-				}
+		if c.ProfileType != "" && c.Services[i].ProfileType == "" {
+			c.Services[i].ProfileType = c.ProfileType
+		}
 
-				c.Services[i].ProfileType = c.ProfileType
-			}
+		if c.Probability != 0.0 && c.Services[i].Probability == 0.0 {
+			c.Services[i].Probability = c.Probability
+		}
+
+		if c.Period != 0 && c.Services[i].Period == 0 {
+			c.Services[i].Period = c.Period
 		}
 	}
 }
 
-func (c *Config) FillPorts(ports *map[string]int) {
+func (c *Config) FillPorts(ports map[string]int) {
 	for i := 0; i < len(c.Services); i++ {
-		port, ok := (*ports)[c.Services[i].ServiceType]
+		port, ok := ports[c.Services[i].ServiceType]
 		if !ok {
 			continue
 		}

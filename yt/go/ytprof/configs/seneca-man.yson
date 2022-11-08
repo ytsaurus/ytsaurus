@@ -1,0 +1,122 @@
+{
+    "ports" = {
+        "node" = 10012;
+        "dat-node" = 10012;
+        "exe-node" = 10012;
+        "exe-tab-node" = 10012;
+        "tab-node" = 10022;
+        "chaos-node" = 10023;
+        "master" = 10010;
+        "master-caches" = 10018;
+        "scheduler" = 10011;
+        "rpc-proxy" = 10017;
+        "http-proxy" = 10013;
+        "controller-agent" = 10014;
+        "clock" = 10016;
+        "discovery" = 10020;
+    };
+    "configs" = [
+        {
+            "cluster" = "seneca-man";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "probability" = 0.5;
+            "period" = 300000000000;
+            "services" = [
+                {
+                    "service_type" = "dat-node";
+                    "probability" = 0.1;
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-dat-nodes-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "exe-tab-node";
+                    "probability" = 0.1;
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-exe-tab-nodes-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "master";
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-masters-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "master-caches";
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-master-caches-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "scheduler";
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-schedulers-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "clock";
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-clocks-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "controller-agent";
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-controller-agents-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "clock";
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-clocks-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "http-proxy";
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-proxies-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "rpc-proxy";
+                    "probability" = 0.1;
+                    "resolvers" = [
+                        {
+                            "podset" = "man-yt-seneca-man-rpc-proxies-over-yp";
+                            "cluster" = "man"
+                        }
+                    ]
+                };
+            ]
+        };
+    ]
+}
