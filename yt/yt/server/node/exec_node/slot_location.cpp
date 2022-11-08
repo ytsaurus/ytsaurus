@@ -148,143 +148,181 @@ void TSlotLocation::DoInitialize()
     YT_LOG_INFO("Location initialization complete");
 }
 
-TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options)
+void TSlotLocation::DoRepair(bool force)
 {
+    if (Enabled_ && !force) {
+        YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
+        return;
+    }
+
+    try {
+        {
+            auto guard = WriterGuard(SlotsLock_);
+            SandboxOptionsPerSlot_.clear();
+            TmpfsPaths_.clear();
+            SlotsWithQuota_.clear();
+        }
+
+        WaitFor(JobDirectoryManager_->CleanDirectories(Config_->Path))
+            .ThrowOnError();
+
+        Error_.Store(TError{});
+        Alert_.Store(TError{});
+
+        DoInitialize();
+    } catch (const std::exception& ex) {
+        auto error = TError("Failed to repair slot location %v", Config_->Path)
+            << ex;
+        THROW_ERROR error;
+    }
+
+    Enabled_ = true;
+
+    YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
+}
+
+std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options, bool sandboxInsideTmpfs)
+{
+    ValidateEnabled();
+
+    YT_LOG_DEBUG("Preparing sandbox directiories (SlotIndex: %v, SandboxInsideTmpfs: %v)",
+        slotIndex,
+        sandboxInsideTmpfs);
+
     auto userId = SlotIndexToUserId_(slotIndex);
     auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
 
-    bool sandboxInsideTmpfs = WaitFor(BIND([=] {
-        for (const auto& tmpfsVolume : options.TmpfsVolumes) {
-            // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
-            // real path without filesystem access.
-            auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
-            if (tmpfsPath == sandboxPath) {
-                return true;
+    bool shouldApplyQuota = ((options.InodeLimit || options.DiskSpaceLimit) && !sandboxInsideTmpfs);
+    if (shouldApplyQuota) {
+        try {
+            auto properties = TJobDirectoryProperties {options.DiskSpaceLimit, options.InodeLimit, userId};
+            WaitFor(JobDirectoryManager_->ApplyQuota(sandboxPath, properties))
+                .ThrowOnError();
+            {
+                auto guard = WriterGuard(SlotsLock_);
+                SlotsWithQuota_.insert(slotIndex);
             }
+        } catch (const std::exception& ex) {
+            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
+                << TErrorAttribute("sandbox_path", sandboxPath)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    }
+
+    // This tmp sandbox is a temporary workaround for nirvana. We apply the same quota as we do for usual sandbox.
+    if (options.DiskSpaceLimit || options.InodeLimit) {
+        auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
+        try {
+            auto properties = TJobDirectoryProperties{options.DiskSpaceLimit, options.InodeLimit, userId};
+            WaitFor(JobDirectoryManager_->ApplyQuota(tmpPath, properties))
+                .ThrowOnError();
+        } catch (const std::exception& ex) {
+            auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job tmp directory")
+                << TErrorAttribute("tmp_path", tmpPath)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    }
+
+    {
+        auto guard = WriterGuard(SlotsLock_);
+        YT_VERIFY(SandboxOptionsPerSlot_.emplace(slotIndex, options).second);
+    }
+
+    std::vector<TString> result;
+
+    for (const auto& tmpfsVolume : options.TmpfsVolumes) {
+        // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
+        auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
+        try {
+            if (tmpfsPath != sandboxPath) {
+                // If we mount directory inside sandbox, it should not exist.
+                ValidateNotExists(tmpfsPath);
+            }
+            NFS::MakeDirRecursive(tmpfsPath);
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
+                tmpfsPath,
+                sandboxPath)
+                << ex;
         }
 
-        return false;
-    })
-    .AsyncVia(LightInvoker_)
-    .Run())
-    .ValueOrThrow();
+        if (!EnableTmpfs_) {
+            continue;
+        }
 
-    bool shouldApplyQuota = ((options.InodeLimit || options.DiskSpaceLimit) && !sandboxInsideTmpfs);
+        try {
+            auto properties = TJobDirectoryProperties{tmpfsVolume.Size, std::nullopt, userId};
+            WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
+                .ThrowOnError();
+
+            {
+                auto guard = WriterGuard(SlotsLock_);
+                YT_VERIFY(TmpfsPaths_.insert(tmpfsPath).second);
+            }
+
+            result.push_back(tmpfsPath);
+        } catch (const std::exception& ex) {
+            // Job will be aborted.
+            auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", tmpfsPath, sandboxPath)
+                << ex;
+            Disable(error);
+            THROW_ERROR error;
+        }
+    }
+
+    for (int i = 0; i < std::ssize(result); ++i) {
+        for (int j = 0; j < std::ssize(result); ++j) {
+            if (i == j) {
+                continue;
+            }
+            auto lhsFsPath = TFsPath(result[i]);
+            auto rhsFsPath = TFsPath(result[j]);
+            if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
+                THROW_ERROR_EXCEPTION("Path of tmpfs volume %v is prefix of other tmpfs volume %v",
+                    result[i],
+                    result[j]);
+            }
+        }
+    }
+
+    YT_LOG_DEBUG("Sandbox directories prepared (SlotIndex: %v)",
+        slotIndex);
+
+    return result;
+}
+
+TFuture<std::vector<TString>> TSlotLocation::PrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options)
+{
+    auto sandboxPath = GetSandboxPath(slotIndex, ESandboxKind::User);
+
+    bool sandboxInsideTmpfs = WaitFor(
+        BIND([=] {
+            for (const auto& tmpfsVolume : options.TmpfsVolumes) {
+                // TODO(gritukan): Implement a function that joins absolute path with a relative path and returns
+                // real path without filesystem access.
+                auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
+                if (tmpfsPath == sandboxPath) {
+                    return true;
+                }
+            }
+
+            return false;
+        })
+        .AsyncVia(LightInvoker_)
+        .Run())
+        .ValueOrThrow();
 
     const auto& invoker = sandboxInsideTmpfs
         ? LightInvoker_
         : HeavyInvoker_;
 
-    return BIND([=, this, this_ = MakeStrong(this)] {
-        ValidateEnabled();
-
-        YT_LOG_DEBUG("Preparing sandbox directiories (SlotIndex: %v, SandboxInsideTmpfs: %v)",
-            slotIndex,
-            sandboxInsideTmpfs);
-
-        if (shouldApplyQuota) {
-            try {
-                auto properties = TJobDirectoryProperties {options.DiskSpaceLimit, options.InodeLimit, userId};
-                WaitFor(JobDirectoryManager_->ApplyQuota(sandboxPath, properties))
-                    .ThrowOnError();
-                {
-                    auto guard = WriterGuard(SlotsLock_);
-                    SlotsWithQuota_.insert(slotIndex);
-                }
-            } catch (const std::exception& ex) {
-                auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job sandbox")
-                    << TErrorAttribute("sandbox_path", sandboxPath)
-                    << ex;
-                Disable(error);
-                THROW_ERROR error;
-            }
-        }
-
-        // This tmp sandbox is a temporary workaround for nirvana. We apply the same quota as we do for usual sandbox.
-        if (options.DiskSpaceLimit || options.InodeLimit) {
-            auto tmpPath = GetSandboxPath(slotIndex, ESandboxKind::Tmp);
-            try {
-                auto properties = TJobDirectoryProperties{options.DiskSpaceLimit, options.InodeLimit, userId};
-                WaitFor(JobDirectoryManager_->ApplyQuota(tmpPath, properties))
-                    .ThrowOnError();
-            } catch (const std::exception& ex) {
-                auto error = TError(EErrorCode::QuotaSettingFailed, "Failed to set FS quota for a job tmp directory")
-                    << TErrorAttribute("tmp_path", tmpPath)
-                    << ex;
-                Disable(error);
-                THROW_ERROR error;
-            }
-        }
-
-        {
-            auto guard = WriterGuard(SlotsLock_);
-            YT_VERIFY(SandboxOptionsPerSlot_.emplace(slotIndex, options).second);
-        }
-
-        std::vector<TString> result;
-
-        for (const auto& tmpfsVolume : options.TmpfsVolumes) {
-            // TODO(gritukan): GetRealPath here can be replaced with some light analogue that does not access filesystem.
-            auto tmpfsPath = NFS::GetRealPath(NFS::CombinePaths(sandboxPath, tmpfsVolume.Path));
-            try {
-                if (tmpfsPath != sandboxPath) {
-                    // If we mount directory inside sandbox, it should not exist.
-                    ValidateNotExists(tmpfsPath);
-                }
-                NFS::MakeDirRecursive(tmpfsPath);
-            } catch (const std::exception& ex) {
-                THROW_ERROR_EXCEPTION("Failed to create directory %v for tmpfs in sandbox %v",
-                    tmpfsPath,
-                    sandboxPath)
-                    << ex;
-            }
-
-            if (!EnableTmpfs_) {
-                continue;
-            }
-
-            try {
-                auto properties = TJobDirectoryProperties{tmpfsVolume.Size, std::nullopt, userId};
-                WaitFor(JobDirectoryManager_->CreateTmpfsDirectory(tmpfsPath, properties))
-                    .ThrowOnError();
-
-                {
-                    auto guard = WriterGuard(SlotsLock_);
-                    YT_VERIFY(TmpfsPaths_.insert(tmpfsPath).second);
-                }
-
-                result.push_back(tmpfsPath);
-            } catch (const std::exception& ex) {
-                // Job will be aborted.
-                auto error = TError(EErrorCode::SlotLocationDisabled, "Failed to mount tmpfs %v into sandbox %v", tmpfsPath, sandboxPath)
-                    << ex;
-                Disable(error);
-                THROW_ERROR error;
-            }
-        }
-
-        for (int i = 0; i < std::ssize(result); ++i) {
-            for (int j = 0; j < std::ssize(result); ++j) {
-                if (i == j) {
-                    continue;
-                }
-                auto lhsFsPath = TFsPath(result[i]);
-                auto rhsFsPath = TFsPath(result[j]);
-                if (lhsFsPath.IsSubpathOf(rhsFsPath)) {
-                    THROW_ERROR_EXCEPTION("Path of tmpfs volume %v is prefix of other tmpfs volume %v",
-                        result[i],
-                        result[j]);
-                }
-            }
-        }
-
-        YT_LOG_DEBUG("Sandbox directories prepared (SlotIndex: %v)",
-            slotIndex);
-
-        return result;
-    })
-    .AsyncVia(invoker)
-    .Run();
+    return BIND(&TSlotLocation::DoPrepareSandboxDirectories, MakeStrong(this), slotIndex, options, sandboxInsideTmpfs)
+        .AsyncVia(invoker)
+        .Run();
 }
 
 TFuture<void> TSlotLocation::DoMakeSandboxFile(
@@ -788,40 +826,11 @@ void TSlotLocation::OnArtifactPreparationFailed(
     }
 }
 
-TFuture<void> TSlotLocation::Repair()
+TFuture<void> TSlotLocation::Repair(bool force)
 {
-    return BIND([=, this, this_ = MakeStrong(this)] {
-        if (Enabled_) {
-            YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
-            return;
-        }
-
-        try {
-            {
-                auto guard = WriterGuard(SlotsLock_);
-                SandboxOptionsPerSlot_.clear();
-                TmpfsPaths_.clear();
-                SlotsWithQuota_.clear();
-            }
-
-            WaitFor(JobDirectoryManager_->CleanDirectories(Config_->Path))
-                .ThrowOnError();
-
-            Error_.Store(TError{});
-            Alert_.Store(TError{});
-
-            DoInitialize();
-        } catch (const std::exception& ex) {
-            auto error = TError("Failed to repair slot location %v", Config_->Path)
-                << ex;
-            THROW_ERROR error;
-        }
-
-        YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
-        Enabled_ = true;
-    })
-    .AsyncVia(SerializedHeavyInvoker_)
-    .Run();
+    return BIND(&TSlotLocation::DoRepair, MakeStrong(this), force)
+        .AsyncVia(SerializedHeavyInvoker_)
+        .Run();
 }
 
 bool TSlotLocation::IsInsideTmpfs(const TString& path) const

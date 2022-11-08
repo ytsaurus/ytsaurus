@@ -2166,7 +2166,7 @@ class TestHealExecNode(YTEnvSetup):
             op = run_test_vanilla("sleep 0.1")
             op.track()
 
-        with raises_yt_error('Unknown location: "[unknownslot]"'):
+        with raises_yt_error("Healing requested for unknown location"):
             heal_exec_node(node_address, ["unknownslot"])
 
         with raises_yt_error("Lock file is found"):
@@ -2214,6 +2214,40 @@ class TestHealExecNode(YTEnvSetup):
 
         heal_exec_node(node_address, alert_types_to_reset=["job_proxy_unavailable"], force_reset=True)
         wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
+
+    @authors("ignat")
+    def test_reset_fatal_alert(self):
+        node_address = ls("//sys/cluster_nodes")[0]
+        assert not get("//sys/cluster_nodes/{}/@alerts".format(node_address))
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "job_abortion_timeout": 500,
+            },
+        })
+
+        op = run_test_vanilla(
+            "sleep 10",
+            spec={"job_testing_options": {"delay_in_cleanup": 1000}},
+        )
+
+        wait(lambda: op.list_jobs())
+
+        job_ids = op.list_jobs()
+        assert len(job_ids) == 1
+        job_id = job_ids[0]
+
+        abort_job(job_id)
+
+        wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
+        wait(lambda: "generic_persistent_error" in get("//sys/cluster_nodes/{}/orchid/job_controller/slot_manager/alerts".format(node_address)))
+
+        wait(lambda: len(op.get_running_jobs()) == 0)
+
+        heal_exec_node(node_address, alert_types_to_reset=["generic_persistent_error"], force_reset=True)
+        wait(lambda: not get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
+
+        op.track()
 
 
 ##################################################################

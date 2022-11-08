@@ -323,14 +323,19 @@ void TJob::Abort(const TError& error)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    YT_LOG_INFO(error, "Job abort requested (Phase: %v)",
-        JobPhase_);
+    auto timeout = DynamicConfig_->JobAbortionTimeout.value_or(Config_->JobAbortionTimeout);
+
+    YT_LOG_INFO(error, "Job abort requested (Phase: %v, Timeout: %v)",
+        JobPhase_,
+        timeout);
 
     auto startAbortion = [&] () {
         SetJobStatePhase(EJobState::Aborting, EJobPhase::WaitingAbort);
         DoSetResult(error);
-        TDelayedExecutor::Submit(BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
-            .Via(Invoker_), Config_->JobAbortionTimeout);
+        TDelayedExecutor::Submit(
+            BIND(&TJob::OnJobAbortionTimeout, MakeStrong(this))
+                .Via(Invoker_),
+            timeout);
     };
 
     switch (JobPhase_) {
@@ -1778,6 +1783,10 @@ void TJob::Cleanup()
     }
 
     YT_LOG_INFO("Cleaning up after scheduler job");
+
+    if (auto delay = JobTestingOptions_->DelayInCleanup) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
 
     FinishTime_ = TInstant::Now();
     SetJobPhase(EJobPhase::Cleanup);

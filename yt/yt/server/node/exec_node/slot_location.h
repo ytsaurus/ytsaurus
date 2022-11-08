@@ -105,7 +105,8 @@ public:
         const TError& error);
 
     //! Cleans the slot directory, initializes the location and enables it.
-    TFuture<void> Repair();
+    //! If force argument is specified then unconditionally performs initialization.
+    TFuture<void> Repair(bool force);
 
 private:
     const TSlotLocationConfigPtr Config_;
@@ -184,6 +185,10 @@ private:
         bool canUseLightInvoker);
 
     void DoInitialize();
+
+    void DoRepair(bool force);
+
+    std::vector<TString> DoPrepareSandboxDirectories(int slotIndex, TUserSandboxOptions options, bool sandboxInsideTmpfs);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSlotLocation)

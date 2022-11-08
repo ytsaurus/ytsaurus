@@ -550,6 +550,8 @@ public:
     TSchedulerConnectorDynamicConfigPtr SchedulerConnector;
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
+    std::optional<TDuration> JobAbortionTimeout;
+    
     bool AbortOnJobsDisabled;
 
     bool TreatJobProxyFailureAsAbort;
