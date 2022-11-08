@@ -314,7 +314,9 @@ TChunkReplicator::TChunkReplicator(
     TBootstrap* bootstrap,
     TChunkPlacementPtr chunkPlacement,
     IJobRegistryPtr jobRegistry)
-    : TIncumbentBase(bootstrap->GetIncumbentManager())
+    : TShardedIncumbentBase(
+        bootstrap->GetIncumbentManager(),
+        EIncumbentType::ChunkReplicator)
     , Config_(std::move(config))
     , Bootstrap_(bootstrap)
     , ChunkPlacement_(std::move(chunkPlacement))
@@ -362,8 +364,7 @@ TChunkReplicator::TChunkReplicator(
     YT_VERIFY(GetShardCount() == ChunkShardCount);
 }
 
-TChunkReplicator::~TChunkReplicator()
-{ }
+TChunkReplicator::~TChunkReplicator() = default;
 
 void TChunkReplicator::OnEpochStarted()
 {
@@ -458,17 +459,16 @@ void TChunkReplicator::OnLeadingFinished()
 
 void TChunkReplicator::OnIncumbencyStarted(int shardIndex)
 {
+    TShardedIncumbentBase::OnIncumbencyStarted(shardIndex);
+
     StartRefresh(shardIndex);
 }
 
 void TChunkReplicator::OnIncumbencyFinished(int shardIndex)
 {
-    StopRefresh(shardIndex);
-}
+    TShardedIncumbentBase::OnIncumbencyFinished(shardIndex);
 
-EIncumbentType TChunkReplicator::GetType() const
-{
-    return EIncumbentType::ChunkReplicator;
+    StopRefresh(shardIndex);
 }
 
 void TChunkReplicator::TouchChunk(TChunk* chunk)
@@ -1780,7 +1780,7 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
     // Schedule balancing jobs.
     // TODO(gritukan): YT-17358, balancing jobs are probably not needed and are hard to
     // implement with sharded replicator.
-    if (RefreshRunning_.all()) {
+    if (GetActiveShardCount() == GetShardCount()) {
         for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
             auto* medium = mediumIdAndPtrPair.second;
             if (medium->GetCache()) {
@@ -1857,7 +1857,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
     }
 
     // TODO(gritukan): Use sharded destroyed replica sets here.
-    if (RefreshRunning_.any()) {
+    if (GetActiveShardCount() > 0) {
         TCompactFlatMap<
             TChunkLocation*,
             TChunkLocation::TDestroyedReplicasIterator,
@@ -2429,7 +2429,7 @@ void TChunkReplicator::ScheduleGlobalChunkRefresh()
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
     for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
-        if (RefreshRunning_.test(shardIndex)) {
+        if (IsShardActive(shardIndex)) {
             BlobRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
             JournalRefreshScanner_->ScheduleGlobalScan(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
         }
@@ -2521,12 +2521,12 @@ bool TChunkReplicator::IsRequisitionUpdateEnabled()
 bool TChunkReplicator::ShouldProcessChunk(TChunk* chunk)
 {
     YT_ASSERT(chunk);
-    return RefreshRunning_.test(chunk->GetShardIndex());
+    return IsShardActive(chunk->GetShardIndex());
 }
 
 bool TChunkReplicator::ShouldProcessChunk(TChunkId chunkId)
 {
-    return RefreshRunning_.test(GetChunkShardIndex(chunkId));
+    return IsShardActive(GetChunkShardIndex(chunkId));
 }
 
 TJobEpoch TChunkReplicator::GetJobEpoch(TChunk* chunk) const
@@ -3344,9 +3344,6 @@ void TChunkReplicator::StartRefresh(int shardIndex)
     BlobRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalBlobChunkScanDescriptor(shardIndex));
     JournalRefreshScanner_->Start(shardIndex, chunkManager->GetGlobalJournalChunkScanDescriptor(shardIndex));
 
-    YT_VERIFY(!RefreshRunning_.test(shardIndex));
-    RefreshRunning_.set(shardIndex);
-
     auto& jobEpoch = JobEpochs_[shardIndex];
     YT_VERIFY(jobEpoch == InvalidJobEpoch);
     jobEpoch = JobRegistry_->StartEpoch();
@@ -3361,11 +3358,6 @@ void TChunkReplicator::StartRefresh(int shardIndex)
 
 void TChunkReplicator::StopRefresh(int shardIndex)
 {
-    if (!RefreshRunning_.test(shardIndex)) {
-        return;
-    }
-    RefreshRunning_.reset(shardIndex);
-
     BlobRefreshScanner_->Stop(shardIndex);
     JournalRefreshScanner_->Stop(shardIndex);
 

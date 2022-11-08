@@ -53,6 +53,7 @@ using NChunkClient::TConsistentReplicaPlacementHash;
 using NChunkClient::NullConsistentReplicaPlacementHash;
 using NChunkClient::ChunkReplicaIndexBound;
 using NChunkClient::TChunkReplicaWithLocationList;
+using NChunkClient::ChunkShardCount;
 
 using NJobTrackerClient::TJobId;
 using NJobTrackerClient::EJobType;
@@ -295,12 +296,6 @@ struct TGlobalChunkScanDescriptor
     TChunk* FrontChunk;
     int ChunkCount;
 };
-
-//! All chunks are uniformly divided into |ChunkShardCount| shards.
-// BEWARE: Chaning this value requires reign promotion since rolling update
-// is not possible.
-constexpr int ChunkShardCount = 60;
-static_assert(ChunkShardCount < std::numeric_limits<i8>::max(), "|ChunkShardCount| must fit into i8");
 
 struct TChunkToShardIndex
 {

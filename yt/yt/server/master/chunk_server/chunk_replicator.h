@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/misc/max_min_balancer.h>
 
-#include <yt/yt/server/master/incumbent_server/incumbent.h>
+#include <yt/yt/server/master/incumbent_server/incumbent_detail.h>
 
 #include <yt/yt/server/master/node_tracker_server/data_center.h>
 
@@ -37,7 +37,7 @@ namespace NYT::NChunkServer {
 
 class TChunkReplicator
     : public IJobController
-    , public NIncumbentServer::TIncumbentBase
+    , public NIncumbentServer::TShardedIncumbentBase
 {
 public:
     TChunkReplicator(
@@ -56,8 +56,6 @@ public:
 
     void OnIncumbencyStarted(int shardIndex) override;
     void OnIncumbencyFinished(int shardIndex) override;
-
-    NIncumbentClient::EIncumbentType GetType() const override;
 
     void OnNodeDisposed(TNode* node);
     void OnNodeUnregistered(TNode* node);
@@ -219,7 +217,6 @@ private:
 
     std::optional<bool> Enabled_;
 
-    std::bitset<ChunkShardCount> RefreshRunning_;
     bool RequisitionUpdateRunning_ = false;
 
     TInstant LastActiveShardSetUpdateTime_ = TInstant::Zero();

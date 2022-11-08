@@ -349,11 +349,10 @@ private:
     void DumpState(TGuid dumpId)
     {
         for (const auto& node : Nodes_) {
-            YT_LOG_DEBUG("Tablet cell distribution %v %v (DumpId: %v)",
+            YT_LOG_DEBUG("Tablet cell distribution: %v %v (DumpId: %v)",
                 node.GetNode()->GetDefaultAddress(),
                 MakeFormattableView(node.GetSlots(), [] (TStringBuilderBase* builder, const std::pair<const TCellBase*, int>& pair) {
-                    const auto* cell = pair.first;
-                    int peerId = pair.second;
+                    auto [cell, peerId] = pair;
                     builder->AppendFormat("<%v,%v,%v,%v>",
                         cell->CellBundle()->GetName(),
                         cell->GetArea()->GetName(),
@@ -696,7 +695,7 @@ private:
         });
 
         if (aboveCeil > 0 || belowFloor > 0) {
-            YT_LOG_DEBUG("Tablet cell balancer need to smooth bundle (Bundle: %v, Area: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
+            YT_LOG_DEBUG("Tablet cell balancer needs to smooth bundle (Bundle: %v, Area: %v, Ceil: %v, Floor: %v, AboveCeilCount: %v, BelowFloorCount: %v)",
                 area->GetCellBundle()->GetName(),
                 area->GetName(),
                 ceil,

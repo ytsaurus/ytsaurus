@@ -30,6 +30,8 @@ using NHydra::TPeerId;
 using NHydra::InvalidPeerId;
 using NHydra::EPeerState;
 
+using NCellarClient::CellShardCount;
+
 using TCellBundleId = NTabletClient::TTabletCellBundleId;
 using NTabletClient::NullTabletCellBundleId;
 using TTamedCellId = NTabletClient::TTabletCellId;
