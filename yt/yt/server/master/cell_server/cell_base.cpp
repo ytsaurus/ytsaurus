@@ -2,6 +2,7 @@
 
 #include "area.h"
 #include "cell_bundle.h"
+#include "helpers.h"
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
@@ -105,6 +106,11 @@ void TCellBase::TPeer::Persist(const NCellMaster::TPersistenceContext& context)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TCellBase::TCellBase(TTamedCellId id)
+    : TObject(id)
+    , ShardIndex_(GetCellShardIndex(id))
+{ }
 
 void TCellBase::Save(TSaveContext& context) const
 {

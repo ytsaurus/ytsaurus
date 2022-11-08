@@ -87,7 +87,7 @@ public:
         Incumbents_[type] = std::move(incumbent);
     }
 
-    int GetIncumbentCount(NIncumbentClient::EIncumbentType type) const override
+    int GetIncumbentCount(EIncumbentType type) const override
     {
         TCompactSet<TString, 7> addresses;
         for (auto& address : CurrentIncumbentMap_[type].Addresses) {

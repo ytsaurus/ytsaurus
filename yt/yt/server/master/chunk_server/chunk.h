@@ -128,7 +128,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(i8, ReadQuorum);
     DEFINE_BYVAL_RW_PROPERTY(i8, WriteQuorum);
 
-    //! Cached |GetChunkShardIndex(id)| for effective access.
+    //! Cached |GetChunkShardIndex(id)| for efficient access.
     DEFINE_BYVAL_RO_PROPERTY(i8, ShardIndex);
 
 public:

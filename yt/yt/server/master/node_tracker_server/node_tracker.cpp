@@ -64,7 +64,7 @@
 
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 
-#include <yt/yt/ytlib/tablet_cell_client/tablet_cell_service_proxy.h>
+#include <yt/yt/ytlib/cellar_client/tablet_cell_service_proxy.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -889,7 +889,7 @@ public:
 
         auto nodeChannel = Bootstrap_->GetNodeChannelFactory()->CreateChannel(descriptor);
 
-        NTabletCellClient::TTabletCellServiceProxy proxy(nodeChannel);
+        NCellarClient::TTabletCellServiceProxy proxy(nodeChannel);
         auto req = proxy.RequestHeartbeat();
         req->SetTimeout(GetDynamicConfig()->ForceNodeHeartbeatRequestTimeout);
         Y_UNUSED(req->Invoke());

@@ -39,7 +39,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicCellarNodeTrackerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDynamicCellManagerConfig
-    : public NHydra::THydraJanitorConfig
+    : public NYTree::TYsonStruct
 {
 public:
     TDynamicCellarNodeTrackerConfigPtr CellarNodeTracker;

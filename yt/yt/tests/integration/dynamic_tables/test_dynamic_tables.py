@@ -2978,7 +2978,9 @@ class TestDynamicTablesErasureJournals(TestDynamicTablesSingleCell):
 class TestDynamicTablesSafeMode(DynamicTablesBase):
     USE_PERMISSION_CACHE = False
 
-    DELTA_NODE_CONFIG = {"master_cache_service": {"capacity": 0}}
+    DELTA_NODE_CONFIG = {
+        "master_cache_service": {"capacity": 0}
+    }
 
     @authors("savrus")
     def test_safe_mode(self):
@@ -3319,3 +3321,41 @@ class TestTabletOrchid(DynamicTablesBase):
         assert table_stat["tablet_dynamic"]["backing"] > 0
         assert table_stat["tablet_static"]["usage"] > 0
         assert table_stat["row_cache"]["usage"] > 0
+
+
+##################################################################
+
+
+class TestTabletCellJanitor(DynamicTablesBase):
+    NUM_MASTERS = 3
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "tablet_manager": {
+            "max_snapshot_count_to_keep": 2,
+            "tablet_cells_cleanup_period": 1000
+        }
+    }
+
+    @authors("babenko")
+    def test_cleanup(self):
+        CELL_COUNT = 5
+        SNAPSHOT_COUNT = 4
+        EXPECTED_SNAPSHOT_IDS = [4, 5]
+
+        create_tablet_cell_bundle("b")
+        set("//sys/tablet_cell_bundles/b/@cell_balancer_config/enable_tablet_cell_smoothing", False)
+
+        cell_ids = sync_create_cells(CELL_COUNT, tablet_cell_bundle="b")
+
+        for cell_id in cell_ids:
+            for _ in range(SNAPSHOT_COUNT):
+                build_snapshot(cell_id=cell_id)
+
+        def _check(cell_id):
+            snapshot_ids = [int(id) for id in ls(f"//sys/tablet_cells/{cell_id}/snapshots")]
+            changelog_ids = [int(id) for id in ls(f"//sys/tablet_cells/{cell_id}/changelogs")]
+            return sorted(snapshot_ids) == EXPECTED_SNAPSHOT_IDS and sorted(changelog_ids) == EXPECTED_SNAPSHOT_IDS
+
+        for cell_id in cell_ids:
+            wait(lambda: _check(cell_id))

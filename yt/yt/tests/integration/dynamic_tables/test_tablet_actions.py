@@ -1301,8 +1301,7 @@ class TestTabletBalancer(TabletBalancerBase):
     def _set_enable_tablet_balancer(self, value):
         set(
             "//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer",
-            value,
-            recursive=True,
+            value
         )
 
     def _set_default_schedule_formula(self, value):

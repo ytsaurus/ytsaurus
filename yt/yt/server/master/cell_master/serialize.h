@@ -64,6 +64,7 @@ DEFINE_ENUM(EMasterReign,
     ((MulticellEnableConsistentChunkReplicaPlacement)               (2128))  // shakurov
     ((ShardedChunkLocationMap)                                      (2129))  // kvk1920
     ((ClearRevisionOnDuplicateEndorsement)                          (2130))  // ifsmirnov
+    ((ShardedCellJanitor)                                           (2131))  // babenko
     // 22.4 starts here.
     ((ZookeeperShards)                                              (2200))  // gritukan
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2

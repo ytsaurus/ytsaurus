@@ -1,10 +1,10 @@
 #pragma once
 
-#include <yt/yt/ytlib/tablet_cell_client/proto/tablet_cell_service.pb.h>
+#include <yt/yt/ytlib/cellar_client/proto/tablet_cell_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 
-namespace NYT::NTabletCellClient {
+namespace NYT::NCellarClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -20,5 +20,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTabletCellClient
-
+} // namespace NYT::NCellarClient

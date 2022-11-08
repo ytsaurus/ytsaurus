@@ -57,6 +57,9 @@ class TCellBase
     , public TRefTracked<TCellBase>
 {
 public:
+    //! Cached |GetCellShardIndex(id)| for efficient access.
+    DEFINE_BYVAL_RO_PROPERTY(int, ShardIndex);
+
     struct TPeer
     {
         NNodeTrackerClient::TNodeDescriptor Descriptor;
@@ -101,7 +104,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(bool, Suspended);
 
 public:
-    using TObject::TObject;
+    explicit TCellBase(TTamedCellId id);
 
     virtual void Save(NCellMaster::TSaveContext& context) const;
     virtual void Load(NCellMaster::TLoadContext& context);

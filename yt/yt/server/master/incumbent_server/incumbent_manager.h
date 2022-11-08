@@ -27,11 +27,11 @@ struct IIncumbentManager
         TInstant peerLeaseDeadline,
         const NIncumbentClient::TIncumbentMap& incumbentMap) = 0;
 
-    virtual int GetIncumbentCount(NIncumbentClient::EIncumbentType type) const = 0;
+    virtual int GetIncumbentCount(EIncumbentType type) const = 0;
 
-    virtual bool HasIncumbency(NIncumbentClient::EIncumbentType type, int shardIndex) const = 0;
+    virtual bool HasIncumbency(EIncumbentType type, int shardIndex) const = 0;
 
-    virtual std::optional<TString> GetIncumbentAddress(NIncumbentClient::EIncumbentType type, int shardIndex) const = 0;
+    virtual std::optional<TString> GetIncumbentAddress(EIncumbentType type, int shardIndex) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IIncumbentManager)

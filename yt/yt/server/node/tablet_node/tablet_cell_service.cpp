@@ -13,7 +13,7 @@
 
 #include <yt/yt/server/lib/hydra_common/hydra_service.h>
 
-#include <yt/yt/ytlib/tablet_cell_client/tablet_cell_service_proxy.h>
+#include <yt/yt/ytlib/cellar_client/tablet_cell_service_proxy.h>
 
 namespace NYT::NTabletNode {
 
@@ -30,7 +30,7 @@ public:
     explicit TTabletCellService(IBootstrap* bootstrap)
         : TServiceBase(
             bootstrap->GetControlInvoker(),
-            NTabletCellClient::TTabletCellServiceProxy::GetDescriptor(),
+            NCellarClient::TTabletCellServiceProxy::GetDescriptor(),
             TabletNodeLogger,
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
@@ -44,7 +44,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
 
-    DECLARE_RPC_SERVICE_METHOD(NTabletCellClient::NProto, RequestHeartbeat)
+    DECLARE_RPC_SERVICE_METHOD(NCellarClient::NProto, RequestHeartbeat)
     {
         context->SetRequestInfo();
 

@@ -9,7 +9,7 @@
 #include <yt/yt/server/master/cell_master/hydra_facade.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
-#include <yt/yt/server/master/incumbent_server/incumbent.h>
+#include <yt/yt/server/master/incumbent_server/incumbent_detail.h>
 #include <yt/yt/server/master/incumbent_server/incumbent_manager.h>
 
 #include <yt/yt/server/master/object_server/object_manager.h>
@@ -21,6 +21,8 @@
 #include <yt/yt/server/lib/hydra_common/hydra_janitor_helpers.h>
 
 #include <yt/yt/ytlib/tablet_client/config.h>
+
+#include <yt/yt/ytlib/cellar_client/public.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -37,6 +39,7 @@ using namespace NHydra;
 using namespace NIncumbentClient;
 using namespace NIncumbentServer;
 using namespace NCellMaster;
+using namespace NCellarClient;
 
 using NYT::ToProto;
 
@@ -48,21 +51,33 @@ static const auto& Logger = CellServerLogger;
 
 class TCellHydraJanitor
     : public ICellHydraJanitor
-    , public TIncumbentBase
+    , public TShardedIncumbentBase
 {
 public:
     explicit TCellHydraJanitor(NCellMaster::TBootstrap* bootstrap)
-        : TIncumbentBase(bootstrap->GetIncumbentManager())
+        : TShardedIncumbentBase(
+            bootstrap->GetIncumbentManager(),
+            EIncumbentType::CellJanitor)
         , Bootstrap_(bootstrap)
     { }
 
     void Initialize() override
     {
-        Bootstrap_->GetConfigManager()->SubscribeConfigChanged(
+        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
+        hydraManager->SubscribeStartLeading(BIND(&TCellHydraJanitor::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopLeading(BIND(&TCellHydraJanitor::OnStopEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStartFollowing(BIND(&TCellHydraJanitor::OnStartEpoch, MakeWeak(this)));
+        hydraManager->SubscribeStopFollowing(BIND(&TCellHydraJanitor::OnStopEpoch, MakeWeak(this)));
+
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        configManager->SubscribeConfigChanged(
             BIND(&TCellHydraJanitor::OnDynamicConfigChanged, MakeWeak(this)));
 
-        const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
-        incumbentManager->RegisterIncumbent(this);
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            const auto& incumbentManager = Bootstrap_->GetIncumbentManager();
+            incumbentManager->RegisterIncumbent(this);
+        }
     }
 
 private:
@@ -72,50 +87,28 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    EIncumbentType GetType() const override
-    {
-        return EIncumbentType::CellJanitor;
-    }
 
-    void OnIncumbencyStarted(int shardIndex) override
+    void OnStartEpoch()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (shardIndex != 0) {
-            YT_LOG_ALERT("Started cell hydra janitor incumbency with unexpected shard index, ignored "
-                "(ShardIndex: %v)",
-                shardIndex);
-            return;
-        }
-
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        if (!multicellManager->IsPrimaryMaster()) {
-            return;
-        }
-
+        YT_VERIFY(!PeriodicExecutor_);
         PeriodicExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(NCellMaster::EAutomatonThreadQueue::TabletCellJanitor),
-            BIND(&TCellHydraJanitor::OnCleanup, MakeWeak(this)),
-            GetDynamicConfig()->TabletCellsCleanupPeriod);
+            BIND(&TCellHydraJanitor::OnCleanup, MakeWeak(this)));
         PeriodicExecutor_->Start();
     }
 
-    void OnIncumbencyFinished(int shardIndex) override
+    void OnStopEpoch()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-        if (shardIndex != 0) {
-            YT_LOG_ALERT("Stopped cell Hydra janitor incumbency with unexpected shard index, ignored "
-                "(ShardIndex: %v)",
-                shardIndex);
-            return;
-        }
 
         if (PeriodicExecutor_) {
             PeriodicExecutor_->Stop();
             PeriodicExecutor_.Reset();
         }
     }
+
 
     const NTabletServer::TDynamicTabletManagerConfigPtr& GetDynamicConfig()
     {
@@ -129,10 +122,7 @@ private:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         const auto& config = GetDynamicConfig();
-
-        if (PeriodicExecutor_) {
-            PeriodicExecutor_->SetPeriod(config->TabletCellsCleanupPeriod);
-        }
+        PeriodicExecutor_->SetPeriod(config->TabletCellsCleanupPeriod);
     }
 
 
@@ -242,14 +232,20 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        if (GetActiveShardCount() == 0) {
+            return;
+        }
+
+        YT_LOG_DEBUG("Cell janitor cleanup started (ActiveShardIndices: %v)",
+            ListActiveShardIndices());
+
         int snapshotBudget = GetDynamicConfig()->MaxSnapshotCountToRemovePerCheck;
         int changelogBudget = GetDynamicConfig()->MaxChangelogCountToRemovePerCheck;
 
         const auto& tamedCellManager = Bootstrap_->GetTamedCellManager();
-        auto cellIds = GetKeys(tamedCellManager->Cells());
+        auto cellIds = ListActiveCellIds();
         for (auto cellId : cellIds) {
             auto* cell = tamedCellManager->FindCell(cellId);
-
             if (!IsObjectAlive(cell)) {
                 continue;
             }
@@ -267,9 +263,27 @@ private:
                     CleanSnapshotsAndChangelogs(cellId, path, &snapshotBudget, &changelogBudget);
                 }
             } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Janitor cleanup failed (CellId: %v)", cellId);
+                YT_LOG_WARNING(ex, "Cell janitor cleanup failed (CellId: %v)", cellId);
             }
         }
+
+        YT_LOG_DEBUG("Cell janitor cleanup completed (CellCount: %v, RemainingSnapshotBudget: %v, RemaingingChangelogBudget: %v)",
+            cellIds.size(),
+            snapshotBudget,
+            changelogBudget);
+    }
+
+    std::vector<TCellId> ListActiveCellIds()
+    {
+        std::vector<TCellId> result;
+        const auto& tamedCellManager = Bootstrap_->GetTamedCellManager();
+        result.reserve(tamedCellManager->Cells().size());
+        for (auto [cellId, cell] : tamedCellManager->Cells()) {
+            if (IsShardActive(cell->GetShardIndex())) {
+                result.push_back(cellId);
+            }
+        }
+        return result;
     }
 };
 
