@@ -65,7 +65,7 @@ TRecovery::TRecovery(
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochSystemAutomatonInvoker, AutomatonThread);
 }
 
-TRecoveryResult TRecovery::DoRun()
+void TRecovery::DoRun()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -96,7 +96,7 @@ TRecoveryResult TRecovery::DoRun()
         snapshotId = std::max(snapshotParamsOrError.Value().SnapshotId, localLatestSnapshotId);
     }
 
-     YT_LOG_INFO("Running recovery (CurrentState: %v, TargetState: %v)",
+    YT_LOG_INFO("Running recovery (CurrentState: %v, TargetState: %v)",
         currentState,
         TargetState_);
 
@@ -195,7 +195,7 @@ TRecoveryResult TRecovery::DoRun()
     // Shortcut for observer startup.
     // XXX(babenko)
     if (TargetState_ == TReachableState() && !IsLeader_ && !Options_.WriteChangelogsAtFollowers) {
-        return RecoveryResult_;
+        return;
     }
 
     YT_LOG_INFO("Replaying changelogs (TargetState: %v, ChangelogIds: %v-%v)",
@@ -249,8 +249,6 @@ TRecoveryResult TRecovery::DoRun()
             automatonState,
             TargetState_);
     }
-
-    return RecoveryResult_;
 }
 
 void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
@@ -358,10 +356,6 @@ bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
         changelogRecordCount,
         targetSequenceNumber);
 
-    ++RecoveryResult_.ChangelogCount;
-    RecoveryResult_.MutationCount += changelogRecordCount;
-    RecoveryResult_.TotalChangelogSize += changelog->GetDataSize();
-
     int currentRecordId = 0;
     auto automatonVersion = DecoratedAutomaton_->GetAutomatonVersion();
     if (automatonVersion.SegmentId == changelog->GetId()) {
@@ -418,7 +412,7 @@ bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
     return true;
 }
 
-TFuture<TRecoveryResult> TRecovery::Run()
+TFuture<void> TRecovery::Run()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 

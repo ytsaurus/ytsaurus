@@ -865,6 +865,8 @@ void TDecoratedAutomaton::LoadSnapshot(
     // so just refuse.
     LastSuccessfulSnapshotId_ = snapshotId;
     LastMutationTerm_ = lastMutationTerm;
+    MutationCountSinceLastSnapshot_ = 0;
+    MutationSizeSinceLastSnapshot_ = 0;
 }
 
 void TDecoratedAutomaton::CheckInvariants()
@@ -1031,6 +1033,7 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     // Cf. YT-6908.
     const auto& request = mutationContext->Request();
     auto mutationId = request.MutationId;
+    auto mutationSize = request.Data.Size();
 
     {
         TMutationContextGuard mutationContextGuard(mutationContext);
@@ -1076,6 +1079,8 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     AutomatonVersion_ = mutationVersion.Advance();
 
     LastMutationTerm_ = term;
+    ++MutationCountSinceLastSnapshot_;
+    MutationSizeSinceLastSnapshot_ += mutationSize;
 
     if (Config_->EnableStateHashChecker) {
         StateHashChecker_->Report(sequenceNumber, StateHash_);
@@ -1238,6 +1243,9 @@ void TDecoratedAutomaton::UpdateLastSuccessfulSnapshotInfo(const TErrorOr<TRemot
 
     auto snapshotId = snapshotInfoOrError.Value().SnapshotId;
     LastSuccessfulSnapshotId_ = std::max(LastSuccessfulSnapshotId_.load(), snapshotId);
+
+    MutationCountSinceLastSnapshot_ = 0;
+    MutationSizeSinceLastSnapshot_ = 0;
 }
 
 void TDecoratedAutomaton::MaybeStartSnapshotBuilder()
@@ -1289,6 +1297,20 @@ bool TDecoratedAutomaton::IsBuildingSnapshotNow() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return BuildingSnapshot_.load();
+}
+
+i64 TDecoratedAutomaton::GetMutationCountSinceLastSnapshot() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return MutationCountSinceLastSnapshot_.load();
+}
+
+i64 TDecoratedAutomaton::GetMutationSizeSinceLastSnapshot() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return MutationSizeSinceLastSnapshot_.load();
 }
 
 int TDecoratedAutomaton::GetLastSuccessfulSnapshotId() const
