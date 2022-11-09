@@ -135,8 +135,7 @@ public:
             Config_->Gossip->Period))
         , ControlInvokerChecker_(New<TInvokerLivenessChecker>(
             ControlInvoker_,
-            Config_->ControlInvokerChecker->Period,
-            Config_->ControlInvokerChecker->Timeout,
+            Config_->ControlInvokerChecker,
             "Control"))
         , WorkerThreadPool_(New<TThreadPool>(Config_->WorkerThreadCount, "Worker"))
         , WorkerInvoker_(WorkerThreadPool_->GetInvoker())

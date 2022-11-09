@@ -18,8 +18,7 @@ class TInvokerLivenessChecker
 public:
     TInvokerLivenessChecker(
         IInvokerPtr invokerToCheck,
-        TDuration period,
-        TDuration timeout,
+        TInvokerLivenessCheckerConfigPtr config,
         TString invokerName);
 
     void Start();
@@ -27,11 +26,12 @@ public:
     TFuture<void> Stop();
 
 private:
+    TInvokerLivenessCheckerConfigPtr Config_;
+    IInvokerPtr InvokerToCheck_;
+    TString InvokerName_;
+
     NConcurrency::TActionQueuePtr CheckerQueue_;
     NConcurrency::TPeriodicExecutorPtr CheckerExecutor_;
-    IInvokerPtr InvokerToCheck_;
-    TDuration Timeout_;
-    TString InvokerName_;
 
     void DoCheck();
 };

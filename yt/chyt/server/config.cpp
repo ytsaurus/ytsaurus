@@ -331,6 +331,8 @@ void TInvokerLivenessCheckerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
         .Default(true);
+    registrar.Parameter("core_dump", &TThis::CoreDump)
+        .Default(false);
     registrar.Parameter("period", &TThis::Period)
         .Default(TDuration::Seconds(30));
     registrar.Parameter("timeout", &TThis::Timeout)

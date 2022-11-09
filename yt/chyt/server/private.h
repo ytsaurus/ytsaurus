@@ -34,6 +34,7 @@ inline const NProfiling::TProfiler ClickHouseNativeProfiler = ClickHouseProfiler
 constexpr int GracefulInterruptionExitCode = 0;
 constexpr int MemoryLimitExceededExitCode = 42;
 constexpr int InterruptionTimedOutExitCode = 43;
+constexpr int InvokerLivenessCheckerExitCode = 44;
 
 constexpr int SentinelMaxStringLength = 50;
 
