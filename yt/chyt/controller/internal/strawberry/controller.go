@@ -21,7 +21,7 @@ type Controller interface {
 	// filtering using YT list_operations API.
 	Family() string
 
-	NeedRestartOnSpecletChange(oldSpecletYson, newSpecletYson yson.RawValue) bool
+	ParseSpeclet(specletYson yson.RawValue) (any, error)
 
 	// TryUpdate tries to update controller, returns true if controller has changed.
 	TryUpdate() (bool, error)

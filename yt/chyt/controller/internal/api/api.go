@@ -17,13 +17,15 @@ import (
 type API struct {
 	ytc yt.Client
 	cfg APIConfig
+	ctl strawberry.Controller
 	l   log.Logger
 }
 
-func NewAPI(ytc yt.Client, cfg APIConfig, l log.Logger) *API {
+func NewAPI(ytc yt.Client, cfg APIConfig, ctl strawberry.Controller, l log.Logger) *API {
 	return &API{
 		ytc: ytc,
 		cfg: cfg,
+		ctl: ctl,
 		l:   l,
 	}
 }
@@ -65,7 +67,7 @@ func (a *API) CheckPermissionToOp(ctx context.Context, alias string, permission 
 		return err
 	}
 
-	accessNodePath := strawberry.AccessControlNamespacesPath.JoinChild(a.cfg.Family, alias, "principal")
+	accessNodePath := strawberry.AccessControlNamespacesPath.JoinChild(a.ctl.Family(), alias, "principal")
 	response, err := a.ytc.CheckPermission(ctx, user, permission, accessNodePath, nil)
 	if err != nil {
 		return err
@@ -155,6 +157,26 @@ func (a *API) CheckPermissionToPool(ctx context.Context, pool string, permission
 	return nil
 }
 
+func (a *API) getOplet(ctx context.Context, alias string) (*strawberry.Oplet, error) {
+	options := strawberry.OpletOptions{
+		AgentInfo:  a.cfg.AgentInfo,
+		Alias:      alias,
+		Controller: a.ctl,
+		Logger:     a.l,
+		// TODO(dakovalkov): UserClient should be initialized with user credentials from the context.
+		UserClient:   a.ytc,
+		SystemClient: a.ytc,
+	}
+
+	oplet := strawberry.NewOplet(options)
+
+	if err := oplet.EnsureUpdatedFromCypress(ctx); err != nil {
+		return nil, err
+	}
+
+	return oplet, nil
+}
+
 // Create creates a new strawberry operation in cypress.
 // If the creation fails due to a transient error, the resulting state can be inconsistent,
 // because we can not create an access control object node in transactions.
@@ -175,7 +197,7 @@ func (a *API) Create(ctx context.Context, alias string) error {
 	_, err = a.ytc.CreateObject(ctx, yt.NodeAccessControlObject, &yt.CreateObjectOptions{
 		Attributes: map[string]any{
 			"name":      alias,
-			"namespace": a.cfg.Family,
+			"namespace": a.ctl.Family(),
 			"principal_acl": append(a.cfg.BaseACL,
 				// ACE for Use role.
 				yt.ACE{
@@ -218,28 +240,37 @@ func (a *API) Create(ctx context.Context, alias string) error {
 	txOptions := &yt.TransactionOptions{TransactionID: tx.ID()}
 
 	// Create "main" node.
-	_, err = a.ytc.CreateNode(ctx, a.cfg.Root.Child(alias), yt.NodeMap, &yt.CreateNodeOptions{
-		Attributes: map[string]any{
-			"strawberry_persistent_state": map[string]any{
-				"creator": user,
+	_, err = a.ytc.CreateNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.Child(alias),
+		yt.NodeMap, &yt.CreateNodeOptions{
+			Attributes: map[string]any{
+				"strawberry_persistent_state": map[string]any{
+					"creator": user,
+				},
 			},
-		},
-		TransactionOptions: txOptions,
-	})
+			TransactionOptions: txOptions,
+		})
+
 	if err != nil {
 		return err
 	}
 
 	// Create "speclet" node.
-	_, err = a.ytc.CreateNode(ctx, a.cfg.Root.JoinChild(alias, "speclet"), yt.NodeDocument, &yt.CreateNodeOptions{
-		Attributes: map[string]any{
-			"value": map[string]any{
-				"family": a.cfg.Family,
-				"stage":  a.cfg.Stage,
+	_, err = a.ytc.CreateNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet"),
+		yt.NodeDocument,
+		&yt.CreateNodeOptions{
+			Attributes: map[string]any{
+				"value": map[string]any{
+					"family": a.ctl.Family(),
+					"stage":  a.cfg.AgentInfo.Stage,
+				},
 			},
-		},
-		TransactionOptions: txOptions,
-	})
+			TransactionOptions: txOptions,
+		})
+
 	if err != nil {
 		return err
 	}
@@ -265,17 +296,42 @@ func (a *API) Remove(ctx context.Context, alias string) error {
 		return err
 	}
 
-	err := a.ytc.RemoveNode(ctx, a.cfg.Root.Child(alias), &yt.RemoveNodeOptions{Force: true, Recursive: true})
+	err := a.ytc.RemoveNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.Child(alias),
+		&yt.RemoveNodeOptions{Force: true, Recursive: true})
+
 	if err != nil {
 		return err
 	}
 
-	accessNodePath := strawberry.AccessControlNamespacesPath.JoinChild(a.cfg.Family, alias)
+	accessNodePath := strawberry.AccessControlNamespacesPath.JoinChild(a.ctl.Family(), alias)
 	return a.ytc.RemoveNode(ctx, accessNodePath, &yt.RemoveNodeOptions{Recursive: true})
 }
 
 func (a *API) Exists(ctx context.Context, alias string) (bool, error) {
-	return a.ytc.NodeExists(ctx, a.cfg.Root.Child(alias), nil)
+	return a.ytc.NodeExists(ctx, a.cfg.AgentInfo.StrawberryRoot.Child(alias), nil)
+}
+
+func (a *API) Status(ctx context.Context, alias string) (strawberry.OpletStatus, error) {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return strawberry.OpletStatus{}, err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionRead); err != nil {
+		return strawberry.OpletStatus{}, err
+	}
+
+	oplet, err := a.getOplet(ctx, alias)
+	if err != nil {
+		return strawberry.OpletStatus{}, err
+	}
+	if err := oplet.LoadInfoState(ctx); err != nil {
+		return strawberry.OpletStatus{}, err
+	}
+	if err := oplet.CheckOperationLiveness(ctx); err != nil {
+		return strawberry.OpletStatus{}, err
+	}
+	return oplet.Status()
 }
 
 func (a *API) SetOption(ctx context.Context, alias, key string, value any) error {
@@ -297,7 +353,7 @@ func (a *API) SetOption(ctx context.Context, alias, key string, value any) error
 			return err
 		}
 	}
-	return a.ytc.SetNode(ctx, a.cfg.Root.JoinChild(alias, "speclet", key), value, &yt.SetNodeOptions{Recursive: true, Force: true})
+	return a.ytc.SetNode(ctx, a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", key), value, &yt.SetNodeOptions{Recursive: true, Force: true})
 }
 
 func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
@@ -307,11 +363,14 @@ func (a *API) RemoveOption(ctx context.Context, alias, key string) error {
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
-	return a.ytc.RemoveNode(ctx, a.cfg.Root.JoinChild(alias, "speclet", key), &yt.RemoveNodeOptions{Recursive: true, Force: true})
+	return a.ytc.RemoveNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", key),
+		&yt.RemoveNodeOptions{Recursive: true, Force: true})
 }
 
 func (a *API) List(ctx context.Context) ([]string, error) {
 	var aliases []string
-	err := a.ytc.ListNode(ctx, a.cfg.Root, &aliases, nil)
+	err := a.ytc.ListNode(ctx, a.cfg.AgentInfo.StrawberryRoot, &aliases, nil)
 	return aliases, err
 }

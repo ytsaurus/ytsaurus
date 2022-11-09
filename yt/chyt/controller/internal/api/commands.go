@@ -42,9 +42,7 @@ func (a HTTPAPI) HandleList(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.replyOK(w, map[string]any{
-		"result": aliases,
-	})
+	a.replyOK(w, aliases)
 }
 
 var CreateCmdDescriptor = CmdDescriptor{
@@ -67,7 +65,7 @@ func (a HTTPAPI) HandleCreate(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.replyOK(w, struct{}{})
+	a.replyOK(w, nil)
 }
 
 var RemoveCmdDescriptor = CmdDescriptor{
@@ -90,7 +88,7 @@ func (a HTTPAPI) HandleRemove(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.replyOK(w, struct{}{})
+	a.replyOK(w, nil)
 }
 
 var ExistsCmdDescriptor = CmdDescriptor{
@@ -113,9 +111,30 @@ func (a HTTPAPI) HandleExists(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.replyOK(w, map[string]any{
-		"result": ok,
-	})
+	a.replyOK(w, ok)
+}
+
+var StatusCmdDescriptor = CmdDescriptor{
+	Name:        "status",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Description: "show strawberry operation status",
+}
+
+func (a HTTPAPI) HandleStatus(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, StatusCmdDescriptor)
+	if params == nil {
+		return
+	}
+
+	alias := params["alias"].(string)
+
+	status, err := a.api.Status(r.Context(), alias)
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+
+	a.replyOK(w, status)
 }
 
 var KeyParameter = CmdParameter{
@@ -155,7 +174,7 @@ func (a HTTPAPI) HandleSetOption(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.replyOK(w, struct{}{})
+	a.replyOK(w, nil)
 }
 
 var RemoveOptionCmdDescriptor = CmdDescriptor{
@@ -179,13 +198,13 @@ func (a HTTPAPI) HandleRemoveOption(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	a.replyOK(w, struct{}{})
+	a.replyOK(w, nil)
 }
 
-func RegisterHTTPAPI(c HTTPAPIConfig, l log.Logger) chi.Router {
+func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 	var bb blackbox.Client
 
-	if !c.DisableAuth {
+	if !cfg.DisableAuth {
 		var err error
 		bb, err = httpbb.NewIntranet(
 			httpbb.WithLogger(l.Structured()),
@@ -198,20 +217,24 @@ func RegisterHTTPAPI(c HTTPAPIConfig, l log.Logger) chi.Router {
 	r := chi.NewRouter()
 	r.Get("/ping", HandlePing)
 	r.Get("/describe", func(w http.ResponseWriter, r *http.Request) {
-		HandleDescribe(w, r, c.Clusters)
+		HandleDescribe(w, r, cfg.Clusters)
 	})
 
-	for _, cluster := range c.Clusters {
+	for _, cluster := range cfg.Clusters {
 		ytc, err := ythttp.NewClient(&yt.Config{
-			Token:  c.Token,
+			Token:  cfg.Token,
 			Proxy:  cluster,
 			Logger: l.Structured(),
 		})
 		if err != nil {
 			l.Fatal("failed to create yt client", log.Error(err), log.String("cluster", cluster))
 		}
+		ctl := cfg.ControllerFactory(l, ytc, cfg.AgentInfo.StrawberryRoot, cluster, cfg.ControllerConfig)
 
-		api := NewHTTPAPI(ytc, c.APIConfig, l)
+		cfg := cfg.APIConfig
+		cfg.AgentInfo.Proxy = cluster
+
+		api := NewHTTPAPI(ytc, cfg, ctl, l)
 
 		r.Route("/"+cluster, func(r chi.Router) {
 			r.Use(ythttputil.CORS())
@@ -220,6 +243,7 @@ func RegisterHTTPAPI(c HTTPAPIConfig, l log.Logger) chi.Router {
 			r.Post("/"+CreateCmdDescriptor.Name, api.HandleCreate)
 			r.Post("/"+RemoveCmdDescriptor.Name, api.HandleRemove)
 			r.Post("/"+ExistsCmdDescriptor.Name, api.HandleExists)
+			r.Post("/"+StatusCmdDescriptor.Name, api.HandleStatus)
 			r.Post("/"+SetOptionCmdDescriptor.Name, api.HandleSetOption)
 			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
 		})

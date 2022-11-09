@@ -9,6 +9,7 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 
+	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
@@ -29,9 +30,9 @@ type HTTPAPI struct {
 	l   log.Logger
 }
 
-func NewHTTPAPI(ytc yt.Client, config APIConfig, l log.Logger) HTTPAPI {
+func NewHTTPAPI(ytc yt.Client, config APIConfig, ctl strawberry.Controller, l log.Logger) HTTPAPI {
 	return HTTPAPI{
-		api: NewAPI(ytc, config, l),
+		api: NewAPI(ytc, config, ctl, l),
 		l:   l,
 	}
 }
@@ -58,8 +59,14 @@ func (a HTTPAPI) replyWithError(w http.ResponseWriter, err error) {
 	})
 }
 
-func (a HTTPAPI) replyOK(w http.ResponseWriter, rsp any) {
-	a.reply(w, http.StatusOK, rsp)
+func (a HTTPAPI) replyOK(w http.ResponseWriter, result any) {
+	if result == nil {
+		a.reply(w, http.StatusOK, struct{}{})
+	} else {
+		a.reply(w, http.StatusOK, map[string]any{
+			"result": result,
+		})
+	}
 }
 
 type ParamType string
@@ -207,6 +214,7 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 			CreateCmdDescriptor,
 			RemoveCmdDescriptor,
 			ExistsCmdDescriptor,
+			StatusCmdDescriptor,
 			SetOptionCmdDescriptor,
 			RemoveOptionCmdDescriptor,
 		}})

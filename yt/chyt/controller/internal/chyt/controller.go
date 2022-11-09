@@ -11,6 +11,7 @@ import (
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 type Controller struct {
@@ -39,12 +40,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	alias := oplet.Alias()
 
 	description = buildDescription(c.cluster, alias)
-
-	var speclet Speclet
-	err = yson.Unmarshal(oplet.Speclet(), &speclet)
-	if err != nil {
-		return
-	}
+	speclet := oplet.ControllerSpeclet().(Speclet)
 
 	var filePaths []ypath.Rich
 
@@ -114,19 +110,13 @@ func (c *Controller) Family() string {
 	return "chyt"
 }
 
-func (c Controller) NeedRestartOnSpecletChange(oldSpecletYson, newSpecletYson yson.RawValue) bool {
-	var oldSpeclet, newSpeclet Speclet
-	err := yson.Unmarshal(oldSpecletYson, &oldSpeclet)
+func (c *Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
+	var speclet Speclet
+	err := yson.Unmarshal(specletYson, &speclet)
 	if err != nil {
-		c.l.Error("error parsing old speclet", log.Error(err), log.String("old_speclet", string(oldSpecletYson)))
-		return false
+		return nil, yterrors.Err("failed to parse speclet", err)
 	}
-	err = yson.Unmarshal(newSpecletYson, &newSpeclet)
-	if err != nil {
-		c.l.Error("error parsing new speclet", log.Error(err), log.String("new_speclet", string(newSpecletYson)))
-		return false
-	}
-	return !reflect.DeepEqual(oldSpeclet, newSpeclet)
+	return speclet, nil
 }
 
 func (c *Controller) TryUpdate() (bool, error) {

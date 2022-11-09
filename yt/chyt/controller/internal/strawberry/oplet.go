@@ -51,10 +51,17 @@ type Oplet struct {
 	persistentState PersistentState
 	infoState       InfoState
 
-	// specletYson is the last speclet seen by the agent.
+	// specletYson is a full unparsed speclet from a speclet cypress node.
 	specletYson yson.RawValue
 	// strawberrySpeclet is a parsed part of the specletYson with general options.
 	strawberrySpeclet Speclet
+	// controllerSpeclet is a parsed part of the specletYson with controller specific options.
+	controllerSpeclet any
+
+	// ytOpStrawberrySpeclet is a parsed part of the persistentState.ytOpSpeclet with general options.
+	ytOpStrawberrySpeclet Speclet
+	// ytOpControllerSpeclet is a parsed part of the persistentState.ytOpSpeclet with controller specific options.
+	ytOpControllerSpeclet any
 
 	// flushedPersistentState is the last flushed persistentState. It is used to detect an external
 	// state change in the cypress and a local change of persistentState. It would be enough to
@@ -71,12 +78,13 @@ type Oplet struct {
 	// pendingUpdateFromCypressNode is set when we know that the oplet cypress state has been changed
 	// (e.g. from RevisionTracker) and we need to reload it from a cypress during the next pass.
 	pendingUpdateFromCypressNode bool
-	// pendingRestart is set when agent scheduled a restart of coresponding yt operation on the
-	// next pass. It should be set via SetPendingRestart only for proper log information.
+
+	// pendingRestart is set when an external event triggers operation restart
+	// (e.g. changing cluster_connection).
+	//
+	// TODO(dakovalkov): We should not rely on non-persistent fields,
+	// because it is not fault-tolerant. Eliminate this.
 	pendingRestart bool
-	// pendingUpdateOpParameters is set when agent scheduled an operation parameters update on the
-	// next pass. It should be set via setPendingUpdateOpParameters only for proper log information.
-	pendingUpdateOpParameters bool
 
 	state OpletState
 
@@ -109,6 +117,12 @@ func NewOplet(options OpletOptions) *Oplet {
 	return oplet
 }
 
+// TODO(dakovalkov): eliminate this.
+func (oplet *Oplet) SetPendingRestart(reason string) {
+	oplet.l.Debug("setting pending restart", log.String("reason", reason))
+	oplet.pendingRestart = true
+}
+
 func (oplet *Oplet) Alias() string {
 	return oplet.alias
 }
@@ -117,8 +131,12 @@ func (oplet *Oplet) NextIncarnationIndex() int {
 	return oplet.persistentState.IncarnationIndex + 1
 }
 
-func (oplet *Oplet) Speclet() yson.RawValue {
-	return oplet.specletYson
+func (oplet *Oplet) StrawberrySpeclet() Speclet {
+	return oplet.strawberrySpeclet
+}
+
+func (oplet *Oplet) ControllerSpeclet() any {
+	return oplet.controllerSpeclet
 }
 
 func (oplet *Oplet) Active() bool {
@@ -174,9 +192,6 @@ func (oplet *Oplet) OnCypressNodeChanged() {
 
 func (oplet *Oplet) SetACL(acl []yt.ACE) {
 	if !reflect.DeepEqual(oplet.acl, acl) {
-		if !reflect.DeepEqual(toOperationACL(oplet.acl), toOperationACL(acl)) {
-			oplet.setPendingUpdateOpParameters("ACL change")
-		}
 		oplet.acl = acl
 	}
 }
@@ -195,11 +210,30 @@ func (oplet *Oplet) EnsureUpdatedFromCypress(ctx context.Context) error {
 	return nil
 }
 
+// LoadInfoState reads the info state from the cypress.
+// Agent's logic does not depend on info state, so it should be never called
+// during agent's routine. But it is used in API to generate better errors.
+func (oplet *Oplet) LoadInfoState(ctx context.Context) error {
+	oplet.l.Info("loading info oplet state from cypress")
+
+	err := oplet.systemClient.GetNode(ctx, oplet.cypressNode.Attr("strawberry_info_state"), &oplet.infoState, nil)
+	if err != nil {
+		if yterrors.ContainsResolveError(err) {
+			// strawberry_info_state can be missing if there were no persistent state flush yet.
+			return nil
+		} else {
+			return err
+		}
+	}
+	// flushedInfoState and infoState should be equal to avoid unnecessary state flushing.
+	oplet.flushedInfoState = oplet.infoState
+	return nil
+}
+
 func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 	opID := oplet.persistentState.YTOpID
 
 	if opID == yt.NullOperationID {
-		oplet.SetPendingRestart("strawberry operation does not have operation id")
 		return nil
 	}
 
@@ -208,7 +242,9 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 	ytOp, err := oplet.userClient.GetOperation(ctx, opID, nil)
 	if err != nil {
 		if yterrors.ContainsMessageRE(err, noSuchOperationRE) {
-			oplet.SetPendingRestart("operation with current operation id does not exist")
+			oplet.l.Info("operation with current operation id does not exist",
+				log.String("operation_id", opID.String()))
+			oplet.persistentState.YTOpState = yt.StateCompleted
 		} else {
 			oplet.l.Error("error getting operation info", log.Error(err))
 			oplet.setError(err)
@@ -222,29 +258,23 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 
 	oplet.persistentState.YTOpState = ytOp.State
 
-	if requiresRestart(ytOp.State) {
-		oplet.SetPendingRestart("operation state requires restart")
-	}
 	return nil
 }
 
 func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
-	if oplet.strawberrySpeclet.ActiveOrDefault() {
-		if oplet.pendingRestart {
-			if err := oplet.restartOp(ctx); err != nil {
-				return err
-			}
+	if ok, reason := oplet.needsRestart(); ok {
+		if err := oplet.restartOp(ctx, reason); err != nil {
+			return err
 		}
-		if oplet.pendingUpdateOpParameters {
-			if err := oplet.updateOpParameters(ctx); err != nil {
-				return err
-			}
+	}
+	if ok, reason := oplet.needsUpdateOpParameters(); ok {
+		if err := oplet.updateOpParameters(ctx, reason); err != nil {
+			return err
 		}
-	} else {
-		if oplet.HasYTOperation() {
-			if err := oplet.abortOp(ctx); err != nil {
-				return err
-			}
+	}
+	if ok, reason := oplet.needsAbort(); ok {
+		if err := oplet.abortOp(ctx, reason); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -272,24 +302,59 @@ func (oplet *Oplet) clearError() {
 	oplet.infoState.Error = nil
 }
 
-func (oplet *Oplet) SetPendingRestart(reason string) {
-	if oplet.pendingRestart {
-		oplet.l.Info("pendingRestart is already set", log.String("reason", reason))
-		return
+func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
+	if !oplet.strawberrySpeclet.ActiveOrDefault() {
+		return false, "oplet is in inactive state"
 	}
-
-	oplet.pendingRestart = true
-	oplet.l.Info("setting pendingRestart", log.String("reason", reason))
+	if !oplet.HasYTOperation() {
+		return true, "oplet does not have running yt operation"
+	}
+	if oplet.strawberrySpeclet.RestartOnSpecletChangeOrDefault() {
+		if !reflect.DeepEqual(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet) {
+			oplet.l.Debug("speclet diff", log.Any("diff", specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)))
+			return true, "speclet changed"
+		}
+	}
+	if oplet.strawberrySpeclet.MinSpecletRevision > oplet.persistentState.YTOpSpecletRevision {
+		if oplet.strawberrySpeclet.MinSpecletRevision > oplet.persistentState.SpecletRevision {
+			oplet.l.Warn("min speclet revision is greater than last seen speclet revisoin; "+
+				"it can lead to infinite operation restart",
+				log.UInt64("min_speclet_revision", uint64(oplet.strawberrySpeclet.MinSpecletRevision)),
+				log.UInt64("last_seen_speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
+		}
+		return true, "min speclet revision is unsatisfied"
+	}
+	// TODO(dakovalkov): eliminate this.
+	if oplet.pendingRestart {
+		return true, "pendingRestart is set"
+	}
+	return false, "up to date"
 }
 
-func (oplet *Oplet) setPendingUpdateOpParameters(reason string) {
-	if oplet.pendingUpdateOpParameters {
-		oplet.l.Info("pendingUpdateOpParameters is already set", log.String("reason", reason))
-		return
+func (oplet *Oplet) needsUpdateOpParameters() (needsUpdate bool, reason string) {
+	if !oplet.strawberrySpeclet.ActiveOrDefault() {
+		return false, "oplet is in inactive state"
 	}
+	if !oplet.HasYTOperation() {
+		return false, "oplet does not have running yt operation"
+	}
+	if !reflect.DeepEqual(toOperationACL(oplet.acl), oplet.persistentState.YTOpACL) {
+		return true, "acl changed"
+	}
+	if !reflect.DeepEqual(oplet.strawberrySpeclet.Pool, oplet.persistentState.YTOpPool) {
+		return true, "pool changed"
+	}
+	return false, "up to date"
+}
 
-	oplet.pendingUpdateOpParameters = true
-	oplet.l.Info("setting pendingUpdateOpParameters", log.String("reason", reason))
+func (oplet *Oplet) needsAbort() (needsAbort bool, reason string) {
+	if !oplet.HasYTOperation() {
+		return false, "oplet does not have running yt operation"
+	}
+	if !oplet.strawberrySpeclet.ActiveOrDefault() {
+		return true, "oplet is in inactive state"
+	}
+	return false, "up to date"
 }
 
 func (oplet *Oplet) needsBackoff() bool {
@@ -367,11 +432,23 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 	var strawberrySpeclet Speclet
 	err = yson.Unmarshal(node.Speclet.Value, &strawberrySpeclet)
 	if err != nil {
-		oplet.SetState(StateInvalidSpeclet, "error parsing speclet node")
-		err = yterrors.Err("error parsing speclet node", err,
+		msg := "error parsing strawberry speclet from node"
+		oplet.SetState(StateInvalidSpeclet, msg)
+		err = yterrors.Err(msg, err,
+			yterrors.Attr("speclet_yson", node.Speclet.Value),
+			yterrors.Attr("speclet_revision", uint64(node.Speclet.Revision)))
+		oplet.l.Error(msg, log.Error(err))
+		return err
+	}
+
+	controllerSpeclet, err := oplet.c.ParseSpeclet(node.Speclet.Value)
+	if err != nil {
+		msg := "error parsing controller speclet from node"
+		oplet.SetState(StateInvalidSpeclet, msg)
+		err = yterrors.Err(msg, err,
 			yterrors.Attr("speclet_yson", string(node.Speclet.Value)),
 			yterrors.Attr("speclet_revision", uint64(node.Speclet.Revision)))
-		oplet.l.Error("error parsing speclet node", log.Error(err))
+		oplet.l.Error(msg, log.Error(err))
 		return err
 	}
 
@@ -392,49 +469,29 @@ func (oplet *Oplet) updateFromCypressNode(ctx context.Context) error {
 		}
 		oplet.persistentState = node.PersistentState
 		oplet.flushedPersistentState = node.PersistentState
+		err := yson.Unmarshal(oplet.persistentState.YTOpSpeclet, &oplet.ytOpStrawberrySpeclet)
+		if err != nil {
+			oplet.l.Warn("failed to parse strawberry speclet from persistent state",
+				log.Error(err),
+				log.Binary("yt_op_speclet", oplet.persistentState.YTOpSpeclet))
+			oplet.ytOpStrawberrySpeclet = Speclet{}
+			err = nil
+		}
+		oplet.ytOpControllerSpeclet, err = oplet.c.ParseSpeclet(oplet.persistentState.YTOpSpeclet)
+		if err != nil {
+			oplet.l.Warn("failed to parse controller speclet from persistent state",
+				log.Error(err),
+				log.Binary("yt_op_speclet", oplet.persistentState.YTOpSpeclet))
+			oplet.ytOpControllerSpeclet = nil
+			err = nil
+		}
 	}
 	oplet.flushedStateRevision = node.Revision
 
-	// Handle speclet change.
-	if oplet.persistentState.SpecletRevision != node.Speclet.Revision {
-		// If it's an initial update, we do not have a valid old speclet.
-		// In that case we need to restart the operation, though it can lead to an unnecessary restart.
-		// TODO(dakovalkov): The better solution here is to store speclet hash in persistent state and compare it with new speclet hash.
-		if initialUpdate || NeedRestartOnSpecletChange(&oplet.strawberrySpeclet, &strawberrySpeclet) ||
-			oplet.c.NeedRestartOnSpecletChange(oplet.specletYson, node.Speclet.Value) {
-			if !oplet.persistentState.SpecletChangeRequiresRestart {
-				oplet.persistentState.SpecletChangeRequiresRestart = true
-				oplet.l.Info("speclet change requires restart")
-			}
-		}
-		if !reflect.DeepEqual(strawberrySpeclet.Pool, strawberrySpeclet.Pool) {
-			oplet.setPendingUpdateOpParameters("pool change")
-		}
-	}
-	oplet.strawberrySpeclet = strawberrySpeclet
 	oplet.specletYson = node.Speclet.Value
 	oplet.persistentState.SpecletRevision = node.Speclet.Revision
-
-	// If the speclet was not changed or its change does not require a restart,
-	// then we assume that the operation is running with the latest speclet revision.
-	if !oplet.persistentState.SpecletChangeRequiresRestart {
-		oplet.persistentState.OperationSpecletRevision = node.Speclet.Revision
-	}
-
-	if oplet.strawberrySpeclet.RestartOnSpecletChangeOrDefault() && oplet.persistentState.SpecletChangeRequiresRestart {
-		oplet.SetPendingRestart("speclet change")
-	}
-
-	if oplet.persistentState.OperationSpecletRevision < oplet.strawberrySpeclet.MinSpecletRevision {
-		// Sanity check to avoid infinite restart.
-		if oplet.strawberrySpeclet.MinSpecletRevision > oplet.persistentState.SpecletRevision {
-			oplet.l.Warn("min_speclet_revision is larger than the last speclet_revision",
-				log.UInt64("min_speclet_revision", uint64(oplet.strawberrySpeclet.MinSpecletRevision)),
-				log.UInt64("last_speclet_revision", uint64(oplet.persistentState.SpecletRevision)))
-		} else {
-			oplet.SetPendingRestart("unsatisfied min speclet revision")
-		}
-	}
+	oplet.strawberrySpeclet = strawberrySpeclet
+	oplet.controllerSpeclet = controllerSpeclet
 
 	oplet.l.Info("strawberry operation state updated from cypress",
 		log.UInt64("state_revision", uint64(oplet.flushedStateRevision)),
@@ -468,7 +525,9 @@ func (oplet *Oplet) UpdateACLFromNode(ctx context.Context) error {
 	return nil
 }
 
-func (oplet *Oplet) abortOp(ctx context.Context) error {
+func (oplet *Oplet) abortOp(ctx context.Context, reason string) error {
+	oplet.l.Info("aborting operation", log.String("reason", reason))
+
 	err := oplet.userClient.AbortOperation(
 		ctx,
 		yt.OperationID(oplet.persistentState.YTOpID),
@@ -482,8 +541,10 @@ func (oplet *Oplet) abortOp(ctx context.Context) error {
 	return err
 }
 
-func (oplet *Oplet) restartOp(ctx context.Context) error {
-	oplet.l.Info("restarting operation", log.Int("next_incarnation_index", oplet.NextIncarnationIndex()))
+func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
+	oplet.l.Info("restarting operation",
+		log.Int("next_incarnation_index", oplet.NextIncarnationIndex()),
+		log.String("reason", reason))
 	spec, description, annotations, err := oplet.c.Prepare(ctx, oplet)
 
 	if err != nil {
@@ -507,12 +568,13 @@ func (oplet *Oplet) restartOp(ctx context.Context) error {
 	if oplet.strawberrySpeclet.Pool != nil {
 		spec["pool"] = *oplet.strawberrySpeclet.Pool
 	}
+	opACL := toOperationACL(oplet.acl)
 	if oplet.acl != nil {
-		spec["acl"] = toOperationACL(oplet.acl)
+		spec["acl"] = opACL
 	}
 
 	if oplet.HasYTOperation() {
-		if err := oplet.abortOp(ctx); err != nil {
+		if err := oplet.abortOp(ctx, "operation restart"); err != nil {
 			oplet.setError(err)
 			return err
 		}
@@ -543,26 +605,34 @@ func (oplet *Oplet) restartOp(ctx context.Context) error {
 
 	oplet.persistentState.YTOpID = opID
 	oplet.persistentState.YTOpState = yt.StateInitializing
-	oplet.persistentState.OperationSpecletRevision = oplet.persistentState.SpecletRevision
+
+	oplet.persistentState.YTOpSpeclet = oplet.specletYson
+	oplet.persistentState.YTOpSpecletRevision = oplet.persistentState.SpecletRevision
+
+	oplet.ytOpStrawberrySpeclet = oplet.strawberrySpeclet
+	oplet.ytOpControllerSpeclet = oplet.controllerSpeclet
+
+	oplet.persistentState.YTOpACL = opACL
+	oplet.persistentState.YTOpPool = oplet.strawberrySpeclet.Pool
+
 	oplet.persistentState.IncarnationIndex++
-	oplet.persistentState.SpecletChangeRequiresRestart = false
+
+	// TODO(dakovalkov): eliminate this.
+	oplet.pendingRestart = false
 
 	oplet.l.Info("operation started", log.String("operation_id", opID.String()),
 		log.Int("incarnation_index", oplet.persistentState.IncarnationIndex))
 
-	oplet.pendingRestart = false
-	oplet.pendingUpdateOpParameters = false
-
 	return nil
 }
 
-func (oplet *Oplet) updateOpParameters(ctx context.Context) error {
-	oplet.l.Info("updating operation parameters")
+func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error {
+	oplet.l.Info("updating operation parameters", log.String("reason", reason))
 
-	acl := toOperationACL(oplet.acl)
-	// TODO(dakovalkov): remove after YT-17557.
+	opACL := toOperationACL(oplet.acl)
+	opACLWithRobot := opACL
 	if oplet.agentInfo.RobotUsername != "" {
-		acl = append(acl, yt.ACE{
+		opACLWithRobot = append(opACLWithRobot, yt.ACE{
 			Action:      yt.ActionAllow,
 			Subjects:    []string{oplet.agentInfo.RobotUsername},
 			Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionManage},
@@ -573,7 +643,7 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context) error {
 		ctx,
 		oplet.persistentState.YTOpID,
 		map[string]interface{}{
-			"acl":  acl,
+			"acl":  opACLWithRobot,
 			"pool": oplet.strawberrySpeclet.Pool,
 		},
 		nil)
@@ -586,7 +656,9 @@ func (oplet *Oplet) updateOpParameters(ctx context.Context) error {
 
 	oplet.l.Info("operation parameters updated")
 
-	oplet.pendingUpdateOpParameters = false
+	oplet.persistentState.YTOpACL = opACL
+	oplet.persistentState.YTOpPool = oplet.strawberrySpeclet.Pool
+
 	return nil
 }
 
@@ -679,4 +751,45 @@ func (oplet *Oplet) Pass(ctx context.Context) error {
 	} else {
 		return flushErr
 	}
+}
+
+type OpletStatus struct {
+	Status         string               `yson:"status"`
+	SpecletDiff    map[string]FieldDiff `yson:"speclet_diff,omitempty"`
+	OperationURL   string               `yson:"operation_url,omitempty"`
+	OperationState yt.OperationState    `yson:"operation_state,omitempty"`
+	Error          *string              `yson:"error,omitempty"`
+}
+
+func (oplet *Oplet) Status() (s OpletStatus, err error) {
+	if oplet.persistentState.YTOpID != yt.NullOperationID {
+		s.OperationURL = yson.ValueOf(operationURL(oplet.agentInfo.Proxy, oplet.persistentState.YTOpID)).(string)
+		s.OperationState = oplet.persistentState.YTOpState
+
+		if oplet.strawberrySpeclet.ActiveOrDefault() && !reflect.DeepEqual(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet) {
+			s.SpecletDiff = specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)
+		}
+	}
+
+	s.Error = oplet.infoState.Error
+
+	if ok, reason := oplet.needsAbort(); ok {
+		s.Status = "Waiting for abort: " + reason
+		return
+	}
+	if ok, reason := oplet.needsRestart(); ok {
+		s.Status = "Waiting for restart: " + reason
+		return
+	}
+	if ok, reason := oplet.needsUpdateOpParameters(); ok {
+		s.Status = "Waiting for update op parameters: " + reason
+		return
+	}
+	if s.SpecletDiff != nil {
+		s.Status = "Speclet changed; operation should be restarted manually"
+		return
+	}
+
+	s.Status = "Ok"
+	return
 }

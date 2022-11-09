@@ -164,13 +164,14 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 
 	var apiConfig = api.HTTPAPIConfig{
 		APIConfig: api.APIConfig{
-			Stage:         config.Strawberry.Stage,
-			Family:        app.locations[0].c.Family(),
-			Root:          config.Strawberry.Root,
-			RobotUsername: config.Strawberry.RobotUsername,
+			ControllerFactory: cf,
+			ControllerConfig:  config.Controller,
+			AgentInfo:         app.locations[0].a.GetAgentInfo(),
+			BaseACL:           config.BaseACL,
+			RobotUsername:     config.Strawberry.RobotUsername,
 		},
-		Token:    config.Token,
 		Clusters: config.LocationProxies,
+		Token:    config.Token,
 		Endpoint: config.HTTPAPIEndpoint,
 	}
 	app.HTTPAPIServer = api.NewServer(apiConfig, l)
@@ -190,7 +191,7 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 }
 
 // Run starts the infinite loop consisting of lock acquisition and agent operation.
-func (app App) Run() {
+func (app *App) Run() {
 	go app.HTTPAPIServer.Run()
 	go app.HTTPMonitoringServer.Run()
 	for {

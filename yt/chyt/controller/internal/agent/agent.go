@@ -253,7 +253,7 @@ loop:
 	a.backgroundStopCh <- struct{}{}
 }
 
-func (a *Agent) getAgentInfo() strawberry.AgentInfo {
+func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 	return strawberry.AgentInfo{
 		StrawberryRoot:     a.config.Root,
 		Hostname:           a.hostname,
@@ -266,7 +266,7 @@ func (a *Agent) getAgentInfo() strawberry.AgentInfo {
 
 func (a *Agent) getOpletOptions(alias string) strawberry.OpletOptions {
 	return strawberry.OpletOptions{
-		AgentInfo:    a.getAgentInfo(),
+		AgentInfo:    a.GetAgentInfo(),
 		Alias:        alias,
 		Controller:   a.controller,
 		Logger:       a.l,

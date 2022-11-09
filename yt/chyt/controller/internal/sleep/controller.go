@@ -2,14 +2,18 @@ package sleep
 
 import (
 	"context"
-	"reflect"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
+
+type Speclet struct {
+	TestOption *uint64 `yson:"test_option"`
+}
 
 type Controller struct {
 	ytc                 yt.Client
@@ -40,13 +44,13 @@ func (c Controller) Family() string {
 	return "sleep"
 }
 
-func (c Controller) NeedRestartOnSpecletChange(oldSpecletYson, newSpecletYson yson.RawValue) bool {
-	var oldSpeclet, newSpeclet struct {
-		TestOption *string `yson:"test_option"`
+func (c Controller) ParseSpeclet(specletYson yson.RawValue) (any, error) {
+	var speclet Speclet
+	err := yson.Unmarshal(specletYson, &speclet)
+	if err != nil {
+		return nil, yterrors.Err("failed to parse sleep speclet", err)
 	}
-	_ = yson.Unmarshal(oldSpecletYson, &oldSpeclet)
-	_ = yson.Unmarshal(newSpecletYson, &newSpeclet)
-	return !reflect.DeepEqual(oldSpeclet, newSpeclet)
+	return speclet, nil
 }
 
 func (c *Controller) TryUpdate() (bool, error) {
