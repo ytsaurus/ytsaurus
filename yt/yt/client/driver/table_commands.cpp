@@ -1270,6 +1270,8 @@ void TAlterTableReplicaCommand::DoExecute(ICommandContextPtr context)
 TGetTablePivotKeysCommand::TGetTablePivotKeysCommand()
 {
     RegisterParameter("path", Path);
+    RegisterParameter("represent_key_as_list", Options.RepresentKeyAsList)
+        .Default(false);
 }
 
 void TGetTablePivotKeysCommand::DoExecute(ICommandContextPtr context)

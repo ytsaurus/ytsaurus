@@ -268,7 +268,9 @@ struct TAlterTableReplicaOptions
 
 struct TGetTablePivotKeysOptions
     : public TTimeoutOptions
-{ };
+{
+    bool RepresentKeyAsList = false;
+};
 
 struct TGetInSyncReplicasOptions
     : public TTimeoutOptions

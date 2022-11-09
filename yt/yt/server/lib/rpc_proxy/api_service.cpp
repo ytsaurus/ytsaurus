@@ -1420,11 +1420,13 @@ private:
         auto path = FromProto<TYPath>(request->path());
 
         context->SetRequestInfo("Path: %v", path);
+        TGetTablePivotKeysOptions options;
+        options.RepresentKeyAsList = request->represent_key_as_list();
 
         ExecuteCall(
             context,
             [=] {
-                return client->GetTablePivotKeys(path);
+                return client->GetTablePivotKeys(path, options);
             },
             [] (const auto& context, const TYsonString& result) {
                 auto* response = &context->Response();
