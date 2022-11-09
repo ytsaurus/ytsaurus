@@ -529,7 +529,7 @@ private:
         auto rowCount = result.RowCount;
         auto dataWeight = result.DataWeight;
         const auto& endReplicationRowIndexes = result.EndReplicationRowIndexes;
-        auto resultRows = result.Rowset->GetSharedRange();
+        auto resultRows = result.Rowset->GetRows();
         const auto& progress = result.ReplicationProgress;
         const auto& nameTable = result.Rowset->GetNameTable();
 
