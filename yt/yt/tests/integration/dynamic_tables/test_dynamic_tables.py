@@ -669,6 +669,13 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             {"key": 200},
             {"key": 300},
         ]
+        assert get_table_pivot_keys("//tmp/t", represent_key_as_list=True) == [
+            [],
+            [100],
+            [200],
+            [300],
+        ]
+
         remove("//tmp/t")
 
         create_dynamic_table(
@@ -689,6 +696,12 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
             {"key1": 100, "key2": "lol"},
             {"key1": 200},
             {"key1": 300, "key2": "abacaba"},
+        ]
+        assert get_table_pivot_keys("//tmp/t", represent_key_as_list=True) == [
+            [],
+            [100, "lol"],
+            [200],
+            [300, "abacaba"],
         ]
 
     @authors("akozhikhov")

@@ -511,6 +511,7 @@ TFuture<TYsonString> TClient::GetTablePivotKeys(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.GetTablePivotKeys();
+    req->set_represent_key_as_list(options.RepresentKeyAsList);
     SetTimeoutOptions(*req, options);
 
     req->set_path(path);

@@ -1076,6 +1076,7 @@ message TRspGetTableMountInfo
 message TReqGetTablePivotKeys
 {
     required string path = 1;
+    optional bool represent_key_as_list = 2;
 }
 
 message TRspGetTablePivotKeys

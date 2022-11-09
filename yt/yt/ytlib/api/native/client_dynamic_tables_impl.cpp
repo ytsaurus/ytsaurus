@@ -2125,7 +2125,7 @@ void TClient::DoAlterTableReplica(
 
 TYsonString TClient::DoGetTablePivotKeys(
     const NYPath::TYPath& path,
-    const TGetTablePivotKeysOptions& /*options*/)
+    const TGetTablePivotKeysOptions& options)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(path))
@@ -2136,18 +2136,26 @@ TYsonString TClient::DoGetTablePivotKeys(
 
     auto keySchema = tableInfo->Schemas[ETableSchemaKind::Primary]->ToKeys();
 
-    return BuildYsonStringFluently()
-        .DoListFor(tableInfo->Tablets, [&] (TFluentList fluent, const TTabletInfoPtr& tablet) {
+    auto serializePivotKey = [&] (TFluentList fluent, const TTabletInfoPtr& tablet) {
+        const auto& key = tablet->PivotKey;
+        if (options.RepresentKeyAsList) {
             fluent
-                .Item()
-                .DoMapFor(tablet->PivotKey, [&] (TFluentMap fluent, const TUnversionedValue& value) {
-                    if (value.Id <= keySchema->GetColumnCount()) {
-                        fluent
-                            .Item(keySchema->Columns()[value.Id].Name())
-                            .Value(value);
-                    }
+                .Item().DoListFor(key, [&] (TFluentList fluent, const TUnversionedValue& value) {
+                    fluent
+                        .Item().Value(value);
                 });
-        });
+        } else {
+            fluent
+                .Item().DoMapFor(key, [&] (TFluentMap fluent, const TUnversionedValue& value) {
+                    YT_VERIFY(value.Id < keySchema->GetColumnCount());
+                    fluent
+                        .Item(keySchema->Columns()[value.Id].Name()).Value(value);
+                });
+        }
+    };
+
+    return BuildYsonStringFluently()
+        .DoListFor(tableInfo->Tablets, serializePivotKey);
 }
 
 void TClient::DoCreateTableBackup(
