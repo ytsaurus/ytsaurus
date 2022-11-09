@@ -297,7 +297,6 @@ private:
     std::atomic<bool> BuildingSnapshot_ = false;
     std::atomic<int> LastSuccessfulSnapshotId_ = NHydra::InvalidSegmentId;
 
-    NProfiling::TEventTimer BatchCommitTimer_;
     NProfiling::TTimeGauge SnapshotLoadTime_;
 
     TForkCountersPtr ForkCounters_;
