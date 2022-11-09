@@ -78,14 +78,9 @@ public:
         return Rowset_->GetNameTable();
     }
 
-    TRange<TUnversionedRow> GetRows() const override
+    TSharedRange<TUnversionedRow> GetRows() const override
     {
         return Rowset_->GetRows();
-    }
-
-    TSharedRange<TUnversionedRow> GetSharedRange() const override
-    {
-        return Rowset_->GetSharedRange();
     }
 
     i64 GetStartOffset() const override

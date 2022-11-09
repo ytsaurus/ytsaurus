@@ -21,9 +21,7 @@ struct IRowset
     virtual const NTableClient::TTableSchemaPtr& GetSchema() const = 0;
     virtual const NTableClient::TNameTablePtr& GetNameTable() const = 0;
 
-    virtual TRange<TRow> GetRows() const = 0;
-
-    virtual TSharedRange<TRow> GetSharedRange() const = 0;
+    virtual TSharedRange<TRow> GetRows() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IUnversionedRowset)

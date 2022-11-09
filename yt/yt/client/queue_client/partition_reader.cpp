@@ -91,14 +91,9 @@ private:
             return Rowset_->GetNameTable();
         }
 
-        TRange<NTableClient::TUnversionedRow> GetRows() const override
+        TSharedRange<NTableClient::TUnversionedRow> GetRows() const override
         {
             return Rowset_->GetRows();
-        }
-
-        TSharedRange<NTableClient::TUnversionedRow> GetSharedRange() const override
-        {
-            return Rowset_->GetSharedRange();
         }
 
         i64 GetStartOffset() const override

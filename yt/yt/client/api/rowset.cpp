@@ -82,12 +82,7 @@ public:
         , Rows_(std::move(rows))
     { }
 
-    TRange<TRow> GetRows() const override
-    {
-        return Rows_;
-    }
-
-    TSharedRange<TRow> GetSharedRange() const override
+    TSharedRange<TRow> GetRows() const override
     {
         return Rows_;
     }
@@ -146,12 +141,7 @@ class TSchemafulRowsetWriter
 public:
     using TRowsetBase::TRowsetBase;
 
-    TRange<TUnversionedRow> GetRows() const override
-    {
-        return MakeRange(Rows_);
-    }
-
-    TSharedRange<TUnversionedRow> GetSharedRange() const override
+    TSharedRange<TUnversionedRow> GetRows() const override
     {
         return MakeSharedRange(Rows_, RowBuffer_);
     }

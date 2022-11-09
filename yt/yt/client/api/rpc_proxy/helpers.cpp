@@ -1764,14 +1764,14 @@ TIntrusivePtr<NApi::IRowset<TTypeErasedRow>> DeserializeRowset(
         auto schema = DeserializeRowsetSchema(descriptor);
         return CreateRowset(
             std::move(schema),
-            ReinterpretCastRange<TTypeErasedRow>(rowset->GetSharedRange()));
+            ReinterpretCastRange<TTypeErasedRow>(rowset->GetRows()));
     } else {
         auto rowset = DeserializeRowset<TUnversionedRow>(descriptor, data);
         // TODO(savrus): Get refcounted schema from rowset.
         auto schema = DeserializeRowsetSchema(descriptor);
         return CreateRowset(
             std::move(schema),
-            ReinterpretCastRange<TTypeErasedRow>(rowset->GetSharedRange()));
+            ReinterpretCastRange<TTypeErasedRow>(rowset->GetRows()));
     }
 }
 

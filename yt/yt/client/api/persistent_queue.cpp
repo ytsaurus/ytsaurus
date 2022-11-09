@@ -170,9 +170,6 @@ private:
             : Owner_(std::move(owner))
             , State_(std::move(state))
             , Batch_(std::move(batch))
-            , Rows_(
-                Batch_.Rowset->GetRows().Begin() + Batch_.BeginRowIndex - Batch_.RowsetStartRowIndex,
-                Batch_.Rowset->GetRows().Begin() + Batch_.EndRowIndex - Batch_.RowsetStartRowIndex)
         { }
 
         ~TPolledRowset()
@@ -192,14 +189,9 @@ private:
             return Batch_.Rowset->GetNameTable();
         }
 
-        TRange<TUnversionedRow> GetRows() const override
+        TSharedRange<TUnversionedRow> GetRows() const override
         {
-            return Rows_;
-        }
-
-        TSharedRange<TUnversionedRow> GetSharedRange() const override
-        {
-            return Batch_.Rowset->GetSharedRange().Slice(
+            return Batch_.Rowset->GetRows().Slice(
                 Batch_.BeginRowIndex - Batch_.RowsetStartRowIndex,
                 Batch_.EndRowIndex - Batch_.RowsetStartRowIndex);
         }
@@ -214,7 +206,6 @@ private:
         const TIntrusivePtr<TImpl> Owner_;
         const TStatePtr State_;
         const TBatch Batch_;
-        const std::vector<TUnversionedRow> Rows_;
 
         bool Committed_ = false;
 
