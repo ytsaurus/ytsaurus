@@ -4,11 +4,13 @@ import (
 	"io"
 	"net/http"
 	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/require"
 
 	"a.yandex-team.ru/yt/chyt/controller/internal/api"
+	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/chyt/controller/internal/tests/helpers"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yson"
@@ -35,7 +37,7 @@ func TestHTTPAPICreateAndRemove(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		map[string]any{
-			"family": "test_family",
+			"family": "sleep",
 			"stage":  "test_stage",
 		},
 		speclet)
@@ -134,7 +136,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		map[string]any{
-			"family":      "test_family",
+			"family":      "sleep",
 			"stage":       "test_stage",
 			"test_option": int64(1234),
 		},
@@ -153,7 +155,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		map[string]any{
-			"family":      "test_family",
+			"family":      "sleep",
 			"stage":       "test_stage",
 			"test_option": int64(1234),
 			"test_dict": map[string]any{
@@ -182,7 +184,7 @@ func TestHTTPAPISetAndRemoveOption(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		map[string]any{
-			"family": "test_family",
+			"family": "sleep",
 			"stage":  "test_stage",
 		},
 		speclet)
@@ -222,7 +224,7 @@ func TestHTTPAPIParseParams(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		map[string]any{
-			"family": "test_family",
+			"family": "sleep",
 			"stage":  "test_stage",
 			"test_dict": map[string]any{
 				"option": int64(1234),
@@ -307,7 +309,7 @@ func TestHTTPAPISetPool(t *testing.T) {
 	require.NoError(t, err)
 	require.Equal(t,
 		map[string]any{
-			"family": "test_family",
+			"family": "sleep",
 			"stage":  "test_stage",
 			"pool":   subpool,
 		},
@@ -372,4 +374,44 @@ func TestHTTPAPIList(t *testing.T) {
 	err := yson.Unmarshal(r.Body, &result)
 	require.NoError(t, err)
 	require.Contains(t, result["result"], alias)
+}
+
+func TestHTTPAPIStatus(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("status", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var result map[string]strawberry.OpletStatus
+	err := yson.Unmarshal(r.Body, &result)
+	require.NoError(t, err)
+	require.Equal(t, "Ok", result["result"].Status)
+
+	r = c.MakePostRequest("set_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "active",
+			"value": true,
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("status", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	err = yson.Unmarshal(r.Body, &result)
+	require.NoError(t, err)
+	require.True(t, strings.HasPrefix(result["result"].Status, "Waiting for restart"))
 }

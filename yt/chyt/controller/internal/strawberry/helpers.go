@@ -2,6 +2,7 @@ package strawberry
 
 import (
 	"fmt"
+	"reflect"
 	"regexp"
 
 	"golang.org/x/xerrors"
@@ -67,4 +68,27 @@ func extractOpID(err error) yt.OperationID {
 		panic(fmt.Errorf("malformed YT operation ID in error attributes: %v", parseErr))
 	}
 	return yt.OperationID(opID)
+}
+
+type FieldDiff struct {
+	OldValue any `yson:"old_value"`
+	NewValue any `yson:"new_value"`
+}
+
+func specletDiff(oldSpeclet, newSpeclet any) map[string]FieldDiff {
+	if !reflect.DeepEqual(reflect.TypeOf(oldSpeclet), reflect.TypeOf(newSpeclet)) {
+		return nil
+	}
+	diff := make(map[string]FieldDiff)
+	for _, field := range reflect.VisibleFields(reflect.TypeOf(oldSpeclet)) {
+		if field.Anonymous {
+			continue
+		}
+		old := reflect.ValueOf(oldSpeclet).FieldByIndex(field.Index).Interface()
+		new := reflect.ValueOf(newSpeclet).FieldByIndex(field.Index).Interface()
+		if !reflect.DeepEqual(old, new) {
+			diff[field.Tag.Get("yson")] = FieldDiff{old, new}
+		}
+	}
+	return diff
 }

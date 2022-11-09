@@ -37,7 +37,7 @@ func PrepareEnv(t *testing.T) *yttest.Env {
 
 	_, err = env.YT.CreateObject(env.Ctx, yt.NodeAccessControlObjectNamespace, &yt.CreateObjectOptions{
 		Attributes: map[string]any{
-			"name": "test_family",
+			"name": "sleep",
 		},
 		IgnoreExisting: true,
 	})
@@ -129,9 +129,11 @@ func PrepareAPI(t *testing.T) (*yttest.Env, *RequestClient) {
 
 	c := api.HTTPAPIConfig{
 		APIConfig: api.APIConfig{
-			Family: "test_family",
-			Stage:  "test_stage",
-			Root:   StrawberryRoot,
+			ControllerFactory: sleep.NewController,
+			AgentInfo: strawberry.AgentInfo{
+				StrawberryRoot: StrawberryRoot,
+				Stage:          "test_stage",
+			},
 		},
 		Clusters:    []string{proxy},
 		DisableAuth: true,

@@ -1,16 +1,17 @@
 package api
 
 import (
-	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 )
 
 type APIConfig struct {
-	Family        string
-	Stage         string
-	Root          ypath.Path
-	BaseACL       []yt.ACE
-	RobotUsername string
+	ControllerFactory strawberry.ControllerFactory
+	ControllerConfig  yson.RawValue
+	AgentInfo         strawberry.AgentInfo
+	BaseACL           []yt.ACE
+	RobotUsername     string
 }
 
 type HTTPAPIConfig struct {

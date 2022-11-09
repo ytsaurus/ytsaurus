@@ -197,6 +197,7 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 	return nil
 }
 
+// TODO(dakovalkov): It's weird, because it changes the speclet. Overthink it.
 func (c *Controller) populateResources(speclet *Speclet) (err error) {
 	if speclet.CliqueCPU != nil || speclet.CliqueMemory != nil {
 		err = c.populateResourcesClique(&speclet.Resources)
@@ -205,6 +206,5 @@ func (c *Controller) populateResources(speclet *Speclet) (err error) {
 	} else {
 		speclet.Resources = *buildResources(defaultInstanceCount, cpu, memDefault)
 	}
-
 	return
 }

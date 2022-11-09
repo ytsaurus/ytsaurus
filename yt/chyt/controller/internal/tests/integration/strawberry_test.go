@@ -209,9 +209,13 @@ func waitAliases(t *testing.T, env *yttest.Env, expected []string) {
 }
 
 func waitIncarnation(t *testing.T, env *yttest.Env, alias string, expected int64) {
+	// tag is used for easier log grep.
+	tag := rand.Uint64()
+
 	env.L.Debug("waiting for alias incarnation",
 		log.String("alias", alias),
-		log.Int64("expected_incarnation", expected))
+		log.Int64("expected_incarnation", expected),
+		log.UInt64("tag", tag))
 	for i := 0; i < 30; i++ {
 		op := getOp(t, env, alias)
 		if op != nil {
@@ -222,22 +226,26 @@ func waitIncarnation(t *testing.T, env *yttest.Env, alias string, expected int64
 			if reflect.DeepEqual(incarnation, expected) {
 				env.L.Debug("alias has reached expected incarnation",
 					log.String("alias", alias),
-					log.Int64("incarnation", expected))
+					log.Int64("incarnation", expected),
+					log.UInt64("tag", tag))
 				return
 			} else {
 				env.L.Debug("operation has not reached expected incarnation; waiting for the next try",
 					log.String("alias", alias),
 					log.Any("actual_incarnation", incarnation),
-					log.Int64("expected_incarnation", expected))
+					log.Int64("expected_incarnation", expected),
+					log.UInt64("tag", tag))
 			}
 		} else {
 			env.L.Debug("operation is not found; waiting for the next try",
 				log.String("alias", alias),
-				log.Int64("incarnation", expected))
+				log.Int64("incarnation", expected),
+				log.UInt64("tag", tag))
 		}
 		time.Sleep(time.Millisecond * 300)
 	}
-	env.L.Error("operation has not reached expected incarnation in time")
+	env.L.Error("operation has not reached expected incarnation in time",
+		log.UInt64("tag", tag))
 	t.FailNow()
 }
 
@@ -291,16 +299,16 @@ func TestReincarnations(t *testing.T) {
 
 	createStrawberryOp(t, env, "test5")
 	waitIncarnation(t, env, "test5", 1)
-	setSpecletOption(t, env, "test5", "test_option", "foo")
+	setSpecletOption(t, env, "test5", "test_option", 1)
 	waitIncarnation(t, env, "test5", 2)
-	setSpecletOption(t, env, "test5", "test_option", "bar")
+	setSpecletOption(t, env, "test5", "test_option", 2)
 	waitIncarnation(t, env, "test5", 3)
 	agent.Stop()
 	waitIncarnation(t, env, "test5", 3)
 	agent.Start()
 	time.Sleep(time.Second * 2)
 	waitIncarnation(t, env, "test5", 3)
-	setSpecletOption(t, env, "test5", "test_option", "baz")
+	setSpecletOption(t, env, "test5", "test_option", 3)
 	waitIncarnation(t, env, "test5", 4)
 }
 
@@ -338,8 +346,8 @@ func TestControllerStage(t *testing.T) {
 
 	defaultAgent.Stop()
 
-	setSpecletOption(t, env, "test7", "dummy", rand.Uint64())
-	setSpecletOption(t, env, "test6", "dummy", rand.Uint64())
+	setSpecletOption(t, env, "test7", "test_option", rand.Uint64())
+	setSpecletOption(t, env, "test6", "test_option", rand.Uint64())
 
 	waitIncarnation(t, env, "test7", 3)
 	// Default agent is off.
@@ -397,18 +405,12 @@ func TestForceRestart(t *testing.T) {
 	createStrawberryOp(t, env, "test9")
 	waitIncarnation(t, env, "test9", 1)
 
-	setSpecletOption(t, env, "test9", "dummy", rand.Uint64())
+	setSpecletOption(t, env, "test9", "test_option", rand.Uint64())
 	waitIncarnation(t, env, "test9", 2)
 
 	setSpecletOption(t, env, "test9", "restart_on_speclet_change", false)
 
-	setSpecletOption(t, env, "test9", "min_speclet_revision", getOpletState(t, env, "test9").specletRevision)
-	time.Sleep(time.Second * 1)
-	// Operation should not be restarted because a speclet was not changed, so min_speclet_revision has no effect.
-	waitIncarnation(t, env, "test9", 2)
-
-	setSpecletOption(t, env, "test9", "dummy", rand.Uint64())
-
+	setSpecletOption(t, env, "test9", "test_option", rand.Uint64())
 	time.Sleep(time.Second * 1)
 	// Operation should not be restarted because restart_on_speclet_change is false.
 	waitIncarnation(t, env, "test9", 2)

@@ -11,7 +11,7 @@ import (
 )
 
 func ToYsonURL(value interface{}) interface{} {
-	return yson.ValueWithAttrs{
+	return &yson.ValueWithAttrs{
 		Attrs: map[string]interface{}{"_type_tag": "url"},
 		Value: value,
 	}
@@ -75,11 +75,10 @@ func (oplet *Oplet) CypAnnotation() string {
 
 **Current operation state**: {{.PersistentState.YTOpState}}
 **Current operation id**: [{{.PersistentState.YTOpID}}](https://yt.yandex-team.ru/{{.AgentInfo.Proxy}}/operations/{{.PersistentState.YTOpID}})
-**Current incarnation**: {{.PersistentState.IncarnationIndex}}
-**Curent operation speclet revision**: {{.PersistentState.OperationSpecletRevision}}
+**Current operation incarnation**: {{.PersistentState.IncarnationIndex}}
+**Current operation speclet revision**: {{.PersistentState.YTOpSpecletRevision}}
 
 **Cypress speclet revision**: {{.PersistentState.SpecletRevision}}
-**Speclet change requires restart**: {{.PersistentState.SpecletChangeRequiresRestart}}
 **Restart on speclet change**: {{.StrawberrySpeclet.RestartOnSpecletChangeOrDefault}}
 
 **Last updated time**: {{.Now}}

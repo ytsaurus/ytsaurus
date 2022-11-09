@@ -3,6 +3,7 @@ package strawberry
 import (
 	"time"
 
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 )
 
@@ -13,15 +14,19 @@ type PersistentState struct {
 	YTOpID    yt.OperationID    `yson:"yt_operation_id"`
 	YTOpState yt.OperationState `yson:"yt_operation_state"`
 
-	// OperationSpecletRevision is a revision of the speclet with which the last operation was started.
-	OperationSpecletRevision yt.Revision `yson:"operation_speclet_revision"`
-	IncarnationIndex         int         `yson:"incarnation_index"`
+	IncarnationIndex int `yson:"incarnation_index"`
 
-	// SpecletRevision is a revision of the last speclet seen by an agent.
-	//
-	// TODO(dakovalkov): a speclet revision is too noisy. It is better to use a speclet hash instead.
-	SpecletRevision              yt.Revision `yson:"speclet_revision"`
-	SpecletChangeRequiresRestart bool        `yson:"speclet_change_requires_restart"`
+	// YTOpSpeclet is an unparsed speclet with which current yt operation is started.
+	YTOpSpeclet yson.RawValue `yson:"yt_op_strawberry_speclet"`
+	// YTOpSpecletRevision is a revision of the speclet node with which current yt operation is started.
+	YTOpSpecletRevision yt.Revision `yson:"yt_op_speclet_revision"`
+	// YTOpACL is the last set ACL of the current yt operation.
+	YTOpACL []yt.ACE `yson:"yt_op_acl"`
+	// YTOpPool is the last set pool of the current yt operation.
+	YTOpPool *string `yson:"yt_op_pool"`
+
+	// SpecletRevision is a revision of the last seen speclet node.
+	SpecletRevision yt.Revision `yson:"speclet_revision"`
 
 	// BackoffDuration is a duration during which oplet passes will be skipped after a failed pass.
 	// It is increased after every failed pass and is reset after an successful pass.
@@ -37,7 +42,7 @@ type PersistentState struct {
 const (
 	initialBackoffDuration   = time.Second
 	exponentialBackoffFactor = 1.5
-	maxBackoffDuration       = 10 * time.Minute
+	maxBackoffDuration       = 5 * time.Minute
 )
 
 // InfoState contains fields which are useful for understanding the current status of the oplet,
