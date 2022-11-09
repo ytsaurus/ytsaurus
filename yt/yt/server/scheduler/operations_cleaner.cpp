@@ -1429,7 +1429,7 @@ private:
 
         RemovePending_ -= removedCount;
         YT_LOG_DEBUG(
-            "Successfully removed operations from Cypress (Count: %v, LockedCount: %v, FailedToRemoveCount: %)",
+            "Successfully removed operations from Cypress (Count: %v, LockedCount: %v, FailedToRemoveCount: %v)",
             removedCount,
             lockedOperationCount,
             failedToRemoveOperationCount);
