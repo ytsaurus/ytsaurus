@@ -678,7 +678,6 @@ TDecoratedAutomaton::TDecoratedAutomaton(
     , SystemInvoker_(New<TSystemInvoker>(this))
     , SnapshotStore_(std::move(snapshotStore))
     , StateHashChecker_(std::move(stateHashChecker))
-    , BatchCommitTimer_(profiler.Timer("/batch_commit_time"))
     , SnapshotLoadTime_(profiler.TimeGauge("/snapshot_load_time"))
     , ForkCounters_(New<TForkCounters>(profiler))
 {
