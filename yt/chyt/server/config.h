@@ -435,6 +435,7 @@ class TInvokerLivenessCheckerConfig
 {
 public:
     bool Enabled;
+    bool CoreDump;
     TDuration Period;
     TDuration Timeout;
 
