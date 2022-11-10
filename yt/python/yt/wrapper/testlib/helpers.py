@@ -129,7 +129,7 @@ def get_environment_for_binary_test(yt_env, enable_request_logging=True):
 
     env = {
         "PYTHON_BINARY": python_binary,
-        "YT_USE_TOKEN": "0",
+        "YT_ENABLE_TOKEN": "0",
         "YT_VERSION": yt.config["api_version"],
         "YT_PRINT_BACKTRACE": "1",
         "YT_CLI_PATH": yt_binary,
