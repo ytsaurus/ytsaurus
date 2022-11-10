@@ -121,15 +121,13 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	if _, ok := discovery["transaction_timeout"]; !ok {
 		discovery["transaction_timeout"] = 30 * 1000
 	}
-	if _, ok := discovery["discovery_connection"]; !ok {
-		discovery["discovery_connection"] = make(map[string]interface{})
+	if _, ok := discovery["server_addresses"]; !ok {
 		var serverAddresses []string
 		serverAddresses, err = getDiscoveryServerAddresses(ctx, ytc)
 		if err != nil {
 			return
 		}
-		discoveryConnection, _ := asMapNode(discovery["discovery_connection"])
-		discoveryConnection["addresses"] = serverAddresses
+		discovery["server_addresses"] = serverAddresses
 	}
 
 	if _, ok := configAsMap["health_checker"]; !ok {
