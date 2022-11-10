@@ -85,13 +85,7 @@ public:
         NotifyFromInvoke(cpuInstant, ActiveThreads_.load() == 0);
     }
 
-    void Configure(int threadCount)
-    {
-        ThreadCount_.store(threadCount);
-    }
-
 private:
-    std::atomic<int> ThreadCount_ = 0;
     std::atomic<int> ActiveThreads_ = 0;
 };
 
@@ -170,13 +164,6 @@ private:
     const TIntrusivePtr<NThreading::TEventCount> CallbackEventCount_ = New<NThreading::TEventCount>();
     const TIntrusivePtr<TInvokerQueueAdapter> Queue_;
     const IInvokerPtr Invoker_;
-
-
-    void DoConfigure(int threadCount) override
-    {
-        Queue_->Configure(threadCount);
-        TThreadPoolBase::DoConfigure(threadCount);
-    }
 
     void DoShutdown() override
     {
