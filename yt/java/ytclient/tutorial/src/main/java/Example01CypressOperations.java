@@ -2,12 +2,16 @@ import java.time.Duration;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.ColumnFilter;
-import ru.yandex.yt.ytclient.proxy.request.GetNode;
+import ru.yandex.yt.ytclient.request.GetNode;
 
 public class Example01CypressOperations {
+    private Example01CypressOperations() {
+    }
+
     public static void main(String[] args) {
         // *** Создание клиента ***
 
@@ -38,9 +42,11 @@ public class Example01CypressOperations {
             // Для всех запросов есть полная версия метода, где можно передать объект запроса, указав там продвинутые
             // опции.
             CompletableFuture<YTreeNode> getResult = client.getNode(
-                    new GetNode("//home/dev/tutorial")
-                    .setAttributes(ColumnFilter.of("account", "row_count"))
-                    .setTimeout(Duration.ofSeconds(10))
+                    GetNode.builder()
+                            .setPath(YPath.simple("//home/dev/tutorial"))
+                            .setAttributes(ColumnFilter.of("account", "row_count"))
+                            .setTimeout(Duration.ofSeconds(10))
+                            .build()
             );
             System.out.println("getResult: " + getResult.join());
 

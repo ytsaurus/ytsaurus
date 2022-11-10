@@ -10,21 +10,40 @@ import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YtDecimal;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.ReadTable;
-import ru.yandex.yt.ytclient.proxy.request.WriteTable;
+import ru.yandex.yt.ytclient.request.CreateNode;
+import ru.yandex.yt.ytclient.request.ReadTable;
+import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class Example05Decimal {
+    private Example05Decimal() {
+    }
+
     @YTreeObject
     static class TableRow {
-        public String field;
+        private String field;
         // У таблицы обязательно должна быть схема, в который указаны precision и scale.
-        public BigDecimal value;
+        private BigDecimal value;
 
-        public TableRow(String field, BigDecimal value) {
+        TableRow(String field, BigDecimal value) {
             this.field = field;
+            this.value = value;
+        }
+
+        public String getField() {
+            return field;
+        }
+
+        public void setField(String field) {
+            this.field = field;
+        }
+
+        public BigDecimal getValue() {
+            return value;
+        }
+
+        public void setValue(BigDecimal value) {
             this.value = value;
         }
 
@@ -36,14 +55,31 @@ public class Example05Decimal {
 
     @YTreeObject
     static class TableRowAnnotated {
-        public String field;
+        private String field;
 
-        // Можно использовать без схемы. Тогда для сериализации/десериализации будут использованы указанные в аннотации precision и scale.
+        // Можно использовать без схемы. Тогда для сериализации/десериализации будут использованы указанные в
+        // аннотации precision и scale.
         @YtDecimal(precision = 7, scale = 3)
-        public BigDecimal value;
+        private BigDecimal value;
 
-        public TableRowAnnotated(String field, BigDecimal value) {
+        TableRowAnnotated(String field, BigDecimal value) {
             this.field = field;
+            this.value = value;
+        }
+
+        public String getField() {
+            return field;
+        }
+
+        public void setField(String field) {
+            this.field = field;
+        }
+
+        public BigDecimal getValue() {
+            return value;
+        }
+
+        public void setValue(BigDecimal value) {
             this.value = value;
         }
 
@@ -56,8 +92,12 @@ public class Example05Decimal {
     private static <T> void writeRead(YtClient client, YPath path, List<T> data, Class<T> rowClass) throws Exception {
         // Создаем writer.
         var writer = client.writeTable(
-                new WriteTable<>(path, rowClass).setNeedRetries(true)
-        ).join();
+                WriteTable.<T>builder()
+                        .setPath(path)
+                        .setNeedRetries(true)
+                        .setSerializationContext(
+                                new WriteTable.SerializationContext<>(rowClass))
+                        .build()).join();
 
         // Пишем данные в таблицу.
         try {
@@ -69,8 +109,11 @@ public class Example05Decimal {
 
         // Создаем reader.
         var reader = client.readTable(
-                new ReadTable<>(path, rowClass)
-        ).join();
+                ReadTable.<T>builder()
+                        .setPath(path)
+                        .setSerializationContext(
+                                new ReadTable.SerializationContext<>(rowClass))
+                        .build()).join();
 
         // Читаем всю таблицу.
         List<T> result = new ArrayList<>();
@@ -115,9 +158,15 @@ public class Example05Decimal {
         try (client) {
             {
                 YPath path = YPath.simple("//tmp/" + System.getProperty("user.name") + "-decimal");
-                client.createNode(new CreateNode(path.toString(), ObjectType.Table, Map.of(
-                        "schema", schema.toYTree()
-                )).setIgnoreExisting(true)).join();
+                client.createNode(
+                        CreateNode.builder()
+                                .setPath(path)
+                                .setType(ObjectType.Table)
+                                .setAttributes(Map.of(
+                                        "schema", schema.toYTree()
+                                ))
+                                .setIgnoreExisting(true)
+                                .build()).join();
 
                 List<TableRow> data = List.of(
                         new TableRow("first", BigDecimal.valueOf(123.45)),
