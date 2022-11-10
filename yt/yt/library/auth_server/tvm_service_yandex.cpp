@@ -19,6 +19,7 @@
 #include <library/cpp/tvmauth/client/facade.h>
 #include <library/cpp/tvmauth/client/logger.h>
 #include <library/cpp/tvmauth/client/misc/api/dynamic_dst/tvm_client.h>
+#include <library/cpp/tvmauth/utils.h>
 
 #include <util/system/mutex.h>
 
@@ -348,6 +349,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+namespace {
+
 class TMockTvmService
     : public IDynamicTvmService
 {
@@ -464,28 +467,7 @@ private:
 
 const TString TMockTvmService::TicketPrefix = "TestTicket-";
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TServiceTicketAuth
-    : public IServiceTicketAuth
-{
-public:
-    TServiceTicketAuth(
-        ITvmServicePtr tvmService,
-        TTvmId destServiceId)
-        : TvmService_(std::move(tvmService))
-        , DstServiceId_(destServiceId)
-    { }
-
-    TString IssueServiceTicket() override
-    {
-        return TvmService_->GetServiceTicket(DstServiceId_);
-    }
-
-private:
-    ITvmServicePtr TvmService_;
-    TTvmId DstServiceId_;
-};
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -517,13 +499,9 @@ IDynamicTvmServicePtr CreateDynamicTvmService(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IServiceTicketAuthPtr CreateServiceTicketAuth(
-    ITvmServicePtr tvmService,
-    TTvmId dstServiceId)
+TStringBuf RemoveTicketSignature(TStringBuf ticketBody)
 {
-    YT_VERIFY(tvmService);
-
-    return New<TServiceTicketAuth>(std::move(tvmService), dstServiceId);
+    return NTvmAuth::NUtils::RemoveTicketSignature(ticketBody);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

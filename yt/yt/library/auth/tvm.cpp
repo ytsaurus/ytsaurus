@@ -15,15 +15,4 @@ TString TServiceTicketClientAuth::IssueServiceTicket()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TServiceTicketFixedAuth::TServiceTicketFixedAuth(const TString& ticket)
-    : Ticket_(ticket)
-{ }
-
-TString TServiceTicketFixedAuth::IssueServiceTicket()
-{
-    return Ticket_;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NAuth

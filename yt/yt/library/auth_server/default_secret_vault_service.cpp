@@ -25,7 +25,6 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <library/cpp/tvmauth/utils.h>
 #include <library/cpp/uri/encode.h>
 
 namespace NYT::NAuth {
@@ -236,7 +235,7 @@ private:
             "(SecretId: %v, Signature: %v, UserTicket: %v, CallId: %v)",
             request.SecretId,
             request.Signature, // signatures are not secret; tokens are
-            NTvmAuth::NUtils::RemoveTicketSignature(request.UserTicket),
+            RemoveTicketSignature(request.UserTicket),
             callId);
 
         CallCountCounter_.Increment();
