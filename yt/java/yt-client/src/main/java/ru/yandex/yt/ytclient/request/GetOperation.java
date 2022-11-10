@@ -49,6 +49,9 @@ public class GetOperation
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetOperation.Builder, ?> requestBuilder) {
         TReqGetOperation.Builder messageBuilder = requestBuilder.body();

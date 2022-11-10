@@ -34,6 +34,9 @@ public class MountTable
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqMountTable.Builder, ?> builder) {
         super.writeTo(builder.body());

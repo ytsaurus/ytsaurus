@@ -47,6 +47,9 @@ public class PingTransaction extends RequestBase<PingTransaction.Builder, PingTr
         return pingAncestors;
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqPingTransaction.Builder, ?> builder) {
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));

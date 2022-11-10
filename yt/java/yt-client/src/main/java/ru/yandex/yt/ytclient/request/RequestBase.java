@@ -105,7 +105,10 @@ public abstract class RequestBase<
 
         protected @Nullable Message additionalData;
 
-        public Builder() {
+        /**
+         * Construct empty builder.
+         */
+        Builder() {
         }
 
         protected Builder(Builder<?, ?> other) {

@@ -28,6 +28,9 @@ public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, Ge
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetTablePivotKeys.Builder, ?> builder) {
         builder.body().setPath(path);

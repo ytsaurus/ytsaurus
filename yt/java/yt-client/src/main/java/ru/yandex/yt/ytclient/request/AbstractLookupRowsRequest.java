@@ -19,6 +19,12 @@ import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
+/**
+ * Base class for modify rows requests.
+ * <p>
+ * @see LookupRowsRequest
+ * @see MappedLookupRowsRequest
+ */
 @NonNullApi
 public abstract class AbstractLookupRowsRequest<
         TBuilder extends AbstractLookupRowsRequest.Builder<TBuilder, TRequest>,
@@ -33,7 +39,7 @@ public abstract class AbstractLookupRowsRequest<
 
     // NB. Java default of keepMissingRows is different from YT default for historical reasons,
     // now we have to keep backward compatibility.
-    protected boolean keepMissingRows = false;
+    protected boolean keepMissingRows;
 
     AbstractLookupRowsRequest(Builder<?, ?> builder) {
         super(builder);
@@ -48,6 +54,9 @@ public abstract class AbstractLookupRowsRequest<
         this.keepMissingRows = builder.keepMissingRows;
     }
 
+    /**
+     * Get path of the table to be modified.
+     */
     public String getPath() {
         return path;
     }
@@ -89,6 +98,9 @@ public abstract class AbstractLookupRowsRequest<
                 AbstractLookupRowsRequest.this.writeHeaderTo(header);
             }
 
+            /**
+             * Internal method: prepare request to send over network.
+             */
             @Override
             public void writeTo(RpcClientRequestBuilder<TReqLookupRows.Builder, ?> builder) {
                 builder.body().setPath(getPath());
@@ -119,6 +131,9 @@ public abstract class AbstractLookupRowsRequest<
                 AbstractLookupRowsRequest.this.writeHeaderTo(header);
             }
 
+            /**
+             * Internal method: prepare request to send over network.
+             */
             @Override
             public void writeTo(RpcClientRequestBuilder<TReqVersionedLookupRows.Builder, ?> builder) {
                 builder.body().setPath(getPath());
@@ -150,9 +165,15 @@ public abstract class AbstractLookupRowsRequest<
         // now we have to keep backward compatibility.
         private boolean keepMissingRows = false;
 
+        /**
+         * Construct empty builder.
+         */
         public Builder() {
         }
 
+        /**
+         * Set path of a table.
+         */
         public TBuilder setPath(String path) {
             this.path = path;
             return self();

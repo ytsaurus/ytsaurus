@@ -21,6 +21,9 @@ public class GetNode extends GetLikeReq<GetNode.Builder, GetNode> implements Hig
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());

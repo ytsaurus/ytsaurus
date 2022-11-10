@@ -49,6 +49,9 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqStartOperation.Builder, ?> requestBuilder) {
         TReqStartOperation.Builder builder = requestBuilder.body();

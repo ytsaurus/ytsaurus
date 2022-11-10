@@ -26,6 +26,9 @@ public class CheckClusterLiveness extends RequestBase<CheckClusterLiveness.Build
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCheckClusterLiveness.Builder, ?> builder) {
         builder.body().setCheckCypressRoot(checkCypressRoot);

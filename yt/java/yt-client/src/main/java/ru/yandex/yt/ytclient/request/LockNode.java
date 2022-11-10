@@ -62,6 +62,9 @@ public class LockNode extends MutatePath<LockNode.Builder, LockNode> implements 
         return Optional.ofNullable(attributeKey);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqLockNode.Builder, ?> builder) {
         builder.body()

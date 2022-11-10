@@ -8,6 +8,14 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAbortOperation;
 import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
+/**
+ * Immutable abort operation request.
+ * <p>
+ * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#abortOperation(AbortOperation)
+ * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_operation">
+ *     abort_op documentation
+ *     </a>
+ */
 @NonNullApi
 @NonNullFields
 public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOperation>
@@ -15,23 +23,54 @@ public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOp
     @Nullable
     private final String message;
 
+    /**
+     * Construct abort job request from operation id with other options set to defaults.
+     */
+    public AbortOperation(GUID id) {
+        this(builder().setOperationId(id));
+    }
+
+    /**
+     * Construct abort job request from operation alias with other options set to defaults.
+     */
+    public AbortOperation(String alias) {
+        this(builder().setOperationAlias(alias));
+    }
+
     AbortOperation(Builder builder) {
         super(builder);
         this.message = builder.message;
     }
 
-    public AbortOperation(GUID id) {
-        this(builder().setOperationId(id));
-    }
-
-    public AbortOperation(String alias) {
-        this(builder().setOperationAlias(alias));
-    }
-
+    /**
+     * Construct empty builder for abort operation request.
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * Construct a builder with options set from this request.
+     */
+    @Override
+    public Builder toBuilder() {
+        Builder builder = builder()
+                .setOperationId(operationId)
+                .setOperationAlias(operationAlias)
+                .setTimeout(timeout)
+                .setRequestId(requestId)
+                .setUserAgent(userAgent)
+                .setTraceId(traceId, traceSampled)
+                .setAdditionalData(additionalData);
+        if (message != null) {
+            builder.setMessage(message);
+        }
+        return builder;
+    }
+
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqAbortOperation.Builder, ?> builder) {
         TReqAbortOperation.Builder messageBuilder = builder.body();
@@ -49,41 +88,29 @@ public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOp
         super.writeArgumentsLogString(sb);
     }
 
-    @Override
-    public Builder toBuilder() {
-        Builder builder = builder()
-                .setOperationId(operationId)
-                .setOperationAlias(operationAlias)
-                .setTimeout(timeout)
-                .setRequestId(requestId)
-                .setUserAgent(userAgent)
-                .setTraceId(traceId, traceSampled)
-                .setAdditionalData(additionalData);
-        if (message != null) {
-            builder.setMessage(message);
-        }
-        return builder;
-    }
-
+    /**
+     * Builder for {@link AbortOperation}
+     */
     @NonNullApi
     @NonNullFields
     public static class Builder extends OperationReq.Builder<Builder, AbortOperation> {
         @Nullable
         private String message;
 
-        public Builder() {
+        Builder() {
         }
 
-        public Builder(Builder builder) {
-            super(builder);
-            message = builder.message;
-        }
-
+        /**
+         * Set message to be shown in operation aborted error (show in Web UI, logs, etc)
+         */
         public Builder setMessage(String message) {
             this.message = message;
             return self();
         }
 
+        /**
+         * Construct {@link AbortOperation} instance.
+         */
         public AbortOperation build() {
             return new AbortOperation(this);
         }

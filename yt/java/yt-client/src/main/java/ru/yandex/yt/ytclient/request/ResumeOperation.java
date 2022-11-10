@@ -43,6 +43,9 @@ public class ResumeOperation extends OperationReq<ResumeOperation.Builder, Resum
         return super.toTree(builder);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqResumeOperation.Builder, ?> builder) {
         TReqResumeOperation.Builder messageBuilder = builder.body();

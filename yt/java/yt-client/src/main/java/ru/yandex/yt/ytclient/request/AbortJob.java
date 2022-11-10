@@ -13,9 +13,12 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 /**
- * Request to abort job.
+ * Immutable abort job request.
  * <p>
  * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#abortJob(AbortJob)
+ * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
+ *     abort_job documentation
+ *     </a>
  */
 public class AbortJob
         extends RequestBase<AbortJob.Builder, AbortJob>
@@ -80,6 +83,9 @@ public class AbortJob
         return builder;
     }
 
+    /**
+     * Builder for {@link AbortJob}
+     */
     @NonNullApi
     @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, AbortJob> {
@@ -88,19 +94,7 @@ public class AbortJob
         @Nullable
         private Duration interruptTimeout;
 
-        /**
-         * Construct empty builder.
-         */
-        public Builder() {
-        }
-
-        /**
-         * Copy builder.
-         */
-        public Builder(Builder builder) {
-            super(builder);
-            jobId = builder.jobId;
-            interruptTimeout = builder.interruptTimeout;
+        Builder() {
         }
 
         /**
@@ -131,7 +125,7 @@ public class AbortJob
         }
 
         /**
-         * Create instance of AbortJob.
+         * Construct {@link AbortJob} instance.
          */
         @Override
         public AbortJob build() {

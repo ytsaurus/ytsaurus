@@ -30,6 +30,9 @@ public class UnmountTable
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqUnmountTable.Builder, ?> builder) {
         super.writeTo(builder.body());

@@ -33,6 +33,9 @@ public class MoveNode
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqMoveNode.Builder, ?> requestBuilder) {
         TReqMoveNode.Builder builder = requestBuilder.body();

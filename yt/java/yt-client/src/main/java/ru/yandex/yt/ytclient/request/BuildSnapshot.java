@@ -33,6 +33,9 @@ public class BuildSnapshot extends RequestBase<BuildSnapshot.Builder, BuildSnaps
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqBuildSnapshot.Builder, ?> builder) {
         builder.body()

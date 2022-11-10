@@ -69,6 +69,9 @@ public class PartitionTables
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqPartitionTables.Builder, ?> requestBuilder) {
         TReqPartitionTables.Builder builder = requestBuilder.body();

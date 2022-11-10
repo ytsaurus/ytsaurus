@@ -57,6 +57,9 @@ public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, Conca
         return destinationPath;
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqConcatenateNodes.Builder, ?> requestBuilder) {
         TReqConcatenateNodes.Builder builder = requestBuilder.body();

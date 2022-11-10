@@ -29,6 +29,9 @@ public class GenerateTimestamps extends RequestBase<GenerateTimestamps.Builder, 
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGenerateTimestamps.Builder, ?> builder) {
         builder.body().setCount(count);

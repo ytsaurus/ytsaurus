@@ -42,6 +42,9 @@ public class RemoveNode
         return force;
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqRemoveNode.Builder, ?> builder) {
         builder.body()

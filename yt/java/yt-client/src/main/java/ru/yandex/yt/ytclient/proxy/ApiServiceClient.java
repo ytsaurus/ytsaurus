@@ -314,6 +314,16 @@ public interface ApiServiceClient extends TransactionalClient {
         return getOperation(req.build());
     }
 
+    /**
+     * Request to abort operation.
+     * <p>
+     *     Operation will be finished in erroneous aborted state.
+     * <p>
+     * @see AbortOperation
+     * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
+     *     abort_job documentation
+     *     </a>
+     */
     CompletableFuture<Void> abortOperation(AbortOperation req);
 
     CompletableFuture<Void> suspendOperation(SuspendOperation req);
@@ -338,6 +348,15 @@ public interface ApiServiceClient extends TransactionalClient {
         return getJob(req.build());
     }
 
+    /**
+     * Request to abort job.
+     * <p>
+     *     Job will be aborted. In the future scheduler will restart this job.
+     * <p>
+     * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
+     *     abort_job documentation
+     *     </a>
+     */
     CompletableFuture<Void> abortJob(AbortJob req);
 
     CompletableFuture<ListJobsResult> listJobs(ListJobs req);

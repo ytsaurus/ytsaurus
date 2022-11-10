@@ -58,6 +58,9 @@ public class ReshardTable
         this.unconvertedPivotKeys.clear();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqReshardTable.Builder, ?> requestBuilder) {
         TReqReshardTable.Builder builder = requestBuilder.body();

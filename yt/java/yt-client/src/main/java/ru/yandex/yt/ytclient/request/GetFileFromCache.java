@@ -50,6 +50,9 @@ public class GetFileFromCache
         return md5;
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetFileFromCache.Builder, ?> builder) {
         builder.body()

@@ -45,6 +45,9 @@ public class ListJobs
         return builder;
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqListJobs.Builder, ?> requestBuilder) {
         TReqListJobs.Builder messageBuilder = requestBuilder.body();
@@ -76,10 +79,10 @@ public class ListJobs
         @Nullable
         private Long limit;
 
-        public Builder() {
+        Builder() {
         }
 
-        public Builder(Builder builder) {
+        Builder(Builder builder) {
             super(builder);
             operationId = builder.operationId;
             state = builder.state;
