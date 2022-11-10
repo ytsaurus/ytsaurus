@@ -26,6 +26,9 @@ public class ListNode extends GetLikeReq<ListNode.Builder, ListNode> implements 
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqListNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());

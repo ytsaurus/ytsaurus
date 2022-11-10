@@ -21,6 +21,9 @@ public class FreezeTable
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqFreezeTable.Builder, ?> builder) {
         super.writeTo(builder.body());

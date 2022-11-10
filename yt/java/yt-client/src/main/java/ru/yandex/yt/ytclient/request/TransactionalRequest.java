@@ -67,7 +67,10 @@ public abstract class TransactionalRequest<
         @Nullable
         protected PrerequisiteOptions prerequisiteOptions;
 
-        public Builder() {
+        /**
+         * Construct empty builder.
+         */
+        Builder() {
         }
 
         protected Builder(Builder<?, ?> other) {

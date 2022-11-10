@@ -37,6 +37,9 @@ public class GetJob extends OperationReq<GetJob.Builder, GetJob> implements High
         return new GetJob(alias, jobId);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetJob.Builder, ?> requestBuilder) {
         TReqGetJob.Builder messageBuilder = requestBuilder.body();

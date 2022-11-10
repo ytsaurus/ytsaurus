@@ -68,6 +68,9 @@ public class UpdateOperationParameters
         return new UpdateOperationParameters(alias);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqUpdateOperationParameters.Builder, ?> requestBuilder) {
         TReqUpdateOperationParameters.Builder messageBuilder = requestBuilder.body();

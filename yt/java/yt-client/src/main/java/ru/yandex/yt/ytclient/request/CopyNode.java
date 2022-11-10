@@ -31,6 +31,9 @@ public class CopyNode
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCopyNode.Builder, ?> requestBuilder) {
         TReqCopyNode.Builder builder = requestBuilder.body();
@@ -99,6 +102,9 @@ public class CopyNode
             super(builder);
         }
 
+        /**
+         * Internal method: prepare request to send over network.
+         */
         @Override
         public void writeTo(RpcClientRequestBuilder<TReqCopyNode.Builder, ?> requestBuilder) {
             TReqCopyNode.Builder builder = requestBuilder.body();

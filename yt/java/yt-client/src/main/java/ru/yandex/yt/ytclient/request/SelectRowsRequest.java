@@ -111,6 +111,9 @@ public class SelectRowsRequest
         return Optional.ofNullable(allowFullScan);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqSelectRows.Builder, ?> builder) {
         builder.body().setQuery(getQuery());

@@ -101,6 +101,9 @@ public class CreateNode
         return Collections.unmodifiableMap(attributes);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCreateNode.Builder, ?> builder) {
         builder.body()

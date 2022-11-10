@@ -32,6 +32,9 @@ public class GcCollect
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGCCollect.Builder, ?> builder) {
         builder.body().setCellId(RpcUtil.toProto(cellId));

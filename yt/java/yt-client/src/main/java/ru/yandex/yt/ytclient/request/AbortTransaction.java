@@ -13,8 +13,9 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 /**
- * Request for aborting transaction.
- *
+ * Immutable abort transaction request.
+ * <p>
+ * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#abortTransaction(AbortTransaction)
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_tx">
  *     abort_tx documentation
  *     </a>
@@ -24,19 +25,28 @@ public class AbortTransaction
         implements HighLevelRequest<TReqAbortTransaction.Builder> {
     final GUID transactionId;
 
+    /**
+     * Construct abort transaction request from transaction id with other options set to defaults.
+     */
+    public AbortTransaction(GUID transactionId) {
+        this(builder().setTransactionId(transactionId));
+    }
+
     AbortTransaction(Builder builder) {
         super(builder);
         this.transactionId = Objects.requireNonNull(builder.transactionId);
     }
 
-    public AbortTransaction(GUID transactionId) {
-        this(builder().setTransactionId(transactionId));
-    }
-
+    /**
+     * Construct empty builder for abort transaction request.
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqAbortTransaction.Builder, ?> builder) {
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));
@@ -48,6 +58,9 @@ public class AbortTransaction
         sb.append("TransactionId: ").append(transactionId).append(";");
     }
 
+    /**
+     * Construct a builder with options set from this request.
+     */
     @Override
     public Builder toBuilder() {
         return builder().setTransactionId(transactionId)
@@ -58,6 +71,9 @@ public class AbortTransaction
                 .setAdditionalData(additionalData);
     }
 
+    /**
+     * Builder for {@link AbortTransaction}
+     */
     @NonNullApi
     @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, AbortTransaction> {
@@ -67,16 +83,17 @@ public class AbortTransaction
         Builder() {
         }
 
-        Builder(Builder builder) {
-            super(builder);
-            this.transactionId = builder.transactionId;
-        }
-
-        Builder setTransactionId(GUID transactionId) {
+        /**
+         * Set transaction id.
+         */
+        public Builder setTransactionId(GUID transactionId) {
             this.transactionId = transactionId;
             return self();
         }
 
+        /**
+         * Construct {@link AbortTransaction} instance.
+         */
         public AbortTransaction build() {
             return new AbortTransaction(this);
         }

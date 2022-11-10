@@ -40,6 +40,9 @@ public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCreateObject.Builder, ?> builder) {
         builder.body().setType(type.value());

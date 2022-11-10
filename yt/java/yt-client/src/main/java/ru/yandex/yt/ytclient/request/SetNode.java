@@ -59,6 +59,9 @@ public class SetNode extends MutatePath<SetNode.Builder, SetNode> implements Hig
         return recursive;
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqSetNode.Builder, ?> builder) {
         builder.body().setPath(path.toString())

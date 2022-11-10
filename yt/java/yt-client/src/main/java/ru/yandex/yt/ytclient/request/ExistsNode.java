@@ -24,6 +24,9 @@ public class ExistsNode
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqExistsNode.Builder, ?> builder) {
         builder.body().setPath(path.toString());
@@ -89,6 +92,9 @@ public class ExistsNode
             super(builder);
         }
 
+        /**
+         * Internal method: prepare request to send over network.
+         */
         @Override
         public void writeTo(RpcClientRequestBuilder<TReqExistsNode.Builder, ?> builder) {
             builder.body().setPath(Objects.requireNonNull(path).toString());

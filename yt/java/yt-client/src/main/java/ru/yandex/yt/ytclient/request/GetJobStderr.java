@@ -47,6 +47,9 @@ public class GetJobStderr extends OperationReq<GetJobStderr.Builder, GetJobStder
                 .setAdditionalData(additionalData);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetJobStderr.Builder, ?> builder) {
         TReqGetJobStderr.Builder messageBuilder = builder.body();

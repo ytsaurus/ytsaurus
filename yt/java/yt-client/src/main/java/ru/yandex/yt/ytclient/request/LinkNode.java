@@ -34,6 +34,9 @@ public class LinkNode
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqLinkNode.Builder, ?> requestBuilder) {
         TReqLinkNode.Builder builder = requestBuilder.body();

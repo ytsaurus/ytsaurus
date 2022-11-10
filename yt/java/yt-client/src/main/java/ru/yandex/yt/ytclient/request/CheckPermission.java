@@ -53,6 +53,9 @@ public class CheckPermission
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCheckPermission.Builder, ?> requestBuilder) {
         TReqCheckPermission.Builder builder = requestBuilder.body();

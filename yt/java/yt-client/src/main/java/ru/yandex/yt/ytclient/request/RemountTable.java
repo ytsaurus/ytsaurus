@@ -21,6 +21,9 @@ public class RemountTable
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqRemountTable.Builder, ?> builder) {
         super.writeTo(builder.body());

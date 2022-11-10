@@ -34,6 +34,9 @@ public class TrimTable
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqTrimTable.Builder, ?> builder) {
         builder.body().setPath(path);

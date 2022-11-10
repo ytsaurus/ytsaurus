@@ -49,6 +49,9 @@ public class SuspendOperation extends OperationReq<SuspendOperation.Builder, Sus
         return new SuspendOperation(operationAlias);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqSuspendOperation.Builder, ?> builder) {
         TReqSuspendOperation.Builder messageBuilder = builder.body();

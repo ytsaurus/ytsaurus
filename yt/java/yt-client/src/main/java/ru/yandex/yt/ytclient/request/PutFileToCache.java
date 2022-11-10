@@ -58,6 +58,9 @@ public class PutFileToCache
         return md5;
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqPutFileToCache.Builder, ?> builder) {
         builder.body()

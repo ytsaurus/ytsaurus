@@ -38,6 +38,9 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCommitTransaction.Builder, ?> builder) {
         builder.body().setTransactionId(RpcUtil.toProto(transactionId));

@@ -107,7 +107,7 @@ public abstract class GetLikeReq<
         @Nullable
         protected SuppressableAccessTrackingOptions suppressableAccessTrackingOptions;
 
-        public Builder() {
+        Builder() {
         }
 
         protected Builder(Builder<?, ?> builder) {

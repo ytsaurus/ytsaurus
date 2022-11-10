@@ -50,6 +50,9 @@ public class AlterTable
         return new Builder();
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqAlterTable.Builder, ?> requestBuilder) {
         TReqAlterTable.Builder builder = requestBuilder.body();

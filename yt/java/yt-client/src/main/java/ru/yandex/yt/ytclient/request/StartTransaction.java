@@ -220,6 +220,9 @@ public class StartTransaction
         return Collections.unmodifiableMap(attributes);
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqStartTransaction.Builder, ?> builder) {
         builder.body().setType(type.getProtoValue());
