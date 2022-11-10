@@ -1,7 +1,7 @@
 import tech.ytsaurus.type_info.TiType;
 
-import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
 import ru.yandex.yt.ytclient.proxy.MultiYtClient;
+import ru.yandex.yt.ytclient.request.LookupRowsRequest;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -9,6 +9,9 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
 public class Example03MultiYtClient {
+    private Example03MultiYtClient() {
+    }
+
     public static void main(String[] args) {
         // Схема динамической таблицы, которую будем читать
         TableSchema schema = TableSchema.builderWithUniqueKeys()
@@ -36,7 +39,11 @@ public class Example03MultiYtClient {
         try (client) {
             // Читаем строчку с key=2.
             UnversionedRowset rows = client.lookupRows(
-                    new LookupRowsRequest(path, schema.toLookup()).addFilter(2)
+                    LookupRowsRequest.builder()
+                            .setPath(path)
+                            .setSchema(schema.toLookup())
+                            .addFilter(2)
+                            .build()
             ).join();
 
             System.out.println("====== LOOKUP RESULT ======");

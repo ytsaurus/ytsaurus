@@ -3,15 +3,16 @@ import java.util.Map;
 
 import tech.ytsaurus.type_info.TiType;
 
+import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
-import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
-import ru.yandex.yt.ytclient.proxy.ModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TransactionType;
+import ru.yandex.yt.ytclient.request.CreateNode;
+import ru.yandex.yt.ytclient.request.LookupRowsRequest;
+import ru.yandex.yt.ytclient.request.ModifyRowsRequest;
+import ru.yandex.yt.ytclient.request.StartTransaction;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
@@ -19,12 +20,16 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
 public class Example04DynamicTable {
+    private Example04DynamicTable() {
+    }
+
     public static void main(String[] args) {
         //
-        // Программа принимает аргументами имя кластера и путь к таблице, с которой она будет работать (таблица не должна существовать).
+        // Программа принимает аргументами имя кластера и путь к таблице, с которой она будет работать (таблица не
+        // должна существовать).
         //
-        // По умолчанию у пользователей нет прав монтировать динамические таблицы, и перед запуском программы необходимо получить
-        // такие права (права на монтирование таблиц) на каком-нибудь кластере YT.
+        // По умолчанию у пользователей нет прав монтировать динамические таблицы, и перед запуском программы
+        // необходимо получить такие права (права на монтирование таблиц) на каком-нибудь кластере YT.
         if (args.length != 2) {
             throw new IllegalArgumentException("Incorrect arguments count");
         }
@@ -53,12 +58,15 @@ public class Example04DynamicTable {
             //  - указать схему
             // Это нужно сделать обязательно в вызове createNode. Т.е. не получится сначала создать таблицу,
             // а потом проставить эти атрибуты.
-            CreateNode createNode = new CreateNode(path,
-                    ObjectType.Table,
-                    Map.of(
+            CreateNode createNode = CreateNode.builder()
+                    .setPath(YPath.simple(path))
+                    .setType(ObjectType.Table)
+                    .setAttributes(Map.of(
                             "dynamic", YTree.booleanNode(true),
                             "schema", schema.toYTree()
-                    ));
+                    ))
+                    .build();
+
             client.createNode(createNode).join();
 
             // Для того чтобы начать работу с динамической таблицей, её необходимо "подмонтировать".
@@ -70,23 +78,31 @@ public class Example04DynamicTable {
             client.mountTable(path).join();
 
             // Заполняем таблицу.
-            try (ApiServiceTransaction transaction = client.startTransaction(new StartTransaction(TransactionType.Tablet)).join()) {
+            try (ApiServiceTransaction transaction =
+                         client.startTransaction(new StartTransaction(TransactionType.Tablet)).join()) {
                 // Вставлять значения в динтаблицу можно с помощью modifyRows.
                 transaction.modifyRows(
-                        new ModifyRowsRequest(path, schema)
+                        ModifyRowsRequest.builder()
+                                .setPath(path)
+                                .setSchema(schema)
                                 .addInsert(List.of(1, "a"))
                                 .addInsert(List.of(2, "b"))
                                 .addInsert(List.of(3, "c"))
-                ).join();
+                                .build()).join();
                 transaction.commit().join();
             }
 
             // Читаем таблицу.
-            try (ApiServiceTransaction transaction = client.startTransaction(new StartTransaction(TransactionType.Tablet)).join()) {
+            try (ApiServiceTransaction transaction =
+                         client.startTransaction(new StartTransaction(TransactionType.Tablet)).join()) {
                 // Получать значения из динтаблицы можно с помощью lookupRows,
                 // возвращает UnversionedRows из найденных строчек.
                 UnversionedRowset rowset = transaction.lookupRows(
-                        new LookupRowsRequest(path, schema.toLookup()).addFilter(1)).join();
+                        LookupRowsRequest.builder()
+                                .setPath(path)
+                                .setSchema(schema.toLookup())
+                                .addFilter(1)
+                                .build()).join();
 
                 System.out.println("====== LOOKUP RESULT ======");
                 for (UnversionedRow row : rowset.getRows()) {
