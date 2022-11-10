@@ -1,22 +1,13 @@
 #pragma once
 
 #include "public.h"
+#include "tvm_base.h"
 
 #include <library/cpp/tvmauth/client/facade.h>
 
 namespace NYT::NAuth {
 
 using TTvmClientPtr = std::shared_ptr<NTvmAuth::TTvmClient>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct IServiceTicketAuth
-    : public virtual TRefCounted
-{
-    virtual TString IssueServiceTicket() = 0;
-};
-
-DEFINE_REFCOUNTED_TYPE(IServiceTicketAuth)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -35,22 +26,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TServiceTicketClientAuth)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TServiceTicketFixedAuth
-    : public IServiceTicketAuth
-{
-public:
-    explicit TServiceTicketFixedAuth(const TString& ticket);
-
-    TString IssueServiceTicket() override;
-
-private:
-    TString Ticket_;
-};
-
-DEFINE_REFCOUNTED_TYPE(TServiceTicketFixedAuth)
 
 ////////////////////////////////////////////////////////////////////////////////
 

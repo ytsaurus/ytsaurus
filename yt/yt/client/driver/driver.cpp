@@ -29,7 +29,7 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/yt/library/auth/tvm.h>
+#include <yt/yt/library/auth/tvm_base.h>
 
 namespace NYT::NDriver {
 
