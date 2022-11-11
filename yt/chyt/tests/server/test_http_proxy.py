@@ -32,7 +32,6 @@ class TestClickHouseHttpProxy(ClickHouseTestBase):
                 "expire_after_failed_update_time": 100,
             },
             "operation_id_update_period": 100,
-            "discovery_server_update_period": 1000,
         },
     }
 

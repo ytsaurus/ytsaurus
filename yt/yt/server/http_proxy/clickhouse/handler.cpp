@@ -95,7 +95,6 @@ public:
         const TDiscoveryCachePtr discoveryCache,
         const TCounter forceUpdateCounter,
         const TCounter bannedCounter,
-        const std::vector<TString>& discoveryServers,
         const TClickHouseHandlerPtr& handler,
         IInvokerPtr controlInvoker,
         NLogging::TLogger logger)
@@ -112,7 +111,6 @@ public:
         , ForceUpdateCounter_(forceUpdateCounter)
         , BannedCounter_(bannedCounter)
         , ControlInvoker_(controlInvoker)
-        , DiscoveryServers_(discoveryServers)
         , Handler_(handler)
         , ChannelFactory_(CreateBusChannelFactory(New<NBus::TTcpBusConfig>()))
     {
@@ -228,7 +226,6 @@ private:
     TString InstanceHost_;
     TString InstanceHttpPort_;
     TCachedDiscoveryPtr Discovery_;
-    std::vector<TString> DiscoveryServers_;
     TClickHouseHandlerPtr Handler_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
@@ -626,13 +623,12 @@ private:
     {
         auto config = New<TDiscoveryV2Config>();
         config->GroupId = GetDiscoveryGroupId();
-        config->DiscoveryConnection = New<TDiscoveryConnectionConfig>();
-        config->DiscoveryConnection->Addresses = DiscoveryServers_;
         config->ReadQuorum = 1;
         config->WriteQuorum = 1;
         config->BanTimeout = Bootstrap_->GetConfig()->ClickHouse->DiscoveryCache->UnavailableInstanceBanTimeout;
         return NClickHouseServer::CreateDiscoveryV2(
             std::move(config),
+            Bootstrap_->GetNativeConnection(),
             ChannelFactory_,
             ControlInvoker_,
             DiscoveryAttributes_,
@@ -643,13 +639,9 @@ private:
     {
         auto discoveryV1 = CreateDiscoveryV1();
         auto discoveryV1Future = discoveryV1->UpdateList().Apply(BIND([discovery = std::move(discoveryV1)] { return discovery; }));
-        auto futures = std::vector{discoveryV1Future};
-
-        if (!DiscoveryServers_.empty()) {
-            auto discoveryV2 = CreateDiscoveryV2();
-            auto discoveryV2Future = discoveryV2->UpdateList().Apply(BIND([discovery = std::move(discoveryV2)] { return discovery; }));
-            futures.emplace_back(std::move(discoveryV2Future));
-        }
+        auto discoveryV2 = CreateDiscoveryV2();
+        auto discoveryV2Future = discoveryV2->UpdateList().Apply(BIND([discovery = std::move(discoveryV2)] { return discovery; }));
+        auto futures = std::vector{discoveryV1Future, discoveryV2Future};
 
         auto valueOrError = WaitFor(AnySucceeded(futures));
         if (!valueOrError.IsOK()) {
@@ -1039,10 +1031,6 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
     , QueryCount_(ClickHouseProfiler.Counter("/query_count"))
     , ForceUpdateCount_(ClickHouseProfiler.Counter("/force_update_count"))
     , BannedCount_(ClickHouseProfiler.Counter("/banned_count"))
-    , DiscoveryServerUpdateExecutor_(New<TPeriodicExecutor>(
-        ControlInvoker_,
-        BIND(&TClickHouseHandler::UpdateDiscoveryServers, MakeWeak(this)),
-        Config_->DiscoveryServerUpdatePeriod))
     , OperationIdUpdateExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TClickHouseHandler::UpdateOperationIds, MakeWeak(this)),
@@ -1063,17 +1051,11 @@ TClickHouseHandler::TClickHouseHandler(TBootstrap* bootstrap)
 
 void TClickHouseHandler::Start()
 {
-    DiscoveryServerUpdateExecutor_->Start();
     OperationIdUpdateExecutor_->Start();
 
-    auto futures = std::vector{
-        DiscoveryServerUpdateExecutor_->GetExecutedEvent(),
-        OperationIdUpdateExecutor_->GetExecutedEvent()};
-
-    DiscoveryServerUpdateExecutor_->ScheduleOutOfBand();
+    auto future = OperationIdUpdateExecutor_->GetExecutedEvent();
     OperationIdUpdateExecutor_->ScheduleOutOfBand();
-    WaitFor(AllSucceeded(futures))
-        .ThrowOnError();
+    WaitFor(future).ThrowOnError();
 }
 
 void TClickHouseHandler::HandleRequest(
@@ -1114,7 +1096,6 @@ void TClickHouseHandler::HandleRequest(
             DiscoveryCache_,
             ForceUpdateCount_,
             BannedCount_,
-            GetDiscoveryServers(),
             MakeStrong(this),
             ControlInvoker_,
             Logger);
@@ -1147,33 +1128,6 @@ void TClickHouseHandler::AdjustQueryCount(const TString& user, int delta)
 
     entry->first += delta;
     entry->second.Update(entry->first);
-}
-
-std::vector<TString> TClickHouseHandler::GetDiscoveryServers()
-{
-    auto guard = ReaderGuard(DiscoveryServerLock_);
-    return DiscoveryServers_;
-}
-
-void TClickHouseHandler::UpdateDiscoveryServers()
-{
-    auto Logger = ClickHouseUnstructuredLogger;
-    std::vector<TString> discoveryServers;
-    try {
-        TListNodeOptions options;
-        options.ReadFrom = EMasterChannelKind::MasterCache;
-        auto discoveryServersYson = WaitFor(Client_->ListNode("//sys/discovery_servers", options))
-            .ValueOrThrow();
-        discoveryServers = ConvertTo<std::vector<TString>>(discoveryServersYson);
-    } catch (const std::exception& ex) {
-        // Non-throwing method for periodic executor
-        YT_LOG_DEBUG(ex, "Cannot list '//sys/discovery_servers'");
-    }
-
-    if (!discoveryServers.empty()) {
-        auto guard = WriterGuard(DiscoveryServerLock_);
-        DiscoveryServers_.swap(discoveryServers);
-    }
 }
 
 void TClickHouseHandler::UpdateOperationIds()

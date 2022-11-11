@@ -77,9 +77,6 @@ class Clique(object):
             "yt": {
                 "discovery": {
                     "version": 1,
-                    "discovery_connection": {
-                        "addresses": ls("//sys/discovery_servers"),
-                    },
                     "read_quorum": 1,
                     "write_quorum": 1,
                 }
@@ -91,7 +88,7 @@ class Clique(object):
             config = update(config, config_patch)
 
         self.discovery_version = config["yt"]["discovery"]["version"]
-        self.discovery_servers = config["yt"]["discovery"]["discovery_connection"]["addresses"]
+        self.discovery_servers = ls("//sys/discovery_servers")
 
         Clique.alias = alias
         if Clique.alias:

@@ -38,8 +38,6 @@ void TStaticClickHouseConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("discovery_cache", &TThis::DiscoveryCache)
         .DefaultNew();
-    registrar.Parameter("discovery_server_update_period", &TThis::DiscoveryServerUpdatePeriod)
-        .Default(TDuration::Seconds(15));
 
     registrar.Parameter("operation_id_update_period", &TThis::OperationIdUpdatePeriod)
         .Default(TDuration::Seconds(5));
