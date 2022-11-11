@@ -312,7 +312,7 @@ TEST_F(TCpuProfilerTest, SlowActions)
 
     const bool ExpectEmptyTraces = true;
 
-    auto threadPool = New<TThreadPool>(2, WorkerThreadName);
+    auto threadPool = CreateThreadPool(2, WorkerThreadName);
 
     // No slow actions.
     RunUnderProfiler("slow_actions_empty.pb.gz", [&] {

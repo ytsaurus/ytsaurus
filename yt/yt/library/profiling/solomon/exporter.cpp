@@ -239,7 +239,7 @@ void TSolomonExporter::Register(const TString& prefix, const NHttp::IServerPtr& 
 void TSolomonExporter::Start()
 {
     if (Config_->ThreadPoolSize) {
-        ThreadPool_ = New<TThreadPool>(*Config_->ThreadPoolSize, "SolomonExporter");
+        ThreadPool_ = CreateThreadPool(*Config_->ThreadPoolSize, "SolomonExporter");
     }
 
     Collector_ = BIND([this, thiz=MakeStrong(this)] {

@@ -68,7 +68,7 @@ private:
     std::multiset<TControlThreadEvent> ControlThreadEvents_;
 
     TSharedEventQueue NodeEventQueue_;
-    const NConcurrency::TThreadPoolPtr NodeWorkerThreadPool_;
+    const NConcurrency::IThreadPoolPtr NodeWorkerThreadPool_;
     std::vector<TSimulatorNodeWorkerPtr> NodeWorkers_;
 
     std::vector<TSimulatorNodeShardPtr> NodeShards_;

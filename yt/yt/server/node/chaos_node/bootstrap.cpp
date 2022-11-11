@@ -42,7 +42,7 @@ public:
 
     void Initialize() override
     {
-        SnapshotStoreReadPool_ = New<TThreadPool>(
+        SnapshotStoreReadPool_ = CreateThreadPool(
             GetConfig()->ChaosNode->SnapshotStoreReadPoolSize,
             "ShortcutRead");
 
@@ -122,7 +122,7 @@ private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
     const IShortcutSnapshotStorePtr ShortcutSnapshotStore_ = CreateShortcutSnapshotStore();
 
-    TThreadPoolPtr SnapshotStoreReadPool_;
+    IThreadPoolPtr SnapshotStoreReadPool_;
     ISlotManagerPtr SlotManager_;
     TIntrusivePtr<TReplicatedTableTrackerConfigFetcher> ReplicatedTableTrackerConfigFetcher_;
 

@@ -160,7 +160,7 @@ public:
     void Initialize()
     {
         if (!Options_.ConnectionInvoker) {
-            ConnectionThreadPool_ = New<TThreadPool>(Config_->ThreadPoolSize, "Connection");
+            ConnectionThreadPool_ = CreateThreadPool(Config_->ThreadPoolSize, "Connection");
             Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         }
 
@@ -731,7 +731,7 @@ private:
 
     IChunkReplicaCachePtr ChunkReplicaCache_;
 
-    TThreadPoolPtr ConnectionThreadPool_;
+    IThreadPoolPtr ConnectionThreadPool_;
 
     IReplicationCardChannelFactoryPtr ReplicationCardChannelFactory_;
 

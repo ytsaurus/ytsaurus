@@ -398,7 +398,7 @@ public:
             EventQueue_,
             BIND(&TImpl::CheckSpace, MakeStrong(this)),
             std::nullopt))
-        , CompressionThreadPool_(New<TThreadPool>(
+        , CompressionThreadPool_(CreateThreadPool(
             /*threadCount*/ 1,
             /*threadNamePrefix*/ "LogCompress"))
     {
@@ -1420,7 +1420,7 @@ private:
     const TPeriodicExecutorPtr WatchExecutor_;
     const TPeriodicExecutorPtr CheckSpaceExecutor_;
 
-    const TThreadPoolPtr CompressionThreadPool_;
+    const IThreadPoolPtr CompressionThreadPool_;
 
     std::unique_ptr<TNotificationHandle> NotificationHandle_;
     std::vector<std::unique_ptr<TNotificationWatch>> NotificationWatches_;

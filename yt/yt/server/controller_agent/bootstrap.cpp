@@ -102,7 +102,7 @@ TBootstrap::~TBootstrap() = default;
 void TBootstrap::Run()
 {
     ControlQueue_ = New<TActionQueue>("Control");
-    ConnectionThreadPool_ = New<TThreadPool>(
+    ConnectionThreadPool_ = CreateThreadPool(
         Config_->ClusterConnection->ThreadPoolSize,
         "Connection");
 

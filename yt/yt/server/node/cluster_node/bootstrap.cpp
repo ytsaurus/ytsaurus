@@ -650,9 +650,9 @@ private:
 
     TActionQueuePtr ControlActionQueue_;
     TActionQueuePtr JobActionQueue_;
-    TThreadPoolPtr ConnectionThreadPool_;
-    TThreadPoolPtr StorageLightThreadPool_;
-    TThreadPoolPtr StorageHeavyThreadPool_;
+    IThreadPoolPtr ConnectionThreadPool_;
+    IThreadPoolPtr StorageLightThreadPool_;
+    IThreadPoolPtr StorageHeavyThreadPool_;
     IPrioritizedInvokerPtr StorageHeavyInvoker_;
     TActionQueuePtr MasterCacheQueue_;
 
@@ -762,7 +762,7 @@ private:
 
         // NB: Connection thread pool is required for dynamic config manager
         // initialization, so it is created before other thread pools.
-        ConnectionThreadPool_ = New<TThreadPool>(
+        ConnectionThreadPool_ = CreateThreadPool(
             Config_->ClusterConnection->ThreadPoolSize,
             "Connection");
 
@@ -786,11 +786,11 @@ private:
         ClusterNodeProfiler.WithProducerRemoveSupport().AddProducer("", BufferedProducer_);
 
         MasterCacheQueue_ = New<TActionQueue>("MasterCache");
-        StorageHeavyThreadPool_ = New<TThreadPool>(
+        StorageHeavyThreadPool_ = CreateThreadPool(
             Config_->DataNode->StorageHeavyThreadCount,
             "StorageHeavy");
         StorageHeavyInvoker_ = CreatePrioritizedInvoker(StorageHeavyThreadPool_->GetInvoker());
-        StorageLightThreadPool_ = New<TThreadPool>(
+        StorageLightThreadPool_ = CreateThreadPool(
             Config_->DataNode->StorageLightThreadCount,
             "StorageLight");
 

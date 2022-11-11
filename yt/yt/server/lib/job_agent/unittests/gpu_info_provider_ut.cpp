@@ -93,7 +93,7 @@ public:
         Address_ = Format("localhost:%v", Port_);
 
         Server_ = CreateServer(Port_);
-        WorkerPool_ = New<NConcurrency::TThreadPool>(4, "Worker");
+        WorkerPool_ = NConcurrency::CreateThreadPool(4, "Worker");
         NvGpuManagerService_ = New<TMockNvGpuManagerService>(WorkerPool_->GetInvoker());
         Server_->RegisterService(NvGpuManagerService_);
         Server_->Start();
@@ -119,7 +119,7 @@ protected:
     NTesting::TPortHolder Port_;
     TString Address_;
 
-    NConcurrency::TThreadPoolPtr WorkerPool_;
+    NConcurrency::IThreadPoolPtr WorkerPool_;
     IServicePtr NvGpuManagerService_;
     IServerPtr Server_;
 };

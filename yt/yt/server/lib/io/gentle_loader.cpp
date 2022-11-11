@@ -174,7 +174,7 @@ public:
         : Config_(std::move(config))
         , IOEngine_(std::move(engine))
         , Logger(std::move(logger))
-        , WriteThreadPool_(New<TThreadPool>(4, "RandomWriter"))
+        , WriteThreadPool_(CreateThreadPool(4, "RandomWriter"))
         , TempFilesDir(NFS::JoinPaths(path, Config_->WriterDirectory))
     {
         if (!NFS::Exists(TempFilesDir)) {
@@ -250,7 +250,7 @@ private:
     const TGentleLoaderConfigPtr Config_;
     const IIOEngineWorkloadModelPtr IOEngine_;
     const NLogging::TLogger Logger;
-    const TThreadPoolPtr WriteThreadPool_;
+    const IThreadPoolPtr WriteThreadPool_;
     const TString TempFilesDir;
 
     std::vector<TNonblockingQueuePtr> WritersQueue_;

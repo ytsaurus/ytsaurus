@@ -80,7 +80,7 @@ TSimulatorControlThread::TSimulatorControlThread(
         earliestTime,
         config->NodeWorkerCount,
         /*maxAllowedOutrunning*/ FairShareUpdateAndLogPeriod_ + FairShareUpdateAndLogPeriod_)
-    , NodeWorkerThreadPool_(New<TThreadPool>(config->NodeWorkerThreadCount, "NodeWorkerPool"))
+    , NodeWorkerThreadPool_(CreateThreadPool(config->NodeWorkerThreadCount, "NodeWorkerPool"))
     , StrategyHost_(execNodes, eventLogOutputStream, config->RemoteEventLog, NodeShardInvokers_)
     , SchedulerStrategy_(CreateFairShareStrategy(schedulerConfig, &StrategyHost_, {ActionQueue_->GetInvoker()}))
     , SharedSchedulerStrategy_(SchedulerStrategy_, StrategyHost_, ActionQueue_->GetInvoker())

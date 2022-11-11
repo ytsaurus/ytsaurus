@@ -125,7 +125,7 @@ private:
     const TSolomonRegistryPtr Registry_;
     const NConcurrency::TPeriodicExecutorPtr CoreProfilingPusher_;
 
-    NConcurrency::TThreadPoolPtr ThreadPool_;
+    NConcurrency::IThreadPoolPtr ThreadPool_;
     TFuture<void> Collector_;
 
     NConcurrency::TAsyncReaderWriterLock Lock_;

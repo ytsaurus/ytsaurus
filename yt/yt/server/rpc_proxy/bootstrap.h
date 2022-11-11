@@ -58,7 +58,7 @@ private:
     const NYTree::INodePtr ConfigNode_;
 
     const NConcurrency::TActionQueuePtr ControlQueue_;
-    const NConcurrency::TThreadPoolPtr WorkerPool_;
+    const NConcurrency::IThreadPoolPtr WorkerPool_;
     const NConcurrency::IPollerPtr HttpPoller_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;

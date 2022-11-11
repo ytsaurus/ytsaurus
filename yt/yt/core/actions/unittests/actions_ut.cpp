@@ -32,7 +32,7 @@ TEST(TestCancelableRunWithBoundedConcurrency, TestSimple)
 
 TEST(TestCancelableRunWithBoundedConcurrency, TestManyCallbacks)
 {
-    auto threadPool = New<TThreadPool>(4, "ThreadPool");
+    auto threadPool = CreateThreadPool(4, "ThreadPool");
 
     std::atomic<int> x = 0;
 
@@ -57,7 +57,7 @@ TEST(TestCancelableRunWithBoundedConcurrency, TestManyCallbacks)
 
 TEST(TestCancelableRunWithBoundedConcurrency, TestCancelation)
 {
-    auto threadPool = New<TThreadPool>(4, "ThreadPool");
+    auto threadPool = CreateThreadPool(4, "ThreadPool");
 
     std::atomic<int> x = 0;
     std::atomic<int> canceledCount = 0;

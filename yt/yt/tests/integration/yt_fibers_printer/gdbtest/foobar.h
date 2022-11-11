@@ -6,6 +6,6 @@
 
 // Seperate files for definitions are required to prevent jumping and inlining.
 
-void Foo(NYT::TIntrusivePtr<NYT::NConcurrency::TThreadPool>& threadPool, int x);
-void Bar(NYT::TIntrusivePtr<NYT::NConcurrency::TThreadPool>& threadPool, int x);
-void AsyncStop(NYT::TIntrusivePtr<NYT::NConcurrency::TThreadPool>& threadPool);
+void Foo(NYT::NConcurrency::IThreadPoolPtr& threadPool, int x);
+void Bar(NYT::NConcurrency::IThreadPoolPtr& threadPool, int x);
+void AsyncStop(NYT::NConcurrency::IThreadPoolPtr& threadPool);

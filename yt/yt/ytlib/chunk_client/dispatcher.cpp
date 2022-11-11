@@ -39,7 +39,7 @@ public:
 
 private:
     const TActionQueuePtr WriterThread_ = New<TActionQueue>("ChunkWriter");
-    const TThreadPoolPtr ReaderThreadPool_ = New<TThreadPool>(TDispatcherConfig::DefaultChunkReaderPoolSize, "ChunkReader");
+    const IThreadPoolPtr ReaderThreadPool_ = CreateThreadPool(TDispatcherConfig::DefaultChunkReaderPoolSize, "ChunkReader");
     const TActionQueuePtr MemoryManagerThread_ = New<TActionQueue>("MemoryManager");
 };
 

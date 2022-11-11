@@ -162,7 +162,7 @@ TEST(TIOTrackerTest, Concurrent)
         eventsByIter[FromString(tags[0].second)] += 1;
     }));
 
-    auto threadPool = New<TThreadPool>(threadCount, "TrackerTestThread");
+    auto threadPool = CreateThreadPool(threadCount, "TrackerTestThread");
     std::vector<TFuture<void>> asyncResults;
     for (int i = 0; i < threadCount; ++i) {
         auto asyncResult = BIND([&, i] () {

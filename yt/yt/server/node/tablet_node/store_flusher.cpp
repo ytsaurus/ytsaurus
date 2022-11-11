@@ -78,7 +78,7 @@ public:
     explicit TStoreFlusher(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(Bootstrap_->GetConfig()->TabletNode)
-        , ThreadPool_(New<TThreadPool>(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
+        , ThreadPool_(CreateThreadPool(Config_->StoreFlusher->ThreadPoolSize, "StoreFlush"))
         , Semaphore_(New<TProfiledAsyncSemaphore>(
             Config_->StoreFlusher->MaxConcurrentFlushes,
             Profiler.Gauge("/running_store_flushes")))
@@ -101,7 +101,7 @@ private:
 
     const NProfiling::TProfiler Profiler = TabletNodeProfiler.WithPrefix("/store_flusher");
 
-    const TThreadPoolPtr ThreadPool_;
+    const IThreadPoolPtr ThreadPool_;
     const TProfiledAsyncSemaphorePtr Semaphore_;
 
     NProfiling::TGauge DynamicMemoryUsageActiveCounter_ = Profiler.WithTag("memory_type", "active").Gauge("/dynamic_memory_usage");

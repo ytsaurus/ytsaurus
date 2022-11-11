@@ -93,7 +93,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
     , ControlQueue_(New<TActionQueue>("Control"))
-    , WorkerPool_(New<TThreadPool>(Config_->WorkerThreadPoolSize, "Worker"))
+    , WorkerPool_(CreateThreadPool(Config_->WorkerThreadPoolSize, "Worker"))
     , HttpPoller_(CreateThreadPoolPoller(1, "HttpPoller"))
 {
     if (Config_->AbortOnUnrecognizedOptions) {

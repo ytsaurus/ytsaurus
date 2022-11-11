@@ -41,7 +41,7 @@ public:
         , ControlInvoker_(std::move(controlInvoker))
         , ElectionManager_(std::move(electionManager))
         , AgentId_(std::move(agentId))
-        , ThreadPool_(New<TThreadPool>(Config_->YqlThreadCount, "Yql"))
+        , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
         // TODO(max42): Yql defines all standard clusters by itself.
 //        TVector<NYql::TYtClusterOptions> ytClusters;
@@ -100,7 +100,7 @@ private:
 
     std::unique_ptr<NYql::NEmbedded::IOperationFactory> OperationFactory_;
 
-    TThreadPoolPtr ThreadPool_;
+    IThreadPoolPtr ThreadPool_;
 
     TYqlResponse DoStartQuery(TQueryId queryId, const TYqlRequest& request)
     {

@@ -7,7 +7,7 @@ namespace NYT::NConcurrency {
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TActionQueue)
-DECLARE_REFCOUNTED_CLASS(TThreadPool)
+DECLARE_REFCOUNTED_STRUCT(IThreadPool)
 
 DECLARE_REFCOUNTED_STRUCT(ISuspendableActionQueue)
 

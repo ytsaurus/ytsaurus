@@ -514,7 +514,7 @@ TEST_F(TFairShareInvokerPoolTest, WaitFor3)
 
 TEST_F(TFairShareInvokerPoolTest, CpuTimeAccountingBetweenContextSwitchesIsNotSupportedYet)
 {
-    auto threadPool = New<TThreadPool>(2, "ThreadPool");
+    auto threadPool = CreateThreadPool(2, "ThreadPool");
     auto invokerPool = CreateInvokerPool(threadPool->GetInvoker(), 2);
 
     NThreading::TEvent started;

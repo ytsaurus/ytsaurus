@@ -137,10 +137,10 @@ public:
             ControlInvoker_,
             Config_->ControlInvokerChecker,
             "Control"))
-        , WorkerThreadPool_(New<TThreadPool>(Config_->WorkerThreadCount, "Worker"))
+        , WorkerThreadPool_(CreateThreadPool(Config_->WorkerThreadCount, "Worker"))
         , WorkerInvoker_(WorkerThreadPool_->GetInvoker())
         , ClickHouseWorkerInvoker_(CreateClickHouseInvoker(WorkerInvoker_))
-        , FetcherThreadPool_(New<TThreadPool>(Config_->FetcherThreadCount, "Fetcher"))
+        , FetcherThreadPool_(CreateThreadPool(Config_->FetcherThreadCount, "Fetcher"))
         , FetcherInvoker_(FetcherThreadPool_->GetInvoker())
         , ClickHouseFetcherInvoker_(CreateClickHouseInvoker(FetcherInvoker_))
         , InstanceCookie_(std::stoi(GetEnv("YT_JOB_COOKIE", /*default =*/ "0")))
@@ -598,10 +598,10 @@ private:
     TQueryRegistryPtr QueryRegistry_;
     TPeriodicExecutorPtr GossipExecutor_;
     TInvokerLivenessCheckerPtr ControlInvokerChecker_;
-    NConcurrency::TThreadPoolPtr WorkerThreadPool_;
+    NConcurrency::IThreadPoolPtr WorkerThreadPool_;
     IInvokerPtr WorkerInvoker_;
     IInvokerPtr ClickHouseWorkerInvoker_;
-    NConcurrency::TThreadPoolPtr FetcherThreadPool_;
+    NConcurrency::IThreadPoolPtr FetcherThreadPool_;
     IInvokerPtr FetcherInvoker_;
     IInvokerPtr ClickHouseFetcherInvoker_;
 

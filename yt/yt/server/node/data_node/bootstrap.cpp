@@ -201,10 +201,10 @@ public:
         // Should be created after throttlers.
         AllyReplicaManager_ = CreateAllyReplicaManager(this);
 
-        StorageLookupThreadPool_ = New<TThreadPool>(
+        StorageLookupThreadPool_ = CreateThreadPool(
             GetConfig()->DataNode->StorageLookupThreadCount,
             "StorageLookup");
-        MasterJobThreadPool_ = New<TThreadPool>(
+        MasterJobThreadPool_ = CreateThreadPool(
             dynamicConfig->MasterJobThreadCount,
             "MasterJob");
 
@@ -422,8 +422,8 @@ private:
 
     IJournalDispatcherPtr JournalDispatcher_;
 
-    TThreadPoolPtr StorageLookupThreadPool_;
-    TThreadPoolPtr MasterJobThreadPool_;
+    IThreadPoolPtr StorageLookupThreadPool_;
+    IThreadPoolPtr MasterJobThreadPool_;
 
     TActionQueuePtr P2PActionQueue_;
     TP2PBlockCachePtr P2PBlockCache_;

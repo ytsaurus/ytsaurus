@@ -7,7 +7,7 @@ void StopHere() {
     dummy = 0;
 }
 
-void AsyncStop(NYT::TIntrusivePtr<NYT::NConcurrency::TThreadPool>& threadPool) {
+void AsyncStop(NYT::NConcurrency::IThreadPoolPtr& threadPool) {
     auto future = BIND([&]() {
         auto traceContext = NYT::NTracing::GetCurrentTraceContext();
         traceContext->AddTag("tag0", "value0");
@@ -23,7 +23,7 @@ int main() {
     traceContext->AddTag("tag", "value");
     traceContext->SetLoggingTag("LoggingTag");
     NYT::NTracing::TTraceContextGuard guard(traceContext);
-    auto threadPool = NYT::New<NYT::NConcurrency::TThreadPool>(1, "test");
+    auto threadPool = NYT::NConcurrency::CreateThreadPool(1, "test");
     auto future = BIND([&]() {
         Foo(threadPool, 10);
     }).AsyncVia(threadPool->GetInvoker()).Run();

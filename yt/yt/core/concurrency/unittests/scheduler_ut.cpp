@@ -339,7 +339,7 @@ TEST_W(TSchedulerDeathTest, SerializedInvokerAffinity)
 {
     auto actionQueueInvoker = Queue1->GetInvoker();
 
-    auto threadPool = New<TThreadPool>(4, "TestThreads");
+    auto threadPool = CreateThreadPool(4, "TestThreads");
     auto threadPoolInvoker = threadPool->GetInvoker();
     auto serializedThreadPoolInvoker = CreateSerializedInvoker(threadPoolInvoker);
 
@@ -799,7 +799,7 @@ TEST_F(TSchedulerTest, SerializedDoubleWaitFor)
 {
     std::atomic<bool> flag(false);
 
-    auto threadPool = New<TThreadPool>(3, "MyPool");
+    auto threadPool = CreateThreadPool(3, "MyPool");
     auto serializedInvoker = CreateSerializedInvoker(threadPool->GetInvoker());
 
     auto promise = NewPromise<void>();
@@ -1142,7 +1142,7 @@ TEST_F(TSuspendableInvokerTest, SuspendableDoubleWaitFor)
 {
     std::atomic<bool> flag(false);
 
-    auto threadPool = New<TThreadPool>(3, "MyPool");
+    auto threadPool = CreateThreadPool(3, "MyPool");
     auto suspendableInvoker = CreateSuspendableInvoker(threadPool->GetInvoker());
 
     auto promise = NewPromise<void>();
