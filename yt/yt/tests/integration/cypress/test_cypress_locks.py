@@ -142,13 +142,13 @@ class TestCypressLocks(YTEnvSetup):
 
         locks = get(path + "/@locks", tx=tx)
         lock = None
-        for l in locks:
+        for some_lock in locks:
             if (
-                l.get("transaction_id") == tx
-                and (child_key is None or l.get("child_key") == child_key)
-                and (attribute_key is None or l.get("attribute_key") == attribute_key)
+                some_lock.get("transaction_id") == tx
+                and (child_key is None or some_lock.get("child_key") == child_key)
+                and (attribute_key is None or some_lock.get("attribute_key") == attribute_key)
             ):
-                lock = l
+                lock = some_lock
                 break
 
         assert lock
@@ -212,12 +212,12 @@ class TestCypressLocks(YTEnvSetup):
         locks = get("//tmp/m1/@locks")
         assert len(locks) == 2
         locks = {
-            l["id"]: {
-                "state": l["state"],
-                "transaction_id": l["transaction_id"],
-                "mode": l["mode"],
+            lock["id"]: {
+                "state": lock["state"],
+                "transaction_id": lock["transaction_id"],
+                "mode": lock["mode"],
             }
-            for l in locks
+            for lock in locks
         }
         assert locks[acquired_lock_id]["state"] == "acquired"
         assert locks[acquired_lock_id]["transaction_id"] == other_tx
