@@ -334,7 +334,7 @@ TEST(THedgingClientTest, MultiThread)
         {mockClient1, mockClient2},
         {SleepQuantum, SleepQuantum * 3});
 
-    auto threadPool = New<NConcurrency::TThreadPool>(10, "test");
+    auto threadPool = NConcurrency::CreateThreadPool(10, "test");
     std::vector<TFuture<void>> futures;
     for (int i = 0; i < 100; ++i) {
         futures.emplace_back(BIND([=] () {

@@ -262,7 +262,7 @@ public:
         , BundleHealthCache_(New<TBundleHealthCache>(BundleHealthCacheConfig_))
         , ClusterStateCache_(New<TClusterStateCache>(ClusterStateCacheConfig_))
         , ReplicatorHintConfig_(New<NTabletNode::TReplicatorHintConfig>())
-        , CheckerThreadPool_(New<TThreadPool>(Config_->CheckerThreadCount, "RplTableTracker"))
+        , CheckerThreadPool_(CreateThreadPool(Config_->CheckerThreadCount, "RplTableTracker"))
     {
         VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::ReplicatedTableTracker), AutomatonThread);
         VERIFY_INVOKER_THREAD_AFFINITY(CheckerThreadPool_->GetInvoker(), CheckerThread);
@@ -852,7 +852,7 @@ private:
 
     TPeriodicExecutorPtr UpdaterExecutor_;
 
-    TThreadPoolPtr CheckerThreadPool_;
+    IThreadPoolPtr CheckerThreadPool_;
     TPeriodicExecutorPtr CheckerExecutor_;
 
     const NHiveServer::TClusterDirectorySynchronizerConfigPtr ClusterDirectorySynchronizerConfig_ =

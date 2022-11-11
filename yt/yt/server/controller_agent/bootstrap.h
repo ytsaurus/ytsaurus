@@ -51,7 +51,7 @@ private:
     NControllerAgent::TAgentId AgentId_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NConcurrency::TActionQueuePtr ControlQueue_;
-    NConcurrency::TThreadPoolPtr ConnectionThreadPool_;
+    NConcurrency::IThreadPoolPtr ConnectionThreadPool_;
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;

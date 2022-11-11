@@ -143,7 +143,7 @@ public:
         PollerImpl_.Set(nullptr, WakeupHandle_.GetFD(), CONT_POLL_EDGE_TRIGGERED | CONT_POLL_READ);
 
         for (auto priority : TEnumTraits<EPollablePriority>::GetDomainValues()) {
-            HandlerThreadPool_[priority] = New<TThreadPool>(
+            HandlerThreadPool_[priority] = CreateThreadPool(
                 threadCount,
                 threadNamePrefix + PollablePriorityToPollerThreadNameSuffix(priority),
                 PollablePriorityToThreadPriority(priority));
@@ -273,7 +273,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    TEnumIndexedVector<EPollablePriority, TThreadPoolPtr> HandlerThreadPool_;
+    TEnumIndexedVector<EPollablePriority, IThreadPoolPtr> HandlerThreadPool_;
     TEnumIndexedVector<EPollablePriority, IInvokerPtr> HandlerInvoker_;
 
     // Only makes sense for "select" backend.

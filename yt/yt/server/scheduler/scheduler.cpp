@@ -167,9 +167,9 @@ public:
         , Bootstrap_(bootstrap)
         , SpecTemplate_(Config_->SpecTemplate)
         , MasterConnector_(std::make_unique<TMasterConnector>(Config_, Bootstrap_))
-        , OrchidWorkerPool_(New<TThreadPool>(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
-        , FairShareUpdatePool_(New<TThreadPool>(Config_->FairShareUpdateThreadCount, "FSUpdatePool"))
-        , BackgroundThreadPool_(New<TThreadPool>(Config_->BackgroundThreadCount, "Background"))
+        , OrchidWorkerPool_(CreateThreadPool(Config_->OrchidWorkerThreadCount, "OrchidWorker"))
+        , FairShareUpdatePool_(CreateThreadPool(Config_->FairShareUpdateThreadCount, "FSUpdatePool"))
+        , BackgroundThreadPool_(CreateThreadPool(Config_->BackgroundThreadCount, "Background"))
         , OperationServiceResponseKeeper_(CreateResponseKeeper(
             Config_->OperationServiceResponseKeeper,
             GetControlInvoker(EControlQueue::UserRequest),
@@ -1753,11 +1753,11 @@ private:
 
     TOperationsCleanerPtr OperationsCleaner_;
 
-    const TThreadPoolPtr OrchidWorkerPool_;
+    const IThreadPoolPtr OrchidWorkerPool_;
     const TActionQueuePtr FairShareLoggingActionQueue_ = New<TActionQueue>("FSLogging");
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
-    const TThreadPoolPtr FairShareUpdatePool_;
-    const TThreadPoolPtr BackgroundThreadPool_;
+    const IThreadPoolPtr FairShareUpdatePool_;
+    const IThreadPoolPtr BackgroundThreadPool_;
 
     IResponseKeeperPtr OperationServiceResponseKeeper_;
 

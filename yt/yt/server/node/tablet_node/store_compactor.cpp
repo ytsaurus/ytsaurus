@@ -584,7 +584,7 @@ public:
     explicit TStoreCompactor(IBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
         , Config_(bootstrap->GetConfig()->TabletNode->StoreCompactor)
-        , ThreadPool_(New<TThreadPool>(Config_->ThreadPoolSize, "StoreCompact"))
+        , ThreadPool_(CreateThreadPool(Config_->ThreadPoolSize, "StoreCompact"))
         , PartitioningSemaphore_(New<TProfiledAsyncSemaphore>(
             Config_->MaxConcurrentPartitionings,
             Profiler_.Gauge("/running_partitionings")))
@@ -715,7 +715,7 @@ private:
     const TCounter FutureEffectMismatchesCounter_ = Profiler_.Counter("/future_effect_mismatches");
     const TEventTimer ScanTimer_ = Profiler_.Timer("/scan_time");
 
-    const TThreadPoolPtr ThreadPool_;
+    const IThreadPoolPtr ThreadPool_;
     const TAsyncSemaphorePtr PartitioningSemaphore_;
     const TAsyncSemaphorePtr CompactionSemaphore_;
 

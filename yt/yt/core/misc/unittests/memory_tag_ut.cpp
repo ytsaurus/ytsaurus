@@ -187,7 +187,7 @@ void TestControllersInThreadPool()
 {
     std::vector<TMiniControllerPtr> controllers;
     constexpr int controllerCount = 1000;
-    auto pool = New<TThreadPool>(16, "TestPool");
+    auto pool = CreateThreadPool(16, "TestPool");
     for (int index = 0; index < controllerCount; ++index) {
         controllers.emplace_back(New<TMiniController>(pool->GetInvoker(), index + 1));
     }

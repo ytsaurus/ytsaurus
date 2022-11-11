@@ -244,9 +244,9 @@ public:
         TBootstrap* bootstrap)
         : Config_(config)
         , Bootstrap_(bootstrap)
-        , ControllerThreadPool_(New<TThreadPool>(Config_->ControllerThreadCount, "Controller"))
-        , JobSpecBuildPool_(New<TThreadPool>(Config_->JobSpecBuildThreadCount, "JobSpec"))
-        , StatisticsOffloadPool_(New<TThreadPool>(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
+        , ControllerThreadPool_(CreateThreadPool(Config_->ControllerThreadCount, "Controller"))
+        , JobSpecBuildPool_(CreateThreadPool(Config_->JobSpecBuildThreadCount, "JobSpec"))
+        , StatisticsOffloadPool_(CreateThreadPool(Config_->StatisticsOffloadThreadCount, "StatsOffload"))
         , ExecNodesUpdateQueue_(New<TActionQueue>("ExecNodes"))
         , SnapshotIOQueue_(New<TActionQueue>("SnapshotIO"))
         , ChunkLocationThrottlerManager_(New<TThrottlerManager>(
@@ -1072,9 +1072,9 @@ private:
     TControllerAgentConfigPtr Config_;
     TBootstrap* const Bootstrap_;
 
-    const TThreadPoolPtr ControllerThreadPool_;
-    const TThreadPoolPtr JobSpecBuildPool_;
-    const TThreadPoolPtr StatisticsOffloadPool_;
+    const IThreadPoolPtr ControllerThreadPool_;
+    const IThreadPoolPtr JobSpecBuildPool_;
+    const IThreadPoolPtr StatisticsOffloadPool_;
     const TActionQueuePtr ExecNodesUpdateQueue_;
     const TActionQueuePtr SnapshotIOQueue_;
     const TThrottlerManagerPtr ChunkLocationThrottlerManager_;

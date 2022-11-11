@@ -45,7 +45,7 @@ int main(int argc, char* argv[])
         auto server = CreateServer(port, poller);
         auto actionQueue = New<TActionQueue>("Control");
 
-        auto threadPool = New<TThreadPool>(16, "Pool");
+        auto threadPool = CreateThreadPool(16, "Pool");
 
         auto internalShardConfig = New<TShardConfig>();
         internalShardConfig->Filter = {"yt/solomon"};

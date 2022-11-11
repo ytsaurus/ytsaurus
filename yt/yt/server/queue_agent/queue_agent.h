@@ -59,7 +59,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
     const NCypressElection::ICypressElectionManagerPtr ElectionManager_;
-    const NConcurrency::TThreadPoolPtr ControllerThreadPool_;
+    const NConcurrency::IThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
     TString AgentId_;
     THashMap<TString, TClusterProfilingCounters> ClusterProfilingCounters_;

@@ -155,7 +155,7 @@ TQueueAgent::TQueueAgent(
     , ControlInvoker_(std::move(controlInvoker))
     , DynamicState_(std::move(dynamicState))
     , ElectionManager_(std::move(electionManager))
-    , ControllerThreadPool_(New<TThreadPool>(DynamicConfig_->ControllerThreadCount, "Controller"))
+    , ControllerThreadPool_(CreateThreadPool(DynamicConfig_->ControllerThreadCount, "Controller"))
     , PollExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
         BIND(&TQueueAgent::Poll, MakeWeak(this)),

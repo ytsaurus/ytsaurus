@@ -14,7 +14,7 @@ namespace {
 
 TEST(TThreadPoolTest, Configure)
 {
-    auto threadPool = New<TThreadPool>(1, "Test");
+    auto threadPool = CreateThreadPool(1, "Test");
     auto counter = std::make_shared<std::atomic<int>>();
     auto callback = BIND([=] { ++*counter; });
     std::vector<TFuture<void>> futures;

@@ -147,7 +147,7 @@ public:
         Port_ = NTesting::GetFreePort();
         Address_ = Format("localhost:%v", Port_);
 
-        WorkerPool_ = New<TThreadPool>(4, "TestYPSDWorker");
+        WorkerPool_ = CreateThreadPool(4, "TestYPSDWorker");
         Server_ = CreateServer();
         Service_ = New<TServiceDiscoveryService>(WorkerPool_->GetInvoker());
 
@@ -190,7 +190,7 @@ private:
     NTesting::TPortHolder Port_;
     TString Address_;
 
-    NConcurrency::TThreadPoolPtr WorkerPool_;
+    NConcurrency::IThreadPoolPtr WorkerPool_;
     IServerPtr Server_;
     TServiceDiscoveryServicePtr Service_;
 

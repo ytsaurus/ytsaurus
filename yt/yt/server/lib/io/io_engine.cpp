@@ -542,8 +542,8 @@ protected:
         , Profiler(std::move(profiler))
         , StaticConfig_(std::move(config))
         , Config_(StaticConfig_)
-        , AuxThreadPool_(New<TThreadPool>(StaticConfig_->AuxThreadCount, Format("IOA:%v", LocationId_)))
-        , FsyncThreadPool_(New<TThreadPool>(StaticConfig_->FsyncThreadCount, Format("IOS:%v", LocationId_)))
+        , AuxThreadPool_(CreateThreadPool(StaticConfig_->AuxThreadCount, Format("IOA:%v", LocationId_)))
+        , FsyncThreadPool_(CreateThreadPool(StaticConfig_->FsyncThreadCount, Format("IOS:%v", LocationId_)))
         , AuxInvoker_(CreatePrioritizedInvoker(AuxThreadPool_->GetInvoker()))
         , FsyncInvoker_(CreatePrioritizedInvoker(FsyncThreadPool_->GetInvoker()))
     {
@@ -710,8 +710,8 @@ private:
     const TConfigPtr StaticConfig_;
     TAtomicObject<TConfigPtr> Config_;
 
-    const TThreadPoolPtr AuxThreadPool_;
-    const TThreadPoolPtr FsyncThreadPool_;
+    const IThreadPoolPtr AuxThreadPool_;
+    const IThreadPoolPtr FsyncThreadPool_;
     const IPrioritizedInvokerPtr AuxInvoker_;
     const IPrioritizedInvokerPtr FsyncInvoker_;
 
@@ -814,8 +814,8 @@ public:
         const TThreadPoolIOEngineConfigPtr& config,
         const TString& locationId,
         NLogging::TLogger /* logger */)
-        : ReadThreadPool_(New<TThreadPool>(config->ReadThreadCount, Format("IOR:%v", locationId)))
-        , WriteThreadPool_(New<TThreadPool>(config->WriteThreadCount, Format("IOW:%v", locationId)))
+        : ReadThreadPool_(CreateThreadPool(config->ReadThreadCount, Format("IOR:%v", locationId)))
+        , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
         , ReadInvoker_(CreatePrioritizedInvoker(ReadThreadPool_->GetInvoker()))
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
     { }
@@ -837,8 +837,8 @@ public:
     }
 
 private:
-    const TThreadPoolPtr ReadThreadPool_;
-    const TThreadPoolPtr WriteThreadPool_;
+    const IThreadPoolPtr ReadThreadPool_;
+    const IThreadPoolPtr WriteThreadPool_;
     const IPrioritizedInvokerPtr ReadInvoker_;
     const IPrioritizedInvokerPtr WriteInvoker_;
 };
@@ -851,7 +851,7 @@ public:
         const TString& locationId,
         NLogging::TLogger logger)
         : ReadThreadPool_(CreateTwoLevelFairShareThreadPool(config->ReadThreadCount, Format("FSH:%v", locationId)))
-        , WriteThreadPool_(New<TThreadPool>(config->WriteThreadCount, Format("IOW:%v", locationId)))
+        , WriteThreadPool_(CreateThreadPool(config->WriteThreadCount, Format("IOW:%v", locationId)))
         , WriteInvoker_(CreatePrioritizedInvoker(WriteThreadPool_->GetInvoker()))
         , Logger(logger)
         , DefaultPool_{"Default", config->DefaultPoolWeight}
@@ -895,7 +895,7 @@ private:
 
 private:
     const ITwoLevelFairShareThreadPoolPtr ReadThreadPool_;
-    const TThreadPoolPtr WriteThreadPool_;
+    const IThreadPoolPtr WriteThreadPool_;
     const IPrioritizedInvokerPtr WriteInvoker_;
     NLogging::TLogger Logger;
 

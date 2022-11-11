@@ -89,7 +89,7 @@ class TIOEngineMock
 public:
     explicit TIOEngineMock(const TIOEngineMockConfig& config)
         : Config_(config)
-        , ThreadPool_(New<TThreadPool>(Config_.ThreadsCount, "MockWriter"))
+        , ThreadPool_(CreateThreadPool(Config_.ThreadsCount, "MockWriter"))
         , Invoker_(ThreadPool_->GetInvoker())
     { }
 
@@ -241,7 +241,7 @@ public:
 
 private:
     const TIOEngineMockConfig Config_;
-    const TThreadPoolPtr ThreadPool_;
+    const IThreadPoolPtr ThreadPool_;
     const IInvokerPtr Invoker_;
 
     i64 TotalReadCounter_ = 0;

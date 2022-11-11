@@ -55,7 +55,7 @@ int main(int argc, char* argv[])
             }
         };
 
-        auto pool = New<TThreadPool>(64, "Pool");
+        auto pool = CreateThreadPool(64, "Pool");
         for (int i = 0; i < 64; i++) {
             pool->GetInvoker()->Invoke(BIND(burnCpu));
         }

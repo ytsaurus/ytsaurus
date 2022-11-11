@@ -182,7 +182,7 @@ public:
         , Ports_(ports)
         , JobErrorPromise_(NewPromise<void>())
         , JobEnvironmentType_(ConvertTo<TJobEnvironmentConfigPtr>(Config_->JobEnvironment)->Type)
-        , PipeIOPool_(New<TThreadPool>(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
+        , PipeIOPool_(CreateThreadPool(JobIOConfig_->PipeIOPoolSize, "PipeIO"))
         , AuxQueue_(New<TActionQueue>("JobAux"))
         , ReadStderrInvoker_(CreateSerializedInvoker(PipeIOPool_->GetInvoker()))
         , TmpfsManager_(New<TTmpfsManager>(Config_->TmpfsManager))
@@ -529,7 +529,7 @@ private:
 
     const EJobEnvironmentType JobEnvironmentType_;
 
-    const TThreadPoolPtr PipeIOPool_;
+    const IThreadPoolPtr PipeIOPool_;
     const TActionQueuePtr AuxQueue_;
     const IInvokerPtr ReadStderrInvoker_;
 

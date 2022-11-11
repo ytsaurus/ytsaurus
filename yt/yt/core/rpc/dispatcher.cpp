@@ -70,8 +70,8 @@ public:
 
 private:
     const TActionQueuePtr LightQueue_ = New<TActionQueue>("RpcLight");
-    const TThreadPoolPtr HeavyPool_ = New<TThreadPool>(TDispatcherConfig::DefaultHeavyPoolSize, "RpcHeavy");
-    const TThreadPoolPtr CompressionPool_ = New<TThreadPool>(TDispatcherConfig::DefaultCompressionPoolSize, "Compression");
+    const IThreadPoolPtr HeavyPool_ = CreateThreadPool(TDispatcherConfig::DefaultHeavyPoolSize, "RpcHeavy");
+    const IThreadPoolPtr CompressionPool_ = CreateThreadPool(TDispatcherConfig::DefaultCompressionPoolSize, "Compression");
     const IFairShareThreadPoolPtr FairShareCompressionPool_ = CreateFairShareThreadPool(TDispatcherConfig::DefaultCompressionPoolSize, "FSCompression");
 
     TLazyIntrusivePtr<IPrioritizedInvoker> CompressionPoolInvoker_;

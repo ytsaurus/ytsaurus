@@ -67,7 +67,7 @@ private:
     const TPeriodicExecutorPtr PollExecutor_;
     THashMap<TString, TBundleStatePtr> Bundles_;
     THashSet<TString> BundleNamesToMoveOnNextIteration_;
-    TThreadPoolPtr WorkerPool_;
+    IThreadPoolPtr WorkerPool_;
     IActionManagerPtr ActionManager_;
 
     std::atomic<bool> Enable_{false};
@@ -112,7 +112,7 @@ TTabletBalancer::TTabletBalancer(
         ControlInvoker_,
         BIND(&TTabletBalancer::TryBalancerIteration, MakeWeak(this)),
         Config_->Period))
-    , WorkerPool_(New<TThreadPool>(
+    , WorkerPool_(CreateThreadPool(
         Config_->WorkerThreadPoolSize,
         "TabletBalancer"))
     , ActionManager_(CreateActionManager(

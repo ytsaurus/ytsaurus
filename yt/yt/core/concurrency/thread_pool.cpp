@@ -132,11 +132,12 @@ protected:
     }
 };
 
-class TThreadPool::TImpl
-    : public TThreadPoolBase
+class TThreadPool
+    : public IThreadPool
+    , public TThreadPoolBase
 {
 public:
-    TImpl(
+    TThreadPool(
         int threadCount,
         const TString& threadNamePrefix,
         EThreadPriority threadPriority)
@@ -149,15 +150,30 @@ public:
         Configure(threadCount);
     }
 
-    ~TImpl()
+    ~TThreadPool()
     {
         Shutdown();
     }
 
-    const IInvokerPtr& GetInvoker()
+    const IInvokerPtr& GetInvoker() override
     {
         EnsureStarted();
         return Invoker_;
+    }
+
+    void Configure(int threadCount) override
+    {
+        TThreadPoolBase::Configure(threadCount);
+    }
+
+    int GetThreadCount() override
+    {
+        return TThreadPoolBase::GetThreadCount();
+    }
+    
+    void Shutdown() override
+    {
+        TThreadPoolBase::Shutdown();
     }
 
 private:
@@ -190,38 +206,12 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-TThreadPool::TThreadPool(
+IThreadPoolPtr CreateThreadPool(
     int threadCount,
     const TString& threadNamePrefix,
     EThreadPriority threadPriority)
-    : Impl_(New<TImpl>(
-        threadCount,
-        threadNamePrefix,
-        threadPriority))
-{ }
-
-TThreadPool::~TThreadPool() = default;
-
-void TThreadPool::Shutdown()
 {
-    return Impl_->Shutdown();
-}
-
-int TThreadPool::GetThreadCount()
-{
-    return Impl_->GetThreadCount();
-}
-
-void TThreadPool::Configure(int threadCount)
-{
-    return Impl_->Configure(threadCount);
-}
-
-const IInvokerPtr& TThreadPool::GetInvoker()
-{
-    return Impl_->GetInvoker();
+    return New<TThreadPool>(threadCount, threadNamePrefix, threadPriority);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

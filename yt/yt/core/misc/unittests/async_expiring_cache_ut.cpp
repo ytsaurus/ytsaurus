@@ -112,7 +112,7 @@ TEST(TAsyncExpiringCacheTest, TestConcurrentAccess)
     config->RefreshTime = TDuration::MilliSeconds(100);
     auto cache = New<TSimpleExpiringCache>(config, 0.9);
 
-    auto threadPool = New<TThreadPool>(10, "CacheAccessor");
+    auto threadPool = CreateThreadPool(10, "CacheAccessor");
     std::vector<TFuture<void>> asyncResult;
 
     for (int i = 0; i < 10; ++i) {

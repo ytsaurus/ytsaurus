@@ -103,16 +103,16 @@ public:
         QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
             "Query");
-        TableReplicatorThreadPool_ = New<TThreadPool>(
+        TableReplicatorThreadPool_ = CreateThreadPool(
             GetConfig()->TabletNode->TabletManager->ReplicatorThreadPoolSize,
             "Replicator");
-        TabletLookupThreadPool_ = New<TThreadPool>(
+        TabletLookupThreadPool_ = CreateThreadPool(
             GetConfig()->QueryAgent->LookupThreadPoolSize,
             "TabletLookup");
-        TabletFetchThreadPool_ = New<TThreadPool>(
+        TabletFetchThreadPool_ = CreateThreadPool(
             GetConfig()->QueryAgent->FetchThreadPoolSize,
             "TabletFetch");
-        TableRowFetchThreadPool_ = New<TThreadPool>(
+        TableRowFetchThreadPool_ = CreateThreadPool(
             GetConfig()->QueryAgent->TableRowFetchThreadPoolSize,
             "TableRowFetch");
 
@@ -404,10 +404,10 @@ private:
     IHedgingManagerRegistryPtr HedgingManagerRegistry_;
     ISlotManagerPtr SlotManager_;
 
-    TThreadPoolPtr TableReplicatorThreadPool_;
-    TThreadPoolPtr TabletLookupThreadPool_;
-    TThreadPoolPtr TabletFetchThreadPool_;
-    TThreadPoolPtr TableRowFetchThreadPool_;
+    IThreadPoolPtr TableReplicatorThreadPool_;
+    IThreadPoolPtr TabletLookupThreadPool_;
+    IThreadPoolPtr TabletFetchThreadPool_;
+    IThreadPoolPtr TableRowFetchThreadPool_;
 
     ITwoLevelFairShareThreadPoolPtr QueryThreadPool_;
 

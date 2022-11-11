@@ -27,7 +27,7 @@ int main(int argc, char* argv[])
         auto busServer = CreateTcpBusServer(busConfig);
         auto server = CreateBusServer(busServer);
 
-        auto workerPool = New<TThreadPool>(4, "Worker");
+        auto workerPool = CreateThreadPool(4, "Worker");
         auto service = CreateMyService(workerPool->GetInvoker(), false);
         server->RegisterService(service);
         server->Start();

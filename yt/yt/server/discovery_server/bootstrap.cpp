@@ -74,7 +74,7 @@ public:
     void Initialize() override
     {
         ControlQueue_ = New<TActionQueue>("Control");
-        WorkerPool_ = New<TThreadPool>(Config_->WorkerThreadPoolSize, "Worker");
+        WorkerPool_ = CreateThreadPool(Config_->WorkerThreadPoolSize, "Worker");
 
         BIND(&TBootstrap::DoInitialize, this)
             .AsyncVia(GetControlInvoker())
@@ -97,7 +97,7 @@ private:
     const TClusterDiscoveryServerConfigPtr Config_;
 
     TActionQueuePtr ControlQueue_;
-    TThreadPoolPtr WorkerPool_;
+    IThreadPoolPtr WorkerPool_;
 
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;

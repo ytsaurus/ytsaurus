@@ -68,7 +68,7 @@ public:
         Address_ = Format("localhost:%v", Port_);
 
         Server_ = CreateServer(Port_);
-        WorkerPool_ = New<NConcurrency::TThreadPool>(4, "Worker");
+        WorkerPool_ = NConcurrency::CreateThreadPool(4, "Worker");
         bool secure = TImpl::Secure;
         MyService_ = CreateMyService(WorkerPool_->GetInvoker(), secure);
         NoBaggageService_ = CreateNoBaggageService(WorkerPool_->GetInvoker());
@@ -123,7 +123,7 @@ protected:
     NTesting::TPortHolder Port_;
     TString Address_;
 
-    NConcurrency::TThreadPoolPtr WorkerPool_;
+    NConcurrency::IThreadPoolPtr WorkerPool_;
     IMyServicePtr MyService_;
     IServicePtr NoBaggageService_;
     IServerPtr Server_;

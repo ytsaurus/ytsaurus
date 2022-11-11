@@ -8,33 +8,25 @@ namespace NYT::NConcurrency {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// XXX(sandello): Facade does not have to be ref-counted.
-class TThreadPool
-    : public TRefCounted
+struct IThreadPool
+    : public virtual TRefCounted
 {
-public:
-    TThreadPool(
-        int threadCount,
-        const TString& threadNamePrefix,
-        EThreadPriority threadPriority = EThreadPriority::Normal);
-
-    virtual ~TThreadPool();
-
-    void Shutdown();
+    virtual void Shutdown() = 0;
 
     //! Returns current thread count, it can differ from value set by Configure()
     //! because it clamped between 1 and maximum thread count.
-    int GetThreadCount();
-    void Configure(int threadCount);
+    virtual int GetThreadCount() = 0;
+    virtual void Configure(int threadCount) = 0;
 
-    const IInvokerPtr& GetInvoker();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual const IInvokerPtr& GetInvoker() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TThreadPool)
+DEFINE_REFCOUNTED_TYPE(IThreadPool)
+
+IThreadPoolPtr CreateThreadPool(
+    int threadCount,
+    const TString& threadNamePrefix,
+    EThreadPriority threadPriority = EThreadPriority::Normal);
 
 ////////////////////////////////////////////////////////////////////////////////
 
