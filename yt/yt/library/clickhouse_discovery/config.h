@@ -61,8 +61,6 @@ class TDiscoveryV2Config
     , public NDiscoveryClient::TMemberClientConfig
 {
 public:
-    NDiscoveryClient::TDiscoveryConnectionConfigPtr DiscoveryConnection;
-
     REGISTER_YSON_STRUCT(TDiscoveryV2Config);
 
     static void Register(TRegistrar registrar);

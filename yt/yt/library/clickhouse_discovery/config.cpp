@@ -41,11 +41,8 @@ void TDiscoveryV1Config::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TDiscoveryV2Config::Register(TRegistrar registrar)
-{
-    registrar.Parameter("discovery_connection", &TThis::DiscoveryConnection)
-        .Optional();
-}
+void TDiscoveryV2Config::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 

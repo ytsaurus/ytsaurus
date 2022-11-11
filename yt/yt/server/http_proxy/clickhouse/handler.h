@@ -56,18 +56,11 @@ private:
     NProfiling::TCounter ForceUpdateCount_;
     NProfiling::TCounter BannedCount_;
 
-    NConcurrency::TPeriodicExecutorPtr DiscoveryServerUpdateExecutor_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiscoveryServerLock_);
-    std::vector<TString> DiscoveryServers_;
-
     NConcurrency::TPeriodicExecutorPtr OperationIdUpdateExecutor_;
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, OperationIdLock_);
     THashMap<TString, NScheduler::TOperationId> AliasToOperationId_;
 
     void AdjustQueryCount(const TString& user, int delta);
-
-    void UpdateDiscoveryServers();
-    std::vector<TString> GetDiscoveryServers();
 
     void UpdateOperationIds();
 };

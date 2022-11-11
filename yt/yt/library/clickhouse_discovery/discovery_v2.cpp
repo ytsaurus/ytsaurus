@@ -1,6 +1,8 @@
 #include "discovery_base.h"
 #include "discovery_v2.h"
 
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
 #include <yt/yt/ytlib/discovery_client/member_client.h>
 
@@ -10,6 +12,7 @@ using namespace NConcurrency;
 using namespace NDiscoveryClient;
 using namespace NRpc;
 using namespace NYTree;
+using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,14 +22,16 @@ class TDiscoveryV2
 public:
     TDiscoveryV2(
         TDiscoveryV2ConfigPtr config,
+        IConnectionPtr connection,
         NRpc::IChannelFactoryPtr channelFactory,
         IInvokerPtr invoker,
         std::vector<TString> extraAttributes,
         NLogging::TLogger logger)
         : TDiscoveryBase(config, invoker, logger)
         , Config_(std::move(config))
+        , Connection_(std::move(connection))
         , ChannelFactory_(std::move(channelFactory))
-        , DiscoveryClient_(CreateDiscoveryClient(Config_->DiscoveryConnection, Config_, ChannelFactory_))
+        , DiscoveryClient_(Connection_->CreateDiscoveryClient(Config_, ChannelFactory_))
     {
         ListOptions_.AttributeKeys = extraAttributes;
     }
@@ -36,8 +41,7 @@ public:
         {
             auto guard = WriterGuard(Lock_);
             // TODO: Make sure there is discovery connection at this point.
-            MemberClient_ = CreateMemberClient(
-                Config_->DiscoveryConnection,
+            MemberClient_ = Connection_->CreateMemberClient(
                 Config_,
                 ChannelFactory_,
                 Invoker_,
@@ -69,6 +73,7 @@ public:
 
 private:
     TDiscoveryV2ConfigPtr Config_;
+    IConnectionPtr Connection_;
     NRpc::IChannelFactoryPtr ChannelFactory_;
     TListMembersOptions ListOptions_;
 
@@ -97,6 +102,7 @@ private:
 
 IDiscoveryPtr CreateDiscoveryV2(
     TDiscoveryV2ConfigPtr config,
+    IConnectionPtr connection,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
     std::vector<TString> extraAttributes,
@@ -104,6 +110,7 @@ IDiscoveryPtr CreateDiscoveryV2(
 {
     return New<TDiscoveryV2>(
         std::move(config),
+        std::move(connection),
         std::move(channelFactory),
         std::move(invoker),
         std::move(extraAttributes),

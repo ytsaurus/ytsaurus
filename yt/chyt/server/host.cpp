@@ -168,6 +168,7 @@ public:
                 Config_->Discovery->GroupId = "/chyt/" + groupId;
                 Discovery_ = CreateDiscoveryV2(
                     Config_->Discovery,
+                    Connection_,
                     ChannelFactory_,
                     ControlInvoker_,
                     DiscoveryAttributes,
