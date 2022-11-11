@@ -103,7 +103,7 @@ public:
         TTableWriterConfigPtr config,
         TCompositeSettingsPtr compositeSettings,
         NNative::IClientPtr client,
-        const TTransactionId& transactionId,
+        TTransactionId transactionId,
         std::function<void()> onFinished,
         const TLogger& logger)
         : TBlockOutputStreamBase(
@@ -114,7 +114,7 @@ public:
             logger)
     {
         NApi::ITransactionPtr transaction;
-        if (!transactionId.IsEmpty()) {
+        if (transactionId) {
             transaction = client->AttachTransaction(transactionId);
         }
         Writer_ = WaitFor(CreateSchemalessTableWriter(
@@ -271,7 +271,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
     TTableWriterConfigPtr config,
     TCompositeSettingsPtr compositeSettings,
     NNative::IClientPtr client,
-    const NTransactionClient::TTransactionId& transactionId,
+    NTransactionClient::TTransactionId transactionId,
     std::function<void()> onFinished,
     const TLogger& logger)
 {
