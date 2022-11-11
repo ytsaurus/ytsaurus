@@ -14,10 +14,12 @@ import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, GetTablePivotKeys>
         implements HighLevelRequest<TReqGetTablePivotKeys.Builder> {
     private final String path;
+    private final boolean representKeyAsList;
 
     GetTablePivotKeys(Builder builder) {
         super(builder);
         path = Objects.requireNonNull(builder.path);
+        representKeyAsList = builder.representKeyAsList;
     }
 
     public GetTablePivotKeys(String path) {
@@ -33,19 +35,20 @@ public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, Ge
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqGetTablePivotKeys.Builder, ?> builder) {
-        builder.body().setPath(path);
+        builder.body().setPath(path).setRepresentKeyAsList(representKeyAsList);
     }
 
     @Override
     protected void writeArgumentsLogString(StringBuilder sb) {
         super.writeArgumentsLogString(sb);
-        sb.append("Path: ").append(path).append("; ");
+        sb.append("Path: ").append(path).append("; RepresentKeyAsList: ").append(representKeyAsList).append("; ");
     }
 
     @Override
     public Builder toBuilder() {
         return builder()
                 .setPath(path)
+                .setRepresentKeyAsList(representKeyAsList)
                 .setTimeout(timeout)
                 .setRequestId(requestId)
                 .setUserAgent(userAgent)
@@ -58,6 +61,7 @@ public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, Ge
     public static class Builder extends RequestBase.Builder<Builder, GetTablePivotKeys> {
         @Nullable
         private String path;
+        private boolean representKeyAsList = TReqGetTablePivotKeys.getDefaultInstance().getRepresentKeyAsList();
 
         Builder() {
         }
@@ -65,10 +69,16 @@ public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, Ge
         Builder(Builder builder) {
             super(builder);
             path = builder.path;
+            representKeyAsList = builder.representKeyAsList;
         }
 
         public Builder setPath(String path) {
             this.path = path;
+            return self();
+        }
+
+        public Builder setRepresentKeyAsList(boolean representKeyAsList) {
+            this.representKeyAsList = representKeyAsList;
             return self();
         }
 
