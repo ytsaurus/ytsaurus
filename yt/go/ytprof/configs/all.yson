@@ -15,6 +15,20 @@
         "clock" = 10016;
         "discovery" = 10020;
     };
+    "dcs" = {
+        "sas" = [];
+        "man" = [];
+        "vla" = [];
+        "iva" = [];
+        "myt" = [];
+        "xdc" = [
+            "sas";
+            "man";
+            "vla";
+            "iva";
+            "myt";
+        ];
+    };
     "configs" = [
         {
             "cluster" = "freud";
@@ -22,13 +36,13 @@
             "path" = "ytprof/profile";
             "period" = 300000000000;
             "probability" = 0.5;
+            "dc_prefix_len" = 3;
             "services" = [
                 {
                     "service_type" = "dat-node";
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-dat-nodes";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -37,7 +51,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-exe-nodes";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -46,7 +59,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-exe-tab-nodes";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -55,7 +67,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-masters";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -64,7 +75,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-master-caches";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -73,7 +83,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-schedulers";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -82,7 +91,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-clocks";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -91,7 +99,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-controller-agents";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -100,7 +107,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-discovery";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -109,7 +115,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-proxies";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -118,7 +123,6 @@
                     "resolvers" = [
                         {
                             "podset" = "sas-yt-freud-rpc-proxies";
-                            "cluster" = "sas"
                         }
                     ]
                 };
@@ -130,6 +134,7 @@
             "path" = "ytprof/profile";
             "period" = 600000000000;
             "probability" = 0.2;
+            "dc_prefix_len" = 3;
             "services" = [
                 {
                     "service_type" = "dat-node";
@@ -137,7 +142,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-dat-nodes-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -146,7 +150,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-exe-nodes-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -155,7 +158,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-exe-tab-nodes-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -164,7 +166,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-masters-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -173,7 +174,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-master-caches-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -182,7 +182,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-schedulers-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -191,7 +190,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-clocks-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -200,7 +198,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-controller-agents-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -210,7 +207,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-discovery-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -219,7 +215,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-proxies-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -228,7 +223,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-arnold-rpc-proxies-over-yp";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -240,13 +234,13 @@
             "path" = "ytprof/profile";
             "period" = 300000000000;
             "probability" = 0.5;
+            "dc_prefix_len" = 3;
             "services" = [
                 {
                     "service_type" = "dat-node";
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-dat-nodes";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -255,7 +249,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-exe-tab-nodes";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -264,7 +257,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-masters";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -273,7 +265,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-master-caches";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -282,7 +273,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-schedulers";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -291,7 +281,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-clocks";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -300,16 +289,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-controller-agents";
-                            "cluster" = "vla"
-                        }
-                    ]
-                };
-                {
-                    "service_type" = "clock";
-                    "resolvers" = [
-                        {
-                            "podset" = "vla-yt-zeno-clocks";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -319,7 +298,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-proxies";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -328,7 +306,6 @@
                     "resolvers" = [
                         {
                             "podset" = "vla-yt-zeno-rpc-proxies";
-                            "cluster" = "vla"
                         }
                     ]
                 };
@@ -340,6 +317,7 @@
             "path" = "ytprof/profile";
             "probability" = 0.5;
             "period" = 300000000000;
+            "dc_prefix_len" = 3;
             "services" = [
                 {
                     "service_type" = "dat-node";
@@ -347,7 +325,6 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-dat-nodes-over-yp";
-                            "cluster" = "man"
                         }
                     ]
                 };
@@ -357,7 +334,6 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-exe-tab-nodes-over-yp";
-                            "cluster" = "man"
                         }
                     ]
                 };
@@ -366,7 +342,6 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-masters-over-yp";
-                            "cluster" = "man"
                         }
                     ]
                 };
@@ -375,7 +350,6 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-master-caches-over-yp";
-                            "cluster" = "man"
                         }
                     ]
                 };
@@ -384,7 +358,6 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-schedulers-over-yp";
-                            "cluster" = "man"
                         }
                     ]
                 };
@@ -393,7 +366,6 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-clocks-over-yp";
-                            "cluster" = "man"
                         }
                     ]
                 };
@@ -402,16 +374,6 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-controller-agents-over-yp";
-                            "cluster" = "man"
-                        }
-                    ]
-                };
-                {
-                    "service_type" = "clock";
-                    "resolvers" = [
-                        {
-                            "podset" = "man-yt-seneca-man-clocks-over-yp";
-                            "cluster" = "man"
                         }
                     ]
                 };
@@ -420,7 +382,6 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-proxies-over-yp";
-                            "cluster" = "man"
                         }
                     ]
                 };
@@ -430,7 +391,80 @@
                     "resolvers" = [
                         {
                             "podset" = "man-yt-seneca-man-rpc-proxies-over-yp";
-                            "cluster" = "man"
+                        }
+                    ]
+                };
+            ]
+        };
+        {
+            "cluster" = "pythia";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "probability" = 0.5;
+            "period" = 300000000000;
+            "dc_prefix_len" = 3;
+            "services" = [
+                {
+                    "service_type" = "node";
+                    "resolvers" = [
+                        {
+                            "podset" = "xdc-yt-pythia-nodes-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "master";
+                    "resolvers" = [
+                        {
+                            "podset" = "xdc-yt-pythia-masters-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "master-caches";
+                    "resolvers" = [
+                        {
+                            "podset" = "xdc-yt-pythia-master-caches-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "scheduler";
+                    "resolvers" = [
+                        {
+                            "podset" = "xdc-yt-pythia-schedulers-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "clock";
+                    "resolvers" = [
+                        {
+                            "podset" = "xdc-yt-pythia-clocks-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "controller-agent";
+                    "resolvers" = [
+                        {
+                            "podset" = "xdc-yt-pythia-controller-agents-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "http-proxy";
+                    "resolvers" = [
+                        {
+                            "podset" = "xdc-yt-pythia-proxies-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "service_type" = "rpc-proxy";
+                    "resolvers" = [
+                        {
+                            "podset" = "xdc-yt-pythia-rpc-proxies-over-yp";
                         }
                     ]
                 };
