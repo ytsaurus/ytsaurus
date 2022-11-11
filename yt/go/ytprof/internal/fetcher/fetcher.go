@@ -236,7 +236,7 @@ func (rf *ResolverFetcher) resolveFQDNs() ([]string, error) {
 		return sliceFQDN, nil
 	}
 
-	return rf.resolver.Urls, nil
+	return rf.resolver.URLs, nil
 }
 
 func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []error) {
