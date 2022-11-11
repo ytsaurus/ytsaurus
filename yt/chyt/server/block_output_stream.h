@@ -22,7 +22,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
     NTableClient::TTableWriterConfigPtr config,
     TCompositeSettingsPtr compositeSettings,
     NApi::NNative::IClientPtr client,
-    const NTransactionClient::TTransactionId& transactionId,
+    NTransactionClient::TTransactionId transactionId,
     std::function<void()> onFinished,
     const NLogging::TLogger& logger);
 
