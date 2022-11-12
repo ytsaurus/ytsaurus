@@ -1072,11 +1072,11 @@ void TJob::GuardedInterrupt(
     if (!IsInterruptible()) {
         YT_LOG_DEBUG("Job is not interruptible and will be aborted");
 
-        auto error = TError(NJobProxy::EErrorCode::InterruptionUnsupported, "Abort uninterruptible job")
+        auto error = TError(NJobProxy::EErrorCode::InterruptionUnsupported, "Uninterruptible job aborted")
             << TError(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
 
         if (interruptionReason == EInterruptReason::Preemption) {
-            error = TError{"Job preempted"} << error;
+            error = TError("Job preempted") << error;
             error = error
                 << TErrorAttribute("preemption_reason", preemptionReason)
                 << TErrorAttribute("abort_reason", EAbortReason::Preemption);
@@ -1090,7 +1090,7 @@ void TJob::GuardedInterrupt(
         TError error(NJobProxy::EErrorCode::JobNotPrepared, "Interrupting job that has not started yet");
 
         if (interruptionReason == EInterruptReason::Preemption) {
-            error = TError{"Job preempted"} << error;
+            error = TError("Job preempted") << error;
             error = error
                 << TErrorAttribute("preemption_reason", preemptionReason)
                 << TErrorAttribute("abort_reason", EAbortReason::Preemption);
@@ -1632,7 +1632,7 @@ void TJob::OnExtraGpuCheckCommandFinished(const TError& error)
 
         auto initialError = std::move(*Error_);
         // Reset Error_ to set it with checkError
-        Error_ = TError{};
+        Error_ = {};
         JobResultExtension_.reset();
 
         auto checkError = TError(EErrorCode::GpuCheckCommandFailed, "Extra GPU check command failed")
