@@ -2514,7 +2514,6 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
     i64 totalCumulativeLoad = 0;
     i64 totalCumulativeUtilizationPower = 0;
     i64 totalCumulativePower = 0;
-    i64 totalCumulativeUtilizationClocksSm = 0;
     i64 totalMaxMemoryUsed = 0;
     i64 totalMemoryTotal = 0;
     i64 totalCumulativeSMUtilization = 0;
@@ -2570,7 +2569,6 @@ void TJob::EnrichStatisticsWithGpuInfo(TStatistics* statistics)
         totalCumulativeLoad += slotStatistics.CumulativeLoad;
         totalCumulativeUtilizationPower += slotStatistics.CumulativeUtilizationPower;
         totalCumulativePower += slotStatistics.CumulativePower;
-        totalCumulativeUtilizationClocksSm += slotStatistics.CumulativeUtilizationClocksSm;
         totalCumulativeSMUtilization += slotStatistics.CumulativeSMUtilization;
         totalCumulativeSMOccupancy += slotStatistics.CumulativeSMOccupancy;
         totalMaxMemoryUsed += slotStatistics.MaxMemoryUsed;
