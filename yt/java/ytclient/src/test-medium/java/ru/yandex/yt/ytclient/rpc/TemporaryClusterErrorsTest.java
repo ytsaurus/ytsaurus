@@ -13,8 +13,8 @@ import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.asynchttpclient.RequestBuilder;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.ysontree.YTree;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;

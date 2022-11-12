@@ -7,10 +7,11 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.inside.yt.kosher.common.JavaOptions;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.library.svnversion.VcsVersion;

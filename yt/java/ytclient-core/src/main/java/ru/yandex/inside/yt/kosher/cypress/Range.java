@@ -4,7 +4,7 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeBuilder;
 
 /**
  * @author sankear

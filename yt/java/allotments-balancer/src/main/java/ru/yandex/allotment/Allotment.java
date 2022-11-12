@@ -3,10 +3,11 @@ package ru.yandex.allotment;
 import java.util.List;
 import java.util.Map;
 
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.inside.yt.kosher.Yt;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 
 public class Allotment {
     public final int index;

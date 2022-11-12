@@ -5,9 +5,9 @@ import java.util.Map;
 
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.yson.YsonConsumer;
+import tech.ytsaurus.ysontree.YTreeMapNode;
+import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 
 /**
  * @author sankear

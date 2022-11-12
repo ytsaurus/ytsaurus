@@ -12,9 +12,9 @@ import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
 import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
 
 /**

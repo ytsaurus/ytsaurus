@@ -1,7 +1,7 @@
 package ru.yandex.inside.yt.kosher.common;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeStringNode;
 
 /**
  * @author sankear

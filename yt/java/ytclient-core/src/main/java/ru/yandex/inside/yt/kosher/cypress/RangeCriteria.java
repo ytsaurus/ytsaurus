@@ -2,7 +2,7 @@ package ru.yandex.inside.yt.kosher.cypress;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeBuilder;
 
 /**
  * @author and-hom

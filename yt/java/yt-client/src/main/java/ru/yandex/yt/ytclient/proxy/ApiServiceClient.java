@@ -6,10 +6,11 @@ import java.util.concurrent.CompletableFuture;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.ytclient.object.ConsumerSource;

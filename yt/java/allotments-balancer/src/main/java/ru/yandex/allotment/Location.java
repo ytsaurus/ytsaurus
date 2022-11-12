@@ -2,8 +2,8 @@ package ru.yandex.allotment;
 
 import java.util.Map;
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 
+import tech.ytsaurus.ysontree.YTreeNode;
 public class Location {
     public final String id;
     public final int allotmentIndex;

@@ -3,13 +3,14 @@ package ru.yandex.yt.ytclient.operations;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import tech.ytsaurus.ysontree.YTreeMapNode;
+import tech.ytsaurus.ysontree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeStringNode;
+
 import ru.yandex.inside.yt.kosher.common.YtFormat;
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.inside.yt.kosher.tables.CloseableIterator;
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
 import ru.yandex.yt.ytclient.serialization.YTreeBinarySerializer;
 
 /**

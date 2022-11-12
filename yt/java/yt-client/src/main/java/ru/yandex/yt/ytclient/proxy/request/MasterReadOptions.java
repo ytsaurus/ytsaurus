@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 
 public class MasterReadOptions {

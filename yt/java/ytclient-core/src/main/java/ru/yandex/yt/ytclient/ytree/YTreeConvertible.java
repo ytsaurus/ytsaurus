@@ -1,6 +1,6 @@
 package ru.yandex.yt.ytclient.ytree;
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 /**
  * Любое значение, которое можно конвертировать в YTreeNode

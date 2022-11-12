@@ -2,7 +2,8 @@ package ru.yandex.yt.jdbc;
 
 import java.sql.Types;
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
 class YtTypes {

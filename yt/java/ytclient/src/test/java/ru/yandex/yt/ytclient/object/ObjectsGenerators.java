@@ -11,8 +11,9 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Collectors;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializerForCollections;

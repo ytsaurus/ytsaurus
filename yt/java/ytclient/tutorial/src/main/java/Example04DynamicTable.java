@@ -2,9 +2,9 @@ import java.util.List;
 import java.util.Map;
 
 import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.ysontree.YTree;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;

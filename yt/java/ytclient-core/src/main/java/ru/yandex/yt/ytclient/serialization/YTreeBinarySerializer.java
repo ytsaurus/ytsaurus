@@ -8,18 +8,18 @@ import java.util.List;
 import tech.ytsaurus.yson.ClosableYsonConsumer;
 import tech.ytsaurus.yson.YsonBinaryWriter;
 import tech.ytsaurus.yson.YsonParser;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeEntityNode;
+import tech.ytsaurus.ysontree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.inside.yt.kosher.tables.CloseableIterator;
-import ru.yandex.inside.yt.kosher.ytree.YTreeEntityNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 
-public class YTreeBinarySerializer extends ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer {
+public class YTreeBinarySerializer extends tech.ytsaurus.ysontree.YTreeBinarySerializer {
     public static <T> void serializeAllObjects(List<T> objects, YTreeSerializer<T> serializer, OutputStream output) {
         try (ClosableYsonConsumer writer = getSerializer(output)) {
             for (T obj : objects) {

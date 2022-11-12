@@ -2,8 +2,8 @@ package ru.yandex.yt.ytclient.examples;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;

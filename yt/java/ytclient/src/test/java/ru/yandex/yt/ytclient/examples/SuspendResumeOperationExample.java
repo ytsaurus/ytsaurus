@@ -1,7 +1,8 @@
 package ru.yandex.yt.ytclient.examples;
 
+import tech.ytsaurus.ysontree.YTreeMapNode;
+
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
 import ru.yandex.yt.ytclient.request.GetOperation;

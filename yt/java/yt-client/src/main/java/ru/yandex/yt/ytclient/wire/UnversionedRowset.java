@@ -5,7 +5,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
+import tech.ytsaurus.ysontree.YTreeMapNode;
+
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class UnversionedRowset {

@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.operations;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
 
 public interface Spec {

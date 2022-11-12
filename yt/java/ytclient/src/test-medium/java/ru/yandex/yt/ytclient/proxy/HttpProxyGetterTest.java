@@ -19,10 +19,10 @@ import org.asynchttpclient.Response;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.ysontree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import ru.yandex.inside.yt.kosher.common.YtFormat;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 
