@@ -4,8 +4,9 @@ import java.io.ByteArrayInputStream;
 import java.nio.ByteBuffer;
 import java.util.List;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeBinarySerializer;
+import tech.ytsaurus.ysontree.YTreeNode;
+
 
 public class TableAttachmentYsonReader extends TableAttachmentRowsetReader<YTreeNode> {
     public TableAttachmentYsonReader() {

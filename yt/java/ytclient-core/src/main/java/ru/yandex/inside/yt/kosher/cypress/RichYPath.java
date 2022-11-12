@@ -12,12 +12,13 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeMapNode;
+import tech.ytsaurus.ysontree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeTextSerializer;
+
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 
 /**
  * @author sankear

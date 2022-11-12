@@ -27,15 +27,15 @@ import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.RangeLimit;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;

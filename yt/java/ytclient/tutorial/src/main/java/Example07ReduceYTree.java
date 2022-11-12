@@ -1,9 +1,10 @@
 import java.util.Iterator;
 
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeMapNode;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.operations.Yield;
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.operations.ReduceSpec;
 import ru.yandex.yt.ytclient.operations.ReducerSpec;

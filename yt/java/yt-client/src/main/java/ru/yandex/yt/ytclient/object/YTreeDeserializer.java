@@ -5,8 +5,9 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;

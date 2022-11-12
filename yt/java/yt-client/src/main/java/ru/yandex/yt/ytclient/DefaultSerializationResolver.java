@@ -1,11 +1,12 @@
 package ru.yandex.yt.ytclient;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeMapNode;
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeMapNodeSerializer;
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;

@@ -4,7 +4,8 @@ import java.util.Collection;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 

@@ -9,11 +9,11 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.ysontree.YTreeBinarySerializer;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;

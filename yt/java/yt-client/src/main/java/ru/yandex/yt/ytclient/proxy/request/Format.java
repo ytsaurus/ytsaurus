@@ -3,9 +3,10 @@ package ru.yandex.yt.ytclient.proxy.request;
 import java.util.HashMap;
 import java.util.Map;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 

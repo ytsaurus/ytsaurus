@@ -11,8 +11,9 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nonnull;
 
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.EDurability;
 import ru.yandex.yt.rpcproxy.ETransactionType;

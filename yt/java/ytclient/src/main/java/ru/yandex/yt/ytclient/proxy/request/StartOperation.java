@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.yt.rpcproxy.EOperationType;
 
 public class StartOperation extends ru.yandex.yt.ytclient.request.StartOperation.BuilderBase<StartOperation> {

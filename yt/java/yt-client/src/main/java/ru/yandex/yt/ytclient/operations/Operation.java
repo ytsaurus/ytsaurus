@@ -2,8 +2,9 @@ package ru.yandex.yt.ytclient.operations;
 
 import java.util.concurrent.CompletableFuture;
 
+import tech.ytsaurus.ysontree.YTreeNode;
+
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 

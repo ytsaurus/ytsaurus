@@ -2,10 +2,9 @@ package ru.yandex.yt.canonize_schema;
 
 import org.junit.jupiter.api.Assertions;
 import org.junit.jupiter.api.Test;
-
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer;
-import ru.yandex.inside.yt.kosher.ytree.YTreeListNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeListNode;
+import tech.ytsaurus.ysontree.YTreeNode;
+import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 class CanonizeSchemaTest {
     @Test

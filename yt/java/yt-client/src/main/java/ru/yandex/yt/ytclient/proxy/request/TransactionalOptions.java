@@ -2,8 +2,9 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.Optional;
 
+import tech.ytsaurus.ysontree.YTreeBuilder;
+
 import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 

@@ -8,9 +8,9 @@ import java.util.concurrent.Executors;
 
 import org.junit.Test;
 import tech.ytsaurus.type_info.TiType;
+import tech.ytsaurus.ysontree.YTree;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;

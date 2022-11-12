@@ -6,9 +6,10 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeNode;
+
 
 /**
  * @author and-hom

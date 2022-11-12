@@ -4,12 +4,13 @@ import java.util.List;
 import java.util.Map;
 import java.util.PriorityQueue;
 
+import tech.ytsaurus.ysontree.YTreeStringNode;
+
 import ru.yandex.bolts.collection.Cf;
 import ru.yandex.bolts.collection.MapF;
 import ru.yandex.inside.yt.kosher.Yt;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.transactions.utils.YtTransactionsUtils;
-import ru.yandex.inside.yt.kosher.ytree.YTreeStringNode;
 
 class ByNodeTriplet implements Comparable<ByNodeTriplet> {
     int assignment;

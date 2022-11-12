@@ -5,8 +5,9 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.ysontree.YTreeBuilder;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 

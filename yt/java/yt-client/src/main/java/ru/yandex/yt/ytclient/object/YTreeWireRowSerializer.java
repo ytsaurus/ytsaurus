@@ -12,8 +12,8 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.yson.ClosableYsonConsumer;
 import tech.ytsaurus.yson.YsonConsumer;
+import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;

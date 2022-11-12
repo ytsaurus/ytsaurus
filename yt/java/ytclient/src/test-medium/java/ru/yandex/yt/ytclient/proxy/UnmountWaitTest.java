@@ -5,11 +5,11 @@ import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Test;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;

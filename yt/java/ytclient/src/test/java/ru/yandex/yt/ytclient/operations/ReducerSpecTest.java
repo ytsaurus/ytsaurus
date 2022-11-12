@@ -8,15 +8,15 @@ import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
+import tech.ytsaurus.ysontree.YTree;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeMapNode;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.common.DataSize;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree;
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.proxy.MockYtClient;
 

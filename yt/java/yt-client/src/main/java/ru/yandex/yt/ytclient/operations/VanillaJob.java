@@ -1,7 +1,8 @@
 package ru.yandex.yt.ytclient.operations;
 
+import tech.ytsaurus.ysontree.YTreeMapNode;
+
 import ru.yandex.inside.yt.kosher.operations.Yield;
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
 
 public interface VanillaJob<TOutput> extends MapperOrReducer<YTreeMapNode, TOutput> {
 

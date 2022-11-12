@@ -5,7 +5,8 @@ import java.util.Collection;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeBuilder;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;

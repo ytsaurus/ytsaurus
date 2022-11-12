@@ -4,10 +4,10 @@ import java.util.Map;
 
 import org.junit.Assert;
 import org.junit.Test;
+import tech.ytsaurus.ysontree.YTreeMapNode;
+import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.common.DataSize;
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode;
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode;
 
 public class JobIoTest {
     @Test
