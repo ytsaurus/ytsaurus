@@ -46,6 +46,15 @@ using namespace NHttp;
 using namespace NConcurrency;
 using namespace NJson;
 
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EVerb,
+    (Get)
+    (List)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Initialize(
     const NHttp::IServerPtr& monitoringServer,
     const NProfiling::TSolomonExporterConfigPtr& config,
@@ -124,10 +133,13 @@ public:
         path = path.substr(orchidPrefix.size(), TString::npos);
         TCgiParameters params(req->GetUrl().RawQuery);
 
-        auto ypathReq = TYPathProxy::Get(path);
-        if (params.size() != 0) {
-            auto options = CreateEphemeralAttributes();
-            for (const auto& param : params) {
+        auto verb = EVerb::Get;
+
+        auto options = CreateEphemeralAttributes();
+        for (const auto& param : params) {
+            if (param.first == "verb") {
+                verb = ParseEnum<EVerb>(param.second);
+            } else {
                 // Just a check, IAttributeDictionary takes raw YSON anyway.
                 try {
                     ValidateYson(TYsonString(param.second), DefaultYsonParserNestingLevelLimit);
@@ -138,19 +150,36 @@ public:
                 }
 
                 options->SetYson(param.first, TYsonString(param.second));
-                ToProto(ypathReq->mutable_options(), *options);
             }
         }
 
-        auto ypathRsp = WaitFor(ExecuteVerb(Service_, ypathReq))
-            .ValueOrThrow();
+        TYsonString result;
+        switch (verb) {
+            case EVerb::Get: {
+                auto ypathReq = TYPathProxy::Get(path);
+                ToProto(ypathReq->mutable_options(), *options);
+                auto ypathRsp = WaitFor(ExecuteVerb(Service_, ypathReq))
+                    .ValueOrThrow();
+                result = TYsonString(ypathRsp->value());
+                break;
+            }
+            case EVerb::List: {
+                auto ypathReq = TYPathProxy::List(path);
+                auto ypathRsp = WaitFor(ExecuteVerb(Service_, ypathReq))
+                    .ValueOrThrow();
+                result = TYsonString(ypathRsp->value());
+                break;
+            }
+            default:
+                YT_ABORT();
+        }
 
         rsp->SetStatus(EStatusCode::OK);
 
         auto syncOutput = CreateBufferedSyncAdapter(rsp);
         auto writer = CreateJsonConsumer(syncOutput.get());
 
-        Serialize(TYsonString(ypathRsp->value()), writer.get());
+        Serialize(result, writer.get());
 
         writer->Flush();
         syncOutput->Flush();
