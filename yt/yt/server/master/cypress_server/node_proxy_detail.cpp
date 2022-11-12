@@ -2604,10 +2604,8 @@ bool TMapNodeProxy::AddChild(const TString& key, const NYTree::INodePtr& child)
     auto* trunkChildImpl = ICypressNodeProxy::FromNode(child.Get())->GetTrunkNode();
     auto* childImpl = LockImpl(trunkChildImpl);
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-
-    auto& children = impl->MutableChildren(objectManager);
-    children.Set(objectManager, key, trunkChildImpl);
+    auto& children = impl->MutableChildren();
+    children.Set(key, trunkChildImpl);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     securityManager->UpdateMasterMemoryUsage(TrunkNode_);
@@ -2678,12 +2676,10 @@ void TMapNodeProxy::ReplaceChild(const INodePtr& oldChild, const INodePtr& newCh
 
     auto* impl = LockThisImpl(TLockRequest::MakeSharedChild(key));
 
-    const auto& objectManager = Bootstrap_->GetObjectManager();
-
-    auto& children = impl->MutableChildren(objectManager);
+    auto& children = impl->MutableChildren();
 
     DetachChild(TrunkNode_, oldChildImpl);
-    children.Set(objectManager, key, newTrunkChildImpl);
+    children.Set(key, newTrunkChildImpl);
     AttachChild(TrunkNode_, newChildImpl);
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -2741,13 +2737,12 @@ void TMapNodeProxy::DoRemoveChild(
     const TString& key,
     TCypressNode* childImpl)
 {
-    const auto& objectManager = Bootstrap_->GetObjectManager();
     auto* trunkChildImpl = childImpl->GetTrunkNode();
-    auto& children = impl->MutableChildren(objectManager);
+    auto& children = impl->MutableChildren();
     if (Transaction_) {
-        children.Set(objectManager, key, nullptr);
+        children.Set(key, nullptr);
     } else {
-        children.Remove(objectManager, key, trunkChildImpl);
+        children.Remove(key, trunkChildImpl);
     }
     DetachChild(TrunkNode_, childImpl);
     --impl->ChildCountDelta();

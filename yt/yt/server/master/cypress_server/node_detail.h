@@ -760,10 +760,9 @@ class TMapNodeChildren
 {
 public:
     using TKeyToChild = THashMap<TString, TCypressNode*>;
-    using TChildToKey = THashMap<TCypressNode*, TString>;
+    using TChildToKey = THashMap<TCypressNodePtr, TString>;
 
     TMapNodeChildren() = default;
-    ~TMapNodeChildren();
 
     // Refcounted classes never are - and shouldn't be - copyable.
     TMapNodeChildren(const TMapNodeChildren&) = delete;
@@ -774,9 +773,9 @@ public:
 
     void RecomputeMasterMemoryUsage();
 
-    void Set(const NObjectServer::IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
-    void Insert(const NObjectServer::IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
-    void Remove(const NObjectServer::IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child);
+    void Set(const TString& key, TCypressNode* child);
+    void Insert(const TString& key, TCypressNode* child);
+    void Remove(const TString& key, TCypressNode* child);
     bool Contains(const TString& key) const;
 
     const TKeyToChild& KeyToChild() const;
@@ -786,16 +785,11 @@ public:
     void Ref() noexcept;
     void Unref() noexcept;
 
-    static void Destroy(TMapNodeChildren* children, const NObjectServer::IObjectManagerPtr& objectManager);
-    static void Clear(TMapNodeChildren* children);
-    static TMapNodeChildren* Copy(TMapNodeChildren* srcChildren, const NObjectServer::IObjectManagerPtr& objectManager);
+    static std::unique_ptr<TMapNodeChildren> Copy(TMapNodeChildren* srcChildren);
 
     DEFINE_BYVAL_RO_PROPERTY(i64, MasterMemoryUsage);
 
 private:
-    void RefChildren(const NObjectServer::IObjectManagerPtr& objectManager);
-    void UnrefChildren(const NObjectServer::IObjectManagerPtr& objectManager);
-
     TKeyToChild KeyToChild_;
     TChildToKey ChildToKey_;
     int RefCount_ = 0;
@@ -814,7 +808,6 @@ public:
 
 public:
     using TCompositeNodeBase::TCompositeNodeBase;
-    ~TMapNode();
 
     explicit TMapNode(const TMapNode&) = delete;
     TMapNode& operator=(const TMapNode&) = delete;
@@ -823,7 +816,7 @@ public:
     const TChildToKey& ChildToKey() const;
 
     // Potentially does the 'copy' part of CoW.
-    TMapNodeChildren& MutableChildren(const NObjectServer::IObjectManagerPtr& objectManager);
+    TMapNodeChildren& MutableChildren();
 
     NYTree::ENodeType GetNodeType() const override;
 
@@ -834,9 +827,7 @@ public:
 
     NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
 
-    void AssignChildren(
-        const NObjectServer::TObjectPartCoWPtr<TMapNodeChildren>& children,
-        const NObjectServer::IObjectManagerPtr& objectManager);
+    void AssignChildren(const NObjectServer::TObjectPartCoWPtr<TMapNodeChildren>& children);
 
 private:
     NObjectServer::TObjectPartCoWPtr<TMapNodeChildren> Children_;

@@ -1,4 +1,5 @@
 #pragma once
+
 #include "public.h"
 
 namespace NYT::NObjectServer {
@@ -29,13 +30,10 @@ namespace NYT::NObjectServer {
  *    - saveloading: Save(context), Load(context);
  *    - lifetime management:
  *        default ctor;
- *        static void Destroy(objectPart, objectManager);
- *        static TObjectPart* Copy(objectPart, objectManager).
+ *        static Copy() method.
  *
  *  Default ctor and Copy() must return a new TObjectPart with 0 ref-counter. If
- *  the ref-counter falls to 0 (during a call to #Reset()), #Destroy() is
- *  called.  The #objectManager argument may come useful if TObjectPart owns
- *  other TObjects and must ref/unref them when necessary.
+ *  the ref-counter falls to 0 (during a call to #Reset()), object part is destroyed.
  */
 template <class TObjectPart>
 class TObjectPartCoWPtr
@@ -51,31 +49,24 @@ public:
     explicit operator bool() const;
 
     const TObjectPart& Get() const;
-    TObjectPart& MutableGet(const NObjectServer::IObjectManagerPtr& objectManager);
+    TObjectPart& MutableGet();
 
-    void Assign(const TObjectPartCoWPtr& rhs, const NObjectServer::IObjectManagerPtr& objectManager);
+    void Assign(const TObjectPartCoWPtr& rhs);
 
     //! Unrefs the part and calls TObjectPart::Destroy if refcounter becomes zero.
     //! Must be called when the object of which this is a part of is destroyed.
-    //! NB: Either Reset or Clear must be called before the destructor.
-    void Reset(const NObjectServer::IObjectManagerPtr& objectManager);
-
-    //! Unrefs the part and calls TObjectPart::Clear if refcounter becomes zero.
-    //! NB: Either Reset or Clear must be called before the destructor.
-    void Clear();
+    void Reset();
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
-    // COMPAT(shakurov): make this method private once it's no longer used in the compat code.
-    void ResetToDefaultConstructed();
 
 private:
     TObjectPart* ObjectPart_ = nullptr;
 
     static TObjectPart DefaultObjectPart;
 
-    void MaybeCopyOnWrite(const NObjectServer::IObjectManagerPtr& objectManager);
+    void MaybeCopyOnWrite();
+    void ResetToDefaultConstructed();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

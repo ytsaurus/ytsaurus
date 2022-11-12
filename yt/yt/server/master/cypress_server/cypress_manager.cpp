@@ -3357,8 +3357,11 @@ private:
 
     void CheckPendingLocks(TCypressNode* trunkNode)
     {
-        // Ignore orphaned nodes.
-        // Eventually the node will get destroyed and the lock will become
+        // NB: IsOrphaned below lies on object ref-counters. This flush is essential to detect
+        // when trunkNode becomes orphaned.
+        FlushObjectUnrefs();
+
+        // Ignore orphaned nodes. Eventually the node will get destroyed and the lock will become
         // orphaned.
         if (IsOrphaned(trunkNode)) {
             return;
@@ -3832,6 +3835,9 @@ private:
             if (!trunkNode) {
                 continue;
             }
+
+            // NB: IsOrphaned below lies on object ref-counters. This flush is seemingly redundant but makes the code more robust.
+            FlushObjectUnrefs();
 
             if (IsOrphaned(trunkNode)) {
                 continue;

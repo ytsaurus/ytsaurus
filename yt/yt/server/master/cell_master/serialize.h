@@ -71,6 +71,7 @@ DEFINE_ENUM(EMasterReign,
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
     ((UserPassword)                                                 (2202))  // gritukan
     ((SetUserPassword)                                              (2203))  // gritukan
+    ((RefCountedCoWs)                                               (2204))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
