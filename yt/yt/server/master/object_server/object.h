@@ -353,6 +353,9 @@ void FlushObjectUnrefs();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TObjectPtrLoadTag
+{ };
+
 template <class T, class C>
 class TObjectPtr
 {
@@ -361,6 +364,7 @@ public:
     TObjectPtr(const TObjectPtr& other) noexcept;
     TObjectPtr(TObjectPtr&& other) noexcept;
     explicit TObjectPtr(T* ptr) noexcept;
+    TObjectPtr(T* ptr, TObjectPtrLoadTag) noexcept;
 
     ~TObjectPtr() noexcept;
 
@@ -368,7 +372,6 @@ public:
     TObjectPtr& operator=(TObjectPtr&& other) noexcept;
 
     void Assign(T* ptr) noexcept;
-    void AssignOnLoad(T* ptr) noexcept;
     void Reset() noexcept;
 
     T* operator->() const noexcept;

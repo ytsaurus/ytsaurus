@@ -416,6 +416,16 @@ TObjectPtr<T, C>::TObjectPtr(T* ptr) noexcept
 }
 
 template <class T, class C>
+TObjectPtr<T, C>::TObjectPtr(T* ptr, TObjectPtrLoadTag) noexcept
+    : Ptr_(ptr)
+    , Context_(C::Capture())
+{
+    static_assert(C::Persistent);
+    NDetail::AssertAutomatonThreadAffinity();
+    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+}
+
+template <class T, class C>
 TObjectPtr<T, C>::~TObjectPtr() noexcept
 {
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
@@ -464,16 +474,6 @@ void TObjectPtr<T, C>::Assign(T* ptr) noexcept
     if (Ptr_) {
         Context_.Ref(ToObject(Ptr_));
     }
-}
-
-template <class T, class C>
-void TObjectPtr<T, C>::AssignOnLoad(T* ptr) noexcept
-{
-    static_assert(C::Persistent);
-    NDetail::AssertAutomatonThreadAffinity();
-    YT_ASSERT(!Ptr_);
-    Ptr_ = ptr;
-    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
 }
 
 template <class T, class C>

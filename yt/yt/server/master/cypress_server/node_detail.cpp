@@ -787,12 +787,6 @@ void TCompositeNodeTypeHandler<TImpl>::DoEndCopy(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMapNodeChildren::~TMapNodeChildren()
-{
-    YT_VERIFY(KeyToChild_.empty());
-    YT_VERIFY(ChildToKey_.empty());
-}
-
 void TMapNodeChildren::Save(NCellMaster::TSaveContext& context) const
 {
     using NYT::Save;
@@ -809,7 +803,7 @@ void TMapNodeChildren::Load(NCellMaster::TLoadContext& context)
     // Reconstruct ChildToKey map.
     for (const auto& [key, childNode] : KeyToChild_) {
         if (childNode) {
-            YT_VERIFY(ChildToKey_.emplace(childNode, key).second);
+            EmplaceOrCrash(ChildToKey_, TCypressNodePtr(childNode, TObjectPtrLoadTag()), key);
         }
     }
 
@@ -820,57 +814,53 @@ void TMapNodeChildren::RecomputeMasterMemoryUsage()
 {
     MasterMemoryUsage_ = 0;
     for (const auto& [key, childNode] : KeyToChild_) {
-        MasterMemoryUsage_ += key.size();
+        MasterMemoryUsage_ += std::ssize(key);
     }
 }
 
-void TMapNodeChildren::Set(const IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+void TMapNodeChildren::Set(const TString& key, TCypressNode* child)
 {
     YT_VERIFY(!child || child->IsTrunk());
 
     auto it = KeyToChild_.find(key);
     if (it == KeyToChild_.end()) {
-        MasterMemoryUsage_ += key.size();
+        MasterMemoryUsage_ += std::ssize(key);
     } else if (it->second) {
         if (it->second == child) {
             return;
         }
-        objectManager->UnrefObject(it->second);
-        YT_VERIFY(ChildToKey_.erase(it->second));
+        EraseOrCrash(ChildToKey_, it->second);
     }
 
     KeyToChild_[key] = child;
     if (child) {
-        objectManager->RefObject(child);
-        YT_VERIFY(ChildToKey_.emplace(child, key).second);
+        EmplaceOrCrash(ChildToKey_, child, key);
     }
 }
 
-void TMapNodeChildren::Insert(const IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+void TMapNodeChildren::Insert(const TString& key, TCypressNode* child)
 {
     YT_VERIFY(!child || child->IsTrunk());
 
     YT_VERIFY(KeyToChild_.emplace(key, child).second);
-    MasterMemoryUsage_ += key.size();
+    MasterMemoryUsage_ += std::ssize(key);
 
     if (child) {
-        objectManager->RefObject(child);
-        YT_VERIFY(ChildToKey_.emplace(child, key).second);
+        EmplaceOrCrash(ChildToKey_, child, key);
     }
 }
 
-void TMapNodeChildren::Remove(const IObjectManagerPtr& objectManager, const TString& key, TCypressNode* child)
+void TMapNodeChildren::Remove(const TString& key, TCypressNode* child)
 {
     YT_VERIFY(!child || child->IsTrunk());
 
     auto it = KeyToChild_.find(key);
     YT_VERIFY(it != KeyToChild_.end());
     YT_VERIFY(it->second == child);
-    MasterMemoryUsage_ -= static_cast<i64>(key.size());
+    MasterMemoryUsage_ -= std::ssize(key);
     KeyToChild_.erase(it);
     if (child) {
-        objectManager->UnrefObject(child);
-        YT_VERIFY(ChildToKey_.erase(child) > 0);
+        EraseOrCrash(ChildToKey_, child);
     }
 }
 
@@ -904,87 +894,22 @@ void TMapNodeChildren::Unref() noexcept
     YT_VERIFY(--RefCount_ >= 0);
 }
 
-/*static*/ void TMapNodeChildren::Destroy(
-    TMapNodeChildren* children,
-    const IObjectManagerPtr& objectManager)
-{
-    YT_VERIFY(children->GetRefCount() == 0);
-    children->UnrefChildren(objectManager);
-
-    children->KeyToChild_.clear();
-    children->ChildToKey_.clear();
-
-    delete children;
-}
-
-/*static*/ void TMapNodeChildren::Clear(TMapNodeChildren* children)
-{
-    // NB: does not unref children! This is to be used during automaton clearing only!
-
-    YT_VERIFY(children->GetRefCount() == 0);
-
-    // It's okay to clear and forget. Recursive unref is not necessary here
-    // because, during automaton clearing, all nodes will be destroyed anyway -
-    // regardless of their refcounter.
-    children->KeyToChild_.clear();
-    children->ChildToKey_.clear();
-
-    delete children;
-}
-
-/*static*/ TMapNodeChildren* TMapNodeChildren::Copy(
-    TMapNodeChildren* srcChildren,
-    const IObjectManagerPtr& objectManager)
+/*static*/ std::unique_ptr<TMapNodeChildren> TMapNodeChildren::Copy(TMapNodeChildren* srcChildren)
 {
     YT_VERIFY(srcChildren->GetRefCount() != 0);
 
-    auto holder = std::make_unique<TMapNodeChildren>();
-    holder->KeyToChild_ = srcChildren->KeyToChild_;
-    holder->ChildToKey_ = srcChildren->ChildToKey_;
+    auto dstChildren = std::make_unique<TMapNodeChildren>();
 
-    holder->RefChildren(objectManager);
+    dstChildren->KeyToChild_ = srcChildren->KeyToChild_;
+    // NB: the order of refs here is non-deterministic but this should not be a problem.
+    dstChildren->ChildToKey_ = srcChildren->ChildToKey_;
 
-    holder->RecomputeMasterMemoryUsage();
+    dstChildren->RecomputeMasterMemoryUsage();
 
-    return holder.release();
-}
-
-void TMapNodeChildren::RefChildren(const NObjectServer::IObjectManagerPtr& objectManager)
-{
-    // Make sure we handle children in a stable order.
-    auto sortedIterators = GetSortedIterators(
-        ChildToKey_,
-        [] (const TChildToKey::value_type& a, const TChildToKey::value_type& b) {
-            return TObjectIdComparer::Compare(a.first, b.first);
-        });
-
-    for (auto it : sortedIterators) {
-        objectManager->RefObject(it->first);
-    }
-}
-
-void TMapNodeChildren::UnrefChildren(const NObjectServer::IObjectManagerPtr& objectManager)
-{
-    // Make sure we handle children in a stable order.
-    auto sortedIterators = GetSortedIterators(
-        ChildToKey_,
-        [] (const TChildToKey::value_type& a, const TChildToKey::value_type& b) {
-            return TObjectIdComparer::Compare(a.first, b.first);
-        });
-
-    for (auto it : sortedIterators) {
-        objectManager->UnrefObject(it->first);
-    }
+    return dstChildren;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TMapNode::~TMapNode()
-{
-    // Usually, Children_.Reset() has already been called by now, so Clear is a no-op.
-    // This is only relevant when the whole automaton is being cleared.
-    Children_.Clear();
-}
 
 const TMapNode::TKeyToChild& TMapNode::KeyToChild() const
 {
@@ -996,9 +921,9 @@ const TMapNode::TChildToKey& TMapNode::ChildToKey() const
     return Children_.Get().ChildToKey();
 }
 
-TMapNodeChildren& TMapNode::MutableChildren(const IObjectManagerPtr& objectManager)
+TMapNodeChildren& TMapNode::MutableChildren()
 {
-    return Children_.MutableGet(objectManager);
+    return Children_.MutableGet();
 }
 
 ENodeType TMapNode::GetNodeType() const
@@ -1037,12 +962,10 @@ TDetailedMasterMemory TMapNode::GetDetailedMasterMemoryUsage() const
     return result;
 }
 
-void TMapNode::AssignChildren(
-    const TObjectPartCoWPtr<TMapNodeChildren>& children,
-    const IObjectManagerPtr& objectManager)
+void TMapNode::AssignChildren(const TObjectPartCoWPtr<TMapNodeChildren>& children)
 {
-    Children_.Assign(children, objectManager);
-    MutableChildren(objectManager).RecomputeMasterMemoryUsage();
+    Children_.Assign(children);
+    MutableChildren().RecomputeMasterMemoryUsage();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1063,7 +986,7 @@ template <class TImpl>
 void TMapNodeTypeHandlerImpl<TImpl>::DoDestroy(TImpl* node)
 {
     node->ChildCountDelta_ = 0;
-    node->Children_.Reset(this->Bootstrap_->GetObjectManager());
+    node->Children_.Reset();
 
     TBase::DoDestroy(node);
 }
@@ -1079,10 +1002,9 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
     YT_VERIFY(!branchedNode->Children_);
 
     if (lockRequest.Mode == ELockMode::Snapshot) {
-        const auto& objectManager = this->Bootstrap_->GetObjectManager();
         if (originatingNode->IsTrunk()) {
             branchedNode->ChildCountDelta() = originatingNode->ChildCountDelta();
-            branchedNode->AssignChildren(originatingNode->Children_, objectManager);
+            branchedNode->AssignChildren(originatingNode->Children_);
         } else {
             const auto& cypressManager = this->Bootstrap_->GetCypressManager();
 
@@ -1094,9 +1016,9 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoBranch(
                 &keyToChildStorage);
 
             branchedNode->ChildCountDelta() = originatingNodeChildren.size();
-            auto& children = branchedNode->MutableChildren(objectManager);
+            auto& children = branchedNode->MutableChildren();
             for (const auto& [key, childNode] : SortHashMapByKeys(originatingNodeChildren)) {
-                children.Insert(objectManager, key, childNode);
+                children.Insert(key, childNode);
             }
         }
     }
@@ -1111,30 +1033,28 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
 {
     TBase::DoMerge(originatingNode, branchedNode);
 
-    const auto& objectManager = this->Bootstrap_->GetObjectManager();
-
     bool isOriginatingNodeBranched = originatingNode->GetTransaction() != nullptr;
 
-    auto& children = originatingNode->MutableChildren(objectManager);
+    auto& children = originatingNode->MutableChildren();
     const auto& keyToChild = originatingNode->KeyToChild();
 
     for (const auto& [key, trunkChildNode] : SortHashMapByKeys(branchedNode->KeyToChild())) {
         auto it = keyToChild.find(key);
         if (trunkChildNode) {
-            children.Set(objectManager, key, trunkChildNode);
+            children.Set(key, trunkChildNode);
         } else {
             // Branched: tombstone
             if (it == keyToChild.end()) {
                 // Originating: missing
                 if (isOriginatingNodeBranched) {
-                    children.Insert(objectManager, key, nullptr);
+                    children.Insert(key, nullptr);
                 }
             } else if (it->second) {
                 // Originating: present
                 if (isOriginatingNodeBranched) {
-                    children.Set(objectManager, key, nullptr);
+                    children.Set(key, nullptr);
                 } else {
-                    children.Remove(objectManager, key, it->second);
+                    children.Remove(key, it->second);
                 }
             } else {
                 // Originating: tombstone
@@ -1144,7 +1064,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoMerge(
 
     originatingNode->ChildCountDelta() += branchedNode->ChildCountDelta();
 
-    branchedNode->Children_.Reset(objectManager);
+    branchedNode->Children_.Reset();
 }
 
 template <class TImpl>
@@ -1181,8 +1101,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
         &keyToChildMapStorage);
     auto keyToChildList = SortHashMapByKeys(keyToChildMap);
 
-    const auto& objectManager = this->Bootstrap_->GetObjectManager();
-    auto& clonedChildren = clonedTrunkNode->MutableChildren(objectManager);
+    auto& clonedChildren = clonedTrunkNode->MutableChildren();
 
     for (const auto& [key, trunkChildNode] : keyToChildList) {
         auto* childNode = cypressManager->GetVersionedNode(trunkChildNode, transaction);
@@ -1190,7 +1109,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoClone(
         auto* clonedChildNode = factory->CloneNode(childNode, mode);
         auto* clonedTrunkChildNode = clonedChildNode->GetTrunkNode();
 
-        clonedChildren.Insert(objectManager, key, clonedTrunkChildNode);
+        clonedChildren.Insert(key, clonedTrunkChildNode);
 
         AttachChild(clonedTrunkNode, clonedChildNode);
 
@@ -1248,8 +1167,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
 
     using NYT::Load;
 
-    const auto& objectManager = this->Bootstrap_->GetObjectManager();
-    auto& children = trunkNode->MutableChildren(objectManager);
+    auto& children = trunkNode->MutableChildren();
 
     size_t size = TSizeSerializer::Load(*context);
     for (size_t index = 0; index < size; ++index) {
@@ -1258,7 +1176,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
         auto* childNode = factory->EndCopyNode(context);
         auto* trunkChildNode = childNode->GetTrunkNode();
 
-        children.Insert(objectManager, key, trunkChildNode);
+        children.Insert(key, trunkChildNode);
 
         AttachChild(trunkNode->GetTrunkNode(), childNode);
 

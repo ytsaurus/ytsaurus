@@ -14,7 +14,7 @@ TObjectPart TObjectPartCoWPtr<TObjectPart>::DefaultObjectPart;
 template <class TObjectPart>
 TObjectPartCoWPtr<TObjectPart>::~TObjectPartCoWPtr()
 {
-    YT_VERIFY(!ObjectPart_);
+    Reset();
 }
 
 template <class TObjectPart>
@@ -30,21 +30,20 @@ inline const TObjectPart& TObjectPartCoWPtr<TObjectPart>::Get() const
 }
 
 template <class TObjectPart>
-TObjectPart& TObjectPartCoWPtr<TObjectPart>::MutableGet(
-    const NObjectServer::IObjectManagerPtr& objectManager)
+TObjectPart& TObjectPartCoWPtr<TObjectPart>::MutableGet()
 {
-    MaybeCopyOnWrite(objectManager);
+    MaybeCopyOnWrite();
     return *ObjectPart_;
 }
 
 template <class TObjectPart>
-void TObjectPartCoWPtr<TObjectPart>::Assign(const TObjectPartCoWPtr& rhs, const NObjectServer::IObjectManagerPtr& objectManager)
+void TObjectPartCoWPtr<TObjectPart>::Assign(const TObjectPartCoWPtr& rhs)
 {
     if (ObjectPart_ == rhs.ObjectPart_) {
         return;
     }
 
-    Reset(objectManager);
+    Reset();
     ObjectPart_ = rhs.ObjectPart_;
 
     if (ObjectPart_) {
@@ -53,25 +52,12 @@ void TObjectPartCoWPtr<TObjectPart>::Assign(const TObjectPartCoWPtr& rhs, const 
 }
 
 template <class TObjectPart>
-void TObjectPartCoWPtr<TObjectPart>::Reset(const NObjectServer::IObjectManagerPtr& objectManager)
+void TObjectPartCoWPtr<TObjectPart>::Reset()
 {
     if (ObjectPart_) {
         ObjectPart_->Unref();
         if (ObjectPart_->GetRefCount() == 0) {
-            TObjectPart::Destroy(ObjectPart_, objectManager);
-        }
-
-        ObjectPart_ = nullptr;
-    }
-}
-
-template <class TObjectPart>
-void TObjectPartCoWPtr<TObjectPart>::Clear()
-{
-    if (ObjectPart_) {
-        ObjectPart_->Unref();
-        if (ObjectPart_->GetRefCount() == 0) {
-            TObjectPart::Clear(ObjectPart_);
+            delete ObjectPart_;
         }
 
         ObjectPart_ = nullptr;
@@ -121,12 +107,12 @@ void TObjectPartCoWPtr<TObjectPart>::Load(NCellMaster::TLoadContext& context)
 }
 
 template <class TObjectPart>
-void TObjectPartCoWPtr<TObjectPart>::MaybeCopyOnWrite(const NObjectServer::IObjectManagerPtr& objectManager)
+void TObjectPartCoWPtr<TObjectPart>::MaybeCopyOnWrite()
 {
     if (!ObjectPart_) {
         ResetToDefaultConstructed();
     } else if (ObjectPart_->GetRefCount() > 1) {
-        auto* objectPartCopy = TObjectPart::Copy(ObjectPart_, objectManager);
+        auto* objectPartCopy = TObjectPart::Copy(ObjectPart_).release();
         objectPartCopy->Ref();
 
         ObjectPart_->Unref();
