@@ -417,7 +417,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
         create("table", "//tmp/t1", driver=self.remote_driver)
         write_table(
             "//tmp/t1",
-            [{"a": i} for i in range(50)],
+            [{"a": i} for i in range(10)],
             max_row_buffer_size=1,
             table_writer={"desired_chunk_size": 1},
             driver=self.remote_driver,
@@ -435,7 +435,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
                 track=False,
                 in_="//tmp/t1",
                 out="//tmp/t2",
-                spec={"cluster_connection": cluster_connection, "job_count": 50},
+                spec={"cluster_connection": cluster_connection, "job_count": 10, "resource_limits": {"user_slots": 1}},
             )
 
             wait(lambda: op.get_state() == "running")
@@ -454,7 +454,7 @@ class TestSchedulerRemoteCopyCommands(TestSchedulerRemoteCopyCommandsBase):
             # TODO(babenko): wait for cluster sync
             time.sleep(2)
 
-        assert read_table("//tmp/t2") == [{"a": i} for i in range(50)]
+        assert read_table("//tmp/t2") == [{"a": i} for i in range(10)]
 
     @authors("ignat")
     def test_failed_cases(self):
