@@ -18,8 +18,8 @@ struct IJobProfiler
     //! Stops job profiling.
     virtual void Stop() = 0;
 
-    //! Returns name of user job profiler if any and |std::nullopt| if none.
-    virtual std::optional<TString> GetUserJobProfilerName() const = 0;
+    //! Returns spec of user job profiler if any and nullptr if none.
+    virtual NScheduler::TJobProfilerSpecPtr GetUserJobProfilerSpec() const = 0;
 
     //! Returns stream for user job profile if user job profile is required.
     virtual IOutputStream* GetUserJobProfileOutput() const = 0;

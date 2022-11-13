@@ -2,7 +2,8 @@
 
 #include "private.h"
 
-#include <yt/ytlib/scheduler/proto/job.pb.h>
+#include <yt/yt/ytlib/scheduler/config.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/library/process/subprocess.h>
 
@@ -16,16 +17,9 @@
 
 namespace NYT::NJobProxy {
 
-using namespace NScheduler::NProto;
+using namespace NScheduler;
 using namespace NJobAgent;
 using namespace NYTProf;
-
-////////////////////////////////////////////////////////////////////////////////
-
-constexpr TStringBuf JobProxyCpuProfiler = "job_proxy_cpu";
-constexpr TStringBuf JobProxyMemoryProfiler = "job_proxy_memory";
-constexpr TStringBuf UserJobCpuProfiler = "user_job_cpu";
-constexpr TStringBuf UserJobMemoryProfiler = "user_job_memory";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,10 +31,12 @@ class TJobProfiler
     : public IJobProfiler
 {
 public:
-    explicit TJobProfiler(const TSchedulerJobSpecExt* schedulerJobSpecExt)
+    explicit TJobProfiler(const NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
     {
-        for (const auto& profilerSpec : schedulerJobSpecExt->job_profilers()) {
-            InitializeProfiler(&profilerSpec);
+        for (const auto& protoProfilerSpec : schedulerJobSpecExt->job_profilers()) {
+            auto profilerSpec = New<TJobProfilerSpec>();
+            FromProto(profilerSpec.Get(), protoProfilerSpec);
+            InitializeProfiler(profilerSpec);
         }
     }
 
@@ -82,13 +78,13 @@ public:
             JobProxyCpuProfiler_->Stop();
 
             auto profile = JobProxyCpuProfiler_->ReadProfile();
-            SymbolizeProfile(&profile);
+            SymbolizeProfile(&profile, JobProxyCpuProfilerSpec_);
             JobProxyCpuProfile_->Blob = SerializeProfile(profile);
         }
 
         if (JobProxyMemoryProfile_) {
             auto profile = ConvertAllocationProfile(std::move(*JobProxyMemoryProfilingToken_).Stop());
-            SymbolizeProfile(&profile);
+            SymbolizeProfile(&profile, JobProxyMemoryProfilerSpec_);
             JobProxyMemoryProfile_->Blob = SerializeProfile(profile);
         }
 
@@ -103,13 +99,9 @@ public:
         }
     }
 
-    std::optional<TString> GetUserJobProfilerName() const override
+    TJobProfilerSpecPtr GetUserJobProfilerSpec() const override
     {
-        if (UserJobProfile_) {
-            return UserJobProfile_->Type;
-        } else {
-            return {};
-        }
+        return UserJobProfilerSpec_;
     }
 
     IOutputStream* GetUserJobProfileOutput() const override
@@ -141,77 +133,91 @@ private:
     // Job proxy CPU profiler.
     std::optional<TJobProfile> JobProxyCpuProfile_;
     std::unique_ptr<TCpuProfiler> JobProxyCpuProfiler_;
+    TJobProfilerSpecPtr JobProxyCpuProfilerSpec_;
 
     // Job proxy memory profiler.
     std::optional<TJobProfile> JobProxyMemoryProfile_;
     std::optional<tcmalloc::MallocExtension::AllocationProfilingToken> JobProxyMemoryProfilingToken_;
+    TJobProfilerSpecPtr JobProxyMemoryProfilerSpec_;
 
     // User job profiler.
     std::optional<TJobProfile> UserJobProfile_;
     std::unique_ptr<TStringStream> UserJobProfileStream_;
+    TJobProfilerSpecPtr UserJobProfilerSpec_;
 
-    void InitializeProfiler(const TJobProfilerSpec* spec)
+    void InitializeProfiler(const TJobProfilerSpecPtr& spec)
     {
-        if (spec->profiler_name() == JobProxyCpuProfiler) {
-            InitializeJobProxyCpuProfiler(spec);
-        } else if (spec->profiler_name() == JobProxyMemoryProfiler) {
-            InitializeJobProxyMemoryProfiler(spec);
-        } else if (
-            spec->profiler_name() == UserJobCpuProfiler ||
-            spec->profiler_name() == UserJobMemoryProfiler)
-        {
+        if (spec->Binary == EProfilingBinary::JobProxy) {
+            if (spec->Type == EProfilerType::Cpu) {
+                InitializeJobProxyCpuProfiler(spec);
+            } else if (spec->Type == EProfilerType::Memory) {
+                InitializeJobProxyMemoryProfiler(spec);
+            }
+        } else if (spec->Binary == EProfilingBinary::UserJob) {
             InitializeUserJobProfiler(spec);
         }
     }
 
-    void InitializeJobProxyCpuProfiler(const TJobProfilerSpec* spec)
+    void InitializeJobProxyCpuProfiler(const TJobProfilerSpecPtr& spec)
     {
-        YT_VERIFY(spec->profiler_name() == JobProxyCpuProfiler);
-
-        JobProxyCpuProfiler_ = std::make_unique<TCpuProfiler>();
+        TCpuProfilerOptions options{
+            .SamplingFrequency = spec->SamplingFrequency,
+        };
+        JobProxyCpuProfiler_ = std::make_unique<TCpuProfiler>(options);
         JobProxyCpuProfile_ = TJobProfile{
-            .Type = spec->profiler_name(),
-            .ProfilingProbability = spec->profiling_probability(),
+            .Type = GetProfileTypeString(spec),
+            .ProfilingProbability = spec->ProfilingProbability,
         };
+        JobProxyCpuProfilerSpec_ = spec;
     }
 
-    void InitializeJobProxyMemoryProfiler(const TJobProfilerSpec* spec)
+    void InitializeJobProxyMemoryProfiler(const TJobProfilerSpecPtr& spec)
     {
-        YT_VERIFY(spec->profiler_name() == JobProxyMemoryProfiler);
-
         JobProxyMemoryProfile_ = TJobProfile{
-            .Type = spec->profiler_name(),
-            .ProfilingProbability = spec->profiling_probability(),
+            .Type = GetProfileTypeString(spec),
+            .ProfilingProbability = spec->ProfilingProbability,
         };
+        JobProxyMemoryProfilerSpec_ = spec;
     }
 
-    void InitializeUserJobProfiler(const TJobProfilerSpec* spec)
+    void InitializeUserJobProfiler(const TJobProfilerSpecPtr& spec)
     {
-        YT_VERIFY(
-            spec->profiler_name() == UserJobCpuProfiler ||
-            spec->profiler_name() == UserJobMemoryProfiler);
+        if (spec->Type != EProfilerType::Cpu && spec->Type != EProfilerType::Memory) {
+            return;
+        }
 
         UserJobProfileStream_ = std::make_unique<TStringStream>();
         UserJobProfile_ = TJobProfile{
-            .Type = spec->profiler_name(),
-            .ProfilingProbability = spec->profiling_probability(),
+            .Type = GetProfileTypeString(spec),
+            .ProfilingProbability = spec->ProfilingProbability,
         };
+        UserJobProfilerSpec_ = spec;
     }
 
-    void SymbolizeProfile(NYTProf::NProto::Profile* profile)
+    void SymbolizeProfile(
+        NYTProf::NProto::Profile* profile,
+        const TJobProfilerSpecPtr& spec)
     {
         Symbolize(profile, /*filesOnly*/ true);
         AddBuildInfo(profile, TBuildInfo::GetDefault());
 
-        SymbolizeByExternalPProf(profile, TSymbolizationOptions{
-            .RunTool = RunSubprocess,
-        });
+        if (spec->RunExternalSymbolizer) {
+            SymbolizeByExternalPProf(profile, TSymbolizationOptions{
+                .RunTool = RunSubprocess,
+            });
+        }
+    }
+
+    static TString GetProfileTypeString(const TJobProfilerSpecPtr& spec)
+    {
+        return Format("%lv_%lv", spec->Binary, spec->Type);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-std::unique_ptr<IJobProfiler> CreateJobProfiler(const TSchedulerJobSpecExt* schedulerJobSpecExt)
+std::unique_ptr<IJobProfiler> CreateJobProfiler(
+    const NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpecExt)
 {
     return std::make_unique<TJobProfiler>(schedulerJobSpecExt);
 }

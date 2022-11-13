@@ -94,8 +94,11 @@ message TUserJobMonitoringConfig
 
 message TJobProfilerSpec
 {
-    required string profiler_name = 1;
-    required double profiling_probability = 2;
+    required int32 binary = 1; // EProfilingBinary
+    required int32 type = 2; // EProfilerType
+    required double profiling_probability = 3;
+    required int32 sampling_frequency = 4;
+    required bool run_external_symbolizer = 5;
 }
 
 // Specification for starting user code during a job.

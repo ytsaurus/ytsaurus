@@ -73,6 +73,19 @@ static void ValidateNoOutputStreams(const TUserJobSpecPtr& spec, EOperationType 
     }
 }
 
+static void ValidateProfilers(const std::vector<TJobProfilerSpecPtr>& profilers)
+{
+    double totalProbability = 0.0;
+    for (const auto& profiler : profilers) {
+        totalProbability += profiler->ProfilingProbability;
+    }
+
+    if (totalProbability > 1.0) {
+        THROW_ERROR_EXCEPTION("Total probability of enabled profilers is too large")
+            << TErrorAttribute("total_probability", totalProbability);
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static const int MaxAllowedProfilingTagCount = 200;
@@ -457,6 +470,41 @@ const std::vector<TString>& TUserJobMonitoringConfig::GetDefaultSensorNames()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TJobProfilerSpec::Register(TRegistrar registrar)
+{
+    registrar.Parameter("binary", &TThis::Binary);
+    registrar.Parameter("type", &TThis::Type);
+
+    registrar.Parameter("profiling_probability", &TThis::ProfilingProbability)
+        .InRange(0.0, 1.0);
+
+    registrar.Parameter("sampling_frequency", &TThis::SamplingFrequency)
+        .Default(100);
+
+    registrar.Parameter("run_external_symbolizer", &TThis::RunExternalSymbolizer)
+        .Default(false);
+}
+
+void ToProto(NProto::TJobProfilerSpec* protoJobProfilerSpec, const TJobProfilerSpec& jobProfilerSpec)
+{
+    protoJobProfilerSpec->set_binary(::NYT::ToProto<int>(jobProfilerSpec.Binary));
+    protoJobProfilerSpec->set_type(::NYT::ToProto<int>(jobProfilerSpec.Type));
+    protoJobProfilerSpec->set_profiling_probability(jobProfilerSpec.ProfilingProbability);
+    protoJobProfilerSpec->set_sampling_frequency(jobProfilerSpec.SamplingFrequency);
+    protoJobProfilerSpec->set_run_external_symbolizer(jobProfilerSpec.RunExternalSymbolizer);
+}
+
+void FromProto(TJobProfilerSpec* jobProfilerSpec, const NProto::TJobProfilerSpec& protoJobProfilerSpec)
+{
+    jobProfilerSpec->Binary = static_cast<EProfilingBinary>(protoJobProfilerSpec.binary());
+    jobProfilerSpec->Type = static_cast<EProfilerType>(protoJobProfilerSpec.type());
+    jobProfilerSpec->ProfilingProbability = protoJobProfilerSpec.profiling_probability();
+    jobProfilerSpec->SamplingFrequency = protoJobProfilerSpec.sampling_frequency();
+    jobProfilerSpec->RunExternalSymbolizer = protoJobProfilerSpec.run_external_symbolizer();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TColumnarStatisticsConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enabled", &TThis::Enabled)
@@ -654,10 +702,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("user_file_columnar_statistics", &TThis::UserFileColumnarStatistics)
         .DefaultNew();
 
-    registrar.Parameter("enabled_profilers", &TThis::EnabledProfilers)
-        .Default();
-    registrar.Parameter("profiling_probability", &TThis::ProfilingProbability)
-        .Default();
     registrar.Parameter("force_job_proxy_tracing", &TThis::ForceJobProxyTracing)
         .Default(false);
     registrar.Parameter("suspend_on_job_failure", &TThis::SuspendOnJobFailure)
@@ -676,6 +720,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(NChunkClient::EChunkAvailabilityPolicy::DataPartsAvailable);
 
     registrar.Parameter("sanity_check_delay", &TThis::SanityCheckDelay)
+        .Default();
+
+    registrar.Parameter("profilers", &TThis::Profilers)
         .Default();
 
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
@@ -706,6 +753,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         ProcessAclAndOwnersParameters(&spec->Acl, &spec->Owners);
         ValidateSecurityTags(spec->AdditionalSecurityTags);
 
+        ValidateProfilers(spec->Profilers);
+
         {
             THashSet<TString> jobShellNames;
             for (const auto& jobShell : spec->JobShells) {
@@ -719,10 +768,6 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         if (spec->UseColumnarStatistics) {
             spec->InputTableColumnarStatistics->Enabled = true;
             spec->UserFileColumnarStatistics->Enabled = true;
-        }
-
-        if (spec->ProfilingProbability && *spec->ProfilingProbability * spec->EnabledProfilers.size() > 1.0) {
-            THROW_ERROR_EXCEPTION("Profiling probability is too high");
         }
     });
 }
@@ -880,7 +925,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("system_layer_path", &TThis::SystemLayerPath)
         .Default();
 
-    registrar.Parameter("supported_profilers", &TThis::SupportedProfilers)
+    registrar.Parameter("profilers", &TThis::Profilers)
         .Default();
 
     registrar.Postprocessor([] (TUserJobSpec* spec) {
@@ -982,6 +1027,10 @@ void TUserJobSpec::Register(TRegistrar registrar)
 
         if (spec->MakeRootFSWritable && spec->LayerPaths.empty()) {
             THROW_ERROR_EXCEPTION("Option \"make_rootfs_writable\" cannot be set without specifying \"layer_paths\"");
+        }
+
+        if (spec->Profilers) {
+            ValidateProfilers(*spec->Profilers);
         }
     });
 }
