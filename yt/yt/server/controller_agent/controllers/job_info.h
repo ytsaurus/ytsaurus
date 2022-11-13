@@ -137,8 +137,9 @@ struct TJoblet
 
     // These fields are used only to build job spec and thus transient.
     std::optional<TString> UserJobMonitoringDescriptor;
-    std::optional<TString> EnabledProfiler;
     std::optional<TString> PoolPath;
+
+    NScheduler::TJobProfilerSpecPtr EnabledJobProfiler;
 
     // Used only for persistence.
     TJoblet() = default;
@@ -163,7 +164,7 @@ struct TJoblet
     TStatistics BuildCombinedStatistics() const;
 
     TJobStatisticsTags GetAggregationTags(EJobState state);
-    
+
     bool ShouldLogFinishedEvent() const;
 };
 

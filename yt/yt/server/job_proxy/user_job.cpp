@@ -1181,11 +1181,11 @@ private:
             Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
         }
 
-        if (auto jobProfiler = JobProfiler_->GetUserJobProfilerName()) {
-            Environment_.push_back(Format("YT_JOB_PROFILER=%v", *jobProfiler));
+        if (auto jobProfilerSpec = JobProfiler_->GetUserJobProfilerSpec()) {
+            auto spec = ConvertToYsonString(jobProfilerSpec, EYsonFormat::Text);
+            Environment_.push_back(Format("YT_JOB_PROFILER_SPEC=%v", spec));
 
-            YT_LOG_INFO("User job profiler is enabled (ProfilerName: %v)",
-                *jobProfiler);
+            YT_LOG_INFO("User job profiler is enabled (Spec: %v)", spec);
         }
 
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();

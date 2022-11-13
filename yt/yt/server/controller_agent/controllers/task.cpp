@@ -621,7 +621,7 @@ void TTask::ScheduleJob(
         joblet->UserJobMonitoringDescriptor = TaskHost_->RegisterJobForMonitoring(joblet->JobId);
     }
 
-    joblet->EnabledProfiler = SelectProfiler();
+    joblet->EnabledJobProfiler = SelectProfiler();
 
     if (userJobSpec && userJobSpec->JobSpeculationTimeout) {
         joblet->JobSpeculationTimeout = userJobSpec->JobSpeculationTimeout;
@@ -2010,34 +2010,25 @@ int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const T
     return splitJobCount;
 }
 
-std::optional<TString> TTask::SelectProfiler()
+TJobProfilerSpecPtr TTask::SelectProfiler()
 {
     const auto& spec = TaskHost_->GetSpec();
-    auto profilingProbability = spec->ProfilingProbability;
-    if (!profilingProbability) {
-        return {};
+    const auto* profilers = &spec->Profilers;
+    if (HasUserJob()) {
+        const auto& userJobSpec = GetUserJobSpec();
+        if (userJobSpec->Profilers) {
+            profilers = &*userJobSpec->Profilers;
+        }
     }
 
-    const auto& userJobSpec = GetUserJobSpec();
     auto p = RandomNumber<double>();
 
-    for (const auto& profiler : spec->EnabledProfilers) {
-        if (HasUserJob()) {
-            const auto& supportedProfilers = userJobSpec->SupportedProfilers;
-
-            // TODO(gritukan): Job proxy profilers are always supported, but this check is a bit ugly.
-            if (!profiler.StartsWith("job_proxy") &&
-                std::count(supportedProfilers.begin(), supportedProfilers.end(), profiler) != 1)
-            {
-                continue;
-            }
-        }
-
-        if (p < *profilingProbability) {
+    for (const auto& profiler : *profilers) {
+        if (p < profiler->ProfilingProbability) {
             return profiler;
         }
 
-        p -= *profilingProbability;
+        p -= profiler->ProfilingProbability;
     }
 
     return {};

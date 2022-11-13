@@ -12,7 +12,6 @@
 
 #include <yt/yt/ytlib/security_client/public.h>
 
-
 #include <yt/yt/client/formats/format.h>
 #include <yt/yt/client/formats/config.h>
 
@@ -42,9 +41,12 @@ namespace NYT::NScheduler {
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {
+
 class TDiskRequest;
 class TTmpfsVolume;
-}
+class TJobProfilerSpec;
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -758,6 +760,47 @@ DEFINE_REFCOUNTED_TYPE(TUserJobMonitoringConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(EProfilingBinary,
+    ((JobProxy)         (0))
+    ((UserJob)          (1))
+);
+
+DEFINE_ENUM(EProfilerType,
+    ((Cpu)              (0))
+    ((Memory)           (1))
+);
+
+class TJobProfilerSpec
+    : public NYTree::TYsonStruct
+{
+public:
+    //! Binary to profile.
+    EProfilingBinary Binary;
+
+    //! Resource to profile.
+    EProfilerType Type;
+
+    //! Probability of profiler enabling.
+    double ProfilingProbability;
+
+    //! Number of the samples per second.
+    int SamplingFrequency;
+
+    //! If true, profile will be symbolized by llvm-symbolizer.
+    bool RunExternalSymbolizer;
+
+    REGISTER_YSON_STRUCT(TJobProfilerSpec);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobProfilerSpec)
+
+void ToProto(NProto::TJobProfilerSpec* protoJobProfilerSpec, const TJobProfilerSpec& jobProfilerSpec);
+void FromProto(TJobProfilerSpec* jobProfilerSpec, const NProto::TJobProfilerSpec& protoJobProfilerSpec);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TColumnarStatisticsConfig
     : public NYTree::TYsonStruct
 {
@@ -949,12 +992,6 @@ public:
     //! Columnar statistics config for user files.
     TColumnarStatisticsConfigPtr UserFileColumnarStatistics;
 
-    //! List of profiler enabled on cluster.
-    std::vector<TString> EnabledProfilers;
-
-    //! Probability of enabling single profiler inside of the job.
-    std::optional<double> ProfilingProbability;
-
     //! Enable job proxy tracing for all jobs.
     bool ForceJobProxyTracing;
 
@@ -974,6 +1011,9 @@ public:
 
     //! Delay for performing sanity checks for operations (useful in tests).
     TDuration SanityCheckDelay;
+
+    //! List of the enabled profilers.
+    std::vector<TJobProfilerSpecPtr> Profilers;
 
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
@@ -1125,7 +1165,8 @@ public:
 
     std::optional<TString> SystemLayerPath;
 
-    std::vector<TString> SupportedProfilers;
+    //! If set, overrides |Profilers| from operation spec.
+    std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
 
     void InitEnableInputTableIndex(int inputTableCount, TJobIOConfigPtr jobIOConfig);
 

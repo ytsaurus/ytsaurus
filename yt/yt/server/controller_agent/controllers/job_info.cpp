@@ -162,6 +162,7 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, StreamDescriptors);
     Persist(context, DiskQuota);
     Persist(context, DiskRequestAccount);
+    Persist(context, EnabledJobProfiler);
 
     if (context.IsLoad()) {
         Revived = true;

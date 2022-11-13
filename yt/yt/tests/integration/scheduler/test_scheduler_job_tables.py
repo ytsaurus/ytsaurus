@@ -1223,23 +1223,31 @@ class TestJobProfiling(YTEnvSetup):
 
         mapper_command = """
             cat;
-            if test "$YT_JOB_PROFILER" == "user_job_cpu"
+            if [[ "$YT_JOB_PROFILER_SPEC" == *"cpu"* ]];
             then printf 'mapper_cpu' >&8
             fi
         """
         reducer_command = """
             cat;
-            if test "$YT_JOB_PROFILER" == "user_job_memory"
+            if [[ "$YT_JOB_PROFILER_SPEC" == *"memory"* ]];
             then printf 'reducer_memory' >&8
             fi
         """
 
         spec = {
             "mapper": {
-                "supported_profilers": ["user_job_cpu"],
+                "profilers": [{
+                    "binary": "user_job",
+                    "type": "cpu",
+                    "profiling_probability": 0.5,
+                }],
             },
             "reducer": {
-                "supported_profilers": ["user_job_memory"],
+                "profilers": [{
+                    "binary": "user_job",
+                    "type": "memory",
+                    "profiling_probability": 0.5,
+                }],
             },
 
             "enabled_profilers": ["user_job_cpu", "user_job_memory"],

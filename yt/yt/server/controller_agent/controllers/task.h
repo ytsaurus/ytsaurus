@@ -445,7 +445,7 @@ private:
         const TExtendedJobResources& jobResources,
         double jobProxyMemoryReserveFactor,
         std::optional<double> userJobMemoryReserveFactor) const;
-    
+
     void OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& jobSummary);
 
     void UpdateMaximumUsedTmpfsSizes(const TStatistics& statistics);
@@ -464,7 +464,7 @@ private:
 
     TString GetOrCacheSerializedSchema(const NTableClient::TTableSchemaPtr& schema);
 
-    std::optional<TString> SelectProfiler();
+    NScheduler::TJobProfilerSpecPtr SelectProfiler();
 
     void OnPendingJobCountUpdated();
 

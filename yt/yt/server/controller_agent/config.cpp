@@ -959,6 +959,9 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
     registrar.Parameter("footprint_memory", &TThis::FootprintMemory)
         .Default();
 
+    registrar.Parameter("enable_job_profiling", &TThis::EnableJobProfiling)
+        .Default();
+
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;
         if (!config->EventLog->Path) {

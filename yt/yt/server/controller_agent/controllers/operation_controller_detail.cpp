@@ -4333,10 +4333,9 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
 
-    if (joblet->EnabledProfiler) {
+    if (joblet->EnabledJobProfiler) {
         auto* profiler = schedulerJobSpecExt->add_job_profilers();
-        profiler->set_profiler_name(*joblet->EnabledProfiler);
-        profiler->set_profiling_probability(*Spec_->ProfilingProbability);
+        ToProto(profiler, *joblet->EnabledJobProfiler);
     }
 
     if (joblet->Task->GetUserJobSpec()) {

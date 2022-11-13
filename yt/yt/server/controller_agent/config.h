@@ -1067,6 +1067,9 @@ public:
     // Supposed to be used in tests.
     std::optional<i64> FootprintMemory;
 
+    //! Enables job profiling.
+    bool EnableJobProfiling;
+
     REGISTER_YSON_STRUCT(TControllerAgentConfig)
 
     static void Register(TRegistrar registrar);
