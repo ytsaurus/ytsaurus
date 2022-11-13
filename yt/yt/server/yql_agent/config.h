@@ -42,6 +42,8 @@ public:
     //! Used to create channels to other queue agents.
     NBus::TTcpBusConfigPtr BusClient;
 
+    std::vector<TString> AdditionalClusters;
+
     int YqlThreadCount;
 
     REGISTER_YSON_STRUCT(TYqlAgentConfig)

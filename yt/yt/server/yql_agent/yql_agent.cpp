@@ -54,12 +54,20 @@ public:
 //            });
 //        }
 
+        TVector<NYql::NEmbedded::TYtClusterOptions> ytClusters;
+        for (const auto& cluster : Config_->AdditionalClusters) {
+            ytClusters.emplace_back(NYql::NEmbedded::TYtClusterOptions{
+                .Name_ = cluster,
+                .Cluster_ = cluster,
+            });
+        }
+
         auto options = NYql::NEmbedded::TOperationFactoryOptions{
             .MrJobBinary_ = Config_->MRJobBinary,
             .LogLevel_ = ELogPriority::TLOG_DEBUG,
             .YtLogLevel_ = ILogger::DEBUG,
             .ResultFormat_ = NYson::EYsonFormat::Text,
-            // .YtClusters_ = ytClusters,
+            .YtClusters_ = ytClusters,
             .YtToken_ = Config_->YTToken,
         };
 

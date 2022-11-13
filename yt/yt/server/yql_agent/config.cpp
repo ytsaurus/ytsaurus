@@ -35,6 +35,8 @@ void TYqlAgentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
+    registrar.Parameter("additional_clusters", &TThis::AdditionalClusters)
+        .Default();
     registrar.Parameter("yql_thread_count", &TThis::YqlThreadCount)
         .Default(256);
 }
