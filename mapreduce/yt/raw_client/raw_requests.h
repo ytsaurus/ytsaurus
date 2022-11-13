@@ -2,10 +2,9 @@
 
 #include "raw_batch_request.h"
 
-#include <mapreduce/yt/interface/fwd.h>
+#include <mapreduce/yt/common/fwd.h>
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/interface/operation.h>
-#include <mapreduce/yt/interface/retry_policy.h>
 
 namespace NYT {
 

@@ -5,6 +5,7 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/debug_metrics.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
 #include <mapreduce/yt/http/retry_request.h>

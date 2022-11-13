@@ -2,7 +2,7 @@
 
 #include <mapreduce/yt/interface/client_method_options.h>
 #include <mapreduce/yt/interface/errors.h>
-#include <mapreduce/yt/interface/retry_policy.h>
+#include <mapreduce/yt/common/retry_lib.h>
 
 #include <library/cpp/testing/unittest/registar.h>
 

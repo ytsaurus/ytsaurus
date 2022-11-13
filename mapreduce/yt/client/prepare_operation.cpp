@@ -1,5 +1,7 @@
 #include "prepare_operation.h"
 
+#include <mapreduce/yt/common/retry_lib.h>
+
 #include <mapreduce/yt/interface/serialize.h>
 
 #include <mapreduce/yt/raw_client/raw_requests.h>

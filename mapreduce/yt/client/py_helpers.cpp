@@ -7,6 +7,7 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/fluent.h>
 
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/helpers.h>
 
 #include <library/cpp/yson/node/node_io.h>

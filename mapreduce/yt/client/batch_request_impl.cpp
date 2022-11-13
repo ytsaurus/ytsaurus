@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/retry_lib.h>
 
 #include <mapreduce/yt/http/retry_request.h>
 

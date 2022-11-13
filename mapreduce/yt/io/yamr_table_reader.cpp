@@ -1,6 +1,7 @@
 #include "yamr_table_reader.h"
 
 #include <mapreduce/yt/common/helpers.h>
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
 ////////////////////////////////////////////////////////////////////

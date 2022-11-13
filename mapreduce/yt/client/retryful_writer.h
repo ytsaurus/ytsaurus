@@ -2,11 +2,11 @@
 
 #include "transaction.h"
 
-#include <mapreduce/yt/io/helpers.h>
-
+#include <mapreduce/yt/common/retry_lib.h>
+#include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/io.h>
-#include <mapreduce/yt/http/http.h>
+#include <mapreduce/yt/io/helpers.h>
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <library/cpp/threading/blocking_queue/blocking_queue.h>
@@ -71,7 +71,7 @@ public:
     ~TRetryfulWriter() override;
     void NotifyRowEnd() override;
     void Abort() override;
-    
+
     size_t GetRetryBlockRemainingSize() const
     {
       return (BufferSize_ > Buffer_.size()) ? (BufferSize_ - Buffer_.size()) : 0;

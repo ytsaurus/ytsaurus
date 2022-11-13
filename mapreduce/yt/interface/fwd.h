@@ -376,12 +376,6 @@ namespace NYT {
         TJobBinaryLocalPath,
         TJobBinaryCypressPath>;
 
-    class IRequestRetryPolicy;
-    using IRequestRetryPolicyPtr = ::TIntrusivePtr<IRequestRetryPolicy>;
-
-    class IClientRetryPolicy;
-    using IClientRetryPolicyPtr = ::TIntrusivePtr<IClientRetryPolicy>;
-
     struct TRetryConfig;
     class IRetryConfigProvider;
     using IRetryConfigProviderPtr = ::TIntrusivePtr<IRetryConfigProvider>;
