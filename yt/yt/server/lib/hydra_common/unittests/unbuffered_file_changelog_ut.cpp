@@ -96,7 +96,7 @@ protected:
         std::vector<TSharedRef> records(to - from);
         for (int recordIndex = from; recordIndex < to; ++recordIndex) {
             auto recordSize = RecordSizes[recordIndex % RecordSizes.size()];
-            TBlob blob(TDefaultBlobTag(), sizeof(i32) * recordSize);
+            TBlob blob(GetRefCountedTypeCookie<TDefaultBlobTag>(), sizeof(i32) * recordSize);
             for (int i = 0; i < recordSize; ++i) {
                 reinterpret_cast<i32*>(blob.Begin())[i] = recordIndex;
             }
@@ -165,7 +165,7 @@ protected:
             // Add trash to file.
             TFile file(fileName, RdWr);
             file.Seek(0, sEnd);
-            TBlob data(TDefaultBlobTag(), newFileSize - file.GetLength());
+            TBlob data(GetRefCountedTypeCookie<TDefaultBlobTag>(), newFileSize - file.GetLength());
             std::fill(data.Begin(), data.End(), -1);
             file.Write(data.Begin(), data.Size());
         } else {

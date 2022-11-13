@@ -18,9 +18,9 @@
 
 #include <yt/yt/server/master/table_server/public.h>
 
-#include <yt/yt/core/misc/chunked_output_stream.h>
-
 #include <yt/yt/core/ypath/public.h>
+
+#include <library/cpp/yt/memory/chunked_output_stream.h>
 
 namespace NYT::NCypressServer {
 

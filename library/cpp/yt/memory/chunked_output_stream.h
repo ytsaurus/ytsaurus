@@ -4,45 +4,32 @@
 
 #include <library/cpp/yt/memory/ref.h>
 
-#include <util/stream/output.h>
+#include <util/stream/zerocopy_output.h>
+
+#include <util/generic/size_literals.h>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDefaultChunkedOutputStreamTag
+{ };
+
 class TChunkedOutputStream
-    : public IOutputStream
+    : public IZeroCopyOutput
 {
 public:
-    TChunkedOutputStream(
-        TRefCountedTypeCookie tagCookie,
-        size_t initialReserveSize,
-        size_t maxReserveSize);
-
-    template <class TTag>
     explicit TChunkedOutputStream(
-        TTag /*tag*/ = TTag(),
-        size_t initialReserveSize = 4 * 1024,
-        size_t maxReserveSize = 64 * 1024)
-        : TChunkedOutputStream(GetRefCountedTypeCookie<TTag>(), initialReserveSize, maxReserveSize)
-    { }
-
-    TChunkedOutputStream();
+        TRefCountedTypeCookie tagCookie = GetRefCountedTypeCookie<TDefaultChunkedOutputStreamTag>(),
+        size_t initialReserveSize = 4_KB,
+        size_t maxReserveSize = 64_KB);
 
     TChunkedOutputStream(TChunkedOutputStream&&) = default;
     TChunkedOutputStream& operator=(TChunkedOutputStream&&) = default;
 
-    //! Remind user about the tag argument.
-    template <typename U> TChunkedOutputStream(i32, U size = 0) = delete;
-    template <typename U> TChunkedOutputStream(i64, U size = 0) = delete;
-    template <typename U> TChunkedOutputStream(ui32, U size = 0) = delete;
-    template <typename U> TChunkedOutputStream(ui64, U size = 0) = delete;
-
-    ~TChunkedOutputStream() = default;
-
     //! Returns a sequence of written chunks.
     //! The stream is no longer usable after this call.
-    std::vector<TSharedRef> Flush();
+    std::vector<TSharedRef> Finish();
 
     //! Returns the number of bytes actually written.
     size_t GetSize() const;
@@ -68,7 +55,11 @@ private:
     std::vector<TSharedRef> FinishedChunks_;
 
 
+    void ReserveNewChunk(size_t spaceRequired);
+
     void DoWrite(const void* buf, size_t len) override;
+    size_t DoNext(void** ptr) override;
+    void DoUndo(size_t len) override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -70,7 +70,7 @@ private:
     const TFileChunkWriterConfigPtr Config_;
     const TEncodingChunkWriterPtr EncodingChunkWriter_;
 
-    TBlob Buffer_{TFileChunkWriterBufferTag()};
+    TBlob Buffer_{GetRefCountedTypeCookie<TFileChunkWriterBufferTag>()};
 
     TBlocksExt BlocksExt_;
     i64 BlocksExtSize_ = 0;

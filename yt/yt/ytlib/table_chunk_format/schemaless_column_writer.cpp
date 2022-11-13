@@ -6,7 +6,8 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
-#include <yt/yt/core/misc/chunked_output_stream.h>
+
+#include <library/cpp/yt/memory/chunked_output_stream.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -95,7 +96,7 @@ private:
         segmentInfo.Data.push_back(BitPackUnsignedVector(MakeRange(Offsets_), maxOffsetDelta));
         segmentInfo.Data.push_back(BitPackUnsignedVector(MakeRange(ValueCounts_), MaxValueCount_));
 
-        auto data = DataBuffer_->Flush();
+        auto data = DataBuffer_->Finish();
         segmentInfo.Data.insert(segmentInfo.Data.end(), data.begin(), data.end());
 
         auto* schemalessSegmentMeta = segmentInfo.SegmentMeta.MutableExtension(TSchemalessSegmentMeta::schemaless_segment_meta);

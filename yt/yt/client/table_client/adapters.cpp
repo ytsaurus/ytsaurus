@@ -163,7 +163,7 @@ void PipeInputToOutput(
     i64 bufferBlockSize)
 {
     struct TWriteBufferTag { };
-    TBlob buffer(TWriteBufferTag(), bufferBlockSize);
+    TBlob buffer(GetRefCountedTypeCookie<TWriteBufferTag>(), bufferBlockSize, /*initializeStorage*/ false);
 
     TPeriodicYielder yielder(TDuration::Seconds(1));
 
@@ -171,8 +171,9 @@ void PipeInputToOutput(
         yielder.TryYield();
 
         size_t length = input->Read(buffer.Begin(), buffer.Size());
-        if (length == 0)
+        if (length == 0) {
             break;
+        }
 
         output->Write(buffer.Begin(), length);
     }

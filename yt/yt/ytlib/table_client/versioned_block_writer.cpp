@@ -83,22 +83,15 @@ bool TVersionedBlockWriterBase::IsInlineHunkValue(const TUnversionedValue& value
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TSimpleVersionedBlockWriterTag
-{ };
-
 TSimpleVersionedBlockWriter::TSimpleVersionedBlockWriter(
     TTableSchemaPtr schema,
     TMemoryUsageTrackerGuard guard)
     : TVersionedBlockWriterBase(
         std::move(schema),
         std::move(guard))
-    , KeyStream_(TSimpleVersionedBlockWriterTag())
-    , ValueStream_(TSimpleVersionedBlockWriterTag())
-    , TimestampStream_(TSimpleVersionedBlockWriterTag())
-    , StringDataStream_(TSimpleVersionedBlockWriterTag())
 {
     if (Schema_->HasAggregateColumns()) {
-        ValueAggregateFlags_ = TBitmapOutput();
+        ValueAggregateFlags_.emplace();
     }
 }
 
@@ -170,13 +163,13 @@ void TSimpleVersionedBlockWriter::WriteRow(TVersionedRow row)
 TBlock TSimpleVersionedBlockWriter::FlushBlock()
 {
     std::vector<TSharedRef> blockParts;
-    auto keys = KeyStream_.Flush();
+    auto keys = KeyStream_.Finish();
     blockParts.insert(blockParts.end(), keys.begin(), keys.end());
 
-    auto values = ValueStream_.Flush();
+    auto values = ValueStream_.Finish();
     blockParts.insert(blockParts.end(), values.begin(), values.end());
 
-    auto timestamps = TimestampStream_.Flush();
+    auto timestamps = TimestampStream_.Finish();
     blockParts.insert(blockParts.end(), timestamps.begin(), timestamps.end());
 
     blockParts.insert(blockParts.end(), KeyNullFlags_.Flush<TSimpleVersionedBlockWriterTag>());
@@ -185,7 +178,7 @@ TBlock TSimpleVersionedBlockWriter::FlushBlock()
         blockParts.insert(blockParts.end(), ValueAggregateFlags_->Flush<TSimpleVersionedBlockWriterTag>());
     }
 
-    auto strings = StringDataStream_.Flush();
+    auto strings = StringDataStream_.Finish();
     blockParts.insert(blockParts.end(), strings.begin(), strings.end());
 
     TDataBlockMeta meta;
@@ -269,9 +262,6 @@ i64 TSimpleVersionedBlockWriter::GetBlockSize() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TIndexedVersionedBlockWriterTag
-{ };
-
 TIndexedVersionedBlockWriter::TIndexedVersionedBlockWriter(
     TTableSchemaPtr schema,
     int blockIndex,
@@ -289,7 +279,6 @@ TIndexedVersionedBlockWriter::TIndexedVersionedBlockWriter(
     , SectorAlignmentSize_(THashTableChunkIndexFormatDetail::SectorSize)
     // TODO(akozhikhov).
     , EnableGroupReordering_(false)
-    , Stream_(TIndexedVersionedBlockWriterTag())
 {
     YT_VERIFY(AlignUpSpace<i64>(SectorAlignmentSize_, SerializationAlignment) == 0);
     YT_VERIFY(GroupCount_ > 0);
@@ -371,7 +360,7 @@ TBlock TIndexedVersionedBlockWriter::FlushBlock()
     metaExt->set_group_reordering_enabled(EnableGroupReordering_);
     metaExt->set_format_version(0);
 
-    return TVersionedBlockWriterBase::FlushBlock(Stream_.Flush(), std::move(meta));
+    return TVersionedBlockWriterBase::FlushBlock(Stream_.Finish(), std::move(meta));
 }
 
 i64 TIndexedVersionedBlockWriter::GetUnalignedBlockSize() const

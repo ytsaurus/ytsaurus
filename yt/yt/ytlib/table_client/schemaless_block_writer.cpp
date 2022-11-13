@@ -18,8 +18,8 @@ THorizontalBlockWriter::THorizontalBlockWriter(i64 reserveSize)
     : ReserveSize_(std::min(
         std::max(MinReserveSize, reserveSize),
         MaxReserveSize))
-    , Offsets_(THorizontalSchemalessBlockWriterTag(), 4 * 1024, ReserveSize_ / 2)
-    , Data_(THorizontalSchemalessBlockWriterTag(), 4 * 1024, ReserveSize_ / 2)
+    , Offsets_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), 4_KB, ReserveSize_ / 2)
+    , Data_(GetRefCountedTypeCookie<THorizontalSchemalessBlockWriterTag>(), 4_KB, ReserveSize_ / 2)
 { }
 
 void THorizontalBlockWriter::WriteRow(TUnversionedRow row)
@@ -61,10 +61,10 @@ TBlock THorizontalBlockWriter::FlushBlock()
     meta.set_uncompressed_size(GetBlockSize());
 
     std::vector<TSharedRef> blockParts;
-    auto offsets = Offsets_.Flush();
+    auto offsets = Offsets_.Finish();
     blockParts.insert(blockParts.end(), offsets.begin(), offsets.end());
 
-    auto data = Data_.Flush();
+    auto data = Data_.Finish();
     blockParts.insert(blockParts.end(), data.begin(), data.end());
 
     TBlock block;

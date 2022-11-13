@@ -510,9 +510,9 @@ bool TTcpConnection::AbortIfNetworkingDisabled()
 
 void TTcpConnection::InitBuffers()
 {
-    ReadBuffer_ = TBlob(TTcpConnectionReadBufferTag(), ReadBufferSize, false);
+    ReadBuffer_ = TBlob(GetRefCountedTypeCookie<TTcpConnectionReadBufferTag>(), ReadBufferSize, /*initializeStorage*/ false);
 
-    WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
+    WriteBuffers_.push_back(std::make_unique<TBlob>(GetRefCountedTypeCookie<TTcpConnectionWriteBufferTag>()));
     WriteBuffers_[0]->Reserve(WriteBufferSize);
 }
 
@@ -1257,7 +1257,7 @@ bool TTcpConnection::MaybeEncodeFragments()
         if (buffer->Size() + fragment.Size() > buffer->Capacity()) {
             // Make sure we never reallocate.
             flushCoalesced();
-            WriteBuffers_.push_back(std::make_unique<TBlob>(TTcpConnectionWriteBufferTag()));
+            WriteBuffers_.push_back(std::make_unique<TBlob>(GetRefCountedTypeCookie<TTcpConnectionWriteBufferTag>()));
             buffer = WriteBuffers_.back().get();
             buffer->Reserve(std::max(WriteBufferSize, fragment.Size()));
         }

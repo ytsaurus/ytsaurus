@@ -44,7 +44,6 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString SerializedNullRow("");
-struct TOwningRowTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1834,7 +1833,6 @@ TUnversionedValue* TUnversionedRowBuilder::GetValue(ui32 index)
 
 TUnversionedOwningRowBuilder::TUnversionedOwningRowBuilder(int initialValueCapacity /*= 16*/)
     : InitialValueCapacity_(initialValueCapacity)
-    , RowData_(TOwningRowTag())
 {
     Reset();
 }

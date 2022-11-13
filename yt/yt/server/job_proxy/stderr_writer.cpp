@@ -41,7 +41,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TTailBuffer::TTailBuffer(i64 sizeLimit)
-    : RingBuffer_(TDefaultBlobTag(), sizeLimit)
+    : RingBuffer_(GetRefCountedTypeCookie<TDefaultBlobTag>(), sizeLimit)
 { }
 
 bool TTailBuffer::IsOverflowed() const

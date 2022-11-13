@@ -25,7 +25,6 @@
 #include <util/random/shuffle.h>
 
 #include <random>
-
 #include <iostream>
 
 namespace NYT::NIO {
@@ -129,12 +128,12 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::vector<TSharedRef> GetRandomTextBlocks(int blockCount, int minBlockSize, int maxBlockSize)
+std::vector<TSharedRef> GetRandomTextBlocks(int blockCount, int minBlockSize, int maxBlockSize)
 {
     std::vector<TSharedRef> result;
     for (int i = 0; i < blockCount; ++i) {
         int size = minBlockSize + (maxBlockSize > minBlockSize ? std::rand() % (maxBlockSize - minBlockSize) : 0);
-        auto data = NYT::TBlob(NYT::TDefaultBlobTag(), size);
+        auto data = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>(), size);
         for (int i = 0; i < size; ++i) {
             data[i] = static_cast<char>('a' + (std::abs(std::rand()) % 26));
         }
@@ -187,7 +186,7 @@ TEST(TErasureCodingTest, RandomText)
         std::vector<TSharedRef> dataBlocks;
         for (int i = 0; i < codec->GetDataPartCount(); ++i) {
             char* begin = data.data() + i * 64;
-            auto blob = NYT::TBlob(NYT::TDefaultBlobTag(), TRef(begin, 64));
+            auto blob = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>(), TRef(begin, 64));
             dataBlocks.push_back(TSharedRef::FromBlob(std::move(blob)));
         }
 

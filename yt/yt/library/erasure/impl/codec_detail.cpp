@@ -20,7 +20,7 @@ TCodecTraits::TMutableBlobType TCodecTraits::AllocateBlob(size_t size)
 TCodecTraits::TBufferType TCodecTraits::AllocateBuffer(size_t size)
 {
     // Only LRC now uses buffer allocation.
-    return TBufferType(TLrcBufferTag(), size);
+    return TBufferType(GetRefCountedTypeCookie<TLrcBufferTag>(), size);
 }
 
 TCodecTraits::TBlobType TCodecTraits::FromBufferToBlob(TBufferType&& blob)
