@@ -123,7 +123,7 @@ public:
     double GetProgress() const;
 
     void SetResourceUsage(const NNodeTrackerClient::NProto::TNodeResources& newUsage);
-    
+
     bool ResourceUsageOverdrafted() const;
 
     void SetProgress(double progress);
@@ -136,7 +136,7 @@ public:
 
     void SetFailContext(const TString& value);
 
-    void SetProfile(const NJobAgent::TJobProfile& value);
+    void AddProfile(NJobAgent::TJobProfile value);
 
     void SetCoreInfos(NCoreDump::TCoreInfos value);
 
@@ -157,8 +157,6 @@ public:
     std::optional<TString> GetStderr();
 
     std::optional<TString> GetFailContext();
-
-    std::optional<NJobAgent::TJobProfile> GetProfile();
 
     const NCoreDump::TCoreInfos& GetCoreInfos();
 
@@ -243,7 +241,7 @@ private:
 
     std::optional<TString> Stderr_;
     std::optional<TString> FailContext_;
-    std::optional<NJobAgent::TJobProfile> Profile_;
+    std::vector<NJobAgent::TJobProfile> Profiles_;
     NCoreDump::TCoreInfos CoreInfos_;
 
     NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;

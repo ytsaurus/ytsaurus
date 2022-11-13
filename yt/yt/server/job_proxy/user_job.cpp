@@ -551,7 +551,6 @@ private:
 
     // Writes stderr data to Cypress file.
     std::unique_ptr<TStderrWriter> ErrorOutput_;
-    std::unique_ptr<TStringStream> ProfileOutput_;
 
     // Core infos.
     TCoreInfos CoreInfos_;
@@ -603,7 +602,6 @@ private:
     TCoreWatcherPtr CoreWatcher_;
 
     std::optional<TString> FailContext_;
-    std::optional<TString> Profile_;
 
     std::atomic<bool> NotFullyConsumed_ = false;
 
@@ -739,12 +737,6 @@ private:
         return result;
     }
 
-    IOutputStream* CreateProfileOutput()
-    {
-        ProfileOutput_.reset(new TStringStream());
-        return ProfileOutput_.get();
-    }
-
     // COMPAT(ignat)
     void SaveErrorChunkId(TSchedulerJobResultExt* schedulerResultExt)
     {
@@ -859,23 +851,6 @@ private:
     const TCoreInfos& GetCoreInfos() const override
     {
         return CoreInfos_;
-    }
-
-    std::optional<TJobProfile> GetProfile() override
-    {
-        ValidatePrepared();
-        if (!ProfileOutput_) {
-            return {};
-        }
-        if (!UserJobSpec_.has_enabled_profiler()) {
-            return {};
-        }
-
-        return TJobProfile{
-            .Type = UserJobSpec_.enabled_profiler(),
-            .Blob = ProfileOutput_->Str(),
-            .ProfilingProbability = UserJobSpec_.profiling_probability(),
-        };
     }
 
     TPollJobShellResponse PollJobShell(
@@ -1169,11 +1144,13 @@ private:
                 &OutputActions_,
                 TError("Error writing custom job statistics"));
 
-            ProfilePipeReader_ = PrepareOutputPipe(
-                {JobProfileFD},
-                CreateProfileOutput(),
-                &StderrActions_,
-                TError("Error writing job profile"));
+            if (auto* profileOutput = JobProfiler_->GetUserJobProfileOutput()) {
+                ProfilePipeReader_ = PrepareOutputPipe(
+                    {JobProfileFD},
+                    profileOutput,
+                    &StderrActions_,
+                    TError("Error writing job profile"));
+            }
         }
 
         PrepareInputTablePipe();
@@ -1202,6 +1179,13 @@ private:
 
         for (int index = 0; index < std::ssize(Ports_); ++index) {
             Environment_.push_back(Format("YT_PORT_%v=%v", index, Ports_[index]));
+        }
+
+        if (auto jobProfiler = JobProfiler_->GetUserJobProfilerName()) {
+            Environment_.push_back(Format("YT_JOB_PROFILER=%v", *jobProfiler));
+
+            YT_LOG_INFO("User job profiler is enabled (ProfilerName: %v)",
+                *jobProfiler);
         }
 
         const auto& environment = UserJobEnvironment_->GetEnvironmentVariables();

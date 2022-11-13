@@ -62,6 +62,10 @@ TJob::TJob(IJobHostPtr host)
 void TJob::Initialize()
 {
     PopulateInputNodeDirectory();
+
+    const auto& schedulerJobSpecExt = Host_->GetJobSpecHelper()->GetSchedulerJobSpecExt();
+    JobProfiler_ = CreateJobProfiler(&schedulerJobSpecExt);
+    JobProfiler_->Start();
 }
 
 void TJob::PopulateInputNodeDirectory() const
@@ -91,11 +95,15 @@ std::optional<TString> TJob::GetFailContext()
         "Getting stderr is not supported for built-in jobs");
 }
 
-std::optional<TJobProfile> TJob::GetProfile()
+std::vector<TJobProfile> TJob::GetProfiles()
 {
-    THROW_ERROR_EXCEPTION(
-        EErrorCode::UnsupportedJobType,
-        "Getting profile is not supported for built-in jobs");
+    if (!JobProfiler_) {
+        // Job is not initialized yet.
+        return {};
+    }
+
+    JobProfiler_->Stop();
+    return JobProfiler_->GetProfiles();
 }
 
 const TCoreInfos& TJob::GetCoreInfos() const

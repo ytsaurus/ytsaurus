@@ -824,11 +824,11 @@ void TJobProxy::ReportResult(
         }
 
         try{
-            auto profile = job->GetProfile();
-            if (profile) {
-                req->set_profile_type(profile->Type);
-                req->set_profile_blob(profile->Blob);
-                req->set_profiling_probability(profile->ProfilingProbability);
+            for (const auto& profile : job->GetProfiles()) {
+                auto* protoProfile = req->add_profiles();
+                protoProfile->set_type(profile.Type);
+                protoProfile->set_blob(profile.Blob);
+                protoProfile->set_profiling_probability(profile.ProfilingProbability);
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get job profile on teardown");

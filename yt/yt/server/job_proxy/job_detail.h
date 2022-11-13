@@ -2,6 +2,7 @@
 
 #include "public.h"
 #include "job.h"
+#include "job_profiler.h"
 
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
@@ -40,7 +41,7 @@ public:
     std::vector<NChunkClient::TChunkId> DumpInputContext() override;
     TString GetStderr() override;
     std::optional<TString> GetFailContext() override;
-    std::optional<NJobAgent::TJobProfile> GetProfile() override;
+    std::vector<NJobAgent::TJobProfile> GetProfiles() override;
     const NCoreDump::TCoreInfos& GetCoreInfos() const override;
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
@@ -53,6 +54,8 @@ public:
 protected:
     const IJobHostPtr Host_;
     const TInstant StartTime_;
+
+    std::unique_ptr<IJobProfiler> JobProfiler_;
 
     NChunkClient::TClientChunkReadOptions ChunkReadOptions_;
 };

@@ -92,6 +92,12 @@ message TUserJobMonitoringConfig
     repeated string sensor_names = 3;
 }
 
+message TJobProfilerSpec
+{
+    required string profiler_name = 1;
+    required double profiling_probability = 2;
+}
+
 // Specification for starting user code during a job.
 message TUserJobSpec
 {
@@ -168,8 +174,6 @@ message TUserJobSpec
     // Enables secure vault variables in job shell.
     optional bool enable_secure_vault_variables_in_job_shell = 37 [default = true];
 
-    reserved 38;
-
     optional bool set_container_cpu_limit = 39 [default = false];
 
     optional int64 prepare_time_limit = 42;
@@ -183,8 +187,6 @@ message TUserJobSpec
     optional string cuda_toolkit_version = 46;
 
     optional uint32 network_project_id = 47;
-
-    reserved 48;
 
     optional int32 enable_porto = 49; // NScheduler::EEnablePorto
 
@@ -211,9 +213,6 @@ message TUserJobSpec
     // Limit for the number of threads in user job container.
     optional int64 thread_limit = 60 [default = 1000000];
 
-    optional double profiling_probability = 61;
-    optional string enabled_profiler = 62;
-
     repeated string gpu_check_binary_args = 63;
 
     // Enables NAT64 - YT-15665.
@@ -221,9 +220,11 @@ message TUserJobSpec
     optional bool enable_nat64 = 64;
 
     optional bool enable_squashfs = 65;
-    
+
     // Memory size reserved for job proxy. Used in tests for checking job proxy memory overdraft.
     optional int64 job_proxy_memory_reserve = 66;
+
+    reserved 38, 48, 61, 62;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -356,6 +357,9 @@ message TSchedulerJobSpecExt
     optional bool allow_cpu_idle_policy = 35 [default = false];
 
     optional bool enable_prefetching_job_throttler = 36;
+
+    // At most one job profiler is supported for now.
+    repeated TJobProfilerSpec job_profilers = 37;
 
     reserved 8, 28;
 }

@@ -127,7 +127,7 @@ struct IJob
 
     virtual std::optional<TString> GetFailContext() = 0;
 
-    virtual std::optional<NJobAgent::TJobProfile> GetProfile() = 0;
+    virtual std::vector<NJobAgent::TJobProfile> GetProfiles() = 0;
 
     virtual TStatistics GetStatistics() const = 0;
 

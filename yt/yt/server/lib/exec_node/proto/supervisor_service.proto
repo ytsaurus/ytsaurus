@@ -93,11 +93,17 @@ message TReqOnJobFinished
     optional bytes job_stderr = 6;
     optional bytes fail_context = 7;
 
-    optional string profile_type = 8;
-    optional string profile_blob = 9;
-    optional double profiling_probability = 11;
+    message TProfile
+    {
+        required string type = 1;
+        required bytes blob = 2;
+        required double profiling_probability = 3;
+    }
+    repeated TProfile profiles = 12;
 
     repeated NYT.NCoreDump.NProto.TCoreInfo core_infos = 10;
+
+    reserved 8, 9, 11;
 }
 
 message TRspOnJobFinished

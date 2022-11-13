@@ -2018,16 +2018,19 @@ std::optional<TString> TTask::SelectProfiler()
         return {};
     }
 
-    if (!HasUserJob()) {
-        return {};
-    }
-
     const auto& userJobSpec = GetUserJobSpec();
     auto p = RandomNumber<double>();
 
-    for (const auto& profiler : userJobSpec->SupportedProfilers) {
-        if (std::count(spec->EnabledProfilers.begin(), spec->EnabledProfilers.end(), profiler) != 1) {
-            continue;
+    for (const auto& profiler : spec->EnabledProfilers) {
+        if (HasUserJob()) {
+            const auto& supportedProfilers = userJobSpec->SupportedProfilers;
+
+            // TODO(gritukan): Job proxy profilers are always supported, but this check is a bit ugly.
+            if (!profiler.StartsWith("job_proxy") &&
+                std::count(supportedProfilers.begin(), supportedProfilers.end(), profiler) != 1)
+            {
+                continue;
+            }
         }
 
         if (p < *profilingProbability) {
