@@ -3,6 +3,8 @@
 #include "format_hints.h"
 #include "skiff.h"
 
+#include <mapreduce/yt/common/retry_lib.h>
+
 #include <mapreduce/yt/io/yamr_table_reader.h>
 
 #include <mapreduce/yt/library/table_schema/protobuf.h>

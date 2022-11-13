@@ -1,9 +1,10 @@
 #pragma once
 
 #include <mapreduce/yt/interface/fwd.h>
-#include <mapreduce/yt/interface/retry_policy.h>
+#include <mapreduce/yt/common/fwd.h>
 
 #include <util/datetime/base.h>
+#include <util/generic/maybe.h>
 #include <util/generic/string.h>
 
 namespace NYT {

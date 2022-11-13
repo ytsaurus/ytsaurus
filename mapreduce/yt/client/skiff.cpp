@@ -1,5 +1,6 @@
 #include "skiff.h"
 
+#include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/interface/logging/yt_log.h>
 

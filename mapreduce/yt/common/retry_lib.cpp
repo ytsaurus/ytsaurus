@@ -1,7 +1,9 @@
 #include "retry_lib.h"
 
 #include "config.h"
+#include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/error_codes.h>
+#include <mapreduce/yt/interface/retry_policy.h>
 
 #include <util/string/builder.h>
 #include <util/generic/set.h>
