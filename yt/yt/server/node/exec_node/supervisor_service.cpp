@@ -280,8 +280,8 @@ private:
             job->SetFailContext(request->fail_context());
         }
 
-        if (request->has_profile_type() && request->has_profile_blob() && request->has_profiling_probability()) {
-            job->SetProfile({request->profile_type(), request->profile_blob(), request->profiling_probability()});
+        for (const auto& profile : request->profiles()) {
+            job->AddProfile({profile.type(), profile.blob(), profile.profiling_probability()});
         }
 
         context->Reply();

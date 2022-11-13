@@ -798,11 +798,11 @@ void TJob::SetFailContext(const TString& value)
     FailContext_ = value;
 }
 
-void TJob::SetProfile(const TJobProfile& value)
+void TJob::AddProfile(TJobProfile value)
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    Profile_ = value;
+    Profiles_.push_back(std::move(value));
 }
 
 void TJob::SetCoreInfos(TCoreInfos value)
@@ -948,13 +948,6 @@ std::optional<TString> TJob::GetFailContext()
     return FailContext_;
 }
 
-std::optional<TJobProfile> TJob::GetProfile()
-{
-    VERIFY_THREAD_AFFINITY(JobThread);
-
-    return Profile_;
-}
-
 const TCoreInfos& TJob::GetCoreInfos()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -1030,9 +1023,9 @@ void TJob::ReportProfile()
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (auto profile = GetProfile()) {
+    for (const auto& profile : Profiles_) {
         HandleJobReport(TNodeJobReport()
-            .Profile(*profile));
+            .Profile(std::move(profile)));
     }
 }
 

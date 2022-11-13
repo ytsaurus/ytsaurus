@@ -128,4 +128,26 @@ TProcessBasePtr TSubprocess::GetProcess() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void RunSubprocess(const std::vector<TString>& cmd)
+{
+    if (cmd.empty()) {
+        THROW_ERROR_EXCEPTION("Command can't be empty");
+    }
+
+    auto process = TSubprocess(cmd[0]);
+    for (int index = 1; index < std::ssize(cmd); ++index) {
+        process.AddArgument(cmd[index]);
+    }
+
+    auto result = process.Execute();
+    if (!result.Status.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to run %v", cmd[0])
+            << result.Status
+            << TErrorAttribute("command_line", process.GetCommandLine())
+            << TErrorAttribute("error", TString(result.Error.Begin(), result.Error.End()));
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT

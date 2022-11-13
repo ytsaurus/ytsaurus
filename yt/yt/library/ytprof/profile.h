@@ -10,6 +10,8 @@ namespace NYT::NYTProf {
 
 void WriteProfile(IOutputStream* out, const NProto::Profile& profile);
 
+TString SerializeProfile(const NProto::Profile& profile);
+
 void ReadProfile(IInputStream* in, NProto::Profile* profile);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -23,26 +23,6 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void DoRunTool(const std::vector<TString>& cmd)
-{
-    if (cmd.empty()) {
-        THROW_ERROR_EXCEPTION("Command can't be empty");
-    }
-
-    auto process = TSubprocess(cmd[0]);
-    for (int i = 1; i < std::ssize(cmd); i++) {
-        process.AddArgument(cmd[i]);
-    }
-
-    auto result = process.Execute();
-    if (!result.Status.IsOK()) {
-        THROW_ERROR_EXCEPTION("Failed to run %v", cmd[0])
-            << result.Status
-            << TErrorAttribute("command_line", process.GetCommandLine())
-            << TErrorAttribute("error", TString(result.Error.Begin(), result.Error.End()));
-    }
-}
-
 class TBaseHandler
     : public IHttpHandler
 {
@@ -63,7 +43,7 @@ public:
 
             if (auto it = params.Find("symbolize"); it == params.end() || it->second != "0") {
                 SymbolizeByExternalPProf(&profile, TSymbolizationOptions{
-                    .RunTool = DoRunTool
+                    .RunTool = RunSubprocess,
                 });
             }
 

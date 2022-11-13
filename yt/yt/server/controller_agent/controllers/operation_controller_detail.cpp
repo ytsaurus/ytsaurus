@@ -4333,6 +4333,12 @@ void TOperationControllerBase::CustomizeJobSpec(const TJobletPtr& joblet, TJobSp
         ToProto(schedulerJobSpecExt->mutable_output_transaction_id(), OutputTransaction->GetId());
     }
 
+    if (joblet->EnabledProfiler) {
+        auto* profiler = schedulerJobSpecExt->add_job_profilers();
+        profiler->set_profiler_name(*joblet->EnabledProfiler);
+        profiler->set_profiling_probability(*Spec_->ProfilingProbability);
+    }
+
     if (joblet->Task->GetUserJobSpec()) {
         InitUserJobSpec(
             schedulerJobSpecExt->mutable_user_job_spec(),
@@ -8899,9 +8905,6 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     jobSpec->set_use_yamr_descriptors(jobSpecConfig->UseYamrDescriptors);
     jobSpec->set_check_input_fully_consumed(jobSpecConfig->CheckInputFullyConsumed);
     jobSpec->set_max_stderr_size(jobSpecConfig->MaxStderrSize);
-    if (Spec_->ProfilingProbability) {
-        jobSpec->set_profiling_probability(*Spec_->ProfilingProbability);
-    }
     jobSpec->set_custom_statistics_count_limit(jobSpecConfig->CustomStatisticsCountLimit);
     jobSpec->set_copy_files(jobSpecConfig->CopyFiles);
     jobSpec->set_debug_artifacts_account(debugArtifactsAccount);
@@ -9127,11 +9130,6 @@ void TOperationControllerBase::InitUserJobSpec(
         auto* monitoringConfig = jobSpec->mutable_monitoring_config();
         monitoringConfig->set_enable(true);
         monitoringConfig->set_job_descriptor(*joblet->UserJobMonitoringDescriptor);
-    }
-
-    if (joblet->EnabledProfiler) {
-        jobSpec->set_enabled_profiler(*joblet->EnabledProfiler);
-        jobSpec->add_environment(Format("YT_JOB_PROFILER=%v", *joblet->EnabledProfiler));
     }
 }
 

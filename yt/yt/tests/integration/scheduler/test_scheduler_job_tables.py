@@ -1210,9 +1210,10 @@ class TestJobProfiling(YTEnvSetup):
             self.Env.create_native_client(), override_tablet_cell_bundle="default"
         )
 
-    @authors("prime")
-    @pytest.mark.timeout(300)
-    def test_job_profiling(self):
+    @authors("prime", "gritukan")
+    def test_user_job_profiling(self):
+        # TODO(gritukan): Testing job proxy profiles requires profile builds, so
+        # we do not test it now.
         input_table = "//tmp/input_table"
         output_table = "//tmp/output_table"
 
@@ -1222,30 +1223,30 @@ class TestJobProfiling(YTEnvSetup):
 
         mapper_command = """
             cat;
-            if test "$YT_JOB_PROFILER" == "cpu"
+            if test "$YT_JOB_PROFILER" == "user_job_cpu"
             then printf 'mapper_cpu' >&8
             fi
         """
         reducer_command = """
             cat;
-            if test "$YT_JOB_PROFILER" == "memory"
+            if test "$YT_JOB_PROFILER" == "user_job_memory"
             then printf 'reducer_memory' >&8
             fi
         """
 
         spec = {
             "mapper": {
-                "supported_profilers": ["cpu"],
+                "supported_profilers": ["user_job_cpu"],
             },
             "reducer": {
-                "supported_profilers": ["memory"],
+                "supported_profilers": ["user_job_memory"],
             },
 
-            "enabled_profilers": ["cpu", "memory"],
-            "profiling_probability": 0.1,
+            "enabled_profilers": ["user_job_cpu", "user_job_memory"],
+            "profiling_probability": 0.5,
 
-            "map_job_count": 100,
-            "partition_count": 100,
+            "map_job_count": 20,
+            "partition_count": 20,
             "data_size_per_sort_job": 1,
         }
 
@@ -1266,8 +1267,8 @@ class TestJobProfiling(YTEnvSetup):
         wait(profiles_ready)
         profiles = get_profiles_from_table(op.id)
 
-        assert all(row["profiling_probability"] == 0.1 for row in profiles)
-        assert all(row["profile_blob"] == "reducer_memory" for row in profiles if row["profile_type"] == "memory")
-        assert all(row["profile_blob"] == "mapper_cpu" for row in profiles if row["profile_type"] == "cpu")
-        assert 0 < len(list(row for row in profiles if row["profile_type"] == "memory")) < 50
-        assert 0 < len(list(row for row in profiles if row["profile_type"] == "cpu")) < 50
+        assert all(row["profiling_probability"] == 0.5 for row in profiles)
+        assert all(row["profile_blob"] == "reducer_memory" for row in profiles if row["profile_type"] == "user_job_memory")
+        assert all(row["profile_blob"] == "mapper_cpu" for row in profiles if row["profile_type"] == "user_job_cpu")
+        assert 0 < len(list(row for row in profiles if row["profile_type"] == "user_job_memory")) < 20
+        assert 0 < len(list(row for row in profiles if row["profile_type"] == "user_job_cpu")) < 20
