@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.common;
+package tech.ytsaurus.core;
 
 import java.lang.management.ManagementFactory;
 import java.util.ArrayList;

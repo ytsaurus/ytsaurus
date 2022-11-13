@@ -1,7 +1,7 @@
 package ru.yandex.yt.ytclient.operations;
 
-import ru.yandex.inside.yt.kosher.common.StringValueEnum;
 
+import tech.ytsaurus.core.StringValueEnum;
 /**
  * @author sankear
  */

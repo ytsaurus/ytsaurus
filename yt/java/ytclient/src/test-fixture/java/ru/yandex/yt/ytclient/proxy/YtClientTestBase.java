@@ -9,9 +9,9 @@ import java.util.concurrent.CompletionException;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.rules.TestName;
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.testlib.LocalYt;

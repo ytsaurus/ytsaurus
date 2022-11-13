@@ -12,10 +12,10 @@ import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.Nullable;
 
 import io.netty.channel.nio.NioEventLoopGroup;
+import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
-import ru.yandex.inside.yt.kosher.common.YtTimestamp;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;

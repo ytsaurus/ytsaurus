@@ -1,10 +1,10 @@
 package ru.yandex.yt.ytclient.misc;
 
 /**
- * @deprecated Use {@link ru.yandex.inside.yt.kosher.common.YtTimestamp}.
+ * @deprecated Use {@link tech.ytsaurus.core.YtTimestamp}.
  */
 @Deprecated
-public class YtTimestamp extends ru.yandex.inside.yt.kosher.common.YtTimestamp {
+public class YtTimestamp extends tech.ytsaurus.core.YtTimestamp {
 
     /**
      * Minimum valid (non-sentinel) timestamp.

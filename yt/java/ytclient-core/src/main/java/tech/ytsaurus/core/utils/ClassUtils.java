@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.utils;
+package tech.ytsaurus.core.utils;
 
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;

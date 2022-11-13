@@ -8,11 +8,11 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.common.DataSize;
 import ru.yandex.inside.yt.kosher.cypress.RangeLimit;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.ytclient.bus.BusConnector;

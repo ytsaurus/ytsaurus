@@ -4,8 +4,8 @@ import java.nio.ByteOrder;
 import java.util.Objects;
 
 import io.netty.buffer.ByteBuf;
+import tech.ytsaurus.core.GUID;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.bus.BusUtil;
 import ru.yandex.yt.ytclient.misc.YtCrc64;
 

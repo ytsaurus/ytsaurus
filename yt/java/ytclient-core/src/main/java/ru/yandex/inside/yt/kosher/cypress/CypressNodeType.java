@@ -1,7 +1,7 @@
 package ru.yandex.inside.yt.kosher.cypress;
 
-import ru.yandex.inside.yt.kosher.common.StringValueEnum;
-import ru.yandex.inside.yt.kosher.common.StringValueEnumResolver;
+import tech.ytsaurus.core.StringValueEnum;
+import tech.ytsaurus.core.StringValueEnumResolver;
 
 /**
  * ENodeType analog

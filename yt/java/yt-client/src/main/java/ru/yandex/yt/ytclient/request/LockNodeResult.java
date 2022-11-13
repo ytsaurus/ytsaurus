@@ -1,7 +1,7 @@
 package ru.yandex.yt.ytclient.request;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 
+import tech.ytsaurus.core.GUID;
 @SuppressWarnings("checkstyle:VisibilityModifier")
 public class LockNodeResult {
     public final GUID nodeId;

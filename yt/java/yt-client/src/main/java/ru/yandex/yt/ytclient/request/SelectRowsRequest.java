@@ -7,7 +7,8 @@ import java.util.OptionalLong;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.common.YtTimestamp;
+import tech.ytsaurus.core.YtTimestamp;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;

@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.common;
+package tech.ytsaurus.core;
 
 public class DataSize {
     public static final DataSize ZERO = new DataSize(0);

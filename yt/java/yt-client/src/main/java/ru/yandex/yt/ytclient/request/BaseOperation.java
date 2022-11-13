@@ -4,7 +4,8 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.operations.Spec;

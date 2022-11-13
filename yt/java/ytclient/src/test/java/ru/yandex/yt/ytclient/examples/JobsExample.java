@@ -1,9 +1,9 @@
 package ru.yandex.yt.ytclient.examples;
 
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeMapNodeImpl;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;

@@ -1,7 +1,7 @@
 package ru.yandex.yt.ytclient.operations;
 
-import ru.yandex.inside.yt.kosher.common.StringValueEnum;
-import ru.yandex.inside.yt.kosher.common.StringValueEnumResolver;
+import tech.ytsaurus.core.StringValueEnum;
+import tech.ytsaurus.core.StringValueEnumResolver;
 
 public enum OperationStatus implements StringValueEnum {
 

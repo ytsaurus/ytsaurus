@@ -9,9 +9,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.inside.yt.kosher.common.DataSize;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
