@@ -2,11 +2,12 @@ package ru.yandex.yt.ytclient.request;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.EJobState;
 import ru.yandex.yt.rpcproxy.TReqListJobs;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 public class ListJobs
         extends OperationReq<ListJobs.Builder, ListJobs>

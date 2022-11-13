@@ -4,12 +4,12 @@ import java.util.Collections;
 
 import com.google.protobuf.Parser;
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientStreamControl;
 
 import ru.yandex.yt.TGuid;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;

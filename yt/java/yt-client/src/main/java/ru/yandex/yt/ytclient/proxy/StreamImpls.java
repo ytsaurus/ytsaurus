@@ -14,6 +14,14 @@ import com.google.protobuf.Message;
 import com.google.protobuf.Parser;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.rpc.Codec;
+import tech.ytsaurus.client.rpc.Compression;
+import tech.ytsaurus.client.rpc.LazyResponse;
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientResponse;
+import tech.ytsaurus.client.rpc.RpcClientStreamControl;
+import tech.ytsaurus.client.rpc.RpcStreamConsumer;
+import tech.ytsaurus.client.rpc.RpcUtil;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpc.TResponseHeader;
@@ -21,14 +29,6 @@ import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.proxy.internal.SlidingWindow;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
-import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
-import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
-import ru.yandex.yt.ytclient.rpc.internal.Codec;
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
-import ru.yandex.yt.ytclient.rpc.internal.LazyResponse;
 
 abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer {
     protected static final Logger logger = LoggerFactory.getLogger(StreamBase.class);

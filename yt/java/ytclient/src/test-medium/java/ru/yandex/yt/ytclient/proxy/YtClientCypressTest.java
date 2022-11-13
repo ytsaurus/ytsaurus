@@ -8,6 +8,8 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.TestingOptions;
 import tech.ytsaurus.ysontree.YTree;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
@@ -20,8 +22,6 @@ import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.request.ReadFile;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.TestingOptions;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;

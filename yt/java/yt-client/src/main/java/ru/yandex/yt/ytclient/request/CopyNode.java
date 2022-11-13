@@ -2,6 +2,8 @@ package ru.yandex.yt.ytclient.request;
 
 import java.util.Objects;
 
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -10,7 +12,6 @@ import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 public class CopyNode
         extends CopyLikeReq<CopyNode.Builder, CopyNode>

@@ -7,6 +7,7 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.JavaOptions;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -17,7 +18,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.library.svnversion.VcsVersion;
 import ru.yandex.yt.ytclient.operations.JarsProcessor;
 import ru.yandex.yt.ytclient.operations.SingleUploadFromClassPathJarsProcessor;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 @NonNullApi
 @NonNullFields

@@ -6,8 +6,8 @@ import java.nio.file.Path;
 import java.util.Objects;
 import java.util.Properties;
 
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
+import tech.ytsaurus.client.rpc.Compression;
 import static ru.yandex.yt.jdbc.YtClientParameters.ALLOW_JOIN_WITHOUT_INDEX;
 import static ru.yandex.yt.jdbc.YtClientParameters.COMPRESSION;
 import static ru.yandex.yt.jdbc.YtClientParameters.DEBUG_OUTPUT;

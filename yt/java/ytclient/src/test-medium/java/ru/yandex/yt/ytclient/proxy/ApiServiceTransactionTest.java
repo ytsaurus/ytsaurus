@@ -6,10 +6,10 @@ import java.util.concurrent.Executors;
 import java.util.concurrent.ForkJoinPool;
 
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.equalTo;

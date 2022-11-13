@@ -14,6 +14,7 @@ import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.lang.NonNullApi;
@@ -25,7 +26,6 @@ import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.StartTransaction;
 import ru.yandex.yt.ytclient.request.UnmountTable;
 import ru.yandex.yt.ytclient.request.WriteTable;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 /**
  * Client that provides compound commands over YT (e.g. mount table and wait all tablets are mounted).

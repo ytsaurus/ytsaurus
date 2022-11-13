@@ -21,6 +21,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
@@ -36,8 +38,6 @@ import ru.yandex.yt.ytclient.request.LockMode;
 import ru.yandex.yt.ytclient.request.LockNode;
 import ru.yandex.yt.ytclient.request.StartTransaction;
 import ru.yandex.yt.ytclient.request.WriteTable;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 

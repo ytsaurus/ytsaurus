@@ -3,11 +3,11 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.Parser;
+import tech.ytsaurus.client.rpc.Compression;
+import tech.ytsaurus.client.rpc.RpcUtil;
 
 import ru.yandex.yt.rpcproxy.TReadFileMeta;
 import ru.yandex.yt.rpcproxy.TRspReadFile;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReader {
     private long revision = -1;

@@ -14,12 +14,13 @@ import java.util.function.Predicate;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.rpc.RpcError;
+import tech.ytsaurus.client.rpc.RpcErrorCode;
+import tech.ytsaurus.client.rpc.RpcFailoverPolicy;
+import tech.ytsaurus.client.rpc.RpcOptions;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.rpc.RpcError;
-import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
-import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 /**
  * Class determines which errors must be retried.

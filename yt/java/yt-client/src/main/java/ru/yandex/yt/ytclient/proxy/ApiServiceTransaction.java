@@ -16,6 +16,8 @@ import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.rpc.RpcError;
+import tech.ytsaurus.client.rpc.RpcErrorCode;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -60,8 +62,6 @@ import ru.yandex.yt.ytclient.request.StartOperation;
 import ru.yandex.yt.ytclient.request.VanillaOperation;
 import ru.yandex.yt.ytclient.request.WriteFile;
 import ru.yandex.yt.ytclient.request.WriteTable;
-import ru.yandex.yt.ytclient.rpc.RpcError;
-import ru.yandex.yt.ytclient.rpc.RpcErrorCode;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 

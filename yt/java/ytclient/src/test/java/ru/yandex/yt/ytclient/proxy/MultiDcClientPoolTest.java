@@ -11,12 +11,12 @@ import java.util.function.Predicate;
 
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.DataCenterMetricsHolder;
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientPool;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientPool;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;

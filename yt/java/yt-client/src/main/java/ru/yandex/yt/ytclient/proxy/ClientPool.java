@@ -29,6 +29,10 @@ import org.asynchttpclient.RequestBuilder;
 import org.asynchttpclient.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.rpc.DataCenterMetricsHolder;
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientPool;
+import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtFormat;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -39,10 +43,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.misc.SerializedExecutorService;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientPool;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.DataCenterMetricsHolder;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 

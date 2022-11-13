@@ -6,11 +6,11 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.Message;
+import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public abstract class RequestBase<
         TBuilder extends RequestBase.Builder<TBuilder, TRequest>, TRequest extends RequestBase<TBuilder, TRequest>> {
