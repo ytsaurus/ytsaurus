@@ -17,15 +17,15 @@ import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcClientPool;
+import tech.ytsaurus.client.rpc.RpcCompression;
+import tech.ytsaurus.client.rpc.RpcCredentials;
+import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
-import ru.yandex.yt.ytclient.rpc.RpcClientPool;
-import ru.yandex.yt.ytclient.rpc.RpcCompression;
-import ru.yandex.yt.ytclient.rpc.RpcCredentials;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 import static org.hamcrest.Matchers.is;

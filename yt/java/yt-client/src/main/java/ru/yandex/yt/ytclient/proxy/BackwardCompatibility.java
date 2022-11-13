@@ -2,9 +2,10 @@ package ru.yandex.yt.ytclient.proxy;
 
 import java.util.List;
 
+import tech.ytsaurus.client.rpc.RpcClient;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
 
 /**
  * Miscellaneous stuff to help with backward compatibility.

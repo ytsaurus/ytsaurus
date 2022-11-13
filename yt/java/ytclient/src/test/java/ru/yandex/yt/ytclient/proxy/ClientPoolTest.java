@@ -15,10 +15,10 @@ import java.util.stream.Collectors;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcClient;
 
 import ru.yandex.yt.ytclient.DC;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.hasItem;

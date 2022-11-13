@@ -13,20 +13,20 @@ import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.rpc.BalancingResponseHandlerMetricsHolder;
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientPool;
+import tech.ytsaurus.client.rpc.RpcClientRequestControl;
+import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcRequest;
+import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 import ru.yandex.yt.ytclient.proxy.RetryPolicy;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientPool;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcRequest;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
-import ru.yandex.yt.ytclient.rpc.internal.metrics.BalancingResponseHandlerMetricsHolder;
 
 public class FailoverRpcExecutor {
     private static final Logger logger = LoggerFactory.getLogger(FailoverRpcExecutor.class);

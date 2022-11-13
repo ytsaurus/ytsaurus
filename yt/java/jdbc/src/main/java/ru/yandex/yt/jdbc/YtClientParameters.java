@@ -6,8 +6,8 @@ import java.util.Properties;
 import java.util.function.Function;
 import java.util.stream.Stream;
 
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
+import tech.ytsaurus.client.rpc.Compression;
 public enum YtClientParameters implements Function<Properties, DriverPropertyInfo> {
     USERNAME("username"),
     TOKEN("token"),

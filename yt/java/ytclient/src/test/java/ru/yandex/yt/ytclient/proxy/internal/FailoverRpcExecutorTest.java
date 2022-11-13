@@ -17,21 +17,21 @@ import java.util.function.Supplier;
 
 import org.junit.After;
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientPool;
+import tech.ytsaurus.client.rpc.RpcClientRequestControl;
+import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
+import tech.ytsaurus.client.rpc.RpcClientStreamControl;
+import tech.ytsaurus.client.rpc.RpcFailoverPolicy;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcRequest;
+import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 
 import ru.yandex.inside.yt.kosher.impl.common.YtException;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.ytclient.proxy.RetryPolicy;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientPool;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
-import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
-import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcRequest;
-import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;

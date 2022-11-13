@@ -6,16 +6,16 @@ import java.util.concurrent.CompletionException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import tech.ytsaurus.client.rpc.Compression;
+import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
+import tech.ytsaurus.client.rpc.RpcCompression;
+import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.testlib.FutureUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.rpc.DefaultRpcBusClient;
-import ru.yandex.yt.ytclient.rpc.RpcCompression;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.internal.Compression;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;

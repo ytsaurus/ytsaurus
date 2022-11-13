@@ -1,13 +1,13 @@
 package ru.yandex.yt.ytclient.request;
 
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqSuspendOperation;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 /**
  * Request for suspending operation

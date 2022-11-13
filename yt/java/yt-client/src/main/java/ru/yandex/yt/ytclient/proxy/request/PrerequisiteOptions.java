@@ -5,11 +5,11 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public class PrerequisiteOptions {
     public static class RevisionPrerequsite {

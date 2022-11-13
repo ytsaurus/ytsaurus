@@ -9,21 +9,21 @@ import java.util.function.Supplier;
 
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
+import tech.ytsaurus.client.rpc.LazyResponse;
+import tech.ytsaurus.client.rpc.RequestWithResponseBuilder;
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.client.rpc.RpcClientRequestControl;
+import tech.ytsaurus.client.rpc.RpcClientResponse;
+import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcRequest;
+import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.tracing.TTracingExt;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponse;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcRequest;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
-import ru.yandex.yt.ytclient.rpc.internal.LazyResponse;
-import ru.yandex.yt.ytclient.rpc.internal.RequestWithResponseBuilder;
 
 public class RpcMethodDescriptor<RequestBuilder extends MessageLite.Builder, Response extends MessageLite> {
     private final int protocolVersion;

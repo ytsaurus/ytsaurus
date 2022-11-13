@@ -1,9 +1,10 @@
 package ru.yandex.yt.ytclient.request;
 
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpcproxy.TReqRemountTable;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
 public class RemountTable

@@ -11,6 +11,10 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcError;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcRequestsTestingController;
+import tech.ytsaurus.client.rpc.TestingOptions;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
@@ -22,10 +26,6 @@ import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.TransactionType;
 import ru.yandex.yt.ytclient.request.WriteTable;
-import ru.yandex.yt.ytclient.rpc.RpcError;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcRequestsTestingController;
-import ru.yandex.yt.ytclient.rpc.TestingOptions;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static org.hamcrest.MatcherAssert.assertThat;

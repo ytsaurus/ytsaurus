@@ -6,15 +6,15 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcError;
+import tech.ytsaurus.client.rpc.RpcFailoverPolicy;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcRequestsTestingController;
+import tech.ytsaurus.client.rpc.TestingOptions;
 
 import ru.yandex.yt.TError;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.rpc.RpcError;
-import ru.yandex.yt.ytclient.rpc.RpcFailoverPolicy;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcRequestsTestingController;
-import ru.yandex.yt.ytclient.rpc.TestingOptions;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.junit.Assert.assertThrows;

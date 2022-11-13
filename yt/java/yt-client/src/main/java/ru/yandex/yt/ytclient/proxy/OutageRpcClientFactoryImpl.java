@@ -9,6 +9,17 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientRequestControl;
+import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
+import tech.ytsaurus.client.rpc.RpcClientStreamControl;
+import tech.ytsaurus.client.rpc.RpcClientWrapper;
+import tech.ytsaurus.client.rpc.RpcCompression;
+import tech.ytsaurus.client.rpc.RpcCredentials;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcRequest;
+import tech.ytsaurus.client.rpc.RpcStreamConsumer;
+import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.lang.NonNullApi;
@@ -18,17 +29,6 @@ import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
-import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
-import ru.yandex.yt.ytclient.rpc.RpcClientWrapper;
-import ru.yandex.yt.ytclient.rpc.RpcCompression;
-import ru.yandex.yt.ytclient.rpc.RpcCredentials;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcRequest;
-import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 @NonNullApi
 @NonNullFields

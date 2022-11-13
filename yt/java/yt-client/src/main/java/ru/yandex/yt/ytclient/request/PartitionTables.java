@@ -8,6 +8,7 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.DataSize;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
@@ -19,7 +20,6 @@ import ru.yandex.yt.rpcproxy.TFetcherConfig;
 import ru.yandex.yt.rpcproxy.TReqPartitionTables;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullApi
 @NonNullFields

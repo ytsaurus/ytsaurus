@@ -3,10 +3,10 @@ package ru.yandex.yt.ytclient.proxy;
 import java.time.Duration;
 
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcError;
+import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.yt.TError;
-import ru.yandex.yt.ytclient.rpc.RpcError;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;

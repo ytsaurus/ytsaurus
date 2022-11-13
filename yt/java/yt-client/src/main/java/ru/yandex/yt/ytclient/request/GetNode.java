@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.request;
 
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+
 import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
@@ -10,7 +12,6 @@ import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 public class GetNode extends GetLikeReq<GetNode.Builder, GetNode> implements HighLevelRequest<TReqGetNode.Builder> {
     public GetNode(BuilderBase<?> builder) {

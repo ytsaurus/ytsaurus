@@ -1,9 +1,9 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.ytclient.rpc.RpcUtil;
 
 public class MutatingOptions {
     private GUID id;

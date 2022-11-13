@@ -6,15 +6,16 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import tech.ytsaurus.client.rpc.RpcClient;
+import tech.ytsaurus.client.rpc.RpcClientRequestControl;
+import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
+import tech.ytsaurus.client.rpc.RpcClientStreamControl;
+import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.client.rpc.RpcRequest;
+import tech.ytsaurus.client.rpc.RpcStreamConsumer;
+
 import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
-import ru.yandex.yt.ytclient.rpc.RpcClient;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestControl;
-import ru.yandex.yt.ytclient.rpc.RpcClientResponseHandler;
-import ru.yandex.yt.ytclient.rpc.RpcClientStreamControl;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
-import ru.yandex.yt.ytclient.rpc.RpcRequest;
-import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 class MockRpcClientFactory implements RpcClientFactory, SelfCheckingClientFactory {
     Set<HostPort> openedConnections = new HashSet<>();

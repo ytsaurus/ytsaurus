@@ -15,6 +15,8 @@ import java.util.function.Supplier;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.client.rpc.RpcError;
+import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.type_info.TiType;
 
 import ru.yandex.inside.yt.kosher.cypress.YPath;
@@ -27,8 +29,6 @@ import ru.yandex.yt.testlib.Matchers;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.rpc.RpcError;
-import ru.yandex.yt.ytclient.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static org.hamcrest.CoreMatchers.is;

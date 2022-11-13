@@ -9,6 +9,7 @@ import java.util.Map;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.yson.YsonTextWriter;
 import tech.ytsaurus.ysontree.YTree;
@@ -20,7 +21,6 @@ import tech.ytsaurus.ysontree.YTreeNodeUtils;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 @NonNullFields
 @NonNullApi

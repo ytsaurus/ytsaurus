@@ -1,9 +1,9 @@
 package ru.yandex.yt.ytclient.request;
 
 import com.google.protobuf.MessageLite;
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
 import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 public interface HighLevelRequest<T extends MessageLite.Builder> {
     String getArgumentsLogString();

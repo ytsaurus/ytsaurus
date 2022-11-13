@@ -3,9 +3,9 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.concurrent.CompletableFuture;
 
 import com.google.protobuf.Parser;
+import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
-import ru.yandex.yt.ytclient.rpc.RpcStreamConsumer;
 
 class FileWriterImpl extends StreamWriterImpl<TRspWriteFile> implements FileWriter, RpcStreamConsumer {
     FileWriterImpl(long windowSize, long packetSize) {

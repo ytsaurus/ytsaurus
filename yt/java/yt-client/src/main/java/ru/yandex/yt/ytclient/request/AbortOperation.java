@@ -2,12 +2,12 @@ package ru.yandex.yt.ytclient.request;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAbortOperation;
-import ru.yandex.yt.ytclient.rpc.RpcClientRequestBuilder;
 
 /**
  * Immutable abort operation request.
