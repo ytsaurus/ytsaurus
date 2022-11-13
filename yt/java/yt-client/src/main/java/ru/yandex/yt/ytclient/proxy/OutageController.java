@@ -8,7 +8,8 @@ import java.util.Objects;
 import java.util.Optional;
 import java.util.Queue;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 

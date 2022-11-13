@@ -5,9 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Optional;
 
+import tech.ytsaurus.core.utils.ClassUtils;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.utils.ClassUtils;
 
 public final class YTableEntryTypeUtils {
     private static final List<Class<?>> DEFAULT_CLASSES = Arrays.asList(

@@ -5,9 +5,9 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 

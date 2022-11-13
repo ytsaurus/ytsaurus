@@ -2,7 +2,8 @@ package ru.yandex.yt.ytclient.examples;
 
 import java.util.Map;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
+
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;

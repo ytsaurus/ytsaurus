@@ -9,8 +9,8 @@ import java.util.function.Supplier;
 
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
+import tech.ytsaurus.core.GUID;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.tracing.TTracingExt;

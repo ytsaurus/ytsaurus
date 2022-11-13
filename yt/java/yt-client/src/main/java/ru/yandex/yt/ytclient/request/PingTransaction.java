@@ -5,7 +5,8 @@ import java.util.Objects;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;

@@ -6,8 +6,8 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.Message;
+import tech.ytsaurus.core.GUID;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.tracing.TTracingExt;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;

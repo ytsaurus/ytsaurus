@@ -9,8 +9,8 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.channel.ChannelPromise;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.core.GUID;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.bus.Bus;
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 import ru.yandex.yt.ytclient.bus.BusLifecycle;

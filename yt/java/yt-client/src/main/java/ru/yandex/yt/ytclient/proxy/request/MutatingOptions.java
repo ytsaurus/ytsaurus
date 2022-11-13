@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
+
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.ytclient.rpc.RpcUtil;
 

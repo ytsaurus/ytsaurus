@@ -5,8 +5,8 @@ import java.util.Random;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import tech.ytsaurus.core.GUID;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;

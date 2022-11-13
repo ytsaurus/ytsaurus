@@ -4,9 +4,9 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.TGuid;

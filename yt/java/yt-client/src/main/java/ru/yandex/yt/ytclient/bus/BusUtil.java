@@ -5,8 +5,7 @@ import java.util.concurrent.CompletableFuture;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.util.concurrent.Future;
-
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
 
 /**
  * Полезные для работы с bus функции

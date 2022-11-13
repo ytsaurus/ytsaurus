@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.common;
+package tech.ytsaurus.core;
 
 import java.time.Instant;
 

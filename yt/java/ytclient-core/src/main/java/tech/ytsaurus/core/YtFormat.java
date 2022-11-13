@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.common;
+package tech.ytsaurus.core;
 
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeStringNode;

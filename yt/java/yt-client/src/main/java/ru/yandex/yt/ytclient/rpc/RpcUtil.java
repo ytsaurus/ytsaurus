@@ -26,8 +26,8 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
+import tech.ytsaurus.core.GUID;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.TGuid;
 import ru.yandex.yt.TGuidOrBuilder;
 import ru.yandex.yt.TSerializedMessageEnvelope;

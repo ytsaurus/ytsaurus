@@ -27,8 +27,8 @@ import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.ScheduledFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.core.GUID;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;

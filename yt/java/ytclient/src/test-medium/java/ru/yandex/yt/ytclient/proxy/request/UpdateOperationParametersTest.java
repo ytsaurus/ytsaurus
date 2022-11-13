@@ -1,10 +1,10 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
 import junit.framework.TestCase;
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.ResourceLimits;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.SchedulingOptions;
 

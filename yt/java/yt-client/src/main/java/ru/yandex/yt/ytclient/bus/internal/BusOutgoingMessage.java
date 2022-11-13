@@ -3,7 +3,8 @@ package ru.yandex.yt.ytclient.bus.internal;
 import java.util.List;
 import java.util.Objects;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
+
 import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
 
 /**

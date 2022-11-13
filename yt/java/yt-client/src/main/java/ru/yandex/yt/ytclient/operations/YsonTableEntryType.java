@@ -3,11 +3,11 @@ package ru.yandex.yt.ytclient.operations;
 import java.io.InputStream;
 import java.io.OutputStream;
 
+import tech.ytsaurus.core.YtFormat;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
-import ru.yandex.inside.yt.kosher.common.YtFormat;
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.inside.yt.kosher.tables.CloseableIterator;

@@ -4,8 +4,8 @@ import java.util.List;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.common.JavaOptions;
 
+import tech.ytsaurus.core.JavaOptions;
 public class JavaYtRunner {
     protected JavaYtRunner() {
     }

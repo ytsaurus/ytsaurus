@@ -3,7 +3,8 @@ package ru.yandex.yt.ytclient.request;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
+
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;

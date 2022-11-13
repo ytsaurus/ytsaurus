@@ -21,8 +21,8 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.core.GUID;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;

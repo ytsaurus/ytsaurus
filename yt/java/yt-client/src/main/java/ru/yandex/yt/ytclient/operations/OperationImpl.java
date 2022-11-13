@@ -13,11 +13,11 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeListNode;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;

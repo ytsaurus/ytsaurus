@@ -1,6 +1,7 @@
 package ru.yandex.inside.yt.kosher.cypress;
 
-import ru.yandex.inside.yt.kosher.common.StringValueEnum;
+import tech.ytsaurus.core.StringValueEnum;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 

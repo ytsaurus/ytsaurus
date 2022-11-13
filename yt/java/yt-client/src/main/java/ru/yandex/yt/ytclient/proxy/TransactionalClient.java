@@ -10,9 +10,9 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;

@@ -4,9 +4,9 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
 import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
 import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 

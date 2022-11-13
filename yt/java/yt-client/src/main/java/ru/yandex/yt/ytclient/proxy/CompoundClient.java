@@ -8,7 +8,8 @@ import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.common.GUID;
+import tech.ytsaurus.core.GUID;
+
 import ru.yandex.yt.ytclient.request.MountTable;
 import ru.yandex.yt.ytclient.request.UnmountTable;
 

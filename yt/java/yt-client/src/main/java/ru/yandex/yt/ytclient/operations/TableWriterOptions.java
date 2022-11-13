@@ -4,10 +4,10 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.common.DataSize;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
