@@ -82,7 +82,7 @@ void ZstdCompress(int level, TSource* source, TBlob* output)
         curOutputPos += compressedSize;
     };
 
-    TBlob block(TZstdCompressBufferTag(), MaxZstdBlockSize, false);
+    TBlob block(GetRefCountedTypeCookie<TZstdCompressBufferTag>(), MaxZstdBlockSize, false);
     size_t blockSize = 0;
     auto flushGuard = [&] {
         compressAndAppendBuffer(block.Begin(), blockSize);

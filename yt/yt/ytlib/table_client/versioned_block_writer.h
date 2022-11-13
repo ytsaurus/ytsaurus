@@ -14,7 +14,8 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/core/misc/bitmap.h>
-#include <yt/yt/core/misc/chunked_output_stream.h>
+
+#include <library/cpp/yt/memory/chunked_output_stream.h>
 
 namespace NYT::NTableClient {
 
@@ -57,6 +58,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSimpleVersionedBlockWriterTag
+{ };
+
 class TSimpleVersionedBlockWriter
     : public TVersionedBlockWriterBase
 {
@@ -72,16 +76,16 @@ public:
     i64 GetBlockSize() const;
 
 private:
-    TChunkedOutputStream KeyStream_;
+    TChunkedOutputStream KeyStream_{GetRefCountedTypeCookie<TSimpleVersionedBlockWriterTag>()};
     TBitmapOutput KeyNullFlags_;
 
-    TChunkedOutputStream ValueStream_;
+    TChunkedOutputStream ValueStream_{GetRefCountedTypeCookie<TSimpleVersionedBlockWriterTag>()};
     TBitmapOutput ValueNullFlags_;
     std::optional<TBitmapOutput> ValueAggregateFlags_;
 
-    TChunkedOutputStream TimestampStream_;
+    TChunkedOutputStream TimestampStream_{GetRefCountedTypeCookie<TSimpleVersionedBlockWriterTag>()};
 
-    TChunkedOutputStream StringDataStream_;
+    TChunkedOutputStream StringDataStream_{GetRefCountedTypeCookie<TSimpleVersionedBlockWriterTag>()};
 
     i64 TimestampCount_ = 0;
     i64 ValueCount_ = 0;
@@ -95,6 +99,9 @@ private:
 };
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TIndexedVersionedBlockWriterTag
+{ };
 
 class TIndexedVersionedBlockWriter
     : public TVersionedBlockWriterBase
@@ -124,7 +131,7 @@ private:
     const i64 SectorAlignmentSize_;
     const bool EnableGroupReordering_;
 
-    TChunkedOutputStream Stream_;
+    TChunkedOutputStream Stream_{GetRefCountedTypeCookie<TIndexedVersionedBlockWriterTag>()};
 
     std::vector<i64> RowOffsets_;
     std::vector<int> GroupOffsets_;

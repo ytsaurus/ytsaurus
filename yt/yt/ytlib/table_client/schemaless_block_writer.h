@@ -6,7 +6,7 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/chunked_output_stream.h>
+#include <library/cpp/yt/memory/chunked_output_stream.h>
 
 namespace NYT::NTableClient {
 

@@ -46,7 +46,7 @@ TEST(TPipeTest, PrematureEOF)
 TBlob ReadAll(IConnectionReaderPtr reader, bool useWaitFor)
 {
     auto buffer = TSharedMutableRef::Allocate(1_MB, {.InitializeStorage = false});
-    auto whole = TBlob(TDefaultBlobTag());
+    auto whole = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>());
 
     while (true)  {
         TErrorOr<size_t> result;
@@ -161,7 +161,7 @@ TEST_F(TPipeReadWriteTest, ReadSomethingSpin)
     Writer->Close().Get().ThrowOnError();
 
     auto data = TSharedMutableRef::Allocate(1);
-    auto whole = TBlob(TDefaultBlobTag());
+    auto whole = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>());
 
     while (true) {
         auto result = Reader->Read(data).Get();
@@ -183,7 +183,7 @@ TEST_F(TNamedPipeReadWriteTest, ReadSomethingSpin)
     Writer->Close().Get().ThrowOnError();
 
     auto data = TSharedMutableRef::Allocate(1);
-    auto whole = TBlob(TDefaultBlobTag());
+    auto whole = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>());
 
     while (true) {
         auto result = Reader->Read(data).Get();

@@ -1735,7 +1735,6 @@ public:
         IChunkWriterPtr underlying)
         : Config_(std::move(config))
         , Underlying_(std::move(underlying))
-        , Buffer_(TBufferTag())
     {
         Buffer_.Reserve(static_cast<i64>(Config_->DesiredBlockSize * BufferReserveFactor));
 
@@ -1875,7 +1874,7 @@ private:
     { };
 
     static constexpr auto BufferReserveFactor = 1.2;
-    TBlob Buffer_;
+    TBlob Buffer_{GetRefCountedTypeCookie<TBufferTag>()};
 
 
     char* BeginWriteToBuffer(i64 writeSize)

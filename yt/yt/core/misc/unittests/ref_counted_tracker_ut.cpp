@@ -215,7 +215,7 @@ TEST(TRefCountedTrackerTest, TBlobAllocatedMemoryTracker)
     EXPECT_EQ(allocatedBytesBase, GetAllocatedBytes<TBlobTag>());
     EXPECT_EQ(allocatedObjectsBase, GetAllocatedCount<TBlobTag>());
 
-    auto blob = TBlob(TBlobTag(), 1);
+    auto blob = TBlob(GetRefCountedTypeCookie<TBlobTag>(), 1);
     auto blobCapacity1 = blob.Capacity();
 
     EXPECT_EQ(blobCapacity1, GetAliveBytes<TBlobTag>());
@@ -231,7 +231,7 @@ TEST(TRefCountedTrackerTest, TBlobAllocatedMemoryTracker)
     EXPECT_EQ(allocatedBytesBase + blobCapacity1 + blobCapacity2, GetAllocatedBytes<TBlobTag>());
     EXPECT_EQ(allocatedObjectsBase + 1, GetAllocatedCount<TBlobTag>());
 
-    blob = TBlob(TBlobTag());
+    blob = TBlob(GetRefCountedTypeCookie<TBlobTag>());
 
     EXPECT_EQ(0u, GetAliveBytes<TBlobTag>());
     EXPECT_EQ(0u, GetAliveCount<TBlobTag>());

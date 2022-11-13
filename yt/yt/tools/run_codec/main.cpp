@@ -27,7 +27,7 @@ std::vector<TSharedRef> Read(std::istream& in, std::optional<std::vector<size_t>
             }
             size = (*sizes)[index++];
         }
-        auto buffer = TBlob(TDefaultBlobTag(), size, false);
+        auto buffer = TBlob(GetRefCountedTypeCookie<TDefaultBlobTag>(), size, false);
         in.read(buffer.Begin(), buffer.Size());
         buffer.Resize(in.gcount());
         refs.push_back(TSharedRef::FromBlob(std::move(buffer)));

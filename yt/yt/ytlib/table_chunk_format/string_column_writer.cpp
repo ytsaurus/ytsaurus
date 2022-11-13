@@ -8,7 +8,8 @@
 #include <yt/yt/client/table_client/versioned_row.h>
 
 #include <yt/yt/core/misc/bit_packed_unsigned_vector.h>
-#include <yt/yt/core/misc/chunked_output_stream.h>
+
+#include <library/cpp/yt/memory/chunked_output_stream.h>
 
 namespace NYT::NTableChunkFormat {
 
@@ -44,7 +45,10 @@ protected:
 
     void Reset()
     {
-        DirectBuffer_ = std::make_unique<TChunkedOutputStream>(TStringColumnWriterBufferTag(), 256_KB, 1_MB);
+        DirectBuffer_ = std::make_unique<TChunkedOutputStream>(
+            GetRefCountedTypeCookie<TStringColumnWriterBufferTag>(),
+            256_KB,
+            1_MB);
 
         MaxValueLength_ = 0;
         Values_.clear();
@@ -201,7 +205,7 @@ protected:
         // 2. Null bitmap.
         segmentInfo->Data.push_back(std::move(nullBitmap));
 
-        auto directData = DirectBuffer_->Flush();
+        auto directData = DirectBuffer_->Finish();
 
         // 3. Direct data.
         segmentInfo->Data.insert(segmentInfo->Data.end(), directData.begin(), directData.end());

@@ -844,6 +844,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TOwningRowTag
+{ };
+
 //! A helper used for constructing TUnversionedOwningRow instances.
 //! Keeps both row values and strings.
 class TUnversionedOwningRowBuilder
@@ -860,9 +863,9 @@ public:
     TUnversionedOwningRow FinishRow();
 
 private:
-    int InitialValueCapacity_;
+    const int InitialValueCapacity_;
 
-    TBlob RowData_;
+    TBlob RowData_{GetRefCountedTypeCookie<TOwningRowTag>()};
     TString StringData_;
 
     TUnversionedRowHeader* GetHeader();

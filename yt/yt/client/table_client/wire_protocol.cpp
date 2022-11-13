@@ -12,7 +12,6 @@
 
 #include <yt/yt/core/misc/bitmap.h>
 #include <yt/yt/core/misc/chunked_memory_pool.h>
-#include <yt/yt/core/misc/chunked_output_stream.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
@@ -20,6 +19,8 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <library/cpp/yt/misc/variant.h>
+
+#include <library/cpp/yt/memory/chunked_output_stream.h>
 
 #include <util/system/sanitizers.h>
 
@@ -79,7 +80,6 @@ class TWireProtocolWriter
 {
 public:
     TWireProtocolWriter()
-        : Stream_(TWireProtocolWriterTag())
     {
         EnsureCapacity(WriterInitialBufferCapacity);
     }
@@ -232,11 +232,11 @@ public:
     std::vector<TSharedRef> Finish() override
     {
         FlushPreallocated();
-        return Stream_.Flush();
+        return Stream_.Finish();
     }
 
 private:
-    TChunkedOutputStream Stream_;
+    TChunkedOutputStream Stream_{GetRefCountedTypeCookie<TWireProtocolWriterTag>()};
 
     char EmptyBuf_[0];
     char* BeginPreallocated_ = EmptyBuf_;

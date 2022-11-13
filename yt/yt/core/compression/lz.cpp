@@ -214,7 +214,7 @@ void GenericBlockDecompress(TSource* source, TBlob* sink, TDecompressFn&& decomp
     sink->Reserve(totalUncompressedSize);
     YT_ASSERT(sink->IsEmpty());
 
-    auto inputBuffer = TBlob(TTag(), 0, false);
+    TBlob inputBuffer(GetRefCountedTypeCookie<TTag>(), 0, false);
 
     while (source->Available() > 0) {
         if (Y_UNLIKELY(hasBlockHeader)) {

@@ -45,7 +45,7 @@ TBeginCopyContext::TBeginCopyContext(
 
 std::vector<TSharedRef> TBeginCopyContext::Finish()
 {
-    return Stream_.Flush();
+    return Stream_.Finish();
 }
 
 TCellTagList TBeginCopyContext::GetExternalCellTags()
