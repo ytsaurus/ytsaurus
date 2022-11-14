@@ -90,7 +90,7 @@ public:
     int GetIncumbentCount(EIncumbentType type) const override
     {
         TCompactSet<TString, 7> addresses;
-        for (auto& address : CurrentIncumbentMap_[type].Addresses) {
+        for (auto& address : LocalIncumbentMap_[type].Addresses) {
             if (address) {
                 addresses.insert(*address);
             }
