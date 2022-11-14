@@ -91,6 +91,9 @@ public:
     NSecurityServer::TDetailedMasterMemory GetDetailedMasterMemoryUsage() const override;
     void RecomputeTabletMasterMemoryUsage();
 
+    // COMPAT(gritukan): Remove after RecomputeTabletErrorCount.
+    void RecomputeTabletErrorCount();
+
     TTabletResources GetTabletResourceUsage() const override;
 
     NTabletClient::ETabletState GetTabletState() const;
