@@ -785,7 +785,7 @@ func (oplet *Oplet) Status() (s OpletStatus, err error) {
 		s.Status = "Waiting for update op parameters: " + reason
 		return
 	}
-	if s.SpecletDiff != nil {
+	if len(s.SpecletDiff) > 0 {
 		s.Status = "Speclet changed; operation should be restarted manually"
 		return
 	}
