@@ -2,11 +2,10 @@ package ru.yandex.spark.yt.serializers
 
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.yson.YsonTags
 import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
+import tech.ytsaurus.yson.YsonTags
+import tech.ytsaurus.ysontree.{YTreeNode, YTreeTextSerializer}
 
 import java.io.ByteArrayInputStream
 import scala.collection.mutable

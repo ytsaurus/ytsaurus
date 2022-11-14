@@ -3,9 +3,9 @@ package ru.yandex.spark.yt.serializers
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
-import ru.yandex.type_info.StructType.Member
-import ru.yandex.type_info.{TiType, TypeName}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
+import tech.ytsaurus.type_info.StructType.Member
+import tech.ytsaurus.type_info.{TiType, TypeName}
 
 import scala.annotation.tailrec
 

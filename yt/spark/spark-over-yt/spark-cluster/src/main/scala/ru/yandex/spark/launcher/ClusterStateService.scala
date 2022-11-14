@@ -1,14 +1,15 @@
 package ru.yandex.spark.launcher
 
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.launcher.AutoScaler.{OperationState, SparkState}
 import ru.yandex.spark.launcher.ClusterStateService.State
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.discovery.{DiscoveryService, OperationSet}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.{ResourceLimits, SchedulingOptions}
-import ru.yandex.yt.ytclient.proxy.request.{AbortJob, GetOperation, ResumeOperation, SuspendOperation, UpdateOperationParameters}
+import ru.yandex.yt.ytclient.request.{GetOperation, ResumeOperation, SuspendOperation, UpdateOperationParameters}
+import ru.yandex.yt.ytclient.request.AbortJob
+import tech.ytsaurus.core.GUID
 
 trait ClusterStateService {
   def query: Option[State]
@@ -72,7 +73,9 @@ object ClusterStateService extends LogLazy {
 
       def suspendOperation(operationId: GUID): Unit = {
         log.info(s"Suspending operation $operationId")
-        yt.suspendOperation(new SuspendOperation(operationId).setAbortRunningJobs(false)).join()
+        yt.suspendOperation(
+          new SuspendOperation.Builder().setOperationId(operationId).setAbortRunningJobs(false).build()
+        ).join()
       }
 
       def resumeOperation(operationId: GUID): Unit = {
@@ -82,9 +85,11 @@ object ClusterStateService extends LogLazy {
 
       def updateUserSlots(operationId: GUID, userSlots: Long): Unit = {
         log.info(s"Updating operation parameters for $operationId: user_slots=$userSlots")
-        val req = new UpdateOperationParameters(operationId)
+        val req = new UpdateOperationParameters.Builder()
+          .setOperationId(operationId)
           .addSchedulingOptions("physical",
             new SchedulingOptions().setResourceLimits(new ResourceLimits().setUserSlots(userSlots)))
+          .build()
         yt.updateOperationParameters(req).join()
       }
 

@@ -5,7 +5,7 @@ import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData}
 import org.apache.spark.sql.types.{StructField, StructType}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
-import ru.yandex.yson.YsonTags
+import tech.ytsaurus.yson.YsonTags
 
 trait ListParser {
   self: YsonBaseReader =>

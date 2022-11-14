@@ -1,11 +1,11 @@
 package ru.yandex.spark.yt.fs.path
 
 import org.apache.hadoop.fs.Path
-import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.spark.yt.fs.path.YPathEnriched.{YtLatestVersionPath, YtTimestampPath, YtTransactionPath}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.core.GUID
 
 sealed trait YPathEnriched {
   def toPath: Path

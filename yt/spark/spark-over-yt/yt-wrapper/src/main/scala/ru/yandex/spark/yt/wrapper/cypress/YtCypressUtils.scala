@@ -1,16 +1,16 @@
 package ru.yandex.spark.yt.wrapper.cypress
 
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.{CypressNodeType, YPath}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import tech.ytsaurus.ysontree.YTree
+import tech.ytsaurus.ysontree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request._
 import ru.yandex.yt.ytclient.request.LockMode
+import tech.ytsaurus.core.GUID
 
 import scala.collection.JavaConverters._
 import scala.util.control.NonFatal

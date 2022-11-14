@@ -1,8 +1,8 @@
 package ru.yandex.spark.launcher.rest
 
 import org.scalatra.servlet.RichRequest
-import ru.yandex.inside.yt.kosher.common.YtFormat
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
+import tech.ytsaurus.core.YtFormat
+import tech.ytsaurus.ysontree.YTreeTextSerializer
 
 sealed trait YtHeaderFormat
 

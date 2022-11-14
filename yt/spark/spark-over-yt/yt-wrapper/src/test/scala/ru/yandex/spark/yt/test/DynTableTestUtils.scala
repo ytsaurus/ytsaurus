@@ -1,11 +1,11 @@
 package ru.yandex.spark.yt.test
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.{createTable, insertRows, mountTableSync, reshardTable, unmountTableSync}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnSortOrder, ColumnValueType, TableSchema}
+import tech.ytsaurus.ysontree.YTreeNode
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

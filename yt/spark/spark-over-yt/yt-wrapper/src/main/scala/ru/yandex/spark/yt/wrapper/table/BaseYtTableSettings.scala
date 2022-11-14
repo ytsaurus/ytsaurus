@@ -1,9 +1,8 @@
 package ru.yandex.spark.yt.wrapper.table
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.yt.ytclient.tables.TableSchema
+import tech.ytsaurus.ysontree.YTreeNode
 
 import scala.collection.JavaConverters._
-
 import java.util.{Map => JMap}
 
 class BaseYtTableSettings(schema: TableSchema,

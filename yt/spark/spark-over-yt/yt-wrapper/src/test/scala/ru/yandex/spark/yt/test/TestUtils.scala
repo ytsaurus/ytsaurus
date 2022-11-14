@@ -1,20 +1,17 @@
 package ru.yandex.spark.yt.test
 
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeNodeUtils
 import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeRowSerializer
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.type_info.TiType
-import ru.yandex.yson.YsonConsumer
 import ru.yandex.yt.ytclient.`object`.{UnversionedRowSerializer, WireRowDeserializer, WireValueDeserializer}
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.{ObjectType, WriteTable}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import ru.yandex.yt.ytclient.wire.UnversionedRow
+import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.yson.YsonConsumer
+import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeNodeUtils, YTreeTextSerializer}
 
 import java.io.{ByteArrayInputStream, InputStream}
 import java.nio.charset.StandardCharsets

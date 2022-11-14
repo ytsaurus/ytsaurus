@@ -11,10 +11,10 @@ import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt.serializers.SchemaConverter.{Unordered, applyYtLimitToSparkDecimal}
 import ru.yandex.spark.yt.wrapper.LogLazy
-import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.`object`.{WireProtocolWriteable, WireRowSerializer}
 import ru.yandex.yt.ytclient.proxy.TableWriter
 import ru.yandex.yt.ytclient.tables.{ColumnSchema, ColumnValueType, TableSchema}
+import tech.ytsaurus.type_info.TiType
 
 import java.util.concurrent.{Executors, TimeUnit}
 import scala.annotation.tailrec

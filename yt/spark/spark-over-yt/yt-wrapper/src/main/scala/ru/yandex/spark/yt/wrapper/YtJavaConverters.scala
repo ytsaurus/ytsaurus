@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.wrapper
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import tech.ytsaurus.ysontree.YTreeNode
 
 import java.time.{Duration => JavaDuration}
 import java.util.Optional

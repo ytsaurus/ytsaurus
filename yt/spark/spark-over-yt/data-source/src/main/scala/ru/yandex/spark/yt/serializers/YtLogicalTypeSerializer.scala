@@ -1,8 +1,7 @@
 package ru.yandex.spark.yt.serializers
 
 import org.apache.spark.sql.types.Metadata
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.{YTree, YTreeBuilder}
-import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode, YTreeStringNode}
+import tech.ytsaurus.ysontree.{YTree, YTreeBuilder, YTreeMapNode, YTreeNode, YTreeStringNode}
 
 import scala.collection.JavaConverters.asScalaBufferConverter
 

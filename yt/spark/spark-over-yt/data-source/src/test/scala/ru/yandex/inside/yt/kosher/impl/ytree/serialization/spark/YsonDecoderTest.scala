@@ -8,10 +8,10 @@ import org.apache.spark.unsafe.types.UTF8String
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import org.scalatestplus.scalacheck.{ScalaCheckDrivenPropertyChecks, ScalaCheckPropertyChecks}
-import ru.yandex.inside.yt.kosher.impl.ytree.YTreeBinarySerializer
-import ru.yandex.yson.YsonTags._
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
 import ru.yandex.spark.yt.serializers.SchemaConverter
+import tech.ytsaurus.yson.YsonTags._
+import tech.ytsaurus.ysontree.YTreeBinarySerializer
 
 import scala.io.Source
 

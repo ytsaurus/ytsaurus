@@ -3,16 +3,14 @@ package ru.yandex.spark.yt.serializers
 import org.apache.spark.sql.types._
 import org.apache.spark.sql.v2.YtTable
 import org.apache.spark.sql.yson.{UInt64Type, YsonType}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.IndexedDataType.StructFieldMeta
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant, isVariantOverTuple}
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.isNullTypeAllowed
 import ru.yandex.spark.yt.serializers.YtLogicalType.getStructField
 import ru.yandex.spark.yt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
 import ru.yandex.yt.ytclient.tables.{ColumnSortOrder, TableSchema}
+import tech.ytsaurus.ysontree.{YTree, YTreeNode, YTreeTextSerializer}
 
 object SchemaConverter {
   object MetadataFields {

@@ -3,9 +3,9 @@ package ru.yandex.spark.yt.common.utils
 import org.apache.spark.sql.sources._
 import org.apache.spark.sql.types.{BooleanType, ByteType, DataType, DoubleType, FloatType, IntegerType, LongType, ShortType, StringType}
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.inside.yt.kosher.ytree.{YTreeBooleanNode, YTreeDoubleNode, YTreeEntityNode, YTreeIntegerNode, YTreeNode, YTreeStringNode}
 import ru.yandex.spark.yt.common.utils.Segment.Segment
 import ru.yandex.spark.yt.logger.YtLogger
+import tech.ytsaurus.ysontree._
 
 object ExpressionTransformer {
 

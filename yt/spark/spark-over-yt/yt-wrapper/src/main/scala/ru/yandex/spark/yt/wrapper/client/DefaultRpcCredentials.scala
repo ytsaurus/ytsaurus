@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.wrapper.client
 
 import java.nio.file.{Files, Path, Paths}
 
-import ru.yandex.yt.ytclient.rpc.RpcCredentials
+import tech.ytsaurus.client.rpc.RpcCredentials
 
 object DefaultRpcCredentials {
   def token: String = {

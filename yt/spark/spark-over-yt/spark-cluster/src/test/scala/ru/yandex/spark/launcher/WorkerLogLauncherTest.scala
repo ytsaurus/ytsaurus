@@ -6,12 +6,12 @@ import org.apache.log4j.spi.{LoggingEvent, RootLogger}
 import org.apache.log4j.{FileAppender, Level}
 import org.scalacheck.Prop.True
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
 import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.model.{WorkerLogBlock, WorkerLogMeta}
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.getMetaPath
+import tech.ytsaurus.ysontree.YTreeNode
 
 import java.io.{File, FileWriter}
 import java.nio.file.attribute.FileTime

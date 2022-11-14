@@ -3,9 +3,9 @@ package ru.yandex.spark.launcher.rest
 import io.circe._
 import io.circe.syntax._
 import org.scalatra.servlet.RichRequest
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.spark.yt.wrapper.cypress.YsonSyntax._
 import ru.yandex.spark.yt.wrapper.cypress.YsonWriter
+import tech.ytsaurus.ysontree.YTreeTextSerializer
 
 trait YtOutputFormat {
   def format[T: YsonWriter : Encoder](t: T): String

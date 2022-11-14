@@ -3,7 +3,6 @@ package ru.yandex.spark.yt.format
 import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.catalyst.expressions.GenericInternalRow
 import org.apache.spark.sql.execution.datasources.PartitionedFile
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.TuplePoint
 import ru.yandex.spark.yt.serializers.PivotKeysConverter
 

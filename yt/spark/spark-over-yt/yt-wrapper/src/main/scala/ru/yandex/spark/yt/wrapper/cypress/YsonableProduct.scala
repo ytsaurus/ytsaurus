@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.wrapper.cypress
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import tech.ytsaurus.ysontree.YTreeBuilder
+import tech.ytsaurus.ysontree.YTreeNode
 
 object YsonableProduct {
   implicit def ysonWriter[T <: Product]: YsonWriter[T] = new YsonWriter[T] {

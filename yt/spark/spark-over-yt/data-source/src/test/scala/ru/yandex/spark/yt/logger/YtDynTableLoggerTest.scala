@@ -2,10 +2,10 @@ package ru.yandex.spark.yt.logger
 
 import org.apache.log4j.Level
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.KeyColumnsFilterPushdown
 import ru.yandex.spark.yt.test._
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import tech.ytsaurus.ysontree.YTreeMapNode
 
 import java.util.UUID
 import scala.concurrent.duration._

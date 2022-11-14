@@ -6,15 +6,14 @@ import org.apache.spark.sql.yson.{UInt64Type, YsonType}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.ytree.YTreeMapNode
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
-import ru.yandex.spark.yt.serializers.SchemaConverter.{Unordered, MetadataFields, ytLogicalSchema}
+import ru.yandex.spark.yt.serializers.SchemaConverter.{MetadataFields, Unordered, ytLogicalSchema}
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.{SchemaTestUtils, YtReader}
-import ru.yandex.type_info.StructType.Member
-import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.type_info.StructType.Member
+import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.ysontree.{YTree, YTreeMapNode}
 
 class SchemaConverterTest extends FlatSpec with Matchers
   with TestUtils with TmpDir with LocalSpark with SchemaTestUtils with MockitoSugar with TableDrivenPropertyChecks {

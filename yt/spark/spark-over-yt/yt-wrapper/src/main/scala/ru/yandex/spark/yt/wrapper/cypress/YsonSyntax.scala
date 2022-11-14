@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.wrapper.cypress
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import tech.ytsaurus.ysontree.YTreeNode
 
 object YsonSyntax {
   implicit class Ysonable[T](t: T) {

@@ -13,14 +13,14 @@ import org.apache.spark.status.api.v1
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.ysontree.YTree
 
 import java.sql.{Date, Timestamp}
 import java.time.LocalDate

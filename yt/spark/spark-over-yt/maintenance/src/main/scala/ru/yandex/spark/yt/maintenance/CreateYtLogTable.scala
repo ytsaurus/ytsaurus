@@ -1,10 +1,10 @@
 package ru.yandex.spark.yt.maintenance
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.logger.YtDynTableLogger
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
+import tech.ytsaurus.ysontree.YTreeNode
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

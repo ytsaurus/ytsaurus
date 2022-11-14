@@ -1,9 +1,9 @@
 package ru.yandex.spark.yt.wrapper.cypress
 
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.spark.yt.test.{LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
+import tech.ytsaurus.ysontree.YTreeBuilder
 
 import java.util.UUID
 import scala.collection.JavaConverters._

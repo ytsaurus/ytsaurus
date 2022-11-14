@@ -12,7 +12,7 @@ import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvide
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.yt.TError
 import ru.yandex.yt.ytclient.proxy.CompoundClient
-import ru.yandex.yt.ytclient.rpc.RpcError
+import tech.ytsaurus.client.rpc.RpcError
 
 import java.io.FileNotFoundException
 import java.net.URI

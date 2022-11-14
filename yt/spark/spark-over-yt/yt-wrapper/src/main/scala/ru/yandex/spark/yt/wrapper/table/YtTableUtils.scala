@@ -1,11 +1,7 @@
 package ru.yandex.spark.yt.wrapper.table
 
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.misc.io.exec.ProcessUtils
 import ru.yandex.spark.yt.wrapper.Utils
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
@@ -17,6 +13,8 @@ import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentByteBufferReader
 import ru.yandex.yt.ytclient.proxy.request._
 import ru.yandex.yt.ytclient.request.ReadTable.SerializationContext
+import tech.ytsaurus.core.GUID
+import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeTextSerializer}
 
 import java.nio.ByteBuffer
 import java.nio.file.Paths
