@@ -626,8 +626,6 @@ class TestTabletActions(TabletActionsBase):
 
 
 class TabletBalancerBase(TabletActionsBase):
-    NUM_TEST_PARTITIONS = 4
-
     def _set_enable_tablet_balancer(self, value):
         raise Exception("Function is not implemented")
 
@@ -1297,6 +1295,7 @@ class TabletBalancerBase(TabletActionsBase):
 
 class TestTabletBalancer(TabletBalancerBase):
     ENABLE_TABLET_BALANCER = True
+    NUM_TEST_PARTITIONS = 4
 
     def _set_enable_tablet_balancer(self, value):
         set(

@@ -1,5 +1,6 @@
 #include "balancing_helpers.h"
 #include "config.h"
+#include "parameterized_balancing_helpers.h"
 #include "public.h"
 #include "table.h"
 #include "tablet.h"
@@ -12,12 +13,16 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
+#include <yt/yt/library/query/base/public.h>
+
 #include <util/random/shuffle.h>
 
 namespace NYT::NTabletBalancer {
 
-using namespace NTabletClient;
+using namespace NLogging;
 using namespace NObjectClient;
+using namespace NQueryClient;
+using namespace NTabletClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,9 +48,17 @@ i64 GetTabletBalancingSize(const TTabletPtr& tablet)
         : tablet->Statistics.MemorySize;
 }
 
+bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig)
+{
+    return (tablet->State == ETabletState::Mounted || tablet->State == ETabletState::Frozen) &&
+        (ignoreConfig || tablet->Table->TableConfig->EnableAutoReshard) &&
+        (ignoreConfig || tablet->Table->Bundle->Config->EnableTabletSizeBalancer) &&
+        tablet->Table->Sorted;
+}
+
 TTabletSizeConfig GetTabletSizeConfig(
     const TTable* table,
-    const NLogging::TLogger& Logger)
+    const TLogger& Logger)
 {
     i64 minTabletSize;
     i64 maxTabletSize;
@@ -145,12 +158,14 @@ TTabletSizeConfig GetTabletSizeConfig(
     };
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<TReshardDescriptor> MergeSplitTablet(
     const TTabletPtr& tablet,
     TTabletBalancerContext* context,
     const TTabletSizeConfig& bounds,
     std::vector<int>* mergeBudgetByIndex,
-    const NLogging::TLogger& Logger)
+    const TLogger& Logger)
 {
     // If a descriptor with a previous tablet is created and contains the current tablet,
     // that tablet will already be marked as touched.
@@ -272,7 +287,7 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     TRange<TTabletPtr> tabletRange,
     TTabletBalancerContext* context,
-    const NLogging::TLogger& Logger)
+    const TLogger& Logger)
 {
     YT_VERIFY(!tabletRange.empty());
 
@@ -372,20 +387,11 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     return descriptors;
 }
 
-bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig)
-{
-    // TODO(alexelex): Check if the tablet has unfinished action.
-    return (tablet->State == ETabletState::Mounted || tablet->State == ETabletState::Frozen) &&
-        (ignoreConfig || tablet->Table->TableConfig->EnableAutoReshard) &&
-        tablet->Table->Sorted &&
-        (ignoreConfig || tablet->Table->Bundle->Config->EnableTabletSizeBalancer);
-}
-
 std::vector<TMoveDescriptor> ReassignInMemoryTablets(
     const TTabletCellBundlePtr& bundle,
     const std::optional<THashSet<TTableId>>& movableTables,
     bool ignoreTableWiseConfig,
-    const NLogging::TLogger& /*Logger*/)
+    const TLogger& /*Logger*/)
 {
     auto softThresholdViolated = [&] (i64 min, i64 max) {
         return max > 0 && 1.0 * (max - min) / max > bundle->Config->SoftInMemoryCellBalanceThreshold;
@@ -509,7 +515,7 @@ void ReassignOrdinaryTabletsOfTable(
     const std::vector<TTabletCellPtr>& bundleCells,
     THashMap<const TTablet*, TTabletCellId>* tabletToTargetCell,
     THashMap<const TTabletCell*, std::vector<TTabletPtr>>* slackTablets,
-    const NLogging::TLogger& /*Logger*/)
+    const TLogger& /*Logger*/)
 {
     YT_VERIFY(!tablets.empty());
 
@@ -604,7 +610,7 @@ void ReassignOrdinaryTabletsOfTable(
 void ReassignSlackTablets(
     std::vector<std::pair<const TTabletCell*, std::vector<TTabletPtr>>> cellTablets,
     THashMap<const TTablet*, TTabletCellId>* tabletToTargetCell,
-    const NLogging::TLogger& /*Logger*/)
+    const TLogger& /*Logger*/)
 {
     std::sort(
         cellTablets.begin(),
@@ -676,7 +682,7 @@ void ReassignSlackTablets(
 std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
     const TTabletCellBundlePtr& bundle,
     const std::optional<THashSet<TTableId>>& movableTables,
-    const NLogging::TLogger& Logger)
+    const TLogger& Logger)
 {
     /*
         Balancing happens in two iterations. First iteration goes per-table.
@@ -754,11 +760,29 @@ std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
         if (!tablet->Cell || tablet->Cell->Id != cellId) {
             descriptors.emplace_back(TMoveDescriptor{
                 .TabletId = tablet->Id,
-                .TabletCellId = cellId});
+                .TabletCellId = cellId
+            });
         }
     }
 
     return descriptors;
+}
+
+std::vector<TMoveDescriptor> ReassignTabletsParameterized(
+    const TTabletCellBundlePtr& bundle,
+    const std::vector<TString>& performanceCountersKeys,
+    bool ignoreTableWiseConfig,
+    int maxMoveActionCount,
+    const TLogger& logger)
+{
+    auto solver = CreateParameterizedReassignSolver(
+        bundle,
+        performanceCountersKeys,
+        ignoreTableWiseConfig,
+        maxMoveActionCount,
+        logger);
+
+    return solver->BuildActionDescriptors();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

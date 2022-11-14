@@ -3,6 +3,9 @@
 #include "public.h"
 
 #include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/yson_serializable.h>
+
+#include <yt/yt/ytlib/tablet_client/proto/master_tablet_service.pb.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -23,6 +26,9 @@ struct TTabletStatistics
 
 struct TTablet final
 {
+    using TPerformanceCountersProtoList = NProtoBuf::RepeatedPtrField<
+        NTabletClient::NProto::TRspGetTableBalancingAttributes::TTablet::TEmaCounterSnapshot>;
+
     const TTabletId Id;
     const TTable* Table;
 
@@ -30,7 +36,7 @@ struct TTablet final
     TTabletCell* Cell = nullptr;
 
     TTabletStatistics Statistics;
-    NYTree::INodePtr PerformanceCounters;
+    TPerformanceCountersProtoList PerformanceCountersProto;
     ETabletState State;
 
     TTablet(
@@ -39,6 +45,12 @@ struct TTablet final
 };
 
 DEFINE_REFCOUNTED_TYPE(TTablet)
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYson::TYsonString BuildTabletPerformanceCountersYson(
+    const TTablet::TPerformanceCountersProtoList& emaCounters,
+    const std::vector<TString>& performanceCountersKeys);
 
 ////////////////////////////////////////////////////////////////////////////////
 

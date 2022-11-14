@@ -37,6 +37,8 @@ bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig);
 
 i64 GetTabletBalancingSize(const TTabletPtr& tablet);
 
+////////////////////////////////////////////////////////////////////////////////
+
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     TRange<TTabletPtr> tabletRange,
     TTabletBalancerContext* context,
@@ -51,6 +53,13 @@ std::vector<TMoveDescriptor> ReassignInMemoryTablets(
 std::vector<TMoveDescriptor> ReassignOrdinaryTablets(
     const TTabletCellBundlePtr& bundle,
     const std::optional<THashSet<TTableId>>& movableTables,
+    const NLogging::TLogger& logger = {});
+
+std::vector<TMoveDescriptor> ReassignTabletsParameterized(
+    const TTabletCellBundlePtr& bundle,
+    const std::vector<TString>& performanceCountersKeys,
+    bool ignoreTableWiseConfig,
+    int maxMoveActionCount,
     const NLogging::TLogger& logger = {});
 
 ////////////////////////////////////////////////////////////////////////////////

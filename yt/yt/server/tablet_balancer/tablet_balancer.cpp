@@ -72,6 +72,7 @@ private:
 
     std::atomic<bool> Enable_{false};
     std::atomic<bool> EnableEverywhere_{false};
+    std::atomic<int> MaxParameterizedMoveActionCount_{0};
     TAtomicObject<TTimeFormula> ScheduleFormula_;
 
     TInstant CurrentIterationStartTime_;
@@ -81,16 +82,17 @@ private:
     void BalancerIteration();
     void TryBalancerIteration();
 
-    bool IsBalancingAllowed(const TBundleStatePtr& bundle) const;
+    bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
 
-    void BalanceViaReshard(const TBundleStatePtr& bundle) const;
-    void BalanceViaMove(const TBundleStatePtr& bundle) const;
-    void BalanceViaMoveInMemory(const TBundleStatePtr& bundle) const;
-    void BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) const;
+    void BalanceViaReshard(const TBundleStatePtr& bundleState) const;
+    void BalanceViaMove(const TBundleStatePtr& bundleState) const;
+    void BalanceViaMoveInMemory(const TBundleStatePtr& bundleState) const;
+    void BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState) const;
+    void BalanceViaMoveParameterized(const TBundleStatePtr& bundleState) const;
 
     std::vector<TString> UpdateBundleList();
     bool HasUntrackedUnfinishedActions(
-        const TBundleStatePtr& bundle,
+        const TBundleStatePtr& bundleState,
         const IAttributeDictionary* attributes) const;
 
     bool DidBundleBalancingTimeHappen(const TTabletCellBundlePtr& bundle) const;
@@ -222,12 +224,12 @@ void TTabletBalancer::TryBalancerIteration()
     }
 }
 
-bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundle) const
+bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundleState) const
 {
     return Enable_ &&
-        bundle->GetHealth() == ETabletCellHealth::Good &&
+        bundleState->GetHealth() == ETabletCellHealth::Good &&
         (EnableEverywhere_ ||
-         bundle->GetBundle()->Config->EnableStandaloneTabletBalancer);
+         bundleState->GetBundle()->Config->EnableStandaloneTabletBalancer);
 }
 
 IYPathServicePtr TTabletBalancer::GetOrchidService()
@@ -254,6 +256,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
     // and balance everything, while EnableEverywhere has no effect if Enable is set to false.
     Enable_.store(newConfig->Enable);
     EnableEverywhere_.store(newConfig->EnableEverywhere);
+    MaxParameterizedMoveActionCount_.store(newConfig->MaxParameterizedMoveActionCount);
     ScheduleFormula_.Store(newConfig->Schedule);
 
     YT_LOG_DEBUG(
@@ -300,7 +303,7 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
 }
 
 bool TTabletBalancer::HasUntrackedUnfinishedActions(
-    const TBundleStatePtr& bundle,
+    const TBundleStatePtr& bundleState,
     const IAttributeDictionary* attributes) const
 {
     auto actions = attributes->Get<std::vector<IMapNodePtr>>("tablet_actions");
@@ -311,7 +314,7 @@ bool TTabletBalancer::HasUntrackedUnfinishedActions(
         }
 
         auto actionId = ConvertTo<TTabletActionId>(actionMapNode->FindChild("tablet_action_id"));
-        if (!ActionManager_->IsKnownAction(bundle->GetBundle()->Name, actionId)) {
+        if (!ActionManager_->IsKnownAction(bundleState->GetBundle()->Name, actionId)) {
             return true;
         }
     }
@@ -360,19 +363,19 @@ TTimeFormula TTabletBalancer::GetBundleSchedule(const TTabletCellBundlePtr& bund
     return formula;
 }
 
-void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundle) const
+void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState) const
 {
     YT_LOG_DEBUG("Balancing in memory tablets via move started (BundleName: %v)",
-        bundle->GetBundle()->Name);
+        bundleState->GetBundle()->Name);
 
-    if (!bundle->GetBundle()->Config->EnableInMemoryCellBalancer) {
+    if (!bundleState->GetBundle()->Config->EnableInMemoryCellBalancer) {
         YT_LOG_DEBUG("Balancing in memory tablets via move is disabled (BundleName: %v)",
-            bundle->GetBundle()->Name);
+            bundleState->GetBundle()->Name);
         return;
     }
 
     auto descriptors = ReassignInMemoryTablets(
-        bundle->GetBundle(),
+        bundleState->GetBundle(),
         /*movableTables*/ std::nullopt,
         /*ignoreTableWiseConfig*/ false,
         Logger);
@@ -384,10 +387,10 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundle) cons
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
-            ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
+            ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
-            auto tablet = GetOrCrash(bundle->Tablets(), descriptor.TabletId);
-            auto& profilingCounters = GetOrCrash(bundle->ProfilingCounters(), tablet->Table->Id);
+            auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
+            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
             profilingCounters.InMemoryMoves.Increment(1);
         }
 
@@ -395,23 +398,23 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundle) cons
     }
 
     YT_LOG_DEBUG("Balancing in memory tablets via move finished (BundleName: %v, ActionCount: %v)",
-        bundle->GetBundle()->Name,
+        bundleState->GetBundle()->Name,
         actionCount);
 }
 
-void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) const
+void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState) const
 {
     YT_LOG_DEBUG("Balancing ordinary tablets via move started (BundleName: %v)",
-        bundle->GetBundle()->Name);
+        bundleState->GetBundle()->Name);
 
-    if (!bundle->GetBundle()->Config->EnableCellBalancer) {
+    if (!bundleState->GetBundle()->Config->EnableCellBalancer) {
         YT_LOG_DEBUG("Balancing ordinary tablets via move is disabled (BundleName: %v)",
-            bundle->GetBundle()->Name);
+            bundleState->GetBundle()->Name);
         return;
     }
 
     auto descriptors = ReassignOrdinaryTablets(
-        bundle->GetBundle(),
+        bundleState->GetBundle(),
         /*movableTables*/ std::nullopt,
         Logger);
 
@@ -422,30 +425,78 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundle) cons
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
                 descriptor.TabletId,
                 descriptor.TabletCellId);
-            ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
+            ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
+
+            auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
+            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
+            profilingCounters.OrdinaryMoves.Increment(1);
         }
 
         actionCount += std::ssize(descriptors);
     }
 
     YT_LOG_DEBUG("Balancing ordinary tablets via move finished (BundleName: %v, ActionCount: %v)",
-        bundle->GetBundle()->Name,
+        bundleState->GetBundle()->Name,
         actionCount);
 }
 
-void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundle) const
+void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleState) const
 {
-    BalanceViaMoveInMemory(bundle);
-    BalanceViaMoveOrdinary(bundle);
+    if (bundleState->GetBundle()->Config->ParameterizedBalancingMetric.empty()) {
+        YT_LOG_DEBUG("Balance tablets via parameterized move is disabled (BundleName: %v)",
+            bundleState->GetBundle()->Name);
+        return;
+    }
+
+    auto descriptors = ReassignTabletsParameterized(
+        bundleState->GetBundle(),
+        bundleState->DefaultPerformanceCountersKeys_,
+        /*ignoreTableWiseConfig*/ false,
+        MaxParameterizedMoveActionCount_.load(),
+        Logger);
+
+    int actionCount = 0;
+
+    if (!descriptors.empty()) {
+        for (auto descriptor : descriptors) {
+            YT_LOG_DEBUG("Move action created (TabletId: %v, TabletCellId: %v)",
+                descriptor.TabletId,
+                descriptor.TabletCellId);
+            ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
+
+            auto tablet = GetOrCrash(bundleState->Tablets(), descriptor.TabletId);
+            auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), tablet->Table->Id);
+            profilingCounters.ParameterizedMoves.Increment(1);
+        }
+
+        actionCount += std::ssize(descriptors);
+    }
+
+    YT_LOG_DEBUG("Balance tablets via parameterized move finished (ActionCount: %v)", actionCount);
 }
 
-void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
+void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState) const
+{
+    try {
+        BalanceViaMoveParameterized(bundleState);
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex,
+            "Parameterized balancing failed with an exception (Bundle: %v, MetricFormula: %v)",
+            bundleState->GetBundle()->Name,
+            bundleState->GetBundle()->Config->ParameterizedBalancingMetric);
+    }
+
+    BalanceViaMoveInMemory(bundleState);
+    BalanceViaMoveOrdinary(bundleState);
+}
+
+void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState) const
 {
     YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v)",
-        bundle->GetBundle()->Name);
+        bundleState->GetBundle()->Name);
 
     std::vector<TTabletPtr> tablets;
-    for (const auto& [id, tablet] : bundle->Tablets()) {
+    for (const auto& [id, tablet] : bundleState->Tablets()) {
         if (IsTabletReshardable(tablet, /*ignoreConfig*/ false)) {
             tablets.push_back(tablet);
         }
@@ -473,7 +524,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
             continue;
         }
 
-        auto& profilingCounters = GetOrCrash(bundle->ProfilingCounters(), (*beginIt)->Table->Id);
+        auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), (*beginIt)->Table->Id);
         auto tabletRange = MakeRange(beginIt, endIt);
         beginIt = endIt;
 
@@ -489,7 +540,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
                 descriptor.Tablets,
                 descriptor.TabletCount,
                 descriptor.DataSize);
-            ActionManager_->ScheduleActionCreation(bundle->GetBundle()->Name, descriptor);
+            ActionManager_->ScheduleActionCreation(bundleState->GetBundle()->Name, descriptor);
 
             if (descriptor.TabletCount == 1) {
                 profilingCounters.TabletMerges.Increment(1);
@@ -503,7 +554,7 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundle) const
     }
 
     YT_LOG_DEBUG("Balancing tablets via reshard finished (BundleName: %v, ActionCount: %v)",
-        bundle->GetBundle()->Name,
+        bundleState->GetBundle()->Name,
         actionCount);
 }
 

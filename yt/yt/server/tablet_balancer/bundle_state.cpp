@@ -4,9 +4,8 @@
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 #include <yt/yt/server/lib/tablet_balancer/table.h>
+#include <yt/yt/server/lib/tablet_balancer/tablet.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell.h>
-
-#include <yt/yt/server/lib/tablet_server/performance_counters.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -47,30 +46,10 @@ THashMap<TTabletId, TTableId> ParseTabletToTableMapping(const NYTree::IMapNodePt
     return tabletToTable;
 }
 
-INodePtr BuildTabletPerformanceCountersNode(
-    const NProtoBuf::RepeatedPtrField<TRspGetTableBalancingAttributes::TTablet::TEmaCounterSnapshot>& emaCounters,
-    const std::vector<TString>& performanceCountersKeys)
-{
-    if (false) {
-        // TODO(alexelex): only for parameterized balancing.
-        return BuildYsonNodeFluently()
-            .DoMap([&] (TFluentMap fluent) {
-            for (int i = 0; i < std::ssize(performanceCountersKeys); ++i) {
-                const auto& counter = emaCounters.at(i);
-                fluent
-                    .Item(performanceCountersKeys[i] + "_count").Value(counter.count())
-                    .Item(performanceCountersKeys[i] + "_rate").Value(counter.rate())
-                    .Item(performanceCountersKeys[i] + "_rate_10m").Value(counter.rate_10m())
-                    .Item(performanceCountersKeys[i] + "_rate_1h").Value(counter.rate_1h());
-            }
-        });
-    }
-    return nullptr;
-}
-
 TTabletStatistics BuildTabletStatistics(
     const TRspGetTableBalancingAttributes::TTablet::TCompressedStatistics& protoStatistics,
-    const std::vector<TString>& keys)
+    const std::vector<TString>& keys,
+    bool saveOriginalNode = false)
 {
     // TODO(alexelex): save node to OriginNode. Needs only for parameterized balancing.
     auto node = BuildYsonNodeFluently()
@@ -87,6 +66,9 @@ TTabletStatistics BuildTabletStatistics(
     });
 
     TTabletStatistics statistics;
+    if (saveOriginalNode) {
+        statistics.OriginalNode = node;
+    }
 
     auto mapNode = node->AsMap();
     statistics.CompressedDataSize = ConvertTo<i64>(mapNode->FindChild("compressed_data_size"));
@@ -109,6 +91,12 @@ TBundleProfilingCounters::TBundleProfilingCounters(const NProfiling::TProfiler& 
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+const std::vector<TString> TBundleState::DefaultPerformanceCountersKeys_{
+    #define XX(name, Name) #name,
+    ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
+    #undef XX
+};
 
 TBundleState::TBundleState(
     TString name,
@@ -210,8 +198,13 @@ void TBundleState::DoUpdateState()
 
 bool TBundleState::IsTableBalancingAllowed(const TTableSettings& table) const
 {
-    return table.Dynamic &&
-        (table.Config->EnableAutoTabletMove || table.Config->EnableAutoReshard);
+    if (!table.Dynamic) {
+        return false;
+    }
+
+    return table.Config->EnableAutoTabletMove ||
+        table.Config->EnableAutoReshard ||
+        table.EnableParameterizedBalancing;
 }
 
 void TBundleState::DoFetchStatistics()
@@ -298,8 +291,8 @@ void TBundleState::DoFetchStatistics()
             }
 
             tablet->Index = tabletResponse.Index;
-            tablet->Statistics = tabletResponse.Statistics;
-            tablet->PerformanceCounters = tabletResponse.PerformanceCounters;
+            tablet->Statistics = std::move(tabletResponse.Statistics);
+            tablet->PerformanceCountersProto = std::move(tabletResponse.PerformanceCounters);
             tablet->State = tabletResponse.State;
 
             YT_VERIFY(tablet->Index == std::ssize(table->Tablets));
@@ -447,20 +440,14 @@ THashMap<TTableId, TBundleState::TTableSettings> TBundleState::FetchActualTableS
 THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundleState::FetchTableStatistics(
     const THashSet<TTableId>& tableIds) const
 {
-    static const std::vector<TString> performanceCountersKeys{
-        #define XX(name, Name) #name,
-        ITERATE_TABLET_PERFORMANCE_COUNTERS(XX)
-        #undef XX
-    };
-
     auto cellTagToBatch = FetchTableAttributes(
         Client_,
         tableIds,
         Bundle_->Tables,
         [] (const NTabletClient::TMasterTabletServiceProxy::TReqGetTableBalancingAttributesPtr& request) {
             request->set_fetch_statistics(true);
-            ToProto(request->mutable_requested_performance_counters(), performanceCountersKeys);
-        });
+            ToProto(request->mutable_requested_performance_counters(), DefaultPerformanceCountersKeys_);
+    });
 
     THashMap<TTableId, std::vector<TTabletStatisticsResponse>> tableStatistics;
     for (const auto& [cellTag, batch] : cellTagToBatch) {
@@ -474,6 +461,7 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
 
         for (int index = 0; index < batch.Request->table_ids_size(); ++index) {
             auto tableId = FromProto<TTableId>(batch.Request->table_ids()[index]);
+            auto table = GetOrCrash(Bundle_->Tables, tableId);
 
             const auto& response = responseBatch->tables()[index];
             if (response.tablets_size() == 0) {
@@ -489,10 +477,9 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
                     .State = FromProto<ETabletState>(tablet.state()),
                     .Statistics = BuildTabletStatistics(
                         tablet.statistics(),
-                        statisticsFieldNames),
-                    .PerformanceCounters = BuildTabletPerformanceCountersNode(
-                        tablet.performance_counters(),
-                        performanceCountersKeys),
+                        statisticsFieldNames,
+                        /*saveOriginalNode*/ table->EnableParameterizedBalancing),
+                    .PerformanceCounters = tablet.performance_counters(),
                 });
 
                 if (tablet.has_cell_id()) {
@@ -515,11 +502,11 @@ void TBundleState::InitializeProfilingCounters(const TTablePtr& table)
         .WithTag("table", table->Path);
 
     profilingCounters.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
-    profilingCounters.ExtMemoryMoves = profiler.Counter("/tablet_balancer/ext_memory_moves");
+    profilingCounters.OrdinaryMoves = profiler.Counter("/tablet_balancer/ext_memory_moves");
     profilingCounters.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
     profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
     profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
-    // TODO(alexelex): add ParametrizedMoves counter
+    profilingCounters.ParameterizedMoves = profiler.Counter("/tablet_balancer/parameterized_moves");
 
     EmplaceOrCrash(ProfilingCounters_, table->Id, std::move(profilingCounters));
 }

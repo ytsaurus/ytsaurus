@@ -39,6 +39,9 @@ public:
 
     bool EnableVerboseLogging;
 
+    //! Formula for calculating the metric of one tablet in parameterized balancing.
+    TString ParameterizedBalancingMetric;
+
     REGISTER_YSON_STRUCT(TBundleTabletBalancerConfig);
 
     static void Register(TRegistrar registrar);
@@ -81,7 +84,6 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TTableTabletBalancerConfig)
-
 
 ////////////////////////////////////////////////////////////////////////////////
 
