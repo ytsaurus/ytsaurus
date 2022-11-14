@@ -16,8 +16,7 @@ import ru.yandex.spark.yt.wrapper.table.YtArrowInputStream
 import scala.collection.JavaConverters._
 
 class ArrowBatchReader(stream: YtArrowInputStream,
-                       totalRowCount: Long,
-                       schema: StructType) extends BatchReaderBase(totalRowCount) with LogLazy {
+                       schema: StructType) extends BatchReaderBase with LogLazy {
   private val log = LoggerFactory.getLogger(getClass)
 
   private val indexedSchema = schema.fields.map(f => SchemaConverter.indexedDataType(f.dataType))

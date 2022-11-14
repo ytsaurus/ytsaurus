@@ -26,11 +26,11 @@ class TableCopyByteStream(reader: TableReader[ByteBuffer], timeout: Duration,
   }
 
   private def recognizeToken(token: Array[(Byte, Int)]): Boolean = {
-    if (hasNext && _batchBytesLeft >= 8) {
+    if (hasNext && _batchBytesLeft >= token.length) {
       val res = token.forall { case (b, i) => _batch.array()(_batch.arrayOffset() + _batch.position() + i) == b }
       if (res) {
-        _batch.position(_batch.position() + 8)
-        _batchBytesLeft -= 8
+        _batch.position(_batch.position() + token.length)
+        _batchBytesLeft -= token.length
       }
       res
     } else false

@@ -1,6 +1,6 @@
 package ru.yandex.spark.yt.format.batch
 
-import org.apache.spark.sql.Row
+import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.types.{DoubleType, IntegerType, StructType}
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.cypress.YPath
@@ -24,7 +24,7 @@ class ArrowBatchReaderTest extends FlatSpec with TmpDir with SchemaTestUtils
 
   it should "read old arrow format (< 0.15.0)" in {
     val stream = new TestInputStream(getClass.getResourceAsStream("arrow_old"))
-    val reader = new ArrowBatchReader(stream, 100, schema)
+    val reader = new ArrowBatchReader(stream, schema)
     val expected = readExpected("arrow_old_expected", schema)
 
     val rows = readFully(reader, schema, Int.MaxValue)
@@ -33,7 +33,7 @@ class ArrowBatchReaderTest extends FlatSpec with TmpDir with SchemaTestUtils
 
   it should "read new arrow format (>= 0.15.0)" in {
     val stream = new TestInputStream(getClass.getResourceAsStream("arrow_new"))
-    val reader = new ArrowBatchReader(stream, 100, schema)
+    val reader = new ArrowBatchReader(stream, schema)
     val expected = readExpected("arrow_new_expected", schema)
 
     val rows = readFully(reader, schema, Int.MaxValue)
@@ -48,10 +48,44 @@ class ArrowBatchReaderTest extends FlatSpec with TmpDir with SchemaTestUtils
     df.write.optimizeFor(OptimizeMode.Scan).yt(tmpPath)
 
     val stream = YtWrapper.readTableArrowStream(YPath.simple(tmpPath))
-    val reader = new ArrowBatchReader(stream, data.length, schema)
+    val reader = new ArrowBatchReader(stream, schema)
 
     val rows = readFully(reader, schema, Int.MaxValue)
     rows should contain theSameElementsAs data.map(Row(_))
+  }
+
+  it should "read arrow stream from yt" in {
+    import spark.implicits._
+    val schema = StructType(Seq(structField("a", IntegerType)))
+
+    def testSlice(data: Seq[Int], batchSize: Int, lowerRowIndex: Int, upperRowIndex: Int): Unit = {
+      val stream = YtWrapper.readTableArrowStream(YPath.simple(tmpPath).withRange(lowerRowIndex, upperRowIndex))
+      val reader = new ArrowBatchReader(stream, schema)
+
+      val rows = readFully(reader, schema, batchSize)
+      val expected = data.slice(lowerRowIndex, upperRowIndex).map(Row(_))
+
+      rows shouldEqual expected
+    }
+
+    val chunkCount = 3
+    val chunkRowCounts = List(1, 5, 10)
+
+    chunkRowCounts.foreach {
+      chunkRowCount =>
+        val data = (0 to chunkCount * chunkRowCount).toList
+        YtWrapper.removeIfExists(tmpPath)
+
+        (0 to chunkCount).foreach {
+          chunkIndex =>
+            val chunk = data.slice(chunkIndex * chunkRowCount, (chunkIndex + 1) * chunkRowCount).toDF("a")
+            chunk.write.optimizeFor(OptimizeMode.Scan).sortedBy("a").mode(SaveMode.Append).yt(tmpPath)
+        }
+
+        testSlice(data, chunkRowCount, 0, 10)
+        testSlice(data, chunkRowCount, 18, 2)
+        testSlice(data, chunkRowCount, 6, 6)
+    }
   }
 
   private def readExpected(filename: String, schema: StructType): Seq[Row] = {

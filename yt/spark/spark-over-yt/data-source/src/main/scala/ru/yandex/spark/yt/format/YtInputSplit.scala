@@ -6,6 +6,7 @@ import org.apache.log4j.Level
 import org.apache.spark.sql.types.StructType
 import ru.yandex.inside.yt.kosher.cypress.{RangeLimit, YPath}
 import ru.yandex.inside.yt.kosher.impl.ytree._
+import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.common.utils.Segment.Segment
 import ru.yandex.spark.yt.common.utils.TupleSegment.TupleSegment
@@ -37,7 +38,9 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
   override def getLocations: Array[String] = Array.empty
 
   private val originalFieldNames = schema.fields.map(x => x.metadata.getString(MetadataFields.ORIGINAL_NAME))
-  private val basePath: YPath = ypath(new Path(file.path)).toYPath.withColumns(originalFieldNames: _*)
+  private val basePath: YPath = ypath(new Path(file.path)).toYPath
+    .withAdditionalAttributes(java.util.Map.of("columns",
+      new YTreeBuilder().value(java.util.List.of(originalFieldNames: _*)).build()))
 
   lazy val ytPath: YPath = calculateYtPath(pushing = false)
   lazy val ytPathWithFiltersDetailed: YPath = calculateYtPath(pushing = true, union = false)

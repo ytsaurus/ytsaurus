@@ -4,7 +4,7 @@ import org.apache.spark.sql.execution.vectorized.OnHeapColumnVector
 import org.apache.spark.sql.types.StructType
 import org.apache.spark.sql.vectorized.{ColumnVector, ColumnarBatch}
 
-abstract class BatchReaderBase(totalRowCount: Long) extends BatchReader {
+abstract class BatchReaderBase extends BatchReader {
   protected var _batch: ColumnarBatch = getEmptyBatch()
 
   protected var _rowsReturned = 0L
@@ -31,11 +31,6 @@ abstract class BatchReaderBase(totalRowCount: Long) extends BatchReader {
 
   override def nextBatch: Boolean = {
     _batch.setNumRows(0)
-    if (_rowsReturned >= totalRowCount) {
-      finalRead()
-      false
-    } else {
-      nextBatchInternal
-    }
+    nextBatchInternal
   }
 }
