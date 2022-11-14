@@ -76,8 +76,17 @@ type Config struct {
 	// Probability fills empty probabilities in services.
 	Probability float64 `yson:"probability"`
 
+	// ResolverMinProfiles is min no profiles per resolver.
+	ResolverMinProfiles int `yson:"resolver_min_profiles"`
+
+	// ResolverMaxProfiles is max no profiles per resolver.
+	ResolverMaxProfiles int `yson:"resolver_max_profiles"`
+
 	// Services is a descriptions of what profiles to fetch.
 	Services []Service `yson:"services"`
+
+	// NannyServices fills services with resolvers with corresponding podsets.
+	NannyServices []string `yson:"nanny_services"`
 }
 
 type Configs struct {
@@ -94,6 +103,8 @@ type Configs struct {
 
 func (cs *Configs) FillInfo(l *zap.Logger) {
 	for i := 0; i < len(cs.Configs); i++ {
+		cs.Configs[i].FillServices()
+
 		cs.Configs[i].FillInfo(l)
 
 		if cs.Ports != nil {
@@ -101,6 +112,18 @@ func (cs *Configs) FillInfo(l *zap.Logger) {
 		}
 
 		cs.Configs[i].FillYPClusters(cs.YPClusters)
+	}
+}
+
+func (c *Config) FillServices() {
+	for _, nannyService := range c.NannyServices {
+		c.Services = append(c.Services, Service{
+			Resolvers: []Resolver{
+				{
+					YPPodSet: podsetFromNannyService(nannyService),
+				},
+			},
+		})
 	}
 }
 
@@ -215,4 +238,8 @@ func serviceNameByPodset(podset string) (string, error) {
 	}
 
 	return "none", fmt.Errorf("service not found")
+}
+
+func podsetFromNannyService(podset string) string {
+	return strings.ReplaceAll(podset, "_", "-")
 }
