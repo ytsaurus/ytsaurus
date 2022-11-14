@@ -1481,7 +1481,7 @@ public:
         bool explicitOnly)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_ASSERT(transaction->IsTrunk());
+        YT_ASSERT(trunkNode->IsTrunk());
 
         auto error = CheckUnlock(trunkNode, transaction, recursive, explicitOnly);
         error.ThrowOnError();
