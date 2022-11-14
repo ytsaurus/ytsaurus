@@ -14,6 +14,7 @@
         "controller-agent" = 10014;
         "clock" = 10016;
         "discovery" = 10020;
+        "timestamp-provider" = 10021;
     };
     "yp_clusters" = [
         "sas";
@@ -28,74 +29,79 @@
     ];
     "configs" = [
         {
-            "cluster" = "pythia";
+            "cluster" = "landau";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
-            "probability" = 0.5;
+            "probability" = 0.4;
             "period" = 300000000000;
-            "dc_prefix_len" = 3;
             "services" = [
                 {
-                    "service_type" = "node";
                     "resolvers" = [
                         {
-                            "podset" = "xdc-yt-pythia-nodes-over-yp";
+                            "podset" = "vla-yt-landau-clocks-over-yp";
                         }
                     ]
                 };
                 {
-                    "service_type" = "master";
                     "resolvers" = [
                         {
-                            "podset" = "xdc-yt-pythia-masters-over-yp";
+                            "podset" = "vla-yt-landau-controller-agents-over-yp";
                         }
                     ]
                 };
                 {
-                    "service_type" = "master-caches";
                     "resolvers" = [
                         {
-                            "podset" = "xdc-yt-pythia-master-caches-over-yp";
+                            "podset" = "vla-yt-landau-dat-nodes-over-yp";
                         }
                     ]
                 };
                 {
-                    "service_type" = "scheduler";
                     "resolvers" = [
                         {
-                            "podset" = "xdc-yt-pythia-schedulers-over-yp";
+                            "podset" = "vla-yt-landau-exe-tab-nodes-over-yp";
                         }
                     ]
                 };
                 {
-                    "service_type" = "clock";
                     "resolvers" = [
                         {
-                            "podset" = "xdc-yt-pythia-clocks-over-yp";
+                            "podset" = "vla-yt-landau-master-caches-over-yp";
                         }
                     ]
                 };
                 {
-                    "service_type" = "controller-agent";
                     "resolvers" = [
                         {
-                            "podset" = "xdc-yt-pythia-controller-agents-over-yp";
+                            "podset" = "vla-yt-landau-masters-over-yp";
                         }
                     ]
                 };
                 {
-                    "service_type" = "http-proxy";
                     "resolvers" = [
                         {
-                            "podset" = "xdc-yt-pythia-proxies-over-yp";
+                            "podset" = "vla-yt-landau-proxies-over-yp";
                         }
                     ]
                 };
                 {
-                    "service_type" = "rpc-proxy";
                     "resolvers" = [
                         {
-                            "podset" = "xdc-yt-pythia-rpc-proxies-over-yp";
+                            "podset" = "vla-yt-landau-rpc-proxies-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-landau-schedulers-over-yp";
+                        }
+                    ]
+                };
+                {
+                    "resolvers" = [
+                        {
+                            "podset" = "vla-yt-landau-timestamp-providers-over-yp";
                         }
                     ]
                 };

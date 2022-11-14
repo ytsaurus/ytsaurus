@@ -39,8 +39,8 @@ var rootCmd = &cobra.Command{
 }
 
 func init() {
-	rootCmd.PersistentFlags().StringVar(&flagProxy, "storage-proxy", "freud", "name of the YT cluster")
-	rootCmd.PersistentFlags().StringVar(&flagTablePath, "storage-path", "//sys/ytprof/testing", "path to directory with table data & metadata")
+	rootCmd.PersistentFlags().StringVar(&flagProxy, "storage-proxy", "hahn", "name of the YT cluster")
+	rootCmd.PersistentFlags().StringVar(&flagTablePath, "storage-path", "//home/ytprof/storage/manual", "path to directory with table data & metadata")
 	rootCmd.PersistentFlags().StringVar(&flagMetaquery, "metaquery", "true", "query to metadata like (\"Metadata['BinaryVersion'] == '22.1.9091469-stable-ya~42704c91e804aabc'\")")
 	rootCmd.PersistentFlags().StringVar(&flagTimestampMin, "mintime", "", "start of the time period")
 	rootCmd.PersistentFlags().StringVar(&flagTimestampMax, "maxtime", "", "end of the time period")

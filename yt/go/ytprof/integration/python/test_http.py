@@ -19,7 +19,9 @@ def running_app():
             json.dumps({
                 "http_endpoint": f"localhost:{port}",
                 "proxy": os.environ['YT_PROXY'],
-                "table_path": "//home/kristevalex/ytprof/testing"}),
+                "table_path": "//home/kristevalex/ytprof/testing",
+                "manual_proxy": os.environ['YT_PROXY'],
+                "manual_table_path": "//home/kristevalex/ytprof/testing"}),
             "--log-to-stderr",
         ]
 

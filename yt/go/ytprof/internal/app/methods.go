@@ -11,6 +11,7 @@ import (
 
 	"github.com/go-chi/chi/v5"
 	"github.com/google/pprof/driver"
+	"github.com/google/pprof/profile"
 	"google.golang.org/genproto/googleapis/api/httpbody"
 	"google.golang.org/grpc"
 	"google.golang.org/protobuf/types/known/emptypb"
@@ -245,7 +246,7 @@ func (a *App) SuggestValues(ctx context.Context, in *api.SuggestValuesRequest, o
 	}, nil
 }
 
-func (a *App) UIHandler(w http.ResponseWriter, r *http.Request) {
+func (a *App) UIHandler(w http.ResponseWriter, r *http.Request, manual bool) {
 	a.l.Debug("receiving HTTP UI request", log.String("path", r.URL.Path))
 
 	guidString := chi.RouteContext(r.Context()).URLParam("profileID")
@@ -256,7 +257,12 @@ func (a *App) UIHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	profile, err := a.ts.FindProfile(r.Context(), ytprof.ProfIDFromGUID(profileGUID))
+	var profile *profile.Profile
+	if manual {
+		profile, err = a.tsm.FindProfile(r.Context(), ytprof.ProfIDFromGUID(profileGUID))
+	} else {
+		profile, err = a.ts.FindProfile(r.Context(), ytprof.ProfIDFromGUID(profileGUID))
+	}
 	if err != nil {
 		a.l.Error("failed HTTP UI request: profile not found", log.Error(err))
 		http.Error(w, err.Error(), http.StatusNotFound)
@@ -265,7 +271,12 @@ func (a *App) UIHandler(w http.ResponseWriter, r *http.Request) {
 
 	fetcher := profileFetcher{profile: profile}
 
-	fullPrefix := fmt.Sprintf("%s/%s", UIRequestPrefix, profileGUID)
+	uiPrefix := UIRequestPrefix
+	if manual {
+		uiPrefix = UIManualRequestPrefix
+	}
+
+	fullPrefix := fmt.Sprintf("%s/%s", uiPrefix, profileGUID)
 
 	strippedURL := strings.TrimPrefix(r.URL.Path, fullPrefix)
 

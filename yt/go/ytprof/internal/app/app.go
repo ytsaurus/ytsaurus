@@ -26,28 +26,28 @@ import (
 
 const DefaultQueryLimit = 1000000
 const UIRequestPrefix = "/ui"
+const UIManualRequestPrefix = "/manual/ui"
 
 type App struct {
 	l          *zap.Logger
 	httpListen net.Listener
 	yt         yt.Client
+	ytm        yt.Client
 	ts         *storage.TableStorage
+	tsm        *storage.TableStorage
 	config     Config
 }
 
 type Config struct {
-	HTTPEndpoint string `json:"http_endpoint" yaml:"http_endpoint"`
-	Proxy        string `json:"proxy" yaml:"proxy"`
-	TablePath    string `json:"table_path" yaml:"table_path"`
-	QueryLimit   int    `json:"query_limit" yaml:"query_limit"`
+	HTTPEndpoint    string `json:"http_endpoint" yaml:"http_endpoint"`
+	Proxy           string `json:"proxy" yaml:"proxy"`
+	ManualProxy     string `json:"manual_proxy" yaml:"manual_proxy"`
+	TablePath       string `json:"table_path" yaml:"table_path"`
+	ManualTablePath string `json:"manual_table_path" yaml:"manual_table_path"`
+	QueryLimit      int    `json:"query_limit" yaml:"query_limit"`
 }
 
 func NewApp(l *zap.Logger, config Config) *App {
-	ytConfig := yt.Config{
-		Proxy:             config.Proxy,
-		ReadTokenFromFile: true,
-	}
-
 	app := &App{
 		l:      l,
 		config: config,
@@ -59,25 +59,48 @@ func NewApp(l *zap.Logger, config Config) *App {
 
 	var err error
 
+	ytConfig := yt.Config{
+		Proxy:             config.Proxy,
+		ReadTokenFromFile: true,
+	}
+
 	app.yt, err = ythttp.NewClient(&ytConfig)
 	if err != nil {
-		l.Fatal("creating YT client failed", log.Error(err))
+		l.Fatal("YT client creation failed", log.Error(err))
 	}
 
 	app.ts, err = storage.NewTableStorageMigrate(app.yt, ypath.Path(config.TablePath), l)
 	if err != nil {
-		l.Fatal("creating storage or migrating failed", log.Error(err))
+		l.Fatal("storage creation or migration failed", log.Error(err))
+	}
+
+	ytConfigManual := yt.Config{
+		Proxy:             config.Proxy,
+		ReadTokenFromFile: true,
+	}
+
+	app.ytm, err = ythttp.NewClient(&ytConfigManual)
+	if err != nil {
+		l.Fatal("YT client creation failed", log.Error(err))
+	}
+
+	app.tsm, err = storage.NewTableStorageMigrate(app.ytm, ypath.Path(config.ManualTablePath), l)
+	if err != nil {
+		l.Fatal("storage creation or migration failed", log.Error(err))
 	}
 
 	app.httpListen, err = net.Listen("tcp", config.HTTPEndpoint)
 	if err != nil {
-		l.Fatal("creating HTTP listener failed", log.Error(err))
+		l.Fatal("HTTP listener creation failed", log.Error(err))
 	}
-	l.Info("started HTTP listener", log.String("addr", app.httpListen.Addr().String()))
+	l.Info("HTTP listener started", log.String("addr", app.httpListen.Addr().String()))
 
 	r := chi.NewMux()
 	r.HandleFunc(UIRequestPrefix+"/{profileID}/*", func(w http.ResponseWriter, r *http.Request) {
-		app.UIHandler(w, r)
+		app.UIHandler(w, r, false)
+	})
+	r.HandleFunc(UIManualRequestPrefix+"/{profileID}/*", func(w http.ResponseWriter, r *http.Request) {
+		app.UIHandler(w, r, true)
 	})
 
 	httpServer := &http.Server{
@@ -87,11 +110,11 @@ func NewApp(l *zap.Logger, config Config) *App {
 
 	err = Register(r, app)
 	if err != nil {
-		l.Fatal("registering HTTP routes failed", log.Error(err))
+		l.Fatal("HTTP routes registration failed", log.Error(err))
 	}
 
 	go func() {
-		l.Error("HTTP server has stopped", log.Error(httpServer.Serve(app.httpListen)))
+		l.Error("HTTP server stopped", log.Error(httpServer.Serve(app.httpListen)))
 	}()
 
 	return app

@@ -82,10 +82,7 @@ func runFetcher(cmd *cobra.Command, args []string) error {
 		return err
 	}
 
-	err = configs.FillInfo()
-	if err != nil {
-		return err
-	}
+	configs.FillInfo(l)
 
 	l.Debug("config reading succeeded", log.String("config", fmt.Sprintf("%v", configs)), log.String("config_path", flagConfig))
 

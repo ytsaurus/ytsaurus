@@ -13,12 +13,12 @@ import (
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/zap"
-	"a.yandex-team.ru/library/go/slices"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/ytlog"
 	"a.yandex-team.ru/yt/go/ytprof"
 
+	"a.yandex-team.ru/yt/go/ytprof/internal/app"
 	"a.yandex-team.ru/yt/go/ytprof/internal/storage"
 )
 
@@ -63,20 +63,6 @@ var pushDataCmd = &cobra.Command{
 	Args:  cobra.ExactArgs(0),
 }
 
-var getServicesCmd = &cobra.Command{
-	Use:   "services",
-	Short: "displays available services",
-	RunE:  getServices,
-	Args:  cobra.ExactArgs(0),
-}
-
-var getClustersCmd = &cobra.Command{
-	Use:   "clusters",
-	Short: "displays available clusters",
-	RunE:  getClusters,
-	Args:  cobra.ExactArgs(0),
-}
-
 func init() {
 	getDataCmd.Flags().StringVar(&flagProfileGUID, "guid", "", "guid of the profiles")
 	findDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type")
@@ -90,9 +76,6 @@ func init() {
 	rootCmd.AddCommand(findDataCmd)
 	rootCmd.AddCommand(pushDataCmd)
 	rootCmd.AddCommand(findMetadataCmd)
-
-	pushDataCmd.AddCommand(getClustersCmd)
-	pushDataCmd.AddCommand(getServicesCmd)
 }
 
 type cmdPeriod struct {
@@ -322,30 +305,6 @@ func pushData(cmd *cobra.Command, args []string) error {
 		l.Fatal("storage creation failed", log.Error(err))
 	}
 
-	clusters, err := s.FindTagValues(ctx, "Cluster")
-	if err != nil {
-		l.Error("can't find available clusters", log.Error(err))
-		return err
-	}
-
-	services, err := s.FindTagValues(ctx, "Service")
-	if err != nil {
-		l.Error("can't find available services", log.Error(err))
-		return err
-	}
-
-	ok, err := slices.Contains(clusters, flagProfileCluster)
-	if !ok || err != nil {
-		l.Error("unsupported cluster", log.String("cluster", flagProfileCluster), log.Error(err))
-		return fmt.Errorf("unsupported cluster")
-	}
-
-	ok, err = slices.Contains(services, flagProfileService)
-	if !ok || err != nil {
-		l.Error("unsupported service", log.String("service", flagProfileService), log.Error(err))
-		return fmt.Errorf("unsupported service")
-	}
-
 	f, err := os.Open(flagFilePath)
 	if err != nil {
 		l.Error("can't open file", log.Error(err), log.String("path", flagFilePath))
@@ -378,43 +337,7 @@ func pushData(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Link to view your profile:")
-	fmt.Printf("https://ytprof.yt.yandex-team.ru/ui/%s/\n", guids[0])
-
-	return nil
-}
-
-func getClusters(cmd *cobra.Command, args []string) error {
-	l := ytlog.Must()
-
-	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
-	if err != nil {
-		l.Fatal("storage creation failed", log.Error(err))
-	}
-
-	clusters, err := s.FindTagValues(context.Background(), "Cluster")
-	if err != nil {
-		l.Error("can't find available clusters", log.Error(err))
-		return err
-	}
-	fmt.Println(clusters)
-
-	return nil
-}
-
-func getServices(cmd *cobra.Command, args []string) error {
-	l := ytlog.Must()
-
-	s, err := storage.NewTableStorageMigrate(YT, ypath.Path(flagTablePath), l)
-	if err != nil {
-		l.Fatal("storage creation failed", log.Error(err))
-	}
-
-	services, err := s.FindTagValues(context.Background(), "Service")
-	if err != nil {
-		l.Error("can't find available services", log.Error(err))
-		return err
-	}
-	fmt.Println(services)
+	fmt.Printf("https://ytprof.yt.yandex-team.ru%s/%s/\n", app.UIManualRequestPrefix, guids[0])
 
 	return nil
 }
