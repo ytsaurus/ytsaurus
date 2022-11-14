@@ -48,6 +48,8 @@ public:
     // Ignore bundle attribute EnableStandaloneTabletBalancer and balance each bundle.
     bool EnableEverywhere;
 
+    int MaxParameterizedMoveActionCount;
+
     TTimeFormula Schedule;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);

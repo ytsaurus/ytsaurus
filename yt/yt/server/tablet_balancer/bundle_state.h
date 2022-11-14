@@ -7,6 +7,8 @@
 #include <yt/yt/server/lib/tablet_balancer/tablet.h>
 #include <yt/yt/server/lib/tablet_balancer/tablet_cell_bundle.h>
 
+#include <yt/yt/server/lib/tablet_server/performance_counters.h>
+
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -18,10 +20,11 @@ namespace NYT::NTabletBalancer {
 struct TTableProfilingCounters
 {
     NProfiling::TCounter InMemoryMoves;
-    NProfiling::TCounter ExtMemoryMoves;
+    NProfiling::TCounter OrdinaryMoves;
     NProfiling::TCounter TabletMerges;
     NProfiling::TCounter TabletSplits;
     NProfiling::TCounter NonTrivialReshards;
+    NProfiling::TCounter ParameterizedMoves;
 };
 
 struct TBundleProfilingCounters
@@ -51,6 +54,8 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TTabletCellBundlePtr, Bundle, nullptr);
     DEFINE_BYREF_RW_PROPERTY(TTableProfilingCounterMap, ProfilingCounters);
     DEFINE_BYVAL_RW_PROPERTY(bool, HasUntrackedUnfinishedActions, false);
+
+    static const std::vector<TString> DefaultPerformanceCountersKeys_;
 
 public:
     TBundleState(
@@ -85,7 +90,7 @@ private:
 
         ETabletState State;
         TTabletStatistics Statistics;
-        NYTree::INodePtr PerformanceCounters;
+        TTablet::TPerformanceCountersProtoList PerformanceCounters;
         TTabletCellId CellId;
     };
 

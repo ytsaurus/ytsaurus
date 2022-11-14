@@ -32,6 +32,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_everywhere", &TThis::EnableEverywhere)
         .Default(false);
+    registrar.Parameter("max_parameterized_move_action_count", &TThis::MaxParameterizedMoveActionCount)
+        .Default(5);
     registrar.Parameter("schedule", &TThis::Schedule)
         .Default(DefaultTabletBalancerSchedule);
 

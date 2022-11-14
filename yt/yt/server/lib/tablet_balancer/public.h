@@ -33,6 +33,8 @@ struct TReshardDescriptor;
 struct TMoveDescriptor;
 using TActionDescriptor = std::variant<TMoveDescriptor, TReshardDescriptor>;
 
+DECLARE_REFCOUNTED_STRUCT(IParameterizedReassignSolver)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletBalancer

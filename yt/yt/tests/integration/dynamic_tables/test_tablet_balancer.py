@@ -1,9 +1,12 @@
 from .test_tablet_actions import TabletBalancerBase
 
 from yt_commands import (
-    authors, set, get, ls, update, wait)
+    authors, set, get, ls, update, wait, sync_mount_table, sync_reshard_table,
+    insert_rows, sync_create_cells, sync_flush_table)
 
 from yt.common import update_inplace
+
+import pytest
 
 ##################################################################
 
@@ -11,6 +14,7 @@ from yt.common import update_inplace
 class TestStandaloneTabletBalancer(TabletBalancerBase):
     NUM_TABLET_BALANCERS = 3
     ENABLE_STANDALONE_TABLET_BALANCER = True
+    NUM_TEST_PARTITIONS = 5
 
     @classmethod
     def modify_tablet_balancer_config(cls, config):
@@ -71,10 +75,52 @@ class TestStandaloneTabletBalancer(TabletBalancerBase):
         assert self._get_enable_tablet_balancer()
         assert get("//sys/tablet_balancer/config/enable_everywhere")
 
+    @authors("alexelexa")
+    @pytest.mark.parametrize(
+        "parameterized_balancing_metric",
+        [
+            "double([/performance_counters/dynamic_row_write_count])",
+            "double([/statistics/uncompressed_data_size])"
+        ],
+    )
+    def test_parameterized_balancing(self, parameterized_balancing_metric):
+        self._configure_bundle("default")
+        cells = sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/parameterized_balancing_metric",
+            parameterized_balancing_metric
+        )
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
+
+        config = {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": False,
+        }
+        set("//tmp/t/@tablet_balancer_config", config)
+
+        sync_reshard_table("//tmp/t", [[], [10], [20], [30]])
+        sync_mount_table("//tmp/t", cell_id=cells[0])
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(3)])  # 3 rows
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(10, 11)])  # 1 row
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(20, 22)])  # 2 rows
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(30, 32)])  # 2 rows
+        sync_flush_table("//tmp/t")
+
+        set("//tmp/t/@enable_parameterized_balancing", True)
+
+        wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
+
+        tablets = get("//tmp/t/@tablets")
+        assert(tablets[0]["cell_id"] == tablets[1]["cell_id"])
+        assert(tablets[2]["cell_id"] == tablets[3]["cell_id"])
+
 
 ##################################################################
 
 
 class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
     NUM_SECONDARY_MASTER_CELLS = 2
-    NUM_TEST_PARTITIONS = 5
