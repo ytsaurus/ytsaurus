@@ -4,7 +4,7 @@ import org.apache.hadoop.mapreduce.{InputSplit, RecordReader, TaskAttemptContext
 import org.apache.spark.sql.catalyst.expressions.UnsafeProjection
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.format.YtInputSplit
-import ru.yandex.spark.yt.format.batch.{ArrowBatchReader, BatchReader, EmptyColumnsBatchReader, WireRowBatchReader}
+import ru.yandex.spark.yt.format.batch.{ArrowBatchReader, BatchReader, WireRowBatchReader}
 import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.proxy.CompoundClient
@@ -22,22 +22,19 @@ class YtVectorizedReader(split: YtInputSplit,
   private var _batchIdx = 0
 
   private val batchReader: BatchReader = {
-    val totalRowCount = split.getLength
-    if (split.schema.nonEmpty) {
-      val path = split.ytPathWithFilters
-      log.info(s"Reading $totalRowCount rows from $path")
-      if (arrowEnabled) {
-        val stream = YtWrapper.readTableArrowStream(path, timeout, None, reportBytesRead)
-        new ArrowBatchReader(stream, totalRowCount, split.schema)
-      } else {
-        val schema = split.schema
-        val rowIterator = YtWrapper.readTable(path, ArrayAnyDeserializer.getOrCreate(schema), timeout, None,
-          reportBytesRead)
-        new WireRowBatchReader(rowIterator, batchMaxSize, totalRowCount, schema)
-      }
+    val path = split.ytPathWithFilters
+    log.info(s"Reading from $path")
+    val schema = split.schema
+    // TODO(alex-shishkin): SPYT-404
+    // Check for non-emptiness is a workaround for not working reading in Arrow with empty schema.
+    // org/apache/spark/sql/v2/StaticTableKeyPartitioningTest.scala:"read any subset of columns" test crashes
+    if (arrowEnabled && schema.nonEmpty) {
+      val stream = YtWrapper.readTableArrowStream(path, timeout, None, reportBytesRead)
+      new ArrowBatchReader(stream, schema)
     } else {
-      log.info(s"Reading $totalRowCount empty rows")
-      new EmptyColumnsBatchReader(totalRowCount)
+      val rowIterator = YtWrapper.readTable(path, ArrayAnyDeserializer.getOrCreate(schema), timeout, None,
+        reportBytesRead)
+      new WireRowBatchReader(rowIterator, batchMaxSize, schema)
     }
   }
 

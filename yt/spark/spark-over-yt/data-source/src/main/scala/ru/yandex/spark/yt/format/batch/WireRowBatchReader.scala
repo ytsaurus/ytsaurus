@@ -7,15 +7,14 @@ import ru.yandex.spark.yt.wrapper.table.TableIterator
 
 class WireRowBatchReader(rowIterator: TableIterator[Array[Any]],
                          batchMaxSize: Int,
-                         totalRowCount: Long,
-                         schema: StructType) extends BatchReaderBase(totalRowCount) {
+                         schema: StructType) extends BatchReaderBase {
   private val columnVectors = OnHeapColumnVector.allocateColumns(batchMaxSize, schema)
     .asInstanceOf[Array[WritableColumnVector]]
   _batch = new ColumnarBatch(columnVectors.asInstanceOf[Array[ColumnVector]])
 
   override protected def nextBatchInternal: Boolean = {
     columnVectors.foreach(_.reset())
-    val batchSize = Math.min(batchMaxSize.toLong, totalRowCount - _rowsReturned).toInt
+    val batchSize = batchMaxSize
     val readBatchSize = rowIterator.take(batchSize).zipWithIndex.foldLeft(0){case (count, (row, i)) =>
       for (j <- columnVectors.indices) {
         if (row(j) == null) {
@@ -35,8 +34,7 @@ class WireRowBatchReader(rowIterator: TableIterator[Array[Any]],
       count + 1
     }
     setNumRows(readBatchSize)
-    if (readBatchSize != batchSize) throw new IllegalStateException("Unexpected end of rows")
-    true
+    readBatchSize > 0
   }
 
 
