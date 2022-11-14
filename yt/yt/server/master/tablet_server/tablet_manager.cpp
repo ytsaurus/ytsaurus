@@ -6749,7 +6749,7 @@ private:
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto* tablet = GetTabletOrThrow(tabletId);
 
-        PrepareTabletStoresUpdateBase(tablet, transaction);
+        PrepareTabletStoresUpdateBase(tablet);
 
         auto validateStoreType = [&] (TObjectId id, TStringBuf action) {
             auto type = TypeFromId(id);
@@ -6807,6 +6807,8 @@ private:
                 YT_ABORT();
         }
 
+        tablet->SetStoresUpdatePreparedTransaction(transaction);
+
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Tablet stores update prepared (TransactionId: %v, TableId: %v, TabletId: %v)",
             transaction->GetId(),
@@ -6828,7 +6830,9 @@ private:
         auto mountRevision = request->mount_revision();
         tablet->ValidateMountRevision(mountRevision);
 
-        PrepareTabletStoresUpdateBase(tablet, transaction);
+        PrepareTabletStoresUpdateBase(tablet);
+
+        tablet->SetStoresUpdatePreparedTransaction(transaction);
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Hunk tablet stores update prepared "
@@ -6838,9 +6842,7 @@ private:
             tabletId);
     }
 
-    void PrepareTabletStoresUpdateBase(
-        TTabletBase* tablet,
-        TTransaction* transaction)
+    void PrepareTabletStoresUpdateBase(TTabletBase* tablet)
     {
         if (tablet->GetStoresUpdatePreparedTransaction()) {
             THROW_ERROR_EXCEPTION("Stores update for tablet %v is already prepared by transaction %v",
@@ -6857,8 +6859,6 @@ private:
                 tablet->GetId(),
                 state);
         }
-
-        tablet->SetStoresUpdatePreparedTransaction(transaction);
     }
 
     void PrepareOrderedTabletStoresUpdate(
@@ -7503,8 +7503,7 @@ private:
     {
         AbortUpdateTabletStores(
             transaction,
-            FromProto<TTabletId>(request->tablet_id()),
-            request->mount_revision());
+            FromProto<TTabletId>(request->tablet_id()));
     }
 
     void HydraAbortUpdateHunkTabletStores(
@@ -7514,21 +7513,15 @@ private:
     {
         AbortUpdateTabletStores(
             transaction,
-            FromProto<TTabletId>(request->tablet_id()),
-            request->mount_revision());
+            FromProto<TTabletId>(request->tablet_id()));
     }
 
     void AbortUpdateTabletStores(
         TTransaction* transaction,
-        TTabletId tabletId,
-        NHydra::TRevision mountRevision)
+        TTabletId tabletId)
     {
         auto* tablet = FindTablet(tabletId);
         if (!IsObjectAlive(tablet)) {
-            return;
-        }
-
-        if (tablet->GetMountRevision() != mountRevision) {
             return;
         }
 
@@ -7536,9 +7529,9 @@ private:
             return;
         }
 
-        const auto* table = tablet->GetOwner();
-
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
+
+        const auto* table = tablet->GetOwner();
 
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
             "Tablet stores update aborted (TransactionId: %v, TableId: %v, TabletId: %v)",
