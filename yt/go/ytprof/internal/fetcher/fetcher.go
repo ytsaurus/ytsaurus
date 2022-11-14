@@ -171,6 +171,25 @@ func (sf *ServiceFetcher) fetchService() {
 	}
 }
 
+func getRandomSubset(n int, k int) []int {
+	used := make([]int, 0, k)
+
+	left := n
+	selected := 0
+	for i := 0; i < n; i++ {
+		res := rand.Intn(left)
+		if res < k-selected {
+			used = append(used, i)
+
+			selected++
+		}
+
+		left--
+	}
+
+	return used
+}
+
 func (rf *ResolverFetcher) resolveFQDNs() ([]string, error) {
 	if len(rf.resolver.YPEndpoint) > 0 {
 		var err error
@@ -251,6 +270,12 @@ func (rf *ResolverFetcher) fetchResolver() ([]*profile.Profile, []string, []erro
 		if result < rf.sf.service.Probability {
 			usedIDs = append(usedIDs, i)
 		}
+	}
+	if len(usedIDs) > rf.sf.f.config.ResolverMaxProfiles && rf.sf.f.config.ResolverMaxProfiles != 0 {
+		usedIDs = getRandomSubset(len(sliceFQDNs), rf.sf.f.config.ResolverMaxProfiles)
+	}
+	if len(usedIDs) < rf.sf.f.config.ResolverMinProfiles && rf.sf.f.config.ResolverMinProfiles != 0 {
+		usedIDs = getRandomSubset(len(sliceFQDNs), rf.sf.f.config.ResolverMinProfiles)
 	}
 
 	rf.sf.f.l.Debug("starting to resolve profiles",

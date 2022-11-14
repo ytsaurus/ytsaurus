@@ -1,5 +1,4 @@
 {
-    "table_path" = "//sys/ytprof/testing";
     "ports" = {
         "node" = 10012;
         "dat-node" = 10012;
@@ -15,6 +14,7 @@
         "controller-agent" = 10014;
         "clock" = 10016;
         "discovery" = 10020;
+        "timestamp-provider" = 10021;
     };
     "yp_clusters" = [
         "sas";
@@ -29,22 +29,22 @@
     ];
     "configs" = [
         {
-            "cluster" = "zeno";
+            "cluster" = "seneca-man";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
-            "period" = 300000000000;
             "probability" = 0.5;
+            "resolver_max_profiles" = 70;
             "resolver_min_profiles" = 2;
+            "period" = 300000000000;
             "nanny_services" = [
-                "vla-yt-zeno-dat-nodes";
-                "vla-yt-zeno-exe-tab-nodes";
-                "vla-yt-zeno-masters";
-                "vla-yt-zeno-master-caches";
-                "vla-yt-zeno-schedulers";
-                "vla-yt-zeno-clocks";
-                "vla-yt-zeno-controller-agents";
-                "vla-yt-zeno-proxies";
-                "vla-yt-zeno-rpc-proxies";
+                "vla_yt_seneca_vla_nodes_over_yp";
+                "vla_yt_seneca_vla_masters_over_yp";
+                "vla_yt_seneca_vla_master_caches_over_yp";
+                "vla_yt_seneca_vla_schedulers_over_yp";
+                "vla_yt_seneca_vla_http_proxies_over_yp";
+                "vla_yt_seneca_vla_rpc_proxies_over_yp";
+                "vla_yt_seneca_vla_clocks_over_yp";
+                "vla_yt_seneca_vla_controller_agents_over_yp";
             ];
         };
     ]
