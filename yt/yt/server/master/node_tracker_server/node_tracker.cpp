@@ -229,7 +229,7 @@ public:
 
         auto mutation = CreateMutation(
             Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            std::move(context),
+            context,
             &TNodeTracker::HydraRegisterNode,
             this);
         mutation->SetCurrentTraceContext();
