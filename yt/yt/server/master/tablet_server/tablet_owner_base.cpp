@@ -141,6 +141,19 @@ void TTabletOwnerBase::RecomputeTabletMasterMemoryUsage()
     SetTabletMasterMemoryUsage(masterMemoryUsage);
 }
 
+void TTabletOwnerBase::RecomputeTabletErrorCount()
+{
+    if (!HasCustomTabletOwnerAttributes()) {
+        return;
+    }
+
+    int tabletErrorCount = 0;
+    for (auto* tablet : Tablets()) {
+        tabletErrorCount += tablet->GetTabletErrorCount();
+    }
+    SetTabletErrorCount(tabletErrorCount);
+}
+
 TTabletResources TTabletOwnerBase::GetTabletResourceUsage() const
 {
     int tabletCount = 0;

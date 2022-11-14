@@ -67,6 +67,7 @@ DEFINE_ENUM(EMasterReign,
     ((ShardedCellJanitor)                                           (2131))  // babenko
     ((QueueAgentStageWritabilityAndDefaults_22_3)                   (2132))  // achulkov2
     ((FixUpdateTabletStoresTransaction)                             (2133))  // gritukan
+    ((RecomputeTabletErrorCount)                                    (2134))  // gritukan
     // 22.4 starts here.
     ((ZookeeperShards)                                              (2200))  // gritukan
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2

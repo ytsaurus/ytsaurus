@@ -2885,6 +2885,9 @@ private:
     // Mount config keys known to the binary (by the moment of most recent reign change). Persisted.
     THashSet<TString> LocalMountConfigKeys_;
 
+    // COMPAT(gritukan): Remove after RecomputeTabletErrorCount.
+    bool NeedRecomputeTabletErrorCount_ = false;
+
     INodePtr BuildOrchidYson() const
     {
         std::vector<TString> extraMountConfigKeys;
@@ -5416,6 +5419,8 @@ private:
 
         // Update mount config keys whenever the reign changes.
         FillMountConfigKeys_ = context.GetVersion() != static_cast<EMasterReign>(GetCurrentReign());
+
+        NeedRecomputeTabletErrorCount_ = context.GetVersion() < EMasterReign::RecomputeTabletErrorCount;
     }
 
     void RecomputeHunkResourceUsage()
@@ -5496,6 +5501,15 @@ private:
             auto mountConfig = New<NTabletNode::TTableMountConfig>();
             LocalMountConfigKeys_ = mountConfig->GetRegisteredKeys();
         }
+
+        if (NeedRecomputeTabletErrorCount_) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            for (auto [nodeId, node] : cypressManager->Nodes()) {
+                if (IsTabletOwnerType(node->GetType())) {
+                    node->As<TTabletOwnerBase>()->RecomputeTabletErrorCount();
+                }
+            }
+        }
     }
 
     void OnAfterCellManagerSnapshotLoaded()
@@ -5547,6 +5561,8 @@ private:
 
         DefaultTabletCellBundle_ = nullptr;
         SequoiaTabletCellBundle_ = nullptr;
+
+        NeedRecomputeTabletErrorCount_ = false;
     }
 
     void SetZeroState() override
