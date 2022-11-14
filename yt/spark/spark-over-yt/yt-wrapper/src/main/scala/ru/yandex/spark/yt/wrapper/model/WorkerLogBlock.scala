@@ -1,8 +1,7 @@
 package ru.yandex.spark.yt.wrapper.model
 
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key._
+import tech.ytsaurus.ysontree.{YTreeNode, YTreeTextSerializer}
 
 import java.time.format.DateTimeFormatter
 import java.time.{LocalDate, LocalDateTime}

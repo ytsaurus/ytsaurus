@@ -1,8 +1,8 @@
 package ru.yandex.spark.yt.wrapper.table
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient}
+import tech.ytsaurus.ysontree.YTreeNode
 
 trait YtTableAttributes {
   self: YtCypressUtils =>

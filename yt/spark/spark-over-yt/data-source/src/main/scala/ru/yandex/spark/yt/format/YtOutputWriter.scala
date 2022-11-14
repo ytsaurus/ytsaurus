@@ -7,7 +7,6 @@ import org.apache.spark.sql.catalyst.InternalRow
 import org.apache.spark.sql.execution.datasources.OutputWriter
 import org.apache.spark.sql.types.StructType
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.yt.format.conf.SparkYtWriteConfiguration
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings._
 import ru.yandex.spark.yt.fs.conf._
@@ -17,6 +16,7 @@ import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
 import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
 import ru.yandex.yt.ytclient.proxy.{CompoundClient, TableWriter}
+import tech.ytsaurus.core.GUID
 
 import java.util
 import java.util.concurrent.{CompletableFuture, TimeUnit}

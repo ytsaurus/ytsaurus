@@ -1,7 +1,7 @@
 package ru.yandex.spark.launcher
 
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
+import tech.ytsaurus.ysontree.YTreeBuilder
 
 class ByopLauncherTest extends FlatSpec with Matchers {
 

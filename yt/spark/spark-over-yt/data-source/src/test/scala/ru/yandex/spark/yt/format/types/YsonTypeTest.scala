@@ -8,13 +8,13 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.YsonType
 import org.apache.spark.sql.{Encoders, Row}
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.format.Test
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
+import tech.ytsaurus.ysontree.YTreeNode
 
 class YsonTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
 

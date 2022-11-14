@@ -3,7 +3,7 @@ package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
 import ru.yandex.misc.lang.number.UnsignedLong
-import ru.yandex.yson.{YsonError, YsonTags}
+import tech.ytsaurus.yson.{YsonError, YsonTags}
 
 import scala.annotation.tailrec
 

@@ -1,7 +1,6 @@
 package ru.yandex.spark.yt.wrapper.table
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
+import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode}
 
 sealed abstract class OptimizeMode(val name: String) {
   def node: YTreeNode = new YTreeBuilder().value(name).build()

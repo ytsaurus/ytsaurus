@@ -2,15 +2,15 @@ package ru.yandex.spark.yt.wrapper.client
 
 import io.netty.channel.nio.NioEventLoopGroup
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.spark.yt.test.{LocalYt, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toJavaDuration
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.internal.HostPort
-import ru.yandex.yt.ytclient.rpc.{RpcCredentials, RpcOptions}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.client.rpc.{RpcCredentials, RpcOptions}
+import tech.ytsaurus.ysontree.YTreeTextSerializer
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

@@ -7,7 +7,7 @@ import ru.yandex.yt.ytclient.DefaultSerializationResolver
 import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
 import ru.yandex.yt.ytclient.proxy.CompoundClientImpl
 import ru.yandex.yt.ytclient.proxy.internal.HostPort
-import ru.yandex.yt.ytclient.rpc._
+import tech.ytsaurus.client.rpc._
 
 import java.net.InetSocketAddress
 import java.util.concurrent.{CompletableFuture, ForkJoinPool}

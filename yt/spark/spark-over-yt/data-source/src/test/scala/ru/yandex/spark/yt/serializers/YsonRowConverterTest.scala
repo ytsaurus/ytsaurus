@@ -5,9 +5,8 @@ import org.apache.spark.sql.catalyst.util.{ArrayBasedMapData, ArrayData, MapData
 import org.apache.spark.sql.types.{BooleanType, DoubleType, IntegerType, StringType, StructField, StructType}
 import org.apache.spark.unsafe.types.UTF8String
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
-import ru.yandex.type_info.TiType
+import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.ysontree.{YTree, YTreeNode}
 
 import scala.util.Random
 

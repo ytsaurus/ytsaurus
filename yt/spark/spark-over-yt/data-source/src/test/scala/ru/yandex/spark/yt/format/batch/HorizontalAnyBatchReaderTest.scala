@@ -3,7 +3,6 @@ package ru.yandex.spark.yt.format.batch
 import org.apache.spark.sql.yson.YsonType
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.inside.yt.kosher.cypress.{CypressNodeType, YPath}
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTree
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
@@ -12,6 +11,7 @@ import ru.yandex.yt.ytclient.`object`.UnversionedRowSerializer
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, WriteTable}
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import ru.yandex.yt.ytclient.wire._
+import tech.ytsaurus.ysontree.YTree
 
 import scala.collection.JavaConverters._
 import scala.language.postfixOps

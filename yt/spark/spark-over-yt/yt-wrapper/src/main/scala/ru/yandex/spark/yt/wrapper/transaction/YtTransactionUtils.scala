@@ -2,13 +2,12 @@ package ru.yandex.spark.yt.wrapper.transaction
 
 import java.time.{Duration => JDuration}
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.common.GUID
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper._
 import ru.yandex.yt.ytclient.proxy.request._
 import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
 import ru.yandex.yt.ytclient.request.{GetLikeReq, MutateNode, TransactionalRequest}
+import tech.ytsaurus.core.GUID
 
 import scala.annotation.tailrec
 import scala.concurrent.duration._

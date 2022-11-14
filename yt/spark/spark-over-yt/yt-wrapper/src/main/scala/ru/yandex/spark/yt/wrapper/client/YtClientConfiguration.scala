@@ -4,7 +4,7 @@ import java.time.{Duration => JDuration}
 
 import ru.yandex.spark.yt.wrapper.Utils
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toScalaDuration
-import ru.yandex.yt.ytclient.rpc.RpcCredentials
+import tech.ytsaurus.client.rpc.RpcCredentials
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

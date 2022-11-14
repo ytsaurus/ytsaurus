@@ -1,10 +1,8 @@
 package ru.yandex.spark.yt.fs.eventlog
 
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
+import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeTextSerializer}
 
 case class YtEventLogFileMeta(rowSize: Int,
                               blocksCnt: Int,

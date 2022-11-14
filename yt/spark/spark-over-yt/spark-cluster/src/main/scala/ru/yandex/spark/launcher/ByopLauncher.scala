@@ -1,13 +1,11 @@
 package ru.yandex.spark.launcher
 
 import com.twitter.scalding.Args
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.ytree.{YTreeMapNode, YTreeNode}
 import ru.yandex.spark.launcher.ByopLauncher.ByopConfig
 import ru.yandex.spark.launcher.Service.BasicService
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.{ByopConfiguration, YtClientConfiguration}
+import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeMapNode, YTreeNode, YTreeTextSerializer}
 
 import java.io.ByteArrayInputStream
 import java.nio.charset.StandardCharsets

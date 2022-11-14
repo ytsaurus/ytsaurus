@@ -9,7 +9,6 @@ import ru.yandex.spark.yt.wrapper.config.Utils.{parseRemoteConfig, remoteGlobalC
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
-import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.util.UUID
 

@@ -500,7 +500,7 @@ class ComplexTypeTest extends FlatSpec with Matchers with LocalSpark with TmpDir
   }
 
   it should "sort map data while writing" in {
-    import ru.yandex.yson.YsonTags._
+    import tech.ytsaurus.yson.YsonTags._
     val data = Seq(
       (Some(Map("c" -> 3, "a" -> 1, "b" -> 2)), Some(Map("3" -> "c", "1" -> "a", "2" -> "b"))),
       (Some(Map.empty[String, Int]), Some(Map.empty[String, String])),

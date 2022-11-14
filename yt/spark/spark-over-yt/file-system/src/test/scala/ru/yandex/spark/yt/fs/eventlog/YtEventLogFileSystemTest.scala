@@ -3,13 +3,13 @@ package ru.yandex.spark.yt.fs.eventlog
 import org.apache.hadoop.conf.Configuration
 import org.apache.hadoop.fs.{FSDataInputStream, FileStatus, Path}
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
 import ru.yandex.spark.yt.fs.PathUtils.{getMetaPath, hadoopPathToYt}
 import ru.yandex.spark.yt.test.{LocalSpark, LocalYt, LocalYtClient, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema._
 import ru.yandex.yt.ytclient.tables.TableSchema
+import tech.ytsaurus.ysontree.YTreeTextSerializer
 
 import java.io.FileNotFoundException
 import java.time.{Clock, LocalDateTime, ZoneOffset}

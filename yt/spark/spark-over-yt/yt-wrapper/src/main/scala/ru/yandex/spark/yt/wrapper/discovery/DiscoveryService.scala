@@ -1,9 +1,9 @@
 package ru.yandex.spark.yt.wrapper.discovery
 
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.common.GUID
 import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
+import tech.ytsaurus.core.GUID
 
 import java.net.Socket
 import scala.annotation.tailrec

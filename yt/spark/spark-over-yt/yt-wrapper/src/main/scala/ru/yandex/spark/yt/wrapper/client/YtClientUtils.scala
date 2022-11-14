@@ -9,7 +9,7 @@ import ru.yandex.spark.yt.wrapper.system.SystemUtils
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector
 import ru.yandex.yt.ytclient.proxy.internal.{DiscoveryMethod, HostPort}
 import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient, YtCluster}
-import ru.yandex.yt.ytclient.rpc.RpcOptions
+import tech.ytsaurus.client.rpc.RpcOptions
 
 import java.util.concurrent.ThreadFactory
 import java.util.{ArrayList => JArrayList}

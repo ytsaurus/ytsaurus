@@ -1,8 +1,8 @@
 package ru.yandex.spark.yt.wrapper.model
 
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key.{APP_DRIVER, EXEC_ID, LENGTH, STREAM, TABLE_NAME}
 import ru.yandex.yt.ytclient.tables.ColumnValueType
+import tech.ytsaurus.ysontree.YTreeNode
 
 import java.time.LocalDate
 import java.util

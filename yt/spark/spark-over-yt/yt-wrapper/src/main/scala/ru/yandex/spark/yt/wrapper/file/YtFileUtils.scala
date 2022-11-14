@@ -2,13 +2,13 @@ package ru.yandex.spark.yt.wrapper.file
 
 import org.slf4j.LoggerFactory
 import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.client.{YtClientUtils, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, ReadFile, WriteFile}
+import tech.ytsaurus.ysontree.YTreeNode
 
 import java.io.{FileOutputStream, OutputStream}
 import java.time.format.DateTimeFormatter

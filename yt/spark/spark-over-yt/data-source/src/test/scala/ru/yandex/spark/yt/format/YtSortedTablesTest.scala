@@ -2,7 +2,6 @@ package ru.yandex.spark.yt.format
 
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.bolts.collection.MapF
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.{YtJavaConverters, YtWrapper}
 import ru.yandex.spark.yt._

@@ -1,8 +1,7 @@
 package ru.yandex.spark.yt.fs.eventlog
 
-import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeTextSerializer
-import ru.yandex.inside.yt.kosher.ytree.YTreeNode
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
+import tech.ytsaurus.ysontree.{YTreeNode, YTreeTextSerializer}
 
 case class YtEventLogBlock(id: String,
                            order: Long,

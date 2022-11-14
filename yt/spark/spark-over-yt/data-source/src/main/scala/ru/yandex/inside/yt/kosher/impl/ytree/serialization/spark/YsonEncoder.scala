@@ -4,8 +4,8 @@ import com.google.protobuf.CodedOutputStream
 import org.apache.spark.sql.types.DataType
 import ru.yandex.misc.ExceptionUtils
 import ru.yandex.spark.yt.serializers.{YsonEncoderConfig, YsonRowConverter, YtTypeHolder}
-import ru.yandex.type_info.TiType
-import ru.yandex.yson.{YsonConsumer, YsonTags}
+import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.yson.{YsonConsumer, YsonTags}
 
 import java.io.ByteArrayOutputStream
 

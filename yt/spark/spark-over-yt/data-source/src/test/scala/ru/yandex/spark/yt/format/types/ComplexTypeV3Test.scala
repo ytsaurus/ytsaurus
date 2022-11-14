@@ -6,17 +6,17 @@ import org.apache.spark.sql.{DataFrameReader, Row}
 import org.scalatest.flatspec.AnyFlatSpec
 import org.scalatest.matchers.should.Matchers
 import ru.yandex.inside.yt.kosher.common.Decimal.textToBinary
-import ru.yandex.inside.yt.kosher.impl.ytree.builder.YTreeBuilder
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
-import ru.yandex.type_info.StructType.Member
-import ru.yandex.type_info.TiType
 import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
 import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.type_info.StructType.Member
+import tech.ytsaurus.type_info.TiType
+import tech.ytsaurus.ysontree.YTreeBuilder
 
 class ComplexTypeV3Test extends AnyFlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
   import spark.implicits._
