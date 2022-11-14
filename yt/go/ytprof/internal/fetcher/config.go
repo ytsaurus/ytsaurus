@@ -2,7 +2,11 @@ package fetcher
 
 import (
 	"fmt"
+	"strings"
 	"time"
+
+	"a.yandex-team.ru/library/go/core/log"
+	"a.yandex-team.ru/library/go/core/log/zap"
 )
 
 // Resolver describes url to fetch to a way to resolve those urls
@@ -72,9 +76,6 @@ type Config struct {
 	// Probability fills empty probabilities in services.
 	Probability float64 `yson:"probability"`
 
-	// DCPrefixLen fills empty dcs in fetchers from podsets.
-	DCPrefixLen int `yson:"dc_prefix_len"`
-
 	// Services is a descriptions of what profiles to fetch.
 	Services []Service `yson:"services"`
 }
@@ -87,30 +88,23 @@ type Configs struct {
 	// what ports to use for different services.
 	Ports map[string]int `yson:"ports,omitempty"`
 
-	// DCs keys are supported data centers, if value length is greater then 0,
-	// resolver will be replaced with its copies for all elements in the values slices,
-	// used in the 'YPCluster' field of resolver.
-	DCs map[string][]string `yson:"dcs,omitempty"`
+	// YPClusters replaces empty 'YPCluster'-s in resolver.
+	YPClusters []string `yson:"yp_clusters,omitempty"`
 }
 
-func (cs *Configs) FillInfo() error {
+func (cs *Configs) FillInfo(l *zap.Logger) {
 	for i := 0; i < len(cs.Configs); i++ {
+		cs.Configs[i].FillInfo(l)
+
 		if cs.Ports != nil {
 			cs.Configs[i].FillPorts(cs.Ports)
 		}
 
-		cs.Configs[i].FillInfo()
-
-		err := cs.Configs[i].FillYPClusters(cs.DCs)
-		if err != nil {
-			return err
-		}
+		cs.Configs[i].FillYPClusters(cs.YPClusters)
 	}
-
-	return nil
 }
 
-func (c *Config) FillInfo() {
+func (c *Config) FillInfo(l *zap.Logger) {
 	for i := 0; i < len(c.Services); i++ {
 		if c.ProfilePath != "" && c.Services[i].ProfilePath == "" {
 			c.Services[i].ProfilePath = c.ProfilePath
@@ -127,52 +121,33 @@ func (c *Config) FillInfo() {
 		if c.Period != 0 && c.Services[i].Period == 0 {
 			c.Services[i].Period = c.Period
 		}
+
+		if c.Services[i].ServiceType == "" && len(c.Services[i].Resolvers) > 0 {
+			if c.Services[i].Resolvers[0].YPPodSet != "" {
+				var err error
+				c.Services[i].ServiceType, err = serviceNameByPodset(c.Services[i].Resolvers[0].YPPodSet)
+				if err != nil {
+					l.Error("podset not recognized",
+						log.Error(err),
+						log.String("podset", c.Services[i].Resolvers[0].YPPodSet),
+					)
+				}
+			}
+		}
 	}
 }
 
-func (c *Config) FillYPClusters(dcs map[string][]string) error {
+func (c *Config) FillYPClusters(ypClusters []string) {
 	for i := 0; i < len(c.Services); i++ {
-		if c.DCPrefixLen != 0 {
-			for j := 0; j < len(c.Services[i].Resolvers); j++ {
-				if c.Services[i].Resolvers[j].YPCluster == "" {
-					dc := c.Services[i].Resolvers[j].YPPodSet[:c.DCPrefixLen]
-					if _, ok := dcs[dc]; ok {
-						c.Services[i].Resolvers[j].YPCluster = dc
-					} else {
-						return fmt.Errorf("prefix of %s - %s is not in dc list",
-							c.Services[i].Resolvers[j].YPPodSet,
-							dc,
-						)
-					}
-				}
+		filledResolvers := make([]Resolver, 0)
+		for j := 0; j < len(c.Services[i].Resolvers); j++ {
+			for _, ypCluster := range ypClusters {
+				c.Services[i].Resolvers[j].YPCluster = ypCluster
+				filledResolvers = append(filledResolvers, c.Services[i].Resolvers[j])
 			}
 		}
-
-		if dcs != nil {
-			filledResolvers := make([]Resolver, 0, len(c.Services[i].Resolvers))
-			for j := 0; j < len(c.Services[i].Resolvers); j++ {
-				dcslice, ok := dcs[c.Services[i].Resolvers[j].YPCluster]
-				if !ok {
-					return fmt.Errorf("%s is not in dc list",
-						c.Services[i].Resolvers[j].YPCluster,
-					)
-				}
-
-				if len(dcslice) <= 0 {
-					filledResolvers = append(filledResolvers, c.Services[i].Resolvers[j])
-				} else {
-					for _, dc := range dcslice {
-						c.Services[i].Resolvers[j].YPCluster = dc
-						filledResolvers = append(filledResolvers, c.Services[i].Resolvers[j])
-					}
-				}
-
-			}
-			c.Services[i].Resolvers = filledResolvers
-		}
+		c.Services[i].Resolvers = filledResolvers
 	}
-
-	return nil
 }
 
 func (c *Config) FillPorts(ports map[string]int) {
@@ -190,4 +165,54 @@ func (c *Config) FillPorts(ports map[string]int) {
 			c.Services[i].Resolvers[j].Port = port
 		}
 	}
+}
+
+func serviceNameByPodset(podset string) (string, error) {
+	if strings.Contains(podset, "master-cache") {
+		return "master-caches", nil
+	}
+	if strings.Contains(podset, "master") {
+		return "master", nil
+	}
+	if strings.Contains(podset, "scheduler") {
+		return "scheduler", nil
+	}
+	if strings.Contains(podset, "clock") {
+		return "clock", nil
+	}
+	if strings.Contains(podset, "controller-agent") {
+		return "controller-agent", nil
+	}
+	if strings.Contains(podset, "rpc-prox") {
+		return "rpc-proxy", nil
+	}
+	if strings.Contains(podset, "prox") {
+		return "http-proxy", nil
+	}
+	if strings.Contains(podset, "exe-tab-node") {
+		return "exe-tab-node", nil
+	}
+	if strings.Contains(podset, "exe-node") {
+		return "exe-node", nil
+	}
+	if strings.Contains(podset, "tab-node") || strings.Contains(podset, "tablet-node") {
+		return "tab-node", nil
+	}
+	if strings.Contains(podset, "dat-node") {
+		return "dat-node", nil
+	}
+	if strings.Contains(podset, "chaos-node") {
+		return "chaos-node", nil
+	}
+	if strings.Contains(podset, "node") {
+		return "node", nil
+	}
+	if strings.Contains(podset, "discovery") {
+		return "discovery", nil
+	}
+	if strings.Contains(podset, "timestamp-provider") {
+		return "timestamp-provider", nil
+	}
+
+	return "none", fmt.Errorf("service not found")
 }

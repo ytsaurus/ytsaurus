@@ -67,7 +67,9 @@ func main() {
 		log.Int("query_limit", config.QueryLimit),
 		log.String("http_endpoint", config.HTTPEndpoint),
 		log.String("proxy", config.Proxy),
-		log.String("table_path", config.TablePath))
+		log.String("table_path", config.TablePath),
+		log.String("manual_proxy", config.ManualProxy),
+		log.String("manual_table_path", config.ManualTablePath))
 
 	_ = app.NewApp(l, config)
 	select {}

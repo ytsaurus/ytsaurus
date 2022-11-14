@@ -50,9 +50,11 @@ func initApp(t *testing.T) (*app.App, func()) {
 	l, stop := yttest.NewLogger(t)
 
 	c := app.Config{
-		HTTPEndpoint: "localhost:0",
-		Proxy:        os.Getenv("YT_PROXY"),
-		TablePath:    "//home/kristevalex/ytprof/testing",
+		HTTPEndpoint:    "localhost:0",
+		Proxy:           os.Getenv("YT_PROXY"),
+		TablePath:       "//home/kristevalex/ytprof/testing",
+		ManualProxy:     os.Getenv("YT_PROXY"),
+		ManualTablePath: "//home/kristevalex/ytprof/testing",
 	}
 
 	a := app.NewApp(l, c)
