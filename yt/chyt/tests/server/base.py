@@ -1,7 +1,7 @@
 from helpers import get_scheduling_options
 
 from yt_commands import (create, write_file, ls, start_op, get, exists, update_op_parameters, create_user,
-                         sync_create_cells, print_debug)
+                         sync_create_cells, print_debug, get_driver)
 
 from yt.clickhouse import get_clique_spec_builder
 from yt.clickhouse.test_helpers import get_host_paths, get_clickhouse_server_config
@@ -10,9 +10,12 @@ from yt.environment import arcadia_interop
 
 from yt_env_setup import YTEnvSetup, is_asan_build
 
+from yt.wrapper import YtClient
 from yt.wrapper.common import simplify_structure
 
 from yt.common import update, update_inplace, YtError, wait, parts_to_uuid, YtResponseError
+
+from yt.test_helpers.profiler import Profiler
 
 import yt.packages.requests as requests
 
@@ -518,6 +521,19 @@ class Clique(object):
     def get_orchid(self, instance, path, verbose=True):
         orchid_path = "//sys/clickhouse/orchids/{}/{}".format(self.op.id, instance.attributes["job_cookie"])
         return get(orchid_path + path, verbose=verbose)
+
+    def get_profiler_counter(self, sensor, instance_id=None):
+        if not instance_id:
+            instance_id = self.get_active_instances()[0].attributes["job_cookie"]
+
+        yt_client = YtClient(config={
+            "enable_token": False,
+            "backend": "native",
+            "driver_config": get_driver().get_config(),
+        })
+        sensors_path = "//sys/clickhouse/orchids/{}/{}/sensors".format(self.op.id, instance_id)
+
+        return Profiler(yt_client, sensors_path).counter(sensor)
 
     def resize(self, size):
         update_op_parameters(self.op.id, parameters=get_scheduling_options(user_slots=size))

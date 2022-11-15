@@ -190,6 +190,9 @@ class TestClickHouseCommon(ClickHouseTestBase):
             create_user("user_with_allowed_one_column")
             create_user("user_with_allowed_all_columns")
 
+            object_attribute_cache_hit_counter = clique.get_profiler_counter("clickhouse/yt/object_attribute_cache/hit")
+            permission_cache_hit_counter = clique.get_profiler_counter("clickhouse/yt/permission_cache/hit")
+
             def create_and_fill_table(path):
                 create(
                     "table",
@@ -260,18 +263,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
 
             time.sleep(0.5)
 
-            assert (
-                clique.get_orchid(
-                    clique.get_active_instances()[0], "/profiling/clickhouse/yt/object_attribute_cache/hit"
-                )[-1]["value"]
-                > 0
-            )
-            assert (
-                clique.get_orchid(clique.get_active_instances()[0], "/profiling/clickhouse/yt/permission_cache/hit")[
-                    -1
-                ]["value"]
-                > 0
-            )
+            assert object_attribute_cache_hit_counter.get_delta() > 0
+            assert permission_cache_hit_counter.get_delta() > 0
 
     @authors("evgenstf")
     def test_orchid_error_handle(self):
