@@ -31,7 +31,8 @@ const TProfiler::TEntry& TProfiler::GetEntry(const std::type_info& typeInfo)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSaveContext::TSaveContext()
+TSaveContext::TSaveContext(IZeroCopyOutput* output, int version)
+    : TStreamSaveContext(output, version)
 {
     // Zero id is reserved for nullptr.
     IdGenerator_.Next();

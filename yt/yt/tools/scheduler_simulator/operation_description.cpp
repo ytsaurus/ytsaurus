@@ -17,12 +17,12 @@ using namespace NScheduler;
 class TYTreeSerializer
 {
 public:
-    static void Save(TSaveContext& context, const IMapNodePtr& node)
+    static void Save(TStreamSaveContext& context, const IMapNodePtr& node)
     {
         NYT::Save(context, ConvertToYsonString(node).ToString());
     }
 
-    static void Load(TLoadContext& context, IMapNodePtr& node)
+    static void Load(TStreamLoadContext& context, IMapNodePtr& node)
     {
         TString str;
         NYT::Load(context, str);
@@ -32,7 +32,7 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TJobDescription::Persist(const TPersistenceContext& context)
+void TJobDescription::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Duration);
@@ -64,7 +64,7 @@ void Deserialize(TJobDescription& value, NYTree::INodePtr node)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TOperationDescription::Persist(const TPersistenceContext& context)
+void TOperationDescription::Persist(const TStreamPersistenceContext& context)
 {
     using NYT::Persist;
     Persist(context, Id);

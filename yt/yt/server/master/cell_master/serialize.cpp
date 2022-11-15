@@ -39,6 +39,10 @@ EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSaveContext::TSaveContext(ICheckpointableOutputStream* output)
+    : NHydra::TSaveContext(output, GetCurrentReign())
+{ }
+
 TEntitySerializationKey TSaveContext::RegisterInternedYsonString(NYson::TYsonString str)
 {
     TYsonStringMap::insert_ctx context;

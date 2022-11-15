@@ -20,10 +20,7 @@ using namespace NClusterNode;
 std::unique_ptr<NHydra::TSaveContext> TTabletAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
-    auto context = std::make_unique<TSaveContext>();
-    context->SetVersion(GetCurrentReign());
-    TCompositeAutomaton::InitSaveContext(*context, output);
-    return context;
+    return std::make_unique<TSaveContext>(output, GetCurrentReign());
 }
 
 std::unique_ptr<NHydra::TLoadContext> TTabletAutomaton::CreateLoadContext(

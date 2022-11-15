@@ -21,8 +21,7 @@ TEST(TEnumTest, SaveAndLoad)
 {
     TStringStream stream;
 
-    TStreamSaveContext saveContext;
-    saveContext.SetOutput(&stream);
+    TStreamSaveContext saveContext(&stream);
 
     TStreamLoadContext loadContext;
     loadContext.SetInput(&stream);
@@ -34,6 +33,8 @@ TEST(TEnumTest, SaveAndLoad)
 
     Save(saveContext, first);
     Save(saveContext, second);
+
+    saveContext.Finish();
 
     Load(loadContext, third);
     Load(loadContext, fourth);

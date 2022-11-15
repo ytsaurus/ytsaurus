@@ -47,10 +47,7 @@ void TMasterAutomaton::SetZeroState()
 std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
-    auto context = std::make_unique<TSaveContext>();
-    context->SetVersion(GetCurrentReign());
-    TCompositeAutomaton::InitSaveContext(*context, output);
-    return context;
+    return std::make_unique<TSaveContext>(output);
 }
 
 std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(

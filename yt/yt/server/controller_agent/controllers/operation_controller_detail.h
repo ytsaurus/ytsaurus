@@ -299,7 +299,7 @@ public:
 
     // NB(max42, babenko): this method should not be safe. Writing a core dump or trying to fail
     // operation from a forked process is a bad idea.
-    void SaveSnapshot(IOutputStream* output) override;
+    void SaveSnapshot(IZeroCopyOutput* output) override;
 
     NYson::TYsonString GetProgress() const override;
     NYson::TYsonString GetBriefProgress() const override;

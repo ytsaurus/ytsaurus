@@ -18,20 +18,6 @@ using namespace NClusterNode;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-EChaosReign TSaveContext::GetVersion() const
-{
-    return static_cast<EChaosReign>(NHydra::TSaveContext::GetVersion());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-EChaosReign TLoadContext::GetVersion() const
-{
-    return static_cast<EChaosReign>(NHydra::TLoadContext::GetVersion());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TChaosAutomaton::TChaosAutomaton(
     IChaosSlotPtr slot,
     IInvokerPtr snapshotInvoker)
@@ -43,10 +29,7 @@ TChaosAutomaton::TChaosAutomaton(
 std::unique_ptr<NHydra::TSaveContext> TChaosAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
-    auto context = std::make_unique<TSaveContext>();
-    context->SetVersion(GetCurrentReign());
-    TCompositeAutomaton::InitSaveContext(*context, output);
-    return context;
+    return std::make_unique<TSaveContext>(output);
 }
 
 std::unique_ptr<NHydra::TLoadContext> TChaosAutomaton::CreateLoadContext(

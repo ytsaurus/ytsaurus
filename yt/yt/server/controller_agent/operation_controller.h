@@ -405,7 +405,7 @@ struct IOperationControllerSnapshotBuilderHost
     /*!
      *  \note Invoker affinity: Control invoker in forked state.
      */
-    virtual void SaveSnapshot(IOutputStream* stream) = 0;
+    virtual void SaveSnapshot(IZeroCopyOutput* output) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationControllerSnapshotBuilderHost)

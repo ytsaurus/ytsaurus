@@ -36,4 +36,22 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSaveContext::TSaveContext(ICheckpointableOutputStream* output)
+    : NHydra::TSaveContext(output, GetCurrentReign())
+{ }
+
+EChaosReign TSaveContext::GetVersion() const
+{
+    return static_cast<EChaosReign>(NHydra::TSaveContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+EChaosReign TLoadContext::GetVersion() const
+{
+    return static_cast<EChaosReign>(NHydra::TLoadContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NChaosNode

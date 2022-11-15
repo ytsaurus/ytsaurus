@@ -240,7 +240,9 @@ class TSaveContext
     , public TStreamSaveContext
 {
 public:
-    TSaveContext();
+    explicit TSaveContext(
+        IZeroCopyOutput* output,
+        int version = 0);
 
     ui32 FindId(void* basePtr, const std::type_info* typeInfo) const;
     ui32 GenerateId(void* basePtr, const std::type_info* typeInfo);
@@ -255,7 +257,6 @@ private:
     };
 
     mutable THashMap<void*, TEntry> PtrToEntry_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

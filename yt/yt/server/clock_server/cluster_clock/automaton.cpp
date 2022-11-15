@@ -17,10 +17,7 @@ TClockAutomaton::TClockAutomaton(TBootstrap* bootstrap)
 std::unique_ptr<NHydra::TSaveContext> TClockAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
-    auto context = std::make_unique<TSaveContext>();
-    context->SetVersion(GetCurrentReign());
-    TCompositeAutomaton::InitSaveContext(*context, output);
-    return context;
+    return std::make_unique<TSaveContext>(output);
 }
 
 std::unique_ptr<NHydra::TLoadContext> TClockAutomaton::CreateLoadContext(
@@ -61,24 +58,6 @@ bool TClockAutomatonPart::ValidateSnapshotVersion(int version)
 int TClockAutomatonPart::GetCurrentSnapshotVersion()
 {
     return NClusterClock::GetCurrentReign();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-EClockReign TSaveContext::GetVersion()
-{
-    return static_cast<EClockReign>(NHydra::TSaveContext::GetVersion());
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLoadContext::TLoadContext(TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
-{ }
-
-EClockReign TLoadContext::GetVersion()
-{
-    return static_cast<NClusterClock::EClockReign>(NHydra::TLoadContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

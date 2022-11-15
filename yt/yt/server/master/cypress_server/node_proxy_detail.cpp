@@ -1696,7 +1696,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, BeginCopy)
         Transaction_,
         mode,
         node);
-    copyContext.SetVersion(NCellMaster::GetCurrentReign());
     handler->BeginCopy(node, &copyContext);
 
     const auto& schemaMap = copyContext.GetRegisteredSchemas();

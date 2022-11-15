@@ -36,6 +36,8 @@ class TSaveContext
     : public NHydra::TSaveContext
 {
 public:
+    using NHydra::TSaveContext::TSaveContext;
+
     ETabletReign GetVersion() const;
 };
 

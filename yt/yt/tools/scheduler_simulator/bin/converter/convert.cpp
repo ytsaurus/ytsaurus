@@ -83,9 +83,8 @@ int main(int argc, char** argv)
 
     {
         auto input = TYsonInput(&Cin, NYT::NYson::EYsonType::ListFragment);
-        TSaveContext context;
         TUnbufferedFileOutput outputTemp(destinationTemp);
-        context.SetOutput(&outputTemp);
+        TStreamSaveContext context(&outputTemp);
         TYsonListExtractor<TOperationDescription> extractor(
             [&] (const TOperationDescription& entry) { Save(context, entry); });
 
@@ -95,6 +94,8 @@ int main(int argc, char** argv)
         int extractedCount = extractor.GetExtractedCount();
         TUnbufferedFileOutput output(destination);
         output.Write(&extractedCount, sizeof extractedCount);
+
+        context.Finish();
     }
     NFs::Cat(destination.data(), destinationTemp.data());
     NFs::Remove(destinationTemp.data());

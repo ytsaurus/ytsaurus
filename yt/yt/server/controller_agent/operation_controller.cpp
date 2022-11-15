@@ -196,9 +196,9 @@ public:
         Underlying_->Commit();
     }
 
-    void SaveSnapshot(IOutputStream* stream) override
+    void SaveSnapshot(IZeroCopyOutput* output) override
     {
-        Underlying_->SaveSnapshot(stream);
+        Underlying_->SaveSnapshot(output);
     }
 
     TOperationControllerReviveResult Revive() override

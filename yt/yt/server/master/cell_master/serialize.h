@@ -83,6 +83,8 @@ class TSaveContext
     : public NHydra::TSaveContext
 {
 public:
+    explicit TSaveContext(ICheckpointableOutputStream* output);
+
     TEntitySerializationKey RegisterInternedYsonString(NYson::TYsonString str);
 
     EMasterReign GetVersion();

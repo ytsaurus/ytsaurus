@@ -1,5 +1,7 @@
 #include "persistence.h"
 
+#include "serialize.h"
+
 namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -10,6 +12,10 @@ ESnapshotVersion TLoadContext::GetVersion() const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TSaveContext::TSaveContext(IZeroCopyOutput* output)
+    : NTableClient::TSaveContext(output, ToUnderlying(GetCurrentSnapshotVersion()))
+{ }
 
 ESnapshotVersion TSaveContext::GetVersion() const
 {

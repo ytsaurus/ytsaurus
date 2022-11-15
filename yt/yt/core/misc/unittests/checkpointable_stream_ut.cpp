@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/checkpointable_stream.h>
 
+#include <yt/yt/core/concurrency/async_stream.h>
+
 #include <util/stream/mem.h>
 #include <util/stream/str.h>
 
@@ -10,11 +12,12 @@
 namespace NYT {
 namespace {
 
+using namespace NConcurrency;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TCheckpointableStreamTest, Simple)
 {
-
     TStringStream stringOutput;
     auto output = CreateCheckpointableOutputStream(&stringOutput);
 
@@ -89,43 +92,100 @@ TEST(TCheckpointableStreamTest, Checkpoints)
 
 TEST(TCheckpointableStreamTest, Buffered)
 {
-    TStringStream stringOutput;
-    auto output = CreateCheckpointableOutputStream(&stringOutput);
-
     std::vector<char> blob;
     for (int i = 0; i < 1000; ++i) {
         blob.push_back(std::rand() % 128);
     }
 
-    {
-        auto bufferedOutput = CreateBufferedCheckpointableOutputStream(output.get(), 256);
-        for (int i = 1; i <= 100; ++i) {
-            for (int j = 0; j < i * 17; ++j) {
-                bufferedOutput->Write((i + j) % 128);
-            }
-            bufferedOutput->Write(blob.data(), blob.size());
-            bufferedOutput->MakeCheckpoint();
+    TStringStream stringOutput;
+    auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&stringOutput, 256);
+    for (int i = 1; i <= 100; ++i) {
+        for (int j = 0; j < i * 17; ++j) {
+            checkpointableOutput->Write((i + j) % 128);
         }
+        checkpointableOutput->Write(blob.data(), blob.size());
+        checkpointableOutput->MakeCheckpoint();
     }
+    checkpointableOutput->Flush();
 
     TStringInput stringInput(stringOutput.Str());
-    auto input = CreateCheckpointableInputStream(&stringInput);
+    auto checkpointableInput = CreateCheckpointableInputStream(&stringInput);
 
     std::vector<char> buffer;
     for (int i = 1; i <= 100; ++i) {
         if (i % 2 == 0) {
             buffer.resize(i * 17);
-            input->Load(buffer.data(), buffer.size());
+            checkpointableInput->Load(buffer.data(), buffer.size());
             for (int j = 0; j < i * 17; ++j) {
                 EXPECT_EQ((i + j) % 128, buffer[j]);
             }
 
             std::vector<char> blobCopy(blob.size());
-            input->Load(blobCopy.data(), blobCopy.size());
+            checkpointableInput->Load(blobCopy.data(), blobCopy.size());
             EXPECT_EQ(blob, blobCopy);
         }
-        input->SkipToCheckpoint();
+        checkpointableInput->SkipToCheckpoint();
     }
+}
+
+TEST(TCheckpointableStreamTest, BufferedAsync)
+{
+    TString str;
+    TStringOutput stringOutput(str);
+    auto asyncOutput = CreateAsyncAdapter(&stringOutput);
+    auto checkpointableOutput = CreateBufferedCheckpointableSyncAdapter(asyncOutput, ESyncStreamAdapterStrategy::Get, 10);
+
+    auto write = [&] (const TString& str) {
+        const char* srcPtr = str.data();
+        size_t srcLen = str.length();
+        void* dstPtr = nullptr;
+        size_t dstLen = 0;
+        while (srcLen > 0) {
+            dstLen = checkpointableOutput->Next(&dstPtr);
+            size_t toCopy = Min(dstLen, srcLen);
+            ::memcpy(dstPtr, srcPtr, toCopy);
+            srcLen -= toCopy;
+            dstLen -= toCopy;
+            srcPtr += toCopy;
+            dstPtr = static_cast<char*>(dstPtr) + toCopy;
+        }
+        checkpointableOutput->Undo(dstLen);
+    };
+
+    checkpointableOutput->MakeCheckpoint();
+    const auto part1 = TString("01234567890123456789");
+    write(part1);
+
+    checkpointableOutput->MakeCheckpoint();
+    const auto part2 = TString("abcdefghijklmnop");
+    write(part2);
+
+    checkpointableOutput->MakeCheckpoint();
+    const auto part3 = TString("adsjkfjasdlkfjasldf");
+    write(part3);
+
+    checkpointableOutput->Flush();
+
+    TStringInput stringInput(str);
+    auto checkpointableInput = CreateCheckpointableInputStream(&stringInput);
+
+    auto read = [&] (size_t len) {
+        TString result;
+        result.resize(len);
+        YT_VERIFY(checkpointableInput->Load(result.begin(), len) == len);
+        return result;
+    };
+
+    auto isEos = [&] {
+        char ch;
+        return checkpointableInput->Load(&ch, sizeof(ch)) == 0;
+    };
+
+    EXPECT_EQ(read(part1.length()), part1);
+    EXPECT_EQ(read(3), part2.substr(0, 3));
+    checkpointableInput->SkipToCheckpoint();
+    EXPECT_EQ(read(part3.length()), part3);
+    EXPECT_TRUE(isEos());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

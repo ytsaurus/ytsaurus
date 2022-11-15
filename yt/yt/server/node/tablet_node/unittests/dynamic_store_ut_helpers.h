@@ -331,12 +331,12 @@ public:
         TString buffer;
 
         TStringOutput output(buffer);
-        TSaveContext saveContext;
-        saveContext.SetVersion(GetCurrentReign());
-        saveContext.SetOutput(&output);
+        auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
+        TSaveContext saveContext(checkpointableOutput.get());
         store->Save(saveContext);
+        saveContext.Finish();
 
-        return std::make_pair(buffer, store->AsyncSave());
+        return {buffer, store->AsyncSave()};
     }
 
     void EndReserializeStore(const TStoreSnapshot& snapshot)
@@ -345,15 +345,16 @@ public:
         auto buffer = snapshot.first;
 
         TStringOutput output(buffer);
-        TSaveContext saveContext;
-        saveContext.SetVersion(GetCurrentReign());
-        saveContext.SetOutput(&output);
+        auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
+        TSaveContext saveContext(checkpointableOutput.get());
         snapshot.second.Run(saveContext);
+        saveContext.Finish();
 
         TStringInput input(buffer);
+        auto checkpointableInput = CreateCheckpointableInputStream(&input);
         TLoadContext loadContext;
         loadContext.SetVersion(GetCurrentReign());
-        loadContext.SetInput(&input);
+        loadContext.SetInput(checkpointableInput.get());
 
         CreateDynamicStore();
         store = GetDynamicStore();

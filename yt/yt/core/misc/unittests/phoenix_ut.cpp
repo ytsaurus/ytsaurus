@@ -19,9 +19,9 @@ template <class T>
 TSharedRef Serialize(const T& value)
 {
     TBlobOutput output;
-    TSaveContext context;
-    context.SetOutput(&output);
+    TSaveContext context(&output);
     Save(context, value);
+    context.Finish();
     return output.Flush();
 }
 

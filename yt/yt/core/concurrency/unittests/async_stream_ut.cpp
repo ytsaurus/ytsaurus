@@ -3,12 +3,11 @@
 #include <yt/yt/core/concurrency/async_stream.h>
 #include <yt/yt/core/concurrency/async_stream_pipe.h>
 
-namespace NYT {
+
+namespace NYT::NConcurrency {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-using namespace NConcurrency;
 
 TString GetString(const TSharedRef& sharedRef)
 {
@@ -112,5 +111,5 @@ TEST(TAsyncOutputStreamTest, TestEmptyString)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-}
-} // namespace NYT
+} // namespace
+} // namespace NYT:::NConcurrency
