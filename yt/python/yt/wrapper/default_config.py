@@ -602,8 +602,6 @@ default_config = {
     "batch_requests_retries": retries_config(enable=True, total_timeout=timedelta(minutes=10),
                                              backoff={"policy": "rounded_up_to_request_timeout"}),
 
-    "enable_operations_api": True,
-
     "skynet_manager_url": "http://skynet.{cluster_name}.yt.yandex.net/api/v1",
 
     "enable_logging_for_params_changes": False,
