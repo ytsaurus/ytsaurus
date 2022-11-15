@@ -825,20 +825,19 @@ class TestOperationCommands(object):
         table = TEST_DIR + "/table"
         yt.write_table(table, [{"x": 1}, {"x": 2}])
 
-        with set_config_option("enable_operations_api", True):
-            op = yt.run_map("cat; echo 'AAA' >&2", table, table)
-            check_rows_equality([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
+        op = yt.run_map("cat; echo 'AAA' >&2", table, table)
+        check_rows_equality([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
 
-            assert op.get_state() == "completed"
+        assert op.get_state() == "completed"
 
-            assert op.get_progress()["total"] == 1
-            assert op.get_progress()["completed"] == 1
+        assert op.get_progress()["total"] == 1
+        assert op.get_progress()["completed"] == 1
 
-            op.get_job_statistics()
+        op.get_job_statistics()
 
-            job_infos = op.get_jobs_with_error_or_stderr()
-            assert len(job_infos) == 1
-            assert job_infos[0]["stderr"] == "AAA\n"
+        job_infos = op.get_jobs_with_error_or_stderr()
+        assert len(job_infos) == 1
+        assert job_infos[0]["stderr"] == "AAA\n"
 
     @authors("gudqeit")
     def test_get_operation_by_alias(self):

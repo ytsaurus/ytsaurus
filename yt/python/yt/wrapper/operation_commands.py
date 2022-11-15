@@ -4,9 +4,6 @@ from .errors import YtOperationFailedError, YtResponseError, YtRetriableArchiveE
 from .driver import make_request, make_formatted_request, get_api_version
 from .http_helpers import get_proxy_url, get_retriable_errors
 from .exceptions_catcher import ExceptionCatcher
-from .cypress_commands import exists, get, list
-from .ypath import ypath_join
-from .file_commands import read_file
 from .job_commands import list_jobs, get_job_stderr
 from .local_mode import is_local_mode, get_local_mode_proxy_address
 from .retries import Retrier
@@ -17,10 +14,10 @@ from yt.common import format_error, to_native_str, flatten, join_exceptions
 
 try:
     from yt.packages.six import iteritems, itervalues, iterkeys
-    from yt.packages.six.moves import builtins, filter as ifilter, map as imap
+    from yt.packages.six.moves import builtins, map as imap
 except ImportError:
     from six import iteritems, itervalues, iterkeys
-    from six.moves import builtins, filter as ifilter, map as imap
+    from six.moves import builtins, map as imap
 
 try:
     from yt.packages.decorator import decorator
@@ -304,11 +301,7 @@ def get_operation_attributes(operation, fields=None, client=None):
     :return: operation description.
     :rtype: dict
     """
-    if get_config(client)["enable_operations_api"]:
-        return get_operation(operation, attributes=fields, client=client)
-    else:
-        operation_path = ypath_join(OPERATIONS_PATH, operation)
-        return get(operation_path + "/@", attributes=fields, client=client)
+    return get_operation(operation, attributes=fields, client=client)
 
 
 def get_operation_state(operation, client=None):
@@ -483,91 +476,72 @@ def get_jobs_with_error_or_stderr(operation, only_failed_jobs, client=None):
         stderr = None
         stderr_encoding = get_config(client)["operation_tracker"]["stderr_encoding"]
 
-        if get_config(client)["enable_operations_api"]:
-            try:
-                stderr = to_native_str(
-                    get_job_stderr(operation, job, client=client).read(),
-                    encoding=stderr_encoding,
-                    errors="replace")
-            except join_exceptions(get_retriable_errors(), YtResponseError) as err:
-                if isinstance(err, YtResponseError) and err.is_no_such_job():
-                    pass
-                elif not ignore_errors:
-                    raise
-                else:
-                    logger.debug("Stderr download failed with error %s", repr(err))
-        else:
-            stderr_path = ypath_join(OPERATIONS_PATH, operation, "jobs", job, "stderr")
-            has_stderr = exists(stderr_path, client=yt_client)
-            if has_stderr:
-                try:
-                    stderr = to_native_str(
-                        read_file(stderr_path, client=yt_client).read(),
-                        encoding=stderr_encoding,
-                        errors="replace")
-                except join_exceptions(get_retriable_errors(), YtResponseError):
-                    if not ignore_errors:
-                        raise
+        try:
+            stderr = to_native_str(
+                get_job_stderr(operation, job, client=client).read(),
+                encoding=stderr_encoding,
+                errors="replace")
+        except join_exceptions(get_retriable_errors(), YtResponseError) as err:
+            if isinstance(err, YtResponseError) and err.is_no_such_job():
+                pass
+            elif not ignore_errors:
+                raise
+            else:
+                logger.debug("Stderr download failed with error %s", repr(err))
+
         if stderr is not None:
             job_with_stderr["stderr"] = stderr
         return job_with_stderr
 
-    result = []
-
-    def download_job_stderr(job):
+    def read_job_stderr(job, result):
         yt_client = YtClient(config=get_config(client))
 
         job_with_stderr = get_stderr_from_job(job, yt_client)
         if job_with_stderr:
             result.append(job_with_stderr)
 
-    if get_config(client)["enable_operations_api"]:
-        job_state = None
-        with_stderr = None
-        if only_failed_jobs:
-            job_state = "failed"
-        else:
-            with_stderr = True
-
-        response = list_jobs(
-            operation,
-            include_cypress=True,
-            include_archive=True,
-            include_runtime=False,
-            with_stderr=with_stderr,
-            job_state=job_state,
-            client=client)
-
-        jobs = []
-        for info in response["jobs"]:
-            attributes = {"address": info["address"]}
-            if "error" not in info and "stderr_size" not in info:
-                continue
-            if "error" in info:
-                attributes["error"] = info["error"]
-            jobs.append(yson.to_yson_type(info["id"], attributes=attributes))
+    job_state = None
+    with_stderr = None
+    if only_failed_jobs:
+        job_state = "failed"
     else:
-        jobs_path = ypath_join(OPERATIONS_PATH, operation, "jobs")
-        if not exists(jobs_path, client=client):
-            return []
-        jobs = list(jobs_path, attributes=["error", "address"], client=client)
-        if only_failed_jobs:
-            jobs = builtins.list(ifilter(lambda obj: "error" in obj.attributes, jobs))
+        with_stderr = True
+
+    response = list_jobs(
+        operation,
+        include_cypress=True,
+        include_archive=True,
+        include_runtime=False,
+        with_stderr=with_stderr,
+        job_state=job_state,
+        client=client)
+
+    jobs = []
+    for info in response["jobs"]:
+        attributes = {"address": info["address"]}
+        if "error" not in info and "stderr_size" not in info:
+            continue
+        if "error" in info:
+            attributes["error"] = info["error"]
+        jobs.append(yson.to_yson_type(info["id"], attributes=attributes))
 
     if not get_config(client)["operation_tracker"]["stderr_download_threading_enable"]:
         return [get_stderr_from_job(job, client) for job in jobs]
+
+    result = []
 
     thread_count = min(get_config(client)["operation_tracker"]["stderr_download_thread_count"], len(jobs))
     if thread_count > 0:
         pool = ThreadPoolHelper(thread_count)
         timeout = get_config(client)["operation_tracker"]["stderr_download_timeout"] / 1000.0
         try:
-            pool.map_async(download_job_stderr, jobs).get(timeout)
+            pool.map_async(lambda job: read_job_stderr(job, result), jobs).get(timeout)
         except TimeoutError:
             logger.info("Timed out while downloading jobs stderr messages")
         finally:
             pool.terminate()
             pool.join()
+
     return result
 
 
