@@ -4,11 +4,11 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.PrerequisiteOptions;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
 public abstract class TransactionalRequest<
         TBuilder extends RequestBase.Builder<TBuilder, TRequest>,

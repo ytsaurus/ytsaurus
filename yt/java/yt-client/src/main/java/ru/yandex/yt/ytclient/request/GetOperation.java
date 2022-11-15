@@ -7,6 +7,7 @@ import java.util.List;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.MasterReadOptions;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
 
@@ -14,7 +15,6 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
-import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
 
 @NonNullApi
 @NonNullFields

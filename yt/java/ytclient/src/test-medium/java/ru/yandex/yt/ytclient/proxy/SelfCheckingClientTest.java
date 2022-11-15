@@ -10,8 +10,8 @@ import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.testlib.FutureUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;

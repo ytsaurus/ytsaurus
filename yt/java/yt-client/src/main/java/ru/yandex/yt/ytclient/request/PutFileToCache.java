@@ -2,18 +2,18 @@ package ru.yandex.yt.ytclient.request;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.MasterReadOptions;
+import tech.ytsaurus.client.request.MutatingOptions;
+import tech.ytsaurus.client.request.PrerequisiteOptions;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqPutFileToCache;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
-import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
-import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
 public class PutFileToCache
         extends MutateNode<PutFileToCache.Builder, PutFileToCache>

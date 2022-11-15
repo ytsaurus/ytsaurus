@@ -7,11 +7,13 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.client.request.Format;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.lang.NonNullApi;
@@ -20,8 +22,6 @@ import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
-import ru.yandex.yt.ytclient.proxy.request.Format;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static java.nio.charset.StandardCharsets.UTF_8;

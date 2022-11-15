@@ -2,8 +2,8 @@ package ru.yandex.inside.yt.kosher.tables;
 
 import java.util.Iterator;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 
+import tech.ytsaurus.core.cypress.YPath;
 /**
  * @author sankear
  */

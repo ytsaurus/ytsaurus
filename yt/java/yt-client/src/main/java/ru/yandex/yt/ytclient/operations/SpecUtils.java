@@ -8,12 +8,12 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
+import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
-import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.request.CreateNode;
 
 final class SpecUtils {

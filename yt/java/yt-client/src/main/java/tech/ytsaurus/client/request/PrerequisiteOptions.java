@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package tech.ytsaurus.client.request;
 
 import java.util.ArrayList;
 import java.util.Arrays;

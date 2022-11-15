@@ -7,19 +7,19 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.junit.Test;
+import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.TestingOptions;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
-import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static org.hamcrest.MatcherAssert.assertThat;

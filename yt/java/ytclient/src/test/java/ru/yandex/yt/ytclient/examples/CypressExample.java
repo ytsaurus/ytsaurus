@@ -5,12 +5,12 @@ import java.util.Random;
 import joptsimple.OptionParser;
 import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
+import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransactionOptions;
-import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 
 public class CypressExample {
 

@@ -1,7 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 
+import tech.ytsaurus.core.cypress.YPath;
 public class GetNode extends ru.yandex.yt.ytclient.request.GetNode.BuilderBase<GetNode> {
     public GetNode(String path) {
         this(YPath.simple(path));

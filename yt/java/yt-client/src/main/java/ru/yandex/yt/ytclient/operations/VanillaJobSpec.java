@@ -6,11 +6,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.stream.Collectors;
 
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;

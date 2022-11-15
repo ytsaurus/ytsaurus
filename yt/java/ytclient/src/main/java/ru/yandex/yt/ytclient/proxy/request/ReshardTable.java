@@ -1,7 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 
+import tech.ytsaurus.core.cypress.YPath;
 public class ReshardTable extends ru.yandex.yt.ytclient.request.ReshardTable.BuilderBase<ReshardTable> {
     public ReshardTable(YPath path) {
         setPath(path.justPath());

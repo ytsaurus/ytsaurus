@@ -9,23 +9,23 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.client.request.MutatingOptions;
+import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.client.request.PrerequisiteOptions;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.core.cypress.CypressNodeType;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
-import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 import ru.yandex.yt.ytree.TAttributeDictionary;
 
 /**

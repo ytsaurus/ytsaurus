@@ -9,10 +9,10 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.JavaOptions;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.library.svnversion.VcsVersion;
