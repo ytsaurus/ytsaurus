@@ -1,39 +1,12 @@
 #pragma once
 
 #include "public.h"
-#include "serialize.h"
 
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
-#include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/core/misc/property.h>
 
 namespace NYT::NClusterClock {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSaveContext
-    : public NHydra::TSaveContext
-{
-public:
-    EClockReign GetVersion();
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLoadContext
-    : public NHydra::TLoadContext
-{
-public:
-    DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
-
-public:
-    explicit TLoadContext(TBootstrap* bootstrap);
-
-    EClockReign GetVersion();
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

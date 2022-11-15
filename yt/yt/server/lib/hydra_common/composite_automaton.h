@@ -22,7 +22,21 @@ class TSaveContext
     : public TEntityStreamSaveContext
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(ICheckpointableOutputStream*, CheckpointableOutput);
+    explicit TSaveContext(
+        ICheckpointableOutputStream* output,
+        int version = 0)
+        : TEntityStreamSaveContext(output, version)
+        , CheckpointableOutput_(output)
+    { }
+
+    void MakeCheckpoint()
+    {
+        Output_.Flush();
+        CheckpointableOutput_->MakeCheckpoint();
+    }
+
+private:
+    ICheckpointableOutputStream* const CheckpointableOutput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -194,9 +208,6 @@ protected:
     virtual std::unique_ptr<TLoadContext> CreateLoadContext(
         ICheckpointableInputStream* input) = 0;
 
-    void InitSaveContext(
-        TSaveContext& context,
-        ICheckpointableOutputStream* output);
     void InitLoadContext(
         TLoadContext& context,
         ICheckpointableInputStream* input);

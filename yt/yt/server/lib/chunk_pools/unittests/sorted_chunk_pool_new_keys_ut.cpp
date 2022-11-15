@@ -532,12 +532,11 @@ protected:
     void PersistAndRestore()
     {
         TBlobOutput output;
-        TSaveContext saveContext;
-        saveContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
-        saveContext.SetOutput(&output);
+        TSaveContext saveContext(&output);
         Save(saveContext, ChunkPool_);
         Save(saveContext, MultiChunkPool_);
         Save(saveContext, UnderlyingPools_);
+        saveContext.Finish();
         auto blob = output.Flush();
         ChunkPool_.Reset();
 

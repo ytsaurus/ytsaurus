@@ -11,7 +11,12 @@ namespace NYT::NTableClient {
 
 class TSaveContext
     : public NPhoenix::TSaveContext
-{ };
+{
+public:
+    using NPhoenix::TSaveContext::TSaveContext;
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TLoadContext
     : public NPhoenix::TLoadContext

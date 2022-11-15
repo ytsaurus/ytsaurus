@@ -11,9 +11,9 @@ namespace NYT::NControllerAgent {
 class TLoadContext
     : public NTableClient::TLoadContext
 {
+public:
     using NTableClient::TLoadContext::TLoadContext;
 
-public:
     ESnapshotVersion GetVersion() const;
 };
 
@@ -22,9 +22,9 @@ public:
 class TSaveContext
     : public NTableClient::TSaveContext
 {
-    using NTableClient::TSaveContext::TSaveContext;
-
 public:
+    explicit TSaveContext(IZeroCopyOutput* output);
+
     ESnapshotVersion GetVersion() const;
 };
 

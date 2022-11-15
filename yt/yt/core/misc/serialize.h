@@ -10,9 +10,10 @@
 
 #include <library/cpp/yt/assert/assert.h>
 
+#include <util/stream/buffered.h>
 #include <util/stream/file.h>
 #include <util/stream/input.h>
-#include <util/stream/output.h>
+#include <util/stream/zerocopy_output.h>
 
 #include <util/system/align.h>
 
@@ -93,17 +94,47 @@ void MakeSerializationAligned(char** buffer, i64 byteSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSaveContextStream
+{
+public:
+    explicit TSaveContextStream(IOutputStream* output);
+    explicit TSaveContextStream(IZeroCopyOutput* output);
+
+    void Write(const void* buf, size_t len);
+    void Flush();
+
+private:
+    std::optional<TBufferedOutput> BufferedOutput_;
+    IZeroCopyOutput* const Output_;
+
+    char* BufferPtr_ = nullptr;
+    size_t BufferSize_ = 0;
+
+    void WriteSlow(const void* buf, size_t len);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStreamSaveContext
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(IOutputStream*, Output);
-    DEFINE_BYVAL_RW_PROPERTY(int, Version);
-
-public:
-    TStreamSaveContext();
-    explicit TStreamSaveContext(IOutputStream* output);
+    explicit TStreamSaveContext(
+        IOutputStream* output,
+        int version = 0);
+    explicit TStreamSaveContext(
+        IZeroCopyOutput* output,
+        int version = 0);
 
     virtual ~TStreamSaveContext() = default;
+
+    TSaveContextStream* GetOutput();
+    int GetVersion() const;
+
+    void Finish();
+
+protected:
+    TSaveContextStream Output_;
+    const int Version_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -175,6 +206,8 @@ class TEntityStreamSaveContext
     : public TStreamSaveContext
 {
 public:
+    using TStreamSaveContext::TStreamSaveContext;
+
     TEntitySerializationKey GenerateSerializationKey();
 
     static inline const TEntitySerializationKey InlineKey = TEntitySerializationKey(-3);

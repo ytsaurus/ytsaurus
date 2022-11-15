@@ -95,6 +95,7 @@ void TYsonStructBase::Save(IOutputStream* output) const
 {
     NYT::TStreamSaveContext context(output);
     NYT::TBinaryYsonStructSerializer::Save(context, *this);
+    context.Finish();
 }
 
 void TYsonStructBase::Postprocess(const TYPath& path)

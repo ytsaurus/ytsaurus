@@ -24,8 +24,8 @@ size_t ReadRef(TInput& input, TMutableRef ref)
     if (bytesLoaded != ref.Size()) {
         TCrashOnDeserializationErrorGuard::OnError();
         THROW_ERROR_EXCEPTION("Premature end-of-stream")
-            << TErrorAttribute("bytes_loaded", ref.Size())
-            << TErrorAttribute("bytes_expected", bytesLoaded);
+            << TErrorAttribute("bytes_loaded", bytesLoaded)
+            << TErrorAttribute("bytes_expected", ref.Size());
     }
     return bytesLoaded;
 }
@@ -225,6 +225,31 @@ inline std::vector<TSharedRef> UnpackRefs(const TSharedRef& packedRef)
     std::vector<TSharedRef> parts;
     UnpackRefs(packedRef, &parts);
     return parts;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE void TSaveContextStream::Write(const void* buf, size_t len)
+{
+    if (Y_LIKELY(BufferSize_ >= len)) {
+        ::memcpy(BufferPtr_, buf, len);
+        BufferPtr_ += len;
+        BufferSize_ -= len;
+    } else {
+        WriteSlow(buf, len);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE TSaveContextStream* TStreamSaveContext::GetOutput()
+{
+    return &Output_;
+}
+
+Y_FORCE_INLINE int TStreamSaveContext::GetVersion() const
+{
+    return Version_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

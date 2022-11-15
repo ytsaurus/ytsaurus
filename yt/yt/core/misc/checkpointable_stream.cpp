@@ -111,33 +111,95 @@ class TCheckpointableOutputStream
     : public ICheckpointableOutputStream
 {
 public:
-    explicit TCheckpointableOutputStream(IOutputStream* underlyingStream)
+    explicit TCheckpointableOutputStream(IZeroCopyOutput* underlyingStream)
         : UnderlyingStream_(underlyingStream)
     { }
 
     void MakeCheckpoint() override
     {
-        WritePod(*UnderlyingStream_, TCheckpointableStreamBlockHeader{TCheckpointableStreamBlockHeader::CheckpointSentinel});
+        LastBufferedHeader_ = nullptr;
+        TCheckpointableStreamBlockHeader header{TCheckpointableStreamBlockHeader::CheckpointSentinel};
+        UnderlyingStream_->Write(&header, sizeof(header));
+    }
+
+    virtual ~TCheckpointableOutputStream()
+    {
+        try {
+            Finish();
+        } catch (...) {
+        }
     }
 
 private:
-    IOutputStream* const UnderlyingStream_;
+    IZeroCopyOutput* UnderlyingStream_;
+    TCheckpointableStreamBlockHeader* LastBufferedHeader_ = nullptr;
 
 
-    void DoWrite(const void* buf, size_t len_) override
+    void DoFlush() override
     {
-        i64 len = static_cast<i64>(len_);
-        if (len == 0) {
+        LastBufferedHeader_ = nullptr;
+        UnderlyingStream_->Flush();
+    }
+
+    void DoWrite(const void* data, size_t length) override
+    {
+        const char* srcPtr = static_cast<const char*>(data);
+        size_t srcLen = length;
+        void* dstPtr = nullptr;
+        size_t dstLen = 0;
+        while (srcLen > 0) {
+            dstLen = Next(&dstPtr);
+            size_t toCopy = Min(dstLen, srcLen);
+            ::memcpy(dstPtr, srcPtr, toCopy);
+            srcLen -= toCopy;
+            dstLen -= toCopy;
+            srcPtr += toCopy;
+            dstPtr = static_cast<char*>(dstPtr) + toCopy;
+        }
+        Undo(dstLen);
+    }
+
+    size_t DoNext(void** ptr) override
+    {
+        void* underlyingPtr;
+        size_t underlyingLength = UnderlyingStream_->Next(&underlyingPtr);
+        if (underlyingLength <= sizeof(TCheckpointableStreamBlockHeader)) {
+            UnderlyingStream_->Undo(underlyingLength);
+            UnderlyingStream_->Flush();
+            underlyingLength = UnderlyingStream_->Next(&underlyingPtr);
+            YT_VERIFY(underlyingLength > sizeof(TCheckpointableStreamBlockHeader));
+        }
+
+        auto length = underlyingLength - sizeof(TCheckpointableStreamBlockHeader);
+
+        LastBufferedHeader_ = static_cast<TCheckpointableStreamBlockHeader*>(underlyingPtr);
+        LastBufferedHeader_->Length = static_cast<i64>(length);
+
+        *ptr = LastBufferedHeader_ + 1;
+        return length;
+    }
+
+    void DoUndo(size_t length) override
+    {
+        if (length == 0) {
             return;
         }
 
-        WritePod(*UnderlyingStream_, TCheckpointableStreamBlockHeader{len});
-        UnderlyingStream_->Write(buf, len);
+        YT_ASSERT(LastBufferedHeader_);
+        YT_ASSERT(LastBufferedHeader_->Length >= static_cast<i64>(length));
+
+        LastBufferedHeader_->Length -= static_cast<i64>(length);
+        if (LastBufferedHeader_->Length == 0) {
+            UnderlyingStream_->Undo(length + sizeof(TCheckpointableStreamBlockHeader));
+            LastBufferedHeader_ = nullptr;
+        } else {
+            UnderlyingStream_->Undo(length);
+        }
     }
 };
 
 std::unique_ptr<ICheckpointableOutputStream> CreateCheckpointableOutputStream(
-    IOutputStream* underlyingStream)
+    IZeroCopyOutput* underlyingStream)
 {
     return std::unique_ptr<ICheckpointableOutputStream>(new TCheckpointableOutputStream(
         underlyingStream));
@@ -150,79 +212,45 @@ class TBufferedCheckpointableOutputStream
 {
 public:
     TBufferedCheckpointableOutputStream(
-        ICheckpointableOutputStream* underlyingStream,
+        IOutputStream* underlyingStream,
         size_t bufferSize)
-        : UnderlyingStream_(underlyingStream)
-        , BufferSize_(bufferSize)
-        , WriteThroughSize_(bufferSize / 2)
-        , Buffer_(BufferSize_)
-        , BufferBegin_(Buffer_.data())
-        , BufferCurrent_(Buffer_.data())
-        , BufferRemaining_(BufferSize_)
-    {
-        YT_VERIFY(BufferSize_ > 0);
-    }
+        : BufferedOutput_(underlyingStream, std::max(bufferSize, sizeof(TCheckpointableStreamBlockHeader) + 1))
+        , CheckpointableAdapter_(CreateCheckpointableOutputStream(&BufferedOutput_))
+    { }
 
     void MakeCheckpoint() override
     {
-        Flush();
-        UnderlyingStream_->MakeCheckpoint();
-    }
-
-    virtual ~TBufferedCheckpointableOutputStream()
-    {
-        try {
-            Finish();
-        } catch (...) {
-        }
+        CheckpointableAdapter_->MakeCheckpoint();
     }
 
 private:
-    ICheckpointableOutputStream* const UnderlyingStream_;
-    const size_t BufferSize_;
-    const size_t WriteThroughSize_;
+    TBufferedOutput BufferedOutput_;
+    const std::unique_ptr<ICheckpointableOutputStream> CheckpointableAdapter_;
 
-    std::vector<char> Buffer_;
-    char* BufferBegin_;
-    char* BufferCurrent_;
-    size_t BufferRemaining_;
-
-
-    void DoWrite(const void* buf, size_t len) override
-    {
-        const char* current = static_cast<const char*>(buf);
-        size_t remaining = len;
-        while (remaining > 0) {
-            if (BufferRemaining_ == 0) {
-                // Flush buffer.
-                Flush();
-            }
-            size_t bytes = std::min(BufferRemaining_, remaining);
-            if (BufferRemaining_ == BufferSize_ && bytes >= WriteThroughSize_) {
-                // Write-through.
-                UnderlyingStream_->Write(current, bytes);
-            } else {
-                // Copy into buffer.
-                ::memcpy(BufferCurrent_, current, bytes);
-                BufferCurrent_ += bytes;
-                BufferRemaining_ -= bytes;
-            }
-            current += bytes;
-            remaining -= bytes;
-        }
-    }
 
     void DoFlush() override
     {
-        UnderlyingStream_->Write(BufferBegin_, BufferCurrent_ - BufferBegin_);
-        BufferCurrent_ = BufferBegin_;
-        BufferRemaining_ = BufferSize_;
-        UnderlyingStream_->Flush();
+        CheckpointableAdapter_->Flush();
+    }
+
+    void DoWrite(const void* data, size_t length) override
+    {
+        CheckpointableAdapter_->Write(data, length);
+    }
+
+    size_t DoNext(void** ptr) override
+    {
+        return CheckpointableAdapter_->Next(ptr);
+    }
+
+    void DoUndo(size_t length) override
+    {
+        CheckpointableAdapter_->Undo(length);
     }
 };
 
 std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputStream(
-    ICheckpointableOutputStream* underlyingStream,
+    IOutputStream* underlyingStream,
     size_t bufferSize)
 {
     return std::unique_ptr<ICheckpointableOutputStream>(new TBufferedCheckpointableOutputStream(

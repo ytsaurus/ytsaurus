@@ -284,14 +284,6 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
     }
 }
 
-void TCompositeAutomaton::InitSaveContext(
-    TSaveContext& context,
-    ICheckpointableOutputStream* output)
-{
-    context.SetOutput(output);
-    context.SetCheckpointableOutput(output);
-}
-
 void TCompositeAutomaton::InitLoadContext(
     TLoadContext& context,
     ICheckpointableInputStream* input)
@@ -551,6 +543,7 @@ void TCompositeAutomaton::DoSaveSnapshot(
     auto syncWriter = CreateBufferedCheckpointableSyncAdapter(writer, strategy, SnapshotSaveBufferSize);
     auto context = CreateSaveContext(syncWriter.get());
     callback(*context);
+    context->Finish();
 }
 
 void TCompositeAutomaton::DoLoadSnapshot(
@@ -574,7 +567,7 @@ void TCompositeAutomaton::WritePartHeader(TSaveContext& context, const TSaverDes
         descriptor.Name,
         version);
 
-    context.GetCheckpointableOutput()->MakeCheckpoint();
+    context.MakeCheckpoint();
 
     Save(context, descriptor.Name);
     Save<i32>(context, version);

@@ -49,13 +49,62 @@ void TCrashOnDeserializationErrorGuard::OnError()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStreamSaveContext::TStreamSaveContext()
-    : Output_(nullptr)
+TSaveContextStream::TSaveContextStream(IOutputStream* output)
+    : BufferedOutput_(output)
+    , Output_(&*BufferedOutput_)
 { }
 
-TStreamSaveContext::TStreamSaveContext(IOutputStream* output)
+TSaveContextStream::TSaveContextStream(IZeroCopyOutput* output)
     : Output_(output)
 { }
+
+void TSaveContextStream::Flush()
+{
+    Output_->Undo(BufferSize_);
+    BufferPtr_ = nullptr;
+    BufferSize_ = 0;
+    Output_->Flush();
+    if (BufferedOutput_) {
+        BufferedOutput_->Flush();
+    }
+}
+
+void TSaveContextStream::WriteSlow(const void* buf, size_t len)
+{
+    while (len > 0) {
+        if (BufferSize_ == 0) {
+            BufferSize_ = Output_->Next(&BufferPtr_);
+        }
+        YT_ASSERT(BufferSize_ > 0);
+        auto toCopy = std::min(len, BufferSize_);
+        ::memcpy(BufferPtr_, buf, toCopy);
+        BufferPtr_ += toCopy;
+        BufferSize_ -= toCopy;
+        buf = static_cast<const char*>(buf) + toCopy;
+        len -= toCopy;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TStreamSaveContext::TStreamSaveContext(
+    IOutputStream* output,
+    int version)
+    : Output_(output)
+    , Version_(version)
+{ }
+
+TStreamSaveContext::TStreamSaveContext(
+    IZeroCopyOutput* output,
+    int version)
+    : Output_(output)
+    , Version_(version)
+{ }
+
+void TStreamSaveContext::Finish()
+{
+    Output_.Flush();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

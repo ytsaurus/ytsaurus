@@ -45,4 +45,26 @@ EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSaveContext::TSaveContext(ICheckpointableOutputStream* output)
+    : NHydra::TSaveContext(output, GetCurrentReign())
+{ }
+
+EClockReign TSaveContext::GetVersion()
+{
+    return static_cast<EClockReign>(NHydra::TSaveContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoadContext::TLoadContext(TBootstrap* bootstrap)
+    : Bootstrap_(bootstrap)
+{ }
+
+EClockReign TLoadContext::GetVersion()
+{
+    return static_cast<NClusterClock::EClockReign>(NHydra::TLoadContext::GetVersion());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NClusterClock

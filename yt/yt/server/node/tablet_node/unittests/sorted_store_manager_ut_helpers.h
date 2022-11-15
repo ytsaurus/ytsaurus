@@ -184,10 +184,10 @@ protected:
         TString buffer;
 
         TStringOutput output(buffer);
-        TSaveContext saveContext;
-        saveContext.SetVersion(static_cast<int>(GetCurrentReign()));
-        saveContext.SetOutput(&output);
+        auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
+        TSaveContext saveContext(checkpointableOutput.get());
         Tablet_->Save(saveContext);
+        saveContext.Finish();
 
         return std::make_pair(buffer, Tablet_->AsyncSave());
     }
@@ -197,10 +197,10 @@ protected:
         auto buffer = snapshot.first;
 
         TStringOutput output(buffer);
-        TSaveContext saveContext;
-        saveContext.SetVersion(static_cast<int>(GetCurrentReign()));
-        saveContext.SetOutput(&output);
+        auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
+        TSaveContext saveContext(checkpointableOutput.get());
         snapshot.second.Run(saveContext);
+        saveContext.Finish();
 
         TStringInput input(buffer);
         StoreManager_.Reset();

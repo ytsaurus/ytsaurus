@@ -20,7 +20,7 @@ struct TJobDescription
     NJobTrackerClient::EJobType Type;
     TString State;
 
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 void Deserialize(TJobDescription& value, NYTree::INodePtr node);
@@ -39,7 +39,7 @@ struct TOperationDescription
     bool InTimeframe;
     NYson::TYsonString Spec;
 
-    void Persist(const NPhoenix::TPersistenceContext& context);
+    void Persist(const TStreamPersistenceContext& context);
 };
 
 void Deserialize(TOperationDescription& value, NYTree::INodePtr node);

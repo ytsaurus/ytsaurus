@@ -1216,15 +1216,15 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     return result;
 }
 
-void TOperationControllerBase::SaveSnapshot(IOutputStream* output)
+void TOperationControllerBase::SaveSnapshot(IZeroCopyOutput* output)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    TSaveContext context;
-    context.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
-    context.SetOutput(output);
+    TSaveContext context(output);
 
     Save(context, this);
+
+    context.Finish();
 }
 
 void TOperationControllerBase::SleepInRevive()

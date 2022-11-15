@@ -36,15 +36,17 @@ TBeginCopyContext::TBeginCopyContext(
     TTransaction* transaction,
     ENodeCloneMode mode,
     const TCypressNode* rootNode)
-    : Transaction_(transaction)
+    : TEntityStreamSaveContext(
+        &Stream_,
+        NCellMaster::GetCurrentReign())
+    , Transaction_(transaction)
     , Mode_(mode)
     , RootNode_(rootNode)
-{
-    SetOutput(&Stream_);
-}
+{ }
 
 std::vector<TSharedRef> TBeginCopyContext::Finish()
 {
+    TStreamSaveContext::Finish();
     return Stream_.Finish();
 }
 

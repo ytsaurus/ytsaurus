@@ -25,9 +25,9 @@ static const auto SleepQuantum = TDuration::MilliSeconds(100);
 void PersistWaitRestore(TWallTimer& timer)
 {
     TBlobOutput output;
-    TSaveContext saveContext;
-    saveContext.SetOutput(&output);
+    TSaveContext saveContext(&output);
     Save(saveContext, timer);
+    saveContext.Finish();
     auto blob = output.Flush();
 
     TDelayedExecutor::WaitForDuration(SleepQuantum);
