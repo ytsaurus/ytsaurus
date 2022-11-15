@@ -5,6 +5,8 @@ import java.io.ByteArrayOutputStream;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.client.request.SuppressableAccessTrackingOptions;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -14,8 +16,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
 public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
     private final String path;

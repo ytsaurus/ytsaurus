@@ -1,18 +1,18 @@
 package ru.yandex.yt.ytclient.request;
 
+import tech.ytsaurus.client.request.MasterReadOptions;
+import tech.ytsaurus.client.request.PrerequisiteOptions;
+import tech.ytsaurus.client.request.SuppressableAccessTrackingOptions;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqListNode;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
-import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
-import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
 public class ListNode extends GetLikeReq<ListNode.Builder, ListNode> implements HighLevelRequest<TReqListNode.Builder> {
     public ListNode(BuilderBase<?> builder) {

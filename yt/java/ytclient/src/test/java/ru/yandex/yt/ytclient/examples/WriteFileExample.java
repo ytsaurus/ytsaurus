@@ -4,10 +4,10 @@ import java.io.FileInputStream;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.request.ObjectType;
 
 import ru.yandex.yt.ytclient.proxy.FileWriter;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.proxy.request.ObjectType;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 
 public class WriteFileExample {

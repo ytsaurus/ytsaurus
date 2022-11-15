@@ -4,13 +4,13 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.MutatingOptions;
+import tech.ytsaurus.client.request.TabletRangeOptions;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
-import ru.yandex.yt.ytclient.proxy.request.TabletRangeOptions;
 
 @NonNullFields
 @NonNullApi

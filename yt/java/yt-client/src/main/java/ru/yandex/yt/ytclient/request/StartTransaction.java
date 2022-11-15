@@ -13,6 +13,9 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.client.request.Atomicity;
+import tech.ytsaurus.client.request.Durability;
+import tech.ytsaurus.client.request.TransactionType;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
@@ -22,9 +25,6 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
-import ru.yandex.yt.ytclient.proxy.request.Atomicity;
-import ru.yandex.yt.ytclient.proxy.request.Durability;
-import ru.yandex.yt.ytclient.proxy.request.TransactionType;
 import ru.yandex.yt.ytree.TAttributeDictionary;
 
 /**

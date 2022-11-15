@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.cypress;
+package tech.ytsaurus.core.cypress;
 
 import tech.ytsaurus.core.StringValueEnum;
 import tech.ytsaurus.core.StringValueEnumResolver;

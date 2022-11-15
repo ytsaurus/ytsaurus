@@ -1,7 +1,8 @@
 import java.util.ArrayList;
 import java.util.List;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
+import tech.ytsaurus.core.cypress.YPath;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;

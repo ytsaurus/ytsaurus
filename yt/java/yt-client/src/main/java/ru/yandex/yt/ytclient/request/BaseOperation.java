@@ -4,13 +4,13 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.MutatingOptions;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.operations.Spec;
-import ru.yandex.yt.ytclient.proxy.request.MutatingOptions;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
 public class BaseOperation<TSpec extends Spec> {
     private final TSpec spec;

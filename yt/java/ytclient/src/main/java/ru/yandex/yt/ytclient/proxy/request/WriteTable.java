@@ -2,7 +2,9 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
+import tech.ytsaurus.client.request.Format;
+import tech.ytsaurus.core.cypress.YPath;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;

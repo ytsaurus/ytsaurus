@@ -4,7 +4,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
+import tech.ytsaurus.core.cypress.YPath;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 

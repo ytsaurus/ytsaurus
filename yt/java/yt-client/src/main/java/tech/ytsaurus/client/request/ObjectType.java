@@ -1,6 +1,6 @@
-package ru.yandex.yt.ytclient.proxy.request;
+package tech.ytsaurus.client.request;
 
-import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 
 public enum ObjectType {
     // Static nodes

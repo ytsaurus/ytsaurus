@@ -1,7 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 
+import tech.ytsaurus.core.cypress.YPath;
 public class CopyNode extends ru.yandex.yt.ytclient.request.CopyNode.BuilderBase<CopyNode> {
     public CopyNode(String from, String to) {
         setSource(from).setDestination(to);

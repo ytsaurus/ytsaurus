@@ -1,14 +1,14 @@
 import java.util.List;
 import java.util.Map;
 
+import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.client.request.TransactionType;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.request.ObjectType;
-import ru.yandex.yt.ytclient.proxy.request.TransactionType;
 import ru.yandex.yt.ytclient.request.CreateNode;
 import ru.yandex.yt.ytclient.request.LookupRowsRequest;
 import ru.yandex.yt.ytclient.request.ModifyRowsRequest;

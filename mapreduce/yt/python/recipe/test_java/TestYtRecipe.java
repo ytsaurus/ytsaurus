@@ -4,10 +4,10 @@ import java.io.FileReader;
 
 import org.junit.Test;
 import org.junit.Assert;
+import tech.ytsaurus.core.cypress.CypressNodeType;
+import tech.ytsaurus.core.cypress.YPath;
 
 import ru.yandex.inside.yt.kosher.Yt;
-import ru.yandex.inside.yt.kosher.cypress.CypressNodeType;
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.YtUtils;
 
 

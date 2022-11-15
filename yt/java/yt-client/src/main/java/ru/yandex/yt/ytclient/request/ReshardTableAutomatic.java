@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.request;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
+import tech.ytsaurus.core.cypress.YPath;
+
 import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
 
 public class ReshardTableAutomatic

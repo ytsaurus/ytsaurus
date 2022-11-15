@@ -1,4 +1,4 @@
-package ru.yandex.inside.yt.kosher.cypress;
+package tech.ytsaurus.core.cypress;
 
 import java.util.ArrayList;
 import java.util.List;

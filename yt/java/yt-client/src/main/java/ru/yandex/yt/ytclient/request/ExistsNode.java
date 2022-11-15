@@ -2,6 +2,10 @@ package ru.yandex.yt.ytclient.request;
 
 import java.util.Objects;
 
+import tech.ytsaurus.client.request.MasterReadOptions;
+import tech.ytsaurus.client.request.PrerequisiteOptions;
+import tech.ytsaurus.client.request.SuppressableAccessTrackingOptions;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
@@ -9,10 +13,6 @@ import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqExistsNode;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
-import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
-import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
 public class ExistsNode
         extends GetLikeReq<ExistsNode.Builder, ExistsNode>

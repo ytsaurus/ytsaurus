@@ -1,5 +1,9 @@
 package ru.yandex.yt.ytclient.request;
 
+import tech.ytsaurus.client.request.MasterReadOptions;
+import tech.ytsaurus.client.request.PrerequisiteOptions;
+import tech.ytsaurus.client.request.SuppressableAccessTrackingOptions;
+import tech.ytsaurus.client.request.TransactionalOptions;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
 import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
@@ -8,10 +12,6 @@ import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
-import ru.yandex.yt.ytclient.proxy.request.MasterReadOptions;
-import ru.yandex.yt.ytclient.proxy.request.PrerequisiteOptions;
-import ru.yandex.yt.ytclient.proxy.request.SuppressableAccessTrackingOptions;
-import ru.yandex.yt.ytclient.proxy.request.TransactionalOptions;
 
 public class GetNode extends GetLikeReq<GetNode.Builder, GetNode> implements HighLevelRequest<TReqGetNode.Builder> {
     public GetNode(BuilderBase<?> builder) {

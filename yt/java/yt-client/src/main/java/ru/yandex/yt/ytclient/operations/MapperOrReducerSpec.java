@@ -23,10 +23,10 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.JavaOptions;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.FileWriter;
