@@ -366,7 +366,7 @@ class TestRetries(object):
                     }
                 })
                 chaos_monkey_state = itertools.cycle(chaos_monkey_values)
-                chaos_monkey = lambda: next(chaos_monkey_state)
+                chaos_monkey = lambda: next(chaos_monkey_state) # noqa
                 super(_Retrier, self).__init__(
                     retry_config,
                     timeout=10,
@@ -829,7 +829,7 @@ def test_frozen_dict():
 class TestResponseStream(object):
     @authors("asaitgalin")
     def test_chunk_iterator(self):
-        random_line = lambda: b("".join(random.choice(string.ascii_lowercase) for _ in xrange(100)))
+        random_line = lambda: b("".join(random.choice(string.ascii_lowercase) for _ in xrange(100))) # noqa
         s = b"\n".join(random_line() for _ in xrange(3))
 
         class StringIterator(Iterator):
@@ -1065,7 +1065,7 @@ class TestStream(object):
                  for _ in xrange(100)]
         if PY3:
             lines = [line.encode("ascii") for line in lines]
-        make_stream = lambda: _ChunkStream(lines, chunk_size=5, allow_resplit=False)
+        make_stream = lambda: _ChunkStream(lines, chunk_size=5, allow_resplit=False) # noqa
         assert [line + b"\n" for chunk in make_stream() for line in chunk.split(b"\n") if line] == lines
         for pieces in make_stream().split_chunks(2):
             chunk = b"".join(pieces)

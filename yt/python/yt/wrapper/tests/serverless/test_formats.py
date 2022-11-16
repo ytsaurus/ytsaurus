@@ -432,6 +432,7 @@ def test_yson_dump_rows_speed():
         assert False, "Dump rows to one stream took {0} seconds, " \
                       "to two streams took {1} seconds".format(one_stream_dump_time, two_streams_dump_time)
 
+
 if PY3:
     @authors("ignat")
     def test_none_encoding():

@@ -76,6 +76,6 @@ def test_catching_sigint():
     os.kill(process.pid, signal.SIGINT)
     try:
         process.wait(5)
-    except:
+    except Exception:
         os.kill(process.pid, signal.SIGKILL)
         assert False, "Process hanged up for more than 5 seconds on SIGINT"
