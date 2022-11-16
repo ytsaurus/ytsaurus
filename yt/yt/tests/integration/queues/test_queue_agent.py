@@ -25,9 +25,11 @@ import yt.environment.init_queue_agent_state as init_queue_agent_state
 ##################################################################
 
 
-BIGRT_CONSUMER_TABLE_SCHEMA = [
-    {"name": "ShardId", "type": "uint64", "sort_order": "ascending"},
-    {"name": "Offset", "type": "uint64"},
+CONSUMER_TABLE_SCHEMA = [
+    {"name": "queue_cluster", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "queue_path", "type": "string", "sort_order": "ascending", "required": True},
+    {"name": "partition_index", "type": "uint64", "sort_order": "ascending", "required": True},
+    {"name": "offset", "type": "uint64", "required": True},
 ]
 
 
@@ -103,10 +105,18 @@ class QueueAgentOrchid(OrchidBase):
         return get(self.queue_agent_orchid_path() + "/queue_agent/queues/" +
                    escape_ypath_literal(queue_ref) + "/partitions")
 
+    def get_queue_row(self, queue_ref):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/queues/" +
+                   escape_ypath_literal(queue_ref) + "/row")
+
     def get_queue(self, queue_ref):
         result = get(self.queue_agent_orchid_path() + "/queue_agent/queues/" +
                      escape_ypath_literal(queue_ref))
         return result["status"], result["partitions"]
+
+    def get_consumer_row(self, consumer_ref):
+        return get(self.queue_agent_orchid_path() + "/queue_agent/consumers/" +
+                   escape_ypath_literal(consumer_ref) + "/row")
 
     def get_consumer_status(self, consumer_ref):
         return get(self.queue_agent_orchid_path() + "/queue_agent/consumers/" +
@@ -121,6 +131,10 @@ class QueueAgentOrchid(OrchidBase):
                      escape_ypath_literal(consumer_ref))
         return result["status"], result["partitions"]
 
+    def get_subconsumer(self, consumer_ref, queue_ref):
+        status, partitions = self.get_consumer(consumer_ref)
+        return status["queues"][queue_ref], partitions[queue_ref]
+
 
 class AlertManagerOrchid(OrchidBase):
     def __init__(self, agent_id=None):
@@ -131,6 +145,8 @@ class AlertManagerOrchid(OrchidBase):
 
 
 class TestQueueAgentBase(YTEnvSetup):
+    NUM_QUEUE_AGENTS = 1
+
     USE_DYNAMIC_TABLES = True
 
     @classmethod
@@ -193,18 +209,20 @@ class TestQueueAgentBase(YTEnvSetup):
 
     def _prepare_tables(self, queue_table_schema=None, consumer_table_schema=None):
         sync_create_cells(1)
-        remove("//sys/queue_agents/queues", force=True)
-        remove("//sys/queue_agents/consumers", force=True)
+        tables = ["queues", "consumers", "consumer_registrations"]
+        for table in tables:
+            remove(f"//sys/queue_agents/{table}", force=True)
         init_queue_agent_state.create_tables(
             self.Env.create_native_client(),
             queue_table_schema=queue_table_schema,
             consumer_table_schema=consumer_table_schema)
-        sync_mount_table("//sys/queue_agents/queues")
-        sync_mount_table("//sys/queue_agents/consumers")
+        for table in tables:
+            sync_mount_table(f"//sys/queue_agents/{table}")
 
     def _drop_tables(self):
-        remove("//sys/queue_agents/queues", force=True)
-        remove("//sys/queue_agents/consumers", force=True)
+        tables = ["queues", "consumers", "consumer_registrations"]
+        for table in tables:
+            remove(f"//sys/queue_agents/{table}", force=True)
 
     def _create_queue(self, path, partition_count=1, enable_timestamp_column=True,
                       enable_cumulative_data_weight_column=True, **kwargs):
@@ -225,24 +243,49 @@ class TestQueueAgentBase(YTEnvSetup):
 
         return schema
 
-    def _create_bigrt_consumer(self, path, target_queue, **kwargs):
+    def _create_consumer(self, path, **kwargs):
         attributes = {
             "dynamic": True,
-            "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
-            "target_queue": target_queue,
+            "schema": CONSUMER_TABLE_SCHEMA,
             "treat_as_queue_consumer": True,
         }
         attributes.update(kwargs)
         create("table", path, attributes=attributes)
         sync_mount_table(path)
 
-    def _advance_bigrt_consumer(self, path, tablet_index, next_row_index):
-        # Keep in mind that in BigRT offset points to the last read row rather than first unread row.
-        # Initial status is represented as a missing row.
-        if next_row_index == 0:
-            delete_rows(path, [{"ShardId": tablet_index}])
-        else:
-            insert_rows(path, [{"ShardId": tablet_index, "Offset": next_row_index - 1}])
+    def _create_registered_consumer(self, consumer_path, queue_path, vital=False):
+        self._create_consumer(consumer_path)
+        self._register_queue_consumer(queue_path, consumer_path, vital=vital)
+
+    # TODO(max42): replace helpers below with corresponding driver commands when they are here.
+
+    def _register_queue_consumer(self, queue_path, consumer_path, vital=False):
+        insert_rows("//sys/queue_agents/consumer_registrations", [{
+            "queue_cluster": "primary",
+            "queue_path": queue_path,
+            "consumer_cluster": "primary",
+            "consumer_path": consumer_path,
+            "vital": vital,
+        }])
+
+    def _unregister_queue_consumer(self, queue_path, consumer_path):
+        delete_rows("//sys/queue_agents/consumer_registrations", [{
+            "queue_cluster": "primary",
+            "queue_path": queue_path,
+            "consumer_cluster": "primary",
+            "consumer_path": consumer_path,
+        }])
+
+    def _advance_consumer(self, consumer_path, queue_path, partition_index, offset):
+        self._advance_consumers(consumer_path, queue_path, {partition_index: offset})
+
+    def _advance_consumers(self, consumer_path, queue_path, partition_index_to_offset):
+        insert_rows(consumer_path, [{
+            "queue_cluster": "primary",
+            "queue_path": queue_path,
+            "partition_index": partition_index,
+            "offset": offset,
+        } for partition_index, offset in partition_index_to_offset.items()])
 
     @staticmethod
     def _wait_for_row_count(path, tablet_index, count):
@@ -250,8 +293,6 @@ class TestQueueAgentBase(YTEnvSetup):
 
 
 class TestQueueAgent(TestQueueAgentBase):
-    NUM_QUEUE_AGENTS = 1
-
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
@@ -297,8 +338,6 @@ class TestQueueAgent(TestQueueAgentBase):
 
 
 class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
-    NUM_QUEUE_AGENTS = 1
-
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
@@ -342,16 +381,6 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         # Missing row revision.
         insert_rows("//sys/queue_agents/queues",
                     [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production"}])
-        orchid.wait_fresh_poll()
-        status = orchid.get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(status["error"]), "Queue is not in-sync yet")
-        assert "type" not in status
-
-        # Missing object type.
-        insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
-                      "row_revision": YsonUint64(1234)}],
-                    update=True)
         orchid.wait_fresh_poll()
         status = orchid.get_queue_status("primary://tmp/q")
         assert_yt_error(YtError.from_dict(status["error"]), "Queue is not in-sync yet")
@@ -420,39 +449,6 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
         assert_yt_error(YtError.from_dict(status["error"]), "Consumer is not in-sync yet")
         assert "target" not in status
 
-        # Missing target.
-        insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production",
-                      "row_revision": YsonUint64(1234)}],
-                    update=True)
-        orchid.wait_fresh_poll()
-        status = orchid.get_consumer_status("primary://tmp/c")
-        assert_yt_error(YtError.from_dict(status["error"]), "Consumer is missing target")
-        assert "target" not in status
-
-        # Unregistered target queue.
-        insert_rows("//sys/queue_agents/consumers",
-                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production",
-                      "row_revision": YsonUint64(2345), "target_cluster": "primary", "target_path": "//tmp/q",
-                      "treat_as_queue_consumer": True}],
-                    update=True)
-        orchid.wait_fresh_poll()
-        status = orchid.get_consumer_status("primary://tmp/c")
-        assert_yt_error(YtError.from_dict(status["error"]), 'Target queue "primary://tmp/q" is not registered')
-
-        # Register target queue with wrong object type.
-        insert_rows("//sys/queue_agents/queues",
-                    [{"cluster": "primary", "path": "//tmp/q", "queue_agent_stage": "production",
-                      "row_revision": YsonUint64(4567), "object_type": "map_node", "dynamic": True, "sorted": False}],
-                    update=True)
-        orchid.wait_fresh_poll()
-        status = orchid.get_queue_status("primary://tmp/q")
-        assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
-
-        # Queue error is propagated as consumer error.
-        status = orchid.get_consumer_status("primary://tmp/c")
-        assert_yt_error(YtError.from_dict(status["error"]), 'Invalid queue object type "map_node"')
-
     @authors("achulkov2")
     def test_alerts(self):
         orchid = QueueAgentOrchid()
@@ -472,10 +468,41 @@ class TestQueueAgentNoSynchronizer(TestQueueAgentBase):
 
         wait(lambda: not alert_orchid.get_alerts())
 
+    @authors("max42")
+    def test_controller_reuse(self):
+        orchid = QueueAgentOrchid()
+
+        orchid.wait_fresh_poll()
+        queues = orchid.get_queues()
+        consumers = orchid.get_consumers()
+        assert len(queues) == 0
+        assert len(consumers) == 0
+
+        insert_rows("//sys/queue_agents/consumers",
+                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(1234), "revision": YsonUint64(100)}])
+        orchid.wait_fresh_poll()
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+        row = orchid.get_consumer_row("primary://tmp/c")
+        assert row["revision"] == 100
+
+        # Make sure pass index is large enough.
+        time.sleep(3)
+        pass_index = orchid.get_consumer_pass_index("primary://tmp/c")
+
+        insert_rows("//sys/queue_agents/consumers",
+                    [{"cluster": "primary", "path": "//tmp/c", "queue_agent_stage": "production",
+                      "row_revision": YsonUint64(2345), "revision": YsonUint64(200)}])
+        orchid.wait_fresh_poll()
+        orchid.wait_fresh_consumer_pass("primary://tmp/c")
+        row = orchid.get_consumer_row("primary://tmp/c")
+        assert row["revision"] == 200
+
+        # Make sure controller was not recreated.
+        assert orchid.get_consumer_pass_index("primary://tmp/c") > pass_index
+
 
 class TestOrchidSelfRedirect(TestQueueAgentBase):
-    NUM_QUEUE_AGENTS = 1
-
     DELTA_QUEUE_AGENT_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
@@ -513,8 +540,6 @@ class TestOrchidSelfRedirect(TestQueueAgentBase):
 
 
 class TestQueueController(TestQueueAgentBase):
-    NUM_QUEUE_AGENTS = 1
-
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
@@ -541,7 +566,7 @@ class TestQueueController(TestQueueAgentBase):
 
         schema = self._create_queue("//tmp/q", partition_count=2, enable_cumulative_data_weight_column=False)
         schema_with_cumulative_data_weight = schema + [{"name": "$cumulative_data_weight", "type": "int64"}]
-        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         orchid.wait_fresh_poll()
@@ -550,7 +575,9 @@ class TestQueueController(TestQueueAgentBase):
         queue_status = orchid.get_queue_status("primary://tmp/q")
         assert queue_status["family"] == "ordered_dynamic_table"
         assert queue_status["partition_count"] == 2
-        assert queue_status["consumers"] == {"primary://tmp/c": {"vital": False, "owner": "root"}}
+        assert queue_status["registrations"] == [
+            {"queue": "primary://tmp/q", "consumer": "primary://tmp/c", "vital": False}
+        ]
 
         def assert_partition(partition, lower_row_index, upper_row_index):
             assert partition["lower_row_index"] == lower_row_index
@@ -621,7 +648,7 @@ class TestQueueController(TestQueueAgentBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         orchid.wait_fresh_poll()
@@ -636,16 +663,13 @@ class TestQueueController(TestQueueAgentBase):
         print_debug(self._timestamp_to_iso_str(timestamps[0]), self._timestamp_to_iso_str(timestamps[1]))
 
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
-        consumer_status = orchid.get_consumer_status("primary://tmp/c")
+        consumer_status = orchid.get_consumer_status("primary://tmp/c")["queues"]["primary://tmp/q"]
         assert consumer_status["partition_count"] == 2
-        assert not consumer_status["vital"]
-        assert consumer_status["target_queue"] == "primary://tmp/q"
-        assert consumer_status["owner"] == "root"
 
         time.sleep(1.5)
-        self._advance_bigrt_consumer("//tmp/c", 0, 0)
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 0)
         time.sleep(1.5)
-        self._advance_bigrt_consumer("//tmp/c", 1, 0)
+        self._advance_consumer("//tmp/c", "//tmp/q", 1, 0)
 
         def assert_partition(partition, next_row_index):
             assert partition["next_row_index"] == next_row_index
@@ -655,18 +679,18 @@ class TestQueueController(TestQueueAgentBase):
             assert (partition["processing_lag"] > 0) == (next_row_index < 2)
 
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
-        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")["primary://tmp/q"]
         assert_partition(consumer_partitions[0], 0)
         assert_partition(consumer_partitions[1], 0)
 
-        self._advance_bigrt_consumer("//tmp/c", 0, 1)
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 1)
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
-        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")["primary://tmp/q"]
         assert_partition(consumer_partitions[0], 1)
 
-        self._advance_bigrt_consumer("//tmp/c", 1, 2)
+        self._advance_consumer("//tmp/c", "//tmp/q", 1, 2)
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
-        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        consumer_partitions = orchid.get_consumer_partitions("primary://tmp/c")["primary://tmp/q"]
         assert_partition(consumer_partitions[1], 2)
 
     @authors("max42")
@@ -675,7 +699,7 @@ class TestQueueController(TestQueueAgentBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q")
-        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         orchid.wait_fresh_poll()
@@ -686,9 +710,9 @@ class TestQueueController(TestQueueAgentBase):
 
         expected_dispositions = ["expired", "pending_consumption", "pending_consumption", "up_to_date", "ahead"]
         for offset, expected_disposition in enumerate(expected_dispositions):
-            self._advance_bigrt_consumer("//tmp/c", 0, offset)
+            self._advance_consumer("//tmp/c", "//tmp/q", 0, offset)
             orchid.wait_fresh_consumer_pass("primary://tmp/c")
-            partition = orchid.get_consumer_partitions("primary://tmp/c")[0]
+            partition = orchid.get_consumer_partitions("primary://tmp/c")["primary://tmp/q"][0]
             assert partition["disposition"] == expected_disposition
             assert partition["unread_row_count"] == 3 - offset
 
@@ -698,7 +722,7 @@ class TestQueueController(TestQueueAgentBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         orchid.wait_fresh_poll()
@@ -706,38 +730,55 @@ class TestQueueController(TestQueueAgentBase):
         insert_rows("//tmp/q", [{"data": "foo"}] * 2)
         orchid.wait_fresh_queue_pass("primary://tmp/q")
 
-        self._advance_bigrt_consumer("//tmp/c", 1, 1)
-        self._advance_bigrt_consumer("//tmp/c", 2 ** 63 - 1, 1)
-        self._advance_bigrt_consumer("//tmp/c", 2 ** 64 - 1, 1)
+        self._advance_consumer("//tmp/c", "//tmp/q", 1, 1)
+        self._advance_consumer("//tmp/c", "//tmp/q", 2 ** 63 - 1, 1)
+        self._advance_consumer("//tmp/c", "//tmp/q", 2 ** 64 - 1, 1)
 
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
 
-        partitions = orchid.get_consumer_partitions("primary://tmp/c")
+        partitions = orchid.get_consumer_partitions("primary://tmp/c")["primary://tmp/q"]
         assert len(partitions) == 2
         assert partitions[0]["next_row_index"] == 0
 
+
+class TestRates(TestQueueAgentBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
+            "controller": {
+                "pass_period": 100,
+            },
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100,
+            # We manually expose queues and consumers in this test, so we use polling implementation.
+            "policy": "polling",
+        },
+    }
+
     @authors("max42")
-    def DISABLED_test_rates(self):
+    def test_rates(self):
         eps = 1e-2
-        zero = {"current": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
+        zero = {"current": 0.0, "1m_raw": 0.0, "1m": 0.0, "1h": 0.0, "1d": 0.0}
 
         orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
 
         # We advance consumer in both partitions by one beforehand in order to workaround
         # the corner-case when consumer stands on the first row in the available row window.
-        # In such case we (currently) cannot reliably know cumultive data weight.
+        # In such case we (currently) cannot reliably know cumulative data weight.
 
         insert_rows("//tmp/q", [{"data": "x", "$tablet_index": 0}, {"data": "x", "$tablet_index": 1}])
-        self._advance_bigrt_consumer("//tmp/c", 0, 1)
-        self._advance_bigrt_consumer("//tmp/c", 1, 1)
+        self._advance_consumers("//tmp/c", "//tmp/q", {0: 1, 1: 1})
 
         # Expose queue and consumer.
 
         insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": "//tmp/c"}])
         insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": "//tmp/q"}])
+        cypress_synchronizer_orchid.wait_fresh_poll()
 
         # Test queue write rate. Initially rates are zero.
 
@@ -759,22 +800,25 @@ class TestQueueController(TestQueueAgentBase):
         orchid.wait_fresh_queue_pass("primary://tmp/q")
         status, partitions = orchid.get_queue("primary://tmp/q")
         assert len(partitions) == 2
-        assert partitions[1]["write_row_count_rate"]["1m"] > 0
-        assert partitions[1]["write_data_weight_rate"]["1m"] > 0
-        assert abs(partitions[0]["write_row_count_rate"]["1m"] - 2 * partitions[1]["write_row_count_rate"]["1m"]) < eps
-        assert abs(partitions[0]["write_data_weight_rate"]["1m"] -
-                   2 * partitions[1]["write_data_weight_rate"]["1m"]) < eps
+        assert partitions[1]["write_row_count_rate"]["1m_raw"] > 0
+        assert partitions[1]["write_data_weight_rate"]["1m_raw"] > 0
+        assert abs(partitions[0]["write_row_count_rate"]["1m_raw"] -
+                   2 * partitions[1]["write_row_count_rate"]["1m_raw"]) < eps
+        assert abs(partitions[0]["write_data_weight_rate"]["1m_raw"] -
+                   2 * partitions[1]["write_data_weight_rate"]["1m_raw"]) < eps
 
         # Check total write rate.
 
         status, partitions = orchid.get_queue("primary://tmp/q")
-        assert abs(status["write_row_count_rate"]["1m"] - 3 * partitions[1]["write_row_count_rate"]["1m"]) < eps
-        assert abs(status["write_data_weight_rate"]["1m"] - 3 * partitions[1]["write_data_weight_rate"]["1m"]) < eps
+        assert abs(status["write_row_count_rate"]["1m_raw"] -
+                   3 * partitions[1]["write_row_count_rate"]["1m_raw"]) < eps
+        assert abs(status["write_data_weight_rate"]["1m_raw"] -
+                   3 * partitions[1]["write_data_weight_rate"]["1m_raw"]) < eps
 
         # Test consumer read rate. Again, initially rates are zero.
 
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
-        status, partitions = orchid.get_consumer("primary://tmp/c")
+        status, partitions = orchid.get_subconsumer("primary://tmp/c", "primary://tmp/q")
         assert len(partitions) == 2
         assert partitions[0]["read_row_count_rate"] == zero
         assert partitions[1]["read_row_count_rate"] == zero
@@ -785,28 +829,28 @@ class TestQueueController(TestQueueAgentBase):
 
         # Advance consumer by (resp.) 2 and 1. Again, same statements should hold for read rates.
 
-        self._advance_bigrt_consumer("//tmp/c", 0, 3)
-        self._advance_bigrt_consumer("//tmp/c", 1, 2)
+        self._advance_consumers("//tmp/c", "//tmp/q", {0: 3, 1: 2})
 
         orchid.wait_fresh_consumer_pass("primary://tmp/c")
-        status, partitions = orchid.get_consumer("primary://tmp/c")
+        status, partitions = orchid.get_subconsumer("primary://tmp/c", "primary://tmp/q")
         assert len(partitions) == 2
-        assert partitions[1]["read_row_count_rate"]["1m"] > 0
-        assert abs(partitions[0]["read_row_count_rate"]["1m"] - 2 * partitions[1]["read_row_count_rate"]["1m"]) < eps
-        assert partitions[1]["read_data_weight_rate"]["1m"] > 0
-        assert abs(partitions[0]["read_data_weight_rate"]["1m"] -
-                   2 * partitions[1]["read_data_weight_rate"]["1m"]) < eps
+        assert partitions[1]["read_row_count_rate"]["1m_raw"] > 0
+        assert abs(partitions[0]["read_row_count_rate"]["1m_raw"] -
+                   2 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
+        assert partitions[1]["read_data_weight_rate"]["1m_raw"] > 0
+        assert abs(partitions[0]["read_data_weight_rate"]["1m_raw"] -
+                   2 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps
 
         # Check total read rate.
 
-        status, partitions = orchid.get_consumer("primary://tmp/c")
-        assert abs(status["read_row_count_rate"]["1m"] - 3 * partitions[1]["read_row_count_rate"]["1m"]) < eps
-        assert abs(status["read_data_weight_rate"]["1m"] - 3 * partitions[1]["read_data_weight_rate"]["1m"]) < eps
+        status, partitions = orchid.get_subconsumer("primary://tmp/c", "primary://tmp/q")
+        assert abs(status["read_row_count_rate"]["1m_raw"] -
+                   3 * partitions[1]["read_row_count_rate"]["1m_raw"]) < eps
+        assert abs(status["read_data_weight_rate"]["1m_raw"] -
+                   3 * partitions[1]["read_data_weight_rate"]["1m_raw"]) < eps
 
 
 class TestAutomaticTrimming(TestQueueAgentBase):
-    NUM_QUEUE_AGENTS = 1
-
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,
@@ -828,54 +872,50 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q")
-        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q")
-        self._create_bigrt_consumer("//tmp/c3", "primary://tmp/q")
-
-        set("//tmp/c1/@vital_queue_consumer", True)
-        # c2 is not vital.
-        set("//tmp/c3/@vital_queue_consumer", True)
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
+        self._create_registered_consumer("//tmp/c3", "//tmp/q", vital=True)
 
         set("//tmp/q/@auto_trim_policy", "vital_consumers")
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
 
-        select_rows("* from [//sys/queue_agents/queues]")
-
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
         insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "bar"}] * 7)
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
-        self._advance_bigrt_consumer("//tmp/c1", 0, 3)
-        self._advance_bigrt_consumer("//tmp/c2", 0, 5)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 3)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 5)
         # Vital consumer c3 was not advanced, so nothing should be trimmed.
 
-        self._advance_bigrt_consumer("//tmp/c1", 1, 3)
-        self._advance_bigrt_consumer("//tmp/c2", 1, 1)
-        self._advance_bigrt_consumer("//tmp/c3", 1, 2)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 3)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 1, 1)
+        self._advance_consumer("//tmp/c3", "//tmp/q", 1, 2)
         # Consumer c2 is non-vital, only c1 and c3 should be considered.
 
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        queue_agent_orchid.get_consumer("primary://tmp/c1")
 
         self._wait_for_row_count("//tmp/q", 1, 5)
         self._wait_for_row_count("//tmp/q", 0, 5)
 
         # Consumer c3 is the farthest behind.
-        self._advance_bigrt_consumer("//tmp/c3", 0, 2)
+        self._advance_consumer("//tmp/c3", "//tmp/q", 0, 2)
 
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
         self._wait_for_row_count("//tmp/q", 0, 3)
 
         # Now c1 is the farthest behind.
-        self._advance_bigrt_consumer("//tmp/c3", 0, 4)
+        self._advance_consumer("//tmp/c3", "//tmp/q", 0, 4)
 
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
         self._wait_for_row_count("//tmp/q", 0, 2)
 
         # Both vital consumers are at the same offset.
-        self._advance_bigrt_consumer("//tmp/c1", 1, 6)
-        self._advance_bigrt_consumer("//tmp/c3", 1, 6)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 6)
+        self._advance_consumer("//tmp/c3", "//tmp/q", 1, 6)
 
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
         self._wait_for_row_count("//tmp/q", 1, 1)
@@ -888,13 +928,9 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q")
-        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q")
-        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q")
-        self._create_bigrt_consumer("//tmp/c3", "primary://tmp/q")
-
-        set("//tmp/c1/@vital_queue_consumer", True)
-        # c2 is not vital.
-        set("//tmp/c3/@vital_queue_consumer", True)
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
+        self._create_registered_consumer("//tmp/c3", "//tmp/q", vital=True)
 
         set("//tmp/q/@auto_trim_policy", "vital_consumers")
 
@@ -905,21 +941,23 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
         # Only c1 and c3 are vital, so we should trim up to row 1.
-        self._advance_bigrt_consumer("//tmp/c1", 0, 1)
-        self._advance_bigrt_consumer("//tmp/c2", 0, 3)
-        self._advance_bigrt_consumer("//tmp/c3", 0, 2)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 1)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 3)
+        self._advance_consumer("//tmp/c3", "//tmp/q", 0, 2)
 
         self._wait_for_row_count("//tmp/q", 0, 6)
 
         # Now we should only consider c3 and trim more rows.
-        set("//tmp/c1/@vital_queue_consumer", False)
+        self._unregister_queue_consumer("//tmp/q", "//tmp/c1")
+        self._register_queue_consumer("//tmp/q", "//tmp/c1", vital=False)
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
         self._wait_for_row_count("//tmp/q", 0, 5)
 
         # Now c2 and c3 are vital. Nothing should be trimmed though.
-        set("//tmp/c2/@vital_queue_consumer", True)
+        self._unregister_queue_consumer("//tmp/q", "//tmp/c2")
+        self._register_queue_consumer("//tmp/q", "//tmp/c2", vital=True)
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
@@ -927,7 +965,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_row_count("//tmp/q", 0, 5)
 
         # Now only c2 is vital, so we should trim more rows.
-        set("//tmp/c3/@vital_queue_consumer", False)
+        self._unregister_queue_consumer("//tmp/q", "//tmp/c3")
+        self._register_queue_consumer("//tmp/q", "//tmp/c3", vital=False)
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
@@ -939,13 +978,9 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q")
-        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q")
-        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q")
-        self._create_bigrt_consumer("//tmp/c3", "primary://tmp/q")
-
-        set("//tmp/c1/@vital_queue_consumer", True)
-        # c2 is not vital.
-        set("//tmp/c3/@vital_queue_consumer", True)
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
+        self._create_registered_consumer("//tmp/c3", "//tmp/q", vital=True)
 
         set("//tmp/q/@auto_trim_policy", "vital_consumers")
 
@@ -956,8 +991,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
         # Consumer c3 is vital, so nothing should be trimmed.
-        self._advance_bigrt_consumer("//tmp/c1", 0, 2)
-        self._advance_bigrt_consumer("//tmp/c2", 0, 1)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 2)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 1)
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
         time.sleep(1)
@@ -966,8 +1001,10 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         # This should set an error in c1.
         sync_unmount_table("//tmp/c1")
 
+        wait(lambda: "error" in queue_agent_orchid.get_consumer_status("primary://tmp/c1")["queues"]["primary://tmp/q"])
+
         # Consumers c1 and c3 are vital, but c1 is in an erroneous state, so nothing should be trimmed.
-        self._advance_bigrt_consumer("//tmp/c3", 0, 2)
+        self._advance_consumer("//tmp/c3", "//tmp/q", 0, 2)
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
         time.sleep(1)
@@ -984,11 +1021,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q", partition_count=2)
-        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q")
-        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q")
-
-        set("//tmp/c1/@vital_queue_consumer", True)
-        # c2 is not vital.
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
 
         set("//tmp/q/@auto_trim_policy", "vital_consumers")
 
@@ -1002,12 +1036,12 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         sync_unmount_table("//tmp/q", first_tablet_index=0, last_tablet_index=0)
 
         # Nothing should be trimmed from the first partition, since it is unmounted.
-        self._advance_bigrt_consumer("//tmp/c1", 0, 2)
-        self._advance_bigrt_consumer("//tmp/c2", 0, 1)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 2)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 1)
 
         # Yet the second partition should be trimmed based on c1.
-        self._advance_bigrt_consumer("//tmp/c1", 1, 3)
-        self._advance_bigrt_consumer("//tmp/c2", 1, 2)
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 3)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 1, 2)
 
         self._wait_for_row_count("//tmp/q", 1, 4)
 
@@ -1023,11 +1057,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 
         self._create_queue("//tmp/q1")
         self._create_queue("//tmp/q2")
-        self._create_bigrt_consumer("//tmp/c1", "primary://tmp/q1")
-        self._create_bigrt_consumer("//tmp/c2", "primary://tmp/q2")
-
-        set("//tmp/c1/@vital_queue_consumer", True)
-        set("//tmp/c2/@vital_queue_consumer", True)
+        self._create_registered_consumer("//tmp/c1", "//tmp/q1", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q2", vital=True)
 
         set("//tmp/q1/@auto_trim_policy", "vital_consumers")
         set("//tmp/q2/@auto_trim_policy", "vital_consumers")
@@ -1042,16 +1073,16 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q2")
 
         # Both queues should be trimmed since their sole consumers are vital.
-        self._advance_bigrt_consumer("//tmp/c1", 0, 2)
-        self._advance_bigrt_consumer("//tmp/c2", 0, 3)
+        self._advance_consumer("//tmp/c1", "//tmp/q1", 0, 2)
+        self._advance_consumer("//tmp/c2", "//tmp/q2", 0, 3)
 
         self._wait_for_row_count("//tmp/q1", 0, 3)
         self._wait_for_row_count("//tmp/q2", 0, 4)
 
         sync_unmount_table("//tmp/q2")
 
-        self._advance_bigrt_consumer("//tmp/c1", 0, 3)
-        self._advance_bigrt_consumer("//tmp/c2", 0, 4)
+        self._advance_consumer("//tmp/c1", "//tmp/q1", 0, 3)
+        self._advance_consumer("//tmp/c2", "//tmp/q2", 0, 4)
 
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q1")
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q2")
@@ -1069,9 +1100,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
 
         self._create_queue("//tmp/q")
-        self._create_bigrt_consumer("//tmp/c", "primary://tmp/q")
-
-        set("//tmp/c/@vital_queue_consumer", True)
+        self._create_registered_consumer("//tmp/c", "//tmp/q", vital=True)
 
         set("//tmp/q/@auto_trim_policy", "vital_consumers")
 
@@ -1080,14 +1109,14 @@ class TestAutomaticTrimming(TestQueueAgentBase):
 
         insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "bar"}] * 7)
 
-        self._advance_bigrt_consumer("//tmp/c", 0, 1)
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 1)
         self._wait_for_row_count("//tmp/q", 0, 6)
 
         set("//tmp/q/@auto_trim_policy", "none")
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
 
-        self._advance_bigrt_consumer("//tmp/c", 0, 2)
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 2)
         time.sleep(1)
         self._wait_for_row_count("//tmp/q", 0, 6)
 
@@ -1101,7 +1130,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
 
-        self._advance_bigrt_consumer("//tmp/c", 0, 3)
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 3)
         time.sleep(1)
         self._wait_for_row_count("//tmp/q", 0, 5)
 
@@ -1119,7 +1148,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
             }
         })
 
-        self._advance_bigrt_consumer("//tmp/c", 0, 4)
+        self._advance_consumer("//tmp/c", "//tmp/q", 0, 4)
         time.sleep(1)
         self._wait_for_row_count("//tmp/q", 0, 4)
 
@@ -1219,11 +1248,13 @@ class TestMultipleAgents(TestQueueAgentBase):
 
             validate_leader(leader, ignore_instances=(prev_leader,))
 
+    # TODO(achulkov2): eliminate code duplication in two tests below.
+
     @authors("achulkov2")
     def test_queue_attribute_leader_redirection(self):
         queues = ["//tmp/q{}".format(i) for i in range(3)]
         for queue in queues:
-            create("table", queue, attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+            self._create_queue(queue)
             sync_mount_table(queue)
             insert_rows("//sys/queue_agents/queues", [{"cluster": "primary", "path": queue}])
 
@@ -1278,12 +1309,9 @@ class TestMultipleAgents(TestQueueAgentBase):
         consumers = ["//tmp/c{}".format(i) for i in range(3)]
         target_queues = ["//tmp/q{}".format(i) for i in range(len(consumers))]
         for i in range(len(consumers)):
-            create("table", target_queues[i],
-                   attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+            self._create_queue(target_queues[i])
             sync_mount_table(target_queues[i])
-            create("table", consumers[i], attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
-                                                      "target_queue": "primary:" + target_queues[i],
-                                                      "treat_as_queue_consumer": True})
+            self._create_registered_consumer(consumers[i], target_queues[i])
             sync_mount_table(consumers[i])
 
             insert_rows("//sys/queue_agents/consumers", [{"cluster": "primary", "path": consumers[i]}])
@@ -1303,15 +1331,15 @@ class TestMultipleAgents(TestQueueAgentBase):
             # Balancing channel should send request to random instances.
             for i in range(15):
                 for consumer in consumers:
-                    assert get(consumer + "/@queue_consumer_status/partition_count") == 1
+                    assert len(get(consumer + "/@queue_consumer_status/queues")) == 1
 
             for instance in instances:
                 if instance in ignore_instances:
                     continue
                 orchid_path = "//sys/queue_agents/instances/{}/orchid/queue_agent".format(instance)
                 for consumer in consumers:
-                    assert get("{}/consumers/primary:{}/status/partition_count".format(
-                        orchid_path, escape_ypath_literal(consumer))) == 1
+                    assert len(get("{}/consumers/primary:{}/status/queues".format(
+                        orchid_path, escape_ypath_literal(consumer)))) == 1
 
         perform_checks()
 
@@ -1337,8 +1365,6 @@ class TestMultipleAgents(TestQueueAgentBase):
 
 
 class TestMasterIntegration(TestQueueAgentBase):
-    NUM_QUEUE_AGENTS = 1
-
     DELTA_QUEUE_AGENT_CONFIG = {
         "election_manager": {
             "transaction_timeout": 5000,
@@ -1359,7 +1385,7 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     @authors("max42")
     def test_queue_attributes(self):
-        create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+        self._create_queue("//tmp/q")
         sync_mount_table("//tmp/q")
 
         assert get("//tmp/q/@queue_agent_stage") == "production"
@@ -1393,14 +1419,9 @@ class TestMasterIntegration(TestQueueAgentBase):
 
     @authors("achulkov2")
     def test_consumer_attributes(self):
-        create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+        self._create_queue("//tmp/q")
         sync_mount_table("//tmp/q")
-        create("table", "//tmp/c", attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,
-                                               "target_queue": "primary://tmp/q"})
-        with raises_yt_error('Builtin attribute "vital_queue_consumer" cannot be set'):
-            set("//tmp/c/@vital_queue_consumer", True)
-        set("//tmp/c/@treat_as_queue_consumer", True)
-        set("//tmp/c/@vital_queue_consumer", True)
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
         sync_mount_table("//tmp/c")
 
         assert get("//tmp/c/@queue_agent_stage") == "production"
@@ -1419,9 +1440,10 @@ class TestMasterIntegration(TestQueueAgentBase):
                     [{"cluster": "primary", "path": "//tmp/q", "row_revision": YsonUint64(4567)}])
 
         # Wait for consumer status to become available.
-        wait(lambda: get("//tmp/c/@queue_consumer_status/partition_count") == 1, ignore_exceptions=True)
+        wait(lambda: len(get("//tmp/c/@queue_consumer_status").get("queues", [])) == 1, ignore_exceptions=True)
 
-        # TODO: Check the queue_consumer_partitions attribute once the corresponding queue_controller code is written.
+        # TODO(achulkov2): Check the queue_consumer_partitions attribute once the corresponding queue_controller
+        #  code is written.
 
         # Check that consumer attributes are opaque.
         full_attributes = get("//tmp/c/@")
@@ -1496,20 +1518,16 @@ class TestMasterIntegration(TestQueueAgentBase):
     @authors("achulkov2")
     # COMPAT(kvk1920): Remove @enable_revision_changing_for_builtin_attributes from config.
     @pytest.mark.parametrize("enable_revision_changing", [False, True])
-    @pytest.mark.skipif(
-        "BIGRT_CONSUMER_TABLE_SCHEMA" not in globals(),
-        reason="BIGRT_CONSUMER_TABLE_SCHEMA doesn't exist supported in current version")
     def test_revision_changes_on_consumer_attribute_change(self, enable_revision_changing):
         set("//sys/@config/cypress_manager/enable_revision_changing_for_builtin_attributes", enable_revision_changing)
 
-        create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
+        self._create_queue("//tmp/q")
         sync_mount_table("//tmp/q")
-        create("table", "//tmp/c", attributes={"dynamic": True, "schema": BIGRT_CONSUMER_TABLE_SCHEMA,  # noqa
-                                               "target_queue": "primary://tmp/q"})
+        self._create_registered_consumer("//tmp/c", "//tmp/q")
 
         self._set_and_assert_revision_change("//tmp/c", "treat_as_queue_consumer", True, enable_revision_changing)
         self._set_and_assert_revision_change("//tmp/c", "queue_agent_stage", "testing", enable_revision_changing)
-        self._set_and_assert_revision_change("//tmp/c", "owner", "queue_agent", enable_revision_changing)
+        # TODO(max42): this attribute is deprecated.
         self._set_and_assert_revision_change("//tmp/c", "vital_queue_consumer", True, enable_revision_changing)
         # NB: Changing user or custom attributes is already changes revision.
         self._set_and_assert_revision_change("//tmp/c", "target_queue", "haha:muahaha", enable_revision_changing=True)
@@ -1536,8 +1554,6 @@ class CypressSynchronizerOrchid(OrchidBase):
 
 
 class TestCypressSynchronizerBase(TestQueueAgentBase):
-    NUM_QUEUE_AGENTS = 1
-
     def _get_queue_name(self, name):
         return "//tmp/q-{}".format(name)
 
@@ -1616,7 +1632,7 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
         column_counts = [len(row) for row in consumers]
         assert column_counts == [len(init_queue_agent_state.CONSUMER_TABLE_SCHEMA)] * size
 
-    # expected_synchronization_errors should contain functions that assert for an expected error YSON
+    # Expected_synchronization_errors should contain functions that assert for an expected error YSON.
     def _get_queues_and_check_invariants(self, expected_count=None, expected_synchronization_errors=None):
         queues = select_rows("* from [//sys/queue_agents/queues]")
         if expected_count is not None:
@@ -1631,7 +1647,7 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
             assert queue["revision"] == get(queue["path"] + "/@attribute_revision")
         return queues
 
-    # expected_synchronization_errors should contain functions that assert for an expected error YSON
+    # Expected_synchronization_errors should contain functions that assert for an expected error YSON.
     def _get_consumers_and_check_invariants(self, expected_count=None, expected_synchronization_errors=None):
         consumers = select_rows("* from [//sys/queue_agents/consumers]")
         if expected_count is not None:
@@ -1647,8 +1663,6 @@ class TestCypressSynchronizerBase(TestQueueAgentBase):
             assert consumer["treat_as_queue_consumer"] == get(consumer["path"] + "/@treat_as_queue_consumer")
             # Enclosing into a list is a workaround for storing YSON with top-level attributes.
             assert consumer["schema"] == [get(consumer["path"] + "/@schema")]
-            assert consumer["vital"] == get(
-                consumer["path"] + "/@", attributes=["vital_queue_consumer"]).get("vital_queue_consumer", False)
         return consumers
 
     def _assert_constant_revision(self, row):
@@ -1730,6 +1744,9 @@ class TestCypressSynchronizerCommon(TestCypressSynchronizerBase):
         wait(lambda: not alert_orchid.get_alerts())
 
 
+# TODO(achulkov2): eliminate copy & paste between watching and polling versions below.
+
+
 class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
@@ -1777,10 +1794,9 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
                 self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
                 self._assert_increased_revision(consumer)
-                assert not consumer["vital"]
+                assert consumer["queue_agent_stage"] == "production"
 
-        set(c2 + "/@vital_queue_consumer", False)
-        set(c2 + "/@target_queue", "a_cluster:a_path")
+        set(c2 + "/@queue_agent_stage", "foo")
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
@@ -1792,17 +1808,15 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
                 self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
                 self._assert_increased_revision(consumer)
-                assert consumer["target_cluster"] == "a_cluster"
-                assert consumer["target_path"] == "a_path"
-                assert not consumer["vital"]
+                assert consumer["queue_agent_stage"] == "foo"
 
         sync_unmount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_poll()
         assert_yt_error(orchid.get_poll_error(), yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
-        set(c2 + "/@vital_queue_consumer", True)
-        set(c2 + "/@target_queue", "another_cluster:another_path")
+
+        set(c2 + "/@queue_agent_stage", "bar")
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
@@ -1814,9 +1828,7 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
                 self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
                 self._assert_increased_revision(consumer)
-                assert consumer["target_cluster"] == "another_cluster"
-                assert consumer["target_path"] == "another_path"
-                assert consumer["vital"]
+                assert consumer["queue_agent_stage"] == "bar"
 
     @authors("achulkov2")
     def test_content_change(self):
@@ -1850,7 +1862,6 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
 
         q1 = self._get_queue_name("a")
         c1 = self._get_consumer_name("a")
-        c2 = self._get_consumer_name("b")
 
         self._create_and_register_queue(q1)
         self._create_and_register_consumer(c1)
@@ -1890,23 +1901,6 @@ class TestCypressSynchronizerPolling(TestCypressSynchronizerBase):
         consumers = self._get_consumers_and_check_invariants(expected_count=1)
         for queue in queues:
             self._assert_increased_revision(queue)
-        for consumer in consumers:
-            self._assert_increased_revision(consumer)
-
-        self._create_and_register_consumer(c2)
-        set(c1 + "/@target_queue", -1)
-        set(c2 + "/@target_queue", "sugar_sugar:honey_honey")
-
-        orchid.wait_fresh_poll()
-
-        queues = self._get_queues_and_check_invariants(expected_count=1)
-        consumers = self._get_consumers_and_check_invariants(expected_count=2, expected_synchronization_errors={
-            # This error has code 1, which is not very useful.
-            c1: lambda error: assert_yt_error(error, 'Error parsing attribute "target_queue"')
-        })
-
-        for queue in queues:
-            self._assert_constant_revision(queue)
         for consumer in consumers:
             self._assert_increased_revision(consumer)
 
@@ -1959,10 +1953,9 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
                 self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
                 self._assert_increased_revision(consumer)
-                assert not consumer["vital"]
+                assert consumer["queue_agent_stage"] == "production"
 
-        set(c2 + "/@vital_queue_consumer", False)
-        set(c2 + "/@target_queue", "a_cluster:a_path")
+        set(c2 + "/@queue_agent_stage", "foo")
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
@@ -1974,17 +1967,14 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
                 self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
                 self._assert_increased_revision(consumer)
-                assert consumer["target_cluster"] == "a_cluster"
-                assert consumer["target_path"] == "a_path"
-                assert not consumer["vital"]
+                assert consumer["queue_agent_stage"] == "foo"
 
         sync_unmount_table("//sys/queue_agents/queues")
         orchid.wait_fresh_poll()
         assert_yt_error(orchid.get_poll_error(), yt_error_codes.TabletNotMounted)
 
         sync_mount_table("//sys/queue_agents/queues")
-        set(c2 + "/@vital_queue_consumer", True)
-        set(c2 + "/@target_queue", "another_cluster:another_path")
+        set(c2 + "/@queue_agent_stage", "bar")
         orchid.wait_fresh_poll()
 
         queues = self._get_queues_and_check_invariants(expected_count=2)
@@ -1996,9 +1986,7 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
                 self._assert_constant_revision(consumer)
             elif consumer["path"] == c2:
                 self._assert_increased_revision(consumer)
-                assert consumer["target_cluster"] == "another_cluster"
-                assert consumer["target_path"] == "another_path"
-                assert consumer["vital"]
+                assert consumer["queue_agent_stage"] == "bar"
 
         set(c1 + "/@treat_as_queue_consumer", False)
         orchid.wait_fresh_poll()
@@ -2043,7 +2031,6 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
 
         q1 = self._get_queue_name("a")
         c1 = self._get_consumer_name("a")
-        c2 = self._get_consumer_name("b")
 
         self._create_queue_object(q1)
         self._create_consumer_object(c1)
@@ -2057,27 +2044,10 @@ class TestCypressSynchronizerWatching(TestCypressSynchronizerBase):
         for consumer in consumers:
             self._assert_increased_revision(consumer)
 
-        self._create_consumer_object(c2)
-        set(c1 + "/@target_queue", -1)
-        set(c2 + "/@target_queue", "sugar_sugar:honey_honey")
-
-        orchid.wait_fresh_poll()
-
-        queues = self._get_queues_and_check_invariants(expected_count=1)
-        consumers = self._get_consumers_and_check_invariants(expected_count=2, expected_synchronization_errors={
-            # This error has code 1, which is not very useful.
-            c1: lambda error: assert_yt_error(error, 'Error parsing attribute "target_queue"')
-        })
-
-        for queue in queues:
-            self._assert_constant_revision(queue)
-        for consumer in consumers:
-            self._assert_increased_revision(consumer)
+        # TODO(max42): come up with some checks here.
 
 
 class TestDynamicConfig(TestQueueAgentBase):
-    NUM_QUEUE_AGENTS = 1
-
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
         "queue_agent": {
             "poll_period": 100,

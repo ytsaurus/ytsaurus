@@ -21,7 +21,23 @@ DEFINE_REFCOUNTED_TYPE(IQueueProfileManager);
 ////////////////////////////////////////////////////////////////////////////////
 
 IQueueProfileManagerPtr CreateQueueProfileManager(
-    IInvokerPtr invoker,
+    const NProfiling::TProfiler& profiler);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct IConsumerProfileManager
+    : public TRefCounted
+{
+    virtual void Profile(
+        const TConsumerSnapshotPtr& previousConsumerSnapshot,
+        const TConsumerSnapshotPtr& currentConsumerSnapshot) = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IConsumerProfileManager);
+
+////////////////////////////////////////////////////////////////////////////////
+
+IConsumerProfileManagerPtr CreateConsumerProfileManager(
     const NProfiling::TProfiler& profiler);
 
 ////////////////////////////////////////////////////////////////////////////////

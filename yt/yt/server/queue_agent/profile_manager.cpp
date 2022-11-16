@@ -12,6 +12,50 @@ using namespace NQueueClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#if 0
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+ std::optional<i64> OptionalSub(const std::optional<i64> lhs, const std::optional<i64> rhs)
+{
+    if (lhs && rhs) {
+        return *lhs - *rhs;
+    }
+    return {};
+}
+
+//! Helper for incrementing a counter only if delta is non-negative.
+void SafeIncrement(TCounter& counter, i64 delta)
+{
+    if (delta >= 0) {
+        counter.Increment(delta);
+    }
+}
+
+//! Helper for incrementing a counter only if delta is non-null and non-negative.
+void SafeIncrement(TCounter& counter, std::optional<i64> delta)
+{
+    if (delta) {
+        SafeIncrement(counter, *delta);
+    }
+}
+
+//! Helper for updating a gauge only if value is non-null.
+void SafeUpdate(TGauge& gauge, std::optional<i64> value)
+{
+    if (value) {
+        gauge.Update(*value);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Queue-related profiling counters.
 struct TQueueProfilingCounters
 {
@@ -46,6 +90,125 @@ struct TQueuePartitionProfilingCounters
     }
 };
 
+class TQueueProfileManager
+    : public IQueueProfileManager
+{
+public:
+    explicit TQueueProfileManager(TProfiler profiler)
+        : QueueProfiler_(profiler
+            .WithPrefix("/queue"))
+        , QueuePartitionProfiler_(profiler
+            .WithPrefix("/queue_partition"))
+    { }
+
+    void Profile(
+        const TQueueSnapshotPtr& /*previousQueueSnapshot*/,
+        const TQueueSnapshotPtr& /*currentQueueSnapshot*/) override
+    {
+#if 0
+        auto partitionCount = currentQueueSnapshot->PartitionCount;
+        EnsureCounters(partitionCount, currentQueueSnapshot->Registrations);
+
+        if (!CheckSnapshotCompatibility(previousQueueSnapshot, currentQueueSnapshot)) {
+            // Simply wait for the next call when snapshots are compatible.
+            // Losing an iteration of profiling is not bad for since profiling is essentially stateless.
+            return;
+        }
+
+        // We are safe to assume that all consumer refs are same in previous snapshot, current snapshots and
+        // consumer profiling counters, and also that all partition-indexed vectors in both snapshots and
+        // all counters have the same length.
+
+        QueueProfilingCounters_->Partitions.Update(partitionCount);
+        int vitalConsumerCount = 0;
+        int nonVitalConsumerCount = 0;
+        for (const auto& registration : currentQueueSnapshot->Registrations) {
+            ++(registration.Vital ? vitalConsumerCount : nonVitalConsumerCount);
+        }
+        QueueProfilingCounters_->VitalConsumers.Update(vitalConsumerCount);
+        QueueProfilingCounters_->NonVitalConsumers.Update(nonVitalConsumerCount);
+
+        // Mind the clamp. We do not want process to crash if some delta turns out to be negative due to some manual action.
+
+        for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
+            const auto& previousQueuePartitionSnapshot = previousQueueSnapshot->PartitionSnapshots[partitionIndex];
+            const auto& currentQueuePartitionSnapshot = currentQueueSnapshot->PartitionSnapshots[partitionIndex];
+
+            if (!previousQueuePartitionSnapshot->Error.IsOK() || !currentQueuePartitionSnapshot->Error.IsOK()) {
+                continue;
+            }
+
+            auto& profilingCounters = QueuePartitionProfilingCounters_[partitionIndex];
+
+            auto rowsWritten = currentQueuePartitionSnapshot->UpperRowIndex - previousQueuePartitionSnapshot->UpperRowIndex;
+            SafeIncrement(profilingCounters.RowsWritten, rowsWritten);
+
+            auto rowsTrimmed = currentQueuePartitionSnapshot->LowerRowIndex - previousQueuePartitionSnapshot->LowerRowIndex;
+            SafeIncrement(profilingCounters.RowsTrimmed, rowsTrimmed);
+
+            SafeIncrement(profilingCounters.DataWeightWritten, OptionalSub(
+                currentQueuePartitionSnapshot->CumulativeDataWeight,
+                previousQueuePartitionSnapshot->CumulativeDataWeight));
+
+            profilingCounters.RowCount.Update(currentQueuePartitionSnapshot->AvailableRowCount);
+            SafeUpdate(profilingCounters.DataWeight, currentQueuePartitionSnapshot->AvailableDataWeight);
+        }
+#endif
+    }
+
+private:
+    TProfiler QueueProfiler_;
+    TProfiler QueuePartitionProfiler_;
+#if 0
+    std::unique_ptr<TQueueProfilingCounters> QueueProfilingCounters_;
+    std::vector<TQueuePartitionProfilingCounters> QueuePartitionProfilingCounters_;
+
+    //! Check if two snapshots are structurally similar (i.e. have same number of partitions and same set of consumers).
+    bool CheckSnapshotCompatibility(
+        const TQueueSnapshotPtr& previousQueueSnapshot,
+        const TQueueSnapshotPtr& currentQueueSnapshot)
+    {
+        if (!previousQueueSnapshot->Error.IsOK() || !currentQueueSnapshot->Error.IsOK()) {
+            return false;
+        }
+
+        if (previousQueueSnapshot->PartitionCount != currentQueueSnapshot->PartitionCount) {
+            return false;
+        }
+
+        return true;
+    }
+
+    //! Ensures the existence of all levels.
+    void EnsureCounters(int partitionCount, const std::vector<TConsumerRegistrationTableRow>& registrations)
+    {
+        if (!QueueProfilingCounters_) {
+            QueueProfilingCounters_ = std::make_unique<TQueueProfilingCounters>(QueueProfiler_);
+        }
+
+        auto resizePartitionCounters = [&] (auto& counters, const TProfiler& profiler) {
+            if (counters.size() > static_cast<size_t>(partitionCount)) {
+                counters.erase(counters.begin() + partitionCount, counters.end());
+            } else {
+                for (int partitionIndex = counters.size(); partitionIndex < partitionCount; ++partitionIndex) {
+                    const auto& partitionProfiler = profiler
+                        .WithTag("partition_index", ToString(partitionIndex));
+                    const auto& partitionAggregationProfiler = profiler
+                        .WithExcludedTag("partition_index", ToString(partitionIndex));
+                    counters.emplace_back(partitionProfiler, partitionAggregationProfiler);
+                }
+            }
+        };
+
+        resizePartitionCounters(QueuePartitionProfilingCounters_, QueuePartitionProfiler_);
+    }
+#endif
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueProfileManager);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TConsumerProfilingCounters
 {
     // This class may be extended in the future.
@@ -76,78 +239,22 @@ struct TConsumerPartitionProfilingCounters
     { }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TQueueProfileManager
-    : public IQueueProfileManager
+class TConsumerProfileManager
+    : public IConsumerProfileManager
 {
 public:
-    TQueueProfileManager(IInvokerPtr invoker, TProfiler profiler)
-        : Invoker_(std::move(invoker))
-        , QueueProfiler_(profiler
-            .WithPrefix("/queue"))
-        , QueuePartitionProfiler_(profiler
-            .WithPrefix("/queue_partition"))
-        , ConsumerProfiler_(profiler
+    TConsumerProfileManager(TProfiler profiler)
+        : ConsumerProfiler_(profiler
             .WithPrefix("/consumer"))
         , ConsumerPartitionProfiler_(profiler
             .WithPrefix("/consumer_partition"))
     { }
 
     void Profile(
-        const TQueueSnapshotPtr& previousQueueSnapshot,
-        const TQueueSnapshotPtr& currentQueueSnapshot) override
+        const TConsumerSnapshotPtr& /*previousConsumerSnapshot*/,
+        const TConsumerSnapshotPtr& /*currentConsumerSnapshot*/) override
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        auto partitionCount = currentQueueSnapshot->PartitionCount;
-        EnsureCounters(partitionCount, GetKeys(currentQueueSnapshot->ConsumerSnapshots));
-
-        if (!CheckSnapshotCompatibility(previousQueueSnapshot, currentQueueSnapshot)) {
-            // Simply wait for the next call when snapshots are compatible.
-            // Losing an iteration of profiling is not bad for since profiling is essentially stateless.
-            return;
-        }
-
-        // We are safe to assume that all consumer refs are same in previous snapshot, current snapshots and
-        // consumer profiling counters, and also that all partition-indexed vectors in both snapshots and
-        // all counters have the same length.
-
-        QueueProfilingCounters_->Partitions.Update(partitionCount);
-        int vitalConsumerCount = 0;
-        int nonVitalConsumerCount = 0;
-        for (const auto& consumer : GetValues(currentQueueSnapshot->ConsumerSnapshots)) {
-            ++(consumer->Vital ? vitalConsumerCount : nonVitalConsumerCount);
-        }
-        QueueProfilingCounters_->VitalConsumers.Update(vitalConsumerCount);
-        QueueProfilingCounters_->NonVitalConsumers.Update(nonVitalConsumerCount);
-
-        // Mind the clamp. We do not want process to crash if some delta turns out to be negative due to some manual action.
-
-        for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
-            const auto& previousQueuePartitionSnapshot = previousQueueSnapshot->PartitionSnapshots[partitionIndex];
-            const auto& currentQueuePartitionSnapshot = currentQueueSnapshot->PartitionSnapshots[partitionIndex];
-
-            if (!previousQueuePartitionSnapshot->Error.IsOK() || !currentQueuePartitionSnapshot->Error.IsOK()) {
-                continue;
-            }
-
-            auto& profilingCounters = QueuePartitionProfilingCounters_[partitionIndex];
-
-            auto rowsWritten = currentQueuePartitionSnapshot->UpperRowIndex - previousQueuePartitionSnapshot->UpperRowIndex;
-            SafeIncrement(profilingCounters.RowsWritten, rowsWritten);
-
-            auto rowsTrimmed = currentQueuePartitionSnapshot->LowerRowIndex - previousQueuePartitionSnapshot->LowerRowIndex;
-            SafeIncrement(profilingCounters.RowsTrimmed, rowsTrimmed);
-
-            SafeIncrement(profilingCounters.DataWeightWritten, OptionalSub(
-                currentQueuePartitionSnapshot->CumulativeDataWeight,
-                previousQueuePartitionSnapshot->CumulativeDataWeight));
-
-            profilingCounters.RowCount.Update(currentQueuePartitionSnapshot->AvailableRowCount);
-            SafeUpdate(profilingCounters.DataWeight, currentQueuePartitionSnapshot->AvailableDataWeight);
-        }
-
+#if 0
         for (const auto& consumerRef : GetKeys(currentQueueSnapshot->ConsumerSnapshots)) {
             const auto& previousConsumerSnapshot = previousQueueSnapshot->ConsumerSnapshots[consumerRef];
             const auto& currentConsumerSnapshot = currentQueueSnapshot->ConsumerSnapshots[consumerRef];
@@ -158,7 +265,7 @@ public:
 
             const auto& previousConsumerPartitionSnapshots = previousConsumerSnapshot->PartitionSnapshots;
             const auto& currentConsumerPartitionSnapshots = currentConsumerSnapshot->PartitionSnapshots;
-            
+
             auto& consumerProfilingCounters = *ConsumerProfilingCounters_[consumerRef];
             Y_UNUSED(consumerProfilingCounters);
             auto& consumerPartitionProfilingCounters = ConsumerPartitionProfilingCounters_[consumerRef];
@@ -188,101 +295,18 @@ public:
                 profilingCounters.LagTimeHistogram.Add(currentConsumerPartitionSnapshot->ProcessingLag.MillisecondsFloat());
             }
         }
+#endif
     }
 
 private:
-    IInvokerPtr Invoker_;
-    TProfiler QueueProfiler_;
-    TProfiler QueuePartitionProfiler_;
     TProfiler ConsumerProfiler_;
     TProfiler ConsumerPartitionProfiler_;
-    std::unique_ptr<TQueueProfilingCounters> QueueProfilingCounters_;
-    std::vector<TQueuePartitionProfilingCounters> QueuePartitionProfilingCounters_;
+#if 0
     THashMap<TCrossClusterReference, std::unique_ptr<TConsumerProfilingCounters>> ConsumerProfilingCounters_;
     THashMap<TCrossClusterReference, std::vector<TConsumerPartitionProfilingCounters>> ConsumerPartitionProfilingCounters_;
 
-    static std::optional<i64> OptionalSub(const std::optional<i64> lhs, const std::optional<i64> rhs)
+    void EnsureCounters()
     {
-        if (lhs && rhs) {
-            return *lhs - *rhs;
-        }
-        return {};
-    }
-
-    //! Helper for incrementing a counter only if delta is non-negative.
-    static void SafeIncrement(TCounter& counter, i64 delta)
-    {
-        if (delta >= 0) {
-            counter.Increment(delta);
-        }
-    }
-
-    //! Helper for incrementing a counter only if delta is non-null and non-negative.
-    static void SafeIncrement(TCounter& counter, std::optional<i64> delta)
-    {
-        if (delta) {
-            SafeIncrement(counter, *delta);
-        }
-    }
-
-    //! Helper for updating a gauge only if value is non-null.
-    static void SafeUpdate(TGauge& gauge, std::optional<i64> value)
-    {
-        if (value) {
-            gauge.Update(*value);
-        }
-    }
-
-    //! Check if two snapshots are structurally similar (i.e. have same number of partitions and same set of consumers).
-    bool CheckSnapshotCompatibility(
-        const TQueueSnapshotPtr& previousQueueSnapshot,
-        const TQueueSnapshotPtr& currentQueueSnapshot)
-    {
-        if (!previousQueueSnapshot->Error.IsOK() || !currentQueueSnapshot->Error.IsOK()) {
-            return false;
-        }
-
-        if (previousQueueSnapshot->PartitionCount != currentQueueSnapshot->PartitionCount) {
-            return false;
-        }
-
-        auto previousConsumerRefs = GetKeys(previousQueueSnapshot->ConsumerSnapshots);
-        auto currentConsumerRefs = GetKeys(currentQueueSnapshot->ConsumerSnapshots);
-        std::sort(previousConsumerRefs.begin(), previousConsumerRefs.end());
-        std::sort(currentConsumerRefs.begin(), currentConsumerRefs.end());
-
-        if (previousConsumerRefs != currentConsumerRefs) {
-            return false;
-        }
-
-        return true;
-    }
-
-    //! Ensures the existence of all levels.
-    void EnsureCounters(int partitionCount, std::vector<NYT::NQueueAgent::TCrossClusterReference> consumerRefs)
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        if (!QueueProfilingCounters_) {
-            QueueProfilingCounters_ = std::make_unique<TQueueProfilingCounters>(QueueProfiler_);
-        }
-
-        auto resizePartitionCounters = [&] (auto& counters, const TProfiler& profiler) {
-            if (counters.size() > static_cast<size_t>(partitionCount)) {
-                counters.erase(counters.begin() + partitionCount, counters.end());
-            } else {
-                for (int partitionIndex = counters.size(); partitionIndex < partitionCount; ++partitionIndex) {
-                    const auto& partitionProfiler = profiler
-                        .WithTag("partition_index", ToString(partitionIndex));
-                    const auto& partitionAggregationProfiler = profiler
-                        .WithExcludedTag("partition_index", ToString(partitionIndex));
-                    counters.emplace_back(partitionProfiler, partitionAggregationProfiler);
-                }
-            }
-        };
-
-        resizePartitionCounters(QueuePartitionProfilingCounters_, QueuePartitionProfiler_);
-
         // Steal old counters and counter vectors for the current list of consumer references.
         {
             THashMap<TCrossClusterReference, std::unique_ptr<TConsumerProfilingCounters>> oldConsumerProfilingCounters;
@@ -306,15 +330,31 @@ private:
             resizePartitionCounters(consumerPartitionProfilingCounters, consumerPartitionProfiler);
         }
     }
+
+    bool CheckSnapshotCompatibility(const TConsumerSnapshotPtr& previousConsumerSnapshot, const TConsumerSnapshotPtr& currentConsumerSnapshot) const override
+    {
+        auto previousConsumerRefs = GetKeys(previousQueueSnapshot->ConsumerSnapshots);
+        auto currentConsumerRefs = GetKeys(currentQueueSnapshot->ConsumerSnapshots);
+        std::sort(previousConsumerRefs.begin(), previousConsumerRefs.end());
+        std::sort(currentConsumerRefs.begin(), currentConsumerRefs.end());
+
+        if (previousConsumerRefs != currentConsumerRefs) {
+            return false;
+        }
+    }
+#endif
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueProfileManager);
 
-////////////////////////////////////////////////////////////////////////////////
 
-IQueueProfileManagerPtr CreateQueueProfileManager(IInvokerPtr invoker, const TProfiler& profiler)
+IQueueProfileManagerPtr CreateQueueProfileManager(const TProfiler& profiler)
 {
-    return New<TQueueProfileManager>(std::move(invoker), profiler);
+    return New<TQueueProfileManager>(profiler);
+}
+
+IConsumerProfileManagerPtr CreateConsumerProfileManager(const TProfiler& profiler)
+{
+    return New<TConsumerProfileManager>(profiler);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

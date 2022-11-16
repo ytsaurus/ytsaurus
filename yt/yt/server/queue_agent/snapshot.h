@@ -19,14 +19,17 @@ struct TQueueSnapshot
     int PartitionCount = 0;
     NQueueClient::EQueueAutoTrimPolicy AutoTrimPolicy = NQueueClient::EQueueAutoTrimPolicy::None;
 
-    std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
-    THashMap<NQueueClient::TCrossClusterReference, TConsumerSnapshotPtr> ConsumerSnapshots;
-
     //! Total write counters over all partitions.
     TPerformanceCounters WriteRate;
 
     bool HasTimestampColumn = false;
     bool HasCumulativeDataWeightColumn = false;
+
+    i64 PassIndex = 0;
+    TInstant PassInstant;
+
+    std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
+    std::vector<TConsumerRegistrationTableRow> Registrations;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueSnapshot);
@@ -72,34 +75,32 @@ struct TConsumerSnapshot
 
     TError Error;
 
-    NQueueClient::TCrossClusterReference TargetQueue;
-    bool Vital = false;
+    i64 PassIndex = 0;
+    TInstant PassInstant;
 
-    TString Owner;
-    i64 PartitionCount = 0;
-
-    std::vector<TConsumerPartitionSnapshotPtr> PartitionSnapshots;
-
-    //! Total read counters over all partitions.
-    TPerformanceCounters ReadRate;
+    std::vector<TConsumerRegistrationTableRow> Registrations;
+    THashMap<NQueueClient::TCrossClusterReference, TSubConsumerSnapshotPtr> SubSnapshots;
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerSnapshot);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EConsumerPartitionDisposition,
-    //! Sentinel value.
-    (None)
-    //! At the end of the window, i.e. unread row count == 0.
-    (UpToDate)
-    //! Inside the window but not at the end, i.e. 0 < unread row count <= available row count.
-    (PendingConsumption)
-    //! Past the window, i.e. unread row count > available row count.
-    (Expired)
-    //! Ahead of the window, i.e. "unread row count < 0" (unread row count is capped)
-    (Ahead)
-)
+// Snapshot of a subconsumer corresponding to a particular queue, for which consumer is registered.
+struct TSubConsumerSnapshot
+    : public TRefCounted
+{
+    int PartitionCount = 0;
+    TPerformanceCounters ReadRate;
+
+    TError Error;
+
+    std::vector<TConsumerPartitionSnapshotPtr> PartitionSnapshots;
+};
+
+DEFINE_REFCOUNTED_TYPE(TSubConsumerSnapshot)
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Snapshot of a partition within consumer.
 struct TConsumerPartitionSnapshot

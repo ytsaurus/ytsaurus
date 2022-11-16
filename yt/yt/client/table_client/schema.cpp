@@ -194,7 +194,10 @@ TColumnSchema& TColumnSchema::SetAggregate(std::optional<TString> value)
 
 TColumnSchema& TColumnSchema::SetRequired(bool value)
 {
-    Required_ = value;
+    if (!IsOfV1Type_) {
+        THROW_ERROR_EXCEPTION("Cannot set required flag for non-v1 typed column");
+    }
+    SetLogicalType(MakeLogicalType(V1Type_, value));
     return *this;
 }
 

@@ -11,10 +11,6 @@
 
 #include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/client/queue_client/consumer_client.h>
-
-#include <yt/yt/client/table_client/helpers.h>
-
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/transaction_client/helpers.h>
@@ -22,6 +18,8 @@
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
+
+#include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/ema_counter.h>
 
@@ -45,77 +43,13 @@ using namespace std::placeholders;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-////////////////////////////////////////////////////////////////////////////////
-
-//! Collect cumulative row indices from rows with given (tablet_index, row_index) pairs and
-//! return them as a tablet_index: (row_index: cumulative_data_weight) map
-THashMap<int, THashMap<i64, i64>> CollectCumulativeDataWeights(
-    const TYPath& path,
-    NApi::IClientPtr client,
-    const std::vector<std::pair<int, i64>>& tabletAndRowIndices,
-    const TLogger& logger)
+struct IQueueController
+    : public IObjectController
 {
-    const auto& Logger = logger;
+    virtual EQueueFamily GetFamily() const = 0;
+};
 
-    if (tabletAndRowIndices.empty()) {
-        return {};
-    }
-
-    TStringBuilder queryBuilder;
-    queryBuilder.AppendFormat("[$tablet_index], [$row_index], [$cumulative_data_weight] from [%v] where ([$tablet_index], [$row_index]) in (",
-        path);
-    bool isFirstTuple = true;
-    for (const auto& [partitionIndex, rowIndex] : tabletAndRowIndices) {
-        if (!isFirstTuple) {
-            queryBuilder.AppendString(", ");
-        }
-        queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, rowIndex);
-        isFirstTuple = false;
-    }
-
-    queryBuilder.AppendString(")");
-
-    YT_VERIFY(!isFirstTuple);
-
-    auto query = queryBuilder.Flush();
-    YT_LOG_TRACE("Executing query for cumulative data weights (Query: %Qv)", query);
-    auto selectResult = WaitFor(client->SelectRows(query))
-        .ValueOrThrow();
-
-    THashMap<int, THashMap<i64, i64>> result;
-
-    for (const auto& row : selectResult.Rowset->GetRows()) {
-        YT_VERIFY(row.GetCount() == 3);
-
-        auto tabletIndex = FromUnversionedValue<int>(row[0]);
-        auto rowIndex = FromUnversionedValue<i64>(row[1]);
-        auto cumulativeDataWeight = FromUnversionedValue<std::optional<i64>>(row[2]);
-
-        if (!cumulativeDataWeight) {
-            continue;
-        }
-
-        result[tabletIndex].emplace(rowIndex, *cumulativeDataWeight);
-    }
-
-    return result;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-std::optional<i64> OptionalSub(const std::optional<i64> lhs, const std::optional<i64> rhs)
-{
-    if (lhs && rhs) {
-        return *lhs - *rhs;
-    }
-    return {};
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NDetail
+DEFINE_REFCOUNTED_TYPE(IQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -123,22 +57,26 @@ class TQueueSnapshotBuildSession final
 {
 public:
     TQueueSnapshotBuildSession(
+        TQueueTableRow row,
         TQueueSnapshotPtr previousQueueSnapshot,
-        IInvokerPtr invoker,
+        std::vector<TConsumerRegistrationTableRow> registrations,
         TLogger logger,
         TClientDirectoryPtr clientDirectory)
-        : PreviousQueueSnapshot_(std::move(previousQueueSnapshot))
-        , Invoker_(std::move(invoker))
+        : Row_(std::move(row))
+        , PreviousQueueSnapshot_(std::move(previousQueueSnapshot))
+        , Registrations_(std::move(registrations))
         , Logger(logger)
         , ClientDirectory_(std::move(clientDirectory))
     { }
 
     TQueueSnapshotPtr Build()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        QueueSnapshot_->PassIndex = PreviousQueueSnapshot_->PassIndex + 1;
+        QueueSnapshot_->PassInstant = TInstant::Now();
+        QueueSnapshot_->Row = Row_;
 
         try {
-            DoBuild();
+            GuardedBuild();
         } catch (const std::exception& ex) {
             auto error = TError(ex);
             YT_LOG_DEBUG(error, "Error updating queue snapshot");
@@ -149,23 +87,21 @@ public:
     }
 
 private:
+    const TQueueTableRow Row_;
     TQueueSnapshotPtr PreviousQueueSnapshot_;
-    IInvokerPtr Invoker_;
+    std::vector<TConsumerRegistrationTableRow> Registrations_;
     TLogger Logger;
     TClientDirectoryPtr ClientDirectory_;
 
     TQueueSnapshotPtr QueueSnapshot_ = New<TQueueSnapshot>();
 
-    void DoBuild()
+    void GuardedBuild()
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        YT_LOG_DEBUG("Building queue snapshot (PassIndex: %v)", QueueSnapshot_->PassIndex);
 
-        YT_LOG_DEBUG("Building queue snapshot");
-
-        QueueSnapshot_->Row = PreviousQueueSnapshot_->Row;
         QueueSnapshot_->AutoTrimPolicy = QueueSnapshot_->Row.AutoTrimPolicy.value_or(EQueueAutoTrimPolicy::None);
 
-        auto queueRef = QueueSnapshot_->Row.Queue;
+        auto queueRef = QueueSnapshot_->Row.Ref;
 
         QueueSnapshot_->Family = EQueueFamily::OrderedDynamicTable;
         auto client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
@@ -256,6 +192,8 @@ private:
             QueueSnapshot_->WriteRate += partitionSnapshot->WriteRate;
         }
 
+        QueueSnapshot_->Registrations = Registrations_;
+
         YT_LOG_DEBUG("Queue snapshot built");
     }
 
@@ -263,7 +201,7 @@ private:
     {
         YT_LOG_DEBUG("Collecting queue cumulative data weights");
 
-        auto queueRef = QueueSnapshot_->Row.Queue;
+        auto queueRef = QueueSnapshot_->Row.Ref;
 
         std::vector<std::pair<int, i64>> tabletAndRowIndices;
 
@@ -278,7 +216,7 @@ private:
         }
 
         const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-        auto result = NDetail::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
+        auto result = NQueueAgent::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
 
         for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
             auto& partitionSnapshot = QueueSnapshot_->PartitionSnapshots[tabletIndex];
@@ -294,253 +232,9 @@ private:
                 partitionSnapshot->WriteRate.DataWeight.Update(*partitionSnapshot->CumulativeDataWeight);
             }
 
-            partitionSnapshot->AvailableDataWeight = NDetail::OptionalSub(
+            partitionSnapshot->AvailableDataWeight = OptionalSub(
                 partitionSnapshot->CumulativeDataWeight,
                 partitionSnapshot->TrimmedDataWeight);
-        }
-
-        YT_LOG_DEBUG("Consumer cumulative data weights collected");
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TConsumerSnapshotBuildSession final
-{
-public:
-    TConsumerSnapshotBuildSession(
-        TConsumerSnapshotPtr previousConsumerSnapshot,
-        IInvokerPtr invoker,
-        TLogger logger,
-        TClientDirectoryPtr clientDirectory,
-        TQueueSnapshotPtr queueSnapshot)
-        : PreviousConsumerSnapshot_(std::move(previousConsumerSnapshot))
-        , Invoker_(std::move(invoker))
-        , Logger(logger)
-        , ClientDirectory_(std::move(clientDirectory))
-        , QueueSnapshot_(std::move(queueSnapshot))
-    { }
-
-    TConsumerSnapshotPtr Build()
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        try {
-            DoBuild();
-        } catch (const std::exception& ex) {
-            auto error = TError(ex);
-            YT_LOG_DEBUG(error, "Error building consumer snapshot");
-            ConsumerSnapshot_->Error = std::move(error);
-        }
-
-        return ConsumerSnapshot_;
-    }
-
-private:
-    TConsumerSnapshotPtr PreviousConsumerSnapshot_;
-    IInvokerPtr Invoker_;
-    TLogger Logger;
-    TClientDirectoryPtr ClientDirectory_;
-    TQueueSnapshotPtr QueueSnapshot_;
-
-    TConsumerSnapshotPtr ConsumerSnapshot_ = New<TConsumerSnapshot>();
-
-    void DoBuild()
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        ConsumerSnapshot_->Row = PreviousConsumerSnapshot_->Row;
-
-        auto consumerRef = ConsumerSnapshot_->Row.Consumer;
-        auto queueRef = *ConsumerSnapshot_->Row.TargetQueue;
-
-        ConsumerSnapshot_->TargetQueue = queueRef;
-        ConsumerSnapshot_->Vital = ConsumerSnapshot_->Row.Vital.value_or(false);
-        ConsumerSnapshot_->Owner = *ConsumerSnapshot_->Row.Owner;
-
-        YT_LOG_DEBUG("Building consumer snapshot");
-
-        if (!ConsumerSnapshot_->Row.Schema) {
-            THROW_ERROR_EXCEPTION("Consumer schema is not known yet");
-        }
-
-        // Assume partition count to be the same as the partition count in the current queue snapshot.
-        auto partitionCount = QueueSnapshot_->PartitionCount;
-        ConsumerSnapshot_->PartitionCount = partitionCount;
-
-        // Allocate partition snapshots.
-        ConsumerSnapshot_->PartitionSnapshots.resize(ConsumerSnapshot_->PartitionCount);
-        for (auto& consumerPartitionSnapshot : ConsumerSnapshot_->PartitionSnapshots) {
-            consumerPartitionSnapshot = New<TConsumerPartitionSnapshot>();
-            consumerPartitionSnapshot->NextRowIndex = 0;
-        }
-
-        // Collect partition infos from the consumer table.
-        {
-            auto client = ClientDirectory_->GetClientOrThrow(consumerRef.Cluster);
-            auto consumerClient = CreateConsumerClient(consumerRef.Path, *ConsumerSnapshot_->Row.Schema);
-
-            auto consumerPartitionInfos = WaitFor(consumerClient->CollectPartitions(client, partitionCount, /*withLastConsumeTime*/ true))
-                .ValueOrThrow();
-
-            for (const auto& consumerPartitionInfo : consumerPartitionInfos) {
-                auto partitionIndex = consumerPartitionInfo.PartitionIndex;
-
-                if (consumerPartitionInfo.PartitionIndex >= partitionCount) {
-                    // Probably that is a row for an obsolete partition. Just ignore it.
-                    continue;
-                }
-
-                auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[partitionIndex];
-
-                consumerPartitionSnapshot->NextRowIndex = consumerPartitionInfo.NextRowIndex;
-                consumerPartitionSnapshot->LastConsumeTime = consumerPartitionInfo.LastConsumeTime;
-            }
-        }
-
-        for (const auto& [partitionIndex, consumerPartitionSnapshot] : Enumerate(ConsumerSnapshot_->PartitionSnapshots)) {
-            consumerPartitionSnapshot->ConsumeIdleTime = TInstant::Now() - consumerPartitionSnapshot->LastConsumeTime;
-
-            auto previousPartitionSnapshot = (partitionIndex < std::size(PreviousConsumerSnapshot_->PartitionSnapshots))
-                ? PreviousConsumerSnapshot_->PartitionSnapshots[partitionIndex]
-                : nullptr;
-
-            if (previousPartitionSnapshot) {
-                consumerPartitionSnapshot->ReadRate = previousPartitionSnapshot->ReadRate;
-            }
-
-            consumerPartitionSnapshot->ReadRate.RowCount.Update(consumerPartitionSnapshot->NextRowIndex);
-
-            const auto& queuePartitionSnapshot = QueueSnapshot_->PartitionSnapshots[partitionIndex];
-            if (queuePartitionSnapshot->Error.IsOK()) {
-                // NB: may be negative if the consumer is ahead of the partition.
-                consumerPartitionSnapshot->UnreadRowCount =
-                    queuePartitionSnapshot->UpperRowIndex - consumerPartitionSnapshot->NextRowIndex;
-                consumerPartitionSnapshot->UnreadDataWeight = NDetail::OptionalSub(
-                    queuePartitionSnapshot->CumulativeDataWeight,
-                    consumerPartitionSnapshot->CumulativeDataWeight);
-
-                if (consumerPartitionSnapshot->UnreadRowCount < 0) {
-                    consumerPartitionSnapshot->Disposition = EConsumerPartitionDisposition::Ahead;
-                } else if (consumerPartitionSnapshot->UnreadRowCount == 0) {
-                    consumerPartitionSnapshot->Disposition = EConsumerPartitionDisposition::UpToDate;
-                } else if (consumerPartitionSnapshot->UnreadRowCount <= queuePartitionSnapshot->AvailableRowCount) {
-                    consumerPartitionSnapshot->Disposition = EConsumerPartitionDisposition::PendingConsumption;
-                } else if (consumerPartitionSnapshot->UnreadRowCount > queuePartitionSnapshot->AvailableRowCount) {
-                    consumerPartitionSnapshot->Disposition = EConsumerPartitionDisposition::Expired;
-                } else {
-                    Y_UNREACHABLE();
-                }
-            } else {
-                consumerPartitionSnapshot->Error = queuePartitionSnapshot->Error;
-            }
-        }
-
-        std::vector<TFuture<void>> futures;
-
-        if (QueueSnapshot_->HasTimestampColumn) {
-            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectTimestamps, MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run());
-        }
-
-        if (QueueSnapshot_->HasCumulativeDataWeightColumn) {
-            futures.emplace_back(BIND(&TConsumerSnapshotBuildSession::CollectCumulativeDataWeights, MakeStrong(this))
-                .AsyncVia(Invoker_)
-                .Run());
-        }
-
-        WaitFor(AllSucceeded(futures))
-            .ThrowOnError();
-
-        for (const auto& consumerPartitionSnapshot : ConsumerSnapshot_->PartitionSnapshots) {
-            // If consumer has read all rows in the partition, we assume its processing lag to be zero;
-            // otherwise the processing lag is defined as the duration since the commit time of the next
-            // row in the partition to be read by the consumer.
-            consumerPartitionSnapshot->ProcessingLag = consumerPartitionSnapshot->NextRowCommitTime
-                ? TInstant::Now() - *consumerPartitionSnapshot->NextRowCommitTime
-                : TDuration::Zero();
-            ConsumerSnapshot_->ReadRate += consumerPartitionSnapshot->ReadRate;
-        }
-
-        YT_LOG_DEBUG("Consumer snapshot built");
-    }
-
-    void CollectTimestamps()
-    {
-        YT_LOG_DEBUG("Collecting consumer timestamps");
-
-        auto queueRef = *ConsumerSnapshot_->Row.TargetQueue;
-
-        TStringBuilder queryBuilder;
-        queryBuilder.AppendFormat("[$tablet_index], [$timestamp] from [%v] where ([$tablet_index], [$row_index]) in (",
-            QueueSnapshot_->Row.Queue.Path);
-        bool isFirstTuple = true;
-
-        for (const auto& [partitionIndex, consumerPartitionSnapshot] : Enumerate(ConsumerSnapshot_->PartitionSnapshots)) {
-            if (consumerPartitionSnapshot->Error.IsOK() && consumerPartitionSnapshot->Disposition == EConsumerPartitionDisposition::PendingConsumption) {
-                if (!isFirstTuple) {
-                    queryBuilder.AppendString(", ");
-                }
-                queryBuilder.AppendFormat("(%vu, %vu)", partitionIndex, consumerPartitionSnapshot->NextRowIndex );
-                isFirstTuple = false;
-            }
-        }
-
-        queryBuilder.AppendString(")");
-
-        if (isFirstTuple) {
-            return;
-        }
-
-        // Calculate next row commit times and processing lags.
-        const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-        auto query = queryBuilder.Flush();
-        YT_LOG_TRACE("Executing query for next row commit times (Query: %Qv)", query);
-        auto result = WaitFor(client->SelectRows(query))
-            .ValueOrThrow();
-
-        for (const auto& row : result.Rowset->GetRows()) {
-            YT_VERIFY(row.GetCount() == 2);
-            YT_VERIFY(row[0].Type == EValueType::Int64);
-            auto tabletIndex = row[0].Data.Int64;
-
-            auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[tabletIndex];
-
-            YT_VERIFY(row[1].Type == EValueType::Uint64);
-            auto commitTimestamp = row[1].Data.Uint64;
-            consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(commitTimestamp).first;
-        }
-
-        YT_LOG_DEBUG("Consumer timestamps collected");
-    }
-
-    void CollectCumulativeDataWeights()
-    {
-        YT_LOG_DEBUG("Collecting consumer cumulative data weights");
-
-        auto queueRef = *ConsumerSnapshot_->Row.TargetQueue;
-
-        std::vector<std::pair<int, i64>> tabletAndRowIndices;
-
-        for (const auto& [partitionIndex, consumerPartitionSnapshot] : Enumerate(ConsumerSnapshot_->PartitionSnapshots)) {
-            const auto& queuePartitionSnapshot = QueueSnapshot_->PartitionSnapshots[partitionIndex];
-            // Partition should not be erroneous and previous row should exist.
-            if (consumerPartitionSnapshot->Error.IsOK() &&
-                consumerPartitionSnapshot->NextRowIndex > queuePartitionSnapshot->LowerRowIndex &&
-                consumerPartitionSnapshot->NextRowIndex <= queuePartitionSnapshot->UpperRowIndex)
-            {
-                tabletAndRowIndices.emplace_back(partitionIndex, consumerPartitionSnapshot->NextRowIndex - 1);
-            }
-        }
-
-        const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
-        auto result = NDetail::CollectCumulativeDataWeights(queueRef.Path, client, tabletAndRowIndices, Logger);
-
-        for (const auto& [tabletIndex, cumulativeDataWeights] : result) {
-            auto& consumerPartitionSnapshot = ConsumerSnapshot_->PartitionSnapshots[tabletIndex];
-            consumerPartitionSnapshot->CumulativeDataWeight = cumulativeDataWeights.begin()->second;
-            consumerPartitionSnapshot->ReadRate.DataWeight.Update(*consumerPartitionSnapshot->CumulativeDataWeight);
         }
 
         YT_LOG_DEBUG("Consumer cumulative data weights collected");
@@ -558,110 +252,71 @@ class TOrderedDynamicTableController
 {
 public:
     TOrderedDynamicTableController(
+        TQueueTableRow queueRow,
+        const IObjectStore* store,
         TQueueControllerDynamicConfigPtr dynamicConfig,
         TClientDirectoryPtr clientDirectory,
-        TCrossClusterReference queueRef,
-        TQueueTableRow queueRow,
-        TConsumerRowMap consumerRowMap,
         IInvokerPtr invoker)
-        : DynamicConfig_(std::move(dynamicConfig))
+        : QueueRow_(queueRow)
+        , QueueRef_(queueRow.Ref)
+        , ObjectStore_(store)
+        , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
-        , QueueRef_(std::move(queueRef))
         , Invoker_(std::move(invoker))
         , Logger(QueueAgentLogger.WithTag("Queue: %Qv", QueueRef_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
-            DynamicConfig_->PassPeriod))
+            dynamicConfig->PassPeriod))
         , ProfileManager_(CreateQueueProfileManager(
-            Invoker_,
             QueueAgentProfiler
                 .WithRequiredTag("queue_path", QueueRef_.Path)
                 .WithRequiredTag("queue_cluster", QueueRef_.Cluster)))
     {
+        // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
         queueSnapshot->Row = std::move(queueRow);
         queueSnapshot->Error = TError("Queue is not processed yet");
-
-        for (auto& [ref, row] : consumerRowMap) {
-            auto consumerSnapshot = New<TConsumerSnapshot>();
-            consumerSnapshot->Row = std::move(row);
-            consumerSnapshot->Error = TError("Consumer is not processed yet");
-            ConsumerSnapshots_.emplace(std::move(ref), std::move(consumerSnapshot));
-        }
-
-        queueSnapshot->ConsumerSnapshots = ConsumerSnapshots_;
         QueueSnapshot_.Exchange(std::move(queueSnapshot));
-    }
-
-    EQueueFamily GetQueueFamily() const override
-    {
-        return EQueueFamily::OrderedDynamicTable;
-    }
-
-    void BuildOrchid(TFluentMap fluent) const override
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        YT_LOG_DEBUG("Building queue controller orchid (PassIndex: %v)", PassIndex_ - 1);
-
-        // Acquire a simple intrusive pointer for code simplicity;
-        auto queueSnapshot = QueueSnapshot_.Acquire();
-
-        fluent
-            .Item("pass_index").Value(PassIndex_)
-            .Item("pass_instant").Value(PassInstant_)
-            .Item("row").Value(queueSnapshot->Row)
-            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, _1))
-            .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1));
-    }
-
-    void BuildConsumerOrchid(const TCrossClusterReference& consumerRef, TFluentMap fluent) const override
-    {
-        YT_LOG_DEBUG("Building consumer controller orchid (Consumer: %Qv, PassIndex: %v)", consumerRef, PassIndex_ - 1);
-
-        const auto& consumerSnapshot = GetOrCrash(ConsumerSnapshots_, consumerRef);
-
-        fluent
-            .Item("pass_index").Value(PassIndex_)
-            .Item("pass_instant").Value(PassInstant_)
-            .Item("row").Value(consumerSnapshot->Row)
-            .Item("status").Do(std::bind(BuildConsumerStatusYson, consumerSnapshot, _1))
-            .Item("partitions").Do(std::bind(BuildConsumerPartitionListYson, consumerSnapshot, _1));
-    }
-
-    void Start() override
-    {
-        VERIFY_THREAD_AFFINITY_ANY();
 
         YT_LOG_INFO("Queue controller started");
 
         PassExecutor_->Start();
     }
 
-    TFuture<void> Stop() override
+    void BuildOrchid(IYsonConsumer* consumer) const override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        YT_LOG_INFO("Queue controller stopped");
+        auto queueSnapshot = QueueSnapshot_.Acquire();
 
-        return PassExecutor_->Stop();
+        YT_LOG_DEBUG("Building queue controller orchid (PassIndex: %v)", queueSnapshot->PassIndex);
+
+        BuildYsonFluently(consumer).BeginMap()
+            .Item("pass_index").Value(queueSnapshot->PassIndex)
+            .Item("pass_instant").Value(queueSnapshot->PassInstant)
+            .Item("row").Value(queueSnapshot->Row)
+            .Item("status").Do(std::bind(BuildQueueStatusYson, queueSnapshot, _1))
+            .Item("partitions").Do(std::bind(BuildQueuePartitionListYson, queueSnapshot, _1))
+        .EndMap();
     }
 
-    IInvokerPtr GetInvoker() const override
+    void OnRowUpdated(std::any row) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return Invoker_;
+        const auto& queueRow = std::any_cast<const TQueueTableRow&>(row);
+
+        QueueRow_.Store(queueRow);
     }
 
     void OnDynamicConfigChanged(
         const TQueueControllerDynamicConfigPtr& oldConfig,
         const TQueueControllerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
+        VERIFY_THREAD_AFFINITY_ANY();
 
-        DynamicConfig_ = newConfig;
+        DynamicConfig_.Exchange(newConfig);
 
         PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
@@ -671,117 +326,70 @@ public:
             ConvertToYsonString(newConfig, EYsonFormat::Text));
     }
 
-    TQueueSnapshotPtr GetLatestSnapshot() const override
+    TRefCountedPtr GetLatestSnapshot() const override
     {
         return QueueSnapshot_.Acquire();
     }
 
+    EQueueFamily GetFamily() const override
+    {
+        return EQueueFamily::OrderedDynamicTable;
+    }
+
 private:
-    TQueueControllerDynamicConfigPtr DynamicConfig_;
-    const TClientDirectoryPtr ClientDirectory_;
+    TAtomicObject<TQueueTableRow> QueueRow_;
     const TCrossClusterReference QueueRef_;
+    const IObjectStore* ObjectStore_;
 
-    using TQueueSnapshotAtomicPtr = TAtomicIntrusivePtr<TQueueSnapshot>;
+    using TQueueControllerDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TQueueControllerDynamicConfig>;
+    TQueueControllerDynamicConfigAtomicPtr DynamicConfig_;
 
-    // TODO(max42): remove mutable when TAtomicIntrusivePtr<T>::Acquire() is const-qualified.
-    mutable TQueueSnapshotAtomicPtr QueueSnapshot_;
-    TConsumerSnapshotMap ConsumerSnapshots_;
-
+    const TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr Invoker_;
 
+    using TQueueSnapshotAtomicPtr = TAtomicIntrusivePtr<TQueueSnapshot>;
+    TQueueSnapshotAtomicPtr QueueSnapshot_;
+
     const TLogger Logger;
-
     const TPeriodicExecutorPtr PassExecutor_;
-
     IQueueProfileManagerPtr ProfileManager_;
-
-    i64 PassIndex_ = 0;
-    TInstant PassInstant_ = TInstant::Zero();
 
     void Pass()
     {
         VERIFY_INVOKER_AFFINITY(Invoker_);
 
-        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueController"));
+        auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueControllerPass"));
 
-        auto nextPassInstant = TInstant::Now();
-        auto nextPassIndex = PassIndex_ + 1;
+        YT_LOG_INFO("Queue controller pass started");
 
-        YT_LOG_INFO("Controller pass started (NextPassIndex: %v)", nextPassIndex);
-        auto logFinally = Finally([&] {
-            YT_LOG_INFO("Controller pass finished (PassIndex: %v -> %v)", PassIndex_, nextPassIndex);
-            PassIndex_ = nextPassIndex;
-            PassInstant_ = nextPassInstant;
-        });
+        auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
+        YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
+        for (const auto& registration : registrations) {
+            YT_LOG_DEBUG(
+                "Relevant registration (Queue: %Qv, Consumer: %Qv, Vital: %v)",
+                registration.Queue,
+                registration.Consumer,
+                registration.Vital);
+        }
 
-        auto nextQueueSnapshot = BuildQueueSnapshot();
-        auto nextConsumerSnapshots = nextQueueSnapshot->ConsumerSnapshots;
-
-        // NB: these swaps must be performed without context switches in order to not expose the partially altered state.
-        ConsumerSnapshots_.swap(nextConsumerSnapshots);
+        auto nextQueueSnapshot = New<TQueueSnapshotBuildSession>(
+            QueueRow_.Load(),
+            QueueSnapshot_.Acquire(),
+            std::move(registrations),
+            Logger,
+            ClientDirectory_)
+            ->Build();
         auto previousQueueSnapshot = QueueSnapshot_.Exchange(nextQueueSnapshot);
 
-        YT_LOG_INFO("Controller snapshots updated");
+        YT_LOG_INFO("Queue snapshot updated");
 
         ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
 
-        if (DynamicConfig_->EnableAutomaticTrimming) {
+        if (DynamicConfig_.Acquire()->EnableAutomaticTrimming) {
             Trim();
         }
-    }
 
-    //! Builds new queue/consumer snapshots.
-    TQueueSnapshotPtr BuildQueueSnapshot() const
-    {
-        VERIFY_INVOKER_AFFINITY(Invoker_);
-
-        YT_LOG_INFO("Building controller snapshot");
-
-        // First, update queue snapshot.
-        auto nextQueueSnapshot = TQueueSnapshotBuildSession(
-            QueueSnapshot_.Acquire(),
-            Invoker_,
-            Logger,
-            ClientDirectory_)
-            .Build();
-
-        // Second, update consumer snapshots.
-        TConsumerSnapshotMap nextConsumerSnapshots;
-        {
-            std::vector<TFuture<TConsumerSnapshotPtr>> consumerSnapshotFutures;
-
-            auto consumerCount = ConsumerSnapshots_.size();
-            consumerSnapshotFutures.reserve(consumerCount);
-
-            for (const auto& [consumerRef, consumerSnapshot] : ConsumerSnapshots_) {
-                auto session = New<TConsumerSnapshotBuildSession>(
-                    consumerSnapshot,
-                    Invoker_,
-                    Logger.WithTag("Consumer: %Qv", consumerRef),
-                    ClientDirectory_,
-                    nextQueueSnapshot);
-                consumerSnapshotFutures.emplace_back(BIND(&TConsumerSnapshotBuildSession::Build, session)
-                    .AsyncVia(Invoker_)
-                    .Run());
-            }
-
-            // None of snapshot update methods may throw.
-            YT_VERIFY(WaitFor(AllSucceeded(consumerSnapshotFutures)).IsOK());
-
-            for (const auto& consumerSnapshotFuture : consumerSnapshotFutures) {
-                const auto& consumerSnapshot = consumerSnapshotFuture.Get().Value();
-                nextConsumerSnapshots[consumerSnapshot->Row.Consumer] = consumerSnapshot;
-            }
-        }
-
-        // By this moment we may be sure that updating succeeds.
-
-        // Connect queue snapshot to consumer snapshots with pointers.
-        nextQueueSnapshot->ConsumerSnapshots = nextConsumerSnapshots;
-
-        YT_LOG_INFO("Controller snapshot built");
-
-        return nextQueueSnapshot;
+        YT_LOG_INFO("Queue controller pass finished");
     }
 
     //! Only EAutoTrimPolicy::VitalConsumers is supported right now.
@@ -806,7 +414,7 @@ private:
         YT_LOG_DEBUG("Performing trimming iteration");
 
         // Guard against context switches, just to be on the safe side.
-        auto queueSnapshot = GetLatestSnapshot();
+        auto queueSnapshot = QueueSnapshot_.Acquire();
 
         if (!queueSnapshot->Error.IsOK()) {
             THROW_ERROR_EXCEPTION(
@@ -821,29 +429,41 @@ private:
             return;
         }
 
-        bool hasVitalConsumers = false;
+        auto registrations = ObjectStore_->GetRegistrations(QueueRef_, EObjectKind::Queue);
 
-        for (const auto& [consumer, consumerSnapshot] : queueSnapshot->ConsumerSnapshots) {
-            if (!consumerSnapshot->Error.IsOK()) {
-                // We cannot trim anything safely without knowing whether this consumer is vital.
-                THROW_ERROR_EXCEPTION(
-                    "Trimming iteration skipped due to erroneous consumer %Qv",
-                    consumerSnapshot->Row.Consumer)
-                        << consumerSnapshot->Error;
-            } else if (consumerSnapshot->Vital) {
-                hasVitalConsumers = true;
+        THashMap<TCrossClusterReference, TSubConsumerSnapshotConstPtr> vitalConsumerSubSnapshots;
+        vitalConsumerSubSnapshots.reserve(registrations.size());
+        for (const auto& registration : registrations) {
+            if (!registration.Vital) {
+                continue;
             }
+            auto consumerSnapshot = DynamicPointerCast<const TConsumerSnapshot>(ObjectStore_->FindSnapshot(registration.Consumer));
+            if (!consumerSnapshot) {
+                THROW_ERROR_EXCEPTION(
+                    "Trimming iteration skipped due to missing registered vital consumer %Qv",
+                    consumerSnapshot->Row.Ref);
+            } else if (!consumerSnapshot->Error.IsOK()) {
+                THROW_ERROR_EXCEPTION(
+                    "Trimming iteration skipped due to erroneous registered vital consumer %Qv",
+                    consumerSnapshot->Row.Ref)
+                    << consumerSnapshot->Error;
+            }
+            auto it = consumerSnapshot->SubSnapshots.find(QueueRef_);
+            if (it == consumerSnapshot->SubSnapshots.end()) {
+                THROW_ERROR_EXCEPTION(
+                    "Trimming iteration skipped due to vital consumer %Qv snapshot not containing information about queue",
+                    consumerSnapshot->Row.Ref);
+            }
+            vitalConsumerSubSnapshots[consumerSnapshot->Row.Ref] = it->second;
         }
 
-        if (!hasVitalConsumers) {
+        if (vitalConsumerSubSnapshots.empty()) {
             // TODO(achulkov2): This should produce some warning/misconfiguration alert to the client?
             YT_LOG_DEBUG(
-                "Attempted trimming iteration on queue with no vital consumers",
-                queueSnapshot->Row.Queue);
+                "Attempted trimming iteration on queue with no vital consumers (Queue: %Qv)",
+                queueSnapshot->Row.Ref);
             return;
         }
-
-        // NB: At this point the queue and all consumers are non-erroneous.
 
         // We will be collecting partitions for which no error is set in the queue snapshot, nor in any of the consumer snapshots.
         THashSet<int> partitionsToTrim;
@@ -855,11 +475,16 @@ private:
             if (!partitionSnapshot->Error.IsOK()) {
                 partitionError = partitionSnapshot->Error;
             } else {
-                for (const auto& [consumer, consumerSnapshot] : queueSnapshot->ConsumerSnapshots) {
-                    const auto& consumerPartitionSnapshot = consumerSnapshot->PartitionSnapshots[partitionIndex];
-                    if (!consumerPartitionSnapshot->Error.IsOK()) {
-                        partitionError = consumerPartitionSnapshot->Error;
-                        break;
+                for (const auto& [_, consumerSubSnapshot] : vitalConsumerSubSnapshots) {
+                    // NB: there is no guarantee that consumer snapshot consists of the same number of partitions.
+                    if (partitionIndex < std::ssize(consumerSubSnapshot->PartitionSnapshots)) {
+                        const auto& consumerPartitionSubSnapshot = consumerSubSnapshot->PartitionSnapshots[partitionIndex];
+                        if (!consumerPartitionSubSnapshot->Error.IsOK()) {
+                            partitionError = consumerPartitionSubSnapshot->Error;
+                            break;
+                        }
+                    } else {
+                        partitionError = TError("Consumer snapshot does not know about partition snapshot");
                     }
                 }
             }
@@ -869,34 +494,32 @@ private:
             } else {
                 YT_LOG_DEBUG(
                     partitionError,
-                    "Not trimming partition %v due to partition error",
+                    "Not trimming partition due to partition error (PartitionIndex: %v)",
                     partitionIndex);
             }
         }
 
         THashMap<int, i64> updatedTrimmedRowCounts;
 
-        for (const auto& [consumer, consumerSnapshot] : queueSnapshot->ConsumerSnapshots) {
-            if (consumerSnapshot->Vital) {
-                for (const auto& partitionIndex : partitionsToTrim) {
-                    const auto& partitionSnapshot = consumerSnapshot->PartitionSnapshots[partitionIndex];
+        for (const auto& [consumerRef, consumerSubSnapshot] : vitalConsumerSubSnapshots) {
+            for (const auto& partitionIndex : partitionsToTrim) {
+                const auto& partitionSnapshot = consumerSubSnapshot->PartitionSnapshots[partitionIndex];
 
-                    // NextRowIndex should always be present in the snapshot.
-                    YT_LOG_DEBUG(
-                        "Updating trimmed row count (Partition: %v, NextRowIndex: %v, Consumer: %v)",
-                        partitionIndex,
-                        partitionSnapshot->NextRowIndex,
-                        consumerSnapshot->Row.Consumer);
-                    auto it = updatedTrimmedRowCounts.find(partitionIndex);
-                    if (it != updatedTrimmedRowCounts.end()) {
-                        it->second = std::min(it->second, partitionSnapshot->NextRowIndex);
-                    } else {
-                        updatedTrimmedRowCounts[partitionIndex] = partitionSnapshot->NextRowIndex;
-                    }
+                // NextRowIndex should always be present in the snapshot.
+                YT_LOG_DEBUG(
+                    "Updating trimmed row count (Partition: %v, NextRowIndex: %v, Consumer: %v)",
+                    partitionIndex,
+                    partitionSnapshot->NextRowIndex,
+                    consumerRef);
+                auto it = updatedTrimmedRowCounts.find(partitionIndex);
+                if (it != updatedTrimmedRowCounts.end()) {
+                    it->second = std::min(it->second, partitionSnapshot->NextRowIndex);
+                } else {
+                    updatedTrimmedRowCounts[partitionIndex] = partitionSnapshot->NextRowIndex;
                 }
             }
         }
-        
+
         auto client = ClientDirectory_->GetClientOrThrow(QueueRef_.Cluster);
 
         std::vector<TFuture<void>> asyncTrims;
@@ -932,27 +555,102 @@ DEFINE_REFCOUNTED_TYPE(TOrderedDynamicTableController)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IQueueControllerPtr CreateQueueController(
+class TErrorQueueController
+    : public IQueueController
+{
+public:
+    TErrorQueueController(
+        const TQueueTableRow& row,
+        const TError& error)
+        : Row_(row)
+        , Error_(error)
+        , Snapshot_(New<TQueueSnapshot>())
+    {
+        Snapshot_->Error = Error_;
+    }
+
+    void OnDynamicConfigChanged(
+        const TQueueControllerDynamicConfigPtr& /*oldConfig*/,
+        const TQueueControllerDynamicConfigPtr& /*newConfig*/) override
+    { }
+
+    void OnRowUpdated(std::any /*row*/) override
+    {
+        // Row update is handled in RecreateQueueController.
+    }
+
+    TRefCountedPtr GetLatestSnapshot() const override
+    {
+        return Snapshot_;
+    }
+
+    void BuildOrchid(NYson::IYsonConsumer* consumer) const override
+    {
+        BuildYsonFluently(consumer)
+            .BeginMap()
+                .Item("row").Value(Row_)
+                .Item("status").BeginMap()
+                    .Item("error").Value(Error_)
+                .EndMap()
+                .Item("partitions").BeginList().EndList()
+            .EndMap();
+    }
+
+    EQueueFamily GetFamily() const override
+    {
+        return EQueueFamily::Null;
+    }
+
+private:
+    TQueueTableRow Row_;
+    TError Error_;
+    const TQueueSnapshotPtr Snapshot_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TErrorQueueController)
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool UpdateQueueController(
+    IObjectControllerPtr& controller,
+    const TQueueTableRow& row,
+    const IObjectStore* store,
     TQueueControllerDynamicConfigPtr dynamicConfig,
-    NHiveClient::TClientDirectoryPtr clientDirectory,
-    TCrossClusterReference queueRef,
-    EQueueFamily queueFamily,
-    TQueueTableRow queueRow,
-    THashMap<TCrossClusterReference, TConsumerTableRow> consumerRefToRow,
+    TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker)
 {
-    switch (queueFamily) {
+    // Recreating an error controller on each iteration seems ok as it does
+    // not have any state. By doing so we make sure that the error of a queue controller
+    // is not stale.
+
+    if (row.SynchronizationError && !row.SynchronizationError->IsOK()) {
+        controller = New<TErrorQueueController>(row, TError("Queue synchronization error") << *row.SynchronizationError);
+        return true;
+    }
+
+    auto queueFamily = DeduceQueueFamily(row);
+    if (!queueFamily.IsOK()) {
+        controller = New<TErrorQueueController>(row, queueFamily);
+        return true;
+    }
+
+    if (controller && DynamicPointerCast<IQueueController>(controller)->GetFamily() == queueFamily.Value()) {
+        // Do not recreate the controller if it is of the same family.
+        return false;
+    }
+    switch (queueFamily.Value()) {
         case EQueueFamily::OrderedDynamicTable:
-            return New<TOrderedDynamicTableController>(
+            controller = New<TOrderedDynamicTableController>(
+                std::move(row),
+                store,
                 std::move(dynamicConfig),
                 std::move(clientDirectory),
-                std::move(queueRef),
-                std::move(queueRow),
-                std::move(consumerRefToRow),
                 std::move(invoker));
+            break;
         default:
             YT_ABORT();
     }
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -57,7 +57,7 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
             "{attribute_revision=43u; type=table; sorted=%false; dynamic=%true; auto_trim_policy=vital_consumers; "
             "queue_agent_stage=fun}")),
         {
-            .Queue = {.Cluster = "mamma", .Path = "mia"},
+            .Ref = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
@@ -75,19 +75,16 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         {.Cluster = "mamma", .Path = "mia"},
         15,
         ConvertToAttributes(TYsonStringBuf(
-            "{attribute_revision=43u; type=table; target_queue=\"cluster:path\"; treat_as_queue_consumer=%true; "
-            "schema=[{name=a; type=int64; sort_order=ascending}]; vital_queue_consumer=%true; owner=nosokhvost; "
+            "{attribute_revision=43u; type=table; treat_as_queue_consumer=%true; "
+            "schema=[{name=a; type=int64; sort_order=ascending}];"
             "queue_agent_stage=fun}")),
         {
-            .Consumer = {.Cluster = "mamma", .Path = "mia"},
+            .Ref = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
-            .TargetQueue = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
             .TreatAsQueueConsumer = true,
             .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
-            .Vital = true,
-            .Owner = "nosokhvost",
             .QueueAgentStage = "fun",
             .SynchronizationError = TError(),
         });
@@ -97,18 +94,15 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
         {.Cluster ="mamma", .Path ="mia"},
         15,
         ConvertToAttributes(TYsonStringBuf(
-            "{attribute_revision=43u; type=table; target_queue=\"cluster:path\"; "
-            "schema=[{name=a; type=int64; sort_order=ascending}]; owner=hydra}")),
+            "{attribute_revision=43u; type=table; "
+            "schema=[{name=a; type=int64; sort_order=ascending}];}")),
         {
-            .Consumer = {.Cluster = "mamma", .Path = "mia"},
+            .Ref = {.Cluster = "mamma", .Path = "mia"},
             .RowRevision = 15,
-            .TargetQueue = TCrossClusterReference{.Cluster = "cluster", .Path = "path"},
             .Revision = 43,
             .ObjectType = NObjectClient::EObjectType::Table,
             .TreatAsQueueConsumer = false,
             .Schema = TTableSchema({TColumnSchema("a", EValueType::Int64, ESortOrder::Ascending)}),
-            .Vital = false,
-            .Owner = "hydra",
             .SynchronizationError = TError(),
         });
 }

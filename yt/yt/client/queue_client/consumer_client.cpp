@@ -37,18 +37,67 @@ static const auto& Logger = QueueClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static TTableSchemaPtr BigRTConsumerTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+static const TTableSchemaPtr YTConsumerTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+    TColumnSchema("queue_cluster", EValueType::String, ESortOrder::Ascending).SetRequired(true),
+    TColumnSchema("queue_path", EValueType::String, ESortOrder::Ascending).SetRequired(true),
+    TColumnSchema("partition_index", EValueType::Uint64, ESortOrder::Ascending).SetRequired(true),
+    TColumnSchema("offset", EValueType::Uint64).SetRequired(true),
+}, /*strict*/ true, /*uniqueKeys*/ true);
+
+static const TTableSchemaPtr BigRTConsumerTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
     TColumnSchema("ShardId", EValueType::Uint64, ESortOrder::Ascending),
     TColumnSchema("Offset", EValueType::Uint64),
 }, /*strict*/ true, /*uniqueKeys*/ true);
 
-class TBigRTConsumerClient
-    : public IConsumerClient
+class TGenericConsumerClient
+    : public ISubConsumerClient
 {
 public:
-    explicit TBigRTConsumerClient(TYPath path)
+    TGenericConsumerClient(
+        TYPath path,
+        TUnversionedOwningRow rowPrefix,
+        TStringBuf partitionIndexColumnName,
+        TStringBuf offsetColumnName,
+        bool decrementOffset,
+        const TTableSchemaPtr& tableSchema)
         : Path_(std::move(path))
-    { }
+        , RowPrefix_(std::move(rowPrefix))
+        , PartitionIndexColumnName_(std::move(partitionIndexColumnName))
+        , OffsetColumnName_(std::move(offsetColumnName))
+        , TableSchema_(tableSchema)
+        , NameTable_(TNameTable::FromSchema(*TableSchema_))
+        , PartitionIndexColumnId_(NameTable_->GetId(PartitionIndexColumnName_))
+        , OffsetColumnId_(NameTable_->GetId(OffsetColumnName_))
+        , SubConsumerColumnFilter_{PartitionIndexColumnId_, OffsetColumnId_}
+        , DecrementOffset_(decrementOffset)
+        , SubConsumerSchema_(New<TTableSchema>(std::vector<TColumnSchema>{
+            TColumnSchema(TString(PartitionIndexColumnName_), EValueType::Uint64, ESortOrder::Ascending),
+            TColumnSchema(TString(OffsetColumnName_), EValueType::Uint64),
+        }, /*strict*/ true, /*uniqueKeys*/ true))
+    {
+        if (RowPrefix_.GetCount() == 0) {
+            RowPrefixCondition_ = "1 = 1";
+        } else {
+            TStringBuilder builder;
+            builder.AppendChar('(');
+            for (int index = 0; index < RowPrefix_.GetCount(); ++index) {
+                if (index != 0) {
+                    builder.AppendString(", ");
+                }
+                builder.AppendFormat("[%v]", TableSchema_->Columns()[index].Name());
+            }
+            builder.AppendString(") = (");
+            for (int index = 0; index < RowPrefix_.GetCount(); ++index) {
+                if (index != 0) {
+                    builder.AppendString(", ");
+                }
+                YT_VERIFY(RowPrefix_[index].Type == EValueType::String);
+                builder.AppendFormat("\"%v\"", RowPrefix_[index].AsStringBuf());
+            }
+            builder.AppendChar(')');
+            RowPrefixCondition_ = builder.Flush();
+        }
+    }
 
     void Advance(
         const ITransactionPtr& transaction,
@@ -56,29 +105,29 @@ public:
         std::optional<i64> oldOffset,
         i64 newOffset) const override
     {
-        auto nameTable = TNameTable::FromSchema(*BigRTConsumerTableSchema);
-
-        auto shardIdColumnId = nameTable->GetId("ShardId");
-
         if (oldOffset) {
             TUnversionedRowsBuilder keyRowsBuilder;
             TUnversionedRowBuilder rowBuilder;
-            rowBuilder.AddValue(MakeUnversionedUint64Value(partitionIndex, shardIdColumnId));
+            for (const auto& value : RowPrefix_) {
+                rowBuilder.AddValue(value);
+            }
+            rowBuilder.AddValue(MakeUnversionedUint64Value(partitionIndex, PartitionIndexColumnId_));
             keyRowsBuilder.AddRow(rowBuilder.GetRow());
 
             TVersionedLookupRowsOptions options;
             options.RetentionConfig = New<TRetentionConfig>();
             options.RetentionConfig->MaxDataVersions = 1;
 
-            auto partitionRowset = WaitFor(transaction->VersionedLookupRows(Path_, nameTable, keyRowsBuilder.Build(), options))
+            auto partitionRowset = WaitFor(transaction->VersionedLookupRows(Path_, NameTable_, keyRowsBuilder.Build(), options))
                 .ValueOrThrow();
             const auto& rows = partitionRowset->GetRows();
 
-            auto offsetColumnIdRead = partitionRowset->GetNameTable()->GetIdOrThrow("Offset");
+            // XXX(max42): should we use name table from the rowset, or it coincides with our own name table?
+            auto offsetRowsetColumnId = partitionRowset->GetNameTable()->GetIdOrThrow(OffsetColumnName_);
 
             THROW_ERROR_EXCEPTION_UNLESS(
                 std::ssize(partitionRowset->GetRows()) <= 1,
-                "The table for consumer %v should contain at most one row for partition %v when an old offset is specified",
+                "The table for consumer %Qv should contain at most one row for partition %v when an old offset is specified",
                 Path_,
                 partitionIndex);
 
@@ -87,11 +136,13 @@ public:
             // If the key doesn't exist, or the offset value is null, the offset is -1 in BigRT terms and 0 in ours.
             if (!rows.empty()) {
                 auto offsetValue = rows[0].BeginValues();
-                YT_VERIFY(offsetValue->Id == offsetColumnIdRead);
+                YT_VERIFY(offsetValue->Id == offsetRowsetColumnId);
                 offsetTimestamp = offsetValue->Timestamp;
                 if (offsetValue->Type == EValueType::Uint64) {
-                    // We need to add 1, since BigRT stores the offset of the last read row.
-                    currentOffset = static_cast<i64>(offsetValue->Data.Uint64) + 1;
+                    if (DecrementOffset_) {
+                        // We need to add 1, since BigRT stores the offset of the last read row.
+                        currentOffset = static_cast<i64>(offsetValue->Data.Uint64) + 1;
+                    }
                 }
 
                 YT_LOG_DEBUG(
@@ -118,17 +169,19 @@ public:
             }
         }
 
-        auto offsetColumnIdWrite = nameTable->GetId("Offset");
-
         TUnversionedRowsBuilder rowsBuilder;
         TUnversionedRowBuilder rowBuilder;
-        rowBuilder.AddValue(MakeUnversionedUint64Value(partitionIndex, shardIdColumnId));
-        if (newOffset >= 1) {
-            // We need to subtract 1, since BigRT stores the offset of the last read row.
-            rowBuilder.AddValue(MakeUnversionedUint64Value(newOffset - 1, offsetColumnIdWrite));
+        rowBuilder.AddValue(MakeUnversionedUint64Value(partitionIndex, PartitionIndexColumnId_));
+        if (DecrementOffset_) {
+            if (newOffset >= 1) {
+                // We need to subtract 1, since BigRT stores the offset of the last read row.
+                rowBuilder.AddValue(MakeUnversionedUint64Value(newOffset - 1, OffsetColumnId_));
+            } else {
+                // For BigRT consumers we store 0 (in our terms) by storing null.
+                rowBuilder.AddValue(MakeUnversionedNullValue(OffsetColumnId_));
+            }
         } else {
-            // For BigRT consumers we store 0 (in our terms) by storing null.
-            rowBuilder.AddValue(MakeUnversionedNullValue(offsetColumnIdWrite));
+            rowBuilder.AddValue(MakeUnversionedUint64Value(newOffset, OffsetColumnId_));
         }
         rowsBuilder.AddRow(rowBuilder.GetRow());
 
@@ -138,7 +191,7 @@ public:
             partitionIndex,
             oldOffset,
             newOffset);
-        transaction->WriteRows(Path_, nameTable, rowsBuilder.Build());
+        transaction->WriteRows(Path_, NameTable_, rowsBuilder.Build());
     }
 
     TFuture<std::vector<TPartitionInfo>> CollectPartitions(
@@ -146,9 +199,16 @@ public:
         int expectedPartitionCount,
         bool withLastConsumeTime = false) const override
     {
-        auto selectQuery = Format("[ShardId], [Offset] from [%v] where [ShardId] between 0 and %v", Path_, expectedPartitionCount);
+        auto selectQuery = Format(
+            "[%v], [%v] from [%v] where ([%v] between 0 and %v) and (%v)",
+            PartitionIndexColumnName_,
+            OffsetColumnName_,
+            Path_,
+            PartitionIndexColumnName_,
+            expectedPartitionCount - 1,
+            RowPrefixCondition_);
         return BIND(
-            &TBigRTConsumerClient::DoCollectPartitions,
+            &TGenericConsumerClient::DoCollectPartitions,
             MakeStrong(this),
             client,
             selectQuery,
@@ -162,9 +222,16 @@ public:
         const std::vector<int>& partitionIndexes,
         bool withLastConsumeTime) const override
     {
-        auto selectQuery = Format("[ShardId], [Offset] from [%v] where [ShardId] in (%v)", Path_, JoinSeq(",", partitionIndexes));
+        auto selectQuery = Format(
+            "[%v], [%v] from [%v] where ([%v] in (%v)) and (%v)",
+            PartitionIndexColumnName_,
+            OffsetColumnName_,
+            Path_,
+            PartitionIndexColumnName_,
+            JoinSeq(",", partitionIndexes),
+            RowPrefixCondition_);
         return BIND(
-            &TBigRTConsumerClient::DoCollectPartitions,
+            &TGenericConsumerClient::DoCollectPartitions,
             MakeStrong(this),
             client,
             selectQuery,
@@ -207,23 +274,25 @@ public:
     }
 
 private:
-    TYPath Path_;
+    const TYPath Path_;
+    const TUnversionedOwningRow RowPrefix_;
+    //! A condition of form ([ColumnName0], [ColumnName1], ...) = (RowPrefix_[0], RowPrefix_[1], ...)
+    //! defining this subconsumer.
+    TString RowPrefixCondition_;
+    const TStringBuf PartitionIndexColumnName_;
+    const TStringBuf OffsetColumnName_;
+    const TTableSchemaPtr& TableSchema_;
+    const TNameTablePtr NameTable_;
+    const int PartitionIndexColumnId_;
+    const int OffsetColumnId_;
+    //! A column filter consisting of PartitionIndexColumnName_ and OffsetColumnName_.
+    const TColumnFilter SubConsumerColumnFilter_;
+    //! Controls whether the offset is decremented before being written to the offset table.
+    //! BigRT stores the offset of the last read row, so for legacy BigRT consumers this option
+    //! should be set to true.
+    bool DecrementOffset_ = false;
 
-    static void ValidateSchemaOrThrow(const TTableSchema& schema)
-    {
-        if (auto [compatibility, error] = CheckTableSchemaCompatibility(
-                *BigRTConsumerTableSchema,
-                schema,
-                /*ignoreSortOrder*/ true);
-            compatibility != ESchemaCompatibility::FullyCompatible)
-        {
-            THROW_ERROR_EXCEPTION(
-                "Consumer schema %v is not recognized as a BigRT consumer schema %v",
-                schema,
-                *BigRTConsumerTableSchema)
-                << error;
-        }
-    }
+    TTableSchemaPtr SubConsumerSchema_;
 
     std::vector<TPartitionInfo> DoCollectPartitions(
         const IClientPtr& client,
@@ -232,40 +301,58 @@ private:
     {
         std::vector<TPartitionInfo> result;
 
+        YT_LOG_DEBUG("Collecting partitions (Query: %Qv)", selectQuery);
+
         auto selectRowsResult = WaitFor(client->SelectRows(selectQuery))
             .ValueOrThrow();
 
         // Note that after table construction table schema may have changed.
         // We must be prepared for that.
 
-        ValidateSchemaOrThrow(*selectRowsResult.Rowset->GetSchema());
+        auto partitionIndexRowsetColumnId =
+            selectRowsResult.Rowset->GetNameTable()->FindId(PartitionIndexColumnName_);
+        auto offsetRowsetColumnId = selectRowsResult.Rowset->GetNameTable()->FindId(OffsetColumnName_);
 
-        std::vector<ui64> shardIndices;
+        if (!partitionIndexRowsetColumnId || !offsetRowsetColumnId) {
+            THROW_ERROR_EXCEPTION(
+                "Table must have columns %Qv and %Qv",
+                PartitionIndexColumnName_,
+                OffsetColumnName_);
+        }
+
+        std::vector<ui64> partitionIndices;
         for (auto row : selectRowsResult.Rowset->GetRows()) {
+
             YT_VERIFY(row.GetCount() == 2);
 
-            auto shardIdColumnId = selectRowsResult.Rowset->GetNameTable()->GetIdOrThrow("ShardId");
-            const auto& shardIdValue = row[shardIdColumnId];
-            YT_VERIFY(shardIdValue.Type == EValueType::Uint64);
+            const auto& partitionIndexValue = row[*partitionIndexRowsetColumnId];
+            if (partitionIndexValue.Type == EValueType::Null) {
+                // This is a weird row for partition Null. Just ignore it.
+                continue;
+            }
+            YT_VERIFY(partitionIndexValue.Type == EValueType::Uint64);
 
-            shardIndices.push_back(shardIdValue.Data.Uint64);
+            partitionIndices.push_back(partitionIndexValue.Data.Uint64);
 
-            auto offsetColumnId = selectRowsResult.Rowset->GetNameTable()->GetIdOrThrow("Offset");
-            const auto& offsetValue = row[offsetColumnId];
+            const auto& offsetValue = row[*offsetRowsetColumnId];
 
-            i64 nextRowIndex;
+            i64 offset;
             if (offsetValue.Type == EValueType::Uint64) {
-                nextRowIndex = static_cast<i64>(offsetValue.Data.Uint64) + 1;
+                if (DecrementOffset_) {
+                    offset = static_cast<i64>(offsetValue.Data.Uint64) + 1;
+                } else {
+                    offset = static_cast<i64>(offsetValue.Data.Uint64);
+                }
             } else if (offsetValue.Type == EValueType::Null) {
-                nextRowIndex = 0;
+                offset = 0;
             } else {
                 YT_ABORT();
             }
 
             // NB: in BigRT offsets encode the last read row, while we operate with the first unread row.
             result.emplace_back(TPartitionInfo{
-                .PartitionIndex = static_cast<i64>(shardIdValue.Data.Uint64),
-                .NextRowIndex = nextRowIndex,
+                .PartitionIndex = static_cast<i64>(partitionIndexValue.Data.Uint64),
+                .NextRowIndex = offset,
             });
         }
 
@@ -276,8 +363,13 @@ private:
         // Now do versioned lookups in order to obtain timestamps.
 
         TUnversionedRowsBuilder builder;
-        for (ui64 shardIndex : shardIndices) {
-            builder.AddRow(shardIndex);
+        for (ui64 partitionIndex : partitionIndices) {
+            TUnversionedRowBuilder rowBuilder;
+            for (const auto& value : RowPrefix_) {
+                rowBuilder.AddValue(value);
+            }
+            rowBuilder.AddValue(MakeUnversionedUint64Value(partitionIndex, PartitionIndexColumnId_));
+            builder.AddRow(rowBuilder.GetRow());
         }
 
         TVersionedLookupRowsOptions options;
@@ -286,16 +378,16 @@ private:
 
         auto versionedRowset = WaitFor(client->VersionedLookupRows(
             Path_,
-            TNameTable::FromKeyColumns(BigRTConsumerTableSchema->GetKeyColumns()),
+            NameTable_,
             builder.Build(),
             options))
             .ValueOrThrow();
 
-        YT_VERIFY(versionedRowset->GetRows().size() == shardIndices.size());
+        YT_VERIFY(versionedRowset->GetRows().size() == partitionIndices.size());
 
         for (const auto& [index, versionedRow] : Enumerate(versionedRowset->GetRows())) {
             if (versionedRow.GetWriteTimestampCount() < 1) {
-                THROW_ERROR_EXCEPTION("Shard set changed during collection");
+                THROW_ERROR_EXCEPTION("Partition set changed during collection");
             }
             auto timestamp = versionedRow.BeginWriteTimestamps()[0];
             result[index].LastConsumeTime = TimestampToInstant(timestamp).first;
@@ -307,20 +399,98 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+ISubConsumerClientPtr CreateBigRTConsumerClient(
+    const TYPath& path,
+    const TTableSchema& schema)
+{
+    if (!schema.IsUniqueKeys()) {
+        THROW_ERROR_EXCEPTION("Consumer schema must have unique keys, schema does not")
+            << TErrorAttribute("actual_schema", schema);
+    }
+
+    if (schema == *BigRTConsumerTableSchema) {
+        return New<TGenericConsumerClient>(
+            path,
+            TUnversionedOwningRow(),
+            "ShardId",
+            "Offset",
+            /*decrementOffset*/ true,
+            BigRTConsumerTableSchema);
+    } else {
+        THROW_ERROR_EXCEPTION("Table schema is not recognized as a valid BigRT consumer schema")
+            << TErrorAttribute("expected_schema", *BigRTConsumerTableSchema)
+            << TErrorAttribute("actual_schema", schema);
+    }
+}
+
+ISubConsumerClientPtr CreateBigRTConsumerClient(
+    const IClientPtr& client,
+    const TYPath& path)
+{
+    auto tableInfo = WaitFor(client->GetTableMountCache()->GetTableInfo(path))
+        .ValueOrThrow();
+    auto schema = tableInfo->Schemas[ETableSchemaKind::Primary];
+
+    return CreateBigRTConsumerClient(path, *schema);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TYTConsumerClient
+    : public IConsumerClient
+{
+public:
+    explicit TYTConsumerClient(TYPath path)
+        : Path_(std::move(path))
+    { }
+
+    ISubConsumerClientPtr GetSubConsumerClient(const TCrossClusterReference& queue) const override
+    {
+        TUnversionedOwningRowBuilder builder;
+        builder.AddValue(MakeUnversionedStringValue(queue.Cluster, QueueClusterColumnId_));
+        builder.AddValue(MakeUnversionedStringValue(queue.Path, QueuePathColumnId_));
+        auto row = builder.FinishRow();
+
+        auto subConsumerClient = New<TGenericConsumerClient>(
+            Path_,
+            std::move(row),
+            "partition_index",
+            "offset",
+            /*decrementOffset*/ false,
+            YTConsumerTableSchema);
+
+        return subConsumerClient;
+    }
+
+private:
+    TYPath Path_;
+    static const TNameTablePtr NameTable_;
+    static const int QueueClusterColumnId_;
+    static const int QueuePathColumnId_;
+};
+
+const TNameTablePtr TYTConsumerClient::NameTable_ = TNameTable::FromSchema(*YTConsumerTableSchema);
+const int TYTConsumerClient::QueueClusterColumnId_ = TYTConsumerClient::NameTable_->GetId("queue_cluster");
+const int TYTConsumerClient::QueuePathColumnId_ = TYTConsumerClient::NameTable_->GetId("queue_path");
+
+////////////////////////////////////////////////////////////////////////////////
+
 IConsumerClientPtr CreateConsumerClient(
     const TYPath& path,
     const TTableSchema& schema)
 {
     if (!schema.IsUniqueKeys()) {
-        THROW_ERROR_EXCEPTION("Consumer schema must have unique keys, schema %v does not", schema);
+        THROW_ERROR_EXCEPTION("Consumer schema must have unique keys, schema does not")
+            << TErrorAttribute("actual_schema", schema);
     }
 
-    if (CheckTableSchemaCompatibility(*BigRTConsumerTableSchema, schema, /*ignoreSortOrder*/ false).first == ESchemaCompatibility::FullyCompatible) {
-        return New<TBigRTConsumerClient>(path);
+    if (schema == *YTConsumerTableSchema) {
+        return New<TYTConsumerClient>(path);
     } else {
-        THROW_ERROR_EXCEPTION("Table schema %v is not recognized as a valid consumer schema", schema);
+        THROW_ERROR_EXCEPTION("Table schema %v is not recognized as a valid consumer schema")
+            << TErrorAttribute("expected_schema", *YTConsumerTableSchema)
+            << TErrorAttribute("actual_schema", schema);
     }
-
 }
 
 IConsumerClientPtr CreateConsumerClient(
