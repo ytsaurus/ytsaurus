@@ -7,6 +7,8 @@ from yt_commands import (
     abort_job, list_jobs, clean_operations, mount_table, unmount_table, wait_for_cells, sync_create_cells,
     make_random_string, raises_yt_error, clear_metadata_caches)
 
+from yt_scheduler_helpers import scheduler_new_orchid_pool_tree_path
+
 import yt_error_codes
 
 import yt.yson as yson
@@ -138,6 +140,11 @@ class TestListJobsBase(YTEnvSetup):
         self.failed_job_id_fname = os.path.join(self._tmpdir, "failed_job_id")
 
     def restart_nodes_and_wait_jobs_table(self):
+        def get_user_slots_limit():
+            return get(scheduler_new_orchid_pool_tree_path("default") + "/resource_limits/user_slots")
+
+        initial_user_slots = get_user_slots_limit()
+
         unmount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "unmounted")
         with Restarter(self.Env, NODES_SERVICE):
@@ -146,6 +153,8 @@ class TestListJobsBase(YTEnvSetup):
         wait_for_cells()
         mount_table("//sys/operations_archive/jobs")
         wait(lambda: get("//sys/operations_archive/jobs/@tablet_state") == "mounted")
+
+        wait(lambda: get_user_slots_limit() == initial_user_slots)
 
     def _create_tables(self):
         input_table = "//tmp/input_" + make_random_string()
@@ -673,13 +682,18 @@ class TestListJobs(TestListJobsBase):
         wait(lambda: op.get_running_jobs())
         wait(lambda: len(checked_list_jobs(op.id)["jobs"]) == 1)
 
+        op.suspend()
+
         self.restart_nodes_and_wait_jobs_table()
+
+        op.resume()
 
         op.track()
 
         def check():
-            jobs = checked_list_jobs(op.id, running_jobs_lookbehind_period=1000)["jobs"]
-            return len(jobs) == 1
+            actual_jobs = checked_list_jobs(op.id, running_jobs_lookbehind_period=1000)["jobs"]
+            all_jobs = checked_list_jobs(op.id, running_jobs_lookbehind_period=60 * 1000)["jobs"]
+            return len(actual_jobs) == 1 and len(all_jobs) == 2
 
         wait(check)
 
