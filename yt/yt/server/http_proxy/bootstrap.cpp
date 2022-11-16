@@ -267,6 +267,8 @@ void TBootstrap::OnDynamicConfigChanged(
 
     DynamicConfig_.Store(newConfig);
 
+    Connection_->Reconfigure(newConfig->ClusterConnection);
+
     Coordinator_->GetTraceSampler()->UpdateConfig(newConfig->Tracing);
 }
 

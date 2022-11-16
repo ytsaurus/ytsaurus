@@ -338,6 +338,8 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("clock_manager", &TThis::ClockManager)
         .DefaultNew();
+    registrar.Parameter("enable_reshard_with_slicing_verbose_logging", &TThis::EnableReshardWithSlicingVerboseLogging)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

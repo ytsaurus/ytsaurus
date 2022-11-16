@@ -241,6 +241,9 @@ public:
 
     NTransactionClient::TDynamicClockManagerConfigPtr ClockManager;
 
+    // TODO(alexelexa): remove.
+    bool EnableReshardWithSlicingVerboseLogging;
+
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 
     static void Register(TRegistrar registrar);
