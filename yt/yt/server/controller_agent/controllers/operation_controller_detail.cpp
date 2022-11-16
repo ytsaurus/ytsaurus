@@ -93,6 +93,7 @@
 
 #include <yt/yt/client/security_client/acl.h>
 
+#include <yt/yt/client/chunk_client/public.h>
 #include <yt/yt/client/chunk_client/data_statistics.h>
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -323,6 +324,9 @@ TOperationControllerBase::TOperationControllerBase(
         (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->AllocationSize)
         ? *Spec_->TestingOperationOptions->AllocationSize
         : 0)
+    , FastIntermediateMediumLimit_(std::min(
+        Spec_->FastIntermediateMediumLimit,
+        Config->FastIntermediateMediumLimit))
 {
     // Attach user transaction if any. Don't ping it.
     TTransactionAttachOptions userAttachOptions;
@@ -339,6 +343,11 @@ TOperationControllerBase::TOperationControllerBase(
     YT_LOG_INFO("Operation controller instantiated (OperationType: %v, Address: %v)",
         OperationType,
         static_cast<void*>(this));
+
+    YT_LOG_DEBUG("Set fast intermediate medium limit (ConfigLimit: %v, SpecLimit: %v, EffectiveLimit: %v)",
+        Config->FastIntermediateMediumLimit,
+        Spec_->FastIntermediateMediumLimit,
+        GetFastIntermediateMediumLimit());
 }
 
 void TOperationControllerBase::BuildMemoryUsageYson(TFluentAny fluent) const
@@ -5122,6 +5131,16 @@ bool TOperationControllerBase::IsFinished() const
         State == EControllerState::Aborted;
 }
 
+std::pair<ITransactionPtr, TString> TOperationControllerBase::GetIntermediateMediumTransaction()
+{
+    return {nullptr, {}};
+}
+
+void TOperationControllerBase::UpdateIntermediateMediumUsage(i64 /*usage*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 void TOperationControllerBase::SuppressLivePreviewIfNeeded()
 {
     if (GetLegacyOutputLivePreviewMode() == ELegacyLivePreviewMode::NotSupported &&
@@ -9559,6 +9578,11 @@ void TOperationControllerBase::Persist(const TPersistenceContext& context)
     }
 
     Persist(context, AlertManager_);
+
+    // COMPAT(galtsev)
+    if (context.GetVersion() >= ESnapshotVersion::SwitchIntermediateMedium) {
+        Persist(context, FastIntermediateMediumLimit_);
+    }
 }
 
 void TOperationControllerBase::ValidateRevivalAllowed() const
@@ -9633,7 +9657,19 @@ TStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescriptorTe
 {
     auto descriptor = New<TStreamDescriptor>();
     descriptor->CellTags = IntermediateOutputCellTagList;
+
     descriptor->TableWriterOptions = GetIntermediateTableWriterOptions();
+    if (Spec_->IntermediateDataAccount == NSecurityClient::IntermediateAccountName &&
+        GetFastIntermediateMediumLimit() > 0)
+    {
+        descriptor->SlowMedium = descriptor->TableWriterOptions->MediumName;
+        descriptor->TableWriterOptions->MediumName = Config->FastIntermediateMedium;
+        YT_LOG_INFO("Fast intermediate medium enabled (FastMedium: %v, SlowMedium: %v, FastMediumLimit: %v)",
+            descriptor->TableWriterOptions->MediumName,
+            descriptor->SlowMedium,
+            GetFastIntermediateMediumLimit());
+    }
+
     descriptor->TableWriterConfig = BuildYsonStringFluently()
         .BeginMap()
             .Item("upload_replication_factor").Value(Spec_->IntermediateDataReplicationFactor)
@@ -10206,6 +10242,11 @@ template <typename T>
 TYsonString TOperationControllerBase::ConvertToYsonStringNestingLimited(const T& value) const
 {
     return NYson::ConvertToYsonStringNestingLimited(value, GetYsonNestingLevelLimit());
+}
+
+i64 TOperationControllerBase::GetFastIntermediateMediumLimit() const
+{
+    return FastIntermediateMediumLimit_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

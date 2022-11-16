@@ -714,6 +714,7 @@ public:
 
     TDuration TransactionsRefreshPeriod;
     TDuration OperationsUpdatePeriod;
+    TDuration IntermediateMediumUsageUpdatePeriod;
     TDuration ChunkUnstagePeriod;
 
     bool EnableUnrecognizedAlert;
@@ -1046,6 +1047,12 @@ public:
 
     //! List of media that are deprecated to be used in disk requests.
     THashSet<TString> DeprecatedMedia;
+
+    //! The name of the fast medium (SSD) in the communal intermediate account.
+    TString FastIntermediateMedium;
+
+    //! Per transaction intermediate data weight limit for the fast medium (SSD) in the communal intermediate account.
+    i64 FastIntermediateMediumLimit;
 
     bool EnableMasterResourceUsageAccounting;
 

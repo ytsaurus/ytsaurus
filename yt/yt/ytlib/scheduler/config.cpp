@@ -530,6 +530,8 @@ void TOperationSpecBase::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("intermediate_data_medium", &TThis::IntermediateDataMediumName)
         .Default(NChunkClient::DefaultStoreMediumName);
+    registrar.Parameter("fast_intermediate_medium_limit", &TThis::FastIntermediateMediumLimit)
+        .Default();
 
     registrar.Parameter("debug_artifacts_account", &TThis::DebugArtifactsAccount)
         .Alias("job_node_account")

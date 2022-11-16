@@ -847,6 +847,16 @@ TFuture<TIntrusivePtr<TResponse>> TOperationControllerImpl::InvokeAgent(
     }));
 }
 
+std::pair<NApi::ITransactionPtr, TString> TOperationControllerImpl::GetIntermediateMediumTransaction()
+{
+    return {nullptr, {}};
+}
+
+void TOperationControllerImpl::UpdateIntermediateMediumUsage(i64 /*usage*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler

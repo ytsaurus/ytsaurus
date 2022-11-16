@@ -171,6 +171,16 @@ public:
         }));
     }
 
+    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override
+    {
+        return Underlying_->GetIntermediateMediumTransaction();
+    }
+
+    void UpdateIntermediateMediumUsage(i64 usage) override
+    {
+        Underlying_->UpdateIntermediateMediumUsage(usage);
+    }
+
     TOperationControllerInitializeResult InitializeClean() override
     {
         return Underlying_->InitializeClean();

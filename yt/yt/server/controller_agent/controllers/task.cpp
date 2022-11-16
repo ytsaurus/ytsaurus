@@ -400,6 +400,15 @@ void TTask::RegisterCounters(const TProgressCounterPtr& parent)
     ProbingJobManager_.GetProgressCounter()->AddParent(parent);
 }
 
+void TTask::SwitchIntermediateMedium()
+{
+    for (const auto& streamDescriptor : StreamDescriptors_) {
+        if (!streamDescriptor->SlowMedium.empty()) {
+            streamDescriptor->TableWriterOptions->MediumName = streamDescriptor->SlowMedium;
+        }
+    }
+}
+
 void TTask::CheckCompleted()
 {
     if (!CompletedFired_ && IsCompleted()) {
@@ -629,10 +638,15 @@ void TTask::ScheduleJob(
         joblet->JobSpeculationTimeout = TaskHost_->GetSpec()->JobSpeculationTimeout;
     }
 
+    THashSet<TStringBuf> media;
+    for (const auto& streamDescriptor : StreamDescriptors_) {
+        media.insert(streamDescriptor->TableWriterOptions->MediumName);
+    }
+
     YT_LOG_DEBUG(
         "Job scheduled (JobId: %v, OperationId: %v, JobType: %v, Address: %v, JobIndex: %v, OutputCookie: %v, SliceCount: %v (%v local), "
         "Approximate: %v, DataWeight: %v (%v local), RowCount: %v, PartitionTag: %v, Restarted: %v, EstimatedResourceUsage: %v, JobProxyMemoryReserveFactor: %v, "
-        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v)",
+        "UserJobMemoryReserveFactor: %v, ResourceLimits: %v, CompetitionType: %v, JobSpeculationTimeout: %v, Media: %v)",
         joblet->JobId,
         TaskHost_->GetOperationId(),
         joblet->JobType,
@@ -652,7 +666,8 @@ void TTask::ScheduleJob(
         joblet->UserJobMemoryReserveFactor,
         FormatResources(neededResources),
         joblet->CompetitionType,
-        joblet->JobSpeculationTimeout);
+        joblet->JobSpeculationTimeout,
+        media);
 
     SetStreamDescriptors(joblet);
 

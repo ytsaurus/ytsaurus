@@ -235,6 +235,9 @@ public:
 
     void RegisterCounters(const TProgressCounterPtr& parent);
 
+    //! Switches all future jobs in the task to the slow intermediate medium.
+    void SwitchIntermediateMedium();
+
 protected:
     NLogging::TSerializableLogger Logger;
 

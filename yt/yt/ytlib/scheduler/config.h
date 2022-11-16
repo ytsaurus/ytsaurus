@@ -836,6 +836,9 @@ public:
 
     TString IntermediateDataMediumName;
 
+    //! Limit for the data that will be written to the fast medium (SSD) in the default intermediate account.
+    i64 FastIntermediateMediumLimit;
+
     //! Account for job nodes and operation files (stderrs and input contexts of failed jobs).
     TString DebugArtifactsAccount;
 

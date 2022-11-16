@@ -611,6 +611,14 @@ struct IOperationController
     virtual bool IsMemoryLimitExceeded() const = 0;
 
     virtual bool IsFinished() const = 0;
+
+    //! The transaction to monitor for its intermediate medium usage and the corresponding medium name.
+    //! Returns the nullptr if no monitoring is required or if no more updates are required.
+    virtual std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() = 0;
+
+    //! Callback for the monitoring of the intermediate medium usage.
+    //! Switches operation's tasks to the slow medium when the montored usage is over the limit.
+    virtual void UpdateIntermediateMediumUsage(i64 /*usage*/) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)

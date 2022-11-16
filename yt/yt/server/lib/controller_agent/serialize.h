@@ -12,6 +12,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ChangeUnorderedMergeInheritance)      (301002))
     ((DoNotPersistStatistics)               (301003))
     ((SeparateMultipliers)                  (301004))
+    ((SwitchIntermediateMedium)             (301005))
     // 22.4 starts here
     ((BumpTo_22_4)                          (301100))
     ((ReworkJobProfilerSpec)                (301101))
