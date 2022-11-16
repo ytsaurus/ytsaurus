@@ -221,7 +221,7 @@ class TestOperations(object):
         yt.write_table(table,
                        [
                            {"a": 12, "b": "ignat"},
-                                     {"b": "max"},
+                           {"b": "max"},
                            {"a": "x", "b": "name", "c": 0.5}
                        ])
         operation = yt.run_map("PYTHONPATH=. {} capitalize_b.py".format(get_python()),
@@ -312,7 +312,7 @@ class TestOperations(object):
         vanilla_spec = VanillaSpecBuilder().begin_task("sample")\
                 .command("echo 'aaa' >&2")\
                 .job_count(1)\
-            .end_task()
+            .end_task() # noqa
         op = yt.run_operation(vanilla_spec)
         check(op)
 
@@ -325,7 +325,7 @@ class TestOperations(object):
             .begin_task("foo")\
                 .command(foo)\
                 .job_count(1)\
-            .end_task()
+            .end_task() # noqa
 
         op = yt.run_operation(vanilla_spec)
 
@@ -838,6 +838,15 @@ class TestOperationCommands(object):
         job_infos = op.get_jobs_with_error_or_stderr()
         assert len(job_infos) == 1
         assert job_infos[0]["stderr"] == "AAA\n"
+
+    @authors("ignat")
+    def test_get_operation_with_missing_progress(self):
+        input_table = TEST_DIR + "/input_table"
+        output_table = TEST_DIR + "/output_table"
+
+        op = yt.run_map("sleep 10", input_table, output_table, sync=False)
+
+        op.get_progress()
 
     @authors("gudqeit")
     def test_get_operation_by_alias(self):
@@ -1871,7 +1880,7 @@ class TestOperationsSeveralOutputTables(object):
             .reduce_by(["a"]) \
             .mapper_output_table_count(len(mapper_output_tables)) \
             .input_table_paths(input_table) \
-            .output_table_paths(mapper_output_tables + reducer_output_tables)
+            .output_table_paths(mapper_output_tables + reducer_output_tables) # noqa
 
         yt.run_operation(spec_builder)
         for i, mapper_output_table in enumerate(mapper_output_tables):
