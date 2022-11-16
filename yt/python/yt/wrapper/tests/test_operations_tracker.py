@@ -272,7 +272,7 @@ class TestOperationsTracker(object):
                 .output_table_paths(destination_table) \
                 .begin_mapper() \
                     .command(binary) \
-                .end_mapper()
+                .end_mapper() # noqa
 
         tracker = yt.OperationsTrackerPool(pool_size=1)
 

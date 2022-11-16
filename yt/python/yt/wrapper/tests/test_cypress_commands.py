@@ -306,7 +306,7 @@ class TestCypressCommands(object):
         yt.set_attribute(dir_name, "second_attr", "str")
         assert yt.has_attribute(dir_name, "second_attr")
         assert yt.get(dir_name, attributes=["attr", "second_attr"]).attributes == \
-                {"attr": 1, "second_attr": "str"}
+            {"attr": 1, "second_attr": "str"}
 
         result = list(yt.search(table, node_type="table", attributes=("my_attribute", )))
         assert len(result) == 1
@@ -482,7 +482,7 @@ class TestCypressCommands(object):
             with yt.Transaction(timeout=3000) as tx:
                 transaction_id = tx.transaction_id
                 raise yt.YtError("test error")
-        except:
+        except yt.YtError:
             pass
 
         assert not yt.exists("//sys/transactions/" + transaction_id)

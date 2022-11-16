@@ -357,7 +357,7 @@ class TestTableCommands(object):
             try:
                 yt.get("/")
                 return not value
-            except:
+            except yt.YtError:
                 return value
 
         time.sleep(0.5)

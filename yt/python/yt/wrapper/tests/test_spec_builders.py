@@ -60,24 +60,24 @@ class TestSpecBuilders(object):
         with pytest.raises(yt.YtError):
             spec_builder = MergeSpecBuilder() \
                 .input_table_paths([tableX, tableY]) \
-                .output_table_path(res_table)
+                .output_table_path(res_table) # noqa
             yt.run_operation(spec_builder)
         with pytest.raises(yt.YtError):
             spec_builder = MergeSpecBuilder() \
                 .input_table_paths([tableX, tableY]) \
-                .output_table_path(res_table)
+                .output_table_path(res_table) # noqa
             yt.run_operation(spec_builder)
 
         yt.mkdir(dir)
         spec_builder = MergeSpecBuilder() \
             .input_table_paths([tableX, tableY]) \
-            .output_table_path(res_table)
+            .output_table_path(res_table) # noqa
         yt.run_operation(spec_builder)
         check_rows_equality([{"x": 1}, {"y": 2}], yt.read_table(res_table), ordered=False)
 
         spec_builder = MergeSpecBuilder() \
             .input_table_paths(tableX) \
-            .output_table_path(res_table)
+            .output_table_path(res_table) # noqa
         yt.run_operation(spec_builder)
         assert not yt.get_attribute(res_table, "sorted")
         check_rows_equality([{"x": 1}], yt.read_table(res_table))
@@ -85,12 +85,12 @@ class TestSpecBuilders(object):
         spec_builder = SortSpecBuilder() \
             .input_table_paths(tableX) \
             .sort_by(["x"]) \
-            .output_table_path(tableX)
+            .output_table_path(tableX) # noqa
         yt.run_operation(spec_builder)
         spec_builder = MergeSpecBuilder() \
             .input_table_paths(tableX) \
             .output_table_path(res_table) \
-            .mode("sorted")
+            .mode("sorted") # noqa
         yt.run_operation(spec_builder)
         assert yt.get_attribute(res_table, "sorted")
         check_rows_equality([{"x": 1}], yt.read_table(res_table))
@@ -108,13 +108,13 @@ class TestSpecBuilders(object):
             .end_mapper() \
             .input_table_paths(table) \
             .output_table_paths(table) \
-            .ordered(False)
+            .ordered(False) # noqa
         yt.run_operation(spec_builder)
         check_rows_equality([{"x": 1}, {"x": 2}], list(yt.read_table(table)), ordered=False)
         spec_builder = SortSpecBuilder() \
             .input_table_paths(table) \
             .sort_by(["x"]) \
-            .output_table_path(table)
+            .output_table_path(table) # noqa
         yt.run_operation(spec_builder)
 
         # with pytest.raises(yt.YtError):
@@ -135,7 +135,7 @@ class TestSpecBuilders(object):
             .end_reducer() \
             .input_table_paths(table) \
             .output_table_paths(table) \
-            .reduce_by(["x"])
+            .reduce_by(["x"]) # noqa
         yt.run_operation(spec_builder)
         check_rows_equality([{"x": 1}, {"x": 2}], yt.read_table(table))
 
@@ -145,7 +145,7 @@ class TestSpecBuilders(object):
                 .format("json") \
             .end_mapper() \
             .input_table_paths(table) \
-            .output_table_paths(other_table)
+            .output_table_paths(other_table) # noqa
         yt.run_operation(spec_builder)
         check_rows_equality([{"x": 2}], yt.read_table(other_table))
 
@@ -156,7 +156,7 @@ class TestSpecBuilders(object):
                     .format("json") \
                 .end_mapper() \
                 .input_table_paths([table, table + "xxx"]) \
-                .output_table_paths(other_table)
+                .output_table_paths(other_table) # noqa
             yt.run_operation(spec_builder)
 
         with pytest.raises(yt.YtError):
@@ -166,7 +166,7 @@ class TestSpecBuilders(object):
                     .format("json") \
                 .end_reducer() \
                 .input_table_paths(table) \
-                .output_table_paths(other_table)
+                .output_table_paths(other_table) # noqa
             yt.run_operation(spec_builder)
 
         # Run reduce on unsorted table
@@ -178,7 +178,7 @@ class TestSpecBuilders(object):
                 .end_reducer() \
                 .input_table_paths(other_table) \
                 .output_table_paths(table) \
-                .reduce_by(["x"])
+                .reduce_by(["x"]) # noqa
             yt.run_operation(spec_builder)
 
         yt.write_table(table,
@@ -194,7 +194,7 @@ class TestSpecBuilders(object):
                 .format(yt.DsvFormat()) \
             .end_mapper() \
             .input_table_paths(yt.TablePath(table, columns=["b"])) \
-            .output_table_paths(other_table)
+            .output_table_paths(other_table) # noqa
         yt.run_operation(spec_builder)
         records = yt.read_table(other_table, raw=False)
         assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
@@ -209,7 +209,7 @@ class TestSpecBuilders(object):
                     .format(yt.DsvFormat()) \
                 .end_mapper() \
                 .input_table_paths(yt.TablePath(table, columns=["b"])) \
-                .output_table_paths(other_table)
+                .output_table_paths(other_table) # noqa
             yt.run_operation(spec_builder)
             records = yt.read_table(other_table, raw=False)
             assert sorted([rec["b"] for rec in records]) == ["IGNAT", "MAX", "NAME"]
@@ -231,7 +231,7 @@ class TestSpecBuilders(object):
             .reduce_by(["x"]) \
             .sort_by(["x"]) \
             .input_table_paths(table) \
-            .output_table_paths(output_table)
+            .output_table_paths(output_table) # noqa
 
         yt.run_operation(spec_builder)
         check_rows_equality([{"x": 1}, {"y": 2}], list(yt.read_table(table)))
@@ -272,12 +272,12 @@ class TestSpecBuilders(object):
             with set_config_option("spec_overrides", spec_overrides):
                 spec_builder = MapSpecBuilder() \
                     .begin_mapper() \
-                    .command("cat") \
-                    .format("json") \
-                    .memory_limit(256 * 1024 * 1024) \
+                        .command("cat") \
+                        .format("json") \
+                        .memory_limit(256 * 1024 * 1024) \
                     .end_mapper() \
                     .input_table_paths(input_table) \
-                    .output_table_paths(output_table)
+                    .output_table_paths(output_table) # noqa
 
                 op = yt.run_operation(spec_builder)
                 attributes = op.get_attributes()
@@ -303,12 +303,12 @@ class TestSpecBuilders(object):
         with set_config_option("user_job_spec_defaults", user_job_spec_defaults):
             spec_builder = MapSpecBuilder() \
                 .begin_mapper() \
-                .command("cat") \
-                .format("json") \
-                .memory_limit(256 * 1024 * 1024) \
+                    .command("cat") \
+                    .format("json") \
+                    .memory_limit(256 * 1024 * 1024) \
                 .end_mapper() \
                 .input_table_paths(input_table) \
-                .output_table_paths(output_table)
+                .output_table_paths(output_table) # noqa
             op = yt.run_operation(spec_builder)
             attributes = op.get_attributes()
             assert attributes["spec"]["mapper"]["memory_limit"] == 256 * 1024 * 1024
@@ -316,14 +316,14 @@ class TestSpecBuilders(object):
 
             spec_builder = ReduceSpecBuilder() \
                 .begin_reducer() \
-                .command("cat") \
-                .format("json") \
-                .memory_limit(256 * 1024 * 1024) \
-                .environment({"OTHER_ENV": "10"}) \
+                    .command("cat") \
+                    .format("json") \
+                    .memory_limit(256 * 1024 * 1024) \
+                    .environment({"OTHER_ENV": "10"}) \
                 .end_reducer() \
                 .reduce_by(["x"]) \
                 .input_table_paths(input_table) \
-                .output_table_paths(output_table)
+                .output_table_paths(output_table) # noqa
             op = yt.run_operation(spec_builder)
             attributes = op.get_attributes()
             assert attributes["spec"]["reducer"]["memory_limit"] == 256 * 1024 * 1024
@@ -364,7 +364,7 @@ class TestSpecBuilders(object):
             .end_reducer() \
             .reduce_by("tag") \
             .input_table_paths(input_table) \
-            .output_table_paths(output_table)
+            .output_table_paths(output_table) # noqa
 
         yt.run_operation(spec_builder)
         check_rows_equality(
@@ -378,12 +378,12 @@ class TestSpecBuilders(object):
 
     @authors("prime")
     def test_vanilla_spec_builder(self):
-        vanilla_spec = VanillaSpecBuilder()\
-            .begin_task("sample")\
-                .command("cat")\
-                .job_count(1)\
-            .end_task()\
-            .spec({"tasks": {"sample": {"memory_limit": 666 * 1024}}, "weight": 2})
+        vanilla_spec = VanillaSpecBuilder() \
+            .begin_task("sample") \
+                .command("cat") \
+                .job_count(1) \
+            .end_task() \
+            .spec({"tasks": {"sample": {"memory_limit": 666 * 1024}}, "weight": 2}) # noqa
 
         result_spec = vanilla_spec.build()
         correct_spec = {
@@ -452,7 +452,7 @@ class TestSpecBuilders(object):
             .end_mapper() \
             .input_table_paths(["//tmp/t_in"]) \
             .output_table_paths(["//tmp/t_out"]) \
-        .build()
+            .build() # noqa
 
         correct_spec = {
             "mapper": {
@@ -470,12 +470,12 @@ class TestSpecBuilders(object):
 
     @authors("levysotsky")
     def test_spec_builder_started_by_truncation(self):
-        vanilla_spec = VanillaSpecBuilder()\
-            .begin_task("sample")\
-                .command("cat")\
-                .job_count(1)\
-            .end_task()\
-            .spec({"tasks": {"sample": {"memory_limit": 666 * 1024}}, "weight": 2})
+        vanilla_spec = VanillaSpecBuilder() \
+            .begin_task("sample") \
+                .command("cat") \
+                .job_count(1) \
+            .end_task() \
+            .spec({"tasks": {"sample": {"memory_limit": 666 * 1024}}, "weight": 2}) # noqa
 
         result_spec = deepcopy(vanilla_spec).build()
         assert result_spec["started_by"]["command"] == get_started_by()["command"]
@@ -493,7 +493,7 @@ class TestSpecBuilders(object):
             .end_mapper() \
             .input_table_paths(["//tmp/t_in"]) \
             .output_table_paths(["//tmp/t_out"]) \
-            .build()
+            .build() # noqa
 
         assert "title" in spec
         assert "Mapper" in spec["title"] and "cat" in spec["title"]
@@ -501,9 +501,9 @@ class TestSpecBuilders(object):
         spec = VanillaSpecBuilder() \
             .begin_task("sample") \
                 .command("cat") \
-            .job_count(1) \
+                .job_count(1) \
             .end_task() \
-            .build()
+            .build() # noqa
 
         assert "title" in spec
         assert "cat" in spec["title"] and "Sample" in spec["title"]
@@ -518,7 +518,7 @@ class TestSpecBuilders(object):
                 .end_reducer() \
                 .reduce_by(["x"]) \
                 .sort_by(["x"]) \
-                .build()
+                .build() # noqa
 
             assert "title" in spec
             for part in ["Mapper", "Reducer", "cat"]:
