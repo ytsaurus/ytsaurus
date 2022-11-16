@@ -27,7 +27,7 @@ public:
     TDuration OnPrimaryRequestsStarted(int requestCount) override
     {
         auto statistics = AcquireHedgingStatistics();
-        statistics->PrimaryRequestCount.fetch_add(requestCount, std::memory_order_relaxed);
+        statistics->PrimaryRequestCount.fetch_add(requestCount, std::memory_order::relaxed);
 
         return statistics->HedgingDelay;
     }
@@ -39,21 +39,21 @@ public:
         double previousStatisticsWeight = 1. - (GetInstant() - statistics->StartInstant) / Config_->TickPeriod;
         previousStatisticsWeight = std::max(0., std::min(1., previousStatisticsWeight));
 
-        auto backupRequestCount = statistics->BackupRequestCount.load(std::memory_order_relaxed);
-        auto primaryRequestCount = statistics->PrimaryRequestCount.load(std::memory_order_relaxed);
+        auto backupRequestCount = statistics->BackupRequestCount.load(std::memory_order::relaxed);
+        auto primaryRequestCount = statistics->PrimaryRequestCount.load(std::memory_order::relaxed);
 
         if (auto previousStatistics = statistics->PreviousStatistics.Acquire()) {
             backupRequestCount += previousStatisticsWeight *
-                previousStatistics->BackupRequestCount.load(std::memory_order_relaxed);
+                previousStatistics->BackupRequestCount.load(std::memory_order::relaxed);
             primaryRequestCount += previousStatisticsWeight *
-                previousStatistics->PrimaryRequestCount.load(std::memory_order_relaxed);
+                previousStatistics->PrimaryRequestCount.load(std::memory_order::relaxed);
         }
 
-        statistics->BackupAttemptCount.fetch_add(attemptCount, std::memory_order_relaxed);
+        statistics->BackupAttemptCount.fetch_add(attemptCount, std::memory_order::relaxed);
 
         bool hedgingApproved = !IsBackupRequestLimitExceeded(primaryRequestCount, backupRequestCount);
         if (hedgingApproved) {
-            statistics->BackupRequestCount.fetch_add(attemptCount, std::memory_order_relaxed);
+            statistics->BackupRequestCount.fetch_add(attemptCount, std::memory_order::relaxed);
         }
 
         return hedgingApproved;
@@ -99,8 +99,8 @@ private:
         const THedgingStatisticsPtr& currentStatistics)
     {
         auto newHedgingDelay = currentStatistics->HedgingDelay;
-        auto primaryRequestCount = currentStatistics->PrimaryRequestCount.load(std::memory_order_relaxed);
-        auto backupAttemptCount = currentStatistics->BackupAttemptCount.load(std::memory_order_relaxed);
+        auto primaryRequestCount = currentStatistics->PrimaryRequestCount.load(std::memory_order::relaxed);
+        auto backupAttemptCount = currentStatistics->BackupAttemptCount.load(std::memory_order::relaxed);
         if (IsBackupRequestLimitExceeded(primaryRequestCount, backupAttemptCount)) {
             newHedgingDelay *= Config_->HedgingDelayTuneFactor;
         } else {
@@ -116,9 +116,9 @@ private:
 
         // NB: Skip profiling in case of very low RPS.
         if (newStatistics->StartInstant - currentStatistics->StartInstant <= 2 * Config_->TickPeriod) {
-            PrimaryRequestCount_.Increment(currentStatistics->PrimaryRequestCount.load(std::memory_order_relaxed));
-            BackupAttemptCount_.Increment(currentStatistics->BackupAttemptCount.load(std::memory_order_relaxed));
-            BackupRequestCount_.Increment(currentStatistics->BackupRequestCount.load(std::memory_order_relaxed));
+            PrimaryRequestCount_.Increment(currentStatistics->PrimaryRequestCount.load(std::memory_order::relaxed));
+            BackupAttemptCount_.Increment(currentStatistics->BackupAttemptCount.load(std::memory_order::relaxed));
+            BackupRequestCount_.Increment(currentStatistics->BackupRequestCount.load(std::memory_order::relaxed));
             HedgingDelay_.Update(currentStatistics->HedgingDelay);
         }
 

@@ -90,16 +90,16 @@ TSlabAllocator* TRowCache::GetAllocator()
 
 ui32 TRowCache::GetFlushIndex() const
 {
-    return FlushIndex_.load(std::memory_order_acquire);
+    return FlushIndex_.load(std::memory_order::acquire);
 }
 
 void TRowCache::SetFlushIndex(ui32 storeFlushIndex)
 {
-    auto currentFlushIndex = FlushIndex_.load(std::memory_order_acquire);
+    auto currentFlushIndex = FlushIndex_.load(std::memory_order::acquire);
     // Check that stores are flushed in proper order.
     // Revisions are equal if retrying flush.
     YT_VERIFY(currentFlushIndex <= storeFlushIndex);
-    FlushIndex_.store(storeFlushIndex, std::memory_order_release);
+    FlushIndex_.store(storeFlushIndex, std::memory_order::release);
 }
 
 void TRowCache::UpdateItems(
@@ -132,7 +132,7 @@ void TRowCache::UpdateItems(
             // the following logic.
 
             // Normally this condition is rare.
-            if (foundItem->Revision.load(std::memory_order_acquire) < storeFlushIndex) {
+            if (foundItem->Revision.load(std::memory_order::acquire) < storeFlushIndex) {
                 // No way to update row and preserve revision.
                 // Discard its revision.
                 // In lookup use CAS to update revision to Max.
@@ -142,7 +142,7 @@ void TRowCache::UpdateItems(
                     foundItem->Revision.load(),
                     storeFlushIndex);
 
-                foundItem->Revision.store(std::numeric_limits<ui32>::min(), std::memory_order_release);
+                foundItem->Revision.store(std::numeric_limits<ui32>::min(), std::memory_order::release);
                 continue;
             }
 
@@ -161,7 +161,7 @@ void TRowCache::UpdateItems(
             if (!updatedItem) {
                 // Not enough memory to allocate new item.
                 // Make current item outdated.
-                foundItem->Revision.store(std::numeric_limits<ui32>::min(), std::memory_order_release);
+                foundItem->Revision.store(std::numeric_limits<ui32>::min(), std::memory_order::release);
                 continue;
             }
 
@@ -170,7 +170,7 @@ void TRowCache::UpdateItems(
                 foundItem->Revision.load(),
                 storeFlushIndex);
 
-            updatedItem->Revision.store(std::numeric_limits<ui32>::max(), std::memory_order_release);
+            updatedItem->Revision.store(std::numeric_limits<ui32>::max(), std::memory_order::release);
 
             YT_VERIFY(!foundItem->Updated.Exchange(updatedItem));
 
@@ -203,7 +203,7 @@ void TRowCache::ReallocateItems(const NLogging::TLogger& Logger)
             if (IsReallocationNeeded(memoryBegin)) {
                 ++reallocatedRows;
                 if (auto newItem = CopyCachedRow(&Allocator_, item.Get())) {
-                    newItem->Revision.store(item->Revision.load(std::memory_order_acquire), std::memory_order_release);
+                    newItem->Revision.store(item->Revision.load(std::memory_order::acquire), std::memory_order::release);
                     YT_VERIFY(!item->Updated.Exchange(newItem));
                     itemRef.Update(newItem);
                 }

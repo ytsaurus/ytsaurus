@@ -27,7 +27,7 @@ TTransactionSignature TTransactionSignatureGenerator::GenerateSignature()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto requestIndex = RequestIndex_.fetch_add(1, std::memory_order_relaxed);
+    auto requestIndex = RequestIndex_.fetch_add(1, std::memory_order::relaxed);
     YT_VERIFY(requestIndex < RequestCount_);
 
     // NB(gritukan): For now it is not important which request has non-trivial signature

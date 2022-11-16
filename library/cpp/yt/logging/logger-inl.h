@@ -16,7 +16,7 @@ inline bool TLogger::IsAnchorUpToDate(const TLoggingAnchor& position) const
 {
     return
         !Category_ ||
-        position.CurrentVersion == Category_->ActualVersion->load(std::memory_order_relaxed);
+        position.CurrentVersion == Category_->ActualVersion->load(std::memory_order::relaxed);
 }
 
 template <class... TArgs>

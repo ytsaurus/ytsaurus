@@ -180,7 +180,7 @@ TConcurrentCache<T>::TInserter::TInserter(
 template <class T>
 typename TConcurrentCache<T>::TLookupTable* TConcurrentCache<T>::TInserter::GetTable()
 {
-    auto targetCapacity = Parent_->Capacity_.load(std::memory_order_acquire);
+    auto targetCapacity = Parent_->Capacity_.load(std::memory_order::acquire);
     if (Primary_->Size >= std::min(targetCapacity, Primary_->Capacity)) {
         Primary_ = Parent_->RenewTable(Primary_, targetCapacity);
     }
@@ -199,7 +199,7 @@ template <class T>
 void TConcurrentCache<T>::SetCapacity(size_t capacity)
 {
     YT_VERIFY(capacity > 0);
-    Capacity_.store(capacity, std::memory_order_release);
+    Capacity_.store(capacity, std::memory_order::release);
 
     auto primary = Head_.Acquire();
     if (primary->Size >= std::min(capacity, primary->Capacity)) {

@@ -45,7 +45,7 @@ public:
                 return nullptr;
             }
             auto item = THazardPtr<T>::Acquire([&] {
-                return ValueFromEntry(Entry_->load(std::memory_order_acquire));
+                return ValueFromEntry(Entry_->load(std::memory_order::acquire));
             });
 
             return TValuePtr(item.Get());
@@ -55,7 +55,7 @@ public:
         void Update(TValuePtr value)
         {
             // Fingerprint must be equal.
-            auto stamp = StampFromEntry(Entry_->load(std::memory_order_acquire));
+            auto stamp = StampFromEntry(Entry_->load(std::memory_order::acquire));
 
             auto entry = MakeEntry(stamp, value.Release());
             // TODO(lukyan): Keep dereferenced value and update via CAS.
@@ -70,7 +70,7 @@ public:
                 return false;
             }
 
-            auto currentEntry = Entry_->load(std::memory_order_acquire);
+            auto currentEntry = Entry_->load(std::memory_order::acquire);
             // Fingerprint must be equal.
             auto stamp = StampFromEntry(currentEntry);
 

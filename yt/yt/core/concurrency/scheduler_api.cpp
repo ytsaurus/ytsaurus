@@ -124,7 +124,7 @@ public:
 
     bool IsCanceled() const
     {
-        return Canceled_.load(std::memory_order_relaxed);
+        return Canceled_.load(std::memory_order::relaxed);
     }
 
     void SetFuture(TFuture<void> awaitable)
@@ -142,7 +142,7 @@ public:
     void Cancel(const TError& error)
     {
         bool expected = false;
-        if (!Canceled_.compare_exchange_strong(expected, true, std::memory_order_relaxed)) {
+        if (!Canceled_.compare_exchange_strong(expected, true, std::memory_order::relaxed)) {
             return;
         }
 

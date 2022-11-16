@@ -272,7 +272,7 @@ void TBlobChunkBase::DoReadMeta(
 
     session->Options.ChunkReaderStatistics->MetaReadFromDiskTime.fetch_add(
         DurationToValue(readTime),
-        std::memory_order_relaxed);
+        std::memory_order::relaxed);
 
     auto& performanceCounters = Location_->GetPerformanceCounters();
     performanceCounters.BlobChunkMetaReadTime.Record(readTime);
@@ -335,7 +335,7 @@ void TBlobChunkBase::OnBlocksExtLoaded(
                         auto block = cachedBlock.Block;
                         session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                             block.Size(),
-                            std::memory_order_relaxed);
+                            std::memory_order::relaxed);
                         session->Entries[entryIndex].Block = std::move(block);
                     })));
                 continue;
@@ -690,7 +690,7 @@ TFuture<std::vector<TBlock>> TBlobChunkBase::ReadBlockSet(
             if (block) {
                 session->Options.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     block.Size(),
-                    std::memory_order_relaxed);
+                    std::memory_order::relaxed);
                 entry.Block = std::move(block);
                 entry.Cached = true;
             } else {

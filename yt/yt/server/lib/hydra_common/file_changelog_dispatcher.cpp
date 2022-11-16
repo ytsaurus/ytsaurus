@@ -236,7 +236,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        if (ProcessQueueCallbackPending_.load(std::memory_order_relaxed)) {
+        if (ProcessQueueCallbackPending_.load(std::memory_order::relaxed)) {
             return;
         }
 

@@ -19,15 +19,15 @@ TRelaxedMpscQueueBase::~TRelaxedMpscQueueBase()
 
 void TRelaxedMpscQueueBase::EnqueueImpl(TRelaxedMpscQueueHook* node) noexcept
 {
-    node->Next.store(nullptr, std::memory_order_release);
-    auto* prev = Head_.exchange(node, std::memory_order_acq_rel);
-    prev->Next.store(node, std::memory_order_release);
+    node->Next.store(nullptr, std::memory_order::release);
+    auto* prev = Head_.exchange(node, std::memory_order::acq_rel);
+    prev->Next.store(node, std::memory_order::release);
 }
 
 TRelaxedMpscQueueHook* TRelaxedMpscQueueBase::TryDequeueImpl() noexcept
 {
     auto* tail = Tail_;
-    auto* next = tail->Next.load(std::memory_order_acquire);
+    auto* next = tail->Next.load(std::memory_order::acquire);
 
     // Handle stub node.
     if (tail == &Stub_) {
@@ -37,7 +37,7 @@ TRelaxedMpscQueueHook* TRelaxedMpscQueueBase::TryDequeueImpl() noexcept
         Tail_ = next;
         // Save tail-recursive call by updating local variables.
         tail = next;
-        next = next->Next.load(std::memory_order_acquire);
+        next = next->Next.load(std::memory_order::acquire);
     }
 
     // No producer-consumer race.
@@ -46,7 +46,7 @@ TRelaxedMpscQueueHook* TRelaxedMpscQueueBase::TryDequeueImpl() noexcept
         return tail;
     }
 
-    auto* head = Head_.load(std::memory_order_acquire);
+    auto* head = Head_.load(std::memory_order::acquire);
 
     // Concurrent producer was blocked, bail out.
     if (tail != head) {
@@ -55,7 +55,7 @@ TRelaxedMpscQueueHook* TRelaxedMpscQueueBase::TryDequeueImpl() noexcept
 
     // Decouple (future) producers and consumer by barriering via stub node.
     EnqueueImpl(&Stub_);
-    next = tail->Next.load(std::memory_order_acquire);
+    next = tail->Next.load(std::memory_order::acquire);
 
     if (next) {
         Tail_ = next;

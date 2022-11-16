@@ -114,7 +114,7 @@ template <class TResult, class... TArgs>
 void TSingleShotCallbackList<TResult(TArgs...)>::Subscribe(const TCallback& callback)
 {
     auto guard = WriterGuard(SpinLock_);
-    if (Fired_.load(std::memory_order_acquire)) {
+    if (Fired_.load(std::memory_order::acquire)) {
         guard.Release();
         std::apply(callback, Args_);
         return;
@@ -126,7 +126,7 @@ template <class TResult, class... TArgs>
 bool TSingleShotCallbackList<TResult(TArgs...)>::TrySubscribe(const TCallback& callback)
 {
     auto guard = WriterGuard(SpinLock_);
-    if (Fired_.load(std::memory_order_acquire)) {
+    if (Fired_.load(std::memory_order::acquire)) {
         return false;
     }
     Callbacks_.push_back(callback);
@@ -159,12 +159,12 @@ bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
     TCallbackVector callbacks;
     {
         auto guard = WriterGuard(SpinLock_);
-        if (Fired_.load(std::memory_order_acquire)) {
+        if (Fired_.load(std::memory_order::acquire)) {
             return false;
         }
         Args_ = std::make_tuple(std::forward<TCallArgs>(args)...);
         callbacks.swap(Callbacks_);
-        Fired_.store(true, std::memory_order_release);
+        Fired_.store(true, std::memory_order::release);
     }
 
     for (const auto& callback : callbacks) {
@@ -177,7 +177,7 @@ bool TSingleShotCallbackList<TResult(TArgs...)>::Fire(TCallArgs&&... args)
 template <class TResult, class... TArgs>
 bool TSingleShotCallbackList<TResult(TArgs...)>::IsFired() const
 {
-    return Fired_.load(std::memory_order_acquire);
+    return Fired_.load(std::memory_order::acquire);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

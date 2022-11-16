@@ -60,7 +60,7 @@ public:
             auto directoryName = NFS::GetDirectoryName(Config_->FileName);
             auto statistics = NFS::GetDiskSpaceStatistics(directoryName);
             if (statistics.AvailableSpace < minSpace) {
-                if (!Disabled_.load(std::memory_order_acquire)) {
+                if (!Disabled_.load(std::memory_order::acquire)) {
                     Disabled_ = true;
                     YT_LOG_ERROR("Log file disabled: not enough space available (FileName: %v, AvailableSpace: %v, MinSpace: %v)",
                         directoryName,
@@ -70,7 +70,7 @@ public:
                     Close();
                 }
             } else {
-                if (Disabled_.load(std::memory_order_acquire)) {
+                if (Disabled_.load(std::memory_order::acquire)) {
                     Reload(); // Reinitialize all descriptors.
 
                     YT_LOG_INFO("Log file enabled: space check passed (FileName: %v)",
@@ -90,7 +90,7 @@ public:
 protected:
     IOutputStream* GetOutputStream() const noexcept override
     {
-        if (Y_UNLIKELY(Disabled_.load(std::memory_order_acquire))) {
+        if (Y_UNLIKELY(Disabled_.load(std::memory_order::acquire))) {
             return nullptr;
         }
         return OutputStream_.Get();

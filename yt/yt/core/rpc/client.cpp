@@ -271,7 +271,7 @@ void TClientRequest::SetMutationId(TMutationId id)
 
 size_t TClientRequest::GetHash() const
 {
-    auto hash = Hash_.load(std::memory_order_relaxed);
+    auto hash = Hash_.load(std::memory_order::relaxed);
     if (hash == UnknownHash) {
         hash = ComputeHash();
         auto oldHash = Hash_.exchange(hash);

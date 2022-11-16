@@ -273,7 +273,7 @@ std::vector<TBlock> TChunkFileReader::OnBlocksRead(
 
     options.ChunkReaderStatistics->DataBytesReadFromDisk.fetch_add(
         buffer.Size(),
-        std::memory_order_relaxed);
+        std::memory_order::relaxed);
     const auto& firstBlockInfo = blocksExt->Blocks[firstBlockIndex];
 
     std::vector<TBlock> blocks;
@@ -409,7 +409,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
 
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(
         metaFileBlob.Size(),
-        std::memory_order_relaxed);
+        std::memory_order::relaxed);
 
     TChunkMetaHeader_2 metaHeader;
     TRef metaBlob;

@@ -19,7 +19,7 @@ template <class T>
 TLockFreeHashTable<T>::~TLockFreeHashTable()
 {
     for (size_t index = 0; index < Size_; ++index) {
-        auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
+        auto tableEntry = HashTable_[index].load(std::memory_order::relaxed);
         auto stamp = StampFromEntry(tableEntry);
         if (stamp != 0) {
             ScheduleObjectDeletion(ValueFromEntry(tableEntry), [] (void* ptr) {
@@ -34,7 +34,7 @@ template <class TCallback>
 void TLockFreeHashTable<T>::ForEach(TCallback callback)
 {
     for (size_t index = 0; index < Size_; ++index) {
-        auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
+        auto tableEntry = HashTable_[index].load(std::memory_order::relaxed);
         auto stamp = StampFromEntry(tableEntry);
         if (stamp != 0) {
             callback(TItemRef(&HashTable_[index]));
@@ -57,15 +57,15 @@ bool TLockFreeHashTable<T>::Insert(TFingerprint fingerprint, TValuePtr value)
     auto entry = MakeEntry(stamp, value.Get());
 
     for (size_t probeCount = Size_; probeCount != 0;) {
-        auto tableEntry = HashTable_[index].load(std::memory_order_acquire);
+        auto tableEntry = HashTable_[index].load(std::memory_order::acquire);
         auto tableStamp = StampFromEntry(tableEntry);
 
         if (tableStamp == 0) {
             auto success = HashTable_[index].compare_exchange_strong(
                 tableEntry,
                 entry,
-                std::memory_order_release,
-                std::memory_order_acquire);
+                std::memory_order::release,
+                std::memory_order::acquire);
             if (success) {
                 value.Release();
                 return true;
@@ -74,7 +74,7 @@ bool TLockFreeHashTable<T>::Insert(TFingerprint fingerprint, TValuePtr value)
 
         // This hazard ptr protects from Unref. We do not want to change ref count so frequently.
         auto item = THazardPtr<T>::Acquire([&] {
-            return ValueFromEntry(HashTable_[index].load(std::memory_order_acquire));
+            return ValueFromEntry(HashTable_[index].load(std::memory_order::acquire));
         }, ValueFromEntry(tableEntry));
 
         if (TEqualTo<T>()(item.Get(), value.Get())) {
@@ -99,7 +99,7 @@ TIntrusivePtr<T> TLockFreeHashTable<T>::Find(TFingerprint fingerprint, const TKe
     auto stamp = StampFromFingerprint(fingerprint);
 
     for (size_t probeCount = Size_; probeCount != 0;) {
-        auto tableEntry = HashTable_[index].load(std::memory_order_acquire);
+        auto tableEntry = HashTable_[index].load(std::memory_order::acquire);
         auto tableStamp = StampFromEntry(tableEntry);
 
         if (tableStamp == 0) {
@@ -111,7 +111,7 @@ TIntrusivePtr<T> TLockFreeHashTable<T>::Find(TFingerprint fingerprint, const TKe
             // TIntrusivePtr::AcquireUnchecked could be used outside this function.
 
             auto item = THazardPtr<T>::Acquire([&] {
-                return ValueFromEntry(HashTable_[index].load(std::memory_order_acquire));
+                return ValueFromEntry(HashTable_[index].load(std::memory_order::acquire));
             }, ValueFromEntry(tableEntry));
 
             if (TEqualTo<T>()(item.Get(), key)) {
@@ -139,7 +139,7 @@ typename TLockFreeHashTable<T>::TItemRef TLockFreeHashTable<T>::FindRef(TFingerp
     auto stamp = StampFromFingerprint(fingerprint);
 
     for (size_t probeCount = Size_; probeCount != 0;) {
-        auto tableEntry = HashTable_[index].load(std::memory_order_relaxed);
+        auto tableEntry = HashTable_[index].load(std::memory_order::relaxed);
         auto tableStamp = StampFromEntry(tableEntry);
 
         if (tableStamp == 0) {
@@ -151,7 +151,7 @@ typename TLockFreeHashTable<T>::TItemRef TLockFreeHashTable<T>::FindRef(TFingerp
             // TIntrusivePtr::AcquireUnchecked could be used outside this function.
 
             auto item = THazardPtr<T>::Acquire([&] {
-                return ValueFromEntry(HashTable_[index].load(std::memory_order_relaxed));
+                return ValueFromEntry(HashTable_[index].load(std::memory_order::relaxed));
             }, ValueFromEntry(tableEntry));
 
             if (TEqualTo<T>()(item.Get(), key)) {

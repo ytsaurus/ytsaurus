@@ -253,7 +253,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
         if (cachedBlock) {
             ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                 cachedBlock.Size(),
-                std::memory_order_relaxed);
+                std::memory_order::relaxed);
 
             cachedBlock.Data = TrackMemoryReference(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
 
@@ -425,7 +425,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
             if (cachedBlock) {
                 ChunkReadOptions_.ChunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     cachedBlock.Size(),
-                    std::memory_order_relaxed);
+                    std::memory_order::relaxed);
 
                 cachedBlock.Data = TrackMemoryReference(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
 

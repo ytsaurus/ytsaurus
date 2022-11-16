@@ -35,7 +35,7 @@ public:
 
     bool TryIncrease(ui64 delta)
     {
-        if (Value_.fetch_add(delta, std::memory_order_relaxed) + delta <= MaxValue_) {
+        if (Value_.fetch_add(delta, std::memory_order::relaxed) + delta <= MaxValue_) {
             return true;
         }
         Decrease(delta);
@@ -45,16 +45,16 @@ public:
     void Decrease(ui64 delta)
     {
         // TODO(dakovalkov): Is it possible?
-        if (Value_.fetch_sub(delta, std::memory_order_relaxed) < delta) {
+        if (Value_.fetch_sub(delta, std::memory_order::relaxed) < delta) {
             // rollback operation on negative result
             // negative result can be in case of batcher data dropping and on-the-fly transaction
-            Value_.fetch_add(delta, std::memory_order_relaxed);
+            Value_.fetch_add(delta, std::memory_order::relaxed);
         }
     }
 
     void Reset()
     {
-        Value_.store(0, std::memory_order_relaxed);
+        Value_.store(0, std::memory_order::relaxed);
     }
 
     ui64 GetValue() const
@@ -85,12 +85,12 @@ static constexpr int QueueIsTooLargeMultiplier = 2;
 
 void TArchiveVersionHolder::Set(int version)
 {
-    Version_.store(version, std::memory_order_relaxed);
+    Version_.store(version, std::memory_order::relaxed);
 }
 
 int TArchiveVersionHolder::Get() const
 {
-    return Version_.load(std::memory_order_relaxed);
+    return Version_.load(std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -145,7 +145,7 @@ public:
             EnqueuedCounter_.Increment();
             QueueIsTooLargeCounter_.Update(QueueIsTooLarge() ? 1 : 0);
         } else {
-            DroppedCount_.fetch_add(1, std::memory_order_relaxed);
+            DroppedCount_.fetch_add(1, std::memory_order::relaxed);
             DroppedCounter_.Increment();
         }
     }
@@ -228,7 +228,7 @@ private:
                 Limiter_.Decrease(dataSize);
                 return;
             } catch (const std::exception& ex) {
-                WriteFailuresCount_.fetch_add(1, std::memory_order_relaxed);
+                WriteFailuresCount_.fetch_add(1, std::memory_order::relaxed);
                 WriteFailuresCounter_.Increment();
                 YT_LOG_WARNING(ex, "Failed to upload archived rows (RetryDelay: %v, PendingItems: %v)",
                     delay.Seconds(),
@@ -312,7 +312,7 @@ private:
         EnableSemaphore_->Acquire();
         Batcher_->Drop();
         Limiter_.Reset();
-        DroppedCount_.store(0, std::memory_order_relaxed);
+        DroppedCount_.store(0, std::memory_order::relaxed);
         PendingCounter_.Update(PendingCount_ = 0);
         QueueIsTooLargeCounter_.Update(0);
         YT_LOG_INFO("Archive reporter disabled");
@@ -373,7 +373,7 @@ TArchiveReporter::TArchiveReporter(
         std::move(invoker),
         profiler))
 { }
- 
+
 TArchiveReporter::~TArchiveReporter() = default;
 
 void TArchiveReporter::Enqueue(std::unique_ptr<IArchiveRowlet> rowStub)

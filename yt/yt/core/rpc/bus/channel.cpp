@@ -695,7 +695,7 @@ private:
 
         TFuture<void> GetBusReadyFuture()
         {
-            if (Y_LIKELY(BusReady_.load(std::memory_order_relaxed))) {
+            if (Y_LIKELY(BusReady_.load(std::memory_order::relaxed))) {
                 return {};
             }
 

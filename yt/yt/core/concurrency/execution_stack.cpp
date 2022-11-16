@@ -181,8 +181,8 @@ static std::atomic<int> LargeFiberStackPoolSize = {1024};
 int GetFiberStackPoolSize(EExecutionStackKind stackKind)
 {
     switch (stackKind) {
-        case EExecutionStackKind::Small: return SmallFiberStackPoolSize.load(std::memory_order_relaxed);
-        case EExecutionStackKind::Large: return LargeFiberStackPoolSize.load(std::memory_order_relaxed);
+        case EExecutionStackKind::Small: return SmallFiberStackPoolSize.load(std::memory_order::relaxed);
+        case EExecutionStackKind::Large: return LargeFiberStackPoolSize.load(std::memory_order::relaxed);
         default:                         YT_ABORT();
     }
 }

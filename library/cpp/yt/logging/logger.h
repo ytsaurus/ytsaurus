@@ -302,7 +302,7 @@ void LogStructuredEvent(
         } \
         \
         bool anchorUpToDate__##__LINE__ = logger__##__LINE__.IsAnchorUpToDate(*anchor__##__LINE__); \
-        if (anchorUpToDate__##__LINE__ && !anchor__##__LINE__->Enabled.load(std::memory_order_relaxed)) { \
+        if (anchorUpToDate__##__LINE__ && !anchor__##__LINE__->Enabled.load(std::memory_order::relaxed)) { \
             break; \
         } \
         \
@@ -314,7 +314,7 @@ void LogStructuredEvent(
             logger__##__LINE__.UpdateAnchor(anchor__##__LINE__); \
         } \
         \
-        if (!anchor__##__LINE__->Enabled.load(std::memory_order_relaxed)) { \
+        if (!anchor__##__LINE__->Enabled.load(std::memory_order::relaxed)) { \
             break; \
         } \
         \

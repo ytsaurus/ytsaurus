@@ -87,7 +87,7 @@ public:
         size_t segmentCount = 0;
         auto* segment = Segments_.ExtractAll();
         while (segment) {
-            auto* next = segment->Next.load(std::memory_order_acquire);
+            auto* next = segment->Next.load(std::memory_order::acquire);
             NYTAlloc::Free(segment);
             segment = next;
             ++segmentCount;
@@ -149,13 +149,13 @@ private:
             auto* current = reinterpret_cast<TFreeListItem*>(ptr);
             ptr += objectSize;
 
-            current->Next.store(reinterpret_cast<TFreeListItem*>(ptr), std::memory_order_release);
+            current->Next.store(reinterpret_cast<TFreeListItem*>(ptr), std::memory_order::release);
         }
 
         YT_VERIFY(ptr == lastPtr);
 
         auto* current = reinterpret_cast<TFreeListItem*>(ptr);
-        current->Next.store(nullptr, std::memory_order_release);
+        current->Next.store(nullptr, std::memory_order::release);
 
         return {head, current};
     }
@@ -406,7 +406,7 @@ void* TSlabAllocator::Allocate(size_t size)
 
     // Mutes TSAN data race with write Next in TFreeList::Push.
     auto* header = static_cast<std::atomic<uintptr_t>*>(ptr);
-    header->store(tag, std::memory_order_release);
+    header->store(tag, std::memory_order::release);
 
     return header + 1;
 }

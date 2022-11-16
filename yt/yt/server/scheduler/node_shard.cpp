@@ -468,7 +468,7 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
         jobReporterWriteFailuresCount = request->job_reporter_write_failures_count();
     }
     if (jobReporterWriteFailuresCount > 0) {
-        JobReporterWriteFailuresCount_.fetch_add(jobReporterWriteFailuresCount, std::memory_order_relaxed);
+        JobReporterWriteFailuresCount_.fetch_add(jobReporterWriteFailuresCount, std::memory_order::relaxed);
     }
 
     auto nodeId = request->node_id();

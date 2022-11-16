@@ -29,7 +29,7 @@ TSpscQueue<T>::~TSpscQueue()
 {
     auto current = Head_;
     while (current) {
-        auto next = current->Next.load(std::memory_order_acquire);
+        auto next = current->Next.load(std::memory_order::acquire);
         delete current;
         current = next;
     }
@@ -38,7 +38,7 @@ TSpscQueue<T>::~TSpscQueue()
 template <class T>
 void TSpscQueue<T>::Push(T&& element)
 {
-    auto count = Count_.load(std::memory_order_acquire);
+    auto count = Count_.load(std::memory_order::acquire);
     size_t position = count - Tail_->Offset;
 
     if (Y_UNLIKELY(position == BufferSize)) {
@@ -50,14 +50,14 @@ void TSpscQueue<T>::Push(T&& element)
     }
 
     Tail_->Data[position] = std::move(element);
-    Count_.store(count + 1, std::memory_order_release);
+    Count_.store(count + 1, std::memory_order::release);
 }
 
 template <class T>
 T* TSpscQueue<T>::Front() const
 {
     if (Y_UNLIKELY(Offset_ >= CachedCount_)) {
-        auto count = Count_.load(std::memory_order_acquire);
+        auto count = Count_.load(std::memory_order::acquire);
         CachedCount_ = count;
 
         if (Offset_ >= count) {
@@ -66,7 +66,7 @@ T* TSpscQueue<T>::Front() const
     }
 
     while (Y_UNLIKELY(Offset_ >= Head_->Offset + BufferSize)) {
-        auto next = Head_->Next.load(std::memory_order_acquire);
+        auto next = Head_->Next.load(std::memory_order::acquire);
         YT_VERIFY(next);
         delete Head_;
         Head_ = next;

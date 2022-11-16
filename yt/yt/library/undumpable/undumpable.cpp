@@ -40,7 +40,7 @@ public:
 
     TUndumpableMark* MarkUndumpable(void* ptr, size_t size)
     {
-        UndumpableBytes_.fetch_add(size, std::memory_order_relaxed);
+        UndumpableBytes_.fetch_add(size, std::memory_order::relaxed);
 
         auto guard = Guard(Lock_);
         auto mark = GetFree();
@@ -51,7 +51,7 @@ public:
 
     void UnmarkUndumpable(TUndumpableMark* mark)
     {
-        UndumpableBytes_.fetch_sub(mark->Size, std::memory_order_relaxed);
+        UndumpableBytes_.fetch_sub(mark->Size, std::memory_order::relaxed);
 
         mark->Size = 0;
         mark->Ptr = nullptr;
@@ -131,7 +131,7 @@ private:
         }
 
         auto mark = new TUndumpableMark{};
-        Footprint_.fetch_add(sizeof(*mark), std::memory_order_relaxed);
+        Footprint_.fetch_add(sizeof(*mark), std::memory_order::relaxed);
 
         mark->NextMark = All_;
         All_ = mark;

@@ -179,7 +179,7 @@ private:
         {
             SubmitQueue_.Enqueue(std::move(entry));
 
-            if (NotificationScheduled_.load(std::memory_order_relaxed)) {
+            if (NotificationScheduled_.load(std::memory_order::relaxed)) {
                 return;
             }
             if (!NotificationScheduled_.exchange(true)) {

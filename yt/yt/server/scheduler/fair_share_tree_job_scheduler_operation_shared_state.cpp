@@ -12,7 +12,7 @@ namespace {
 // in order to avoid "lock add" on x86.
 inline void IncrementAtomicCounterUnsafely(std::atomic<int>* counter)
 {
-    counter->store(counter->load() + 1, std::memory_order_release);
+    counter->store(counter->load() + 1, std::memory_order::release);
 }
 
 } // namespace
@@ -476,7 +476,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::ProcessUpdatedStarvationSta
             invoker->Invoke(BIND([this, this_=MakeStrong(this), shardId] {
                 auto& shard = StateShards_[shardId];
                 for (auto reason : TEnumTraits<EDeactivationReason>::GetDomainValues()) {
-                    shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0, std::memory_order_release);
+                    shard.DeactivationReasonsFromLastNonStarvingTime[reason].store(0, std::memory_order::release);
                 }
             }));
 

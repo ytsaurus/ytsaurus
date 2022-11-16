@@ -16,8 +16,8 @@ TStaticQueue::TStaticQueue(size_t logSize)
 template <class TFn>
 bool TStaticQueue::TryPush(const TFn& getIp)
 {
-    auto start = WriteSeq_.load(std::memory_order_relaxed);
-    auto end = ReadSeq_.load(std::memory_order_acquire) + Size_;
+    auto start = WriteSeq_.load(std::memory_order::relaxed);
+    auto end = ReadSeq_.load(std::memory_order::acquire) + Size_;
 
     if (start + 1 >= end) {
         return false;
@@ -39,15 +39,15 @@ bool TStaticQueue::TryPush(const TFn& getIp)
     }
 
     Buffer_[ToIndex(start)] = count;
-    WriteSeq_.store(start+count+1, std::memory_order_release);
+    WriteSeq_.store(start+count+1, std::memory_order::release);
     return true;
 }
 
 template <class TFn>
 bool TStaticQueue::TryPop(const TFn& onIp)
 {
-    auto start = ReadSeq_.load(std::memory_order_relaxed);
-    auto end = WriteSeq_.load(std::memory_order_acquire);
+    auto start = ReadSeq_.load(std::memory_order::relaxed);
+    auto end = WriteSeq_.load(std::memory_order::acquire);
 
     if (start == end) {
         return false;
@@ -58,7 +58,7 @@ bool TStaticQueue::TryPop(const TFn& onIp)
         onIp(reinterpret_cast<void*>(Buffer_[ToIndex(start+i+1)]));
     }
 
-    ReadSeq_.store(start+count+1, std::memory_order_release);
+    ReadSeq_.store(start+count+1, std::memory_order::release);
     return true;
 }
 

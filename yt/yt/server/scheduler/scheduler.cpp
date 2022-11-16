@@ -2460,7 +2460,7 @@ private:
 
         try {
             auto version = ConvertTo<int>(TYsonString(rspOrError.Value()->value()));
-            OperationArchiveVersion_.store(version, std::memory_order_relaxed);
+            OperationArchiveVersion_.store(version, std::memory_order::relaxed);
             OperationsCleaner_->SetArchiveVersion(version);
             SetSchedulerAlert(ESchedulerAlertType::UpdateArchiveVersion, TError());
 

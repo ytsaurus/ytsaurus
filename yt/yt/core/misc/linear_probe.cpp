@@ -25,15 +25,15 @@ bool TLinearProbeHashTable::Insert(ui64 index, TStamp stamp, TValue value)
     ui64 wrappedIndex = index % HashTable_.size();
     auto entry = MakeEntry(stamp, value);
     for (int currentIndex = 0; currentIndex < std::ssize(HashTable_); ++currentIndex) {
-        auto tableEntry = HashTable_[wrappedIndex].load(std::memory_order_relaxed);
+        auto tableEntry = HashTable_[wrappedIndex].load(std::memory_order::relaxed);
         auto tableStamp = StampFromEntry(tableEntry);
 
         if (tableStamp == 0) {
             auto success = HashTable_[wrappedIndex].compare_exchange_strong(
                 tableEntry,
                 entry,
-                std::memory_order_release,
-                std::memory_order_relaxed);
+                std::memory_order::release,
+                std::memory_order::relaxed);
             if (success) {
                 return true;
             }

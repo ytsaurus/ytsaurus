@@ -10,7 +10,7 @@ namespace NYT::NProfiling {
 void TPerCpuCounter::Increment(i64 delta)
 {
     auto tscp = TTscp::Get();
-    Shards_[tscp.ProcessorId].Value.fetch_add(delta, std::memory_order_relaxed);
+    Shards_[tscp.ProcessorId].Value.fetch_add(delta, std::memory_order::relaxed);
 }
 
 i64 TPerCpuCounter::GetValue()
@@ -27,7 +27,7 @@ i64 TPerCpuCounter::GetValue()
 void TPerCpuTimeCounter::Add(TDuration delta)
 {
     auto tscp = TTscp::Get();
-    Shards_[tscp.ProcessorId].Value.fetch_add(delta.GetValue(), std::memory_order_relaxed);
+    Shards_[tscp.ProcessorId].Value.fetch_add(delta.GetValue(), std::memory_order::relaxed);
 }
 
 TDuration TPerCpuTimeCounter::GetValue()
@@ -63,7 +63,7 @@ void TPerCpuGauge::Update(double value)
 
     TWrite write{value, tscp.Instant};
 #ifdef __clang__
-    Shards_[tscp.ProcessorId].Value.store(write.Pack(), std::memory_order_relaxed);
+    Shards_[tscp.ProcessorId].Value.store(write.Pack(), std::memory_order::relaxed);
 #else
     auto guard = Guard(Shards_[tscp.ProcessorId].Lock);
     Shards_[tscp.ProcessorId].Value = write;

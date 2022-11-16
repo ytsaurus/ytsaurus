@@ -384,7 +384,7 @@ private:
     {
         for (int index = 0; index < static_cast<int>(CurrentMetrics::end()); ++index) {
             const auto* name = CurrentMetrics::getName(index);
-            auto value = CurrentMetrics::values[index].load(std::memory_order_relaxed);
+            auto value = CurrentMetrics::values[index].load(std::memory_order::relaxed);
 
             writer->AddGauge("/current_metrics/" + CamelCaseToUnderscoreCase(TString(name)), value);
         }
@@ -395,7 +395,7 @@ private:
 
         for (int index = 0; index < static_cast<int>(ProfileEvents::end()); ++index) {
             const auto* name = ProfileEvents::getName(index);
-            auto value = ProfileEvents::global_counters[index].load(std::memory_order_relaxed);
+            auto value = ProfileEvents::global_counters[index].load(std::memory_order::relaxed);
 
             writer->AddCounter("/global_profile_events/" + CamelCaseToUnderscoreCase(TString(name)), value);
         }

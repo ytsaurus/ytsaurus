@@ -29,7 +29,7 @@ public:
             auto tmp = T_;
 
             T_ = nullptr;
-            std::atomic_signal_fence(std::memory_order_seq_cst);
+            std::atomic_signal_fence(std::memory_order::seq_cst);
 
             Unref(tmp);
         }
