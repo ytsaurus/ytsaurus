@@ -633,6 +633,18 @@ class TestJobShellInSubcontainer(TestJobProber):
         check_job_shell_permission("nirvana", "taxi_dev", allowed=False)
         check_job_shell_permission("nirvana", "market_dev", allowed=True)
 
+        with pytest.raises(YtError):
+            update_op_parameters(
+                op.id,
+                parameters={
+                    "options_per_job_shell": {
+                        "nirvana": {
+                            "owners": ["nirvana_devs", "market_devs"],
+                        },
+                    },
+                },
+                authenticated_user="taxi_dev")
+
 ##################################################################
 
 

@@ -1042,6 +1042,11 @@ public:
         WaitFor(ValidateOperationAccess(user, operation->GetId(), update->GetRequiredPermissions()))
             .ThrowOnError();
 
+        for (const auto& [jobShellName, _] : update->OptionsPerJobShell) {
+            WaitFor(ValidateJobShellAccess(user, jobShellName, operation->GetJobShellOwners(jobShellName)))
+                .ThrowOnError();
+        }
+
         if (update->Acl.has_value()) {
             update->Acl->Entries.insert(
                 update->Acl->Entries.end(),

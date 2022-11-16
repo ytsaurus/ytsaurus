@@ -177,26 +177,15 @@ private:
             if (!shellName) {
                 shellName = "default";
             }
+            
             TJobShellPtr jobShell;
             for (const auto& shell : shells) {
                 if (shell->Name == shellName) {
                     jobShell = shell;
                 }
             }
-            if (!jobShell) {
-                THROW_ERROR_EXCEPTION(
-                    NScheduler::EErrorCode::NoSuchJobShell,
-                    "Job shell %Qv not found",
-                    shellName);
-            }
 
-            auto owners = jobShell->Owners;
-            const auto& optionsPerJobShell = operation->GetRuntimeParameters()->OptionsPerJobShell;
-            if (auto it = optionsPerJobShell.find(*shellName); it != optionsPerJobShell.end()) {
-                const auto& options = it->second;
-                owners = options->Owners;
-            }
-
+            auto owners = operation->GetJobShellOwners(*shellName);
             auto user = context->GetAuthenticationIdentity().User;
             WaitFor(scheduler->ValidateJobShellAccess(user, jobShell->Name, owners))
                 .ThrowOnError();

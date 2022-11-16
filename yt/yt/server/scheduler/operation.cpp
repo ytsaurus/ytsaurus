@@ -539,6 +539,31 @@ std::vector<TString> TOperation::GetExperimentAssignmentNames() const
     return result;
 }
 
+std::vector<TString> TOperation::GetJobShellOwners(const TString& jobShellName)
+{
+    TJobShellPtr jobShell;
+    for (const auto& shell : Spec_->JobShells) {
+        if (shell->Name == jobShellName) {
+            jobShell = shell;
+        }
+    }
+
+    if (!jobShell) {
+        THROW_ERROR_EXCEPTION(
+            NScheduler::EErrorCode::NoSuchJobShell,
+            "Job shell %Qv not found",
+            jobShellName);
+    }
+            
+    auto owners = jobShell->Owners;
+    const auto& optionsPerJobShell = RuntimeParameters_->OptionsPerJobShell;
+    if (auto it = optionsPerJobShell.find(jobShellName); it != optionsPerJobShell.end()) {
+        const auto& options = it->second;
+        owners = options->Owners;
+    }
+    return owners;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TYsonString TrimAnnotations(const IMapNodePtr& annotationsNode)

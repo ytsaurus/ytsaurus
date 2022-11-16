@@ -393,6 +393,8 @@ public:
     //! name being of form "<experiment name>.<group name>".
     std::vector<TString> GetExperimentAssignmentNames() const;
 
+    std::vector<TString> GetJobShellOwners(const TString& jobShellName);
+
     TOperation(
         TOperationId operationId,
         EOperationType type,
