@@ -461,6 +461,9 @@ public:
     //! Returns |true| when operation completion event is scheduled to control invoker.
     bool IsFinished() const override;
 
+    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override;
+    void UpdateIntermediateMediumUsage(i64 usage) override;
+
 protected:
     const IOperationControllerHostPtr Host;
     TControllerAgentConfigPtr Config;
@@ -1010,6 +1013,8 @@ protected:
     template <typename T>
     NYson::TYsonString ConvertToYsonStringNestingLimited(const T& value) const;
 
+    i64 GetFastIntermediateMediumLimit() const;
+
     //! One output table can have row_count_limit attribute in operation.
     std::optional<int> RowCountLimitTableIndex;
     i64 RowCountLimit = std::numeric_limits<i64>::max() / 4;
@@ -1266,6 +1271,10 @@ private:
     TProgressCounterPtr TotalJobCounter_;
 
     std::atomic<i64> TestingAllocationSize_;
+
+    //! Per transaction intermediate data weight limit for the fast medium (SSD)
+    //! in the public intermediate account.
+    i64 FastIntermediateMediumLimit_ = 0;
 
     void AccountExternalScheduleJobFailures() const;
 

@@ -182,9 +182,52 @@ public:
         Persist(context, UnorderedMergeTask);
         Persist(context, SortedMergeTask);
 
+        // COMPAT(galtsev)
+        if (context.GetVersion() >= ESnapshotVersion::SwitchIntermediateMedium) {
+            Persist(context, SwitchedToSlowIntermediateMedium);
+        }
+
         if (context.IsLoad()) {
             SetupPartitioningCompletedCallbacks();
         }
+    }
+
+    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction() override
+    {
+        if (GetFastIntermediateMediumLimit() > 0 && !SwitchedToSlowIntermediateMedium) {
+            auto medium = GetIntermediateStreamDescriptorTemplate()->TableWriterOptions->MediumName;
+            return {OutputTransaction, medium};
+        } else {
+            return {nullptr, {}};
+        }
+    }
+
+    void UpdateIntermediateMediumUsage(i64 usage) override
+    {
+        auto fastIntermediateMediumLimit = GetFastIntermediateMediumLimit();
+
+        if (!GetIntermediateMediumTransaction().first || usage < fastIntermediateMediumLimit) {
+            return;
+        }
+
+        for (const auto& partitionTask : PartitionTasks) {
+            partitionTask->SwitchIntermediateMedium();
+        }
+        if (SimpleSortTask && !SimpleSortTask->IsFinal()) {
+            SimpleSortTask->SwitchIntermediateMedium();
+        }
+        if (IntermediateSortTask) {
+            IntermediateSortTask->SwitchIntermediateMedium();
+        }
+
+        YT_LOG_DEBUG("Switching from the fast intermediate medium to the slow one "
+            "(FastMediumUsage: %v, FastMediumLimit: %v, UsageToLimitRatio: %v, TransactionId: %v)",
+            usage,
+            fastIntermediateMediumLimit,
+            static_cast<double>(usage) / fastIntermediateMediumLimit,
+            OutputTransaction->GetId());
+
+        SwitchedToSlowIntermediateMedium = true;
     }
 
 private:
@@ -512,6 +555,10 @@ protected:
     TUnorderedMergeTaskPtr UnorderedMergeTask;
 
     TSortedMergeTaskPtr SortedMergeTask;
+
+    //! True if the operation has switched to the slow intermediate medium (HDD) after producing
+    //! more intermediate data than the limit for the fast intermediate medium (SSD).
+    bool SwitchedToSlowIntermediateMedium = false;
 
     //! Implements partition phase for sort operations and map phase for map-reduce operations.
     class TPartitionTask
@@ -1088,6 +1135,11 @@ protected:
         bool IsJobInterruptible() const override
         {
             return false;
+        }
+
+        bool IsFinal() const
+        {
+            return IsFinalSort_;
         }
 
     protected:

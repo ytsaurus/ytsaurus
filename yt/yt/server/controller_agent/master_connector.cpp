@@ -52,6 +52,8 @@
 
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NControllerAgent {
 
 using namespace NApi;
@@ -300,6 +302,7 @@ private:
 
     TPeriodicExecutorPtr UpdateConfigExecutor_;
     TPeriodicExecutorPtr AlertsExecutor_;
+    TPeriodicExecutorPtr UpdateIntermediateMediumUsageExecutor_;
 
     TEnumIndexedVector<EControllerAgentAlertType, TError> Alerts_;
 
@@ -399,6 +402,13 @@ private:
             Config_->AlertsUpdatePeriod);
         AlertsExecutor_->Start();
 
+        YT_VERIFY(!UpdateIntermediateMediumUsageExecutor_);
+        UpdateIntermediateMediumUsageExecutor_ = New<TPeriodicExecutor>(
+            CancelableControlInvoker_,
+            BIND(&TImpl::UpdateIntermediateMediumUsage, MakeStrong(this)),
+            Config_->IntermediateMediumUsageUpdatePeriod);
+        UpdateIntermediateMediumUsageExecutor_->Start();
+
         RegisterInstance();
     }
 
@@ -446,6 +456,11 @@ private:
         if (AlertsExecutor_) {
             AlertsExecutor_->Stop();
             AlertsExecutor_.Reset();
+        }
+
+        if (UpdateIntermediateMediumUsageExecutor_) {
+            UpdateIntermediateMediumUsageExecutor_->Stop();
+            UpdateIntermediateMediumUsageExecutor_.Reset();
         }
     }
 
@@ -1238,6 +1253,9 @@ private:
         if (AlertsExecutor_) {
             AlertsExecutor_->SetPeriod(Config_->AlertsUpdatePeriod);
         }
+        if (UpdateIntermediateMediumUsageExecutor_) {
+            UpdateIntermediateMediumUsageExecutor_->SetPeriod(Config_->IntermediateMediumUsageUpdatePeriod);
+        }
     }
 
     void ValidateConfig()
@@ -1323,6 +1341,120 @@ private:
             SetControllerAgentAlert(EControllerAgentAlertType::UpdateConfig, error);
             YT_LOG_WARNING(error, "Error updating controller agent configuration");
         }
+    }
+
+    void UpdateIntermediateMediumUsage()
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        const auto& controllerAgent = Bootstrap_->GetControllerAgent();
+
+        THashMap<TOperationId, std::pair<TTransactionId, TString>> transactions;
+        for (const auto& [operationId, operation] : controllerAgent->GetOperations()) {
+            auto [transaction, medium] = operation->GetController()->GetIntermediateMediumTransaction();
+            if (transaction) {
+                transactions[operationId] = {transaction->GetId(), medium};
+            }
+        }
+
+        THashMap<TCellTag, TObjectServiceProxy::TReqExecuteBatchPtr> batchReqs;
+        for (const auto& [operationId, transactionIdAndMedium] : transactions) {
+            const auto& [transactionId, _] = transactionIdAndMedium;
+
+            auto cellTag = CellTagFromId(transactionId);
+            if (!batchReqs.contains(cellTag)) {
+                TObjectServiceProxy proxy(Bootstrap_->GetClient()->GetMasterChannelOrThrow(
+                    EMasterChannelKind::Follower,
+                    cellTag));
+                batchReqs[cellTag] = proxy.ExecuteBatch();
+            }
+
+            YT_LOG_DEBUG("Requesting intermediate medium usage (OperationId: %v, TransactionId: %v)",
+                operationId,
+                transactionId);
+            auto intermediateMediumReq = TYPathProxy::Get(Format("#%v/@resource_usage", transactionId));
+            batchReqs[cellTag]->AddRequest(intermediateMediumReq, ToString(transactionId));
+        }
+
+        YT_LOG_INFO("Fetching intermediate medium resource usage (OperationCount: %v, CellCount: %v)",
+            transactions.size(),
+            batchReqs.size());
+
+        std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncBatchRsps;
+        std::vector<TCellTag> cellTags;
+        for (const auto& [cellTag, batchReq] : batchReqs) {
+            asyncBatchRsps.push_back(batchReq->Invoke());
+            cellTags.push_back(cellTag);
+        }
+
+        THashMap<TCellTag, NObjectClient::TObjectServiceProxy::TRspExecuteBatchPtr> batchRsps;
+        for (const auto& [cellTag, asyncBatchRsp] : Zip(cellTags, asyncBatchRsps)) {
+            auto batchRspOrError = WaitFor(asyncBatchRsp);
+            if (batchRspOrError.IsOK()) {
+                batchRsps[cellTag] = batchRspOrError.Value();
+            } else {
+                YT_LOG_ERROR(batchRspOrError, "Error fetching intermediate medium resource usage (CellTag: %v)",
+                    cellTag);
+            }
+        }
+
+        i64 switchedOperationCount = 0;
+        i64 operationCount = 0;
+
+        for (const auto& [operationId, transactionIdAndMedium] : transactions) {
+            const auto& [transactionId, medium] = transactionIdAndMedium;
+
+            auto cellTag = CellTagFromId(transactionId);
+            auto it = batchRsps.find(cellTag);
+            YT_VERIFY(it != batchRsps.end());
+
+            auto intermediateMediumRsp = it->second->GetResponse<TYPathProxy::TRspGet>(ToString(transactionId));
+            if (!intermediateMediumRsp.IsOK()) {
+                YT_LOG_DEBUG("Failed to get intermediate medium resource usage (OperationId: %v, TransactionId: %v)",
+                    operationId,
+                    transactionId);
+                continue;
+            }
+
+            auto resourceUsage = intermediateMediumRsp.ValueOrThrow()->value();
+            auto usage = TryGetInt64(
+                resourceUsage,
+                Format("/%v/disk_space_per_medium/%v",
+                    NSecurityClient::IntermediateAccountName,
+                    medium));
+
+            if (usage) {
+                YT_LOG_DEBUG("Updating intermediate medium usage (OperationId: %v, TransactionId: %v, Usage: %v)",
+                    operationId,
+                    transactionId,
+                    *usage);
+
+                ++operationCount;
+
+                if (auto operation = controllerAgent->FindOperation(operationId)) {
+                    auto controller = operation->GetController();
+                    YT_VERIFY(controller);
+
+                    controller->UpdateIntermediateMediumUsage(*usage);
+                    bool switchedToSlowMedium = controller->GetIntermediateMediumTransaction().first == nullptr;
+                    if (switchedToSlowMedium) {
+                        ++switchedOperationCount;
+                    }
+                } else {
+                    YT_LOG_DEBUG("Intermediate medium usage updated for a unknown operation (OperationId: %v, Usage: %v)",
+                        operationId,
+                        *usage);
+                }
+            } else {
+                YT_LOG_DEBUG("Intermediate medium is not used yet (OperationId: %v, TransactionId: %v)",
+                    operationId,
+                    transactionId);
+            }
+        }
+
+        YT_LOG_INFO("Updated intermediate medium usage (OperationCount: %v, SwitchedToSlowMedium: %v)",
+            operationCount,
+            switchedOperationCount);
     }
 
     void UpdateAlerts()

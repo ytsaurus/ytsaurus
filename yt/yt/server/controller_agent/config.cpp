@@ -529,6 +529,8 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(3));
     registrar.Parameter("operations_update_period", &TThis::OperationsUpdatePeriod)
         .Default(TDuration::Seconds(3));
+    registrar.Parameter("intermediate_account_usage_update_period", &TThis::IntermediateMediumUsageUpdatePeriod)
+        .Default(TDuration::Seconds(3));
     registrar.Parameter("chunk_unstage_period", &TThis::ChunkUnstagePeriod)
         .Default(TDuration::MilliSeconds(100));
 
@@ -961,6 +963,11 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_job_profiling", &TThis::EnableJobProfiling)
         .Default();
+
+    registrar.Parameter("fast_intermediate_medium", &TThis::FastIntermediateMedium)
+        .Default("ssd_blobs");
+    registrar.Parameter("fast_intermediate_medium_limit", &TThis::FastIntermediateMediumLimit)
+        .Default(0);
 
     registrar.Preprocessor([&] (TControllerAgentConfig* config) {
         config->EventLog->MaxRowWeight = 128_MB;

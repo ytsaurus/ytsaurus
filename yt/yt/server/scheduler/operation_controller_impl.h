@@ -74,6 +74,9 @@ public:
     TJobResourcesWithQuotaList GetMinNeededJobResources() const override;
     EPreemptionMode GetPreemptionMode() const override;
 
+    std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction();
+    void UpdateIntermediateMediumUsage(i64 /*usage*/);
+
 private:
     TBootstrap* const Bootstrap_;
     TSchedulerConfigPtr Config_;
