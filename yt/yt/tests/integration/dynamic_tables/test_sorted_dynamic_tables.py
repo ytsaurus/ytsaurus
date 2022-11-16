@@ -1465,6 +1465,20 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         _check(ts1, ts1, [1])
         _check(ts1 + 1, ts2 - 1, [])
 
+    @authors("alexelexa")
+    def test_lookup_if_cell_not_assigned_to_node(self):
+        create_tablet_cell_bundle("b")
+        cell_id = sync_create_cells(1, tablet_cell_bundle="b")[0]
+        self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
+        sync_mount_table("//tmp/t")
+
+        assert(get("//sys/tablet_cell_bundles/b/@health") == "good")
+        set("//sys/tablet_cell_bundles/b/@node_tag_filter", "invalid")
+        wait(lambda: get("//sys/tablet_cell_bundles/b/@health") == "failed")
+
+        with pytest.raises(YtError, match="Cell {} has no assigned peers".format(cell_id)):
+            lookup_rows("//tmp/t", [{"key": 1}])
+
 
 class TestSortedDynamicTablesMulticell(TestSortedDynamicTables):
     NUM_SECONDARY_MASTER_CELLS = 2

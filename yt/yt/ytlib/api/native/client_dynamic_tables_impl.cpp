@@ -1031,6 +1031,12 @@ TRowset TClient::DoLookupRowsOnce(
             continue;
         }
 
+        if (descriptor.Peers[0].IsNull()) {
+            THROW_ERROR_EXCEPTION(
+                "Cell %v has no assigned peers",
+                cellId);
+        }
+
         const auto& address = descriptor.Peers[0].GetAddressOrThrow(networks);
         auto emplaced = channelIndexByAddress.emplace(
             address,
