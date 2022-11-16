@@ -137,6 +137,7 @@ void TReshardPivotKeysBuilder::AddSlice(const TInputChunkSlicePtr& slice)
         slice->GetDataWeight());
 
     TotalSizeAfterSlicing_ += slice->GetDataWeight();
+
     YT_LOG_DEBUG_IF(EnableVerboseLogging_,
         "Adding slice boundary keys from input chunk slice (MinKeyBound: %v, MaxKeyBound: %v, "
         "DataWeight: %v, InputChunk: %v)",
@@ -289,6 +290,7 @@ void TReshardPivotKeysBuilder::ComputeSlicedChunksPivotKeys()
 void TReshardPivotKeysBuilder::SetFirstPivotKey(const TLegacyOwningKey& key)
 {
     Pivots_[0].Key = key;
+
     YT_LOG_DEBUG_IF(EnableVerboseLogging_,
         "Setting first pivot key (Key: %v)",
         key);
