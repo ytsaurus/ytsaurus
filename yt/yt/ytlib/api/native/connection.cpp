@@ -212,6 +212,7 @@ public:
         CellDirectory_ = NHiveClient::CreateCellDirectory(
             Config_->CellDirectory,
             ChannelFactory_,
+            ClusterDirectory_,
             GetNetworks(),
             Logger);
         ConfigureMasterCells();
