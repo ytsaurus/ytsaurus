@@ -433,7 +433,7 @@ class TestListJobsBase(YTEnvSetup):
             breakpoint_name="mapper",
         )
         reducer_command = with_breakpoint(
-            """echo STDERR-OUTPUT >&2 ; cat; printf 'test\\nfoobar' >&8; BREAKPOINT""",
+            """echo STDERR-OUTPUT >&2 ; cat; BREAKPOINT""",
             breakpoint_name="reducer",
         )
         spec = {
