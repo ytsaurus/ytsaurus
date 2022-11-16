@@ -1,12 +1,16 @@
 package fetcher
 
 import (
+	"context"
 	"fmt"
+	"os"
 	"strings"
 	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/library/go/yandex/nanny"
+	"a.yandex-team.ru/library/go/yandex/nanny/httpnanny"
 )
 
 // Resolver describes url to fetch to a way to resolve those urls
@@ -101,8 +105,17 @@ type Configs struct {
 	YPClusters []string `yson:"yp_clusters,omitempty"`
 }
 
-func (cs *Configs) FillInfo(l *zap.Logger) {
+func (cs *Configs) FillInfo(ctx context.Context, l *zap.Logger) {
+	nc, err := httpnanny.New(httpnanny.WithToken(os.Getenv("NANNY_TOKEN")))
+	if err != nil {
+		l.Fatal("nanny client creation failed", log.Error(err))
+	}
+
 	for i := 0; i < len(cs.Configs); i++ {
+		if len(cs.Configs[i].Services) == 0 && len(cs.Configs[i].NannyServices) == 0 {
+			cs.Configs[i].FetchServices(ctx, l, nc)
+		}
+
 		cs.Configs[i].FillServices()
 
 		cs.Configs[i].FillInfo(l)
@@ -124,6 +137,19 @@ func (c *Config) FillServices() {
 				},
 			},
 		})
+	}
+}
+
+func (c *Config) FetchServices(ctx context.Context, l *zap.Logger, nc *httpnanny.Client) {
+	services, err := nc.ListServices(ctx, nanny.ListOptions{
+		Category: "/yt/clusters/" + c.Cluster + "/",
+		Limit:    100,
+	})
+	if err != nil {
+		l.Fatal("fetching nanny services failed", log.Error(err))
+	}
+	for _, service := range services {
+		c.NannyServices = append(c.NannyServices, service.ID)
 	}
 }
 
