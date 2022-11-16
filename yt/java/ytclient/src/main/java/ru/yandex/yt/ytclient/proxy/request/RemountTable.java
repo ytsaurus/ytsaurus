@@ -5,7 +5,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
-public class RemountTable extends ru.yandex.yt.ytclient.request.RemountTable.BuilderBase<RemountTable> {
+public class RemountTable extends tech.ytsaurus.client.request.RemountTable.BuilderBase<RemountTable> {
     public RemountTable(YPath path) {
         setPath(path.justPath());
     }

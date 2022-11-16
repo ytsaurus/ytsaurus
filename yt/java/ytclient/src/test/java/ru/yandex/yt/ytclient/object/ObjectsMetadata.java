@@ -133,7 +133,7 @@ public class ObjectsMetadata<T> {
             yTreeSerializer.serialize(row, builder);
             request.addUpdate(builder.build().asMap());
         }
-        ru.yandex.yt.ytclient.request.ModifyRowsRequest req = request.build();
+        tech.ytsaurus.client.request.ModifyRowsRequest req = request.build();
         req.convertValues(YandexSerializationResolver.getInstance());
         return req.getRows();
     }

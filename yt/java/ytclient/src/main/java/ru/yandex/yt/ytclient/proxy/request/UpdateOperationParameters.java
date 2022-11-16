@@ -9,7 +9,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullFields
 @NonNullApi
-public class UpdateOperationParameters extends ru.yandex.yt.ytclient.request.UpdateOperationParameters.BuilderBase<
+public class UpdateOperationParameters extends tech.ytsaurus.client.request.UpdateOperationParameters.BuilderBase<
         UpdateOperationParameters> {
     public UpdateOperationParameters(GUID guid) {
         setOperationId(guid);
@@ -29,7 +29,7 @@ public class UpdateOperationParameters extends ru.yandex.yt.ytclient.request.Upd
     }
 
     public static class SchedulingOptions
-            extends ru.yandex.yt.ytclient.request.UpdateOperationParameters.SchedulingOptions {
+            extends tech.ytsaurus.client.request.UpdateOperationParameters.SchedulingOptions {
         public SchedulingOptions() {
         }
 
@@ -38,7 +38,7 @@ public class UpdateOperationParameters extends ru.yandex.yt.ytclient.request.Upd
         }
     }
 
-    public static class ResourceLimits extends ru.yandex.yt.ytclient.request.UpdateOperationParameters.ResourceLimits {
+    public static class ResourceLimits extends tech.ytsaurus.client.request.UpdateOperationParameters.ResourceLimits {
         public ResourceLimits() {
         }
 

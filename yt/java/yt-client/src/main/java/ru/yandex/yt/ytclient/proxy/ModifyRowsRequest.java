@@ -10,7 +10,7 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
  *
  * @see UnversionedRow
  */
-public class ModifyRowsRequest extends ru.yandex.yt.ytclient.request.ModifyRowsRequest.BuilderBase<ModifyRowsRequest> {
+public class ModifyRowsRequest extends tech.ytsaurus.client.request.ModifyRowsRequest.BuilderBase<ModifyRowsRequest> {
     public ModifyRowsRequest(String path, TableSchema schema) {
         setPath(path).setSchema(schema);
     }
@@ -22,7 +22,7 @@ public class ModifyRowsRequest extends ru.yandex.yt.ytclient.request.ModifyRowsR
     }
 
     @Override
-    public ru.yandex.yt.ytclient.request.ModifyRowsRequest build() {
-        return new ru.yandex.yt.ytclient.request.ModifyRowsRequest(this);
+    public tech.ytsaurus.client.request.ModifyRowsRequest build() {
+        return new tech.ytsaurus.client.request.ModifyRowsRequest(this);
     }
 }

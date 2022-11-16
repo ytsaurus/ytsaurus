@@ -15,7 +15,7 @@ import ru.yandex.lang.NonNullFields;
  */
 @NonNullApi
 @NonNullFields
-public class SuspendOperation extends ru.yandex.yt.ytclient.request.SuspendOperation.BuilderBase<SuspendOperation> {
+public class SuspendOperation extends tech.ytsaurus.client.request.SuspendOperation.BuilderBase<SuspendOperation> {
 
     /**
      * Construct request from operation id.

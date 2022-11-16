@@ -13,6 +13,12 @@ import java.util.stream.Collectors;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.request.AbortOperation;
+import tech.ytsaurus.client.request.GetJobStderr;
+import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.JobResult;
+import tech.ytsaurus.client.request.JobState;
+import tech.ytsaurus.client.request.ListJobs;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeListNode;
 import tech.ytsaurus.ysontree.YTreeMapNode;
@@ -21,12 +27,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
-import ru.yandex.yt.ytclient.request.AbortOperation;
-import ru.yandex.yt.ytclient.request.GetJobStderr;
-import ru.yandex.yt.ytclient.request.GetOperation;
-import ru.yandex.yt.ytclient.request.JobResult;
-import ru.yandex.yt.ytclient.request.JobState;
-import ru.yandex.yt.ytclient.request.ListJobs;
 
 @NonNullApi
 @NonNullFields

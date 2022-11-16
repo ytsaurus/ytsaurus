@@ -10,6 +10,7 @@ import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics;
 import com.google.protobuf.Parser;
+import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcUtil;
 
@@ -19,7 +20,6 @@ import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
 import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentReader;
 import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentWireProtocolReader;
-import ru.yandex.yt.ytclient.request.ReadTable;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {

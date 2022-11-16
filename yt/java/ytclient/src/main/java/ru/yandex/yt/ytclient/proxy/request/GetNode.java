@@ -1,8 +1,8 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-
 import tech.ytsaurus.core.cypress.YPath;
-public class GetNode extends ru.yandex.yt.ytclient.request.GetNode.BuilderBase<GetNode> {
+
+public class GetNode extends tech.ytsaurus.client.request.GetNode.BuilderBase<GetNode> {
     public GetNode(String path) {
         this(YPath.simple(path));
     }
@@ -18,7 +18,7 @@ public class GetNode extends ru.yandex.yt.ytclient.request.GetNode.BuilderBase<G
         super(getNode);
     }
 
-    public GetNode(ru.yandex.yt.ytclient.request.GetNode getNode) {
+    public GetNode(tech.ytsaurus.client.request.GetNode getNode) {
         super(getNode.toBuilder());
     }
 

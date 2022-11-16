@@ -8,7 +8,7 @@ import ru.yandex.yt.ytclient.request.LockMode;
 
 @NonNullFields
 @NonNullApi
-public class LockNode extends ru.yandex.yt.ytclient.request.LockNode.BuilderBase<LockNode> {
+public class LockNode extends tech.ytsaurus.client.request.LockNode.BuilderBase<LockNode> {
     public LockNode(LockNode other) {
         super(other);
     }

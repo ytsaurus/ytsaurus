@@ -1,5 +1,7 @@
 import java.util.Iterator;
 
+import tech.ytsaurus.client.request.ReduceOperation;
+import tech.ytsaurus.client.request.SortOperation;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
@@ -12,8 +14,6 @@ import ru.yandex.yt.ytclient.operations.ReducerWithKey;
 import ru.yandex.yt.ytclient.operations.SortSpec;
 import ru.yandex.yt.ytclient.operations.Statistics;
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.request.ReduceOperation;
-import ru.yandex.yt.ytclient.request.SortOperation;
 
 public class Example07ReduceYTree {
     private Example07ReduceYTree() {

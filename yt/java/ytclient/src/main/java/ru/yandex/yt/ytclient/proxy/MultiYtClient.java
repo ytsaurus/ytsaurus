@@ -18,12 +18,13 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
+import tech.ytsaurus.client.request.SelectRowsRequest;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.object.ConsumerSource;
-import ru.yandex.yt.ytclient.request.AbstractLookupRowsRequest;
-import ru.yandex.yt.ytclient.request.SelectRowsRequest;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 import ru.yandex.yt.ytclient.wire.VersionedRowset;
 

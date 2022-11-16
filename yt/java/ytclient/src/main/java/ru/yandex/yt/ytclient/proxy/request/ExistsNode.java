@@ -5,7 +5,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
-public class ExistsNode extends ru.yandex.yt.ytclient.request.ExistsNode.BuilderBase<ExistsNode> {
+public class ExistsNode extends tech.ytsaurus.client.request.ExistsNode.BuilderBase<ExistsNode> {
     public ExistsNode(String path) {
         this(YPath.simple(path));
     }
@@ -21,7 +21,7 @@ public class ExistsNode extends ru.yandex.yt.ytclient.request.ExistsNode.Builder
         super(existsNode);
     }
 
-    public ExistsNode(ru.yandex.yt.ytclient.request.ExistsNode existsNode) {
+    public ExistsNode(tech.ytsaurus.client.request.ExistsNode existsNode) {
         super(existsNode.toBuilder());
     }
 

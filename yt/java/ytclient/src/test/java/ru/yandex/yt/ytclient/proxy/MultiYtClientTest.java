@@ -6,6 +6,8 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import org.junit.Test;
+import tech.ytsaurus.client.request.TabletInfo;
+import tech.ytsaurus.client.request.TabletInfoReplica;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.cypress.YPath;
@@ -15,8 +17,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
-import ru.yandex.yt.ytclient.request.TabletInfo;
-import ru.yandex.yt.ytclient.request.TabletInfoReplica;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 

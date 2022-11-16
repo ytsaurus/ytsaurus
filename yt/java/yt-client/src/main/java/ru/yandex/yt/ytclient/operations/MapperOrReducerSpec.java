@@ -20,6 +20,7 @@ import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.JavaOptions;
@@ -31,7 +32,6 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.FileWriter;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
-import ru.yandex.yt.ytclient.request.WriteFile;
 
 @NonNullApi
 @NonNullFields

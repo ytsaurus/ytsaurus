@@ -15,6 +15,7 @@ import com.google.protobuf.CodedOutputStream;
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import tech.ytsaurus.client.request.Format;
+import tech.ytsaurus.client.request.WriteTable;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.lang.NonNullApi;
@@ -23,7 +24,6 @@ import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.WireRowSerializer;
-import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.serialization.YTreeBinarySerializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;

@@ -8,10 +8,9 @@ import java.util.function.Function;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.MountTable;
+import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.ytclient.request.MountTable;
-import ru.yandex.yt.ytclient.request.UnmountTable;
 
 public interface CompoundClient extends ApiServiceClient, Closeable {
     /**

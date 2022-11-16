@@ -17,7 +17,7 @@ import ru.yandex.lang.NonNullFields;
  */
 @NonNullApi
 @NonNullFields
-public class StartTransaction extends ru.yandex.yt.ytclient.request.StartTransaction.BuilderBase<StartTransaction> {
+public class StartTransaction extends tech.ytsaurus.client.request.StartTransaction.BuilderBase<StartTransaction> {
     public StartTransaction(TransactionType type) {
         this(type, type == TransactionType.Tablet);
     }

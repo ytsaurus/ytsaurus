@@ -7,7 +7,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class AlterTable extends ru.yandex.yt.ytclient.request.AlterTable.BuilderBase<AlterTable> {
+public class AlterTable extends tech.ytsaurus.client.request.AlterTable.BuilderBase<AlterTable> {
     public AlterTable(YPath path) {
         setPath(path);
     }

@@ -13,13 +13,13 @@ import javax.annotation.Nonnull;
 
 import tech.ytsaurus.client.request.Atomicity;
 import tech.ytsaurus.client.request.Durability;
+import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.EDurability;
 import ru.yandex.yt.rpcproxy.ETransactionType;
-import ru.yandex.yt.ytclient.request.StartTransaction;
 
 public class ApiServiceTransactionOptions {
     private final ETransactionType type;

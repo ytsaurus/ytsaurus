@@ -13,6 +13,7 @@ import java.util.function.Supplier;
 import org.junit.Test;
 import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.TransactionType;
+import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcRequestsTestingController;
@@ -25,7 +26,6 @@ import ru.yandex.yt.TError;
 import ru.yandex.yt.ytclient.proxy.request.ExistsNode;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
-import ru.yandex.yt.ytclient.request.WriteTable;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static org.hamcrest.MatcherAssert.assertThat;

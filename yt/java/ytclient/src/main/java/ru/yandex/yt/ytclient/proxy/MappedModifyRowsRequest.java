@@ -13,7 +13,7 @@ import ru.yandex.yt.ytclient.object.WireRowSerializer;
  * @see ModifyRowsRequest
  */
 public class MappedModifyRowsRequest<T>
-        extends ru.yandex.yt.ytclient.request.MappedModifyRowsRequest.BuilderBase<T, MappedModifyRowsRequest<T>> {
+        extends tech.ytsaurus.client.request.MappedModifyRowsRequest.BuilderBase<T, MappedModifyRowsRequest<T>> {
 
     public MappedModifyRowsRequest(String path, YTreeObjectSerializer<T> serializer) {
         this(path, MappedRowSerializer.forClass(serializer));
@@ -29,7 +29,7 @@ public class MappedModifyRowsRequest<T>
     }
 
     @Override
-    public ru.yandex.yt.ytclient.request.MappedModifyRowsRequest<T> build() {
-        return new ru.yandex.yt.ytclient.request.MappedModifyRowsRequest<>(this);
+    public tech.ytsaurus.client.request.MappedModifyRowsRequest<T> build() {
+        return new tech.ytsaurus.client.request.MappedModifyRowsRequest<>(this);
     }
 }

@@ -1,7 +1,7 @@
+import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.type_info.TiType;
 
 import ru.yandex.yt.ytclient.proxy.MultiYtClient;
-import ru.yandex.yt.ytclient.request.LookupRowsRequest;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
