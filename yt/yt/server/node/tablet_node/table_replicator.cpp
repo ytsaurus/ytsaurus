@@ -431,6 +431,8 @@ private:
                 DoHardBackoff(error);
             } else if (error.FindMatching(NTabletClient::EErrorCode::UpstreamReplicaMismatch)) {
                 DoHardBackoff(error);
+            } else if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded)) {
+                DoHardBackoff(error);
             } else {
                 DoSoftBackoff(error);
             }
