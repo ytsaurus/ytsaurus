@@ -1,12 +1,12 @@
 package ru.yandex.yt.ytclient.examples;
 
+import tech.ytsaurus.client.request.GetOperation;
+import tech.ytsaurus.client.request.SuspendOperation;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.ResumeOperation;
-import ru.yandex.yt.ytclient.request.GetOperation;
-import ru.yandex.yt.ytclient.request.SuspendOperation;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getCredentials;

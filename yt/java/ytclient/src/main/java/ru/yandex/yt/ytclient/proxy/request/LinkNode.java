@@ -7,7 +7,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class LinkNode extends ru.yandex.yt.ytclient.request.LinkNode.BuilderBase<LinkNode> {
+public class LinkNode extends tech.ytsaurus.client.request.LinkNode.BuilderBase<LinkNode> {
     public LinkNode(String src, String dst) {
         setSource(src).setDestination(dst);
     }
@@ -16,7 +16,7 @@ public class LinkNode extends ru.yandex.yt.ytclient.request.LinkNode.BuilderBase
         this(src.justPath().toString(), dst.justPath().toString());
     }
 
-    public LinkNode(ru.yandex.yt.ytclient.request.LinkNode.BuilderBase<?> linkNode) {
+    public LinkNode(tech.ytsaurus.client.request.LinkNode.BuilderBase<?> linkNode) {
         super(linkNode);
     }
 

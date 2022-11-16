@@ -4,13 +4,13 @@ import java.util.List;
 
 import org.junit.Assert;
 import org.junit.Test;
+import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.yt.ytclient.proxy.YtClientTestBase;
-import ru.yandex.yt.ytclient.request.MapOperation;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 

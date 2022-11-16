@@ -8,8 +8,8 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class SetNode extends ru.yandex.yt.ytclient.request.SetNode.BuilderBase<SetNode> {
-    public SetNode(ru.yandex.yt.ytclient.request.SetNode other) {
+public class SetNode extends tech.ytsaurus.client.request.SetNode.BuilderBase<SetNode> {
+    public SetNode(tech.ytsaurus.client.request.SetNode other) {
         super(other.toBuilder());
     }
 

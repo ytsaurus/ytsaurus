@@ -15,7 +15,7 @@ import ru.yandex.lang.NonNullFields;
  */
 @NonNullApi
 @NonNullFields
-public class ResumeOperation extends ru.yandex.yt.ytclient.request.ResumeOperation.BuilderBase<ResumeOperation> {
+public class ResumeOperation extends tech.ytsaurus.client.request.ResumeOperation.BuilderBase<ResumeOperation> {
 
     public ResumeOperation(GUID operationId) {
         setOperationId(operationId);

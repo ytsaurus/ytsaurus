@@ -3,11 +3,11 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.CompletionException;
 
 import tech.ytsaurus.client.request.ColumnFilter;
+import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.request.GetNode;
 
 public class Example01CypressOperations {
     private Example01CypressOperations() {

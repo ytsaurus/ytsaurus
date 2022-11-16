@@ -1,8 +1,8 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
-
 import tech.ytsaurus.core.GUID;
-public class GetOperation extends ru.yandex.yt.ytclient.request.GetOperation.BuilderBase<GetOperation> {
+
+public class GetOperation extends tech.ytsaurus.client.request.GetOperation.BuilderBase<GetOperation> {
     public GetOperation(GUID guid) {
         setOperationId(guid);
     }

@@ -1,5 +1,6 @@
 package ru.yandex.yt.ytclient.examples;
 
+import tech.ytsaurus.client.request.AbortJob;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeMapNodeImpl;
@@ -7,7 +8,6 @@ import tech.ytsaurus.ysontree.YTreeMapNodeImpl;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
-import ru.yandex.yt.ytclient.request.AbortJob;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.getCredentials;

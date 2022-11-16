@@ -7,7 +7,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullFields
 @NonNullApi
-public class GetJob extends ru.yandex.yt.ytclient.request.GetJob.BuilderBase<GetJob> {
+public class GetJob extends tech.ytsaurus.client.request.GetJob.BuilderBase<GetJob> {
 
     public GetJob(GUID operationId, GUID jobId) {
         setOperationId(operationId).setJobId(jobId);

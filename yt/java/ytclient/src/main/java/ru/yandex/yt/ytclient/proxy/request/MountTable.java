@@ -5,7 +5,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
-public class MountTable extends ru.yandex.yt.ytclient.request.MountTable.BuilderBase<MountTable> {
+public class MountTable extends tech.ytsaurus.client.request.MountTable.BuilderBase<MountTable> {
     public MountTable(YPath path) {
         setPath(path.justPath());
     }

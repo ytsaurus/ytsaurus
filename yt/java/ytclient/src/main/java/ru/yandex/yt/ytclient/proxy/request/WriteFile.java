@@ -5,7 +5,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class WriteFile extends ru.yandex.yt.ytclient.request.WriteFile.BuilderBase<WriteFile> {
+public class WriteFile extends tech.ytsaurus.client.request.WriteFile.BuilderBase<WriteFile> {
     public WriteFile(String path) {
         setPath(path);
     }

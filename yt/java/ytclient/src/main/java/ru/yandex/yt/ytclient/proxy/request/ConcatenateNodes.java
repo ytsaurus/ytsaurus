@@ -11,7 +11,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class ConcatenateNodes extends ru.yandex.yt.ytclient.request.ConcatenateNodes.BuilderBase<ConcatenateNodes> {
+public class ConcatenateNodes extends tech.ytsaurus.client.request.ConcatenateNodes.BuilderBase<ConcatenateNodes> {
     public ConcatenateNodes(String[] from, String to) {
         this(
                 Arrays.stream(from).map(YPath::simple).collect(Collectors.toList()),
@@ -23,7 +23,7 @@ public class ConcatenateNodes extends ru.yandex.yt.ytclient.request.ConcatenateN
         setSourcePaths(source).setDestinationPath(dest);
     }
 
-    public ConcatenateNodes(ru.yandex.yt.ytclient.request.ConcatenateNodes.BuilderBase<?> builder) {
+    public ConcatenateNodes(tech.ytsaurus.client.request.ConcatenateNodes.BuilderBase<?> builder) {
         super(builder);
     }
 

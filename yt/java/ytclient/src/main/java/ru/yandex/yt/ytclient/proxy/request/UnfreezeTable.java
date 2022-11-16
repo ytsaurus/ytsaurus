@@ -5,7 +5,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import ru.yandex.lang.NonNullApi;
 
 @NonNullApi
-public class UnfreezeTable extends ru.yandex.yt.ytclient.request.UnfreezeTable.BuilderBase<UnfreezeTable> {
+public class UnfreezeTable extends tech.ytsaurus.client.request.UnfreezeTable.BuilderBase<UnfreezeTable> {
     public UnfreezeTable(YPath path) {
         setPath(path);
     }

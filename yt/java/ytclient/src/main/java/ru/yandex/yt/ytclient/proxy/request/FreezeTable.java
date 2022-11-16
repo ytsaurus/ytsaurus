@@ -7,7 +7,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class FreezeTable extends ru.yandex.yt.ytclient.request.FreezeTable.BuilderBase<FreezeTable> {
+public class FreezeTable extends tech.ytsaurus.client.request.FreezeTable.BuilderBase<FreezeTable> {
     public FreezeTable(YPath path) {
         setPath(path.justPath());
     }

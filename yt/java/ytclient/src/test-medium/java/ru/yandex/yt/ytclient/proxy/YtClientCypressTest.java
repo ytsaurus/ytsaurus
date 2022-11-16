@@ -9,6 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
 import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.client.request.ReadFile;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.TestingOptions;
 import tech.ytsaurus.core.cypress.YPath;
@@ -21,7 +22,6 @@ import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.SetNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
-import ru.yandex.yt.ytclient.request.ReadFile;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.instanceOf;

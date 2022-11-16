@@ -1,6 +1,6 @@
 package ru.yandex.yt.ytclient.proxy;
 
-public class SelectRowsRequest extends ru.yandex.yt.ytclient.request.SelectRowsRequest.BuilderBase<SelectRowsRequest> {
+public class SelectRowsRequest extends tech.ytsaurus.client.request.SelectRowsRequest.BuilderBase<SelectRowsRequest> {
     public static SelectRowsRequest of(String query) {
         return new SelectRowsRequest().setQuery(query);
     }

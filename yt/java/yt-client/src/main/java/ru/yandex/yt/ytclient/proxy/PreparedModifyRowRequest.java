@@ -24,7 +24,7 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 @NonNullApi
 @NonNullFields
 public class PreparedModifyRowRequest
-        extends ru.yandex.yt.ytclient.request.PreparedModifyRowRequest.BuilderBase<PreparedModifyRowRequest> {
+        extends tech.ytsaurus.client.request.PreparedModifyRowRequest.BuilderBase<PreparedModifyRowRequest> {
     PreparedModifyRowRequest(
             String path,
             TableSchema schema,
@@ -42,7 +42,7 @@ public class PreparedModifyRowRequest
     }
 
     @Override
-    public ru.yandex.yt.ytclient.request.PreparedModifyRowRequest build() {
-        return new ru.yandex.yt.ytclient.request.PreparedModifyRowRequest(this);
+    public tech.ytsaurus.client.request.PreparedModifyRowRequest build() {
+        return new tech.ytsaurus.client.request.PreparedModifyRowRequest(this);
     }
 }

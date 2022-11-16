@@ -2,9 +2,9 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import javax.annotation.Nonnull;
 
-
 import tech.ytsaurus.core.cypress.YPath;
-public class ReshardTableAutomatic extends ru.yandex.yt.ytclient.request.ReshardTableAutomatic.BuilderBase<
+
+public class ReshardTableAutomatic extends tech.ytsaurus.client.request.ReshardTableAutomatic.BuilderBase<
         ReshardTableAutomatic> {
     public ReshardTableAutomatic(YPath path, boolean keepActions) {
         setPath(path.justPath()).setKeepActions(keepActions);

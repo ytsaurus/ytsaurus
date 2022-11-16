@@ -4,7 +4,7 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi
-public class LookupRowsRequest extends ru.yandex.yt.ytclient.request.LookupRowsRequest.BuilderBase<LookupRowsRequest> {
+public class LookupRowsRequest extends tech.ytsaurus.client.request.LookupRowsRequest.BuilderBase<LookupRowsRequest> {
     public LookupRowsRequest(String path, TableSchema schema) {
         setPath(path).setSchema(schema);
     }
@@ -15,7 +15,7 @@ public class LookupRowsRequest extends ru.yandex.yt.ytclient.request.LookupRowsR
     }
 
     @Override
-    public ru.yandex.yt.ytclient.request.LookupRowsRequest build() {
-        return new ru.yandex.yt.ytclient.request.LookupRowsRequest(this);
+    public tech.ytsaurus.client.request.LookupRowsRequest build() {
+        return new tech.ytsaurus.client.request.LookupRowsRequest(this);
     }
 }

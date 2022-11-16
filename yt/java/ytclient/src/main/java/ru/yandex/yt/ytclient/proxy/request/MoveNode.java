@@ -7,7 +7,7 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullApi
 @NonNullFields
-public class MoveNode extends ru.yandex.yt.ytclient.request.MoveNode.BuilderBase<MoveNode> {
+public class MoveNode extends tech.ytsaurus.client.request.MoveNode.BuilderBase<MoveNode> {
     public MoveNode(String src, String dst) {
         setSource(src).setDestination(dst);
     }
@@ -16,7 +16,7 @@ public class MoveNode extends ru.yandex.yt.ytclient.request.MoveNode.BuilderBase
         this(src.justPath().toString(), dst.justPath().toString());
     }
 
-    public MoveNode(ru.yandex.yt.ytclient.request.MoveNode.BuilderBase<?> builder) {
+    public MoveNode(tech.ytsaurus.client.request.MoveNode.BuilderBase<?> builder) {
         super(builder);
     }
 

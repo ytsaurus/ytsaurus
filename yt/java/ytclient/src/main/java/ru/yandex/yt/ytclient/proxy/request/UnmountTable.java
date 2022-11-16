@@ -11,7 +11,7 @@ import ru.yandex.lang.NonNullApi;
  * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#unmountTable(UnmountTable)
  */
 @NonNullApi
-public class UnmountTable extends ru.yandex.yt.ytclient.request.UnmountTable.BuilderBase<UnmountTable> {
+public class UnmountTable extends tech.ytsaurus.client.request.UnmountTable.BuilderBase<UnmountTable> {
     public UnmountTable(YPath path) {
         setPath(path.justPath());
     }

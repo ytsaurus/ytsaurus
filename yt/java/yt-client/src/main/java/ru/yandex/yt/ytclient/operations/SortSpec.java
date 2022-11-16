@@ -9,6 +9,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
@@ -17,7 +18,6 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.TransactionalClient;
-import ru.yandex.yt.ytclient.request.CreateNode;
 import ru.yandex.yt.ytclient.tables.SortColumn;
 
 @NonNullApi

@@ -18,8 +18,13 @@ import javax.annotation.Nullable;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.request.ColumnFilter;
+import tech.ytsaurus.client.request.GetNode;
+import tech.ytsaurus.client.request.GetTabletInfos;
 import tech.ytsaurus.client.request.MasterReadKind;
 import tech.ytsaurus.client.request.MasterReadOptions;
+import tech.ytsaurus.client.request.TableReplicaMode;
+import tech.ytsaurus.client.request.TabletInfo;
+import tech.ytsaurus.client.request.TabletInfoReplica;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.cypress.YPath;
@@ -27,11 +32,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.request.GetNode;
-import ru.yandex.yt.ytclient.request.GetTabletInfos;
-import ru.yandex.yt.ytclient.request.TableReplicaMode;
-import ru.yandex.yt.ytclient.request.TabletInfo;
-import ru.yandex.yt.ytclient.request.TabletInfoReplica;
 
 @NonNullApi
 @NonNullFields
