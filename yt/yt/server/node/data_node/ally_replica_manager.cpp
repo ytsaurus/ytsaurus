@@ -346,12 +346,19 @@ public:
         fluent
             .Item("ally_replicas").DoListFor(allyReplicas.Replicas, [&] (TFluentList fluent, TChunkReplicaWithMedium replica) {
                 auto* descriptor = nodeDirectory->FindDescriptor(replica.GetNodeId());
-                fluent
-                    .Item()
+                auto address = descriptor ? descriptor->GetDefaultAddress() : "<unknown>";
+                if (IsErasureChunkId(chunkId)) {
+                    fluent
+                        .Item()
                         .BeginAttributes()
                             .Item("index").Value(replica.GetReplicaIndex())
                         .EndAttributes()
-                    .Value(descriptor ? descriptor->GetDefaultAddress() : "<unknown>");
+                        .Value(address);
+                } else {
+                    fluent
+                        .Item()
+                        .Value(address);
+                }
             })
             .Item("ally_replica_update_revision").Value(allyReplicas.Revision);
     }
