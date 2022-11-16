@@ -379,7 +379,7 @@ public:
         }
 
         for (const auto& [user, processListForUserInfo] : snapshot.GetUserToProcessListForUserInfo()) {
-            writer->PushTag({"user", user});
+            NProfiling::TWithTagGuard withTagGuard(writer, "user", user);
 
             writer->AddGauge("/yt/query_registry/memory_usage", processListForUserInfo.memory_usage);
             writer->AddGauge("/yt/query_registry/peak_memory_usage", processListForUserInfo.peak_memory_usage);
@@ -387,8 +387,6 @@ public:
             for (const auto& [name, value] : GetBriefProfileCounters(*processListForUserInfo.profile_counters)) {
                 writer->AddCounter("/native/user_profile_events/" + name, value);
             }
-
-            writer->PopTag();
         }
     }
 

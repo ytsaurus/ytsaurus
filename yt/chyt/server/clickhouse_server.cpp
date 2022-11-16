@@ -414,9 +414,8 @@ private:
                 continue;
             }
 
-            writer->PushTag(NProfiling::TTag{"table", tableIterator->name()});
+            NProfiling::TWithTagGuard withTagGuard(writer, "table", TString(tableIterator->name()));
             writer->AddGauge("/system_tables/memory", *totalBytes);
-            writer->PopTag();
         }
     }
 };
