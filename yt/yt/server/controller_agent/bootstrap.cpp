@@ -20,6 +20,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
@@ -130,6 +132,8 @@ void TBootstrap::DoRun()
 
     // Force start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
+
+    Connection_->GetClusterDirectorySynchronizer()->Start();
 
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
     Client_ = Connection_->CreateNativeClient(clientOptions);

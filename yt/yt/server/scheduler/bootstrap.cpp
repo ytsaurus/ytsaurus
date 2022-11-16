@@ -23,6 +23,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
@@ -124,6 +126,8 @@ void TBootstrap::DoRun()
 
     auto clientOptions = TClientOptions::FromUser(NSecurityClient::SchedulerUserName);
     Client_ = Connection_->CreateNativeClient(clientOptions);
+
+    Connection_->GetClusterDirectorySynchronizer()->Start();
 
     BusServer_ = CreateTcpBusServer(Config_->BusServer);
 
