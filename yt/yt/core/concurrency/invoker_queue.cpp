@@ -26,7 +26,7 @@ static constexpr int MaxTryDequeueCount = 100;
 Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TEnqueuedAction action)
 {
     Queue_.enqueue(std::move(action));
-    Size_.fetch_add(1, std::memory_order_release);
+    Size_.fetch_add(1, std::memory_order::release);
 }
 
 Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TMutableRange<TEnqueuedAction> actions)
@@ -35,7 +35,7 @@ Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TMutableRange<TEnqueuedAction> actio
     Queue_.enqueue_bulk(
         std::make_move_iterator(actions.Begin()),
         size);
-    Size_.fetch_add(size, std::memory_order_release);
+    Size_.fetch_add(size, std::memory_order::release);
 }
 
 Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsumerToken* token)
@@ -301,7 +301,7 @@ TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallback(
     NProfiling::TTagId profilingTag,
     TProfilerTagPtr profilerTag)
 {
-    if (!Running_.load(std::memory_order_relaxed)) {
+    if (!Running_.load(std::memory_order::relaxed)) {
         DrainProducer();
         YT_LOG_TRACE(
             "Queue had been shut down, incoming action ignored (Callback: %v)",
@@ -334,7 +334,7 @@ TCpuInstant TInvokerQueue<TQueueImpl>::EnqueueCallbacks(
 {
     auto cpuInstant = GetCpuInstant();
 
-    if (!Running_.load(std::memory_order_relaxed)) {
+    if (!Running_.load(std::memory_order::relaxed)) {
         DrainProducer();
         return cpuInstant;
     }
@@ -380,13 +380,13 @@ bool TInvokerQueue<TQueueImpl>::IsSerialized() const
 template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::Shutdown()
 {
-    Running_.store(false, std::memory_order_relaxed);
+    Running_.store(false, std::memory_order::relaxed);
 }
 
 template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::DrainProducer()
 {
-    YT_VERIFY(!Running_.load(std::memory_order_relaxed));
+    YT_VERIFY(!Running_.load(std::memory_order::relaxed));
 
     QueueImpl_.DrainProducer();
 }
@@ -394,7 +394,7 @@ void TInvokerQueue<TQueueImpl>::DrainProducer()
 template <class TQueueImpl>
 void TInvokerQueue<TQueueImpl>::DrainConsumer()
 {
-    YT_VERIFY(!Running_.load(std::memory_order_relaxed));
+    YT_VERIFY(!Running_.load(std::memory_order::relaxed));
 
     QueueImpl_.DrainConsumer();
 }
@@ -480,7 +480,7 @@ bool TInvokerQueue<TQueueImpl>::IsEmpty() const
 template <class TQueueImpl>
 bool TInvokerQueue<TQueueImpl>::IsRunning() const
 {
-    return Running_.load(std::memory_order_relaxed);
+    return Running_.load(std::memory_order::relaxed);
 }
 
 template <class TQueueImpl>

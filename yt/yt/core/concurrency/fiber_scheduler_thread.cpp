@@ -46,7 +46,7 @@ public:
 
     void Increment(i64 delta)
     {
-        auto value = Value_.fetch_add(delta, std::memory_order_relaxed) + delta;
+        auto value = Value_.fetch_add(delta, std::memory_order::relaxed) + delta;
         NProfiling::TGauge::Update(value);
     }
 
@@ -161,14 +161,14 @@ public:
 
     void OnStackAllocated(i64 stackSize)
     {
-        BytesAllocated_.fetch_add(stackSize, std::memory_order_relaxed);
-        BytesAlive_.fetch_add(stackSize, std::memory_order_relaxed);
+        BytesAllocated_.fetch_add(stackSize, std::memory_order::relaxed);
+        BytesAlive_.fetch_add(stackSize, std::memory_order::relaxed);
     }
 
     void OnStackFreed(i64 stackSize)
     {
-        BytesFreed_.fetch_add(stackSize, std::memory_order_relaxed);
-        BytesAlive_.fetch_sub(stackSize, std::memory_order_relaxed);
+        BytesFreed_.fetch_add(stackSize, std::memory_order::relaxed);
+        BytesAlive_.fetch_sub(stackSize, std::memory_order::relaxed);
     }
 
     void OnFiberCreated()

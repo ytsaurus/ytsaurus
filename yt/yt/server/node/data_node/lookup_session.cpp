@@ -231,7 +231,7 @@ TFuture<TSharedRef> TLookupSession::OnGotMeta(
     if (timer) {
         Options_.ChunkReaderStatistics->MetaWaitTime.fetch_add(
             timer->GetElapsedValue(),
-            std::memory_order_relaxed);
+            std::memory_order::relaxed);
     }
 
     const auto& chunkMeta = entry->Meta();

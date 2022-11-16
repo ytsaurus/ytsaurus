@@ -1409,7 +1409,7 @@ private:
 
         Options_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
             rsp->GetTotalSize(),
-            std::memory_order_relaxed);
+            std::memory_order::relaxed);
 
         {
             // Feed responses to controllers.

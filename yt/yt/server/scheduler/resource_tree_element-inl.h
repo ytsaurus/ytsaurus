@@ -10,7 +10,7 @@ namespace NYT::NScheduler {
 
 bool TResourceTreeElement::GetAlive() const
 {
-    return Alive_.load(std::memory_order_relaxed);
+    return Alive_.load(std::memory_order::relaxed);
 }
 
 void TResourceTreeElement::SetNonAlive()

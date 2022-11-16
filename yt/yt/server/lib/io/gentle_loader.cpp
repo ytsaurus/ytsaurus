@@ -596,7 +596,7 @@ public:
 
     TCongestedState GetState() const
     {
-        return State_.load(std::memory_order_relaxed);
+        return State_.load(std::memory_order::relaxed);
     }
 
 private:
@@ -618,7 +618,7 @@ private:
             InteractiveObserver_->GetCongestionStatus(),
             ProbesObserver_->GetCongestionStatus());
 
-        State_.store(state, std::memory_order_relaxed);
+        State_.store(state, std::memory_order::relaxed);
     }
 };
 

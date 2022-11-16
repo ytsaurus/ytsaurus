@@ -181,7 +181,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         auto nodeExpireAfterSuccessfulUpdateTime = expireAfterSuccessfulUpdateTime * cacheTtlRatio;
         auto nodeExpireAfterFailedUpdateTime = expireAfterFailedUpdateTime * cacheTtlRatio;
 
-        bool cachingEnabled = CachingEnabled_.load(std::memory_order_relaxed) && !cachingRequestHeaderExt->disable_second_level_cache();
+        bool cachingEnabled = CachingEnabled_.load(std::memory_order::relaxed) && !cachingRequestHeaderExt->disable_second_level_cache();
         auto cookie = Cache_->BeginLookup(
             requestId,
             key,

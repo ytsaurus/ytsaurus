@@ -15,12 +15,12 @@ DEFINE_REFCOUNTED_TYPE(TSimpleGauge)
 
 void TSimpleGauge::Update(double value)
 {
-    Value_.store(value, std::memory_order_relaxed);
+    Value_.store(value, std::memory_order::relaxed);
 }
 
 double TSimpleGauge::GetValue()
 {
-    return Value_.load(std::memory_order_relaxed);
+    return Value_.load(std::memory_order::relaxed);
 }
 
 void TSimpleGauge::Record(double /* value */)
@@ -44,12 +44,12 @@ TSummarySnapshot<double> TSimpleGauge::GetSummaryAndReset()
 
 void TSimpleTimeGauge::Update(TDuration value)
 {
-    Value_.store(value.GetValue(), std::memory_order_relaxed);
+    Value_.store(value.GetValue(), std::memory_order::relaxed);
 }
 
 TDuration TSimpleTimeGauge::GetValue()
 {
-    return TDuration::FromValue(Value_.load(std::memory_order_relaxed));
+    return TDuration::FromValue(Value_.load(std::memory_order::relaxed));
 }
 
 void TSimpleTimeGauge::Record(TDuration /* value */)
@@ -74,24 +74,24 @@ TSummarySnapshot<TDuration> TSimpleTimeGauge::GetSummaryAndReset()
 void TSimpleCounter::Increment(i64 delta)
 {
     YT_VERIFY(delta >= 0);
-    Value_.fetch_add(delta, std::memory_order_relaxed);
+    Value_.fetch_add(delta, std::memory_order::relaxed);
 }
 
 i64 TSimpleCounter::GetValue()
 {
-    return Value_.load(std::memory_order_relaxed);
+    return Value_.load(std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void TSimpleTimeCounter::Add(TDuration delta)
 {
-    Value_.fetch_add(delta.GetValue(), std::memory_order_relaxed);
+    Value_.fetch_add(delta.GetValue(), std::memory_order::relaxed);
 }
 
 TDuration TSimpleTimeCounter::GetValue()
 {
-    return TDuration::FromValue(Value_.load(std::memory_order_relaxed));
+    return TDuration::FromValue(Value_.load(std::memory_order::relaxed));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -201,19 +201,19 @@ THistogram::THistogram(const TSensorOptions& options)
 void THistogram::Record(TDuration value)
 {
     auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value.SecondsFloat());
-    Buckets_[it - Bounds_.begin()].fetch_add(1, std::memory_order_relaxed);
+    Buckets_[it - Bounds_.begin()].fetch_add(1, std::memory_order::relaxed);
 }
 
 void THistogram::Add(double value, int count)
 {
     auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value);
-    Buckets_[it - Bounds_.begin()].fetch_add(count, std::memory_order_relaxed);
+    Buckets_[it - Bounds_.begin()].fetch_add(count, std::memory_order::relaxed);
 }
 
 void THistogram::Remove(double value, int count)
 {
     auto it = std::lower_bound(Bounds_.begin(), Bounds_.end(), value);
-    Buckets_[it - Bounds_.begin()].fetch_sub(count, std::memory_order_relaxed);
+    Buckets_[it - Bounds_.begin()].fetch_sub(count, std::memory_order::relaxed);
 }
 
 void THistogram::Reset()
@@ -230,7 +230,7 @@ THistogramSnapshot THistogram::GetSnapshot() const
     snapshot.Values.resize(Buckets_.size());
 
     for (int i = 0; i < std::ssize(Buckets_); ++i) {
-        snapshot.Values[i] = Buckets_[i].load(std::memory_order_relaxed);
+        snapshot.Values[i] = Buckets_[i].load(std::memory_order::relaxed);
     }
 
     return snapshot;
@@ -245,7 +245,7 @@ void THistogram::LoadSnapshot(THistogramSnapshot snapshot)
     YT_VERIFY(std::ssize(Buckets_) == std::ssize(Bounds_) + 1);
 
     for (int i = 0; i < std::ssize(snapshot.Values); ++i) {
-        Buckets_[i].store(snapshot.Values[i], std::memory_order_relaxed);
+        Buckets_[i].store(snapshot.Values[i], std::memory_order::relaxed);
     }
 }
 

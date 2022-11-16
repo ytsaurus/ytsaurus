@@ -41,20 +41,20 @@ std::atomic<char*> LocalYPClusterPtr;
 const char* ReadLocalHostName() noexcept
 {
     // Writer-side imposes AcqRel ordering, so all preceding writes must be visible.
-    char* ptr = LocalHostNamePtr.load(std::memory_order_relaxed);
+    char* ptr = LocalHostNamePtr.load(std::memory_order::relaxed);
     return ptr ? ptr : LocalHostNameData;
 }
 
 const char* ReadLocalYPCluster() noexcept
 {
     // Writer-side imposes AcqRel ordering, so all preceding writes must be visible.
-    char* ptr = LocalYPClusterPtr.load(std::memory_order_relaxed);
+    char* ptr = LocalYPClusterPtr.load(std::memory_order::relaxed);
     return ptr ? ptr : LocalYPClusterData;
 }
 
 void GuardedWriteString(std::atomic<char*>& storage, char* initial, TStringBuf string)
 {
-    char* ptr = storage.load(std::memory_order_relaxed);
+    char* ptr = storage.load(std::memory_order::relaxed);
     ptr = ptr ? ptr : initial;
 
     if (::strncmp(ptr, string.data(), string.length()) == 0) {
@@ -70,7 +70,7 @@ void GuardedWriteString(std::atomic<char*>& storage, char* initial, TStringBuf s
     ::memcpy(ptr, string.data(), string.length());
     *(ptr + string.length()) = 0;
 
-    storage.store(ptr, std::memory_order_seq_cst);
+    storage.store(ptr, std::memory_order::seq_cst);
 }
 
 void WriteLocalHostName(TStringBuf hostName) noexcept

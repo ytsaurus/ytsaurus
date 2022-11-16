@@ -87,8 +87,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Clear()
 
         shard.YoungerWeightCounter -= totalYoungerWeight;
         shard.OlderWeightCounter -= totalOlderWeight;
-        YoungerWeightCounter_.fetch_sub(totalYoungerWeight, std::memory_order_relaxed);
-        OlderWeightCounter_.fetch_sub(totalOlderWeight, std::memory_order_relaxed);
+        YoungerWeightCounter_.fetch_sub(totalYoungerWeight, std::memory_order::relaxed);
+        OlderWeightCounter_.fetch_sub(totalOlderWeight, std::memory_order::relaxed);
         Size_ -= totalItemCount;
 
         // NB: Lists must die outside the critical section.
@@ -346,7 +346,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::OnRemoved(const TValuePtr& /*value
 template <class TKey, class TValue, class THash>
 int TSyncSlruCacheBase<TKey, TValue, THash>::GetSize() const
 {
-    return Size_.load(std::memory_order_relaxed);
+    return Size_.load(std::memory_order::relaxed);
 }
 
 template <class TKey, class TValue, class THash>
@@ -356,7 +356,7 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::PushToYounger(TShard* shard, TItem
     shard->YoungerLruList.PushFront(item);
     auto weight = GetWeight(item->Value);
     shard->YoungerWeightCounter += weight;
-    YoungerWeightCounter_.fetch_add(weight, std::memory_order_relaxed);
+    YoungerWeightCounter_.fetch_add(weight, std::memory_order::relaxed);
     item->Younger = true;
 }
 
@@ -370,8 +370,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToYounger(TShard* shard, TItem
         auto weight = GetWeight(item->Value);
         shard->YoungerWeightCounter += weight;
         shard->OlderWeightCounter -= weight;
-        OlderWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
-        YoungerWeightCounter_.fetch_add(weight, std::memory_order_relaxed);
+        OlderWeightCounter_.fetch_sub(weight, std::memory_order::relaxed);
+        YoungerWeightCounter_.fetch_add(weight, std::memory_order::relaxed);
         item->Younger = true;
     }
 }
@@ -386,8 +386,8 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::MoveToOlder(TShard* shard, TItem* 
         auto weight = GetWeight(item->Value);
         shard->YoungerWeightCounter -= weight;
         shard->OlderWeightCounter += weight;
-        YoungerWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
-        OlderWeightCounter_.fetch_add(weight, std::memory_order_relaxed);
+        YoungerWeightCounter_.fetch_sub(weight, std::memory_order::relaxed);
+        OlderWeightCounter_.fetch_add(weight, std::memory_order::relaxed);
         item->Younger = false;
     }
 }
@@ -401,10 +401,10 @@ void TSyncSlruCacheBase<TKey, TValue, THash>::Pop(TShard* shard, TItem* item)
     auto weight = GetWeight(item->Value);
     if (item->Younger) {
         shard->YoungerWeightCounter -= weight;
-        YoungerWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
+        YoungerWeightCounter_.fetch_sub(weight, std::memory_order::relaxed);
     } else {
         shard->OlderWeightCounter -= weight;
-        OlderWeightCounter_.fetch_sub(weight, std::memory_order_relaxed);
+        OlderWeightCounter_.fetch_sub(weight, std::memory_order::relaxed);
     }
     item->Unlink();
 }

@@ -11,8 +11,8 @@ namespace NYT::NConcurrency {
 
 inline bool TThread::Start()
 {
-    if (Y_LIKELY(Started_.load(std::memory_order_relaxed))) {
-        if (Y_UNLIKELY(Stopping_.load(std::memory_order_relaxed))) {
+    if (Y_LIKELY(Started_.load(std::memory_order::relaxed))) {
+        if (Y_UNLIKELY(Stopping_.load(std::memory_order::relaxed))) {
             return false;
         }
         return true;
@@ -23,12 +23,12 @@ inline bool TThread::Start()
 
 inline bool TThread::IsStarted() const
 {
-    return Started_.load(std::memory_order_relaxed);
+    return Started_.load(std::memory_order::relaxed);
 }
 
 inline bool TThread::IsStopping() const
 {
-    return Stopping_.load(std::memory_order_relaxed);
+    return Stopping_.load(std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

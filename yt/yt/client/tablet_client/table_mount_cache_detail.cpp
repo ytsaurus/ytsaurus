@@ -82,7 +82,7 @@ void TTabletInfoCache::Clear()
 void TTabletInfoCache::SweepExpiredEntries()
 {
     auto now = NProfiling::GetCpuInstant();
-    auto deadline = ExpiredEntriesSweepDeadline_.load(std::memory_order_relaxed);
+    auto deadline = ExpiredEntriesSweepDeadline_.load(std::memory_order::relaxed);
     if (now < deadline) {
         return;
     }

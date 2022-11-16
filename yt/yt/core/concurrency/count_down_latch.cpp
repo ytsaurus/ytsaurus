@@ -19,7 +19,7 @@ void TCountDownLatch::CountDown()
 #ifndef _linux_
     TGuard<TMutex> guard(Mutex_);
 #endif
-    auto previous = Count_.fetch_sub(1, std::memory_order_release);
+    auto previous = Count_.fetch_sub(1, std::memory_order::release);
     if (previous == 1) {
 #ifdef _linux_
         int rv = NThreading::FutexWake(
@@ -38,7 +38,7 @@ void TCountDownLatch::Wait() const
 #ifndef _linux_
         TGuard<TMutex> guard(Mutex_);
 #endif
-        auto count = Count_.load(std::memory_order_acquire);
+        auto count = Count_.load(std::memory_order::acquire);
         if (count == 0) {
             return;
         }
@@ -55,12 +55,12 @@ void TCountDownLatch::Wait() const
 
 bool TCountDownLatch::TryWait() const
 {
-    return Count_.load(std::memory_order_acquire) == 0;
+    return Count_.load(std::memory_order::acquire) == 0;
 }
 
 size_t TCountDownLatch::GetCount() const
 {
-    return Count_.load(std::memory_order_relaxed);
+    return Count_.load(std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

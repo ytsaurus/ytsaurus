@@ -357,7 +357,7 @@ THashMap<TString, size_t> GetBriefProfileCounters(const ProfileEvents::Counters&
     THashMap<TString, size_t> result;
 
     for (const auto& event : SignificantEvents) {
-        result[CamelCaseToUnderscoreCase(ProfileEvents::getName(event))] = profileCounters[event].load(std::memory_order_relaxed);
+        result[CamelCaseToUnderscoreCase(ProfileEvents::getName(event))] = profileCounters[event].load(std::memory_order::relaxed);
     }
 
     return result;

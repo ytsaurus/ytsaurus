@@ -152,7 +152,7 @@ bool TLogger::IsLevelEnabledHeavy(ELogLevel level) const
     // default constructed, thus it has non-trivial category.
     YT_ASSERT(Category_);
 
-    if (Category_->CurrentVersion != Category_->ActualVersion->load(std::memory_order_relaxed)) {
+    if (Category_->CurrentVersion != Category_->ActualVersion->load(std::memory_order::relaxed)) {
         LogManager_->UpdateCategory(const_cast<TLoggingCategory*>(Category_));
     }
 

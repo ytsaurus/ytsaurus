@@ -149,7 +149,7 @@ public:
                 Y_ASSERT(info.ReplicaId);
                 auto curTabletsWithLag = tabletsWithLag.Value(info.ReplicaId, 0);
                 NProfiling::TCpuDuration newLagPenalty = CalculateLagPenalty(tabletsCount, curTabletsWithLag);
-                info.CurrentLagPenalty.store(newLagPenalty, std::memory_order_relaxed);
+                info.CurrentLagPenalty.store(newLagPenalty, std::memory_order::relaxed);
 
                 Counters_->LagTabletsCount.at(cluster).Update(curTabletsWithLag);
                 YT_LOG_INFO(
@@ -168,7 +168,7 @@ public:
 
             if (ClearPenaltiesOnErrors_) {
                 for (auto& [cluster, info] : ReplicaClusters_) {
-                    info.CurrentLagPenalty.store(0, std::memory_order_relaxed);
+                    info.CurrentLagPenalty.store(0, std::memory_order::relaxed);
                     YT_LOG_INFO("Clearing penalty for cluster %v and table %v", cluster, TablePath_);
                 }
             }
@@ -178,7 +178,7 @@ public:
     NProfiling::TCpuDuration Get(const TString& cluster) override
     {
         if (const TReplicaInfo* info = ReplicaClusters_.FindPtr(cluster)) {
-            return info->CurrentLagPenalty.load(std::memory_order_relaxed);
+            return info->CurrentLagPenalty.load(std::memory_order::relaxed);
         }
         return 0;
     }

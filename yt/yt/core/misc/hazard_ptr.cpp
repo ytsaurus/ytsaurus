@@ -55,7 +55,7 @@ private:
     void EraseList(TNode* node)
     {
         while (node) {
-            auto* next = node->Next.load(std::memory_order_acquire);
+            auto* next = node->Next.load(std::memory_order::acquire);
             delete node;
             node = next;
         }
@@ -136,7 +136,7 @@ public:
 
     size_t GetThreadCount() const
     {
-        return ThreadCount_.load(std::memory_order_relaxed);
+        return ThreadCount_.load(std::memory_order::relaxed);
     }
 
 private:

@@ -36,7 +36,7 @@ TTimestamp TTimestampProviderBase::GetLatestTimestamp()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto result = LatestTimestamp_.load(std::memory_order_relaxed);
+    auto result = LatestTimestamp_.load(std::memory_order::relaxed);
 
     if (LatestTimestampUpdatePeriod_ && ++GetLatestTimestampCallCounter_ == 1) {
         LatestTimestampExecutor_ = New<TPeriodicExecutor>(
@@ -67,12 +67,12 @@ TFuture<TTimestamp> TTimestampProviderBase::OnGenerateTimestamps(
         firstTimestamp,
         lastTimestamp);
 
-    auto latestTimestamp = LatestTimestamp_.load(std::memory_order_relaxed);
+    auto latestTimestamp = LatestTimestamp_.load(std::memory_order::relaxed);
     while (true) {
         if (latestTimestamp >= lastTimestamp) {
             break;
         }
-        if (LatestTimestamp_.compare_exchange_weak(latestTimestamp, lastTimestamp, std::memory_order_relaxed)) {
+        if (LatestTimestamp_.compare_exchange_weak(latestTimestamp, lastTimestamp, std::memory_order::relaxed)) {
             break;
         }
     }

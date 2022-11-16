@@ -637,7 +637,7 @@ private:
         if (bytesRead > 0) {
             chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                 bytesRead,
-                std::memory_order_relaxed);
+                std::memory_order::relaxed);
             return blocks;
         }
 
@@ -654,7 +654,7 @@ private:
                 blocks.push_back(block);
                 chunkReaderStatistics->DataBytesReadFromCache.fetch_add(
                     block.Size(),
-                    std::memory_order_relaxed);
+                    std::memory_order::relaxed);
             }
         }
         return blocks;
@@ -904,8 +904,8 @@ private:
         response->set_net_throttling(netThrottling);
 
         auto bytesReadFromDisk =
-            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order_relaxed) +
-            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order_relaxed);
+            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
         const auto& ioTracker = Bootstrap_->GetIOTracker();
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(
@@ -1014,8 +1014,8 @@ private:
         }
 
         auto bytesReadFromDisk =
-            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order_relaxed) +
-            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order_relaxed);
+            chunkReaderStatistics->DataBytesReadFromDisk.load(std::memory_order::relaxed) +
+            chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed);
         const auto& ioTracker = Bootstrap_->GetIOTracker();
         if (bytesReadFromDisk > 0 && ioTracker->IsEnabled()) {
             ioTracker->Enqueue(

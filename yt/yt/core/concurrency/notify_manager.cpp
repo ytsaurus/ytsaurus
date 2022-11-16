@@ -26,7 +26,7 @@ TNotifyManager::TNotifyManager(
 
 TCpuInstant TNotifyManager::GetMinEnqueuedAt() const
 {
-    return MinEnqueuedAt_.load(std::memory_order_acquire);
+    return MinEnqueuedAt_.load(std::memory_order::acquire);
 }
 
 TCpuInstant TNotifyManager::UpdateMinEnqueuedAt(TCpuInstant newMinEnqueuedAt)

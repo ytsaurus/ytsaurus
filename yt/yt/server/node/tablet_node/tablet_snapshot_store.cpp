@@ -521,8 +521,8 @@ private:
         }
         fluent
             .BeginMap()
-                .Item("mode").Value(replica->RuntimeData->Mode.load(std::memory_order_relaxed))
-                .Item("atomicity").Value(replica->RuntimeData->Atomicity.load(std::memory_order_relaxed))
+                .Item("mode").Value(replica->RuntimeData->Mode.load(std::memory_order::relaxed))
+                .Item("atomicity").Value(replica->RuntimeData->Atomicity.load(std::memory_order::relaxed))
                 .Item("preserve_timestamps").Value(replica->RuntimeData->PreserveTimestamps)
                 .Item("start_replication_timestamp").Value(replica->StartReplicationTimestamp)
                 .Item("last_replication_timestamp").Value(replica->RuntimeData->LastReplicationTimestamp)

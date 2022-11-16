@@ -302,7 +302,7 @@ public:
         if (!State_) {
             return;
         }
-        State_->Counter.fetch_add(1, std::memory_order_relaxed);
+        State_->Counter.fetch_add(1, std::memory_order::relaxed);
     }
 
     void Decrement()
@@ -310,7 +310,7 @@ public:
         if (!State_) {
             return;
         }
-        State_->Counter.fetch_sub(1, std::memory_order_relaxed);
+        State_->Counter.fetch_sub(1, std::memory_order::relaxed);
     }
 
     static TInflightCounter Create(TProfiler& profiler, const TString& name)
@@ -318,7 +318,7 @@ public:
         TInflightCounter obj;
         obj.State_ = New<TState>();
         profiler.AddFuncGauge(name, obj.State_, [state = obj.State_.Get()](){
-            return state->Counter.load(std::memory_order_relaxed);
+            return state->Counter.load(std::memory_order::relaxed);
         });
         return obj;
     }
@@ -375,13 +375,13 @@ struct TIOEngineSensors final
     void RegisterWrittenBytes(i64 count)
     {
         WrittenBytesCounter.Increment(count);
-        TotalWrittenBytesCounter.fetch_add(count, std::memory_order_relaxed);
+        TotalWrittenBytesCounter.fetch_add(count, std::memory_order::relaxed);
     }
 
     void RegisterReadBytes(i64 count)
     {
         ReadBytesCounter.Increment(count);
-        TotalReadBytesCounter.fetch_add(count, std::memory_order_relaxed);
+        TotalReadBytesCounter.fetch_add(count, std::memory_order::relaxed);
     }
 
     void UpdateKernelStatistics()
@@ -510,12 +510,12 @@ public:
 
     i64 GetTotalReadBytes() const override
     {
-        return Sensors_->TotalReadBytesCounter.load(std::memory_order_relaxed);
+        return Sensors_->TotalReadBytesCounter.load(std::memory_order::relaxed);
     }
 
     i64 GetTotalWrittenBytes() const override
     {
-        return Sensors_->TotalWrittenBytesCounter.load(std::memory_order_relaxed);
+        return Sensors_->TotalWrittenBytesCounter.load(std::memory_order::relaxed);
     }
 
     EDirectIOPolicy UseDirectIOForReads() const override

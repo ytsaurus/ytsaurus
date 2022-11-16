@@ -231,7 +231,7 @@ void TTcpConnection::RunPeriodicCheck()
 
     auto now = NProfiling::GetCpuInstant();
 
-    if (LastIncompleteWriteTime_.load(std::memory_order_relaxed) < now - WriteStallTimeout_) {
+    if (LastIncompleteWriteTime_.load(std::memory_order::relaxed) < now - WriteStallTimeout_) {
         IncrementBusCounter(&TBusNetworkBandCounters::StalledWrites, 1);
         Terminate(TError(
             NBus::EErrorCode::TransportError,
@@ -241,7 +241,7 @@ void TTcpConnection::RunPeriodicCheck()
         return;
     }
 
-    if (LastIncompleteReadTime_.load(std::memory_order_relaxed) < now - ReadStallTimeout_) {
+    if (LastIncompleteReadTime_.load(std::memory_order::relaxed) < now - ReadStallTimeout_) {
         IncrementBusCounter(&TBusNetworkBandCounters::StalledReads, 1);
         Terminate(TError(
             NBus::EErrorCode::TransportError,
@@ -754,7 +754,7 @@ void TTcpConnection::OnEvent(EPollControl control)
 {
     EPollControl action;
     {
-        auto rawPendingControl = PendingControl_.load(std::memory_order_acquire);
+        auto rawPendingControl = PendingControl_.load(std::memory_order::acquire);
         while (true) {
             auto pendingControl = static_cast<EPollControl>(rawPendingControl);
             // New events could come while previous handler is still running.

@@ -81,7 +81,7 @@ static thread_local int SpinlockEventCount = 0;
 
 void TSpinlockProfiler::OnEvent(const void *lock, int64_t waitCycles)
 {
-    auto samplingRate = SamplingRate_.load(std::memory_order_relaxed);
+    auto samplingRate = SamplingRate_.load(std::memory_order::relaxed);
     if (samplingRate == 0) {
         return;
     }
@@ -204,7 +204,7 @@ void TBlockingProfiler::OnEvent(
     const ::TSourceLocation& location,
     NThreading::ESpinLockActivityKind activityKind)
 {
-    auto samplingRate = SamplingRate_.load(std::memory_order_relaxed);
+    auto samplingRate = SamplingRate_.load(std::memory_order::relaxed);
     if (samplingRate == 0) {
         return;
     }

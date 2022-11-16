@@ -150,7 +150,7 @@ private:
 
     void EnsuredStarted()
     {
-        if (Started_.load(std::memory_order_relaxed)) {
+        if (Started_.load(std::memory_order::relaxed)) {
             return;
         }
         if (Started_.exchange(true)) {

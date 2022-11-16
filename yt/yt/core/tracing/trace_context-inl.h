@@ -12,7 +12,7 @@ namespace NYT::NTracing {
 
 Y_FORCE_INLINE bool TTraceContext::IsRecorded() const
 {
-    auto state = State_.load(std::memory_order_relaxed);
+    auto state = State_.load(std::memory_order::relaxed);
     return state == ETraceContextState::Recorded || state == ETraceContextState::Sampled;
 }
 
@@ -58,7 +58,7 @@ Y_FORCE_INLINE const TString& TTraceContext::GetLoggingTag() const
 
 Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
 {
-    return ElapsedCpuTime_.load(std::memory_order_relaxed);
+    return ElapsedCpuTime_.load(std::memory_order::relaxed);
 }
 
 template <class T>

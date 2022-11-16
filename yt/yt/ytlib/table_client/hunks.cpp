@@ -488,10 +488,10 @@ public:
         const auto& statistics = GetOrCrash(*ColumnIdToStatistics_, columnId);
 
         return {
-            .InlineValueCount = statistics.InlineValueCount.load(std::memory_order_relaxed),
-            .RefValueCount = statistics.RefValueCount.load(std::memory_order_relaxed),
-            .InlineValueWeight = statistics.InlineValueWeight.load(std::memory_order_relaxed),
-            .RefValueWeight = statistics.RefValueWeight.load(std::memory_order_relaxed)
+            .InlineValueCount = statistics.InlineValueCount.load(std::memory_order::relaxed),
+            .RefValueCount = statistics.RefValueCount.load(std::memory_order::relaxed),
+            .InlineValueWeight = statistics.InlineValueWeight.load(std::memory_order::relaxed),
+            .RefValueWeight = statistics.RefValueWeight.load(std::memory_order::relaxed)
         };
     }
 
@@ -514,10 +514,10 @@ private:
         { }
 
         TAtomicColumnarStatistics(TAtomicColumnarStatistics&& other)
-            : InlineValueCount(other.InlineValueCount.load(std::memory_order_relaxed))
-            , RefValueCount(other.RefValueCount.load(std::memory_order_relaxed))
-            , InlineValueWeight(other.InlineValueWeight.load(std::memory_order_relaxed))
-            , RefValueWeight(other.RefValueWeight.load(std::memory_order_relaxed))
+            : InlineValueCount(other.InlineValueCount.load(std::memory_order::relaxed))
+            , RefValueCount(other.RefValueCount.load(std::memory_order::relaxed))
+            , InlineValueWeight(other.InlineValueWeight.load(std::memory_order::relaxed))
+            , RefValueWeight(other.RefValueWeight.load(std::memory_order::relaxed))
         { }
 
         std::atomic<i64> InlineValueCount = 0;

@@ -43,12 +43,12 @@ private:
 
 bool TProxyCoordinator::SetBannedState(bool banned)
 {
-    return Banned_.exchange(banned, std::memory_order_relaxed) != banned;
+    return Banned_.exchange(banned, std::memory_order::relaxed) != banned;
 }
 
 bool TProxyCoordinator::GetBannedState() const
 {
-    return Banned_.load(std::memory_order_relaxed);
+    return Banned_.load(std::memory_order::relaxed);
 }
 
 void TProxyCoordinator::SetBanMessage(const TString& message)
@@ -74,12 +74,12 @@ std::optional<TString> TProxyCoordinator::GetProxyRole() const
 
 bool TProxyCoordinator::SetAvailableState(bool available)
 {
-    return Available_.exchange(available, std::memory_order_relaxed) != available;
+    return Available_.exchange(available, std::memory_order::relaxed) != available;
 }
 
 bool TProxyCoordinator::GetAvailableState() const
 {
-    return Available_.load(std::memory_order_relaxed);
+    return Available_.load(std::memory_order::relaxed);
 }
 
 bool TProxyCoordinator::GetOperableState() const

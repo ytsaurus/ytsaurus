@@ -357,7 +357,7 @@ bool TTraceContext::IsSampled() const
 {
     auto traceContext = this;
     while (traceContext) {
-        auto state = traceContext->State_.load(std::memory_order_relaxed);
+        auto state = traceContext->State_.load(std::memory_order::relaxed);
         if (state == ETraceContextState::Sampled) {
             return true;
         } else if (state == ETraceContextState::Disabled) {
@@ -384,7 +384,7 @@ void TTraceContext::Finish()
     }
     SetDuration();
 
-    auto state = State_.load(std::memory_order_relaxed);
+    auto state = State_.load(std::memory_order::relaxed);
     if (state == ETraceContextState::Disabled) {
         return;
     } else if (state == ETraceContextState::Sampled) {
@@ -565,7 +565,7 @@ static void DoSwitchTraceContext(TTraceContext* oldContext, TTraceContext* newCo
     }
 
     NDetail::CurrentTraceContext = newContext;
-    std::atomic_signal_fence(std::memory_order_seq_cst);
+    std::atomic_signal_fence(std::memory_order::seq_cst);
 
     NDetail::TraceContextTimingCheckpoint = now;
 }

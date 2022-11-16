@@ -12,12 +12,12 @@ struct TCommonLockOps<std::atomic_flag>
 {
     static void Acquire(std::atomic_flag* flag) noexcept
     {
-        while (flag->test_and_set(std::memory_order_acquire));
+        while (flag->test_and_set(std::memory_order::acquire));
     }
 
     static void Release(std::atomic_flag* flag) noexcept
     {
-        flag->clear(std::memory_order_release);
+        flag->clear(std::memory_order::release);
     }
 };
 

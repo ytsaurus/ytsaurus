@@ -184,7 +184,7 @@ public:
     {
         auto guard = Guard(SpinLock_);
 
-        QueueSize_.fetch_add(1, std::memory_order_relaxed);
+        QueueSize_.fetch_add(1, std::memory_order::relaxed);
 
         if (!bucket->HeapIterator) {
             // Otherwise ExcessTime will be recalculated in AccountCurrentlyExecutingBuckets.
@@ -287,7 +287,7 @@ public:
 
         action->FinishedAt = tscp.Instant;
 
-        int queueSize = QueueSize_.fetch_sub(1, std::memory_order_relaxed) - 1;
+        int queueSize = QueueSize_.fetch_sub(1, std::memory_order::relaxed) - 1;
         SizeCounter_.Record(queueSize);
 
         auto timeFromStart = CpuDurationToDuration(action->FinishedAt - action->StartedAt);

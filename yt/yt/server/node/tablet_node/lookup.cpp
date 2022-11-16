@@ -300,7 +300,7 @@ protected:
 
             if (foundItem) {
                 // If table is frozen both revisions are zero.
-                if (foundItem->Revision.load(std::memory_order_acquire) >= flushIndex) {
+                if (foundItem->Revision.load(std::memory_order::acquire) >= flushIndex) {
                     ++CacheHits_;
                     YT_LOG_TRACE("Row found (Key: %v)", key);
                     RowsFromCache_.push_back(std::move(foundItemRef));
@@ -437,7 +437,7 @@ protected:
                 YT_VERIFY(cachedItem->GetVersionedRow().GetKeyCount() > 0);
 
                 auto revision = StoreFlushIndex_;
-                cachedItem->Revision.store(revision, std::memory_order_release);
+                cachedItem->Revision.store(revision, std::memory_order::release);
 
                 YT_LOG_TRACE("Populating cache (Row: %v, Revision: %v)",
                     cachedItem->GetVersionedRow(),
@@ -1196,7 +1196,7 @@ TFuture<TSharedRef> TLookupSession::OnTabletLookupAttemptFailed(
                 MaxRetryCount_,
                 request.TabletId);
 
-            RetryCount_.fetch_add(1, std::memory_order_relaxed);
+            RetryCount_.fetch_add(1, std::memory_order::relaxed);
 
             return RunTabletRequest(requestIndex);
         } else {
@@ -1271,22 +1271,22 @@ TLookupSession::~TLookupSession()
 
     auto* counters = tabletSnapshot->TableProfiler->GetLookupCounters(ProfilingUser_);
 
-    counters->RowCount.Increment(FoundRowCount_.load(std::memory_order_relaxed));
-    counters->MissingKeyCount.Increment(MissingKeyCount_.load(std::memory_order_relaxed));
-    counters->DataWeight.Increment(FoundDataWeight_.load(std::memory_order_relaxed));
-    counters->UnmergedRowCount.Increment(UnmergedRowCount_.load(std::memory_order_relaxed));
-    counters->UnmergedDataWeight.Increment(UnmergedDataWeight_.load(std::memory_order_relaxed));
+    counters->RowCount.Increment(FoundRowCount_.load(std::memory_order::relaxed));
+    counters->MissingKeyCount.Increment(MissingKeyCount_.load(std::memory_order::relaxed));
+    counters->DataWeight.Increment(FoundDataWeight_.load(std::memory_order::relaxed));
+    counters->UnmergedRowCount.Increment(UnmergedRowCount_.load(std::memory_order::relaxed));
+    counters->UnmergedDataWeight.Increment(UnmergedDataWeight_.load(std::memory_order::relaxed));
     if (!FinishedSuccessfully_) {
-        counters->WastedUnmergedDataWeight.Increment(UnmergedDataWeight_.load(std::memory_order_relaxed));
+        counters->WastedUnmergedDataWeight.Increment(UnmergedDataWeight_.load(std::memory_order::relaxed));
     }
 
     counters->DecompressionCpuTime.Add(
-        TDuration::MicroSeconds(DecompressionCpuTime_.load(std::memory_order_relaxed)));
+        TDuration::MicroSeconds(DecompressionCpuTime_.load(std::memory_order::relaxed)));
     if (CpuTime_) {
         counters->CpuTime.Add(*CpuTime_);
     }
 
-    counters->RetryCount.Increment(RetryCount_.load(std::memory_order_relaxed));
+    counters->RetryCount.Increment(RetryCount_.load(std::memory_order::relaxed));
 
     counters->ChunkReaderStatisticsCounters.Increment(
         ChunkReadOptions_.ChunkReaderStatistics,
@@ -1857,12 +1857,12 @@ void TTabletLookupSession<TPipeline>::UpdateUnmergedStatistics(const TStoreSessi
 template <class TPipeline>
 TTabletLookupSession<TPipeline>::~TTabletLookupSession()
 {
-    LookupSession_->FoundRowCount_.fetch_add(GetFoundRowCount(), std::memory_order_relaxed);
-    LookupSession_->FoundDataWeight_.fetch_add(GetFoundDataWeight(), std::memory_order_relaxed);
-    LookupSession_->MissingKeyCount_.fetch_add(LookupKeys_.size() - GetFoundRowCount(), std::memory_order_relaxed);
-    LookupSession_->UnmergedRowCount_.fetch_add(UnmergedRowCount_, std::memory_order_relaxed);
-    LookupSession_->UnmergedDataWeight_.fetch_add(UnmergedDataWeight_, std::memory_order_relaxed);
-    LookupSession_->DecompressionCpuTime_.fetch_add(DecompressionCpuTime_.MicroSeconds(), std::memory_order_relaxed);
+    LookupSession_->FoundRowCount_.fetch_add(GetFoundRowCount(), std::memory_order::relaxed);
+    LookupSession_->FoundDataWeight_.fetch_add(GetFoundDataWeight(), std::memory_order::relaxed);
+    LookupSession_->MissingKeyCount_.fetch_add(LookupKeys_.size() - GetFoundRowCount(), std::memory_order::relaxed);
+    LookupSession_->UnmergedRowCount_.fetch_add(UnmergedRowCount_, std::memory_order::relaxed);
+    LookupSession_->UnmergedDataWeight_.fetch_add(UnmergedDataWeight_, std::memory_order::relaxed);
+    LookupSession_->DecompressionCpuTime_.fetch_add(DecompressionCpuTime_.MicroSeconds(), std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -76,7 +76,7 @@ template <class T>
 TIntrusivePtr<T> TAtomicPtr<T>::AcquireWeak() const
 {
     auto hazardPtr = THazardPtr<T>::Acquire([&] {
-        return Ptr_.load(std::memory_order_acquire);
+        return Ptr_.load(std::memory_order::acquire);
     });
     return MakeStrong(hazardPtr);
 }
@@ -85,7 +85,7 @@ template <class T>
 TIntrusivePtr<T> TAtomicPtr<T>::Acquire() const
 {
     while (auto hazardPtr = THazardPtr<T>::Acquire([&] {
-        return Ptr_.load(std::memory_order_acquire);
+        return Ptr_.load(std::memory_order::acquire);
     })) {
         if (auto ptr = MakeStrong(hazardPtr)) {
             return ptr;
@@ -120,7 +120,7 @@ TIntrusivePtr<T> TAtomicPtr<T>::SwapIfCompare(THazardPtr<T>& compare, TIntrusive
     } else {
         compare.Reset();
         compare = THazardPtr<T>::Acquire([&] {
-            return Ptr_.load(std::memory_order_acquire);
+            return Ptr_.load(std::memory_order::acquire);
         }, comparePtr);
     }
 

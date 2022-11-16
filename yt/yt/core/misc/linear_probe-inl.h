@@ -21,7 +21,7 @@ void TLinearProbeHashTable::Find(ui64 index, TStamp stamp, TCompactVector<TValue
 
     ui64 wrappedIndex = index % HashTable_.size();
     for (int currentIndex = 0; currentIndex < std::ssize(HashTable_); ++currentIndex) {
-        auto tableEntry = HashTable_[wrappedIndex].load(std::memory_order_relaxed);
+        auto tableEntry = HashTable_[wrappedIndex].load(std::memory_order::relaxed);
         auto tableStamp = StampFromEntry(tableEntry);
 
         if (tableStamp == 0) {

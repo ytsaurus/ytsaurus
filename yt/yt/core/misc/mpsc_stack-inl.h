@@ -51,7 +51,7 @@ void TMpscStack<T>::Enqueue(T&& value)
 template <class T>
 void TMpscStack<T>::DoEnqueue(TNode* node)
 {
-    auto* expected = Head_.load(std::memory_order_relaxed);
+    auto* expected = Head_.load(std::memory_order::relaxed);
     do {
         node->Next = expected;
     } while (!Head_.compare_exchange_weak(expected, node));

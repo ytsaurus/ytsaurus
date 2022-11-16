@@ -48,7 +48,7 @@ void TNativeAuthenticationManager::SetTvmService(IDynamicTvmServicePtr tvmServic
 
 bool TNativeAuthenticationManager::IsValidationEnabled() const
 {
-    return EnableValidation_.load(std::memory_order_relaxed);
+    return EnableValidation_.load(std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

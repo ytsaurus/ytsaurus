@@ -108,7 +108,7 @@ public:
 
     TOneShotFluentLogEvent LogStructuredEventFluently(ELogEntryType entryType)
     {
-        auto sequenceNumber = SequenceNumber_.fetch_add(1, std::memory_order_relaxed);
+        auto sequenceNumber = SequenceNumber_.fetch_add(1, std::memory_order::relaxed);
         auto entry = Enabled_
             ? NLogging::LogStructuredEventFluently(Logger_, ELogLevel::Info)
             : NLogging::LogStructuredEventFluentlyToNowhere();
