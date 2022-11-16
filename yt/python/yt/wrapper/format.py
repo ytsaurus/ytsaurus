@@ -337,9 +337,11 @@ class Format(object):
     @staticmethod
     def _create_property(property_name, conversion=None):
         if conversion is None:
-            get_func = lambda self: self.attributes[property_name]
+            def get_func(self):
+                return self.attributes[property_name]
         else:
-            get_func = lambda self: conversion(self.attributes[property_name])
+            def get_func(self):
+                return conversion(self.attributes[property_name])
         return property(get_func)
 
     @staticmethod
@@ -1157,7 +1159,7 @@ class JsonFormat(Format):
             if self.encode_utf8 is False:
                 try:
                     return string.decode("ascii")
-                except:
+                except ValueError:
                     raise YtFormatError("Cannot interpret binary non-ascii string as bytes when 'encode_utf8' disabled")
             else:
                 return string.decode("latin1")
@@ -1188,12 +1190,12 @@ class JsonFormat(Format):
         return self._decode(self.json_module.loads(string))
 
     def _dump(self, obj, stream):
-        writer = lambda stream: stream
+        stream_writer = stream
         if PY3:
             # NB: in python3 json writes unicode string as output,
             # default encoding for standard json libraries is utf-8.
-            writer = getwriter("utf-8")
-        return self.json_module.dump(self._encode(obj), writer(stream))
+            stream_writer = getwriter("utf-8")(stream)
+        return self.json_module.dump(self._encode(obj), stream_writer)
 
     def _dumps(self, obj):
         value = self.json_module.dumps(self._encode(obj))
@@ -1317,7 +1319,7 @@ class YamredDsvFormat(YamrFormat):
         attributes = get_value(attributes, {})
         all_attributes = Format._make_attributes(attributes, defaults, options)
         require("key_column_names" in all_attributes,
-                lambda: YtFormatError("YamredDsvFormat requires 'key_column_names' attribute"))
+                lambda: YtFormatError("Attribute 'key_column_names' is required for YamredDsvFormat"))
         super(YamredDsvFormat, self).__init__(attributes=all_attributes, raw=raw, encoding=encoding)
         self._name = yson.to_yson_type("yamred_dsv", self.attributes)
 
@@ -1355,7 +1357,7 @@ class SchemafulDsvFormat(Format):
         super(SchemafulDsvFormat, self).__init__("schemaful_dsv", all_attributes, raw, encoding)
 
         if "columns" not in self.attributes:
-            raise YtError('Attribute "columns" is required for scheduler_dsv format')
+            raise YtError("Attribute 'columns' is required for SchemafulDsvFormat")
 
         if self.enable_table_index:
             self._columns = [self.attributes["table_index_column"]] + self.columns
@@ -1452,6 +1454,7 @@ class CppUninitializedFormat(Format):
     def load_rows(self, stream, raw=None):
         """Not supported."""
         raise YtFormatError("load_row is not supported in CppUninitializedFormat")
+
 
 # TODO(veronikaiv): do it beautiful way!
 Format._copy_docs()
