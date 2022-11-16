@@ -69,12 +69,14 @@ DEFINE_ENUM(EMasterReign,
     ((FixUpdateTabletStoresTransaction)                             (2133))  // gritukan
     ((RecomputeTabletErrorCount)                                    (2134))  // gritukan
     ((ParameterizedTabletBalancingMetric)                           (2135))  // alexelexa
+    ((RemovableQueueAgentStage_22_3)                                (2136))  // achulkov2
     // 22.4 starts here.
     ((ZookeeperShards)                                              (2200))  // gritukan
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
     ((UserPassword)                                                 (2202))  // gritukan
     ((SetUserPassword)                                              (2203))  // gritukan
     ((RefCountedCoWs)                                               (2204))  // babenko
+    ((RemovableQueueAgentStage)                                     (2205))  // achulkov2
 );
 
 ////////////////////////////////////////////////////////////////////////////////

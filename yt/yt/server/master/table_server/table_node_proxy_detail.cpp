@@ -349,6 +349,7 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(table->HasDataWeight()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueAgentStage)
         .SetWritable(true)
+        .SetRemovable(true)
         .SetPresent(isDynamic));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::QueueStatus)
         .SetPresent(isQueue)
@@ -1121,6 +1122,13 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         case EInternedAttributeKey::HunkStorageNode: {
             auto* lockedTable = LockThisImpl();
             lockedTable->ResetHunkStorageNode();
+            return true;
+        }
+
+        case EInternedAttributeKey::QueueAgentStage: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetQueueAgentStage(std::nullopt);
             return true;
         }
 
