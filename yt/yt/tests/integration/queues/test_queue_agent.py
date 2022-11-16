@@ -1463,6 +1463,12 @@ class TestMasterIntegration(TestQueueAgentBase):
         set("//tmp/q/@queue_agent_stage", "testing")
         assert get("//tmp/q/@queue_agent_stage") == "testing"
 
+        remove("//tmp/q/@queue_agent_stage")
+        assert get("//tmp/q/@queue_agent_stage") == "another_default"
+
+        set("//tmp/q/@queue_agent_stage", "testing")
+        assert get("//tmp/q/@queue_agent_stage") == "testing"
+
         # There is no queue agent with stage "testing", so accessing queue status would result in an error.
         with raises_yt_error('Queue agent stage "testing" is not found'):
             get("//tmp/q/@queue_status")
