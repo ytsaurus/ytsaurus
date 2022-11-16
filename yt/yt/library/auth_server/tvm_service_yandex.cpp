@@ -16,6 +16,8 @@
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/http.h>
 
+#include <yt/yt/core/profiling/timing.h>
+
 #include <library/cpp/tvmauth/client/facade.h>
 #include <library/cpp/tvmauth/client/logger.h>
 #include <library/cpp/tvmauth/client/misc/api/dynamic_dst/tvm_client.h>
@@ -112,12 +114,16 @@ public:
         , GetServiceTicketCountCounter_(profiler.Counter("/get_service_ticket_count"))
         , SuccessfulGetServiceTicketCountCounter_(profiler.Counter("/successful_get_service_ticket_count"))
         , FailedGetServiceTicketCountCounter_(profiler.Counter("/failed_get_service_ticket_count"))
+        , GetServiceTicketTime_(profiler.Timer("/get_service_ticket_time"))
         , ParseUserTicketCountCounter_(profiler.Counter("/parse_user_ticket_count"))
         , SuccessfulParseUserTicketCountCounter_(profiler.Counter("/successful_parse_user_ticket_count"))
         , FailedParseUserTicketCountCounter_(profiler.Counter("/failed_parse_user_ticket_count"))
+        , ParseUserTicketTime_(profiler.Timer("/parse_user_ticket_time"))
         , ClientErrorCountCounter_(profiler.Counter("/client_error_count"))
         , ParseServiceTicketCountCounter_(profiler.Counter("/parse_service_ticket_count"))
+        , SuccessfulParseServiceTicketCountCounter_(profiler.Counter("/successful_parse_service_ticket_count"))
         , FailedParseServiceTicketCountCounter_(profiler.Counter("/failed_parse_service_ticket_count"))
+        , ParseServiceTicketTime_(profiler.Timer("/parse_service_ticket_time"))
     { }
 
     TTvmId GetSelfTvmId() override
@@ -153,6 +159,7 @@ public:
 
         YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
         ParseUserTicketCountCounter_.Increment();
+        TWallTimer timer;
 
         try {
             CheckClient();
@@ -168,6 +175,7 @@ public:
             }
 
             SuccessfulParseUserTicketCountCounter_.Increment();
+            ParseUserTicketTime_.Record(timer.GetElapsedTime());
             return result;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
@@ -185,6 +193,7 @@ public:
 
         YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
         ParseServiceTicketCountCounter_.Increment();
+        TWallTimer timer;
 
         try {
             CheckClient();
@@ -196,6 +205,8 @@ public:
             TParsedServiceTicket result;
             result.TvmId = serviceTicket.GetSrc();
 
+            SuccessfulParseServiceTicketCountCounter_.Increment();
+            ParseServiceTicketTime_.Record(timer.GetElapsedTime());
             return result;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
@@ -214,15 +225,19 @@ private:
     TCounter GetServiceTicketCountCounter_;
     TCounter SuccessfulGetServiceTicketCountCounter_;
     TCounter FailedGetServiceTicketCountCounter_;
+    TEventTimer GetServiceTicketTime_;
 
     TCounter ParseUserTicketCountCounter_;
     TCounter SuccessfulParseUserTicketCountCounter_;
     TCounter FailedParseUserTicketCountCounter_;
+    TEventTimer ParseUserTicketTime_;
 
     TCounter ClientErrorCountCounter_;
 
     TCounter ParseServiceTicketCountCounter_;
+    TCounter SuccessfulParseServiceTicketCountCounter_;
     TCounter FailedParseServiceTicketCountCounter_;
+    TEventTimer ParseServiceTicketTime_;
 
 private:
     void CheckClient()
@@ -243,6 +258,7 @@ private:
 
     TString DoGetServiceTicket(const auto& serviceId)
     {
+        TWallTimer timer;
         GetServiceTicketCountCounter_.Increment();
 
         try {
@@ -250,6 +266,7 @@ private:
             // The client caches everything locally, no need for async.
             auto result = GetClient().GetServiceTicketFor(serviceId);
             SuccessfulGetServiceTicketCountCounter_.Increment();
+            GetServiceTicketTime_.Record(timer.GetElapsedTime());
             return result;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
