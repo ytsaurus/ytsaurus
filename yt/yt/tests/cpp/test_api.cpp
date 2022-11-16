@@ -907,7 +907,7 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
         TColumnSchema("ShardId", EValueType::Uint64, ESortOrder::Ascending),
         TColumnSchema("Offset", EValueType::Uint64),
     }, /*strict*/ true, /*uniqueKeys*/ true);
-    auto consumerClient = NQueueClient::CreateConsumerClient("//tmp/big_rt_consumer_test", *consumerSchema);
+    auto consumerClient = NQueueClient::CreateBigRTConsumerClient("//tmp/big_rt_consumer_test", *consumerSchema);
 
     auto transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();

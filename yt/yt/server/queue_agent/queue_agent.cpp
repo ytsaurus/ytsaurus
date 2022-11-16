@@ -2,8 +2,10 @@
 
 #include "config.h"
 #include "helpers.h"
-#include "queue_controller.h"
 #include "snapshot.h"
+#include "object.h"
+#include "queue_controller.h"
+#include "consumer_controller.h"
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -46,10 +48,6 @@ static const auto& Logger = QueueAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-////////////////////////////////////////////////////////////////////////////////
-
 void BuildErrorYson(TError error, TFluentMap fluent)
 {
     fluent
@@ -60,40 +58,38 @@ void BuildErrorYson(TError error, TFluentMap fluent)
         .Item("partitions").BeginList().EndList();
 }
 
-template <class TValue>
-class TCollectionBoundService
+class TObjectMapBoundService
     : public TVirtualMapBase
 {
 public:
-    using TCollection = THashMap<TCrossClusterReference, TValue>;
-    //! Produces the orchid for the given object reference and object into the consumer.
-    using TProducerCallback = TCallback<void(const TCrossClusterReference&, const TValue&, IYsonConsumer*)>;
-    //! Returns a remote service to resolve the given key, or nullptr to resolve the key on this instance.
-    using TRedirectorCallback = TCallback<IYPathServicePtr(TStringBuf)>;
-
-    explicit TCollectionBoundService(
-        const TCollection& collection,
-        TProducerCallback producer,
-        TRedirectorCallback redirector,
-        IInvokerPtr invoker)
-        : Collection_(collection)
-        , Producer_(std::move(producer))
-        , Redirector_(std::move(redirector))
-        , Invoker_(std::move(invoker))
+    TObjectMapBoundService(
+        const TQueueAgent* owner,
+        EObjectKind objectKind)
+        : Owner_(owner)
+        , ObjectKind_(objectKind)
+        , QueryRoot_(Format("//queue_agent/%lvs", ObjectKind_))
     {
         SetOpaque(false);
     }
 
     i64 GetSize() const override
     {
-        return std::ssize(Collection_);
+        auto guard = ReaderGuard(Owner_->ObjectLock_);
+
+        const auto& objectMap = Owner_->Objects_[ObjectKind_];
+
+        return std::ssize(objectMap);
     }
 
     std::vector<TString> GetKeys(i64 limit) const override
     {
+        auto guard = ReaderGuard(Owner_->ObjectLock_);
+
+        const auto& objectMap = Owner_->Objects_[ObjectKind_];
+
         std::vector<TString> keys;
-        keys.reserve(std::min(std::ssize(Collection_), limit));
-        for (const auto& [key, value] : Collection_) {
+        keys.reserve(std::min(std::ssize(objectMap), limit));
+        for (const auto& [key, _] : objectMap) {
             keys.push_back(ToString(key));
             if (std::ssize(keys) == limit) {
                 break;
@@ -104,41 +100,41 @@ public:
 
     IYPathServicePtr FindItemService(TStringBuf key) const override
     {
-        if (auto remoteYPathService = Redirector_.Run(key)) {
+        if (auto remoteYPathService = Owner_->RedirectYPathRequestToLeader(QueryRoot_, key)) {
             return remoteYPathService;
         }
-        auto objectRef = TCrossClusterReference::FromString(key);
-        auto buildQueueYsonCallback = BIND(&TCollectionBoundService::BuildYson, MakeStrong(this), objectRef);
-        return IYPathService::FromProducer(buildQueueYsonCallback)->Via(Invoker_);
+
+        {
+            auto guard = ReaderGuard(Owner_->ObjectLock_);
+
+            auto objectRef = TCrossClusterReference::FromString(key);
+
+            const auto& objectMap = Owner_->Objects_[ObjectKind_];
+
+            auto it = objectMap.find(objectRef);
+            if (it == objectMap.end()) {
+                THROW_ERROR_EXCEPTION("Object %Qv is missing", objectRef);
+            }
+
+            return IYPathService::FromProducer(BIND(&IObjectController::BuildOrchid, it->second.Controller));
+        }
     }
 
 private:
-    // Neither the queue agent nor the ypath services are supposed to be destroyed, so references are fine.
-    const TCollection& Collection_;
-    TProducerCallback Producer_;
-    TRedirectorCallback Redirector_;
-    IInvokerPtr Invoker_;
-
-    void BuildYson(const TCrossClusterReference& objectRef, IYsonConsumer* ysonConsumer) const
-    {
-        auto it = Collection_.find(objectRef);
-        if (it == Collection_.end()) {
-            THROW_ERROR_EXCEPTION("Object %v is missing", objectRef);
-        }
-        // NB: This object should not be used after context switches.
-        const auto& object = it->second;
-        Producer_.Run(objectRef, object, ysonConsumer);
-    }
+    // The queue agent is not supposed to be destroyed, so raw pointer is fine.
+    const TQueueAgent* Owner_;
+    EObjectKind ObjectKind_;
+    TString QueryRoot_;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
 
 TClusterProfilingCounters::TClusterProfilingCounters(TProfiler profiler)
     : Queues(profiler.Gauge("/queues"))
     , Consumers(profiler.Gauge("/consumers"))
     , Partitions(profiler.Gauge("/partitions"))
+{ }
+
+TGlobalProfilingCounters::TGlobalProfilingCounters(TProfiler profiler)
+    : Registrations(profiler.Gauge("/registrations"))
 { }
 
 TQueueAgent::TQueueAgent(
@@ -161,23 +157,18 @@ TQueueAgent::TQueueAgent(
         BIND(&TQueueAgent::Poll, MakeWeak(this)),
         DynamicConfig_->PollPeriod))
     , AgentId_(std::move(agentId))
+    , GlobalProfilingCounters_(QueueAgentProfiler)
     , QueueAgentChannelFactory_(
         NNative::CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)),
             nativeConnection->GetConfig()->TvmId))
 {
-    QueueObjectServiceNode_ = CreateVirtualNode(
-        New<TCollectionBoundService<TQueue>>(
-            Queues_,
-            BIND(&TQueueAgent::BuildQueueYson, MakeStrong(this)),
-            BIND(&TQueueAgent::RedirectYPathRequestToLeader, MakeStrong(this), "//queue_agent/queues"),
-            ControlInvoker_));
-    ConsumerObjectServiceNode_ = CreateVirtualNode(
-        New<TCollectionBoundService<TConsumer>>(
-            Consumers_,
-            BIND(&TQueueAgent::BuildConsumerYson, MakeStrong(this)),
-            BIND(&TQueueAgent::RedirectYPathRequestToLeader, MakeStrong(this), "//queue_agent/consumers"),
-            ControlInvoker_));
+    for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+        ObjectServiceNodes_[objectKind] = CreateVirtualNode(
+            New<TObjectMapBoundService>(
+                this,
+                objectKind));
+    }
 }
 
 void TQueueAgent::Start()
@@ -208,24 +199,18 @@ void TQueueAgent::DoStop()
 
     YT_LOG_INFO("Stopping polling");
 
-    // Returning without waiting here is a bit racy in case of a conurrent Start(),
+    // Returning without waiting here is a bit racy in case of a concurrent Start(),
     // but it does not seem like a big issue.
     PollExecutor_->Stop();
 
-    YT_LOG_INFO("Resetting all controllers");
-
-    std::vector<TFuture<void>> stopFutures;
-    for (const auto& [_, queue]: Queues_) {
-        if (queue.Controller) {
-            stopFutures.emplace_back(queue.Controller->Stop());
-        }
-    }
-    YT_VERIFY(WaitFor(AllSucceeded(stopFutures)).IsOK());
-
     YT_LOG_INFO("Clearing state");
 
-    Queues_.clear();
-    Consumers_.clear();
+    {
+        auto guard = WriterGuard(ObjectLock_);
+
+        Objects_[EObjectKind::Queue].clear();
+        Objects_[EObjectKind::Consumer].clear();
+    }
 
     YT_LOG_INFO("Queue agent stopped");
 }
@@ -263,8 +248,8 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
     node->AddChild("poll_instant", virtualScalarNode([&] { return PollInstant_; }));
     node->AddChild("poll_index", virtualScalarNode([&] { return PollIndex_; }));
     node->AddChild("poll_error", virtualScalarNode([&] { return PollError_; }));
-    node->AddChild("queues", QueueObjectServiceNode_);
-    node->AddChild("consumers", ConsumerObjectServiceNode_);
+    node->AddChild("queues", ObjectServiceNodes_[EObjectKind::Queue]);
+    node->AddChild("consumers", ObjectServiceNodes_[EObjectKind::Consumer]);
 
     return node;
 }
@@ -282,24 +267,51 @@ void TQueueAgent::OnDynamicConfigChanged(
 
     ControllerThreadPool_->Configure(newConfig->ControllerThreadCount);
 
-    std::vector<TFuture<void>> asyncQueueControllerUpdates;
-    for (const auto& [queueRef, queue] : Queues_) {
-        asyncQueueControllerUpdates.push_back(
-            BIND(
-                &IQueueController::OnDynamicConfigChanged,
-                queue.Controller,
-                oldConfig->Controller,
-                newConfig->Controller)
-                .AsyncVia(queue.Controller->GetInvoker())
-                .Run());
+    {
+        auto guard = ReaderGuard(ObjectLock_);
+
+        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+            for (const auto& [_, object] : Objects_[objectKind]) {
+                object.Controller->OnDynamicConfigChanged(oldConfig->Controller, newConfig->Controller);
+            }
+        }
     }
-    WaitFor(AllSucceeded(asyncQueueControllerUpdates))
-        .ThrowOnError();
 
     YT_LOG_DEBUG(
         "Updated queue agent dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
         ConvertToYsonString(newConfig, EYsonFormat::Text));
+}
+
+TRefCountedPtr TQueueAgent::FindSnapshot(TCrossClusterReference objectRef) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(ObjectLock_);
+
+    for (const auto& objectMap : Objects_) {
+        if (auto it = objectMap.find(objectRef); it != objectMap.end()) {
+            return it->second.Controller->GetLatestSnapshot();
+        }
+    }
+
+    return nullptr;
+}
+
+std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(
+    TCrossClusterReference objectRef,
+    EObjectKind objectKind) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(ObjectLock_);
+
+    const auto& objectMap = Objects_[objectKind];
+    if (auto it = objectMap.find(objectRef); it != objectMap.end()) {
+        return it->second.Registrations;
+    }
+
+    return {};
 }
 
 void TQueueAgent::Poll()
@@ -311,22 +323,29 @@ void TQueueAgent::Poll()
 
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
 
-    const auto& Logger = QueueAgentLogger;
+    auto Logger = QueueAgentLogger.WithTag("PollIndex: %v", PollIndex_);
 
     // Collect queue and consumer rows.
 
-    YT_LOG_INFO("State poll started (PollIndex: %v)", PollIndex_);
+    YT_LOG_INFO("State poll started");
     auto logFinally = Finally([&] {
-        YT_LOG_INFO("State poll finished (PollIndex: %v)", PollIndex_);
+        YT_LOG_INFO("State poll finished");
     });
 
-    auto asyncQueueRows = DynamicState_->Queues->Select();
-    auto asyncConsumerRows = DynamicState_->Consumers->Select();
+    auto where = Format("[queue_agent_stage] = \"%v\"", Config_->Stage);
+    auto asyncQueueRows = DynamicState_->Queues->Select("*", where);
+    auto asyncConsumerRows = DynamicState_->Consumers->Select("*", where);
+    auto asyncRegistrationRows = DynamicState_->Registrations->Select();
 
-    std::vector<TFuture<void>> futures{asyncQueueRows.AsVoid(), asyncConsumerRows.AsVoid()};
+    std::vector<TFuture<void>> futures{
+        asyncQueueRows.AsVoid(),
+        asyncConsumerRows.AsVoid(),
+        asyncRegistrationRows.AsVoid(),
+    };
 
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
         PollError_ = error;
+        YT_LOG_ERROR(error, "Error polling queue state");
         auto alert = TError(
             NAlerts::EErrorCode::QueueAgentPassFailed,
             "Error polling queue state")
@@ -336,182 +355,97 @@ void TQueueAgent::Poll()
     }
     const auto& queueRows = asyncQueueRows.Get().Value();
     const auto& consumerRows = asyncConsumerRows.Get().Value();
+    const auto& registrationRows = asyncRegistrationRows.Get().Value();
 
     YT_LOG_INFO(
-        "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v)",
+        "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, RegistrationRowCount: %v)",
         queueRows.size(),
-        consumerRows.size());
+        consumerRows.size(),
+        registrationRows.size());
 
-    // Prepare ref -> row mappings for queues and rows.
+    TEnumIndexedVector<EObjectKind, TObjectMap> freshObjects;
 
-    THashMap<TCrossClusterReference, TQueueTableRow> queueRefToRow;
-    THashMap<TCrossClusterReference, TConsumerTableRow> consumerRefToRow;
+    // First, prepare fresh queue and consumer controllers.
 
-    for (const auto& queueRow : queueRows) {
-        queueRefToRow[queueRow.Queue] = queueRow;
-    }
-    for (const auto& consumerRow : consumerRows) {
-        consumerRefToRow[consumerRow.Consumer] = consumerRow;
-    }
+    auto updateControllers = [&] (EObjectKind objectKind, const auto& rows, auto updateController) {
+        VERIFY_READER_SPINLOCK_AFFINITY(ObjectLock_);
 
-    // Prepare fresh queue objects and fresh consumer objects.
+        for (const auto& row : rows) {
+            YT_LOG_TRACE("Processing row (Kind: %v, Row: %v)", objectKind, ConvertToYsonString(row, EYsonFormat::Text).ToString());
+            auto& freshObject = freshObjects[objectKind][row.Ref];
+            auto& controller = freshObject.Controller;
 
-    TQueueMap freshQueues;
-    TConsumerMap freshConsumers;
-
-    for (const auto& row : queueRows) {
-        YT_LOG_TRACE("Processing queue row (Row: %v)", ConvertToYsonString(row, EYsonFormat::Text).ToString());
-        if (!row.QueueAgentStage || *row.QueueAgentStage != Config_->Stage) {
-            YT_LOG_TRACE(
-                "Queue stage %v differs from queue agent stage %Qv",
-                row.QueueAgentStage,
-                Config_->Stage);
-            continue;
-        }
-
-        auto& freshQueue = freshQueues[row.Queue];
-
-        auto logFinally = Finally([&] {
-            YT_LOG_TRACE(
-                "Fresh queue prepared (Queue: %Qv, Error: %v, RowRevision: %v, QueueFamily: %v)",
-                row.Queue,
-                freshQueue.Error,
-                freshQueue.RowRevision,
-                freshQueue.QueueFamily);
-        });
-
-        if (!row.RowRevision || !row.ObjectType) {
-            freshQueue.Error = TError("Queue is not in-sync yet");
-            continue;
-        }
-
-        freshQueue.RowRevision = *row.RowRevision;
-
-        if (auto queueFamilyOrError = DeduceQueueFamily(row); queueFamilyOrError.IsOK()) {
-            freshQueue.QueueFamily = queueFamilyOrError.Value();
-        } else {
-            freshQueue.Error = static_cast<TError>(queueFamilyOrError);
-        }
-    }
-
-    for (const auto& row : consumerRows) {
-        YT_LOG_TRACE("Processing consumer row (Row: %v)", ConvertToYsonString(row, EYsonFormat::Text).ToString());
-        if (!row.QueueAgentStage || *row.QueueAgentStage != Config_->Stage) {
-            YT_LOG_TRACE(
-                "Consumer stage %v differs from queue agent stage %Qv",
-                row.QueueAgentStage,
-                Config_->Stage);
-            continue;
-        }
-
-        auto& freshConsumer = freshConsumers[row.Consumer];
-
-        auto logFinally = Finally([&] {
-            YT_LOG_TRACE(
-                "Fresh consumer prepared (Consumer: %Qv, Error: %v, RowRevision: %v, Target: %Qv)",
-                row.Consumer,
-                freshConsumer.Error,
-                freshConsumer.RowRevision,
-                freshConsumer.Target);
-        });
-
-        if (!row.RowRevision) {
-            freshConsumer.Error = TError("Consumer is not in-sync yet");
-            continue;
-        }
-
-        freshConsumer.RowRevision = *row.RowRevision;
-
-        if (!row.TargetQueue) {
-            freshConsumer.Error = TError("Consumer is missing target");
-            continue;
-        }
-
-        freshConsumer.Target = row.TargetQueue;
-
-        auto it = freshQueues.find(*row.TargetQueue);
-        if (it == freshQueues.end()) {
-            freshConsumer.Error = TError("Target queue %Qv is not registered", *row.TargetQueue);
-            continue;
-        }
-
-        auto& freshTargetQueue = it->second;
-        freshTargetQueue.ConsumerRowRevisions[row.Consumer] = *row.RowRevision;
-    }
-
-    // Replace old consumers with fresh consumers.
-
-    Consumers_.swap(freshConsumers);
-
-    // Now carefully replace old queues with new queues if row revision of at least queue itself
-    // or one of its consumers has changed.
-
-    for (auto& [queueRef, freshQueue] : freshQueues) {
-        auto oldIt = Queues_.find(queueRef);
-        if (oldIt == Queues_.end()) {
-            // This is a newly registered queue.
-            YT_LOG_INFO("Queue registered (Queue: %Qv)", queueRef);
-            continue;
-        }
-
-        auto& oldQueue = oldIt->second;
-
-        if (!freshQueue.Error.IsOK()) {
-            YT_LOG_TRACE("Queue has non-trivial error; resetting queue controller");
-            oldQueue.Reset();
-        } else if (
-            oldQueue.RowRevision == freshQueue.RowRevision &&
-            oldQueue.ConsumerRowRevisions == freshQueue.ConsumerRowRevisions)
-        {
-            // We may use the controller of the old queue.
-            YT_LOG_TRACE("Queue row revisions remain the same; re-using its controller (Queue: %Qv)", queueRef);
-            freshQueue.Controller = std::move(oldQueue.Controller);
-        } else {
-            // Old queue controller must be reset.
-            YT_LOG_DEBUG(
-                "Queue row revisions changed (Queue: %Qv, RowRevision: %v -> %v, ConsumerRowRevisions: %v -> %v)",
-                queueRef,
-                oldQueue.RowRevision,
-                freshQueue.RowRevision,
-                oldQueue.ConsumerRowRevisions,
-                freshQueue.ConsumerRowRevisions);
-            oldQueue.Reset();
-        }
-
-        Queues_.erase(oldIt);
-    }
-
-    // Remaining items in #Queues_ are the queues to be unregistered.
-
-    for (auto& [queueRef, oldQueue] : Queues_) {
-        YT_LOG_INFO("Queue unregistered (Queue: %Qv)", queueRef);
-        oldQueue.Reset();
-    }
-
-    // Replace old queues with fresh ones.
-
-    Queues_ = std::move(freshQueues);
-
-    // Finally, create controllers for queues without errors (either for fresh ones, or for old ones that
-    // were reset due to row revision promotion).
-
-    for (auto& [queueRef, queue] : Queues_) {
-        if (queue.Error.IsOK() && !queue.Controller) {
-            TConsumerRowMap consumerRowMap;
-            for (const auto& consumerRef : GetKeys(queue.ConsumerRowRevisions)) {
-                consumerRowMap[consumerRef] = GetOrCrash(consumerRefToRow, consumerRef);
+            bool reused = false;
+            if (auto it = Objects_[objectKind].find(row.Ref); it != Objects_[objectKind].end()) {
+                controller = it->second.Controller;
+                reused = true;
             }
 
-            queue.Controller = CreateQueueController(
+            // We either recreate controller from scratch, or keep existing controller.
+            // If we keep existing controller, we notify it of (potential) row change.
+
+            auto recreated = updateController(
+                controller,
+                row,
+                /*store*/ this,
                 DynamicConfig_->Controller,
                 ClientDirectory_,
-                queueRef,
-                queue.QueueFamily,
-                GetOrCrash(queueRefToRow, queueRef),
-                std::move(consumerRowMap),
-                CreateSerializedInvoker(ControllerThreadPool_->GetInvoker()));
-            queue.Controller->Start();
+                ControllerThreadPool_->GetInvoker());
+
+            YT_LOG_DEBUG(
+                "Controller updated (Kind: %v, Object: %Qv, Reused: %v, Recreated: %v)",
+                objectKind,
+                row.Ref,
+                reused,
+                recreated);
         }
+    };
+
+    {
+        auto guard = ReaderGuard(ObjectLock_);
+
+        updateControllers(EObjectKind::Queue, queueRows, UpdateQueueController);
+        updateControllers(EObjectKind::Consumer, consumerRows, UpdateConsumerController);
+    }
+
+    // Then, put fresh registrations into fresh objects.
+
+    for (const auto& registration : registrationRows) {
+        auto appendRegistration = [&] (TObjectMap& objectMap, NQueueClient::TCrossClusterReference objectRef) {
+            if (auto it = objectMap.find(objectRef); it != objectMap.end()) {
+                it->second.Registrations.push_back(registration);
+            }
+        };
+        appendRegistration(freshObjects[EObjectKind::Queue], registration.Queue);
+        appendRegistration(freshObjects[EObjectKind::Consumer], registration.Consumer);
+    }
+
+    // Then, replace old objects with fresh ones.
+
+    {
+        auto guard = WriterGuard(ObjectLock_);
+
+        for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
+            Objects_[objectKind].swap(freshObjects[objectKind]);
+        }
+    }
+
+    // Finally, update rows in the controllers. As best effort to prevent some inconsistencies (like enabling trimming
+    // with obsolete list of vital registrations), we do that strictly after registration update.
+
+    auto updateRows = [&] (EObjectKind objectKind, const auto& rows) {
+        for (const auto& row : rows) {
+            // Existence of a key in the map is guaranteed by updateControllers.
+            const auto& object = GetOrCrash(Objects_[objectKind], row.Ref);
+            object.Controller->OnRowUpdated(row);
+        }
+    };
+
+    {
+        auto guard = ReaderGuard(ObjectLock_);
+
+        updateRows(EObjectKind::Queue, queueRows);
+        updateRows(EObjectKind::Consumer, consumerRows);
     }
 
     PollError_ = TError();
@@ -529,17 +463,26 @@ void TQueueAgent::Profile()
     };
 
     THashMap<TString, TClusterCounters> clusterToCounters;
-    for (const auto& [queueRef, queue] : Queues_) {
-        auto& clusterCounters = clusterToCounters[queueRef.Cluster];
-        ++clusterCounters.QueueCount;
-        if (queue.Error.IsOK()) {
-            const auto& snapshot = queue.Controller->GetLatestSnapshot();
+
+    {
+        auto guard = ReaderGuard(ObjectLock_);
+
+        for (const auto& [queueRef, queue] : Objects_[EObjectKind::Queue]) {
+            auto& clusterCounters = clusterToCounters[queueRef.Cluster];
+            ++clusterCounters.QueueCount;
+            const auto& snapshot = DynamicPointerCast<TQueueSnapshot>(queue.Controller->GetLatestSnapshot());
             clusterCounters.PartitionCount += snapshot->PartitionCount;
         }
+        for (const auto& [consumerRef, consumer] : Objects_[EObjectKind::Consumer]) {
+            auto& clusterCounters = clusterToCounters[consumerRef.Cluster];
+            ++clusterCounters.ConsumerCount;
+            const auto& snapshot = DynamicPointerCast<TConsumerSnapshot>(consumer.Controller->GetLatestSnapshot());
+            for (const auto& [_, subConsumer] : snapshot->SubSnapshots) {
+                clusterCounters.PartitionCount += subConsumer->PartitionCount;
+            }
+        }
     }
-    for (const auto& consumerRef : GetKeys(Consumers_)) {
-        ++clusterToCounters[consumerRef.Cluster].ConsumerCount;
-    }
+
     for (const auto& [cluster, clusterCounters] : clusterToCounters) {
         auto& profilingCounters = GetOrCreateClusterProfilingCounters(cluster);
         profilingCounters.Queues.Update(clusterCounters.QueueCount);
@@ -548,9 +491,9 @@ void TQueueAgent::Profile()
     }
 }
 
-NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key)
+NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key) const
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_THREAD_AFFINITY_ANY();
 
     if (Active_) {
         return nullptr;
@@ -559,7 +502,7 @@ NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf qu
     auto leaderTransactionAttributes = ElectionManager_->GetCachedLeaderTransactionAttributes();
     if (!leaderTransactionAttributes) {
         THROW_ERROR_EXCEPTION(
-            "Unable to fetch %v, instance is not active and leader information is not available",
+            "Unable to fetch %Qv, instance is not active and leader information is not available",
             key);
     }
 
@@ -579,53 +522,6 @@ NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf qu
     });
 }
 
-void TQueueAgent::BuildQueueYson(const TCrossClusterReference& /*queueRef*/, const TQueue& queue, IYsonConsumer* ysonConsumer)
-{
-    BuildYsonFluently(ysonConsumer).BeginMap()
-        .Item("row_revision").Value(queue.RowRevision)
-        .Do([&] (TFluentMap fluent) {
-            if (!queue.Error.IsOK()) {
-                BuildErrorYson(queue.Error, fluent);
-                return;
-            }
-
-            YT_VERIFY(queue.Controller);
-
-            auto error = WaitFor(
-                BIND(&IQueueController::BuildOrchid, queue.Controller, fluent)
-                    .AsyncVia(queue.Controller->GetInvoker())
-                    .Run());
-            YT_VERIFY(error.IsOK());
-        })
-        .EndMap();
-}
-
-void TQueueAgent::BuildConsumerYson(const TCrossClusterReference& consumerRef, const TConsumer& consumer, IYsonConsumer* ysonConsumer)
-{
-    BuildYsonFluently(ysonConsumer).BeginMap()
-        .Item("row_revision").Value(consumer.RowRevision)
-        .Do([&] (TFluentMap fluent) {
-            if (!consumer.Error.IsOK()) {
-                BuildErrorYson(consumer.Error, fluent);
-                return;
-            }
-            YT_VERIFY(consumer.Target);
-            auto queue = GetOrCrash(Queues_, *consumer.Target);
-            if (!queue.Error.IsOK()) {
-                BuildErrorYson(TError("Target queue %Qv is in error state", consumer.Target) << queue.Error, fluent);
-                return;
-            }
-            YT_VERIFY(queue.Controller);
-
-            auto error = WaitFor(
-                BIND(&IQueueController::BuildConsumerOrchid, queue.Controller, consumerRef, fluent)
-                    .AsyncVia(queue.Controller->GetInvoker())
-                    .Run());
-            YT_VERIFY(error.IsOK());
-        })
-        .EndMap();
-}
-
 TClusterProfilingCounters& TQueueAgent::GetOrCreateClusterProfilingCounters(TString cluster)
 {
     auto it = ClusterProfilingCounters_.find(cluster);
@@ -634,14 +530,6 @@ TClusterProfilingCounters& TQueueAgent::GetOrCreateClusterProfilingCounters(TStr
             {cluster, TClusterProfilingCounters(QueueAgentProfiler.WithTag("yt_cluster", cluster))}).first;
     }
     return it->second;
-}
-
-void TQueueAgent::TQueue::Reset()
-{
-    if (Controller) {
-        YT_VERIFY(WaitFor(Controller->Stop()).IsOK());
-        Controller = nullptr;
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

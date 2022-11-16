@@ -98,21 +98,21 @@ private:
 
     struct TObjectRowList
     {
-        std::vector<TQueueTableRow> queueRows;
-        std::vector<TConsumerTableRow> consumerRows;
+        std::vector<TQueueTableRow> QueueRows;
+        std::vector<TConsumerTableRow> ConsumerRows;
 
         // NB: Must provide a strong exception-safety guarantee.
         void AppendObject(const TObject& object, const IAttributeDictionaryPtr& attributes)
         {
             switch (object.Type) {
                 case ECypressSyncObjectType::Queue:
-                    queueRows.push_back(TQueueTableRow::FromAttributeDictionary(
+                    QueueRows.push_back(TQueueTableRow::FromAttributeDictionary(
                         object.Object,
                         NextRowRevision(object.RowRevision),
                         attributes));
                     break;
                 case ECypressSyncObjectType::Consumer:
-                    consumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
+                    ConsumerRows.push_back(TConsumerTableRow::FromAttributeDictionary(
                         object.Object,
                         NextRowRevision(object.RowRevision),
                         attributes));
@@ -124,15 +124,15 @@ private:
         {
             switch (object.Type) {
                 case ECypressSyncObjectType::Queue:
-                    queueRows.push_back({
-                        .Queue = object.Object,
+                    QueueRows.push_back({
+                        .Ref = object.Object,
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
                     break;
                 case ECypressSyncObjectType::Consumer:
-                    consumerRows.push_back({
-                        .Consumer = object.Object,
+                    ConsumerRows.push_back({
+                        .Ref = object.Object,
                         .RowRevision = NextRowRevision(object.RowRevision),
                         .SynchronizationError = error,
                     });
@@ -144,23 +144,23 @@ private:
         {
             switch (object.Type) {
                 case ECypressSyncObjectType::Queue:
-                    queueRows.push_back({.Queue = object.Object});
+                    QueueRows.push_back({.Ref = object.Object});
                     break;
                 case ECypressSyncObjectType::Consumer:
-                    consumerRows.push_back({.Consumer = object.Object});
+                    ConsumerRows.push_back({.Ref = object.Object});
                     break;
             }
         }
 
         void MergeWith(const TObjectRowList& rhs)
         {
-            queueRows.insert(queueRows.end(), rhs.queueRows.begin(), rhs.queueRows.end());
-            consumerRows.insert(consumerRows.end(), rhs.consumerRows.begin(), rhs.consumerRows.end());
+            QueueRows.insert(QueueRows.end(), rhs.QueueRows.begin(), rhs.QueueRows.end());
+            ConsumerRows.insert(ConsumerRows.end(), rhs.ConsumerRows.begin(), rhs.ConsumerRows.end());
         }
 
         bool Empty() const
         {
-            return queueRows.empty() && consumerRows.empty();
+            return QueueRows.empty() && ConsumerRows.empty();
         }
     };
 
@@ -383,15 +383,15 @@ private:
             .ThrowOnError();
 
         for (const auto& queue : asyncQueues.Get().Value()) {
-            ClusterToDynamicStateObjects_[queue.Queue.Cluster].push_back({
-                queue.Queue,
+            ClusterToDynamicStateObjects_[queue.Ref.Cluster].push_back({
+                queue.Ref,
                 ECypressSyncObjectType::Queue,
                 queue.Revision,
                 queue.RowRevision});
         }
         for (const auto& consumer : asyncConsumers.Get().Value()) {
-            ClusterToDynamicStateObjects_[consumer.Consumer.Cluster].push_back({
-                consumer.Consumer,
+            ClusterToDynamicStateObjects_[consumer.Ref.Cluster].push_back({
+                consumer.Ref,
                 ECypressSyncObjectType::Consumer,
                 consumer.Revision,
                 consumer.RowRevision});
@@ -487,17 +487,17 @@ private:
         if (!RowsWithErrors_.Empty()) {
             YT_LOG_DEBUG(
                 "Some rows contain synchronization errors (QueueCount: %v, ConsumerCount: %v)",
-                RowsWithErrors_.queueRows.size(),
-                RowsWithErrors_.consumerRows.size());
+                RowsWithErrors_.QueueRows.size(),
+                RowsWithErrors_.ConsumerRows.size());
             RowsToWrite_.MergeWith(RowsWithErrors_);
         }
         YT_LOG_DEBUG(
             "Writing updated rows (QueueCount: %v, ConsumerCount: %v)",
-            RowsToWrite_.queueRows.size(),
-            RowsToWrite_.consumerRows.size());
+            RowsToWrite_.QueueRows.size(),
+            RowsToWrite_.ConsumerRows.size());
         WaitFor(AllSucceeded(std::vector{
-            DynamicState_->Consumers->Insert(RowsToWrite_.consumerRows),
-            DynamicState_->Queues->Insert(RowsToWrite_.queueRows)}))
+            DynamicState_->Consumers->Insert(RowsToWrite_.ConsumerRows),
+            DynamicState_->Queues->Insert(RowsToWrite_.QueueRows)}))
             .ThrowOnError();
     }
 
@@ -519,11 +519,11 @@ private:
 
         YT_LOG_DEBUG(
             "Deleting rows (QueueCount: %v, ConsumerCount: %v)",
-            RowsToDelete_.queueRows.size(),
-            RowsToDelete_.consumerRows.size());
+            RowsToDelete_.QueueRows.size(),
+            RowsToDelete_.ConsumerRows.size());
         WaitFor(AllSucceeded(std::vector{
-            DynamicState_->Consumers->Delete(RowsToDelete_.consumerRows),
-            DynamicState_->Queues->Delete(RowsToDelete_.queueRows)}))
+            DynamicState_->Queues->Delete(RowsToDelete_.QueueRows),
+            DynamicState_->Consumers->Delete(RowsToDelete_.ConsumerRows)}))
             .ThrowOnError();
     }
 

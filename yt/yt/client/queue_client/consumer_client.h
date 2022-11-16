@@ -18,6 +18,7 @@ namespace NYT::NQueueClient {
 struct TPartitionInfo
 {
     i64 PartitionIndex = -1;
+    // TODO(max42): rename into Offset, this seems like a concise name.
     i64 NextRowIndex = -1;
     //! Latest time instant the corresponding partition was consumed.
     TInstant LastConsumeTime;
@@ -26,7 +27,7 @@ struct TPartitionInfo
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Interface representing a consumer table.
-struct IConsumerClient
+struct ISubConsumerClient
     : public TRefCounted
 {
     //! Advance the offset for the given partition, setting it to a new value within the given transaction.
@@ -71,16 +72,39 @@ struct IConsumerClient
         int partitionIndex) const = 0;
 };
 
+DEFINE_REFCOUNTED_TYPE(ISubConsumerClient);
+
+struct IConsumerClient
+    : public TRefCounted
+{
+    virtual ISubConsumerClientPtr GetSubConsumerClient(const TCrossClusterReference& queue) const = 0;
+};
+
 DEFINE_REFCOUNTED_TYPE(IConsumerClient);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Uses the given schema to dispatch the appropriate consumer client.
+// TODO(max42): get rid of the following two methods.
+// They are left as a temporary mean to keep API tests working.
+
+//! Creates a BigRT single-queue consumer client.
+ISubConsumerClientPtr CreateBigRTConsumerClient(
+    const NYPath::TYPath& path,
+    const NTableClient::TTableSchema& schema);
+
+//! Uses the table mount cache to fetch the consumer's schema and make
+//! sure the consumer actually has BigRT consumer schema.
+ISubConsumerClientPtr CreateBigRTConsumerClient(
+    const NApi::IClientPtr& client,
+    const NYPath::TYPath& path);
+
+//! Creates a native YT multi-queue consumer client.
 IConsumerClientPtr CreateConsumerClient(
     const NYPath::TYPath& path,
     const NTableClient::TTableSchema& schema);
 
-//! Uses the table mount cache to fetch the consumer's schema and dispatch the appropriate consumer client.
+//! Uses the table mount cache to fetch the consumer's schema and
+//! make sure the consumer actually has YT consumer schema.
 IConsumerClientPtr CreateConsumerClient(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& path);

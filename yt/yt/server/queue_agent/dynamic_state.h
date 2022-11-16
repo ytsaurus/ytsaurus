@@ -43,7 +43,7 @@ private:
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TQueueTableRow
 {
-    NQueueClient::TCrossClusterReference Queue;
+    NQueueClient::TCrossClusterReference Ref;
     std::optional<TRowRevision> RowRevision;
     // Even though some fields are nullable by their nature (e.g. revision),
     // outer-level nullopt is interpreted as Null, i.e. missing value.
@@ -92,17 +92,12 @@ DEFINE_REFCOUNTED_TYPE(TQueueTable)
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TConsumerTableRow
 {
-    NQueueClient::TCrossClusterReference Consumer;
+    NQueueClient::TCrossClusterReference Ref;
     std::optional<TRowRevision> RowRevision;
-    // Even though some fields are nullable by their nature (e.g. revision),
-    // outer-level nullopt is interpreted as Null, i.e. missing value.
-    std::optional<NQueueClient::TCrossClusterReference> TargetQueue;
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> TreatAsQueueConsumer;
     std::optional<NTableClient::TTableSchema> Schema;
-    std::optional<bool> Vital;
-    std::optional<TString> Owner;
     std::optional<TString> QueueAgentStage;
 
     std::optional<TError> SynchronizationError;
@@ -140,11 +135,40 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TConsumerRegistrationTableRow
+{
+    NQueueClient::TCrossClusterReference Queue;
+    NQueueClient::TCrossClusterReference Consumer;
+    bool Vital;
+
+    static std::vector<TConsumerRegistrationTableRow> ParseRowRange(
+        TRange<NTableClient::TUnversionedRow> rows,
+        const NTableClient::TNameTablePtr& nameTable,
+        const NTableClient::TTableSchemaPtr& schema);
+
+    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TConsumerRegistrationTableRow> rows);
+    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TConsumerRegistrationTableRow> keys);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConsumerRegistrationTable
+    : public TTableBase<TConsumerRegistrationTableRow>
+{
+public:
+    TConsumerRegistrationTable(NYPath::TYPath root, NApi::IClientPtr client);
+};
+
+DEFINE_REFCOUNTED_TYPE(TConsumerRegistrationTable)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDynamicState
     : public TRefCounted
 {
     TQueueTablePtr Queues;
     TConsumerTablePtr Consumers;
+    TConsumerRegistrationTablePtr Registrations;
 
     TDynamicState(NYPath::TYPath root, NApi::IClientPtr client);
 };

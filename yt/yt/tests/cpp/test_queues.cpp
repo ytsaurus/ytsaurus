@@ -205,7 +205,7 @@ TEST_W(TQueueTestBase, Simple)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateConsumerClient(consumer->GetPath(), *consumer->GetSchema());
+        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
         auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
             .ValueOrThrow();
 
@@ -262,7 +262,7 @@ TEST_W(TQueueTestBase, HintBiggerThanMaxDataWeight)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateConsumerClient(consumer->GetPath(), *consumer->GetSchema());
+        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
         auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
             .ValueOrThrow();
 
@@ -402,7 +402,7 @@ TEST_W(TQueueTestBase, MultiplePartitions)
         WaitFor(transaction1->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateConsumerClient(consumer->GetPath(), *consumer->GetSchema());
+        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
         auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 3))
             .ValueOrThrow();
 
@@ -538,7 +538,7 @@ TEST_W(TQueueTestBase, ReaderCatchingUp)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateConsumerClient(consumer->GetPath(), *consumer->GetSchema());
+        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
         auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
             .ValueOrThrow();
 
@@ -572,7 +572,7 @@ TEST_W(TQueueTestBase, EmptyQueue)
         WaitFor(transaction->Commit())
             .ThrowOnError();
 
-        auto consumerClient = CreateConsumerClient(consumer->GetPath(), *consumer->GetSchema());
+        auto consumerClient = CreateBigRTConsumerClient(consumer->GetPath(), *consumer->GetSchema());
         auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 1))
             .ValueOrThrow();
 

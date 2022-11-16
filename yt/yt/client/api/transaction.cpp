@@ -137,7 +137,7 @@ void ITransaction::AdvanceConsumer(
     std::optional<i64> oldOffset,
     i64 newOffset)
 {
-    auto consumerClient = CreateConsumerClient(GetClient(), path);
+    auto consumerClient = CreateBigRTConsumerClient(GetClient(), path);
     consumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
 }
 

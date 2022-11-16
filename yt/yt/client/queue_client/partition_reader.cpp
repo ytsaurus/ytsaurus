@@ -67,7 +67,7 @@ private:
 
     TYPath QueuePath_;
     i64 ApproximateDataWeightPerRow_ = 0;
-    IConsumerClientPtr ConsumerClient_;
+    ISubConsumerClientPtr ConsumerClient_;
     TQueueRowBatchReadOptions RowBatchReadOptions_;
     TPullQueueOptions PullQueueOptions_;
 
@@ -227,7 +227,7 @@ private:
     {
         YT_LOG_DEBUG("Opening partition reader");
 
-        ConsumerClient_ = CreateConsumerClient(Client_, ConsumerPath_);
+        ConsumerClient_ = CreateBigRTConsumerClient(Client_, ConsumerPath_);
 
         QueuePath_ = WaitFor(ConsumerClient_->FetchTargetQueue(Client_))
             .ValueOrThrow().Path;

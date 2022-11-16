@@ -15,16 +15,31 @@ using namespace std::placeholders;
 void BuildEmaCounterYson(const TEmaCounter& counter, TFluentAny fluent)
 {
     auto immediateRate = counter.ImmediateRate;
+    auto oneMinuteRateRaw = counter.WindowRates[0];
     auto oneMinuteRate = counter.GetRate(0).value_or(immediateRate);
     auto oneHourRate = counter.GetRate(1).value_or(oneMinuteRate);
     auto oneDayRate = counter.GetRate(2).value_or(oneHourRate);
 
     fluent.BeginMap()
         .Item("current").Value(immediateRate)
+        .Item("1m_raw").Value(oneMinuteRateRaw)
         .Item("1m").Value(oneMinuteRate)
         .Item("1h").Value(oneHourRate)
         .Item("1d").Value(oneDayRate)
     .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void BuildRegistrationYson(TFluentList fluent, TConsumerRegistrationTableRow registration)
+{
+    fluent
+        .Item()
+            .BeginMap()
+                .Item("queue").Value(registration.Queue)
+                .Item("consumer").Value(registration.Consumer)
+                .Item("vital").Value(registration.Vital)
+            .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,26 +58,7 @@ void BuildQueueStatusYson(const TQueueSnapshotPtr& snapshot, TFluentAny fluent)
         .BeginMap()
             .Item("family").Value(snapshot->Family)
             .Item("partition_count").Value(snapshot->PartitionCount)
-            .Item("consumers").BeginMap()
-                .DoFor(snapshot->ConsumerSnapshots, [&] (TFluentMap fluent, const auto& pair) {
-                    const auto& consumerRef = pair.first;
-                    const auto& consumerSnapshot = pair.second;
-                    Y_UNUSED(consumerSnapshot);
-
-                    if (consumerSnapshot->Error.IsOK()) {
-                        fluent
-                            .Item(ToString(consumerRef)).BeginMap()
-                                .Item("vital").Value(consumerSnapshot->Vital)
-                                .Item("owner").Value(consumerSnapshot->Owner)
-                            .EndMap();
-                    } else {
-                        fluent
-                            .Item(ToString(consumerRef)).BeginMap()
-                                .Item("error").Value(consumerSnapshot->Error)
-                            .EndMap();
-                    }
-                })
-            .EndMap()
+            .Item("registrations").DoListFor(snapshot->Registrations, BuildRegistrationYson)
             .Item("has_timestamp_column").Value(snapshot->HasTimestampColumn)
             .Item("has_cumulative_data_weight_column").Value(snapshot->HasCumulativeDataWeightColumn)
             .Item("write_row_count_rate").Do(std::bind(BuildEmaCounterYson, snapshot->WriteRate.RowCount, _1))
@@ -116,6 +112,24 @@ void BuildQueuePartitionListYson(const TQueueSnapshotPtr& snapshot, TFluentAny f
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void BuildSubConsumerStatusYson(const TSubConsumerSnapshotPtr& subSnapshot, TFluentAny fluent)
+{
+    if (!subSnapshot->Error.IsOK()) {
+        fluent
+            .BeginMap()
+                .Item("error").Value(subSnapshot->Error)
+            .EndMap();
+        return;
+    }
+
+    fluent
+        .BeginMap()
+            .Item("partition_count").Value(subSnapshot->PartitionCount)
+            .Item("read_row_count_rate").Do(std::bind(BuildEmaCounterYson, subSnapshot->ReadRate.RowCount, _1))
+            .Item("read_data_weight_rate").Do(std::bind(BuildEmaCounterYson, subSnapshot->ReadRate.DataWeight, _1))
+        .EndMap();
+}
+
 void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fluent)
 {
     if (!snapshot->Error.IsOK()) {
@@ -128,16 +142,18 @@ void BuildConsumerStatusYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fl
 
     fluent
         .BeginMap()
-            .Item("target_queue").Value(snapshot->TargetQueue)
-            .Item("vital").Value(snapshot->Vital)
-            .Item("owner").Value(snapshot->Owner)
-            .Item("partition_count").Value(snapshot->PartitionCount)
-            .Item("read_row_count_rate").Do(std::bind(BuildEmaCounterYson, snapshot->ReadRate.RowCount, _1))
-            .Item("read_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->ReadRate.DataWeight, _1))
+            .Item("registrations").DoListFor(snapshot->Registrations, BuildRegistrationYson)
+            .Item("queues").DoMapFor(snapshot->SubSnapshots, [] (TFluentMap fluent, auto pair) {
+                const auto& queueRef = pair.first;
+                const auto& subSnapshot = pair.second;
+                fluent
+                    .Item(ToString(queueRef)).Do(std::bind(BuildSubConsumerStatusYson, subSnapshot, _1));
+            })
+
         .EndMap();
 }
 
-void BuildConsumerPartitionYson(const TConsumerPartitionSnapshotPtr& snapshot, TFluentAny fluent)
+void BuildSubConsumerPartitionYson(const TConsumerPartitionSnapshotPtr& snapshot, TFluentAny fluent)
 {
     if (!snapshot->Error.IsOK()) {
         fluent
@@ -155,6 +171,7 @@ void BuildConsumerPartitionYson(const TConsumerPartitionSnapshotPtr& snapshot, T
             .Item("last_consume_time").Value(snapshot->LastConsumeTime)
             .Item("disposition").Value(snapshot->Disposition)
             .Item("unread_row_count").Value(snapshot->UnreadRowCount)
+            .Item("unread_data_weight").Value(snapshot->UnreadDataWeight)
             .Item("next_row_commit_time").Value(snapshot->NextRowCommitTime)
             .Item("processing_lag").Value(snapshot->ProcessingLag)
             .Item("consume_idle_time").Value(snapshot->ConsumeIdleTime)
@@ -162,6 +179,24 @@ void BuildConsumerPartitionYson(const TConsumerPartitionSnapshotPtr& snapshot, T
             .Item("read_row_count_rate").Do(std::bind(BuildEmaCounterYson, snapshot->ReadRate.RowCount, _1))
             .Item("read_data_weight_rate").Do(std::bind(BuildEmaCounterYson, snapshot->ReadRate.DataWeight, _1))
         .EndMap();
+}
+
+void BuildSubConsumerPartitionListYson(const TSubConsumerSnapshotPtr& subSnapshot, TFluentAny fluent)
+{
+    if (!subSnapshot->Error.IsOK()) {
+        fluent
+            .BeginList()
+            .EndList();
+        return;
+    }
+
+    fluent
+        .BeginList()
+            .DoFor(subSnapshot->PartitionSnapshots, [&] (TFluentList fluent, const TConsumerPartitionSnapshotPtr& partitionSnapshot) {
+                fluent
+                    .Item().Do(std::bind(BuildSubConsumerPartitionYson, partitionSnapshot, _1));
+            })
+        .EndList();
 }
 
 void BuildConsumerPartitionListYson(const TConsumerSnapshotPtr& snapshot, TFluentAny fluent)
@@ -174,12 +209,12 @@ void BuildConsumerPartitionListYson(const TConsumerSnapshotPtr& snapshot, TFluen
     }
 
     fluent
-        .BeginList()
-            .DoFor(snapshot->PartitionSnapshots, [&] (TFluentList fluent, const TConsumerPartitionSnapshotPtr& snapshot) {
-                fluent
-                    .Item().Do(std::bind(BuildConsumerPartitionYson, snapshot, _1));
-            })
-        .EndList();
+        .DoMapFor(snapshot->SubSnapshots, [&] (TFluentMap fluent, auto pair) {
+            const auto& queueRef = pair.first;
+            const auto& subSnapshot = pair.second;
+            fluent
+                .Item(ToString(queueRef)).Do(std::bind(BuildSubConsumerPartitionListYson, subSnapshot, _1));
+        });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

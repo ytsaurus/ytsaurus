@@ -9,9 +9,9 @@ namespace NYT::NQueueAgent {
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Returns true if new controller was created.
-bool UpdateQueueController(
+bool UpdateConsumerController(
     IObjectControllerPtr& controller,
-    const TQueueTableRow& row,
+    const TConsumerTableRow& row,
     const IObjectStore* store,
     TQueueControllerDynamicConfigPtr dynamicConfig,
     NHiveClient::TClientDirectoryPtr clientDirectory,

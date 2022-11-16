@@ -66,13 +66,21 @@ constexpr TRowRevision NullRowRevision = 0;
 
 DECLARE_REFCOUNTED_CLASS(TQueueTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerTable)
+DECLARE_REFCOUNTED_CLASS(TConsumerRegistrationTable)
 DECLARE_REFCOUNTED_STRUCT(TDynamicState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(IObjectStore)
+DECLARE_REFCOUNTED_STRUCT(IObjectController)
 DECLARE_REFCOUNTED_STRUCT(IQueueController)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EObjectKind,
+    (Queue)
+    (Consumer)
+);
 
 DEFINE_ENUM(EQueueFamily,
     //! Sentinel value that does not correspond to any valid queue type.
@@ -85,19 +93,40 @@ DEFINE_ENUM(EQueueFamily,
 
 struct TQueueTableRow;
 struct TConsumerTableRow;
+struct TConsumerRegistrationTableRow;
 
 using TConsumerRowMap = THashMap<NQueueClient::TCrossClusterReference, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(TQueueSnapshot);
+using TQueueSnapshotConstPtr = TIntrusivePtr<const TQueueSnapshot>;
 DECLARE_REFCOUNTED_STRUCT(TQueuePartitionSnapshot);
 DECLARE_REFCOUNTED_STRUCT(TConsumerSnapshot);
+DECLARE_REFCOUNTED_STRUCT(TSubConsumerSnapshot)
 DECLARE_REFCOUNTED_STRUCT(TConsumerPartitionSnapshot);
+using TConsumerSnapshotConstPtr = TIntrusivePtr<const TConsumerSnapshot>;
+using TSubConsumerSnapshotConstPtr = TIntrusivePtr<const TSubConsumerSnapshot>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(IQueueProfileManager);
+DECLARE_REFCOUNTED_STRUCT(IConsumerProfileManager);
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_ENUM(EConsumerPartitionDisposition,
+    //! Sentinel value.
+    (None)
+    //! At the end of the window, i.e. unread row count == 0.
+    (UpToDate)
+    //! Inside the window but not at the end, i.e. 0 < unread row count <= available row count.
+    (PendingConsumption)
+    //! Past the window, i.e. unread row count > available row count.
+    (Expired)
+    //! Ahead of the window, i.e. "unread row count < 0" (unread row count is capped)
+    (Ahead)
+)
 
 ////////////////////////////////////////////////////////////////////////////////
 
