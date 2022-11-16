@@ -1,8 +1,8 @@
 #include "helpers.h"
 
-#include "dynamic_state.h"
-
 #include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
 #include <yt/yt/client/table_client/helpers.h>
 
@@ -13,6 +13,7 @@ using namespace NConcurrency;
 using namespace NYPath;
 using namespace NLogging;
 using namespace NTableClient;
+using namespace NQueueClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

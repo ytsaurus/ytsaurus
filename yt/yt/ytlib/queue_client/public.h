@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/client/queue_client/common.h>
+
 namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -10,6 +12,25 @@ DECLARE_REFCOUNTED_CLASS(TQueueAgentStageChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentConnectionConfig)
 
 inline const TString ProductionStage = "production";
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TRowRevision = ui64;
+constexpr TRowRevision NullRowRevision = 0;
+
+////////////////////////////////////////////////////////////////////////////////
+
+DECLARE_REFCOUNTED_CLASS(TQueueTable)
+DECLARE_REFCOUNTED_CLASS(TConsumerTable)
+DECLARE_REFCOUNTED_CLASS(TConsumerRegistrationTable)
+DECLARE_REFCOUNTED_STRUCT(TDynamicState)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TQueueTableRow;
+struct TConsumerTableRow;
+struct TConsumerRegistrationTableRow;
+using TConsumerRowMap = THashMap<TCrossClusterReference, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

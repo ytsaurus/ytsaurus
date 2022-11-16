@@ -1,3 +1,4 @@
+#include "private.h"
 #include "dynamic_state.h"
 
 #include <yt/yt/client/api/rowset.h>
@@ -12,7 +13,7 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-namespace NYT::NQueueAgent {
+namespace NYT::NQueueClient {
 
 using namespace NConcurrency;
 using namespace NObjectClient;
@@ -25,7 +26,7 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = QueueAgentLogger;
+static const auto& Logger = QueueClientLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -581,4 +582,4 @@ TDynamicState::TDynamicState(TYPath root, IClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueueAgent
+} // namespace NYT::NQueueClient

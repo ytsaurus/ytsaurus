@@ -21,7 +21,7 @@ struct IObjectStore
     virtual TRefCountedPtr FindSnapshot(NQueueClient::TCrossClusterReference objectRef) const = 0;
 
     //! Returns empty vector if requested object not found.
-    virtual std::vector<TConsumerRegistrationTableRow> GetRegistrations(
+    virtual std::vector<NQueueClient::TConsumerRegistrationTableRow> GetRegistrations(
         NQueueClient::TCrossClusterReference objectRef,
         EObjectKind objectKind) const = 0;
 };

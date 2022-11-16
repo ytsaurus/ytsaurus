@@ -2,7 +2,6 @@
 
 #include "snapshot.h"
 #include "snapshot_representation.h"
-#include "dynamic_state.h"
 #include "config.h"
 #include "helpers.h"
 #include "profile_manager.h"
@@ -10,6 +9,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 

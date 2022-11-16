@@ -1,7 +1,8 @@
 #pragma once
 
-#include "dynamic_state.h"
 #include "performance_counters.h"
+
+#include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
 namespace NYT::NQueueAgent {
 
@@ -11,7 +12,7 @@ namespace NYT::NQueueAgent {
 struct TQueueSnapshot
     : public TRefCounted
 {
-    TQueueTableRow Row;
+    NQueueClient::TQueueTableRow Row;
 
     TError Error;
 
@@ -29,7 +30,7 @@ struct TQueueSnapshot
     TInstant PassInstant;
 
     std::vector<TQueuePartitionSnapshotPtr> PartitionSnapshots;
-    std::vector<TConsumerRegistrationTableRow> Registrations;
+    std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueSnapshot);
@@ -71,14 +72,14 @@ struct TConsumerSnapshot
     : public TRefCounted
 {
     // This field is always set.
-    TConsumerTableRow Row;
+    NQueueClient::TConsumerTableRow Row;
 
     TError Error;
 
     i64 PassIndex = 0;
     TInstant PassInstant;
 
-    std::vector<TConsumerRegistrationTableRow> Registrations;
+    std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
     THashMap<NQueueClient::TCrossClusterReference, TSubConsumerSnapshotPtr> SubSnapshots;
 };
 
