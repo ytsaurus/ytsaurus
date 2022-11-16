@@ -725,6 +725,7 @@ void TBootstrap::DoInitialize()
     CellDirectory_ = CreateCellDirectory(
         Config_->CellDirectory,
         ChannelFactory_,
+        ClusterConnection_->GetClusterDirectory(),
         networks,
         Logger);
 

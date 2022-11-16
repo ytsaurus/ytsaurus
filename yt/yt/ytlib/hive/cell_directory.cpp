@@ -1,4 +1,5 @@
 #include "cell_directory.h"
+#include "cluster_directory.h"
 #include "config.h"
 #include "private.h"
 
@@ -10,6 +11,8 @@
 #include <yt/yt/ytlib/hydra/peer_channel.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
+
+#include <yt/yt/core/rpc/roaming_channel.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
@@ -23,9 +26,125 @@ using namespace NElection;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NLogging;
 
 using NYT::ToProto;
 using NYT::FromProto;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAlienClusterChannelProvider
+    : public IRoamingChannelProvider
+{
+public:
+    TAlienClusterChannelProvider(
+        TString address,
+        TString cluster,
+        TClusterDirectoryPtr clusterDirectory,
+        TLogger logger)
+        : Address_(std::move(address))
+        , Cluster_(std::move(cluster))
+        , ClusterDirectory_(std::move(clusterDirectory))
+        , Logger(std::move(logger))
+    { }
+
+    const TString& GetEndpointDescription() const override
+    {
+        return Address_;
+    }
+
+    const NYTree::IAttributeDictionary& GetEndpointAttributes() const override
+    {
+        static auto attributes = NYTree::CreateEphemeralAttributes();
+        return *attributes;
+    }
+
+    TFuture<IChannelPtr> GetChannel(const IClientRequestPtr& /*request*/) override
+    {
+        return GetChannel();
+    }
+
+    TFuture<IChannelPtr> GetChannel(const TString& /*serviceName*/) override
+    {
+        return GetChannel();
+    }
+
+    TFuture<IChannelPtr> GetChannel() override
+    {
+        auto connection = ClusterDirectory_->FindConnection(Cluster_);
+        if (connection) {
+            return MakeFuture(connection->GetChannelFactory()->CreateChannel(Address_));
+        }
+
+        YT_LOG_DEBUG("Cannot find cluster in the cluster directory (Cluster: %v)",
+            Cluster_);
+        return MakeFuture<IChannelPtr>(
+            TError(NRpc::EErrorCode::Unavailable, "Cannot find cluster in the cluster directory")
+                << TErrorAttribute("cluster", Cluster_));
+    }
+
+    void Terminate(const TError& /*error*/) override
+    {
+        // This channel provider does not own any channel, so it is not responsible
+        // for any termination.
+    }
+
+private:
+    const TString Address_;
+    const TString Cluster_;
+    const TClusterDirectoryPtr ClusterDirectory_;
+    const TLogger Logger;
+};
+
+DEFINE_REFCOUNTED_TYPE(TAlienClusterChannelProvider)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TAlienClusterChannelFactory
+    : public IChannelFactory
+{
+public:
+    TAlienClusterChannelFactory(
+        THashSet<TString> nativeClusterAddresses,
+        IChannelFactoryPtr nativeChannelFactory,
+        THashMap<TString, TString> addressToAlienCluster,
+        TClusterDirectoryPtr clusterDirectory,
+        TLogger logger)
+        : NativeClusterAddresses_(std::move(nativeClusterAddresses))
+        , NativeChannelFactory_(std::move(nativeChannelFactory))
+        , AddressToAlienCluster_(std::move(addressToAlienCluster))
+        , ClusterDirectory_(std::move(clusterDirectory))
+        , Logger(std::move(logger))
+    { }
+
+    IChannelPtr CreateChannel(const TString& address) override
+    {
+        if (NativeClusterAddresses_.contains(address)) {
+            return NativeChannelFactory_->CreateChannel(address);
+        }
+
+        auto it = AddressToAlienCluster_.find(address);
+        if (it == AddressToAlienCluster_.end()) {
+            THROW_ERROR_EXCEPTION("Unknown address %Qv", address);
+        }
+
+        auto provider = New<TAlienClusterChannelProvider>(
+            address,
+            it->second,
+            ClusterDirectory_,
+            Logger);
+        return CreateRoamingChannel(std::move(provider));
+    }
+
+private:
+    const THashSet<TString> NativeClusterAddresses_;
+    const IChannelFactoryPtr NativeChannelFactory_;
+    const THashMap<TString, TString> AddressToAlienCluster_;
+    const TClusterDirectoryPtr ClusterDirectory_;
+    const TLogger Logger;
+};
+
+DEFINE_REFCOUNTED_TYPE(TAlienClusterChannelFactory)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -154,10 +273,12 @@ public:
     TCellDirectory(
         TCellDirectoryConfigPtr config,
         IChannelFactoryPtr channelFactory,
+        TClusterDirectoryPtr clusterDirectory,
         const TNetworkPreferenceList& networks,
-        NLogging::TLogger logger)
+        TLogger logger)
         : Config_(std::move(config))
         , ChannelFactory_(std::move(channelFactory))
+        , ClusterDirectory_(std::move(clusterDirectory))
         , Networks_(networks)
         , Logger(std::move(logger))
     { }
@@ -411,8 +532,9 @@ public:
 private:
     const TCellDirectoryConfigPtr Config_;
     const IChannelFactoryPtr ChannelFactory_;
+    const TClusterDirectoryPtr ClusterDirectory_;
     const TNetworkPreferenceList Networks_;
-    const NLogging::TLogger Logger;
+    const TLogger Logger;
 
     struct TEntry
     {
@@ -432,12 +554,25 @@ private:
 
     void InitChannel(TEntry* entry)
     {
+        THashMap<TString, TString> addressToAlienCluster;
+        THashSet<TString> nativeClusterAddresses;
+
         auto peerConfig = New<TPeerConnectionConfig>();
         peerConfig->CellId = entry->Descriptor.CellId;
         peerConfig->Addresses.emplace();
+
         for (const auto& peer : entry->Descriptor.Peers) {
-            if (!peer.IsNull()) {
-                peerConfig->Addresses->push_back(peer.GetAddressOrThrow(Networks_));
+            if (peer.IsNull()) {
+                continue;
+            }
+
+            auto address = peer.GetAddressOrThrow(Networks_);
+            peerConfig->Addresses->push_back(address);
+
+            if (auto alienCluster = peer.GetAlienCluster()) {
+                addressToAlienCluster[address] = *alienCluster;
+            } else {
+                nativeClusterAddresses.insert(address);
             }
         }
         peerConfig->DiscoverTimeout = Config_->DiscoverTimeout;
@@ -447,8 +582,15 @@ private:
         peerConfig->SoftBackoffTime = Config_->SoftBackoffTime;
         peerConfig->HardBackoffTime = Config_->HardBackoffTime;
 
+        auto alienClusterChannelFactory = New<TAlienClusterChannelFactory>(
+            std::move(nativeClusterAddresses),
+            ChannelFactory_,
+            std::move(addressToAlienCluster),
+            ClusterDirectory_,
+            Logger);
+
         for (auto kind : TEnumTraits<EPeerKind>::GetDomainValues()) {
-            entry->Channels[kind] = CreatePeerChannel(peerConfig, ChannelFactory_, kind);
+            entry->Channels[kind] = CreatePeerChannel(peerConfig, alienClusterChannelFactory, kind);
         }
     }
 };
@@ -458,12 +600,14 @@ private:
 ICellDirectoryPtr CreateCellDirectory(
     TCellDirectoryConfigPtr config,
     IChannelFactoryPtr channelFactory,
+    TClusterDirectoryPtr clusterDirectory,
     const NNodeTrackerClient::TNetworkPreferenceList& networks,
-    NLogging::TLogger logger)
+    TLogger logger)
 {
     return New<TCellDirectory>(
         std::move(config),
         std::move(channelFactory),
+        std::move(clusterDirectory),
         networks,
         std::move(logger));
 }

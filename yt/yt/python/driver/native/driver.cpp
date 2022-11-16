@@ -7,8 +7,11 @@
 #include <yt/yt/python/common/buffered_stream.h>
 
 #include <yt/yt/ytlib/api/connection.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/driver/config.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -63,6 +66,10 @@ public:
                 /*options*/ {},
                 std::move(tvmService));
             Connection_ = connection;
+
+            if (auto *nativeConnection = dynamic_cast<NNative::IConnection *>(connection.Get())) {
+                nativeConnection->GetClusterDirectorySynchronizer()->Start();
+            }
 
             driver = CreateDriver(std::move(connection), std::move(driverConfig));
         } catch (const std::exception& ex) {
