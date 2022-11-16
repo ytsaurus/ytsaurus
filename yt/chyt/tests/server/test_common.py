@@ -261,10 +261,8 @@ class TestClickHouseCommon(ClickHouseTestBase):
                 {"a": "value1", "b": "value2"}
             ]
 
-            time.sleep(0.5)
-
-            assert object_attribute_cache_hit_counter.get_delta() > 0
-            assert permission_cache_hit_counter.get_delta() > 0
+            wait(lambda: object_attribute_cache_hit_counter.get_delta() > 0)
+            wait(lambda: permission_cache_hit_counter.get_delta() > 0)
 
     @authors("evgenstf")
     def test_orchid_error_handle(self):
