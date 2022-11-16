@@ -1,9 +1,10 @@
 #pragma once
 
 #include "private.h"
-#include "dynamic_state.h"
 
 #include <yt/yt/ytlib/hive/public.h>
+
+#include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -32,7 +33,7 @@ DEFINE_REFCOUNTED_TYPE(ICypressSynchronizer)
 ICypressSynchronizerPtr CreateCypressSynchronizer(
     TCypressSynchronizerConfigPtr config,
     IInvokerPtr controlInvoker,
-    TDynamicStatePtr dynamicState,
+    NQueueClient::TDynamicStatePtr dynamicState,
     NHiveClient::TClientDirectoryPtr clientDirectory);
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -5,6 +5,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NQueueClient;
 using namespace NYson;
 using namespace NYTree;
 

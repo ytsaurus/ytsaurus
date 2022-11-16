@@ -63,7 +63,7 @@ private:
 
     TAlertManagerPtr AlertManager_;
 
-    TDynamicStatePtr DynamicState_;
+    NQueueClient::TDynamicStatePtr DynamicState_;
 
     TQueueAgentPtr QueueAgent_;
 

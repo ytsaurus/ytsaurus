@@ -74,6 +74,7 @@ using namespace NLogging;
 using namespace NCypressElection;
 using namespace NHiveClient;
 using namespace NYson;
+using namespace NQueueClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 

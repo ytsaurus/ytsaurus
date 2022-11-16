@@ -1,5 +1,7 @@
 #pragma once
 
+#include <yt/yt/ytlib/queue_client/public.h>
+
 #include <yt/yt/client/queue_client/common.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -59,18 +61,6 @@ using TAgentId = TString;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TRowRevision = ui64;
-constexpr TRowRevision NullRowRevision = 0;
-
-////////////////////////////////////////////////////////////////////////////////
-
-DECLARE_REFCOUNTED_CLASS(TQueueTable)
-DECLARE_REFCOUNTED_CLASS(TConsumerTable)
-DECLARE_REFCOUNTED_CLASS(TConsumerRegistrationTable)
-DECLARE_REFCOUNTED_STRUCT(TDynamicState)
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_STRUCT(IObjectStore)
 DECLARE_REFCOUNTED_STRUCT(IObjectController)
 DECLARE_REFCOUNTED_STRUCT(IQueueController)
@@ -88,14 +78,6 @@ DEFINE_ENUM(EQueueFamily,
     //! Regular ordered dynamic table.
     ((OrderedDynamicTable)        (1))
 )
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TQueueTableRow;
-struct TConsumerTableRow;
-struct TConsumerRegistrationTableRow;
-
-using TConsumerRowMap = THashMap<NQueueClient::TCrossClusterReference, TConsumerTableRow>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

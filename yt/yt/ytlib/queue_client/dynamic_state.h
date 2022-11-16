@@ -1,6 +1,6 @@
 #pragma once
 
-#include "private.h"
+#include "public.h"
 
 #include <yt/yt/client/table_client/public.h>
 
@@ -16,7 +16,7 @@
 
 #include <yt/yt/client/api/client.h>
 
-namespace NYT::NQueueAgent {
+namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -43,7 +43,7 @@ private:
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TQueueTableRow
 {
-    NQueueClient::TCrossClusterReference Ref;
+    TCrossClusterReference Ref;
     std::optional<TRowRevision> RowRevision;
     // Even though some fields are nullable by their nature (e.g. revision),
     // outer-level nullopt is interpreted as Null, i.e. missing value.
@@ -51,7 +51,7 @@ struct TQueueTableRow
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
-    std::optional<NQueueClient::EQueueAutoTrimPolicy> AutoTrimPolicy;
+    std::optional<EQueueAutoTrimPolicy> AutoTrimPolicy;
     std::optional<TString> QueueAgentStage;
 
     std::optional<TError> SynchronizationError;
@@ -67,7 +67,7 @@ struct TQueueTableRow
     static std::vector<TString> GetCypressAttributeNames();
 
     static TQueueTableRow FromAttributeDictionary(
-        const NQueueClient::TCrossClusterReference& queue,
+        const TCrossClusterReference& queue,
         std::optional<TRowRevision> rowRevision,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
@@ -92,7 +92,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueTable)
 // Keep fields in-sync with the implementations of all related methods in the corresponding cpp file.
 struct TConsumerTableRow
 {
-    NQueueClient::TCrossClusterReference Ref;
+    TCrossClusterReference Ref;
     std::optional<TRowRevision> RowRevision;
     std::optional<NHydra::TRevision> Revision;
     std::optional<NObjectClient::EObjectType> ObjectType;
@@ -113,7 +113,7 @@ struct TConsumerTableRow
     static std::vector<TString> GetCypressAttributeNames();
 
     static TConsumerTableRow FromAttributeDictionary(
-        const NQueueClient::TCrossClusterReference& consumer,
+        const TCrossClusterReference& consumer,
         std::optional<TRowRevision> rowRevision,
         const NYTree::IAttributeDictionaryPtr& cypressAttributes);
 
@@ -137,8 +137,8 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 
 struct TConsumerRegistrationTableRow
 {
-    NQueueClient::TCrossClusterReference Queue;
-    NQueueClient::TCrossClusterReference Consumer;
+    TCrossClusterReference Queue;
+    TCrossClusterReference Consumer;
     bool Vital;
 
     static std::vector<TConsumerRegistrationTableRow> ParseRowRange(
@@ -177,4 +177,4 @@ DEFINE_REFCOUNTED_TYPE(TDynamicState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NQueueAgent
+} // namespace NYT::NQueueClient

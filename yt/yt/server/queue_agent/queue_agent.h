@@ -1,6 +1,5 @@
 #pragma once
 
-#include "dynamic_state.h"
 #include "object.h"
 
 #include <yt/yt/server/lib/cypress_election/public.h>
@@ -8,6 +7,8 @@
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
+
+#include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
 #include <yt/yt/core/ytree/public.h>
 
@@ -43,7 +44,7 @@ public:
         NApi::NNative::IConnectionPtr nativeConnection,
         NHiveClient::TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
-        TDynamicStatePtr dynamicState,
+        NQueueClient::TDynamicStatePtr dynamicState,
         NCypressElection::ICypressElectionManagerPtr electionManager,
         TString agentId);
 
@@ -63,7 +64,7 @@ public:
 
     TRefCountedPtr FindSnapshot(NQueueClient::TCrossClusterReference objectRef) const override;
 
-    std::vector<TConsumerRegistrationTableRow> GetRegistrations(
+    std::vector<NQueueClient::TConsumerRegistrationTableRow> GetRegistrations(
         NQueueClient::TCrossClusterReference objectRef,
         EObjectKind objectKind) const override;
 
@@ -72,7 +73,7 @@ private:
     TQueueAgentDynamicConfigPtr DynamicConfig_;
     const NHiveClient::TClientDirectoryPtr ClientDirectory_;
     const IInvokerPtr ControlInvoker_;
-    const TDynamicStatePtr DynamicState_;
+    const NQueueClient::TDynamicStatePtr DynamicState_;
     const NCypressElection::ICypressElectionManagerPtr ElectionManager_;
     const NConcurrency::IThreadPoolPtr ControllerThreadPool_;
     const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
@@ -85,7 +86,7 @@ private:
     struct TObject
     {
         IObjectControllerPtr Controller;
-        std::vector<TConsumerRegistrationTableRow> Registrations;
+        std::vector<NQueueClient::TConsumerRegistrationTableRow> Registrations;
     };
     using TObjectMap = THashMap<NQueueClient::TCrossClusterReference, TObject>;
 

@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/server/queue_agent/dynamic_state.h>
+#include <yt/yt/ytlib/queue_client/dynamic_state.h>
 
 #include <yt/yt/client/api/rowset.h>
 
@@ -8,12 +8,11 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
-namespace NYT::NQueueAgent {
+namespace NYT::NQueueClient {
 namespace {
 
 using namespace NYTree;
 using namespace NYson;
-using namespace NQueueClient;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -110,4 +109,4 @@ TEST(TTableRowTest, ConsumerBoilerplateSanity)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT::NQueueAgent
+} // namespace NYT::NQueueClient
