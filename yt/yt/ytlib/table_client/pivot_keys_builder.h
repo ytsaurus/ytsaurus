@@ -24,7 +24,8 @@ public:
         int tabletCount,
         double accuracy,
         i64 expectedTabletSize,
-        TLegacyOwningKey nextPivot);
+        TLegacyOwningKey nextPivot,
+        bool enableVerboseLogging = false);
 
     void AddChunk(const NYT::NChunkClient::NProto::TChunkSpec& chunkSpec);
     void AddChunk(const NChunkClient::TWeightedInputChunkPtr& chunk);
@@ -62,6 +63,8 @@ private:
     const int TabletCount_;
     const double Accuracy_;
     const TLegacyOwningKey NextPivot_;
+    const bool EnableVerboseLogging_;
+
     std::vector<TPivot> Pivots_;
     std::function<bool(const TSliceBoundaryKey&, const TSliceBoundaryKey&)> SliceBoundaryKeyCompare_;
 

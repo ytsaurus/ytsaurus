@@ -1824,13 +1824,15 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
 
     auto expectedTabletSize = DivCeil<i64>(chunksDataWeight, tabletCount);
     i64 minSliceSize = std::max(expectedTabletSize * accuracy / ExpectedAverageOverlapping, 1.);
+    bool enableVerboseLogging = Connection_->GetDynamicConfig()->EnableReshardWithSlicingVerboseLogging;
 
     YT_LOG_DEBUG("Initializing pivot keys builder for resharding with slicing"
-        " (ChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v, Accuracy: %v)",
+        " (ChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v, Accuracy: %v, EnableVerboseLogging: %v)",
         chunksDataWeight,
         expectedTabletSize,
         minSliceSize,
-        accuracy);
+        accuracy,
+        enableVerboseLogging);
 
     const auto& comparator = tableInfo->Schemas[ETableSchemaKind::Primary]->ToComparator();
     auto keyColumnCount = tableInfo->Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
@@ -1840,7 +1842,8 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
         tabletCount,
         accuracy,
         expectedTabletSize,
-        nextPivot);
+        nextPivot,
+        enableVerboseLogging);
 
     chunkIds.clear();
     i64 unlimitedChunksDataWeight = 0;

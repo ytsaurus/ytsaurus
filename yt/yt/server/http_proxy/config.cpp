@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/zookeeper_proxy/config.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/ytlib/security_client/config.h>
 
 #include <yt/yt/library/auth_server/config.h>
@@ -257,6 +259,9 @@ void TProxyDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("access_checker", &TThis::AccessChecker)
+        .DefaultNew();
+
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
         .DefaultNew();
 
     // COMPAT(gritukan, levysotsky)

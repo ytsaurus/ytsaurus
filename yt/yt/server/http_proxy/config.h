@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/zookeeper_proxy/public.h>
 
+#include <yt/yt/ytlib/api/native/public.h>
+
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/security_client/public.h>
@@ -263,6 +265,8 @@ public:
     // COMPAT(gritukan, levysotsky)
     TFramingConfigPtr Framing;
     THashMap<NFormats::EFormatType, TFormatConfigPtr> Formats;
+
+    NApi::NNative::TConnectionDynamicConfigPtr ClusterConnection;
 
     REGISTER_YSON_STRUCT(TProxyDynamicConfig);
 
