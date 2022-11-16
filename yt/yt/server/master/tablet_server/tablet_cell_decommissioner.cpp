@@ -119,7 +119,7 @@ private:
     {
         auto retiringCells = GetDecommissionedCellsUsedByActions();
 
-        YT_LOG_DEBUG("Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
+        YT_LOG_DEBUG_IF(!retiringCells.empty(), "Tablet cell decommissioner observes decommissioned cells with tablets (CellCount: %v)",
             retiringCells.size());
 
         const auto& cellManager = Bootstrap_->GetTamedCellManager();
