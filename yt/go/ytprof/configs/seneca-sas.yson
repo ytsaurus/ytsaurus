@@ -14,6 +14,7 @@
         "controller-agent" = 10014;
         "clock" = 10016;
         "discovery" = 10020;
+        "timestamp-provider" = 10021;
     };
     "yp_clusters" = [
         "sas";
@@ -28,12 +29,13 @@
     ];
     "configs" = [
         {
-            "cluster" = "zeno";
+            "cluster" = "seneca-sas";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
-            "period" = 300000000000;
             "probability" = 0.5;
+            "resolver_max_profiles" = 70;
             "resolver_min_profiles" = 2;
+            "period" = 300000000000;
         };
     ]
 }
