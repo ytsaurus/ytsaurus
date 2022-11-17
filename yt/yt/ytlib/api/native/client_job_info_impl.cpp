@@ -1859,7 +1859,7 @@ TListJobsResult TClient::DoListJobs(
         result.ControllerAgentJobCount =
             controllerAgentResult.TotalFinishedJobCount + controllerAgentResult.TotalInProgressJobCount;
     } else {
-        auto operationFinished = operationInfo.State &&  IsOperationFinished(*operationInfo.State);
+        auto operationFinished = operationInfo.State && IsOperationFinished(*operationInfo.State);
         if (operationFinished && controllerAgentResultOrError.FindMatching(EErrorCode::UncertainOperationControllerState)) {
             // No such operation in the controller agent.
             result.ControllerAgentJobCount = 0;
