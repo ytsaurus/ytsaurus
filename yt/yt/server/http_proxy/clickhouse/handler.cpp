@@ -8,6 +8,9 @@
 #include <yt/yt/server/http_proxy/coordinator.h>
 #include <yt/yt/server/http_proxy/http_authenticator.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+#include <yt/yt/ytlib/api/native/connection.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/yt/library/auth_server/config.h>
@@ -639,9 +642,13 @@ private:
     {
         auto discoveryV1 = CreateDiscoveryV1();
         auto discoveryV1Future = discoveryV1->UpdateList().Apply(BIND([discovery = std::move(discoveryV1)] { return discovery; }));
-        auto discoveryV2 = CreateDiscoveryV2();
-        auto discoveryV2Future = discoveryV2->UpdateList().Apply(BIND([discovery = std::move(discoveryV2)] { return discovery; }));
-        auto futures = std::vector{discoveryV1Future, discoveryV2Future};
+        auto futures = std::vector{discoveryV1Future};
+
+        if (Bootstrap_->GetNativeConnection()->GetConfig()->DiscoveryConnection) {
+            auto discoveryV2 = CreateDiscoveryV2();
+            auto discoveryV2Future = discoveryV2->UpdateList().Apply(BIND([discovery = std::move(discoveryV2)] { return discovery; }));
+            futures.emplace_back(std::move(discoveryV2Future));
+        }
 
         auto valueOrError = WaitFor(AnySucceeded(futures));
         if (!valueOrError.IsOK()) {
