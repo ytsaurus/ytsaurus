@@ -16,7 +16,6 @@ import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientPool;
 
 import ru.yandex.lang.NonNullApi;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.is;

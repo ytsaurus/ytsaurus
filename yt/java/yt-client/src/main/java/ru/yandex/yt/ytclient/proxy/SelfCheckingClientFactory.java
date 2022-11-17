@@ -20,9 +20,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TReqDiscover;
 import ru.yandex.yt.rpc.TRspDiscover;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
-import ru.yandex.yt.ytclient.proxy.internal.FailureDetectingRpcClient;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 
 public interface SelfCheckingClientFactory {
     RpcClient create(HostPort hostPort, String name, CompletableFuture<Void> statusFuture);

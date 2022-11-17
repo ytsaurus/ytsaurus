@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.internal;
+package tech.ytsaurus.client.rpc;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -17,15 +17,6 @@ import java.util.function.Supplier;
 
 import org.junit.After;
 import org.junit.Test;
-import tech.ytsaurus.client.rpc.RpcClient;
-import tech.ytsaurus.client.rpc.RpcClientPool;
-import tech.ytsaurus.client.rpc.RpcClientRequestControl;
-import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
-import tech.ytsaurus.client.rpc.RpcClientStreamControl;
-import tech.ytsaurus.client.rpc.RpcFailoverPolicy;
-import tech.ytsaurus.client.rpc.RpcOptions;
-import tech.ytsaurus.client.rpc.RpcRequest;
-import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 
 import ru.yandex.inside.yt.kosher.impl.common.YtException;
 import ru.yandex.yt.rpc.TRequestHeader;

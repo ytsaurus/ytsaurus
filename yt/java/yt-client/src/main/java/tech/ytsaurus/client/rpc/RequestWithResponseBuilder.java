@@ -14,7 +14,6 @@ import com.google.protobuf.Parser;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
-import ru.yandex.yt.ytclient.proxy.internal.FailoverRpcExecutor;
 
 @NonNullApi
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite>

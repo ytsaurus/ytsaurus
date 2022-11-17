@@ -1,6 +1,6 @@
-package ru.yandex.yt.ytclient.proxy.internal;
+package ru.yandex.yt.ytclient.proxy;
 
-public class StashedMessage<DataType> {
+class StashedMessage<DataType> {
     DataType data;
     long offset;
 

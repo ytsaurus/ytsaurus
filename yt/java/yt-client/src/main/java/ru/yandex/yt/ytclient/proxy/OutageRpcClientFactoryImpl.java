@@ -28,7 +28,6 @@ import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 
 @NonNullApi
 @NonNullFields

@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.internal;
+package tech.ytsaurus.client.rpc;
 
 import java.time.Duration;
 import java.util.ArrayList;
@@ -13,14 +13,6 @@ import java.util.concurrent.TimeoutException;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-import tech.ytsaurus.client.rpc.BalancingResponseHandlerMetricsHolder;
-import tech.ytsaurus.client.rpc.RpcClient;
-import tech.ytsaurus.client.rpc.RpcClientPool;
-import tech.ytsaurus.client.rpc.RpcClientRequestControl;
-import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
-import tech.ytsaurus.client.rpc.RpcOptions;
-import tech.ytsaurus.client.rpc.RpcRequest;
-import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.yt.rpc.TRequestHeader;
@@ -28,7 +20,7 @@ import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 import ru.yandex.yt.ytclient.proxy.RetryPolicy;
 
-public class FailoverRpcExecutor {
+class FailoverRpcExecutor {
     private static final Logger logger = LoggerFactory.getLogger(FailoverRpcExecutor.class);
     private static final TimeoutException TIMEOUT_EXCEPTION = new TimeoutException();
 

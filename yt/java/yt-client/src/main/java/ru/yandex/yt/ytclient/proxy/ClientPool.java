@@ -41,8 +41,6 @@ import tech.ytsaurus.ysontree.YTreeTextSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.misc.SerializedExecutorService;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 

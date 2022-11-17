@@ -15,7 +15,6 @@ import tech.ytsaurus.core.cypress.YPath;
 import ru.yandex.yt.testlib.FutureUtils;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;
