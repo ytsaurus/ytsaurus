@@ -157,6 +157,10 @@ public:
 
     TSegmentToResourceAmount SatisfactionMargins;
 
+    TDuration InitializationTimeout;
+
+    TDuration ManagePeriod;
+
     TDuration UnsatisfiedSegmentsRebalancingTimeout;
 
     TDuration ModuleReconsiderationTimeout;
@@ -471,10 +475,9 @@ public:
     //! Template pool tree configs.
     THashMap<TString, TPoolTreesTemplateConfigPtr> TemplatePoolTreeConfigMap;
 
-    TDuration SchedulingSegmentsManagePeriod;
-    TDuration SchedulingSegmentsInitializationTimeout;
-
     bool EnablePoolTreesConfigCache;
+
+    TDuration SchedulerTreeAlertsUpdatePeriod;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 

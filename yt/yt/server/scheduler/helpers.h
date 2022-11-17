@@ -94,4 +94,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TSchedulerTreeAlertDescriptor
+{
+    ESchedulerAlertType Type;
+    TString Message;
+};
+
+const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescriptors();
+
+bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

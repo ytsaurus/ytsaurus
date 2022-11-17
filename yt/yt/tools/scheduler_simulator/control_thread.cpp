@@ -126,7 +126,7 @@ void TSimulatorControlThread::Initialize(const TYsonString& poolTreesYson)
 {
     YT_VERIFY(!Initialized_.load());
 
-    WaitFor(BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesYson, New<TPersistentStrategyState>())
+    WaitFor(BIND(&ISchedulerStrategy::UpdatePoolTrees, SchedulerStrategy_, poolTreesYson, New<TPersistentStrategyState>(), /*oldPersistentSchedulingSegmentsState*/ nullptr)
         .AsyncVia(ActionQueue_->GetInvoker())
         .Run())
         .ThrowOnError();

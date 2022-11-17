@@ -33,7 +33,8 @@ class TSchedulerStrategyHostMock
 {
 public:
     explicit TSchedulerStrategyHostMock(std::vector<TExecNodePtr> execNodes)
-        : NodeShardInvokers_({GetCurrentInvoker()})
+        : NodeShardActionQueue_(New<NConcurrency::TActionQueue>("NodeShard"))
+        , NodeShardInvokers_({NodeShardActionQueue_->GetInvoker()})
         , ExecNodes_(std::move(execNodes))
         , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
     {
@@ -155,10 +156,8 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void UpdateOperationSchedulingSegmentModules(const THashMap<TString, TOperationIdWithSchedulingSegmentModuleList>& /*updatesPerTree*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
+    void UpdateOperationSchedulingSegmentModules(const TString& /*treeId*/, const TOperationIdWithSchedulingSegmentModuleList& /*updates*/) override
+    { }
 
     std::optional<int> FindMediumIndexByName(const TString& /*mediumName*/) const override
     {
@@ -245,9 +244,6 @@ public:
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/) override
     { }
 
-    void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr /*persistentStrategyState*/) override
-    { }
-
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override
     {
         return VoidFuture;
@@ -260,6 +256,7 @@ public:
     }
 
 private:
+    NConcurrency::TActionQueuePtr NodeShardActionQueue_;
     std::vector<IInvokerPtr> NodeShardInvokers_;
     std::vector<TExecNodePtr> ExecNodes_;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
@@ -274,13 +271,37 @@ class TFairShareTreeHostMock
     , public IFairShareTreeHost
 {
 public:
-    TPersistentSchedulingSegmentsStateWithDeadline GetInitialSchedulingSegmentsState() override
+
+    bool IsConnected() const override
     {
-        return {nullptr, TInstant()};
+        return true;
     }
+
+    void SetSchedulerTreeAlert(const TString& /*treeId*/, ESchedulerAlertType /*alertType*/, const TError& /*alert*/) override
+    { }
 };
 
 using TFairShareTreeHostMockPtr = TIntrusivePtr<TFairShareTreeHostMock>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareTreeJobSchedulerHostMock
+    : public TRefCounted
+    , public IFairShareTreeJobSchedulerHost
+{
+public:
+    TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept override
+    {
+        return nullptr;
+    }
+
+    virtual TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const override
+    {
+        return {};
+    }
+};
+
+using TFairShareTreeJobSchedulerHostMockPtr = TIntrusivePtr<TFairShareTreeJobSchedulerHostMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -506,6 +527,7 @@ public:
 
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
+    TFairShareTreeJobSchedulerHostMockPtr FairShareTreeJobSchedulerHostMock_ = New<TFairShareTreeJobSchedulerHostMock>();
     TFairShareTreeHostMockPtr FairShareTreeHostMock_ = New<TFairShareTreeHostMock>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TFairShareTreeElementHostMockPtr FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
@@ -525,6 +547,7 @@ protected:
         return New<TFairShareTreeJobScheduler>(
             /*treeId*/ "default",
             StrategyLogger,
+            FairShareTreeJobSchedulerHostMock_.Get(),
             FairShareTreeHostMock_.Get(),
             strategyHost,
             TreeConfig_,

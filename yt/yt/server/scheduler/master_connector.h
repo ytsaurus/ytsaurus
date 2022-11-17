@@ -20,8 +20,6 @@ namespace NYT::NScheduler {
 struct TMasterHandshakeResult
 {
     std::vector<TOperationPtr> Operations;
-    // TODO(eshcherbin): This is ad-hoc, needs refactoring.
-    TPersistentSchedulingSegmentsStatePtr SchedulingSegmentsState;
     TInstant LastMeteringLogTime;
 };
 
@@ -89,7 +87,6 @@ public:
     TFuture<NYson::TYsonString> GetOperationNodeProgressAttributes(const TOperationPtr& operation);
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState);
-    void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState);
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant time);
 

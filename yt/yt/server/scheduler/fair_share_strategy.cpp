@@ -94,10 +94,10 @@ public:
             BIND(&TFairShareStrategy::OnUpdateResourceUsages, MakeWeak(this)),
             Config_->ResourceUsageSnapshotUpdatePeriod);
 
-        SchedulingSegmentsManagementExecutor_ = New<TPeriodicExecutor>(
-            Host_->GetControlInvoker(EControlQueue::FairShareStrategy),
-            BIND(&TFairShareStrategy::ManageSchedulingSegments, MakeWeak(this)),
-            Config_->SchedulingSegmentsManagePeriod);
+        SchedulerTreeAlertsUpdateExecutor_ = New<TPeriodicExecutor>(
+            Host_->GetControlInvoker(EControlQueue::CommonPeriodicActivity),
+            BIND(&TFairShareStrategy::UpdateSchedulerTreeAlerts, MakeWeak(this)),
+            Config_->SchedulerTreeAlertsUpdatePeriod);
     }
 
     void OnUpdateResourceUsages()
@@ -114,13 +114,13 @@ public:
 
         LastMeteringStatisticsUpdateTime_ = result.LastMeteringLogTime;
         ConnectionTime_ = TInstant::Now();
-        InitialSchedulingSegmentsState_ = result.SchedulingSegmentsState;
-        SchedulingSegmentsInitializationDeadline_ = ConnectionTime_ + Config_->SchedulingSegmentsInitializationTimeout;
     }
 
     void OnMasterConnected() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        Connected_ = true;
 
         FairShareProfilingExecutor_->Start();
         FairShareUpdateExecutor_->Start();
@@ -129,12 +129,14 @@ public:
         MinNeededJobResourcesUpdateExecutor_->Start();
         ResourceMeteringExecutor_->Start();
         ResourceUsageUpdateExecutor_->Start();
-        SchedulingSegmentsManagementExecutor_->Start();
+        SchedulerTreeAlertsUpdateExecutor_->Start();
     }
 
     void OnMasterDisconnected() override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        Connected_ = false;
 
         FairShareProfilingExecutor_->Stop();
         FairShareUpdateExecutor_->Stop();
@@ -143,7 +145,7 @@ public:
         MinNeededJobResourcesUpdateExecutor_->Stop();
         ResourceMeteringExecutor_->Stop();
         ResourceUsageUpdateExecutor_->Stop();
-        SchedulingSegmentsManagementExecutor_->Stop();
+        SchedulerTreeAlertsUpdateExecutor_->Stop();
 
         OperationIdToOperationState_.clear();
         SnapshottedIdToTree_.Exchange(THashMap<TString, IFairShareTreePtr>());
@@ -156,6 +158,7 @@ public:
         NodeIdsWithoutTree_.clear();
         LastPoolTreesYson_ = {};
         LastTemplatePoolTreeConfigMapYson_ = {};
+        TreeAlerts_ = {};
     }
 
     void OnFairShareProfiling()
@@ -306,7 +309,10 @@ public:
         state->SetEnabled(false);
     }
 
-    void UpdatePoolTrees(const TYsonString& poolTreesYson, const TPersistentStrategyStatePtr& persistentStrategyState) override
+    void UpdatePoolTrees(
+        const TYsonString& poolTreesYson,
+        const TPersistentStrategyStatePtr& persistentStrategyState,
+        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -418,7 +424,7 @@ public:
             std::swap(IdToTree_, idToTree);
             if (!Initialized_) {
                 YT_VERIFY(persistentStrategyState);
-                InitPersistentStrategyState(persistentStrategyState);
+                InitPersistentStrategyState(persistentStrategyState, oldPersistentSchedulingSegmentsState);
                 Initialized_ = true;
             }
 
@@ -566,7 +572,7 @@ public:
         MinNeededJobResourcesUpdateExecutor_->SetPeriod(Config_->MinNeededResourcesUpdatePeriod);
         ResourceMeteringExecutor_->SetPeriod(Config_->ResourceMeteringPeriod);
         ResourceUsageUpdateExecutor_->SetPeriod(Config_->ResourceUsageSnapshotUpdatePeriod);
-        SchedulingSegmentsManagementExecutor_->SetPeriod(Config_->SchedulingSegmentsManagePeriod);
+        SchedulerTreeAlertsUpdateExecutor_->SetPeriod(Config_->SchedulerTreeAlertsUpdatePeriod);
     }
 
     void BuildOperationInfoForEventLog(const IOperationStrategyHost* operation, TFluentMap fluent) override
@@ -942,7 +948,8 @@ public:
             Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateFairShare, TError());
         }
 
-        Host_->InvokeStoringStrategyState(BuildStrategyState());
+        // TODO(eshcherbin): Decouple storing persistent state from fair share update?
+        Host_->InvokeStoringStrategyState(BuildPersistentState());
 
         YT_LOG_INFO("Fair share successfully updated");
     }
@@ -1151,15 +1158,49 @@ public:
         tree->UnregisterNode(nodeId);
     }
 
-    TPersistentSchedulingSegmentsStateWithDeadline GetInitialSchedulingSegmentsState() override
+    bool IsConnected() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        if (InitialSchedulingSegmentsState_ && TInstant::Now() > SchedulingSegmentsInitializationDeadline_) {
-            InitialSchedulingSegmentsState_.Reset();
-        }
+        return Connected_;
+    }
 
-        return {InitialSchedulingSegmentsState_, SchedulingSegmentsInitializationDeadline_};
+    void SetSchedulerTreeAlert(const TString& treeId, ESchedulerAlertType alertType, const TError& alert) override
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        YT_VERIFY(IsSchedulerTreeAlertType(alertType));
+
+        auto& alerts = TreeAlerts_[alertType];
+        if (alert.IsOK()) {
+            alerts.erase(treeId);
+        } else {
+            alerts[treeId] = alert;
+        }
+    }
+
+    void UpdateSchedulerTreeAlerts()
+    {
+        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+
+        for (const auto& [alertType, alertMessage] : GetSchedulerTreeAlertDescriptors()) {
+            const auto& treeAlerts = TreeAlerts_[alertType];
+            if (treeAlerts.empty()) {
+                Host_->SetSchedulerAlert(alertType, TError());
+                continue;
+            }
+
+            std::vector<TError> alerts;
+            for (const auto& [treeId, alert] : treeAlerts) {
+                alerts.push_back(alert
+                    << TErrorAttribute("tree_id", treeId));
+            }
+
+            Host_->SetSchedulerAlert(
+                alertType,
+                TError(alertMessage)
+                    << std::move(alerts));
+        }
     }
 
     TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) override
@@ -1304,11 +1345,11 @@ public:
         DoBuildResourceMeteringAt(TInstant::Now());
     }
 
-    TPersistentStrategyStatePtr BuildStrategyState()
+    TPersistentStrategyStatePtr BuildPersistentState()
     {
         auto result = New<TPersistentStrategyState>();
         for (const auto& [treeId, tree] : IdToTree_) {
-            result->TreeStates[treeId] = tree->BuildPersistentTreeState();
+            EmplaceOrCrash(result->TreeStates, treeId, tree->BuildPersistentState());
         }
         return result;
     }
@@ -1367,7 +1408,7 @@ private:
     TPeriodicExecutorPtr MinNeededJobResourcesUpdateExecutor_;
     TPeriodicExecutorPtr ResourceMeteringExecutor_;
     TPeriodicExecutorPtr ResourceUsageUpdateExecutor_;
-    TPeriodicExecutorPtr SchedulingSegmentsManagementExecutor_;
+    TPeriodicExecutorPtr SchedulerTreeAlertsUpdateExecutor_;
 
     THashMap<TOperationId, TFairShareStrategyOperationStatePtr> OperationIdToOperationState_;
 
@@ -1398,11 +1439,12 @@ private:
     THashMap<TString, THashSet<TNodeId>> NodeIdsPerTree_;
     THashSet<TNodeId> NodeIdsWithoutTree_;
 
-    TInstant SchedulingSegmentsInitializationDeadline_;
-    TPersistentSchedulingSegmentsStatePtr InitialSchedulingSegmentsState_;
-
     TYsonString LastPoolTreesYson_;
     TYsonString LastTemplatePoolTreeConfigMapYson_;
+
+    TEnumIndexedVector<ESchedulerAlertType, THashMap<TString, TError>> TreeAlerts_;
+
+    bool Connected_ = false;
 
     struct TPoolTreeDescription
     {
@@ -1996,6 +2038,10 @@ private:
             const auto& treeNodeIds = GetOrCrash(NodeIdsPerTree_, treeId);
             YT_VERIFY(treeNodeIds.empty());
             NodeIdsPerTree_.erase(treeId);
+
+            for (const auto& [alertType, _] : GetSchedulerTreeAlertDescriptors()) {
+                TreeAlerts_[alertType].erase(treeId);
+            }
         }
 
         ProcessNodesWithoutPoolTreeAlert();
@@ -2148,72 +2194,43 @@ private:
         }
     }
 
-    void InitPersistentStrategyState(const TPersistentStrategyStatePtr& persistentStrategyState)
+    void InitPersistentStrategyState(
+        const TPersistentStrategyStatePtr& persistentStrategyState,
+        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState)
     {
         YT_LOG_INFO("Initializing persistent strategy state %v",
             ConvertToYsonString(persistentStrategyState, EYsonFormat::Text));
-        for (auto& [treeId, treeState] : persistentStrategyState->TreeStates) {
-            auto treeIt = IdToTree_.find(treeId);
-            if (treeIt != IdToTree_.end()) {
-                treeIt->second->InitPersistentTreeState(treeState);
-            } else {
-                YT_LOG_INFO("Unknown tree %Qv; skipping its persistent state %Qv",
-                    treeId,
-                    ConvertToYsonString(treeState, EYsonFormat::Text));
+
+        // COMPAT(eshcherbin)
+        THashMap<TString, TPersistentNodeSchedulingSegmentStateMap> idToTreeOldSegmentsState;
+        if (oldPersistentSchedulingSegmentsState) {
+            for (const auto& [nodeId, nodeState] : oldPersistentSchedulingSegmentsState->NodeStates) {
+                EmplaceOrCrash(idToTreeOldSegmentsState[nodeState.Tree], nodeId, nodeState);
             }
         }
-    }
 
-    void ManageSchedulingSegments()
-    {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
-
-        std::vector<TFuture<std::pair<TManageSchedulingSegmentsResult, TString>>> futures;
         for (const auto& [treeId, tree] : IdToTree_) {
-            futures.push_back(tree->ManageSchedulingSegments()
-                .ApplyUnique(BIND([treeId = treeId] (TManageSchedulingSegmentsResult&& result) {
-                    return std::make_pair(std::move(result), std::move(treeId));
-                })));
-        }
+            auto stateIt = persistentStrategyState->TreeStates.find(treeId);
+            auto treeState = stateIt != persistentStrategyState->TreeStates.end()
+                ? stateIt->second
+                : New<TPersistentTreeState>();
 
-        auto resultsOrError = WaitFor(AllSucceeded(futures));
-        if (!resultsOrError.IsOK()) {
-            // NB(eshcherbin): We don't really expect any errors here.
-            auto error = TError("Scheduling segment management failed")
-                << resultsOrError;
-            Host_->SetSchedulerAlert(ESchedulerAlertType::ManageNodeSchedulingSegments, error);
-
-            return;
-        }
-
-        THashMap<TString, TOperationIdWithSchedulingSegmentModuleList> operationModuleUpdatesPerTree;
-        TPersistentNodeSchedulingSegmentStateMap persistentNodeStates;
-        std::vector<TError> errors;
-        for (auto&& [treeResult, treeId] : resultsOrError.Value()) {
-            auto&& [treeModuleUpdates, treePersistentNodeStates, treeError] = treeResult;
-            EmplaceOrCrash(operationModuleUpdatesPerTree, std::move(treeId), std::move(treeModuleUpdates));
-            if (!treeError.IsOK()) {
-                errors.push_back(std::move(treeError));
+            // COMPAT(eshcherbin)
+            TPersistentSchedulingSegmentsStatePtr oldTreeSegmentsState;
+            auto segmentsStateIt = idToTreeOldSegmentsState.find(treeId);
+            if (segmentsStateIt != idToTreeOldSegmentsState.end()) {
+                oldTreeSegmentsState = New<TPersistentSchedulingSegmentsState>();
+                oldTreeSegmentsState->NodeStates = std::move(segmentsStateIt->second);
             }
 
-            for (auto&& [nodeId, persistentNodeState] : treePersistentNodeStates) {
-                EmplaceOrCrash(persistentNodeStates, nodeId, std::move(persistentNodeState));
-            }
+            tree->InitPersistentState(treeState, oldTreeSegmentsState);
         }
 
-        TError error;
-        if (!errors.empty()) {
-            error = TError("Found errors during node scheduling segments management")
-                << std::move(errors);
-        }
-        Host_->SetSchedulerAlert(ESchedulerAlertType::ManageNodeSchedulingSegments, error);
-
-        Host_->UpdateOperationSchedulingSegmentModules(operationModuleUpdatesPerTree);
-        if (TInstant::Now() > SchedulingSegmentsInitializationDeadline_) {
-            auto segmentsState = New<TPersistentSchedulingSegmentsState>();
-            segmentsState->NodeStates = std::move(persistentNodeStates);
-
-            Host_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
+        for (const auto& [treeId, treeState] : persistentStrategyState->TreeStates) {
+            YT_LOG_INFO_UNLESS(IdToTree_.contains(treeId),
+                "Unknown pool tree, skipping its persistent state (TreeId: %v, PersistentState: %v)",
+                treeId,
+                ConvertToYsonString(treeState, EYsonFormat::Text));
         }
     }
 

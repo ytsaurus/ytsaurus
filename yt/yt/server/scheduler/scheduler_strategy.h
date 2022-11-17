@@ -57,7 +57,7 @@ struct ISchedulerStrategyHost
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
 
-    virtual void UpdateOperationSchedulingSegmentModules(const THashMap<TString, TOperationIdWithSchedulingSegmentModuleList>& updatesPerTree) = 0;
+    virtual void UpdateOperationSchedulingSegmentModules(const TString& treeId, const TOperationIdWithSchedulingSegmentModuleList& updates) = 0;
 
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual TString FormatResourceUsage(
@@ -103,7 +103,6 @@ struct ISchedulerStrategyHost
     virtual int GetDefaultAbcId() const = 0;
 
     virtual void InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState) = 0;
-    virtual void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState) = 0;
 
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
@@ -243,7 +242,10 @@ struct ISchedulerStrategy
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
-    virtual void UpdatePoolTrees(const NYson::TYsonString& poolTreesYson, const TPersistentStrategyStatePtr& persistentStrategyState) = 0;
+    virtual void UpdatePoolTrees(
+        const NYson::TYsonString& poolTreesYson,
+        const TPersistentStrategyStatePtr& persistentStrategyState,
+        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState) = 0;
 
     virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
