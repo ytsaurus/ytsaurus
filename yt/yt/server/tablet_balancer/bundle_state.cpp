@@ -145,7 +145,12 @@ void TBundleState::DoUpdateState()
 
     for (const auto& [id, info] : tabletCells) {
         for (const auto& [tabletId, tableId] : info.TabletToTableId) {
-            InsertOrCrash(tabletIds, tabletId);
+            auto [it, inserted] = tabletIds.insert(tabletId);
+            if (!inserted) {
+                YT_LOG_DEBUG("Tablet was moved between fetches for different cells (TabletId: %v, NewCellId: %v)",
+                    tabletId,
+                    id);
+            }
 
             if (!Tablets_.contains(tabletId)) {
                 if (auto tableIt = Bundle_->Tables.find(tableId); tableIt != Bundle_->Tables.end()) {
