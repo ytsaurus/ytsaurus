@@ -165,7 +165,7 @@ void TSchedulerStrategyHost::AbortJobsAtNode(TNodeId /*nodeId*/, NScheduler::EAb
     // Nothing to do.
 }
 
-void TSchedulerStrategyHost::UpdateOperationSchedulingSegmentModules(const THashMap<TString, NScheduler::TOperationIdWithSchedulingSegmentModuleList>& /*updatesPerTree*/)
+void TSchedulerStrategyHost::UpdateOperationSchedulingSegmentModules(const TString& /*treeId*/, const NScheduler::TOperationIdWithSchedulingSegmentModuleList& /*updates*/)
 {
     YT_UNIMPLEMENTED();
 }
@@ -279,9 +279,6 @@ int TSchedulerStrategyHost::GetDefaultAbcId() const
 }
 
 void TSchedulerStrategyHost::InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/)
-{ }
-
-void TSchedulerStrategyHost::InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr /*persistentSegmentsState*/)
 { }
 
 TFuture<void> TSchedulerStrategyHost::UpdateLastMeteringLogTime(TInstant /*time*/)

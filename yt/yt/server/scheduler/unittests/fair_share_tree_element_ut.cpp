@@ -152,7 +152,7 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void UpdateOperationSchedulingSegmentModules(const THashMap<TString, TOperationIdWithSchedulingSegmentModuleList>& /*updatesPerTree*/) override
+    void UpdateOperationSchedulingSegmentModules(const TString& /*treeId*/, const TOperationIdWithSchedulingSegmentModuleList& /*updates*/) override
     {
         YT_UNIMPLEMENTED();
     }
@@ -240,9 +240,6 @@ public:
     }
 
     void InvokeStoringStrategyState(TPersistentStrategyStatePtr /*persistentStrategyState*/) override
-    { }
-
-    void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr /*persistentStrategyState*/) override
     { }
 
     TFuture<void> UpdateLastMeteringLogTime(TInstant /*time*/) override

@@ -5,8 +5,11 @@
 #include "fair_share_tree_element.h"
 #include "fair_share_tree_snapshot.h"
 #include "fields_filter.h"
+#include "persistent_fair_share_tree_job_scheduler_state.h"
 
 #include <yt/yt/server/lib/scheduler/config.h>
+
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/misc/atomic_ptr.h>
 
@@ -556,6 +559,18 @@ struct TJobSchedulerPostUpdateContext
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IFairShareTreeJobSchedulerHost
+{
+    virtual ~IFairShareTreeJobSchedulerHost() = default;
+
+    virtual TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept = 0;
+
+    // TODO(eshcherbin): Remove when operation segments are managed by tree job scheduler.
+    virtual TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const = 0;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TFairShareTreeJobScheduler
     : public TRefCounted
 {
@@ -563,7 +578,8 @@ public:
     TFairShareTreeJobScheduler(
         TString treeId,
         NLogging::TLogger logger,
-        IFairShareTreeHost* host,
+        IFairShareTreeJobSchedulerHost* host,
+        IFairShareTreeHost* treeHost,
         ISchedulerStrategyHost* strategyHost,
         TFairShareStrategyTreeConfigPtr config,
         NProfiling::TProfiler profiler);
@@ -642,6 +658,11 @@ public:
         const TSchedulerElement* element,
         TDelimitedStringBuilderWrapper& delimitedBuilder) const;
 
+    void InitPersistentState(
+        NYTree::INodePtr persistentState,
+        TPersistentSchedulingSegmentsStatePtr oldSegmentsPersistentState);
+    NYTree::INodePtr BuildPersistentState() const;
+
     //! Testing.
     void OnJobStartedInTest(
         TSchedulerOperationElement* element,
@@ -653,17 +674,20 @@ public:
         const TJobResources& jobResources);
     EJobPreemptionStatus GetJobPreemptionStatusInTest(const TSchedulerOperationElement* element, TJobId jobId) const;
 
-    std::pair<TPersistentNodeSchedulingSegmentStateMap, TError> ManageNodeSchedulingSegments(const TFairShareTreeSnapshotPtr& treeSnapshot);
+    void ManageNodeSchedulingSegments();
 
 private:
     const TString TreeId_;
     const NLogging::TLogger Logger;
-    IFairShareTreeHost* const Host_;
+    IFairShareTreeJobSchedulerHost* const Host_;
+    IFairShareTreeHost* const TreeHost_;
     ISchedulerStrategyHost* const StrategyHost_;
 
     TFairShareStrategyTreeConfigPtr Config_;
 
     NProfiling::TProfiler Profiler_;
+
+    NConcurrency::TPeriodicExecutorPtr NodeSchedulingSegmentsManagementExecutor_;
 
     TEnumIndexedVector<EJobSchedulingStage, TScheduleJobsStage> SchedulingStages_;
 
@@ -686,7 +710,6 @@ private:
     std::optional<THashSet<int>> SsdPriorityPreemptionMedia_;
 
     TNodeSchedulingSegmentManager NodeSchedulingSegmentManager_;
-    bool NodeSchedulingSegmentManagerInitialized_ = false;
 
     // TODO(eshcherbin): Add generic data structure for state sharding.
     struct alignas(NThreading::CacheLineSize) TNodeStateShard
@@ -694,6 +717,14 @@ private:
         TFairShareTreeJobSchedulerNodeStateMap NodeIdToState;
     };
     std::array<TNodeStateShard, MaxNodeShardCount> NodeStateShards_;
+
+    // NB(eshcherbin): Used only as a value to store until the initialization deadline passes
+    // and we start building up-to-date persistent state.
+    TInstant SchedulingSegmentsInitializationDeadline_;
+    TPersistentFairShareTreeJobSchedulerStatePtr InitialPersistentState_ = New<TPersistentFairShareTreeJobSchedulerState>();
+    TPersistentFairShareTreeJobSchedulerStatePtr PersistentState_;
+
+    TPersistentNodeSchedulingSegmentStateMap InitialPersistentSchedulingSegmentNodeStates_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 

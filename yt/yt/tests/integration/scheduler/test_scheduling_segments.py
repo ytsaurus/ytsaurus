@@ -63,8 +63,6 @@ class TestSchedulingSegments(YTEnvSetup):
             "watchers_update_period": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
-            "scheduling_segments_manage_period": 100,
-            "scheduling_segments_initialization_timeout": 100,
         }
     }
 
@@ -97,11 +95,13 @@ class TestSchedulingSegments(YTEnvSetup):
     def _get_fair_share_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/fair_share_ratio", default=0.0)
 
+    def _get_persistent_node_segment_states_path(self, tree="default"):
+        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
+
     # NB(eshcherbin): This method always returns NO nodes for the default segment.
     def _get_nodes_for_segment_in_tree(self, segment, tree="default"):
-        node_states = get("//sys/scheduler/segments_state/node_states", default={})
-        return [node_state["address"] for _, node_state in node_states.items()
-                if node_state["segment"] == segment and node_state["tree"] == tree]
+        node_states = get(self._get_persistent_node_segment_states_path(tree), default={})
+        return [node_state["address"] for _, node_state in node_states.items() if node_state["segment"] == segment]
 
     @classmethod
     def setup_class(cls):
@@ -113,31 +113,14 @@ class TestSchedulingSegments(YTEnvSetup):
 
     def setup_method(self, method):
         super(TestSchedulingSegments, self).setup_method(method)
-        # NB(eshcherbin): This is done to reset node segments.
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
-            for node in ls("//sys/cluster_nodes"):
-                requests.append(make_batch_request(
-                    "set",
-                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
-                    input={},
-                ))
-            for response in execute_batch(requests):
-                assert not get_batch_error(response)
-
-        create_data_center(TestSchedulingSegments.DATA_CENTER)
-        create_rack(TestSchedulingSegments.RACK)
-        set("//sys/racks/" + TestSchedulingSegments.RACK + "/@data_center", TestSchedulingSegments.DATA_CENTER)
-        for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/" + node + "/@rack", TestSchedulingSegments.RACK)
-        for node in ls("//sys/cluster_nodes"):
-            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestSchedulingSegments.DATA_CENTER)
 
         create_pool("cpu", wait_for_orchid=False)
         create_pool("small_gpu", wait_for_orchid=False)
         create_pool("large_gpu")
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
+            "initialization_timeout": 100,
+            "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestSchedulingSegments.DATA_CENTER],
         })
@@ -157,6 +140,30 @@ class TestSchedulingSegments(YTEnvSetup):
             "fair_share_starvation_tolerance": 0.95,
             "max_unpreemptible_running_job_count": 20,
         })
+
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [
+                make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={}),
+                # COMPAT(eshcherbin)
+                make_batch_request("remove", path="//sys/scheduler/segments_state", force=True),
+            ]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
+
+        create_data_center(TestSchedulingSegments.DATA_CENTER)
+        create_rack(TestSchedulingSegments.RACK)
+        set("//sys/racks/" + TestSchedulingSegments.RACK + "/@data_center", TestSchedulingSegments.DATA_CENTER)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/" + node + "/@rack", TestSchedulingSegments.RACK)
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestSchedulingSegments.DATA_CENTER)
 
     @authors("eshcherbin")
     def test_large_gpu_segment_extended(self):
@@ -692,10 +699,6 @@ class TestSchedulingSegments(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_persistent_segments_state(self):
-        wait(lambda: exists("//sys/scheduler/segments_state/node_states"))
-        for segment in TestSchedulingSegments.SCHEDULING_SEGMENTS:
-            wait(lambda: len(self._get_nodes_for_segment_in_tree(segment)) == 0)
-
         blocking_op = run_sleeping_vanilla(job_count=20, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 4, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
         run_sleeping_vanilla(spec={"pool": "large_gpu"}, task_patch={"gpu_limit": 8, "enable_gpu_layers": False})
@@ -715,10 +718,6 @@ class TestSchedulingSegments(YTEnvSetup):
     @authors("eshcherbin")
     def test_persistent_segments_state_revive(self):
         update_controller_agent_config("snapshot_period", 300)
-
-        wait(lambda: exists("//sys/scheduler/segments_state/node_states"))
-        for segment in TestSchedulingSegments.SCHEDULING_SEGMENTS:
-            wait(lambda: len(self._get_nodes_for_segment_in_tree(segment)) == 0)
 
         blocking_op = run_sleeping_vanilla(job_count=20, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 4, "enable_gpu_layers": False})
         wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
@@ -759,7 +758,73 @@ class TestSchedulingSegments(YTEnvSetup):
             agent_to_incarnation[agent] = wait_and_get_incarnation(agent)
 
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            set("//sys/scheduler/config/scheduling_segments_initialization_timeout", 30000)
+            update_pool_tree_config_option("default", "scheduling_segments/initialization_timeout", 60000, wait_for_orchid=False)
+
+        node_segment_orchid_path = scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment"
+        for node in ls("//sys/cluster_nodes"):
+            expected_segment = "large_gpu" \
+                if node == expected_node \
+                else "default"
+            wait(lambda: get(node_segment_orchid_path.format(node), default="") == expected_segment)
+
+        # NB(eshcherbin): See: YT-14796.
+        for agent, old_incarnation in agent_to_incarnation.items():
+            wait(lambda: old_incarnation != get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None))
+
+        wait(lambda: len(list(op.get_running_jobs())) == 1)
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        assert jobs[0] == expected_job
+
+    # COMPAT(eshcherbin)
+    @authors("eshcherbin")
+    def test_persistent_segments_state_revive_compat(self):
+        update_controller_agent_config("snapshot_period", 300)
+
+        blocking_op = run_sleeping_vanilla(job_count=20, spec={"pool": "small_gpu"}, task_patch={"gpu_limit": 4, "enable_gpu_layers": False})
+        wait(lambda: are_almost_equal(self._get_usage_ratio(blocking_op.id), 1.0))
+        op = run_test_vanilla(
+            with_breakpoint("BREAKPOINT; sleep 1000"),
+            spec={"pool": "large_gpu"},
+            task_patch={"gpu_limit": 8, "enable_gpu_layers": False}
+        )
+
+        wait_breakpoint()
+        release_breakpoint()
+
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("large_gpu")) == 1)
+        wait(lambda: len(self._get_nodes_for_segment_in_tree("default")) == 0)
+
+        large_gpu_segment_nodes = self._get_nodes_for_segment_in_tree("large_gpu")
+        assert len(large_gpu_segment_nodes) == 1
+        expected_node = large_gpu_segment_nodes[0]
+
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) == 1
+        expected_job = jobs[0]
+
+        op.wait_for_fresh_snapshot()
+
+        def wait_and_get_incarnation(agent):
+            incarnation_id = None
+
+            def check():
+                incarnation_id = get("//sys/controller_agents/instances/{}/orchid/controller_agent/incarnation_id".format(agent), default=None)
+                return incarnation_id is not None
+
+            wait(check)
+            return incarnation_id
+
+        agent_to_incarnation = {}
+        for agent in ls("//sys/controller_agents/instances"):
+            agent_to_incarnation[agent] = wait_and_get_incarnation(agent)
+
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            node_states = get(self._get_persistent_node_segment_states_path())
+            set(self._get_persistent_node_segment_states_path(), {})
+            set("//sys/scheduler/segments_state", {"node_states": node_states})
+
+            update_pool_tree_config_option("default", "scheduling_segments/initialization_timeout", 60000, wait_for_orchid=False)
 
         node_segment_orchid_path = scheduler_orchid_path() + "/scheduler/nodes/{}/scheduling_segment"
         for node in ls("//sys/cluster_nodes"):
@@ -875,7 +940,7 @@ class TestSchedulingSegments(YTEnvSetup):
     @authors("eshcherbin")
     def test_initialization_timeout_prevents_rebalancing(self):
         with Restarter(self.Env, SCHEDULERS_SERVICE):
-            set("//sys/scheduler/config/scheduling_segments_initialization_timeout", 1000000000)
+            update_pool_tree_config_option("default", "scheduling_segments/initialization_timeout", 1000000000, wait_for_orchid=False)
 
         op = run_sleeping_vanilla(
             spec={"pool": "large_gpu"},
@@ -899,8 +964,6 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "watchers_update_period": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
-            "scheduling_segments_manage_period": 100,
-            "scheduling_segments_initialization_timeout": 100,
             "operations_update_period": 100,
             "operation_hangup_check_period": 100,
         },
@@ -1008,27 +1071,19 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             pytest.skip("test suite uses 10 nodes that is too much for debug build")
         super(BaseTestSchedulingSegmentsMultiModule, cls).setup_class()
 
+    def _get_persistent_node_segment_states_path(self, tree="default"):
+        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
+
     def setup_method(self, method):
         super(BaseTestSchedulingSegmentsMultiModule, self).setup_method(method)
-        # NB(eshcherbin): This is done to reset node segments.
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
-            for node in ls("//sys/cluster_nodes"):
-                requests.append(make_batch_request(
-                    "set",
-                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
-                    input={},
-                ))
-            for response in execute_batch(requests):
-                assert not get_batch_error(response)
-
-        self._setup_node_modules()
 
         create_pool("cpu", wait_for_orchid=False)
         create_pool("small_gpu", wait_for_orchid=False)
         create_pool("large_gpu")
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
+            "initialization_timeout": 100,
+            "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS,
             "infiniband_clusters": BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS,
@@ -1049,6 +1104,20 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
             "fair_share_starvation_tolerance": 0.95,
             "max_unpreemptible_running_job_count": 20,
         })
+
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={})]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
+
+        self._setup_node_modules()
 
     @authors("eshcherbin")
     def test_module_locality_for_large_multihost_operations(self):
@@ -1534,8 +1603,6 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
     DELTA_SCHEDULER_CONFIG = {
         "scheduler": {
             "watchers_update_period": 100,
-            "scheduling_segments_manage_period": 100,
-            "scheduling_segments_initialization_timeout": 100,
         },
     }
 
@@ -1590,22 +1657,16 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
         assert alert["attributes"]["alert_type"] == "manage_node_scheduling_segments"
         assert message in alert["inner_errors"][0]["inner_errors"][0]["message"]
 
+    def _get_persistent_node_segment_states_path(self, tree="default"):
+        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
+
     def setup_method(self, method):
         super(TestInfinibandClusterTagValidation, self).setup_method(method)
-        # NB(eshcherbin): This is done to reset node segments.
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
-            for node in ls("//sys/cluster_nodes"):
-                requests.append(make_batch_request(
-                    "set",
-                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
-                    input={},
-                ))
-            for response in execute_batch(requests):
-                assert not get_batch_error(response)
 
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
+            "initialization_timeout": 100,
+            "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "infiniband_clusters": TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS,
             "module_type": "infiniband_cluster",
@@ -1618,6 +1679,18 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
                 + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
             ) == 1000
         )
+
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={})]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
 
         wait(lambda: not get("//sys/scheduler/@alerts"))
 
@@ -1687,8 +1760,6 @@ class TestRunningJobStatistics(YTEnvSetup):
             "watchers_update_period": 100,
             "fair_share_update_period": 100,
             "fair_share_profiling_period": 100,
-            "scheduling_segments_manage_period": 100,
-            "scheduling_segments_initialization_timeout": 100,
         }
     }
 
@@ -1718,33 +1789,19 @@ class TestRunningJobStatistics(YTEnvSetup):
     def _get_usage_ratio(self, op, tree="default"):
         return get(scheduler_orchid_operation_path(op, tree) + "/dominant_usage_share", default=0.0)
 
+    def _get_persistent_node_segment_states_path(self, tree="default"):
+        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
+
     # TODO(eshcherbin): Do something with copy-paste in this long setup method.
     def setup_method(self, method):
         super(TestRunningJobStatistics, self).setup_method(method)
-        # NB(eshcherbin): This is done to reset node segments.
-        with Restarter(self.Env, SCHEDULERS_SERVICE):
-            requests = [make_batch_request("remove", path="//sys/scheduler/segments_state", force=True)]
-            for node in ls("//sys/cluster_nodes"):
-                requests.append(make_batch_request(
-                    "set",
-                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
-                    input={},
-                ))
-            for response in execute_batch(requests):
-                assert not get_batch_error(response)
-
-        create_data_center(TestRunningJobStatistics.DATA_CENTER)
-        create_rack(TestRunningJobStatistics.RACK)
-        set("//sys/racks/" + TestRunningJobStatistics.RACK + "/@data_center", TestRunningJobStatistics.DATA_CENTER)
-        for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/" + node + "/@rack", TestRunningJobStatistics.RACK)
-        for node in ls("//sys/cluster_nodes"):
-            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestRunningJobStatistics.DATA_CENTER)
 
         create_pool("small_gpu", wait_for_orchid=False)
         create_pool("large_gpu")
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
+            "initialization_timeout": 100,
+            "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestRunningJobStatistics.DATA_CENTER],
         })
@@ -1764,6 +1821,26 @@ class TestRunningJobStatistics(YTEnvSetup):
             "fair_share_starvation_tolerance": 0.95,
             "max_unpreemptible_running_job_count": 20,
         })
+
+        # NB(eshcherbin): This is done to reset node segments.
+        with Restarter(self.Env, SCHEDULERS_SERVICE):
+            requests = [make_batch_request("set", path=self._get_persistent_node_segment_states_path(), input={})]
+            for node in ls("//sys/cluster_nodes"):
+                requests.append(make_batch_request(
+                    "set",
+                    path="//sys/cluster_nodes/{}/@scheduling_options".format(node),
+                    input={},
+                ))
+            for response in execute_batch(requests):
+                assert not get_batch_error(response)
+
+        create_data_center(TestRunningJobStatistics.DATA_CENTER)
+        create_rack(TestRunningJobStatistics.RACK)
+        set("//sys/racks/" + TestRunningJobStatistics.RACK + "/@data_center", TestRunningJobStatistics.DATA_CENTER)
+        for node in ls("//sys/cluster_nodes"):
+            set("//sys/cluster_nodes/" + node + "/@rack", TestRunningJobStatistics.RACK)
+        for node in ls("//sys/cluster_nodes"):
+            wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestRunningJobStatistics.DATA_CENTER)
 
     @authors("eshcherbin")
     def test_long_job_preparation(self):

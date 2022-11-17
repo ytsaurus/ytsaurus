@@ -215,6 +215,7 @@ THashMap<TString, TPoolName> GetOperationPools(const TOperationRuntimeParameters
 class TFairShareTree
     : public IFairShareTree
     , public IFairShareTreeElementHost
+    , public IFairShareTreeJobSchedulerHost
 {
 public:
     using TFairShareTreePtr = TIntrusivePtr<TFairShareTree>;
@@ -242,6 +243,7 @@ public:
         , TreeScheduler_(New<TFairShareTreeJobScheduler>(
             TreeId_,
             Logger,
+            this,
             Host_,
             StrategyHost_,
             Config_,
@@ -901,7 +903,7 @@ public:
             .Run(operation, poolName);
     }
 
-    TPersistentTreeStatePtr BuildPersistentTreeState() const override
+    TPersistentTreeStatePtr BuildPersistentState() const override
     {
         auto result = New<TPersistentTreeState>();
         for (const auto& [poolId, pool] : Pools_) {
@@ -911,14 +913,19 @@ public:
                 result->PoolStates.emplace(poolId, std::move(state));
             }
         }
+
+        result->JobSchedulerState = TreeScheduler_->BuildPersistentState();
+
         return result;
     }
 
-    void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) override
+    void InitPersistentState(
+        const TPersistentTreeStatePtr& persistentState,
+        const TPersistentSchedulingSegmentsStatePtr& oldSchedulingSegmentsState) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        for (const auto& [poolName, poolState] : persistentTreeState->PoolStates) {
+        for (const auto& [poolName, poolState] : persistentState->PoolStates) {
             auto poolIt = Pools_.find(poolName);
             if (poolIt != Pools_.end()) {
                 if (poolIt->second->GetIntegralGuaranteeType() != EIntegralGuaranteeType::None) {
@@ -934,6 +941,8 @@ public:
                     poolState->AccumulatedResourceVolume);
             }
         }
+
+        TreeScheduler_->InitPersistentState(persistentState->JobSchedulerState, oldSchedulingSegmentsState);
     }
 
     ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) override
@@ -947,7 +956,8 @@ public:
         return *element->SchedulingSegment();
     }
 
-    TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const
+    // NB(eshcherbin): This is temporary.
+    TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -961,21 +971,6 @@ public:
         }
 
         return result;
-    }
-
-    TFuture<TManageSchedulingSegmentsResult> ManageSchedulingSegments() override
-    {
-        auto future = BIND(&TFairShareTreeJobScheduler::ManageNodeSchedulingSegments, TreeScheduler_, GetTreeSnapshot())
-            .AsyncVia(GetCurrentInvoker())
-            .Run();
-        return future.ApplyUnique(BIND([this, this_ = MakeStrong(this)] (std::pair<TPersistentNodeSchedulingSegmentStateMap, TError>&& result) {
-            auto&& [persistentNodeStates, error] = result;
-            return TManageSchedulingSegmentsResult{
-                .OperationSchedulingSegmentModuleUpdates = GetOperationSchedulingSegmentModuleUpdates(),
-                .PersistentNodeStates = std::move(persistentNodeStates),
-                .Error = std::move(error),
-            };
-        }));
     }
 
     std::vector<TString> GetAncestorPoolNames(const TSchedulerOperationElement* element) const
@@ -1480,7 +1475,7 @@ private:
             << TErrorAttribute("tree_id", TreeId_);
     }
 
-    TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept
+    TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 

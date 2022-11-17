@@ -91,6 +91,12 @@ void TFairShareStrategySchedulingSegmentsConfig::Register(TRegistrar registrar)
     registrar.Parameter("satisfaction_margins", &TThis::SatisfactionMargins)
         .Default();
 
+    registrar.Parameter("initialization_timeout", &TThis::InitializationTimeout)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("manage_period", &TThis::ManagePeriod)
+        .Default(TDuration::Seconds(10));
+
     registrar.Parameter("unsatisfied_segments_rebalancing_timeout", &TThis::UnsatisfiedSegmentsRebalancingTimeout)
         .Default(TDuration::Minutes(5));
 
@@ -550,14 +556,11 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("template_pool_tree_config_map", &TThis::TemplatePoolTreeConfigMap)
         .Default();
 
-    registrar.Parameter("scheduling_segments_manage_period", &TThis::SchedulingSegmentsManagePeriod)
-        .Default(TDuration::Seconds(10));
-
-    registrar.Parameter("scheduling_segments_initialization_timeout", &TThis::SchedulingSegmentsInitializationTimeout)
-        .Default(TDuration::Minutes(5));
-
     registrar.Parameter("enable_pool_trees_config_cache", &TThis::EnablePoolTreesConfigCache)
         .Default(true);
+
+    registrar.Parameter("scheduler_tree_alerts_update_period", &TThis::SchedulerTreeAlertsUpdatePeriod)
+        .Default(TDuration::Seconds(1));
 
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;

@@ -30,11 +30,49 @@ void FormatValue(TStringBuilderBase* builder, const TPersistentPoolStatePtr& sta
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPersistentNodeSchedulingSegmentState
+{
+    ESchedulingSegment Segment;
+
+    // NB: Used only for diagnostics.
+    TString Address;
+    // COMPAT(eshcherbin): Remove when global scheduling segments state is not used anymore.
+    TString Tree;
+};
+
+void FormatValue(TStringBuilderBase* builder, const TPersistentNodeSchedulingSegmentState& state, TStringBuf /*format*/);
+
+void Serialize(const TPersistentNodeSchedulingSegmentState& state, NYson::IYsonConsumer* consumer);
+void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYTree::INodePtr node);
+void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYson::TYsonPullParserCursor* cursor);
+
+using TPersistentNodeSchedulingSegmentStateMap = THashMap<NNodeTrackerClient::TNodeId, TPersistentNodeSchedulingSegmentState>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(eshcherbin): Move to a more suitable file when old scheduling segments state is not used.
+class TPersistentSchedulingSegmentsState
+    : public NYTree::TYsonStruct
+{
+public:
+    TPersistentNodeSchedulingSegmentStateMap NodeStates;
+
+    REGISTER_YSON_STRUCT(TPersistentSchedulingSegmentsState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TPersistentSchedulingSegmentsState)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPersistentTreeState
     : public NYTree::TYsonStruct
 {
 public:
     THashMap<TString, TPersistentPoolStatePtr> PoolStates;
+
+    NYTree::INodePtr JobSchedulerState;
 
     REGISTER_YSON_STRUCT(TPersistentTreeState);
 
@@ -57,38 +95,6 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TPersistentStrategyState)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TPersistentNodeSchedulingSegmentState
-{
-    ESchedulingSegment Segment;
-
-    // NB: Used only for diagnostics.
-    TString Address;
-    TString Tree;
-};
-
-void Serialize(const TPersistentNodeSchedulingSegmentState& state, NYson::IYsonConsumer* consumer);
-void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYTree::INodePtr node);
-void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYson::TYsonPullParserCursor* cursor);
-
-using TPersistentNodeSchedulingSegmentStateMap = THashMap<NNodeTrackerClient::TNodeId, TPersistentNodeSchedulingSegmentState>;
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TPersistentSchedulingSegmentsState
-    : public NYTree::TYsonStruct
-{
-public:
-    TPersistentNodeSchedulingSegmentStateMap NodeStates;
-
-    REGISTER_YSON_STRUCT(TPersistentSchedulingSegmentsState);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TPersistentSchedulingSegmentsState)
 
 ////////////////////////////////////////////////////////////////////////////////
 

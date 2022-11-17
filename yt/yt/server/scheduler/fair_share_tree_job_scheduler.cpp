@@ -2151,13 +2151,15 @@ bool TScheduleJobsContext::IsEligibleForSsdPriorityPreemption(const THashSet<int
 TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     TString treeId,
     NLogging::TLogger logger,
-    IFairShareTreeHost* host,
+    IFairShareTreeJobSchedulerHost* host,
+    IFairShareTreeHost* treeHost,
     ISchedulerStrategyHost* strategyHost,
     TFairShareStrategyTreeConfigPtr config,
     NProfiling::TProfiler profiler)
     : TreeId_(std::move(treeId))
     , Logger(std::move(logger))
     , Host_(host)
+    , TreeHost_(treeHost)
     , StrategyHost_(strategyHost)
     , Config_(std::move(config))
     , Profiler_(std::move(profiler))
@@ -2176,6 +2178,12 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
                 profilerWithTags.Summary("/operation_count_by_preemption_priority");
         }
     }
+
+    NodeSchedulingSegmentsManagementExecutor_ = New<TPeriodicExecutor>(
+        StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy),
+        BIND(&TFairShareTreeJobScheduler::ManageNodeSchedulingSegments, MakeWeak(this)),
+        Config_->SchedulingSegments->ManagePeriod);
+    NodeSchedulingSegmentsManagementExecutor_->Start();
 }
 
 void TFairShareTreeJobScheduler::RegisterNode(TNodeId nodeId)
@@ -2183,13 +2191,14 @@ void TFairShareTreeJobScheduler::RegisterNode(TNodeId nodeId)
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     ESchedulingSegment initialSchedulingSegment = ESchedulingSegment::Default;
-    auto [initialSegmentsState, _] = Host_->GetInitialSchedulingSegmentsState();
-    if (initialSegmentsState) {
-        auto it = initialSegmentsState->NodeStates.find(nodeId);
-        if (it != initialSegmentsState->NodeStates.end()) {
+    if (TInstant::Now() <= SchedulingSegmentsInitializationDeadline_) {
+        auto it = InitialPersistentSchedulingSegmentNodeStates_.find(nodeId);
+        if (it != InitialPersistentSchedulingSegmentNodeStates_.end()) {
             initialSchedulingSegment = it->second.Segment;
-            initialSegmentsState->NodeStates.erase(it);
+            InitialPersistentSchedulingSegmentNodeStates_.erase(it);
         }
+    } else if (!InitialPersistentSchedulingSegmentNodeStates_.empty()) {
+        InitialPersistentSchedulingSegmentNodeStates_.clear();
     }
 
     auto nodeShardId = StrategyHost_->GetNodeShardId(nodeId);
@@ -2735,6 +2744,9 @@ void TFairShareTreeJobScheduler::OnResourceUsageSnapshotUpdate(
 void TFairShareTreeJobScheduler::UpdateConfig(TFairShareStrategyTreeConfigPtr config)
 {
     Config_ = std::move(config);
+
+    NodeSchedulingSegmentsManagementExecutor_->SetPeriod(Config_->SchedulingSegments->ManagePeriod);
+
     UpdateSsdPriorityPreemptionMedia();
 }
 
@@ -2757,6 +2769,46 @@ void TFairShareTreeJobScheduler::BuildElementLoggingStringAttributes(
             operationSharedState->GetDeactivationReasons(),
             operationSharedState->GetMinNeededResourcesUnsatisfiedCount());
     }
+}
+
+void TFairShareTreeJobScheduler::InitPersistentState(
+    NYTree::INodePtr persistentState,
+    TPersistentSchedulingSegmentsStatePtr oldSegmentsPersistentState)
+{
+    if (persistentState) {
+        try {
+            InitialPersistentState_ = ConvertTo<TPersistentFairShareTreeJobSchedulerStatePtr>(persistentState);
+        } catch (const std::exception& ex) {
+            InitialPersistentState_ = New<TPersistentFairShareTreeJobSchedulerState>();
+
+            // TODO(eshcherbin): Should we set scheduler alert instead? It'll be more visible this way,
+            // but it'll have to be removed manually
+            YT_LOG_WARNING(ex, "Failed to deserialize strategy state; will ignore it");
+        }
+    } else {
+        InitialPersistentState_ = New<TPersistentFairShareTreeJobSchedulerState>();
+    }
+
+    // COMPAT(eshcherbin)
+    if (oldSegmentsPersistentState && InitialPersistentState_->SchedulingSegmentsState->NodeStates.empty()) {
+        YT_LOG_DEBUG("Using old scheduling segments state for initialization");
+
+        InitialPersistentState_->SchedulingSegmentsState = oldSegmentsPersistentState;
+    }
+
+    InitialPersistentSchedulingSegmentNodeStates_ = InitialPersistentState_->SchedulingSegmentsState->NodeStates;
+
+    auto now = TInstant::Now();
+    SchedulingSegmentsInitializationDeadline_ = now + Config_->SchedulingSegments->InitializationTimeout;
+    NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(SchedulingSegmentsInitializationDeadline_);
+}
+
+INodePtr TFairShareTreeJobScheduler::BuildPersistentState() const
+{
+    auto persistentState = PersistentState_
+        ? PersistentState_
+        : InitialPersistentState_;
+    return ConvertToNode(persistentState);
 }
 
 void TFairShareTreeJobScheduler::OnJobStartedInTest(
@@ -3324,6 +3376,10 @@ TFairShareTreeJobSchedulerNodeStateMap TFairShareTreeJobScheduler::CollectNodeSt
 
 void TFairShareTreeJobScheduler::ApplyNewNodeSchedulingSegments(const TSetNodeSchedulingSegmentOptionsList& movedNodes)
 {
+    if (movedNodes.empty()) {
+        return;
+    }
+
     YT_LOG_DEBUG("Moving nodes to new scheduling segments (TotalMovedNodeCount: %v)",
         movedNodes.size());
 
@@ -3372,18 +3428,17 @@ void TFairShareTreeJobScheduler::ApplyNewNodeSchedulingSegments(const TSetNodeSc
         .ThrowOnError();
 }
 
-std::pair<TPersistentNodeSchedulingSegmentStateMap, TError> TFairShareTreeJobScheduler::ManageNodeSchedulingSegments(
-    const TFairShareTreeSnapshotPtr& treeSnapshot)
+void TFairShareTreeJobScheduler::ManageNodeSchedulingSegments()
 {
     VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
-    YT_LOG_DEBUG("Started managing node scheduling segments");
-
-    if (!NodeSchedulingSegmentManagerInitialized_) {
-        auto [_, segmentsInitializationDeadline] = Host_->GetInitialSchedulingSegmentsState();
-        NodeSchedulingSegmentManager_.SetNodeSegmentsInitializationDeadline(segmentsInitializationDeadline);
+    if (!TreeHost_->IsConnected()) {
+        return;
     }
 
+    YT_LOG_DEBUG("Started managing node scheduling segments");
+
+    auto treeSnapshot = Host_->GetTreeSnapshot();
     TManageNodeSchedulingSegmentsContext context{
         .Now = TInstant::Now(),
         .TreeSegmentsState = treeSnapshot
@@ -3398,7 +3453,18 @@ std::pair<TPersistentNodeSchedulingSegmentStateMap, TError> TFairShareTreeJobSch
 
     YT_LOG_DEBUG("Finished managing node scheduling segments");
 
-    return {std::move(context.PersistentNodeStates), std::move(context.Error)};
+    auto now = TInstant::Now();
+    if (now > SchedulingSegmentsInitializationDeadline_) {
+        PersistentState_ = New<TPersistentFairShareTreeJobSchedulerState>();
+        PersistentState_->SchedulingSegmentsState->NodeStates = std::move(context.PersistentNodeStates);
+
+        YT_LOG_DEBUG("Saved new persistent scheduling segments state (Now: %v, Deadline: %v)",
+            now,
+            SchedulingSegmentsInitializationDeadline_);
+    }
+
+    StrategyHost_->UpdateOperationSchedulingSegmentModules(TreeId_, Host_->GetOperationSchedulingSegmentModuleUpdates());
+    TreeHost_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::ManageNodeSchedulingSegments, context.Error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

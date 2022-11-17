@@ -506,4 +506,29 @@ void TYsonMapFragmentBatcher::OnMyKeyedItem(TStringBuf key)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescriptors()
+{
+    static const std::vector<TSchedulerTreeAlertDescriptor> SchedulerTreeAlertDescriptors = {
+        TSchedulerTreeAlertDescriptor{
+            .Type = ESchedulerAlertType::ManageNodeSchedulingSegments,
+            .Message = "Found errors during node scheduling segments management",
+        },
+    };
+
+    return SchedulerTreeAlertDescriptors;
+}
+
+bool IsSchedulerTreeAlertType(ESchedulerAlertType alertType)
+{
+    for (const auto& [type, _] : GetSchedulerTreeAlertDescriptors()) {
+        if (type == alertType) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

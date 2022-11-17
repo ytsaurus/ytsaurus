@@ -192,10 +192,11 @@ void TNodeSchedulingSegmentManager::ManageNodeSegments(TManageNodeSchedulingSegm
 
         YT_LOG_DEBUG(
             "Found unsatisfied scheduling segments in tree "
-            "(IsSegmentUnsatisfied: %v, UnsatisfiedFor: %v, Timeout: %v)",
+            "(IsSegmentUnsatisfied: %v, UnsatisfiedFor: %v, Timeout: %v, InitializationDeadline: %v)",
             isSegmentUnsatisfied,
             context->Now - *UnsatisfiedSince_,
-            strategyTreeState.UnsatisfiedSegmentsRebalancingTimeout);
+            strategyTreeState.UnsatisfiedSegmentsRebalancingTimeout,
+            NodeSegmentsInitializationDeadline_);
 
         auto deadline = std::max(
             *UnsatisfiedSince_ + strategyTreeState.UnsatisfiedSegmentsRebalancingTimeout,

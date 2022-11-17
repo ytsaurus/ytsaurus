@@ -50,7 +50,6 @@ struct TPoolsUpdateResult
 struct TManageSchedulingSegmentsResult
 {
     TOperationIdWithSchedulingSegmentModuleList OperationSchedulingSegmentModuleUpdates;
-    TPersistentNodeSchedulingSegmentStateMap PersistentNodeStates;
     TError Error;
 };
 
@@ -68,9 +67,9 @@ struct IFairShareTreeHost
 {
     virtual ~IFairShareTreeHost() = default;
 
-    // NB(eshcherbin): Temporary.
-    using TPersistentSchedulingSegmentsStateWithDeadline = std::pair<TPersistentSchedulingSegmentsStatePtr, TInstant>;
-    virtual TPersistentSchedulingSegmentsStateWithDeadline GetInitialSchedulingSegmentsState() = 0;
+    virtual bool IsConnected() const = 0;
+
+    virtual void SetSchedulerTreeAlert(const TString& treeId, ESchedulerAlertType alertType, const TError& alert) = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -179,11 +178,12 @@ struct IFairShareTree
 
     virtual void ActualizeEphemeralPoolParents(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
-    virtual TPersistentTreeStatePtr BuildPersistentTreeState() const = 0;
-    virtual void InitPersistentTreeState(const TPersistentTreeStatePtr& persistentTreeState) = 0;
+    virtual TPersistentTreeStatePtr BuildPersistentState() const = 0;
+    virtual void InitPersistentState(
+        const TPersistentTreeStatePtr& persistentState,
+        const TPersistentSchedulingSegmentsStatePtr& oldSchedulingSegmentsState) = 0;
 
     virtual ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) = 0;
-    virtual TFuture<TManageSchedulingSegmentsResult> ManageSchedulingSegments() = 0;
 
     virtual void BuildOperationAttributes(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;
     virtual void BuildOperationProgress(TOperationId operationId, NYTree::TFluentMap fluent) const = 0;

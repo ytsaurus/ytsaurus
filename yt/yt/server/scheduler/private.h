@@ -19,6 +19,7 @@ DECLARE_REFCOUNTED_STRUCT(IFairShareTree)
 DECLARE_REFCOUNTED_STRUCT(IFairShareTreeElementHost)
 
 struct IFairShareTreeHost;
+struct IFairShareTreeJobSchedulerHost;
 
 DECLARE_REFCOUNTED_CLASS(TSchedulerElement)
 DECLARE_REFCOUNTED_CLASS(TSchedulerOperationElement)

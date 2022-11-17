@@ -31,6 +31,9 @@ void TPersistentTreeState::Register(TRegistrar registrar)
 {
     registrar.Parameter("pool_states", &TThis::PoolStates)
         .Default();
+
+    registrar.Parameter("job_scheduler_state", &TThis::JobSchedulerState)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -42,6 +45,14 @@ void TPersistentStrategyState::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void FormatValue(TStringBuilderBase* builder, const TPersistentNodeSchedulingSegmentState& state, TStringBuf /*format*/)
+{
+    builder->AppendFormat("{Segment: %v, Address: %v, Tree: %v}",
+        state.Segment,
+        state.Address,
+        state.Tree);
+}
 
 void Serialize(const TPersistentNodeSchedulingSegmentState& state, IYsonConsumer* consumer)
 {

@@ -1720,11 +1720,6 @@ public:
         MasterConnector_->InvokeStoringStrategyState(std::move(strategyState));
     }
 
-    void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState) override
-    {
-        MasterConnector_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
-    }
-
     TFuture<void> UpdateLastMeteringLogTime(TInstant time) override
     {
         if (Config_->UpdateLastMeteringLogTime) {
@@ -2237,6 +2232,10 @@ private:
         if (!Strategy_->IsInitialized()) {
             YT_LOG_INFO("Requesting strategy state");
             batchReq->AddRequest(TYPathProxy::Get(StrategyStatePath), "get_strategy_state");
+
+            // COMPAT(eshcherbin): Remove when old global scheduling segments state is not used.
+            YT_LOG_INFO("Requesting old scheduling segments state");
+            batchReq->AddRequest(TYPathProxy::Get(OldSegmentsStatePath), "get_old_scheduling_segments_state");
         }
     }
 
@@ -2251,6 +2250,7 @@ private:
 
         auto poolTreesYson = TYsonString(rspOrError.Value()->value());
 
+        // TODO(eshcherbin): This is a little bit ugly. Maybe make this a separate step in the registration pipeline?
         TPersistentStrategyStatePtr strategyState;
         if (!Strategy_->IsInitialized()) {
             rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_strategy_state");
@@ -2259,7 +2259,7 @@ private:
             }
 
             strategyState = New<TPersistentStrategyState>();
-            if (!rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+            if (rspOrError.IsOK()) {
                 auto value = rspOrError.ValueOrThrow()->value();
                 try {
                     strategyState = ConvertTo<TPersistentStrategyStatePtr>(TYsonString(value));
@@ -2273,7 +2273,31 @@ private:
             }
         }
 
-        Strategy_->UpdatePoolTrees(poolTreesYson, strategyState);
+        // COMPAT(eshcherbin): Remove when old global scheduling segments state is not used.
+        TPersistentSchedulingSegmentsStatePtr oldSchedulingSegmentsState;
+        if (!Strategy_->IsInitialized()) {
+            rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_old_scheduling_segments_state");
+            if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error fetching old scheduling segments state"));
+            }
+
+            if (rspOrError.IsOK()) {
+                auto value = rspOrError.ValueOrThrow()->value();
+                try {
+                    oldSchedulingSegmentsState = ConvertTo<TPersistentSchedulingSegmentsStatePtr>(TYsonString(value));
+                    YT_LOG_INFO("Successfully fetched old scheduling segments state");
+                } catch (const std::exception& ex) {
+                    oldSchedulingSegmentsState.Reset();
+
+                    YT_LOG_WARNING(
+                        ex,
+                        "Failed to deserialize old scheduling segments state; will drop it (Value: %v)",
+                        ConvertToYsonString(value, EYsonFormat::Text));
+                }
+            }
+        }
+
+        Strategy_->UpdatePoolTrees(poolTreesYson, strategyState, oldSchedulingSegmentsState);
     }
 
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)
@@ -4065,24 +4089,21 @@ private:
         }
     }
 
-    void UpdateOperationSchedulingSegmentModules(const THashMap<TString, TOperationIdWithSchedulingSegmentModuleList>& updatesPerTree) override
+    // NB(eshcherbin): This is temporary.
+    void UpdateOperationSchedulingSegmentModules(const TString& treeId, const TOperationIdWithSchedulingSegmentModuleList& updates) override
     {
-        THashMap<TString, int> updateCountPerTree(updatesPerTree.size());
-        for (const auto& [treeId, updates] : updatesPerTree) {
-            updateCountPerTree.emplace(treeId, updates.size());
-        }
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Updating scheduling segment modules in operations' runtime parameters (UpdateCountPerTree: %v)",
-            updateCountPerTree);
+        YT_LOG_DEBUG("Updating scheduling segment modules in operations' runtime parameters (TreeId: %v, UpdateCount: %v)",
+            treeId,
+            updates.size());
 
-        for (const auto& [treeId, updates] : updatesPerTree) {
-            for (const auto& [operationId, newModule] : updates) {
-                if (auto operation = FindOperation(operationId)) {
-                    auto params = operation->GetRuntimeParameters();
-                    GetOrCrash(params->SchedulingOptionsPerPoolTree, treeId)->SchedulingSegmentModule = newModule;
-                    operation->SetRuntimeParameters(params);
-                    Strategy_->ApplyOperationRuntimeParameters(operation.Get());
-                }
+        for (const auto& [operationId, newModule] : updates) {
+            if (auto operation = FindOperation(operationId)) {
+                auto params = operation->GetRuntimeParameters();
+                GetOrCrash(params->SchedulingOptionsPerPoolTree, treeId)->SchedulingSegmentModule = newModule;
+                operation->SetRuntimeParameters(params);
+                Strategy_->ApplyOperationRuntimeParameters(operation.Get());
             }
         }
     }

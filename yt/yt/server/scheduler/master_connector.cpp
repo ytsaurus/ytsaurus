@@ -407,58 +407,6 @@ public:
         }
     }
 
-    void InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
-
-        GetCancelableControlInvoker(EControlQueue::MasterConnector)
-            ->Invoke(BIND(&TImpl::StoreSchedulingSegmentsState, MakeStrong(this), Passed(std::move(segmentsState))));
-    }
-
-    void StoreSchedulingSegmentsState(const TPersistentSchedulingSegmentsStatePtr& persistentSegmentsState)
-    {
-        VERIFY_THREAD_AFFINITY(ControlThread);
-        YT_VERIFY(State_ != EMasterConnectorState::Disconnected);
-
-        if (StoringStrategyState_) {
-            YT_LOG_INFO("Skip storing persistent scheduling segments state because the previous attempt hasn't finished yet");
-
-            return;
-        }
-
-        StoringSchedulingSegmentsState_ = true;
-        auto finally = Finally([&] {
-            StoringSchedulingSegmentsState_ = false;
-        });
-
-        YT_LOG_INFO("Storing persistent scheduling segments state");
-
-        auto batchReq = StartObjectBatchRequest();
-
-        auto req = NCypressClient::TCypressYPathProxy::Create(SegmentsStatePath);
-        req->set_type(static_cast<int>(EObjectType::Document));
-        req->set_force(true);
-
-        auto* attribute = req->mutable_node_attributes()->add_attributes();
-        attribute->set_key("value");
-        attribute->set_value(ConvertToYsonStringNestingLimited(persistentSegmentsState).ToString());
-
-        GenerateMutationId(req);
-        batchReq->AddRequest(req);
-
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
-
-        auto rspOrError = WaitFor(proxy.Execute(req));
-        if (!rspOrError.IsOK()) {
-            YT_LOG_WARNING(rspOrError, "Error storing persistent scheduling segments state");
-        } else {
-            YT_LOG_INFO("Persistent scheduling segments state successfully stored");
-        }
-    }
-
     void DoUpdateLastMeteringLogTime(TInstant time)
     {
         auto batchReq = StartObjectBatchRequest();
@@ -635,7 +583,6 @@ private:
     TIntrusivePtr<TUpdateExecutor<TOperationId, TOperationNodeUpdate>> OperationNodesUpdateExecutor_;
 
     bool StoringStrategyState_ = false;
-    bool StoringSchedulingSegmentsState_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
@@ -782,7 +729,6 @@ private:
             SyncMediumDirectory();
             ListOperations();
             RequestOperationAttributes();
-            RequestSchedulingSegmentsState();
             RequestLastMeteringLogTime();
             FireHandshake();
         }
@@ -1313,32 +1259,6 @@ private:
                 throw;
             }
 
-        }
-
-        void RequestSchedulingSegmentsState()
-        {
-            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
-            batchReq->AddRequest(TYPathProxy::Get(SegmentsStatePath), "get_scheduling_segments_state");
-
-            auto batchRsp = WaitFor(batchReq->Invoke())
-                .ValueOrThrow();
-
-            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_scheduling_segments_state");
-            if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                YT_LOG_WARNING(rspOrError, "Error fetching scheduling segments state");
-                return;
-            }
-
-            if (rspOrError.IsOK()) {
-                auto value = rspOrError.ValueOrThrow()->value();
-                try {
-                    Result_.SchedulingSegmentsState = ConvertTo<TPersistentSchedulingSegmentsStatePtr>(TYsonString(value));
-                    YT_LOG_INFO("Successfully fetched strategy state");
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(ex, "Failed to deserialize scheduling segments state, ignoring it");
-                    Result_.SchedulingSegmentsState.Reset();
-                }
-            }
         }
 
         void RequestLastMeteringLogTime()
@@ -2155,11 +2075,6 @@ TFuture<TYsonString> TMasterConnector::GetOperationNodeProgressAttributes(const 
 void TMasterConnector::InvokeStoringStrategyState(TPersistentStrategyStatePtr strategyState)
 {
     Impl_->InvokeStoringStrategyState(std::move(strategyState));
-}
-
-void TMasterConnector::InvokeStoringSchedulingSegmentsState(TPersistentSchedulingSegmentsStatePtr segmentsState)
-{
-    Impl_->InvokeStoringSchedulingSegmentsState(std::move(segmentsState));
 }
 
 TFuture<void> TMasterConnector::UpdateLastMeteringLogTime(TInstant time)
