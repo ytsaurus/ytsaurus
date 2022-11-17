@@ -54,6 +54,8 @@ struct ICellarOccupant
 
     virtual NTabletClient::TDynamicTabletCellOptionsPtr GetDynamicOptions() const = 0;
     virtual const NTabletClient::TTabletCellOptionsPtr& GetOptions() const = 0;
+
+    virtual void PopulateAlerts(std::vector<TError>* alerts) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellarOccupant)

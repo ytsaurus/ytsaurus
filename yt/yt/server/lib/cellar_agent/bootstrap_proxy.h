@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/lib/security_server/public.h>
 
-#include <yt/yt/core/actions/public.h>
+#include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/rpc/public.h>
 
@@ -37,6 +37,8 @@ struct ICellarBootstrapProxy
     virtual void ScheduleCellarHeartbeat(bool immediately) const = 0;
 
     virtual NRpc::IAuthenticatorPtr GetNativeAuthenticator() const = 0;
+
+    DECLARE_INTERFACE_SIGNAL(void(std::vector<TError>* alerts), PopulateAlerts);
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellarBootstrapProxy)

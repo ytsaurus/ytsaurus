@@ -29,13 +29,14 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const auto& Logger = CellarAgentLogger;
+static const auto& Logger = CellarAgentLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellar
     : public ICellar
 {
+public:
     DEFINE_SIGNAL_OVERRIDE(void(), CreateOccupant);
     DEFINE_SIGNAL_OVERRIDE(void(), RemoveOccupant);
     DEFINE_SIGNAL_OVERRIDE(void(), UpdateOccupant);
@@ -195,6 +196,17 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return OrchidService_;
+    }
+
+    void PopulateAlerts(std::vector<TError>* error) override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& occupant : Occupants_) {
+            if (occupant) {
+                occupant->PopulateAlerts(error);
+            }
+        }
     }
 
 private:

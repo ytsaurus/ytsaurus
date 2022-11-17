@@ -45,6 +45,8 @@ struct ICellar
     virtual void RegisterOccupierProvider(ICellarOccupierProviderPtr provider) = 0;
 
     virtual NYTree::IYPathServicePtr GetOrchidService() const = 0;
+
+    virtual void PopulateAlerts(std::vector<TError>* error) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICellar)
