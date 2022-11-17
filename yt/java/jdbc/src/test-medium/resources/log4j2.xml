@@ -10,5 +10,6 @@
             <AppenderRef ref="CONSOLE"/>
         </Root>
         <Logger name="ru.yandex.yt" level="debug"/>
+        <Logger name="tech.ytsaurus" level="debug"/>
     </Loggers>
 </Configuration>
