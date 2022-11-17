@@ -98,7 +98,10 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
         create(
             "table",
             in_table,
-            attributes={"schema": [{"name": "key", "type_v3": "int64"}, {"name": "value", "type_v3": "string"}]},
+            attributes={"schema": [
+                {"name": "key", "type_v3": "int64"},
+                {"name": "value", "type_v3": "string"},
+            ]},
         )
         data = [{"key": i % 10, "value": "#" * 1000000} for i in range(100, 1, -1)]
         for d in data:
@@ -139,18 +142,18 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
         fast_intermediate_medium_usage = get_intermediate_usage(fast_medium)
         release_breakpoint(job_id=job_id)
 
-        while op.get_state() in ["starting", "running"]:
+        while op.get_state() == "running":
             job_id = wait_breakpoint(job_count=1)[0]
-            assert fast_intermediate_medium_usage == get_intermediate_usage(fast_medium), f"usage of the {fast_medium} exceeded"
+            assert fast_intermediate_medium_usage == get_intermediate_usage(fast_medium), f"usage of the medium '{fast_medium}' exceeded"
             sleep(1)
             completed_job_count = op.get_job_count("completed")
             release_breakpoint(job_id=job_id)
             wait(lambda: op.get_state() != "running" or op.get_job_count("completed") > completed_job_count, timeout=600)
 
         for medium in [fast_medium, slow_medium]:
-            assert get_intermediate_usage(medium) > 0, f"{medium} was not used at all"
+            assert get_intermediate_usage(medium) > 0, f"the medium '{medium}' was not used at all"
 
-        assert get_operation_job_types(op) == builtins.set(
-            ["intermediate_sort", "partition_map", "sorted_reduce"])
+        assert get_operation_job_types(op) == builtins.set([
+            "intermediate_sort", "partition_map", "sorted_reduce"])
         assert get_operation_tasks(op) == builtins.set([
             "intermediate_sort", "partition_map(0)", "sorted_reduce"])
