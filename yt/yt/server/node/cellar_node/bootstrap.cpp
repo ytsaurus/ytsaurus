@@ -86,9 +86,13 @@ public:
         Bootstrap_->ScheduleCellarHeartbeat(immediately);
     }
 
+    DECLARE_SIGNAL_OVERRIDE(void(std::vector<TError>* alerts), PopulateAlerts);
+
 private:
     IBootstrap* const Bootstrap_;
 };
+
+DELEGATE_SIGNAL(TCellarBootstrapProxy, void(std::vector<TError>* alerts), PopulateAlerts, *Bootstrap_);
 
 ////////////////////////////////////////////////////////////////////////////////
 

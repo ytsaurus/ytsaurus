@@ -104,9 +104,9 @@ private:
         auto unrecognizedOptions = Config_->GetRecursiveUnrecognized();
         if (unrecognizedOptions->GetChildCount() > 0) {
             UnrecognizedOptionsAlert_ = TError("Found unrecognized options in dynamic cluster config")
-                << TErrorAttribute("unrecognized_options", ConvertToYsonString(unrecognizedOptions, EYsonFormat::Text));
+                << TErrorAttribute("unrecognized_options", unrecognizedOptions);
         } else {
-            UnrecognizedOptionsAlert_ = TError();
+            UnrecognizedOptionsAlert_ = {};
         }
     }
 

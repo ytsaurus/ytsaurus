@@ -547,13 +547,15 @@ public:
 
             if (updateInfo.has_dynamic_options()) {
                 dynamicOptions = New<TDynamicTabletCellOptions>();
-                dynamicOptions->SetUnrecognizedStrategy(EUnrecognizedStrategy::Keep);
+                dynamicOptions->SetUnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
                 dynamicOptions->Load(ConvertTo<INodePtr>(TYsonString(updateInfo.dynamic_options())));
-                auto unrecognized = dynamicOptions->GetLocalUnrecognized();
 
-                if (unrecognized->GetChildCount() > 0) {
-                    THROW_ERROR_EXCEPTION("Dynamic options contains unrecognized parameters (Unrecognized: %v)",
-                        ConvertToYsonString(unrecognized, EYsonFormat::Text).AsStringBuf());
+                auto unrecognizedOptions = dynamicOptions->GetRecursiveUnrecognized();
+                if (unrecognizedOptions->GetChildCount() > 0) {
+                    UnrecognizedOptionsAlert_ = TError("Found unrecognized parameters in dynamic tablet cell options")
+                        << TErrorAttribute("unrecognized_options", unrecognizedOptions);
+                } else {
+                    UnrecognizedOptionsAlert_ = {};
                 }
             }
 
@@ -562,7 +564,6 @@ public:
 
             YT_LOG_DEBUG("Updated dynamic config (DynamicConfigVersion: %v)",
                 DynamicConfigVersion_);
-
         } catch (const std::exception& ex) {
             // TODO(savrus): Write this to cell errors once we have them.
             YT_LOG_ERROR(ex, "Error while updating dynamic config");
@@ -607,16 +608,24 @@ public:
         return Options_;
     }
 
+    void PopulateAlerts(std::vector<TError>* alerts) const override
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        if (!UnrecognizedOptionsAlert_.IsOK()) {
+            alerts->push_back(UnrecognizedOptionsAlert_);
+        }
+    }
+
 private:
     const TCellarOccupantConfigPtr Config_;
     const ICellarBootstrapProxyPtr Bootstrap_;
     TAtomicObject<ICellarOccupierPtr> Occupier_;
+    const int Index_;
 
     const TElectionManagerThunkPtr ElectionManagerThunk_ = New<TElectionManagerThunk>();
     const TSnapshotStoreThunkPtr SnapshotStoreThunk_ = New<TSnapshotStoreThunk>();
     const TChangelogStoreFactoryThunkPtr ChangelogStoreFactoryThunk_ = New<TChangelogStoreFactoryThunk>();
-
-    int Index_;
 
     TPeerId PeerId_;
     TCellDescriptor CellDescriptor_;
@@ -653,6 +662,8 @@ private:
     TFuture<void> FinalizeResult_;
 
     IYPathServicePtr OrchidService_;
+
+    TError UnrecognizedOptionsAlert_;
 
     NLogging::TLogger Logger;
 

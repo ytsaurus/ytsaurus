@@ -1,5 +1,6 @@
 #include "cellar_manager.h"
 
+#include "bootstrap_proxy.h"
 #include "cellar.h"
 #include "config.h"
 #include "private.h"
@@ -35,6 +36,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        Bootstrap_->SubscribePopulateAlerts(BIND(&TCellarManager::PopulateAlerts, MakeWeak(this)));
+
         for (const auto& [type, config] : Config_->Cellars) {
             auto cellar = CreateCellar(type, config, Bootstrap_);
             cellar->Initialize();
@@ -67,7 +70,7 @@ public:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         // TODO(savrus) Remove when reconfiguration is deployed and verified.
-        YT_LOG_DEBUG("Reconfigure cellar manager (NewConfig: %v)",
+        YT_LOG_DEBUG("Reconfiguring cellar manager (NewConfig: %v)",
              ConvertToYsonString(config, EYsonFormat::Text).AsStringBuf());
 
         THashSet<ECellarType> updatedCellarTypes;
@@ -87,13 +90,23 @@ public:
         }
     }
 
-protected:
+private:
     const TCellarManagerConfigPtr Config_;
     const ICellarBootstrapProxyPtr Bootstrap_;
 
     THashMap<ECellarType, ICellarPtr> Cellars_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+
+
+    void PopulateAlerts(std::vector<TError>* alerts)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        for (const auto& [cellarType, cellar] : Cellars_) {
+            cellar->PopulateAlerts(alerts);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
