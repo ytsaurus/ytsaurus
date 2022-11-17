@@ -24,7 +24,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import ru.yandex.yt.testlib.LocalYt;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 import static org.hamcrest.MatcherAssert.assertThat;

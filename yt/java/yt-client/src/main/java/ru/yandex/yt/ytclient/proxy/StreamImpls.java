@@ -28,7 +28,6 @@ import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
-import ru.yandex.yt.ytclient.proxy.internal.SlidingWindow;
 
 abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer {
     protected static final Logger logger = LoggerFactory.getLogger(StreamBase.class);

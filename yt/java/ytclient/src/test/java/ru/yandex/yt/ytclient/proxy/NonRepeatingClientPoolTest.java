@@ -6,8 +6,6 @@ import java.util.concurrent.CompletableFuture;
 
 import org.junit.Test;
 
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsInAnyOrder;

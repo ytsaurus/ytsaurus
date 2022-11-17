@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.internal;
+package ru.yandex.yt.ytclient.proxy;
 
 import java.time.Duration;
 import java.util.Optional;
@@ -13,7 +13,7 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcError;
 
-public class RpcClientSlot implements AutoCloseable {
+class RpcClientSlot implements AutoCloseable {
     private static final Logger logger = LoggerFactory.getLogger(RpcClientSlot.class);
 
     private final AtomicBoolean seemsBroken;

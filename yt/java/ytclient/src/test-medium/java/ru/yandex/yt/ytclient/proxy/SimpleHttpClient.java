@@ -10,8 +10,6 @@ import org.asynchttpclient.RequestBuilder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 
 /**

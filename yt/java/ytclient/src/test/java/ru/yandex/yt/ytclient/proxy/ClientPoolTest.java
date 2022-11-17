@@ -18,7 +18,6 @@ import org.junit.Test;
 import tech.ytsaurus.client.rpc.RpcClient;
 
 import ru.yandex.yt.ytclient.DC;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.hasItem;

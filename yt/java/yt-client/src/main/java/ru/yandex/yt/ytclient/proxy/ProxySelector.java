@@ -10,7 +10,6 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.DC;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
 
 /**
  * ProxySelector subclasses are used to set priorities for available rpc proxies

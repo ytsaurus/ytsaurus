@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.proxy.internal;
+package ru.yandex.yt.ytclient.proxy;
 
 import java.util.List;
 import java.util.concurrent.CancellationException;
@@ -19,13 +19,13 @@ import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import ru.yandex.yt.rpc.TResponseHeader;
 
 // TODO: move closer to user an make package private
-public class FailureDetectingRpcClient extends RpcClientWrapper {
+class FailureDetectingRpcClient extends RpcClientWrapper {
     private static final Logger logger = LoggerFactory.getLogger(FailureDetectingRpcClient.class);
 
     private Function<Throwable, Boolean> isError;
     private Consumer<Throwable> errorHandler;
 
-    public FailureDetectingRpcClient(
+    FailureDetectingRpcClient(
             RpcClient innerClient,
             Function<Throwable, Boolean> isError,
             Consumer<Throwable> errorHandler

@@ -6,8 +6,6 @@ import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 
 import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 
 class RpcClientFactoryImpl implements RpcClientFactory {
     private final BusConnector connector;

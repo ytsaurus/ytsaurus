@@ -14,9 +14,6 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcRequest;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
-
 class MockRpcClientFactory implements RpcClientFactory, SelfCheckingClientFactory {
     Set<HostPort> openedConnections = new HashSet<>();
 

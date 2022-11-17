@@ -24,8 +24,6 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.internal.HostPort;
-import ru.yandex.yt.ytclient.proxy.internal.RpcClientFactory;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 import static org.hamcrest.Matchers.is;

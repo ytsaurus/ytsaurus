@@ -1,15 +1,15 @@
-package ru.yandex.yt.ytclient.proxy.internal;
+package ru.yandex.yt.ytclient.proxy;
 
 import java.util.HashMap;
 import java.util.function.Consumer;
 
-public class SlidingWindow<T> {
+class SlidingWindow<T> {
     private final int maxSize;
     private final HashMap<Integer, T> window;
     private final Consumer<T> callback;
     private int nextSequenceNumber = 0;
 
-    public SlidingWindow(int maxSize, Consumer<T> callback) {
+    SlidingWindow(int maxSize, Consumer<T> callback) {
         this.maxSize = maxSize;
         this.callback = callback;
         this.window = new HashMap<>();

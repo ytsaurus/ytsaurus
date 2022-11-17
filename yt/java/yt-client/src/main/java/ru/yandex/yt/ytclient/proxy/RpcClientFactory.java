@@ -1,7 +1,7 @@
-package ru.yandex.yt.ytclient.proxy.internal;
-
+package ru.yandex.yt.ytclient.proxy;
 
 import tech.ytsaurus.client.rpc.RpcClient;
-public interface RpcClientFactory {
+
+interface RpcClientFactory {
     RpcClient create(HostPort hostPort, String name);
 }
