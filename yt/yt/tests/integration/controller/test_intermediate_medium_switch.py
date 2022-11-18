@@ -142,7 +142,7 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
         fast_intermediate_medium_usage = get_intermediate_usage(fast_medium)
         release_breakpoint(job_id=job_id)
 
-        while op.get_state() == "running":
+        while op.get_job_count("completed") != op.get_job_count("total"):
             job_id = wait_breakpoint(job_count=1)[0]
             assert fast_intermediate_medium_usage == get_intermediate_usage(fast_medium), f"usage of the medium '{fast_medium}' exceeded"
             sleep(1)
