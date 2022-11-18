@@ -22,12 +22,14 @@ public:
 
     IDynamicTvmServicePtr GetTvmService() const;
     bool IsValidationEnabled() const;
+    bool IsSubmissionEnabled() const;
 
     void SetTvmService(IDynamicTvmServicePtr tvmService);
 
 private:
     TAtomicObject<IDynamicTvmServicePtr> TvmService_;
     std::atomic<bool> EnableValidation_ = false;
+    std::atomic<bool> EnableSubmission_ = true;
 
     IDynamicTvmServicePtr CreateTvmService(const TTvmServiceConfigPtr& config);
 };

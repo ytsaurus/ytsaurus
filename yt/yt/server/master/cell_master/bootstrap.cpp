@@ -130,6 +130,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/auth/native_authenticating_channel.h>
+
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
@@ -713,7 +715,7 @@ void TBootstrap::DoInitialize()
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 
-    ChannelFactory_ = NNative::CreateNativeAuthenticationInjectingChannelFactory(
+    ChannelFactory_ = NAuth::CreateNativeAuthenticationInjectingChannelFactory(
         CreateCachingChannelFactory(
             NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)),
         Config_->ClusterConnection->TvmId);

@@ -13,6 +13,8 @@ void TNativeAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("enable_validation", &TThis::EnableValidation)
         .Default(false);
+    registrar.Parameter("enable_submission", &TThis::EnableSubmission)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -20,6 +22,8 @@ void TNativeAuthenticationManagerConfig::Register(TRegistrar registrar)
 void TNativeAuthenticationManagerDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_validation", &TThis::EnableValidation)
+        .Default();
+    registrar.Parameter("enable_submission", &TThis::EnableSubmission)
         .Default();
 }
 
