@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.util.List;
 import java.util.Objects;
@@ -6,18 +6,15 @@ import java.util.Objects;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import ru.yandex.yt.ytclient.bus.Bus;
-import ru.yandex.yt.ytclient.bus.BusListener;
-
 /**
  * Обёртка над BusListener, подавляющая и логирующая исключения
  */
-public class BusListenerWrapper implements BusListener {
+class BusListenerWrapper implements BusListener {
     private static final Logger logger = LoggerFactory.getLogger(BusListenerWrapper.class);
 
     private final BusListener listener;
 
-    public BusListenerWrapper(BusListener listener) {
+    BusListenerWrapper(BusListener listener) {
         this.listener = Objects.requireNonNull(listener);
     }
 

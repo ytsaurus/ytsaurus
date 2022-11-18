@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.nio.channels.ClosedChannelException;
 import java.util.ArrayDeque;
@@ -11,12 +11,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.yt.ytclient.bus.Bus;
-import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
-import ru.yandex.yt.ytclient.bus.BusLifecycle;
-import ru.yandex.yt.ytclient.bus.BusListener;
-
-public class BusProtocolHandler extends ChannelDuplexHandler {
+class BusProtocolHandler extends ChannelDuplexHandler {
     private static final Logger logger = LoggerFactory.getLogger(BusProtocolHandler.class);
 
     private final Bus bus;
@@ -41,7 +36,7 @@ public class BusProtocolHandler extends ChannelDuplexHandler {
         }
     }
 
-    public BusProtocolHandler(Bus bus, BusListener listener) {
+    BusProtocolHandler(Bus bus, BusListener listener) {
         this.bus = bus;
         this.wrappedListener = new BusListenerWrapper(listener);
     }

@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.util.ArrayList;
 import java.util.Arrays;

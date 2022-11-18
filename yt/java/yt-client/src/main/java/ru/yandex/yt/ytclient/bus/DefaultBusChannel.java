@@ -17,7 +17,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.yt.ytclient.bus.internal.BusOutgoingMessage;
 import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
 import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
 

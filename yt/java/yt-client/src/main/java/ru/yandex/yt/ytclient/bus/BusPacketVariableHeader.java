@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.nio.ByteOrder;
 import java.util.List;
@@ -7,11 +7,11 @@ import io.netty.buffer.ByteBuf;
 
 import ru.yandex.yt.ytclient.misc.YtCrc64;
 
-public class BusPacketVariableHeader {
+class BusPacketVariableHeader {
     private final int[] sizes;
     private final long[] checksums;
 
-    public BusPacketVariableHeader(int[] sizes, long[] checksums) {
+    BusPacketVariableHeader(int[] sizes, long[] checksums) {
         if (sizes.length != checksums.length) {
             throw new IllegalArgumentException("sizes and checksums must have identical sizes");
         }
