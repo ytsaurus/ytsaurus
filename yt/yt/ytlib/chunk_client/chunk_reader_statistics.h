@@ -8,7 +8,7 @@
 
 #include <yt/yt/ytlib/table_client/timing_statistics.h>
 
-#include <yt/yt/core/profiling/profiler.h>
+#include <yt/yt/core/profiling/public.h>
 
 namespace NYT::NChunkClient {
 

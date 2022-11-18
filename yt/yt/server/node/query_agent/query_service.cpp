@@ -63,8 +63,6 @@
 #include <yt/yt/core/misc/tls_cache.h>
 #include <yt/yt/core/misc/async_expiring_cache.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/misc/tls_cache.h>
 
 #include <yt/yt/core/rpc/service_detail.h>

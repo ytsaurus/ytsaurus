@@ -69,7 +69,7 @@ int main(int argc, char* argv[])
         // Offload sensor processing to the thread pool.
         config->ThreadPoolSize = 16;
 
-        auto exporter = New<TSolomonExporter>(config, actionQueue->GetInvoker());
+        auto exporter = New<TSolomonExporter>(config);
         exporter->Register("/solomon", server);
         exporter->Start();
 
@@ -100,14 +100,13 @@ int main(int argc, char* argv[])
         auto poolUsage = r.WithTag("pool", "prime").WithGlobal().Gauge("/cpu");
         poolUsage.Update(3000.0);
 
-        auto remoteActionQueue = New<TActionQueue>("Remote");
         for (int i = 0; i < 10; i++) {
             auto remoteRegistry = New<TSolomonRegistry>();
             auto config = New<TSolomonExporterConfig>();
             config->EnableSelfProfiling = false;
             config->ReportRestart = false;
 
-            auto remoteExporter = New<TSolomonExporter>(config, remoteActionQueue->GetInvoker(), remoteRegistry);
+            auto remoteExporter = New<TSolomonExporter>(config, remoteRegistry);
 
             TProfiler r{remoteRegistry, "/remote"};
             r.AddFuncGauge("/value", remoteExporter, [] { return 1.0; });

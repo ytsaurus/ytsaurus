@@ -4,8 +4,6 @@
 
 #include <yt/yt/ytlib/misc/public.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////

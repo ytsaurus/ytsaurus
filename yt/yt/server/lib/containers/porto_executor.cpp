@@ -11,7 +11,6 @@
 
 #include <yt/yt/core/misc/fs.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ytree/convert.h>

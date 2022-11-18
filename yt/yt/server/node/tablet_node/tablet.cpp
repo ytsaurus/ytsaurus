@@ -45,8 +45,6 @@
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/concurrency/async_semaphore.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/throughput_throttler.h>

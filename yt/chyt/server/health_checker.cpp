@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/misc/intrusive_ptr.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <Core/Types.h>
 #include <DataStreams/IBlockInputStream.h>
 #include <Interpreters/ClientInfo.h>

@@ -227,12 +227,7 @@ void TSolomonRegistry::RegisterProducer(
 
 TSolomonRegistryPtr TSolomonRegistry::Get()
 {
-    struct TPtrLeaker
-    {
-        TSolomonRegistryPtr Ptr = New<TSolomonRegistry>();
-    };
-
-    return LeakySingleton<TPtrLeaker>()->Ptr;
+    return LeakyRefCountedSingleton<TSolomonRegistry>();
 }
 
 i64 TSolomonRegistry::GetNextIteration() const
@@ -341,7 +336,7 @@ void TSolomonRegistry::Collect(IInvokerPtr offloadInvoker)
             continue;
         }
 
-        auto future = BIND([sensorSet=&set, projectionCount, collectDuration=SensorCollectDuration_] {
+        auto future = BIND([sensorSet = &set, projectionCount, collectDuration = SensorCollectDuration_] {
             auto start = TInstant::Now();
             *projectionCount += sensorSet->Collect();
             collectDuration.Record(TInstant::Now() - start);
@@ -487,13 +482,6 @@ TSensorSet* TSolomonRegistry::FindSet(const TString& name, const TSensorOptions&
         it->second.Profile(SelfProfiler_.WithTag("metric_name", name));
         SensorCount_.Update(Sensors_.size());
         return &it->second;
-    }
-}
-
-void TSolomonRegistry::LegacyReadSensors()
-{
-    for (const auto& [name, set] : Sensors_) {
-        set.LegacyReadSensors(name, &Tags_);
     }
 }
 

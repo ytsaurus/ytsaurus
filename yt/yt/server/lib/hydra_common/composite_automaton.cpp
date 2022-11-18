@@ -12,8 +12,6 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/serialize.h>
 

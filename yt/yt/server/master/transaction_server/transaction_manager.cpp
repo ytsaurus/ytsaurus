@@ -61,8 +61,6 @@
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/string.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/fluent.h>

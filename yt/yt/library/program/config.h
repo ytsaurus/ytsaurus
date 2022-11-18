@@ -16,8 +16,6 @@
 
 #include <yt/yt/core/logging/config.h>
 
-#include <yt/yt/core/profiling/config.h>
-
 #include <yt/yt/core/tracing/config.h>
 
 #include <yt/yt/core/service_discovery/yp/config.h>
@@ -81,7 +79,6 @@ public:
     NRpc::TDispatcherConfigPtr RpcDispatcher;
     NRpc::NGrpc::TDispatcherConfigPtr GrpcDispatcher;
     NServiceDiscovery::NYP::TServiceDiscoveryConfigPtr YPServiceDiscovery;
-    NProfiling::TProfileManagerConfigPtr ProfileManager;
     NProfiling::TSolomonExporterConfigPtr SolomonExporter;
     NLogging::TLogManagerConfigPtr Logging;
     NTracing::TJaegerTracerConfigPtr Jaeger;

@@ -30,8 +30,6 @@
 #include <yt/yt/core/rpc/local_channel.h>
 #include <yt/yt/core/rpc/dispatcher.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
 namespace NYT::NCellMasterClient {

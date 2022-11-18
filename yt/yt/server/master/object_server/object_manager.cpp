@@ -71,8 +71,6 @@
 
 #include <yt/yt/library/erasure/public.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-#include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/response_keeper.h>

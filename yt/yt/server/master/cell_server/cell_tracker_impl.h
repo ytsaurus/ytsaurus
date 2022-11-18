@@ -15,9 +15,6 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-#include <yt/yt/core/profiling/public.h>
-
 namespace NYT::NCellServer {
 
 ////////////////////////////////////////////////////////////////////////////////

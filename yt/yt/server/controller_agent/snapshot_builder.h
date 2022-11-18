@@ -9,8 +9,6 @@
 
 #include <yt/yt/library/process/pipe.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <util/system/file.h>
 
 namespace NYT::NControllerAgent {

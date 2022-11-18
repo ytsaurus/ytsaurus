@@ -23,8 +23,6 @@
 #include <yt/yt/core/misc/mpsc_queue.h>
 #include <yt/yt/core/misc/ring_queue.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/library/tracing/async_queue_trace.h>
 
 namespace NYT::NHydra2 {

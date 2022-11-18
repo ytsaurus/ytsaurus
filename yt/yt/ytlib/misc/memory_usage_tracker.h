@@ -7,8 +7,7 @@
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/error.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 

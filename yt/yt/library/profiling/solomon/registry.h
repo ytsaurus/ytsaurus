@@ -130,9 +130,6 @@ public:
         const TReadOptions& options,
         NYTree::TFluentAny fluent) const;
 
-    //! LegacyReadSensors sends sensor values to core/profiling.
-    void LegacyReadSensors();
-
     std::vector<TSensorInfo> ListSensors() const;
 
     const TTagRegistry& GetTags() const;

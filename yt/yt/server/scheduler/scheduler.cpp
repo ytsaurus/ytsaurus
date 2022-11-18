@@ -78,7 +78,6 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 #include <yt/yt/core/ytree/service_combiner.h>

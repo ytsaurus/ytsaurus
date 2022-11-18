@@ -51,8 +51,6 @@ void TSingletonsConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("yp_service_discovery", &TThis::YPServiceDiscovery)
         .DefaultNew();
-    registrar.Parameter("profile_manager", &TThis::ProfileManager)
-        .DefaultNew();
     registrar.Parameter("solomon_exporter", &TThis::SolomonExporter)
         .DefaultNew();
     registrar.Parameter("logging", &TThis::Logging)
@@ -67,14 +65,6 @@ void TSingletonsConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_resource_tracker", &TThis::EnableResourceTracker)
         .Default(true);
-
-    // COMPAT(prime@): backward compatible config for CHYT
-    registrar.Postprocessor([] (TThis* config) {
-        if (!config->ProfileManager->GlobalTags.empty()) {
-            config->SolomonExporter->Host = "";
-            config->SolomonExporter->InstanceTags = config->ProfileManager->GlobalTags;
-        }
-    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

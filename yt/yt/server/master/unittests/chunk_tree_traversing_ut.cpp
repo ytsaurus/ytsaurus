@@ -22,8 +22,6 @@
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/yson/string.h>
 
 #include <yt/yt/core/test_framework/framework.h>

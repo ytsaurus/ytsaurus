@@ -4,8 +4,6 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NAuth {

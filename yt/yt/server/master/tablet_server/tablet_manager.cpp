@@ -112,8 +112,6 @@
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/ypath/token.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>

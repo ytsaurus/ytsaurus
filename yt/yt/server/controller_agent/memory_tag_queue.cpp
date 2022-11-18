@@ -7,8 +7,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/library/ytprof/heap_profiler.h>
 
 namespace NYT::NControllerAgent {

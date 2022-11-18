@@ -30,7 +30,6 @@
 #include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/finally.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ypath/tokenizer.h>

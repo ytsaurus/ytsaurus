@@ -5,8 +5,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/client/scheduler/private.h>
 
 #include <yt/yt/library/profiling/sensor.h>

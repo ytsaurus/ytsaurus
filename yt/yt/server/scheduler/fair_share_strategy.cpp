@@ -24,7 +24,6 @@
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/ytree/service_combiner.h>

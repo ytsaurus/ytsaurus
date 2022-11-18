@@ -27,8 +27,6 @@
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/tvm_bridge_service.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NExecNode {
@@ -97,7 +95,6 @@ public:
 
         JobProxySolomonExporter_ = New<TSolomonExporter>(
             GetConfig()->ExecNode->JobProxySolomonExporter,
-            TProfileManager::Get()->GetInvoker(),
             New<TSolomonRegistry>());
 
         if (GetConfig()->EnableFairThrottler) {

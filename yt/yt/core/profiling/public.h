@@ -14,20 +14,6 @@ namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLegacyProfiler;
-class TProfileManager;
-
-class TResourceTracker;
-
-class TTimer;
-class TShardedMonotonicCounter;
-class TGauge;
-class TSummary;
-class TShardedAggregateGauge;
-class TAtomicShardedAggregateGauge;
-
-struct TQueuedSample;
-
 //! Generic value for samples.
 using TValue = i64;
 
@@ -51,8 +37,6 @@ DEFINE_ENUM(EMetricType,
     ((Counter) (0))
     ((Gauge)   (1))
 );
-
-DECLARE_REFCOUNTED_CLASS(TProfileManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

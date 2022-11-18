@@ -2,13 +2,16 @@
 
 #include "public.h"
 
-#include <yt/yt/core/ytree/ypath_detail.h>
+#include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NYTree::IYPathServicePtr CreateSensorService(TSolomonExporterConfigPtr config, TSolomonRegistryPtr registry, TSolomonExporterPtr exporter);
+NYTree::IYPathServicePtr CreateSensorService(
+    TSolomonExporterConfigPtr config,
+    TSolomonRegistryPtr registry,
+    TSolomonExporterPtr exporter);
 
 ////////////////////////////////////////////////////////////////////////////////
 

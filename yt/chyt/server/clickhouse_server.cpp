@@ -17,8 +17,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/coroutine.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <Server/HTTP/HTTPServer.h>
 #include <Server/IServer.h>
 

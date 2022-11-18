@@ -1,8 +1,6 @@
 #include "tvm_service.h"
 #include "config.h"
 
-#include <yt/yt/core/profiling/profiler.h>
-
 namespace NYT::NAuth {
 
 using namespace NProfiling;

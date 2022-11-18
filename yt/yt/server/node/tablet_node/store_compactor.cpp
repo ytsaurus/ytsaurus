@@ -72,9 +72,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/ytree/helpers.h>
 #include <yt/yt/core/ytree/virtual.h>
 

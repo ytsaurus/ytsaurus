@@ -16,8 +16,6 @@
 
 #include <yt/yt/core/misc/heap.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <library/cpp/yt/threading/spin_wait.h>
 
 #include <util/system/yield.h>

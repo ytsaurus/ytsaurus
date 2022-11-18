@@ -50,8 +50,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/core/tracing/trace_context.h>
 
 namespace NYT::NTabletNode {

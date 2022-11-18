@@ -11,8 +11,6 @@
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/serialize.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
 namespace NYT::NHydra {

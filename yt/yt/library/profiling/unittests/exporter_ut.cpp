@@ -22,9 +22,7 @@ TEST(TSolomonExporter, MemoryLeak)
     config->EnableCoreProfilingCompatibility = true;
     config->EnableSelfProfiling = false;
 
-    auto actionQueue = New<TActionQueue>("Leak");
-
-    auto exporter = NYT::New<TSolomonExporter>(config, actionQueue->GetInvoker(), registry);
+    auto exporter = New<TSolomonExporter>(config, registry);
     auto json = exporter->ReadJson();
     EXPECT_FALSE(json);
 
@@ -37,8 +35,6 @@ TEST(TSolomonExporter, MemoryLeak)
     EXPECT_FALSE(json->empty());
 
     exporter->Stop();
-
-    actionQueue->Shutdown();
 }
 
 TEST(TSolomonExporter, ReadJsonHistogram)
@@ -51,9 +47,7 @@ TEST(TSolomonExporter, ReadJsonHistogram)
     config->EnableCoreProfilingCompatibility = true;
     config->EnableSelfProfiling = false;
 
-    auto actionQueue = New<TActionQueue>("Leak");
-
-    auto exporter = NYT::New<TSolomonExporter>(config, actionQueue->GetInvoker(), registry);
+    auto exporter = NYT::New<TSolomonExporter>(config, registry);
     auto json = exporter->ReadJson();
     EXPECT_FALSE(json);
 
@@ -69,8 +63,6 @@ TEST(TSolomonExporter, ReadJsonHistogram)
     Cerr << *json;
 
     exporter->Stop();
-
-    actionQueue->Shutdown();  
 }
 
 ////////////////////////////////////////////////////////////////////////////////

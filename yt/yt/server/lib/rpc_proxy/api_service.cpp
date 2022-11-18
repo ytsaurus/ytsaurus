@@ -78,8 +78,6 @@
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/mpl.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/stream.h>
 
