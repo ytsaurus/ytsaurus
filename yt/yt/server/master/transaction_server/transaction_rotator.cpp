@@ -23,16 +23,11 @@ TTransactionRotator::TTransactionRotator(
     YT_VERIFY(Bootstrap_);
 }
 
-bool TTransactionRotator::IsTransactionAlive() const
-{
-    VERIFY_THREAD_AFFINITY(AutomatonThread);
-
-    return Transaction_.IsAlive();
-}
-
 void TTransactionRotator::Clear()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+    NeedInitializeTransactionPtr_ = false;
 
     PreviousTransaction_.Reset();
     Transaction_.Reset();
@@ -43,7 +38,7 @@ void TTransactionRotator::Persist(const TPersistenceContext& context)
     using NYT::Persist;
 
     // COMPAT(kvk1920)
-    if (context.IsLoad() && context.GetVersion() < EMasterReign::TransactionRotator) {
+    if (context.GetVersion() < EMasterReign::TransactionRotator) {
         Persist(context, CompatTransactionId_);
         Persist(context, CompatPreviousTransactionId_);
         NeedInitializeTransactionPtr_ = true;
@@ -73,12 +68,15 @@ void TTransactionRotator::Rotate()
 
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
 
-    if (PreviousTransaction_.IsAlive()) {
+    // NB: Transaction commit can lead to OnTransactionFinished(), so we have
+    // to ensure that OnTransactionFinished() does not return |true| for
+    // this committed transaction.
+    auto previousTransaction = std::exchange(PreviousTransaction_, {});
+    if (previousTransaction.IsAlive()) {
         transactionManager->CommitTransaction(
-            PreviousTransaction_.Get(),
+            previousTransaction.Get(),
             /*commitOptions*/ {});
     }
-    PreviousTransaction_.Reset();
 
     PreviousTransaction_ = std::move(Transaction_);
 

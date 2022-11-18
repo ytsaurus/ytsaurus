@@ -30,8 +30,6 @@ public:
 
     void Persist(const NCellMaster::TPersistenceContext& context);
 
-    //! Returns true if current transaction is alive.
-    bool IsTransactionAlive() const;
     //! Returns previous transaction id or |NullTransactionId| if none.
     TTransactionId GetPreviousTransactionId() const;
     //! Returns current transaction id or |NullTransactionId| if none.

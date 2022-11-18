@@ -77,6 +77,7 @@ DEFINE_ENUM(EMasterReign,
     ((SetUserPassword)                                              (2203))  // gritukan
     ((RefCountedCoWs)                                               (2204))  // babenko
     ((RemovableQueueAgentStage)                                     (2205))  // achulkov2
+    ((FixTransactionRotator)                                        (2206))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
