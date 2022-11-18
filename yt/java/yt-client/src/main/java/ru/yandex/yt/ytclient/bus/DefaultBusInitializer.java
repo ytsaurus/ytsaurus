@@ -10,16 +10,13 @@ import io.netty.channel.ChannelPipeline;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
 
-import ru.yandex.yt.ytclient.bus.internal.BusPacketDecoder;
-import ru.yandex.yt.ytclient.bus.internal.BusPacketEncoder;
-import ru.yandex.yt.ytclient.bus.internal.BusProtocolHandler;
 import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
 import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
 
 /**
  * Класс для инициализации каналов для работы с bus протоколом
  */
-public class DefaultBusInitializer extends ChannelInitializer<Channel> {
+class DefaultBusInitializer extends ChannelInitializer<Channel> {
     private final BusListener listener;
     private Duration readTimeout = Duration.ZERO;
     private Duration writeTimeout = Duration.ZERO;
@@ -28,11 +25,11 @@ public class DefaultBusInitializer extends ChannelInitializer<Channel> {
 
     private final DefaultBusChannelMetricsHolder metricsHolder;
 
-    public DefaultBusInitializer(BusListener listener) {
+    DefaultBusInitializer(BusListener listener) {
         this(listener, DefaultBusChannelMetricsHolderImpl.INSTANCE);
     }
 
-    public DefaultBusInitializer(BusListener listener, DefaultBusChannelMetricsHolder metricsHolder) {
+    DefaultBusInitializer(BusListener listener, DefaultBusChannelMetricsHolder metricsHolder) {
         this.listener = listener;
         this.metricsHolder = metricsHolder;
     }

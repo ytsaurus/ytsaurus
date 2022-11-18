@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.util.HashMap;
 import java.util.Map;
@@ -6,7 +6,7 @@ import java.util.Map;
 /**
  * Тип пакета в протоколе bus (i16 в C++)
  */
-public enum BusPacketType {
+enum BusPacketType {
     MESSAGE(0),
     ACK(1);
 

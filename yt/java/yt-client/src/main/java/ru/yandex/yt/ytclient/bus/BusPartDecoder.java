@@ -1,15 +1,15 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import io.netty.buffer.ByteBuf;
 
 /**
  * Вспомогательный класс для вычитывания частей сообщения
  */
-public class BusPartDecoder {
+class BusPartDecoder {
     private byte[] data;
     private int size;
 
-    public BusPartDecoder() {
+    BusPartDecoder() {
         // nothing
     }
 

@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.util.Collections;
 import java.util.List;
@@ -7,12 +7,10 @@ import java.util.Objects;
 import io.netty.buffer.ByteBuf;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.yt.ytclient.bus.BusUtil;
-
 /**
  * Десериализованное представление пакета bus
  */
-public class BusPacket {
+class BusPacket {
     public static final int PACKET_SIGNATURE = 0x78616d4f;
     public static final int MAX_PART_COUNT = 1 << 28;
     public static final long NULL_CHECKSUM = 0;
@@ -27,14 +25,14 @@ public class BusPacket {
     /**
      * Создаёт пакет без приаттаченных данных
      */
-    public BusPacket(BusPacketType type, short flags, GUID packetId) {
+    BusPacket(BusPacketType type, short flags, GUID packetId) {
         this(type, flags, packetId, Collections.emptyList());
     }
 
     /**
      * Создаёт пакет с опционально приаттаченным сообщением
      */
-    public BusPacket(BusPacketType type, short flags, GUID packetId, List<byte[]> message) {
+    BusPacket(BusPacketType type, short flags, GUID packetId, List<byte[]> message) {
         this.type = Objects.requireNonNull(type);
         this.flags = flags;
         this.packetId = Objects.requireNonNull(packetId);

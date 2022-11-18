@@ -1,9 +1,9 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 /**
  * Флаги пакета в протоколе bus (ui16 в C++)
  */
-public class BusPacketFlags {
+class BusPacketFlags {
     public static final short NONE = 0;
     public static final short REQUEST_ACK = 1;
 

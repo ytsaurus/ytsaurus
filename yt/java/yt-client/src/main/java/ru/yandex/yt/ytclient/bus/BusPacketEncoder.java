@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
@@ -8,16 +8,16 @@ import io.netty.channel.ChannelPromise;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class BusPacketEncoder extends ChannelOutboundHandlerAdapter {
+class BusPacketEncoder extends ChannelOutboundHandlerAdapter {
     private static final Logger logger = LoggerFactory.getLogger(BusPacketEncoder.class);
 
     private final boolean computeChecksums;
 
-    public BusPacketEncoder() {
+    BusPacketEncoder() {
         this(true);
     }
 
-    public BusPacketEncoder(boolean computeChecksums) {
+    BusPacketEncoder(boolean computeChecksums) {
         this.computeChecksums = computeChecksums;
     }
 

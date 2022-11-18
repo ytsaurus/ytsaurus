@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -11,7 +11,7 @@ import org.slf4j.LoggerFactory;
 
 import ru.yandex.yt.ytclient.misc.YtCrc64;
 
-public class BusPacketDecoder extends ByteToMessageDecoder {
+class BusPacketDecoder extends ByteToMessageDecoder {
     private static final Logger logger = LoggerFactory.getLogger(BusPacketDecoder.class);
     private static final byte[] EMPTY_PART = new byte[0];
 
@@ -29,11 +29,11 @@ public class BusPacketDecoder extends ByteToMessageDecoder {
         ERROR
     }
 
-    public BusPacketDecoder() {
+    BusPacketDecoder() {
         this(true);
     }
 
-    public BusPacketDecoder(boolean verifyChecksums) {
+    BusPacketDecoder(boolean verifyChecksums) {
         this.verifyChecksums = verifyChecksums;
     }
 

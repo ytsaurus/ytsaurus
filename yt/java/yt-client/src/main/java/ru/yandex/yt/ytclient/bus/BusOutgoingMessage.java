@@ -1,21 +1,19 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.util.List;
 import java.util.Objects;
 
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
-
 /**
  * Временное представление исходящего сообщения
  */
-public final class BusOutgoingMessage {
+final class BusOutgoingMessage {
     private final GUID packetId;
     private final List<byte[]> message;
     private final BusDeliveryTracking level;
 
-    public BusOutgoingMessage(List<byte[]> message, BusDeliveryTracking level) {
+    BusOutgoingMessage(List<byte[]> message, BusDeliveryTracking level) {
         this.packetId = GUID.create();
         this.message = Objects.requireNonNull(message);
         this.level = Objects.requireNonNull(level);

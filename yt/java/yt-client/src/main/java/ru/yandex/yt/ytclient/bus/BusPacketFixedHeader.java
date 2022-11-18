@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.internal;
+package ru.yandex.yt.ytclient.bus;
 
 import java.nio.ByteOrder;
 import java.util.Objects;
@@ -6,10 +6,9 @@ import java.util.Objects;
 import io.netty.buffer.ByteBuf;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.yt.ytclient.bus.BusUtil;
 import ru.yandex.yt.ytclient.misc.YtCrc64;
 
-public class BusPacketFixedHeader {
+class BusPacketFixedHeader {
     /**
      * ui32 Signature;
      * EPacketType Type;
@@ -25,7 +24,7 @@ public class BusPacketFixedHeader {
     private final GUID packetId;
     private final int partCount;
 
-    public BusPacketFixedHeader(BusPacketType type, short flags, GUID packetId, int partCount) {
+    BusPacketFixedHeader(BusPacketType type, short flags, GUID packetId, int partCount) {
         this.type = Objects.requireNonNull(type);
         this.flags = flags;
         this.packetId = Objects.requireNonNull(packetId);
