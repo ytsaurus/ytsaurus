@@ -542,7 +542,8 @@ TChunkMerger::TChunkMerger(TBootstrap* bootstrap)
 void TChunkMerger::Initialize()
 {
     const auto& transactionManager = Bootstrap_->GetTransactionManager();
-    transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TChunkMerger::OnTransactionAborted, MakeWeak(this)));
+    transactionManager->SubscribeTransactionAborted(BIND_NO_PROPAGATE(&TChunkMerger::OnTransactionFinished, MakeWeak(this)));
+    transactionManager->SubscribeTransactionCommitted(BIND_NO_PROPAGATE(&TChunkMerger::OnTransactionFinished, MakeWeak(this)));
 
     const auto& configManager = Bootstrap_->GetConfigManager();
     configManager->SubscribeConfigChanged(BIND_NO_PROPAGATE(&TChunkMerger::OnDynamicConfigChanged, MakeWeak(this)));
@@ -855,14 +856,17 @@ void TChunkMerger::StartMergeTransaction()
         ->CommitAndLog(Logger);
 }
 
-void TChunkMerger::OnTransactionAborted(TTransaction* transaction)
+void TChunkMerger::OnTransactionFinished(TTransaction* transaction)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
     YT_VERIFY(HasMutationContext());
 
-    TransactionRotator_.OnTransactionFinished(transaction);
+    auto currentTransactionId = TransactionRotator_.GetTransactionId();
+    if (!TransactionRotator_.OnTransactionFinished(transaction)) {
+        return;
+    }
 
-    if (IsLeader() && !IsObjectAlive(TransactionRotator_.GetTransaction())) {
+    if (IsLeader() && transaction->GetId() == currentTransactionId) {
         StartMergeTransaction();
     }
 }

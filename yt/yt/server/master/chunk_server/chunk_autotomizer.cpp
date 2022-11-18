@@ -686,6 +686,14 @@ private:
         Save(context, TransactionRotator_);
     }
 
+    void Clear() override
+    {
+        TMasterAutomatonPart::Clear();
+
+        RegisteredChunks_.clear();
+        TransactionRotator_.Clear();
+    }
+
     void OnLeaderActive() override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

@@ -241,7 +241,7 @@ private:
 
     void StartMergeTransaction();
 
-    void OnTransactionAborted(NTransactionServer::TTransaction* transaction);
+    void OnTransactionFinished(NTransactionServer::TTransaction* transaction);
 
     void ProcessTouchedNodes();
 
