@@ -14,8 +14,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReqWriteTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
@@ -24,8 +22,6 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
-@NonNullApi
-@NonNullFields
 public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable<T>> {
     @Nullable
     private final YPath path;
@@ -156,8 +152,6 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         return builder;
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class SerializationContext<T> {
         @Nullable
         private final WireRowSerializer<T> serializer;
@@ -247,8 +241,6 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         }
     }
 
-    @NonNullApi
-    @NonNullFields
     public abstract static class BuilderBase<
             T,
             TBuilder extends BuilderBase<T, TBuilder>>

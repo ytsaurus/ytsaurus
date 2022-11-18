@@ -4,14 +4,10 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqRemoveNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
-@NonNullApi
-@NonNullFields
 public class RemoveNode
         extends MutatePath<RemoveNode.Builder, RemoveNode>
         implements HighLevelRequest<TReqRemoveNode.Builder> {

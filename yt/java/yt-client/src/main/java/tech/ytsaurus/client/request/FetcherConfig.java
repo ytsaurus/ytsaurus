@@ -2,12 +2,8 @@ package tech.ytsaurus.client.request;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TFetcherConfig;
 
-@NonNullApi
-@NonNullFields
 public class FetcherConfig {
     @Nullable
     private final Long nodeRpcTimeout;

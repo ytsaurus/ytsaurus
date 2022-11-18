@@ -10,15 +10,11 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCheckPermission;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
-@NonNullApi
-@NonNullFields
 public class CheckPermission
         extends MutateNode<CheckPermission.Builder, CheckPermission>
         implements HighLevelRequest<TReqCheckPermission.Builder> {

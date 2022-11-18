@@ -11,8 +11,6 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcUtil;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.ytclient.SerializationResolver;
@@ -29,8 +27,6 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
  * Compression used in this request have to match with compression of the client otherwise exception will be thrown
  * when trying to execute this request.
  */
-@NonNullApi
-@NonNullFields
 public class PreparedModifyRowRequest
         extends AbstractModifyRowsRequest<PreparedModifyRowRequest.Builder, PreparedModifyRowRequest> {
     private final Compression codecId;

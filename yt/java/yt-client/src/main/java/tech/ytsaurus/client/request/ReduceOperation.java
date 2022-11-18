@@ -1,11 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.operations.ReduceSpec;
 
-@NonNullApi
-@NonNullFields
 public class ReduceOperation extends BaseOperation<ReduceSpec> {
     ReduceOperation(Builder builder) {
         super(builder);
@@ -22,8 +18,6 @@ public class ReduceOperation extends BaseOperation<ReduceSpec> {
         return new Builder();
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends BuilderBase<Builder, ReduceSpec> {
         public ReduceOperation build() {
             return new ReduceOperation(this);

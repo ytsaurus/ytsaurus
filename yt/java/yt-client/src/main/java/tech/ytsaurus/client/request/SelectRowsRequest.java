@@ -10,12 +10,8 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqSelectRows;
 
-@NonNullApi
-@NonNullFields
 public class SelectRowsRequest
         extends RequestBase<SelectRowsRequest.Builder, SelectRowsRequest>
         implements HighLevelRequest<TReqSelectRows.Builder> {

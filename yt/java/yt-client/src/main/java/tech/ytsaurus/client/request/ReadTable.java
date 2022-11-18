@@ -12,15 +12,11 @@ import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TReqReadTable;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
-@NonNullApi
-@NonNullFields
 public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>> {
     @Nullable
     private final YPath path;
@@ -96,8 +92,6 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         return builder;
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class SerializationContext<T> {
         @Nullable
         private final WireRowDeserializer<T> deserializer;

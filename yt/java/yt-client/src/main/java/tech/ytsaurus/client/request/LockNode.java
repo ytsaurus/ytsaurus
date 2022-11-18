@@ -10,16 +10,12 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqLockNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 import ru.yandex.yt.ytclient.request.LockMode;
 
-@NonNullFields
-@NonNullApi
 public class LockNode extends MutatePath<LockNode.Builder, LockNode> implements HighLevelRequest<TReqLockNode.Builder> {
     private final LockMode mode;
 

@@ -10,8 +10,6 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
 import ru.yandex.yt.ytclient.SerializationResolver;
@@ -19,14 +17,10 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**
  * Base class for all kinds of modify row requests.
- *
- * Users should create and use one of inheritors.
- *
- * @see ModifyRowsRequest
- * @see PreparedModifyRowRequest
+ * <p>
+ * Users should create and use one of inheritors: {@link ModifyRowsRequest}, {@link PreparableModifyRowsRequest} or
+ * {@link MappedModifyRowsRequest}
  */
-@NonNullApi
-@NonNullFields
 public abstract class AbstractModifyRowsRequest<
         TBuilder extends AbstractModifyRowsRequest.Builder<TBuilder, TRequest>,
         TRequest extends AbstractModifyRowsRequest<TBuilder, TRequest>> extends RequestBase<TBuilder, TRequest> {

@@ -26,7 +26,7 @@ public class MappedModifyRowsRequest<T>
         extends PreparableModifyRowsRequest<MappedModifyRowsRequest.Builder<T>, MappedModifyRowsRequest<T>> {
     private final List<T> rows;
     private final WireRowSerializer<T> serializer;
-    private boolean hasDeletes;
+    private final boolean hasDeletes;
     private final ArrayList<Boolean> rowAggregates;
 
     public MappedModifyRowsRequest(BuilderBase<T, ?> builder) {

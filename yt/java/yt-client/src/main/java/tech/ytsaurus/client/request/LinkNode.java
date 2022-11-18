@@ -4,15 +4,11 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqLinkNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
-@NonNullApi
-@NonNullFields
 public class LinkNode
         extends CopyLikeReq<LinkNode.Builder, LinkNode>
         implements HighLevelRequest<TReqLinkNode.Builder> {
@@ -95,8 +91,6 @@ public class LinkNode
         }
     }
 
-    @NonNullApi
-    @NonNullFields
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
             extends CopyLikeReq.Builder<TBuilder, LinkNode> {

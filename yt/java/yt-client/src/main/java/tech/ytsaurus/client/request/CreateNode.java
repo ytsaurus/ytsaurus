@@ -16,8 +16,6 @@ import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
@@ -31,8 +29,6 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
  *     create documentation
  *     </a>
  */
-@NonNullApi
-@NonNullFields
 public class CreateNode
         extends MutatePath<CreateNode.Builder, CreateNode>
         implements HighLevelRequest<TReqCreateNode.Builder> {

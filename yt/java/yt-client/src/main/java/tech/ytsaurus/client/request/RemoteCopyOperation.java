@@ -1,11 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.operations.RemoteCopySpec;
 
-@NonNullApi
-@NonNullFields
 public class RemoteCopyOperation extends BaseOperation<RemoteCopySpec> {
     RemoteCopyOperation(Builder builder) {
         super(builder);
@@ -22,8 +18,6 @@ public class RemoteCopyOperation extends BaseOperation<RemoteCopySpec> {
         return new Builder();
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends BuilderBase<Builder, RemoteCopySpec> {
         public RemoteCopyOperation build() {
             return new RemoteCopyOperation(this);

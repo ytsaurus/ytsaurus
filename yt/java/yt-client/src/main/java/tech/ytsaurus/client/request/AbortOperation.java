@@ -5,8 +5,6 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAbortOperation;
 
 /**
@@ -17,8 +15,6 @@ import ru.yandex.yt.rpcproxy.TReqAbortOperation;
  *     abort_op documentation
  *     </a>
  */
-@NonNullApi
-@NonNullFields
 public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOperation>
         implements HighLevelRequest<TReqAbortOperation.Builder> {
     @Nullable
@@ -92,8 +88,6 @@ public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOp
     /**
      * Builder for {@link AbortOperation}
      */
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends OperationReq.Builder<Builder, AbortOperation> {
         @Nullable
         private String message;

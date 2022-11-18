@@ -9,8 +9,6 @@ import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqReadFile;
 import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
@@ -18,9 +16,12 @@ import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
     private final String path;
 
-    private Long offset = null;
-    private Long length = null;
-    private YTreeNode config = null;
+    @Nullable
+    private Long offset;
+    @Nullable
+    private Long length;
+    @Nullable
+    private YTreeNode config;
 
     private TransactionalOptions transactionalOptions = null;
     private SuppressableAccessTrackingOptions suppressableAccessTrackingOptions = null;
@@ -105,8 +106,6 @@ public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
         }
     }
 
-    @NonNullApi
-    @NonNullFields
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
             extends RequestBase.Builder<TBuilder, ReadFile> {

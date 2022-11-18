@@ -1,11 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.operations.MapReduceSpec;
 
-@NonNullApi
-@NonNullFields
 public class MapReduceOperation extends BaseOperation<MapReduceSpec> {
     MapReduceOperation(Builder builder) {
         super(builder);
@@ -22,8 +18,6 @@ public class MapReduceOperation extends BaseOperation<MapReduceSpec> {
         return new Builder();
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends BuilderBase<Builder, MapReduceSpec> {
         public MapReduceOperation build() {
             return new MapReduceOperation(this);

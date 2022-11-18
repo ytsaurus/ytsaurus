@@ -11,13 +11,9 @@ import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqCreateObject;
 import ru.yandex.yt.ytree.TAttributeDictionary;
 
-@NonNullApi
-@NonNullFields
 public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject>
         implements HighLevelRequest<TReqCreateObject.Builder> {
     private final ObjectType type;
@@ -74,8 +70,6 @@ public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject
                 .setAdditionalData(additionalData);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, CreateObject> {
         @Nullable
         private ObjectType type;

@@ -10,13 +10,9 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 import ru.yandex.yt.rpcproxy.TReqGetOperation;
 
-@NonNullApi
-@NonNullFields
 public class GetOperation
           extends OperationReq<GetOperation.Builder, GetOperation>
           implements HighLevelRequest<TReqGetOperation.Builder> {
@@ -99,8 +95,6 @@ public class GetOperation
         }
     }
 
-    @NonNullApi
-    @NonNullFields
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
             extends OperationReq.Builder<TBuilder, GetOperation> {

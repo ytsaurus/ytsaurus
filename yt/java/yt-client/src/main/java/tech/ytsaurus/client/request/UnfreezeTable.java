@@ -3,12 +3,8 @@ package tech.ytsaurus.client.request;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqUnfreezeTable;
 
-@NonNullApi
-@NonNullFields
 public class UnfreezeTable
         extends TableReq<UnfreezeTable.Builder, UnfreezeTable>
         implements HighLevelRequest<TReqUnfreezeTable.Builder> {

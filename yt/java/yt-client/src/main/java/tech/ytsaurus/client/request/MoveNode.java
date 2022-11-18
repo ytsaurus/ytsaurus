@@ -3,15 +3,11 @@ package tech.ytsaurus.client.request;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 import ru.yandex.yt.rpcproxy.TReqMoveNode;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
-@NonNullApi
-@NonNullFields
 public class MoveNode
         extends CopyLikeReq<MoveNode.Builder, MoveNode>
         implements HighLevelRequest<TReqMoveNode.Builder> {
@@ -81,8 +77,6 @@ public class MoveNode
                 .setMutatingOptions(new MutatingOptions(mutatingOptions));
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {

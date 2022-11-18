@@ -9,12 +9,8 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqGCCollect;
 
-@NonNullFields
-@NonNullApi
 public class GcCollect
         extends RequestBase<GcCollect.Builder, GcCollect>
         implements HighLevelRequest<TReqGCCollect.Builder> {
@@ -57,8 +53,6 @@ public class GcCollect
                 .setAdditionalData(additionalData);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, GcCollect> {
         @Nullable
         private GUID cellId;

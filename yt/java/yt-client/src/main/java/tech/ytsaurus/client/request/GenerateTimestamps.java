@@ -7,12 +7,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
 
-@NonNullFields
-@NonNullApi
 public class GenerateTimestamps extends RequestBase<GenerateTimestamps.Builder, GenerateTimestamps>
         implements HighLevelRequest<TReqGenerateTimestamps.Builder> {
     private final int count;
@@ -54,8 +50,6 @@ public class GenerateTimestamps extends RequestBase<GenerateTimestamps.Builder, 
                 .setAdditionalData(additionalData);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, GenerateTimestamps> {
         @Nullable
         private Integer count;

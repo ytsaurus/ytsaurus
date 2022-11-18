@@ -6,8 +6,6 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.operations.Spec;
 
 public class BaseOperation<TSpec extends Spec> {
@@ -38,8 +36,6 @@ public class BaseOperation<TSpec extends Spec> {
         return mutatingOptions;
     }
 
-    @NonNullApi
-    @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T, TSpec>, TSpec extends Spec> {
         @Nullable
         private TSpec spec;

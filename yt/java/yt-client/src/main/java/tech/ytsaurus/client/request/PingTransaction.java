@@ -9,8 +9,6 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqPingTransaction;
 
 /**
@@ -20,8 +18,6 @@ import ru.yandex.yt.rpcproxy.TReqPingTransaction;
  *     ping_tx documentation
  *     </a>
  */
-@NonNullApi
-@NonNullFields
 public class PingTransaction extends RequestBase<PingTransaction.Builder, PingTransaction>
         implements HighLevelRequest<TReqPingTransaction.Builder> {
     private final GUID transactionId;
@@ -77,8 +73,6 @@ public class PingTransaction extends RequestBase<PingTransaction.Builder, PingTr
                 .setAdditionalData(additionalData);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, PingTransaction> {
         @Nullable
         private GUID transactionId;

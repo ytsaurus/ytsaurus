@@ -9,12 +9,8 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
 
-@NonNullApi
-@NonNullFields
 public class BuildSnapshot extends RequestBase<BuildSnapshot.Builder, BuildSnapshot>
         implements HighLevelRequest<TReqBuildSnapshot.Builder> {
     private final GUID cellId;

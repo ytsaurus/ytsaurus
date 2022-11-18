@@ -8,12 +8,8 @@ import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqMountTable;
 
-@NonNullApi
-@NonNullFields
 public class MountTable
         extends TableReq<MountTable.Builder, MountTable>
         implements HighLevelRequest<TReqMountTable.Builder> {

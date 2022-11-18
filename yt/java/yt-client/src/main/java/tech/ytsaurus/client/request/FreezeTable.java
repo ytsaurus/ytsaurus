@@ -3,10 +3,8 @@ package tech.ytsaurus.client.request;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpcproxy.TReqFreezeTable;
 
-@NonNullApi
 public class FreezeTable
         extends TableReq<FreezeTable.Builder, FreezeTable>
         implements HighLevelRequest<TReqFreezeTable.Builder> {
