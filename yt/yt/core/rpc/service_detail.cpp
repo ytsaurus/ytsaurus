@@ -229,6 +229,7 @@ TServiceBase::TRuntimeMethodInfo::TRuntimeMethodInfo(
     , ResponseLoggingAnchor(NLogging::TLogManager::Get()->RegisterDynamicAnchor(
         Format("%v.%v ->", ServiceId.ServiceName, Descriptor.Method)))
     , RequestQueueSizeLimitErrorCounter(Profiler.Counter("/request_queue_size_errors"))
+    , UnauthenticatedRequestsCounter(Profiler.Counter("/unauthenticated_requests"))
     , LoggingSuppressionFailedRequestThrottler(
         CreateReconfigurableThroughputThrottler(
             DefaultLoggingSuppressionFailedRequestThrottlerConfig))
@@ -1652,6 +1653,14 @@ bool TServiceBase::IsAuthenticationNeeded(const TAcceptedRequest& acceptedReques
 
 void TServiceBase::HandleAuthenticatedRequest(TAcceptedRequest&& acceptedRequest)
 {
+    if (!acceptedRequest.ReplyBus->IsEndpointLocal()) {
+        bool authenticated = acceptedRequest.Header->HasExtension(NRpc::NProto::TCredentialsExt::credentials_ext) &&
+            acceptedRequest.Header->GetExtension(NRpc::NProto::TCredentialsExt::credentials_ext).has_service_ticket();
+        if (!authenticated) {
+            acceptedRequest.RuntimeInfo->UnauthenticatedRequestsCounter.Increment();
+        }
+    }
+
     auto context = New<TServiceContext>(
         this,
         std::move(acceptedRequest),
