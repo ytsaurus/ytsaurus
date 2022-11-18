@@ -158,17 +158,14 @@ class TestLogTailer(YTEnvSetup):
 
             def check_rows_written_profiling():
                 try:
-                    r = requests.get(
-                        url="http://localhost:{}/orchid/profiling/log_tailer/rows_written".format(
-                            log_tailer_monitoring_port
-                        )
-                    )
-                    rsp = r.json()
-                    if len(rsp) == 0:
-                        return False
-                    if "value" not in rsp[-1]:
-                        return False
-                    return rsp[-1]["value"] == 1000
+                    url = f"http://localhost:{log_tailer_monitoring_port}/orchid/sensors"
+                    params = {
+                        "verb": "get",
+                        # "name" parameter is a yson-string, so we need to add extra ".
+                        "name": '"yt/log_tailer/rows_written"',
+                    }
+                    rsp = requests.get(url, params=params)
+                    return rsp.json()
                 except:  # noqa
                     return False
 
