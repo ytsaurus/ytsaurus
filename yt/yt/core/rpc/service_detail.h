@@ -672,6 +672,7 @@ protected:
         std::atomic<int> QueueSizeLimit = 0;
         std::atomic<int> ConcurrencyLimit = 0;
         NProfiling::TCounter RequestQueueSizeLimitErrorCounter;
+        NProfiling::TCounter UnauthenticatedRequestsCounter;
 
         std::atomic<NLogging::ELogLevel> LogLevel = {};
         std::atomic<TDuration> LoggingSuppressionTimeout = {};
