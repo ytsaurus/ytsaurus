@@ -618,7 +618,8 @@ public:
         mutation->SetCurrentTraceContext();
         mutation->Commit()
             .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
-                if (!result.IsOK()) {
+                if (!context->IsReplied()) {
+                    // Must be a commit error or a forwarded request.
                     // Reply with commit error.
                     context->Reply(result);
                 }
