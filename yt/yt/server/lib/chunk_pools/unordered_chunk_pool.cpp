@@ -594,7 +594,7 @@ private:
         }
     }
 
-    int GetFreeJobCount() const
+    i64 GetFreeJobCount() const
     {
         return FreeJobCounter_->GetPending() + FreeJobCounter_->GetSuspended();
     }
@@ -604,7 +604,7 @@ private:
         if (Mode_ == EUnorderedChunkPoolMode::AutoMerge) {
             return JobSizeConstraints_->GetDataWeightPerJob();
         }
-        int freePendingJobCount = GetFreeJobCount();
+        i64 freePendingJobCount = GetFreeJobCount();
         YT_VERIFY(freePendingJobCount > 0);
         return std::max(
             static_cast<i64>(1),
