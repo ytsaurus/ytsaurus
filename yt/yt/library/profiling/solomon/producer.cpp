@@ -5,8 +5,6 @@
 
 #include <yt/yt/core/misc/finally.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/library/profiling/producer.h>
 
 namespace NYT::NProfiling {
@@ -161,7 +159,7 @@ void TProducerSet::Collect(IRegistryImplPtr profiler, IInvokerPtr invoker)
             continue;
         }
 
-        auto future = BIND([profiler, owner, producer, collectDuration=ProducerCollectDuration_] () {
+        auto future = BIND([profiler, owner, producer, collectDuration = ProducerCollectDuration_] () {
             auto startTime = TInstant::Now();
             auto reportTime = Finally([&] {
                 collectDuration.Record(TInstant::Now() - startTime);
@@ -198,7 +196,7 @@ void TProducerSet::Collect(IRegistryImplPtr profiler, IInvokerPtr invoker)
     }
 
     // Use blocking Get(), because we want to lock current thread while data structure is updating.
-    for (auto& future : offloadFutures) {
+    for (const auto& future : offloadFutures) {
         future.Get();
     }
 

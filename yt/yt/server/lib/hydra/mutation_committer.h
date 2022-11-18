@@ -18,8 +18,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/library/tracing/async_queue_trace.h>
 
 namespace NYT::NHydra {

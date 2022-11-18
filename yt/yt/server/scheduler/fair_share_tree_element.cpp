@@ -9,9 +9,6 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/historic_usage_aggregator.h>
 #include <yt/yt/core/misc/string_builder.h>

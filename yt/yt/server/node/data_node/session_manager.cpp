@@ -18,8 +18,6 @@
 
 #include <yt/yt/core/misc/fs.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <library/cpp/yt/assert/assert.h>

@@ -30,8 +30,6 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 namespace NYT::NCellServer {
 
 using namespace NCellarClient;

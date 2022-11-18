@@ -1,8 +1,6 @@
 #include "sensor_set.h"
 #include "private.h"
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <library/cpp/yt/assert/assert.h>
 
 #include <library/cpp/monlib/metrics/summary_snapshot.h>
@@ -287,106 +285,6 @@ int TSensorSet::ReadSensorValues(
     valuesRead += GaugeHistogramsCube_.ReadSensorValues(tagIds, index, options, tagRegistry, fluent);
 
     return valuesRead;
-}
-
-void TSensorSet::LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry) const
-{
-    auto prefix = TStringBuf{name};
-    prefix.SkipPrefix("yt");
-    prefix.SkipPrefix("yp");
-    auto fullName = TString{prefix};
-
-    auto readLegacy = [&] (auto& set, auto doRead) {
-        for (const auto& counter : set) {
-            TQueuedSample sample;
-
-            auto empty = doRead(counter, &sample);
-            if (Options_.Sparse && empty) {
-                continue;
-            }
-
-            sample.Time = GetCpuInstant();
-            sample.Path = fullName;
-            sample.TagIds = tagRegistry->EncodeLegacy(counter->TagIds);
-
-            TProfileManager::Get()->Enqueue(sample);
-        }
-    };
-
-    readLegacy(Counters_, [&] (auto state, auto* sample) -> bool {
-        sample->MetricType = EMetricType::Counter;
-
-        auto owner = state->Owner.Lock();
-        if (!owner) {
-            sample->Value = state->LastValue;
-            return true;
-        }
-
-        sample->Value = state->Reader();
-        return sample->Value == state->LastValue;
-    });
-
-    readLegacy(TimeCounters_, [&] (auto state, auto* sample) -> bool {
-        sample->MetricType = EMetricType::Counter;
-
-        auto owner = state->Owner.Lock();
-        if (!owner) {
-            sample->Value = state->LastValue.MicroSeconds();
-            return true;
-        }
-
-        sample->Value = owner->GetValue().MicroSeconds();
-        return sample->Value == static_cast<NProfiling::TValue>(state->LastValue.MicroSeconds());
-    });
-
-    readLegacy(Gauges_, [&] (auto state, auto* sample) -> bool {
-        sample->MetricType = EMetricType::Gauge;
-
-        auto owner = state->Owner.Lock();
-        if (!owner) {
-            sample->Value = 0.0;
-            return true;
-        }
-
-        sample->Value = state->Reader();
-        return sample->Value == 0.0;
-    });
-
-    readLegacy(Summaries_, [&] (auto state, auto* sample) -> bool {
-        sample->MetricType = EMetricType::Gauge;
-
-        auto owner = state->Owner.Lock();
-        if (!owner) {
-            sample->Value = 0.0;
-            return true;
-        }
-
-        auto value = owner->GetSummary();
-        if (value.Count() == 0) {
-            return true;
-        }
-
-        sample->Value = value.Max();
-        return false;
-    });
-
-    readLegacy(Timers_, [&] (auto state, auto* sample) -> bool {
-        sample->MetricType = EMetricType::Gauge;
-
-        auto owner = state->Owner.Lock();
-        if (!owner) {
-            sample->Value = 0.0;
-            return true;
-        }
-
-        auto value = owner->GetSummary();
-        if (value.Count() == 0) {
-            return true;
-        }
-
-        sample->Value = value.Max().MicroSeconds();
-        return false;
-    });
 }
 
 int TSensorSet::GetGridFactor() const

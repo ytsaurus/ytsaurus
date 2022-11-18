@@ -12,8 +12,6 @@
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/mpsc_stack.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <set>
 
 namespace NYT::NObjectServer {

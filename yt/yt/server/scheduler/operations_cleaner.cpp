@@ -37,8 +37,6 @@
 
 #include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/utilex/random.h>

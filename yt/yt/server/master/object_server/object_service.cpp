@@ -51,7 +51,6 @@
 
 #include <yt/yt/core/ytree/ypath_detail.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/misc/crash_handler.h>

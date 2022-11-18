@@ -19,8 +19,6 @@
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <atomic>

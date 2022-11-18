@@ -5,8 +5,8 @@
 #include <yt/yt/server/lib/controller_agent/structs.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
 #include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/core/profiling/profiler.h>
 
 #include <yt/yt/core/misc/error.h>
 

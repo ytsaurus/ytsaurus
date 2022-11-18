@@ -54,8 +54,6 @@
 
 #include <yt/yt/core/ytree/helpers.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/library/tracing/async_queue_trace.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>

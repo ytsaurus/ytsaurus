@@ -17,8 +17,6 @@
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/checksum.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt/core/rpc/service_detail.h>

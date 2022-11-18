@@ -5,6 +5,7 @@
 #include "private.h"
 
 #include <yt/yt/core/concurrency/async_rw_lock.h>
+#include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/virtual.h>
@@ -27,9 +28,12 @@ class TSensorServiceImpl
     , public TSupportsGet
 {
 public:
-    TSensorServiceImpl(TString name, const TSolomonRegistryPtr& registry, TAsyncReaderWriterLock* const exporterLock)
+    TSensorServiceImpl(
+        TString name,
+        TSolomonRegistry* registry,
+        TAsyncReaderWriterLock* const exporterLock)
         : Name_(std::move(name))
-        , Registry_(registry)
+        , Registry_(std::move(registry))
         , ExporterLock_(exporterLock)
     { }
 
@@ -37,7 +41,7 @@ private:
     using TTagMap = THashMap<TString, TString>;
 
     const TString Name_;
-    const TSolomonRegistryPtr& Registry_;
+    TSolomonRegistry* const Registry_;
     TAsyncReaderWriterLock* const ExporterLock_;
 
     struct TGetSensorOptions
@@ -123,16 +127,19 @@ class TSensorService
     , public TSupportsList
 {
 public:
-    TSensorService(TSolomonExporterConfigPtr config, TSolomonRegistryPtr registry, TSolomonExporterPtr exporter)
+    TSensorService(
+        TSolomonExporterConfigPtr config,
+        TSolomonRegistryPtr registry,
+        TSolomonExporterPtr exporter)
         : Config_(std::move(config))
         , Registry_(std::move(registry))
         , Exporter_(std::move(exporter))
-        , RootSensorServiceImpl_(New<TSensorServiceImpl>(/*name*/ TString(), Registry_, &Exporter_->Lock_))
+        , RootSensorServiceImpl_(New<TSensorServiceImpl>(/*name*/ TString(), Registry_.Get(), &Exporter_->Lock_))
         , Root_(GetEphemeralNodeFactory(/*shouldHideAttributes*/ true)->CreateMap())
         , SensorTreeUpdateDuration_(Registry_->GetSelfProfiler().Timer("/sensor_service_tree_update_duration"))
     {
         UpdateSensorTreeExecutor_ = New<TPeriodicExecutor>(
-            Exporter_->Invoker_,
+            Exporter_->ControlQueue_->GetInvoker(),
             BIND(&TSensorService::UpdateSensorTree, MakeWeak(this)),
             Config_->UpdateSensorServiceTreePeriod);
         UpdateSensorTreeExecutor_->Start();
@@ -166,7 +173,7 @@ private:
                 continue;
             }
 
-            auto sensorServiceImpl = New<TSensorServiceImpl>(name, Registry_, &Exporter_->Lock_);
+            auto sensorServiceImpl = New<TSensorServiceImpl>(name, Registry_.Get(), &Exporter_->Lock_);
             EmplaceOrCrash(NameToSensorServiceImpl_, name, sensorServiceImpl);
 
             auto node = CreateVirtualNode(std::move(sensorServiceImpl));
@@ -260,9 +267,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IYPathServicePtr CreateSensorService(TSolomonExporterConfigPtr config, TSolomonRegistryPtr registry, TSolomonExporterPtr exporter)
+IYPathServicePtr CreateSensorService(
+    TSolomonExporterConfigPtr config,
+    TSolomonRegistryPtr registry,
+    TSolomonExporterPtr exporter)
 {
-    return New<TSensorService>(std::move(config), std::move(registry), std::move(exporter));
+    return New<TSensorService>(
+        std::move(config),
+        std::move(registry),
+        std::move(exporter));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -133,7 +133,6 @@
 #include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/core/profiling/timing.h>
-#include <yt/yt/core/profiling/profiler.h>
 
 #include <yt/yt/core/logging/log.h>
 #include <yt/yt/core/logging/fluent_log.h>

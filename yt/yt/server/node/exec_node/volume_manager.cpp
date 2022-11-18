@@ -54,8 +54,6 @@
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/proc.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/net/connection.h>
 
 #include <yt/yt/library/process/process.h>

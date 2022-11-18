@@ -10,8 +10,6 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/core/yson/null_consumer.h>
 
 #include <library/cpp/testing/gtest/gtest.h>

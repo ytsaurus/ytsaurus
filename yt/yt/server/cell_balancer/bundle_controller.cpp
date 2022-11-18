@@ -13,6 +13,8 @@
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NCellBalancer {
 
 using namespace NApi;
@@ -558,7 +560,7 @@ private:
         auto sensors = New<TBundleSensors>();
         sensors->Profiler = Profiler.WithPrefix("/resource").WithTag("bundle", bundleName);
         auto& bundleProfiler = sensors->Profiler;
-    
+
         sensors->CpuAllocated = bundleProfiler.Gauge("/cpu_allocated");
         sensors->CpuAlive = bundleProfiler.Gauge("/cpu_alive");
         sensors->CpuQuota = bundleProfiler.Gauge("/cpu_quota");

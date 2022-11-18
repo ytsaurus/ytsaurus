@@ -9,7 +9,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
+#include <library/cpp/yt/string/guid.h>
 
 namespace NYT::NChunkClient {
 

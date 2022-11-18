@@ -14,6 +14,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/thread_pool.h>
 #include <yt/yt/core/concurrency/scheduler_api.h>
 
 #include <library/cpp/monlib/encode/json/json.h>
@@ -62,7 +63,7 @@ void TSolomonExporterConfig::Register(TRegistrar registrar)
         .Default(12);
 
     registrar.Parameter("thread_pool_size", &TThis::ThreadPoolSize)
-        .Default();
+        .Default(1);
 
     registrar.Parameter("convert_counters_to_rate_for_solomon", &TThis::ConvertCountersToRateForSolomon)
         .Alias("convert_counters_to_rate")
@@ -79,9 +80,6 @@ void TSolomonExporterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("mark_aggregates", &TThis::MarkAggregates)
         .Default(true);
-
-    registrar.Parameter("enable_core_profiling_compatibility", &TThis::EnableCoreProfilingCompatibility)
-        .Default(false);
 
     registrar.Parameter("enable_self_profiling", &TThis::EnableSelfProfiling)
         .Default(true);
@@ -161,16 +159,12 @@ TShardConfigPtr TSolomonExporterConfig::MatchShard(const TString& sensorName)
 ////////////////////////////////////////////////////////////////////////////////
 
 TSolomonExporter::TSolomonExporter(
-    const TSolomonExporterConfigPtr& config,
-    const IInvokerPtr& invoker,
-    const TSolomonRegistryPtr& registry)
-    : Config_(config)
-    , Invoker_(CreateSerializedInvoker(invoker))
+    TSolomonExporterConfigPtr config,
+    TSolomonRegistryPtr registry)
+    : Config_(std::move(config))
     , Registry_(registry ? registry : TSolomonRegistry::Get())
-    , CoreProfilingPusher_(New<TPeriodicExecutor>(
-        Invoker_,
-        BIND(&TSolomonExporter::DoPushCoreProfiling, MakeWeak(this)),
-        TDuration::MilliSeconds(500)))
+    , ControlQueue_(New<TActionQueue>("ProfControl"))
+    , OffloadThreadPool_(CreateThreadPool(Config_->ThreadPoolSize, "ProfOffload"))
 {
     if (Config_->EnableSelfProfiling) {
         Registry_->Profile(TProfiler{Registry_, ""});
@@ -187,7 +181,7 @@ TSolomonExporter::TSolomonExporter(
     }
 
     Registry_->SetWindowSize(Config_->WindowSize);
-    Registry_->SetGridFactor([config] (const TString& name) -> int {
+    Registry_->SetGridFactor([config = Config_] (const TString& name) -> int {
         auto shard = config->MatchShard(name);
         if (!shard) {
             return 1;
@@ -200,14 +194,15 @@ TSolomonExporter::TSolomonExporter(
         return shard->GridStep->GetValue() / config->GridStep.GetValue();
     });
 
-    if (config->ReportBuildInfo) {
+    if (Config_->ReportBuildInfo) {
         TProfiler profiler{registry, ""};
 
         profiler
             .WithRequiredTag("version", GetVersion())
             .AddFuncGauge("/build/version", MakeStrong(this), [] { return 1.0; });
     }
-    if (config->ReportRestart) {
+
+    if (Config_->ReportRestart) {
         TProfiler profiler{registry, ""};
 
         for (auto window : {1, 5, 30}) {
@@ -217,7 +212,6 @@ TSolomonExporter::TSolomonExporter(
                     return (TInstant::Now() - StartTime_ < TDuration::Minutes(window)) ? 1.0 : 0.0;
                 });
         }
-
     }
 }
 
@@ -238,36 +232,22 @@ void TSolomonExporter::Register(const TString& prefix, const NHttp::IServerPtr& 
 
 void TSolomonExporter::Start()
 {
-    if (Config_->ThreadPoolSize) {
-        ThreadPool_ = CreateThreadPool(*Config_->ThreadPoolSize, "SolomonExporter");
-    }
-
-    Collector_ = BIND([this, thiz=MakeStrong(this)] {
+    CollectorFuture_ = BIND([this, this_ = MakeStrong(this)] {
         try {
             DoCollect();
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Sensor collector crashed");
         }
     })
-        .AsyncVia(Invoker_)
+        .AsyncVia(ControlQueue_->GetInvoker())
         .Run();
-
-    if (Config_->EnableCoreProfilingCompatibility) {
-        CoreProfilingPusher_->Start();
-    }
 }
 
 void TSolomonExporter::Stop()
 {
-    Collector_.Cancel(TError("Stopped"));
-
-    if (Config_->EnableCoreProfilingCompatibility) {
-        CoreProfilingPusher_->Stop();
-    }
-
-    if (ThreadPool_) {
-        ThreadPool_->Shutdown();
-    }
+    CollectorFuture_.Cancel(TError("Stopped"));
+    ControlQueue_->Shutdown();
+    OffloadThreadPool_->Shutdown();
 }
 
 void TSolomonExporter::TransferSensors()
@@ -276,7 +256,7 @@ void TSolomonExporter::TransferSensors()
     {
         auto processGuard = Guard(RemoteProcessLock_);
 
-        for (auto process : RemoteProcessList_) {
+        for (const auto& process : RemoteProcessList_) {
             try {
                 auto asyncDump = process->DumpSensors();
                 remoteFutures.emplace_back(asyncDump, process);
@@ -287,7 +267,7 @@ void TSolomonExporter::TransferSensors()
     }
 
     std::vector<TIntrusivePtr<TRemoteProcess>> deadProcesses;
-    for (auto [dumpFuture, process] : remoteFutures) {
+    for (const auto& [dumpFuture, process] : remoteFutures) {
         // Use blocking Get(), because we want to lock current thread while data structure is updating.
         auto result = dumpFuture.Get();
 
@@ -309,7 +289,7 @@ void TSolomonExporter::TransferSensors()
 
     {
         auto processGuard = Guard(RemoteProcessLock_);
-        for (auto process : deadProcesses) {
+        for (const auto& process : deadProcesses) {
             RemoteProcessList_.erase(process);
         }
     }
@@ -362,7 +342,7 @@ void TSolomonExporter::DoCollect()
         Registry_->ProcessRegistrations();
 
         auto iteration = Registry_->GetNextIteration();
-        Registry_->Collect(ThreadPool_ ? ThreadPool_->GetInvoker() : GetSyncInvoker());
+        Registry_->Collect(OffloadThreadPool_->GetInvoker());
 
         TransferSensors();
 
@@ -479,7 +459,7 @@ void TSolomonExporter::HandleDebugTags(const IRequestPtr&, const IResponseWriter
     rsp->SetStatus(EStatusCode::OK);
     rsp->GetHeaders()->Add("Content-Type", "text/plain; charset=UTF-8");
 
-    auto tags = Registry_->GetTags().TopByKey();
+    auto tags = Registry_->GetTags().GetTopByKey();
     std::vector<std::pair<TString, size_t>> tagList{tags.begin(), tags.end()};
     std::sort(tagList.begin(), tagList.end(), [] (auto a, auto b) {
         return std::tie(a.second, a.first) > std::tie(b.second, b.first);
@@ -538,7 +518,7 @@ std::optional<TString> TSolomonExporter::ReadJson(const TReadOptions& options)
 
         return buffer.Str();
     })
-        .AsyncVia(Invoker_)
+        .AsyncVia(ControlQueue_->GetInvoker())
         .Run();
 
     return WaitFor(result).ValueOrThrow();
@@ -550,7 +530,7 @@ void TSolomonExporter::HandleShard(
     const IResponseWriterPtr& rsp)
 {
     auto reply = BIND(&TSolomonExporter::DoHandleShard, MakeStrong(this), name, req, rsp)
-        .AsyncVia(ThreadPool_ ? ThreadPool_->GetInvoker() : Invoker_)
+        .AsyncVia(OffloadThreadPool_->GetInvoker())
         .Run();
 
     WaitFor(reply)
@@ -860,19 +840,6 @@ void TSolomonExporter::ValidatePeriodAndGrid(std::optional<TDuration> period, st
     }
 }
 
-void TSolomonExporter::DoPushCoreProfiling()
-{
-    try {
-        auto guard = WaitFor(TAsyncLockWriterGuard::Acquire(&Lock_))
-            .ValueOrThrow();
-
-        Registry_->ProcessRegistrations();
-        Registry_->LegacyReadSensors();
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Legacy push failed");
-    }
-}
-
 IYPathServicePtr TSolomonExporter::GetSensorService()
 {
     return CreateSensorService(Config_, Registry_, MakeStrong(this));
@@ -963,7 +930,7 @@ TSharedRef TSolomonExporter::DumpSensors()
         .ValueOrThrow();
 
     Registry_->ProcessRegistrations();
-    Registry_->Collect(ThreadPool_ ? ThreadPool_->GetInvoker() : GetSyncInvoker());
+    Registry_->Collect(OffloadThreadPool_->GetInvoker());
 
     return SerializeProtoToRef(Registry_->DumpSensors());
 }

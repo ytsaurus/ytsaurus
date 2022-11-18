@@ -26,6 +26,8 @@
 #include <yt/yt/core/rpc/bus/channel.h>
 #include <yt/yt/core/rpc/caching_channel_factory.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NQueueAgent {
 
 using namespace NYTree;

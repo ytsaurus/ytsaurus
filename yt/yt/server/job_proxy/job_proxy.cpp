@@ -64,8 +64,6 @@
 
 #include <yt/yt/core/tracing/trace_context.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/proc.h>
@@ -612,9 +610,7 @@ TJobResult TJobProxy::RunJob()
             NAuth::TNativeAuthenticationManager::Get()->SetTvmService(TvmBridge_);
         }
 
-        SolomonExporter_ = New<TSolomonExporter>(
-            Config_->SolomonExporter,
-            TProfileManager::Get()->GetInvoker());
+        SolomonExporter_ = New<TSolomonExporter>(Config_->SolomonExporter);
 
         auto environment = CreateJobProxyEnvironment(Config_->JobEnvironment);
         SetJobProxyEnvironment(environment);

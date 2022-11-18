@@ -6,8 +6,6 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/controller_agent_service.pb.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>

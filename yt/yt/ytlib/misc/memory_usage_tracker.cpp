@@ -11,9 +11,6 @@
 #include <yt/yt/core/misc/memory_usage_tracker.h>
 #include <yt/yt/core/misc/error.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT {
@@ -164,7 +161,7 @@ public:
     {
         return MemoryTracker_->GetFree(Category_, PoolTag_);
     }
-    
+
     bool IsExceeded() const override
     {
         return MemoryTracker_->IsExceeded(Category_, PoolTag_);

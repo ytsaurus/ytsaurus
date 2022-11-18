@@ -22,7 +22,6 @@
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/yt/core/profiling/profiler.h>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/rpc/message_format.h>

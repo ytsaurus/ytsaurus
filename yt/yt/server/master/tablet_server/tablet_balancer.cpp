@@ -23,8 +23,6 @@
 #include <yt/yt/core/misc/arithmetic_formula.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 #include <util/random/shuffle.h>

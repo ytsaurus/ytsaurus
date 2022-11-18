@@ -15,9 +15,6 @@
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
 #include <yt/yt/ytlib/table_client/config.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/core/misc/singleton.h>
 
 #include <yt/yt/library/profiling/sensor.h>

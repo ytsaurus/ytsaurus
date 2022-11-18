@@ -1,6 +1,6 @@
 #include "tag_registry.h"
 
-#include <yt/yt/core/profiling/profile_manager.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/assert/assert.h>
 
@@ -71,32 +71,13 @@ int TTagRegistry::GetSize() const
     return TagById_.size();
 }
 
-THashMap<TString, int> TTagRegistry::TopByKey() const
+THashMap<TString, int> TTagRegistry::GetTopByKey() const
 {
     THashMap<TString, int> counts;
     for (const auto& [key, value] : TagById_) {
         counts[key]++;
     }
     return counts;
-}
-
-TTagIdList TTagRegistry::EncodeLegacy(const TTagIdList& tagIds)
-{
-    TTagIdList legacy;
-
-    for (auto tag : tagIds) {
-        if (auto it = LegacyTags_.find(tag); it != LegacyTags_.end()) {
-            legacy.push_back(it->second);
-            continue;
-        }
-
-        const auto& [key, value] = Decode(tag);
-        auto legacyTagId = TProfileManager::Get()->RegisterTag(key, value);
-        LegacyTags_[tag] = legacyTagId;
-        legacy.push_back(legacyTagId);
-    }
-
-    return legacy;
 }
 
 void TTagRegistry::DumpTags(NProto::TSensorDump* dump)

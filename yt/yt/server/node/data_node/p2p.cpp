@@ -4,8 +4,6 @@
 #include "config.h"
 #include "bootstrap.h"
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/ytlib/chunk_client/block_id.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 

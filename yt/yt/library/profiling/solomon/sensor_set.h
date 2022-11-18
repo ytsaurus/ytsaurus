@@ -214,8 +214,6 @@ public:
         const TTagRegistry& tagRegistry,
         NYTree::TFluentAny fluent) const;
 
-    void LegacyReadSensors(const TString& name, TTagRegistry* tagRegistry) const;
-
     void DumpCube(NProto::TCube* cube) const;
 
     int GetGridFactor() const;

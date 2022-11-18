@@ -9,8 +9,6 @@
 
 #include <yt/yt/core/http/helpers.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/misc/finally.h>
 
 namespace NYT::NHttpProxy {

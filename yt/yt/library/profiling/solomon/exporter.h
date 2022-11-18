@@ -5,7 +5,6 @@
 #include "remote.h"
 
 #include <yt/yt/core/concurrency/thread_pool.h>
-#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/async_rw_lock.h>
 
 #include <yt/yt/core/actions/public.h>
@@ -49,7 +48,7 @@ struct TSolomonExporterConfig
 
     int WindowSize;
 
-    std::optional<int> ThreadPoolSize;
+    int ThreadPoolSize;
 
     bool ConvertCountersToRateForSolomon;
     bool RenameConvertedCounters;
@@ -95,10 +94,9 @@ class TSolomonExporter
     : public TRefCounted
 {
 public:
-    TSolomonExporter(
-        const TSolomonExporterConfigPtr& config,
-        const IInvokerPtr& invoker,
-        const TSolomonRegistryPtr& registry = nullptr);
+    explicit TSolomonExporter(
+        TSolomonExporterConfigPtr config,
+        TSolomonRegistryPtr registry = nullptr);
 
     void Register(const TString& prefix, const NHttp::IServerPtr& server);
 
@@ -121,12 +119,12 @@ public:
 
 private:
     const TSolomonExporterConfigPtr Config_;
-    const IInvokerPtr Invoker_;
     const TSolomonRegistryPtr Registry_;
-    const NConcurrency::TPeriodicExecutorPtr CoreProfilingPusher_;
 
-    NConcurrency::IThreadPoolPtr ThreadPool_;
-    TFuture<void> Collector_;
+    const NConcurrency::TActionQueuePtr ControlQueue_;
+    const NConcurrency::IThreadPoolPtr OffloadThreadPool_;
+
+    TFuture<void> CollectorFuture_;
 
     NConcurrency::TAsyncReaderWriterLock Lock_;
     std::vector<std::pair<i64, TInstant>> Window_;
@@ -175,7 +173,6 @@ private:
     THashSet<TIntrusivePtr<TRemoteProcess>> RemoteProcessList_;
 
     void DoCollect();
-    void DoPushCoreProfiling();
     void TransferSensors();
 
     void HandleIndex(const TString& prefix, const NHttp::IRequestPtr& req, const NHttp::IResponseWriterPtr& rsp);

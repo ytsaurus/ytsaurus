@@ -13,7 +13,6 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/profiling/profiler.h>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/tracing/trace_context.h>

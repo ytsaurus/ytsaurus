@@ -6,9 +6,6 @@
 
 #include <yt/yt/core/concurrency/fls.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-#include <yt/yt/core/profiling/profile_manager.h>
-
 namespace NYT {
 
 using namespace NProfiling;

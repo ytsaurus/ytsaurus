@@ -13,8 +13,8 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
-#include <yt/yt/core/profiling/profile_manager.h>
 
 #include <Interpreters/Context.h>
 #include <Interpreters/ProcessList.h>

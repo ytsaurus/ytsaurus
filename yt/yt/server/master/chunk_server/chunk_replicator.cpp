@@ -55,7 +55,6 @@
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/string.h>
 
-#include <yt/yt/core/profiling/profiler.h>
 #include <yt/yt/core/profiling/timing.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>

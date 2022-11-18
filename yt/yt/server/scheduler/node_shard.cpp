@@ -37,8 +37,6 @@
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
 namespace NYT::NScheduler {

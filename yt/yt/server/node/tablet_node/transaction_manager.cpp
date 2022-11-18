@@ -40,8 +40,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/heap.h>

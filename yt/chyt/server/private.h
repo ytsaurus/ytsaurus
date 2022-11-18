@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/clickhouse_functions/public.h>

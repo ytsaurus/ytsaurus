@@ -3,8 +3,6 @@
 #include "object_service_cache.h"
 #include "object_service_proxy.h"
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/async_slru_cache.h>

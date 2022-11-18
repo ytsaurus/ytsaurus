@@ -72,8 +72,6 @@
 
 #include <yt/yt/core/misc/public.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////

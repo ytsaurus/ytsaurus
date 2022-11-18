@@ -10,8 +10,9 @@
 
 #include <yt/yt/core/misc/ring_queue.h>
 
-#include <yt/yt/core/profiling/profiler.h>
 #include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/library/profiling/sensor.h>
 
 namespace NYT::NRpc {
 

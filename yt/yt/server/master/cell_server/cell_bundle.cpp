@@ -13,8 +13,6 @@
 
 #include <yt/yt/ytlib/tablet_client/config.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 namespace NYT::NCellServer {
 
 using namespace NCellMaster;

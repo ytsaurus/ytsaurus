@@ -28,6 +28,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
+
 namespace NYT::NJobProxy {
 
 using namespace NTableClient;

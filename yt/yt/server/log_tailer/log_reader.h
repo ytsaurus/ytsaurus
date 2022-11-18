@@ -7,8 +7,6 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 #include <util/generic/iterator_range.h>
 
 namespace NYT::NLogTailer {

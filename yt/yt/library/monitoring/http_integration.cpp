@@ -25,8 +25,6 @@
 
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 
-#include <yt/yt/core/profiling/profile_manager.h>
-
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
 #ifdef _linux_
@@ -78,15 +76,9 @@ void Initialize(
         *orchidRoot,
         "/monitoring",
         CreateVirtualNode((*monitoringManager)->GetService()));
-    SetNodeByYPath(
-        *orchidRoot,
-        "/profiling",
-        CreateVirtualNode(NProfiling::TProfileManager::Get()->GetService()));
 
     if (monitoringServer) {
-        auto exporter = New<NProfiling::TSolomonExporter>(
-            config,
-            NProfiling::TProfileManager::Get()->GetInvoker());
+        auto exporter = New<NProfiling::TSolomonExporter>(config);
         exporter->Register("/solomon", monitoringServer);
         exporter->Start();
 

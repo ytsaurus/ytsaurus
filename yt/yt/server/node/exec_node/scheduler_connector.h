@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/profiling/profiler.h>
-
 namespace NYT::NExecNode {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,7 +23,7 @@ public:
     void OnDynamicConfigChanged(
         const TExecNodeDynamicConfigPtr& oldConfig,
         const TExecNodeDynamicConfigPtr& newConfig);
-    
+
 private:
     const TSchedulerConnectorConfigPtr StaticConfig_;
     TSchedulerConnectorConfigPtr CurrentConfig_;
