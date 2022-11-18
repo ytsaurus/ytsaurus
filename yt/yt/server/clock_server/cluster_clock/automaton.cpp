@@ -5,6 +5,8 @@
 
 namespace NYT::NClusterClock {
 
+using namespace NHydra;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TClockAutomaton::TClockAutomaton(TBootstrap* bootstrap)

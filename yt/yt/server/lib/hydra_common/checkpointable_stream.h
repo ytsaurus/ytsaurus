@@ -2,12 +2,14 @@
 
 #include "public.h"
 
+#include <yt/yt/core/concurrency/public.h>
+
 #include <util/stream/input.h>
 #include <util/stream/zerocopy_output.h>
 
 #include <util/generic/size_literals.h>
 
-namespace NYT {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,6 +51,12 @@ std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputS
     IOutputStream* underlyingStream,
     size_t bufferSize = 8_KB);
 
+//! Creates a synchronous checkpointable buffering adapter from a given asynchronous stream.
+std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAdapter(
+    NConcurrency::IAsyncOutputStreamPtr underlyingStream,
+    NConcurrency::EWaitForStrategy strategy,
+    size_t bufferSize = 8_KB);
+
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NHydra

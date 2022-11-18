@@ -7,6 +7,8 @@
 
 namespace NYT::NCellMaster {
 
+using namespace NHydra;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TMasterAutomaton::TMasterAutomaton(TBootstrap* bootstrap)

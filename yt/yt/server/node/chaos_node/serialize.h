@@ -31,7 +31,7 @@ class TSaveContext
     : public NHydra::TSaveContext
 {
 public:
-    explicit TSaveContext(ICheckpointableOutputStream* output);
+    explicit TSaveContext(NHydra::ICheckpointableOutputStream* output);
 
     EChaosReign GetVersion() const;
 };

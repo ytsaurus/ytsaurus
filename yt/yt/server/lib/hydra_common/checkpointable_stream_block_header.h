@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-namespace NYT {
+namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -15,6 +15,6 @@ struct TCheckpointableStreamBlockHeader
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NHydra
 
-Y_DECLARE_PODTYPE(NYT::TCheckpointableStreamBlockHeader);
+Y_DECLARE_PODTYPE(NYT::NHydra::TCheckpointableStreamBlockHeader);

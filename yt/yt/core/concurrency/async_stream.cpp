@@ -3,34 +3,11 @@
 
 #include <util/stream/buffered.h>
 
-#include <yt/yt/core/misc/checkpointable_stream.h>
-#include <yt/yt/core/misc/checkpointable_stream_block_header.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <queue>
 
 namespace NYT::NConcurrency {
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace {
-
-template <class T>
-TErrorOr<T> WaitForWithStrategy(
-    TFuture<T>&& future,
-    ESyncStreamAdapterStrategy strategy)
-{
-    switch (strategy) {
-        case ESyncStreamAdapterStrategy::WaitFor:
-            return WaitFor(std::move(future));
-        case ESyncStreamAdapterStrategy::Get:
-            return future.Get();
-        default:
-            YT_ABORT();
-    }
-}
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -40,14 +17,14 @@ class TSyncInputStreamAdapter
 public:
     TSyncInputStreamAdapter(
         IAsyncInputStreamPtr underlyingStream,
-        ESyncStreamAdapterStrategy strategy)
+        EWaitForStrategy strategy)
         : UnderlyingStream_(std::move(underlyingStream))
         , Strategy_(strategy)
     { }
 
 private:
     const IAsyncInputStreamPtr UnderlyingStream_;
-    const ESyncStreamAdapterStrategy Strategy_;
+    const EWaitForStrategy Strategy_;
 
     size_t DoRead(void* buffer, size_t length) override
     {
@@ -60,7 +37,7 @@ private:
         // Get, there are no means of cancellation, so reading directly to the destination
         // buffer is just fine.
         TSharedMutableRef readBuffer;
-        if (Strategy_ == ESyncStreamAdapterStrategy::WaitFor) {
+        if (Strategy_ == EWaitForStrategy::WaitFor) {
             struct TSyncInputStreamAdapterIntermediateBufferTag { };
             readBuffer = TSharedMutableRef::Allocate<TSyncInputStreamAdapterIntermediateBufferTag>(length);
         } else {
@@ -70,7 +47,7 @@ private:
         auto bytesRead = WaitForWithStrategy(UnderlyingStream_->Read(readBuffer), Strategy_)
             .ValueOrThrow();
 
-        if (Strategy_ == ESyncStreamAdapterStrategy::WaitFor) {
+        if (Strategy_ == EWaitForStrategy::WaitFor) {
             memcpy(buffer, readBuffer.Begin(), bytesRead);
         }
 
@@ -80,7 +57,7 @@ private:
 
 std::unique_ptr<IInputStream> CreateSyncAdapter(
     IAsyncInputStreamPtr underlyingStream,
-    ESyncStreamAdapterStrategy strategy)
+    EWaitForStrategy strategy)
 {
     YT_VERIFY(underlyingStream);
     return std::make_unique<TSyncInputStreamAdapter>(
@@ -136,7 +113,7 @@ class TSyncBufferedOutputStreamAdapter
 public:
     TSyncBufferedOutputStreamAdapter(
         IAsyncOutputStreamPtr underlyingStream,
-        ESyncStreamAdapterStrategy strategy,
+        EWaitForStrategy strategy,
         size_t bufferCapacity)
         : UnderlyingStream_(std::move(underlyingStream))
         , Strategy_(strategy)
@@ -155,7 +132,7 @@ public:
 
 private:
     const IAsyncOutputStreamPtr UnderlyingStream_;
-    const ESyncStreamAdapterStrategy Strategy_;
+    const EWaitForStrategy Strategy_;
     const size_t BufferCapacity_;
     size_t CurrentBufferSize_;
     TSharedMutableRef Buffer_;
@@ -242,7 +219,7 @@ protected:
 
 std::unique_ptr<IZeroCopyOutput> CreateBufferedSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,
-    ESyncStreamAdapterStrategy strategy,
+    EWaitForStrategy strategy,
     size_t bufferSize)
 {
     YT_VERIFY(underlyingStream);
@@ -250,66 +227,6 @@ std::unique_ptr<IZeroCopyOutput> CreateBufferedSyncAdapter(
         std::move(underlyingStream),
         strategy,
         bufferSize);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSyncBufferedCheckpointableOutputStreamAdapter
-    : public ICheckpointableOutputStream
-{
-public:
-    TSyncBufferedCheckpointableOutputStreamAdapter(
-        IAsyncOutputStreamPtr underlyingStream,
-        ESyncStreamAdapterStrategy strategy,
-        size_t bufferSize)
-        : SyncAdapter_(std::make_unique<TSyncBufferedOutputStreamAdapter>(
-            underlyingStream,
-            strategy,
-            bufferSize))
-        , CheckpointableAdapter_(CreateCheckpointableOutputStream(SyncAdapter_.get()))
-    { }
-
-    void MakeCheckpoint() override
-    {
-        CheckpointableAdapter_->MakeCheckpoint();
-    }
-
-private:
-    const std::unique_ptr<TSyncBufferedOutputStreamAdapter> SyncAdapter_;
-    const std::unique_ptr<ICheckpointableOutputStream> CheckpointableAdapter_;
-
-
-    void DoFlush() override
-    {
-        CheckpointableAdapter_->Flush();
-    }
-
-    void DoWrite(const void* data, size_t length) override
-    {
-        CheckpointableAdapter_->Write(data, length);
-    }
-
-    size_t DoNext(void** ptr) override
-    {
-        return CheckpointableAdapter_->Next(ptr);
-    }
-
-    void DoUndo(size_t length) override
-    {
-        CheckpointableAdapter_->Undo(length);
-    }
-};
-
-std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAdapter(
-    IAsyncOutputStreamPtr underlyingStream,
-    ESyncStreamAdapterStrategy strategy,
-    size_t bufferSize)
-{
-    YT_VERIFY(underlyingStream);
-    return std::make_unique<TSyncBufferedCheckpointableOutputStreamAdapter>(
-        std::move(underlyingStream),
-        strategy,
-        std::max(bufferSize, sizeof(TCheckpointableStreamBlockHeader) + 1));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

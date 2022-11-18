@@ -85,9 +85,6 @@ class TBlobOutput;
 class TStringBuilderBase;
 class TStringBuilder;
 
-struct ICheckpointableInputStream;
-struct ICheckpointableOutputStream;
-
 struct IDigest;
 struct IPersistentDigest;
 

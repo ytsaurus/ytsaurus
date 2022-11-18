@@ -531,7 +531,7 @@ TWriterForWebJson<TValueWriter>::TWriterForWebJson(
     , NameTableReader_(NameTable_)
     , UnderlyingOutput_(CreateBufferedSyncAdapter(
         std::move(output),
-        ESyncStreamAdapterStrategy::WaitFor,
+        EWaitForStrategy::WaitFor,
         ContextBufferCapacity))
     , Output_(UnderlyingOutput_.get())
     , ResponseBuilder_(CreateJsonWriter(&Output_))

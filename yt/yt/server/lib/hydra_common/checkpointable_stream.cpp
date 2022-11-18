@@ -2,9 +2,15 @@
 #include "serialize.h"
 #include "checkpointable_stream_block_header.h"
 
+#include <yt/yt/core/concurrency/async_stream.h>
+
 #include <yt/yt/core/misc/error.h>
 
-namespace NYT {
+#include <util/stream/buffered.h>
+
+namespace NYT::NHydra {
+
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -260,5 +266,189 @@ std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableOutputS
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+class TSyncBufferedOutputStreamAdapter
+    : public IZeroCopyOutput
+{
+public:
+    TSyncBufferedOutputStreamAdapter(
+        IAsyncOutputStreamPtr underlyingStream,
+        EWaitForStrategy strategy,
+        size_t bufferCapacity)
+        : UnderlyingStream_(std::move(underlyingStream))
+        , Strategy_(strategy)
+        , BufferCapacity_(bufferCapacity)
+    {
+        Reset();
+    }
+
+    virtual ~TSyncBufferedOutputStreamAdapter()
+    {
+        try {
+            Finish();
+        } catch (...) {
+        }
+    }
+
+private:
+    const IAsyncOutputStreamPtr UnderlyingStream_;
+    const EWaitForStrategy Strategy_;
+    const size_t BufferCapacity_;
+    size_t CurrentBufferSize_;
+    TSharedMutableRef Buffer_;
+
+    struct TBufferTag
+    { };
+
+    void Reset()
+    {
+        CurrentBufferSize_ = 0;
+        Buffer_ = TSharedMutableRef::Allocate<TBufferTag>(BufferCapacity_);
+    }
+
+    void* WriteToBuffer(const void* data, size_t length)
+    {
+        YT_ASSERT(length <= GetBufferSpaceLeft());
+        char* ptr = Buffer_.Begin() + CurrentBufferSize_;
+        ::memcpy(Buffer_.Begin() + CurrentBufferSize_, data, length);
+        CurrentBufferSize_ += length;
+        return ptr;
+    }
+
+    void WriteToStream(const void* data, size_t length)
+    {
+        auto sharedBuffer = TSharedRef::MakeCopy<TBufferTag>(TRef(data, length));
+        auto future = UnderlyingStream_->Write(std::move(sharedBuffer));
+        WaitForWithStrategy(std::move(future), Strategy_)
+            .ThrowOnError();
+    }
+
+    size_t GetBufferSpaceLeft() const
+    {
+        return BufferCapacity_ - CurrentBufferSize_;
+    }
+
+    size_t GetBufferSize() const
+    {
+        return CurrentBufferSize_;
+    }
+
+protected:
+    size_t DoNext(void** ptr) override
+    {
+        if (GetBufferSpaceLeft() == 0) {
+            DoFlush();
+        }
+
+        auto size = GetBufferSpaceLeft();
+        *ptr = Buffer_.Begin() + CurrentBufferSize_;
+        CurrentBufferSize_ += size;
+
+        return size;
+    }
+
+    void DoUndo(size_t size) override
+    {
+        YT_VERIFY(CurrentBufferSize_ >= size);
+        CurrentBufferSize_ -= size;
+    }
+
+    void DoWrite(const void* buffer, size_t length) override
+    {
+        if (length > GetBufferSpaceLeft()) {
+            DoFlush();
+        }
+        if (length <= GetBufferSpaceLeft()) {
+            WriteToBuffer(buffer, length);
+        } else {
+            WriteToStream(buffer, length);
+        }
+    }
+
+    void DoFlush() override
+    {
+        if (CurrentBufferSize_ == 0) {
+            return;
+        }
+        auto writeFuture = UnderlyingStream_->Write(Buffer_.Slice(0, CurrentBufferSize_));
+        WaitForWithStrategy(std::move(writeFuture), Strategy_)
+            .ThrowOnError();
+        Reset();
+    }
+};
+
+std::unique_ptr<IZeroCopyOutput> CreateBufferedSyncAdapter(
+    IAsyncOutputStreamPtr underlyingStream,
+    EWaitForStrategy strategy,
+    size_t bufferSize)
+{
+    YT_VERIFY(underlyingStream);
+    return std::make_unique<TSyncBufferedOutputStreamAdapter>(
+        std::move(underlyingStream),
+        strategy,
+        bufferSize);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSyncBufferedCheckpointableOutputStreamAdapter
+    : public ICheckpointableOutputStream
+{
+public:
+    TSyncBufferedCheckpointableOutputStreamAdapter(
+        IAsyncOutputStreamPtr underlyingStream,
+        EWaitForStrategy strategy,
+        size_t bufferSize)
+        : SyncAdapter_(std::make_unique<TSyncBufferedOutputStreamAdapter>(
+            underlyingStream,
+            strategy,
+            bufferSize))
+        , CheckpointableAdapter_(CreateCheckpointableOutputStream(SyncAdapter_.get()))
+    { }
+
+    void MakeCheckpoint() override
+    {
+        CheckpointableAdapter_->MakeCheckpoint();
+    }
+
+private:
+    const std::unique_ptr<TSyncBufferedOutputStreamAdapter> SyncAdapter_;
+    const std::unique_ptr<ICheckpointableOutputStream> CheckpointableAdapter_;
+
+
+    void DoFlush() override
+    {
+        CheckpointableAdapter_->Flush();
+    }
+
+    void DoWrite(const void* data, size_t length) override
+    {
+        CheckpointableAdapter_->Write(data, length);
+    }
+
+    size_t DoNext(void** ptr) override
+    {
+        return CheckpointableAdapter_->Next(ptr);
+    }
+
+    void DoUndo(size_t length) override
+    {
+        CheckpointableAdapter_->Undo(length);
+    }
+};
+
+std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAdapter(
+    IAsyncOutputStreamPtr underlyingStream,
+    EWaitForStrategy strategy,
+    size_t bufferSize)
+{
+    YT_VERIFY(underlyingStream);
+    return std::make_unique<TSyncBufferedCheckpointableOutputStreamAdapter>(
+        std::move(underlyingStream),
+        strategy,
+        std::max(bufferSize, sizeof(TCheckpointableStreamBlockHeader) + 1));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NHydra
 

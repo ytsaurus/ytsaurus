@@ -39,7 +39,7 @@ DEFINE_REFCOUNTED_TYPE(IAsyncInputStream)
  */
 std::unique_ptr<IInputStream> CreateSyncAdapter(
     IAsyncInputStreamPtr underlyingStream,
-    ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor);
+    EWaitForStrategy strategy = EWaitForStrategy::WaitFor);
 
 //! Creates an asynchronous adapter from a given synchronous stream.
 /*!
@@ -98,13 +98,7 @@ DEFINE_REFCOUNTED_TYPE(IFlushableAsyncOutputStream)
  */
 std::unique_ptr<IZeroCopyOutput> CreateBufferedSyncAdapter(
     IAsyncOutputStreamPtr underlyingStream,
-    ESyncStreamAdapterStrategy strategy = ESyncStreamAdapterStrategy::WaitFor,
-    size_t bufferSize = 8_KB);
-
-//! Creates a synchronous checkpointable buffering adapter from a given asynchronous stream.
-std::unique_ptr<ICheckpointableOutputStream> CreateBufferedCheckpointableSyncAdapter(
-    IAsyncOutputStreamPtr underlyingStream,
-    ESyncStreamAdapterStrategy strategy,
+    EWaitForStrategy strategy = EWaitForStrategy::WaitFor,
     size_t bufferSize = 8_KB);
 
 //! Creates an asynchronous adapter from a given synchronous stream.

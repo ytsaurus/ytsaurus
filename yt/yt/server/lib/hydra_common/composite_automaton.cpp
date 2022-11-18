@@ -318,7 +318,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
     DoSaveSnapshot(
         writer,
         // NB: Do not yield in sync part.
-        ESyncStreamAdapterStrategy::Get,
+        EWaitForStrategy::Get,
         [&] (TSaveContext& context) {
             using NYT::Save;
 
@@ -371,7 +371,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
             DoSaveSnapshot(
                 writer,
                 // NB: Can yield in async part.
-                ESyncStreamAdapterStrategy::WaitFor,
+                EWaitForStrategy::WaitFor,
                 [&] (TSaveContext& context) {
                     for (int index = 0; index < std::ssize(asyncSavers); ++index) {
                         WritePartHeader(context, asyncSavers[index]);
@@ -537,7 +537,7 @@ void TCompositeAutomaton::SetZeroState()
 
 void TCompositeAutomaton::DoSaveSnapshot(
     NConcurrency::IAsyncOutputStreamPtr writer,
-    ESyncStreamAdapterStrategy strategy,
+    EWaitForStrategy strategy,
     const std::function<void(TSaveContext&)>& callback)
 {
     auto syncWriter = CreateBufferedCheckpointableSyncAdapter(writer, strategy, SnapshotSaveBufferSize);
@@ -552,7 +552,7 @@ void TCompositeAutomaton::DoLoadSnapshot(
 {
     auto prefetchingReader = CreatePrefetchingAdapter(reader, SnapshotPrefetchWindowSize);
     auto copyingReader = CreateCopyingAdapter(prefetchingReader);
-    auto syncReader = CreateSyncAdapter(copyingReader, ESyncStreamAdapterStrategy::Get);
+    auto syncReader = CreateSyncAdapter(copyingReader, EWaitForStrategy::Get);
     TBufferedInput bufferedInput(syncReader.get(), SnapshotLoadBufferSize);
     auto checkpointableInput = CreateCheckpointableInputStream(&bufferedInput);
     auto context = CreateLoadContext(checkpointableInput.get());

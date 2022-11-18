@@ -36,6 +36,9 @@ DECLARE_REFCOUNTED_STRUCT(IFileChangelogDispatcher)
 // COMPAT(shakurov)
 DECLARE_REFCOUNTED_STRUCT(ILegacySnapshotStore)
 
+struct ICheckpointableInputStream;
+struct ICheckpointableOutputStream;
+
 struct TSnapshotParams;
 struct TRemoteSnapshotParams;
 DECLARE_REFCOUNTED_STRUCT(ISnapshotReader)

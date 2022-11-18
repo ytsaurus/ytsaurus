@@ -1,11 +1,10 @@
 #pragma once
 
-#include "public.h"
 #include "automaton.h"
+#include "checkpointable_stream.h"
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/checkpointable_stream.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/test_framework/testing_tag.h>
@@ -288,7 +287,7 @@ private:
 private:
     void DoSaveSnapshot(
         NConcurrency::IAsyncOutputStreamPtr writer,
-        NConcurrency::ESyncStreamAdapterStrategy strategy,
+        NConcurrency::EWaitForStrategy strategy,
         const std::function<void(TSaveContext&)>& callback);
     void DoLoadSnapshot(
         NConcurrency::IAsyncZeroCopyInputStreamPtr reader,
