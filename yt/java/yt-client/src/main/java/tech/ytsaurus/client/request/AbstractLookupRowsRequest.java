@@ -21,10 +21,13 @@ import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**
- * Base class for modify rows requests.
+ * Base class for lookup rows requests.
  * <p>
- * @see LookupRowsRequest
- * @see MappedLookupRowsRequest
+ * Users use one of the inheritors of this class {@link LookupRowsRequest} or {@link MappedLookupRowsRequest}
+ * <p>
+ * @see <a href="https://docs.yandex-team.ru/yt/api/commands#lookup_rows">
+ *     lookup_rows documentation
+ *     </a>
  */
 @NonNullApi
 public abstract class AbstractLookupRowsRequest<
@@ -56,36 +59,72 @@ public abstract class AbstractLookupRowsRequest<
     }
 
     /**
-     * Get path of the table to be modified.
+     * Get path parameter.
+     *
+     * @see Builder#setPath(String)
      */
     public String getPath() {
         return path;
     }
 
-    public boolean getKeepMissingRows() {
-        return keepMissingRows;
-    }
-
-    public Optional<YtTimestamp> getTimestamp() {
-        return Optional.ofNullable(timestamp);
-    }
-
-    public Optional<YtTimestamp> getRetentionTimestamp() {
-        return Optional.ofNullable(retentionTimestamp);
-    }
-
+    /**
+     * Get schema parameter.
+     *
+     * @see Builder#setSchema(TableSchema)
+     */
     public TableSchema getSchema() {
         return schema;
     }
 
+    /**
+     * Get keep-missing-rows parameter.
+     *
+     * @see Builder#setKeepMissingRows(boolean)
+     */
+    public boolean getKeepMissingRows() {
+        return keepMissingRows;
+    }
+
+    /**
+     * Get timestamp parameter.
+     *
+     * @see Builder#setTimestamp(YtTimestamp)
+     */
+    public Optional<YtTimestamp> getTimestamp() {
+        return Optional.ofNullable(timestamp);
+    }
+
+    /**
+     * Get retention-timestamp parameter.
+     *
+     * @see Builder#setRetentionTimestamp(YtTimestamp)
+     */
+    public Optional<YtTimestamp> getRetentionTimestamp() {
+        return Optional.ofNullable(retentionTimestamp);
+    }
+
+    /**
+     * Get lookup-columns parameter.
+     *
+     * @see Builder#addLookupColumn(String)
+     */
     public List<String> getLookupColumns() {
         return Collections.unmodifiableList(lookupColumns);
     }
 
+    /**
+     * Internal method.
+     */
     public abstract void convertValues(SerializationResolver serializationResolver);
 
+    /**
+     * Internal method.
+     */
     public abstract void serializeRowsetTo(List<byte[]> attachments);
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     public HighLevelRequest<TReqLookupRows.Builder> asLookupRowsWritable() {
         //noinspection Convert2Diamond
         return new HighLevelRequest<TReqLookupRows.Builder>() {
@@ -119,6 +158,9 @@ public abstract class AbstractLookupRowsRequest<
         };
     }
 
+    /**
+     * Internal method: prepare request to send over network.
+     */
     public HighLevelRequest<TReqVersionedLookupRows.Builder> asVersionedLookupRowsWritable() {
         //noinspection Convert2Diamond
         return new HighLevelRequest<TReqVersionedLookupRows.Builder>() {
@@ -149,6 +191,9 @@ public abstract class AbstractLookupRowsRequest<
         };
     }
 
+    /**
+     * Base class for builders of LookupRows requests.
+     */
     public abstract static class Builder<
             TBuilder extends Builder<TBuilder, TRequest>,
             TRequest extends AbstractLookupRowsRequest<?, TRequest>>
@@ -173,67 +218,136 @@ public abstract class AbstractLookupRowsRequest<
         }
 
         /**
-         * Set path of a table.
+         * <b>Required.</b> Set path of a table to lookup.
          */
         public TBuilder setPath(String path) {
             this.path = path;
             return self();
         }
 
+        /**
+         * <b>Required.</b> Set schema of key columns used to lookup rows.
+         * <p>
+         * It must be "lookup schema". Such schema contains only key columns of a table.
+         * Schema is used to properly serialize and send to server keys to lookup.
+         * <p>
+         * @see TableSchema#toLookup()
+         */
         public TBuilder setSchema(TableSchema schema) {
             this.schema = schema;
             return self();
         }
 
+        /**
+         * Whether to keep rows that were not found.
+         * <b>
+         * When this parameter is set to false (default) YT returns only rows that were found in table.
+         * <b>
+         * If this parameter is set to true then the size of the returned rowset is equal to
+         * the number of keys in request. The order of resulting rows corresponds to the order of requested keys
+         * and rows for missing keys are `null`.
+         */
         public TBuilder setKeepMissingRows(boolean keepMissingRows) {
             this.keepMissingRows = keepMissingRows;
             return self();
         }
 
+        /**
+         * Set version of a table to be used for lookup request.
+         */
         public TBuilder setTimestamp(@Nullable YtTimestamp timestamp) {
             this.timestamp = timestamp;
             return self();
         }
 
+        /**
+         * Set lower boundary for value timestamps to be returned.
+         * I.e. values that were written before this timestamp are ignored and not returned.
+         */
         public TBuilder setRetentionTimestamp(@Nullable YtTimestamp retentionTimestamp) {
             this.retentionTimestamp = retentionTimestamp;
             return self();
         }
 
+        /**
+         * Add column name to be returned
+         * <b>
+         * By default, YT returns all columns of the table.
+         * If some columns are unnecessary user can specify only required ones using addLookupColumn(s) method.
+         */
         public TBuilder addLookupColumn(String name) {
             lookupColumns.add(name);
             return self();
         }
 
+        /**
+         * Add column names to be returned.
+         *
+         * @see #addLookupColumn
+         */
         public TBuilder addLookupColumns(List<String> names) {
             lookupColumns.addAll(names);
             return self();
         }
 
+        /**
+         * Add column names to be returned.
+         *
+         * @see #addLookupColumn
+         */
         public TBuilder addLookupColumns(String... names) {
             return addLookupColumns(Arrays.asList(names));
         }
 
+        /**
+         * Get value of path parameter.
+         *
+         * @see #setPath
+         */
         public String getPath() {
             return Objects.requireNonNull(path);
         }
 
+        /**
+         * Get value of keep-missing-rows parameter.
+         * @see #setKeepMissingRows(boolean)
+         */
         public boolean getKeepMissingRows() {
             return keepMissingRows;
         }
 
+        /**
+         * Get value of timestamp parameter.
+         *
+         * @see #setTimestamp parameter
+         */
         public Optional<YtTimestamp> getTimestamp() {
             return Optional.ofNullable(timestamp);
         }
 
+        /**
+         * Get value of retention-timestamp parameter.
+         *
+         * @see #setRetentionTimestamp
+         */
         public Optional<YtTimestamp> getRetentionTimestamp() {
             return Optional.ofNullable(retentionTimestamp);
         }
 
+        /**
+         * Get value of schema parameter
+         *
+         * @see #setSchema
+         */
         public TableSchema getSchema() {
             return Objects.requireNonNull(schema);
         }
 
+        /**
+         * Get value of lookup-columns parameter
+         *
+         * @see #addLookupColumns(String...)
+         */
         public List<String> getLookupColumns() {
             return Collections.unmodifiableList(lookupColumns);
         }
