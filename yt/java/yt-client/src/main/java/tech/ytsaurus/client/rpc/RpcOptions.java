@@ -61,8 +61,6 @@ public class RpcOptions {
 
     private DiscoveryMethod preferableDiscoveryMethod = DiscoveryMethod.RPC;
 
-    private boolean newDiscoveryServiceEnabled = true;
-
     private ThreadFactory discoveryThreadFactory;
 
     private ProxySelector rpcProxySelector = ProxySelector.random();
@@ -222,7 +220,7 @@ public class RpcOptions {
     }
 
     /**
-     * @deprecated Use {@link #setRetryPolicyFactory(Supplier<RetryPolicy> retryPolicyFactory)} instead.
+     * @deprecated Use {@link #setRetryPolicyFactory(Supplier)} instead.
      */
     @Deprecated
     public RpcOptions setFailoverPolicy(RpcFailoverPolicy failoverPolicy) {
@@ -241,7 +239,6 @@ public class RpcOptions {
 
     /**
      * Allow setting custom factory of retry policies
-     * @param retryPolicyFactory
      * @return self
      */
     public RpcOptions setRetryPolicyFactory(Supplier<RetryPolicy> retryPolicyFactory) {
@@ -310,20 +307,16 @@ public class RpcOptions {
         this.preferableDiscoveryMethod = preferableDiscoveryMethod;
     }
 
-    public boolean isNewDiscoveryServiceEnabled() {
-        return newDiscoveryServiceEnabled;
-    }
-
     /**
      * @see #setAcknowledgementTimeout
      */
     public @Nullable Duration getAcknowledgementTimeout() {
-        return isNewDiscoveryServiceEnabled() ? acknowledgementTimeout : null;
+        return acknowledgementTimeout;
     }
 
     /**
      * Set acknowledgement timeout.
-     *
+     * <p>
      * Client will fail request if acknowledgement is not received within this timeout.
      */
     public RpcOptions setAcknowledgementTimeout(@Nullable Duration acknowledgementTimeout) {

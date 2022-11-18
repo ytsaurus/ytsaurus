@@ -2,6 +2,8 @@ package tech.ytsaurus.client.request;
 
 import java.util.Optional;
 
+import javax.annotation.Nullable;
+
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -9,6 +11,7 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
 public class TransactionalOptions {
+    @Nullable
     private GUID transactionId;
     private boolean sticky = false;
 

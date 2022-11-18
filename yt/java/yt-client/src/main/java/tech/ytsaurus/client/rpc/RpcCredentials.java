@@ -45,16 +45,16 @@ public class RpcCredentials {
      * Load authentication info from environment.
      *
      * <p>
-     * User name is searched in following places (in that order):
+     * Username is searched in following places (in that order):
      *   1. YT_USER environment variable
-     *   2. Current user name got from system
+     *   2. Current username got from system
      *
      * <p>
      * User token is searched in following places (in that order):
      *   1. YT_TOKEN environment variable
      *   2. ~/.yt/token file
      *
-     * @throws RuntimeException if user name or user token cannot be obtained.
+     * @throws RuntimeException if username or user token cannot be obtained.
      */
     public static RpcCredentials loadFromEnvironment() {
         String userName = System.getenv("YT_USER");

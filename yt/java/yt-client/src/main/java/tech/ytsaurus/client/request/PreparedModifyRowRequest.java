@@ -18,12 +18,12 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**
  * Immutable row modification request that contains serialized and compressed rowset
- *
+ * <p>
  * It is useful when same request is performed multiple times (e.g. to different clusters)
  * and saves CPU resources used on serialization and compressing.
- *
- * It should be built using {@link PreparableModifyRowsRequest#prepare(RpcCompression)} method
- *
+ * <p>
+ * It should be built using {@link PreparableModifyRowsRequest#prepare(RpcCompression, SerializationResolver)}
+ * <p>
  * Compression used in this request have to match with compression of the client otherwise exception will be thrown
  * when trying to execute this request.
  */

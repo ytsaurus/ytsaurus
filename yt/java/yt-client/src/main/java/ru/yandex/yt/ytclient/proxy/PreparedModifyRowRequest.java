@@ -3,7 +3,6 @@ package ru.yandex.yt.ytclient.proxy;
 import java.util.List;
 
 import tech.ytsaurus.client.rpc.Compression;
-import tech.ytsaurus.client.rpc.RpcCompression;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -12,12 +11,12 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**
  * Immutable row modification request that contains serialized and compressed rowset
- *
+ * <p>
  * It is useful when same request is performed multiple times (e.g. to different clusters)
  * and saves CPU resources used on serialization and compressing.
- *
- * It should be built using {@link PreparableModifyRowsRequest#prepare(RpcCompression)} method
- *
+ * <p>
+ * It should be built using {@link tech.ytsaurus.client.request.PreparableModifyRowsRequest} method
+ * <p>
  * Compression used in this request have to match with compression of the client otherwise exception will be thrown
  * when trying to execute this request.
  */

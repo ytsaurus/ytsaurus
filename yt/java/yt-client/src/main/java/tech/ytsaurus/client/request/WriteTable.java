@@ -86,21 +86,21 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
     }
 
     /**
-     * @see BuilderBase.setNeedRetries(boolean)
+     * @see BuilderBase#setNeedRetries(boolean)
      */
     public boolean getNeedRetries() {
         return needRetries;
     }
 
     /**
-     * @see BuilderBase.setMaxWritesInFlight(int)
+     * @see BuilderBase#setMaxWritesInFlight(int)
      */
     public int getMaxWritesInFlight() {
         return maxWritesInFlight;
     }
 
     /**
-     * @see BuilderBase.setChunkSize(int)
+     * @see BuilderBase#setChunkSize(int)
      */
     public int getChunkSize() {
         return chunkSize;
@@ -290,7 +290,6 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         /**
          * If you need a writer with retries, set needRetries=true.
          * RetryPolicy should be set in RpcOptions
-         * @param needRetries
          * @return self
          */
         public TBuilder setNeedRetries(boolean needRetries) {
@@ -301,7 +300,6 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         /**
          * If a rows ordering doesn't matter, you can set maxWritesInFlight more than 1.
          * This will make writing faster.
-         * @param maxWritesInFlight
          * @return self
          */
         public TBuilder setMaxWritesInFlight(int maxWritesInFlight) {
@@ -311,7 +309,6 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
 
         /**
          * Allows to regular a chunk size in the output table.
-         * @param chunkSize
          * @return self
          */
         public TBuilder setChunkSize(int chunkSize) {

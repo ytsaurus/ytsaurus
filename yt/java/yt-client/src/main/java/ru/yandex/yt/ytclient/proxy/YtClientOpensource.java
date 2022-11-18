@@ -48,8 +48,8 @@ import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
  *  Asynchronous YT client.
  *  <p>
  *      <b>WARNING</b> Callbacks that <b>can block</b> (e.g. they use {@link CompletableFuture#join})
- *      <b>MUST NEVER BE USED</b> with non-Async thenApply, whenComplete, etc methods
- *      called on futures returned by this client. Otherwise deadlock may appear.
+ *      <b>MUST NEVER BE USED</b> with non-Async (thenApply, whenComplete etc.) methods
+ *      called on futures returned by this client. Otherwise, deadlock may appear.
  *      Always use Async versions of these methods with blocking callbacks.
  *  <p>
  *      Explanation. When using non-async thenApply callback is invoked by the thread that sets the future.
@@ -201,7 +201,6 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
 
     /**
      * Create builder for YtClient.
-     * @return
      */
     public static ClientBuilder<?, ?> builder() {
         return new Builder();
@@ -499,7 +498,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
                 .build();
 
         /**
-         * Set authentication information i.e. user name and user token.
+         * Set authentication information i.e. username and user token.
          *
          * <p>
          * When no rpc credentials is set they are loaded from environment.
@@ -512,9 +511,8 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
 
         /**
          * Set compression to be used for requests and responses.
-         *
          * <p>
-         * If it's not specified no compression will be used.
+         * If it's not specified then no compression is used.
          */
         public TBuilder setRpcCompression(RpcCompression rpcCompression) {
             this.compression = rpcCompression;
@@ -587,7 +585,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
          *
          * <p>
          * Similar to {@link #setCluster(String)} but allows to create connections to several clusters.
-         * YtClient will chose cluster to send requests based on cluster availability and their ping.
+         * YtClient will choose cluster to send requests based on cluster availability and their ping.
          */
         public TBuilder setClusters(String firstCluster, String... rest) {
             List<YtCluster> ytClusters = new ArrayList<>();
@@ -618,7 +616,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
          *
          * <p>
          * If bus is never set default bus will be created
-         * (default bus will be owned by YtClient so you don't need to worry about closing it).
+         * (default bus will be owned by YtClient, so you don't need to worry about closing it).
          */
         public TBuilder setOwnBusConnector(BusConnector connector) {
             this.busConnector = connector;
@@ -677,7 +675,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
          *
          * <p>
          * When YT is configured to use multiple clusters and preferred cluster is set
-         * it will be used for all requests unless it's unavailable.
+         * it will be used for all requests unless it is unavailable.
          *
          * <p>
          * If preferred cluster is not set or is set but unavailable YtClient chooses
@@ -737,11 +735,11 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
         }
     }
 
-    // Class is able to initialize nonset fields of builder with reasonable defaults. Keep in mind that:
+    // Class is able to initialize missing fields of builder with reasonable defaults. Keep in mind that:
     //   1. We cannot initialize this fields in YtClient constructor
     //   because busConnector is required to initialize superclass.
     //   2. We don't want to call initialization code if user specified explicitly values
-    //   (initialization code is looking at environment and can fail and it starts threads)
+    //   (initialization code is looking at environment and can fail, and it starts threads)
     //   3. Its better not to touch and modify builder instance since it's theoretically can be used by
     //   user to initialize another YtClient.
     @NonNullFields

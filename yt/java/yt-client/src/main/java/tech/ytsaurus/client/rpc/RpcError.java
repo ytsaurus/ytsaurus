@@ -140,7 +140,7 @@ public class RpcError extends RuntimeException {
                 sb.append(" <== ");
                 // Usually we have no more than one inner error.
                 // If there are many of them we output only the first one in short message description to ease reading.
-                // All other inner errors will also printed in "full error:" section.
+                // All other inner errors will also be printed in "full error:" section.
                 error = error.getInnerErrors(0);
             } else {
                 break;

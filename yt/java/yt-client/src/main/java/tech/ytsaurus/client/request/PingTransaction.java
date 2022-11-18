@@ -38,7 +38,7 @@ public class PingTransaction extends RequestBase<PingTransaction.Builder, PingTr
     }
 
     /**
-     * @see #Builder.setPingAncestors
+     * @see Builder#setPingAncestors
      */
     public boolean getPingAncestors() {
         return pingAncestors;
@@ -95,7 +95,7 @@ public class PingTransaction extends RequestBase<PingTransaction.Builder, PingTr
         /**
          * If set to true, not only the specified transaction but also all its ancestors will be pinged.
          * If set to false only specified transaction will be pinged.
-         *
+         * <b>
          * Default value: true.
          */
         public Builder setPingAncestors(boolean pingAncestors) {

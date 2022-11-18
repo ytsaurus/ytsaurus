@@ -18,8 +18,7 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 /**
  * Base class for all kinds of modify row requests.
  * <p>
- * Users should create and use one of inheritors: {@link ModifyRowsRequest}, {@link PreparableModifyRowsRequest} or
- * {@link MappedModifyRowsRequest}
+ * Users should create and use one of inheritors.
  */
 public abstract class AbstractModifyRowsRequest<
         TBuilder extends AbstractModifyRowsRequest.Builder<TBuilder, TRequest>,

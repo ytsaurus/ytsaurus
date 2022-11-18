@@ -22,7 +22,7 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
 /**
  * Base class for lookup rows requests.
  * <p>
- * Users use one of the inheritors of this class {@link LookupRowsRequest} or {@link MappedLookupRowsRequest}
+ * Users use one of the inheritors of this class.
  * <p>
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#lookup_rows">
  *     lookup_rows documentation

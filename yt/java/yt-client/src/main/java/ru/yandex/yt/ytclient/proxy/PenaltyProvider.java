@@ -298,7 +298,7 @@ public abstract class PenaltyProvider implements Closeable {
             }
 
             /**
-             * Set max allowed lag when tablets isn't considered as 'lagged'.
+             * Set max allowed lag when tablets aren't considered as 'lagged'.
              * Tablet is considered as 'lagged'
              * if CurrentTimestamp - TabletLastReplicationTimestamp >= MaxTabletLag (in seconds).
              */

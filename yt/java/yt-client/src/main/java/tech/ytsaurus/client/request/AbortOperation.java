@@ -96,7 +96,7 @@ public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOp
         }
 
         /**
-         * Set message to be shown in operation aborted error (show in Web UI, logs, etc)
+         * Set message to be shown in operation aborted error (show in Web UI, logs etc)
          */
         public Builder setMessage(String message) {
             this.message = message;
