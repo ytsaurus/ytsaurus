@@ -6,11 +6,6 @@ import java.util.stream.Collectors;
 
 import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
-
-@NonNullApi
-@NonNullFields
 public class MultiTablePartition {
     private final List<YPath> tableRanges;
 

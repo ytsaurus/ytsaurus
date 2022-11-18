@@ -3,12 +3,8 @@ package tech.ytsaurus.client.request;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TRspListJobs;
 
-@NonNullApi
-@NonNullFields
 public class ListJobsResult {
     private final List<JobResult> jobs;
 

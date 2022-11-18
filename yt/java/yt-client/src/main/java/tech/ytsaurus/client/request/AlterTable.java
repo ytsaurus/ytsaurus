@@ -14,13 +14,9 @@ import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
-@NonNullApi
-@NonNullFields
 public class AlterTable
         extends TableReq<AlterTable.Builder, AlterTable>
         implements HighLevelRequest<TReqAlterTable.Builder> {

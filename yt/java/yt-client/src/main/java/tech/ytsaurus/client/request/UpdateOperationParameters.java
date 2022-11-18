@@ -18,12 +18,8 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 
-@NonNullFields
-@NonNullApi
 public class UpdateOperationParameters
         extends OperationReq<UpdateOperationParameters.Builder, UpdateOperationParameters>
         implements HighLevelRequest<TReqUpdateOperationParameters.Builder> {
@@ -159,8 +155,6 @@ public class UpdateOperationParameters
         return builder;
     }
 
-    @NonNullFields
-    @NonNullApi
     public static class SchedulingOptions {
         @Nullable private Double weight;
         @Nullable private ResourceLimits resourceLimits;
@@ -203,8 +197,6 @@ public class UpdateOperationParameters
         }
     }
 
-    @NonNullFields
-    @NonNullApi
     public static class ResourceLimits {
         @Nullable private Long userSlots;
         @Nullable private Double cpu;

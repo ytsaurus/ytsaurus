@@ -8,12 +8,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
 
-@NonNullFields
-@NonNullApi
 public class GetTabletInfos
         extends RequestBase<GetTabletInfos.Builder, GetTabletInfos>
         implements HighLevelRequest<TReqGetTabletInfos.Builder> {

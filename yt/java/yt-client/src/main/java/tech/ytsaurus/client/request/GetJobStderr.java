@@ -8,12 +8,8 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqGetJobStderr;
 
-@NonNullApi
-@NonNullFields
 public class GetJobStderr extends OperationReq<GetJobStderr.Builder, GetJobStderr>
         implements HighLevelRequest<TReqGetJobStderr.Builder> {
     private final GUID jobId;
@@ -64,8 +60,6 @@ public class GetJobStderr extends OperationReq<GetJobStderr.Builder, GetJobStder
         super.writeArgumentsLogString(sb);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends OperationReq.Builder<Builder, GetJobStderr> {
         @Nullable
         private GUID jobId;

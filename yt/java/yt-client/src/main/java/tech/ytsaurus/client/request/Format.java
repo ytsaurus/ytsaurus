@@ -7,11 +7,7 @@ import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
-@NonNullApi
-@NonNullFields
 public class Format {
     private final String type;
     private final Map<String, YTreeNode> attributes;

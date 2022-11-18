@@ -5,11 +5,6 @@ import java.util.Optional;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
-
-@NonNullFields
-@NonNullApi
 public abstract class MutateNode<TBuilder extends MutateNode.Builder<TBuilder, TRequest>,
         TRequest extends MutateNode<TBuilder, TRequest>> extends TransactionalRequest<TBuilder, TRequest> {
     protected MutatingOptions mutatingOptions;

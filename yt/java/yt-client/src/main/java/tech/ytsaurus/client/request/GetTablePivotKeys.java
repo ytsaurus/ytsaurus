@@ -6,12 +6,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
 
-@NonNullFields
-@NonNullApi
 public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, GetTablePivotKeys>
         implements HighLevelRequest<TReqGetTablePivotKeys.Builder> {
     private final String path;
@@ -57,8 +53,6 @@ public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, Ge
                 .setAdditionalData(additionalData);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, GetTablePivotKeys> {
         @Nullable
         private String path;

@@ -12,16 +12,12 @@ import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.EOperationType;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqStartOperation;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
-@NonNullApi
-@NonNullFields
 public class StartOperation extends RequestBase<StartOperation.Builder, StartOperation>
         implements HighLevelRequest<TReqStartOperation.Builder> {
     private final EOperationType type;
@@ -99,8 +95,6 @@ public class StartOperation extends RequestBase<StartOperation.Builder, StartOpe
         }
     }
 
-    @NonNullApi
-    @NonNullFields
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
             extends RequestBase.Builder<TBuilder, StartOperation> {

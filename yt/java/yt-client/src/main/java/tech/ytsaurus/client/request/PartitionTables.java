@@ -12,16 +12,12 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.EPartitionTablesMode;
 import ru.yandex.yt.rpcproxy.TFetchChunkSpecConfig;
 import ru.yandex.yt.rpcproxy.TFetcherConfig;
 import ru.yandex.yt.rpcproxy.TReqPartitionTables;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
-@NonNullApi
-@NonNullFields
 public class PartitionTables
         extends RequestBase<PartitionTables.Builder, PartitionTables>
         implements HighLevelRequest<TReqPartitionTables.Builder> {

@@ -2,12 +2,8 @@ package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqCheckClusterLiveness;
 
-@NonNullApi
-@NonNullFields
 public class CheckClusterLiveness extends RequestBase<CheckClusterLiveness.Builder, CheckClusterLiveness>
         implements HighLevelRequest<TReqCheckClusterLiveness.Builder> {
     private final boolean checkCypressRoot;
@@ -48,8 +44,6 @@ public class CheckClusterLiveness extends RequestBase<CheckClusterLiveness.Build
                 .setAdditionalData(additionalData);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, CheckClusterLiveness> {
         private boolean checkCypressRoot = false;
         private boolean checkSecondaryMasterCells = false;

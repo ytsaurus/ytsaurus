@@ -7,11 +7,7 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 
-@NonNullFields
-@NonNullApi
 public abstract class TableReq<
         TBuilder extends TableReq.Builder<TBuilder, TRequest>,
         TRequest extends RequestBase<TBuilder, TRequest>>

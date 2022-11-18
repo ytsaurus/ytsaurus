@@ -6,8 +6,6 @@ import java.util.List;
 import java.util.Objects;
 import java.util.stream.Collectors;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
@@ -16,8 +14,6 @@ import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
 import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
-@NonNullApi
-@NonNullFields
 public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsRequest.Builder, LookupRowsRequest> {
     private final List<UnversionedRow> filters;
     private final List<List<?>> unconvertedFilters;
@@ -88,8 +84,6 @@ public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsReque
         }
     }
 
-    @NonNullApi
-    @NonNullFields
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
             extends AbstractLookupRowsRequest.Builder<TBuilder, LookupRowsRequest> {

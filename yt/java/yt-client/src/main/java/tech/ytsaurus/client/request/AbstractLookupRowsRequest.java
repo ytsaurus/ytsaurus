@@ -12,7 +12,6 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
 
-import ru.yandex.lang.NonNullApi;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
@@ -29,7 +28,6 @@ import ru.yandex.yt.ytclient.tables.TableSchema;
  *     lookup_rows documentation
  *     </a>
  */
-@NonNullApi
 public abstract class AbstractLookupRowsRequest<
         TBuilder extends AbstractLookupRowsRequest.Builder<TBuilder, TRequest>,
         TRequest extends AbstractLookupRowsRequest<TBuilder, TRequest>> extends RequestBase<TBuilder, TRequest> {

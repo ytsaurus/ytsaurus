@@ -2,12 +2,8 @@ package tech.ytsaurus.client.request;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TFetchChunkSpecConfig;
 
-@NonNullApi
-@NonNullFields
 public class FetchChunkSpecConfig {
     @Nullable
     private final Integer maxChunkPerFetch;

@@ -9,8 +9,6 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
 
 /**
@@ -75,8 +73,6 @@ public class AbortTransaction
     /**
      * Builder for {@link AbortTransaction}
      */
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, AbortTransaction> {
         @Nullable
         GUID transactionId;

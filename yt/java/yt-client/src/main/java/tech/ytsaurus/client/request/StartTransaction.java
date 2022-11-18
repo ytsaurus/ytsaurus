@@ -18,8 +18,6 @@ import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqStartTransaction;
 import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytree.TAttributeDictionary;
@@ -34,8 +32,6 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
  *     dynamic tables documentation
  *     </a>
  */
-@NonNullApi
-@NonNullFields
 public class StartTransaction
         extends RequestBase<StartTransaction.Builder, StartTransaction>
         implements HighLevelRequest<TReqStartTransaction.Builder> {

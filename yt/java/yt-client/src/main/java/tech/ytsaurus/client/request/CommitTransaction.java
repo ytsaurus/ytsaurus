@@ -9,8 +9,6 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
 
 /**
@@ -20,8 +18,6 @@ import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
  *     commit_tx documentation
  *     </a>
  */
-@NonNullFields
-@NonNullApi
 public class CommitTransaction extends RequestBase<CommitTransaction.Builder, CommitTransaction>
         implements HighLevelRequest<TReqCommitTransaction.Builder> {
     private final GUID transactionId;
@@ -64,8 +60,6 @@ public class CommitTransaction extends RequestBase<CommitTransaction.Builder, Co
                 .setAdditionalData(additionalData);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, CommitTransaction> {
         @Nullable
         private GUID transactionId;

@@ -7,12 +7,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
 
-@NonNullApi
-@NonNullFields
 public class ColumnFilter {
     @Nullable private Collection<String> columns;
 

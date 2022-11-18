@@ -4,8 +4,6 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.EJobState;
 import ru.yandex.yt.rpcproxy.TReqListJobs;
 
@@ -72,8 +70,6 @@ public class ListJobs
         super.writeArgumentsLogString(sb);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends OperationReq.Builder<Builder, ListJobs> {
         @Nullable
         private JobState state;

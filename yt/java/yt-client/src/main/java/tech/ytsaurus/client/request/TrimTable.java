@@ -7,12 +7,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TReqTrimTable;
 
-@NonNullApi
-@NonNullFields
 public class TrimTable
         extends RequestBase<TrimTable.Builder, TrimTable>
         implements HighLevelRequest<TReqTrimTable.Builder> {
@@ -66,8 +62,6 @@ public class TrimTable
                 .setAdditionalData(additionalData);
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class Builder extends RequestBase.Builder<Builder, TrimTable> {
         @Nullable
         private String path;

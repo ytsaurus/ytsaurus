@@ -13,14 +13,10 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TMutatingOptions;
 import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
 import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
-@NonNullApi
-@NonNullFields
 public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, ConcatenateNodes>
         implements HighLevelRequest<TReqConcatenateNodes.Builder> {
     private final List<YPath> sourcePaths;
