@@ -9,16 +9,10 @@
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
-#include <yt/yt/library/auth/credentials_injecting_channel.h>
-
 namespace NYT::NApi::NNative {
 
 using namespace NAuth;
 using namespace NRpc;
-
-////////////////////////////////////////////////////////////////////////////////
-
-static const auto& Logger = AuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -32,54 +26,6 @@ IAuthenticatorPtr CreateNativeAuthenticator(const IConnectionPtr& connection)
     return NAuth::CreateNativeAuthenticator([connection] (TTvmId tvmId) {
         return IsValidSourceTvmId(connection, tvmId);
     });
-}
-
-IChannelFactoryPtr CreateNativeAuthenticationInjectingChannelFactory(
-    IChannelFactoryPtr channelFactory,
-    std::optional<TTvmId> tvmId,
-    IDynamicTvmServicePtr tvmService)
-{
-    if (!tvmId) {
-        return channelFactory;
-    }
-
-    if (!tvmService) {
-        tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
-    }
-
-    if (!tvmService) {
-        YT_LOG_ERROR("Cluster connection requires TVM authentification, but TVM service is unset");
-        return channelFactory;
-    }
-
-    auto ticketAuth = CreateServiceTicketAuth(tvmService, *tvmId);
-    return CreateServiceTicketInjectingChannelFactory(
-        std::move(channelFactory),
-        std::move(ticketAuth));
-}
-
-IChannelPtr CreateNativeAuthenticationInjectingChannel(
-    IChannelPtr channel,
-    std::optional<TTvmId> tvmId,
-    IDynamicTvmServicePtr tvmService)
-{
-    if (!tvmId) {
-        return channel;
-    }
-
-    if (!tvmService) {
-        tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
-    }
-
-    if (!tvmService) {
-        YT_LOG_ERROR("Cluster connection requires TVM authentification, but TVM service is unset");
-        return channel;
-    }
-
-    auto ticketAuth = CreateServiceTicketAuth(tvmService, *tvmId);
-    return CreateServiceTicketInjectingChannel(
-        std::move(channel),
-        TAuthenticationOptions::FromServiceTicketAuth(std::move(ticketAuth)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

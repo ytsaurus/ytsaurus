@@ -27,12 +27,16 @@ void TNativeAuthenticationManager::Configure(const TNativeAuthenticationManagerC
 {
     TvmService_.Store(CreateTvmService(config->TvmService));
     EnableValidation_.store(config->EnableValidation);
+    EnableSubmission_.store(config->EnableSubmission);
 }
 
 void TNativeAuthenticationManager::Reconfigure(const TNativeAuthenticationManagerDynamicConfigPtr& config)
 {
     if (config->EnableValidation) {
         EnableValidation_.store(*config->EnableValidation);
+    }
+    if (config->EnableSubmission) {
+        EnableSubmission_.store(*config->EnableSubmission);
     }
 }
 
@@ -49,6 +53,11 @@ void TNativeAuthenticationManager::SetTvmService(IDynamicTvmServicePtr tvmServic
 bool TNativeAuthenticationManager::IsValidationEnabled() const
 {
     return EnableValidation_.load(std::memory_order::relaxed);
+}
+
+bool TNativeAuthenticationManager::IsSubmissionEnabled() const
+{
+    return EnableSubmission_.load(std::memory_order::relaxed);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

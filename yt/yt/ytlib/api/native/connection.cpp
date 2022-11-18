@@ -9,6 +9,7 @@
 #include "helpers.h"
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
+#include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>

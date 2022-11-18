@@ -11,7 +11,8 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/helpers.h>
+
+#include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
 #include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
 
@@ -159,7 +160,7 @@ TQueueAgent::TQueueAgent(
     , AgentId_(std::move(agentId))
     , GlobalProfilingCounters_(QueueAgentProfiler)
     , QueueAgentChannelFactory_(
-        NNative::CreateNativeAuthenticationInjectingChannelFactory(
+        NAuth::CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)),
             nativeConnection->GetConfig()->TvmId))
 {

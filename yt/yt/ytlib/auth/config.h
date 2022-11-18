@@ -23,6 +23,9 @@ public:
     //! If true, then service ticket verification is mandatory for native authenticator.
     bool EnableValidation;
 
+    //! If true, then service tickets are allowed to be sent.
+    bool EnableSubmission;
+
     REGISTER_YSON_STRUCT(TNativeAuthenticationManagerConfig);
 
     static void Register(TRegistrar registrar);
@@ -37,6 +40,7 @@ class TNativeAuthenticationManagerDynamicConfig
 {
 public:
     std::optional<bool> EnableValidation;
+    std::optional<bool> EnableSubmission;
 
     REGISTER_YSON_STRUCT(TNativeAuthenticationManagerDynamicConfig);
 

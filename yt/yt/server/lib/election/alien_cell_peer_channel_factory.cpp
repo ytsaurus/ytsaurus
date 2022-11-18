@@ -1,9 +1,9 @@
 #include "alien_cell_peer_channel_factory.h"
 
 #include <yt/yt/ytlib/api/native/config.h>
-#include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
+#include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
 #include <yt/yt/ytlib/election/alien_cell_peer_channel_factory.h>
 
@@ -97,7 +97,7 @@ public:
         }
         auto clusterConfig = connection->GetConfig();
 
-        channel = NApi::NNative::CreateNativeAuthenticationInjectingChannel(
+        channel = NAuth::CreateNativeAuthenticationInjectingChannel(
             std::move(channel),
             clusterConfig->TvmId);
 
