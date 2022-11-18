@@ -164,7 +164,7 @@ class FailoverRpcExecutor {
         private Throwable lastRequestError = null;
 
         // If all requests that were sent already have failed then complete our result future with error result.
-        // Otherwise no other retry will be performed, if we get
+        // Otherwise, no other retry will be performed, if we get
         public void softAbort(Throwable error) {
             stopped = true;
             if (requestsError == requestsSent) {

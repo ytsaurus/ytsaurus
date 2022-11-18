@@ -226,7 +226,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     }
 
     private void throwWrongState(State expectedOldState, State newState) {
-        // Yep, this state is a little bit outdated but Java8 doesn't have compareAndExchange,
+        // Yep, this state is outdated but Java8 doesn't have compareAndExchange,
         // so we do our best here. In any case it's a bug.
         State currentState = state.get();
         throw new IllegalStateException(
@@ -282,7 +282,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
     private CompletableFuture<Void> abortImpl(boolean complainWrongState) {
         State oldState = state.getAndSet(State.CLOSED);
         if (oldState == State.ACTIVE || oldState == State.COMMITTING && !complainWrongState) {
-            // dont wait for answer
+            // don't wait for answer
             return client.abortTransaction(id)
                     .whenComplete((result, error) -> transactionCompleteFuture.complete(null));
         } else if (complainWrongState) {

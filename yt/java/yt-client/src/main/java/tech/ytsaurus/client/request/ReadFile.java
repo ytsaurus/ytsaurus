@@ -1,6 +1,7 @@
 package tech.ytsaurus.client.request;
 
 import java.io.ByteArrayOutputStream;
+import java.util.Objects;
 
 import javax.annotation.Nullable;
 
@@ -17,18 +18,20 @@ public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
     private final String path;
 
     @Nullable
-    private Long offset;
+    private final Long offset;
     @Nullable
-    private Long length;
+    private final Long length;
     @Nullable
-    private YTreeNode config;
+    private final YTreeNode config;
 
-    private TransactionalOptions transactionalOptions = null;
-    private SuppressableAccessTrackingOptions suppressableAccessTrackingOptions = null;
+    @Nullable
+    private final TransactionalOptions transactionalOptions;
+    @Nullable
+    private final SuppressableAccessTrackingOptions suppressableAccessTrackingOptions;
 
     public ReadFile(BuilderBase<?> builder) {
         super(builder);
-        this.path = builder.path;
+        this.path = Objects.requireNonNull(builder.path);
         this.offset = builder.offset;
         this.length = builder.length;
         if (builder.config != null) {
@@ -36,14 +39,16 @@ public class ReadFile extends RequestBase<ReadFile.Builder, ReadFile> {
         } else {
             this.config = null;
         }
-        if (builder.transactionalOptions != null) {
+        if (builder.transactionalOptions == null) {
+            this.transactionalOptions = null;
+        } else {
             this.transactionalOptions = new TransactionalOptions(builder.transactionalOptions);
         }
-        if (builder.suppressableAccessTrackingOptions != null) {
+        if (builder.suppressableAccessTrackingOptions == null) {
+            this.suppressableAccessTrackingOptions = null;
+        } else {
             this.suppressableAccessTrackingOptions =
                     new SuppressableAccessTrackingOptions(builder.suppressableAccessTrackingOptions);
-        } else {
-            this.suppressableAccessTrackingOptions = null;
         }
     }
 

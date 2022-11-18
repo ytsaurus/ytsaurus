@@ -129,7 +129,7 @@ public class StartTransaction
     /**
      * Get transaction timeout.
      *
-     * @see #setTimeout
+     * @see Builder#setTransactionTimeout
      */
     public Duration getTransactionTimeout() {
         return transactionTimeout;
@@ -151,7 +151,7 @@ public class StartTransaction
 
     /**
      * Get operation executed on ping failure.
-     * @see #setOnPingFailed
+     * @see Builder#setOnPingFailed
      */
     public Optional<Consumer<Exception>> getOnPingFailed() {
         return Optional.ofNullable(onPingFailed);
@@ -159,7 +159,7 @@ public class StartTransaction
 
     /**
      * Get deadline.
-     * @see #setDeadline
+     * @see Builder#setDeadline
      */
     public Optional<Instant> getDeadline() {
         return Optional.ofNullable(deadline);
@@ -167,7 +167,7 @@ public class StartTransaction
 
     /**
      * Get GUID to use with transaction being created.
-     * @see #setId
+     * @see Builder#setId
      */
     public Optional<GUID> getId() {
         return Optional.ofNullable(id);
@@ -183,14 +183,14 @@ public class StartTransaction
     /**
      * Get atomicity of transaction.
      *
-     * @see #setAtomicity
+     * @see Builder#setAtomicity
      */
     public Optional<Atomicity> getAtomicity() {
         return Optional.ofNullable(atomicity);
     }
 
     /**
-     * @see #setDurability
+     * @see Builder#setDurability
      */
     public Optional<Durability> getDurability() {
         return Optional.ofNullable(durability);

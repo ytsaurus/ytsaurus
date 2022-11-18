@@ -151,7 +151,7 @@ public abstract class RequestBase<
          * <p> Every request must have its own unique request id.
          * If request id is not set or set to null library will generate random request id.
          *
-         * @see ru.yandex.inside.yt.kosher.common.GUID#create()
+         * @see GUID#create()
          */
         public TBuilder setRequestId(@Nullable GUID requestId) {
             this.requestId = requestId;
@@ -171,7 +171,7 @@ public abstract class RequestBase<
          * Set trace id of the request.
          *
          * @param traceId trace id of the request.
-         * @param sampled whether or not this request will be sent to jaeger.
+         * @param sampled whether this request will be sent to jaeger.
          *                <b>Warning:</b> enabling sampling creates additional load on server, please be careful.
          */
         public TBuilder setTraceId(@Nullable GUID traceId, boolean sampled) {

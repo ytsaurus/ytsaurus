@@ -321,7 +321,9 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
 
         /**
          * Set memory reserve factor.
-         * https://yt.yandex-team.ru/docs/description/mr/operations_options#memory_reserve_factor
+         * <a href="https://yt.yandex-team.ru/docs/description/mr/operations_options#memory_reserve_factor">
+         *     documentation
+         *     </a>
          *
          * @param memoryReserveFactor memory reserve factor, if set to null default value (0.5) will be used.
          */

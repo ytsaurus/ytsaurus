@@ -454,7 +454,7 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
      * Other setters are required.
      */
     static class HttpBuilder extends BaseBuilder<HttpBuilder> {
-        private static String ipV6RegEx  = "[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}";
+        private static final String IP_V6_REG_EX = "[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}";
         @Nullable String balancerAddress;
 
         HttpBuilder setBalancerAddress(String host, int port) {
@@ -464,9 +464,9 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
                 throw new IllegalArgumentException("Bad port: " + port);
             }
 
-            if (host.matches(ipV6RegEx)) {
+            if (host.matches(IP_V6_REG_EX)) {
                 this.balancerAddress = String.format("[%s]:%d", host, port);
-            } else if (host.matches("\\[" + ipV6RegEx + "]") || !host.contains(":")) {
+            } else if (host.matches("\\[" + IP_V6_REG_EX + "]") || !host.contains(":")) {
                 this.balancerAddress = host + ":" + port;
             } else {
                 throw new IllegalArgumentException("Bad hostname: " + host);

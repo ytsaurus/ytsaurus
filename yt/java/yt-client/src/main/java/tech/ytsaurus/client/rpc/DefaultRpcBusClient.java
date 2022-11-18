@@ -288,7 +288,7 @@ public class DefaultRpcBusClient implements RpcClient {
         ACKED(2),
         FINISHED(3);
 
-        int step;
+        final int step;
 
         RequestState(int step) {
             this.step = step;

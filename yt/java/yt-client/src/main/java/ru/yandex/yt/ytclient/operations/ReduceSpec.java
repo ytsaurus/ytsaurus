@@ -195,8 +195,8 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
          * When this option is set to false and joinBy is specified,
          * Reduce operation behaves like JoinReduce.
          * <p>
-         * https://docs.yandex-team.ru/yt/description/mr/reduce#foreign_tables
-         * https://clubs.at.yandex-team.ru/yt/3587
+         * <a href="https://docs.yandex-team.ru/yt/description/mr/reduce#foreign_tables">Documentation.</a>
+         * <a href="https://clubs.at.yandex-team.ru/yt/3587">Blog post.</a>
          */
         public T setEnableKeyGuarantee(boolean enableKeyGuarantee) {
             this.enableKeyGuarantee = enableKeyGuarantee;

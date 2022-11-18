@@ -7,6 +7,8 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import javax.annotation.Nullable;
+
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
@@ -242,7 +244,7 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
             INSERT("insert"),
             DELETE("delete");
 
-            String value;
+            final String value;
 
             ModificationType(String value) {
                 this.value = value;
@@ -251,12 +253,13 @@ public class ModifyRowsRequest extends PreparableModifyRowsRequest<ModifyRowsReq
 
         static class RowMeta {
             ModificationType type;
-            List<?> values;
             boolean skipMissingValues;
-
-            Map<String, ?> map;
-
             boolean aggregate;
+
+            @Nullable
+            List<?> values;
+            @Nullable
+            Map<String, ?> map;
 
             RowMeta(ModificationType type, List<?> values, boolean skipMissingValues, boolean aggregate) {
                 this.type = type;

@@ -1,17 +1,21 @@
 package tech.ytsaurus.client.request;
 
+import javax.annotation.Nullable;
+
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
 import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 
 public class MasterReadOptions {
     private MasterReadKind readFrom = MasterReadKind.Follower;
+    @Nullable
     private Long expireAfterSuccessfulUpdateTime;
+    @Nullable
     private Long expireAfterFailedUpdateTime;
+    @Nullable
     private Integer cacheStickyGroupSize;
 
     public MasterReadOptions() {
-
     }
 
     public MasterReadOptions(MasterReadOptions other) {
