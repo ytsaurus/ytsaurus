@@ -139,7 +139,7 @@ public:
         auto* jobSpecExt = jobSpec->MutableExtension(TReplicateChunkJobSpecExt::replicate_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(ChunkIdWithIndexes_));
         jobSpecExt->set_source_medium_index(ChunkIdWithIndexes_.MediumIndex);
-        jobSpecExt->set_is_pull_replication_job(!!TargetNodeId_);
+        jobSpecExt->set_is_pull_replication_job(TargetNodeId_ != InvalidNodeId);
 
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
         for (auto replica : TargetReplicas_) {
@@ -1320,13 +1320,13 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     auto mediumIndex = targetMedium->GetIndex();
     TJobPtr job;
 
+    auto isPullReplicationJob = targetNodeId != InvalidNodeId;
+
     const auto& nodeTracker = Bootstrap_->GetNodeTracker();
     auto* targetNode = nodeTracker->FindNode(targetNodeId);
-    if (targetNodeId && !targetNode) {
-        return true;
+    if (isPullReplicationJob && !targetNode) {
+        return false;
     }
-
-    auto isPullReplicationJob = !!targetNodeId;
 
     auto finallyGuard = Finally([&] {
         if (job) {
@@ -1767,6 +1767,11 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
                         mediumIndexSet.reset(mediumIndex);
                     } else {
                         ++misscheduledReplicationJobs;
+                        if (nodeId != InvalidNodeId) {
+                            mediumIndexSet.reset(mediumIndex);
+                            // Move all CRP-enabled chunks with mischeduled jobs back to pull queue.
+                            ScheduleChunkRefresh(chunk);
+                        }
                     }
                 }
             }
