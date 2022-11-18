@@ -53,8 +53,10 @@ TString ToString(const TTablePtr& table)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSchemaPtr RemoveIncompatibleSortOrder(const TTableSchemaPtr& schema)
+void RemoveIncompatibleSortOrder(TTablePtr& table)
 {
+    const auto& schema = table->Schema;
+
     auto hasIncompatibleSortOrder = [] (const TColumnSchema& column) -> bool {
         if (column.SortOrder()) {
             // ESortOrder::Descending is not supported in ClickHouse.
@@ -79,7 +81,7 @@ TTableSchemaPtr RemoveIncompatibleSortOrder(const TTableSchemaPtr& schema)
 
     // Fast path.
     if (!foundIncompatibleSortOrder) {
-        return schema;
+        return;
     }
 
     auto columns = schema->Columns();
@@ -95,7 +97,8 @@ TTableSchemaPtr RemoveIncompatibleSortOrder(const TTableSchemaPtr& schema)
         }
     }
 
-    return New<TTableSchema>(std::move(columns), schema->GetStrict(), schema->GetUniqueKeys());
+    table->Schema = New<TTableSchema>(std::move(columns), schema->GetStrict(), /* uniqueKeys*/ false);
+    table->Comparator = table->Schema->ToComparator();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -205,7 +208,7 @@ std::vector<TTablePtr> FetchTables(
     throwOnErrors();
 
     for (auto& table : tables) {
-        table->Schema = RemoveIncompatibleSortOrder(table->Schema);
+        RemoveIncompatibleSortOrder(table);
     }
 
     for (const auto& table : tables) {
