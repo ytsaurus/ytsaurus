@@ -1,15 +1,15 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/checkpointable_stream.h>
-
 #include <yt/yt/core/concurrency/async_stream.h>
+
+#include <yt/yt/server/lib/hydra_common/checkpointable_stream.h>
 
 #include <util/stream/mem.h>
 #include <util/stream/str.h>
 
 #include <array>
 
-namespace NYT {
+namespace NYT::NHydra {
 namespace {
 
 using namespace NConcurrency;
@@ -133,7 +133,7 @@ TEST(TCheckpointableStreamTest, BufferedAsync)
     TString str;
     TStringOutput stringOutput(str);
     auto asyncOutput = CreateAsyncAdapter(&stringOutput);
-    auto checkpointableOutput = CreateBufferedCheckpointableSyncAdapter(asyncOutput, ESyncStreamAdapterStrategy::Get, 10);
+    auto checkpointableOutput = CreateBufferedCheckpointableSyncAdapter(asyncOutput, EWaitForStrategy::Get, 10);
 
     auto write = [&] (const TString& str) {
         const char* srcPtr = str.data();
@@ -191,4 +191,4 @@ TEST(TCheckpointableStreamTest, BufferedAsync)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NYT
+} // namespace NYT::NHydra

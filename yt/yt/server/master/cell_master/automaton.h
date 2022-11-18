@@ -37,9 +37,9 @@ private:
     void SetZeroState() override;
 
     std::unique_ptr<NHydra::TSaveContext> CreateSaveContext(
-        ICheckpointableOutputStream* output) override;
+        NHydra::ICheckpointableOutputStream* output) override;
     std::unique_ptr<NHydra::TLoadContext> CreateLoadContext(
-        ICheckpointableInputStream* input) override;
+        NHydra::ICheckpointableInputStream* input) override;
 
     NHydra::TReign GetCurrentReign() override;
     NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(NHydra::TReign reign) override;

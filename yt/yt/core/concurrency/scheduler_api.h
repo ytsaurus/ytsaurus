@@ -97,6 +97,12 @@ template <class T>
 [[nodiscard]] TErrorOr<T> WaitForUniqueFast(
     const TFuture<T>& future);
 
+//! A possibly blocking version of #WaitFor.
+template <class T>
+TErrorOr<T> WaitForWithStrategy(
+    const TFuture<T>& future,
+    EWaitForStrategy strategy);
+
 //! Reschedules the current fiber to the current invoker.
 void Yield();
 

@@ -47,7 +47,7 @@ DECLARE_REFCOUNTED_STRUCT(IFairShareThreadPool)
 
 DECLARE_REFCOUNTED_CLASS(TAsyncStreamPipe)
 
-DEFINE_ENUM(ESyncStreamAdapterStrategy,
+DEFINE_ENUM(EWaitForStrategy,
     (WaitFor)
     (Get)
 );

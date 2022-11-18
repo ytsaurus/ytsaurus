@@ -55,6 +55,21 @@ template <class T>
     return future.GetUnique();
 }
 
+template <class T>
+TErrorOr<T> WaitForWithStrategy(
+    const TFuture<T>& future,
+    EWaitForStrategy strategy)
+{
+    switch (strategy) {
+        case EWaitForStrategy::WaitFor:
+            return WaitFor(std::move(future));
+        case EWaitForStrategy::Get:
+            return future.Get();
+        default:
+            YT_ABORT();
+    }
+}
+
 inline void Yield()
 {
     WaitUntilSet(VoidFuture);
