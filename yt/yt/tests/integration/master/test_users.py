@@ -6,7 +6,8 @@ from yt_commands import (
     create_user, create_group, create_tablet_cell_bundle, make_ace,
     add_member, remove_member, remove_group, remove_user,
     remove_network_project, start_transaction, raises_yt_error,
-    set_user_password)
+    set_user_password, issue_token, revoke_token, list_user_tokens,
+)
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError
@@ -561,7 +562,7 @@ class TestUsers(YTEnvSetup):
             set_user_password("u", "admin2", authenticated_user="u")
         with raises_yt_error("User provided invalid password"):
             set_user_password("u", "admin2", "123456", authenticated_user="u")
-        with raises_yt_error("Password can be changed either"):
+        with raises_yt_error("Password change can be performed either"):
             set_user_password("u", "admin2", "admin", authenticated_user="v")
         set_user_password("u", "admin2", "admin", authenticated_user="u")
 
@@ -588,6 +589,45 @@ class TestUsers(YTEnvSetup):
         assert not exists("//sys/users/u/@password_salt")
         rev4 = get("//sys/users/u/@password_revision")
         assert rev4 > rev3
+
+    @authors("gritukan")
+    def test_tokens(self):
+        if self.DRIVER_BACKEND == "rpc":
+            return
+
+        create_user("u")
+        create_user("v")
+        set_user_password("u", "u")
+        set_user_password("v", "v")
+
+        _, t1_hash = issue_token("u")
+        assert get(f"//sys/cypress_tokens/{t1_hash}/@user") == "u"
+        assert_items_equal(list_user_tokens("u"), [t1_hash])
+        assert list_user_tokens("v") == []
+
+        _, t2_hash = issue_token("u", "u", authenticated_user="u")
+        assert_items_equal(list_user_tokens("u"), [t1_hash, t2_hash])
+
+        with raises_yt_error("User provided invalid password"):
+            issue_token("u", "a", authenticated_user="u")
+        with raises_yt_error("Token issuance can be performed"):
+            issue_token("u", "v", authenticated_user="v")
+
+        with raises_yt_error("Provided token is not recognized"):
+            revoke_token("u", "xxx", "u", authenticated_user="u")
+        with raises_yt_error("User provided invalid password"):
+            revoke_token("u", t1_hash, "a", authenticated_user="u")
+        with raises_yt_error("Provided token is not recognized"):
+            revoke_token("v", t1_hash, "v", authenticated_user="v")
+        with raises_yt_error("Token revokation can be performed"):
+            revoke_token("u", t1_hash, "v", authenticated_user="v")
+        assert_items_equal(list_user_tokens("u"), [t1_hash, t2_hash])
+
+        revoke_token("u", t1_hash)
+        assert_items_equal(list_user_tokens("u"), [t2_hash])
+
+        revoke_token("u", t2_hash, "u", authenticated_user="u")
+        assert list_user_tokens("u") == []
 
 
 ##################################################################

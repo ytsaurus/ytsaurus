@@ -750,7 +750,32 @@ private:
             ScheduleCreateNode(
                 "//sys/cypress_cookies",
                 transactionId,
-                EObjectType::MapNode);
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                        .Item("acl").BeginList()
+                            .Item().Value(TAccessControlEntry(
+                                ESecurityAction::Deny,
+                                securityManager->GetEveryoneGroup(),
+                                EPermissionSet(EPermission::Read | EPermission::Write | EPermission::Remove)))
+                        .EndList()
+                    .EndMap());
+
+            ScheduleCreateNode(
+                "//sys/cypress_tokens",
+                transactionId,
+                EObjectType::MapNode,
+                BuildYsonStringFluently()
+                    .BeginMap()
+                        .Item("opaque").Value(true)
+                        .Item("acl").BeginList()
+                            .Item().Value(TAccessControlEntry(
+                                ESecurityAction::Deny,
+                                securityManager->GetEveryoneGroup(),
+                                EPermissionSet(EPermission::Read | EPermission::Write | EPermission::Remove)))
+                        .EndList()
+                    .EndMap());
 
             FlushScheduled();
 

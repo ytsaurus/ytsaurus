@@ -1660,6 +1660,31 @@ TFuture<void> TClient::SetUserPassword(
     ThrowUnimplemented("SetUserPassword");
 }
 
+TFuture<TIssueTokenResult> TClient::IssueToken(
+    const TString& /*user*/,
+    const TString& /*passwordSha256*/,
+    const TIssueTokenOptions& /*options*/)
+{
+    ThrowUnimplemented("IssueToken");
+}
+
+TFuture<void> TClient::RevokeToken(
+    const TString& /*user*/,
+    const TString& /*passwordSha256*/,
+    const TString& /*tokenSha256*/,
+    const TRevokeTokenOptions& /*options*/)
+{
+    ThrowUnimplemented("RevokeToken");
+}
+
+TFuture<TListUserTokensResult> TClient::ListUserTokens(
+    const TString& /*user*/,
+    const TString& /*passwordSha256*/,
+    const TListUserTokensOptions& /*options*/)
+{
+    ThrowUnimplemented("ListUserTokens");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NRpcProxy

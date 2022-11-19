@@ -801,6 +801,41 @@ TFuture<void> TDelegatingClient::SetUserPassword(
         options);
 }
 
+TFuture<TIssueTokenResult> TDelegatingClient::IssueToken(
+    const TString& user,
+    const TString& passwordSha256,
+    const TIssueTokenOptions& options)
+{
+    return Underlying_->IssueToken(
+        user,
+        passwordSha256,
+        options);
+}
+
+TFuture<void> TDelegatingClient::RevokeToken(
+    const TString& user,
+    const TString& passwordSha256,
+    const TString& tokenSha256,
+    const TRevokeTokenOptions& options)
+{
+    return Underlying_->RevokeToken(
+        user,
+        passwordSha256,
+        tokenSha256,
+        options);
+}
+
+TFuture<TListUserTokensResult> TDelegatingClient::ListUserTokens(
+    const TString& user,
+    const TString& passwordSha256,
+    const TListUserTokensOptions& options)
+{
+    return Underlying_->ListUserTokens(
+        user,
+        passwordSha256,
+        options);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NApi

@@ -21,4 +21,53 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TIssueTokenCommand
+    : public TTypedCommand<NApi::TIssueTokenOptions>
+{
+public:
+    TIssueTokenCommand();
+
+private:
+    TString User_;
+
+    TString PasswordSha256_;
+
+    void DoExecute(ICommandContextPtr context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRevokeTokenCommand
+    : public TTypedCommand<NApi::TRevokeTokenOptions>
+{
+public:
+    TRevokeTokenCommand();
+
+private:
+    TString User_;
+
+    TString PasswordSha256_;
+    TString TokenSha256_;
+
+    void DoExecute(ICommandContextPtr context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TListUserTokensCommand
+    : public TTypedCommand<NApi::TListUserTokensOptions>
+{
+public:
+    TListUserTokensCommand();
+
+private:
+    TString User_;
+
+    TString PasswordSha256_;
+
+    void DoExecute(ICommandContextPtr context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

@@ -4,6 +4,7 @@
 #include "blackbox_cookie_authenticator.h"
 #include "cookie_authenticator.h"
 #include "cypress_cookie_manager.h"
+#include "cypress_token_authenticator.h"
 #include "tvm_service.h"
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
@@ -78,9 +79,15 @@ public:
             tokenAuthenticators.push_back(
                 CreateCachingTokenAuthenticator(
                     config->CypressTokenAuthenticator,
-                    CreateCypressTokenAuthenticator(
+                    CreateLegacyCypressTokenAuthenticator(
                         config->CypressTokenAuthenticator,
                         client),
+                    profiler.WithPrefix("/legacy_cypress_token_authenticator/cache")));
+
+            tokenAuthenticators.push_back(
+                CreateCachingTokenAuthenticator(
+                    config->CypressTokenAuthenticator,
+                    CreateCypressTokenAuthenticator(client),
                     profiler.WithPrefix("/cypress_token_authenticator/cache")));
         }
 

@@ -503,6 +503,25 @@ public:
         const TString& newPasswordSha256,
         const TSetUserPasswordOptions& options),
         (override));
+
+    MOCK_METHOD(TFuture<TIssueTokenResult>, IssueToken, (
+        const TString& user,
+        const TString& passwordSha256,
+        const TIssueTokenOptions& options),
+        (override));
+
+    MOCK_METHOD(TFuture<void>, RevokeToken, (
+        const TString& user,
+        const TString& passwordSha256,
+        const TString& tokenSha256,
+        const TRevokeTokenOptions& options),
+        (override));
+
+    MOCK_METHOD(TFuture<TListUserTokensResult>, ListUserTokens, (
+        const TString& user,
+        const TString& passwordSha256,
+        const TListUserTokensOptions& options),
+        (override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockClient)

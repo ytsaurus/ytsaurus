@@ -28,7 +28,9 @@ ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
     IBlackboxServicePtr blackboxService,
     NProfiling::TProfiler profiler = {});
 
-ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
+// This authenticator was created before simple authentication scheme
+// and should be removed one day.
+ITokenAuthenticatorPtr CreateLegacyCypressTokenAuthenticator(
     TCypressTokenAuthenticatorConfigPtr config,
     NApi::IClientPtr client);
 
