@@ -235,7 +235,6 @@ public:
     void ApplyMutationDuringRecovery(const TSharedRef& recordData);
 
     void ApplyMutations(const std::vector<TPendingMutationPtr>& mutations);
-    void ApplyMutation(const TPendingMutationPtr& mutation);
 
     TReign GetCurrentReign() const;
     EFinalRecoveryAction GetFinalRecoveryAction() const;
@@ -301,6 +300,7 @@ private:
 
     TForkCountersPtr ForkCounters_;
 
+    void ApplyMutation(const TPendingMutationPtr& mutation);
     void DoApplyMutation(NHydra::TMutationContext* mutationContext, TVersion mutationVersion, int term);
 
     bool TryAcquireUserLock();
