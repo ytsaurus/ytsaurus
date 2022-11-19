@@ -838,8 +838,11 @@ private:
             tabletWriteManager->OnTransactionTransientReset(transaction);
         }
 
-        // Releases transient locks.
-        UnlockLockedTablets(transaction);
+        // Release transient locks.
+        for (auto* tablet : GetTransientAffectedTablets(transaction)) {
+            UnlockTablet(tablet, ETabletLockType::TransientTransaction);
+        }
+        transaction->TransientAffectedTabletIds().clear();
     }
 
     void ValidateClientTimestamp(TTransactionId transactionId)
