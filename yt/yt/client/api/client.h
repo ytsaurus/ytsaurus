@@ -1576,6 +1576,29 @@ struct TSetUserPasswordOptions
     : public TTimeoutOptions
 { };
 
+struct TIssueTokenOptions
+    : public TTimeoutOptions
+{ };
+
+struct TIssueTokenResult
+{
+    TString Token;
+};
+
+struct TRevokeTokenOptions
+    : public TTimeoutOptions
+{ };
+
+struct TListUserTokensOptions
+    : public TTimeoutOptions
+{ };
+
+struct TListUserTokensResult
+{
+    // Tokens are SHA256-encoded.
+    std::vector<TString> Tokens;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -2088,11 +2111,29 @@ struct IClient
 
     // Authentication
 
+    // Methods below correspond to simple authentication scheme
+    // and are intended to be used on clusters without third-party tokens (e.g. Yandex blackbox).
     virtual TFuture<void> SetUserPassword(
         const TString& user,
         const TString& currentPasswordSha256,
         const TString& newPasswordSha256,
         const TSetUserPasswordOptions& options) = 0;
+
+    virtual TFuture<TIssueTokenResult> IssueToken(
+        const TString& user,
+        const TString& passwordSha256,
+        const TIssueTokenOptions& options) = 0;
+
+    virtual TFuture<void> RevokeToken(
+        const TString& user,
+        const TString& passwordSha256,
+        const TString& tokenSha256,
+        const TRevokeTokenOptions& options) = 0;
+
+    virtual TFuture<TListUserTokensResult> ListUserTokens(
+        const TString& user,
+        const TString& passwordSha256,
+        const TListUserTokensOptions& options) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)

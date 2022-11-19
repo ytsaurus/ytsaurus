@@ -175,11 +175,11 @@ ITokenAuthenticatorPtr CreateBlackboxTokenAuthenticator(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressTokenAuthenticator
+class TLegacyCypressTokenAuthenticator
     : public ITokenAuthenticator
 {
 public:
-    TCypressTokenAuthenticator(
+    TLegacyCypressTokenAuthenticator(
         TCypressTokenAuthenticatorConfigPtr config,
         IClientPtr client)
         : Config_(std::move(config))
@@ -199,7 +199,7 @@ public:
         auto path = Config_->RootPath + "/" + ToYPathLiteral(Config_->Secure ? tokenHash : token);
         return Client_->GetNode(path)
             .Apply(BIND(
-                &TCypressTokenAuthenticator::OnCallResult,
+                &TLegacyCypressTokenAuthenticator::OnCallResult,
                 MakeStrong(this),
                 std::move(tokenHash)));
     }
@@ -243,11 +243,11 @@ private:
     }
 };
 
-ITokenAuthenticatorPtr CreateCypressTokenAuthenticator(
+ITokenAuthenticatorPtr CreateLegacyCypressTokenAuthenticator(
     TCypressTokenAuthenticatorConfigPtr config,
     IClientPtr client)
 {
-    return New<TCypressTokenAuthenticator>(std::move(config), std::move(client));
+    return New<TLegacyCypressTokenAuthenticator>(std::move(config), std::move(client));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

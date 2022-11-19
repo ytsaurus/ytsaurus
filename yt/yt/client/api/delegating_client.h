@@ -489,15 +489,31 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options = {}) override;
 
-    virtual TFuture<TStartYqlQueryResult> StartYqlQuery(
+    TFuture<TStartYqlQueryResult> StartYqlQuery(
         const TString& query,
         const TStartYqlQueryOptions& options = {}) override;
 
-    virtual TFuture<void> SetUserPassword(
+    TFuture<void> SetUserPassword(
         const TString& user,
         const TString& currentPasswordSha256,
         const TString& newPasswordSha256,
         const TSetUserPasswordOptions& options) override;
+
+    TFuture<TIssueTokenResult> IssueToken(
+        const TString& user,
+        const TString& passwordSha256,
+        const TIssueTokenOptions& options) override;
+
+    TFuture<void> RevokeToken(
+        const TString& user,
+        const TString& passwordSha256,
+        const TString& tokenSha256,
+        const TRevokeTokenOptions& options) override;
+
+    TFuture<TListUserTokensResult> ListUserTokens(
+        const TString& user,
+        const TString& passwordSha256,
+        const TListUserTokensOptions& options) override;
 
 protected:
     const IClientPtr Underlying_;

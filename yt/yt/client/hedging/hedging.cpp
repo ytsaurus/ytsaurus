@@ -217,6 +217,9 @@ public:
     UNSUPPORTED_METHOD(TFuture<TPullRowsResult>, PullRows, (const NYPath::TYPath&, const TPullRowsOptions&));
     UNSUPPORTED_METHOD(TFuture<TStartYqlQueryResult>, StartYqlQuery, (const TString&, const TStartYqlQueryOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, SetUserPassword, (const TString&, const TString&, const TString&, const TSetUserPasswordOptions&));
+    UNSUPPORTED_METHOD(TFuture<TIssueTokenResult>, IssueToken, (const TString&, const TString&, const TIssueTokenOptions&));
+    UNSUPPORTED_METHOD(TFuture<void>, RevokeToken, (const TString&, const TString&, const TString&, const TRevokeTokenOptions&));
+    UNSUPPORTED_METHOD(TFuture<TListUserTokensResult>, ListUserTokens, (const TString&, const TString&, const TListUserTokensOptions&));
 
 private:
     THedgingExecutorPtr Executor_;

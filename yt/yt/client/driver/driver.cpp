@@ -113,11 +113,12 @@ public:
         : Config_(std::move(config))
         , Connection_(std::move(connection))
         , ClientCache_(New<TClientCache>(Config_->ClientCache, Connection_))
+        , RootClient_(ClientCache_->Get(
+            GetRootAuthenticationIdentity(),
+            TClientOptions::FromAuthenticationIdentity(GetRootAuthenticationIdentity())))
         , ProxyDiscoveryCache_(CreateProxyDiscoveryCache(
             Config_->ProxyDiscoveryCache,
-            ClientCache_->Get(
-                GetRootAuthenticationIdentity(),
-                TClientOptions::FromAuthenticationIdentity(GetRootAuthenticationIdentity()))))
+            RootClient_))
         , StickyTransactionPool_(CreateStickyTransactionPool(Logger))
     {
         // Register all commands.
@@ -323,6 +324,9 @@ public:
         REGISTER    (TStartYqlQueryCommand,                "start_yql_query",                 Null,       Structured, false,  false, ApiVersion4);
 
         REGISTER_ALL(TSetUserPasswordCommand,              "set_user_password",               Null,       Structured, false,  false);
+        REGISTER_ALL(TIssueTokenCommand,                   "issue_token",                     Null,       Structured, false,  false);
+        REGISTER_ALL(TRevokeTokenCommand,                  "revoke_token",                    Null,       Structured, false,  false);
+        REGISTER_ALL(TListUserTokensCommand,               "list_user_tokens",                Null,       Structured, false,  false);
 
         if (Config_->EnableInternalCommands) {
             REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );
@@ -371,6 +375,7 @@ public:
         auto context = New<TCommandContext>(
             this,
             std::move(client),
+            RootClient_,
             Config_,
             entry.Descriptor,
             request);
@@ -438,6 +443,7 @@ private:
     const TDriverConfigPtr Config_;
     IConnectionPtr Connection_;
     TClientCachePtr ClientCache_;
+    const IClientPtr RootClient_;
     IProxyDiscoveryCachePtr ProxyDiscoveryCache_;
 
     class TCommandContext;
@@ -523,11 +529,13 @@ private:
         TCommandContext(
             IDriverPtr driver,
             IClientPtr client,
+            IClientPtr rootClient,
             TDriverConfigPtr config,
             TCommandDescriptor descriptor,
             const TDriverRequest& request)
             : Driver_(std::move(driver))
             , Client_(std::move(client))
+            , RootClient_(std::move(rootClient))
             , Config_(std::move(config))
             , Descriptor_(std::move(descriptor))
             , Request_(std::move(request))
@@ -541,6 +549,11 @@ private:
         const IClientPtr& GetClient() const override
         {
             return Client_;
+        }
+
+        const IClientPtr& GetRootClient() const override
+        {
+            return RootClient_;
         }
 
         IInternalClientPtr GetInternalClientOrThrow() const override
@@ -615,6 +628,7 @@ private:
     private:
         const IDriverPtr Driver_;
         const IClientPtr Client_;
+        const IClientPtr RootClient_;
         const TDriverConfigPtr Config_;
         const TCommandDescriptor Descriptor_;
 

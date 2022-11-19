@@ -605,6 +605,25 @@ public:
         const TSetUserPasswordOptions& options),
         (user, currentPasswordSha256, newPasswordSha256, options))
 
+    IMPLEMENT_METHOD(TIssueTokenResult, IssueToken, (
+        const TString& user,
+        const TString& passwordSha256,
+        const TIssueTokenOptions& options),
+        (user, passwordSha256, options));
+
+    IMPLEMENT_METHOD(void, RevokeToken, (
+        const TString& user,
+        const TString& passwordSha256,
+        const TString& tokenSha256,
+        const TRevokeTokenOptions& options),
+        (user, passwordSha256, tokenSha256, options));
+
+    IMPLEMENT_METHOD(TListUserTokensResult, ListUserTokens, (
+        const TString& user,
+        const TString& passwordSha256,
+        const TListUserTokensOptions& options),
+        (user, passwordSha256, options));
+
 #undef DROP_BRACES
 #undef IMPLEMENT_METHOD
 
@@ -695,6 +714,8 @@ private:
     NRpc::IChannelPtr GetHydraAdminChannelOrThrow(NObjectClient::TCellId cellId);
     NHiveClient::TCellDescriptor GetCellDescriptorOrThrow(NObjectClient::TCellId cellId);
     std::vector<TString> GetCellAddressesOrThrow(NObjectClient::TCellId cellId);
+
+    NApi::IClientPtr CreateRootClient();
 
     void ValidateSuperuserPermissions();
 
@@ -1519,6 +1540,34 @@ private:
         const TString& currentPasswordSha256,
         const TString& newPasswordSha256,
         const TSetUserPasswordOptions& options);
+
+    TIssueTokenResult DoIssueToken(
+        const TString& user,
+        const TString& passwordSha256,
+        const TIssueTokenOptions& options);
+
+    void DoRevokeToken(
+        const TString& user,
+        const TString& passwordSha256,
+        const TString& tokenSha256,
+        const TRevokeTokenOptions& options);
+
+    TListUserTokensResult DoListUserTokens(
+        const TString& user,
+        const TString& passwordSha256,
+        const TListUserTokensOptions& options);
+
+    //! Checks whether authenticated user can execute
+    //! authentication-related commands affecting |user|.
+    //! Always allows execution for superusers.
+    //! Allows execution if |user| coincides with authenticated user
+    //! and valid password is provided.
+    //! Always denies execution for other users.
+    void DoValidateAuthenticationCommandPermissions(
+        TStringBuf action,
+        const TString& user,
+        const TString& passwordSha256,
+        const TTimeoutOptions& options);
 };
 
 DEFINE_REFCOUNTED_TYPE(TClient)

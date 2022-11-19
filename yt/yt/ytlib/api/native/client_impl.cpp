@@ -118,7 +118,9 @@ TClient::TClient(
     const TClientOptions& options)
     : Connection_(std::move(connection))
     , Options_(options)
-    , Logger(ApiLogger.WithTag("ClientId: %v", TGuid::Create()))
+    , Logger(ApiLogger.WithTag("ClientId: %v, AuthenticatedUser: %v",
+        TGuid::Create(),
+        Options_.GetAuthenticatedUser()))
     , Profiler_(TProfiler("/native_client").WithTag("connection_name", Connection_->GetConfig()->ConnectionName))
     , Counters_(Profiler_)
     , TypeHandlers_{
@@ -508,6 +510,12 @@ std::vector<TString> TClient::GetCellAddressesOrThrow(NObjectClient::TCellId cel
 
     THROW_ERROR_EXCEPTION("Unknown cell %v",
         cellId);
+}
+
+NApi::IClientPtr TClient::CreateRootClient()
+{
+    auto options = TClientOptions::FromAuthenticationIdentity(GetRootAuthenticationIdentity());
+    return Connection_->CreateClient(options);
 }
 
 void TClient::ValidateSuperuserPermissions()

@@ -584,6 +584,9 @@ class YTInstance(object):
     def get_http_proxy_address(self, tvm_only=False):
         return self.get_http_proxy_addresses(tvm_only=tvm_only)[0]
 
+    def get_http_proxy_url(self):
+        return "http://" + self.Env.get_http_proxy_address()
+
     def get_http_proxy_addresses(self, tvm_only=False):
         if self.yt_config.http_proxy_count == 0:
             raise YtError("Http proxies are not started")

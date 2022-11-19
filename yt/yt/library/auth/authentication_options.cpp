@@ -27,7 +27,7 @@ TAuthenticationOptions TAuthenticationOptions::FromToken(const TString& token)
         .Token = token
     };
 }
-    
+
 TAuthenticationOptions TAuthenticationOptions::FromServiceTicketAuth(const IServiceTicketAuthPtr& ticketAuth)
 {
     return {
@@ -38,7 +38,6 @@ TAuthenticationOptions TAuthenticationOptions::FromServiceTicketAuth(const IServ
 const TString& TAuthenticationOptions::GetAuthenticatedUser() const
 {
     static const TString UnknownUser("<unknown>");
-    User.value_or(UnknownUser);
     return User ? *User : UnknownUser;
 }
 
