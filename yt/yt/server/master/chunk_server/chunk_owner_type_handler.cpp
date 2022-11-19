@@ -225,7 +225,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoLogBranch(
     const auto* primaryMedium = chunkManager->GetMediumByIndex(originatingNode->GetPrimaryMediumIndex());
     YT_LOG_DEBUG_IF(
         TBase::IsMutationLoggingEnabled(),
-        "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, HunkChunkListId: %v"
+        "Node branched (OriginatingNodeId: %v, BranchedNodeId: %v, ChunkListId: %v, HunkChunkListId: %v, "
         "PrimaryMedium: %v, Replication: %v, Mode: %v, LockTimestamp: %v)",
         originatingNode->GetVersionedId(),
         branchedNode->GetVersionedId(),
