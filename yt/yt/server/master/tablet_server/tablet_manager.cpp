@@ -5867,7 +5867,7 @@ private:
         auto transactionId = FromProto<TTransactionId>(request->last_mount_transaction_id());
         table->SetPrimaryLastMountTransactionId(transactionId);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table tablet state check request received (TableId: %v, LastMountTransactionId %v, PrimaryLastMountTransactionId %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table tablet state check request received (TableId: %v, LastMountTransactionId: %v, PrimaryLastMountTransactionId: %v)",
             table->GetId(),
             table->GetLastMountTransactionId(),
             table->GetPrimaryLastMountTransactionId());
@@ -5895,7 +5895,7 @@ private:
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             multicellManager->PostToMaster(request, table->GetExternalCellTag());
 
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table tablet state check requested (TableId: %v, LastMountTransactionId %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table tablet state check requested (TableId: %v, LastMountTransactionId: %v)",
                 table->GetId(),
                 table->GetLastMountTransactionId());
             return;
