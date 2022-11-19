@@ -999,7 +999,6 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
         mutation->SequenceNumber,
         StateHash_);
 
-    auto commitPromise = mutation->LocalCommitPromise;
     {
         NTracing::TTraceContextGuard traceContextGuard(mutation->Request.TraceContext);
         YT_VERIFY(ReliablyAppliedSequenceNumber_.load() < mutation->SequenceNumber);
@@ -1007,15 +1006,19 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
         DoApplyMutation(&mutationContext, mutation->Version, mutation->Term);
     }
 
-    if (commitPromise) {
+    if (const auto& promise = mutation->LocalCommitPromise) {
         YT_VERIFY(GetState() == EPeerState::Leading);
-        commitPromise.TrySet(TMutationResponse{
+        promise.TrySet(TMutationResponse{
             EMutationResponseOrigin::Commit,
             mutationContext.GetResponseData()
         });
     } else {
         YT_VERIFY(GetState() == EPeerState::Following);
     }
+
+    // Mutation could remain alive for quite a while even after it has been applied at leader,
+    // e.g. when some follower is down. The handler could be holding something heavy and needs to be dropped.
+    mutation->Request.Handler.Reset();
 
     MaybeStartSnapshotBuilder();
 }
