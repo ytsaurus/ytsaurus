@@ -768,6 +768,7 @@ DEFINE_ENUM(EProfilingBinary,
 DEFINE_ENUM(EProfilerType,
     ((Cpu)              (0))
     ((Memory)           (1))
+    ((PeakMemory)       (2))
 );
 
 class TJobProfilerSpec

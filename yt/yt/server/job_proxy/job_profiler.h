@@ -18,6 +18,10 @@ struct IJobProfiler
     //! Stops job profiling.
     virtual void Stop() = 0;
 
+    //! If called, job proxy peak memory usage will be profiled
+    //! at the end of the job.
+    virtual void ProfilePeakMemoryUsage() = 0;
+
     //! Returns spec of user job profiler if any and nullptr if none.
     virtual NScheduler::TJobProfilerSpecPtr GetUserJobProfilerSpec() const = 0;
 
