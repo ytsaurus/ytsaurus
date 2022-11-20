@@ -3,8 +3,9 @@ package tech.ytsaurus.client.rpc;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.OutageController;
+
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.proxy.OutageController;
 
 @NonNullFields
 public class TestingOptions {

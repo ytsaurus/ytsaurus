@@ -4,13 +4,13 @@ import java.util.Collections;
 import java.util.Objects;
 
 import io.netty.channel.nio.NioEventLoopGroup;
+import tech.ytsaurus.client.YtClient;
+import tech.ytsaurus.client.YtCluster;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.YtCluster;
 
 class YtClientWrapper {
 

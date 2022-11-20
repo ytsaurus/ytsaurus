@@ -1,5 +1,6 @@
 import java.util.Iterator;
 
+import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
@@ -14,7 +15,6 @@ import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.operations.ReducerSpec;
 import ru.yandex.yt.ytclient.operations.ReducerWithKey;
 import ru.yandex.yt.ytclient.operations.Statistics;
-import ru.yandex.yt.ytclient.proxy.YtClient;
 
 public class Example08MapReduceYTree {
 

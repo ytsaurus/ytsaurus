@@ -13,11 +13,11 @@ import java.util.stream.Collectors;
 import org.apache.commons.lang3.StringUtils;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.SelectRowsRequest;
+import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.rpc.RpcError;
 
 import ru.yandex.yt.TError;
-import ru.yandex.yt.ytclient.proxy.SelectRowsRequest;
-import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
 public class YtStatement extends AbstractWrapper implements Statement {

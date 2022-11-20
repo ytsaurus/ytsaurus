@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.UUID;
 
+import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.ReadTable;
@@ -13,7 +14,6 @@ import tech.ytsaurus.type_info.TiType;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YtDecimal;
-import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class Example05Decimal {

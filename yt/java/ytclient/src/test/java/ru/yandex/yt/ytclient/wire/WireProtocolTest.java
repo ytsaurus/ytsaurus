@@ -16,6 +16,7 @@ import org.hamcrest.Description;
 import org.hamcrest.Matcher;
 import org.hamcrest.TypeSafeMatcher;
 import org.junit.Assert;
+import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.ysontree.YTreeStringNodeImpl;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
@@ -27,7 +28,6 @@ import ru.yandex.misc.codec.Hex;
 import ru.yandex.misc.lang.number.UnsignedLong;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
-import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;

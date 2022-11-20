@@ -6,13 +6,13 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.function.Function;
 
+import tech.ytsaurus.client.ModifyRowsRequest;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.ytclient.object.ObjectsGenerators.Generator;
-import ru.yandex.yt.ytclient.proxy.ModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;

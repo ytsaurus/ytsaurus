@@ -9,13 +9,13 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.proxy.TransactionalClient;
 
 @NonNullFields
 @NonNullApi

@@ -41,6 +41,8 @@ import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.FileWriter;
+import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
@@ -57,8 +59,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.proxy.FileWriter;
-import ru.yandex.yt.ytclient.proxy.TransactionalClient;
 
 public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
