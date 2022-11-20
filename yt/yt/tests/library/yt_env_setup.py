@@ -546,6 +546,7 @@ class YTEnvSetup(object):
                     "permission_cache": instance.configs["driver"]["permission_cache"],
                     "cell_directory_synchronizer": instance.configs["driver"]["cell_directory_synchronizer"],
                     "cluster_directory_synchronizer": instance.configs["driver"]["cluster_directory_synchronizer"],
+                    "queue_agent": instance.configs["master"][0]["cluster_connection"]["queue_agent"],
                 }
                 if "tvm_id" in instance.configs["driver"]:
                     clusters[instance._cluster_name]["tvm_id"] = instance.configs["driver"]["tvm_id"]
