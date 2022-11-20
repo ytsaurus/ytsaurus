@@ -9,6 +9,8 @@
 
 #include <yt/yt/ytlib/queue_client/helpers.h>
 
+#include <yt/yt/ytlib/hive/cluster_directory.h>
+
 namespace NYT::NTableServer {
 
 using namespace NCellMaster;
@@ -56,8 +58,13 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
 
     auto queueAgentStage = GetEffectiveQueueAgentStage(bootstrap, table);
 
+    // NB: instead of using cluster connection from our bootstrap, we take it
+    // from the cluster directory. This works as a poor man's dynamic cluster connection
+    // allowing us to reconfigure queue agent stages without need to update master config.
+    auto dynamicConnection = connection->GetClusterDirectory()->GetConnectionOrThrow(*clusterName);
+
     auto queueAgentObjectService = CreateQueueAgentYPathService(
-        connection->GetQueueAgentChannelOrThrow(queueAgentStage),
+        dynamicConnection->GetQueueAgentChannelOrThrow(queueAgentStage),
         *clusterName,
         objectKind,
         path);
