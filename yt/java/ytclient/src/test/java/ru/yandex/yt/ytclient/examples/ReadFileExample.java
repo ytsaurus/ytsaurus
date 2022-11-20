@@ -5,8 +5,8 @@ import java.util.UUID;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.FileReader;
 
-import ru.yandex.yt.ytclient.proxy.FileReader;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 
 public class ReadFileExample {

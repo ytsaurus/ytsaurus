@@ -3,8 +3,7 @@ package tech.ytsaurus.client.rpc;
 import com.codahale.metrics.Counter;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
-
-import ru.yandex.yt.ytclient.proxy.YtClientOpensource;
+import tech.ytsaurus.client.YtClientOpensource;
 
 /**
  * @author dkondra

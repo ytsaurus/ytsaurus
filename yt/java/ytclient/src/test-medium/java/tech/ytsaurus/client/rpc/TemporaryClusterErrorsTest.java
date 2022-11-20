@@ -13,13 +13,13 @@ import org.asynchttpclient.DefaultAsyncHttpClientConfig;
 import org.asynchttpclient.RequestBuilder;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.client.YtClient;
+import tech.ytsaurus.client.YtCluster;
 import tech.ytsaurus.ysontree.YTree;
 
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.YtCluster;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 import static org.hamcrest.Matchers.is;

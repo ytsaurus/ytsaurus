@@ -8,9 +8,9 @@ import java.util.function.Supplier;
 import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
-import ru.yandex.yt.ytclient.proxy.ProxySelector;
-import ru.yandex.yt.ytclient.proxy.RetryPolicy;
-import ru.yandex.yt.ytclient.proxy.internal.DiscoveryMethod;
+import tech.ytsaurus.client.DiscoveryMethod;
+import tech.ytsaurus.client.ProxySelector;
+import tech.ytsaurus.client.RetryPolicy;
 
 /**
  * Опции для создания rpc клиентов

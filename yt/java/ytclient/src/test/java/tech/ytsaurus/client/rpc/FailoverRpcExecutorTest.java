@@ -17,12 +17,12 @@ import java.util.function.Supplier;
 
 import org.junit.After;
 import org.junit.Test;
+import tech.ytsaurus.client.RetryPolicy;
 
 import ru.yandex.inside.yt.kosher.impl.common.YtException;
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpcproxy.TReqGetNode;
-import ru.yandex.yt.ytclient.proxy.RetryPolicy;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;

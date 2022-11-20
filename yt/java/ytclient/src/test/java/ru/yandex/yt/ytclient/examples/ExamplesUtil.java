@@ -14,6 +14,10 @@ import java.util.concurrent.ForkJoinPool;
 import java.util.function.Consumer;
 
 import io.netty.channel.nio.NioEventLoopGroup;
+import tech.ytsaurus.client.ApiServiceClient;
+import tech.ytsaurus.client.ApiServiceClientImpl;
+import tech.ytsaurus.client.YtClient;
+import tech.ytsaurus.client.YtCluster;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
 import tech.ytsaurus.client.rpc.RpcClient;
@@ -24,11 +28,7 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.proxy.ApiServiceClient;
-import ru.yandex.yt.ytclient.proxy.ApiServiceClientImpl;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
-import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.YtCluster;
 
 public final class ExamplesUtil {
     // get this list from //sys/rpc_proxies

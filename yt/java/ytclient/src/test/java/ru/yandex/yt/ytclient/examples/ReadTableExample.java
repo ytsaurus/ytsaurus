@@ -4,9 +4,9 @@ import java.util.List;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.TableReader;
 
 import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
-import ru.yandex.yt.ytclient.proxy.TableReader;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 

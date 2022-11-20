@@ -6,11 +6,11 @@ import java.util.Random;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.ApiServiceUtil;
+import tech.ytsaurus.client.TableWriter;
 import tech.ytsaurus.client.request.ObjectType;
 
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
-import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
-import ru.yandex.yt.ytclient.proxy.TableWriter;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;

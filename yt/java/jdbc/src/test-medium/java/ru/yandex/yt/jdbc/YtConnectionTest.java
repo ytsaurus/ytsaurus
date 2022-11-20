@@ -25,14 +25,14 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
+import tech.ytsaurus.client.MappedObject;
+import tech.ytsaurus.client.YtClient;
+import tech.ytsaurus.client.YtClientTest;
 import tech.ytsaurus.core.cypress.YPath;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.testlib.LocalYt;
-import ru.yandex.yt.ytclient.proxy.MappedObject;
-import ru.yandex.yt.ytclient.proxy.YtClient;
-import ru.yandex.yt.ytclient.proxy.YtClientTest;
 
 import static org.junit.jupiter.api.Assertions.assertEquals;
 import static org.junit.jupiter.api.Assertions.assertTrue;

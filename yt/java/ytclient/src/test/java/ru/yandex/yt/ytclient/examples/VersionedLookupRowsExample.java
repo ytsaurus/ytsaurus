@@ -2,9 +2,9 @@ package ru.yandex.yt.ytclient.examples;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.LookupRowsRequest;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.yt.ytclient.proxy.LookupRowsRequest;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;

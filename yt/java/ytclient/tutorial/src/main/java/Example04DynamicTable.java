@@ -1,6 +1,8 @@
 import java.util.List;
 import java.util.Map;
 
+import tech.ytsaurus.client.ApiServiceTransaction;
+import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.ModifyRowsRequest;
@@ -11,8 +13,6 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 
-import ru.yandex.yt.ytclient.proxy.ApiServiceTransaction;
-import ru.yandex.yt.ytclient.proxy.YtClient;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.TableSchema;

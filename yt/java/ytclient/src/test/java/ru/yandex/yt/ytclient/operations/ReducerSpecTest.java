@@ -8,6 +8,7 @@ import java.util.Set;
 
 import org.junit.Assert;
 import org.junit.Test;
+import tech.ytsaurus.client.MockYtClient;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
@@ -18,7 +19,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
-import ru.yandex.yt.ytclient.proxy.MockYtClient;
 
 public class ReducerSpecTest {
     private final MockYtClient client = new MockYtClient("test");

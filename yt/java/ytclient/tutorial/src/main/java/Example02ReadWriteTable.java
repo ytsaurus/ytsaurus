@@ -1,6 +1,9 @@
 import java.util.ArrayList;
 import java.util.List;
 
+import tech.ytsaurus.client.TableReader;
+import tech.ytsaurus.client.TableWriter;
+import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.core.cypress.YPath;
@@ -8,9 +11,6 @@ import tech.ytsaurus.core.cypress.YPath;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.ytclient.object.MappedRowSerializer;
-import ru.yandex.yt.ytclient.proxy.TableReader;
-import ru.yandex.yt.ytclient.proxy.TableWriter;
-import ru.yandex.yt.ytclient.proxy.YtClient;
 
 public class Example02ReadWriteTable {
     private Example02ReadWriteTable() {

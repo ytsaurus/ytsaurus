@@ -7,9 +7,10 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.ApiServiceUtil;
+
 import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
-import ru.yandex.yt.ytclient.proxy.ApiServiceUtil;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 import ru.yandex.yt.ytclient.wire.UnversionedRow;
 import ru.yandex.yt.ytclient.wire.UnversionedValue;
