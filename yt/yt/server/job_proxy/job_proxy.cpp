@@ -818,8 +818,10 @@ void TJobProxy::ReportResult(
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Failed to get job stderr on teardown");
         }
+    }
 
-        try{
+    if (auto job = FindJob()) {
+        try {
             for (const auto& profile : job->GetProfiles()) {
                 auto* protoProfile = req->add_profiles();
                 protoProfile->set_type(profile.Type);

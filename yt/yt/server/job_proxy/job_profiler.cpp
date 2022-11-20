@@ -88,6 +88,12 @@ public:
             JobProxyMemoryProfile_->Blob = SerializeProfile(profile);
         }
 
+        if (JobProxyPeakMemoryProfile_) {
+            auto profile = ReadHeapProfile(tcmalloc::ProfileType::kPeakHeap);
+            SymbolizeProfile(&profile, JobProxyPeakMemoryProfilerSpec_);
+            JobProxyPeakMemoryProfile_->Blob = SerializeProfile(profile);
+        }
+
         if (UserJobProfile_) {
             auto profile = UserJobProfileStream_->Str();
             if (profile.empty()) {
@@ -97,6 +103,11 @@ public:
                 UserJobProfile_->Blob = std::move(profile);
             }
         }
+    }
+
+    void ProfilePeakMemoryUsage() override
+    {
+        InitializeJobProxyPeakMemoryProfiler(/*spec*/ nullptr);
     }
 
     TJobProfilerSpecPtr GetUserJobProfilerSpec() const override
@@ -112,7 +123,7 @@ public:
     std::vector<TJobProfile> GetProfiles() const override
     {
         std::vector<TJobProfile> profiles;
-        profiles.reserve(3);
+        profiles.reserve(4);
 
         if (JobProxyCpuProfile_) {
             profiles.push_back(std::move(*JobProxyCpuProfile_));
@@ -120,6 +131,10 @@ public:
 
         if (JobProxyMemoryProfile_) {
             profiles.push_back(std::move(*JobProxyMemoryProfile_));
+        }
+
+        if (JobProxyPeakMemoryProfile_) {
+            profiles.push_back(std::move(*JobProxyPeakMemoryProfile_));
         }
 
         if (UserJobProfile_) {
@@ -140,6 +155,11 @@ private:
     std::optional<tcmalloc::MallocExtension::AllocationProfilingToken> JobProxyMemoryProfilingToken_;
     TJobProfilerSpecPtr JobProxyMemoryProfilerSpec_;
 
+    // Job proxy peak memory profiler.
+    std::atomic<bool> DumpPeakMemoryUsage_ = false;
+    std::optional<TJobProfile> JobProxyPeakMemoryProfile_;
+    TJobProfilerSpecPtr JobProxyPeakMemoryProfilerSpec_;
+
     // User job profiler.
     std::optional<TJobProfile> UserJobProfile_;
     std::unique_ptr<TStringStream> UserJobProfileStream_;
@@ -152,13 +172,15 @@ private:
                 InitializeJobProxyCpuProfiler(spec);
             } else if (spec->Type == EProfilerType::Memory) {
                 InitializeJobProxyMemoryProfiler(spec);
+            } else if (spec->Type == EProfilerType::PeakMemory) {
+                InitializeJobProxyPeakMemoryProfiler(spec);
             }
         } else if (spec->Binary == EProfilingBinary::UserJob) {
             InitializeUserJobProfiler(spec);
         }
     }
 
-    void InitializeJobProxyCpuProfiler(const TJobProfilerSpecPtr& spec)
+    void InitializeJobProxyCpuProfiler(TJobProfilerSpecPtr spec)
     {
         TCpuProfilerOptions options{
             .SamplingFrequency = spec->SamplingFrequency,
@@ -168,7 +190,7 @@ private:
             .Type = GetProfileTypeString(spec),
             .ProfilingProbability = spec->ProfilingProbability,
         };
-        JobProxyCpuProfilerSpec_ = spec;
+        JobProxyCpuProfilerSpec_ = std::move(spec);
     }
 
     void InitializeJobProxyMemoryProfiler(const TJobProfilerSpecPtr& spec)
@@ -180,7 +202,7 @@ private:
         JobProxyMemoryProfilerSpec_ = spec;
     }
 
-    void InitializeUserJobProfiler(const TJobProfilerSpecPtr& spec)
+    void InitializeUserJobProfiler(TJobProfilerSpecPtr spec)
     {
         if (spec->Type != EProfilerType::Cpu && spec->Type != EProfilerType::Memory) {
             return;
@@ -191,7 +213,25 @@ private:
             .Type = GetProfileTypeString(spec),
             .ProfilingProbability = spec->ProfilingProbability,
         };
-        UserJobProfilerSpec_ = spec;
+        UserJobProfilerSpec_ = std::move(spec);
+    }
+
+    void InitializeJobProxyPeakMemoryProfiler(TJobProfilerSpecPtr spec)
+    {
+        if (!spec) {
+            spec = New<TJobProfilerSpec>();
+            spec->Binary = EProfilingBinary::JobProxy;
+            spec->Type = EProfilerType::PeakMemory;
+        }
+
+        if (!DumpPeakMemoryUsage_.exchange(true)) {
+            TJobProfile profile{
+                .Type = GetProfileTypeString(spec),
+                .ProfilingProbability = spec->ProfilingProbability,
+            };
+            JobProxyPeakMemoryProfile_ = profile;
+            JobProxyPeakMemoryProfilerSpec_ = std::move(spec);
+        }
     }
 
     void SymbolizeProfile(
