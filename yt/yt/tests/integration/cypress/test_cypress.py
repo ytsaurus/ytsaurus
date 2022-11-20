@@ -974,14 +974,18 @@ class TestCypress(YTEnvSetup):
     @authors("babenko")
     def test_get_with_attributes(self):
         set("//tmp/a/b", {}, recursive=True, force=True)
-        assert get("//tmp/a", attributes=["type"]) == yson.to_yson_type(
+        expected = yson.to_yson_type(
             {"b": yson.to_yson_type({}, {"type": "map_node"})}, {"type": "map_node"}
         )
+        assert get("//tmp/a", attributes=["type"]) == expected
+        assert get("//tmp/a", attributes={"keys": ["type"]}) == expected
 
     @authors("babenko")
     def test_list_with_attributes(self):
         set("//tmp/a/b", {}, recursive=True, force=True)
-        assert ls("//tmp/a", attributes=["type"]) == [yson.to_yson_type("b", attributes={"type": "map_node"})]
+        expected = [yson.to_yson_type("b", attributes={"type": "map_node"})]
+        assert ls("//tmp/a", attributes=["type"]) == expected
+        assert ls("//tmp/a", attributes={"keys": ["type"]}) == expected
 
     @authors("kiselyovp")
     def test_get_with_attributes_objects(self):
@@ -989,6 +993,55 @@ class TestCypress(YTEnvSetup):
         assert get("//sys/users/root", attributes=["name", "type"]) == yson.to_yson_type(
             None, {"name": "root", "type": "user"}
         )
+
+    @authors("max42")
+    def test_attribute_path_filtering(self):
+        schema = [{"name": "x", "type": "int64"}, {"name": "y", "type": "int64"}]
+        attributes = {"schema": schema, "custom": {"foo": 42, "bar": 57}}
+        create("table", "//tmp/a/b1", recursive=True, attributes=attributes)
+        create("table", "//tmp/a/b2", recursive=True, attributes=attributes)
+
+        paths = [
+            # A sync user attribute.
+            "/custom/bar",
+            # A sync builtin attribute.
+            "/resource_usage/node_count",
+            # An async builtin attribute.
+            "/schema/1/name",
+        ]
+
+        expected_table_attributes = {
+            "custom": {"bar": 57},
+            "resource_usage": {"node_count": 1},
+            "schema": [yson.YsonEntity(), {"name": "y"}],
+        }
+        expected_map_node_attributes = {
+            "resource_usage": {"node_count": 1},
+        }
+
+        assert_items_equal(
+            ls("//tmp/a", attributes={"paths": paths}),
+            [
+                yson.to_yson_type("b1", attributes=expected_table_attributes),
+                yson.to_yson_type("b2", attributes=expected_table_attributes),
+            ])
+
+        assert \
+            get("//tmp/a", attributes={"paths": paths}) == \
+            yson.to_yson_type({
+                "b1": yson.to_yson_type(yson.YsonEntity(), attributes=expected_table_attributes),
+                "b2": yson.to_yson_type(yson.YsonEntity(), attributes=expected_table_attributes),
+            }, attributes=expected_map_node_attributes)
+
+    @authors("max42")
+    def test_get_with_attributes_path_filtering_for_virtual_objects(self):
+        create("table", "//tmp/t", attributes={"schema": [{"name": "i_am_column_name", "type": "int64"}]})
+        our_schema_id = get("//tmp/t/@schema_id")
+        schemas = get("//sys/master_table_schemas", attributes={"keys": ["ref_counter"], "paths": ["/value/0/name"]})
+        schemas = [(schema_id, schema) for schema_id, schema in schemas.items() if schema_id == our_schema_id]
+        assert len(schemas) == 1
+        assert schemas[0][1].attributes["ref_counter"] == 1
+        assert schemas[0][1].attributes["value"][0]["name"] == "i_am_column_name"
 
     @authors("babenko")
     def test_get_with_attributes_virtual_maps(self):

@@ -14,6 +14,13 @@ class TAsyncYsonWriter
     , private TNonCopyable
 {
 public:
+    //! Represents a YSON segment obtained either from a sequence of contiguous
+    //! synchronous OnXXX, or an asynchronous OnRaw(TFuture<TYsonString>) call.
+    //! Second element of a pair indicates whether a segment must be extended by
+    //! a semicolon.
+    using TSegment = std::pair<TYsonString, bool>;
+    using TAsyncSegments = std::vector<TFuture<TSegment>>;
+
     explicit TAsyncYsonWriter(EYsonType type = EYsonType::Node);
 
     void OnStringScalar(TStringBuf value) override;
@@ -34,6 +41,7 @@ public:
     void OnRaw(TFuture<TYsonString> asyncStr) override;
 
     TFuture<TYsonString> Finish();
+    const TAsyncSegments& GetSegments() const;
 
 private:
     const EYsonType Type_;
@@ -41,12 +49,9 @@ private:
     TStringStream Stream_;
     TBufferedBinaryYsonWriter SyncWriter_;
 
-    using TSegment = std::pair<TYsonString, bool>;
-    std::vector<TFuture<TSegment>> AsyncSegments_;
-
+    TAsyncSegments AsyncSegments_;
 
     void FlushCurrentSegment();
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

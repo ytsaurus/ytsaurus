@@ -7,6 +7,7 @@
 #include <yt/yt/core/misc/singleton.h>
 
 #include <yt/yt/core/yson/async_consumer.h>
+#include <yt/yt/core/yson/attribute_consumer.h>
 
 #include <library/cpp/yt/misc/hash.h>
 
@@ -59,8 +60,6 @@ public:
             return;
         }
 
-        attributeFilter.ValidateKeysOnly("ephemeral node");
-
         const auto& attributes = Attributes();
 
         auto pairs = attributes.ListPairs();
@@ -70,15 +69,22 @@ public:
             });
         }
 
-        THashSet<TString> matchingKeys;
+        TAttributeFilter::TKeyToFilter keyToFilter;
         if (attributeFilter) {
-            matchingKeys = THashSet<TString>(attributeFilter.Keys.begin(), attributeFilter.Keys.end());
+            keyToFilter = attributeFilter.Normalize();
         }
 
         for (const auto& [key, value] : pairs) {
-            if (!attributeFilter || matchingKeys.find(key) != matchingKeys.end()) {
+            if (!attributeFilter) {
+                // A fast path for taking the whole attribute.
                 consumer->OnKeyedItem(key);
                 consumer->OnRaw(value);
+            } else if (auto it = keyToFilter.find(key); it != keyToFilter.end()) {
+                const auto& pathFilter = it->second;
+                TAttributeValueConsumer valueConsumer(consumer, key);
+                auto filteringConsumer = TAttributeFilter::CreateFilteringConsumer(&valueConsumer, pathFilter);
+                filteringConsumer->GetConsumer()->OnRaw(value);
+                filteringConsumer->Finish();
             }
         }
     }

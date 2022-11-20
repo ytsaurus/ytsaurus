@@ -13,27 +13,38 @@ namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TYPathStack::Push(TString key)
+void TYPathStack::Push(TStringBuf key)
 {
-    Items_.emplace_back(std::move(key));
+    PreviousPathLengths_.push_back(Path_.size());
+    Path_ += "/";
+    Path_ += ToYPathLiteral(key);
+    Items_.emplace_back(TString(key));
 }
 
 void TYPathStack::Push(int index)
 {
-    Items_.push_back(index);
+    PreviousPathLengths_.push_back(Path_.size());
+    Path_ += "/";
+    Path_ += ToString(index);
+    Items_.emplace_back(index);
 }
 
 void TYPathStack::IncreaseLastIndex()
 {
     YT_VERIFY(!Items_.empty());
     YT_VERIFY(std::holds_alternative<int>(Items_.back()));
-    ++std::get<int>(Items_.back());
+    auto index = std::get<int>(Items_.back());
+    Pop();
+    ++index;
+    Push(index);
 }
 
 void TYPathStack::Pop()
 {
     YT_VERIFY(!Items_.empty());
     Items_.pop_back();
+    Path_.resize(PreviousPathLengths_.back());
+    PreviousPathLengths_.pop_back();
 }
 
 bool TYPathStack::IsEmpty() const
@@ -41,30 +52,16 @@ bool TYPathStack::IsEmpty() const
     return Items_.empty();
 }
 
-TYPath TYPathStack::GetPath() const
+const TYPath& TYPathStack::GetPath() const
 {
-    if (Items_.empty()) {
-        return {};
-    }
-    TStringBuilder builder;
-    for (const auto& item : Items_) {
-        builder.AppendChar('/');
-        Visit(item,
-            [&] (const TString& string) {
-                builder.AppendString(ToYPathLiteral(string));
-            },
-            [&] (int integer) {
-                builder.AppendFormat("%v", integer);
-            });
-    }
-    return builder.Flush();
+    return Path_;
 }
 
-TYPath TYPathStack::GetHumanReadablePath() const
+TString TYPathStack::GetHumanReadablePath() const
 {
     auto path = GetPath();
     if (path.empty()) {
-        static const TYPath Root("(root)");
+        static const TString Root("(root)");
         return Root;
     }
     return path;

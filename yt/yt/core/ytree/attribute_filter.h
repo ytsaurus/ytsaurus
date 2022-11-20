@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/yson/public.h>
 
+#include <any>
+
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -94,6 +96,52 @@ struct TAttributeFilter
 
     //! Returns true if #key appears in Keys or "/#key" appears in Paths using linear search.
     bool AdmitsKeySlow(TStringBuf key) const;
+
+    // std::nullopt stands for "take the whole attribute without path filtration" (i.e. an equivalent of {""}).
+    using TPathFilter = std::optional<std::vector<TYPath>>;
+    using TKeyToFilter = THashMap<TString, TPathFilter>;
+
+    //! Normalization procedure removes redundant keys or paths and returns a mapping of form
+    //! top-level key -> list of YPaths inside this top-level key (i.e. with /<key> stripped off) or
+    //! to std::nullopt, which stands for "take the top-level key as is".
+    TKeyToFilter Normalize() const;
+
+    //! This helper structure enabling us to either return given IYsonConsumer* as is
+    //! without creating any new consumers, or to wrap it into another consumer actual
+    //! filtering.
+    struct IFilteringConsumer
+    {
+        virtual ~IFilteringConsumer() = default;
+        //! Returns the sync consumer to be used for filtering.
+        virtual NYson::IYsonConsumer* GetConsumer() = 0;
+        //! Call of this method indicates that the whole input is fed to a filtering consumer and it is
+        //! safe to transfer the filtered result to the target consumer.
+        virtual void Finish() = 0;
+    };
+
+    //! Similar as above, but suitable for asynchronous consumer interface.
+    struct IAsyncFilteringConsumer
+    {
+        virtual ~IAsyncFilteringConsumer() = default;
+        //! Returns the sync consumer to be used for filtering.
+        virtual NYson::IAsyncYsonConsumer* GetAsyncConsumer() = 0;
+        //! Call of this method indicates that the whole input is fed to a filtering consumer and it is
+        //! safe to transfer the filtered result to the target consumer.
+        virtual void Finish() = 0;
+    };
+
+    //! Performs a one-pass filtration of YSON stream according to the given path filter and produces
+    //! the result to the #targetConsumer as a value corresponding to a key #key.
+    //! In particular, if #pathFilter is an std::nullopt, #targetConsumer is returned as-is effectively
+    //! implementing a zero-cost bypassing.
+    static std::unique_ptr<IFilteringConsumer> CreateFilteringConsumer(
+        NYson::IYsonConsumer* targetConsumer,
+        const TPathFilter& pathFilter);
+
+    //! Same as CreateFilteringConsumer above, but asynchronous.
+    static std::unique_ptr<IAsyncFilteringConsumer> CreateAsyncFilteringConsumer(
+        NYson::IAsyncYsonConsumer* targetConsumer,
+        const TPathFilter& pathFilter);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

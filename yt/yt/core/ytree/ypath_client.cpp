@@ -930,6 +930,21 @@ TNodeWalkOptions FindNodeByYPathOptions {
     .NodeCannotHaveChildrenHandler = GetNodeByYPathOptions.NodeCannotHaveChildrenHandler
 };
 
+TNodeWalkOptions FindNodeByYPathNoThrowOptions {
+    .MissingAttributeHandler = [] (const TString& /* key */) {
+        return nullptr;
+    },
+    .MissingChildKeyHandler = [] (const IMapNodePtr& /* node */, const TString& /* key */) {
+        return nullptr;
+    },
+    .MissingChildIndexHandler = [] (const IListNodePtr& /* node */, int /* index */) {
+        return nullptr;
+    },
+    .NodeCannotHaveChildrenHandler = [] (const INodePtr& /* node */) {
+        return nullptr;
+    },
+};
+
 INodePtr GetNodeByYPath(
     const INodePtr& root,
     const TYPath& path)
@@ -942,6 +957,13 @@ INodePtr FindNodeByYPath(
     const TYPath& path)
 {
     return WalkNodeByYPath(root, path, FindNodeByYPathOptions);
+}
+
+INodePtr FindNodeByYPathNoThrow(
+    const INodePtr& root,
+    const TYPath& path)
+{
+    return WalkNodeByYPath(root, path, FindNodeByYPathNoThrowOptions);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

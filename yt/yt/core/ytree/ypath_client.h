@@ -323,6 +323,7 @@ struct TNodeWalkOptions
 
 extern TNodeWalkOptions GetNodeByYPathOptions;
 extern TNodeWalkOptions FindNodeByYPathOptions;
+extern TNodeWalkOptions FindNodeByYPathNoThrowOptions;
 
 //! Generic function walking down the node according to given ypath.
 INodePtr WalkNodeByYPath(
@@ -342,6 +343,13 @@ INodePtr GetNodeByYPath(
  *  moving to the child of a non-composite node.
  */
 INodePtr FindNodeByYPath(
+    const INodePtr& root,
+    const TYPath& path);
+
+/*!
+ *  A version of #FindNodeByYPath that never throws.
+ */
+INodePtr FindNodeByYPathNoThrow(
     const INodePtr& root,
     const TYPath& path);
 
