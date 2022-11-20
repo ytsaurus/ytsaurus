@@ -104,6 +104,136 @@ TEST(TYTreeTest, TestMultisetAttributesByPath)
     EXPECT_EQ(attribute->GetKeys(), std::vector<TString>({"b", "c"}));
 }
 
+TEST(TYTreeTest, TestGetWithAttributes)
+{
+    auto yson = TYsonStringBuf(
+        "{"
+        "    foo = <"
+        "        a = 1;"
+        "        b = {"
+        "            x = 2;"
+        "            y = 3;"
+        "        };"
+        "        c = [i1; i2; i3];"
+        "        d = 4;"
+        "    > {"
+        "        bar = <"
+        "            a = {"
+        "                x = 5;"
+        "                y = 6;"
+        "            };"
+        "            b = 7;"
+        "            c = [j1; j2; j3; j4];"
+        "            e = 8;"
+        "        > #;"
+        "    };"
+        "}");
+    auto node = ConvertToNode(yson);
+
+    auto compareYsons = [] (TYsonStringBuf expectedYson, INodePtr node, const TAttributeFilter& attributeFilter) {
+        // NB: serialization of ephemeral nodes is always stable.
+        TYsonString actualYson = SyncYPathGet(node, "", attributeFilter);
+        auto stableOriginal = ConvertToYsonString(node, EYsonFormat::Pretty).ToString();
+        auto stableExpected = ConvertToYsonString(ConvertToNode(expectedYson), EYsonFormat::Pretty).ToString();
+        auto stableActual = ConvertToYsonString(ConvertToNode(actualYson), EYsonFormat::Pretty).ToString();
+        EXPECT_EQ(stableExpected, stableActual)
+            << "Original:" << std::endl << stableOriginal << std::endl
+            << "Filtered by: " << Format("%v", attributeFilter) << std::endl
+            << "Expected: " << std::endl << stableExpected << std::endl
+            << "Actual: " << std::endl << stableActual << std::endl;
+    };
+
+    compareYsons(
+        yson,
+        node,
+        TAttributeFilter());
+
+    auto expectedYson1 = TYsonStringBuf(
+        "{"
+        "    foo = <"
+        "        a = 1;"
+        "        b = {"
+        "            x = 2;"
+        "            y = 3;"
+        "        };"
+        "    > {"
+        "        bar = <"
+        "            a = {"
+        "                x = 5;"
+        "                y = 6;"
+        "            };"
+        "            b = 7;"
+        "            e = 8;"
+        "        > #;"
+        "    };"
+        "}");
+
+    compareYsons(
+        expectedYson1,
+        node,
+        TAttributeFilter({"a", "b", "e"}));
+
+    compareYsons(
+        expectedYson1,
+        node,
+        TAttributeFilter({}, {"/a", "/b", "/e"}));
+
+    auto expectedYson2 = TYsonStringBuf(
+        "{"
+        "    foo = <"
+        "        a = 1;"
+        "    > {"
+        "        bar = <"
+        "            a = {"
+        "                x = 5;"
+        "                y = 6;"
+        "            };"
+        "        > #;"
+        "    };"
+        "}");
+
+    compareYsons(
+        expectedYson2,
+        node,
+        TAttributeFilter({}, {"/a"}));
+
+    auto expectedYson3 = TYsonStringBuf(
+        "{"
+        "    foo = <"
+        "        b = {"
+        "            y = 3;"
+        "        };"
+        "    > {"
+        "        bar = <"
+        "            a = {"
+        "                x = 5;"
+        "            };"
+        "        > #;"
+        "    };"
+        "}");
+
+    compareYsons(
+        expectedYson3,
+        node,
+        TAttributeFilter({}, {"/a/x", "/b/y"}));
+
+    auto expectedYson4 = TYsonStringBuf(
+        "{"
+        "    foo = <"
+        "        c = [#; i2];"
+        "    > {"
+        "        bar = <"
+        "            c = [#; j2; #; j4];"
+        "        > #;"
+        "    };"
+        "}");
+
+    compareYsons(
+        expectedYson4,
+        node,
+        TAttributeFilter({}, {"/c/1", "/c/3"}));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace

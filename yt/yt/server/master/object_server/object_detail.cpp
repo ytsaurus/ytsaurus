@@ -265,27 +265,39 @@ void TObjectProxyBase::DoWriteAttributesFragment(
 {
     const auto& customAttributes = Attributes();
 
-    attributeFilter.ValidateKeysOnly("object");
-
     if (attributeFilter) {
-        for (const auto& key : attributeFilter.Keys) {
+        auto keyToFilter = attributeFilter.Normalize();
+
+        for (const auto& [key, pathFilter] : keyToFilter) {
             TAttributeValueConsumer attributeValueConsumer(consumer, key);
 
-            auto value = customAttributes.FindYson(key);
-            if (value) {
-                attributeValueConsumer.OnRaw(value);
-                continue;
+            TInternedAttributeKey internedKey;
+
+            // Sync path.
+            {
+                auto filteringConsumer = TAttributeFilter::CreateFilteringConsumer(&attributeValueConsumer, pathFilter);
+
+                if (auto value = customAttributes.FindYson(key)) {
+                    filteringConsumer->GetConsumer()->OnRaw(value);
+                    filteringConsumer->Finish();
+                    continue;
+                }
+
+                internedKey = TInternedAttributeKey::Lookup(key);
+                if (GetBuiltinAttribute(internedKey, filteringConsumer->GetConsumer())) {
+                    filteringConsumer->Finish();
+                    continue;
+                }
             }
 
-            auto internedKey = TInternedAttributeKey::Lookup(key);
-            if (GetBuiltinAttribute(internedKey, &attributeValueConsumer)) {
-                continue;
-            }
-
-            auto asyncValue = GetBuiltinAttributeAsync(internedKey);
-            if (asyncValue) {
-                attributeValueConsumer.OnRaw(std::move(asyncValue));
-                continue; // just for the symmetry
+            // Async path.
+            {
+                auto asyncFilteringConsumer = TAttributeFilter::CreateAsyncFilteringConsumer(&attributeValueConsumer, pathFilter);
+                if (auto asyncValue = GetBuiltinAttributeAsync(internedKey)) {
+                    asyncFilteringConsumer->GetAsyncConsumer()->OnRaw(std::move(asyncValue));
+                    asyncFilteringConsumer->Finish();
+                    continue; // just for the symmetry
+                }
             }
         }
     } else {

@@ -125,6 +125,11 @@ TFuture<TYsonString> TAsyncYsonWriter::Finish()
     return AllSucceeded(AsyncSegments_).ApplyUnique(std::move(callback));
 }
 
+const TAsyncYsonWriter::TAsyncSegments& TAsyncYsonWriter::GetSegments() const
+{
+    return AsyncSegments_;
+}
+
 void TAsyncYsonWriter::FlushCurrentSegment()
 {
     SyncWriter_.Flush();

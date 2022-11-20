@@ -82,8 +82,6 @@ void TVirtualMapBase::GetSelf(
         attributeFilter,
         limit);
 
-    attributeFilter.ValidateKeysOnly("virtual map");
-
     auto keys = GetKeys(limit);
     i64 size = GetSize();
 
@@ -162,8 +160,6 @@ void TVirtualMapBase::ListSelf(
     context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
         attributeFilter,
         limit);
-
-    attributeFilter.ValidateKeysOnly("virtual map");
 
     auto keys = GetKeys(limit);
     i64 size = GetSize();
@@ -505,8 +501,6 @@ void TVirtualListBase::GetSelf(
     context->SetRequestInfo("AttributeFilter: %v, Limit: %v",
         attributeFilter,
         limit);
-
-    attributeFilter.ValidateKeysOnly("virtual list");
 
     i64 size = GetSize();
 
