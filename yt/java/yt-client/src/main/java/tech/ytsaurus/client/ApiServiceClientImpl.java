@@ -98,6 +98,10 @@ import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.ConsumerSourceRet;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcClientResponse;
@@ -143,14 +147,10 @@ import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
 import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.YtClientConfiguration;
-import ru.yandex.yt.ytclient.object.ConsumerSource;
-import ru.yandex.yt.ytclient.object.ConsumerSourceRet;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.operations.OperationImpl;
 import ru.yandex.yt.ytclient.operations.Spec;
 import ru.yandex.yt.ytclient.operations.SpecPreparationContext;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 
 /**

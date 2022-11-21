@@ -1,7 +1,7 @@
 package tech.ytsaurus.client;
 
-import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
+import tech.ytsaurus.client.rows.WireRowDeserializer;
 /**
  * TableAttachmentReaderImpl is deprecated, use TableAttachmentWireProtocolReader instead
  */

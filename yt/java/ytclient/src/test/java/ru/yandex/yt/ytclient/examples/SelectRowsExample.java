@@ -2,12 +2,12 @@ package ru.yandex.yt.ytclient.examples;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
 
 public class SelectRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(SelectRowsExample.class);

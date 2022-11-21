@@ -9,16 +9,16 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.TableWriter;
 import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowSerializer;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.UnversionedValue;
 
-import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
 
 public class WriteTableExample {
     private static final Logger logger = LoggerFactory.getLogger(WriteTableExample.class);

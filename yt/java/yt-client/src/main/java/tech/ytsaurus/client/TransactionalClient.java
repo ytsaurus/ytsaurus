@@ -43,12 +43,12 @@ import tech.ytsaurus.client.request.StartOperation;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.request.LockMode;
 

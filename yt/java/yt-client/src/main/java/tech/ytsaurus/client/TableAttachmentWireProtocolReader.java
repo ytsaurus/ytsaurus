@@ -6,8 +6,8 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Objects;
 
-import ru.yandex.yt.ytclient.object.WireRowDeserializer;
-import ru.yandex.yt.ytclient.wire.WireProtocolReader;
+import tech.ytsaurus.client.rows.WireProtocolReader;
+import tech.ytsaurus.client.rows.WireRowDeserializer;
 
 // TODO: make it package-private
 public class TableAttachmentWireProtocolReader<T> extends TableAttachmentRowsetReader<T> {

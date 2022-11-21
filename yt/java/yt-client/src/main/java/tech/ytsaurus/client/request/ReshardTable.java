@@ -8,16 +8,16 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.ApiServiceUtil;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowSerializer;
+import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.client.rows.WireProtocolWriter;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 
 import ru.yandex.yt.rpcproxy.TReqReshardTable;
 import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
-import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
 public class ReshardTable
         extends TableReq<ReshardTable.Builder, ReshardTable>

@@ -29,6 +29,10 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.ModifyRowsRequest;
 import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowDeserializer;
+import tech.ytsaurus.client.rows.UnversionedRowSerializer;
+import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
@@ -46,8 +50,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.testlib.LocalYt;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
-import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
@@ -59,8 +61,6 @@ import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
 
 @RunWith(Parameterized.class)
 public class YtClientTest {
