@@ -72,7 +72,7 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "PortalManager.Keys",
-            BIND(&TPortalManager::SaveValues, Unretained(this)));
+            BIND(&TPortalManager::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "PortalManager.Values",
