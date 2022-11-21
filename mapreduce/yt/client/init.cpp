@@ -1,5 +1,7 @@
 #include "init.h"
 
+#include "job_profiler.h"
+
 #include <mapreduce/yt/http/requests.h>
 
 #include <mapreduce/yt/interface/init.h>
@@ -186,6 +188,9 @@ void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
         return;
     }
 
+    auto jobProfiler = CreateJobProfiler();
+    jobProfiler->Start();
+
     InitializeSecureVault();
 
     TString jobName(argv[2]);
@@ -210,6 +215,9 @@ void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
         }
         throw;
     }
+
+    jobProfiler->Stop();
+
     if (options.JobOnExitFunction_) {
         (*options.JobOnExitFunction_)();
     }
