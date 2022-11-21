@@ -3253,11 +3253,19 @@ void TChunkReplicator::FlushEndorsementQueue()
         req.chunk_ids_size());
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    // Fire-and-forget. Mutation commit failure indicates the epoch change,
-    // and that results in refreshing all chunks once again.
-    chunkManager
-        ->CreateRegisterChunkEndorsementsMutation(req)
-        ->CommitAndLog(Logger);
+    auto mutation = chunkManager->CreateRegisterChunkEndorsementsMutation(req);
+    // NB: This code can be executed either on leader or follower.
+    mutation->SetAllowLeaderForwarding(true);
+    auto invoker = Bootstrap_->GetHydraFacade()->GetEpochAutomatonInvoker(EAutomatonThreadQueue::ChunkRefresher);
+    mutation->CommitAndLog(Logger)
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TMutationResponse>& error) {
+            if (!error.IsOK()) {
+                YT_LOG_WARNING(error,
+                    "Failed to commit chunk endorsment registration mutation; "
+                    "scheduling global refresh");
+                ScheduleGlobalChunkRefresh();
+            }
+        }).AsyncVia(invoker));
 }
 
 const std::unique_ptr<TChunkScanner>& TChunkReplicator::GetChunkRefreshScanner(TChunk* chunk) const
