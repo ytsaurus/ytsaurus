@@ -43,6 +43,8 @@
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -180,7 +182,7 @@ using namespace NTabletClient;
 using NYT::FromProto;
 using NYT::ToProto;
 
-using NJobTrackerClient::NProto::TJobSpec;
+using NControllerAgent::NProto::TJobSpec;
 using NJobTrackerClient::EJobState;
 using NNodeTrackerClient::TNodeId;
 using NProfiling::CpuInstantToInstant;
@@ -3576,7 +3578,7 @@ void TOperationControllerBase::BuildFinishedJobAttributes(
             auto error = FromProto<TError>(jobSummary->Result->error());
             fluent.Item("error").Value(error);
         })
-        .DoIf(jobSummary->GetJobResult().HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext),
+        .DoIf(jobSummary->GetJobResult().HasExtension(TSchedulerJobResultExt::job_result_ext),
             [&] (TFluentMap fluent)
         {
             const auto& schedulerJobResult = jobSummary->GetSchedulerJobResult();
@@ -5020,7 +5022,7 @@ void TOperationControllerBase::OnJobFinished(std::unique_ptr<TJobSummary> summar
     // const auto& schedulerJobResult = summary->GetSchedulerJobResult();
     TSchedulerJobResultExt schedulerJobResult;
     if (summary->Result) {
-        schedulerJobResult = summary->GetJobResult().GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        schedulerJobResult = summary->GetJobResult().GetExtension(TSchedulerJobResultExt::job_result_ext);
     }
 
     bool hasStderr = false;

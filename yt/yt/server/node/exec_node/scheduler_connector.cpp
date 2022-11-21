@@ -6,16 +6,18 @@
 #include "master_connector.h"
 #include "private.h"
 
-#include <yt/yt/server/lib/exec_node/config.h>
-
-#include <yt/yt/server/lib/job_agent/job_reporter.h>
-
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 #include <yt/yt/server/node/cluster_node/master_connector.h>
 
 #include <yt/yt/server/node/exec_node/slot_manager.h>
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
+
+#include <yt/yt/server/lib/exec_node/config.h>
+
+#include <yt/yt/server/lib/job_agent/job_reporter.h>
+
+#include <yt/yt/server/lib/scheduler/allocation_tracker_service_proxy.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -32,6 +34,7 @@ using namespace NJobTrackerClient;
 using namespace NObjectClient;
 using namespace NClusterNode;
 using namespace NConcurrency;
+using namespace NScheduler;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -47,11 +50,13 @@ TSchedulerConnector::TSchedulerConnector(
     , Bootstrap_(bootstrap)
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         Bootstrap_->GetControlInvoker(),
-        BIND(&TSchedulerConnector::SendHeartbeat, MakeWeak(this)),
-        TPeriodicExecutorOptions{
-            .Period = StaticConfig_->HeartbeatPeriod,
-            .Splay = StaticConfig_->HeartbeatSplay
-        }))
+        BIND(
+            &TSchedulerConnector::SendHeartbeat,
+            MakeWeak(this)),
+            TPeriodicExecutorOptions{
+                .Period = StaticConfig_->HeartbeatPeriod,
+                .Splay = StaticConfig_->HeartbeatSplay
+            }))
     , TimeBetweenSentHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_sent_heartbeats"))
     , TimeBetweenAcknowledgedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_acknowledged_heartbeats"))
     , TimeBetweenFullyProcessedHeartbeatsCounter_(ExecNodeProfiler.Timer("/scheduler_connector/time_between_fully_processed_heartbeats"))
@@ -91,30 +96,13 @@ void TSchedulerConnector::OnDynamicConfigChanged(
     }));
 }
 
-void TSchedulerConnector::SendHeartbeat() noexcept
+template <class TServiceProxy>
+void TSchedulerConnector::DoSendHeartbeat()
 {
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    if (!Bootstrap_->IsConnected()) {
-        return;
-    }
-
-    const auto slotManager = Bootstrap_->GetSlotManager();
-    if (!slotManager->IsInitialized()) {
-        return;
-    }
-
-    if (TInstant::Now() < std::max(
-        HeartbeatInfo_.LastFailedHeartbeatTime,
-        HeartbeatInfo_.LastThrottledHeartbeatTime) + HeartbeatInfo_.FailedHeartbeatBackoffTime)
-    {
-        YT_LOG_INFO("Skipping scheduler heartbeat");
-        return;
-    }
-
     const auto& client = Bootstrap_->GetClient();
 
-    TJobTrackerServiceProxy proxy(client->GetSchedulerChannel());
+    TServiceProxy proxy(client->GetSchedulerChannel());
+
     auto req = proxy.Heartbeat();
     req->SetRequestCodec(NCompression::ECodec::Lz4);
 
@@ -174,6 +162,34 @@ void TSchedulerConnector::SendHeartbeat() noexcept
 
     const auto result = WaitFor(jobController->ProcessHeartbeatResponse(rsp));
     YT_LOG_FATAL_IF(!result.IsOK(), result, "Error while processing scheduler heartbeat response");
+}
+
+void TSchedulerConnector::SendHeartbeat()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!Bootstrap_->IsConnected()) {
+        return;
+    }
+
+    const auto slotManager = Bootstrap_->GetSlotManager();
+    if (!slotManager->IsInitialized()) {
+        return;
+    }
+
+    if (TInstant::Now() < std::max(
+        HeartbeatInfo_.LastFailedHeartbeatTime,
+        HeartbeatInfo_.LastThrottledHeartbeatTime) + HeartbeatInfo_.FailedHeartbeatBackoffTime)
+    {
+        YT_LOG_INFO("Skipping scheduler heartbeat");
+        return;
+    }
+
+    if (CurrentConfig_->UseAllocationTrackerService) {
+        DoSendHeartbeat<TAllocationTrackerServiceProxy>();
+    } else {
+        DoSendHeartbeat<TJobTrackerServiceProxy>();
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

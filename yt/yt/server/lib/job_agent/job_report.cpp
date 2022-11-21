@@ -425,7 +425,7 @@ TNodeJobReport TNodeJobReport::Error(const TError& error)
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::Spec(const NJobTrackerClient::NProto::TJobSpec& spec)
+TNodeJobReport TNodeJobReport::Spec(const NControllerAgent::NProto::TJobSpec& spec)
 {
     TString specString;
     YT_VERIFY(spec.SerializeToString(&specString));

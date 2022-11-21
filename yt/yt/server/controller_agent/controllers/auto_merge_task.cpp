@@ -12,6 +12,8 @@
 
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 namespace NYT::NControllerAgent::NControllers {
@@ -20,7 +22,7 @@ using namespace NChunkClient;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkPools;
-using namespace NJobTrackerClient::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NNodeTrackerClient;
 using namespace NYson;
 
@@ -321,7 +323,7 @@ TExtendedJobResources TAutoMergeTask::GetMinNeededResourcesHeavy() const
     return result;
 }
 
-void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec)
+void TAutoMergeTask::BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec)
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
@@ -468,7 +470,7 @@ TJobSplitterConfigPtr TAutoMergeTask::GetJobSplitterConfig() const
     return config;
 }
 
-const NJobTrackerClient::NProto::TJobSpec& TAutoMergeTask::GetJobSpecTemplate(
+const TJobSpec& TAutoMergeTask::GetJobSpecTemplate(
     int tableIndex,
     EMergeJobType type) const
 {

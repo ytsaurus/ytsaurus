@@ -28,7 +28,7 @@ namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
-using namespace NJobTrackerClient::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
@@ -67,7 +67,7 @@ public:
         return EJobType(JobSpec_.type());
     }
 
-    const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const override
+    const NControllerAgent::NProto::TJobSpec& GetJobSpec() const override
     {
         return JobSpec_;
     }
@@ -151,7 +151,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSpecHelperPtr CreateJobSpecHelper(const TJobSpec& jobSpec)
+IJobSpecHelperPtr CreateJobSpecHelper(const NControllerAgent::NProto::TJobSpec& jobSpec)
 {
     return New<TJobSpecHelper>(jobSpec);
 }

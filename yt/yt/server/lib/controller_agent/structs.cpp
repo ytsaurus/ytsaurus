@@ -76,7 +76,7 @@ TJobSummary::TJobSummary(TJobId id, EJobState state)
     , State(state)
 { }
 
-TJobSummary::TJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+TJobSummary::TJobSummary(NProto::TJobStatus* status)
     : Id(FromProto<TJobId>(status->job_id()))
     , State(CheckedEnumCast<EJobState>(status->state()))
 {
@@ -115,13 +115,13 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     Persist(context, TimeStatistics);
 }
 
-TJobResult& TJobSummary::GetJobResult()
+NProto::TJobResult& TJobSummary::GetJobResult()
 {
     YT_VERIFY(Result);
     return *Result;
 }
 
-const TJobResult& TJobSummary::GetJobResult() const
+const NProto::TJobResult& TJobSummary::GetJobResult() const
 {
     YT_VERIFY(Result);
     return *Result;
@@ -130,28 +130,28 @@ const TJobResult& TJobSummary::GetJobResult() const
 TSchedulerJobResultExt& TJobSummary::GetSchedulerJobResult()
 {
     YT_VERIFY(Result);
-    YT_VERIFY(Result->HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext));
-    return *Result->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    YT_VERIFY(Result->HasExtension(TSchedulerJobResultExt::job_result_ext));
+    return *Result->MutableExtension(TSchedulerJobResultExt::job_result_ext);
 }
 
 const TSchedulerJobResultExt& TJobSummary::GetSchedulerJobResult() const
 {
     YT_VERIFY(Result);
-    YT_VERIFY(Result->HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext));
-    return Result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    YT_VERIFY(Result->HasExtension(TSchedulerJobResultExt::job_result_ext));
+    return Result->GetExtension(TSchedulerJobResultExt::job_result_ext);
 }
 
 const TSchedulerJobResultExt* TJobSummary::FindSchedulerJobResult() const
 {
     YT_VERIFY(Result);
-    return Result->HasExtension(TSchedulerJobResultExt::scheduler_job_result_ext)
-        ? &Result->GetExtension(TSchedulerJobResultExt::scheduler_job_result_ext)
+    return Result->HasExtension(TSchedulerJobResultExt::job_result_ext)
+        ? &Result->GetExtension(TSchedulerJobResultExt::job_result_ext)
         : nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TCompletedJobSummary::TCompletedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+TCompletedJobSummary::TCompletedJobSummary(NControllerAgent::NProto::TJobStatus* status)
     : TJobSummary(status)
     , InterruptReason(status->has_interruption_reason()
         ? CheckedEnumCast<EInterruptReason>(status->interruption_reason())
@@ -205,7 +205,7 @@ TAbortedJobSummary::TAbortedJobSummary(const TJobSummary& other, EAbortReason ab
     FinishTime = TInstant::Now();
 }
 
-TAbortedJobSummary::TAbortedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+TAbortedJobSummary::TAbortedJobSummary(NProto::TJobStatus* status)
     : TJobSummary(status)
 {
     YT_VERIFY(State == ExpectedState);
@@ -239,7 +239,7 @@ std::unique_ptr<TAbortedJobSummary> CreateAbortedJobSummary(TAbortedBySchedulerJ
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFailedJobSummary::TFailedJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+TFailedJobSummary::TFailedJobSummary(NProto::TJobStatus* status)
     : TJobSummary(status)
 {
     YT_VERIFY(State == ExpectedState);
@@ -247,7 +247,7 @@ TFailedJobSummary::TFailedJobSummary(NJobTrackerClient::NProto::TJobStatus* stat
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRunningJobSummary::TRunningJobSummary(NJobTrackerClient::NProto::TJobStatus* status)
+TRunningJobSummary::TRunningJobSummary(NProto::TJobStatus* status)
     : TJobSummary(status)
     , Progress(status->progress())
     , StderrSize(status->stderr_size())
@@ -383,7 +383,7 @@ std::unique_ptr<TAbortedJobSummary> MergeJobSummaries(
             auto error = TError("Job preempted")
                 << TErrorAttribute("abort_reason", EAbortReason::Preemption)
                 << TErrorAttribute("preemption_reason", schedulerJobSummary.PreemptionReason);
-            nodeJobSummary->Result = NJobTrackerClient::NProto::TJobResult{};
+            nodeJobSummary->Result = NProto::TJobResult{};
             ToProto(nodeJobSummary->GetJobResult().mutable_error(), error);
         }
     }
@@ -442,7 +442,7 @@ std::unique_ptr<TJobSummary> MergeJobSummaries(
     }
 }
 
-std::unique_ptr<TJobSummary> ParseJobSummary(NJobTrackerClient::NProto::TJobStatus* const status, const TLogger& Logger)
+std::unique_ptr<TJobSummary> ParseJobSummary(NProto::TJobStatus* const status, const TLogger& Logger)
 {
     const auto state = static_cast<EJobState>(status->state());
     switch (state) {

@@ -8,7 +8,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-NRpc::IServicePtr CreateControllerAgentTrackerService(TBootstrap* bootstrap, const NRpc::IResponseKeeperPtr& responseKeeper);
+NRpc::IServicePtr CreateAllocationTrackerService(TBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

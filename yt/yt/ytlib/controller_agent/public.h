@@ -23,6 +23,9 @@ class TMaterializeOperationResult;
 class TReviveOperationResult;
 class TCommitOperationResult;
 
+class TJobStatus;
+class TJobSpec;
+
 } // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -58,6 +58,7 @@ using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
 using namespace NCypressClient;
 using namespace NObjectClient;
 using namespace NFileClient;
@@ -69,7 +70,6 @@ using namespace NQueryClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NScheduler;
-using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 
 using NChunkClient::TChunkReaderStatistics;
@@ -189,7 +189,7 @@ static TYPath GetControllerAgentOrchidRetainedFinishedJobsPath(TStringBuf contro
 
 static void ValidateJobSpecVersion(
     TJobId jobId,
-    const NYT::NJobTrackerClient::NProto::TJobSpec& jobSpec)
+    const TJobSpec& jobSpec)
 {
     if (!jobSpec.has_version() || jobSpec.version() != GetJobSpecVersion()) {
         THROW_ERROR_EXCEPTION("Job spec found in operation archive is of unsupported version")
@@ -268,7 +268,7 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
     }
 }
 
-TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryFetchJobSpecFromJobNode(
+TErrorOr<TJobSpec> TClient::TryFetchJobSpecFromJobNode(
     TJobId jobId,
     NRpc::IChannelPtr nodeChannel)
 {
@@ -291,7 +291,7 @@ TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryFetchJobSpecFromJobNod
     return spec;
 }
 
-TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryFetchJobSpecFromJobNode(
+TErrorOr<TJobSpec> TClient::TryFetchJobSpecFromJobNode(
     TJobId jobId,
     EPermissionSet requiredPermissions)
 {
@@ -315,7 +315,7 @@ TErrorOr<NJobTrackerClient::NProto::TJobSpec> TClient::TryFetchJobSpecFromJobNod
     return TryFetchJobSpecFromJobNode(jobId, nodeChannel);
 }
 
-NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
+TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
 {
     auto nameTable = New<TNameTable>();
 
@@ -356,7 +356,7 @@ NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobI
             << TErrorAttribute("value_type", value.Type);
     }
 
-    NJobTrackerClient::NProto::TJobSpec jobSpec;
+    TJobSpec jobSpec;
     bool ok = jobSpec.ParseFromArray(value.Data.String, value.Length);
     if (!ok) {
         THROW_ERROR_EXCEPTION("Cannot parse job spec")
@@ -454,7 +454,7 @@ void TClient::ValidateOperationAccess(
 
 void TClient::ValidateOperationAccess(
     TJobId jobId,
-    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+    const TJobSpec& jobSpec,
     EPermissionSet permissions)
 {
     const auto extensionId = NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext;
@@ -480,7 +480,7 @@ void TClient::ValidateOperationAccess(
         Logger);
 }
 
-NJobTrackerClient::NProto::TJobSpec TClient::FetchJobSpec(
+TJobSpec TClient::FetchJobSpec(
     NScheduler::TJobId jobId,
     NYTree::EPermissionSet requiredPermissions)
 {

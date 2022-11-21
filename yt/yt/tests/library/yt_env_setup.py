@@ -667,6 +667,9 @@ class YTEnvSetup(object):
             if cls.USE_CUSTOM_ROOTFS:
                 config = update_inplace(config, get_custom_rootfs_delta_node_config())
 
+            if "scheduler" in cls.ARTIFACT_COMPONENTS.get("22_3", []):
+                config["exec_agent"]["scheduler_connector"]["use_allocation_tracker_service"] = False
+
             config["exec_agent"]["job_proxy_upload_debug_artifact_chunks"] = cls.UPLOAD_DEBUG_ARTIFACT_CHUNKS
 
             config["ref_counted_tracker_dump_period"] = 5000

@@ -12,8 +12,6 @@
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 #include <yt/yt/server/node/exec_node/job_controller.h>
 
-#include <yt/yt/server/node/job_agent/job.h>
-
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/job_agent/config.h>
@@ -411,6 +409,17 @@ private:
         masterConnector->ScheduleJobHeartbeat(job->GetJobTrackerAddress());
     }
 
+    void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* status, const TMasterJobBasePtr& job)
+    {
+        using NYT::ToProto;
+
+        ToProto(status->mutable_job_id(), job->GetId());
+        status->set_job_type(static_cast<int>(job->GetType()));
+        status->set_state(static_cast<int>(job->GetState()));
+
+        status->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
+    }
+
     void DoPrepareHeartbeatRequest(
         TCellTag cellTag,
         const TString& jobTrackerAddress,
@@ -480,8 +489,7 @@ private:
 
         for (const auto& protoJobToAbort : response->jobs_to_abort()) {
             auto jobToAbort = FromProto<TJobToAbort>(protoJobToAbort);
-            YT_VERIFY(!jobToAbort.PreemptionReason);
-
+            
             if (auto job = FindJob(jobTrackerAddress, jobToAbort.JobId)) {
                 AbortJob(job, std::move(jobToAbort));
             } else {

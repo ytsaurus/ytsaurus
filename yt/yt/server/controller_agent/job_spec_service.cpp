@@ -4,9 +4,9 @@
 #include "bootstrap.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
+#include <yt/yt/server/lib/controller_agent/job_spec_service_proxy.h>
 
-#include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+#include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/scheduler_service_proxy.h>
@@ -28,7 +28,6 @@ using namespace NYTree;
 using namespace NYson;
 using namespace NCypressClient;
 using namespace NConcurrency;
-using namespace NJobTrackerClient;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////
@@ -54,7 +53,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
 
-    DECLARE_RPC_SERVICE_METHOD(NJobTrackerClient::NProto, GetJobSpecs)
+    DECLARE_RPC_SERVICE_METHOD(NProto, GetJobSpecs)
     {
         auto controllerAgent = Bootstrap_->GetControllerAgent();
         controllerAgent->ValidateConnected();
@@ -98,7 +97,6 @@ private:
                 }
 
                 response->Attachments() = std::move(jobSpecs);
-                response->set_supports_job_info_from_node(true);
                 context->Reply();
             }).Via(GetCurrentInvoker()));
     }

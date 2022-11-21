@@ -106,7 +106,8 @@ public:
     void ResetOperationRevival(TOperationId operationId);
     void UnregisterOperation(TOperationId operationId);
 
-    void ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
+    template <class TCtxNodeHeartbeatPtr>
+    void ProcessHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
     void UnregisterAndRemoveNodeById(NNodeTrackerClient::TNodeId nodeId);
     void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason);
@@ -277,7 +278,8 @@ private:
 
     void DoCleanup();
 
-    void DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
+    template <class TCtxNodeHeartbeatPtr>
+    void DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
     TResourceStatistics CalculateResourceStatistics(const TSchedulingTagFilter& filter);
 
@@ -304,18 +306,20 @@ private:
         TShardEpoch shardEpoch,
         const std::vector<TJobPtr>& jobs);
 
+    template <class TReqHeartbeat, class TRspHeartbeat>
     void ProcessHeartbeatJobs(
         const TExecNodePtr& node,
-        NJobTrackerClient::NProto::TReqHeartbeat* request,
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        TReqHeartbeat* request,
+        TRspHeartbeat* response,
         std::vector<TJobPtr>* runningJobs,
         bool* hasWaitingJobs);
 
+    template <class TRspHeartbeat, class TStatus>
     TJobPtr ProcessJobHeartbeat(
         const TExecNodePtr& node,
         const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
-        TJobStatus* jobStatus);
+        TRspHeartbeat* response,
+        TStatus* jobStatus);
 
     using TAllocationStateToJobList = TEnumIndexedVector<EAllocationState, std::vector<TJobPtr>>;
     void LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const TAllocationStateToJobList& ongoingJobsByAllocationState) const;
@@ -333,12 +337,14 @@ private:
 
     void SubmitJobsToStrategy();
 
+    template <class TCtxNodeHeartbeatPtr>
     void ProcessScheduledAndPreemptedJobs(
         const ISchedulingContextPtr& schedulingContext,
-        const TScheduler::TCtxNodeHeartbeatPtr& rpcContext);
+        const TCtxNodeHeartbeatPtr& rpcContext);
 
     void OnJobFinished(const TJobPtr& job);
     void OnJobAborted(const TJobPtr& job, const TError& error, std::optional<EAbortReason> abortReason = std::nullopt);
+    template <class TJobStatus>
     void OnJobRunning(const TJobPtr& job, TJobStatus* status);
     void DoAbandonJob(const TJobPtr& job);
 
@@ -357,12 +363,13 @@ private:
 
     void SetOperationJobsReleaseDeadline(TOperationState* operationState);
 
-    void ProcessPreemptedJob(NJobTrackerClient::NProto::TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout);
+    template <class TRspHeartbeat>
+    void ProcessPreemptedJob(TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout);
     void PreemptJob(const TJobPtr& job, NProfiling::TCpuDuration interruptTimeout);
-    NJobTrackerClient::TJobToAbort BuildPreemptedJobAbortAttributes(const TJobPtr& job) const;
 
+    template <class TRspHeartbeat>
     void SendInterruptedJobToNode(
-        NJobTrackerClient::NProto::TRspHeartbeat* response,
+        TRspHeartbeat* response,
         const TJobPtr& job,
         TDuration interruptTimeout) const;
 

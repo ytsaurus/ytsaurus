@@ -2,11 +2,11 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job_spec_service.pb.h>
+#include <yt/yt/server/lib/controller_agent/proto/job_spec_service.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 
-namespace NYT::NJobTrackerClient {
+namespace NYT::NControllerAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,4 +22,4 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NJobTrackerClient
+} // namespace NYT::NControllerAgent

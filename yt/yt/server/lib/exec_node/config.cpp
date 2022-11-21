@@ -166,6 +166,16 @@ void THeartbeatReporterDynamicConfigBase::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter(
+        "use_allocation_tracker_service",
+        &TSchedulerConnectorDynamicConfig::UseAllocationTrackerService)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("test_heartbeat_delay", &TThis::TestHeartbeatDelay)
@@ -209,6 +219,12 @@ void THeartbeatReporterConfigBase::ApplyDynamicInplace(const THeartbeatReporterD
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSchedulerConnectorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("use_allocation_tracker_service", &TSchedulerConnectorConfig::UseAllocationTrackerService)
+        .Default(false);
+}
+
 TSchedulerConnectorConfigPtr TSchedulerConnectorConfig::ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig)
 {
     YT_VERIFY(dynamicConfig);
@@ -222,6 +238,9 @@ TSchedulerConnectorConfigPtr TSchedulerConnectorConfig::ApplyDynamic(const TSche
 void TSchedulerConnectorConfig::ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig)
 {
     THeartbeatReporterConfigBase::ApplyDynamicInplace(dynamicConfig);
+    if (dynamicConfig.UseAllocationTrackerService) {
+        UseAllocationTrackerService = *dynamicConfig.UseAllocationTrackerService;
+    }
     Postprocess();
 }
 

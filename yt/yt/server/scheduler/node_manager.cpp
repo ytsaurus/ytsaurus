@@ -3,6 +3,8 @@
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
+
 #include <yt/yt/core/misc/collection_helpers.h>
 
 namespace NYT::NScheduler {
@@ -36,7 +38,8 @@ TNodeManager::TNodeManager(TSchedulerConfigPtr config, INodeManagerHost* host, T
     }
 }
 
-void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
+template <class TCtxNodeHeartbeatPtr>
+void TNodeManager::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
     auto* request = &context->Request();
     auto nodeId = request->node_id();
@@ -74,9 +77,12 @@ void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& 
         }
 
         const auto& nodeShard = GetNodeShard(nodeId);
-        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat, nodeShard, context));
+        nodeShard->GetInvoker()->Invoke(BIND(&TNodeShard::ProcessHeartbeat<TCtxNodeHeartbeatPtr>, nodeShard, context));
     }));
 }
+
+template void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxOldNodeHeartbeatPtr& context);
+template void TNodeManager::ProcessNodeHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
 
 void TNodeManager::UpdateConfig(const TSchedulerConfigPtr& config)
 {

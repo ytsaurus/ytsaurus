@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -18,7 +18,7 @@ struct IJobSpecHelper
     : public virtual TRefCounted
 {
     virtual NJobTrackerClient::EJobType GetJobType() const = 0;
-    virtual const NJobTrackerClient::NProto::TJobSpec& GetJobSpec() const = 0;
+    virtual const NControllerAgent::NProto::TJobSpec& GetJobSpec() const = 0;
     virtual NScheduler::TJobIOConfigPtr GetJobIOConfig() const = 0;
     virtual const NScheduler::NProto::TSchedulerJobSpecExt& GetSchedulerJobSpecExt() const = 0;
     virtual const NChunkClient::TDataSourceDirectoryPtr& GetDataSourceDirectory() const = 0;
@@ -31,7 +31,7 @@ DEFINE_REFCOUNTED_TYPE(IJobSpecHelper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSpecHelperPtr CreateJobSpecHelper(const NJobTrackerClient::NProto::TJobSpec& jobSpec);
+IJobSpecHelperPtr CreateJobSpecHelper(const NControllerAgent::NProto::TJobSpec& jobSpec);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -34,4 +34,26 @@ void MaybeDelay(const TDelayConfigPtr& delayConfig);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+EAllocationState JobStateToAllocationState(const EJobState jobState);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAllocationToAbort
+{
+    TAllocationId AllocationId;
+    std::optional<NScheduler::EAbortReason> AbortReason{};
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace NProto {
+
+void ToProto(NProto::NNode::TAllocationToAbort* protoAllocationToAbort, const TAllocationToAbort& allocationToAbort);
+
+void FromProto(TAllocationToAbort* allocationToAbort, const NProto::NNode::TAllocationToAbort& protoAllocationToAbort);
+
+} // namespace NProto
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

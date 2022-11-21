@@ -107,7 +107,7 @@ public:
 protected:
     TExtendedJobResources GetMinNeededResourcesHeavy() const override;
 
-    void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override;
+    void BuildJobSpec(TJobletPtr joblet, NControllerAgent::NProto::TJobSpec* jobSpec) override;
     bool IsJobInterruptible() const override;
 
     virtual void OnChunkTeleported(NChunkClient::TInputChunkPtr teleportChunk, std::any tag) override;
@@ -124,7 +124,7 @@ protected:
     void UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatistics& dataStatistics) override;
 
 private:
-    using TJobSpec = NJobTrackerClient::NProto::TJobSpec;
+    using TJobSpec = NControllerAgent::NProto::TJobSpec;
 
     DECLARE_DYNAMIC_PHOENIX_TYPE(TAutoMergeTask, 0x4ef99f1a);
 

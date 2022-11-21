@@ -48,7 +48,10 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
-    void SendHeartbeat() noexcept;
+    void SendHeartbeat();
+
+    template <class TServiceProxy>
+    void DoSendHeartbeat();
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnector)

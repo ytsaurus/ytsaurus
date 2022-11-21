@@ -10,7 +10,23 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TAllocationId = TGuid;
+constexpr TAllocationId NullAllocationId{};
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NProto {
+
+namespace NNode {
+
+class TReqHeartbeat;
+class TRspHeartbeat;
+
+class TAllocationToAbort;
+
+} // namespace NNode
+
+class TAllocationStatus;
 
 class TSchedulerToAgentJobEvent;
 
@@ -23,8 +39,17 @@ using NJobTrackerClient::EJobType;
 using NJobTrackerClient::EJobState;
 using NJobTrackerClient::EJobPhase;
 
-using NJobTrackerClient::NProto::TJobResult;
-using NJobTrackerClient::NProto::TJobStatus;
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Please keep the range of values small as this type
+// is used as a key of TEnumIndexedVector.
+DEFINE_ENUM(EAllocationState,
+    ((Scheduled)  (0))
+    ((Waiting)    (1))
+    ((Running)    (2))
+    ((Finishing)  (3))
+    ((Finished)   (4))
+);
 
 ////////////////////////////////////////////////////////////////////////////////
 

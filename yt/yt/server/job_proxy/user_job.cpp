@@ -126,8 +126,8 @@ using namespace NJobTrackerClient;
 using namespace NUserJobExecutor;
 using namespace NUserJobSynchronizerClient;
 
-using NJobTrackerClient::NProto::TJobResult;
-using NJobTrackerClient::NProto::TJobSpec;
+using NControllerAgent::NProto::TJobResult;
+using NControllerAgent::NProto::TJobSpec;
 using NScheduler::NProto::TUserJobSpec;
 using NCoreDump::NProto::TCoreInfo;
 using NChunkClient::TDataSliceDescriptor;
@@ -317,7 +317,7 @@ public:
         }
 
         TJobResult result;
-        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::job_result_ext);
         // COMPAT(ignat)
         if (Config_->UploadDebugArtifactChunks) {
             SaveErrorChunkId(schedulerResultExt);

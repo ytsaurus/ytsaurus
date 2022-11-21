@@ -17,17 +17,19 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TNodeResources resource_usage = 3;
     required NNodeTrackerClient.NProto.TNodeResources resource_limits = 4;
     repeated TJobStatus jobs = 5;
+
+    // COMPAT(pogorelov)
     repeated NYT.NProto.TGuid unconfirmed_jobs = 6;
     optional int64 confirmed_job_count = 7 [default = 0];
+
     required NNodeTrackerClient.NProto.TDiskResources disk_resources = 8;
     optional int32 job_reporter_write_failures_count = 9;
     optional bool job_reporter_queue_is_too_large = 10;
-    optional bool supports_interruption_logic = 12;
 
     // COMPAT(gritukan)
     optional bool reports_heartbeats_to_all_peers = 13;
-
-    reserved 11;
+    
+    reserved 11, 12;
 }
 
 message TControllerAgentDescriptor
@@ -77,25 +79,17 @@ message TJobToInterrupt
 message TRspHeartbeat
 {
     repeated TJobStartInfo jobs_to_start = 1;
-    reserved 2;
     repeated TJobToAbort jobs_to_abort = 15;
     repeated TJobToRemove jobs_to_remove = 3;
     repeated NYT.NProto.TGuid jobs_to_store = 4;
     repeated TJobToInterrupt jobs_to_interrupt = 17;
-    repeated NYT.NProto.TGuid old_jobs_to_interrupt = 5;
     repeated NYT.NProto.TGuid jobs_to_fail = 6;
     // Ids of jobs that should be included in the next heartbeat even if they are stored.
-    reserved 7;
     repeated TJobToConfirm jobs_to_confirm = 16;
     optional bool scheduling_skipped = 8;
     optional int32 operation_archive_version = 11;
 
-    // COMPAT(ignat): remove after 22.1
-    optional bool enable_job_reporter = 9;
-    optional bool enable_job_spec_reporter = 10;
-    optional bool enable_job_stderr_reporter = 12;
-    optional bool enable_job_fail_context_reporter = 13;
-    optional bool enable_job_profile_reporter = 14;
+    reserved 2, 5, 7, 9, 10, 12, 13, 14;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

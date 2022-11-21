@@ -8,6 +8,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
@@ -136,7 +138,7 @@ struct TNodeJobReport
     TNodeJobReport StartTime(TInstant startTime);
     TNodeJobReport FinishTime(TInstant finishTime);
     TNodeJobReport Error(const TError& error);
-    TNodeJobReport Spec(const NJobTrackerClient::NProto::TJobSpec& spec);
+    TNodeJobReport Spec(const NControllerAgent::NProto::TJobSpec& spec);
     TNodeJobReport SpecVersion(i64 specVersion);
     TNodeJobReport Statistics(const NYson::TYsonString& statistics);
     TNodeJobReport Events(const TJobEvents& events);

@@ -11,8 +11,7 @@
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 

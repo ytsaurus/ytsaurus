@@ -14,7 +14,7 @@
 #include <yt/yt/ytlib/job_prober_client/job_probe.h>
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -162,15 +162,15 @@ private:
     IJobProxyEnvironmentPtr FindJobProxyEnvironment() const;
 
     void DoRun();
-    NJobTrackerClient::NProto::TJobResult RunJob();
+    NControllerAgent::NProto::TJobResult RunJob();
 
     void SendHeartbeat();
     void OnHeartbeatResponse(const TError& error);
 
-    void LogJobSpec(NJobTrackerClient::NProto::TJobSpec jobSpec);
+    void LogJobSpec(NControllerAgent::NProto::TJobSpec jobSpec);
     void RetrieveJobSpec();
     void ReportResult(
-        const NJobTrackerClient::NProto::TJobResult& result,
+        const NControllerAgent::NProto::TJobResult& result,
         const NYson::TYsonString& statistics,
         TInstant startTime,
         TInstant finishTime);
@@ -220,8 +220,8 @@ private:
 
     void CheckMemoryUsage();
 
-    void FillJobResult(NJobTrackerClient::NProto::TJobResult* jobResult);
-    void FillStderrResult(NJobTrackerClient::NProto::TJobResult* jobResult);
+    void FillJobResult(NControllerAgent::NProto::TJobResult* jobResult);
+    void FillStderrResult(NControllerAgent::NProto::TJobResult* jobResult);
 
     void Abort(EJobProxyExitCode exitCode);
 };

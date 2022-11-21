@@ -10,6 +10,8 @@
 
 #include <yt/yt/server/lib/chunk_pools/vanilla_chunk_pool.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/ytlib/table_client/public.h>
@@ -18,7 +20,7 @@
 
 namespace NYT::NControllerAgent::NControllers {
 
-using namespace NJobTrackerClient::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
 using namespace NChunkPools;
@@ -100,7 +102,7 @@ public:
         return result;
     }
 
-    void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) override
+    void BuildJobSpec(TJobletPtr joblet, TJobSpec* jobSpec) override
     {
         VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
