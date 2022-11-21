@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
-#include <yt/yt/server/lib/dynamic_config/dynamic_config_manager.h>
+#include <yt/yt/library/dynamic_config/dynamic_config_manager.h>
 
 namespace NYT::NCellarNode {
 

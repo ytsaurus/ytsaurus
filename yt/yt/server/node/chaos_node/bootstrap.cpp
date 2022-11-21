@@ -13,11 +13,12 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
-#include <yt/yt/server/lib/dynamic_config/dynamic_config_manager.h>
-
 #include <yt/yt/server/lib/tablet_server/config.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
+
+#include <yt/yt/library/dynamic_config/dynamic_config_manager.h>
 
 namespace NYT::NChaosNode {
 

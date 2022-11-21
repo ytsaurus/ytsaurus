@@ -3,7 +3,7 @@
 #include "private.h"
 #include "config.h"
 
-#include <yt/yt/server/lib/dynamic_config/dynamic_config_manager.h>
+#include <yt/yt/library/dynamic_config/dynamic_config_manager.h>
 
 namespace NYT::NQueueAgent {
 

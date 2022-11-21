@@ -2,11 +2,11 @@
 
 #include <yt/yt/server/lib/hive/config.h>
 
-#include <yt/yt/server/lib/dynamic_config/config.h>
-
 #include <yt/yt/server/lib/election/config.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/config.h>
+
+#include <yt/yt/library/dynamic_config/config.h>
 
 #include <yt/yt/library/query/engine/config.h>
 

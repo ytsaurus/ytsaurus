@@ -5,6 +5,8 @@
 
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/core/net/local_address.h>
 
 namespace NYT::NRpcProxy {

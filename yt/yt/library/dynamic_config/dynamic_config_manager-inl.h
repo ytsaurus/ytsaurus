@@ -7,7 +7,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/api/native/client.h>
+#include <yt/yt/client/api/client.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 

@@ -2,6 +2,8 @@
 #include "config.h"
 #include "dynamic_config_manager.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 namespace NYT::NTabletBalancer {
 
 using namespace NDynamicConfig;

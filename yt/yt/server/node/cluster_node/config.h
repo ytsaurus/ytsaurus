@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/chaos_node/config.h>
 
-#include <yt/yt/server/lib/dynamic_config/config.h>
-
 #include <yt/yt/server/lib/exec_node/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
@@ -30,6 +28,8 @@
 #include <yt/yt/ytlib/object_client/config.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
+
+#include <yt/yt/library/dynamic_config/config.h>
 
 #include <yt/yt/library/profiling/solomon/exporter.h>
 
