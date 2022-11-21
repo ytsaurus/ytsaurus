@@ -920,6 +920,7 @@ class TestErasureJournals(TestJournalsBase):
             set_node_banned(replica, False)
 
     @authors("gritukan", "babenko")
+    @pytest.mark.timeout(180)
     def test_repair_overlayed_chunk(self):
         set("//sys/@config/chunk_manager/chunk_refresh_period", 50)
 
