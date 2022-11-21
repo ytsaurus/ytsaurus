@@ -5,11 +5,11 @@ import java.util.concurrent.CompletableFuture;
 
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
+import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedRowset;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
-import ru.yandex.yt.ytclient.object.ConsumerSource;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 public interface ImmutableTransactionalClient {
     CompletableFuture<UnversionedRowset> lookupRows(AbstractLookupRowsRequest<?, ?> request);

@@ -9,6 +9,9 @@ import tech.ytsaurus.client.ApiServiceTransaction;
 import tech.ytsaurus.client.ApiServiceTransactionOptions;
 import tech.ytsaurus.client.LookupRowsRequest;
 import tech.ytsaurus.client.ModifyRowsRequest;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
@@ -16,9 +19,6 @@ import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
 
 public class ModifyRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(ModifyRowsExample.class);

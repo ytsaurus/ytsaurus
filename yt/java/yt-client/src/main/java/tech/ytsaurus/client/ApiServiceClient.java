@@ -42,6 +42,9 @@ import tech.ytsaurus.client.request.TrimTable;
 import tech.ytsaurus.client.request.UnfreezeTable;
 import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.UpdateOperationParameters;
+import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -49,10 +52,7 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
-import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction);

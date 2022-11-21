@@ -1,10 +1,11 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import tech.ytsaurus.client.rows.MappedRowSerializer;
+import tech.ytsaurus.client.rows.WireRowSerializer;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
-import ru.yandex.yt.ytclient.object.WireRowSerializer;
 
 @NonNullApi
 @NonNullFields

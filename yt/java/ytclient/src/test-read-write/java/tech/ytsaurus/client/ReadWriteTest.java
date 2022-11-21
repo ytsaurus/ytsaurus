@@ -20,6 +20,12 @@ import org.junit.runners.Parameterized;
 import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.rows.MappedRowSerializer;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowDeserializer;
+import tech.ytsaurus.client.rows.UnversionedRowSerializer;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
@@ -34,18 +40,12 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
-import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
-import ru.yandex.yt.ytclient.object.UnversionedRowSerializer;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
 
 @RunWith(value = Parameterized.class)
 public class ReadWriteTest {

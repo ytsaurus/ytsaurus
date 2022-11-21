@@ -5,6 +5,16 @@ import java.time.Instant;
 import java.util.List;
 import java.util.function.Function;
 
+import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.UnversionedRowsetDeserializer;
+import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.client.rows.VersionedRowset;
+import tech.ytsaurus.client.rows.VersionedRowsetDeserializer;
+import tech.ytsaurus.client.rows.WireProtocol;
+import tech.ytsaurus.client.rows.WireProtocolReader;
+import tech.ytsaurus.client.rows.WireRowsetDeserializer;
+import tech.ytsaurus.client.rows.WireVersionedRowsetDeserializer;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.type_info.TypeIO;
 
@@ -14,20 +24,10 @@ import ru.yandex.yt.rpcproxy.TColumnSchema;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TTableSchema;
 import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.object.ConsumerSource;
-import ru.yandex.yt.ytclient.object.UnversionedRowsetDeserializer;
-import ru.yandex.yt.ytclient.object.VersionedRowsetDeserializer;
-import ru.yandex.yt.ytclient.object.WireRowsetDeserializer;
-import ru.yandex.yt.ytclient.object.WireVersionedRowsetDeserializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
-import ru.yandex.yt.ytclient.wire.VersionedRowset;
-import ru.yandex.yt.ytclient.wire.WireProtocol;
-import ru.yandex.yt.ytclient.wire.WireProtocolReader;
 
 public class ApiServiceUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;

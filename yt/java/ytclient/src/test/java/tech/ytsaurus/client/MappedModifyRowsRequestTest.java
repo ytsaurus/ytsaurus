@@ -15,6 +15,8 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.rows.ObjectsMetadata;
+import tech.ytsaurus.client.rows.WireProtocolTest;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.NullSerializationStrategy;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
@@ -23,9 +25,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeSaveAlways;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.AbstractYTreeStateSupport;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
 import ru.yandex.yt.rpcproxy.ERowModificationType;
-import ru.yandex.yt.ytclient.object.ObjectsMetadata;
 import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
-import ru.yandex.yt.ytclient.wire.WireProtocolTest;
 
 public class MappedModifyRowsRequestTest {
 

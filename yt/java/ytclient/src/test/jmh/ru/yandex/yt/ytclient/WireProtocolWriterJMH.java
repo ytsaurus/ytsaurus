@@ -17,21 +17,21 @@ import org.openjdk.jmh.runner.Runner;
 import org.openjdk.jmh.runner.RunnerException;
 import org.openjdk.jmh.runner.options.Options;
 import org.openjdk.jmh.runner.options.OptionsBuilder;
+import tech.ytsaurus.client.rows.LargeFlattenObjectClass;
+import tech.ytsaurus.client.rows.LargeFlattenPrimitiveClass;
+import tech.ytsaurus.client.rows.LargeObjectClass;
+import tech.ytsaurus.client.rows.LargeObjectClassWithStateSupport;
+import tech.ytsaurus.client.rows.LargeObjectWithListClass;
+import tech.ytsaurus.client.rows.LargePrimitiveClass;
+import tech.ytsaurus.client.rows.LargeUnflattenObjectClass;
+import tech.ytsaurus.client.rows.LargeUnflattenObjectClassWithStateSupport;
+import tech.ytsaurus.client.rows.LargeUnflattenPrimitiveClass;
+import tech.ytsaurus.client.rows.SmallObjectClass;
+import tech.ytsaurus.client.rows.SmallObjectClassWithStateSupport;
+import tech.ytsaurus.client.rows.SmallPrimitiveClass;
+import tech.ytsaurus.client.rows.UnversionedRow;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
-import ru.yandex.yt.ytclient.object.LargeFlattenObjectClass;
-import ru.yandex.yt.ytclient.object.LargeFlattenPrimitiveClass;
-import ru.yandex.yt.ytclient.object.LargeObjectClass;
-import ru.yandex.yt.ytclient.object.LargeObjectClassWithStateSupport;
-import ru.yandex.yt.ytclient.object.LargeObjectWithListClass;
-import ru.yandex.yt.ytclient.object.LargePrimitiveClass;
-import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClass;
-import ru.yandex.yt.ytclient.object.LargeUnflattenObjectClassWithStateSupport;
-import ru.yandex.yt.ytclient.object.LargeUnflattenPrimitiveClass;
-import ru.yandex.yt.ytclient.object.SmallObjectClass;
-import ru.yandex.yt.ytclient.object.SmallObjectClassWithStateSupport;
-import ru.yandex.yt.ytclient.object.SmallPrimitiveClass;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
 
 @BenchmarkMode(Mode.Throughput)
 @Warmup(iterations = 1, time = 5)

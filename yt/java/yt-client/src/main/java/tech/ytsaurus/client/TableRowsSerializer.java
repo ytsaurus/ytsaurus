@@ -16,6 +16,10 @@ import io.netty.buffer.ByteBuf;
 import io.netty.buffer.Unpooled;
 import tech.ytsaurus.client.request.Format;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.client.rows.WireProtocolWriter;
+import tech.ytsaurus.client.rows.WireRowSerializer;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.lang.NonNullApi;
@@ -23,14 +27,10 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.object.WireRowSerializer;
 import ru.yandex.yt.ytclient.serialization.YTreeBinarySerializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
-import ru.yandex.yt.ytclient.wire.WireProtocolWriter;
 
 @NonNullApi
 @NonNullFields

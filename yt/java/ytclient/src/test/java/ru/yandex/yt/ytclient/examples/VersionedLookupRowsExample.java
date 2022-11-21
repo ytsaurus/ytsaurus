@@ -3,15 +3,15 @@ package ru.yandex.yt.ytclient.examples;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.LookupRowsRequest;
+import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.client.rows.VersionedRow;
+import tech.ytsaurus.client.rows.VersionedRowset;
+import tech.ytsaurus.client.rows.VersionedValue;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedValue;
-import ru.yandex.yt.ytclient.wire.VersionedRow;
-import ru.yandex.yt.ytclient.wire.VersionedRowset;
-import ru.yandex.yt.ytclient.wire.VersionedValue;
 
 public class VersionedLookupRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(VersionedLookupRowsExample.class);

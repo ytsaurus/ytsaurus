@@ -79,6 +79,9 @@ import tech.ytsaurus.client.request.UpdateOperationParameters;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.rows.ConsumerSource;
+import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -87,10 +90,7 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.ytclient.object.ConsumerSource;
 import ru.yandex.yt.ytclient.operations.Operation;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
-import ru.yandex.yt.ytclient.wire.VersionedRowset;
 
 public class MockYtClient implements BaseYtClient {
     private final Map<String, Deque<Callable<CompletableFuture<?>>>> mocks = new HashMap<>();

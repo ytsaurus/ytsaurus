@@ -5,10 +5,10 @@ import java.util.List;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.TableReader;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowDeserializer;
 
-import ru.yandex.yt.ytclient.object.UnversionedRowDeserializer;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
 
 public class ReadTableExample {
     private static final Logger logger = LoggerFactory.getLogger(ReadTableExample.class);

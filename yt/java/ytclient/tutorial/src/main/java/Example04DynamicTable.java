@@ -9,6 +9,8 @@ import tech.ytsaurus.client.request.ModifyRowsRequest;
 import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.TransactionType;
+import tech.ytsaurus.client.rows.UnversionedRow;
+import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
@@ -16,8 +18,6 @@ import tech.ytsaurus.ysontree.YTree;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
 import ru.yandex.yt.ytclient.tables.TableSchema;
-import ru.yandex.yt.ytclient.wire.UnversionedRow;
-import ru.yandex.yt.ytclient.wire.UnversionedRowset;
 
 public class Example04DynamicTable {
     private Example04DynamicTable() {

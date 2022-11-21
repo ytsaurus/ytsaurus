@@ -1,12 +1,12 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.cypress.YPath;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.object.WireRowDeserializer;
 
 @NonNullApi
 @NonNullFields

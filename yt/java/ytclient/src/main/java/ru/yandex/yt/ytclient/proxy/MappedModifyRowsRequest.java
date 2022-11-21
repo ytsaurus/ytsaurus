@@ -1,8 +1,9 @@
 package ru.yandex.yt.ytclient.proxy;
 
+import tech.ytsaurus.client.rows.MappedRowSerializer;
+import tech.ytsaurus.client.rows.WireRowSerializer;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
-import ru.yandex.yt.ytclient.object.MappedRowSerializer;
-import ru.yandex.yt.ytclient.object.WireRowSerializer;
 
 /**
  * Row modification request that uses YTreeObject annotated classes as table row representation
