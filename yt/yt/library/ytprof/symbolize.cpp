@@ -1,9 +1,14 @@
 #include "symbolize.h"
 
-#include <util/generic/yexception.h>
+#include <library/cpp/yt/assert/assert.h>
+
 #include <util/folder/path.h>
+
+#include <util/generic/yexception.h>
 #include <util/generic/hash.h>
+
 #include <util/string/printf.h>
+
 #include <util/system/filemap.h>
 #include <util/system/type_name.h>
 #include <util/system/unaligned_mem.h>
@@ -42,7 +47,7 @@ public:
 
             TString name;
             TString demangledName;
-            if (dlinfo.dli_sname == nullptr) {
+            if (!dlinfo.dli_sname) {
                 auto offset = reinterpret_cast<intptr_t>(ip) - reinterpret_cast<intptr_t>(dlinfo.dli_fbase);
                 auto filename = TFsPath{dlinfo.dli_fname}.Basename();
                 name = Sprintf("%p", reinterpret_cast<void*>(offset)) + "@" + filename;
@@ -79,12 +84,14 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 using TElfAddr = ElfW(Addr);
+using TElfDyn = ElfW(Dyn);
 using TElfEhdr = ElfW(Ehdr);
 using TElfOff = ElfW(Off);
 using TElfPhdr = ElfW(Phdr);
 using TElfShdr = ElfW(Shdr);
 using TElfNhdr = ElfW(Nhdr);
 using TElfSym = ElfW(Sym);
+using TElfWord = ElfW(Word);
 
 class TElf final
 {
@@ -154,8 +161,8 @@ public:
 
         if (!sectionHeaderOffset ||
             !sectionHeaderNumEntries ||
-            sectionHeaderOffset + sectionHeaderNumEntries * sizeof(TElfShdr) > ElfSize_
-        ) {
+            sectionHeaderOffset + sectionHeaderNumEntries * sizeof(TElfShdr) > ElfSize_)
+        {
             throw yexception() << "The ELF is truncated (section header points after end of file)";
         }
 
@@ -207,14 +214,13 @@ public:
             }
         }
         return false;
-
     }
 
     std::optional<TSection> FindSection(std::function<bool(const TSection& section, size_t idx)> pred) const
     {
         std::optional<TSection> result;
 
-        IterateSections([&] (const TSection & section, size_t idx) {
+        IterateSections([&] (const TSection& section, size_t idx) {
             if (pred(section, idx)) {
                 result.emplace(section);
                 return true;
@@ -223,19 +229,19 @@ public:
         });
 
         return result;
-
     }
 
     std::optional<TSection> FindSectionByName(const char* name) const
     {
-        return FindSection([&](const TSection & section, size_t) { return 0 == strcmp(name, section.Name()); });
+        return FindSection([&] (const TSection& section, size_t) { return 0 == strcmp(name, section.Name()); });
     }
 
     const char* begin() const { return Mapped_; }
     const char* end() const { return Mapped_ + ElfSize_; }
     size_t size() const { return ElfSize_; }
 
-    TString GetBuildId() const {
+    TString GetBuildId() const
+    {
         for (size_t idx = 0; idx < Header_->e_phnum; ++idx) {
             const TElfPhdr& phdr = ProgramHeaders_[idx];
 
@@ -278,6 +284,8 @@ private:
     size_t SectionNamesSize_ = 0;
 };
 
+using TElfPtr = std::shared_ptr<TElf>;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 std::optional<std::pair<void*, void*>> GetExecutableRange(dl_phdr_info* info)
@@ -312,7 +320,7 @@ public:
         dl_iterate_phdr(CollectSymbols, this);
 
         std::sort(Objects_.begin(), Objects_.end(), [] (const TObject& a, const TObject& b) { return a.AddressBegin < b.AddressBegin; });
-        std::sort(Symbols_.begin(), Symbols_.end(), [](const TSymbol& a, const TSymbol & b) { return a.AddressBegin < b.AddressBegin; });
+        std::sort(Symbols_.begin(), Symbols_.end(), [] (const TSymbol& a, const TSymbol& b) { return a.AddressBegin < b.AddressBegin; });
 
         /// We found symbols both from loaded program headers and from ELF symbol tables.
         Symbols_.erase(std::unique(Symbols_.begin(), Symbols_.end(), [] (const TSymbol &a, const TSymbol& b) {
@@ -346,7 +354,7 @@ public:
         TString Name;
         TString BuildId;
 
-        std::shared_ptr<TElf> Elf;
+        TElfPtr Elf;
     };
 
     const TSymbol* FindSymbol(const void* address) const
@@ -372,7 +380,7 @@ public:
     static TString GetBuildId(dl_phdr_info* info)
     {
         for (size_t header_index = 0; header_index < info->dlpi_phnum; ++header_index) {
-            const TElfPhdr& phdr = info->dlpi_phdr[header_index];
+            const auto& phdr = info->dlpi_phdr[header_index];
             if (phdr.p_type != PT_NOTE)
                 continue;
 
@@ -385,10 +393,12 @@ private:
     std::vector<TSymbol> Symbols_;
     std::vector<TObject> Objects_;
 
+    THashMap<TString, TElfPtr> ObjectNameToElf_;
+
     template <typename T>
-    static const T* Find(const void* address, const std::vector<T> & vec)
+    static const T* Find(const void* address, const std::vector<T>& vec)
     {
-        auto it = std::lower_bound(vec.begin(), vec.end(), address, [] (const T & symbol, const void * addr) {
+        auto it = std::lower_bound(vec.begin(), vec.end(), address, [] (const T& symbol, const void* addr) {
             return symbol.AddressBegin <= addr;
         });
 
@@ -419,10 +429,10 @@ private:
             /* Get a pointer to the first entry of the dynamic section.
             * It's address is the shared lib's address + the virtual address
             */
-            const ElfW(Dyn)* dynBegin = reinterpret_cast<const ElfW(Dyn) *>(info->dlpi_addr + info->dlpi_phdr[headerIndex].p_vaddr);
+            const auto* dynBegin = reinterpret_cast<const TElfDyn*>(info->dlpi_addr + info->dlpi_phdr[headerIndex].p_vaddr);
 
             /// For unknown reason, addresses are sometimes relative sometimes absolute.
-            auto correctAddress = [](ElfW(Addr) base, ElfW(Addr) ptr) {
+            auto correctAddress = [] (TElfAddr base, TElfAddr ptr) {
                 return ptr > base ? ptr : base + ptr;
             };
 
@@ -439,13 +449,13 @@ private:
                     const uint32_t* buckets = nullptr;
                     const uint32_t* hashval = nullptr;
 
-                    const ElfW(Word)* hash = reinterpret_cast<const ElfW(Word) *>(correctAddress(info->dlpi_addr, it->d_un.d_ptr));
+                    const auto* hash = reinterpret_cast<const TElfWord*>(correctAddress(info->dlpi_addr, it->d_un.d_ptr));
 
                     buckets = hash + 4 + (hash[2] * sizeof(size_t) / 4);
 
-                    for (ElfW(Word) i = 0; i < hash[0]; ++i) {
-                        if (buckets[i] > symCnt) {
-                            symCnt = buckets[i];
+                    for (TElfWord index = 0; index < hash[0]; ++index) {
+                        if (buckets[index] > symCnt) {
+                            symCnt = buckets[index];
                         }
                     }
 
@@ -466,7 +476,7 @@ private:
             }
 
             const char* strtab = nullptr;
-            for (const auto * it = dynBegin; it->d_tag != DT_NULL; ++it) {
+            for (const auto* it = dynBegin; it->d_tag != DT_NULL; ++it) {
                 if (it->d_tag == DT_STRTAB) {
                     strtab = reinterpret_cast<const char *>(correctAddress(info->dlpi_addr, it->d_un.d_ptr));
                     break;
@@ -477,13 +487,13 @@ private:
                 continue;
             }
 
-            for (const auto * it = dynBegin; it->d_tag != DT_NULL; ++it) {
+            for (const auto* it = dynBegin; it->d_tag != DT_NULL; ++it) {
                 if (it->d_tag == DT_SYMTAB) {
                     /* Get the pointer to the first entry of the symbol table */
-                    const ElfW(Sym) * elfSym = reinterpret_cast<const ElfW(Sym) *>(correctAddress(info->dlpi_addr, it->d_un.d_ptr));
+                    const auto* elfSym = reinterpret_cast<const TElfSym*>(correctAddress(info->dlpi_addr, it->d_un.d_ptr));
 
                     /* Iterate over the symbol table */
-                    for (ElfW(Word) symIndex = 0; symIndex < ElfW(Word)(symCnt); ++symIndex) {
+                    for (TElfWord symIndex = 0; symIndex < static_cast<TElfWord>(symCnt); ++symIndex) {
                         /// We are not interested in empty symbols.
                         if (!elfSym[symIndex].st_size) {
                             continue;
@@ -492,17 +502,16 @@ private:
                         /* Get the name of the sym_index-th symbol.
                         * This is located at the address of st_name relative to the beginning of the string table.
                         */
-                        const char * symName = &strtab[elfSym[symIndex].st_name];
-
+                        const auto* symName = &strtab[elfSym[symIndex].st_name];
                         if (!symName) {
                             continue;
                         }
 
-                        TSymbol symbol;
-                        symbol.AddressBegin = reinterpret_cast<const void *>(info->dlpi_addr + elfSym[symIndex].st_value);
-                        symbol.AddressEnd = reinterpret_cast<const void *>(info->dlpi_addr + elfSym[symIndex].st_value + elfSym[symIndex].st_size);
-                        symbol.Name = symName;
-                        Symbols_.push_back(symbol);
+                        Symbols_.push_back(TSymbol{
+                            .AddressBegin = reinterpret_cast<const void *>(info->dlpi_addr + elfSym[symIndex].st_value),
+                            .AddressEnd = reinterpret_cast<const void *>(info->dlpi_addr + elfSym[symIndex].st_value + elfSym[symIndex].st_size),
+                            .Name = symName,
+                        });
                     }
 
                     break;
@@ -532,33 +541,39 @@ private:
             }
         }
 
-        TObject object;
-        object.BuildId = buildId;
-
         auto range = GetExecutableRange(info);
         if (!range) {
             return;
         }
 
-        object.Name = objectName;
+        TObject object {
+            .AddressBegin = range->first,
+            .AddressEnd = range->second,
+            .Name = objectName,
+            .BuildId = buildId,
+        };
 
-        object.AddressBegin = range->first;
-        object.AddressEnd = range->second;
+        TElfPtr elf;
+        if (auto it = ObjectNameToElf_.find(objectName); it != ObjectNameToElf_.end()) {
+            elf = it->second;
+        } else {
+            if (TFsPath{objectName}.Exists()) {
+                elf = std::make_shared<TElf>(objectName);
+                if (elf->GetBuildId() != buildId) {
+                    elf.reset();
+                }
+            }
+
+            YT_VERIFY(ObjectNameToElf_.emplace(objectName, elf).second);
+        }
+
+        object.Elf = elf;
+
+        if (elf) {
+            SearchAndCollectSymbolsFromELFSymbolTable(info, *elf, SHT_SYMTAB, ".strtab");
+        }
 
         Objects_.push_back(std::move(object));
-
-        if (!TFsPath{objectName}.Exists()) {
-            return;
-        }
-
-        Objects_.back().Elf = std::make_unique<TElf>(objectName);
-        TString fileBuildId = Objects_.back().Elf->GetBuildId();
-        if (buildId != fileBuildId) {
-            Objects_.back().Elf.reset();
-            return;
-        }
-
-        SearchAndCollectSymbolsFromELFSymbolTable(info, *Objects_.back().Elf, SHT_SYMTAB, ".strtab");
     }
 
     bool SearchAndCollectSymbolsFromELFSymbolTable(
@@ -570,7 +585,7 @@ private:
         std::optional<TElf::TSection> symbolTable;
         std::optional<TElf::TSection> stringTable;
 
-        if (!elf.IterateSections([&] (const TElf::TSection & section, size_t) {
+        if (!elf.IterateSections([&] (const TElf::TSection& section, size_t) {
             if (section.Header.sh_type == sectionHeaderType) {
                 symbolTable.emplace(section);
             } else if (section.Header.sh_type == SHT_STRTAB && 0 == strcmp(section.Name(), stringTableName)) {
@@ -597,25 +612,25 @@ private:
 
         const char* strings = string_table.begin();
         for (; symbolTableEntry < symbolTableEnd; ++symbolTableEntry) {
-            if (!symbolTableEntry->st_name
-                || !symbolTableEntry->st_value
-                || !symbolTableEntry->st_size
-                || strings + symbolTableEntry->st_name >= elf.end()) {
+            if (!symbolTableEntry->st_name ||
+                !symbolTableEntry->st_value ||
+                !symbolTableEntry->st_size ||
+                strings + symbolTableEntry->st_name >= elf.end())
+            {
                 continue;
-                }
+            }
 
             /// Find the name in strings table.
-            const char * symbolName = strings + symbolTableEntry->st_name;
-
+            const auto* symbolName = strings + symbolTableEntry->st_name;
             if (!symbolName) {
                 continue;
             }
 
-            TSymbolIndex::TSymbol symbol;
-            symbol.AddressBegin = reinterpret_cast<const void *>(info->dlpi_addr + symbolTableEntry->st_value);
-            symbol.AddressEnd = reinterpret_cast<const void *>(info->dlpi_addr + symbolTableEntry->st_value + symbolTableEntry->st_size);
-            symbol.Name = symbolName;
-            Symbols_.push_back(symbol);
+            Symbols_.push_back(TSymbolIndex::TSymbol{
+                .AddressBegin = reinterpret_cast<const void*>(info->dlpi_addr + symbolTableEntry->st_value),
+                .AddressEnd = reinterpret_cast<const void *>(info->dlpi_addr + symbolTableEntry->st_value + symbolTableEntry->st_size),
+                .Name = symbolName,
+            });
         }
     }
 };
@@ -642,13 +657,11 @@ public:
             SymbolizeObject(&object);
         }
 
-        for (int i = 0; i < Profile_->location_size(); i++) {
-            auto location = Profile_->mutable_location(i);
-
+        for (int index = 0; index < Profile_->location_size(); index++) {
+            auto location = Profile_->mutable_location(index);
             void* ip = reinterpret_cast<void*>(location->address());
 
-            auto object = SymbolIndex_.FindObject(ip);
-            if (object) {
+            if (auto object = SymbolIndex_.FindObject(ip)) {
                 location->set_mapping_id(SymbolizeObject(object));
             }
         }
@@ -659,15 +672,15 @@ public:
             return;
         }
 
-        for (int i = 0; i < Profile_->function_size(); i++) {
-            auto function = Profile_->mutable_function(i);
+        for (int index = 0; index < Profile_->function_size(); index++) {
+            auto function = Profile_->mutable_function(index);
 
             void* ip = reinterpret_cast<void*>(function->id());
 
             if (auto symbol = SymbolIndex_.FindSymbol(ip)) {
                 function->set_name(SymbolizeString(CppDemangle(symbol->Name)));
                 function->set_system_name(SymbolizeString(symbol->Name));
-            } else if(auto object = SymbolIndex_.FindObject(ip)) {
+            } else if (auto object = SymbolIndex_.FindObject(ip)) {
                 auto offset = reinterpret_cast<intptr_t>(ip) - reinterpret_cast<intptr_t>(object->AddressBegin);
                 auto filename = TFsPath{object->Name}.Basename();
                 auto name =  Sprintf("%p", reinterpret_cast<void*>(offset)) + "@" + filename;
@@ -746,7 +759,7 @@ std::pair<void*, void*> GetVdsoRange()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static int OnBuildIdPhdr(struct dl_phdr_info *info, size_t /* size */, void *data)
+static int OnBuildIdPhdr(struct dl_phdr_info *info, size_t /*size*/, void *data)
 {
     auto buildId = reinterpret_cast<std::optional<TString>*>(data);
 
@@ -788,7 +801,6 @@ void AddBuildInfo(NProto::Profile* profile, const TBuildInfo& buildInfo)
         addComment("binary_version=" + buildInfo.BinaryVersion);
     }
     addComment("arc_revision=" + buildInfo.ArcRevision);
-    // addComment("arc_dirty=" + TString{buildInfo.ArcDirty ? "true" : "false"});
     addComment("build_type=" + buildInfo.BuildType);
 }
 
