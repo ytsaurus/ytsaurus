@@ -122,12 +122,4 @@ void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validati
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void PackBaggageFromJobSpec(
-    const NTracing::TTraceContextPtr& traceContext,
-    const NJobTrackerClient::NProto::TJobSpec& jobSpec,
-    TOperationId operationId,
-    TJobId jobId);
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NScheduler

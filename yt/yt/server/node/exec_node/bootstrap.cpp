@@ -126,7 +126,7 @@ public:
             TJobId jobId,
             TOperationId operationId,
             const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-            NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+            NControllerAgent::NProto::TJobSpec&& jobSpec,
             const TControllerAgentDescriptor& agentDescriptor) ->
             TJobPtr
         {

@@ -24,6 +24,8 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/job_tracker_client/statistics.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -65,7 +67,7 @@ using namespace NTransactionClient;
 using namespace NScheduler::NProto;
 using namespace NChunkClient::NProto;
 using namespace NJobTrackerClient;
-using namespace NJobTrackerClient::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NScheduler;

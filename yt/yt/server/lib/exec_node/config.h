@@ -223,10 +223,12 @@ public:
 class TSchedulerConnectorDynamicConfig
     : public THeartbeatReporterDynamicConfigBase
 {
+public:
+    std::optional<bool> UseAllocationTrackerService;
+
     REGISTER_YSON_STRUCT(TSchedulerConnectorDynamicConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorDynamicConfig)
@@ -282,14 +284,15 @@ class TSchedulerConnectorConfig
     : public THeartbeatReporterConfigBase
 {
 public:
+    bool UseAllocationTrackerService;
+
     TSchedulerConnectorConfigPtr ApplyDynamic(const TSchedulerConnectorDynamicConfigPtr& dynamicConfig);
 
     void ApplyDynamicInplace(const TSchedulerConnectorDynamicConfig& dynamicConfig);
 
     REGISTER_YSON_STRUCT(TSchedulerConnectorConfig);
 
-    static void Register(TRegistrar)
-    { }
+    static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TSchedulerConnectorConfig)

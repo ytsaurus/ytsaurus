@@ -14,7 +14,6 @@ struct TJobToAbort
 {
     TJobId JobId;
     std::optional<NScheduler::EAbortReason> AbortReason = {};
-    std::optional<TString> PreemptionReason = {};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +28,8 @@ void FromProto(NJobTrackerClient::TJobToAbort* jobToAbort, const NProto::TJobToA
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void AddJobToAbort(NProto::TRspHeartbeat* response, const TJobToAbort& jobToAbort); // COMPAT
+// TODO(pogorelov): Remove it.
+void AddJobToAbort(NProto::TRspHeartbeat* response, const TJobToAbort& jobToAbort);
 
 ////////////////////////////////////////////////////////////////////////////////
 

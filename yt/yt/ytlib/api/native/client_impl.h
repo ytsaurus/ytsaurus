@@ -9,8 +9,9 @@
 
 #include <yt/yt/ytlib/tablet_client/public.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/query_client/query_service_proxy.h>
-#include <yt/yt/library/query/base/ast.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -31,6 +32,8 @@
 #include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
 #include <yt/yt/ytlib/object_client/object_service_cache.h>
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/library/query/base/ast.h>
 
 #include <yt/yt/library/syncmap/map.h>
 
@@ -1309,12 +1312,12 @@ private:
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
 
-    TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryFetchJobSpecFromJobNode(
+    TErrorOr<NControllerAgent::NProto::TJobSpec> TryFetchJobSpecFromJobNode(
         NScheduler::TJobId jobId,
         NRpc::IChannelPtr nodeChannel);
     // Fetch job spec from node and check that user has |requiredPermissions|
     // for accessing the corresponding operation.
-    TErrorOr<NJobTrackerClient::NProto::TJobSpec> TryFetchJobSpecFromJobNode(
+    TErrorOr<NControllerAgent::NProto::TJobSpec> TryFetchJobSpecFromJobNode(
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
 
@@ -1323,19 +1326,19 @@ private:
 
     void ValidateOperationAccess(
         NScheduler::TJobId jobId,
-        const NJobTrackerClient::NProto::TJobSpec& jobSpec,
+        const NControllerAgent::NProto::TJobSpec& jobSpec,
         NYTree::EPermissionSet permissions);
     void ValidateOperationAccess(
         NScheduler::TOperationId operationId,
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet permissions);
 
-    NJobTrackerClient::NProto::TJobSpec FetchJobSpecFromArchive(
+    NControllerAgent::NProto::TJobSpec FetchJobSpecFromArchive(
         NScheduler::TJobId jobId);
     // Tries to fetch job spec from both node and job archive and checks
     // that user has |requiredPermissions| for accessing the corresponding operation.
     // Throws if spec could not be fetched.
-    NJobTrackerClient::NProto::TJobSpec FetchJobSpec(
+    NControllerAgent::NProto::TJobSpec FetchJobSpec(
         NScheduler::TJobId jobId,
         NYTree::EPermissionSet requiredPermissions);
 

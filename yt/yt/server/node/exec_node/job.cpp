@@ -17,19 +17,23 @@
 #include <yt/yt/server/node/data_node/bootstrap.h>
 #include <yt/yt/server/node/data_node/chunk.h>
 #include <yt/yt/server/node/data_node/location.h>
-
-#include <yt/yt/server/node/job_agent/job.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
 #include <yt/yt/server/lib/containers/public.h>
+
+#include <yt/yt/server/lib/controller_agent/helpers.h>
 
 #include <yt/yt/server/lib/io/io_tracker.h>
 
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
+#include <yt/yt/server/lib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
+
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
 
@@ -90,9 +94,10 @@ using namespace NIO;
 using namespace NJobAgent;
 using namespace NJobProberClient;
 using namespace NJobTrackerClient;
-using namespace NJobTrackerClient::NProto;
 using namespace NScheduler;
 using namespace NScheduler::NProto;
+using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NCoreDump;
@@ -726,7 +731,7 @@ TJobResult TJob::GetResult() const
 
     if (JobResultExtension_) {
         *result.MutableExtension(
-            NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext) = *JobResultExtension_;
+            NScheduler::NProto::TSchedulerJobResultExt::job_result_ext) = *JobResultExtension_;
     }
 
     return result;
@@ -1312,10 +1317,10 @@ void TJob::DoSetResult(TJobResult jobResult)
 
     JobResultExtension_ = std::nullopt;
     if (jobResult.HasExtension(
-        NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext))
+        NScheduler::NProto::TSchedulerJobResultExt::job_result_ext))
     {
         JobResultExtension_ = std::optional<NScheduler::NProto::TSchedulerJobResultExt>(std::move(*jobResult.ReleaseExtension(
-            NScheduler::NProto::TSchedulerJobResultExt::scheduler_job_result_ext)));
+            NScheduler::NProto::TSchedulerJobResultExt::job_result_ext)));
     }
 
     {
@@ -2941,23 +2946,54 @@ TJobPtr CreateJob(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const TJobPtr& job)
+void FillStatus(NScheduler::NProto::TAllocationStatus* status, const TJobPtr& job)
 {
-    FillJobStatus(jobStatus, job);
-    jobStatus->set_phase(static_cast<int>(job->GetPhase()));
-    jobStatus->set_job_execution_completed(job->IsJobProxyCompleted());
-    ToProto(jobStatus->mutable_operation_id(), job->GetOperationId());
-    ToProto(jobStatus->mutable_time_statistics(), job->GetTimeStatistics());
-    jobStatus->set_progress(job->GetProgress());
-    auto stderrSize = job->GetStderrSize();
-    if (stderrSize > 0) {
-        jobStatus->set_stderr_size(stderrSize);
+    using NYT::ToProto;
+
+    ToProto(status->mutable_allocation_id(), job->GetId());
+
+    status->set_state(ToProto<int>(JobStateToAllocationState(job->GetState())));
+}
+
+void FillStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job)
+{
+    using NYT::ToProto;
+
+    ToProto(status->mutable_job_id(), job->GetId());
+    status->set_job_type(ToProto<int>(job->GetType()));
+    status->set_state(ToProto<int>(job->GetState()));
+    status->set_phase(ToProto<int>(job->GetPhase()));
+    status->set_job_execution_completed(job->IsJobProxyCompleted());
+    status->set_interruption_reason(ToProto<int>(job->GetInterruptionReason()));
+    status->set_progress(job->GetProgress());
+    if (auto stderrSize = job->GetStderrSize(); stderrSize > 0) {
+        status->set_stderr_size(stderrSize);
     }
-    jobStatus->set_interruption_reason(static_cast<int>(job->GetInterruptionReason()));
-    if (auto preemptedFor = job->GetPreemptedFor()) {
-        ToProto(jobStatus->mutable_preempted_for(), *preemptedFor);
+    if (const auto& preemptedFor = job->GetPreemptedFor()) {
+        ToProto(status->mutable_preempted_for(), *preemptedFor);
     }
 }
+
+void FillStatus(NJobTrackerClient::NProto::TJobStatus* status, const TJobPtr& job)
+{
+    ToProto(status->mutable_job_id(), job->GetId());
+    status->set_state(ToProto<int>(job->GetState()));
+}
+
+template <class TStatus>
+void FillSchedulerJobStatus(TStatus* status, const TJobPtr& job)
+{
+    FillStatus(status, job);
+
+    ToProto(status->mutable_operation_id(), job->GetOperationId());
+    ToProto(status->mutable_time_statistics(), job->GetTimeStatistics());
+
+    status->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
+}
+
+template void FillSchedulerJobStatus(NScheduler::NProto::TAllocationStatus* status, const TJobPtr& job);
+template void FillSchedulerJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job);
+template void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* status, const TJobPtr& job);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -18,6 +18,7 @@ NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatis
 THashMap<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
 THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics);
 
+// TODO(pogorelov): move to CA
 extern const TString ExecAgentTrafficStatisticsPrefix;
 extern const TString JobProxyTrafficStatisticsPrefix;
 

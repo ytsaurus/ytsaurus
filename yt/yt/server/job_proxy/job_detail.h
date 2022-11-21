@@ -7,11 +7,11 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_shell_descriptor_cache.h>
-
-#include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
@@ -70,7 +70,7 @@ public:
 
     void Initialize() override;
 
-    NJobTrackerClient::NProto::TJobResult Run() override;
+    NControllerAgent::NProto::TJobResult Run() override;
 
     void Cleanup() override;
 
@@ -88,7 +88,7 @@ public:
     void Interrupt() override;
 
 protected:
-    const NJobTrackerClient::NProto::TJobSpec& JobSpec_;
+    const NControllerAgent::NProto::TJobSpec& JobSpec_;
     const NScheduler::NProto::TSchedulerJobSpecExt& SchedulerJobSpecExt_;
 
     NChunkClient::IMultiReaderMemoryManagerPtr MultiReaderMemoryManager_;

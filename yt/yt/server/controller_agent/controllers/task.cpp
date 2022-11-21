@@ -17,6 +17,8 @@
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/node_tracker_client/node_directory_builder.h>
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
@@ -39,7 +41,6 @@ namespace NYT::NControllerAgent::NControllers {
 using namespace NChunkClient;
 using namespace NChunkPools;
 using namespace NJobTrackerClient;
-using namespace NJobTrackerClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler;
 using namespace NTableClient;
@@ -53,6 +54,9 @@ using NProfiling::TWallTimer;
 using NScheduler::NProto::TSchedulerJobSpecExt;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NScheduler::NProto::TTableInputSpec;
+
+using NControllerAgent::NProto::TJobSpec;
+using NControllerAgent::NProto::TJobStatus;
 
 using std::placeholders::_1;
 using std::placeholders::_2;
@@ -1629,7 +1633,7 @@ TSharedRef TTask::BuildJobSpecProto(TJobletPtr joblet, const NScheduler::NProto:
 {
     VERIFY_INVOKER_AFFINITY(TaskHost_->GetJobSpecBuildInvoker());
 
-    auto jobSpec = ObjectPool<NJobTrackerClient::NProto::TJobSpec>().Allocate();
+    auto jobSpec = ObjectPool<TJobSpec>().Allocate();
 
     BuildJobSpec(joblet, jobSpec.get());
     jobSpec->set_version(GetJobSpecVersion());

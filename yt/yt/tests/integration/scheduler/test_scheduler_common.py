@@ -57,19 +57,6 @@ def get_by_composite_key(item, composite_key, default=None):
 ##################################################################
 
 
-SCHEDULER_COMMON_NODE_CONFIG_PATCH = {
-    "exec_agent": {
-        "job_controller": {
-            "resource_limits": {
-                "user_slots": 5,
-                "cpu": 5,
-                "memory": 5 * 1024 ** 3,
-            }
-        }
-    }
-}
-
-
 class TestSchedulerCommon(YTEnvSetup):
     NUM_TEST_PARTITIONS = 4
     NUM_MASTERS = 1
@@ -102,7 +89,17 @@ class TestSchedulerCommon(YTEnvSetup):
         }
     }
 
-    DELTA_NODE_CONFIG = SCHEDULER_COMMON_NODE_CONFIG_PATCH
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5,
+                    "memory": 5 * 1024 ** 3,
+                }
+            }
+        }
+    }
     USE_PORTO = True
 
     @authors("ignat")
@@ -975,6 +972,23 @@ class TestSchedulerCommonMulticell(TestSchedulerCommon):
     NUM_SECONDARY_MASTER_CELLS = 2
 
 
+class TestSchedulerCommonWithoutAllocationService(TestSchedulerCommon):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {
+                    "user_slots": 5,
+                    "cpu": 5,
+                    "memory": 5 * 1024 ** 3,
+                }
+            },
+            "scheduler_connector": {
+                "use_allocation_tracker_service": False,
+            },
+        }
+    }
+
+
 ##################################################################
 
 
@@ -1388,6 +1402,17 @@ class TestSchedulerConfig(YTEnvSetup):
 
         set("//sys/scheduler/config/min_spare_job_resources_on_node", {"user_slots": 2})
         wait(lambda: get("{0}/min_spare_job_resources_on_node".format(orchid_scheduler_config)) == {"user_slots": 2})
+
+
+class TestSchedulerConfigWithoutAllocationService(TestSchedulerConfig):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "use_allocation_tracker_service": False,
+            },
+        },
+    }
+
 
 ##################################################################
 
@@ -2382,6 +2407,17 @@ class TestEventLog(YTEnvSetup):
                 assert len(event["trimmed_annotations"]["long_key"]) <= 150
                 assert "nested_tag" not in event["trimmed_annotations"]
 
+
+class TestEventLogWithoutAllocationService(TestEventLog):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {
+                "use_allocation_tracker_service": False,
+            },
+        },
+    }
+
+
 ##################################################################
 
 
@@ -2892,6 +2928,19 @@ class TestResourceMetering(YTEnvSetup):
             return self._validate_metering_records(root_key, desired_allocation_metering_data, event_key_to_last_record, precision=0.15)
 
         wait(check_expected_allocation_records)
+
+
+class TestResourceMeteringWithoutAllocationService(TestResourceMetering):
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "job_controller": {
+                "resource_limits": {"user_slots": 3, "cpu": 3}
+            },
+            "scheduler_connector": {
+                "use_allocation_tracker_service": False,
+            },
+        }
+    }
 
 
 ##################################################################

@@ -1,13 +1,13 @@
 package NYT.NExecNode.NProto;
 
-import "yt_proto/yt/core/misc/proto/error.proto";
-import "yt_proto/yt/core/misc/proto/guid.proto";
+import "yt/ytlib/core_dump/proto/core_info.proto";
+
+import "yt/ytlib/controller_agent/proto/job.proto";
 
 import "yt_proto/yt/client/misc/proto/workload.proto";
 
-import "yt/ytlib/core_dump/proto/core_info.proto";
-
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
+import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -18,7 +18,7 @@ message TReqGetJobSpec
 
 message TRspGetJobSpec
 {
-    required NJobTrackerClient.NProto.TJobSpec job_spec = 1;
+    required NControllerAgent.NProto.TJobSpec job_spec = 1;
     required TJobProxyResources resource_usage = 2;
     repeated int32 ports = 3;
 }
@@ -86,7 +86,7 @@ message TRspOnJobPrepared
 message TReqOnJobFinished
 {
     required NYT.NProto.TGuid job_id = 1;
-    required NJobTrackerClient.NProto.TJobResult result = 2;
+    required NControllerAgent.NProto.TJobResult result = 2;
     required bytes statistics = 3; // YSON
     optional uint64 start_time = 4;
     optional uint64 finish_time = 5;

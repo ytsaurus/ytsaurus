@@ -8,6 +8,8 @@
 #include "helpers.h"
 #include "persistent_scheduler_state.h"
 
+#include <yt/yt/server/lib/controller_agent/helpers.h>
+
 #include <yt/yt/server/lib/exec_node/public.h>
 
 #include <yt/yt/server/lib/job_agent/job_report.h>
@@ -15,6 +17,7 @@
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
 #include <yt/yt/server/lib/scheduler/proto/controller_agent_tracker_service.pb.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -47,7 +50,6 @@ using namespace NChunkClient;
 using namespace NCypressClient;
 using namespace NConcurrency;
 using namespace NJobProberClient;
-using namespace NJobTrackerClient;
 using namespace NControllerAgent;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
@@ -66,22 +68,119 @@ using NYT::ToProto;
 
 namespace {
 
+// COMPAT(pogorelov)
+
+TJobId GetJobId(const NJobTrackerClient::NProto::TJobStatus* status)
+{
+    return FromProto<TJobId>(status->job_id());
+}
+
+TAllocationId GetJobId(const NProto::TAllocationStatus* status)
+{
+    return FromProto<TAllocationId>(status->allocation_id());
+}
+
+auto* MutableJobId(NProto::NNode::TAllocationToInterrupt* proto)
+{
+    return proto->mutable_allocation_id();
+}
+
+auto* MutableJobId(NJobTrackerClient::NProto::TJobToInterrupt* proto)
+{
+    return proto->mutable_job_id();
+}
+
+auto* MutableJobId(NProto::NNode::TAllocationStartInfo* proto)
+{
+    return proto->mutable_allocation_id();
+}
+
+auto* MutableJobId(NJobTrackerClient::NProto::TJobStartInfo* proto)
+{
+    return proto->mutable_job_id();
+}
+
+auto& GetJobs(NProto::NNode::TReqHeartbeat* request)
+{
+    return request->allocations();
+}
+
+auto* MutableJobs(NProto::NNode::TReqHeartbeat* request)
+{
+    return request->mutable_allocations();
+}
+
+auto& GetJobs(NJobTrackerClient::NProto::TReqHeartbeat* request)
+{
+    return request->jobs();
+}
+
+auto* MutableJobs(NJobTrackerClient::NProto::TReqHeartbeat* request)
+{
+    return request->mutable_jobs();
+}
+
+auto& UnconfirmedJobs(NProto::NNode::TReqHeartbeat* request)
+{
+    return request->unconfirmed_allocations();
+}
+
+auto& UnconfirmedJobs(NJobTrackerClient::NProto::TReqHeartbeat* request)
+{
+    return request->unconfirmed_jobs();
+}
+
+EAllocationState GetAllocationState(NProto::TAllocationStatus* status)
+{
+    YT_VERIFY(status->has_state());
+    
+    return CheckedEnumCast<EAllocationState>(status->state());
+}
+
+EAllocationState GetAllocationState(NJobTrackerClient::NProto::TJobStatus* status)
+{
+    YT_VERIFY(status->has_state());
+
+    return JobStateToAllocationState(CheckedEnumCast<EJobState>(status->state()));
+}
+
 void SetControllerAgentInfo(const TControllerAgentPtr& agent, auto proto)
 {
     ToProto(proto->mutable_addresses(), agent->GetAgentAddresses());
     ToProto(proto->mutable_incarnation_id(), agent->GetIncarnationId());
 }
 
+auto* AddJobsToInterrupt(NProto::NNode::TRspHeartbeat* response)
+{
+    return response->add_allocations_to_interrupt();
+}
+
+auto* AddJobsToInterrupt(NJobTrackerClient::NProto::TRspHeartbeat* response)
+{
+    return response->add_jobs_to_interrupt();
+}
+
+auto* AddJobsToStart(NProto::NNode::TRspHeartbeat* response)
+{
+    return response->add_allocations_to_start();
+}
+
+auto* AddJobsToStart(NJobTrackerClient::NProto::TRspHeartbeat* response)
+{
+    return response->add_jobs_to_start();
+}
+
+template <class TRspHeartbeat>
 void AddJobToInterrupt(
-    NJobTrackerClient::NProto::TRspHeartbeat* response,
+    TRspHeartbeat* response,
     TJobId jobId,
     TDuration duration,
     EInterruptReason interruptionReason,
     const std::optional<TString>& preemptionReason,
     const std::optional<TPreemptedFor>& preemptedFor)
 {
-    auto jobToInterrupt = response->add_jobs_to_interrupt();
-    ToProto(jobToInterrupt->mutable_job_id(), jobId);
+    auto jobToInterrupt = AddJobsToInterrupt(response);
+    ToProto(MutableJobId(jobToInterrupt), jobId);
     jobToInterrupt->set_timeout(ToProto<i64>(duration));
     jobToInterrupt->set_interruption_reason(static_cast<int>(interruptionReason));
 
@@ -92,31 +191,6 @@ void AddJobToInterrupt(
     if (preemptedFor) {
         ToProto(jobToInterrupt->mutable_preempted_for(), *preemptedFor);
     }
-}
-
-EAllocationState JobStateToAllocationState(const EJobState jobState) noexcept
-{
-    switch (jobState) {
-        case EJobState::None:
-            return EAllocationState::Scheduled;
-        case EJobState::Waiting:
-            return EAllocationState::Waiting;
-        case EJobState::Running:
-            return EAllocationState::Running;
-        case EJobState::Aborting:
-            return EAllocationState::Finishing;
-        case EJobState::Completed:
-        case EJobState::Failed:
-        case EJobState::Aborted:
-            return EAllocationState::Finished;
-        default:
-            YT_ABORT();
-    }
-}
-
-EAllocationState ParseAllocationStateFromJobStatus(const TJobStatus* jobStatus) noexcept
-{
-    return JobStateToAllocationState(EJobState{jobStatus->state()});
 }
 
 std::optional<EAbortReason> ParseAbortReason(const TError& error, TJobId jobId, const NLogging::TLogger& Logger)
@@ -137,7 +211,17 @@ std::optional<EAbortReason> ParseAbortReason(const TError& error, TJobId jobId, 
     return abortReason;
 }
 
+void AddAllocationToAbort(NProto::NNode::TRspHeartbeat* response, const TAllocationToAbort& allocationToAbort)
+{
+    NProto::ToProto(response->add_allocations_to_abort(), allocationToAbort);
 }
+
+void AddAllocationToAbort(NJobTrackerClient::NProto::TRspHeartbeat* response, const NJobTrackerClient::TJobToAbort& allocationToAbort)
+{
+    ToProto(response->add_jobs_to_abort(), allocationToAbort);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -437,7 +521,8 @@ void TNodeShard::AbortJobsAtNode(TNodeId nodeId, EAbortReason reason)
     }
 }
 
-void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
+template <class TCtxNodeHeartbeatPtr>
+void TNodeShard::ProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
     GetInvoker()->Invoke(
         BIND([=, this, this_ = MakeStrong(this)] {
@@ -454,7 +539,11 @@ void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& contex
         }));
 }
 
-void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context)
+template void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxOldNodeHeartbeatPtr& context);
+template void TNodeShard::ProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& context);
+
+template <class TCtxNodeHeartbeatPtr>
+void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvoker_);
 
@@ -482,9 +571,9 @@ void TNodeShard::DoProcessHeartbeat(const TScheduler::TCtxNodeHeartbeatPtr& cont
             ToJobResources(resourceLimits),
             request->disk_resources()
         ),
-        request->jobs().size(),
+        GetJobs(request).size(),
         request->confirmed_job_count(),
-        request->unconfirmed_jobs().size());
+        UnconfirmedJobs(request).size());
 
     YT_VERIFY(Host_->GetNodeShardId(nodeId) == Id_);
 
@@ -1674,10 +1763,11 @@ void TNodeShard::AbortUnconfirmedJobs(
 }
 
 // TODO(eshcherbin): This method has become too big -- gotta split it.
+template <class TReqHeartbeat, class TRspHeartbeat>
 void TNodeShard::ProcessHeartbeatJobs(
     const TExecNodePtr& node,
-    NJobTrackerClient::NProto::TReqHeartbeat* request,
-    NJobTrackerClient::NProto::TRspHeartbeat* response,
+    TReqHeartbeat* request,
+    TRspHeartbeat* response,
     std::vector<TJobPtr>* runningJobs,
     bool* hasWaitingJobs)
 {
@@ -1747,7 +1837,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                     nodeAddress,
                     *jobInfo.ReleaseFlags);
                 recentlyFinishedJobIdsToRemove.insert(jobId);
-                ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId, *jobInfo.ReleaseFlags});
+                ToProto(response->add_jobs_to_remove(), NJobTrackerClient::TJobToRelease{jobId, *jobInfo.ReleaseFlags});
             } else if (now > jobInfo.EvictionDeadline) {
                 YT_LOG_DEBUG("Removing job from recently finished due to timeout for release "
                     "(JobId: %v, NodeId: %v, NodeAddress: %v)",
@@ -1755,7 +1845,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                     nodeId,
                     nodeAddress);
                 recentlyFinishedJobIdsToRemove.insert(jobId);
-                ToProto(response->add_jobs_to_remove(), TJobToRelease{jobId});
+                ToProto(response->add_jobs_to_remove(), NJobTrackerClient::TJobToRelease{jobId});
             }
         }
         for (auto jobId : recentlyFinishedJobIdsToRemove) {
@@ -1766,7 +1856,7 @@ void TNodeShard::ProcessHeartbeatJobs(
     // Used for debug logging.
     TAllocationStateToJobList ongoingJobsByAllocationState;
     std::vector<TJobId> recentlyFinishedJobIdsToLog;
-    for (auto& jobStatus : *request->mutable_jobs()) {
+    for (auto& jobStatus : *MutableJobs(request)) {
         TJobPtr job;
         try {
             job = ProcessJobHeartbeat(
@@ -1775,7 +1865,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                 response,
                 &jobStatus);
         } catch (const std::exception& ex) {
-            auto jobId = FromProto<TJobId>(jobStatus.job_id());
+            auto jobId = GetJobId(&jobStatus);
             if (Config_->CrashOnJobHeartbeatProcessingException) {
                 YT_LOG_FATAL(ex, "Failed to process job heartbeat (JobId: %v)", jobId);
             } else {
@@ -1802,7 +1892,7 @@ void TNodeShard::ProcessHeartbeatJobs(
                     break;
             }
         } else {
-            auto jobId = FromProto<TJobId>(jobStatus.job_id());
+            auto jobId = GetJobId(&jobStatus);
             auto operationId = FromProto<TOperationId>(jobStatus.operation_id());
             auto operation = FindOperationState(operationId);
             if (!(operation && operation->OperationUnreadyLoggedJobIds.contains(jobId))
@@ -1812,7 +1902,7 @@ void TNodeShard::ProcessHeartbeatJobs(
             }
         }
     }
-    HeartbeatJobCount_.Increment(request->jobs_size());
+    HeartbeatJobCount_.Increment(GetJobs(request).size());
     HeartbeatCount_.Increment();
 
     YT_LOG_DEBUG_UNLESS(
@@ -1856,7 +1946,7 @@ void TNodeShard::ProcessHeartbeatJobs(
 
     auto error = TError("Job not confirmed by node")
         << TErrorAttribute("abort_reason", EAbortReason::Unconfirmed);
-    for (auto jobId : FromProto<std::vector<TJobId>>(request->unconfirmed_jobs())) {
+    for (auto jobId : FromProto<std::vector<TJobId>>(UnconfirmedJobs(request))) {
         auto job = FindJob(jobId);
         if (!job) {
             // This may happen if we received heartbeat after job was removed by some different reasons
@@ -1890,16 +1980,18 @@ void TNodeShard::LogOngoingJobsAt(TInstant now, const TExecNodePtr& node, const 
     }
 }
 
+template <class TRspHeartbeat, class TStatus>
 TJobPtr TNodeShard::ProcessJobHeartbeat(
     const TExecNodePtr& node,
     const THashSet<TJobId>& recentlyFinishedJobIdsToRemove,
-    NJobTrackerClient::NProto::TRspHeartbeat* response,
-    TJobStatus* jobStatus)
+    TRspHeartbeat* response,
+    TStatus* jobStatus)
 {
-    auto jobId = FromProto<TJobId>(jobStatus->job_id());
+    auto jobId = GetJobId(jobStatus);
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
 
-    auto allocationState = ParseAllocationStateFromJobStatus(jobStatus);
+    auto allocationState = GetAllocationState(jobStatus);
+    
     const auto& address = node->GetDefaultAddress();
 
     auto job = FindJob(jobId, node);
@@ -1938,12 +2030,12 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
             case EAllocationState::Running:
                 YT_LOG_DEBUG("Unknown job is running, abort scheduled");
-                AddJobToAbort(response, {jobId});
+                AddAllocationToAbort(response, {jobId});
                 break;
 
             case EAllocationState::Waiting:
                 YT_LOG_DEBUG("Unknown job is waiting, abort scheduled");
-                AddJobToAbort(response, {jobId});
+                AddAllocationToAbort(response, {jobId});
                 break;
 
             case EAllocationState::Finishing:
@@ -1974,7 +2066,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
                 break;
             case EAllocationState::Waiting:
             case EAllocationState::Running:
-                AddJobToAbort(response, {jobId, EAbortReason::JobOnUnexpectedNode});
+                AddAllocationToAbort(response, {jobId, EAbortReason::JobOnUnexpectedNode});
                 YT_LOG_WARNING("Job status report was expected from %v, abort scheduled",
                     node->GetDefaultAddress());
                 break;
@@ -2151,9 +2243,10 @@ void TNodeShard::EndNodeHeartbeatProcessing(const TExecNodePtr& node)
     }
 }
 
+template <class TCtxNodeHeartbeatPtr>
 void TNodeShard::ProcessScheduledAndPreemptedJobs(
     const ISchedulingContextPtr& schedulingContext,
-    const TScheduler::TCtxNodeHeartbeatPtr& rpcContext)
+    const TCtxNodeHeartbeatPtr& rpcContext)
 {
     auto* response = &rpcContext->Response();
 
@@ -2211,8 +2304,8 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
 
         RegisterJob(job);
 
-        auto* startInfo = response->add_jobs_to_start();
-        ToProto(startInfo->mutable_job_id(), job->GetId());
+        auto* startInfo = AddJobsToStart(response);
+        ToProto(MutableJobId(startInfo), job->GetId());
         ToProto(startInfo->mutable_operation_id(), job->GetOperationId());
         *startInfo->mutable_resource_limits() = ToNodeResources(job->ResourceUsage());
 
@@ -2233,6 +2326,7 @@ void TNodeShard::ProcessScheduledAndPreemptedJobs(
     }
 }
 
+template <class TJobStatus>
 void TNodeShard::OnJobRunning(const TJobPtr& job, TJobStatus* status)
 {
     YT_VERIFY(status);
@@ -2519,8 +2613,9 @@ void TNodeShard::SetOperationJobsReleaseDeadline(TOperationState* operationState
     operationState->RecentlyFinishedJobIds.clear();
 }
 
+template <class TRspHeartbeat>
 void TNodeShard::SendInterruptedJobToNode(
-    NJobTrackerClient::NProto::TRspHeartbeat* response,
+    TRspHeartbeat* response,
     const TJobPtr& job,
     TDuration interruptTimeout) const
 {
@@ -2537,7 +2632,8 @@ void TNodeShard::SendInterruptedJobToNode(
         job->GetPreemptedFor());
 }
 
-void TNodeShard::ProcessPreemptedJob(NJobTrackerClient::NProto::TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout)
+template <class TRspHeartbeat>
+void TNodeShard::ProcessPreemptedJob(TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout)
 {
     if (!job->IsInterrupted()) {
         PreemptJob(job, DurationToCpuDuration(interruptTimeout));
@@ -2564,20 +2660,6 @@ void TNodeShard::PreemptJob(const TJobPtr& job, TCpuDuration interruptTimeout)
         job->GetPreemptionReason());
 
     DoInterruptJob(job, EInterruptReason::Preemption, interruptTimeout);
-}
-
-TJobToAbort TNodeShard::BuildPreemptedJobAbortAttributes(const TJobPtr& job) const
-{
-    TJobToAbort jobToAbort{
-        .JobId = job->GetId(),
-        .AbortReason = EAbortReason::Preemption,
-    };
-
-    if (Config_->SendPreemptionReasonInNodeHeartbeat) {
-        jobToAbort.PreemptionReason = job->GetPreemptionReason();
-    }
-
-    return jobToAbort;
 }
 
 // TODO(pogorelov): Refactor interruption

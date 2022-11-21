@@ -340,7 +340,7 @@ public:
         const TString& debugArtifactsAccount) override;
     const std::vector<TUserFile>& GetUserFiles(const NScheduler::TUserJobSpecPtr& userJobSpec) const override;
 
-    void CustomizeJobSpec(const TJobletPtr& joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    void CustomizeJobSpec(const TJobletPtr& joblet, NControllerAgent::NProto::TJobSpec* jobSpec) const override;
     void CustomizeJoblet(const TJobletPtr& joblet) override;
 
     void AddValueToEstimatedHistogram(const TJobletPtr& joblet) override;

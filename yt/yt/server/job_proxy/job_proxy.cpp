@@ -14,6 +14,8 @@
 
 #include <yt/yt/server/lib/containers/public.h>
 
+#include <yt/yt/server/lib/controller_agent/helpers.h>
+
 #include <yt/yt/server/lib/exec_node/config.h>
 #include <yt/yt/server/lib/exec_node/proto/supervisor_service.pb.h>
 
@@ -31,6 +33,8 @@
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
+
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/config.h>
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
@@ -99,7 +103,8 @@ using namespace NJobProber;
 using namespace NJobProberClient;
 using namespace NJobProxy;
 using namespace NJobTrackerClient;
-using namespace NJobTrackerClient::NProto;
+using namespace NControllerAgent;
+using namespace NControllerAgent::NProto;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
@@ -318,7 +323,7 @@ static NTableClient::TTableSchemaPtr SetStableNames(
 //    according to rename descriptors.
 // This function is to be removed after both CA and nodes are updated. See YT-16507
 static IJobSpecHelperPtr MaybePatchDataSourceDirectory(
-    const NJobTrackerClient::NProto::TJobSpec& jobSpecProto)
+    const TJobSpec& jobSpecProto)
 {
     auto schedulerJobSpecExt = jobSpecProto.GetExtension(TSchedulerJobSpecExt::scheduler_job_spec_ext);
 
@@ -1225,7 +1230,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
     }
 
     // For erasure chunks, replace part id with whole chunk id.
-    auto* schedulerResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    auto* schedulerResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::job_result_ext);
     for (auto chunkId : failedChunkIds) {
         auto actualChunkId = IsErasureChunkPartId(chunkId)
             ? ErasureChunkIdFromPartId(chunkId)
@@ -1293,7 +1298,7 @@ void TJobProxy::FillStderrResult(TJobResult* jobResult)
     const auto& schedulerJobSpecExt = GetJobSpecHelper()->GetSchedulerJobSpecExt();
     const auto& userJobSpec = schedulerJobSpecExt.user_job_spec();
 
-    auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+    auto* schedulerJobResultExt = jobResult->MutableExtension(TSchedulerJobResultExt::job_result_ext);
 
     // If we were provided with stderr_table_spec we are expected to write stderr and provide some results.
     if (userJobSpec.has_stderr_table_spec() && !schedulerJobResultExt->has_stderr_table_boundary_keys()) {

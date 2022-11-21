@@ -13,15 +13,19 @@
 #include <yt/yt/server/node/data_node/job_controller.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
-
+#include <yt/yt/server/lib/controller_agent/job_spec_service_proxy.h>
 #include <yt/yt/server/lib/job_agent/config.h>
 #include <yt/yt/server/lib/job_agent/job_reporter.h>
 
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
+#include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
 #include <yt/yt/ytlib/job_tracker_client/helpers.h>
-#include <yt/yt/ytlib/job_tracker_client/job_spec_service_proxy.h>
+
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
+
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/library/process/process.h>
 #include <yt/yt/library/process/subprocess.h>
@@ -43,17 +47,135 @@ using namespace NClusterNode;
 using namespace NObjectClient;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
+using namespace NScheduler::NProto::NNode;
+using namespace NScheduler::NProto;
 using namespace NProfiling;
 using namespace NScheduler;
+using namespace NControllerAgent;
 
-using NJobTrackerClient::NProto::TJobSpec;
-using NJobTrackerClient::NProto::TJobStartInfo;
-using NJobTrackerClient::NProto::TJobResult;
+using NControllerAgent::NProto::TJobSpec;
+using NControllerAgent::NProto::TJobResult;
 using NNodeTrackerClient::NProto::TNodeResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ExecNodeLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+// COMPAT(pogorelov)
+
+const auto& GetAllocationsToAbort(const IJobController::TRspHeartbeatPtr& response)
+{
+    return response->allocations_to_abort();
+}
+
+const auto& GetAllocationsToAbort(const IJobController::TRspOldHeartbeatPtr& response)
+{
+    return response->jobs_to_abort();
+}
+
+NScheduler::TAllocationToAbort ParseAllocationToAbort(const NScheduler::NProto::NNode::TAllocationToAbort& protoAllocationToAbort)
+{
+    NScheduler::TAllocationToAbort allocationToAbort;
+    FromProto(&allocationToAbort, protoAllocationToAbort);
+
+    return allocationToAbort;
+}
+
+NScheduler::TAllocationToAbort ParseAllocationToAbort(const NJobTrackerClient::NProto::TJobToAbort& protoJobToAbort)
+{
+    NJobTrackerClient::TJobToAbort jobToAbort;
+    FromProto(&jobToAbort, protoJobToAbort);
+
+    return {jobToAbort.JobId, jobToAbort.AbortReason};
+}
+
+const auto& GetAllocationsToInterrupt(const IJobController::TRspHeartbeatPtr& response)
+{
+    return response->allocations_to_interrupt();
+}
+
+const auto& GetAllocationsToInterrupt(const IJobController::TRspOldHeartbeatPtr& response)
+{
+    return response->jobs_to_interrupt();
+}
+
+const auto& GetAllocationId(const NScheduler::NProto::NNode::TAllocationToInterrupt& allocationToInterrupt)
+{
+    return allocationToInterrupt.allocation_id();
+}
+
+const auto& GetAllocationId(const NJobTrackerClient::NProto::TJobToInterrupt& jobToInterrupt)
+{
+    return jobToInterrupt.job_id();
+}
+
+auto* AddAllocations(const IJobController::TReqHeartbeatPtr& request)
+{
+    return request->add_allocations();
+}
+
+auto* AddAllocations(const IJobController::TReqOldHeartbeatPtr& request)
+{
+    return request->add_jobs();
+}
+
+auto* MutableUnconfirmedAllocations(const IJobController::TReqHeartbeatPtr& request)
+{
+    return request->mutable_unconfirmed_allocations();
+}
+
+auto* MutableUnconfirmedAllocations(const IJobController::TReqOldHeartbeatPtr& request)
+{
+    return request->mutable_unconfirmed_jobs();
+}
+
+const auto& GetAllocationsToStart(const IJobController::TRspHeartbeatPtr& response)
+{
+    return response->allocations_to_start();
+}
+
+const auto& GetAllocationsToStart(const IJobController::TRspOldHeartbeatPtr& response)
+{
+    return response->jobs_to_start();
+}
+
+[[maybe_unused]] TAllocationStartInfo GetAllocationStartInfoType(const IJobController::TRspHeartbeatPtr& response);
+[[maybe_unused]] NJobTrackerClient::NProto::TJobStartInfo GetAllocationStartInfoType(const IJobController::TRspOldHeartbeatPtr& response);
+
+[[maybe_unused]] TAllocationResult GetAllocationResultType(const IJobController::TReqHeartbeatPtr& request);
+[[maybe_unused]] NJobTrackerClient::NProto::TJobResult GetAllocationResultType(const IJobController::TReqOldHeartbeatPtr& request);
+
+const auto& GetAllocationId(const TAllocationStartInfo& allocationToInterrupt)
+{
+    return allocationToInterrupt.allocation_id();
+}
+
+const auto& GetAllocationId(const NJobTrackerClient::NProto::TJobStartInfo& jobToInterrupt)
+{
+    return jobToInterrupt.job_id();
+}
+
+auto* MutableAllocationId(TAllocationStatus* allocationStatus)
+{
+    return allocationStatus->mutable_allocation_id();
+}
+
+auto* MutableAllocationId(NJobTrackerClient::NProto::TJobStatus* jobStatus)
+{
+    return jobStatus->mutable_job_id();
+}
+
+// AllcationId is currently equal to JobId.
+TJobId ParseAllocationIdAsJobId(auto& protoAllocationId)
+{
+    return FromProto<TJobId>(protoAllocationId);
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -214,7 +336,7 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
-            BIND(&TJobController::DoPrepareHeartbeatRequest, MakeStrong(this))
+            BIND(&TJobController::DoPrepareHeartbeatRequest<TReqHeartbeatPtr>, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(request);
     }
@@ -225,7 +347,29 @@ public:
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
-            BIND(&TJobController::DoProcessHeartbeatResponse, MakeStrong(this))
+            BIND(&TJobController::DoProcessHeartbeatResponse<TRspHeartbeatPtr>, MakeStrong(this))
+                .AsyncVia(Bootstrap_->GetJobInvoker())
+                .Run(response);
+    }
+
+    TFuture<void> PrepareHeartbeatRequest(
+        const TReqOldHeartbeatPtr& request) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return
+            BIND(&TJobController::DoPrepareHeartbeatRequest<TReqOldHeartbeatPtr>, MakeStrong(this))
+                .AsyncVia(Bootstrap_->GetJobInvoker())
+                .Run(request);
+    }
+
+    TFuture<void> ProcessHeartbeatResponse(
+        const TRspOldHeartbeatPtr& response) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        return 
+            BIND(&TJobController::DoProcessHeartbeatResponse<TRspOldHeartbeatPtr>, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(response);
     }
@@ -407,15 +551,16 @@ private:
         return GetOrCrash(JobFactoryMap_, type);
     }
 
-    TFuture<void> RequestJobSpecsAndStartJobs(std::vector<TJobStartInfo> jobStartInfos)
+    template <class TAllocationStartInfo>
+    TFuture<void> RequestJobSpecsAndStartJobs(std::vector<TAllocationStartInfo> jobStartInfos)
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        THashMap<TControllerAgentDescriptor, std::vector<TJobStartInfo>> groupedStartInfos;
+        THashMap<TControllerAgentDescriptor, std::vector<TAllocationStartInfo>> groupedStartInfos;
 
         for (auto& startInfo : jobStartInfos) {
             auto operationId = FromProto<TOperationId>(startInfo.operation_id());
-            auto jobId = FromProto<TJobId>(startInfo.job_id());
+            auto jobId = ParseAllocationIdAsJobId(GetAllocationId(startInfo));
 
             auto agentDescriptorOrError = TryParseControllerAgentDescriptor(startInfo.controller_agent_descriptor());
 
@@ -451,7 +596,7 @@ private:
             for (const auto& startInfo : startInfos) {
                 auto* subrequest = jobSpecRequest->add_requests();
                 *subrequest->mutable_operation_id() = startInfo.operation_id();
-                *subrequest->mutable_job_id() = startInfo.job_id();
+                *subrequest->mutable_job_id() = GetAllocationId(startInfo);
             }
 
             YT_LOG_DEBUG("Requesting job specs (SpecServiceAddress: %v, Count: %v)",
@@ -460,7 +605,7 @@ private:
 
             auto asyncResult = jobSpecRequest->Invoke().Apply(
                 BIND(
-                    &TJobController::OnJobSpecsReceived,
+                    &TJobController::OnJobSpecsReceived<TAllocationStartInfo>,
                     MakeStrong(this),
                     Passed(std::move(startInfos)),
                     agentDescriptor)
@@ -471,8 +616,9 @@ private:
         return AllSet(asyncResults).As<void>();
     }
 
+    template <class TAllocationStartInfo>
     void OnJobSpecsReceived(
-        std::vector<TJobStartInfo> startInfos,
+        std::vector<TAllocationStartInfo> startInfos,
         const TControllerAgentDescriptor& controllerAgentDescriptor,
         const TJobSpecServiceProxy::TErrorOrRspGetJobSpecsPtr& rspOrError)
     {
@@ -482,7 +628,7 @@ private:
             YT_LOG_DEBUG(rspOrError, "Error getting job specs (SpecServiceAddress: %v)",
                 controllerAgentDescriptor.Address);
             for (const auto& startInfo : startInfos) {
-                auto jobId = FromProto<TJobId>(startInfo.job_id());
+                auto jobId = ParseAllocationIdAsJobId(GetAllocationId(startInfo));
                 auto operationId = FromProto<TOperationId>(startInfo.operation_id());
                 EmplaceOrCrash(SpecFetchFailedJobIds_, jobId, operationId);
             }
@@ -496,8 +642,8 @@ private:
         YT_VERIFY(rsp->responses_size() == std::ssize(startInfos));
         for (size_t index = 0; index < startInfos.size(); ++index) {
             auto& startInfo = startInfos[index];
-            auto operationId = FromProto<TJobId>(startInfo.operation_id());
-            auto jobId = FromProto<TJobId>(startInfo.job_id());
+            auto operationId = FromProto<TOperationId>(startInfo.operation_id());
+            auto jobId = ParseAllocationIdAsJobId(GetAllocationId(startInfo));
 
             const auto& subresponse = rsp->mutable_responses(index);
             auto error = FromProto<TError>(subresponse->error());
@@ -731,6 +877,7 @@ private:
         ScheduleStartJobs();
     }
 
+    template <class TRspHeartbeatPtr>
     void DoProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response)
     {
@@ -751,22 +898,21 @@ private:
             }
         }
 
-        for (const auto& protoJobToAbort : response->jobs_to_abort()) {
-            auto jobToAbort = FromProto<TJobToAbort>(protoJobToAbort);
+        for (const auto& protoJobToAbort : GetAllocationsToAbort(response)) {
+            auto allocationToAbort = ParseAllocationToAbort(protoJobToAbort);
 
-            if (auto job = FindJob(jobToAbort.JobId)) {
-                AbortJob(job, std::move(jobToAbort));
+            if (auto job = FindJob(allocationToAbort.AllocationId)) {
+                AbortJob(job, std::move(allocationToAbort));
             } else {
-                YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v, AbortReason: %v, PreemptionReason: %v)",
-                    jobToAbort.JobId,
-                    jobToAbort.AbortReason,
-                    jobToAbort.PreemptionReason);
+                YT_LOG_WARNING("Requested to abort a non-existent job (JobId: %v, AbortReason: %v)",
+                    allocationToAbort.AllocationId,
+                    allocationToAbort.AbortReason);
             }
         }
 
-        for (const auto& jobToInterrupt : response->jobs_to_interrupt()) {
+        for (const auto& jobToInterrupt : GetAllocationsToInterrupt(response)) {
             auto timeout = FromProto<TDuration>(jobToInterrupt.timeout());
-            auto jobId = FromProto<TJobId>(jobToInterrupt.job_id());
+            auto jobId = ParseAllocationIdAsJobId(GetAllocationId(jobToInterrupt));
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
@@ -852,9 +998,9 @@ private:
 
         YT_VERIFY(response->Attachments().empty());
 
-        std::vector<TJobStartInfo> jobStartInfos;
-        jobStartInfos.reserve(response->jobs_to_start_size());
-        for (const auto& startInfo : response->jobs_to_start()) {
+        std::vector<decltype(GetAllocationStartInfoType(response))> jobStartInfos;
+        jobStartInfos.reserve(GetAllocationsToStart(response).size());
+        for (const auto& startInfo : GetAllocationsToStart(response)) {
             jobStartInfos.push_back(startInfo);
 
             // We get vcpu here. Need to replace it with real cpu back.
@@ -869,6 +1015,7 @@ private:
             "Failed to request some job specs");
     }
 
+    template <class TReqHeartbeatPtr>
     void DoPrepareHeartbeatRequest(
         const TReqHeartbeatPtr& request)
     {
@@ -890,8 +1037,6 @@ private:
         LastHeartbeatCpuToVCpuFactor_ = JobResourceManager_->GetCpuToVCpuFactor();
         ReplaceCpuWithVCpu(*request->mutable_resource_limits());
         ReplaceCpuWithVCpu(*request->mutable_resource_usage());
-
-        request->set_supports_interruption_logic(true);
 
         auto* execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
         if (execNodeBootstrap->GetSlotManager()->HasFatalAlert()) {
@@ -917,48 +1062,46 @@ private:
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
-            auto schedulerJob = std::move(job);
-
             auto confirmIt = JobIdsToConfirm_.find(jobId);
-            if (schedulerJob->GetStored() && !totalConfirmation && confirmIt == std::cend(JobIdsToConfirm_)) {
+            if (job->GetStored() && !totalConfirmation && confirmIt == std::cend(JobIdsToConfirm_)) {
                 continue;
             }
 
-            const bool sendConfirmedJobToControllerAgent = schedulerJob->GetStored() &&
+            const bool sendConfirmedJobToControllerAgent = job->GetStored() &&
                 confirmIt == std::cend(JobIdsToConfirm_) &&
                 totalConfirmation;
 
-            if (schedulerJob->GetStored() || confirmIt != std::cend(JobIdsToConfirm_)) {
+            if (job->GetStored() || confirmIt != std::cend(JobIdsToConfirm_)) {
                 YT_LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
                     jobId,
-                    schedulerJob->GetOperationId(),
-                    schedulerJob->GetStored(),
-                    schedulerJob->GetState());
+                    job->GetOperationId(),
+                    job->GetStored(),
+                    job->GetState());
                 ++confirmedJobCount;
             }
             if (confirmIt != std::cend(JobIdsToConfirm_)) {
                 JobIdsToConfirm_.erase(confirmIt);
             }
 
-            auto* jobStatus = request->add_jobs();
-            FillSchedulerJobStatus(jobStatus, schedulerJob);
-            switch (schedulerJob->GetState()) {
+            auto* allocationStatus = AddAllocations(request);
+            FillSchedulerJobStatus(allocationStatus, job);
+            switch (job->GetState()) {
                 case EJobState::Running: {
-                    auto& resourceUsage = *jobStatus->mutable_resource_usage();
-                    resourceUsage = schedulerJob->GetResourceUsage();
+                    auto& resourceUsage = *allocationStatus->mutable_resource_usage();
+                    resourceUsage = job->GetResourceUsage();
                     ReplaceCpuWithVCpu(resourceUsage);
                     break;
                 }
                 case EJobState::Completed:
                 case EJobState::Aborted:
                 case EJobState::Failed: {
-                    const auto& controllerAgentConnector = schedulerJob->GetControllerAgentConnector();
+                    const auto& controllerAgentConnector = job->GetControllerAgentConnector();
                     YT_VERIFY(controllerAgentConnector);
 
-                    ToProto(jobStatus->mutable_result()->mutable_error(), schedulerJob->GetJobError());
+                    ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
 
                     if (!sendConfirmedJobToControllerAgent) {
-                        controllerAgentConnector->EnqueueFinishedJob(schedulerJob);
+                        controllerAgentConnector->EnqueueFinishedJob(job);
                         shouldSendControllerAgentHeartbeatsOutOfBand = true;
                     }
                     break;
@@ -971,16 +1114,14 @@ private:
         request->set_confirmed_job_count(confirmedJobCount);
 
         for (auto [jobId, operationId] : GetSpecFetchFailedJobIds()) {
-            auto* jobStatus = request->add_jobs();
-            ToProto(jobStatus->mutable_job_id(), jobId);
+            auto* jobStatus = AddAllocations(request);
+            ToProto(MutableAllocationId(jobStatus), jobId);
             ToProto(jobStatus->mutable_operation_id(), operationId);
-            jobStatus->set_job_type(static_cast<int>(EJobType::SchedulerUnknown));
-            jobStatus->set_state(static_cast<int>(EJobState::Aborted));
-            jobStatus->set_phase(static_cast<int>(EJobPhase::Missing));
-            jobStatus->set_progress(0.0);
+            jobStatus->set_state(static_cast<int>(JobStateToAllocationState(EJobState::Aborted)));
+
             jobStatus->mutable_time_statistics();
 
-            TJobResult jobResult;
+            decltype(GetAllocationResultType(request)) jobResult;
             auto error = TError("Failed to get job spec")
                 << TErrorAttribute("abort_reason", EAbortReason::GetSpecFailed);
             ToProto(jobResult.mutable_error(), error);
@@ -992,7 +1133,7 @@ private:
             for (auto jobId : JobIdsToConfirm_) {
                 YT_LOG_DEBUG("Unconfirmed job (JobId: %v)", jobId);
             }
-            ToProto(request->mutable_unconfirmed_jobs(), JobIdsToConfirm_);
+            ToProto(MutableUnconfirmedAllocations(request), JobIdsToConfirm_);
         }
 
         if (shouldSendControllerAgentHeartbeatsOutOfBand) {
@@ -1109,21 +1250,17 @@ private:
         }
     }
 
-    void AbortJob(const TJobPtr& job, TJobToAbort&& abortAttributes)
+    void AbortJob(const TJobPtr& job, NScheduler::TAllocationToAbort&& abortAttributes)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Aborting job (JobId: %v, AbortReason: %v, PreemptionReason: %v)",
+        YT_LOG_INFO("Aborting job (JobId: %v, AbortReason: %v)",
             job->GetId(),
-            abortAttributes.AbortReason,
-            abortAttributes.PreemptionReason);
+            abortAttributes.AbortReason);
 
         TError error(NExecNode::EErrorCode::AbortByScheduler, "Job aborted by scheduler");
         if (abortAttributes.AbortReason) {
             error = error << TErrorAttribute("abort_reason", *abortAttributes.AbortReason);
-        }
-        if (abortAttributes.PreemptionReason) {
-            error = error << TErrorAttribute("preemption_reason", std::move(*abortAttributes.PreemptionReason));
         }
 
         job->Abort(error);

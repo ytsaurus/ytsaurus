@@ -1,6 +1,6 @@
 package NYT.NJobProberClient.NProto;
 
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/ytlib/controller_agent/proto/job.proto";
 
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
@@ -44,7 +44,7 @@ message TReqGetSpec
 
 message TRspGetSpec
 {
-    required NYT.NJobTrackerClient.NProto.TJobSpec spec = 1;
+    required NYT.NControllerAgent.NProto.TJobSpec spec = 1;
 }
 
 message TReqPollJobShell

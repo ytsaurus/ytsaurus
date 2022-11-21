@@ -36,7 +36,7 @@ using namespace NTableClient;
 using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NScheduler::NProto;
-using namespace NJobTrackerClient::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NYson;
 using namespace NYTree;
 using namespace NObjectClient;
@@ -114,7 +114,7 @@ public:
 
         TJobResult jobResult;
         ToProto(jobResult.mutable_error(), TError());
-        auto* schedulerResultExt = jobResult.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        auto* schedulerResultExt = jobResult.MutableExtension(TSchedulerJobResultExt::job_result_ext);
         ToProto(schedulerResultExt->add_output_chunk_specs(), GetOutputChunkSpec());
 
         YT_LOG_INFO("Shallow merge completed");

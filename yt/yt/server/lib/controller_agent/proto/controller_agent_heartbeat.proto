@@ -1,7 +1,9 @@
 package NYT.NControllerAgent.NProto;
 
-import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/ytlib/controller_agent/proto/job.proto";
+
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
+
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -13,7 +15,7 @@ message TReqHeartbeat
     required NNodeTrackerClient.NProto.TNodeDescriptor node_descriptor = 2;
     required NYT.NProto.TGuid controller_agent_incarnation_id = 3;
 
-    repeated NYT.NJobTrackerClient.NProto.TJobStatus jobs = 4;
+    repeated TJobStatus jobs = 4;
 }
 
 message TRspHeartbeat

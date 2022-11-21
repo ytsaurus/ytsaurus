@@ -14,9 +14,6 @@ void ToProto(NProto::TJobToAbort* protoJobToAbort, const NJobTrackerClient::TJob
     if (jobToAbort.AbortReason) {
         protoJobToAbort->set_abort_reason(NYT::ToProto<int>(*jobToAbort.AbortReason));
     }
-    if (jobToAbort.PreemptionReason) {
-        protoJobToAbort->set_preemption_reason(*jobToAbort.PreemptionReason);
-    }
 }
 
 void FromProto(NJobTrackerClient::TJobToAbort* jobToAbort, const NProto::TJobToAbort& protoJobToAbort)
@@ -24,9 +21,6 @@ void FromProto(NJobTrackerClient::TJobToAbort* jobToAbort, const NProto::TJobToA
     FromProto(&jobToAbort->JobId, protoJobToAbort.job_id());
     if (protoJobToAbort.has_abort_reason()) {
         jobToAbort->AbortReason = NYT::FromProto<NScheduler::EAbortReason>(protoJobToAbort.abort_reason());
-    }
-    if (protoJobToAbort.has_preemption_reason()) {
-        jobToAbort->PreemptionReason = protoJobToAbort.preemption_reason();
     }
 }
 

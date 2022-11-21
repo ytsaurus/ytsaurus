@@ -1,4 +1,6 @@
 #include "bootstrap.h"
+
+#include "allocation_tracker_service.h"
 #include "private.h"
 #include "job_prober_service.h"
 #include "job_tracker_service.h"
@@ -173,6 +175,7 @@ void TBootstrap::DoRun()
         NativeAuthenticator_));
     RpcServer_->RegisterService(CreateOperationService(this, Scheduler_->GetOperationServiceResponseKeeper()));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
+    RpcServer_->RegisterService(CreateAllocationTrackerService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateControllerAgentTrackerService(this, ControllerAgentTracker_->GetResponseKeeper()));
 

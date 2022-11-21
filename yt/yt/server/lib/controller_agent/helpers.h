@@ -1,5 +1,7 @@
 #pragma once
 
+#include "public.h"
+
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
@@ -7,6 +9,8 @@
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/misc/public.h>
+
+#include <yt/yt/core/tracing/public.h>
 
 namespace NYT::NJobTrackerClient {
 
@@ -73,6 +77,14 @@ void FromProto(
 } // namespace NYT::NJobTrackerClient
 
 namespace NYT::NControllerAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PackBaggageFromJobSpec(
+    const NTracing::TTraceContextPtr& traceContext,
+    const NProto::TJobSpec& jobSpec,
+    TOperationId operationId,
+    TJobId jobId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

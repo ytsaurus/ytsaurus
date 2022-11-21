@@ -1,4 +1,3 @@
-
 #include "job_detail.h"
 #include "private.h"
 
@@ -28,7 +27,7 @@ namespace NYT::NJobProxy {
 
 using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NJobTrackerClient::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NScheduler::NProto;
 using namespace NTableClient;
 using namespace NYTree;
@@ -202,7 +201,7 @@ TJobResult TSimpleJobBase::Run()
         ToProto(result.mutable_error(), TError());
 
         // ToDo(psushin): return written chunks only if required.
-        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+        auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::job_result_ext);
         for (const auto& chunkSpec : Writer_->GetWrittenChunkSpecs()) {
             auto* resultChunkSpec = schedulerResultExt->add_output_chunk_specs();
             *resultChunkSpec = chunkSpec;

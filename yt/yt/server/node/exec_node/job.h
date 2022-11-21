@@ -58,7 +58,7 @@ public:
         TJobId jobId,
         TOperationId operationId,
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
-        NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+        NControllerAgent::NProto::TJobSpec&& jobSpec,
         IBootstrap* bootstrap,
         TControllerAgentDescriptor agentDescriptor);
 
@@ -86,7 +86,7 @@ public:
 
     void OnJobPrepared();
 
-    void SetResult(const NJobTrackerClient::NProto::TJobResult& jobResult);
+    void SetResult(const NControllerAgent::NProto::TJobResult& jobResult);
 
     TJobId GetId() const;
 
@@ -98,7 +98,7 @@ public:
 
     EJobType GetType() const;
 
-    const NJobTrackerClient::NProto::TJobSpec& GetSpec() const;
+    const NControllerAgent::NProto::TJobSpec& GetSpec() const;
 
     bool IsUrgent() const;
 
@@ -118,7 +118,7 @@ public:
     bool IsGpuRequested() const;
 
     const TError& GetJobError() const;
-    NJobTrackerClient::NProto::TJobResult GetResult() const;
+    NControllerAgent::NProto::TJobResult GetResult() const;
 
     double GetProgress() const;
 
@@ -223,7 +223,7 @@ private:
     const TInstant StartTime_;
     const NChunkClient::TTrafficMeterPtr TrafficMeter_;
 
-    NJobTrackerClient::NProto::TJobSpec JobSpec_;
+    NControllerAgent::NProto::TJobSpec JobSpec_;
     const NScheduler::NProto::TSchedulerJobSpecExt* const SchedulerJobSpecExt_;
     const NScheduler::NProto::TUserJobSpec* const UserJobSpec_;
     const NJobProxy::TJobTestingOptionsPtr JobTestingOptions_;
@@ -363,7 +363,7 @@ private:
 
     void DoSetResult(const TError& error);
 
-    void DoSetResult(NJobTrackerClient::NProto::TJobResult jobResult);
+    void DoSetResult(NControllerAgent::NProto::TJobResult jobResult);
 
     bool HandleFinishingPhase();
 
@@ -473,13 +473,14 @@ TJobPtr CreateJob(
     NJobTrackerClient::TJobId jobId,
     NJobTrackerClient::TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
-    NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+    NControllerAgent::NProto::TJobSpec&& jobSpec,
     IBootstrap* bootstrap,
     TControllerAgentDescriptor agentDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* jobStatus, const TJobPtr& schedulerJob);
+template <class TStatus>
+void FillSchedulerJobStatus(TStatus* status, const TJobPtr& schedulerJob);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -487,7 +488,7 @@ using TJobFactory = TCallback<TJobPtr(
     NJobTrackerClient::TJobId jobid,
     NJobTrackerClient::TOperationId operationId,
     const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
-    NJobTrackerClient::NProto::TJobSpec&& jobSpec,
+    NControllerAgent::NProto::TJobSpec&& jobSpec,
     const NExecNode::TControllerAgentDescriptor& agentInfo)>;
 
 ////////////////////////////////////////////////////////////////////////////////

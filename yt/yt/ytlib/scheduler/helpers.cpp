@@ -29,8 +29,6 @@
 
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
-#include <yt/yt/client/misc/io_tags.h>
-
 #include <yt/yt/library/re2/re2.h>
 
 #include <yt/yt/core/misc/error.h>
@@ -706,24 +704,6 @@ TError CheckPoolName(const TString& poolName, EPoolNameValidationLevel validatio
 void ValidatePoolName(const TString& poolName, EPoolNameValidationLevel validationLevel)
 {
     CheckPoolName(poolName, validationLevel).ThrowOnError();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void PackBaggageFromJobSpec(
-    const NTracing::TTraceContextPtr& traceContext,
-    const TJobSpec& jobSpec,
-    TOperationId operationId,
-    TJobId jobId)
-{
-    auto baggage = traceContext->UnpackOrCreateBaggage();
-    const auto& schedulerJobSpecExt = jobSpec.GetExtension(NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
-    auto ioTags = NYTree::FromProto(schedulerJobSpecExt.io_tags());
-    baggage->MergeFrom(*ioTags);
-    AddTagToBaggage(baggage, ERawIOTag::OperationId, ToString(operationId));
-    AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(jobId));
-    AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(static_cast<EJobType>(jobSpec.type())));
-    traceContext->PackBaggage(baggage);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

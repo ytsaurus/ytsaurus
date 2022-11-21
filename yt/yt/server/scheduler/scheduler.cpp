@@ -1,4 +1,5 @@
 #include "scheduler.h"
+
 #include "private.h"
 #include "fair_share_strategy.h"
 #include "helpers.h"
@@ -14,6 +15,7 @@
 #include "scheduling_segment_manager.h"
 #include "persistent_scheduler_state.h"
 
+#include <yt/yt/server/lib/scheduler/allocation_tracker_service_proxy.h>
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/experiments.h>
 #include <yt/yt/server/lib/scheduler/scheduling_tag.h>
@@ -1151,6 +1153,7 @@ public:
         return NodeManager_->AbortJobByUserRequest(jobId, interruptTimeout, user);
     }
 
+    template <class TCtxNodeHeartbeatPtr>
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -4513,10 +4516,14 @@ TFuture<void> TScheduler::AbortJob(TJobId jobId, std::optional<TDuration> interr
     return Impl_->AbortJob(jobId, interruptTimeout, user);
 }
 
+template <class TCtxNodeHeartbeatPtr>
 void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context)
 {
     Impl_->ProcessNodeHeartbeat(context);
 }
+
+template void TScheduler::ProcessNodeHeartbeat(const TCtxOldNodeHeartbeatPtr& context);
+template void TScheduler::ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
 TSerializableAccessControlList TScheduler::GetOperationBaseAcl() const
 {

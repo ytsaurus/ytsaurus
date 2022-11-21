@@ -6,6 +6,8 @@
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/parallel_reader_memory_manager.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/job_proxy/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -147,7 +149,7 @@ public:
         };
     }
 
-    NJobTrackerClient::NProto::TJobResult Run() override
+    NControllerAgent::NProto::TJobResult Run() override
     {
         try {
             return TSimpleJobBase::Run();

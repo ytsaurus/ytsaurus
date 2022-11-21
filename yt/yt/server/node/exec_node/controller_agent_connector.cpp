@@ -327,20 +327,30 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
     const TExecNodeDynamicConfigPtr& oldConfig,
     const TExecNodeDynamicConfigPtr& newConfig)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!newConfig->ControllerAgentConnector && !oldConfig->ControllerAgentConnector) {
         return;
     }
 
-    Bootstrap_->GetJobInvoker()->Invoke(BIND([this, this_{MakeStrong(this)}, newConfig{std::move(newConfig)}] {
-        if (newConfig->ControllerAgentConnector) {
-            TestHeartbeatDelay_ = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
-            CurrentConfig_ = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
-        } else {
-            TestHeartbeatDelay_ = TDuration{};
-            CurrentConfig_ = StaticConfig_;
-        }
-        OnConfigUpdated();
-    }));
+    TDuration testHeartbeatDelay;
+    TControllerAgentConnectorConfigPtr newCurrentConfig;
+    if (newConfig->ControllerAgentConnector) {
+        testHeartbeatDelay = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
+        newCurrentConfig = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
+    }
+
+    Bootstrap_->GetJobInvoker()->Invoke(BIND([
+            this,
+            this_{MakeStrong(this)},
+            newConfig{std::move(newConfig)},
+            testHeartbeatDelay,
+            newCurrentConfig{std::move(newCurrentConfig)}]
+        {
+            TestHeartbeatDelay_ = testHeartbeatDelay;
+            CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
+            OnConfigUpdated();
+        }));
 }
 
 void TControllerAgentConnectorPool::OnControllerAgentConnectorDestroyed(

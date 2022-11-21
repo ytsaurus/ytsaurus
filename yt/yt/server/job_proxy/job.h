@@ -11,9 +11,9 @@
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 
-#include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
-#include <yt/yt/ytlib/job_tracker_client/public.h>
+#include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
 
 #include <yt/yt/ytlib/job_prober_client/job_probe.h>
 
@@ -110,7 +110,7 @@ struct IJob
     virtual void Initialize() = 0;
     virtual void PopulateInputNodeDirectory() const = 0;
 
-    virtual NJobTrackerClient::NProto::TJobResult Run() = 0;
+    virtual NControllerAgent::NProto::TJobResult Run() = 0;
 
     //! Tries to clean up (e.g. user processes), best effort guarantees.
     //! Used during abnormal job proxy termination.

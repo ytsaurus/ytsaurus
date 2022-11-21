@@ -25,6 +25,8 @@
 
 #include <yt/yt/ytlib/chunk_pools/chunk_stripe_key.h>
 
+#include <yt/yt/ytlib/controller_agent/public.h>
+
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/ytlib/table_client/helpers.h>
@@ -292,11 +294,11 @@ protected:
     std::unique_ptr<NNodeTrackerClient::TNodeDirectoryBuilder> MakeNodeDirectoryBuilder(
         NScheduler::NProto::TSchedulerJobSpecExt* schedulerJobSpec);
     void AddSequentialInputSpec(
-        NJobTrackerClient::NProto::TJobSpec* jobSpec,
+        NControllerAgent::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet,
         NTableClient::TComparator comparator = NTableClient::TComparator());
     void AddParallelInputSpec(
-        NJobTrackerClient::NProto::TJobSpec* jobSpec,
+        NControllerAgent::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet,
         NTableClient::TComparator comparator = NTableClient::TComparator());
     void AddChunksToInputSpec(
@@ -305,10 +307,10 @@ protected:
         NChunkPools::TChunkStripePtr stripe,
         NTableClient::TComparator comparator = NTableClient::TComparator());
 
-    void AddOutputTableSpecs(NJobTrackerClient::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
+    void AddOutputTableSpecs(NControllerAgent::NProto::TJobSpec* jobSpec, TJobletPtr joblet);
 
     static void UpdateInputSpecTotals(
-        NJobTrackerClient::NProto::TJobSpec* jobSpec,
+        NControllerAgent::NProto::TJobSpec* jobSpec,
         TJobletPtr joblet);
 
     // Send stripe to the next chunk pool.
@@ -373,7 +375,7 @@ protected:
     /*!
      *  \note Invoker affinity: JobSpecBuildInvoker.
      */
-    virtual void BuildJobSpec(TJobletPtr joblet, NJobTrackerClient::NProto::TJobSpec* jobSpec) = 0;
+    virtual void BuildJobSpec(TJobletPtr joblet, NControllerAgent::NProto::TJobSpec* jobSpec) = 0;
 
     virtual void SetStreamDescriptors(TJobletPtr joblet) const;
 

@@ -58,7 +58,7 @@ using namespace NChunkClient::NProto;
 using namespace NNodeTrackerClient;
 using namespace NScheduler::NProto;
 using namespace NScheduler;
-using namespace NJobTrackerClient::NProto;
+using namespace NControllerAgent::NProto;
 using namespace NTableClient;
 using namespace NApi;
 using namespace NErasure;
@@ -233,7 +233,7 @@ public:
         ToProto(result.mutable_error(), TError());
 
         if (IsTableDynamic()) {
-            auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::scheduler_job_result_ext);
+            auto* schedulerResultExt = result.MutableExtension(TSchedulerJobResultExt::job_result_ext);
             ToProto(schedulerResultExt->mutable_output_chunk_specs(), WrittenChunks_);
         }
 

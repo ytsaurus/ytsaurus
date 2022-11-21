@@ -2,8 +2,16 @@
 
 #include <yt/yt/server/lib/controller_agent/serialize.h>
 
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/ytlib/table_client/schema.h>
+
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
+
+#include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/format.h>
@@ -12,6 +20,8 @@
 
 #include <yt/yt/core/yson/string.h>
 #include <yt/yt/core/ytree/convert.h>
+
+#include <yt/yt/core/tracing/trace_context.h>
 
 #include <util/generic/cast.h>
 
@@ -140,3 +150,27 @@ void FromProto(NJobTrackerClient::TJobToRelease* jobToRelease, const NProto::TJo
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NJobTrackerClient
+
+namespace NYT::NControllerAgent {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void PackBaggageFromJobSpec(
+    const NTracing::TTraceContextPtr& traceContext,
+    const NControllerAgent::NProto::TJobSpec& jobSpec,
+    TOperationId operationId,
+    TJobId jobId)
+{
+    auto baggage = traceContext->UnpackOrCreateBaggage();
+    const auto& schedulerJobSpecExt = jobSpec.GetExtension(NScheduler::NProto::TSchedulerJobSpecExt::scheduler_job_spec_ext);
+    auto ioTags = NYTree::FromProto(schedulerJobSpecExt.io_tags());
+    baggage->MergeFrom(*ioTags);
+    AddTagToBaggage(baggage, ERawIOTag::OperationId, ToString(operationId));
+    AddTagToBaggage(baggage, ERawIOTag::JobId, ToString(jobId));
+    AddTagToBaggage(baggage, EAggregateIOTag::JobType, FormatEnum(static_cast<EJobType>(jobSpec.type())));
+    traceContext->PackBaggage(baggage);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NControllerAgent

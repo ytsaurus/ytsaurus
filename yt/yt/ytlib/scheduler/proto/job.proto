@@ -8,6 +8,7 @@ import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/chunk_client/proto/data_source.proto";
 import "yt/ytlib/core_dump/proto/core_info.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
+import "yt/ytlib/controller_agent/proto/job.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
 import "yt/library/query/proto/functions_cache.proto";
 import "yt/library/query/proto/query.proto";
@@ -278,7 +279,7 @@ message TTableOutputSpec
 // Describes a job submitted by a scheduler.
 message TSchedulerJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NControllerAgent.NProto.TJobSpec
     {
         optional TSchedulerJobSpecExt scheduler_job_spec_ext = 100;
     }
@@ -369,9 +370,15 @@ message TSchedulerJobSpecExt
 
 message TSchedulerJobResultExt
 {
+    // COMPAT(pogorelov)
     extend NJobTrackerClient.NProto.TJobResult
     {
         optional TSchedulerJobResultExt scheduler_job_result_ext = 100;
+    }
+
+    extend NControllerAgent.NProto.TJobResult
+    {
+        optional TSchedulerJobResultExt job_result_ext = 100;
     }
 
     // List of output chunks produced by the job.
@@ -440,7 +447,7 @@ message TSchedulerJobResultExt
 
 message TMergeJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NControllerAgent.NProto.TJobSpec
     {
         optional TMergeJobSpecExt merge_job_spec_ext = 102;
     }
@@ -458,7 +465,7 @@ message TMergeJobSpecExt
 
 message TShallowMergeJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NControllerAgent.NProto.TJobSpec
     {
         optional TShallowMergeJobSpecExt shallow_merge_job_spec_ext = 107;
     }
@@ -483,7 +490,7 @@ message TShallowMergeJobSpecExt
 
 message TPartitionJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NControllerAgent.NProto.TJobSpec
     {
         optional TPartitionJobSpecExt partition_job_spec_ext = 103;
     }
@@ -532,7 +539,7 @@ message TPartitionJobSpecExt
  */
 message TSortJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NControllerAgent.NProto.TJobSpec
     {
         optional TSortJobSpecExt sort_job_spec_ext = 104;
     }
@@ -558,7 +565,7 @@ message TSortJobSpecExt
 
 message TReduceJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NControllerAgent.NProto.TJobSpec
     {
         optional TReduceJobSpecExt reduce_job_spec_ext = 105;
     }
@@ -585,7 +592,7 @@ message TReduceJobSpecExt
 
 message TRemoteCopyJobSpecExt
 {
-    extend NJobTrackerClient.NProto.TJobSpec
+    extend NControllerAgent.NProto.TJobSpec
     {
         optional TRemoteCopyJobSpecExt remote_copy_job_spec_ext = 106;
     }

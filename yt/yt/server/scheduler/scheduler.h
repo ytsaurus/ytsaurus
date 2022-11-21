@@ -128,13 +128,20 @@ public:
     TFuture<void> AbandonJob(TJobId jobId, const TString& user);
     TFuture<void> AbortJob(TJobId jobId, std::optional<TDuration> interruptTimeout, const TString& user);
 
-    using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<
+    using TCtxOldNodeHeartbeat = NRpc::TTypedServiceContext<
         NJobTrackerClient::NProto::TReqHeartbeat,
         NJobTrackerClient::NProto::TRspHeartbeat>;
+    using TCtxOldNodeHeartbeatPtr = TIntrusivePtr<TCtxOldNodeHeartbeat>;
+
+    using TCtxNodeHeartbeat = NRpc::TTypedServiceContext<
+        NProto::NNode::TReqHeartbeat,
+        NProto::NNode::TRspHeartbeat>;
     using TCtxNodeHeartbeatPtr = TIntrusivePtr<TCtxNodeHeartbeat>;
+
     /*!
      *  \note Thread affinity: any
      */
+    template <typename TCtxNodeHeartbeatPtr>
     void ProcessNodeHeartbeat(const TCtxNodeHeartbeatPtr& context);
 
     NSecurityClient::TSerializableAccessControlList GetOperationBaseAcl() const;

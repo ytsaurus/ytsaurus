@@ -1,4 +1,4 @@
-package NYT.NJobTrackerClient.NProto;
+package NYT.NControllerAgent.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 import "yt_proto/yt/core/misc/proto/error.proto";
@@ -25,9 +25,6 @@ message TRspGetJobSpecs
     }
 
     repeated TJobSpecResponse responses = 1;
-    // COMPAT(pogorelov)	
-    optional bool supports_job_info_from_node = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-

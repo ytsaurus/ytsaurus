@@ -11,6 +11,8 @@
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/core/misc/phoenix.h>
@@ -26,15 +28,15 @@ struct TJobSummary
 {
     TJobSummary() = default;
     TJobSummary(TJobId id, EJobState state);
-    explicit TJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
+    explicit TJobSummary(NProto::TJobStatus* status);
 
     virtual ~TJobSummary() = default;
 
     void Persist(const TPersistenceContext& context);
 
     //! Crashes if job result is not combined yet.
-    NJobTrackerClient::NProto::TJobResult& GetJobResult();
-    const NJobTrackerClient::NProto::TJobResult& GetJobResult() const;
+    NProto::TJobResult& GetJobResult();
+    const NProto::TJobResult& GetJobResult() const;
 
     //! Crashes if job result is not combined yet or it misses a scheduler job result extension.
     NScheduler::NProto::TSchedulerJobResultExt& GetSchedulerJobResult();
@@ -47,7 +49,7 @@ struct TJobSummary
     // NB: may be nullopt or may miss scheduler job result extension while job
     // result is being combined from scheduler and node parts.
     // Prefer using GetJobResult() and GetSchedulerJobResult() helpers.
-    std::optional<NJobTrackerClient::NProto::TJobResult> Result;
+    std::optional<NProto::TJobResult> Result;
 
     TJobId Id;
     EJobState State = EJobState::None;
@@ -70,7 +72,7 @@ struct TCompletedJobSummary
     : public TJobSummary
 {
     TCompletedJobSummary() = default;
-    explicit TCompletedJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
+    explicit TCompletedJobSummary(NProto::TJobStatus* status);
 
     void Persist(const TPersistenceContext& context);
 
@@ -92,7 +94,7 @@ struct TAbortedJobSummary
 {
     TAbortedJobSummary(TJobId id, EAbortReason abortReason);
     TAbortedJobSummary(const TJobSummary& other, EAbortReason abortReason);
-    explicit TAbortedJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
+    explicit TAbortedJobSummary(NProto::TJobStatus* status);
 
     EAbortReason AbortReason = EAbortReason::None;
     std::optional<NScheduler::TPreemptedFor> PreemptedFor;
@@ -109,7 +111,7 @@ struct TFailedJobSummary
     : public TJobSummary
 {
     explicit TFailedJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
-    explicit TFailedJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
+    explicit TFailedJobSummary(NProto::TJobStatus* status);
 
     inline static constexpr EJobState ExpectedState = EJobState::Failed;
 };
@@ -118,7 +120,7 @@ struct TRunningJobSummary
     : public TJobSummary
 {
     explicit TRunningJobSummary(NScheduler::NProto::TSchedulerToAgentJobEvent* event);
-    explicit TRunningJobSummary(NJobTrackerClient::NProto::TJobStatus* status);
+    explicit TRunningJobSummary(NProto::TJobStatus* status);
 
     double Progress = 0;
     i64 StderrSize = 0;
@@ -162,7 +164,7 @@ void ToProto(NScheduler::NProto::TSchedulerToAgentJobEvent* proto, const TSchedu
 void FromProto(TSchedulerToAgentJobEvent* event, NScheduler::NProto::TSchedulerToAgentJobEvent* proto);
 
 std::unique_ptr<TJobSummary> ParseJobSummary(
-    NJobTrackerClient::NProto::TJobStatus* const status,
+    NProto::TJobStatus* const status,
     const NLogging::TLogger& Logger);
 
 std::unique_ptr<TFailedJobSummary> MergeJobSummaries(

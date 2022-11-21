@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/scheduler/proto/allocation_tracker_service.pb.h>
+
 #include <yt/yt/ytlib/job_tracker_client/proto/job_tracker_service.pb.h>
 
 #include <yt/yt/library/program/build_attributes.h>
@@ -63,12 +65,20 @@ public:
     virtual bool AreSchedulerJobsDisabled() const noexcept = 0;
 
     using TRspHeartbeat = NRpc::TTypedClientResponse<
-        NJobTrackerClient::NProto::TRspHeartbeat>;
+        NScheduler::NProto::NNode::TRspHeartbeat>;
+    using TRspOldHeartbeat = NRpc::TTypedClientResponse<
+         NJobTrackerClient::NProto::TRspHeartbeat>;
     using TReqHeartbeat = NRpc::TTypedClientRequest<
-        NJobTrackerClient::NProto::TReqHeartbeat,
+        NScheduler::NProto::NNode::TReqHeartbeat,
         TRspHeartbeat>;
+    using TReqOldHeartbeat = NRpc::TTypedClientRequest<
+        NJobTrackerClient::NProto::TReqHeartbeat,
+        TRspOldHeartbeat>;
     using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
     using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
+
+    using TRspOldHeartbeatPtr = TIntrusivePtr<TRspOldHeartbeat>;
+    using TReqOldHeartbeatPtr = TIntrusivePtr<TReqOldHeartbeat>;
 
     //! Prepares a heartbeat request.
     virtual TFuture<void> PrepareHeartbeatRequest(
@@ -77,6 +87,14 @@ public:
     //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
     virtual TFuture<void> ProcessHeartbeatResponse(
         const TRspHeartbeatPtr& response) = 0;
+    
+    //! Prepares a heartbeat request.
+    virtual TFuture<void> PrepareHeartbeatRequest(
+        const TReqOldHeartbeatPtr& request) = 0;
+
+    //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
+    virtual TFuture<void> ProcessHeartbeatResponse(
+        const TRspOldHeartbeatPtr& response) = 0;
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;
 
