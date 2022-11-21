@@ -70,6 +70,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeTabletErrorCount)                                    (2134))  // gritukan
     ((ParameterizedTabletBalancingMetric)                           (2135))  // alexelexa
     ((RemovableQueueAgentStage_22_3)                                (2136))  // achulkov2
+    ((FixTransactionRotator_22_3)                                   (2137))  // kvk1920
     // 22.4 starts here.
     ((ZookeeperShards)                                              (2200))  // gritukan
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
