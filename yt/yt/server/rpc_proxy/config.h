@@ -4,8 +4,6 @@
 
 #include <yt/yt/server/lib/rpc_proxy/config.h>
 
-#include <yt/yt/server/lib/dynamic_config/config.h>
-
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/library/auth_server/config.h>
@@ -25,6 +23,8 @@
 #include <yt/yt/core/rpc/grpc/config.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+
+#include <yt/yt/library/dynamic_config/config.h>
 
 #include <yt/yt/library/tracing/jaeger/sampler.h>
 

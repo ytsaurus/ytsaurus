@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/client/api/public.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
 

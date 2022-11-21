@@ -8,6 +8,10 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
 
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/library/dynamic_config/dynamic_config_manager.h>
+
 namespace NYT::NCellarNode {
 
 using namespace NDynamicConfig;

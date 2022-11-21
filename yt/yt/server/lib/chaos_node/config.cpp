@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/cellar_agent/config.h>
 
-#include <yt/yt/server/lib/dynamic_config/config.h>
+#include <yt/yt/library/dynamic_config/config.h>
 
 namespace NYT::NChaosNode {
 

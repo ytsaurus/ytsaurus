@@ -5,6 +5,10 @@
 #include "master_connector.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+
+#include <yt/yt/library/dynamic_config/dynamic_config_manager.h>
+
 namespace NYT::NClusterNode {
 
 using namespace NDynamicConfig;

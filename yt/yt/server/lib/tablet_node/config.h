@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/lib/hydra_common/config.h>
 
-#include <yt/yt/server/lib/dynamic_config/public.h>
-
 #include <yt/yt/server/lib/election/public.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/public.h>
@@ -19,6 +17,8 @@
 #include <yt/yt/ytlib/table_client/config.h>
 
 #include <yt/yt/ytlib/security_client/config.h>
+
+#include <yt/yt/library/dynamic_config/public.h>
 
 #include <yt/yt/library/query/base/public.h>
 
