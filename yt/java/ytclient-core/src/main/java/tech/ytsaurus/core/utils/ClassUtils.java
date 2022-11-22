@@ -3,6 +3,7 @@ package tech.ytsaurus.core.utils;
 import java.lang.annotation.Annotation;
 import java.lang.reflect.AnnotatedElement;
 import java.lang.reflect.Array;
+import java.lang.reflect.Field;
 import java.lang.reflect.GenericArrayType;
 import java.lang.reflect.ParameterizedType;
 import java.lang.reflect.Type;
@@ -103,5 +104,16 @@ public class ClassUtils {
 
     public static List<Type> getActualTypeArguments(Type type) {
         return Arrays.asList(((ParameterizedType) type).getActualTypeArguments());
+    }
+
+    public static <T> List<Field> getAllDeclaredFields(Class<T> clazz) {
+        Class<? super T> superClazz = clazz.getSuperclass();
+        if (superClazz == null) {
+            return new ArrayList<>();
+        }
+
+        List<Field> fields = getAllDeclaredFields(superClazz);
+        fields.addAll(Arrays.asList(clazz.getDeclaredFields()));
+        return fields;
     }
 }
