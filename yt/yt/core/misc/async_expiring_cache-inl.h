@@ -404,7 +404,7 @@ void TAsyncExpiringCache<TKey, TValue>::ScheduleEntryRefresh(
     if (refreshTime && *refreshTime) {
         NConcurrency::TDelayedExecutor::CancelAndClear(entry->ProbationCookie);
         entry->ProbationCookie = NConcurrency::TDelayedExecutor::Submit(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(
+            BIND_NO_PROPAGATE(
                 &TAsyncExpiringCache::InvokeGet,
                 MakeWeak(this),
                 entry,

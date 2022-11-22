@@ -1304,7 +1304,7 @@ std::unique_ptr<TMutation> TObjectManager::CreateExecuteMutation(
     }
 
     auto mutation = CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request);
-    mutation->SetHandler(BIND_DONT_CAPTURE_TRACE_CONTEXT(
+    mutation->SetHandler(BIND_NO_PROPAGATE(
         &TObjectManager::HydraExecuteLeader,
         MakeStrong(this),
         identity,

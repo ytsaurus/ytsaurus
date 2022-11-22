@@ -222,14 +222,7 @@ auto Bind(
 #endif
 
 #define BIND(...) BIND_IMPL(true, __VA_ARGS__)
-
-// TODO(gepardo): Remove this testing during PR 2529737
-#define BIND_NEW(...) BIND_IMPL(true, __VA_ARGS__)
-
 #define BIND_NO_PROPAGATE(...) BIND_IMPL(false, __VA_ARGS__)
-
-// TODO(gepardo): Remove this compat during PR 2529737
-#define BIND_DONT_CAPTURE_TRACE_CONTEXT(...) BIND_IMPL(false, __VA_ARGS__)
 
 ////////////////////////////////////////////////////////////////////////////////
 

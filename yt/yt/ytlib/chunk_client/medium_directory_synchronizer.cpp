@@ -40,7 +40,7 @@ public:
         , MediumDirectory_(std::move(mediumDirectory))
         , SyncExecutor_(New<TPeriodicExecutor>(
             NRpc::TDispatcher::Get()->GetLightInvoker(),
-            BIND_NEW(&TImpl::OnSync, MakeWeak(this)),
+            BIND(&TImpl::OnSync, MakeWeak(this)),
             Config_->SyncPeriod))
     { }
 

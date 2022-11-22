@@ -299,7 +299,7 @@ public:
                 NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, identity);
 
                 auto mutation = CreateMutation(HydraManager_, hydraRequest);
-                mutation->SetHandler(BIND_DONT_CAPTURE_TRACE_CONTEXT(
+                mutation->SetHandler(BIND_NO_PROPAGATE(
                     &TTabletCellWriteManager::HydraLeaderWriteRows,
                     MakeStrong(this),
                     transactionId,

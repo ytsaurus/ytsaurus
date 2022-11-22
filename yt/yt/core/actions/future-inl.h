@@ -1593,7 +1593,7 @@ struct TAsyncViaHelper<R(TArgs...)>
         TArgs... args)
     {
         auto promise = NewPromise<TUnderlying>();
-        invoker->Invoke(BIND_NEW(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...));
+        invoker->Invoke(BIND(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...));
         return promise;
     }
 
@@ -1606,8 +1606,8 @@ struct TAsyncViaHelper<R(TArgs...)>
         auto promise = NewPromise<TUnderlying>();
         GuardedInvoke(
             invoker,
-            BIND_NEW(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...),
-            BIND_NEW([promise, cancellationError = std::move(cancellationError)] {
+            BIND(&Inner, this_, promise, WrapToPassed(std::forward<TArgs>(args))...),
+            BIND([promise, cancellationError = std::move(cancellationError)] {
                 promise.Set(std::move(cancellationError));
             }));
         return promise;

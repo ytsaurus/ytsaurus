@@ -242,7 +242,7 @@ TNodeShard::TNodeShard(
         BIND(&TNodeShard::UpdateExecNodeDescriptors, MakeWeak(this)),
         Config_->NodeShardExecNodesCacheUpdatePeriod))
     , CachedResourceStatisticsByTags_(New<TSyncExpiringCache<TSchedulingTagFilter, TResourceStatistics>>(
-        BIND_NEW(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
+        BIND(&TNodeShard::CalculateResourceStatistics, MakeStrong(this)),
         Config_->SchedulingTagFilterExpireTimeout,
         GetInvoker()))
     , Logger(NodeShardLogger.WithTag("NodeShardId: %v", Id_))

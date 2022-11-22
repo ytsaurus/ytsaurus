@@ -341,7 +341,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto staticOrchidProducer = BIND_NEW(&TImpl::BuildStaticOrchid, MakeStrong(this));
+        auto staticOrchidProducer = BIND(&TImpl::BuildStaticOrchid, MakeStrong(this));
         auto staticOrchidService = IYPathService::FromProducer(staticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::StaticOrchid))
             ->Cached(
@@ -351,7 +351,7 @@ public:
         StaticOrchidService_.Reset(dynamic_cast<ICachedYPathService*>(staticOrchidService.Get()));
         YT_VERIFY(StaticOrchidService_);
 
-        auto lightStaticOrchidProducer = BIND_NEW(&TImpl::BuildLightStaticOrchid, MakeStrong(this));
+        auto lightStaticOrchidProducer = BIND(&TImpl::BuildLightStaticOrchid, MakeStrong(this));
         auto lightStaticOrchidService = IYPathService::FromProducer(lightStaticOrchidProducer)
             ->Via(GetControlInvoker(EControlQueue::StaticOrchid));
 
@@ -2953,7 +2953,7 @@ private:
     IYPathServicePtr CreateOperationOrchidService(const TOperationPtr& operation)
     {
         auto operationAttributesOrchidService =
-            IYPathService::FromProducer(BIND_NEW(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
+            IYPathService::FromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
         return New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{
@@ -4128,7 +4128,7 @@ private:
                 })))
             , OperationProgressService_(
                 IYPathService::FromProducer(
-                    BIND_NEW([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
+                    BIND([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
                         BuildYsonFluently(consumer)
                             .BeginMap()
                                 .Do(BIND(&ISchedulerStrategy::BuildOperationProgress, strategy, operationId))
@@ -4137,7 +4137,7 @@ private:
                     ->Via(scheduler->GetControlInvoker(EControlQueue::DynamicOrchid)))
             , OperationBriefProgressService_(
                 IYPathService::FromProducer(
-                    BIND_NEW([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
+                    BIND([strategy = scheduler->Strategy_, operationId = operation->GetId()] (IYsonConsumer* consumer) {
                         BuildYsonFluently(consumer)
                             .BeginMap()
                                 .Do(BIND(&ISchedulerStrategy::BuildBriefOperationProgress, strategy, operationId))

@@ -1155,7 +1155,7 @@ public:
             commonKeyPrefix,
             chunkState->BlockCache,
             chunkReadOptions,
-            BIND_NEW(&TColumnarSchemalessRangeChunkReader::OnRowsSkipped, MakeWeak(this)),
+            BIND(&TColumnarSchemalessRangeChunkReader::OnRowsSkipped, MakeWeak(this)),
             memoryManager)
         , InterruptDescriptorKeyLength_(interruptDescriptorKeyLength)
     {

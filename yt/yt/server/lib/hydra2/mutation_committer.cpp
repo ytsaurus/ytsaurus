@@ -978,7 +978,7 @@ void TLeaderCommitter::LogMutations(std::vector<TMutationDraft> mutationDrafts)
 
     auto future = Changelog_->Append(std::move(recordsData));
     LastLoggedMutationFuture_ = future.Apply(
-        BIND_NEW(&TLeaderCommitter::OnMutationsLogged, MakeStrong(this), firstSequenceNumber, lastSequenceNumber)
+        BIND(&TLeaderCommitter::OnMutationsLogged, MakeStrong(this), firstSequenceNumber, lastSequenceNumber)
             .AsyncVia(EpochContext_->EpochControlInvoker));
 
     MaybeCheckpoint();

@@ -465,7 +465,7 @@ void FiberMain()
                 NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
                 // Switch out and add fiber to idle fibers.
                 // Save fiber in AfterSwitch because it can be immediately concurrently reused.
-                SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([current = MakeStrong(currentFiber)] () mutable {
+                SetAfterSwitch(BIND_NO_PROPAGATE([current = MakeStrong(currentFiber)] () mutable {
                     TFiberManager::Get()->EnqueueIdleFiber(std::move(current));
                 }));
             }
@@ -475,7 +475,7 @@ void FiberMain()
 #else
             {
                 NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-                SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([
+                SetAfterSwitch(BIND_NO_PROPAGATE([
                     current = MakeStrong(currentFiber),
                     resume = std::move(ResumerFiber())
                 ] () mutable {
@@ -493,7 +493,7 @@ void FiberMain()
         YT_LOG_DEBUG("Fiber finished");
 
         NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-        SetAfterSwitch(BIND_DONT_CAPTURE_TRACE_CONTEXT([current = MakeStrong(currentFiber)] () mutable {
+        SetAfterSwitch(BIND_NO_PROPAGATE([current = MakeStrong(currentFiber)] () mutable {
             current.Reset();
         }));
 

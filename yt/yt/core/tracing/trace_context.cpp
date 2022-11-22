@@ -575,10 +575,10 @@ static TTraceContextPtr DoExchangeTraceContext(TTraceContextPtr traceContext)
     auto& propagatingStorage = GetCurrentPropagatingStorage();
     auto result = propagatingStorage.Exchange<TTraceContextPtr>(std::move(traceContext));
     if (!result) {
-        propagatingStorage.SubscribeOnBeforeUninstall(BIND_DONT_CAPTURE_TRACE_CONTEXT([] {
+        propagatingStorage.SubscribeOnBeforeUninstall(BIND_NO_PROPAGATE([] {
             DoSwitchTraceContext(DoGetCurrentTraceContext(), nullptr);
         }));
-        propagatingStorage.SubscribeOnAfterInstall(BIND_DONT_CAPTURE_TRACE_CONTEXT([] {
+        propagatingStorage.SubscribeOnAfterInstall(BIND_NO_PROPAGATE([] {
             DoSwitchTraceContext(nullptr, DoGetCurrentTraceContext());
         }));
         return nullptr;
