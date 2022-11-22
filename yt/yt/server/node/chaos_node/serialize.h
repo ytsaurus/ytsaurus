@@ -36,10 +36,14 @@ public:
     EChaosReign GetVersion() const;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TLoadContext
     : public NHydra::TLoadContext
 {
 public:
+    explicit TLoadContext(NHydra::ICheckpointableInputStream* input);
+
     EChaosReign GetVersion() const;
 };
 

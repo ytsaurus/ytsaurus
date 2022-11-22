@@ -231,10 +231,10 @@ inline std::vector<TSharedRef> UnpackRefs(const TSharedRef& packedRef)
 
 Y_FORCE_INLINE void TSaveContextStream::Write(const void* buf, size_t len)
 {
-    if (Y_LIKELY(BufferSize_ >= len)) {
+    if (Y_LIKELY(BufferRemaining_ >= len)) {
         ::memcpy(BufferPtr_, buf, len);
         BufferPtr_ += len;
-        BufferSize_ -= len;
+        BufferRemaining_ -= len;
     } else {
         WriteSlow(buf, len);
     }
@@ -250,6 +250,27 @@ Y_FORCE_INLINE TSaveContextStream* TStreamSaveContext::GetOutput()
 Y_FORCE_INLINE int TStreamSaveContext::GetVersion() const
 {
     return Version_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE size_t TLoadContextStream::Load(void* buf, size_t len)
+{
+    if (Y_LIKELY(BufferRemaining_ >= len)) {
+        ::memcpy(buf, BufferPtr_, len);
+        BufferPtr_ += len;
+        BufferRemaining_ -= len;
+        return len;
+    } else {
+        return LoadSlow(buf, len);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+Y_FORCE_INLINE TLoadContextStream* TStreamLoadContext::GetInput()
+{
+    return &Input_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -351,19 +372,13 @@ TIntrusivePtr<T> TEntityStreamLoadContext::GetRefCountedEntity(TEntitySerializat
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
-TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustomPersistenceContext(TSaveContext* saveContext, TLoadContext* loadContext)
-    : SaveContext_(saveContext)
-    , LoadContext_(loadContext)
-{ }
-
-template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustomPersistenceContext(TSaveContext& saveContext)
-    : TCustomPersistenceContext(&saveContext, nullptr)
+    : SaveContext_(&saveContext)
 { }
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>
 TCustomPersistenceContext<TSaveContext, TLoadContext, TSnapshotVersion>::TCustomPersistenceContext(TLoadContext& loadContext)
-    : TCustomPersistenceContext(nullptr, &loadContext)
+    : LoadContext_(&loadContext)
 { }
 
 template <class TSaveContext, class TLoadContext, class TSnapshotVersion>

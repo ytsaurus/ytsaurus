@@ -28,7 +28,7 @@ class TSaveContext
 public:
     explicit TSaveContext(NHydra::ICheckpointableOutputStream* output);
 
-    EClockReign GetVersion();
+    EClockReign GetVersion() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -40,9 +40,11 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
 
 public:
-    explicit TLoadContext(TBootstrap* bootstrap);
+    TLoadContext(
+        TBootstrap* bootstrap,
+        NHydra::ICheckpointableInputStream* input);
 
-    EClockReign GetVersion();
+    EClockReign GetVersion() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

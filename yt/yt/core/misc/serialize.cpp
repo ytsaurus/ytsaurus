@@ -58,11 +58,11 @@ TSaveContextStream::TSaveContextStream(IZeroCopyOutput* output)
     : Output_(output)
 { }
 
-void TSaveContextStream::Flush()
+void TSaveContextStream::FlushBuffer()
 {
-    Output_->Undo(BufferSize_);
+    Output_->Undo(BufferRemaining_);
     BufferPtr_ = nullptr;
-    BufferSize_ = 0;
+    BufferRemaining_ = 0;
     Output_->Flush();
     if (BufferedOutput_) {
         BufferedOutput_->Flush();
@@ -71,17 +71,19 @@ void TSaveContextStream::Flush()
 
 void TSaveContextStream::WriteSlow(const void* buf, size_t len)
 {
-    while (len > 0) {
-        if (BufferSize_ == 0) {
-            BufferSize_ = Output_->Next(&BufferPtr_);
+    auto bufPtr = static_cast<const char*>(buf);
+    auto toWrite = len;
+    while (toWrite > 0) {
+        if (BufferRemaining_ == 0) {
+            BufferRemaining_ = Output_->Next(&BufferPtr_);
         }
-        YT_ASSERT(BufferSize_ > 0);
-        auto toCopy = std::min(len, BufferSize_);
-        ::memcpy(BufferPtr_, buf, toCopy);
+        YT_ASSERT(BufferRemaining_ > 0);
+        auto toCopy = std::min(toWrite, BufferRemaining_);
+        ::memcpy(BufferPtr_, bufPtr, toCopy);
         BufferPtr_ += toCopy;
-        BufferSize_ -= toCopy;
-        buf = static_cast<const char*>(buf) + toCopy;
-        len -= toCopy;
+        BufferRemaining_ -= toCopy;
+        bufPtr += toCopy;
+        toWrite -= toCopy;
     }
 }
 
@@ -103,16 +105,60 @@ TStreamSaveContext::TStreamSaveContext(
 
 void TStreamSaveContext::Finish()
 {
-    Output_.Flush();
+    Output_.FlushBuffer();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStreamLoadContext::TStreamLoadContext()
-    : Input_(nullptr)
+TLoadContextStream::TLoadContextStream(IInputStream* input)
+    : Input_(input)
 { }
 
+TLoadContextStream::TLoadContextStream(IZeroCopyInput* input)
+    : ZeroCopyInput_(input)
+{ }
+
+void TLoadContextStream::ClearBuffer()
+{
+    if (BufferRemaining_ > 0) {
+        BufferPtr_ = nullptr;
+        BufferRemaining_ = 0;
+    }
+}
+
+size_t TLoadContextStream::LoadSlow(void* buf, size_t len)
+{
+    if (ZeroCopyInput_) {
+        auto bufPtr = static_cast<char*>(buf);
+        auto toRead = len;
+        while (toRead > 0) {
+            if (BufferRemaining_ == 0) {
+                BufferRemaining_ = ZeroCopyInput_->Next(&BufferPtr_);
+                if (BufferRemaining_ == 0) {
+                    break;
+                }
+            }
+            YT_ASSERT(BufferRemaining_ > 0);
+            auto toCopy = std::min(toRead, BufferRemaining_);
+            ::memcpy(bufPtr, BufferPtr_, toCopy);
+            BufferPtr_ += toCopy;
+            BufferRemaining_ -= toCopy;
+            bufPtr += toCopy;
+            toRead -= toCopy;
+        }
+        return len - toRead;
+    } else {
+        return Input_->Load(buf, len);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TStreamLoadContext::TStreamLoadContext(IInputStream* input)
+    : Input_(input)
+{ }
+
+TStreamLoadContext::TStreamLoadContext(IZeroCopyInput* input)
     : Input_(input)
 { }
 

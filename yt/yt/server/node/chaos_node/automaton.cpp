@@ -35,8 +35,8 @@ std::unique_ptr<NHydra::TSaveContext> TChaosAutomaton::CreateSaveContext(
 std::unique_ptr<NHydra::TLoadContext> TChaosAutomaton::CreateLoadContext(
     ICheckpointableInputStream* input)
 {
-    auto context = std::make_unique<TLoadContext>();
-    TCompositeAutomaton::InitLoadContext(*context, input);
+    auto context = std::make_unique<TLoadContext>(input);
+    TCompositeAutomaton::SetupLoadContext(context.get());
     return context;
 }
 

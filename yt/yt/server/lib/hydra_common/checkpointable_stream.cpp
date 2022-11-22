@@ -18,24 +18,26 @@ class TCheckpointableInputStream
     : public ICheckpointableInputStream
 {
 public:
-    explicit TCheckpointableInputStream(IInputStream* underlyingStream)
+    explicit TCheckpointableInputStream(IZeroCopyInput* underlyingStream)
         : UnderlyingStream_(underlyingStream)
     { }
 
     void SkipToCheckpoint() override
     {
-        while (true) {
-            if (!EnsureBlock()) {
-                break;
-            }
+        while (EnsureBlock()) {
             if (BlockLength_ == TCheckpointableStreamBlockHeader::CheckpointSentinel) {
-                HasBlock_ = false;
+                BlockLength_ = 0;
+                BlockRemaining_ = 0;
                 break;
             }
-            auto size = BlockLength_ - BlockOffset_;
-            UnderlyingStream_->Skip(size);
-            Offset_ += size;
-            HasBlock_ = false;
+
+            auto size = static_cast<size_t>(BlockRemaining_);
+            if (UnderlyingStream_->Skip(size) != size) {
+                THROW_ERROR_EXCEPTION("Unexpected end-of-checkpointable-stream");
+            }
+
+            Offset_ += BlockRemaining_;
+            BlockRemaining_ = 0;
         }
     }
 
@@ -45,67 +47,67 @@ public:
     }
 
 private:
-    IInputStream* const UnderlyingStream_;
+    IZeroCopyInput* const UnderlyingStream_;
 
-    i64 BlockLength_;
-    i64 BlockOffset_;
-    bool HasBlock_ = false;
+    i64 BlockLength_ = 0;
+    i64 BlockRemaining_ = 0;
 
     i64 Offset_ = 0;
 
-
-    size_t DoRead(void* buf_, size_t len_) override
+    size_t DoNext(const void** ptr, size_t len) override
     {
-        char* buf = reinterpret_cast<char*>(buf_);
-        i64 len = static_cast<i64>(len_);
-        i64 pos = 0;
-        while (pos < len) {
+        *ptr = nullptr;
+
+        if (len == 0) {
+            return 0;
+        }
+
+        while (BlockRemaining_ == 0) {
             if (!EnsureBlock()) {
-                break;
-            }
-            auto size = std::min(BlockLength_ - BlockOffset_, len - pos);
-            auto loadedSize = UnderlyingStream_->Load(buf + pos, size);
-            if (static_cast<i64>(loadedSize) != size) {
-                THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
-                    size,
-                    loadedSize);
-            }
-            pos += size;
-            Offset_ += size;
-            BlockOffset_ += size;
-            if (BlockOffset_ == BlockLength_) {
-                HasBlock_ = false;
+                return 0;
             }
         }
-        return pos;
+
+        auto bytesRequested = std::min(len, static_cast<size_t>(BlockRemaining_));
+        auto bytesAvailable = UnderlyingStream_->Next(ptr, bytesRequested);
+        if (bytesAvailable == 0) {
+            THROW_ERROR_EXCEPTION("Unexpected end-of-checkpointable-stream");
+        }
+
+        Offset_ += bytesAvailable;
+        BlockRemaining_ -= bytesAvailable;
+
+        return bytesAvailable;
     }
 
     bool EnsureBlock()
     {
-        if (!HasBlock_) {
-            TCheckpointableStreamBlockHeader header;
-            auto loadedSize = UnderlyingStream_->Load(&header, sizeof(header));
-            if (loadedSize == 0) {
-                return false;
-            }
-
-            if (loadedSize != sizeof(TCheckpointableStreamBlockHeader)) {
-                THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
-                    sizeof(TCheckpointableStreamBlockHeader),
-                    loadedSize);
-            }
-
-            HasBlock_ = true;
-            BlockLength_ = header.Length;
-            BlockOffset_ = 0;
+        if (BlockRemaining_ > 0) {
+            return true;
         }
 
+        TCheckpointableStreamBlockHeader header;
+        auto loadedSize = UnderlyingStream_->Load(&header, sizeof(header));
+        if (loadedSize == 0) {
+            BlockLength_ = 0;
+            BlockRemaining_ = 0;
+            return false;
+        }
+
+        if (loadedSize != sizeof(TCheckpointableStreamBlockHeader)) {
+            THROW_ERROR_EXCEPTION("Broken checkpointable stream: expected %v bytes, got %v",
+                sizeof(TCheckpointableStreamBlockHeader),
+                loadedSize);
+        }
+
+        BlockLength_ = header.Length;
+        BlockRemaining_ = BlockLength_;
         return true;
     }
 };
 
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
-    IInputStream* underlyingStream)
+    IZeroCopyInput* underlyingStream)
 {
     return std::unique_ptr<ICheckpointableInputStream>(new TCheckpointableInputStream(
         underlyingStream));
@@ -195,11 +197,11 @@ private:
         YT_ASSERT(LastBufferedHeader_->Length >= static_cast<i64>(length));
 
         LastBufferedHeader_->Length -= static_cast<i64>(length);
+        UnderlyingStream_->Undo(length);
+
         if (LastBufferedHeader_->Length == 0) {
-            UnderlyingStream_->Undo(length + sizeof(TCheckpointableStreamBlockHeader));
             LastBufferedHeader_ = nullptr;
-        } else {
-            UnderlyingStream_->Undo(length);
+            UnderlyingStream_->Undo(sizeof(TCheckpointableStreamBlockHeader));
         }
     }
 };

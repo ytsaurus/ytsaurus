@@ -541,10 +541,7 @@ protected:
         ChunkPool_.Reset();
 
         TMemoryInput input(blob.Begin(), blob.Size());
-        TLoadContext loadContext;
-        loadContext.SetVersion(ToUnderlying(GetCurrentSnapshotVersion()));
-        loadContext.SetRowBuffer(RowBuffer_);
-        loadContext.SetInput(&input);
+        TLoadContext loadContext(&input, RowBuffer_, GetCurrentSnapshotVersion());
         Load(loadContext, ChunkPool_);
         Load(loadContext, MultiChunkPool_);
         Load(loadContext, UnderlyingPools_);

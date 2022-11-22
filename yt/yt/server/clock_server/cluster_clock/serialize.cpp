@@ -8,18 +8,6 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
-template <class E>
-typename std::enable_if<TEnumTraits<E>::IsEnum, bool>::type operator == (E lhs, typename TEnumTraits<E>::TUnderlying rhs)
-{
-    return static_cast<typename TEnumTraits<E>::TUnderlying>(lhs) == rhs;
-}
-
-} // namespace
-
-////////////////////////////////////////////////////////////////////////////////
-
 TReign GetCurrentReign()
 {
     return ToUnderlying(TEnumTraits<EClockReign>::GetMaxValue());
@@ -27,8 +15,8 @@ TReign GetCurrentReign()
 
 bool ValidateSnapshotReign(TReign reign)
 {
-    for (auto v : TEnumTraits<EClockReign>::GetDomainValues()) {
-        if (v == reign) {
+    for (auto value : TEnumTraits<EClockReign>::GetDomainValues()) {
+        if (ToUnderlying(value) == reign) {
             return true;
         }
     }
@@ -49,20 +37,23 @@ TSaveContext::TSaveContext(ICheckpointableOutputStream* output)
     : NHydra::TSaveContext(output, GetCurrentReign())
 { }
 
-EClockReign TSaveContext::GetVersion()
+EClockReign TSaveContext::GetVersion() const
 {
     return static_cast<EClockReign>(NHydra::TSaveContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLoadContext::TLoadContext(TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
+TLoadContext::TLoadContext(
+    TBootstrap* bootstrap,
+    ICheckpointableInputStream* input)
+    : NHydra::TLoadContext(input)
+    , Bootstrap_(bootstrap)
 { }
 
-EClockReign TLoadContext::GetVersion()
+EClockReign TLoadContext::GetVersion() const
 {
-    return static_cast<NClusterClock::EClockReign>(NHydra::TLoadContext::GetVersion());
+    return static_cast<EClockReign>(NHydra::TLoadContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

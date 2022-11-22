@@ -31,15 +31,15 @@ TEST(TCheckpointableStreamTest, Simple)
     std::array<char, 10> buffer;
 
     EXPECT_EQ(0, input->GetOffset());
-    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Load(buffer.data(), 2));
     EXPECT_EQ(2, input->GetOffset());
     EXPECT_EQ("ab", TStringBuf(buffer.data(), 2));
 
-    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Load(buffer.data(), 2));
     EXPECT_EQ(4, input->GetOffset());
     EXPECT_EQ("c1", TStringBuf(buffer.data(), 2));
 
-    EXPECT_EQ(7u, input->Read(buffer.data(), 10));
+    EXPECT_EQ(7u, input->Load(buffer.data(), 10));
     EXPECT_EQ(11, input->GetOffset());
     EXPECT_EQ("11ololo", TStringBuf(buffer.data(), 7));
 }
@@ -62,32 +62,32 @@ TEST(TCheckpointableStreamTest, Checkpoints)
     std::array<char, 10> buffer;
 
     EXPECT_EQ(0, input->GetOffset());
-    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Load(buffer.data(), 2));
     EXPECT_EQ(2, input->GetOffset());
     EXPECT_EQ("ab", TStringBuf(buffer.data(), 2));
 
     input->SkipToCheckpoint();
 
     EXPECT_EQ(6, input->GetOffset());
-    EXPECT_EQ(1u, input->Read(buffer.data(), 1));
+    EXPECT_EQ(1u, input->Load(buffer.data(), 1));
     EXPECT_EQ(7, input->GetOffset());
     EXPECT_EQ("u", TStringBuf(buffer.data(), 1));
 
     input->SkipToCheckpoint();
 
     EXPECT_EQ(7, input->GetOffset());
-    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Load(buffer.data(), 2));
     EXPECT_EQ(9, input->GetOffset());
     EXPECT_EQ("ol", TStringBuf(buffer.data(), 2));
 
-    EXPECT_EQ(2u, input->Read(buffer.data(), 2));
+    EXPECT_EQ(2u, input->Load(buffer.data(), 2));
     EXPECT_EQ(11, input->GetOffset());
     EXPECT_EQ("ol", TStringBuf(buffer.data(), 2));
 
     input->SkipToCheckpoint();
 
     EXPECT_EQ(12, input->GetOffset());
-    EXPECT_EQ(0u, input->Read(buffer.data(), 10));
+    EXPECT_EQ(0u, input->Load(buffer.data(), 10));
 }
 
 TEST(TCheckpointableStreamTest, Buffered)
@@ -115,13 +115,13 @@ TEST(TCheckpointableStreamTest, Buffered)
     for (int i = 1; i <= 100; ++i) {
         if (i % 2 == 0) {
             buffer.resize(i * 17);
-            checkpointableInput->Load(buffer.data(), buffer.size());
+            EXPECT_EQ(checkpointableInput->Load(buffer.data(), buffer.size()), buffer.size());
             for (int j = 0; j < i * 17; ++j) {
                 EXPECT_EQ((i + j) % 128, buffer[j]);
             }
 
             std::vector<char> blobCopy(blob.size());
-            checkpointableInput->Load(blobCopy.data(), blobCopy.size());
+            EXPECT_EQ(checkpointableInput->Load(blobCopy.data(), blobCopy.size()), blobCopy.size());
             EXPECT_EQ(blob, blobCopy);
         }
         checkpointableInput->SkipToCheckpoint();

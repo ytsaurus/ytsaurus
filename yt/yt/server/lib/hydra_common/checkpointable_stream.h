@@ -14,7 +14,7 @@ namespace NYT::NHydra {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct ICheckpointableInputStream
-    : public IInputStream
+    : public IZeroCopyInput
 {
     virtual void SkipToCheckpoint() = 0;
     virtual i64 GetOffset() const = 0;
@@ -32,7 +32,7 @@ struct ICheckpointableOutputStream
 
 //! Wraps an input stream making it checkpointable.
 std::unique_ptr<ICheckpointableInputStream> CreateCheckpointableInputStream(
-    IInputStream* underlyingStream);
+    IZeroCopyInput* underlyingStream);
 
 //! Wraps a zero-copy output stream making it checkpointable.
 /*!

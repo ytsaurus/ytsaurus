@@ -12,7 +12,10 @@ class TLoadContext
     : public NTableClient::TLoadContext
 {
 public:
-    using NTableClient::TLoadContext::TLoadContext;
+    TLoadContext(
+        IZeroCopyInput* input,
+        NTableClient::TRowBufferPtr rowBuffer,
+        ESnapshotVersion version);
 
     ESnapshotVersion GetVersion() const;
 };

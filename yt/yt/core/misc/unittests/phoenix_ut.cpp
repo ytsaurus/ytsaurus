@@ -29,8 +29,7 @@ template <class T>
 void Deserialize(T& value, TRef ref)
 {
     TMemoryInput input(ref.Begin(), ref.Size());
-    TLoadContext context;
-    context.SetInput(&input);
+    TLoadContext context(&input);
     Load(context, value);
 }
 
@@ -38,8 +37,7 @@ template <class T>
 void InplaceDeserialize(TIntrusivePtr<T> value, TRef ref)
 {
     TMemoryInput input(ref.Begin(), ref.Size());
-    TLoadContext context;
-    context.SetInput(&input);
+    TLoadContext context(&input);
     NPhoenix::TSerializer::InplaceLoad(context, value);
 }
 

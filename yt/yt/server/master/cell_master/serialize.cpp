@@ -61,8 +61,11 @@ EMasterReign TSaveContext::GetVersion()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLoadContext::TLoadContext(TBootstrap* bootstrap)
-    : Bootstrap_(bootstrap)
+TLoadContext::TLoadContext(
+    TBootstrap* bootstrap,
+    ICheckpointableInputStream* input)
+    : NHydra::TLoadContext(input)
+    , Bootstrap_(bootstrap)
 { }
 
 TObject* TLoadContext::GetWeakGhostObject(TObjectId id) const

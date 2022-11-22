@@ -20,11 +20,8 @@ DEFINE_ENUM(EColor,
 TEST(TEnumTest, SaveAndLoad)
 {
     TStringStream stream;
-
     TStreamSaveContext saveContext(&stream);
-
-    TStreamLoadContext loadContext;
-    loadContext.SetInput(&stream);
+    TStreamLoadContext loadContext(&stream);
 
     auto first = EColor::Red;
     auto second = EColor::Black;

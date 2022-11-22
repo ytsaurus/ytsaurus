@@ -12,7 +12,6 @@
 
 #include <util/stream/buffered.h>
 #include <util/stream/file.h>
-#include <util/stream/input.h>
 #include <util/stream/zerocopy_output.h>
 
 #include <util/system/align.h>
@@ -101,14 +100,14 @@ public:
     explicit TSaveContextStream(IZeroCopyOutput* output);
 
     void Write(const void* buf, size_t len);
-    void Flush();
+    void FlushBuffer();
 
 private:
     std::optional<TBufferedOutput> BufferedOutput_;
     IZeroCopyOutput* const Output_;
 
     char* BufferPtr_ = nullptr;
-    size_t BufferSize_ = 0;
+    size_t BufferRemaining_ = 0;
 
     void WriteSlow(const void* buf, size_t len);
 };
@@ -139,19 +138,44 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLoadContextStream
+{
+public:
+    explicit TLoadContextStream(IInputStream* input);
+    explicit TLoadContextStream(IZeroCopyInput* input);
+
+    size_t Load(void* buf, size_t len);
+    void ClearBuffer();
+
+private:
+    IInputStream* const Input_ = nullptr;
+    IZeroCopyInput* const ZeroCopyInput_ = nullptr;
+
+    char* BufferPtr_ = nullptr;
+    size_t BufferRemaining_ = 0;
+
+    size_t LoadSlow(void* buf, size_t len);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TStreamLoadContext
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(IInputStream*, Input);
-    DEFINE_BYREF_RW_PROPERTY(TSerializationDumper, Dumper);
     DEFINE_BYVAL_RW_PROPERTY(int, Version);
+    DEFINE_BYREF_RW_PROPERTY(TSerializationDumper, Dumper);
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableTotalWriteCountReport);
 
 public:
-    TStreamLoadContext();
     explicit TStreamLoadContext(IInputStream* input);
+    explicit TStreamLoadContext(IZeroCopyInput* input);
 
     virtual ~TStreamLoadContext() = default;
+
+    TLoadContextStream* GetInput();
+
+protected:
+    TLoadContextStream Input_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -176,10 +200,8 @@ public:
     TSnapshotVersion GetVersion() const;
 
 private:
-    TCustomPersistenceContext(TSaveContext* saveContext, TLoadContext* loadContext);
-
-    TSaveContext* const SaveContext_;
-    TLoadContext* const LoadContext_;
+    TSaveContext* const SaveContext_ = nullptr;
+    TLoadContext* const LoadContext_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -229,6 +251,8 @@ class TEntityStreamLoadContext
     : public TStreamLoadContext
 {
 public:
+    using TStreamLoadContext::TStreamLoadContext;
+
     template <class T>
     TEntitySerializationKey RegisterRawEntity(T* entity);
     template <class T>

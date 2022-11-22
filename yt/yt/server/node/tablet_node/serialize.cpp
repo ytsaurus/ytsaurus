@@ -8,7 +8,7 @@ using namespace NHydra;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ReignChangeAllowed = true;
+static bool ReignChangeAllowed = true;
 
 void SetReignChangeAllowed(bool allowed)
 {
@@ -54,12 +54,20 @@ NHydra::EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSaveContext::TSaveContext(ICheckpointableOutputStream* output)
+    : NHydra::TSaveContext(output, GetCurrentReign())
+{ }
+
 ETabletReign TSaveContext::GetVersion() const
 {
     return static_cast<ETabletReign>(NHydra::TSaveContext::GetVersion());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TLoadContext::TLoadContext(ICheckpointableInputStream* input)
+    : NHydra::TLoadContext(input)
+{ }
 
 ETabletReign TLoadContext::GetVersion() const
 {
