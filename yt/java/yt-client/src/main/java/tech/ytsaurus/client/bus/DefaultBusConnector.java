@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus;
+package tech.ytsaurus.client.bus;
 
 import java.net.SocketAddress;
 import java.time.Duration;
@@ -14,9 +14,6 @@ import io.netty.channel.ServerChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
-
-import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
-import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
 
 public class DefaultBusConnector implements BusConnector {
     private final EventLoopGroup group;

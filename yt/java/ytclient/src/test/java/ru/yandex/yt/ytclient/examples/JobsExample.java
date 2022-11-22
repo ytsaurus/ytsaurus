@@ -1,12 +1,12 @@
 package ru.yandex.yt.ytclient.examples;
 
 import tech.ytsaurus.client.YtClient;
+import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.request.AbortJob;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeMapNodeImpl;
 
-import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.request.GetJob;
 
 import static ru.yandex.yt.ytclient.examples.ExamplesUtil.createConnector;

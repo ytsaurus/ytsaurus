@@ -3,13 +3,13 @@ package tech.ytsaurus.client;
 import java.util.Arrays;
 import java.util.List;
 
+import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 
 public class YtClient extends tech.ytsaurus.client.YtClientOpensource {

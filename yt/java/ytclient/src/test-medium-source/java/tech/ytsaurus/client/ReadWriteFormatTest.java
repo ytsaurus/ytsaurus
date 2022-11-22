@@ -11,6 +11,8 @@ import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import tech.ytsaurus.client.bus.BusConnector;
+import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.Format;
 import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.ReadTable;
@@ -28,8 +30,6 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
-import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;

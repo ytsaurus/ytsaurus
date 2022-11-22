@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus;
+package tech.ytsaurus.client.bus;
 
 import java.time.Duration;
 import java.util.Objects;
@@ -9,9 +9,6 @@ import io.netty.channel.ChannelInitializer;
 import io.netty.channel.ChannelPipeline;
 import io.netty.handler.timeout.ReadTimeoutHandler;
 import io.netty.handler.timeout.WriteTimeoutHandler;
-
-import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
-import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
 
 /**
  * Класс для инициализации каналов для работы с bus протоколом

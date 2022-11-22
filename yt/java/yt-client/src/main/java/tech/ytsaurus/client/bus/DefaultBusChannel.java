@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus;
+package tech.ytsaurus.client.bus;
 
 import java.net.SocketAddress;
 import java.time.Duration;
@@ -16,9 +16,6 @@ import io.netty.util.AttributeKey;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolder;
-import ru.yandex.yt.ytclient.bus.metrics.DefaultBusChannelMetricsHolderImpl;
 
 /**
  * Канал, работающий по протоколу bus

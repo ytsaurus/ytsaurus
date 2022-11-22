@@ -6,6 +6,8 @@ import java.util.concurrent.CompletionException;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
+import tech.ytsaurus.client.bus.BusConnector;
+import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
 import tech.ytsaurus.client.rpc.RpcCompression;
@@ -13,8 +15,6 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.cypress.YPath;
 
 import ru.yandex.yt.testlib.FutureUtils;
-import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;

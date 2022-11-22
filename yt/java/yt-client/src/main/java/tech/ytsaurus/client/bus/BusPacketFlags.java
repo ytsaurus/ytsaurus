@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus;
+package tech.ytsaurus.client.bus;
 
 /**
  * Флаги пакета в протоколе bus (ui16 в C++)

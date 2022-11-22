@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus;
+package tech.ytsaurus.client.bus;
 
 import java.util.List;
 

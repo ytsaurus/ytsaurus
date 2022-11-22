@@ -8,6 +8,8 @@ import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
+import tech.ytsaurus.client.bus.BusConnector;
+import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.MultiTablePartition;
 import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.PartitionTables;
@@ -23,8 +25,6 @@ import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.TableSchema;

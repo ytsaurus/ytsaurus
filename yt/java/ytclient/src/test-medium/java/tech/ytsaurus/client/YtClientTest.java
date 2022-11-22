@@ -26,6 +26,7 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.ModifyRowsRequest;
 import tech.ytsaurus.client.request.ObjectType;
@@ -49,7 +50,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.testlib.LocalYt;
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.MappedLookupRowsRequest;
 import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
