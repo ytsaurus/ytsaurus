@@ -9,10 +9,10 @@ import org.junit.Before;
 import org.junit.Test;
 import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.YtCluster;
+import tech.ytsaurus.client.bus.BusConnector;
+import tech.ytsaurus.client.bus.DefaultBusConnector;
 
 import ru.yandex.yt.testlib.LocalYt;
-import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 
 import static ru.yandex.yt.testlib.FutureUtils.waitFuture;
 

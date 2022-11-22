@@ -27,6 +27,10 @@ import io.netty.channel.EventLoop;
 import io.netty.util.concurrent.ScheduledFuture;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.bus.Bus;
+import tech.ytsaurus.client.bus.BusConnector;
+import tech.ytsaurus.client.bus.BusDeliveryTracking;
+import tech.ytsaurus.client.bus.BusListener;
 import tech.ytsaurus.core.GUID;
 
 import ru.yandex.yt.rpc.TRequestCancelationHeader;
@@ -35,10 +39,6 @@ import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingParameters;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
-import ru.yandex.yt.ytclient.bus.Bus;
-import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.BusDeliveryTracking;
-import ru.yandex.yt.ytclient.bus.BusListener;
 
 /**
  * Базовая реализация rpc клиента поверх bus

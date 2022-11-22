@@ -1,10 +1,8 @@
-package ru.yandex.yt.ytclient.bus.metrics;
+package tech.ytsaurus.client.bus;
 
 import com.codahale.metrics.Histogram;
 import com.codahale.metrics.MetricRegistry;
 import com.codahale.metrics.SharedMetricRegistries;
-
-import ru.yandex.yt.ytclient.bus.DefaultBusChannel;
 
 /**
  * @author dkondra

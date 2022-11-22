@@ -3,9 +3,9 @@ package ru.yandex.yt.ytclient.examples;
 import java.util.Map;
 
 import tech.ytsaurus.client.YtClient;
+import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.yt.ytclient.bus.BusConnector;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.ResourceLimits;
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.SchedulingOptions;

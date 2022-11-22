@@ -1,4 +1,4 @@
-package ru.yandex.yt.ytclient.bus.metrics;
+package tech.ytsaurus.client.bus;
 
 /**
  * @author dkondra

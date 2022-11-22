@@ -9,6 +9,7 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.ScheduledFuture;
 import java.util.concurrent.TimeUnit;
 
+import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientRequestControl;
 import tech.ytsaurus.client.rpc.RpcClientResponseHandler;
@@ -27,7 +28,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
-import ru.yandex.yt.ytclient.bus.BusConnector;
 
 @NonNullApi
 @NonNullFields

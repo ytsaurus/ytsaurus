@@ -18,6 +18,8 @@ import tech.ytsaurus.client.ApiServiceClient;
 import tech.ytsaurus.client.ApiServiceClientImpl;
 import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.YtCluster;
+import tech.ytsaurus.client.bus.BusConnector;
+import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.DefaultRpcBusClient;
 import tech.ytsaurus.client.rpc.RpcClient;
@@ -26,8 +28,6 @@ import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.yt.ytclient.YtClientConfiguration;
-import ru.yandex.yt.ytclient.bus.BusConnector;
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 
 public final class ExamplesUtil {
