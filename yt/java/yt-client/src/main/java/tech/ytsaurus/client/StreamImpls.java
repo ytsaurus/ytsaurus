@@ -592,7 +592,7 @@ abstract class StreamReaderImpl<RspType extends Message> extends StreamBase<RspT
         maybeReinitCodec(header.getCodec());
 
         List<Attachment> attachmentList = new ArrayList<>(attachments.size());
-        for (byte[] attachment : attachments) {
+        for (var attachment : attachments) {
             long size = attachment == null
                     ? 1
                     : attachment.length;
