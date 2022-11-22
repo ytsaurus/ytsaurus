@@ -707,4 +707,63 @@ public:
 };
 UNIT_TEST_SUITE_REGISTRATION(TUnorderedParallelReaderTest);
 
+Y_UNIT_TEST_SUITE(EstimateRowWeight)
+{
+    Y_UNIT_TEST(Simple)
+    {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+
+        auto pathOne = fixture.GetWorkingDir() + "/table1";
+        auto pathTwo = fixture.GetWorkingDir() + "/table2";
+
+        {
+            for (size_t chunkId = 0; chunkId < 3; ++chunkId) {
+                auto writer = client->CreateTableWriter<TNode>(TRichYPath(pathOne).Append(true));
+                for (size_t rowId = 0; rowId < 1000; ++rowId) {
+                    writer->AddRow(TNode()("x", rowId)("y", rowId + 10));
+                }
+                writer->Finish();
+            }
+        }
+
+        {
+            for (size_t chunkId = 0; chunkId < 2; ++chunkId) {
+                auto writer = client->CreateTableWriter<TNode>(TRichYPath(pathTwo).Append(true));
+                for (size_t rowId = 0; rowId < 500; ++rowId) {
+                    writer->AddRow(TNode()("a", rowId)("b", rowId + 10));
+                }
+                writer->Finish();
+            }
+        }
+
+        auto pathWithoutRangesOne = TRichYPath(pathOne).Columns({"x", "y"});
+        auto pathWithoutRangesTwo = TRichYPath(pathTwo).Columns({"a", "b"});
+        
+        auto weightWithoutRanges = NYT::NDetail::EstimateTableRowWeight(client, {pathWithoutRangesOne, pathWithoutRangesTwo});
+        auto columnarStatisticsWithoutRanges = client->GetTableColumnarStatistics({pathWithoutRangesOne, pathWithoutRangesTwo});
+
+        auto pathWithRangesOne = pathWithoutRangesOne.AddRange(TReadRange()
+                        .LowerLimit(TReadLimit().RowIndex(0))
+                        .UpperLimit(TReadLimit().RowIndex(10)));
+
+        auto pathWithRangesTwo = pathWithoutRangesTwo.AddRange(TReadRange()
+                        .LowerLimit(TReadLimit().RowIndex(0))
+                        .UpperLimit(TReadLimit().RowIndex(20)));
+        
+        auto weightWithRanges = NYT::NDetail::EstimateTableRowWeight(client, {pathWithRangesOne, pathWithRangesTwo});
+        auto columnarStatisticsWithRanges = client->GetTableColumnarStatistics({pathWithRangesOne, pathWithRangesTwo});
+
+        UNIT_ASSERT_EQUAL(2, columnarStatisticsWithoutRanges.size());
+        UNIT_ASSERT_EQUAL(2, columnarStatisticsWithRanges.size());
+
+        // Check that columns statistics are different if request it with ranges.
+        UNIT_ASSERT(columnarStatisticsWithRanges[0].ColumnDataWeight["x"] != columnarStatisticsWithoutRanges[0].ColumnDataWeight["x"]);
+        UNIT_ASSERT_EQUAL(weightWithRanges, weightWithoutRanges);
+
+        auto weightOnlyOneTable = NYT::NDetail::EstimateTableRowWeight(client, {pathWithRangesOne});
+        UNIT_ASSERT_EQUAL(weightOnlyOneTable, weightWithRanges);
+    }
+}
+
 #undef DECLARE_PARALLEL_READER_SUIT
