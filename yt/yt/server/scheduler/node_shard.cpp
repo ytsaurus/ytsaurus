@@ -133,7 +133,7 @@ auto& UnconfirmedJobs(NJobTrackerClient::NProto::TReqHeartbeat* request)
 EAllocationState GetAllocationState(NProto::TAllocationStatus* status)
 {
     YT_VERIFY(status->has_state());
-    
+
     return CheckedEnumCast<EAllocationState>(status->state());
 }
 
@@ -1991,7 +1991,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
     auto operationId = FromProto<TOperationId>(jobStatus->operation_id());
 
     auto allocationState = GetAllocationState(jobStatus);
-    
+
     const auto& address = node->GetDefaultAddress();
 
     auto job = FindJob(jobId, node);
@@ -2148,8 +2148,6 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
 
 void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 {
-    auto guard = WriterGuard(ResourcesLock_);
-
     TotalNodeCount_ -= 1;
     if (node->GetResourceLimits().GetUserSlots() > 0) {
         ExecNodeCount_ -= 1;
@@ -2158,8 +2156,6 @@ void TNodeShard::SubtractNodeResources(const TExecNodePtr& node)
 
 void TNodeShard::AddNodeResources(const TExecNodePtr& node)
 {
-    auto guard = WriterGuard(ResourcesLock_);
-
     TotalNodeCount_ += 1;
 
     if (node->GetResourceLimits().GetUserSlots() > 0) {
@@ -2196,8 +2192,6 @@ void TNodeShard::UpdateNodeResources(
     }
 
     if (node->GetMasterState() == NNodeTrackerClient::ENodeState::Online) {
-        auto guard = WriterGuard(ResourcesLock_);
-
         // Clear cache if node has come with non-zero usage.
         if (oldResourceLimits.GetUserSlots() == 0 && node->GetResourceUsage().GetUserSlots() > 0) {
             CachedResourceStatisticsByTags_->Clear();
