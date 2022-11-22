@@ -49,8 +49,8 @@ public:
     }
 
 private:
-    IServiceTicketAuthPtr TicketAuth_;
-    TNativeAuthenticationManager* NativeAuthenticationManager_;
+    const IServiceTicketAuthPtr TicketAuth_;
+    TNativeAuthenticationManager* const NativeAuthenticationManager_;
 
     virtual void DoInject(const IClientRequestPtr& request)
     {
@@ -87,8 +87,8 @@ public:
     }
 
 private:
-    IChannelFactoryPtr UnderlyingFactory_;
-    IServiceTicketAuthPtr TicketAuth_;
+    const IChannelFactoryPtr UnderlyingFactory_;
+    const IServiceTicketAuthPtr TicketAuth_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
