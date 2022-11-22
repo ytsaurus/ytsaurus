@@ -12,8 +12,8 @@ namespace NYT::NPhoenix {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-const ui32 InlineObjectIdMask = 0x80000000;
-const ui32 NullObjectId       = 0x00000000;
+constexpr ui32 InlineObjectIdMask = 0x80000000;
+constexpr ui32 NullObjectId       = 0x00000000;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -269,6 +269,7 @@ class TLoadContext
     , public TStreamLoadContext
 {
 public:
+    using TStreamLoadContext::TStreamLoadContext;
     ~TLoadContext();
 
     void RegisterObject(ui32 id, void* basePtr);

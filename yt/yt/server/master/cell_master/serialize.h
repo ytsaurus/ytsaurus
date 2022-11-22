@@ -107,7 +107,9 @@ public:
     DEFINE_BYVAL_RO_PROPERTY(TBootstrap*, Bootstrap);
 
 public:
-    explicit TLoadContext(TBootstrap* bootstrap);
+    TLoadContext(
+        TBootstrap* bootstrap,
+        NHydra::ICheckpointableInputStream* input);
 
     NObjectServer::TObject* GetWeakGhostObject(NObjectServer::TObjectId id) const;
 

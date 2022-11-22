@@ -88,12 +88,11 @@ TEndCopyContext::TEndCopyContext(
     TBootstrap* bootstrap,
     ENodeCloneMode mode,
     TRef data)
-    : Mode_(mode)
+    : TEntityStreamLoadContext(&Stream_)
+    , Mode_(mode)
     , Bootstrap_(bootstrap)
     , Stream_(data.Begin(), data.Size())
-{
-    SetInput(&Stream_);
-}
+{ }
 
 template <>
 TSubject* TEndCopyContext::GetObject(TObjectId id)

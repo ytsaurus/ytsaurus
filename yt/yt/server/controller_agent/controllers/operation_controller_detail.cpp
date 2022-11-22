@@ -1998,10 +1998,10 @@ void TOperationControllerBase::DoLoadSnapshot(const TOperationSnapshot& snapshot
 
     TChunkedInputStream input(snapshot.Blocks);
 
-    TLoadContext context;
-    context.SetInput(&input);
-    context.SetRowBuffer(RowBuffer);
-    context.SetVersion(snapshot.Version);
+    TLoadContext context(
+        &input,
+        RowBuffer,
+        static_cast<ESnapshotVersion>(snapshot.Version));
 
     NPhoenix::TSerializer::InplaceLoad(context, this);
 

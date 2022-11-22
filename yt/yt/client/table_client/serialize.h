@@ -22,7 +22,12 @@ class TLoadContext
     : public NPhoenix::TLoadContext
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(TRowBufferPtr, RowBuffer);
+    DEFINE_BYVAL_RO_PROPERTY(TRowBufferPtr, RowBuffer);
+
+public:
+    TLoadContext(
+        IZeroCopyInput* input,
+        TRowBufferPtr rowBuffer);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -36,7 +36,7 @@ class TSaveContext
     : public NHydra::TSaveContext
 {
 public:
-    using NHydra::TSaveContext::TSaveContext;
+    explicit TSaveContext(NHydra::ICheckpointableOutputStream* output);
 
     ETabletReign GetVersion() const;
 };
@@ -47,6 +47,8 @@ class TLoadContext
     : public NHydra::TLoadContext
 {
 public:
+    explicit TLoadContext(NHydra::ICheckpointableInputStream* input);
+
     ETabletReign GetVersion() const;
 };
 

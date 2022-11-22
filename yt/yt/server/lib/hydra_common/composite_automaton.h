@@ -23,16 +23,9 @@ class TSaveContext
 public:
     explicit TSaveContext(
         ICheckpointableOutputStream* output,
-        int version = 0)
-        : TEntityStreamSaveContext(output, version)
-        , CheckpointableOutput_(output)
-    { }
+        int version = 0);
 
-    void MakeCheckpoint()
-    {
-        Output_.Flush();
-        CheckpointableOutput_->MakeCheckpoint();
-    }
+    void MakeCheckpoint();
 
 private:
     ICheckpointableOutputStream* const CheckpointableOutput_;
@@ -44,9 +37,17 @@ class TLoadContext
     : public TEntityStreamLoadContext
 {
 public:
-    DEFINE_BYVAL_RW_PROPERTY(ICheckpointableInputStream*, CheckpointableInput);
     DEFINE_BYVAL_RW_PROPERTY(i64, LowerWriteCountDumpLimit);
     DEFINE_BYVAL_RW_PROPERTY(i64, UpperWriteCountDumpLimit);
+
+public:
+    explicit TLoadContext(ICheckpointableInputStream* input);
+
+    void SkipToCheckpoint();
+    i64 GetOffset() const;
+
+private:
+    ICheckpointableInputStream* const CheckpointableInput_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,9 +208,7 @@ protected:
     virtual std::unique_ptr<TLoadContext> CreateLoadContext(
         ICheckpointableInputStream* input) = 0;
 
-    void InitLoadContext(
-        TLoadContext& context,
-        ICheckpointableInputStream* input);
+    void SetupLoadContext(TLoadContext* context);
 
     template <class TRequest>
     void RegisterMethod(

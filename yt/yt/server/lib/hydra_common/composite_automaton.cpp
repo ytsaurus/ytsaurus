@@ -32,6 +32,39 @@ static const size_t SnapshotPrefetchWindowSize = 64_MB;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TSaveContext::TSaveContext(
+    ICheckpointableOutputStream* output,
+    int version)
+    : TEntityStreamSaveContext(output, version)
+    , CheckpointableOutput_(output)
+{ }
+
+void TSaveContext::MakeCheckpoint()
+{
+    Output_.FlushBuffer();
+    CheckpointableOutput_->MakeCheckpoint();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoadContext::TLoadContext(ICheckpointableInputStream* input)
+    : TEntityStreamLoadContext(input)
+    , CheckpointableInput_(input)
+{ }
+
+void TLoadContext::SkipToCheckpoint()
+{
+    Input_.ClearBuffer();
+    CheckpointableInput_->SkipToCheckpoint();
+}
+
+i64 TLoadContext::GetOffset() const
+{
+    return CheckpointableInput_->GetOffset();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TCompositeAutomatonPart::TCompositeAutomatonPart(TTestingTag)
     : HydraManager_(nullptr)
     , Automaton_(nullptr)
@@ -282,16 +315,12 @@ void TCompositeAutomaton::RegisterPart(TCompositeAutomatonPartPtr part)
     }
 }
 
-void TCompositeAutomaton::InitLoadContext(
-    TLoadContext& context,
-    ICheckpointableInputStream* input)
+void TCompositeAutomaton::SetupLoadContext(TLoadContext* context)
 {
-    context.SetInput(input);
-    context.SetCheckpointableInput(input);
-    context.Dumper().SetEnabled(SerializationDumpEnabled_);
-    context.Dumper().SetLowerWriteCountDumpLimit(LowerWriteCountDumpLimit_);
-    context.Dumper().SetUpperWriteCountDumpLimit(UpperWriteCountDumpLimit_);
-    context.SetEnableTotalWriteCountReport(EnableTotalWriteCountReport_);
+    context->Dumper().SetEnabled(SerializationDumpEnabled_);
+    context->Dumper().SetLowerWriteCountDumpLimit(LowerWriteCountDumpLimit_);
+    context->Dumper().SetUpperWriteCountDumpLimit(UpperWriteCountDumpLimit_);
+    context->SetEnableTotalWriteCountReport(EnableTotalWriteCountReport_);
 }
 
 void TCompositeAutomaton::RegisterMethod(
@@ -402,12 +431,11 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
                     SERIALIZATION_DUMP_WRITE(context, "%v@%v =>", name, version);
 
                     SERIALIZATION_DUMP_INDENT(context) {
-                        auto* checkpointableInput = context.GetCheckpointableInput();
                         auto readPart = [&] (auto func) {
-                            auto offsetBefore = checkpointableInput->GetOffset();
+                            auto offsetBefore = context.GetOffset();
                             func();
-                            checkpointableInput->SkipToCheckpoint();
-                            auto offsetAfter = checkpointableInput->GetOffset();
+                            context.SkipToCheckpoint();
+                            auto offsetAfter = context.GetOffset();
                             return offsetAfter - offsetBefore;
                         };
 

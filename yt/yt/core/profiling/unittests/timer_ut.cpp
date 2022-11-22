@@ -33,8 +33,7 @@ void PersistWaitRestore(TWallTimer& timer)
     TDelayedExecutor::WaitForDuration(SleepQuantum);
 
     TMemoryInput input(blob.Begin(), blob.Size());
-    TLoadContext loadContext;
-    loadContext.SetInput(&input);
+    TLoadContext loadContext(&input);
     Load(loadContext, timer);
 }
 

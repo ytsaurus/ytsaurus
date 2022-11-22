@@ -47,6 +47,10 @@ EChaosReign TSaveContext::GetVersion() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TLoadContext::TLoadContext(ICheckpointableInputStream* input)
+    : NHydra::TLoadContext(input)
+{ }
+
 EChaosReign TLoadContext::GetVersion() const
 {
     return static_cast<EChaosReign>(NHydra::TLoadContext::GetVersion());

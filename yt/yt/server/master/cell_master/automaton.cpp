@@ -55,8 +55,8 @@ std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
 std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(
     ICheckpointableInputStream* input)
 {
-    auto context = std::make_unique<TLoadContext>(Bootstrap_);
-    TCompositeAutomaton::InitLoadContext(*context, input);
+    auto context = std::make_unique<TLoadContext>(Bootstrap_, input);
+    TCompositeAutomaton::SetupLoadContext(context.get());
     return context;
 }
 

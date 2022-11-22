@@ -203,18 +203,18 @@ protected:
         saveContext.Finish();
 
         TStringInput input(buffer);
+        auto checkpointableInput = CreateCheckpointableInputStream(&input);
+
         StoreManager_.Reset();
         CreateTablet(/*revive*/ true);
         {
-            TLoadContext loadContext;
-            loadContext.SetVersion(static_cast<int>(GetCurrentReign()));
-            loadContext.SetInput(&input);
+            TLoadContext loadContext(checkpointableInput.get());
+            loadContext.SetVersion(GetCurrentReign());
             Tablet_->Load(loadContext);
         }
         {
-            TLoadContext loadContext;
-            loadContext.SetVersion(static_cast<int>(GetCurrentReign()));
-            loadContext.SetInput(&input);
+            TLoadContext loadContext(checkpointableInput.get());
+            loadContext.SetVersion(GetCurrentReign());
             Tablet_->AsyncLoad(loadContext);
         }
 

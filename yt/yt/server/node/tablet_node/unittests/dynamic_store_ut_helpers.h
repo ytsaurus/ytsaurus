@@ -352,9 +352,8 @@ public:
 
         TStringInput input(buffer);
         auto checkpointableInput = CreateCheckpointableInputStream(&input);
-        TLoadContext loadContext;
+        TLoadContext loadContext(checkpointableInput.get());
         loadContext.SetVersion(GetCurrentReign());
-        loadContext.SetInput(checkpointableInput.get());
 
         CreateDynamicStore();
         store = GetDynamicStore();
