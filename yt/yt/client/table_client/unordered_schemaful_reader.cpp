@@ -200,7 +200,7 @@ private:
     void UpdateSession(TSession& session)
     {
         session.ReadyEvent = session.Reader->GetReadyEvent();
-        session.ReadyEvent->Subscribe(BIND_NEW(&TUnorderedSchemafulReader::OnReady, MakeStrong(this)));
+        session.ReadyEvent->Subscribe(BIND(&TUnorderedSchemafulReader::OnReady, MakeStrong(this)));
         CancelableContext_->PropagateTo(*session.ReadyEvent);
     }
 

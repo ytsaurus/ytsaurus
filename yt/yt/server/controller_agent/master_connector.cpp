@@ -360,9 +360,9 @@ private:
         YT_VERIFY(!OperationNodesAndArchiveUpdateExecutor_);
         OperationNodesAndArchiveUpdateExecutor_ = New<TUpdateExecutor<TOperationId, TOperationNodeUpdate>>(
             CancelableControlInvoker_,
-            BIND_NEW(&TImpl::UpdateOperationNodeAndArchive, Unretained(this)),
+            BIND(&TImpl::UpdateOperationNodeAndArchive, Unretained(this)),
             BIND([] (const TOperationNodeUpdate*) { return false; }),
-            BIND_NEW(&TImpl::OnOperationUpdateFailed, Unretained(this)),
+            BIND(&TImpl::OnOperationUpdateFailed, Unretained(this)),
             Config_->OperationsUpdatePeriod,
             Logger);
         OperationNodesAndArchiveUpdateExecutor_->Start();

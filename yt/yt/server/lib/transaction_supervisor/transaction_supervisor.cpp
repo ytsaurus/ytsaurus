@@ -147,11 +147,11 @@ public:
         RegisterSaver(
             ESyncSerializationPriority::Keys,
             "TransactionSupervisor.Keys",
-            BIND_NEW(&TTransactionSupervisor::SaveKeys, Unretained(this)));
+            BIND(&TTransactionSupervisor::SaveKeys, Unretained(this)));
         RegisterSaver(
             ESyncSerializationPriority::Values,
             "TransactionSupervisor.Values",
-            BIND_NEW(&TTransactionSupervisor::SaveValues, Unretained(this)));
+            BIND(&TTransactionSupervisor::SaveValues, Unretained(this)));
     }
 
     std::vector<IServicePtr> GetRpcServices() override

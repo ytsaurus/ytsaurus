@@ -19,8 +19,8 @@ TExtendedCallback<R(TArgs...)>::Via(IInvokerPtr invoker) const
     YT_ASSERT(invoker);
 
     auto this_ = *this;
-    return BIND_DONT_CAPTURE_TRACE_CONTEXT([=, invoker = std::move(invoker)] (TArgs... args) {
-        invoker->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(this_, std::forward<TArgs>(args)...));
+    return BIND_NO_PROPAGATE([=, invoker = std::move(invoker)] (TArgs... args) {
+        invoker->Invoke(BIND_NO_PROPAGATE(this_, std::forward<TArgs>(args)...));
     });
 }
 

@@ -74,7 +74,7 @@ public:
         auto promise = NewPromise<void>();
 
         auto cookie = Submit(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT([=] (bool aborted) mutable {
+            BIND_NO_PROPAGATE([=] (bool aborted) mutable {
                 if (aborted) {
                     promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed promise aborted"));
                 } else {
@@ -84,7 +84,7 @@ public:
             delay,
             std::move(invoker));
 
-        promise.OnCanceled(BIND_DONT_CAPTURE_TRACE_CONTEXT([=, cookie = std::move(cookie)] (const TError& error) {
+        promise.OnCanceled(BIND_NO_PROPAGATE([=, cookie = std::move(cookie)] (const TError& error) {
             TDelayedExecutor::Cancel(cookie);
             promise.TrySet(TError(NYT::EErrorCode::Canceled, "Delayed callback canceled")
                 << error);
@@ -111,7 +111,7 @@ public:
     {
         YT_VERIFY(closure);
         return Submit(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            BIND_NO_PROPAGATE(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             delay.ToDeadLine(),
             std::move(invoker));
     }
@@ -120,7 +120,7 @@ public:
     {
         YT_VERIFY(closure);
         return Submit(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&ClosureToDelayedCallbackAdapter, std::move(closure)),
+            BIND_NO_PROPAGATE(&ClosureToDelayedCallbackAdapter, std::move(closure)),
             deadline,
             std::move(invoker));
     }
@@ -347,7 +347,7 @@ private:
         void RunCallback(const TDelayedExecutorEntryPtr& entry, bool abort)
         {
             if (auto callback = TakeCallback(entry)) {
-                (entry->Invoker ? entry->Invoker : DelayedInvoker_)->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(std::move(callback), abort));
+                (entry->Invoker ? entry->Invoker : DelayedInvoker_)->Invoke(BIND_NO_PROPAGATE(std::move(callback), abort));
             }
         }
     };

@@ -470,7 +470,7 @@ private:
             flushDataSize);
 
         req->Invoke().Subscribe(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TJournalChunkWriter::OnRecordsFlushed, MakeWeak(this), node, flushRecordCount)
+            BIND_NO_PROPAGATE(&TJournalChunkWriter::OnRecordsFlushed, MakeWeak(this), node, flushRecordCount)
                 .Via(Invoker_));
     }
 

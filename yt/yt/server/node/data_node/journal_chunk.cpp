@@ -180,7 +180,7 @@ TFuture<std::vector<TBlock>> TJournalChunk::ReadBlockRange(
         return MakeFuture<std::vector<TBlock>>(ex);
     }
 
-    auto callback = BIND_NEW(
+    auto callback = BIND(
         &TJournalChunk::DoReadBlockRange,
         MakeStrong(this),
         session);

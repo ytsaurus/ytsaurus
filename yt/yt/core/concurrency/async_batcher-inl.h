@@ -30,7 +30,7 @@ TFuture<T> TAsyncBatcher<T>::Run()
         PendingPromise_ = NewPromise<void>();
         if (BatchingDelay_) {
             TDelayedExecutor::Submit(
-                BIND_DONT_CAPTURE_TRACE_CONTEXT(&TAsyncBatcher::OnDeadlineReached, MakeWeak(this)),
+                BIND_NO_PROPAGATE(&TAsyncBatcher::OnDeadlineReached, MakeWeak(this)),
                 BatchingDelay_);
         } else {
             DeadlineReached_ = true;
@@ -93,7 +93,7 @@ void TAsyncBatcher<T>::DoRun(TGuard<NThreading::TSpinLock>& guard)
 
     Provider_
         .Run()
-        .Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT(&TAsyncBatcher::OnResult, MakeWeak(this)));
+        .Subscribe(BIND_NO_PROPAGATE(&TAsyncBatcher::OnResult, MakeWeak(this)));
 }
 
 template <class T>

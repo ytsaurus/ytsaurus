@@ -448,7 +448,7 @@ public:
             Canceler_.Reset();
 
             GetFinalizerInvoker()->Invoke(
-                BIND_DONT_CAPTURE_TRACE_CONTEXT(&ResumeFiber, Passed(std::move(Fiber_))));
+                BIND_NO_PROPAGATE(&ResumeFiber, Passed(std::move(Fiber_))));
         }
     }
 
@@ -491,13 +491,13 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
     TClosure afterSwitch;
     {
         NYTAlloc::TMemoryTagGuard guard(NYTAlloc::NullMemoryTag);
-        afterSwitch = BIND_DONT_CAPTURE_TRACE_CONTEXT([
+        afterSwitch = BIND_NO_PROPAGATE([
             canceler,
             invoker = std::move(invoker),
             future = std::move(future),
             fiber = MakeStrong(currentFiber)
         ] () mutable {
-            future.Subscribe(BIND_DONT_CAPTURE_TRACE_CONTEXT([
+            future.Subscribe(BIND_NO_PROPAGATE([
                 invoker = std::move(invoker),
                 fiber = std::move(fiber),
                 canceler = std::move(canceler)
@@ -505,7 +505,7 @@ void WaitUntilSet(TFuture<void> future, IInvokerPtr invoker)
                 YT_LOG_DEBUG("Waking up fiber (TargetFiberId: %x)",
                     canceler->GetFiberId());
 
-                invoker->Invoke(BIND_DONT_CAPTURE_TRACE_CONTEXT(TResumeGuard{std::move(fiber), std::move(canceler)}));
+                invoker->Invoke(BIND_NO_PROPAGATE(TResumeGuard{std::move(fiber), std::move(canceler)}));
             }));
         });
     }

@@ -743,7 +743,7 @@ private:
                 auto heavyChannel = CreateRetryingChannel(
                     Config_->NodeChannel,
                     lightChannel,
-                    BIND_NEW([] (const TError& error) {
+                    BIND([] (const TError& error) {
                         return error.FindMatching(NChunkClient::EErrorCode::WriteThrottlingActive).operator bool();
                     }));
                 auto node = New<TNode>(
@@ -1479,7 +1479,7 @@ private:
             auto traceGuard = QueueTrace_.CreateTraceGuard("JournalWriter:FlushBlocks", node->FirstPendingRowIndex, {});
 
             req->Invoke().Subscribe(
-                BIND_DONT_CAPTURE_TRACE_CONTEXT(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount)
+                BIND_NO_PROPAGATE(&TImpl::OnBlocksWritten, MakeWeak(this), CurrentChunkSession_, node, flushRowCount)
                     .Via(Invoker_));
         }
 

@@ -84,7 +84,7 @@ public:
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::MulticellManager)
         , Config_(Bootstrap_->GetConfig()->MulticellManager)
         , UpstreamSyncBatcher_(New<TAsyncBatcher<void>>(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TMulticellManager::DoSyncWithUpstream, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&TMulticellManager::DoSyncWithUpstream, MakeWeak(this)),
             Config_->UpstreamSyncDelay))
     {
         TMasterAutomatonPart::RegisterMethod(BIND(&TMulticellManager::HydraRegisterSecondaryMasterAtPrimary, Unretained(this)));

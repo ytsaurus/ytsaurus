@@ -1946,7 +1946,7 @@ private:
             epochContext->AlivePeersUpdateExecutor->Start();
         }
         epochContext->LeaderSyncBatcher = New<TAsyncBatcher<void>>(
-            BIND_DONT_CAPTURE_TRACE_CONTEXT(&TDistributedHydraManager::DoSyncWithLeader, MakeWeak(this), MakeWeak(epochContext)),
+            BIND_NO_PROPAGATE(&TDistributedHydraManager::DoSyncWithLeader, MakeWeak(this), MakeWeak(epochContext)),
             Config_->LeaderSyncDelay);
 
         YT_VERIFY(!ControlEpochContext_);

@@ -166,7 +166,7 @@ public:
     {
         auto valueConsumer = std::make_unique<TEventLogValueConsumer>(
             EventLogWriter_->GetNameTable(),
-            BIND_NEW(&TImpl::AddRow, MakeStrong(this)));
+            BIND(&TImpl::AddRow, MakeStrong(this)));
         return std::make_unique<TEventLogTableConsumer>(std::move(valueConsumer));
     }
 

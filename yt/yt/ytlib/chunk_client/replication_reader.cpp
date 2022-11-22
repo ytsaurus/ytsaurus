@@ -821,7 +821,7 @@ protected:
         RetryStartTime_ = TInstant::Now();
 
         SeedsFuture_ = reader->GetReplicasFuture();
-        SeedsFuture_.Subscribe(BIND_NEW(&TSessionBase::OnGotSeeds, MakeStrong(this))
+        SeedsFuture_.Subscribe(BIND(&TSessionBase::OnGotSeeds, MakeStrong(this))
             .Via(SessionInvoker_));
     }
 
@@ -2516,7 +2516,7 @@ private:
     {
         // NB: strong ref here is the only reference that keeps session alive.
         SessionInvoker_->Invoke(
-            BIND_NEW(&TGetMetaSession::DoRequestMeta, MakeStrong(this)));
+            BIND(&TGetMetaSession::DoRequestMeta, MakeStrong(this)));
     }
 
     void DoRequestMeta()

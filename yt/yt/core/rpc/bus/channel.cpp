@@ -860,7 +860,7 @@ private:
             busOptions.ChecksummedPartCount = options.GenerateAttachmentChecksums
                 ? NBus::TSendOptions::AllParts
                 : 2; // RPC header + request body
-            Bus_->Send(requestMessage, busOptions).Subscribe(BIND_NEW(
+            Bus_->Send(requestMessage, busOptions).Subscribe(BIND(
                 &TSession::OnAcknowledgement,
                 MakeStrong(this),
                 options.AcknowledgementTimeout.has_value(),
