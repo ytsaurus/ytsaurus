@@ -116,12 +116,15 @@ i64 EstimateTableRowWeight(const IClientBasePtr& client, const TVector<TRichYPat
 
     auto dataWeights = BatchTransform(client, paths, [&] (const TBatchRequestPtr& batch, const TRichYPath& path) {
         if (path.Columns_) {
-            pathsForColumnStatistics.push_back(path);
+            auto pathWithoutRanges = path;
+            pathWithoutRanges.Ranges_.clear();
+            pathsForColumnStatistics.push_back(pathWithoutRanges);
             return NThreading::MakeFuture(TNode(0));
         } else {
             return batch->Get(path.Path_ + "/@data_weight");
         }
     });
+
     if (!pathsForColumnStatistics.empty()) {
         auto columnarStatistics = client->GetTableColumnarStatistics(pathsForColumnStatistics);
         auto statisticsIt = columnarStatistics.cbegin();
@@ -136,8 +139,10 @@ i64 EstimateTableRowWeight(const IClientBasePtr& client, const TVector<TRichYPat
                 dataWeight += columnWeight;
             }
             dataWeights[i] = dataWeight;
+            ++statisticsIt;
         }
     }
+
     auto rowCounts = BatchTransform(client, paths, [&] (const TBatchRequestPtr& batch, const TRichYPath& path) {
         return batch->Get(path.Path_ + "/@row_count");
     });
