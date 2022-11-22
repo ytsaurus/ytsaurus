@@ -194,21 +194,18 @@ private:
 
     bool HasOngoingNodesAttributesUpdate_ = false;
 
-    std::atomic<int> ActiveJobCount_ = {0};
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ResourcesLock_);
-    TJobResources TotalResourceUsage_;
+    std::atomic<int> ActiveJobCount_ = 0;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedExecNodeDescriptorsLock_);
     TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
 
     THashMap<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
     // Exec node is the node that is online and has user slots.
-    std::atomic<int> ExecNodeCount_ = {0};
-    std::atomic<int> TotalNodeCount_ = {0};
+    std::atomic<int> ExecNodeCount_ = 0;
+    std::atomic<int> TotalNodeCount_ = 0;
 
-    std::atomic<int> JobReporterWriteFailuresCount_ = {0};
-    std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = {0};
+    std::atomic<int> JobReporterWriteFailuresCount_ = 0;
+    std::atomic<int> JobReporterQueueIsTooLargeNodeCount_ = 0;
 
     TAllocationCounter AllocationCounter_;
 
