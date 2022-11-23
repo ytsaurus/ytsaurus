@@ -748,6 +748,10 @@ class YTEnvSetup(object):
 
             master_cell_descriptors = self.get_param("MASTER_CELL_DESCRIPTORS", cluster_index)
 
+            node_count = self.get_param("NUM_NODES", cluster_index) + self.get_param("NUM_CHAOS_NODES", cluster_index)
+            if node_count > 0:
+                wait(lambda: yt_commands.get("//sys/cluster_nodes/@count", driver=driver) == node_count)
+
             scheduler_count = self.get_param("NUM_SCHEDULERS", cluster_index)
             if scheduler_count > 0:
                 scheduler_pool_trees_root = self.Env.configs["scheduler"][0]["scheduler"].get(
@@ -767,7 +771,7 @@ class YTEnvSetup(object):
 
             yt_commands.clear_metadata_caches(driver=driver)
 
-            if self.get_param("NUM_NODES", cluster_index) > 0:
+            if node_count > 0:
                 self._setup_nodes_dynamic_config(driver=driver)
 
             if self.USE_DYNAMIC_TABLES:
