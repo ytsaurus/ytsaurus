@@ -115,7 +115,7 @@ class CypressDiscoveryService(discoveryPath: String)(implicit yt: CompoundClient
     if (YtWrapper.exists(path))
       Try(YtWrapper.listDir(path)).map(_.head)
     else
-      Failure(InvalidCatalogException(s"Path not found: $path"))
+      Failure(EmptyDirectoryException(s"Path not found: $path"))
 
 
   override def discoverAddress(): Try[Address] =

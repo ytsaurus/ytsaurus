@@ -7,4 +7,6 @@ case class LogicalSortedMarker(keys: Seq[String], child: LogicalPlan) extends Un
   override def output: Seq[Attribute] = child.output
 
   override def maxRows: Option[Long] = child.maxRows
+
+  override protected def withNewChildInternal(newChild: LogicalPlan): LogicalSortedMarker = copy(child = newChild)
 }

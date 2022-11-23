@@ -17,12 +17,6 @@ RUN apt-get install -y locales && locale-gen en_US.UTF-8
 ENV LANG='en_US.UTF-8' LANGUAGE='en_US:en' LC_ALL='en_US.UTF-8'
 
 RUN \
-   curl -fsL https://archive.apache.org/dist/maven/maven-3/3.6.3/binaries/apache-maven-3.6.3-bin.tar.gz | tar xfz - -C /usr/share && \
-   chown -R root:root /usr/share/apache-maven-3.6.3 && \
-   chmod -R 755 /usr/share/apache-maven-3.6.3 && \
-   ln -s /usr/share/apache-maven-3.6.3/bin/mvn /usr/local/bin/mvn
-
-RUN \
   curl -fsL "https://github.com/sbt/sbt/releases/download/v$SBT_VERSION/sbt-$SBT_VERSION.tgz" | tar xfz - -C /usr/share && \
   chown -R root:root /usr/share/sbt && \
   chmod -R 755 /usr/share/sbt && \

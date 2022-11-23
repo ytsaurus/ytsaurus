@@ -3,7 +3,7 @@ package org.apache.spark.sql.v2
 import org.apache.hadoop.mapreduce.{Job, TaskAttemptContext}
 import org.apache.spark.internal.Logging
 import org.apache.spark.sql.connector.write.LogicalWriteInfo
-import org.apache.spark.sql.execution.datasources.v2.FileWriteBuilder
+import org.apache.spark.sql.execution.datasources.v2.FileWrite
 import org.apache.spark.sql.execution.datasources.{OutputWriter, OutputWriterFactory}
 import org.apache.spark.sql.internal.SQLConf
 import org.apache.spark.sql.types.{DataType, StructType}
@@ -12,11 +12,11 @@ import ru.yandex.spark.yt.format.{YtOutputCommitter, YtOutputWriter}
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.serializers.SchemaConverter
 
-class YtWriteBuilder(paths: Seq[String],
-                     formatName: String,
-                     supportsDataType: DataType => Boolean,
-                     info: LogicalWriteInfo)
-  extends FileWriteBuilder(paths, formatName, supportsDataType, info) with Logging {
+case class YtWrite(paths: Seq[String],
+                   formatName: String,
+                   supportsDataType: DataType => Boolean,
+                   info: LogicalWriteInfo)
+  extends FileWrite with Logging {
 
   private def addWriteOptions(options: Map[String, String],
                               writeConfiguration: SparkYtWriteConfiguration): Map[String, String] = {

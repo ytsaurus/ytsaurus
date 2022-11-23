@@ -464,7 +464,7 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
     val query = res.filter(filter)
     query.collect()
     query.queryExecution.executedPlan.collectFirst {
-      case b@BatchScanExec(_, _) => b.metrics("numOutputRows").value
+      case b@BatchScanExec(_, _, _) => b.metrics("numOutputRows").value
     }.get
   }
 }

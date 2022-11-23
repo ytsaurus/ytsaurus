@@ -2,7 +2,7 @@ package org.apache.spark.sql.v2
 
 import org.apache.hadoop.fs.FileStatus
 import org.apache.spark.sql.SparkSession
-import org.apache.spark.sql.connector.write.{LogicalWriteInfo, WriteBuilder}
+import org.apache.spark.sql.connector.write.{LogicalWriteInfo, Write, WriteBuilder}
 import org.apache.spark.sql.execution.datasources._
 import org.apache.spark.sql.execution.datasources.v2.FileTable
 import org.apache.spark.sql.types._
@@ -26,7 +26,7 @@ case class YtTable(name: String,
     val hadoopConf = sparkSession.sessionState.newHadoopConfWithOptions(caseSensitiveMap)
     // This is a non-streaming file based datasource.
     val rootPathsSpecified = DataSource.checkAndGlobPathIfNecessary(paths, hadoopConf,
-      checkEmptyGlobPath = true, checkFilesExist = true)
+      checkEmptyGlobPath = true, checkFilesExist = true, enableGlobbing = true)
     val fileStatusCache = FileStatusCache.getOrCreate(sparkSession)
     new YtInMemoryFileIndex(sparkSession, rootPathsSpecified, caseSensitiveMap, userSpecifiedSchema, fileStatusCache)
   }
@@ -38,7 +38,9 @@ case class YtTable(name: String,
     YtUtils.inferSchema(sparkSession, options.asScala.toMap, files)
 
   override def newWriteBuilder(info: LogicalWriteInfo): WriteBuilder =
-    new YtWriteBuilder(paths, formatName, supportsDataType, info)
+    new WriteBuilder {
+      override def build(): Write = YtWrite(paths, formatName, supportsDataType, info)
+    }
 
   override def supportsDataType(dataType: DataType): Boolean = YtTable.supportsDataType(dataType)
 

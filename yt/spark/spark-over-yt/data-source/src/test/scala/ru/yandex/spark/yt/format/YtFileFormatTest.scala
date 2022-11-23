@@ -10,6 +10,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
 import org.apache.spark.sql.{AnalysisException, DataFrameReader, Row, SaveMode}
 import org.apache.spark.status.api.v1
+import org.apache.spark.test.UtilsWrapper
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.prop.TableDrivenPropertyChecks
 import org.scalatest.{FlatSpec, Matchers, PrivateMethodTester}
@@ -711,10 +712,8 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     val customPath = "ytTable:/" + tmpPath
     val data = Stream.from(1).take(1000)
 
-    val statusStore = PrivateMethod[AnyRef]('statusStore)
-    val stageList = PrivateMethod[Seq[v1.StageData]]('stageList)
-    val store = spark.sparkContext invokePrivate statusStore()
-    val stagesBefore = store invokePrivate stageList(null)
+    val store = UtilsWrapper.appStatusStore(spark)
+    val stagesBefore = store.stageList(null)
     val totalInputBefore = stagesBefore.map(_.inputBytes).sum
     val totalOutputBefore = stagesBefore.map(_.outputBytes).sum
 
@@ -722,7 +721,7 @@ class YtFileFormatTest extends FlatSpec with Matchers with LocalSpark
     val allRows = spark.read.yt(customPath).collect()
     allRows should have size data.length
 
-    val stages = store invokePrivate stageList(null)
+    val stages = store.stageList(null)
     val totalInput = stages.map(_.inputBytes).sum
     val totalOutput = stages.map(_.outputBytes).sum
     totalInput should be > totalInputBefore

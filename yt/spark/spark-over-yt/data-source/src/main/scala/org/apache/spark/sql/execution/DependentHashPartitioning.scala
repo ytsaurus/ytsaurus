@@ -1,8 +1,7 @@
 package org.apache.spark.sql.execution
 
-import org.apache.spark.sql.catalyst.expressions.{AttributeReference, Expression, Unevaluable}
-import org.apache.spark.sql.catalyst.plans.physical.{ClusteredDistribution, HashClusteredDistribution, Partitioning}
-import org.apache.spark.sql.catalyst.plans.physical.Distribution
+import org.apache.spark.sql.catalyst.expressions.{Expression, Unevaluable}
+import org.apache.spark.sql.catalyst.plans.physical.{Distribution, HashClusteredDistribution, Partitioning}
 import org.apache.spark.sql.types.{DataType, IntegerType}
 import ru.yandex.spark.yt.common.utils.TuplePoint
 
@@ -28,4 +27,7 @@ case class DependentHashPartitioning(expressions: Seq[Expression], pivots: Seq[T
   }
 
   override val numPartitions: Int = pivots.length + 1
+
+  override protected def withNewChildrenInternal(newChildren: IndexedSeq[Expression]): Expression =
+    copy(expressions = newChildren)
 }

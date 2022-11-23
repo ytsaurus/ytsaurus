@@ -4,7 +4,17 @@ import java.net.InetSocketAddress
 
 case class HostAndPort(host: String, port: Int) {
   def toAddress: InetSocketAddress = new InetSocketAddress(host, port)
-  def asString: String = s"$host:$port"
+  def asString: String = s"$hostText:$port"
+
+  def hostText: String = {
+    if (host.contains(":") && !host.startsWith("[")) {
+      s"[$host]"
+    } else {
+      s"$host"
+    }
+  }
+
+  override def toString: String = asString
 }
 
 // Replacement for Guava HostAndPort with simplified checks

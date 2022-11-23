@@ -9,4 +9,6 @@ case class LogicalDependentHashMarker(condition: Seq[Expression], pivots: Seq[Tu
   override def output: Seq[Attribute] = child.output
 
   override def maxRows: Option[Long] = child.maxRows
+
+  override protected def withNewChildInternal(newChild: LogicalPlan): LogicalDependentHashMarker = copy(child = newChild)
 }

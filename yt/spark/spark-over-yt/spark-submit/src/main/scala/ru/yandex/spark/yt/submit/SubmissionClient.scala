@@ -13,7 +13,7 @@ import ru.yandex.spark.yt.wrapper.discovery.CypressDiscoveryService
 
 import java.io.File
 import java.util.UUID
-import java.util.concurrent.TimeUnit
+import java.util.concurrent.{Executors, ThreadFactory, TimeUnit}
 import java.util.concurrent.atomic.AtomicReference
 import scala.annotation.tailrec
 import scala.concurrent.duration._
@@ -31,8 +31,14 @@ class SubmissionClient(proxy: String,
 
   private val cluster = new AtomicReference[SparkCluster](SparkCluster.get(proxy, discoveryPath, user, token))
 
-  private val loop = new DefaultEventLoopGroup(1, new ThreadFactoryBuilder().setDaemon(true).build()).next()
-  loop.scheduleAtFixedRate(() => updateCluster(), 0, 5, TimeUnit.MINUTES)
+  private val threadFactory = new ThreadFactory() {
+    override def newThread(runnable: Runnable): Thread = {
+      val thread = Executors.defaultThreadFactory().newThread(runnable)
+      thread.setDaemon(true)
+      thread
+    }
+  }
+  private val loop = new DefaultEventLoopGroup(1, threadFactory).next()
 
   def newLauncher(): InProcessLauncher = new InProcessLauncher()
 
@@ -236,11 +242,21 @@ class SubmissionClient(proxy: String,
     }
   }
 
-  private def getSubmissionId(submissionFiles: SubmissionFiles): String = {
-    while (!submissionFiles.id.exists() && !submissionFiles.error.exists()) {
-      log.debug(s"Waiting for submission id in file: ${submissionFiles.id}")
-      Thread.sleep((2 seconds).toMillis)
+  @tailrec
+  private def waitSubmissionResultFile(submissionFiles: SubmissionFiles, retryCount: Int = 4): Unit = {
+    if (!submissionFiles.id.exists() && !submissionFiles.error.exists()) {
+      if (retryCount <= 0) {
+        throw new RuntimeException(s"Files with submission result were not created")
+      } else {
+        log.warn(s"Waiting for submission id in file: ${submissionFiles.id}")
+        Thread.sleep((5 seconds).toMillis)
+        waitSubmissionResultFile(submissionFiles, retryCount - 1)
+      }
     }
+  }
+
+  private def getSubmissionId(submissionFiles: SubmissionFiles): String = {
+    waitSubmissionResultFile(submissionFiles)
     if (submissionFiles.error.exists()) {
       val message = FileUtils.readFileToString(submissionFiles.error)
       throw new RuntimeException(s"Spark submission finished with error: $message")

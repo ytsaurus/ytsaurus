@@ -1,7 +1,7 @@
 package ru.yandex.spark.metrics
 
-import com.google.common.net.HostAndPort
 import org.slf4j.{Logger, LoggerFactory}
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.metrics.SolomonConfig.Encoding
 import ru.yandex.spark.yt.fs.conf.PropertiesConf
 
@@ -39,7 +39,7 @@ object SolomonConfig {
     val metricNameRegex = props.ytConf(SolomonSinkSettings.SolomonMetricNameRegex)
     val metricNameTransform = Some(props.ytConf(SolomonSinkSettings.SolomonMetricNameTransform)).filter(!_.isBlank)
     //noinspection UnstableApiUsage
-    val hostAndPort = HostAndPort.fromParts(host, port)
+    val hostAndPort = HostAndPort(host, port)
     log.info(s"Solomon host: $host, port: $port commonLabels=$commonLabels")
     SolomonConfig(
       url = s"http://$hostAndPort",

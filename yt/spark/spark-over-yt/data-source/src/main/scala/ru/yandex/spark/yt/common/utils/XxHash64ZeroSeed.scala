@@ -18,6 +18,9 @@ case class XxHash64ZeroSeed(children: Seq[Expression], seed: Long) extends HashE
   override protected def computeHash(value: Any, dataType: DataType, seed: Long): Long = {
     XxHash64Function.hash(value, dataType, seed)
   }
+
+  override protected def withNewChildrenInternal(newChildren: IndexedSeq[Expression]): XxHash64ZeroSeed =
+    copy(children = newChildren)
 }
 
 object XxHash64ZeroSeed {

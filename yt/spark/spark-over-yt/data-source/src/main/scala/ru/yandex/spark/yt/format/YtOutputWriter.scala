@@ -23,7 +23,7 @@ import java.util.concurrent.{CompletableFuture, TimeUnit}
 import scala.concurrent.{Await, Future}
 import scala.util.{Failure, Try}
 
-class YtOutputWriter(path: String,
+class YtOutputWriter(val path: String,
                      schema: StructType,
                      ytClientConfiguration: YtClientConfiguration,
                      writeConfiguration: SparkYtWriteConfiguration,

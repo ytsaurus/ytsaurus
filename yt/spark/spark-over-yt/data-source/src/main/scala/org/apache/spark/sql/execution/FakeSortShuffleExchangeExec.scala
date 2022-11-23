@@ -1,13 +1,7 @@
 package org.apache.spark.sql.execution
 
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.errors.attachTree
-import org.apache.spark.sql.catalyst.expressions.BindReferences.bindReferences
-import org.apache.spark.sql.catalyst.expressions.codegen.{CodegenContext, ExprCode}
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeSet, Expression, SortOrder}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, SortOrder}
 import org.apache.spark.sql.catalyst.plans.physical.{Partitioning, RangePartitioning}
-import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
 
 // child data is divided by some pivots, also data inside partition is sorted
 case class FakeSortShuffleExchangeExec(ordering: Seq[SortOrder], child: SparkPlan)
@@ -24,4 +18,6 @@ case class FakeSortShuffleExchangeExec(ordering: Seq[SortOrder], child: SparkPla
   override val outputPartitioning: Partitioning = {
     RangePartitioning(ordering, child.outputPartitioning.numPartitions)
   }
+
+  override protected def withNewChildInternal(newChild: SparkPlan): SparkPlan = copy(child = newChild)
 }

@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.format
 import org.apache.spark.SparkConf
 import org.apache.spark.sql.Row
 import org.apache.spark.sql.execution.PartialReducerPartitionSpec
-import org.apache.spark.sql.execution.adaptive.CustomShuffleReaderExec
+import org.apache.spark.sql.execution.adaptive.AQEShuffleReadExec
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
 import org.apache.spark.sql.internal.SQLConf._
 import org.scalatest.prop.TableDrivenPropertyChecks
@@ -17,37 +17,6 @@ class AdaptiveTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
 
   import spark.implicits._
 
-  "Adaptive" should "calculate shuffle partitions" in {
-
-    val df1 = (1 to 10).zip(11 to 20).toDF("key", "value1")
-    val df2 = (1 to 10).zip(111 to 120).toDF("key", "value2")
-
-    val table = Table(
-      ("adaptiveEnabled", "partitionSize", "shufflePartitions"),
-      (false, -1, 200),
-      (true, 1, 20),
-      (true, 1024, 5)
-    )
-
-    forAll(table) { (adaptiveEnabled: Boolean, partitionSize: Int, shufflePartitions: Int) =>
-      withConf(AUTO_BROADCASTJOIN_THRESHOLD, "-1") {
-        withConf(ADAPTIVE_EXECUTION_ENABLED.key, adaptiveEnabled.toString) {
-          withConf(ADVISORY_PARTITION_SIZE_IN_BYTES, s"${partitionSize}b") {
-            val join = df1.join(df2, Seq("key"))
-            val plan = if (adaptiveEnabled) adaptivePlan(join) else physicalPlan(join)
-            val planShufflePartitions = nodes(plan).collectFirst {
-              case CustomShuffleReaderExec(_, partitionSpecs, _) => partitionSpecs.size
-              case sh: ShuffleExchangeExec => sh.outputPartitioning.numPartitions
-            }
-
-            planShufflePartitions.get shouldEqual shufflePartitions
-          }
-        }
-      }
-
-    }
-  }
-
   it should "split skew partitions" in {
     withConf(AUTO_BROADCASTJOIN_THRESHOLD, "-1") {
       withConf(ADVISORY_PARTITION_SIZE_IN_BYTES, "1b") {
@@ -58,7 +27,7 @@ class AdaptiveTest extends FlatSpec with Matchers with LocalSpark with TmpDir wi
             val join = df1.join(df2, Seq("key"))
             val plan = adaptivePlan(join)
             val planShufflePartitionsSpec = nodes(plan).collectFirst {
-              case CustomShuffleReaderExec(_, partitionSpecs, _) => partitionSpecs
+              case AQEShuffleReadExec(_, partitionSpecs) => partitionSpecs
             }.get
 
             val split = planShufflePartitionsSpec.collect {

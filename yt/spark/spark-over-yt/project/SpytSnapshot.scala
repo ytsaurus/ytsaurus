@@ -55,19 +55,31 @@ object SpytSnapshot {
                              ticket: String,
                              dev: Int,
                              hash: String) {
-    def plusFork: String = fork.map(f => s"+$f").getOrElse("")
+    def mainWithSuffix(suffix: String): String = {
+      if (main.nonEmpty) {
+        s"$main$suffix"
+      } else {
+        ""
+      }
+    }
 
-    def minusFork: String = fork.map(f => s"-fork-$f").getOrElse("")
+    def mainPlusFork: String = {
+      mainWithSuffix("+") + fork.getOrElse("")
+    }
+
+    def mainMinusFork: String = {
+      mainWithSuffix("-fork-") + fork.getOrElse("")
+    }
 
     def toScalaString: String = {
-      s"$main$minusFork-$ticket-$dev-$hash-SNAPSHOT"
+      s"$mainMinusFork-$ticket-$dev-$hash-SNAPSHOT"
     }
 
     def toPythonString: String = {
-      if (fork.nonEmpty) {
-        s"$main${plusFork}b1.dev$dev.$hash"
+      if (main.nonEmpty) {
+        s"${mainPlusFork}b1.dev$dev.$hash"
       } else {
-        s"${main}b1.dev$dev+$ticket.$hash"
+        s"${fork.get}b1.dev$dev+$ticket.$hash"
       }
     }
 

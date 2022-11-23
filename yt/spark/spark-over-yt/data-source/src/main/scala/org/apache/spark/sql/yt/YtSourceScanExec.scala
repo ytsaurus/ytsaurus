@@ -480,7 +480,8 @@ case class YtSourceScanExec(
       requiredSchema,
       QueryPlan.normalizePredicates(partitionFilters, output),
       optionalBucketSet,
+      /*optionalNumCoalescedBuckets*/ None,
       QueryPlan.normalizePredicates(dataFilters, output),
-      None)
+      /*tableIdentifier*/ None)
   }
 }

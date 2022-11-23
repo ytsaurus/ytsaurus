@@ -25,8 +25,6 @@ object CommonPlugin extends AutoPlugin {
           .inLibrary("com.google.code.findbugs" % "annotations" % "2.0.3"),
         ShadeRule.zap("META-INF.org.apache.logging.log4j.core.config.plugins.Log4j2Plugins.dat")
           .inLibrary("org.apache.logging.log4j" % "log4j-core" % "2.11.0"),
-        ShadeRule.rename("com.google.common.**" -> "shaded_spyt.com.google.common.@1")
-          .inAll,
         ShadeRule.rename("io.netty.**" -> "shaded_spyt.io.netty.@1")
           .inAll
       )
