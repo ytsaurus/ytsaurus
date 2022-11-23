@@ -3929,16 +3929,60 @@ private:
         TReqExecuteBatch::TConfirmChunkSubrequest* subrequest,
         TRspExecuteBatch::TConfirmChunkSubresponse* subresponse)
     {
-        auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
-
         YT_VERIFY(!subrequest->replicas().empty() || !subrequest->legacy_replicas().empty());
 
-        if (subrequest->replicas().empty()) {
-            THROW_ERROR_EXCEPTION("Attempted to confirm chunk with only legacy replicas");
+        const auto& config = GetDynamicConfig();
+
+        // COMPAT(kvk1920)
+        if (config->EnableMoreChunkConfirmationChecks) {
+            // Seems like a bug on client's side.
+            if (subrequest->location_uuids_supported() && subrequest->replicas().empty()) {
+                THROW_ERROR_EXCEPTION(
+                    "Chunk confirmation request supports location uuid "
+                    "but doesn't have any replica with location uuid");
+            }
+        }
+
+        // COMPAT(kvk1920)
+        if (!config->EnableChunkConfirmationWithoutLocationUuid) {
+            if (!subrequest->location_uuids_supported()) {
+                THROW_ERROR_EXCEPTION("Chunk confirmation without location uuids is forbidden");
+            }
+
+            if (subrequest->replicas().empty()) {
+                THROW_ERROR_EXCEPTION("Attempted to confirm chunk with only legacy replicas");
+            }
+        } else {
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            const auto& clusterConfig = configManager->GetConfig();
+            const auto& nodeTrackerConfig = clusterConfig->NodeTracker;
+
+            THROW_ERROR_EXCEPTION_IF(nodeTrackerConfig->EnableRealChunkLocations,
+                "Chunk confirmation without location uuids is not allowed after "
+                "real chunk locations have been enabled");
         }
 
         auto replicas = FromProto<TChunkReplicaWithLocationList>(subrequest->replicas());
 
+        // COMPAT(kvk1920)
+        if (!subrequest->location_uuids_supported()) {
+            auto legacyReplicas = FromProto<TChunkReplicaWithMediumList>(subrequest->legacy_replicas());
+
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            for (auto replica : legacyReplicas) {
+                auto* node = nodeTracker->FindNode(replica.GetNodeId());
+                if (!node) {
+                    continue;
+                }
+
+                THROW_ERROR_EXCEPTION_UNLESS(node->UseImaginaryChunkLocations(),
+                    "Cannot confirm chunk without location uuids after real chunk locations have been enabled");
+
+                replicas.emplace_back(replica, TChunkLocationUuid());
+            }
+        }
+
+        auto chunkId = FromProto<TChunkId>(subrequest->chunk_id());
         auto* chunk = GetChunkOrThrow(chunkId);
 
         ConfirmChunk(

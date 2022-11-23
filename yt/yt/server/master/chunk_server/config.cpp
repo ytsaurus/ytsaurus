@@ -497,6 +497,16 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
+    registrar.Parameter("enable_more_chunk_confirmation_checks", &TThis::EnableMoreChunkConfirmationChecks)
+        .Default(false)
+        .DontSerializeDefault();
+
+    // It should be set to |true| after 22.2 -> 22.3 update to keep compatibility with old clients.
+    // Usage of |false| as default value allows 22.3 -> 22.3 rolling updates.
+    registrar.Parameter("enable_chunk_confirmation_without_location_uuid", &TThis::EnableChunkConfirmationWithoutLocationUuid)
+        .Default(false)
+        .DontSerializeDefault();
+
     registrar.Preprocessor([] (TThis* config) {
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (IsMasterJobType(jobType)) {
