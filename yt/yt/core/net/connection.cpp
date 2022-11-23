@@ -848,6 +848,11 @@ private:
                 direction->Pending = true;
                 direction->StopBusyTimer();
             }
+
+            if (needRearm) {
+                YT_VERIFY(!needRetry && !needUnregister);
+                Arm(EPollControl::BacklogEmpty);
+            }
         }
 
         if (!result.IsOK()) {
@@ -856,11 +861,6 @@ private:
             operation->SetResult();
         } else if (needRetry) {
             Poller_->Retry(this, false);
-        }
-
-        if (needRearm) {
-            YT_VERIFY(!needRetry && !needUnregister);
-            Arm(EPollControl::BacklogEmpty);
         }
 
         if (needUnregister) {
