@@ -507,6 +507,12 @@ public:
     // COMPAT(kvk1920): YT-17756.
     bool EnableFixRequisitionUpdateOnMerge;
 
+    // COMPAT(kvk1920)
+    // Just for rolling purposes. Can be removed after 22.3.
+    bool EnableMoreChunkConfirmationChecks;
+    // For full description see TDynamicChunkManagerConfig::Register().
+    bool EnableChunkConfirmationWithoutLocationUuid;
+
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 
     static void Register(TRegistrar registrar);
