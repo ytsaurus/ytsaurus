@@ -37,7 +37,6 @@ import tech.ytsaurus.core.cypress.YPath;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.request.LockMode;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 

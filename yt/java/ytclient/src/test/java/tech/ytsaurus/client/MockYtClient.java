@@ -12,6 +12,7 @@ import java.util.concurrent.ScheduledExecutorService;
 import javax.annotation.Nullable;
 
 import io.netty.channel.nio.NioEventLoopGroup;
+import tech.ytsaurus.client.operations.Operation;
 import tech.ytsaurus.client.request.AbortJob;
 import tech.ytsaurus.client.request.AbortOperation;
 import tech.ytsaurus.client.request.AbortTransaction;
@@ -90,7 +91,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.rpcproxy.EAtomicity;
 import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.ytclient.operations.Operation;
 
 public class MockYtClient implements BaseYtClient {
     private final Map<String, Deque<Callable<CompletableFuture<?>>>> mocks = new HashMap<>();

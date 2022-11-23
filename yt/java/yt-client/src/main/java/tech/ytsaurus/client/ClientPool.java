@@ -29,6 +29,7 @@ import org.asynchttpclient.RequestBuilder;
 import org.asynchttpclient.Response;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.misc.SerializedExecutorService;
 import tech.ytsaurus.client.rpc.DataCenterMetricsHolder;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientPool;
@@ -40,7 +41,6 @@ import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.misc.SerializedExecutorService;
 
 import static org.asynchttpclient.Dsl.asyncHttpClient;
 

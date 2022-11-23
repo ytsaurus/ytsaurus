@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.ytclient.operations.MergeSpec;
 
+import tech.ytsaurus.client.operations.MergeSpec;
 public class MergeOperation extends BaseOperation<MergeSpec> {
     MergeOperation(Builder builder) {
         super(builder);

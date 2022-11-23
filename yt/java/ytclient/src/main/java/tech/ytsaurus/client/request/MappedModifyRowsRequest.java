@@ -7,13 +7,13 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.client.rows.WireProtocolWriter;
 import tech.ytsaurus.client.rows.WireRowSerializer;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.yt.rpcproxy.ERowModificationType;
-import ru.yandex.yt.ytclient.SerializationResolver;
 
 /**
  * Row modification request that uses YTreeObject annotated classes as table row representation

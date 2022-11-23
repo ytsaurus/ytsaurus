@@ -5,6 +5,7 @@ import java.nio.charset.StandardCharsets;
 import java.util.Arrays;
 import java.util.Objects;
 
+import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.yson.YsonConsumer;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
@@ -16,7 +17,6 @@ import tech.ytsaurus.ysontree.YTreeIntegerNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
 import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
 

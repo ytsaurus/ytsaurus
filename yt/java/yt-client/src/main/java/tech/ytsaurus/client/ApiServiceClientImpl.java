@@ -22,6 +22,10 @@ import com.google.protobuf.ByteString;
 import com.google.protobuf.MessageLite;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.operations.Operation;
+import tech.ytsaurus.client.operations.OperationImpl;
+import tech.ytsaurus.client.operations.Spec;
+import tech.ytsaurus.client.operations.SpecPreparationContext;
 import tech.ytsaurus.client.request.AbortJob;
 import tech.ytsaurus.client.request.AbortOperation;
 import tech.ytsaurus.client.request.AbortTransaction;
@@ -145,13 +149,6 @@ import ru.yandex.yt.rpcproxy.TRspStartTransaction;
 import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
 import ru.yandex.yt.rpcproxy.TRspWriteFile;
 import ru.yandex.yt.rpcproxy.TRspWriteTable;
-import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.YtClientConfiguration;
-import ru.yandex.yt.ytclient.operations.Operation;
-import ru.yandex.yt.ytclient.operations.OperationImpl;
-import ru.yandex.yt.ytclient.operations.Spec;
-import ru.yandex.yt.ytclient.operations.SpecPreparationContext;
-
 
 /**
  * Клиент для высокоуровневой работы с ApiService

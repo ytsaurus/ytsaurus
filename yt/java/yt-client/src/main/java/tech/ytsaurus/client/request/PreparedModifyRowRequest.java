@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcCompression;
@@ -13,7 +14,6 @@ import tech.ytsaurus.client.rpc.RpcUtil;
 
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**

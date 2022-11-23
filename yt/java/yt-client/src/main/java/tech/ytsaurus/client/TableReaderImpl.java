@@ -17,7 +17,6 @@ import tech.ytsaurus.client.rpc.RpcUtil;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {

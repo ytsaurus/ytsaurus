@@ -12,9 +12,9 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.ApiServiceClientImpl;
+import tech.ytsaurus.client.YtClientConfiguration;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 
-import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 
 import static org.hamcrest.MatcherAssert.assertThat;

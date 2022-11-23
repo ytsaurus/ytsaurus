@@ -6,6 +6,7 @@ import java.util.Objects;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.client.rows.WireProtocolWriter;
 import tech.ytsaurus.client.rows.WireRowSerializer;
@@ -13,7 +14,6 @@ import tech.ytsaurus.client.rows.WireRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi

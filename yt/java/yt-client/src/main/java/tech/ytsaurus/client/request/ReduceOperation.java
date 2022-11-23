@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.ytclient.operations.ReduceSpec;
 
+import tech.ytsaurus.client.operations.ReduceSpec;
 public class ReduceOperation extends BaseOperation<ReduceSpec> {
     ReduceOperation(Builder builder) {
         super(builder);

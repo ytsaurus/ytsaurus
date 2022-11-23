@@ -39,9 +39,6 @@ import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TResponseHeader;
 import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
 import ru.yandex.yt.rpc.TStreamingPayloadHeader;
-import ru.yandex.yt.ytclient.DefaultSerializationResolver;
-import ru.yandex.yt.ytclient.SerializationResolver;
-import ru.yandex.yt.ytclient.YtClientConfiguration;
 
 /**
  *  Asynchronous YT client.

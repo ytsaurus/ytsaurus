@@ -17,8 +17,6 @@ import org.junit.Before;
 import org.junit.Test;
 import tech.ytsaurus.client.rpc.RpcClient;
 
-import ru.yandex.yt.ytclient.DC;
-
 import static org.hamcrest.CoreMatchers.containsString;
 import static org.hamcrest.CoreMatchers.hasItem;
 import static org.hamcrest.CoreMatchers.is;

@@ -4,9 +4,9 @@ import java.nio.ByteOrder;
 import java.util.Objects;
 
 import io.netty.buffer.ByteBuf;
+import tech.ytsaurus.client.misc.YtCrc64;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.yt.ytclient.misc.YtCrc64;
 
 class BusPacketFixedHeader {
     /**

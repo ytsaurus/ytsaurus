@@ -4,8 +4,7 @@ import java.nio.ByteOrder;
 import java.util.List;
 
 import io.netty.buffer.ByteBuf;
-
-import ru.yandex.yt.ytclient.misc.YtCrc64;
+import tech.ytsaurus.client.misc.YtCrc64;
 
 class BusPacketVariableHeader {
     private final int[] sizes;

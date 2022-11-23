@@ -18,7 +18,6 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.testlib.LocalYt;
-import ru.yandex.yt.ytclient.YtClientConfiguration;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;

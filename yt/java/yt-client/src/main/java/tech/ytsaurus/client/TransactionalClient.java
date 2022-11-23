@@ -10,6 +10,7 @@ import java.util.stream.Collectors;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.operations.Operation;
 import tech.ytsaurus.client.request.CheckPermission;
 import tech.ytsaurus.client.request.ConcatenateNodes;
 import tech.ytsaurus.client.request.CopyNode;
@@ -49,7 +50,6 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.ytclient.operations.Operation;
 import ru.yandex.yt.ytclient.request.LockMode;
 
 /**

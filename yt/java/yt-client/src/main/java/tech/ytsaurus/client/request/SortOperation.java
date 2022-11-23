@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.ytclient.operations.SortSpec;
 
+import tech.ytsaurus.client.operations.SortSpec;
 public class SortOperation extends BaseOperation<SortSpec> {
     SortOperation(Builder builder) {
         super(builder);
