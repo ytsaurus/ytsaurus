@@ -95,11 +95,15 @@ public:
             [&] {
                 // NB: Job proxy uses last sample of CPU statistics but we are interested in peak thread count value.
                 PeakThreadCount_ = std::max<ui64>(PeakThreadCount_, GetFieldOrThrow(ResourceUsage_, EStatField::ThreadCount));
-
+                
+                ui64 systemTimeNs = GetFieldOrThrow(ResourceUsage_, EStatField::CpuUsageSystem);
+                ui64 userTimeNs = GetFieldOrThrow(ResourceUsage_, EStatField::CpuUsage) - systemTimeNs;
+                ui64 waitTimeNs = GetFieldOrThrow(ResourceUsage_, EStatField::CpuWait);
+                
                 return TCpuStatistics{
-                    .UserTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuUsageUser) / 1000),
-                    .SystemTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuUsageSystem) / 1000),
-                    .WaitTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuWait) / 1000),
+                    .UserTime = TDuration::MicroSeconds(userTimeNs / 1000),
+                    .SystemTime = TDuration::MicroSeconds(systemTimeNs / 1000),
+                    .WaitTime = TDuration::MicroSeconds(waitTimeNs / 1000),
                     .ThrottledTime = TDuration::MicroSeconds(GetFieldOrThrow(ResourceUsage_, EStatField::CpuThrottled) / 1000),
                     .ContextSwitches = GetFieldOrThrow(ResourceUsage_, EStatField::ContextSwitches),
                     .PeakThreadCount = PeakThreadCount_,
@@ -222,7 +226,7 @@ private:
     void DoUpdateResourceUsage() const
     {
         auto resourceUsage = Instance_->GetResourceUsage({
-            EStatField::CpuUsageUser,
+            EStatField::CpuUsage,
             EStatField::CpuUsageSystem,
             EStatField::CpuWait,
             EStatField::CpuThrottled,

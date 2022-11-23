@@ -13,6 +13,7 @@ YT_DEFINE_ERROR_ENUM(
 );
 
 DEFINE_ENUM(EStatField,
+    (CpuUsage)
     (CpuUsageUser)
     (CpuUsageSystem)
     (CpuWait)
