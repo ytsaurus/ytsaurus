@@ -95,7 +95,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
 
   private def extractYtScan(plan: SparkPlan): YtScan = {
     plan.collectFirst {
-      case BatchScanExec(_, scan: YtScan) => scan
+      case BatchScanExec(_, scan: YtScan, _) => scan
     }.get
   }
 

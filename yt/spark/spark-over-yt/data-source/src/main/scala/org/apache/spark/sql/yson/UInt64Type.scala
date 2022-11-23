@@ -46,6 +46,11 @@ class UInt64Type extends UserDefinedType[UInt64Long]
       UInt64Long(a.asInstanceOf[Long])
         .compareTo(UInt64Long(b.asInstanceOf[Long]))
   }
+
+  override def equals(other: Any): Boolean = other match {
+    case that: UserDefinedType[_] => this.acceptsType(that)
+    case _ => false
+  }
 }
 
 case object UInt64Type extends UInt64Type

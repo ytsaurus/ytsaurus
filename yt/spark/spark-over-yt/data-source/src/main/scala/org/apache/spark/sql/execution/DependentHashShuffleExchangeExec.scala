@@ -3,10 +3,10 @@ package org.apache.spark.sql.execution
 import org.apache.spark.rdd.RDD
 import org.apache.spark.serializer.Serializer
 import org.apache.spark.sql.catalyst.InternalRow
-import org.apache.spark.sql.catalyst.expressions.{Attribute, AttributeReference, Expression, UnsafeProjection}
+import org.apache.spark.sql.catalyst.expressions.{Attribute, Expression, UnsafeProjection}
 import org.apache.spark.sql.catalyst.plans.physical.Partitioning
-import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
 import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec.createShuffleWriteProcessor
+import org.apache.spark.sql.execution.exchange.{REPARTITION_BY_NUM, ShuffleExchangeExec, ShuffleOrigin}
 import org.apache.spark.sql.execution.metric.{SQLMetric, SQLShuffleWriteMetricsReporter}
 import org.apache.spark.util.MutablePair
 import org.apache.spark.{Partitioner, ShuffleDependency}
@@ -15,8 +15,8 @@ import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, TuplePoint}
 // child data is divided by rules from dependent hash partitioning, sorting is not provided
 class DependentHashShuffleExchangeExec(dependentPartitioning: Partitioning,
                                        child: SparkPlan,
-                                       noUserSpecifiedNumPartition: Boolean = false)
-  extends ShuffleExchangeExec(dependentPartitioning, child, noUserSpecifiedNumPartition) {
+                                       shuffleOrigin: ShuffleOrigin = REPARTITION_BY_NUM)
+  extends ShuffleExchangeExec(dependentPartitioning, child, shuffleOrigin) {
 
   override def output: Seq[Attribute] = child.output
 
@@ -24,10 +24,9 @@ class DependentHashShuffleExchangeExec(dependentPartitioning: Partitioning,
 
   def this(expressions: Seq[Expression],
            pivots: Seq[TuplePoint],
-           child: SparkPlan,
-           noUserSpecifiedNumPartition: Boolean) {
+           child: SparkPlan) {
     // We don't know num partitions when child is PlanLater, so here we get 0 anyway
-    this(DependentHashPartitioning(expressions, pivots), child, noUserSpecifiedNumPartition)
+    this(DependentHashPartitioning(expressions, pivots), child)
   }
 
   // copied from shuffleExec source
@@ -102,4 +101,7 @@ class DependentHashShuffleExchangeExec(dependentPartitioning: Partitioning,
 
     dependency
   }
+
+  override protected def withNewChildInternal(newChild: SparkPlan): DependentHashShuffleExchangeExec =
+    new DependentHashShuffleExchangeExec(dependentPartitioning, newChild)
 }

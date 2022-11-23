@@ -91,7 +91,7 @@ object E2ETestPlugin extends AutoPlugin {
     },
     e2eLaunchCluster := {
       val sparkLaunchYtCommand = Seq(
-        ".tox/py27/bin/spark-launch-yt",
+        ".tox/py37/bin/spark-launch-yt",
         "--proxy", onlyYtProxy,
         "--abort-existing",
         "--discovery-path", discoveryPath,
@@ -100,7 +100,9 @@ object E2ETestPlugin extends AutoPlugin {
         "--worker-memory", "16G",
         "--tmpfs-limit", "8G",
         "--spark-cluster-version", (ThisBuild / spytClusterVersion).value,
-        "--enable-advanced-event-log"
+        "--enable-advanced-event-log",
+        "--enable-mtn",
+        "--network-project", "spark"
       )
       runProcess(
         sparkLaunchYtCommand.mkString(" "),
@@ -111,7 +113,7 @@ object E2ETestPlugin extends AutoPlugin {
       val log = streams.value.log
       log.info("===== CLUSTER =====")
       val sparkDiscoveryYtCommand = Seq(
-        ".tox/py27/bin/spark-discovery-yt",
+        ".tox/py37/bin/spark-discovery-yt",
         "--proxy", onlyYtProxy,
         "--discovery-path", discoveryPath
       )
@@ -125,6 +127,7 @@ object E2ETestPlugin extends AutoPlugin {
       runProcess(
         "tox test",
         streams.value.log,
+        "SPARK_HOME" -> ".tox/py37/lib/python3.7/site-packages/pyspark",
         "DISCOVERY_PATH" -> discoveryPath,
         "E2E_TEST_HOME_PATH" -> sparkYtE2ETestPath,
         "E2E_TEST_UDIR_PATH" -> e2eTestUDirPath,

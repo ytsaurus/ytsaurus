@@ -1,9 +1,9 @@
 package ru.yandex.spark.launcher.rest
 
-import com.google.common.net.HostAndPort
 import io.circe._
 import io.circe.generic.semiauto.deriveEncoder
 import io.circe.parser._
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.Utils.flatten
 import ru.yandex.spark.yt.wrapper.cypress.{YsonWriter, YsonableProduct}
 import sttp.client._
@@ -44,7 +44,7 @@ case class WorkerInfo(host: String, alive: Boolean)
 
 object ByopDiscoveryService {
   def appendPort(host: String, port: Int): String = {
-    HostAndPort.fromParts(host, port).toString
+    HostAndPort(host, port).toString
   }
 
   def parseWorkerInfo(worker: Json): Either[Error, WorkerInfo] = {

@@ -8,8 +8,8 @@ import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
 import ru.yandex.yt.ytclient.proxy.CompoundClient
 
 import java.io.Closeable
-import java.util.concurrent.atomic.AtomicReference
-import java.util.concurrent.{ScheduledThreadPoolExecutor, TimeUnit}
+import java.util.concurrent.atomic.{AtomicLong, AtomicReference}
+import java.util.concurrent.{Executors, ScheduledThreadPoolExecutor, ThreadFactory, TimeUnit}
 import scala.concurrent.duration.{Duration, DurationInt, FiniteDuration}
 import scala.language.postfixOps
 import scala.util.control.NonFatal
@@ -71,15 +71,20 @@ object AutoScaler {
     }
   }
 
-  private val scheduler = new ScheduledThreadPoolExecutor(1,
-    new ThreadFactoryBuilder()
-      .setDaemon(true)
-      .setUncaughtExceptionHandler(
+  private val threadFactory = new ThreadFactory() {
+    private val count: AtomicLong = new AtomicLong(0L)
+
+    override def newThread(runnable: Runnable): Thread = {
+      val thread = Executors.defaultThreadFactory().newThread(runnable)
+      thread.setDaemon(true)
+      thread.setUncaughtExceptionHandler(
         (_: Thread, ex: Throwable) => log.error(s"Uncaught exception in autoscaler thread", ex)
       )
-      .setNameFormat("auto-scaler-%d")
-      .build()
-  )
+      thread.setName("auto-scaler-%s".format(count.getAndIncrement))
+      thread
+    }
+  }
+  private val scheduler = new ScheduledThreadPoolExecutor(1, threadFactory)
 
   def autoScaleFunctionSliding(conf: Conf)(f: State => Action): (Seq[Action], State) => (Seq[Action], Action) = {
       case (window, newState) =>

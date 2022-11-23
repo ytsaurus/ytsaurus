@@ -5,7 +5,7 @@ mkdir -p $HOME/.m2 $HOME/.sbt $HOME/.cache $HOME/.ivy2
 chown -R $USER $HOME/.m2 $HOME/.sbt $HOME/.cache $HOME/.ivy2 /cache
 
 export YT_TOKEN=${YT_TOKEN:-non_existent_token}
-export SPARK_HOME=/app/spark-over-yt/.tox/py27/lib/python2.7/site-packages/pyspark
+export SPARK_HOME=/app/spark-over-yt/.tox/py37/lib/python3.7/site-packages/pyspark
 mkdir $HOME/.yt
 echo $YT_TOKEN > $HOME/.yt/token
 

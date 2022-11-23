@@ -73,7 +73,7 @@ object SparkPackagePlugin extends AutoPlugin {
   }
 
   override def projectSettings: Seq[Def.Setting[_]] = super.projectSettings ++ Seq(
-    sparkHome := (ThisBuild / baseDirectory).value.getParentFile / "spark-3.0.1",
+    sparkHome := (ThisBuild / baseDirectory).value.getParentFile / "spark",
     sparkForkHome := (ThisBuild / baseDirectory).value / "spark-fork",
     (ThisBuild / sparkVersionPyFile) := sparkHome.value / "python" / "pyspark" / "version.py",
     sparkIsSnapshot := isSnapshot.value || version.value.contains("beta") || version.value.contains("dev"),
@@ -147,7 +147,7 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.sys.process._
 
     val sparkBuildCommand = s"$sparkHome/dev/make-distribution.sh -Phadoop-2.7"
-    println("Building spark...")
+    println("Make distribution. Building spark...")
     val code = (sparkBuildCommand !)
 
     if (code != 0) {
@@ -160,8 +160,8 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.language.postfixOps
     import scala.sys.process._
 
-    val sparkBuildCommand = s"mvn -P scala-2.12 clean install -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
-    println("Building spark...")
+    val sparkBuildCommand = s"./build/mvn -P scala-2.12 clean install -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
+    println("Maven install. Building spark...")
     val code = Process(sparkBuildCommand, cwd = sparkHome) !
 
     if (code != 0) {
@@ -174,8 +174,8 @@ object SparkPackagePlugin extends AutoPlugin {
     import scala.language.postfixOps
     import scala.sys.process._
 
-    val sparkBuildCommand = s"mvn -P scala-2.12 clean deploy -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
-    println("Building spark...")
+    val sparkBuildCommand = s"./build/mvn -P scala-2.12 clean deploy -Dscala-2.12 -Djava11 -DskipTests=true -pl core -pl sql/catalyst -pl sql/core"
+    println("Maven deploy. Building spark...")
     val code = Process(sparkBuildCommand, cwd = sparkHome) !
 
     if (code != 0) {

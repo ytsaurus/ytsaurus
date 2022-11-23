@@ -10,7 +10,7 @@ case class YtSortedTableStrategy(spark: SparkSession) extends Strategy {
   override def apply(plan: LogicalPlan): Seq[SparkPlan] = plan match {
     case LogicalSortedMarker(keys, inner) =>
       // aggregation
-      val sortOrders = getAttributes(keys, inner.output).map(SortOrder(_, Ascending, NullsFirst, Set.empty))
+      val sortOrders = getAttributes(keys, inner.output).map(SortOrder(_, Ascending, NullsFirst, Seq.empty))
       if (sortOrders.isEmpty) {
         planLater(inner) :: Nil
       } else {
@@ -31,7 +31,7 @@ case class YtSortedTableStrategy(spark: SparkSession) extends Strategy {
       // one side join
       val plannedLater = planLater(inner)
       logInfo("Dependent hash shuffle inserted to plan")
-      new DependentHashShuffleExchangeExec(condition, pivots, plannedLater, noUserSpecifiedNumPartition = false) :: Nil
+      new DependentHashShuffleExchangeExec(condition, pivots, plannedLater) :: Nil
     case _ =>
       Nil
   }

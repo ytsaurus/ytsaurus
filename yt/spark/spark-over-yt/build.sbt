@@ -197,7 +197,7 @@ lazy val `e2e-test` = (project in file("e2e-test"))
     Test / javaOptions ++= Seq(s"-Dproxies=$onlyYtProxy"),
     Test / javaOptions ++= Seq(s"-DdiscoveryPath=$discoveryPath"),
     Test / javaOptions ++= Seq(s"-DclientVersion=${e2eClientVersion.value}"),
-    Test / javaOptions ++= Seq("-cp", ".tox/py27/lib/python2.7/site-packages/pyspark/jars:.tox/py27/lib/python2.7/site-packages/spyt/jars")
+    Test / javaOptions ++= Seq("-cp", ".tox/py37/lib/python3.7/site-packages/pyspark/jars:.tox/py37/lib/python3.7/site-packages/spyt/jars")
   )
 
 lazy val maintenance = (project in file("maintenance"))

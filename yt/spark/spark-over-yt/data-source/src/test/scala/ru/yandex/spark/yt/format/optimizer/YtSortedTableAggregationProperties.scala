@@ -15,7 +15,7 @@ private class YtSortedTableAggregationProperties extends YtSortedTableBaseProper
   private def isCorrectInputNode(test: AggTest, project: SparkPlan): Boolean = {
     val columns = test.groupColumns
     project match {
-      case ProjectExec(projectList, BatchScanExec(outputList, _)) =>
+      case ProjectExec(projectList, BatchScanExec(outputList, _, _)) =>
         getColumnNames(projectList) == columns && getColumnNames(outputList) == columns
       case _ =>
         false
@@ -24,9 +24,9 @@ private class YtSortedTableAggregationProperties extends YtSortedTableBaseProper
 
   private def isCorrectPlanWithRealExchange(test: AggTest, plan: SparkPlan): Boolean = {
     plan match {
-      case HashAggregateExec(_, groupingExpressions1, _, _, _, _,
+      case HashAggregateExec(_, _, _, groupingExpressions1, _, _, _, _,
       ShuffleExchangeExec(_,
-      HashAggregateExec(_, groupingExpressions2, _, _, _, _, project), _)) =>
+      HashAggregateExec(_, _, _, groupingExpressions2, _, _, _, _, project), _)) =>
         getColumnNames(groupingExpressions1) == test.groupColumns &&
           getColumnNames(groupingExpressions2) == test.groupColumns &&
           isCorrectInputNode(test, project)
@@ -36,8 +36,8 @@ private class YtSortedTableAggregationProperties extends YtSortedTableBaseProper
 
   private def isCorrectPlanWithFakeExchange(test: AggTest, plan: SparkPlan): Boolean = {
     plan match {
-      case HashAggregateExec(_, groupingExpressions1, _, _, _, _,
-      HashAggregateExec(_, groupingExpressions2, _, _, _, _,
+      case HashAggregateExec(_, _, _, groupingExpressions1, _, _, _, _,
+      HashAggregateExec(_, _, _, groupingExpressions2, _, _, _, _,
       shuffle: FakeSortShuffleExchangeExec)) =>
         getColumnNames(groupingExpressions1) == test.groupColumns &&
           getColumnNames(groupingExpressions2) == test.groupColumns &&

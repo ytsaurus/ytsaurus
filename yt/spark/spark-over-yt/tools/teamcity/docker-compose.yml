@@ -37,6 +37,8 @@ services:
       - IS_TEAMCITY
       - TC_BUILD=${BUILD_NUMBER}
       - SPYT_PUBLISH_MODE=${SPYT_PUBLISH_MODE:-cluster}
+      - SPARK_TVM_ID
+      - SPARK_TVM_SECRET
 
 volumes:
   # fallback-тома для кеша и сбора junit-отчетов

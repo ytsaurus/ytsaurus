@@ -21,6 +21,9 @@ case class CityHash(children: Seq[Expression], seed: Long) extends HashExpressio
   override protected def computeHash(value: Any, dataType: DataType, seed: Long): Long = {
     CityHashFunction.hash(value, dataType, seed)
   }
+
+  override protected def withNewChildrenInternal(newChildren: IndexedSeq[Expression]): CityHash =
+    copy(children = newChildren)
 }
 
 object CityHashFunction extends InterpretedHashFunction {

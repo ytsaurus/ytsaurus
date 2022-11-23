@@ -636,6 +636,7 @@ def start_spark_cluster(worker_cores, worker_memory, worker_num,
     update_config_inplace(dynamic_config, read_remote_conf(
         global_conf, spark_cluster_version, client=client))
     update_config_inplace(dynamic_config, params)
+    dynamic_config['spark_conf']['spark.base.discovery.path'] = spark_discovery.base_discovery_path
     if ytserver_proxy_path:
         dynamic_config["ytserver_proxy_path"] = ytserver_proxy_path
     dynamic_config['spark_conf']['spark.dedicated_operation_mode'] = dedicated_operation_mode

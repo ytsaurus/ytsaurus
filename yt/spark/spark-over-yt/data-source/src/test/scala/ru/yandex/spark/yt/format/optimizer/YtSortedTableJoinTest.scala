@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.format.optimizer
 
 import org.apache.spark.sql.DataFrame
 import org.apache.spark.sql.catalyst.expressions.CodegenObjectFactoryMode
-import org.apache.spark.sql.execution.exchange.ShuffleExchangeExec
+import org.apache.spark.sql.execution.exchange.{ReusedExchangeExec, ShuffleExchangeExec}
 import org.apache.spark.sql.execution.joins.SortMergeJoinExec
 import org.apache.spark.sql.execution.{DependentHashShuffleExchangeExec, FakeHashShuffleExchangeExec, FakeSortShuffleExchangeExec, SortExec, SparkPlan}
 import org.apache.spark.sql.functions.col
@@ -63,8 +63,8 @@ class YtSortedTableJoinTest extends FlatSpec with Matchers with LocalSpark with 
   private def isRealShuffle(shuffle: SparkPlan): Boolean = shuffle match {
     case _: DependentHashShuffleExchangeExec => false
     case _: FakeHashShuffleExchangeExec => false
-//    case _: FakeSortShuffleExchangeExec => false
     case _: ShuffleExchangeExec => true
+    case _: ReusedExchangeExec => true
     case _ => false
   }
 

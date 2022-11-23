@@ -16,7 +16,7 @@ private class YtSortedTableJoinProperties extends YtSortedTableBaseProperties {
   private def isCorrectInputNode(source: Source, project: SparkPlan): Boolean = {
     val columns = source.schema.getColumnNames()
     project match {
-      case ProjectExec(projectList, FilterExec(_, BatchScanExec(outputList, _))) =>
+      case ProjectExec(projectList, FilterExec(_, BatchScanExec(outputList, _, _))) =>
         getColumnNames(projectList) == columns && getColumnNames(outputList) == columns
       case _ =>
         false
