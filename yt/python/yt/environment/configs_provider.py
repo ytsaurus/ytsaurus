@@ -1509,6 +1509,8 @@ def _get_balancing_channel_config():
         "peer_polling_period": 500,
         "peer_polling_period_splay": 100,
         "peer_polling_request_timeout": 100,
+        "rediscover_period": 5000,
+        "rediscover_splay": 500,
     }
 
 
