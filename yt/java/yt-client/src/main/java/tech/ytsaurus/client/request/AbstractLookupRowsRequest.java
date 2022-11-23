@@ -10,13 +10,13 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.ApiServiceUtil;
+import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
 
 import ru.yandex.yt.rpc.TRequestHeader;
 import ru.yandex.yt.rpcproxy.TReqLookupRows;
 import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**

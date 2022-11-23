@@ -8,12 +8,12 @@ import java.util.stream.Collectors;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.ApiServiceUtil;
+import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rows.WireProtocolWriter;
 
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class GetInSyncReplicas extends RequestBase<GetInSyncReplicas.Builder, GetInSyncReplicas> {

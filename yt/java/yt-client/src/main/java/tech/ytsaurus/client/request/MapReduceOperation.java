@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.ytclient.operations.MapReduceSpec;
 
+import tech.ytsaurus.client.operations.MapReduceSpec;
 public class MapReduceOperation extends BaseOperation<MapReduceSpec> {
     MapReduceOperation(Builder builder) {
         super(builder);

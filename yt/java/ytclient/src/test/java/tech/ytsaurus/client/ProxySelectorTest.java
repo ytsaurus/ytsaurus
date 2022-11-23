@@ -5,8 +5,6 @@ import java.util.List;
 
 import org.junit.Test;
 
-import ru.yandex.yt.ytclient.DC;
-
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 

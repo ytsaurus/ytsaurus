@@ -1,6 +1,13 @@
 import java.util.Iterator;
 
 import tech.ytsaurus.client.YtClient;
+import tech.ytsaurus.client.operations.MapReduceSpec;
+import tech.ytsaurus.client.operations.Mapper;
+import tech.ytsaurus.client.operations.MapperSpec;
+import tech.ytsaurus.client.operations.Operation;
+import tech.ytsaurus.client.operations.ReducerSpec;
+import tech.ytsaurus.client.operations.ReducerWithKey;
+import tech.ytsaurus.client.operations.Statistics;
 import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
@@ -8,13 +15,6 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
-import ru.yandex.yt.ytclient.operations.MapReduceSpec;
-import ru.yandex.yt.ytclient.operations.Mapper;
-import ru.yandex.yt.ytclient.operations.MapperSpec;
-import ru.yandex.yt.ytclient.operations.Operation;
-import ru.yandex.yt.ytclient.operations.ReducerSpec;
-import ru.yandex.yt.ytclient.operations.ReducerWithKey;
-import ru.yandex.yt.ytclient.operations.Statistics;
 
 public class Example08MapReduceYTree {
 

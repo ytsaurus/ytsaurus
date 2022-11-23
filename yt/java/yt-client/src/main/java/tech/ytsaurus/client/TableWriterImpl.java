@@ -16,7 +16,6 @@ import tech.ytsaurus.client.rpc.RpcUtil;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.TWriteTableMeta;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi

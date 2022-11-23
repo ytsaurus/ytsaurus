@@ -7,6 +7,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.misc.ScheduledSerializedExecutorService;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
@@ -19,7 +20,6 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TReqDiscover;
 import ru.yandex.yt.rpc.TRspDiscover;
-import ru.yandex.yt.ytclient.misc.ScheduledSerializedExecutorService;
 
 public interface SelfCheckingClientFactory {
     RpcClient create(HostPort hostPort, String name, CompletableFuture<Void> statusFuture);

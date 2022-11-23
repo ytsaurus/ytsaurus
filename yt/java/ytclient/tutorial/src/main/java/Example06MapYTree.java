@@ -1,4 +1,9 @@
 import tech.ytsaurus.client.YtClient;
+import tech.ytsaurus.client.operations.MapSpec;
+import tech.ytsaurus.client.operations.Mapper;
+import tech.ytsaurus.client.operations.MapperSpec;
+import tech.ytsaurus.client.operations.Operation;
+import tech.ytsaurus.client.operations.Statistics;
 import tech.ytsaurus.client.request.MapOperation;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
@@ -6,11 +11,6 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.inside.yt.kosher.operations.OperationContext;
 import ru.yandex.inside.yt.kosher.operations.Yield;
-import ru.yandex.yt.ytclient.operations.MapSpec;
-import ru.yandex.yt.ytclient.operations.Mapper;
-import ru.yandex.yt.ytclient.operations.MapperSpec;
-import ru.yandex.yt.ytclient.operations.Operation;
-import ru.yandex.yt.ytclient.operations.Statistics;
 
 public class Example06MapYTree {
     private Example06MapYTree() {

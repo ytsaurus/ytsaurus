@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.ytclient.operations.VanillaSpec;
 
+import tech.ytsaurus.client.operations.VanillaSpec;
 public class VanillaOperation extends BaseOperation<VanillaSpec> {
     VanillaOperation(Builder builder) {
         super(builder);

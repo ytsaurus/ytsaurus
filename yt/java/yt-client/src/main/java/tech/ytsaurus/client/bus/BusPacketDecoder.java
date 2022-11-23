@@ -8,8 +8,7 @@ import io.netty.channel.ChannelHandlerContext;
 import io.netty.handler.codec.ByteToMessageDecoder;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
-
-import ru.yandex.yt.ytclient.misc.YtCrc64;
+import tech.ytsaurus.client.misc.YtCrc64;
 
 class BusPacketDecoder extends ByteToMessageDecoder {
     private static final Logger logger = LoggerFactory.getLogger(BusPacketDecoder.class);

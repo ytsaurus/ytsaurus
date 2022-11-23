@@ -1,6 +1,7 @@
 package ru.yandex.yt.ytclient.proxy;
 
 import com.google.protobuf.Message;
+import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rows.ConsumerSource;
 import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.client.rows.MappedRowsetDeserializer;
@@ -15,7 +16,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class YandexSerializationResolver implements SerializationResolver {

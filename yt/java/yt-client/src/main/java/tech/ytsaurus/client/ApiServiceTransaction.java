@@ -16,6 +16,7 @@ import javax.annotation.Nullable;
 
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
+import tech.ytsaurus.client.operations.Operation;
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.AbstractModifyRowsRequest;
 import tech.ytsaurus.client.request.CheckPermission;
@@ -62,7 +63,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.ytclient.operations.Operation;
 
 public class ApiServiceTransaction implements TransactionalClient, AutoCloseable, Abortable {
     enum State {

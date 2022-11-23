@@ -8,11 +8,11 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**

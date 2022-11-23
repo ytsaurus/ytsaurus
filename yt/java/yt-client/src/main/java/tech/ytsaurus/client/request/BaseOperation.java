@@ -4,9 +4,9 @@ import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.client.operations.Spec;
 import tech.ytsaurus.core.GUID;
 
-import ru.yandex.yt.ytclient.operations.Spec;
 
 public class BaseOperation<TSpec extends Spec> {
     private final TSpec spec;

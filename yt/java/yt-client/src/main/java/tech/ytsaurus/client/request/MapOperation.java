@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.ytclient.operations.MapSpec;
 
+import tech.ytsaurus.client.operations.MapSpec;
 public class MapOperation extends BaseOperation<MapSpec> {
     MapOperation(Builder builder) {
         super(builder);

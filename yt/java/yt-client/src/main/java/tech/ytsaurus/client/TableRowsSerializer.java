@@ -26,7 +26,6 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowsetFormat;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
-import ru.yandex.yt.ytclient.SerializationResolver;
 import ru.yandex.yt.ytclient.serialization.YTreeBinarySerializer;
 import ru.yandex.yt.ytclient.tables.ColumnSchema;
 import ru.yandex.yt.ytclient.tables.ColumnValueType;
