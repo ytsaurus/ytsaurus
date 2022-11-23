@@ -75,7 +75,11 @@ public:
             ChunkServerLogger)
         , ExecuteBatchRequestQueues_(
             CreateReconfigurationCallback(bootstrap),
-            ChunkServiceProfiler.WithDefaultDisabled())
+            ChunkServiceProfiler
+                .WithDefaultDisabled()
+                .WithSparse()
+                .WithGlobal()
+                .WithTag("cell_tag", ToString(bootstrap->GetMulticellManager()->GetCellTag())))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(LocateChunks)
             .SetInvoker(GetGuardedAutomatonInvoker(EAutomatonThreadQueue::ChunkLocator))
