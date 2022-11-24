@@ -760,6 +760,31 @@ void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* con
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TNetwork::TStatistics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tx_bytes", &TThis::TxBytes)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("tx_packets", &TThis::TxPackets)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("tx_drops", &TThis::TxDrops)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+
+    registrar.Parameter("rx_bytes", &TThis::RxBytes)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("rx_packets", &TThis::RxPackets)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+    registrar.Parameter("rx_drops", &TThis::RxDrops)
+        .GreaterThanOrEqual(0)
+        .Default(0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 const TString TFreezer::Name = "freezer";
 
 TFreezer::TFreezer(const TString& name)

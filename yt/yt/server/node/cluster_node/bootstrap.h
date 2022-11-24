@@ -61,7 +61,7 @@ struct IBootstrapBase
 {
     virtual ~IBootstrapBase() = default;
 
-    // Resourse management.
+    // Resource management.
     virtual const INodeMemoryTrackerPtr& GetMemoryUsageTracker() const = 0;
     virtual const TNodeResourceManagerPtr& GetNodeResourceManager() const = 0;
 

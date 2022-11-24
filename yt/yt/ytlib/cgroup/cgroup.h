@@ -4,6 +4,7 @@
 
 #include <yt/yt/core/actions/public.h>
 
+#include <yt/yt/core/ytree/yson_struct.h>
 #include <yt/yt/core/yson/public.h>
 
 #include <yt/yt/core/misc/property.h>
@@ -219,6 +220,43 @@ public:
 };
 
 void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer);
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TNetwork
+{
+public:
+    struct TStatistics
+        : public NYTree::TYsonStructLite
+    {
+        ui64 TxBytes;
+        ui64 TxPackets;
+        ui64 TxDrops;
+
+        ui64 RxBytes;
+        ui64 RxPackets;
+        ui64 RxDrops;
+
+        TStatistics(
+            ui64 txBytes,
+            ui64 txPackets,
+            ui64 txDrops,
+            ui64 rxBytes,
+            ui64 rxPackets,
+            ui64 rxDrops)
+            : TxBytes(txBytes)
+            , TxPackets(txPackets)
+            , TxDrops(txDrops)
+            , RxBytes(rxBytes)
+            , RxPackets(rxPackets)
+            , RxDrops(rxDrops)
+        { }
+
+        REGISTER_YSON_STRUCT(TStatistics);
+
+        static void Register(TRegistrar registrar);
+    };
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

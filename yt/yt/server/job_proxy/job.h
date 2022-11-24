@@ -5,6 +5,7 @@
 #include <yt/yt/server/lib/job_agent/job_report.h>
 
 #include <yt/yt/server/job_proxy/environment.h>
+#include <yt/yt/server/lib/containers/porto_resource_tracker.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -133,7 +134,7 @@ struct IJob
 
     virtual const NCoreDump::TCoreInfos& GetCoreInfos() const = 0;
 
-    virtual TCpuStatistics GetCpuStatistics() const = 0;
+    virtual NContainers::TCpuStatistics GetCpuStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

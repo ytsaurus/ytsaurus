@@ -36,9 +36,9 @@ private:
 
     TInstant LastMemoryMeasureTime_ = TInstant::Now();
 
-    std::optional<TMemoryStatistics> CachedMemoryStatisitcs_;
+    std::optional<NContainers::TMemoryStatistics> CachedMemoryStatisitcs_;
 
-    TMemoryStatistics GetMemoryStatistics();
+    NContainers::TMemoryStatistics GetMemoryStatistics();
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryTracker)

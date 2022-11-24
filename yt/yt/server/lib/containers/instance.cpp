@@ -85,7 +85,7 @@ i64 ExtractSum(const TString& input, const TString& pattern, const TString& deli
 using TPortoStatRule = std::pair<TString, std::function<i64(const TString& input)>>;
 
 const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
-    { EStatField::CpuUsage,   { "cpu_usage",
+    { EStatField::CpuUsage,       { "cpu_usage",
         [] (const TString& in)    { return std::stol(in);                     } } },
     { EStatField::CpuUsageSystem, { "cpu_usage_system",
         [] (const TString& in)    { return std::stol(in);                     } } },

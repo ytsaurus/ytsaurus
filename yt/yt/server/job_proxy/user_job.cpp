@@ -1343,7 +1343,7 @@ private:
         return statistics;
     }
 
-    TCpuStatistics GetCpuStatistics() const override
+    NContainers::TCpuStatistics GetCpuStatistics() const override
     {
         return UserJobEnvironment_->GetCpuStatistics();
     }
@@ -1566,7 +1566,7 @@ private:
 
     void CheckBlockIOUsage()
     {
-        TBlockIOStatistics blockIOStats;
+        NContainers::TBlockIOStatistics blockIOStats;
         try {
             blockIOStats = UserJobEnvironment_->GetBlockIOStatistics();
         } catch (const std::exception& ex) {

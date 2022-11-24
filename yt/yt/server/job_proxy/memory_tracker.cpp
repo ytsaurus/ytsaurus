@@ -52,7 +52,7 @@ i64 TMemoryTracker::GetMemoryUsage()
     return memoryUsage;
 }
 
-TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
+NContainers::TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
 {
     auto guard = Guard(MemoryStatisticsLock_);
 
@@ -65,7 +65,7 @@ TMemoryStatistics TMemoryTracker::GetMemoryStatistics()
     }
 
 #ifdef _linux_
-    TMemoryStatistics memoryStatistics;
+    NContainers::TMemoryStatistics memoryStatistics;
     if (auto statistics = Environment_->GetMemoryStatistics()) {
         memoryStatistics = *statistics;
     } else {
