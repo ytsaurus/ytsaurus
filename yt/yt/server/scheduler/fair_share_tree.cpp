@@ -561,7 +561,7 @@ public:
 
     TString GetId() const override
     {
-        VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
+        VERIFY_THREAD_AFFINITY_ANY();
 
         return TreeId_;
     }

@@ -11,7 +11,7 @@ from yt_commands import (
     get, set, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, map,
     map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
     sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables,
-    extract_statistic_v2)
+    extract_statistic_v2, update_pool_tree_config_option)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_default_pool_tree_path, scheduler_orchid_operation_path, scheduler_orchid_path,
@@ -22,6 +22,8 @@ from yt_helpers import create_custom_pool_tree_with_one_node
 from yt.test_helpers import are_almost_equal
 from yt.common import YtError
 import yt.environment.init_operation_archive as init_operation_archive
+
+from yt.yson.yson_types import YsonEntity
 
 import pytest
 from flaky import flaky
@@ -680,6 +682,20 @@ class TestPoolTreesReconfiguration(YTEnvSetup):
         )
 
         wait(lambda: get_from_tree_orchid("default", "config/max_running_operation_count_per_pool") == 3)
+
+    @authors("eshcherbin")
+    def test_node_to_tree_map_in_orchid(self):
+        update_pool_tree_config_option("default", "nodes_filter", "!other & !some")
+        create_pool_tree("other", config={"nodes_filter": "other"})
+
+        nodes = ls("//sys/cluster_nodes")
+        set("//sys/cluster_nodes/" + nodes[1] + "/@user_tags/end", "other")
+        set("//sys/cluster_nodes/" + nodes[2] + "/@user_tags/end", "some")
+
+        nodes_orchid_path = scheduler_orchid_path() + "/scheduler/nodes"
+        wait(lambda: frozenset(ls(nodes_orchid_path)) == frozenset(nodes))
+        for node, tree in zip(nodes, ["default", "other", YsonEntity()]):
+            wait(lambda: get("{}/{}/tree".format(nodes_orchid_path, node)) == tree)
 
 
 @authors("renadeen")
