@@ -47,7 +47,7 @@ public:
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
     void Fail() override;
-    TCpuStatistics GetCpuStatistics() const override;
+    NContainers::TCpuStatistics GetCpuStatistics() const override;
     i64 GetStderrSize() const override;
     TSharedRef DumpSensors() override;
 

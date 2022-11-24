@@ -759,7 +759,7 @@ TResourceHolder::~TResourceHolder()
 {
     YT_LOG_DEBUG_IF(
         State_ != EResourcesState::Released,
-        "Destruct unreleased resoure holder (State: %v, Resources: %v)",
+        "Destruct unreleased resource holder (State: %v, Resources: %v)",
         State_,
         FormatResources(Resources_));
     if (State_ != EResourcesState::Released) {
