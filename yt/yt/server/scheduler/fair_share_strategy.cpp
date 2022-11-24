@@ -1371,7 +1371,10 @@ public:
         TFluentMap fluent) const override
     {
         if (auto tree = FindTreeForNode(nodeAddress, nodeTags)) {
+            fluent.Item("tree").Value(tree->GetId());
             tree->BuildSchedulingAttributesForNode(nodeId, fluent);
+        } else {
+            fluent.Item("tree").Entity();
         }
     }
 
