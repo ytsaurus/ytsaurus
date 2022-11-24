@@ -9,8 +9,6 @@ import java.util.concurrent.Callable;
 import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledExecutorService;
 
-import javax.annotation.Nullable;
-
 import io.netty.channel.nio.NioEventLoopGroup;
 import tech.ytsaurus.client.operations.Operation;
 import tech.ytsaurus.client.request.AbortJob;
@@ -425,14 +423,12 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
-    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
-                                                           @Nullable TableAttachmentReader<T> reader) {
+    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> reqr) {
         return (CompletableFuture<TableReader<T>>) callMethod("readTable");
     }
 
     @Override
-    public <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req,
-                                                             @Nullable TableAttachmentReader<T> reader) {
+    public <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req) {
         return (CompletableFuture<AsyncReader<T>>) callMethod("readTableV2");
     }
 
