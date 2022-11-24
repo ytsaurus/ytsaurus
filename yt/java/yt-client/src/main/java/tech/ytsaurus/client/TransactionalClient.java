@@ -4,7 +4,6 @@ import java.time.Duration;
 import java.util.Arrays;
 import java.util.List;
 import java.util.Map;
-import java.util.Optional;
 import java.util.concurrent.CompletableFuture;
 import java.util.stream.Collectors;
 
@@ -44,7 +43,6 @@ import tech.ytsaurus.client.request.StartOperation;
 import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
-import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -191,35 +189,18 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
     default <T> CompletableFuture<TableReader<T>> readTable(
             ReadTable.BuilderBase<T, ?> req,
             @Nullable TableAttachmentReader<T> reader) {
-        return readTable(req.build(), reader);
-    }
-
-    default <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
-        Optional<WireRowDeserializer<T>> deserializer = req.getSerializationContext().getDeserializer();
-        if (deserializer.isPresent()) {
-            return readTable(req, new TableAttachmentWireProtocolReader<>(deserializer.get()));
-        } else {
-            return readTable(req, null);
+        if (reader != null) {
+            req.setSerializationContext(new ReadTable.SerializationContext<T>(reader));
         }
+        return readTable(req.build());
     }
 
-    <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
-                                                    @Nullable TableAttachmentReader<T> reader);
+    <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req);
 
-    default <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req) {
-        Optional<WireRowDeserializer<T>> deserializer = req.getSerializationContext().getDeserializer();
-        if (deserializer.isPresent()) {
-            return readTableV2(req, new TableAttachmentWireProtocolReader<>(deserializer.get()));
-        } else {
-            return readTableV2(req, null);
-        }
-    }
-
-    <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req,
-                                                      @Nullable TableAttachmentReader<T> reader);
+    <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req);
 
     default CompletableFuture<TableReader<byte[]>> readTableDirect(ReadTableDirect req) {
-        return readTable(req, TableAttachmentReader.BYPASS);
+        return readTable(req);
     }
 
     <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req);

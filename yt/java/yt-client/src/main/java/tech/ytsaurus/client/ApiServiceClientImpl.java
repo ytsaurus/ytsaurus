@@ -991,27 +991,27 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req,
-                                                           @Nullable TableAttachmentReader<T> reader) {
+    public <T> CompletableFuture<TableReader<T>> readTable(ReadTable<T> req) {
         RpcClientRequestBuilder<TReqReadTable.Builder, TRspReadTable>
                 builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
-        if (reader == null) {
+        Optional<TableAttachmentReader<T>> attachmentReader = req.getSerializationContext().getAttachmentReader();
+        if (attachmentReader.isEmpty()) {
             Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getSerializer();
             if (serializer.isPresent()) {
-                reader = new TableAttachmentWireProtocolReader<>(
-                        serializationResolver.createWireRowDeserializer(serializer.get()));
+                attachmentReader = Optional.of(new TableAttachmentWireProtocolReader<>(
+                        serializationResolver.createWireRowDeserializer(serializer.get())));
             }
         }
 
         TableReaderImpl<T> tableReader;
-        if (reader != null) {
-            tableReader = new TableReaderImpl<>(reader);
+        if (attachmentReader.isPresent()) {
+            tableReader = new TableReaderImpl<>(attachmentReader.get());
         } else {
-            if (!req.getSerializationContext().getObjectClazz().isPresent()) {
+            if (req.getSerializationContext().getObjectClazz().isEmpty()) {
                 throw new IllegalArgumentException("No object clazz");
             }
             tableReader = new TableReaderImpl<>(req, req.getSerializationContext().getObjectClazz().get());
@@ -1024,27 +1024,27 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     }
 
     @Override
-    public <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req,
-                                                             @Nullable TableAttachmentReader<T> reader) {
+    public <T> CompletableFuture<AsyncReader<T>> readTableV2(ReadTable<T> req) {
         RpcClientRequestBuilder<TReqReadTable.Builder, TRspReadTable>
                 builder = ApiServiceMethodTable.READ_TABLE.createRequestBuilder(rpcOptions);
 
         req.writeHeaderTo(builder.header());
         req.writeTo(builder.body());
 
-        if (reader == null) {
+        Optional<TableAttachmentReader<T>> attachmentReader = req.getSerializationContext().getAttachmentReader();
+        if (attachmentReader.isEmpty()) {
             Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getSerializer();
             if (serializer.isPresent()) {
-                reader = new TableAttachmentWireProtocolReader<>(
-                        serializationResolver.createWireRowDeserializer(serializer.get()));
+                attachmentReader = Optional.of(new TableAttachmentWireProtocolReader<>(
+                        serializationResolver.createWireRowDeserializer(serializer.get())));
             }
         }
 
         AsyncTableReaderImpl<T> tableReader;
-        if (reader != null) {
-            tableReader = new AsyncTableReaderImpl<>(reader);
+        if (attachmentReader.isPresent()) {
+            tableReader = new AsyncTableReaderImpl<>(attachmentReader.get());
         } else {
-            if (!req.getSerializationContext().getObjectClazz().isPresent()) {
+            if (req.getSerializationContext().getObjectClazz().isEmpty()) {
                 throw new IllegalArgumentException("No object clazz");
             }
             tableReader = new AsyncTableReaderImpl<>(req,

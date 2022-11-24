@@ -7,6 +7,8 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
+import tech.ytsaurus.client.TableAttachmentReader;
+import tech.ytsaurus.client.TableAttachmentWireProtocolReader;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
@@ -93,6 +95,8 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
     }
 
     public static class SerializationContext<T> {
+        private static final String YSON = "yson";
+
         @Nullable
         private final WireRowDeserializer<T> deserializer;
         @Nullable
@@ -102,18 +106,18 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         private ERowsetFormat desiredRowsetFormat = ERowsetFormat.RF_YT_WIRE;
         @Nullable
         private Format format = null;
+        @Nullable
+        private TableAttachmentReader<T> attachmentReader = null;
 
-        SerializationContext() {
-            // Only for ReadTableDirect
+        public SerializationContext(TableAttachmentReader<T> attachmentReader) {
+            this.attachmentReader = attachmentReader;
             this.deserializer = null;
             this.serializer = null;
             this.objectClazz = null;
         }
 
         public SerializationContext(WireRowDeserializer<T> deserializer) {
-            this.deserializer = deserializer;
-            this.serializer = null;
-            this.objectClazz = null;
+            this(new TableAttachmentWireProtocolReader<>(deserializer));
         }
 
         public SerializationContext(YTreeSerializer<T> serializer) {
@@ -122,12 +126,16 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
             this.objectClazz = null;
         }
 
-        public SerializationContext(Format format) {
+        public SerializationContext(Format format, TableAttachmentReader<T> attachmentReader) {
             this.deserializer = null;
             this.serializer = null;
             this.objectClazz = null;
             this.format = format;
+            if (!format.getType().equals(YSON)) {
+                throw new IllegalArgumentException("Unknown format: " + format.getType());
+            }
             this.desiredRowsetFormat = ERowsetFormat.RF_FORMAT;
+            this.attachmentReader = attachmentReader;
         }
 
         public SerializationContext(Class<T> objectClazz) {
@@ -157,6 +165,10 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
 
         public Optional<Class<T>> getObjectClazz() {
             return Optional.ofNullable(this.objectClazz);
+        }
+
+        public Optional<TableAttachmentReader<T>> getAttachmentReader() {
+            return Optional.ofNullable(attachmentReader);
         }
     }
 
