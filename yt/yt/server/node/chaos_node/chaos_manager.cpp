@@ -289,13 +289,13 @@ public:
                 THROW_ERROR_EXCEPTION(NYTree::EErrorCode::ResolveError, "No such replication card")
                     << TErrorAttribute("replication_card_id", replicationCardId);
             } else {
-                THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Replication card is not known")
+                THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardNotKnown, "Replication card is not known")
                     << TErrorAttribute("replication_card_id", replicationCardId);
             }
         }
 
         if (IsReplicationCardMigrated(replicationCard)) {
-            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Replication card has been migrated")
+            THROW_ERROR_EXCEPTION(NChaosClient::EErrorCode::ReplicationCardMigrated, "Replication card has been migrated")
                 << TErrorAttribute("replication_card_id", replicationCardId)
                 << TErrorAttribute("immigrated_to_cell_id", replicationCard->Migration().ImmigratedToCellId)
                 << TErrorAttribute("immigration_time", replicationCard->Migration().ImmigrationTime);

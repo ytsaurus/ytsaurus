@@ -55,10 +55,12 @@ public:
             .BeginMap()
                 .Item("replication_card_id").Value(replicationCardId)
             .EndMap()))
-        , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Replication card is not available")
+        , UnavailableError_(TError(NRpc::EErrorCode::Unavailable, "Replication card channel is not available")
             << TErrorAttribute("endpoint", EndpointDescription_))
         , Logger(ChaosClientLogger
-            .WithTag("ReplicationCardId: %v", replicationCardId))
+            .WithTag("ProviderId: %v, ReplicationCardId: %v",
+                TGuid::Create(),
+                replicationCardId))
     {
         synchronizer->Sync();
     }
@@ -119,20 +121,18 @@ private:
     {
         YT_LOG_DEBUG(error, "Replication card channel failed (IsUnavailable: %v)", IsUnavailableError(error));
 
-        if (IsUnavailableError(error)) {
-            auto cellTag = InvalidCellTag;
+        auto cellTag = InvalidCellTag;
 
-            if (auto guard = Guard(Lock_); channel == Channel_) {
-                std::swap(cellTag,  CellTag_);
-                Channel_.Reset();
-            }
+        if (auto guard = Guard(Lock_); channel == Channel_) {
+            std::swap(cellTag,  CellTag_);
+            Channel_.Reset();
+        }
 
-            if (cellTag != InvalidCellTag) {
-                ReplicationCardResidencyCache_->ForceRefresh(ReplicationCardId_, cellTag);
-                ChannelFuture_.Store(TFuture<IChannelPtr>());
+        if (cellTag != InvalidCellTag) {
+            ReplicationCardResidencyCache_->ForceRefresh(ReplicationCardId_, cellTag);
+            ChannelFuture_.Store(TFuture<IChannelPtr>());
 
-                YT_LOG_DEBUG("Invalidated replication card cell tag from residency cache");
-            }
+            YT_LOG_DEBUG("Invalidated replication card cell tag from residency cache");
         }
     }
 
@@ -149,11 +149,15 @@ private:
 
     TFuture<IChannelPtr> OnReplicationCardResidencyFound(TCellTag cellTag)
     {
+        YT_LOG_DEBUG("Found replication card residency (CellTag: %v)",
+            cellTag);
+
         if (auto channel = CellDirectory_->FindChannelByCellTag(cellTag, PeerKind_)) {
             auto detectingChannel = CreateFailureDetectingChannel(
                 std::move(channel),
                 Config_->RpcAcknowledgementTimeout, 
-                BIND(&TReplicationCardChannelProvider::OnChannelFailed, MakeWeak(this)));
+                BIND(&TReplicationCardChannelProvider::OnChannelFailed, MakeWeak(this)),
+                BIND(&TReplicationCardChannelProvider::IsUnavailableError));
 
             {
                 auto guard = Guard(Lock_);
@@ -161,19 +165,27 @@ private:
                 Channel_ = detectingChannel;
             }
 
+            YT_LOG_DEBUG("Created replication card channel");
+
             return MakeFuture<IChannelPtr>(detectingChannel);
         }
+
+        YT_LOG_DEBUG("Unable to created replication card channel due to cell tag absence in cell directory (CellTag: %v)");
 
         return MakeFuture<IChannelPtr>(UnavailableError_);
     }
 
-    bool IsUnavailableError(const TError& error)
+    static bool IsUnavailableError(const TError& error)
     {
-        if (IsChannelFailureError(error)) {
-            return true;
-        }
         auto code = error.GetCode();
-        return code == NYT::EErrorCode::Timeout;
+
+        // COMPAT(savrus)
+        if (IsChannelFailureError(error) || code == NYT::EErrorCode::Timeout) {		
+            return true;		
+        }
+
+        return code == NChaosClient::EErrorCode::ReplicationCardMigrated ||
+            code == NChaosClient::EErrorCode::ReplicationCardNotKnown;
     }
 };
 
