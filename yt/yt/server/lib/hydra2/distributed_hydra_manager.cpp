@@ -809,16 +809,19 @@ private:
                     .ValueOrThrow();
             }
 
-            auto reader = owner->SnapshotStore_->CreateReader(snapshotId);
-            WaitFor(reader->Open())
-                .ThrowOnError();
-
-            auto params = reader->GetParams();
             response->set_snapshot_id(snapshotId);
-            response->set_compressed_length(params.CompressedLength);
-            response->set_uncompressed_length(params.UncompressedLength);
-            response->set_checksum(params.Checksum);
-            *response->mutable_meta() = params.Meta;
+
+            if (snapshotId != InvalidSegmentId) {
+                auto reader = owner->SnapshotStore_->CreateReader(snapshotId);
+                WaitFor(reader->Open())
+                    .ThrowOnError();
+
+                auto params = reader->GetParams();
+                response->set_compressed_length(params.CompressedLength);
+                response->set_uncompressed_length(params.UncompressedLength);
+                response->set_checksum(params.Checksum);
+                *response->mutable_meta() = params.Meta;
+            }
 
             context->SetResponseInfo("SnapshotId: %v", snapshotId);
             context->Reply();
