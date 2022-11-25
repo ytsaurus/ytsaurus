@@ -110,6 +110,11 @@ public:
         TSensorOptions options,
         const ISensorProducerPtr& owner) override;
 
+    void RenameDynamicTag(
+        const TDynamicTagPtr& tag,
+        const TString& name,
+        const TString& value) override;
+
     static TSolomonRegistryPtr Get();
 
     void Disable();

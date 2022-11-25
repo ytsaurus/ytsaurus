@@ -360,7 +360,7 @@ protected:
     const TChunkContextPtr ChunkContext_;
     const IChunkStoreHostPtr ChunkStoreHost_;
 
-    const NProfiling::TProfiler Profiler_;
+    NProfiling::TProfiler Profiler_;
 
     void UnlockChunk(TChunkId chunkId);
 
@@ -384,7 +384,7 @@ private:
     const ELocationType Type_;
     const TChunkLocationConfigPtr StaticConfig_;
 
-    const TLocationPerformanceCountersPtr PerformanceCounters_;
+    TLocationPerformanceCountersPtr PerformanceCounters_;
 
     TAtomicPtr<TChunkLocationConfig> RuntimeConfig_;
 
@@ -394,7 +394,8 @@ private:
     TAtomicObject<TError> MediumAlert_;
 
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
-    NProfiling::TGauge MediumTag_;
+    NProfiling::TDynamicTagPtr MediumTag_;
+    NProfiling::TGauge MediumFlag_;
 
     mutable std::atomic<i64> AvailableSpace_ = 0;
     std::atomic<i64> UsedSpace_ = 0;

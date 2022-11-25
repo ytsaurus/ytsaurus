@@ -108,6 +108,28 @@ void TSensorSet::AddGaugeHistogram(THistogramStatePtr histogram)
     CubeSize_.Update(GetCubeSize());
 }
 
+void TSensorSet::RenameDynamicTag(const TDynamicTagPtr& dynamicTag, TTagId newTag)
+{
+    auto doRename = [&] (auto& cube, const auto& sensors) {
+        for (const auto& sensor : sensors) {
+            for (auto [tag, index] : sensor->Projections.DynamicTags()) {
+                if (tag == dynamicTag) {
+                    cube.RemoveAll(sensor->TagIds, sensor->Projections);
+                    sensor->TagIds[index] = newTag;
+                    cube.AddAll(sensor->TagIds, sensor->Projections);
+                }
+            }
+        }
+    };
+
+    doRename(CountersCube_, Counters_);
+    doRename(GaugesCube_, Gauges_);
+    doRename(SummariesCube_, Summaries_);
+    doRename(TimersCube_, Timers_);
+    doRename(HistogramsCube_, Histograms_);
+    doRename(GaugeHistogramsCube_, GaugeHistograms_);
+}
+
 int TSensorSet::Collect()
 {
     int count = 0;

@@ -37,7 +37,7 @@ struct TCounterState final
     const std::function<i64()> Reader;
     i64 LastValue = 0;
 
-    const TTagIdList TagIds;
+    TTagIdList TagIds;
     const TProjectionSet Projections;
 };
 
@@ -61,7 +61,7 @@ struct TTimeCounterState final
     const TWeakPtr<ITimeCounterImpl> Owner;
     TDuration LastValue = TDuration::Zero();
 
-    const TTagIdList TagIds;
+    TTagIdList TagIds;
     const TProjectionSet Projections;
 };
 
@@ -87,7 +87,7 @@ struct TGaugeState final
     const TWeakPtr<TRefCounted> Owner;
     const std::function<double()> Reader;
 
-    const TTagIdList TagIds;
+    TTagIdList TagIds;
     const TProjectionSet Projections;
 };
 
@@ -110,7 +110,7 @@ struct TSummaryState final
 
     const TWeakPtr<ISummaryImpl> Owner;
 
-    const TTagIdList TagIds;
+    TTagIdList TagIds;
     const TProjectionSet Projections;
 };
 
@@ -133,7 +133,7 @@ struct TTimerSummaryState final
 
     const TWeakPtr<ITimerImpl> Owner;
 
-    const TTagIdList TagIds;
+    TTagIdList TagIds;
     const TProjectionSet Projections;
 };
 
@@ -157,7 +157,7 @@ struct THistogramState final
 
     const TWeakPtr<THistogram> Owner;
 
-    const TTagIdList TagIds;
+    TTagIdList TagIds;
     const TProjectionSet Projections;
 };
 
@@ -198,6 +198,8 @@ public:
     void AddTimeCounter(TTimeCounterStatePtr counter);
     void AddHistogram(THistogramStatePtr counter);
     void AddGaugeHistogram(THistogramStatePtr counter);
+
+    void RenameDynamicTag(const TDynamicTagPtr& dynamicTag, TTagId newTag);
 
     int Collect();
 

@@ -6,6 +6,10 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 
+#include <library/cpp/yt/memory/intrusive_ptr.h>
+
+#include <vector>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -28,6 +32,11 @@ constexpr ui8 NoTagSentinel = 0xff;
 
 constexpr int NoParent = 0;
 
+struct TDynamicTag final
+{ };
+
+using TDynamicTagPtr = TIntrusivePtr<TDynamicTag>;
+
 class TProjectionSet
 {
 public:
@@ -36,6 +45,8 @@ public:
     const TTagIndexList& Required() const;
     const TTagIndexList& Excluded() const;
     const TTagIndexList& Alternative() const;
+
+    const std::vector<std::pair<TDynamicTagPtr, TTagIndex>>& DynamicTags() const;
 
     template <class TFn>
     void Range(
@@ -52,6 +63,8 @@ protected:
     TTagIndexList Required_;
     TTagIndexList Excluded_;
     TTagIndexList Alternative_;
+
+    std::vector<std::pair<TDynamicTagPtr, TTagIndex>> DynamicTags_;
 };
 
 class TTagSet
@@ -76,6 +89,8 @@ public:
     void AddExtensionTag(TTag tag, int extensionOf);
     void AddTagWithChild(TTag tag, int child);
     void Append(const TTagSet& other);
+
+    TDynamicTagPtr AddDynamicTag(int index);
 
     const TTagList& Tags() const;
 

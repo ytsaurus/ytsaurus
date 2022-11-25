@@ -236,6 +236,15 @@ TProfiler TProfiler::WithTag(const TString& name, const TString& value, int pare
     return TProfiler(Prefix_, Namespace_, allTags, Impl_, Options_);
 }
 
+void TProfiler::RenameDynamicTag(const TDynamicTagPtr& tag, const TString& name, const TString& value) const
+{
+    if (!Impl_) {
+        return;
+    }
+
+    Impl_->RenameDynamicTag(tag, name, value);
+}
+
 TProfiler TProfiler::WithRequiredTag(const TString& name, const TString& value, int parent) const
 {
     if (!Enabled_) {
