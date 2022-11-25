@@ -11,6 +11,8 @@
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/check_schema_compatibility.h>
 
+#include <yt/yt/client/queue_client/config.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NQueueClient {
@@ -110,7 +112,7 @@ TTableSchemaPtr TQueueTableDescriptor::Schema = New<TTableSchema>(std::vector<TC
     TColumnSchema("object_type", EValueType::String),
     TColumnSchema("dynamic", EValueType::Boolean),
     TColumnSchema("sorted", EValueType::Boolean),
-    TColumnSchema("auto_trim_policy", EValueType::String),
+    TColumnSchema("auto_trim_config", EValueType::Any),
     TColumnSchema("queue_agent_stage", EValueType::String),
     TColumnSchema("synchronization_error", EValueType::Any),
 });
@@ -141,7 +143,7 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
     auto revisionId = nameTable->FindId("revision");
     auto dynamicId = nameTable->FindId("dynamic");
     auto sortedId = nameTable->FindId("sorted");
-    auto autoTrimPolicyId = nameTable->FindId("auto_trim_policy");
+    auto autoTrimConfigId = nameTable->FindId("auto_trim_config");
     auto queueAgentStageId = nameTable->FindId("queue_agent_stage");
     auto synchronizationErrorId = nameTable->FindId("synchronization_error");
 
@@ -173,8 +175,10 @@ std::vector<TQueueTableRow> TQueueTableRow::ParseRowRange(
         setSimpleOptional(dynamicId, typedRow.Dynamic);
         setSimpleOptional(sortedId, typedRow.Sorted);
 
-        if (auto autoTrimPolicy = findValue(autoTrimPolicyId)) {
-            typedRow.AutoTrimPolicy = ParseEnum<EQueueAutoTrimPolicy>(autoTrimPolicy->AsStringBuf());
+        if (auto autoTrimConfig = findValue(autoTrimConfigId)) {
+            typedRow.AutoTrimConfig = ConvertTo<TQueueAutoTrimConfig>(TYsonStringBuf(autoTrimConfig->AsStringBuf()));
+        } else {
+            typedRow.AutoTrimConfig = TQueueAutoTrimConfig::Create();
         }
 
         setSimpleOptional(queueAgentStageId, typedRow.QueueAgentStage);
@@ -200,7 +204,13 @@ IUnversionedRowsetPtr TQueueTableRow::InsertRowRange(TRange<TQueueTableRow> rows
         rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.ObjectType), rowBuffer, nameTable->GetIdOrThrow("object_type")));
         rowBuilder.AddValue(ToUnversionedValue(row.Dynamic, rowBuffer, nameTable->GetIdOrThrow("dynamic")));
         rowBuilder.AddValue(ToUnversionedValue(row.Sorted, rowBuffer, nameTable->GetIdOrThrow("sorted")));
-        rowBuilder.AddValue(ToUnversionedValue(MapEnumToString(row.AutoTrimPolicy), rowBuffer, nameTable->GetIdOrThrow("auto_trim_policy")));
+
+        std::optional<TYsonString> autoTrimConfigYson;
+        if (row.AutoTrimConfig) {
+            autoTrimConfigYson = ConvertToYsonString(row.AutoTrimConfig);
+        }
+
+        rowBuilder.AddValue(ToUnversionedValue(autoTrimConfigYson, rowBuffer, nameTable->GetIdOrThrow("auto_trim_config")));
         rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentStage, rowBuffer, nameTable->GetIdOrThrow("queue_agent_stage")));
         rowBuilder.AddValue(ToUnversionedValue(row.SynchronizationError, rowBuffer, nameTable->GetIdOrThrow("synchronization_error")));
 
@@ -228,7 +238,7 @@ NApi::IUnversionedRowsetPtr TQueueTableRow::DeleteRowRange(TRange<TQueueTableRow
 
 std::vector<TString> TQueueTableRow::GetCypressAttributeNames()
 {
-    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_policy", "queue_agent_stage"};
+    return {"attribute_revision", "type", "dynamic", "sorted", "auto_trim_config", "queue_agent_stage"};
 }
 
 TQueueTableRow TQueueTableRow::FromAttributeDictionary(
@@ -243,7 +253,7 @@ TQueueTableRow TQueueTableRow::FromAttributeDictionary(
         .ObjectType = cypressAttributes->Find<EObjectType>("type"),
         .Dynamic = cypressAttributes->Find<bool>("dynamic"),
         .Sorted = cypressAttributes->Find<bool>("sorted"),
-        .AutoTrimPolicy = cypressAttributes->Find<EQueueAutoTrimPolicy>("auto_trim_policy"),
+        .AutoTrimConfig = cypressAttributes->Find<TQueueAutoTrimConfig>("auto_trim_config"),
         .QueueAgentStage = cypressAttributes->Find<TString>("queue_agent_stage"),
         .SynchronizationError = TError(),
     };
@@ -259,7 +269,7 @@ void Serialize(const TQueueTableRow& row, IYsonConsumer* consumer)
             .Item("object_type").Value(row.ObjectType)
             .Item("dynamic").Value(row.Dynamic)
             .Item("sorted").Value(row.Sorted)
-            .Item("auto_trim_policy").Value(row.AutoTrimPolicy)
+            .Item("auto_trim_config").Value(row.AutoTrimConfig)
             .Item("queue_agent_stage").Value(row.QueueAgentStage)
             .Item("synchronization_error").Value(row.SynchronizationError)
         .EndMap();

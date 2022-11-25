@@ -19,4 +19,19 @@ void TPartitionReaderConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TQueueAutoTrimConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("retained_rows", &TThis::RetainedRows)
+        .Default();
+}
+
+bool operator==(const TQueueAutoTrimConfig& lhs, const TQueueAutoTrimConfig& rhs)
+{
+    return lhs.Enable == rhs.Enable && lhs.RetainedRows == rhs.RetainedRows;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NQueueClient

@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/client/queue_client/config.h>
+
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -98,8 +100,6 @@ private:
     void GuardedBuild()
     {
         YT_LOG_DEBUG("Building queue snapshot (PassIndex: %v)", QueueSnapshot_->PassIndex);
-
-        QueueSnapshot_->AutoTrimPolicy = QueueSnapshot_->Row.AutoTrimPolicy.value_or(EQueueAutoTrimPolicy::None);
 
         auto queueRef = QueueSnapshot_->Row.Ref;
 
@@ -422,10 +422,14 @@ private:
                 << queueSnapshot->Error;
         }
 
-        if (queueSnapshot->AutoTrimPolicy != EQueueAutoTrimPolicy::VitalConsumers) {
+        const auto& autoTrimConfig = queueSnapshot->Row.AutoTrimConfig;
+        // This config should be initialized when reading from dynamic state.
+        YT_VERIFY(autoTrimConfig);
+
+        if (!autoTrimConfig->Enable) {
             YT_LOG_DEBUG(
-                "Trimming iteration skipped due to trimming policy (AutoTrimPolicy: %v)",
-                queueSnapshot->AutoTrimPolicy);
+                "Trimming disabled; trimming iteration skipped (AutoTrimConfig: %v)",
+                ConvertToYsonString(autoTrimConfig, EYsonFormat::Text));
             return;
         }
 
@@ -526,8 +530,15 @@ private:
         asyncTrims.reserve(updatedTrimmedRowCounts.size());
         std::vector<int> trimmedPartitions;
         trimmedPartitions.reserve(updatedTrimmedRowCounts.size());
-        for (const auto& [partitionIndex, updatedTrimmedRowCount] : updatedTrimmedRowCounts) {
-            auto currentTrimmedRowCount = queueSnapshot->PartitionSnapshots[partitionIndex]->LowerRowIndex;
+        for (auto [partitionIndex, updatedTrimmedRowCount] : updatedTrimmedRowCounts) {
+            const auto& queuePartitionSnapshot = queueSnapshot->PartitionSnapshots[partitionIndex];
+            auto currentTrimmedRowCount = queuePartitionSnapshot->LowerRowIndex;
+
+            if (const auto& retainedRows = autoTrimConfig->RetainedRows) {
+                updatedTrimmedRowCount = std::min(
+                    updatedTrimmedRowCount,
+                    std::max<i64>(queuePartitionSnapshot->UpperRowIndex - *retainedRows, 0));
+            }
 
             if (updatedTrimmedRowCount > currentTrimmedRowCount) {
                 YT_LOG_DEBUG(

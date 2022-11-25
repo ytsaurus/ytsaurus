@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/table_client/comparator.h>
 
+#include <yt/yt/client/queue_client/config.h>
+
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT::NQueueClient {
@@ -49,11 +51,14 @@ void CheckConversions(
 
 TEST(TTableRowTest, QueueBoilerplateSanity)
 {
+    auto expectedAutoTrimConfig = TQueueAutoTrimConfig::Create();
+    expectedAutoTrimConfig.Enable = true;
+
     CheckConversions<TQueueTableRow>(
         {.Cluster = "mamma", .Path = "mia"},
         15,
         ConvertToAttributes(TYsonStringBuf(
-            "{attribute_revision=43u; type=table; sorted=%false; dynamic=%true; auto_trim_policy=vital_consumers; "
+            "{attribute_revision=43u; type=table; sorted=%false; dynamic=%true; auto_trim_config={enable=%true}; "
             "queue_agent_stage=fun}")),
         {
             .Ref = {.Cluster = "mamma", .Path = "mia"},
@@ -62,7 +67,7 @@ TEST(TTableRowTest, QueueBoilerplateSanity)
             .ObjectType = NObjectClient::EObjectType::Table,
             .Dynamic = true,
             .Sorted = false,
-            .AutoTrimPolicy = EQueueAutoTrimPolicy::VitalConsumers,
+            .AutoTrimConfig = expectedAutoTrimConfig,
             .QueueAgentStage = "fun",
             .SynchronizationError = TError(),
         });

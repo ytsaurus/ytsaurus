@@ -291,6 +291,13 @@ class TestQueueAgentBase(YTEnvSetup):
     def _wait_for_row_count(path, tablet_index, count):
         wait(lambda: len(select_rows(f"* from [{path}] where [$tablet_index] = {tablet_index}")) == count)
 
+    @staticmethod
+    def _wait_for_min_row_index(path, tablet_index, row_index):
+        def check():
+            rows = select_rows(f"* from [{path}] where [$tablet_index] = {tablet_index}")
+            return rows and rows[0]["$row_index"] >= row_index
+        wait(check)
+
 
 class TestQueueAgent(TestQueueAgentBase):
     DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
@@ -876,7 +883,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
         self._create_registered_consumer("//tmp/c3", "//tmp/q", vital=True)
 
-        set("//tmp/q/@auto_trim_policy", "vital_consumers")
+        set("//tmp/q/@auto_trim_config", {"enable": True})
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
@@ -923,6 +930,67 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_row_count("//tmp/q", 0, 2)
 
     @authors("achulkov2")
+    def test_retained_rows(self):
+        queue_agent_orchid = QueueAgentOrchid()
+        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
+
+        self._create_queue("//tmp/q", partition_count=2)
+        self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
+        self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
+
+        set("//tmp/q/@auto_trim_config", {"enable": True, "retained_rows": 3})
+
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_poll()
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        insert_rows("//tmp/q", [{"$tablet_index": 1, "data": "bar"}] * 7)
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 0, 3)
+        self._advance_consumer("//tmp/c2", "//tmp/q", 0, 5)
+        # Consumer c2 is non-vital and is ignored. We should only trim 2 rows, so that at least 3 are left.
+
+        self._advance_consumer("//tmp/c2", "//tmp/q", 1, 1)
+        # Nothing should be trimmed since vital consumer c1 was not advanced.
+
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+        self._wait_for_row_count("//tmp/q", 0, 3)
+        self._wait_for_row_count("//tmp/q", 1, 7)
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 2)
+        # Now the first two rows of partition 1 should be trimmed. Consumer c2 is now behind.
+
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+        self._wait_for_row_count("//tmp/q", 0, 3)
+        self._wait_for_row_count("//tmp/q", 1, 5)
+
+        insert_rows("//tmp/q", [{"$tablet_index": 0, "data": "foo"}] * 5)
+        # Since there are more rows in the partition now, we can trim up to offset 3 of consumer c1.
+
+        queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
+        self._wait_for_min_row_index("//tmp/q", 0, 3)
+        self._wait_for_row_count("//tmp/q", 0, 7)
+        self._wait_for_row_count("//tmp/q", 1, 5)
+
+        self._advance_consumer("//tmp/c1", "//tmp/q", 1, 6)
+        # We should only trim up to offset 4, so that 3 rows are left
+        self._wait_for_row_count("//tmp/q", 1, 3)
+        self._wait_for_min_row_index("//tmp/q", 1, 4)
+        # This shouldn't change.
+        self._wait_for_row_count("//tmp/q", 0, 7)
+
+        remove("//tmp/q/@auto_trim_config/retained_rows")
+        cypress_synchronizer_orchid.wait_fresh_poll()
+        queue_agent_orchid.wait_fresh_poll()
+
+        # Now we should trim partition 1 up to offset 6 (c1).
+        self._wait_for_row_count("//tmp/q", 1, 1)
+        self._wait_for_min_row_index("//tmp/q", 1, 6)
+        # This shouldn't change, since it was already bigger than 3.
+        self._wait_for_row_count("//tmp/q", 0, 7)
+
+    @authors("achulkov2")
     def test_vitality_changes(self):
         queue_agent_orchid = QueueAgentOrchid()
         cypress_synchronizer_orchid = CypressSynchronizerOrchid()
@@ -932,7 +1000,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
         self._create_registered_consumer("//tmp/c3", "//tmp/q", vital=True)
 
-        set("//tmp/q/@auto_trim_policy", "vital_consumers")
+        set("//tmp/q/@auto_trim_config", {"enable": True})
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
@@ -982,7 +1050,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
         self._create_registered_consumer("//tmp/c3", "//tmp/q", vital=True)
 
-        set("//tmp/q/@auto_trim_policy", "vital_consumers")
+        set("//tmp/q/@auto_trim_config", {"enable": True})
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
@@ -1024,7 +1092,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._create_registered_consumer("//tmp/c1", "//tmp/q", vital=True)
         self._create_registered_consumer("//tmp/c2", "//tmp/q", vital=False)
 
-        set("//tmp/q/@auto_trim_policy", "vital_consumers")
+        set("//tmp/q/@auto_trim_config", {"enable": True})
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
@@ -1060,8 +1128,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._create_registered_consumer("//tmp/c1", "//tmp/q1", vital=True)
         self._create_registered_consumer("//tmp/c2", "//tmp/q2", vital=True)
 
-        set("//tmp/q1/@auto_trim_policy", "vital_consumers")
-        set("//tmp/q2/@auto_trim_policy", "vital_consumers")
+        set("//tmp/q1/@auto_trim_config", {"enable": True})
+        set("//tmp/q2/@auto_trim_config", {"enable": True})
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
@@ -1102,7 +1170,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._create_queue("//tmp/q")
         self._create_registered_consumer("//tmp/c", "//tmp/q", vital=True)
 
-        set("//tmp/q/@auto_trim_policy", "vital_consumers")
+        set("//tmp/q/@auto_trim_config", {"enable": True})
 
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
@@ -1112,7 +1180,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._advance_consumer("//tmp/c", "//tmp/q", 0, 1)
         self._wait_for_row_count("//tmp/q", 0, 6)
 
-        set("//tmp/q/@auto_trim_policy", "none")
+        set("//tmp/q/@auto_trim_config/enable", False)
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
 
@@ -1120,13 +1188,13 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         time.sleep(1)
         self._wait_for_row_count("//tmp/q", 0, 6)
 
-        set("//tmp/q/@auto_trim_policy", "vital_consumers")
+        set("//tmp/q/@auto_trim_config", {"enable": True, "some_unrecognized_option": "hello"})
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
 
         self._wait_for_row_count("//tmp/q", 0, 5)
 
-        remove("//tmp/q/@auto_trim_policy")
+        remove("//tmp/q/@auto_trim_config")
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
 
@@ -1134,7 +1202,7 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         time.sleep(1)
         self._wait_for_row_count("//tmp/q", 0, 5)
 
-        set("//tmp/q/@auto_trim_policy", "vital_consumers")
+        set("//tmp/q/@auto_trim_config", {"enable": True})
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_poll()
 
