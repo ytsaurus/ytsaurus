@@ -9,6 +9,7 @@
 #include <yt/yt/client/object_client/public.h>
 
 #include <yt/yt/client/queue_client/common.h>
+#include <yt/yt/client/queue_client/config.h>
 
 #include <yt/yt/client/table_client/schema.h>
 
@@ -51,7 +52,7 @@ struct TQueueTableRow
     std::optional<NObjectClient::EObjectType> ObjectType;
     std::optional<bool> Dynamic;
     std::optional<bool> Sorted;
-    std::optional<EQueueAutoTrimPolicy> AutoTrimPolicy;
+    std::optional<TQueueAutoTrimConfig> AutoTrimConfig;
     std::optional<TString> QueueAgentStage;
 
     std::optional<TError> SynchronizationError;

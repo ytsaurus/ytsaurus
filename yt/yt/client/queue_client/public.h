@@ -14,16 +14,6 @@ YT_DEFINE_ERROR_ENUM(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EQueueAutoTrimPolicy,
-    //! No automatic trimming is performed.
-    (None)
-    //! The queue is automatically trimmed up to the smallest offset among vital consumers.
-    //! If no vital consumers exist for a queue, nothing is trimmed, yet using this mode would be a misconfiguration.
-    (VitalConsumers)
-)
-
-////////////////////////////////////////////////////////////////////////////////
-
 DECLARE_REFCOUNTED_STRUCT(IQueueRowset)
 
 DECLARE_REFCOUNTED_STRUCT(IPersistentQueueRowset)

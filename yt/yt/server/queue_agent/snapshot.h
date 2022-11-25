@@ -18,7 +18,6 @@ struct TQueueSnapshot
 
     EQueueFamily Family;
     int PartitionCount = 0;
-    NQueueClient::EQueueAutoTrimPolicy AutoTrimPolicy = NQueueClient::EQueueAutoTrimPolicy::None;
 
     //! Total write counters over all partitions.
     TPerformanceCounters WriteRate;
