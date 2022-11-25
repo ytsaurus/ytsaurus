@@ -75,7 +75,7 @@ public:
     EPreemptionMode GetPreemptionMode() const override;
 
     std::pair<NApi::ITransactionPtr, TString> GetIntermediateMediumTransaction();
-    void UpdateIntermediateMediumUsage(i64 /*usage*/);
+    void UpdateIntermediateMediumUsage(i64 usage);
 
 private:
     TBootstrap* const Bootstrap_;

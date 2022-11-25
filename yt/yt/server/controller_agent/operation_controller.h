@@ -618,7 +618,7 @@ struct IOperationController
 
     //! Callback for the monitoring of the intermediate medium usage.
     //! Switches operation's tasks to the slow medium when the montored usage is over the limit.
-    virtual void UpdateIntermediateMediumUsage(i64 /*usage*/) = 0;
+    virtual void UpdateIntermediateMediumUsage(i64 usage) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IOperationController)
