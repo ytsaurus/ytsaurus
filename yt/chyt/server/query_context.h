@@ -77,10 +77,10 @@ public:
     std::optional<TString> HttpUserAgent;
     std::optional<TString> DataLensRequestId;
     std::optional<TString> YqlOperationId;
-    //! InitialQueryTransaction is initialized only on the initiator to ping the transaction during the query execution.
-    NApi::NNative::ITransactionPtr InitialQueryTransaction;
-    //! TransactionId is the id of the query transaction in which all read and write operations should be performed.
-    NTransactionClient::TTransactionId TransactionId;
+    //! WriteTransactionId is the id of the query transaction in which all write operations should be performed.
+    NTransactionClient::TTransactionId WriteTransactionId;
+    //! CreatedTablePath is the path of the table created in write transaction.
+    std::optional<NYPath::TYPath> CreatedTablePath;
 
     // Fields for a statistics reporter.
     std::vector<TString> SelectQueries;
@@ -139,7 +139,8 @@ public:
         const std::vector<NYPath::TYPath>& paths);
     void DeleteObjectAttributesFromSnapshot(const std::vector<NYPath::TYPath>& paths);
 
-    void InitializeQueryTransaction();
+    void InitializeQueryWriteTransaction();
+    void CommitWriteTransaction();
 
 private:
     TInstant StartTime_;
@@ -168,9 +169,15 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StorageToStorageContextLock_);
     THashMap<const DB::IStorage*, TStorageContextPtr> StorageToStorageContext_;
 
+    //! InitialQueryWriteTransaction is initialized only on the initiator to ping the transaction during the query execution.
+    NApi::NNative::ITransactionPtr InitialQueryWriteTransaction_;
+
     //! Constructs fake query context.
     //! It's private to avoid creating it accidently.
     TQueryContext(THost* host, NApi::NNative::IClientPtr client);
+
+    std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> DoGetTableAttributes(
+        const std::vector<NYPath::TYPath>& missingPaths);
 
     DECLARE_NEW_FRIEND()
 };

@@ -162,7 +162,7 @@ private:
         auto tables = FetchTables(
             queryContext,
             std::move(tablePaths),
-            /* skipUnsuitableNodes */ false,
+            /*skipUnsuitableNodes*/ false,
             queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
             queryContext->Logger);
 
@@ -262,7 +262,7 @@ private:
         auto tables = FetchTables(
             queryContext,
             std::move(itemPaths),
-            /* skipUnsuitableItems */ true,
+            /*skipUnsuitableItems*/ true,
             queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
             Logger);
 

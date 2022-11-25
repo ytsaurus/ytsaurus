@@ -40,6 +40,7 @@ constexpr int YqlOperationIdLength = 24;
 
 extern const TString CacheUserName;
 extern const TString InternalRemoteUserName;
+extern const std::vector<TString> TableAttributesToFetch;
 
 ////////////////////////////////////////////////////////////////////////////////
 

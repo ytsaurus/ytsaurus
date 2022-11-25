@@ -6,6 +6,19 @@ namespace NYT::NClickHouseServer {
 
 const TString CacheUserName("yt-clickhouse-cache");
 const TString InternalRemoteUserName("$remote");
+const std::vector<TString> TableAttributesToFetch{
+    "id",
+    // TODO(dakovalkov): Eliminate this with "schema_id" (CHYT-687).
+    "schema",
+    "type",
+    "dynamic",
+    "chunk_count",
+    "external",
+    "external_cell_tag",
+    "revision",
+    "boundary_keys",
+    "enable_dynamic_store_read",
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

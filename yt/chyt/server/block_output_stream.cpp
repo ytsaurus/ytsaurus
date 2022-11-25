@@ -103,7 +103,7 @@ public:
         TTableWriterConfigPtr config,
         TCompositeSettingsPtr compositeSettings,
         NNative::IClientPtr client,
-        TTransactionId transactionId,
+        TTransactionId writeTransactionId,
         std::function<void()> onFinished,
         const TLogger& logger)
         : TBlockOutputStreamBase(
@@ -114,8 +114,8 @@ public:
             logger)
     {
         NApi::ITransactionPtr transaction;
-        if (transactionId) {
-            transaction = client->AttachTransaction(transactionId);
+        if (writeTransactionId) {
+            transaction = client->AttachTransaction(writeTransactionId);
         }
         Writer_ = WaitFor(CreateSchemalessTableWriter(
             std::move(config),
@@ -271,7 +271,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
     TTableWriterConfigPtr config,
     TCompositeSettingsPtr compositeSettings,
     NNative::IClientPtr client,
-    NTransactionClient::TTransactionId transactionId,
+    NTransactionClient::TTransactionId writeTransactionId,
     std::function<void()> onFinished,
     const TLogger& logger)
 {
@@ -282,7 +282,7 @@ DB::BlockOutputStreamPtr CreateStaticTableBlockOutputStream(
         std::move(config),
         std::move(compositeSettings),
         std::move(client),
-        transactionId,
+        writeTransactionId,
         std::move(onFinished),
         logger);
 }

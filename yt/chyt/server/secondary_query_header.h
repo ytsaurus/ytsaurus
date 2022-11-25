@@ -33,7 +33,8 @@ public:
     TQueryId QueryId;
     TQueryId ParentQueryId;
     TSerializableSpanContextPtr SpanContext;
-    NTransactionClient::TTransactionId TransactionId;
+    NTransactionClient::TTransactionId WriteTransactionId;
+    std::optional<NYPath::TYPath> CreatedTablePath;
     // These values should always be initialized explicitly.
     // Set default values for easier debugging if we forget to initialize them.
     int StorageIndex = -42;

@@ -26,6 +26,7 @@ using namespace NYTree;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NConcurrency;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
