@@ -490,6 +490,14 @@ public:
             .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
             .AddProducer("", BufferedProducer_);
 
+        // This is a temporary measure to make sure solomon quota is at least somewhat stabilized.
+        CrpBufferedProducer_ = New<TBufferedProducer>();
+        ChunkServerProfiler
+            .WithDefaultDisabled()
+            .WithSparse()
+            .WithTag("cell_tag", ToString(Bootstrap_->GetMulticellManager()->GetCellTag()))
+            .AddProducer("", CrpBufferedProducer_);
+
         BufferedHistogramProducer_ = New<TBufferedProducer>();
         ChunkServerHistogramProfiler
             .WithDefaultDisabled()
@@ -2526,6 +2534,7 @@ private:
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
+    TBufferedProducerPtr CrpBufferedProducer_;
     TBufferedProducerPtr BufferedHistogramProducer_;
 
     i64 ChunksCreated_ = 0;
@@ -4630,6 +4639,7 @@ private:
         TMasterAutomatonPart::OnRecoveryStarted();
 
         BufferedProducer_->SetEnabled(false);
+        CrpBufferedProducer_->SetEnabled(false);
     }
 
     void OnRecoveryComplete() override
@@ -4637,6 +4647,7 @@ private:
         TMasterAutomatonPart::OnRecoveryComplete();
 
         BufferedProducer_->SetEnabled(true);
+        CrpBufferedProducer_->SetEnabled(true);
     }
 
     void OnLeaderRecoveryComplete() override
@@ -5179,10 +5190,12 @@ private:
     void OnProfiling()
     {
         BufferedProducer_->SetEnabled(true);
+        CrpBufferedProducer_->SetEnabled(true);
 
         TSensorBuffer buffer;
+        TSensorBuffer crpBuffer;
 
-        ChunkReplicator_->OnProfiling(&buffer);
+        ChunkReplicator_->OnProfiling(&buffer, &crpBuffer);
         ChunkSealer_->OnProfiling(&buffer);
         JobRegistry_->OnProfiling(&buffer);
 
@@ -5228,6 +5241,7 @@ private:
         }
 
         BufferedProducer_->Update(std::move(buffer));
+        CrpBufferedProducer_->Update(std::move(crpBuffer));
     }
 
 

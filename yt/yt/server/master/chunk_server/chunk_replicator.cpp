@@ -2705,7 +2705,7 @@ void TChunkReplicator::TryRescheduleChunkRemoval(const TJobPtr& unsucceededJob)
     }
 }
 
-void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
+void TChunkReplicator::OnProfiling(TSensorBuffer* buffer, TSensorBuffer* crpBuffer)
 {
     buffer->AddGauge("/blob_refresh_queue_size", BlobRefreshScanner_->GetQueueSize());
     buffer->AddGauge("/blob_requisition_update_queue_size", BlobRequisitionUpdateScanner_->GetQueueSize());
@@ -2736,20 +2736,20 @@ void TChunkReplicator::OnProfiling(TSensorBuffer* buffer)
     auto now = NProfiling::GetInstant();
     if (now - LastPerNodeProfilingTime_ >= GetDynamicConfig()->DestroyedReplicasProfilingPeriod) {
         for (auto [_, node] : Bootstrap_->GetNodeTracker()->Nodes()) {
-            TWithTagGuard tagGuard(buffer, "node_address", node->GetDefaultAddress());
+            TWithTagGuard tagGuard(crpBuffer, "node_address", node->GetDefaultAddress());
 
             i64 pullReplicationQueueSize = 0;
             for (const auto& queue : node->ChunkPullReplicationQueues()) {
                 pullReplicationQueueSize += std::ssize(queue);
             }
-            buffer->AddGauge("/pull_replication_queue_size", pullReplicationQueueSize);
-            buffer->AddGauge("/crp_chunks_being_pulled_count", node->ChunksBeingPulled().size());
-            buffer->AddGauge("/crp_push_replication_target_node_id_count", node->PushReplicationTargetNodeIds().size());
+            crpBuffer->AddGauge("/pull_replication_queue_size", pullReplicationQueueSize);
+            crpBuffer->AddGauge("/crp_chunks_being_pulled_count", node->ChunksBeingPulled().size());
+            crpBuffer->AddGauge("/crp_push_replication_target_node_id_count", node->PushReplicationTargetNodeIds().size());
 
             size_t destroyedReplicasCount = node->ComputeTotalDestroyedReplicaCount();
             size_t removalQueueSize = node->ComputeTotalChunkRemovalQueuesSize();
-            buffer->AddGauge("/destroyed_replicas_size", destroyedReplicasCount);
-            buffer->AddGauge("/removal_queue_size", removalQueueSize);
+            crpBuffer->AddGauge("/destroyed_replicas_size", destroyedReplicasCount);
+            crpBuffer->AddGauge("/removal_queue_size", removalQueueSize);
         }
 
         LastPerNodeProfilingTime_ = now;
