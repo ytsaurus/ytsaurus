@@ -10,12 +10,12 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.yt.rpcproxy.TReqAlterTable;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class AlterTable
         extends TableReq<AlterTable.Builder, AlterTable>

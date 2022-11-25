@@ -11,6 +11,7 @@ import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
@@ -19,7 +20,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;

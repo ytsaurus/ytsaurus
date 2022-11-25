@@ -9,10 +9,10 @@ import tech.ytsaurus.client.ApiServiceTransactionOptions;
 import tech.ytsaurus.client.LookupRowsRequest;
 import tech.ytsaurus.client.ModifyRowsRequest;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
 
 import ru.yandex.yt.rpcproxy.ETransactionType;
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class ModifyRowsExample2 {
     private static final Logger logger = LoggerFactory.getLogger(ModifyRowsExample.class);

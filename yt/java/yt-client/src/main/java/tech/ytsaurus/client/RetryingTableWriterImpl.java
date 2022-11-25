@@ -34,11 +34,11 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.request.LockMode;
+import tech.ytsaurus.core.tables.TableSchema;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.request.LockMode;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi
 @NonNullFields

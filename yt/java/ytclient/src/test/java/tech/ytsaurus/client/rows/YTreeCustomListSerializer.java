@@ -3,7 +3,8 @@ package tech.ytsaurus.client.rows;
 import java.util.ArrayList;
 import java.util.List;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import tech.ytsaurus.core.rows.YTreeSerializer;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeSerializerForCollections;
 
 public class YTreeCustomListSerializer<T> extends AbstractYTreeSerializerForCollections<T, List<T>> {

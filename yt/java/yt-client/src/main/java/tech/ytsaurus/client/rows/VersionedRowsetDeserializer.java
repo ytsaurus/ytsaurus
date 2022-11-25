@@ -5,8 +5,8 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
+import tech.ytsaurus.core.tables.TableSchema;
 public class VersionedRowsetDeserializer
         extends VersionedRowDeserializer
         implements WireVersionedRowsetDeserializer<VersionedRow> {

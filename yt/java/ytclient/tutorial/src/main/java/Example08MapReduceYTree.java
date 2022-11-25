@@ -10,11 +10,11 @@ import tech.ytsaurus.client.operations.ReducerWithKey;
 import tech.ytsaurus.client.operations.Statistics;
 import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.operations.OperationContext;
+import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.operations.OperationContext;
-import ru.yandex.inside.yt.kosher.operations.Yield;
 
 public class Example08MapReduceYTree {
 

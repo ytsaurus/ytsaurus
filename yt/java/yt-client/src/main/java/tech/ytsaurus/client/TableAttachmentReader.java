@@ -6,8 +6,7 @@ import java.util.List;
 import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics.TDataStatistics;
-
-import ru.yandex.yt.ytclient.tables.TableSchema;
+import tech.ytsaurus.core.tables.TableSchema;
 
 public interface TableAttachmentReader<T> {
     TableAttachmentReader<byte[]> BYPASS = new TableAttachmentReader<byte[]>() {

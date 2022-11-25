@@ -10,10 +10,10 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.core.tables.TableSchema;
 
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**
  * Base class for all kinds of modify row requests.

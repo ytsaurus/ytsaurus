@@ -3,8 +3,8 @@ package tech.ytsaurus.client.rows;
 import java.util.List;
 import java.util.Objects;
 
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
+import tech.ytsaurus.core.tables.TableSchema;
 public class SchemafulRowsetDeserializer
         extends UnversionedRowsetDeserializer
         implements WireSchemafulRowsetDeserializer<UnversionedRow> {

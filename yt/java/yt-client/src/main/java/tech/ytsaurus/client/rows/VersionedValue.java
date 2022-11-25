@@ -1,8 +1,8 @@
 package tech.ytsaurus.client.rows;
 
+import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.yson.YsonConsumer;
 
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
 public class VersionedValue extends UnversionedValue {
     private final long timestamp;

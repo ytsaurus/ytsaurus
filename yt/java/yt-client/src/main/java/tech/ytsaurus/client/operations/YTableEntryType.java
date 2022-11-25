@@ -4,15 +4,12 @@ import java.io.InputStream;
 import java.io.OutputStream;
 import java.io.Serializable;
 
+import tech.ytsaurus.core.operations.CloseableIterator;
+import tech.ytsaurus.core.operations.OperationContext;
+import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
-import ru.yandex.inside.yt.kosher.operations.OperationContext;
-import ru.yandex.inside.yt.kosher.operations.Yield;
-import ru.yandex.inside.yt.kosher.tables.CloseableIterator;
 
-/**
- * @author sankear
- */
 public interface YTableEntryType<T> extends Serializable {
 
     YTreeStringNode format();

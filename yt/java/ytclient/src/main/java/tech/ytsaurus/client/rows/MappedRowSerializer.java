@@ -3,15 +3,16 @@ package tech.ytsaurus.client.rows;
 import java.util.Collection;
 import java.util.Map;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import tech.ytsaurus.core.rows.YTreeObjectField;
+import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.TableSchema;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeNullSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeOptionalSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeStateSupport;
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class MappedRowSerializer<T> extends YTreeWireRowSerializer<T> {
     private final boolean supportState;

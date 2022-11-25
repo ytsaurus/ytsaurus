@@ -8,15 +8,15 @@ import tech.ytsaurus.client.rows.MappedRowsetDeserializer;
 import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.client.rows.WireRowsetDeserializer;
 import tech.ytsaurus.client.rows.YTreeDeserializer;
+import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.YTreeProtoUtils;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class YandexSerializationResolver implements SerializationResolver {
     private static final SerializationResolver INSTANCE = new YandexSerializationResolver();

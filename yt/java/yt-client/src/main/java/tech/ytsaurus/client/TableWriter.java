@@ -4,8 +4,8 @@ import java.io.IOException;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
+import tech.ytsaurus.core.tables.TableSchema;
 public interface TableWriter<T> {
     TableSchema getSchema();
 

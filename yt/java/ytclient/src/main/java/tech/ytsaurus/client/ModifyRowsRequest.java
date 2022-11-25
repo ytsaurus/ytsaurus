@@ -3,8 +3,7 @@ package tech.ytsaurus.client;
 import javax.annotation.Nonnull;
 
 import tech.ytsaurus.client.rows.UnversionedRow;
-
-import ru.yandex.yt.ytclient.tables.TableSchema;
+import tech.ytsaurus.core.tables.TableSchema;
 
 /**
  * Row modification request that uses {@link UnversionedRow} as table row representation

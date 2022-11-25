@@ -2,8 +2,8 @@ package tech.ytsaurus.client.rows;
 
 import java.util.Objects;
 
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
+import tech.ytsaurus.core.tables.ColumnValueType;
 public class WireColumnSchema {
     private final int id;
     private final ColumnValueType type;

@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.rows;
 
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
+import tech.ytsaurus.core.tables.ColumnValueType;
 public interface WireProtocolWriteable extends YTreeConsumable {
 
     void writeValueCount(int valueCount);

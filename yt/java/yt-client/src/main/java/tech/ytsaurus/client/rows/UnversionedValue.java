@@ -6,19 +6,19 @@ import java.util.Arrays;
 import java.util.Objects;
 
 import tech.ytsaurus.client.SerializationResolver;
+import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.yson.YsonConsumer;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeBooleanNode;
 import tech.ytsaurus.ysontree.YTreeBuilder;
+import tech.ytsaurus.ysontree.YTreeConvertible;
 import tech.ytsaurus.ysontree.YTreeDoubleNode;
 import tech.ytsaurus.ysontree.YTreeEntityNode;
 import tech.ytsaurus.ysontree.YTreeIntegerNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.ytree.YTreeConvertible;
 
 /**
  * Соответствует TUnversionedValue в C++

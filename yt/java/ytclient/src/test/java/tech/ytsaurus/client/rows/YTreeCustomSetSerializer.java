@@ -3,7 +3,8 @@ package tech.ytsaurus.client.rows;
 import java.util.HashSet;
 import java.util.Set;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import tech.ytsaurus.core.rows.YTreeSerializer;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeSerializerForCollections;
 
 public class YTreeCustomSetSerializer<T> extends AbstractYTreeSerializerForCollections<T, Set<T>> {

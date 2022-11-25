@@ -45,10 +45,10 @@ import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.request.LockMode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.ytclient.request.LockMode;
 
 /**
  * Interface of transactional YT client.

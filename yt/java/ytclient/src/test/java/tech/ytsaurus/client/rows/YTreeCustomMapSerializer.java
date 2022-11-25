@@ -3,7 +3,8 @@ package tech.ytsaurus.client.rows;
 import java.util.HashMap;
 import java.util.Map;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
+import tech.ytsaurus.core.rows.YTreeSerializer;
+
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeSerializerForMaps;
 
 public class YTreeCustomMapSerializer<T> extends AbstractYTreeSerializerForMaps<T> {
