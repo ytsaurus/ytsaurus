@@ -18,7 +18,7 @@ import "yt_proto/yt/client/chaos_client/proto/replication_card.proto";
 ////////////////////////////////////////////////////////////////////////////////
 
 /*
-    TDurations and serialized as uint64, in microseconds.
+    TDurations are serialized as uint64, in microseconds.
     TInstants are serialized as uint64, in microseconds since unix epoch.
 */
 
