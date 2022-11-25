@@ -81,20 +81,6 @@ static const auto& Logger = ClickHouseYtLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const std::vector<TString> AttributesToCache{
-    "id",
-    // TODO(dakovalkov): Eliminate this with "schema_id" (CHYT-687).
-    "schema",
-    "type",
-    "dynamic",
-    "chunk_count",
-    "external",
-    "external_cell_tag",
-    "revision",
-    "boundary_keys",
-    "enable_dynamic_store_read",
-};
-
 static const std::vector<TString> DiscoveryAttributes{
     "host",
     "rpc_port",
@@ -322,7 +308,7 @@ public:
             missedPaths,
             client,
             GetCurrentInvoker(),
-            AttributesToCache,
+            TableAttributesToFetch,
             Logger,
             Config_->TableAttributeCache->GetMasterReadOptions()))
             .ValueOrThrow();
@@ -662,7 +648,7 @@ private:
 
         TableAttributeCache_ = New<NObjectClient::TObjectAttributeCache>(
             Config_->TableAttributeCache,
-            AttributesToCache,
+            TableAttributesToFetch,
             CacheClient_,
             ControlInvoker_,
             Logger,

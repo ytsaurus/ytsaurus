@@ -66,8 +66,8 @@ public:
         auto table = FetchTables(
             fakeQueryContext.Get(),
             {Path_},
-            /* skipUnsuitableNodes */ false,
-            /* enableDynamicStoreRead */ true,
+            /*skipUnsuitableNodes*/ false,
+            /*enableDynamicStoreRead*/ true,
             Logger).front();
 
         ValidateSchema(*table->Schema);

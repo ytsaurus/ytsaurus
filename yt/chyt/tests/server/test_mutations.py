@@ -1,4 +1,4 @@
-from yt_commands import authors, raises_yt_error, create, get, remove, write_table, read_table
+from yt_commands import authors, raises_yt_error, create, get, remove, write_table, read_table, exists
 
 from yt_type_helpers import make_schema, normalize_schema
 
@@ -212,6 +212,12 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
             ]
 
+            clique.make_query('insert into "<append=%false>//tmp/t" select * from "//tmp/t"')
+            assert read_table("//tmp/t") == [
+                {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
+                {"i64": -5, "ui64": 5, "str": "ijk", "dbl": -3.1, "bool": True},
+            ]
+
             clique.make_query('insert into "//tmp/t"(i64, ui64) select max(i64), min(ui64) from "//tmp/s2"')
             assert read_table("//tmp/t") == [
                 {"i64": 4, "ui64": 9, "str": "def", "dbl": 12.3, "bool": False},
@@ -249,6 +255,11 @@ class TestMutations(ClickHouseTestBase):
             assert_items_equal(read_table("//tmp/t_out", verbose=False), rows)
             assert get("//tmp/t_out/@chunk_count") == 5
 
+            clique.make_query("insert into `<append=%false>//tmp/t_in` select * from `//tmp/t_in`",
+                              settings={"parallel_distributed_insert_select": 1})
+            assert_items_equal(read_table("//tmp/t_in", verbose=False), rows)
+            assert get("//tmp/t_in/@chunk_count") == 5
+
             # Distributed INSERT produces underaggregated result, but we did our best.
             write_table("//tmp/t_out", [])
             clique.make_query("insert into `//tmp/t_out` select sum(a) from `//tmp/t_in`",
@@ -271,7 +282,7 @@ class TestMutations(ClickHouseTestBase):
             assert get("//tmp/t_out/@chunk_count") == 1
 
     @authors("gudqeit")
-    def test_distributed_insert_select_error(self):
+    def test_distributed_insert_error(self):
         schema = [{"name": "a", "type": "int64"}]
         create("table", "//tmp/t_in", attributes={"schema": schema})
         rows = [{"a": i} for i in range(100)]
@@ -292,13 +303,21 @@ class TestMutations(ClickHouseTestBase):
             }
         }
         with Clique(3, config_patch=config_patch) as clique:
-
+            # Distributed insert as select.
             for _ in range(5):
                 number = random.randint(0, 99)
                 with raises_yt_error(QueryFailedError):
                     clique.make_query("insert into `//tmp/t_out` select throwIf(a = {}, 'Generate error') from `//tmp/t_in`".format(number))
                 read_table("//tmp/t_out", verbose=False) == []
                 assert get("//tmp/t_out/@chunk_count") == 0
+
+            # Distributed create as select.
+            for _ in range(5):
+                number = random.randint(0, 99)
+                query = 'create table "//tmp/t1" engine YtTable() as select throwIf(a = {}, "Generate error") from "//tmp/t_in"'.format(number)
+                with raises_yt_error(QueryFailedError):
+                    clique.make_query(query)
+                assert not exists("//tmp/t1")
 
     @authors("max42")
     def test_create_table_simple(self):
@@ -453,6 +472,28 @@ class TestMutations(ClickHouseTestBase):
                 {"i64": -1, "ui64": 3, "str": "def", "dbl": 3.14, "bool": 1},
                 {"i64": 2, "ui64": 7, "str": "xyz", "dbl": 2.78, "bool": 0},
             ]
+
+    @authors("gudqeit")
+    def test_create_table_as_select_error(self):
+        create("table", "//tmp/s1", attributes={"schema": [{"name": "str", "type": "string"}]})
+        write_table(
+            "//tmp/s1",
+            [
+                {"str": "def"},
+                {"str": "xyz"},
+            ],
+        )
+
+        with Clique(1) as clique:
+            query = 'create table "//tmp/t1" engine YtTable() order by str as select throwIf(str = "xyz", "Generate error") from "//tmp/s1"'
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(query)
+            assert not exists("//tmp/t1")
+
+            query = 'create table "//tmp/t1" engine YtTable() as select * from "//tmp/t1"'
+            with raises_yt_error(QueryFailedError):
+                clique.make_query(query)
+            assert not exists("//tmp/t1")
 
     @authors("max42")
     def test_create_table_as_table(self):

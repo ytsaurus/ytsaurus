@@ -27,6 +27,7 @@ using namespace NYson;
 using namespace NTracing;
 using namespace NLogging;
 using namespace NTransactionClient;
+using namespace NApi;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -90,7 +91,8 @@ TQueryContext::TQueryContext(
         YT_VERIFY(secondaryQueryHeader);
         ParentQueryId = secondaryQueryHeader->ParentQueryId;
         SelectQueryIndex = secondaryQueryHeader->StorageIndex;
-        TransactionId = secondaryQueryHeader->TransactionId;
+        WriteTransactionId = secondaryQueryHeader->WriteTransactionId;
+        CreatedTablePath = secondaryQueryHeader->CreatedTablePath;
 
         QueryDepth = secondaryQueryHeader->QueryDepth;
 
@@ -290,7 +292,7 @@ std::vector<TErrorOr<NYTree::IAttributeDictionaryPtr>> TQueryContext::GetObjectA
     }
 
     std::vector<NYPath::TYPath> missingPaths = {missingPathSet.begin(), missingPathSet.end()};
-    auto missingAttributes = Host->GetObjectAttributes(missingPaths, Client());
+    auto missingAttributes = DoGetTableAttributes(missingPaths);
     YT_VERIFY(missingAttributes.size() == missingPaths.size());
 
     for (int index = 0; index < std::ssize(missingPaths); ++index) {
@@ -318,14 +320,49 @@ void TQueryContext::DeleteObjectAttributesFromSnapshot(
     }
 }
 
-void TQueryContext::InitializeQueryTransaction()
+void TQueryContext::InitializeQueryWriteTransaction()
 {
-    if (InitialQueryTransaction || TransactionId) {
+    if (InitialQueryWriteTransaction_) {
         return;
     }
-    InitialQueryTransaction = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
+    if (QueryKind != EQueryKind::InitialQuery || WriteTransactionId) {
+        THROW_ERROR_EXCEPTION("Unexpected transaction initialization")
+            << TErrorAttribute("transaction_id", WriteTransactionId)
+            << TErrorAttribute("query_kind", QueryKind);
+    }
+    InitialQueryWriteTransaction_ = WaitFor(Client()->StartNativeTransaction(ETransactionType::Master))
         .ValueOrThrow();
-    TransactionId = InitialQueryTransaction->GetId();
+    WriteTransactionId = InitialQueryWriteTransaction_->GetId();
+}
+
+void TQueryContext::CommitWriteTransaction()
+{
+    if (InitialQueryWriteTransaction_) {
+        WaitFor(InitialQueryWriteTransaction_->Commit())
+            .ThrowOnError();
+    }
+}
+
+std::vector<TErrorOr<IAttributeDictionaryPtr>> TQueryContext::DoGetTableAttributes(const std::vector<TYPath>& missingPaths)
+{
+    if (WriteTransactionId
+        && missingPaths.size() == 1
+        && missingPaths.front() == CreatedTablePath) {
+        // TODO(gudqeit): add batch attribute fetching for multiple tables.
+        auto path = missingPaths.front();
+        TGetNodeOptions options;
+        options.TransactionId = WriteTransactionId;
+        options.Attributes = TableAttributesToFetch;
+        auto attributesFuture = Client()->GetNode(path, options)
+            .Apply(BIND([] (const TYsonString& nodeYson) {
+                auto node = ConvertToNode(nodeYson);
+                return node->Attributes().Clone();
+            }));
+        auto attributesOrError = WaitFor(attributesFuture);
+        return std::vector{std::move(attributesOrError)};
+    } else {
+        return Host->GetObjectAttributes(missingPaths, Client());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

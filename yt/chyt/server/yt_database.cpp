@@ -259,7 +259,7 @@ private:
             auto tables = FetchTables(
                 queryContext,
                 {TRichYPath::Parse(name.data())},
-                /* skipUnsuitableNodes */ false,
+                /*skipUnsuitableNodes*/ false,
                 queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
                 queryContext->Logger);
 

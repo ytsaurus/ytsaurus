@@ -199,9 +199,8 @@ DB::Pipe CreateRemoteSource(
     static_cast<TSpanContext&>(*queryHeader->SpanContext) = traceContext->GetSpanContext();
     queryHeader->StorageIndex = storageIndex;
     queryHeader->QueryDepth = queryContext->QueryDepth + 1;
-    if (queryContext->TransactionId) {
-        queryHeader->TransactionId = queryContext->TransactionId;
-    }
+    queryHeader->WriteTransactionId = queryContext->WriteTransactionId;
+    queryHeader->CreatedTablePath = queryContext->CreatedTablePath;
 
     auto serializedQueryHeader = ConvertToYsonString(queryHeader, EYsonFormat::Text).ToString();
 
@@ -1018,11 +1017,13 @@ public:
             table->Schema,
             dataTypes);
 
-        // Callback to invalidate cached object attributes after the query is completed.
-        auto invalidateCachedObjectAttributesCallback = [context, path = path.GetPath()] () {
+        // Callback to commit write transaction and invalidate cached object attributes after the query is completed.
+        auto finalCallback = [context, path = path.GetPath()] () {
             auto* queryContext = GetQueryContext(context);
-            auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
 
+            queryContext->CommitWriteTransaction();
+
+            auto invalidateMode = queryContext->Settings->Caching->TableAttributesInvalidateMode;
             if (queryContext->QueryKind == EQueryKind::SecondaryQuery) {
                 // Write in secondary query means distributed insert select.
                 // In this case we should only invalidate local cache to avoid quadratic number of rpc requests.
@@ -1042,11 +1043,11 @@ public:
                 QueryContext_->Settings->DynamicTable,
                 QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
-                std::move(invalidateCachedObjectAttributesCallback),
+                std::move(finalCallback),
                 QueryContext_->Logger);
         } else {
-            // Set append if it is not set.
             auto* queryContext = GetQueryContext(context);
+            // Set append if it is not set.
             path.SetAppend(path.GetAppend(true /*defaultValue*/));
             outputStream = CreateStaticTableBlockOutputStream(
                 path,
@@ -1055,8 +1056,8 @@ public:
                 QueryContext_->Settings->TableWriter,
                 QueryContext_->Settings->Composite,
                 QueryContext_->Client(),
-                queryContext->TransactionId,
-                std::move(invalidateCachedObjectAttributesCallback),
+                queryContext->WriteTransactionId,
+                std::move(finalCallback),
                 QueryContext_->Logger);
         }
 
@@ -1136,7 +1137,7 @@ public:
             return nullptr;
         }
 
-        queryContext->InitializeQueryTransaction();
+        queryContext->InitializeQueryWriteTransaction();
 
         auto preparer = sourceStorage->BuildPreparer(
             selectInterpreter.getRequiredColumns(),
@@ -1164,11 +1165,10 @@ public:
 
         preparer.Fire();
 
-        // Callback to commit transaction and invalidate cached object attributes after the query is completed.
+        // Callback to commit write transaction and invalidate cached object attributes after the query is completed.
         auto finalCallback = [context, path = table->GetPath()] {
             auto* queryContext = GetQueryContext(context);
-            WaitFor(queryContext->InitialQueryTransaction->Commit())
-                .ThrowOnError();
+            queryContext->CommitWriteTransaction();
             InvalidateCache(queryContext, {path}, std::nullopt);
         };
 
@@ -1331,7 +1331,7 @@ private:
 
         YT_LOG_DEBUG("Erasing table (Path: %v)", path);
         TConcatenateNodesOptions options;
-        options.TransactionId = queryContext->TransactionId;
+        options.TransactionId = queryContext->WriteTransactionId;
         WaitFor(client->ConcatenateNodes({}, TRichYPath(path), options))
             .ThrowOnError();
         YT_LOG_DEBUG("Table erased (Path: %v)", path);
@@ -1406,9 +1406,15 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
 
     auto schema = attributes->Get<TTableSchemaPtr>("schema");
 
+    if (args.query.select || !args.query.as_table.empty() || args.query.as_table_function) {
+        queryContext->InitializeQueryWriteTransaction();
+        queryContext->CreatedTablePath = path.GetPath();
+    }
+
     NApi::TCreateNodeOptions options;
     options.Attributes = std::move(attributes);
     options.Recursive = true;
+    options.TransactionId = queryContext->WriteTransactionId;
     auto id = WaitFor(client->CreateNode(path.GetPath(), NObjectClient::EObjectType::Table, options))
         .ValueOrThrow();
     YT_LOG_DEBUG("Table created (ObjectId: %v)", id);
@@ -1420,7 +1426,7 @@ DB::StoragePtr CreateDistributorFromCH(DB::StorageFactory::Arguments args)
     auto table = FetchTables(
         queryContext,
         {path},
-        /* skipUnsuitableNodes */ false,
+        /*skipUnsuitableNodes*/ false,
         queryContext->Settings->DynamicTable->EnableDynamicStoreRead,
         queryContext->Logger);
 
