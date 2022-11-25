@@ -1,5 +1,7 @@
 #include "tag.h"
 
+#include <library/cpp/yt/memory/new.h>
+
 namespace NYT::NProfiling {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +71,10 @@ void TTagSet::Append(const TTagSet& other)
         } else {
             Alternative_.push_back(i + offset);
         }
+    }
+
+    for (auto [tag, index] : other.DynamicTags_) {
+        DynamicTags_.emplace_back(tag, index + offset);
     }
 }
 
@@ -152,7 +158,7 @@ void TTagSet::AddAlternativeTag(TTag tag, int alternativeTo, int parent)
     int alternativeIndex = Tags_.size() + alternativeTo;
 
     AddTag(std::move(tag), parent);
-    
+
     if (alternativeIndex >= 0 && static_cast<size_t>(alternativeIndex) < Tags_.size()) {
         Alternative_.back() = alternativeIndex;
     }
@@ -170,6 +176,13 @@ void TTagSet::AddTagWithChild(TTag tag, int child)
     int childIndex = Tags_.size() + child;
     AddTag(tag);
     Children_.back() = childIndex;
+}
+
+TDynamicTagPtr TTagSet::AddDynamicTag(int index)
+{
+    auto tag = New<TDynamicTag>();
+    DynamicTags_.emplace_back(tag, index);
+    return tag;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

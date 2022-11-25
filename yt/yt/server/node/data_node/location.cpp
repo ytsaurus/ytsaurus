@@ -228,21 +228,32 @@ TChunkLocation::TChunkLocation(
     , ChunkStore_(std::move(chunkStore))
     , ChunkContext_(std::move(chunkContext))
     , ChunkStoreHost_(std::move(chunkStoreHost))
-    , Profiler_(LocationProfiler
-        .WithSparse()
-        .WithTag("location_type", FormatEnum(type))
-        .WithTag("disk_family", config->DiskFamily, -1)
-        .WithTag("location_id", Id_, -1)
-        .WithExtensionTag("device_name", config->DeviceName, -1)
-        .WithExtensionTag("device_model", config->DeviceModel, -1))
     , Type_(type)
     , StaticConfig_(std::move(config))
-    , PerformanceCounters_(New<TLocationPerformanceCounters>(Profiler_))
     , RuntimeConfig_(StaticConfig_)
     , MediumDescriptor_(TMediumDescriptor{
         .Name = StaticConfig_->MediumName
     })
 {
+    TTagSet tagSet;
+    tagSet.AddTag({"location_type", FormatEnum(Type_)});
+    tagSet.AddTag({"disk_family", StaticConfig_->DiskFamily}, -1);
+    tagSet.AddTag({"medium", GetMediumName()}, -1);
+    tagSet.AddTag({"location_id", Id_}, -1);
+    tagSet.AddExtensionTag({"device_name", StaticConfig_->DeviceName}, -1);
+    tagSet.AddExtensionTag({"device_model", StaticConfig_->DeviceModel}, -1);
+
+    MediumTag_ = tagSet.AddDynamicTag(2);
+
+    Profiler_ = LocationProfiler
+        .WithSparse()
+        .WithTags(tagSet);
+
+    PerformanceCounters_ = New<TLocationPerformanceCounters>(Profiler_);
+
+    MediumFlag_ = Profiler_.Gauge("/medium");
+    MediumFlag_.Update(1);
+
     UpdateMediumTag();
 
     DynamicIOEngine_ = CreateDynamicIOEngine(
@@ -1029,15 +1040,7 @@ void TChunkLocation::DoStart()
 
 void TChunkLocation::UpdateMediumTag()
 {
-    MediumTag_ = LocationProfiler
-        .WithSparse()
-        .WithTag("location_type", FormatEnum(Type_))
-        .WithTag("medium", GetMediumName(), -1)
-        .WithTag("location_id", Id_, -1)
-        .WithExtensionTag("device_name", StaticConfig_->DeviceName, -1)
-        .WithExtensionTag("device_model", StaticConfig_->DeviceModel, -1)
-        .Gauge("/medium");
-    MediumTag_.Update(1);
+    LocationProfiler.RenameDynamicTag(MediumTag_, "medium", GetMediumName());
 }
 
 void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescriptor& newDescriptor, bool onInitialize)

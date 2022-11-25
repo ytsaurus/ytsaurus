@@ -84,6 +84,11 @@ public:
         const TTagSet& tags,
         TSensorOptions options,
         const ISensorProducerPtr& owner) = 0;
+
+    virtual void RenameDynamicTag(
+        const TDynamicTagPtr& tag,
+        const TString& name,
+        const TString& value) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IRegistryImpl)

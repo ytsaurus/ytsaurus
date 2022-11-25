@@ -792,6 +792,46 @@ TEST(TSolomonRegistry, ExtensionTag)
     ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store;medium=ssd_blobs;location_id=store0;device=sdb;model=M5100}"));
 }
 
+TEST(TSolomonRegistry, RenameTag)
+{
+    auto impl = New<TSolomonRegistry>();
+    impl->SetWindowSize(12);
+    TProfiler r(impl, "/d");
+
+    auto tagSet = TTagSet{}
+        .WithTag({"location_type", "store"})
+        .WithTag({"medium", "ssd_blobs"}, -1)
+        .WithTag({"location_id", "store0"}, -1);
+
+    tagSet.AddExtensionTag({"device", "sdb"}, -1);
+    tagSet.AddExtensionTag({"model", "M5100"}, -1);
+
+    auto mediumTag = tagSet.AddDynamicTag(1);
+
+    auto c0 = r.WithTags(tagSet)
+        .Counter("/bytes_read");
+    c0.Increment();
+
+    auto result = CollectSensors(impl);
+    ASSERT_EQ(result.Counters.size(), 4u);
+
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store;medium=ssd_blobs}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store;medium=ssd_blobs;location_id=store0;device=sdb;model=M5100}"));
+
+    r.RenameDynamicTag(mediumTag, "medium", "default");
+    c0.Increment();
+
+    result = CollectSensors(impl);
+    ASSERT_EQ(result.Counters.size(), 4u);
+
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store;medium=default}"));
+    ASSERT_TRUE(result.Counters.contains("yt.d.bytes_read{location_type=store;location_id=store0;device=sdb;model=M5100;medium=default}"));
+}
+
 struct TBlinkingProducer
     : ISensorProducer
 {

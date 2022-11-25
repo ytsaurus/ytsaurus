@@ -222,6 +222,12 @@ public:
     TProfiler WithExtensionTag(const TString& name, const TString& value, int parent = NoParent) const;
     TProfiler WithTags(const TTagSet& tags) const;
 
+    //! Rename tag in all previously registered sensors.
+    /*!
+     *  NOTE: this is O(n) operation.
+     */
+    void RenameDynamicTag(const TDynamicTagPtr& tag, const TString& name, const TString& value) const;
+
     //! WithSparse sets sparse flags on all sensors created using returned registry.
     /*!
      *  Sparse sensors with zero value are omitted from profiling results.

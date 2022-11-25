@@ -225,6 +225,20 @@ void TSolomonRegistry::RegisterProducer(
     });
 }
 
+void TSolomonRegistry::RenameDynamicTag(
+    const TDynamicTagPtr& tag,
+    const TString& name,
+    const TString& value)
+{
+    DoRegister([this, tag, name, value] {
+        auto tagId = Tags_.Encode(TTag{name, value});
+
+        for (auto& [name, sensorSet] : Sensors_) {
+            sensorSet.RenameDynamicTag(tag, tagId);
+        }
+    });
+}
+
 TSolomonRegistryPtr TSolomonRegistry::Get()
 {
     return LeakyRefCountedSingleton<TSolomonRegistry>();
@@ -314,7 +328,7 @@ void TSolomonRegistry::ProcessRegistrations()
 {
     GetWindowSize();
 
-    RegistrationQueue_.DequeueAll(false, [this] (const std::function<void()>& fn) {
+    RegistrationQueue_.DequeueAll(true, [this] (const std::function<void()>& fn) {
         RegistrationCount_.Increment();
 
         fn();

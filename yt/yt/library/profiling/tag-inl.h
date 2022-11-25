@@ -34,6 +34,11 @@ inline const TTagIndexList& TProjectionSet::Alternative() const
     return Alternative_;
 }
 
+inline const std::vector<std::pair<TDynamicTagPtr, TTagIndex>>& TProjectionSet::DynamicTags() const
+{
+    return DynamicTags_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 inline TTagSet::TTagSet(const TTagList& tags)
