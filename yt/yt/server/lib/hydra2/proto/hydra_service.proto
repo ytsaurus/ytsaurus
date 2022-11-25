@@ -32,10 +32,10 @@ message TReqLookupSnapshot
 message TRspLookupSnapshot
 {
     required int32 snapshot_id = 1;
-    required int64 compressed_length = 2;
-    required int64 uncompressed_length = 3;
-    required uint64 checksum = 4;
-    required NYT.NHydra.NProto.TSnapshotMeta meta = 5;
+    optional int64 compressed_length = 2;
+    optional int64 uncompressed_length = 3;
+    optional uint64 checksum = 4;
+    optional NYT.NHydra.NProto.TSnapshotMeta meta = 5;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
