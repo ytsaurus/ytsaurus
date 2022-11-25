@@ -42,9 +42,11 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
     FAST_MEDIUM = "ssd_blobs"
     SLOW_MEDIUM = "default"
 
+    INTERMEDIATE_ACCOUNT_USAGE_UPDATE_PERIOD = 0.1
+
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
-            "intermediate_account_usage_update_period": 0.1,
+            "intermediate_account_usage_update_period": INTERMEDIATE_ACCOUNT_USAGE_UPDATE_PERIOD,
             "fast_intermediate_medium": "ssd_blobs",
             "fast_intermediate_medium_limit": 1 << 30,
         }
@@ -80,6 +82,12 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
 
         def get_usage(account, medium, usage_type):
             return get(f"//sys/accounts/{account}/@{usage_type}/disk_space_per_medium/{medium}")
+
+        def wait_usage_update():
+            """
+            Wait for the update of the information on the fast medium usage.
+            """
+            sleep(10 * self.INTERMEDIATE_ACCOUNT_USAGE_UPDATE_PERIOD)
 
         account = "intermediate"
         fast_medium = self.FAST_MEDIUM
@@ -138,14 +146,14 @@ class TestIntermediateMediumSwitch(YTEnvSetup):
             })
 
         job_id = wait_breakpoint(job_count=1)[0]
-        sleep(1)
+        wait_usage_update()
         fast_intermediate_medium_usage = get_intermediate_usage(fast_medium)
         release_breakpoint(job_id=job_id)
 
         while op.get_job_count("completed") != op.get_job_count("total"):
             job_id = wait_breakpoint(job_count=1)[0]
             assert fast_intermediate_medium_usage == get_intermediate_usage(fast_medium), f"usage of the medium '{fast_medium}' exceeded"
-            sleep(1)
+            wait_usage_update()
             completed_job_count = op.get_job_count("completed")
             release_breakpoint(job_id=job_id)
             wait(lambda: op.get_state() != "running" or op.get_job_count("completed") > completed_job_count, timeout=600)

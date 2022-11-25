@@ -1410,7 +1410,8 @@ private:
 
             auto intermediateMediumRsp = it->second->GetResponse<TYPathProxy::TRspGet>(ToString(transactionId));
             if (!intermediateMediumRsp.IsOK()) {
-                YT_LOG_DEBUG("Failed to get intermediate medium resource usage (OperationId: %v, TransactionId: %v)",
+                YT_LOG_DEBUG(intermediateMediumRsp,
+                    "Failed to get intermediate medium resource usage (OperationId: %v, TransactionId: %v)",
                     operationId,
                     transactionId);
                 continue;
@@ -1420,8 +1421,8 @@ private:
             auto usage = TryGetInt64(
                 resourceUsage,
                 Format("/%v/disk_space_per_medium/%v",
-                    NSecurityClient::IntermediateAccountName,
-                    medium));
+                    ToYPathLiteral(NSecurityClient::IntermediateAccountName),
+                    ToYPathLiteral(medium)));
 
             if (usage) {
                 YT_LOG_DEBUG("Updating intermediate medium usage (OperationId: %v, TransactionId: %v, Usage: %v)",
