@@ -113,7 +113,7 @@ public:
 
     bool IsDurabilityRequired(TChunk* chunk) const;
 
-    void OnProfiling(NProfiling::TSensorBuffer* buffer);
+    void OnProfiling(NProfiling::TSensorBuffer* buffer, NProfiling::TSensorBuffer* crpBuffer);
 
     // IJobController implementation.
     void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override;
