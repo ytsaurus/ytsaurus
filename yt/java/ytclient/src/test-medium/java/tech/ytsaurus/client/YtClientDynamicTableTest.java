@@ -19,6 +19,9 @@ import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTree;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
@@ -27,9 +30,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;

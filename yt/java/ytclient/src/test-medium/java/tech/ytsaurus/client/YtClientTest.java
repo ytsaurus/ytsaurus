@@ -41,6 +41,8 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.RangeLimit;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -59,8 +61,6 @@ import ru.yandex.yt.ytclient.proxy.request.ReadTable;
 import ru.yandex.yt.ytclient.proxy.request.RemoveNode;
 import ru.yandex.yt.ytclient.proxy.request.StartTransaction;
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @RunWith(Parameterized.class)
 public class YtClientTest {

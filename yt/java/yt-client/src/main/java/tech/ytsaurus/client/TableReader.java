@@ -4,8 +4,7 @@ import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
 import NYT.NChunkClient.NProto.DataStatistics;
-
-import ru.yandex.yt.ytclient.tables.TableSchema;
+import tech.ytsaurus.core.tables.TableSchema;
 
 public interface TableReader<T> {
     //! Returns the starting row index within the table.

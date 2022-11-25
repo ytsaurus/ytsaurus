@@ -31,11 +31,11 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class YtResultSet extends AbstractWrapper implements ResultSet {
 

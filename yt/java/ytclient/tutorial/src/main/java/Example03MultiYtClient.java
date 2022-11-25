@@ -2,11 +2,11 @@ import tech.ytsaurus.client.MultiYtClient;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.ColumnSortOrder;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
 
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class Example03MultiYtClient {
     private Example03MultiYtClient() {

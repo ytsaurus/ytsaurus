@@ -2,8 +2,8 @@ package tech.ytsaurus.client.operations;
 
 import java.util.Iterator;
 
-import ru.yandex.inside.yt.kosher.operations.OperationContext;
-import ru.yandex.inside.yt.kosher.operations.Yield;
+import tech.ytsaurus.core.operations.OperationContext;
+import tech.ytsaurus.core.operations.Yield;
 
 public interface Reducer<TInput, TOutput> extends MapperOrReducer<TInput, TOutput> {
     default void reduce(

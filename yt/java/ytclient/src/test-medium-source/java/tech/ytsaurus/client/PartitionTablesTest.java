@@ -21,13 +21,13 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.RangeLimit;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.yt.ytclient.proxy.request.WriteTable;
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class PartitionTablesTest {
     YtClient yt;

@@ -2,9 +2,9 @@ package ru.yandex.yt.jdbc;
 
 import java.sql.Types;
 
+import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
 class YtTypes {
 

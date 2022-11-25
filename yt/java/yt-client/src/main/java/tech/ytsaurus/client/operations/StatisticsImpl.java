@@ -7,10 +7,10 @@ import java.io.OutputStream;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.operations.Yield;
 
 public class StatisticsImpl implements Statistics {
 

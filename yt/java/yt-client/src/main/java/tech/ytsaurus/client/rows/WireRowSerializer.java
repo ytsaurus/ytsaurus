@@ -1,7 +1,8 @@
 package tech.ytsaurus.client.rows;
 
+import tech.ytsaurus.core.tables.TableSchema;
+
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public interface WireRowSerializer<T> {
 

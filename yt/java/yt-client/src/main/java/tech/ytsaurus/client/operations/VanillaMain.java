@@ -2,8 +2,8 @@ package tech.ytsaurus.client.operations;
 
 import java.io.OutputStream;
 
-import ru.yandex.inside.yt.kosher.operations.Yield;
 
+import tech.ytsaurus.core.operations.Yield;
 public class VanillaMain {
     private VanillaMain() {
     }

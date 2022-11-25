@@ -7,8 +7,8 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
+import tech.ytsaurus.core.tables.TableSchema;
 public class UnversionedRowsetDeserializer
         extends UnversionedRowDeserializer
         implements WireRowsetDeserializer<UnversionedRow> {

@@ -7,11 +7,11 @@ import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rows.VersionedRow;
 import tech.ytsaurus.client.rows.VersionedRowset;
 import tech.ytsaurus.client.rows.VersionedValue;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class VersionedLookupRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(VersionedLookupRowsExample.class);

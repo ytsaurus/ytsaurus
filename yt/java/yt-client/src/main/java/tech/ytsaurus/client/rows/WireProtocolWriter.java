@@ -10,8 +10,7 @@ import java.util.function.Function;
 
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
-
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.ColumnValueType;
 
 public class WireProtocolWriter {
     private static final int INITIAL_BUFFER_CAPACITY = 1024;

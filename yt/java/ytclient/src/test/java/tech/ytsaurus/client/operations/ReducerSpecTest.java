@@ -12,13 +12,13 @@ import tech.ytsaurus.client.MockYtClient;
 import tech.ytsaurus.client.YtClientConfiguration;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.operations.OperationContext;
+import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.inside.yt.kosher.operations.OperationContext;
-import ru.yandex.inside.yt.kosher.operations.Yield;
 
 public class ReducerSpecTest {
     private final MockYtClient client = new MockYtClient("test");

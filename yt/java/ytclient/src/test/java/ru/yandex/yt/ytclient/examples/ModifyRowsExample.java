@@ -12,13 +12,13 @@ import tech.ytsaurus.client.ModifyRowsRequest;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.yt.rpcproxy.ETransactionType;
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class ModifyRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(ModifyRowsExample.class);

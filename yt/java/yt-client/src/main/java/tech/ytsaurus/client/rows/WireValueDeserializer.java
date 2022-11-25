@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.rows;
 
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
 
+import tech.ytsaurus.core.tables.ColumnValueType;
 public interface WireValueDeserializer<T> extends YTreeConsumable {
 
     void setId(int id);

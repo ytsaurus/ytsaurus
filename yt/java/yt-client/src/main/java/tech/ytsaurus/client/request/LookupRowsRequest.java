@@ -12,8 +12,7 @@ import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rows.WireProtocolWriter;
-
-import ru.yandex.yt.ytclient.tables.TableSchema;
+import tech.ytsaurus.core.tables.TableSchema;
 
 public class LookupRowsRequest extends AbstractLookupRowsRequest<LookupRowsRequest.Builder, LookupRowsRequest> {
     private final List<UnversionedRow> filters;

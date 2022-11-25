@@ -4,12 +4,12 @@ import java.util.Collections;
 import java.util.List;
 import java.util.Objects;
 
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.yson.YsonConsumer;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class VersionedRow {
     private final List<Long> writeTimestamps;

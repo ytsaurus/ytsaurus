@@ -5,9 +5,9 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
 
 public class SelectRowsExample {
     private static final Logger logger = LoggerFactory.getLogger(SelectRowsExample.class);

@@ -15,18 +15,18 @@ import tech.ytsaurus.client.rows.WireProtocol;
 import tech.ytsaurus.client.rows.WireProtocolReader;
 import tech.ytsaurus.client.rows.WireRowsetDeserializer;
 import tech.ytsaurus.client.rows.WireVersionedRowsetDeserializer;
+import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.ColumnSortOrder;
+import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.type_info.TypeIO;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.rpcproxy.ERowsetKind;
 import ru.yandex.yt.rpcproxy.TColumnSchema;
 import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.rpcproxy.TTableSchema;
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.ColumnSortOrder;
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class ApiServiceUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;

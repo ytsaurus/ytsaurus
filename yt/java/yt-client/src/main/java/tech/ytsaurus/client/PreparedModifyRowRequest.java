@@ -3,11 +3,11 @@ package tech.ytsaurus.client;
 import java.util.List;
 
 import tech.ytsaurus.client.rpc.Compression;
+import tech.ytsaurus.core.tables.TableSchema;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpcproxy.ERowModificationType;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**
  * Immutable row modification request that contains serialized and compressed rowset

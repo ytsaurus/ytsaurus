@@ -10,10 +10,10 @@ import tech.ytsaurus.client.operations.Statistics;
 import tech.ytsaurus.client.request.ReduceOperation;
 import tech.ytsaurus.client.request.SortOperation;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.operations.Yield;
 
 public class Example07ReduceYTree {
     private Example07ReduceYTree() {

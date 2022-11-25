@@ -11,11 +11,11 @@ import java.util.Objects;
 import java.util.Random;
 import java.util.stream.Collectors;
 
+import tech.ytsaurus.core.rows.YTreeObjectField;
+import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializerForCollections;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializerForMaps;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.AbstractYTreeDateSerializer;

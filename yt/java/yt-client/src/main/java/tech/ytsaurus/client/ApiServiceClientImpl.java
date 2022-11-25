@@ -117,6 +117,8 @@ import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -125,8 +127,6 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeNodeUtils;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.rpc.TRequestHeader;

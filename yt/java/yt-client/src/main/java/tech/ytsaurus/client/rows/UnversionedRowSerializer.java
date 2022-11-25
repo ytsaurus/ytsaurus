@@ -2,8 +2,8 @@ package tech.ytsaurus.client.rows;
 
 import java.util.Objects;
 
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
+import tech.ytsaurus.core.tables.TableSchema;
 public class UnversionedRowSerializer implements WireRowSerializer<UnversionedRow> {
     private final TableSchema schema;
 

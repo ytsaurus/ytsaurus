@@ -4,8 +4,8 @@ import java.util.Iterator;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.inside.yt.kosher.operations.OperationContext;
-import ru.yandex.inside.yt.kosher.operations.Yield;
+import tech.ytsaurus.core.operations.OperationContext;
+import tech.ytsaurus.core.operations.Yield;
 
 public interface ReducerWithKey<TInput, TOutput, TKey> extends Reducer<TInput, TOutput> {
 

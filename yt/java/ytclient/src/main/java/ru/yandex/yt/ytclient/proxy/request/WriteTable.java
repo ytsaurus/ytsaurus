@@ -6,11 +6,11 @@ import tech.ytsaurus.client.request.Format;
 import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.core.tables.TableSchema;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 @NonNullApi
 @NonNullFields

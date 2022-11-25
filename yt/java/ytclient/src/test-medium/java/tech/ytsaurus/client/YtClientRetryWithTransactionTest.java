@@ -19,6 +19,7 @@ import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
@@ -30,7 +31,6 @@ import ru.yandex.yt.testlib.Matchers;
 import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.MountTable;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 import static org.hamcrest.CoreMatchers.is;
 import static org.hamcrest.MatcherAssert.assertThat;

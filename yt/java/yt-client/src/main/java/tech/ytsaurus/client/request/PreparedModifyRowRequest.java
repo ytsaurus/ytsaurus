@@ -11,10 +11,10 @@ import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.core.tables.TableSchema;
 
 import ru.yandex.yt.rpcproxy.ERowModificationType;
 import ru.yandex.yt.rpcproxy.TReqModifyRows;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 /**
  * Immutable row modification request that contains serialized and compressed rowset

@@ -12,6 +12,11 @@ import java.util.Objects;
 
 import javax.annotation.Nonnull;
 
+import tech.ytsaurus.core.rows.YTreeObjectField;
+import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.core.tables.ColumnSchema;
+import tech.ytsaurus.core.tables.ColumnValueType;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeBooleanNodeImpl;
 import tech.ytsaurus.ysontree.YTreeDoubleNodeImpl;
@@ -20,13 +25,8 @@ import tech.ytsaurus.ysontree.YTreeIntegerNodeImpl;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeStringNodeImpl;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeObjectField;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.simple.YTreeStringSerializer;
-import ru.yandex.yt.ytclient.tables.ColumnSchema;
-import ru.yandex.yt.ytclient.tables.ColumnValueType;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 public class MappedRowsetDeserializer<T> implements WireRowsetDeserializer<T>, WireValueDeserializer<Void>,
         WireVersionedRowsetDeserializer<T>, WireSchemafulRowsetDeserializer<T> {

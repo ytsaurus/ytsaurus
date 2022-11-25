@@ -1,8 +1,8 @@
 package tech.ytsaurus.client.rows;
 
 import org.junit.Test;
+import tech.ytsaurus.core.rows.YTreeSerializer;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeSerializer;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeKeyField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;

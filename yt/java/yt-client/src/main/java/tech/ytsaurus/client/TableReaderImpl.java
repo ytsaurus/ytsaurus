@@ -13,11 +13,11 @@ import com.google.protobuf.Parser;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.core.tables.TableSchema;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.YTreeRowSerializer;
 import ru.yandex.yt.rpcproxy.TRspReadTable;
 import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
-import ru.yandex.yt.ytclient.tables.TableSchema;
 
 class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
     private static final Parser<TRspReadTableMeta> META_PARSER = TRspReadTableMeta.parser();
