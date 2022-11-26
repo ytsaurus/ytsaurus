@@ -1672,7 +1672,8 @@ protected:
             }
             YT_LOG_INFO(error, "Aborting all jobs in partition because of chunk mapping invalidation (PartitionIndex: %v)",
                 partitionIndex);
-            for (const auto& joblet : ActiveJoblets_[partitionIndex]) {
+            std::vector<TJobletPtr> partitionJoblets(ActiveJoblets_[partitionIndex].begin(), ActiveJoblets_[partitionIndex].end());
+            for (const auto& joblet : partitionJoblets) {
                 Controller_->AbortJobFromController(joblet->JobId, EAbortReason::ChunkMappingInvalidated);
                 InvalidatedJoblets_[partitionIndex].insert(joblet);
             }
