@@ -19,7 +19,7 @@ struct TDiskQuota
 
     std::optional<i64> DiskSpaceWithoutMedium;
 
-    operator bool() const;
+    explicit operator bool() const;
 
     void Persist(const TStreamPersistenceContext& context);
 };
@@ -35,6 +35,10 @@ TDiskQuota& operator += (TDiskQuota& lhs, const TDiskQuota& rhs);
 
 TDiskQuota  operator -  (const TDiskQuota& lhs, const TDiskQuota& rhs);
 TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs);
+
+bool operator==(const TDiskQuota& lhs, const TDiskQuota& rhs);
+
+void Serialize(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -22,7 +22,7 @@ struct TControllerAgentDescriptor
 
     bool Empty() const noexcept;
 
-    operator bool() const noexcept;
+    explicit operator bool() const noexcept;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

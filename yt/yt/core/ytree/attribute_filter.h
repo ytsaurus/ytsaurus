@@ -84,7 +84,7 @@ struct TAttributeFilter
     TAttributeFilter& operator =(std::vector<TString> keys);
 
     //! Returns true for non-universal filter and false otherwise.
-    operator bool() const;
+    explicit operator bool() const;
 
     //! Returns true for non-universal filter with empty keys and paths.
     bool IsEmpty() const;
