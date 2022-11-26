@@ -102,6 +102,31 @@ TDiskQuota& operator -= (TDiskQuota& lhs, const TDiskQuota& rhs)
     return lhs;
 }
 
+bool operator==(const TDiskQuota& lhs, const TDiskQuota& rhs)
+{
+    if (lhs.DiskSpacePerMedium.size() != rhs.DiskSpacePerMedium.size()) {
+        return false;
+    }
+
+    for (auto [key, value] : lhs.DiskSpacePerMedium) {
+        auto it = rhs.DiskSpacePerMedium.find(key);
+        if (it == rhs.DiskSpacePerMedium.end() || it->second != value) {
+            return false;
+        }
+    }
+
+    return lhs.DiskSpaceWithoutMedium == rhs.DiskSpaceWithoutMedium;
+}
+
+void Serialize(const TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("disk_space_per_medium").Value(diskQuota.DiskSpacePerMedium)
+            .Item("disk_space_without_medium").Value(diskQuota.DiskSpaceWithoutMedium)
+        .EndMap();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TJobResourcesWithQuota::TJobResourcesWithQuota(const TJobResources& jobResources)
