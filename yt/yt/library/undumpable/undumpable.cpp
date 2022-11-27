@@ -97,18 +97,31 @@ public:
         return Footprint_.load();
     }
 
-    void CutUndumpable()
+    TCutBlocksInfo CutUndumpable()
     {
+        TCutBlocksInfo result;
 #if defined(_linux_)
         auto head = All_;
         while (head) {
             int ret = madvise(head->Ptr, head->Size, MADV_DONTDUMP);
-            // We intentionally ignore any errors here. Undumpable memory is best-effort.
-            Y_UNUSED(ret);
+
+            if (ret == 0) {
+                ++result.MarkedMemory += head->Size;
+            } else {
+                auto errorCode = LastSystemError();
+                for (auto& record : result.FailedToMarkMemory) {
+                    if (record.ErrorCode == 0 || record.ErrorCode == errorCode) {
+                        record.ErrorCode = errorCode;
+                        record.Memory += head->Size;
+                        break;
+                    }
+                }
+            }
 
             head = head->NextMark;
         }
 #endif
+        return result;
     }
 
 private:
@@ -177,7 +190,7 @@ size_t GetUndumpableMemoryFootprint()
     return UndumpableSet.GetUndumpableMemoryFootprint();
 }
 
-void CutUndumpableFromCoredump()
+TCutBlocksInfo CutUndumpableFromCoredump()
 {
     return UndumpableSet.CutUndumpable();
 }

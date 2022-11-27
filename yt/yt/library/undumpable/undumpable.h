@@ -2,6 +2,8 @@
 
 #include <util/system/types.h>
 
+#include <array>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,11 +31,27 @@ size_t GetUndumpableBytesCount();
 //! GetMemoryFootprint returns estimate of memory consumed by internal data structures.
 size_t GetUndumpableMemoryFootprint();
 
+
+struct TCutBlocksInfo
+{
+    struct TFailedInfo
+    {
+        int ErrorCode = 0;
+        i64 Memory = 0;
+    };
+
+    i64 MarkedMemory = 0;
+
+    static constexpr int MaxFailedRecordsCount = 8;
+
+    std::array<TFailedInfo, MaxFailedRecordsCount> FailedToMarkMemory = {}; 
+};
+
 //! CutUndumpableFromCoredump call's madvice(MADV_DONTNEED) for all current undumpable objects.
 /**
  *  This function is async-signal safe. Usually, this function should be called from segfault handler.
  */
-void CutUndumpableFromCoredump();
+TCutBlocksInfo CutUndumpableFromCoredump();
 
 ////////////////////////////////////////////////////////////////////////////////
 
