@@ -450,6 +450,30 @@ void CrashTimeoutHandler(int /*signal*/)
     _exit(1);
 }
 
+void DumpUndumpableBlocksInfo(const TCutBlocksInfo& cutInfo, TRawFormatter<1024>* formatter)
+{
+    formatter->Reset();
+    formatter->AppendString("*** Marked memory regions as undumpable. Successfully marked: ");
+    formatter->AppendNumber(cutInfo.MarkedMemory / 1_MB);
+    formatter->AppendString(" mb");
+
+    // Enforce sane limit to protect from running out formatter buffer.
+    static_assert(TCutBlocksInfo::MaxFailedRecordsCount < 10);
+
+    for (const auto& record : cutInfo.FailedToMarkMemory) {
+        if (record.ErrorCode == 0) {
+            break;
+        }
+        formatter->AppendString(" (Failed Code: ");
+        formatter->AppendNumber(record.ErrorCode);
+        formatter->AppendString(", Memory: ");
+        formatter->AppendNumber(record.Memory / 1_MB);
+        formatter->AppendString(" mb)");
+    }
+    formatter->AppendString(" ***");
+    WriteToStderr(formatter->GetData(), formatter->GetBytesWritten());
+}
+
 // Dumps signal, stack frame information and codicils.
 void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 {
@@ -479,7 +503,8 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
     // Easiest way to choose proper overload...
     DumpStackTrace([] (TStringBuf str) { WriteToStderr(str); });
 
-    CutUndumpableFromCoredump();
+    auto cutInfo = CutUndumpableFromCoredump();
+    DumpUndumpableBlocksInfo(cutInfo, &formatter);
 
     formatter.Reset();
     formatter.AppendString("*** Wait for logger to shut down ***\n");
