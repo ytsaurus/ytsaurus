@@ -3,6 +3,7 @@ package tech.ytsaurus.client;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.util.List;
+import java.util.Objects;
 import java.util.concurrent.atomic.AtomicLong;
 
 import javax.annotation.Nullable;
@@ -15,9 +16,12 @@ import ru.yandex.yt.rpcproxy.TRowsetStatistics;
 
 abstract class TableAttachmentRowsetReader<T> implements TableAttachmentReader<T> {
     protected final AtomicLong totalRowCount = new AtomicLong(-1);
+    @Nullable
     protected volatile DataStatistics.TDataStatistics currentDataStatistics;
 
+    @Nullable
     protected volatile TRowsetDescriptor currentRowsetDescriptor;
+    @Nullable
     protected volatile TableSchema currentReadSchema;
 
     protected abstract List<T> parseMergedRow(ByteBuffer bb, int size);
@@ -36,6 +40,7 @@ abstract class TableAttachmentRowsetReader<T> implements TableAttachmentReader<T
             builder.mergeFrom(currentRowsetDescriptor);
             builder.addAllNameTableEntries(rowsetDescriptor.getNameTableEntriesList());
             currentRowsetDescriptor = builder.build();
+            Objects.requireNonNull(currentRowsetDescriptor);
             currentReadSchema = ApiServiceUtil.deserializeRowsetSchema(currentRowsetDescriptor);
         } // else schema is not changed
 
@@ -73,7 +78,7 @@ abstract class TableAttachmentRowsetReader<T> implements TableAttachmentReader<T
         bb.position(endPosition);
     }
 
-    private List<T> parseRowsWithStatistics(byte[] attachment, int offset, int length) throws Exception {
+    private List<T> parseRowsWithStatistics(@Nullable byte[] attachment, int offset, int length) throws Exception {
         if (attachment == null) {
             return null;
         }
@@ -98,12 +103,12 @@ abstract class TableAttachmentRowsetReader<T> implements TableAttachmentReader<T
     }
 
     @Override
-    public List<T> parse(byte[] attachments, int offset, int length) throws Exception {
+    public List<T> parse(@Nullable byte[] attachments, int offset, int length) throws Exception {
         return parseRowsWithStatistics(attachments, offset, length);
     }
 
     @Override
-    public List<T> parse(byte[] attachments) throws Exception {
+    public List<T> parse(@Nullable byte[] attachments) throws Exception {
         if (attachments == null) {
             return null;
         }

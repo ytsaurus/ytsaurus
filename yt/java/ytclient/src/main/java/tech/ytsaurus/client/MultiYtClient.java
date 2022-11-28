@@ -162,7 +162,7 @@ public class MultiYtClient implements ImmutableTransactionalClient, Closeable {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends YtClientOpensource.BaseBuilder<MultiYtClient, Builder> {
+    public static class Builder extends YTsaurusClient.BaseBuilder<MultiYtClient, Builder> {
         List<YtClientOptions> clientsOptions = new ArrayList<>();
         List<YtClient> clients = new ArrayList<>();
         List<String> clusters = new ArrayList<>();

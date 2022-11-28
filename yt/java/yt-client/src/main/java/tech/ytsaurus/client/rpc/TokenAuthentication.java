@@ -16,11 +16,6 @@ public class TokenAuthentication extends RpcClientWrapper {
         this.credentials = Objects.requireNonNull(credentials);
     }
 
-    @Deprecated
-    public TokenAuthentication(RpcClient client, String user, String token) {
-        this(client, new RpcCredentials(user, token));
-    }
-
     @Override
     public RpcClient withTokenAuthentication(RpcCredentials credentials) {
         return new TokenAuthentication(this.innerClient, credentials);

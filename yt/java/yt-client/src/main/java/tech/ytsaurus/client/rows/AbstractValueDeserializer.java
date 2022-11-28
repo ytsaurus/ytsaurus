@@ -1,7 +1,7 @@
 package tech.ytsaurus.client.rows;
 
-
 import tech.ytsaurus.core.tables.ColumnValueType;
+
 abstract class AbstractValueDeserializer<T> implements WireValueDeserializer<T> {
     protected int id;
     protected ColumnValueType type;

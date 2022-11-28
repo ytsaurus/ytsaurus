@@ -7,9 +7,8 @@ import java.util.List;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-// TODO: make it package-private
-public class TableAttachmentYsonReader extends TableAttachmentRowsetReader<YTreeNode> {
-    public TableAttachmentYsonReader() {
+class TableAttachmentYsonReader extends TableAttachmentRowsetReader<YTreeNode> {
+    TableAttachmentYsonReader() {
     }
 
     @Override

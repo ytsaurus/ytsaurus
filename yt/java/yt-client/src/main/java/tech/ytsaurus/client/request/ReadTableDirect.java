@@ -5,7 +5,7 @@ import tech.ytsaurus.core.cypress.YPath;
 
 public class ReadTableDirect extends ReadTable<byte[]> {
     public ReadTableDirect(YPath path) {
-        super(path, new SerializationContext<>(TableAttachmentReader.BYPASS));
+        super(path, new SerializationContext<byte[]>(TableAttachmentReader.byPass()));
     }
 
     /**
@@ -14,6 +14,6 @@ public class ReadTableDirect extends ReadTable<byte[]> {
     @Deprecated
     public ReadTableDirect(String path) {
         super(ReadTable.<byte[]>builder().setPath(path).setSerializationContext(
-                new SerializationContext<>(TableAttachmentReader.BYPASS)));
+                new SerializationContext<>(TableAttachmentReader.byPass())));
     }
 }
