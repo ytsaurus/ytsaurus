@@ -148,9 +148,8 @@ public class ReadWriteFormatTest {
         writer.close().join();
 
         TableReader<YTreeNode> reader = yt.readTable(
-                new ReadTable<>(path, new ReadTable.SerializationContext<>(
-                        Format.ysonBinary(), new TableAttachmentYsonReader())
-        )).join();
+                new ReadTable<>(path, ReadTable.SerializationContext.ysonBinary())
+        ).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 

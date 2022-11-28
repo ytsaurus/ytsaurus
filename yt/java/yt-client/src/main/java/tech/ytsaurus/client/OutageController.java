@@ -18,7 +18,7 @@ import ru.yandex.lang.NonNullFields;
 public class OutageController {
     private final Map<String, Queue<Optional<Throwable>>> requestTypeToErrors = new HashMap<>();
     private final Map<String, Queue<Duration>> requestTypeToDelays = new HashMap<>();
-    private Map<GUID, Optional<Throwable>> requestToError = new HashMap<>();
+    private final Map<GUID, Optional<Throwable>> requestToError = new HashMap<>();
 
     /**
      * Planning more fails of 'requestType' queries.

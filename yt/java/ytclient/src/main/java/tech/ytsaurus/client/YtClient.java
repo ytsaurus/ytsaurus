@@ -12,7 +12,7 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 
-public class YtClient extends tech.ytsaurus.client.YtClientOpensource {
+public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
     /**
      * @deprecated prefer to use {@link #builder()}
      */
@@ -54,7 +54,7 @@ public class YtClient extends tech.ytsaurus.client.YtClientOpensource {
             RpcOptions options
     ) {
         super(new BuilderWithDefaults<>(
-                new YtClientOpensource.Builder()
+                new YTsaurusClient.Builder()
                         .setSharedBusConnector(connector)
                         .setClusters(clusters)
                         .setPreferredClusterName(localDataCenterName)
@@ -93,7 +93,7 @@ public class YtClient extends tech.ytsaurus.client.YtClientOpensource {
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends YtClientOpensource.ClientBuilder<YtClient, Builder> {
+    public static class Builder extends YTsaurusClient.ClientBuilder<YtClient, Builder> {
         @Override
         protected Builder self() {
             return this;
@@ -104,7 +104,7 @@ public class YtClient extends tech.ytsaurus.client.YtClientOpensource {
          */
         @Override
         public YtClient build() {
-            return new YtClient(new YtClientOpensource.BuilderWithDefaults(this));
+            return new YtClient(new YTsaurusClient.BuilderWithDefaults(this));
         }
     }
 }

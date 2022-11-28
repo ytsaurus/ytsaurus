@@ -53,7 +53,7 @@ import ru.yandex.yt.rpc.TStreamingPayloadHeader;
  *      When all internal threads of YtClient are blocked by such callbacks
  *      YtClient becomes unable to send requests and receive responses.
  */
-public class YtClientOpensource extends CompoundClientImpl implements BaseYtClient {
+public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     private final BusConnector busConnector;
     private final boolean isBusConnectorOwner;
     private final ScheduledExecutorService executor;
@@ -61,7 +61,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
 
     private final List<YtCluster> clusters;
 
-    public YtClientOpensource(
+    public YTsaurusClient(
             BusConnector connector,
             YtCluster cluster,
             RpcCredentials credentials,
@@ -78,7 +78,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
         );
     }
 
-    public YtClientOpensource(
+    public YTsaurusClient(
             BusConnector connector,
             String clusterName,
             RpcCredentials credentials,
@@ -87,7 +87,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
         this(connector, new YtCluster(clusterName), credentials, configuration);
     }
 
-    public YtClientOpensource(BusConnector connector, String clusterName, RpcCredentials credentials) {
+    public YTsaurusClient(BusConnector connector, String clusterName, RpcCredentials credentials) {
         this(
                 connector,
                 clusterName,
@@ -96,7 +96,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
         );
     }
 
-    protected YtClientOpensource(BuilderWithDefaults<?, ?> builder, SerializationResolver serializationResolver) {
+    protected YTsaurusClient(BuilderWithDefaults<?, ?> builder, SerializationResolver serializationResolver) {
         super(
                 builder.busConnector.executorService(), builder.builder.configuration, builder.builder.heavyExecutor,
                 serializationResolver
@@ -484,22 +484,22 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
 
     @NonNullApi
     @NonNullFields
-    public static class Builder extends ClientBuilder<YtClientOpensource, Builder> {
+    public static class Builder extends ClientBuilder<YTsaurusClient, Builder> {
         @Override
         protected Builder self() {
             return this;
         }
 
         @Override
-        public YtClientOpensource build() {
-            return new YtClientOpensource(new BuilderWithDefaults<>(this), DefaultSerializationResolver.getInstance());
+        public YTsaurusClient build() {
+            return new YTsaurusClient(new BuilderWithDefaults<>(this), DefaultSerializationResolver.getInstance());
         }
     }
 
     @NonNullFields
     @NonNullApi
     public abstract static class ClientBuilder<
-            TClient extends YtClientOpensource,
+            TClient extends YTsaurusClient,
             TBuilder extends ClientBuilder<TClient, TBuilder>>
             extends BaseBuilder<TClient, TBuilder> {
         @Nullable BusConnector busConnector;
@@ -546,7 +546,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
          *
          * <p>
          * Connector will be owned by YtClient.
-         * YtClient will close it when {@link YtClientOpensource#close()} is called.
+         * YtClient will close it when {@link YTsaurusClient#close()} is called.
          *
          * <p>
          * If bus is never set default bus will be created
@@ -678,7 +678,7 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
     //   user to initialize another YtClient.
     @NonNullFields
     public static class BuilderWithDefaults<
-            TClient extends YtClientOpensource,
+            TClient extends YTsaurusClient,
             TBuilder extends ClientBuilder<TClient, TBuilder>> {
         final ClientBuilder<TClient, TBuilder> builder;
         final BusConnector busConnector;

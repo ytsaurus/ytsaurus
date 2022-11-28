@@ -9,11 +9,10 @@ import java.util.Objects;
 import tech.ytsaurus.client.rows.WireProtocolReader;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 
-// TODO: make it package-private
-public class TableAttachmentWireProtocolReader<T> extends TableAttachmentRowsetReader<T> {
+class TableAttachmentWireProtocolReader<T> extends TableAttachmentRowsetReader<T> {
     private final WireRowDeserializer<T> deserializer;
 
-    public TableAttachmentWireProtocolReader(WireRowDeserializer<T> deserializer) {
+    TableAttachmentWireProtocolReader(WireRowDeserializer<T> deserializer) {
         this.deserializer = Objects.requireNonNull(deserializer);
     }
 
@@ -24,6 +23,7 @@ public class TableAttachmentWireProtocolReader<T> extends TableAttachmentRowsetR
 
         WireProtocolReader reader = new WireProtocolReader(Arrays.asList(data));
 
+        Objects.requireNonNull(currentReadSchema);
         deserializer.updateSchema(currentReadSchema);
 
         int rowCount = reader.readRowCount();

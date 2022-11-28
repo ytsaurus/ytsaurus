@@ -1,6 +1,7 @@
 package tech.ytsaurus.client.request;
 
 import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
 import java.util.Objects;
 import java.util.Optional;
 
@@ -8,7 +9,6 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.TableAttachmentReader;
-import tech.ytsaurus.client.TableAttachmentWireProtocolReader;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeSerializer;
@@ -117,7 +117,7 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         }
 
         public SerializationContext(WireRowDeserializer<T> deserializer) {
-            this(new TableAttachmentWireProtocolReader<>(deserializer));
+            this(TableAttachmentReader.wireProtocol(deserializer));
         }
 
         public SerializationContext(YTreeSerializer<T> serializer) {
@@ -144,15 +144,20 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
             this.objectClazz = objectClazz;
         }
 
-        private SerializationContext(ERowsetFormat desiredRowsetFormat) {
+        private SerializationContext(ERowsetFormat desiredRowsetFormat, TableAttachmentReader<T> attachmentReader) {
             this.deserializer = null;
             this.serializer = null;
             this.objectClazz = null;
             this.desiredRowsetFormat = desiredRowsetFormat;
+            this.attachmentReader = attachmentReader;
         }
 
-        public static <T> SerializationContext<T> binaryArrow() {
-            return new SerializationContext<>(ERowsetFormat.RF_ARROW);
+        public static SerializationContext<ByteBuffer> binaryArrow() {
+            return new SerializationContext<>(ERowsetFormat.RF_ARROW, TableAttachmentReader.byteBuffer());
+        }
+
+        public static SerializationContext<YTreeNode> ysonBinary() {
+            return new SerializationContext<>(Format.ysonBinary(), TableAttachmentReader.ysonBinary());
         }
 
         public Optional<WireRowDeserializer<T>> getDeserializer() {

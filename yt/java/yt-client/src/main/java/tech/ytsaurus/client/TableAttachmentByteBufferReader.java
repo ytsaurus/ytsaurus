@@ -4,8 +4,7 @@ import java.nio.ByteBuffer;
 import java.util.Collections;
 import java.util.List;
 
-// TODO: make it package-private
-public class TableAttachmentByteBufferReader extends TableAttachmentRowsetReader<ByteBuffer> {
+class TableAttachmentByteBufferReader extends TableAttachmentRowsetReader<ByteBuffer> {
     @Override
     protected List<ByteBuffer> parseMergedRow(ByteBuffer bb, int size) {
         ByteBuffer res = bb.duplicate();
