@@ -144,7 +144,7 @@ void TBundleState::DoUpdateState()
     THashMap<TTableId, std::vector<TTabletId>> newTableIdToTablets;
 
     for (const auto& [id, info] : tabletCells) {
-        for (const auto& [tabletId, tableId] : info.TabletToTableId) {
+        for (auto [tabletId, tableId] : info.TabletToTableId) {
             auto [it, inserted] = tabletIds.insert(tabletId);
             if (!inserted) {
                 YT_LOG_DEBUG("Tablet was moved between fetches for different cells (TabletId: %v, NewCellId: %v)",
