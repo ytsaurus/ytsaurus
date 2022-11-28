@@ -1214,10 +1214,6 @@ class YTEnvSetup(object):
             )
             for response in responses:
                 output = yt_commands.get_batch_output(response)
-                if "last_config_change_time" not in output:
-                    # COMPAT(babenko): YT Node is not recent enough.
-                    sleep(1.0)
-                    return True
                 last_config_update_time = parse_yt_time(output["last_config_update_time"])
                 if last_config_update_time < now:
                     return False
