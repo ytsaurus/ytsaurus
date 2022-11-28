@@ -82,6 +82,7 @@ YT_DEFINE_ERROR_ENUM(
     ((BackupInProgress)                       (1734))
     ((ChunkIsNotPreloaded)                    (1735))
     ((NoInSyncReplicas)                       (1736))
+    ((CellHasNoAssignedPeers)                 (1737))
 );
 
 DEFINE_ENUM(EInMemoryMode,

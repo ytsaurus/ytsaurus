@@ -1033,6 +1033,7 @@ TRowset TClient::DoLookupRowsOnce(
 
         if (descriptor.Peers[0].IsNull()) {
             THROW_ERROR_EXCEPTION(
+                NTabletClient::EErrorCode::CellHasNoAssignedPeers,
                 "Cell %v has no assigned peers",
                 cellId);
         }
