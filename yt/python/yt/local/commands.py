@@ -154,7 +154,9 @@ def start(master_count=1,
           ytserver_all_path=None,
           secondary_master_cell_count=0,
           log_compression_method=None,
-          enable_master_cache=False):
+          enable_master_cache=False,
+          clock_count=0,
+          chaos_node_count=0):
     require(master_count >= 1, lambda: YtError("Cannot start local YT instance without masters"))
 
     path = get_root_path(path)
@@ -182,7 +184,9 @@ def start(master_count=1,
 
     yt_config = LocalYtConfig(
         master_count=master_count,
+        clock_count=clock_count,
         node_count=node_count,
+        chaos_node_count=chaos_node_count,
         scheduler_count=scheduler_count,
         controller_agent_count=controller_agent_count,
         secondary_cell_count=secondary_master_cell_count,
@@ -190,6 +194,7 @@ def start(master_count=1,
         http_proxy_count=http_proxy_count,
         master_cache_count=master_cache_count,
         tablet_balancer_count=tablet_balancer_count,
+        cluster_name=id,
 
         delta_master_config=_load_config(master_config),
         delta_scheduler_config=_load_config(scheduler_config),
