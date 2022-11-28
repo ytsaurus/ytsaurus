@@ -3,10 +3,14 @@ package tech.ytsaurus.client;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
-import java.util.Optional;
 
 import javax.annotation.Nullable;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+
+@NonNullApi
+@NonNullFields
 public class YtCluster {
     // This option is set to true only in tests.
     static boolean normalizationLowersHostName = false;
@@ -16,14 +20,15 @@ public class YtCluster {
     int httpPort;
     final String name;
     final List<String> addresses;
-    final Optional<String> proxyRole;
+    @Nullable
+    final String proxyRole;
 
     public YtCluster(
             String name,
             String balancerFqdn,
             int httpPort,
             List<String> addresses,
-            Optional<String> proxyRole
+            @Nullable String proxyRole
     ) {
         this.name = removeHttp(name);
         this.balancerFqdn = balancerFqdn;
@@ -33,7 +38,7 @@ public class YtCluster {
     }
 
     public YtCluster(String name, String balancerFqdn, int httpPort, List<String> addresses) {
-        this(name, balancerFqdn, httpPort, addresses, Optional.empty());
+        this(name, balancerFqdn, httpPort, addresses, null);
     }
 
     public YtCluster(String name, String balancerFqdn, int httpPort) {

@@ -1,11 +1,11 @@
 package tech.ytsaurus.client;
 
 import java.util.ArrayList;
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Random;
 import java.util.Set;
 import java.util.concurrent.CancellationException;
@@ -61,104 +61,42 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
 
     private final List<YtCluster> clusters;
 
-    /**
-     * @deprecated prefer to use {@link #builder()}
-     */
-    @Deprecated
     public YtClientOpensource(
             BusConnector connector,
-            List<YtCluster> clusters,
-            String localDataCenterName,
+            YtCluster cluster,
             RpcCredentials credentials,
-            RpcOptions options) {
-        this(connector, clusters, localDataCenterName, null, credentials, options);
-    }
-
-    /**
-     * @deprecated prefer to use {@link #builder()}
-     */
-    @Deprecated
-    public YtClientOpensource(
-            BusConnector connector,
-            List<YtCluster> clusters,
-            String localDataCenterName,
-            String proxyRole,
-            RpcCredentials credentials,
-            RpcOptions options) {
-        this(connector, clusters, localDataCenterName, proxyRole, credentials, new RpcCompression(), options);
-    }
-
-    /**
-     * @deprecated prefer to use {@link #builder()}
-     */
-    @Deprecated
-    public YtClientOpensource(
-            BusConnector connector,
-            List<YtCluster> clusters,
-            String localDataCenterName,
-            String proxyRole,
-            RpcCredentials credentials,
-            RpcCompression compression,
-            RpcOptions options
-    ) {
-        this(
-                connector,
-                clusters,
-                localDataCenterName,
-                proxyRole,
-                credentials,
-                compression,
-                options,
-                DefaultSerializationResolver.getInstance()
-        );
-    }
-
-    /**
-     * @deprecated prefer to use {@link #builder()}
-     */
-    @Deprecated
-    @SuppressWarnings("checkstyle:ParameterNumber")
-    public YtClientOpensource(
-            BusConnector connector,
-            List<YtCluster> clusters,
-            String localDataCenterName,
-            String proxyRole,
-            RpcCredentials credentials,
-            RpcCompression compression,
-            RpcOptions options,
-            SerializationResolver serializationResolver
-    ) {
-        this(
-                new BuilderWithDefaults<>(
-                    new Builder()
-                            .setSharedBusConnector(connector)
-                            .setClusters(clusters)
-                            .setPreferredClusterName(localDataCenterName)
-                            .setProxyRole(proxyRole)
-                            .setRpcCredentials(credentials)
-                            .setRpcCompression(compression)
-                            .setRpcOptions(options)
-                            .disableValidation()
-                            // old constructors did not validate their arguments
-                    ), serializationResolver
+            YtClientConfiguration configuration) {
+        this(new BuilderWithDefaults<>(
+                new Builder()
+                        .setSharedBusConnector(connector)
+                        .setClusters(List.of(cluster))
+                        .setPreferredClusterName(cluster.getName())
+                        .setRpcCredentials(credentials)
+                        .setRpcCompression(new RpcCompression())
+                        .setYtClientConfiguration(configuration)
+            ), DefaultSerializationResolver.getInstance()
         );
     }
 
     public YtClientOpensource(
-            BusConnector connector, YtCluster cluster, RpcCredentials credentials, RpcOptions options) {
-        this(connector, Arrays.asList(cluster), cluster.getName(), credentials, options);
-    }
-
-    public YtClientOpensource(
-            BusConnector connector, String clusterName, RpcCredentials credentials, RpcOptions options) {
-        this(connector, new YtCluster(clusterName), credentials, options);
+            BusConnector connector,
+            String clusterName,
+            RpcCredentials credentials,
+            YtClientConfiguration configuration
+    ) {
+        this(connector, new YtCluster(clusterName), credentials, configuration);
     }
 
     public YtClientOpensource(BusConnector connector, String clusterName, RpcCredentials credentials) {
-        this(connector, clusterName, credentials, new RpcOptions());
+        this(
+                connector,
+                clusterName,
+                credentials,
+                YtClientConfiguration.builder().setRpcOptions(new RpcOptions()).build()
+        );
     }
 
-    protected YtClientOpensource(BuilderWithDefaults builder, SerializationResolver serializationResolver) {
+    protected YtClientOpensource(BuilderWithDefaults<?, ?> builder, SerializationResolver serializationResolver) {
         super(
                 builder.busConnector.executorService(), builder.builder.configuration, builder.builder.heavyExecutor,
                 serializationResolver
@@ -749,17 +687,8 @@ public class YtClientOpensource extends CompoundClientImpl implements BaseYtClie
         public BuilderWithDefaults(ClientBuilder<TClient, TBuilder> builder) {
             this.builder = builder;
 
-            if (builder.busConnector != null) {
-                busConnector = builder.busConnector;
-            } else {
-                busConnector = new DefaultBusConnector();
-            }
-
-            if (builder.credentials != null) {
-                credentials = builder.credentials;
-            } else {
-                credentials = RpcCredentials.loadFromEnvironment();
-            }
+            busConnector = Objects.requireNonNullElseGet(builder.busConnector, DefaultBusConnector::new);
+            credentials = Objects.requireNonNullElseGet(builder.credentials, RpcCredentials::loadFromEnvironment);
         }
     }
 }
