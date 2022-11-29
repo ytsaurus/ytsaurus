@@ -779,10 +779,7 @@ TRefCountedExecNodeDescriptorMapPtr TNodeShard::GetExecNodeDescriptors()
 
     UpdateExecNodeDescriptors();
 
-    {
-        auto guard = ReaderGuard(CachedExecNodeDescriptorsLock_);
-        return CachedExecNodeDescriptors_;
-    }
+    return CachedExecNodeDescriptors_.Acquire();
 }
 
 void TNodeShard::UpdateExecNodeDescriptors()
@@ -814,10 +811,7 @@ void TNodeShard::UpdateExecNodeDescriptors()
         RemoveNode(node);
     }
 
-    {
-        auto guard = WriterGuard(CachedExecNodeDescriptorsLock_);
-        std::swap(CachedExecNodeDescriptors_, result);
-    }
+    CachedExecNodeDescriptors_.Store(std::move(result));
 }
 
 void TNodeShard::UpdateNodeState(
@@ -1334,14 +1328,9 @@ TNodeShard::TResourceStatistics TNodeShard::CalculateResourceStatistics(const TS
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    auto descriptors = CachedExecNodeDescriptors_.Acquire();
+
     TResourceStatistics statistics;
-
-    TRefCountedExecNodeDescriptorMapPtr descriptors;
-    {
-        auto guard = ReaderGuard(CachedExecNodeDescriptorsLock_);
-        descriptors = CachedExecNodeDescriptors_;
-    }
-
     for (const auto& [nodeId, descriptor] : *descriptors) {
         if (descriptor.Online && descriptor.CanSchedule(filter)) {
             statistics.Usage += descriptor.ResourceUsage;

@@ -378,8 +378,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
-        return CachedExecNodeDescriptors_;
+        return CachedExecNodeDescriptors_.Acquire();
     }
 
     const TSchedulerConfigPtr& GetConfig() const
@@ -1784,8 +1783,7 @@ private:
 
     THashMap<TOperationId, TOperationPtr> IdToStartingOperation_;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ExecNodeDescriptorsLock_);
-    TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
+    TAtomicPtr<TRefCountedExecNodeDescriptorMap> CachedExecNodeDescriptors_{New<TRefCountedExecNodeDescriptorMap>()};
 
     TIntrusivePtr<TSyncExpiringCache<TSchedulingTagFilter, TMemoryDistribution>> CachedExecNodeMemoryDistributionByTags_;
 
@@ -2565,11 +2563,7 @@ private:
     {
         VERIFY_INVOKER_AFFINITY(GetBackgroundInvoker());
 
-        auto execNodeDescriptors = NodeManager_->GetExecNodeDescriptors();
-        {
-            auto guard = WriterGuard(ExecNodeDescriptorsLock_);
-            std::swap(CachedExecNodeDescriptors_, execNodeDescriptors);
-        }
+        CachedExecNodeDescriptors_.Store(NodeManager_->GetExecNodeDescriptors());
     }
 
     void CheckJobReporterIssues()
@@ -2635,18 +2629,14 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
+        auto descriptors = CachedExecNodeDescriptors_.Acquire();
+
         TMemoryDistribution result;
-
-        {
-            auto guard = ReaderGuard(ExecNodeDescriptorsLock_);
-
-            for (const auto& [nodeId, descriptor] : *CachedExecNodeDescriptors_) {
-                if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
-                    ++result[RoundUp<i64>(descriptor.ResourceLimits.GetMemory(), 1_GB)];
-                }
+        for (const auto& [nodeId, descriptor] : *descriptors) {
+            if (descriptor.Online && filter.CanSchedule(descriptor.Tags)) {
+                ++result[RoundUp<i64>(descriptor.ResourceLimits.GetMemory(), 1_GB)];
             }
         }
-
         return result;
     }
 
