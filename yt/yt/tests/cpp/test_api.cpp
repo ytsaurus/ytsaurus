@@ -37,6 +37,7 @@ namespace NYT::NCppTests {
 namespace {
 
 using namespace NApi;
+using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NObjectClient;
@@ -880,6 +881,62 @@ TEST_P(TQueueApiTest, TestQueueApi)
 
     // TODO(achulkov2): Add test with trimming and several chunks.
 
+}
+
+TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
+{
+    CreateTable(
+        Format("//tmp/pull_queue_can_read_big_batches_%v", GetParam()), // tablePath
+        "[" // schema
+        "{name=v1;type=string}]");
+
+    SyncUnmountTable(Table_);
+
+    auto chunkWriterConfig = New<TChunkWriterConfig>();
+    chunkWriterConfig->BlockSize = 1024;
+    WaitFor(Client_->SetNode(Table_ + "/@chunk_writer", ConvertToYsonString(chunkWriterConfig)))
+        .ThrowOnError();
+    WaitFor(Client_->SetNode(Table_ + "/@compression_codec", ConvertToYsonString("none")))
+        .ThrowOnError();
+
+    SyncMountTable(Table_);
+
+    TString bigString(1_MB, 'a');
+
+    for (int i = 0; i < 20; ++i) {
+        WriteUnversionedRow(
+            {"v1"},
+            Format("<id=0> %v;", bigString));
+    }
+
+    SyncUnmountTable(Table_);
+
+    auto chunkIds = ConvertTo<std::vector<NChunkClient::TChunkId>>(
+        WaitFor(Client_->GetNode(Table_ + "/@chunk_ids")).ValueOrThrow());
+    ASSERT_EQ(chunkIds.size(), 1u);
+    auto chunkId = chunkIds[0];
+
+    auto compressedDataSize = ConvertTo<ui64>(WaitFor(Client_->GetNode(Format("#%v/@compressed_data_size", chunkId))).ValueOrThrow());
+    auto maxBlockSize = ConvertTo<ui64>(WaitFor(Client_->GetNode(Format("#%v/@max_block_size", chunkId))).ValueOrThrow());
+
+    ASSERT_GE(compressedDataSize, 10_MB);
+    ASSERT_LE(maxBlockSize, 2_MB);
+
+    SyncMountTable(Table_);
+
+    TPullQueueOptions pullQueueOptions;
+    pullQueueOptions.UseNativeTabletNodeApi = GetParam();
+
+    auto options = TQueueRowBatchReadOptions{
+        .MaxRowCount = 10000,
+        .MaxDataWeight = 16_MB,
+    };
+    auto res = WaitFor(Client_->PullQueue(Table_, 0, 0, options, pullQueueOptions))
+        .ValueOrThrow();
+    EXPECT_EQ(res->GetStartOffset(), 0);
+    auto rows = res->GetRows();
+    // This is at least 10MB.
+    ASSERT_GE(rows.Size(), 10u);
 }
 
 INSTANTIATE_TEST_SUITE_P(
