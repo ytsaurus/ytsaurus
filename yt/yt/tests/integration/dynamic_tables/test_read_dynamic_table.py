@@ -1,10 +1,11 @@
+from .test_dynamic_tables import DynamicTablesBase
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_env_setup import parametrize_external
 
 from yt_commands import (
     authors, wait, get, set, exists, start_transaction, abort_transaction, lock,
-    insert_rows, alter_table,
+    insert_rows, select_rows, alter_table,
     read_table, write_table, generate_timestamp, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table,
     sync_compact_table, get_driver)
@@ -268,3 +269,57 @@ class TestSortedDynamicTablesReadTableRpcProxy(TestSortedDynamicTablesReadTable)
 
 class TestSortedDynamicTablesReadTablePortal(TestSortedDynamicTablesReadTableMulticell):
     ENABLE_TMP_PORTAL = True
+
+
+class TestReadDynamicTableFormats(DynamicTablesBase):
+    @authors("aleexfi")
+    def test_read_table_with_complex_schema(self):
+        schema = [
+            {
+                "name": "key",
+                "type_v3": "string",
+                "sort_order": "ascending"
+            },
+            {
+                "name": "value",
+                "type_v3": {
+                    "type_name": "struct",
+                    "members": [
+                        {
+                            "name": "foo",
+                            "type": "int32",
+                        },
+                        {
+                            "name": "bar",
+                            "type": "int32",
+                        }
+                    ],
+                }
+            }
+        ]
+
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t", schema=schema)
+        sync_mount_table("//tmp/t")
+
+        items = [
+            {
+                "key": "foo",
+                "value": {
+                    "foo": 1,
+                    "bar": 2,
+                }
+            },
+            {
+                "key": "bar",
+                "value": {
+                    "foo": 42,
+                    "bar": 42,
+                }
+            }
+        ]
+
+        insert_rows("//tmp/t", items)
+        sync_flush_table("//tmp/t")
+
+        assert select_rows("* from [//tmp/t]") == items[::-1]
