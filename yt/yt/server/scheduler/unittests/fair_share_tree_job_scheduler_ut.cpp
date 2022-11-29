@@ -30,9 +30,8 @@ class TSchedulerStrategyHostMock
     , public TEventLogHostBase
 {
 public:
-    explicit TSchedulerStrategyHostMock(std::vector<TExecNodePtr> execNodes)
-        : NodeShardActionQueue_(New<NConcurrency::TActionQueue>("NodeShard"))
-        , NodeShardInvokers_({NodeShardActionQueue_->GetInvoker()})
+    TSchedulerStrategyHostMock(std::vector<IInvokerPtr> nodeShardInvokers, std::vector<TExecNodePtr> execNodes)
+        : NodeShardInvokers_(std::move(nodeShardInvokers))
         , ExecNodes_(std::move(execNodes))
         , MediumDirectory_(New<NChunkClient::TMediumDirectory>())
     {
@@ -43,10 +42,6 @@ public:
         item->set_priority(0);
         MediumDirectory_->LoadFrom(protoDirectory);
     }
-
-    TSchedulerStrategyHostMock()
-        : TSchedulerStrategyHostMock(std::vector<TExecNodePtr>())
-    { }
 
     IInvokerPtr GetControlInvoker(EControlQueue /*queue*/) const override
     {
@@ -254,7 +249,6 @@ public:
     }
 
 private:
-    NConcurrency::TActionQueuePtr NodeShardActionQueue_;
     std::vector<IInvokerPtr> NodeShardInvokers_;
     std::vector<TExecNodePtr> ExecNodes_;
     NChunkClient::TMediumDirectoryPtr MediumDirectory_;
@@ -284,10 +278,15 @@ using TFairShareTreeHostMockPtr = TIntrusivePtr<TFairShareTreeHostMock>;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TFairShareTreeJobSchedulerHostMock
-    : public TRefCounted
-    , public IFairShareTreeJobSchedulerHost
+    : public IFairShareTreeJobSchedulerHost
 {
 public:
+    // NB(eshcherbin): This is a little hack to ensure that periodic actions of the tree job scheduler do not outlive hosts.
+    TFairShareTreeJobSchedulerHostMock(TSchedulerStrategyHostMockPtr strategyHost, TFairShareTreeHostMockPtr treeHost)
+        : StrategyHost_(std::move(strategyHost))
+        , TreeHost_(std::move(treeHost))
+    { }
+
     TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept override
     {
         return nullptr;
@@ -297,6 +296,10 @@ public:
     {
         return {};
     }
+
+private:
+    TSchedulerStrategyHostMockPtr StrategyHost_;
+    TFairShareTreeHostMockPtr TreeHost_;
 };
 
 using TFairShareTreeJobSchedulerHostMockPtr = TIntrusivePtr<TFairShareTreeJobSchedulerHostMock>;
@@ -525,10 +528,10 @@ public:
 
 protected:
     TSchedulerConfigPtr SchedulerConfig_ = New<TSchedulerConfig>();
-    TFairShareTreeJobSchedulerHostMockPtr FairShareTreeJobSchedulerHostMock_ = New<TFairShareTreeJobSchedulerHostMock>();
     TFairShareTreeHostMockPtr FairShareTreeHostMock_ = New<TFairShareTreeHostMock>();
     TFairShareStrategyTreeConfigPtr TreeConfig_ = New<TFairShareStrategyTreeConfig>();
     TFairShareTreeElementHostMockPtr FairShareTreeElementHostMock_ = New<TFairShareTreeElementHostMock>(TreeConfig_);
+    NConcurrency::TActionQueuePtr NodeShardActionQueue_ = New<NConcurrency::TActionQueue>("NodeShard");
 
     TScheduleJobsStage NonPreemptiveSchedulingStage_{
         .Type = EJobSchedulingStage::NonPreemptive,
@@ -540,16 +543,27 @@ protected:
     int SlotIndex_ = 0;
     NNodeTrackerClient::TNodeId ExecNodeId_ = 0;
 
-    TFairShareTreeJobSchedulerPtr CreateTestTreeScheduler(ISchedulerStrategyHost* strategyHost)
+    void TearDown() override
+    {
+        // NB(eshcherbin): To prevent "Promise abandoned" exceptions in tree job scheduler's periodic activities.
+        BIND([] { }).AsyncVia(NodeShardActionQueue_->GetInvoker()).Run().Get().ThrowOnError();
+    }
+
+    TFairShareTreeJobSchedulerPtr CreateTestTreeScheduler(TWeakPtr<IFairShareTreeJobSchedulerHost> host, ISchedulerStrategyHost* strategyHost)
     {
         return New<TFairShareTreeJobScheduler>(
             /*treeId*/ "default",
             StrategyLogger,
-            FairShareTreeJobSchedulerHostMock_.Get(),
+            std::move(host),
             FairShareTreeHostMock_.Get(),
             strategyHost,
             TreeConfig_,
             NProfiling::TProfiler());
+    }
+
+    TFairShareTreeJobSchedulerHostMockPtr CreateTestTreeJobSchedulerHost(TSchedulerStrategyHostMockPtr strategyHost)
+    {
+        return New<TFairShareTreeJobSchedulerHostMock>(std::move(strategyHost), FairShareTreeHostMock_);
     }
 
     TSchedulerRootElementPtr CreateTestRootElement(ISchedulerStrategyHost* strategyHost)
@@ -691,6 +705,13 @@ protected:
         return diskQuota;
     }
 
+    TSchedulerStrategyHostMockPtr CreateTestStrategyHost(std::vector<TExecNodePtr> execNodes)
+    {
+        return New<TSchedulerStrategyHostMock>(
+            std::vector<IInvokerPtr>{NodeShardActionQueue_->GetInvoker()},
+            std::move(execNodes));
+    }
+
     TSchedulerStrategyHostMockPtr CreateHostWith10NodesAnd10Cpu()
     {
         TJobResourcesWithQuota nodeResources;
@@ -698,7 +719,7 @@ protected:
         nodeResources.SetCpu(10);
         nodeResources.SetMemory(100_MB);
 
-        return New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
+        return CreateTestStrategyHost(CreateTestExecNodeList(10, nodeResources));
     }
 
     TJobPtr CreateTestJob(
@@ -739,7 +760,7 @@ protected:
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-		NVectorHdrf::TFairShareUpdateContext context(
+        NVectorHdrf::TFairShareUpdateContext context(
             /*totalResourceLimits*/ strategyHost->GetResourceLimits(TreeConfig_->NodesFilter),
             TreeConfig_->MainResource,
             TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
@@ -749,15 +770,15 @@ protected:
 
         rootElement->PreUpdate(&context);
 
-		NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
-		updateExecutor.Run();
+        NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
+        updateExecutor.Run();
 
         TFairSharePostUpdateContext fairSharePostUpdateContext{
             .TreeConfig = TreeConfig_,
         };
         auto jobSchedulerPostUpdateContext = treeScheduler->CreatePostUpdateContext(rootElement.Get());
 
-		rootElement->PostUpdate(&fairSharePostUpdateContext);
+        rootElement->PostUpdate(&fairSharePostUpdateContext);
         treeScheduler->PostUpdate(&fairSharePostUpdateContext, &jobSchedulerPostUpdateContext);
 
         rootElement->UpdateStarvationStatuses(now, /*enablePoolStarvation*/ true);
@@ -869,8 +890,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestUpdatePreemptibleJobsList)
     auto operationOptions = New<TOperationFairShareTreeRuntimeParameters>();
     operationOptions->Weight = 1.0;
 
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(10, nodeResources));
-    auto treeScheduler = CreateTestTreeScheduler(strategyHost.Get());
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(10, nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
     auto rootElement = CreateTestRootElement(strategyHost.Get());
 
@@ -913,8 +935,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, DontSuggestMoreResourcesThanOperationNeed
         execNodes[i] = CreateTestExecNode(nodeResources);
     }
 
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(execNodes.size(), nodeResources));
-    auto treeScheduler = CreateTestTreeScheduler(strategyHost.Get());
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(execNodes.size(), nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
     auto rootElement = CreateTestRootElement(strategyHost.Get());
 
@@ -977,8 +1000,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
 
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-    auto treeScheduler = CreateTestTreeScheduler(strategyHost.Get());
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
     auto rootElement = CreateTestRootElement(strategyHost.Get());
 
@@ -1000,7 +1024,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DoNotPreemptJobsIfFairShareRatioEqualToDe
         treeScheduler->OnJobStartedInTest(operationElement.Get(), jobId, jobResources);
     }
 
-	DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+    DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
 
     EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().DemandShare);
     EXPECT_EQ(TResourceVector({0.0, 0.4, 0.0, 0.4, 0.0}), operationElement->Attributes().FairShare.Total);
@@ -1034,8 +1058,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     nodeResources.SetMemory(300_MB);
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-    auto treeScheduler = CreateTestTreeScheduler(strategyHost.Get());
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
     auto rootElement = CreateTestRootElement(strategyHost.Get());
     auto blockingPool = CreateTestPool(strategyHost.Get(), "blocking", CreateSimplePoolConfig(/*strongGuaranteeCpu*/ 10.0));
@@ -1188,8 +1213,9 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
     nodeResources.SetDiskQuota(CreateDiskQuota(100));
     auto execNode = CreateTestExecNode(nodeResources);
 
-    auto strategyHost = New<TSchedulerStrategyHostMock>(CreateTestExecNodeList(1, nodeResources));
-    auto treeScheduler = CreateTestTreeScheduler(strategyHost.Get());
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
 
     // Root element.
     auto rootElement = CreateTestRootElement(strategyHost.Get());

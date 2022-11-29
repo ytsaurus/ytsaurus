@@ -560,9 +560,8 @@ struct TJobSchedulerPostUpdateContext
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IFairShareTreeJobSchedulerHost
+    : public virtual TRefCounted
 {
-    virtual ~IFairShareTreeJobSchedulerHost() = default;
-
     virtual TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept = 0;
 
     // TODO(eshcherbin): Remove when operation segments are managed by tree job scheduler.
@@ -578,7 +577,7 @@ public:
     TFairShareTreeJobScheduler(
         TString treeId,
         NLogging::TLogger logger,
-        IFairShareTreeJobSchedulerHost* host,
+        TWeakPtr<IFairShareTreeJobSchedulerHost> host,
         IFairShareTreeHost* treeHost,
         ISchedulerStrategyHost* strategyHost,
         TFairShareStrategyTreeConfigPtr config,
@@ -679,7 +678,9 @@ public:
 private:
     const TString TreeId_;
     const NLogging::TLogger Logger;
-    IFairShareTreeJobSchedulerHost* const Host_;
+    // NB(eshcherbin): While tree host and strategy host are singletons (strategy and scheduler respectively), job scheduler host (tree)
+    // can be outlived by some asynchronous actions. Therefore, we store it as a weak pointer rather than a raw pointer.
+    const TWeakPtr<IFairShareTreeJobSchedulerHost> Host_;
     IFairShareTreeHost* const TreeHost_;
     ISchedulerStrategyHost* const StrategyHost_;
 
