@@ -549,7 +549,18 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
 
     @authors("ignat")
     def test_strategies(self):
-        self._prepare_tables()
+        v1 = {"key1": "aaa", "key2": "hello"}
+        v2 = {"key1": "bb", "key2": "darkness"}
+        v3 = {"key1": "bbxx", "key2": "my"}
+        v4 = {"key1": "zfoo", "key2": "old"}
+        v5 = {"key1": "zzz", "key2": "friend"}
+
+        create("table", "//tmp/t_in")
+        set("//tmp/t_in/@replication_factor", 1)
+        write_table("//tmp/t_in", [v1, v2, v3, v4, v5])
+
+        create("table", "//tmp/t_out")
+        set("//tmp/t_out/@replication_factor", 1)
 
         node = self._get_table_chunk_node("//tmp/t_in")
         set_banned_flag(True, [node])
@@ -557,7 +568,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         print_debug("Fail strategy")
         with pytest.raises(YtError):
             map(
-                in_="//tmp/t_in",
+                in_="//tmp/t_in{key2}",
                 out="//tmp/t_out",
                 command="cat",
                 spec={"unavailable_chunk_strategy": "fail"},
@@ -565,7 +576,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
 
         print_debug("Skip strategy")
         map(
-            in_="//tmp/t_in",
+            in_="//tmp/t_in{key1}",
             out="//tmp/t_out",
             command="cat",
             spec={"unavailable_chunk_strategy": "skip"},
@@ -575,7 +586,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         print_debug("Wait strategy")
         op = map(
             track=False,
-            in_="//tmp/t_in",
+            in_="//tmp/t_in{key2}",
             out="//tmp/t_out",
             command="cat",
             spec={"unavailable_chunk_strategy": "wait"},
@@ -584,7 +595,7 @@ class TestUnavailableChunkStrategies(YTEnvSetup):
         set_banned_flag(False, [node])
         op.track()
 
-        assert read_table("//tmp/t_out") == [{"foo": "bar"}]
+        assert read_table("//tmp/t_out") == [{"key2": val} for val in ("hello", "darkness", "my", "old", "friend")]
 
     @authors("gepardo")
     def test_unavailable_chunks_orchid(self):
