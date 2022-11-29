@@ -5497,7 +5497,8 @@ void TOperationControllerBase::FetchInputTables()
 
             // We fetch columnar statistics only for the tables that have column selectors specified.
             auto hasColumnSelectors = table->Path.GetColumns().operator bool();
-            if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled) {
+            bool shouldSkip = IsUnavailable(inputChunk, GetChunkAvailabilityPolicy()) && Spec_->UnavailableChunkStrategy == EUnavailableChunkAction::Skip;
+            if (hasColumnSelectors && Spec_->InputTableColumnarStatistics->Enabled && !shouldSkip) {
                 auto stableColumnNames = MapNamesToStableNames(
                     *table->Schema,
                     *table->Path.GetColumns(),
