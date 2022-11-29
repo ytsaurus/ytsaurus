@@ -1545,7 +1545,7 @@ private:
             desiredStore = *std::ranges::prev(desiredStoreIt, /*n*/ 1, /*bound*/ orderedStores.begin());
         }
 
-        TSharedRange<TUnversionedRow> resultingRows;
+        TFetchRowsFromOrderedStoreResult fetchRowsResult;
 
         if (desiredStore) {
             YT_LOG_DEBUG(
@@ -1562,7 +1562,7 @@ private:
             }
             chunkReadOptions.ReadSessionId = TReadSessionId::Create();
 
-            resultingRows = FetchRowsFromOrderedStore(
+            fetchRowsResult = FetchRowsFromOrderedStore(
                 tabletSnapshot,
                 desiredStore,
                 request->tablet_index(),
@@ -1573,14 +1573,29 @@ private:
         }
 
         auto writer = CreateWireProtocolWriter();
-        writer->WriteUnversionedRowset(resultingRows);
+        std::vector<TUnversionedRow> rows;
+        rows.reserve(fetchRowsResult.RowCount);
+        for (const auto& rowBatch : fetchRowsResult.RowBatches) {
+            rows.insert(rows.end(), rowBatch.begin(), rowBatch.end());
+        }
+        writer->WriteUnversionedRowset(rows);
         response->Attachments() = writer->Finish();
 
-        context->SetResponseInfo("RowCount: %v", resultingRows.size());
+        context->SetResponseInfo(
+            "RowCount: %v, DataWeight: %v",
+            fetchRowsResult.RowCount,
+            fetchRowsResult.DataWeight);
         context->Reply();
     }
 
-    TSharedRange<TUnversionedRow> FetchRowsFromOrderedStore(
+    struct TFetchRowsFromOrderedStoreResult
+    {
+        std::vector<TSharedRange<TUnversionedRow>> RowBatches;
+        i64 RowCount = 0;
+        i64 DataWeight = 0;
+    };
+
+    TFetchRowsFromOrderedStoreResult FetchRowsFromOrderedStore(
         const NTabletNode::TTabletSnapshotPtr& tabletSnapshot,
         const IOrderedStorePtr& store,
         int tabletIndex,
@@ -1615,28 +1630,47 @@ private:
             .MaxDataWeightPerRead = maxDataWeight,
         };
 
-        auto batch = reader->Read(options);
+        std::vector<TSharedRange<TUnversionedRow>> batches;
 
-        if (batch && batch->IsEmpty()) {
-            YT_LOG_DEBUG(
-                "Waiting for rows from ordered store (TabletId: %v, RowIndex: %v)",
-                tabletId,
-                rowIndex);
-            WaitFor(reader->GetReadyEvent())
-                .ThrowOnError();
-            batch = reader->Read(options);
+        i64 readRows = 0;
+        i64 readDataWeight = 0;
+        while (auto batch = reader->Read(options)) {
+            if (batch->IsEmpty()) {
+                YT_LOG_DEBUG(
+                    "Waiting for rows from ordered store (TabletId: %v, RowIndex: %v)",
+                    tabletId,
+                    rowIndex + readRows);
+                WaitFor(reader->GetReadyEvent())
+                    .ThrowOnError();
+                continue;
+            }
+
+            auto rows = batch->MaterializeRows();
+
+            readRows += std::ssize(rows);
+            readDataWeight += static_cast<i64>(GetDataWeight(rows));
+
+            batches.push_back(std::move(rows));
+
+            if (readRows >= maxRowCount || readDataWeight >= maxDataWeight) {
+                break;
+            }
+
+            options.MaxRowsPerRead = maxRowCount - readRows;
+            options.MaxDataWeightPerRead = maxDataWeight - readDataWeight;
         }
 
-        if (batch) {
-            YT_LOG_DEBUG(
-                "Fetched rows from ordered store (TabletId: %v, RowCount: %v)",
-                tabletId,
-                batch->GetRowCount());
-            return batch->MaterializeRows();
-        } else {
-            YT_LOG_DEBUG("Received null batch from ordered store (TabletId: %v)", tabletId);
-            return {};
-        }
+        YT_LOG_DEBUG(
+            "Fetched rows from ordered store (TabletId: %v, RowCount: %v, DataWeight: %v)",
+            tabletId,
+            readRows,
+            readDataWeight);
+
+        return {
+            .RowBatches = std::move(batches),
+            .RowCount = readRows,
+            .DataWeight = readDataWeight,
+        };
     }
 
     void ReadReplicationBatch(
