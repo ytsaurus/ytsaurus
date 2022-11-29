@@ -17,13 +17,13 @@ type PersistentState struct {
 	IncarnationIndex int `yson:"incarnation_index"`
 
 	// YTOpSpeclet is an unparsed speclet with which current yt operation is started.
-	YTOpSpeclet yson.RawValue `yson:"yt_op_strawberry_speclet"`
+	YTOpSpeclet yson.RawValue `yson:"yt_op_strawberry_speclet,omitempty"`
 	// YTOpSpecletRevision is a revision of the speclet node with which current yt operation is started.
-	YTOpSpecletRevision yt.Revision `yson:"yt_op_speclet_revision"`
+	YTOpSpecletRevision yt.Revision `yson:"yt_op_speclet_revision,omitempty"`
 	// YTOpACL is the last set ACL of the current yt operation.
-	YTOpACL []yt.ACE `yson:"yt_op_acl"`
+	YTOpACL []yt.ACE `yson:"yt_op_acl,omitempty"`
 	// YTOpPool is the last set pool of the current yt operation.
-	YTOpPool *string `yson:"yt_op_pool"`
+	YTOpPool *string `yson:"yt_op_pool,omitempty"`
 
 	// SpecletRevision is a revision of the last seen speclet node.
 	SpecletRevision yt.Revision `yson:"speclet_revision"`
