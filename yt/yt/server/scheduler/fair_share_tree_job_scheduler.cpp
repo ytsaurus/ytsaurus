@@ -2151,14 +2151,14 @@ bool TScheduleJobsContext::IsEligibleForSsdPriorityPreemption(const THashSet<int
 TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     TString treeId,
     NLogging::TLogger logger,
-    IFairShareTreeJobSchedulerHost* host,
+    TWeakPtr<IFairShareTreeJobSchedulerHost> host,
     IFairShareTreeHost* treeHost,
     ISchedulerStrategyHost* strategyHost,
     TFairShareStrategyTreeConfigPtr config,
     NProfiling::TProfiler profiler)
     : TreeId_(std::move(treeId))
     , Logger(std::move(logger))
-    , Host_(host)
+    , Host_(std::move(host))
     , TreeHost_(treeHost)
     , StrategyHost_(strategyHost)
     , Config_(std::move(config))
@@ -3432,13 +3432,18 @@ void TFairShareTreeJobScheduler::ManageNodeSchedulingSegments()
 {
     VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
+    auto host = Host_.Lock();
+    if (!host) {
+        return;
+    }
+
     if (!TreeHost_->IsConnected()) {
         return;
     }
 
     YT_LOG_DEBUG("Started managing node scheduling segments");
 
-    auto treeSnapshot = Host_->GetTreeSnapshot();
+    auto treeSnapshot = host->GetTreeSnapshot();
     TManageNodeSchedulingSegmentsContext context{
         .Now = TInstant::Now(),
         .TreeSegmentsState = treeSnapshot
@@ -3463,7 +3468,7 @@ void TFairShareTreeJobScheduler::ManageNodeSchedulingSegments()
             SchedulingSegmentsInitializationDeadline_);
     }
 
-    StrategyHost_->UpdateOperationSchedulingSegmentModules(TreeId_, Host_->GetOperationSchedulingSegmentModuleUpdates());
+    StrategyHost_->UpdateOperationSchedulingSegmentModules(TreeId_, host->GetOperationSchedulingSegmentModuleUpdates());
     TreeHost_->SetSchedulerTreeAlert(TreeId_, ESchedulerAlertType::ManageNodeSchedulingSegments, context.Error);
 }
 

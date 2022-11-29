@@ -242,7 +242,7 @@ public:
         , TreeScheduler_(New<TFairShareTreeJobScheduler>(
             TreeId_,
             Logger,
-            this,
+            MakeWeak(this),
             Host_,
             StrategyHost_,
             Config_,
