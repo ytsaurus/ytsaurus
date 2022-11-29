@@ -28,6 +28,7 @@
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/misc/sync_expiring_cache.h>
+#include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <util/generic/hash_multi_map.h>
 
@@ -196,8 +197,7 @@ private:
 
     std::atomic<int> ActiveJobCount_ = 0;
 
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CachedExecNodeDescriptorsLock_);
-    TRefCountedExecNodeDescriptorMapPtr CachedExecNodeDescriptors_ = New<TRefCountedExecNodeDescriptorMap>();
+    TAtomicPtr<TRefCountedExecNodeDescriptorMap> CachedExecNodeDescriptors_{New<TRefCountedExecNodeDescriptorMap>()};
 
     THashMap<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
     // Exec node is the node that is online and has user slots.
