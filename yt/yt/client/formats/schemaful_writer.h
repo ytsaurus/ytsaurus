@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/client/complex_types/yson_format_conversion.h>
+
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_writer.h>
 
@@ -41,9 +43,10 @@ private:
     TFuture<void> Result_;
 
     const std::unique_ptr<NYson::IFlushableYsonConsumer> Consumer_;
+
+    THashMap<int, NComplexTypes::TYsonServerToClientConverter> ColumnConverters_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NFormats
-
