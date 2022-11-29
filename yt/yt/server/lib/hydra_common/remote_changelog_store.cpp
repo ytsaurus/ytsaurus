@@ -554,7 +554,13 @@ private:
         TFuture<void> Close() override
         {
             YT_LOG_DEBUG("Closing remote changelog");
-            auto future = Writer_ ? Writer_->Close() : VoidFuture;
+
+            TFuture<void> future;
+            {
+                auto guard = Guard(WriterLock_);
+                future = Writer_ ? Writer_->Close() : VoidFuture;
+            }
+
             future.Subscribe(BIND([Logger = Logger] (const TError& error) {
                 if (error.IsOK()) {
                     YT_LOG_DEBUG("Remote changelog closed");
