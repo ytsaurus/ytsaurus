@@ -706,18 +706,18 @@ protected:
     {
     public:
         explicit TPerformanceCounters(const NProfiling::TProfiler& profiler)
-            : Profiler_(profiler)
+            : Profiler_(profiler.WithHot().WithSparse())
         { }
 
         void IncrementRequestsPerUserAgent(TStringBuf userAgent)
         {
             RequestsPerUserAgent_.FindOrInsert(userAgent, [&] {
-                return Profiler_.WithSparse().WithRequiredTag("user_agent", TString(userAgent)).Counter("/user_agent");
+                return Profiler_.WithRequiredTag("user_agent", TString(userAgent)).Counter("/user_agent");
             }).first->Increment();
         }
 
     private:
-        const NProfiling::TProfiler& Profiler_;
+        const NProfiling::TProfiler Profiler_;
 
         //! Number of requests per user agent.
         NConcurrency::TSyncMap<TString, NProfiling::TCounter> RequestsPerUserAgent_;

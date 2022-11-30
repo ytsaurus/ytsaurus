@@ -1439,7 +1439,7 @@ TServiceBase::TServiceBase(
         DefaultInvoker_,
         BIND(&TServiceBase::OnServiceLivenessCheck, MakeWeak(this)),
         ServiceLivenessCheckPeriod))
-    , PerformanceCounters_(New<TServiceBase::TPerformanceCounters>(Profiler_))
+    , PerformanceCounters_(New<TServiceBase::TPerformanceCounters>(RpcServerProfiler))
 {
     YT_VERIFY(DefaultInvoker_);
 
