@@ -2,6 +2,9 @@ import pytest
 import requests
 import time
 
+import asyncio
+import httpx
+
 import yatest.common
 import yatest.common.network
 
@@ -42,6 +45,28 @@ def test_smoke_tcmalloc(running_example):
     fetch_data(running_example, "allocations?d=1")
     fetch_data(running_example, "peak")
     fetch_data(running_example, "fragmentation")
+
+
+async def get_async(url):
+    async with httpx.AsyncClient() as client:
+        return await client.get(url)
+
+
+async def launch(running_example, name):
+    url = f"http://localhost:{running_example['port']}/{name}"
+
+    urls = [url, url, url]
+
+    resps = await asyncio.gather(*map(get_async, urls))
+    data = [resp.status_code for resp in resps]
+
+    assert data == [200, 429, 429]
+
+
+def test_async(running_example):
+    fetch_data(running_example, "heap")
+    asyncio.run(launch(running_example, "heap"))
+    fetch_data(running_example, "heap")
 
 
 def test_status_handlers(running_example):

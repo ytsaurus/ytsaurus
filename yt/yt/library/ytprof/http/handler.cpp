@@ -14,7 +14,11 @@
 
 #include <yt/yt/library/process/subprocess.h>
 
+#include <yt/yt/core/misc/finally.h>
+
 #include <library/cpp/cgiparam/cgiparam.h>
+
+#include <util/system/mutex.h>
 
 namespace NYT::NYTProf {
 
@@ -36,6 +40,14 @@ public:
     void HandleRequest(const IRequestPtr& req, const IResponseWriterPtr& rsp) override
     {
         try {
+            TTryGuard guard(Lock_);
+            if (!guard) {
+                rsp->SetStatus(EStatusCode::TooManyRequests);
+                WaitFor(rsp->WriteBody(TSharedRef::FromString("Profile fetch already running")))
+                    .ThrowOnError();
+                return;
+            }
+
             TCgiParameters params(req->GetUrl().RawQuery);
             auto profile = BuildProfile(params);
             Symbolize(&profile, true);
@@ -68,6 +80,9 @@ public:
 
 protected:
     const TBuildInfo BuildInfo_;
+
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
 };
 
 class TCpuProfilerHandler
