@@ -275,25 +275,6 @@ class TimeWatcher(object):
         sleep(pause)
 
 
-class OperationProgressFormatter(logging.Formatter):
-    def __init__(self, format="%(asctime)-15s\t%(message)s", date_format=None, start_time=None):
-        logging.Formatter.__init__(self, format, date_format)
-        if start_time is None:
-            self._start_time = datetime.now()
-        else:
-            self._start_time = start_time
-
-    def formatTime(self, record, date_format=None):
-        created = datetime.fromtimestamp(record.created)
-        if date_format is not None:
-            return created.strftime(date_format)
-        else:
-            def total_minutes(time):
-                return time.seconds // 60 + 60 * 24 * time.days
-            elapsed = total_minutes(datetime.now() - self._start_time)
-            return "{0} ({1:2} min)".format(super(OperationProgressFormatter, self).formatTime(record), elapsed)
-
-
 def get_operation_attributes(operation, fields=None, client=None):
     """Returns dict with operation attributes.
 
@@ -390,9 +371,7 @@ class PrintOperationInfo(object):
 
         creation_time_str = get_operation_attributes(operation, fields=["start_time"], client=client)["start_time"]
         creation_time = date_string_to_datetime(creation_time_str).replace(tzinfo=None)
-        local_creation_time = creation_time + (datetime.now() - datetime.utcnow())
-
-        self.formatter = OperationProgressFormatter(start_time=local_creation_time)
+        self.operation_start_time = creation_time + (datetime.now() - datetime.utcnow())
 
         self.client = client
         self.level = logging.getLevelName(get_config(self.client)["operation_tracker"]["progress_logging_level"])
@@ -419,29 +398,20 @@ class PrintOperationInfo(object):
             self.log("operation %s %s", self.operation, state)
             if state.is_finished():
                 attribute_names = {"alerts": "Alerts"}
-                try:
-                    result = get_operation_attributes(
-                        self.operation,
-                        fields=builtins.list(iterkeys(attribute_names)),
-                        client=self.client)
-                    for attribute, readable_name in iteritems(attribute_names):
-                        attribute_value = result.get(attribute)
-                        if attribute_value:
-                            self.log("%s: %s", readable_name, str(attribute_value))
-                except YtResponseError as err:
-                    if err.is_no_such_attribute(attribute_names):
-                        # Too old back-end, no support for alerts.
-                        pass
-                    else:
-                        raise
+                result = get_operation_attributes(
+                    self.operation,
+                    fields=builtins.list(iterkeys(attribute_names)),
+                    client=self.client)
+                for attribute, readable_name in iteritems(attribute_names):
+                    attribute_value = result.get(attribute)
+                    if attribute_value:
+                        self.log("%s: %s", readable_name, str(attribute_value))
         self.state = state
 
-    def log(self, *args, **kwargs):
-        if logger.LOGGER.isEnabledFor(self.level):
-            old_formatter = logger.formatter
-            logger.set_formatter(self.formatter)
-            logger.log(self.level, *args, **kwargs)
-            logger.set_formatter(old_formatter)
+    def log(self, message, *args, **kwargs):
+        elapsed_seconds = (datetime.now() - self.operation_start_time).total_seconds()
+        message = "({0:2} min) ".format(int(elapsed_seconds) // 60) + message
+        logger.log(self.level, message, *args, **kwargs)
 
 
 def get_operation_state_monitor(operation, time_watcher, action=lambda: None, client=None):
