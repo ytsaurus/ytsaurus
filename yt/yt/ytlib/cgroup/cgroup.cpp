@@ -760,27 +760,17 @@ void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* con
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TNetwork::TStatistics::Register(TRegistrar registrar)
+void Serialize(const TNetwork::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    registrar.Parameter("tx_bytes", &TThis::TxBytes)
-        .GreaterThanOrEqual(0)
-        .Default(0);
-    registrar.Parameter("tx_packets", &TThis::TxPackets)
-        .GreaterThanOrEqual(0)
-        .Default(0);
-    registrar.Parameter("tx_drops", &TThis::TxDrops)
-        .GreaterThanOrEqual(0)
-        .Default(0);
-
-    registrar.Parameter("rx_bytes", &TThis::RxBytes)
-        .GreaterThanOrEqual(0)
-        .Default(0);
-    registrar.Parameter("rx_packets", &TThis::RxPackets)
-        .GreaterThanOrEqual(0)
-        .Default(0);
-    registrar.Parameter("rx_drops", &TThis::RxDrops)
-        .GreaterThanOrEqual(0)
-        .Default(0);
+    NYTree::BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("tx_bytes").Value(std::max<ui64>(statistics.TxBytes, 0))
+            .Item("tx_packets").Value(std::max<ui64>(statistics.TxPackets, 0))
+            .Item("tx_drops").Value(std::max<ui64>(statistics.TxDrops, 0))
+            .Item("rx_bytes").Value(std::max<ui64>(statistics.RxBytes, 0))
+            .Item("rx_packets").Value(std::max<ui64>(statistics.RxPackets, 0))
+            .Item("rx_drops").Value(std::max<ui64>(statistics.RxDrops, 0))
+        .EndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
