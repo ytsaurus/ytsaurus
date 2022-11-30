@@ -74,13 +74,13 @@ private:
 };
 
 template <>
-ISkiffRowParserPtr NYT::CreateSkiffParser<TTestSkiffRow>(TTestSkiffRow* row)
+ISkiffRowParserPtr NYT::CreateSkiffParser<TTestSkiffRow>(TTestSkiffRow* row, const TMaybe<TSkiffRowHints>& /*hints*/)
 {
     return ::MakeIntrusive<TTestSkiffRowParser>(row);
 }
 
 template <>
-NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TTestSkiffRow>()
+NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TTestSkiffRow>(const TMaybe<TSkiffRowHints>& /*hints*/)
 {
     return NSkiff::CreateTupleSchema({
         NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Int64)->SetName("num"),
@@ -89,6 +89,99 @@ NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TTestSkiffRow>()
             CreateSimpleTypeSchema(NSkiff::EWireType::Nothing),
             CreateSimpleTypeSchema(NSkiff::EWireType::Double)})
         ->SetName("pointNum")});
+}
+
+/////////////////////////////////////////////////////////////////////////////////////////
+
+struct TFeaturesSkiffRow
+{
+    int Num = 0;
+    THashMap<TString, TString> Features;
+
+    TFeaturesSkiffRow() = default;
+
+    TFeaturesSkiffRow(int num, const THashMap<TString, TString>& features)
+        : Num(num)
+        , Features(features)
+    { }
+
+    bool operator==(const TFeaturesSkiffRow& other) const
+    {
+        return Num == other.Num && Features == other.Features;
+    }
+};
+
+IOutputStream& operator<<(IOutputStream& ss, const TFeaturesSkiffRow& row)
+{
+    ss << "{ Num: " << row.Num
+        << ", Features: {";
+    for (const auto& [k, v] : row.Features) {
+        ss << "'" << k << "': " << v << "; ";
+    }
+    ss << "} }";
+    return ss;
+}
+
+template <>
+struct TIsSkiffRow<TFeaturesSkiffRow>
+    : std::true_type
+{ };
+
+class TFeaturesSkiffRowParser
+    : public ISkiffRowParser
+{
+public:
+    TFeaturesSkiffRowParser(TFeaturesSkiffRow* row, const TMaybe<TSkiffRowHints>& hints)
+        : Row_(row)
+    {
+        if (hints.Defined() && hints->Attributes_.Defined()) {
+            auto attributesList = hints->Attributes_->AsList();
+            FeatureColumns_.reserve(attributesList.size());
+            for (const auto& attr : attributesList) {
+                FeatureColumns_.push_back(attr.AsString());
+            }
+        }
+    }
+
+    virtual ~TFeaturesSkiffRowParser() override = default;
+
+    virtual void Parse(NSkiff::TCheckedInDebugSkiffParser* parser) override {
+        Row_->Num = parser->ParseInt64();
+        for (const auto& featureColumn : FeatureColumns_) {
+            Row_->Features[featureColumn] = parser->ParseString32();
+        }
+    }
+
+private:
+    TFeaturesSkiffRow* Row_;
+    TVector<TString> FeatureColumns_;
+};
+
+template <>
+ISkiffRowParserPtr NYT::CreateSkiffParser<TFeaturesSkiffRow>(TFeaturesSkiffRow* row, const TMaybe<TSkiffRowHints>& hints)
+{
+    return ::MakeIntrusive<TFeaturesSkiffRowParser>(row, hints);
+}
+
+template <>
+NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TFeaturesSkiffRow>(const TMaybe<TSkiffRowHints>& hints)
+{
+    TVector<TString> featureColumns;
+    if (hints.Defined() && hints->Attributes_.Defined()) {
+        auto attributesList = hints->Attributes_->AsList();
+        featureColumns.reserve(attributesList.size());
+        for (const auto& attr : attributesList) {
+            featureColumns.push_back(attr.AsString());
+        }
+    }
+    NSkiff::TSkiffSchemaList columns = {
+        NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Int64)->SetName("num")
+    };
+    for (const auto& featureColumn : featureColumns) {
+        columns.push_back(NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::String32)->SetName(featureColumn));
+    }
+
+    return NSkiff::CreateTupleSchema(columns);
 }
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -127,13 +220,13 @@ private:
 };
 
 template <>
-ISkiffRowParserPtr NYT::CreateSkiffParser<TBadSkiffRow>(TBadSkiffRow* row)
+ISkiffRowParserPtr NYT::CreateSkiffParser<TBadSkiffRow>(TBadSkiffRow* row, const TMaybe<TSkiffRowHints>& /*hints*/)
 {
     return ::MakeIntrusive<TBadSkiffRowParser>(row);
 }
 
 template <>
-NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TBadSkiffRow>()
+NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TBadSkiffRow>(const TMaybe<TSkiffRowHints>& /*hints*/)
 {
     return NSkiff::CreateTupleSchema({
         NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Int32)->SetName("value")
@@ -176,6 +269,27 @@ TVector<TTestSkiffRow> WriteSimpleTable(TTestFixture& fixture, const TString& pa
     return expectedRows;
 }
 
+TVector<TFeaturesSkiffRow> WriteSimpleFeaturesTable(TTestFixture& fixture, const TString& path)
+{
+    TVector<TNode> rows;
+    constexpr int rowCount = 100;
+    rows.reserve(rowCount);
+    TVector<TFeaturesSkiffRow> expectedRows;
+    expectedRows.reserve(rowCount);
+    for (int i = 0; i < rowCount; ++i) {
+        auto node = TNode()("num", i)("feature_1", ToString(i * i))("feature_2", ToString(i * i + 1));
+        rows.push_back(node);
+        THashMap<TString, TString> features;
+        features["feature_1"] = ToString(i * i);
+        features["feature_2"] = ToString(i * i + 1);
+        expectedRows.push_back({i, features});
+    }
+
+    Write(fixture, path, rows);
+
+    return expectedRows;
+}
+
 } // namespace
 
 /////////////////////////////////////////////////////////////////////////////////////////
@@ -189,6 +303,37 @@ Y_UNIT_TEST_SUITE(SkiffRowTest) {
 
         auto reader = client->CreateTableReader<TTestSkiffRow>(path);
         TVector<TTestSkiffRow> gotRows;
+
+        ui64 expectedRowIndex = 0;
+        for (; reader->IsValid(); reader->Next(), ++expectedRowIndex) {
+            UNIT_ASSERT(!reader->IsRawReaderExhausted());
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRowIndex(), expectedRowIndex);
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetTableIndex(), 0);
+            UNIT_ASSERT_VALUES_EQUAL(reader->GetRangeIndex(), 0);
+
+            gotRows.push_back(reader->MoveRow());
+        }
+        UNIT_ASSERT(reader->IsRawReaderExhausted());
+
+        for (size_t i = 0; i < expectedRows.size(); ++i) {
+            const auto& expectedRow = expectedRows[i];
+            const auto& gotRow = gotRows[i];
+            UNIT_ASSERT_VALUES_EQUAL(gotRow, expectedRow);
+        }
+    }
+
+    Y_UNIT_TEST(ReadingGivenColumns) {
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto path = fixture.GetWorkingDir() + "/table";
+        TVector<TFeaturesSkiffRow> expectedRows = WriteSimpleFeaturesTable(fixture, path);
+
+        TNode featureColumns = TNode().Add("feature_1").Add("feature_2");
+        TTableReaderOptions options = TTableReaderOptions().FormatHints(
+            TFormatHints().SkiffRowHints(TSkiffRowHints().Attributes(featureColumns)));
+
+        auto reader = client->CreateTableReader<TFeaturesSkiffRow>(path, options);
+        TVector<TFeaturesSkiffRow> gotRows;
 
         ui64 expectedRowIndex = 0;
         for (; reader->IsValid(); reader->Next(), ++expectedRowIndex) {
@@ -233,7 +378,7 @@ Y_UNIT_TEST_SUITE(SkiffRowTest) {
             const auto& expectedRow = writtenRows[i];
             const auto& gotRow = gotRows[i / 2];
 
-            UNIT_ASSERT_VALUES_EQUAL(gotRow, expectedRow); 
+            UNIT_ASSERT_VALUES_EQUAL(gotRow, expectedRow);
         }
     }
 

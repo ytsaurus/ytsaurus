@@ -280,6 +280,8 @@ namespace NYT {
 
     struct TTableReaderOptions;
 
+    class TSkiffRowHints;
+
     struct TTableWriterOptions;
 
     ////////////////////////////////////////////////////////////////////////////////

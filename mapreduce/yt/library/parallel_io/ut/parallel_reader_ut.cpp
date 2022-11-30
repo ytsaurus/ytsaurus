@@ -112,13 +112,13 @@ private:
 };
 
 template <>
-ISkiffRowParserPtr NYT::CreateSkiffParser<TTestSkiffRow>(TTestSkiffRow* row)
+ISkiffRowParserPtr NYT::CreateSkiffParser<TTestSkiffRow>(TTestSkiffRow* row, const TMaybe<TSkiffRowHints>& /*hints*/)
 {
     return ::MakeIntrusive<TTestSkiffRowParser>(row);
 }
 
 template <>
-NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TTestSkiffRow>()
+NSkiff::TSkiffSchemaPtr NYT::GetSkiffSchema<TTestSkiffRow>(const TMaybe<TSkiffRowHints>& /*hints*/)
 {
     return NSkiff::CreateTupleSchema({
         NSkiff::CreateSimpleTypeSchema(NSkiff::EWireType::Uint64)->SetName("num"),
@@ -157,7 +157,7 @@ public:
             rows.push_back(TNode()("num", i)("str", ToString(i * i)));
             expectedRows.push_back(TTestSkiffRow(i, ToString(i * i), std::nullopt));
         }
-        
+
         TestReader(
             "table",
             rows,
@@ -739,7 +739,7 @@ Y_UNIT_TEST_SUITE(EstimateRowWeight)
 
         auto pathWithoutRangesOne = TRichYPath(pathOne).Columns({"x", "y"});
         auto pathWithoutRangesTwo = TRichYPath(pathTwo).Columns({"a", "b"});
-        
+
         auto weightWithoutRanges = NYT::NDetail::EstimateTableRowWeight(client, {pathWithoutRangesOne, pathWithoutRangesTwo});
         auto columnarStatisticsWithoutRanges = client->GetTableColumnarStatistics({pathWithoutRangesOne, pathWithoutRangesTwo});
 
@@ -750,7 +750,7 @@ Y_UNIT_TEST_SUITE(EstimateRowWeight)
         auto pathWithRangesTwo = pathWithoutRangesTwo.AddRange(TReadRange()
                         .LowerLimit(TReadLimit().RowIndex(0))
                         .UpperLimit(TReadLimit().RowIndex(20)));
-        
+
         auto weightWithRanges = NYT::NDetail::EstimateTableRowWeight(client, {pathWithRangesOne, pathWithRangesTwo});
         auto columnarStatisticsWithRanges = client->GetTableColumnarStatistics({pathWithRangesOne, pathWithRangesTwo});
 

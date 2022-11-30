@@ -6,7 +6,7 @@
 /// What you need to do for your struct type TMyType:
 /// 1. Write `true` specialization TIsSkiffRow<TMyType>;
 /// 2. Write specialization GetSkiffSchema<TMyType>();
-/// 3. Write your own parser derived from ISkiffRowParser and write specialization GetSkiffParser<TMyType>() which returns this parser. 
+/// 3. Write your own parser derived from ISkiffRowParser and write specialization GetSkiffParser<TMyType>() which returns this parser.
 
 #include "fwd.h"
 
@@ -41,8 +41,8 @@ struct TIsSkiffRow
 
 //! Return skiff schema for row type `T`.
 /// Need to write its specialization.
-template <typename T>    
-NSkiff::TSkiffSchemaPtr GetSkiffSchema()
+template <typename T>
+NSkiff::TSkiffSchemaPtr GetSkiffSchema(const TMaybe<TSkiffRowHints>& /*hints*/)
 {
     static_assert(TDependentFalse<T>, "Unimplemented `GetSkiffSchema` method");
 }
@@ -51,7 +51,7 @@ NSkiff::TSkiffSchemaPtr GetSkiffSchema()
 
 //! Allow to parse rows as user's structs from stream (TCheckedInDebugSkiffParser).
 /// Need to write derived class for your own row type.
-/// 
+///
 /// Example:
 ///
 /// class TMySkiffRowParser : public ISkiffRowParser
@@ -80,7 +80,7 @@ public:
 
 //! Creates a parser for row type `T`.
 template <typename T>
-ISkiffRowParserPtr CreateSkiffParser(T* /*row*/)
+ISkiffRowParserPtr CreateSkiffParser(T* /*row*/, const TMaybe<TSkiffRowHints>& /*hints*/)
 {
     static_assert(TDependentFalse<T>, "Unimplemented `CreateSkiffParser` function");
 }
@@ -101,8 +101,8 @@ public:
 template <typename T>
 class TSkiffRowSkipper : public ISkiffRowSkipper {
 public:
-  TSkiffRowSkipper()
-    : Parser_(CreateSkiffParser<T>(&Row_))
+  explicit TSkiffRowSkipper(const TMaybe<TSkiffRowHints>& hints)
+    : Parser_(CreateSkiffParser<T>(&Row_, hints))
   { }
 
   void SkipRow(NSkiff::TCheckedInDebugSkiffParser* parser) {
@@ -117,9 +117,9 @@ private:
 //! Creates a skipper for row type 'T'.
 /// You don't need to write its specialization.
 template <typename T>
-ISkiffRowSkipperPtr CreateSkiffSkipper()
+ISkiffRowSkipperPtr CreateSkiffSkipper(const TMaybe<TSkiffRowHints>& hints)
 {
-    return ::MakeIntrusive<TSkiffRowSkipper<T>>();
+    return ::MakeIntrusive<TSkiffRowSkipper<T>>(hints);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

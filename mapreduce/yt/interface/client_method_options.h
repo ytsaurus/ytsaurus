@@ -534,6 +534,19 @@ struct TFileWriterOptions
     FLUENT_FIELD_OPTION(TWriterOptions, WriterOptions);
 };
 
+class TSkiffRowHints {
+public:
+    /// @cond Doxygen_Suppress
+    using TSelf = TSkiffRowHints;
+    /// @endcond
+
+    ///
+    /// @brief Library doesn't interpret it, only pass it to CreateSkiffParser<...>() and GetSkiffSchema<...>() functions.
+    ///
+    /// You can set something in it to pass necessary information to CreateSkiffParser<...>() and GetSkiffSchema<...>() functions.
+    FLUENT_FIELD_OPTION(TNode, Attributes);
+};
+
 /// Options that control how C++ objects represent table rows when reading or writing a table.
 class TFormatHints
 {
@@ -583,6 +596,10 @@ public:
     ///
     /// @see https://yt.yandex-team.ru/docs/description/storage/data_types#yson
     FLUENT_FIELD_OPTION(EComplexTypeMode, ComplexTypeMode);
+
+    ///
+    /// @brief Allow to use any meta-information for creating skiff schema and parser for reading ISkiffRow.
+    FLUENT_FIELD_OPTION(TSkiffRowHints, SkiffRowHints);
 
     ///
     /// @brief Apply the patch to the fields.
