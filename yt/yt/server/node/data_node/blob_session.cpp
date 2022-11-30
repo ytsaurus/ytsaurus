@@ -450,9 +450,7 @@ TFuture<void> TBlobSession::DoPutBlocks(
     }
 
     // Make all acquisitions in advance to ensure that this error is retriable.
-    auto memoryTracker = Bootstrap_
-        ->GetMemoryUsageTracker()
-        ->WithCategory(EMemoryCategory::BlobSession);
+    const auto& memoryTracker = Location_->GetWriteMemoryTracker();
     std::vector<TMemoryUsageTrackerGuard> memoryTrackerGuards;
     memoryTrackerGuards.reserve(blocks.size());
     for (const auto& block : blocks) {
@@ -460,9 +458,10 @@ TFuture<void> TBlobSession::DoPutBlocks(
             memoryTracker,
             block.Size());
         if (!guardOrError.IsOK()) {
+            Location_->ReportThrottledWrite();
             return MakeFuture(TError(guardOrError).SetCode(NChunkClient::EErrorCode::WriteThrottlingActive));
         }
-        memoryTrackerGuards.emplace_back(std::move(guardOrError.Value()));
+        memoryTrackerGuards.push_back(std::move(guardOrError.Value()));
     }
 
     // Work around possible livelock. We might consume all memory allocated for blob sessions. That would block
@@ -539,7 +538,6 @@ TFuture<void> TBlobSession::DoPerformPutBlocks(
 
         slot.State = ESlotState::Received;
         slot.Block = block;
-        slot.MemoryTrackerGuard = std::move(memoryTrackerGuards[localIndex]);
         slot.ReceivedPromise.Set();
 
         if (enableCaching) {
@@ -591,7 +589,8 @@ TFuture<void> TBlobSession::DoPerformPutBlocks(
             break;
         }
 
-        slot.PendingIOGuard = Location_->IncreasePendingIOSize(
+        slot.PendingIOGuard = Location_->AcquirePendingIO(
+            std::move(memoryTrackerGuards[WindowIndex_ - startBlockIndex]),
             EIODirection::Write,
             Options_.WorkloadDescriptor,
             slot.Block.Size());
@@ -650,7 +649,7 @@ void TBlobSession::OnBlocksWritten(int beginBlockIndex, int endBlockIndex, const
 
     for (int blockIndex = beginBlockIndex; blockIndex < endBlockIndex; ++blockIndex) {
         auto& slot = GetSlot(blockIndex);
-        slot.PendingIOGuard.Release();
+        slot.PendingIOGuard = {};
         if (error.IsOK()) {
             YT_VERIFY(slot.State == ESlotState::Received);
             slot.State = ESlotState::Written;
@@ -778,7 +777,6 @@ void TBlobSession::ReleaseBlocks(int flushedBlockIndex)
         auto& slot = GetSlot(WindowStartBlockIndex_);
         YT_VERIFY(slot.State == ESlotState::Written);
         slot.Block = {};
-        slot.MemoryTrackerGuard.Release();
         slot.PendingIOGuard.Release();
         slot.WrittenPromise.Reset();
         slot.ReceivedPromise.Reset();

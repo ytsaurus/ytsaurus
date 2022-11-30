@@ -65,7 +65,7 @@ void TestConfigParsing(TStringBuf fileName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST(TConfigParsing, ServerConfig)
+TEST(TConfigParsingTest, ServerConfig)
 {
     {
         SCOPED_TRACE("TCellMasterConfig");
@@ -93,7 +93,7 @@ TEST(TConfigParsing, ServerConfig)
     }
 }
 
-TEST(TConfigParsing, OperationSpec)
+TEST(TConfigParsingTest, OperationSpec)
 {
     {
         SCOPED_TRACE("TMapOperationSpec");

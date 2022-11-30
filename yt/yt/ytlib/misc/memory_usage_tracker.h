@@ -67,7 +67,7 @@ DEFINE_REFCOUNTED_TYPE(INodeMemoryTracker)
 
 INodeMemoryTrackerPtr CreateNodeMemoryTracker(
     i64 totalLimit,
-    const std::vector<std::pair<EMemoryCategory, i64>>& limits,
+    const std::vector<std::pair<EMemoryCategory, i64>>& limits = {},
     const NLogging::TLogger& logger = {},
     const NProfiling::TProfiler& profiler = {});
 

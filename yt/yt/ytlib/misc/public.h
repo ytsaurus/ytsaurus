@@ -24,7 +24,9 @@ DEFINE_ENUM(EMemoryCategory,
     ((UserJobs)                    (3))
     ((TabletStatic)                (4))
     ((TabletDynamic)               (5))
+    // COMPAT(babenko): rename to PendingDiskWrite
     ((BlobSession)                 (6))
+    ((PendingDiskRead)            (22))
     ((VersionedChunkMeta)          (7))
     ((SystemJobs)                  (8))
     ((Query)                       (9))
@@ -37,7 +39,7 @@ DEFINE_ENUM(EMemoryCategory,
     ((Mixed)                      (18))
     ((TabletBackground)           (19))
 );
- 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

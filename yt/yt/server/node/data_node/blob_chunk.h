@@ -3,6 +3,7 @@
 #include "artifact.h"
 #include "chunk_detail.h"
 #include "chunk_meta_manager.h"
+#include "location.h"
 
 #include <yt/yt/server/lib/io/public.h>
 
@@ -85,10 +86,11 @@ private:
         std::unique_ptr<TBlockEntry[]> Entries;
         int CurrentEntryIndex = 0;
         int EntryCount = 0;
-        std::vector<TFuture<void>> AsyncResults;
+        std::vector<TFuture<void>> Futures;
         TPromise<std::vector<NChunkClient::TBlock>> SessionPromise = NewPromise<std::vector<NChunkClient::TBlock>>();
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
+        TPendingIOGuard PendingIOGuard;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -119,15 +121,13 @@ private:
         const TReadBlockSetSessionPtr& session,
         i64 pendingDataSize);
     void DoReadBlockSet(
-        const TReadBlockSetSessionPtr& session,
-        TPendingIOGuard&& pendingIOGuard);
+        const TReadBlockSetSessionPtr& session);
     void OnBlocksRead(
         const TReadBlockSetSessionPtr& session,
         int firstBlockIndex,
         int blocksToRead,
         int beginEntryIndex,
         int endEntryIndex,
-        TPendingIOGuard&& pendingIOGuard,
         const TErrorOr<std::vector<NChunkClient::TBlock>>& blocksOrError);
 
     //! Returns `true` if chunk was writen with `sync_on_close` option.
