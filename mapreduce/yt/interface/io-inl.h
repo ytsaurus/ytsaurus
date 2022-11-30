@@ -499,9 +499,9 @@ public:
 
     using TBase::TBase;
 
-    explicit TTableReader(::TIntrusivePtr<typename TBase::IReaderImpl> reader)
+    explicit TTableReader(::TIntrusivePtr<typename TBase::IReaderImpl> reader, const TMaybe<TSkiffRowHints>& hints)
         : TBase(reader)
-        , Parsers_({(CreateSkiffParser<TSkiffRowTypes>(&std::get<TSkiffRowTypes>(CachedRows_)))...})
+        , Parsers_({(CreateSkiffParser<TSkiffRowTypes>(&std::get<TSkiffRowTypes>(CachedRows_), hints))...})
     { }
 
     template <class U>
@@ -623,9 +623,10 @@ inline TTableReaderPtr<T> IIOClient::CreateTableReader(
         TAutoPtr<T> prototype(new T);
         return new TTableReader<T>(CreateProtoReader(path, options, prototype.Get()));
     } else if constexpr (TIsSkiffRow<T>::value) {
-        auto schema = GetSkiffSchema<T>();
-        auto skipper = CreateSkiffSkipper<T>();
-        return new TTableReader<T>(CreateSkiffRowReader(path, options, skipper, schema));
+        const auto& hints = options.FormatHints_ ? options.FormatHints_->SkiffRowHints_ : Nothing();
+        auto schema = GetSkiffSchema<T>(hints);
+        auto skipper = CreateSkiffSkipper<T>(hints);
+        return new TTableReader<T>(CreateSkiffRowReader(path, options, skipper, schema), hints);
     } else {
         static_assert(TDependentFalse<T>, "Unsupported type for table reader");
     }
