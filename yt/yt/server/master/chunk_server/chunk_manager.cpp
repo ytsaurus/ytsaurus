@@ -1051,6 +1051,10 @@ public:
         chunk->SetOverlayed(overlayed);
         chunk->SetConsistentReplicaPlacementHash(consistentReplicaPlacementHash);
 
+        if (chunk->HasConsistentReplicaPlacementHash()) {
+            ++CrpChunkCount_;
+        }
+
         YT_ASSERT(chunk->GetLocalRequisitionIndex() == (isErasure ? MigrationErasureChunkRequisitionIndex : MigrationChunkRequisitionIndex));
 
         int mediumIndex = medium->GetIndex();
@@ -1366,6 +1370,10 @@ public:
 
         if (chunk->IsSequoia()) {
             --SequoiaChunkCount_;
+        }
+
+        if (chunk->HasConsistentReplicaPlacementHash()) {
+            --CrpChunkCount_;
         }
     }
 
@@ -2547,6 +2555,7 @@ private:
     i64 ChunkListsDestroyed_ = 0;
 
     i64 SequoiaChunkCount_ = 0;
+    i64 CrpChunkCount_ = 0;
 
     i64 ImmediateAllyReplicasAnnounced_ = 0;
     i64 DelayedAllyReplicasAnnounced_ = 0;
@@ -2731,6 +2740,7 @@ private:
         RegisterChunk(chunk);
         chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());
         ++ChunksCreated_;
+
         if (chunk->IsSequoia()) {
             ++SequoiaChunkCount_;
         }
@@ -4264,6 +4274,10 @@ private:
                 ++SequoiaChunkCount_;
             }
 
+            if (chunk->HasConsistentReplicaPlacementHash()) {
+                ++CrpChunkCount_;
+            }
+
             // COMPAT(shakurov)
             if (chunk->GetExpirationTime()) {
                 ExpirationTracker_->ScheduleExpiration(chunk);
@@ -4342,6 +4356,7 @@ private:
         ChunkListsDestroyed_ = 0;
 
         SequoiaChunkCount_ = 0;
+        CrpChunkCount_ = 0;
 
         ImmediateAllyReplicasAnnounced_ = 0;
         DelayedAllyReplicasAnnounced_ = 0;
@@ -5205,6 +5220,7 @@ private:
 
             buffer.AddGauge("/chunk_count", ChunkMap_.GetSize());
             buffer.AddGauge("/sequoia_chunk_count", SequoiaChunkCount_);
+            buffer.AddGauge("/consistent_placement_enabled_chunk_count", CrpChunkCount_);
             buffer.AddCounter("/chunks_created", ChunksCreated_);
             buffer.AddCounter("/chunks_destroyed", ChunksDestroyed_);
 
