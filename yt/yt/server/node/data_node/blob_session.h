@@ -49,7 +49,6 @@ private:
         NChunkClient::TBlock Block;
         TPromise<void> ReceivedPromise = NewPromise<void>();
         TPromise<void> WrittenPromise = NewPromise<void>();
-        TMemoryUsageTrackerGuard MemoryTrackerGuard;
         TPendingIOGuard PendingIOGuard;
     };
 

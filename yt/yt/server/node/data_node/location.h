@@ -18,6 +18,7 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
+#include <yt/yt/core/misc/memory_usage_tracker.h>
 
 #include <yt/yt/library/profiling/sensor.h>
 
@@ -58,12 +59,12 @@ struct TLocationPerformanceCounters
     NProfiling::TCounter ThrottledReads;
     std::atomic<NProfiling::TCpuInstant> LastReadThrottleTime{};
 
-    void ThrottleRead();
+    void ReportThrottledRead();
 
     NProfiling::TCounter ThrottledWrites;
     std::atomic<NProfiling::TCpuInstant> LastWriteThrottleTime{};
 
-    void ThrottleWrite();
+    void ReportThrottledWrite();
 
     NProfiling::TEventTimer PutBlocksWallTime;
     NProfiling::TEventTimer BlobChunkMetaReadTime;
@@ -117,17 +118,18 @@ public:
     TPendingIOGuard& operator = (TPendingIOGuard&& other) = default;
 
     explicit operator bool() const;
-    i64 GetSize() const;
 
 private:
     friend class TChunkLocation;
 
     TPendingIOGuard(
+        TMemoryUsageTrackerGuard memoryGuard,
         EIODirection direction,
         EIOCategory category,
         i64 size,
         TChunkLocationPtr owner);
 
+    TMemoryUsageTrackerGuard MemoryGuard_;
     EIODirection Direction_;
     EIOCategory Category_;
     i64 Size_ = 0;
@@ -279,6 +281,12 @@ public:
     //! Never throws.
     i64 GetAvailableSpace() const;
 
+    //! Returns the memory tracking for pending reads.
+    const ITypedNodeMemoryTrackerPtr& GetReadMemoryTracker() const;
+
+    //! Returns the memory tracking for pending writes.
+    const ITypedNodeMemoryTrackerPtr& GetWriteMemoryTracker() const;
+
     //! Returns the number of bytes pending for disk IO.
     i64 GetPendingIOSize(
         EIODirection direction,
@@ -288,7 +296,8 @@ public:
     i64 GetMaxPendingIOSize(EIODirection direction) const;
 
     //! Acquires a lock for the given number of bytes to be read or written.
-    TPendingIOGuard IncreasePendingIOSize(
+    TPendingIOGuard AcquirePendingIO(
+        TMemoryUsageTrackerGuard memoryGuard,
         EIODirection direction,
         const TWorkloadDescriptor& workloadDescriptor,
         i64 delta);
@@ -339,10 +348,16 @@ public:
     i64 GetReadQueueSize(const TWorkloadDescriptor& workloadDescriptor) const;
 
     //! Returns |true| if writes must currently be throttled.
-    bool CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool incrementCounter = true) const;
+    bool CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool report = true) const;
+
+    //! Reports throttled read.
+    void ReportThrottledRead() const;
 
     //! Returns |true| if writes must currently be throttled.
-    bool CheckWriteThrottling(const TWorkloadDescriptor& workloadDescriptor) const;
+    bool CheckWriteThrottling(const TWorkloadDescriptor& workloadDescriptor, bool report = true) const;
+
+    //! Reports throttled write.
+    void ReportThrottledWrite() const;
 
     //! Returns |true| if location is sick.
     bool IsSick() const;
@@ -385,6 +400,9 @@ private:
     const TChunkLocationConfigPtr StaticConfig_;
 
     TLocationPerformanceCountersPtr PerformanceCounters_;
+
+    const ITypedNodeMemoryTrackerPtr ReadMemoryTracker_;
+    const ITypedNodeMemoryTrackerPtr WriteMemoryTracker_;
 
     TAtomicPtr<TChunkLocationConfig> RuntimeConfig_;
 

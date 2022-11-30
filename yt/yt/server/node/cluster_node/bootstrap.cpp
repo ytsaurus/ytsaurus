@@ -776,7 +776,7 @@ private:
 
         MemoryUsageTracker_ = CreateNodeMemoryTracker(
             Config_->ResourceLimits->TotalMemory,
-            std::vector<std::pair<EMemoryCategory, i64>>{},
+            /*limits*/ {},
             Logger,
             ClusterNodeProfiler.WithPrefix("/memory_usage"));
 

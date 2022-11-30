@@ -138,13 +138,13 @@ TLocationPerformanceCounters::TLocationPerformanceCounters(const NProfiling::TPr
     Full = profiler.Gauge("/full");
 }
 
-void TLocationPerformanceCounters::ThrottleRead()
+void TLocationPerformanceCounters::ReportThrottledRead()
 {
     ThrottledReads.Increment();
     LastReadThrottleTime = GetCpuInstant();
 }
 
-void TLocationPerformanceCounters::ThrottleWrite()
+void TLocationPerformanceCounters::ReportThrottledWrite()
 {
     ThrottledWrites.Increment();
     LastWriteThrottleTime = GetCpuInstant();
@@ -153,11 +153,13 @@ void TLocationPerformanceCounters::ThrottleWrite()
 ////////////////////////////////////////////////////////////////////////////////
 
 TPendingIOGuard::TPendingIOGuard(
+    TMemoryUsageTrackerGuard memoryGuard,
     EIODirection direction,
     EIOCategory category,
     i64 size,
     TChunkLocationPtr owner)
-    : Direction_(direction)
+    : MemoryGuard_(std::move(memoryGuard))
+    , Direction_(direction)
     , Category_(category)
     , Size_(size)
     , Owner_(owner)
@@ -172,6 +174,7 @@ void TPendingIOGuard::Release()
 {
     if (Owner_) {
         Owner_->DecreasePendingIOSize(Direction_, Category_, Size_);
+        MemoryGuard_.Release();
         Owner_.Reset();
     }
 }
@@ -179,11 +182,6 @@ void TPendingIOGuard::Release()
 TPendingIOGuard::operator bool() const
 {
     return Owner_.operator bool();
-}
-
-i64 TPendingIOGuard::GetSize() const
-{
-    return Size_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -230,6 +228,8 @@ TChunkLocation::TChunkLocation(
     , ChunkStoreHost_(std::move(chunkStoreHost))
     , Type_(type)
     , StaticConfig_(std::move(config))
+    , ReadMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead))
+    , WriteMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::BlobSession))
     , RuntimeConfig_(StaticConfig_)
     , MediumDescriptor_(TMediumDescriptor{
         .Name = StaticConfig_->MediumName
@@ -529,6 +529,16 @@ i64 TChunkLocation::GetAvailableSpace() const
     return availableSpace;
 }
 
+const ITypedNodeMemoryTrackerPtr& TChunkLocation::GetReadMemoryTracker() const
+{
+    return ReadMemoryTracker_;
+}
+
+const ITypedNodeMemoryTrackerPtr& TChunkLocation::GetWriteMemoryTracker() const
+{
+    return WriteMemoryTracker_;
+}
+
 i64 TChunkLocation::GetPendingIOSize(
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor) const
@@ -550,7 +560,8 @@ i64 TChunkLocation::GetMaxPendingIOSize(EIODirection direction) const
     return result;
 }
 
-TPendingIOGuard TChunkLocation::IncreasePendingIOSize(
+TPendingIOGuard TChunkLocation::AcquirePendingIO(
+    TMemoryUsageTrackerGuard memoryGuard,
     EIODirection direction,
     const TWorkloadDescriptor& workloadDescriptor,
     i64 delta)
@@ -560,7 +571,12 @@ TPendingIOGuard TChunkLocation::IncreasePendingIOSize(
     YT_ASSERT(delta >= 0);
     auto category = ToIOCategory(workloadDescriptor);
     UpdatePendingIOSize(direction, category, delta);
-    return TPendingIOGuard(direction, category, delta, this);
+    return TPendingIOGuard(
+        std::move(memoryGuard),
+        direction,
+        category,
+        delta,
+        this);
 }
 
 EIOCategory TChunkLocation::ToIOCategory(const TWorkloadDescriptor& workloadDescriptor)
@@ -882,22 +898,36 @@ i64 TChunkLocation::GetReadQueueSize(const TWorkloadDescriptor& workloadDescript
         GetOutThrottler(workloadDescriptor)->GetQueueTotalAmount();
 }
 
-bool TChunkLocation::CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool incrementCounter) const
+bool TChunkLocation::CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool report) const
 {
-    bool throttle = GetReadQueueSize(workloadDescriptor) > GetReadThrottlingLimit();
-    if (throttle && incrementCounter) {
-        PerformanceCounters_->ThrottleRead();
+    bool throttled =
+        GetReadQueueSize(workloadDescriptor) > GetReadThrottlingLimit() ||
+        ReadMemoryTracker_->IsExceeded();
+    if (throttled && report) {
+        ReportThrottledRead();
     }
-    return throttle;
+    return throttled;
 }
 
-bool TChunkLocation::CheckWriteThrottling(const TWorkloadDescriptor& workloadDescriptor) const
+void TChunkLocation::ReportThrottledRead() const
 {
-    bool throttle = GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit();
-    if (throttle) {
-        PerformanceCounters_->ThrottleWrite();
+    PerformanceCounters_->ReportThrottledRead();
+}
+
+bool TChunkLocation::CheckWriteThrottling(const TWorkloadDescriptor& workloadDescriptor, bool report) const
+{
+    bool throttled =
+        GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit() ||
+        WriteMemoryTracker_->IsExceeded();
+    if (throttled && report) {
+        ReportThrottledWrite();
     }
-    return throttle;
+    return throttled;
+}
+
+void TChunkLocation::ReportThrottledWrite() const
+{
+    PerformanceCounters_->ReportThrottledWrite();
 }
 
 i64 TChunkLocation::GetReadThrottlingLimit() const

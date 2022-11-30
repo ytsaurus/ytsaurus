@@ -37,11 +37,12 @@ static NLogging::TLogger Logger{"JournalTest"};
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_REFCOUNTED_STRUCT(TFakeChunkStoreHost)
+DECLARE_REFCOUNTED_CLASS(TFakeChunkStoreHost)
 
-struct TFakeChunkStoreHost
+class TFakeChunkStoreHost
     : public IChunkStoreHost
 {
+public:
     void ScheduleMasterHeartbeat() override
     { }
 
@@ -60,8 +61,11 @@ struct TFakeChunkStoreHost
 
     INodeMemoryTrackerPtr GetMemoryUsageTracker() override
     {
-        return nullptr;
+        return MemoryUsageTracker_;
     }
+
+private:
+    const INodeMemoryTrackerPtr MemoryUsageTracker_ = CreateNodeMemoryTracker(1_GBs);
 };
 
 DEFINE_REFCOUNTED_TYPE(TFakeChunkStoreHost)
@@ -71,50 +75,46 @@ DEFINE_REFCOUNTED_TYPE(TFakeChunkStoreHost)
 class TJournalTest
     : public ::testing::Test
 {
-public:
-    const IBlockCachePtr BlockCache = GetNullBlockCache();
-    const TActionQueuePtr Thread = New<TActionQueue>("JournalTest");
+protected:
+    const IBlockCachePtr BlockCache_ = GetNullBlockCache();
+    const TActionQueuePtr ActionQueue_ = New<TActionQueue>("JournalTest");
 
-    const TDataNodeConfigPtr Config = New<TDataNodeConfig>();
-    const TClusterNodeDynamicConfigPtr DynamicConfig = New<TClusterNodeDynamicConfig>();
-    const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager = New<TClusterNodeDynamicConfigManager>(DynamicConfig);
+    const TDataNodeConfigPtr Config_ = New<TDataNodeConfig>();
+    const TClusterNodeDynamicConfigPtr DynamicConfig_ = New<TClusterNodeDynamicConfig>();
+    const TClusterNodeDynamicConfigManagerPtr DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(DynamicConfig_);
 
-    const INodeMemoryTrackerPtr MemoryTracker = CreateNodeMemoryTracker(
-        1_GB,
-        std::vector<std::pair<EMemoryCategory, i64>>{},
-        Logger,
-        NProfiling::TProfiler{});
-    const IChunkMetaManagerPtr ChunkMetaManager = CreateChunkMetaManager(
-        Config,
-        DynamicConfigManager,
-        MemoryTracker);
+    const INodeMemoryTrackerPtr MemoryTracker_ = CreateNodeMemoryTracker(1_GBs);
+    const IChunkMetaManagerPtr ChunkMetaManager_ = CreateChunkMetaManager(
+        Config_,
+        DynamicConfigManager_,
+        MemoryTracker_);
 
-    const IChunkStoreHostPtr ChunkStoreHost = New<TFakeChunkStoreHost>();
-    const IBlobReaderCachePtr BlobReaderCache = CreateBlobReaderCache(
-        Config,
-        DynamicConfigManager,
-        ChunkMetaManager);
+    const IChunkStoreHostPtr ChunkStoreHost_ = New<TFakeChunkStoreHost>();
+    const IBlobReaderCachePtr BlobReaderCache_ = CreateBlobReaderCache(
+        Config_,
+        DynamicConfigManager_,
+        ChunkMetaManager_);
 
-    const TChunkReaderSweeperPtr ChunkReaderSweeper = New<TChunkReaderSweeper>(
-        DynamicConfigManager,
-        Thread->GetInvoker());
-    IJournalDispatcherPtr JournalDispatcher = CreateJournalDispatcher(
-        Config,
-        DynamicConfigManager);
+    const TChunkReaderSweeperPtr ChunkReaderSweeper_ = New<TChunkReaderSweeper>(
+        DynamicConfigManager_,
+        ActionQueue_->GetInvoker());
+    const IJournalDispatcherPtr JournalDispatcher_ = CreateJournalDispatcher(
+        Config_,
+        DynamicConfigManager_);
 
-    const TChunkContextPtr ChunkContext = New<TChunkContext>(TChunkContext{
-        .ChunkMetaManager = ChunkMetaManager,
+    const TChunkContextPtr ChunkContext_ = New<TChunkContext>(TChunkContext{
+        .ChunkMetaManager = ChunkMetaManager_,
 
-        .StorageHeavyInvoker = CreatePrioritizedInvoker(Thread->GetInvoker()),
-        .StorageLightInvoker = Thread->GetInvoker(),
-        .DataNodeConfig = Config,
+        .StorageHeavyInvoker = CreatePrioritizedInvoker(ActionQueue_->GetInvoker()),
+        .StorageLightInvoker = ActionQueue_->GetInvoker(),
+        .DataNodeConfig = Config_,
 
-        .ChunkReaderSweeper = ChunkReaderSweeper,
-        .JournalDispatcher = JournalDispatcher,
-        .BlobReaderCache = BlobReaderCache,
+        .ChunkReaderSweeper = ChunkReaderSweeper_,
+        .JournalDispatcher = JournalDispatcher_,
+        .BlobReaderCache = BlobReaderCache_,
     });
 
-    TChunkStorePtr ChunkStore;
+    TChunkStorePtr ChunkStore_;
 
     void Start()
     {
@@ -122,22 +122,22 @@ public:
         locationConfig->Path = GetOutputPath() / ::testing::UnitTest::GetInstance()->current_test_info()->name() / "store";
         locationConfig->Postprocess();
 
-        Config->StoreLocations.push_back(locationConfig);
-        Config->Postprocess();
+        Config_->StoreLocations.push_back(locationConfig);
+        Config_->Postprocess();
 
-        DynamicConfig->Postprocess();
+        DynamicConfig_->Postprocess();
 
-        ChunkStore = New<TChunkStore>(
-            Config,
-            DynamicConfigManager,
-            Thread->GetInvoker(),
-            ChunkContext,
-            ChunkStoreHost);
+        ChunkStore_ = New<TChunkStore>(
+            Config_,
+            DynamicConfigManager_,
+            ActionQueue_->GetInvoker(),
+            ChunkContext_,
+            ChunkStoreHost_);
 
         BIND([&] {
-            ChunkStore->Initialize();
+            ChunkStore_->Initialize();
         })
-            .AsyncVia(Thread->GetInvoker())
+            .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
             .Get();
     }
@@ -145,9 +145,9 @@ public:
     void Stop()
     {
         BIND([&] {
-            ChunkStore->Shutdown();
+            ChunkStore_->Shutdown();
         })
-            .AsyncVia(Thread->GetInvoker())
+            .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
             .Get();
     }
@@ -165,7 +165,7 @@ public:
 
 TEST_F(TJournalTest, Write)
 {
-    auto journalManager = ChunkStore->Locations()[0]->GetJournalManager();
+    auto journalManager = ChunkStore_->Locations()[0]->GetJournalManager();
 
     for (bool multiplexed : {true, false}) {
         auto journalId = MakeRandomId(NObjectClient::EObjectType::JournalChunk, /*cellTag*/ 1);
