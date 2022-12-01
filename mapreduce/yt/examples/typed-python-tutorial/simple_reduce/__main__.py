@@ -17,6 +17,7 @@ class StaffRow:
 class CountRow:
     name: str
     count: int
+    longest_login: str
 
 
 class CountNamesReducer(yt.wrapper.TypedJob):
@@ -26,10 +27,13 @@ class CountNamesReducer(yt.wrapper.TypedJob):
     # которые мы хотим записать в выходные таблицы.
     def __call__(self, input_row_iterator: RowIterator[StaffRow]) -> typing.Iterable[CountRow]:
         count = 0
+        longest_login = ""
         for input_row in input_row_iterator:
             name = input_row.name
             count += 1
-        yield CountRow(name=name, count=count)
+            if len(longest_login) < len(input_row.login):
+                longest_login = input_row.login
+        yield CountRow(name=name, count=count, longest_login=longest_login)
 
 
 if __name__ == "__main__":
