@@ -775,8 +775,8 @@ void TResourceHolder::AcquireResources(TAcquiredResources&& acquiredResources)
 
     YT_VERIFY(PortCount_ == std::ssize(Ports_));
 
-    acquiredResources.SystemMemoryGuard.Reset();
-    acquiredResources.UserMemoryGuard.Reset();
+    acquiredResources.SystemMemoryGuard.ReleaseNoReclaim();
+    acquiredResources.UserMemoryGuard.ReleaseNoReclaim();
 
     ResourceManagerImpl_->OnResourcesAcquired(GetLogger(), Resources_);
     State_ = EResourcesState::Acquired;

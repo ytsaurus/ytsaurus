@@ -68,11 +68,6 @@ void TMemoryUsageTrackerGuard::MoveFrom(TMemoryUsageTrackerGuard&& other)
     other.Granularity_ = 0;
 }
 
-void swap(TMemoryUsageTrackerGuard& lhs, TMemoryUsageTrackerGuard& rhs)
-{
-    std::swap(lhs.Tracker_, rhs.Tracker_);
-}
-
 TMemoryUsageTrackerGuard TMemoryUsageTrackerGuard::Acquire(
     IMemoryUsageTrackerPtr tracker,
     i64 size,
@@ -118,16 +113,13 @@ void TMemoryUsageTrackerGuard::Release()
 {
     if (Tracker_) {
         Tracker_->Release(AcquiredSize_);
-        Tracker_ = nullptr;
-        Size_ = 0;
-        AcquiredSize_ = 0;
-        Granularity_ = 0;
+        ReleaseNoReclaim();
     }
 }
 
-void TMemoryUsageTrackerGuard::Reset()
+void TMemoryUsageTrackerGuard::ReleaseNoReclaim()
 {
-    Tracker_ = nullptr;
+    Tracker_.Reset();
     Size_ = 0;
     AcquiredSize_ = 0;
     Granularity_ = 0;

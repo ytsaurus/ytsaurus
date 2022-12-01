@@ -165,9 +165,36 @@ TPendingIOGuard::TPendingIOGuard(
     , Owner_(owner)
 { }
 
+TPendingIOGuard::TPendingIOGuard(TPendingIOGuard&& other)
+{
+    MoveFrom(std::move(other));
+}
+
+void TPendingIOGuard::MoveFrom(TPendingIOGuard&& other)
+{
+    MemoryGuard_ = std::move(other.MemoryGuard_);
+    Direction_ = other.Direction_;
+    Category_ = other.Category_;
+    Size_ = other.Size_;
+    Owner_ = std::move(other.Owner_);
+
+    other.MemoryGuard_.Release();
+    other.Size_ = 0;
+    other.Owner_.Reset();
+}
+
 TPendingIOGuard::~TPendingIOGuard()
 {
     Release();
+}
+
+TPendingIOGuard& TPendingIOGuard::operator=(TPendingIOGuard&& other)
+{
+    if (this != &other) {
+        Release();
+        MoveFrom(std::move(other));
+    }
+    return *this;
 }
 
 void TPendingIOGuard::Release()
@@ -176,6 +203,7 @@ void TPendingIOGuard::Release()
         Owner_->DecreasePendingIOSize(Direction_, Category_, Size_);
         MemoryGuard_.Release();
         Owner_.Reset();
+        Size_ = 0;
     }
 }
 
@@ -191,6 +219,11 @@ TLockedChunkGuard::TLockedChunkGuard(TChunkLocationPtr location, TChunkId chunkI
     , ChunkId_(chunkId)
 { }
 
+TLockedChunkGuard::TLockedChunkGuard(TLockedChunkGuard&& other)
+{
+    MoveFrom(std::move(other));
+}
+
 TLockedChunkGuard::~TLockedChunkGuard()
 {
     if (Location_) {
@@ -198,14 +231,32 @@ TLockedChunkGuard::~TLockedChunkGuard()
     }
 }
 
-TLockedChunkGuard::operator bool() const
+TLockedChunkGuard& TLockedChunkGuard::operator=(TLockedChunkGuard&& other)
 {
-    return Location_.operator bool();
+    if (this != &other) {
+        MoveFrom(std::move(other));
+    }
+    return *this;
 }
 
 void TLockedChunkGuard::Release()
 {
     Location_.Reset();
+    ChunkId_ = {};
+}
+
+void TLockedChunkGuard::MoveFrom(TLockedChunkGuard&& other)
+{
+    Location_ = std::move(other.Location_);
+    ChunkId_ = other.ChunkId_;
+
+    other.Location_.Reset();
+    other.ChunkId_ = {};
+}
+
+TLockedChunkGuard::operator bool() const
+{
+    return Location_.operator bool();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
