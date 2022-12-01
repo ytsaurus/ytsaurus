@@ -13,7 +13,7 @@ import pytest
 @pytest.mark.usefixtures("yt_env")
 class TestRunCompressionBenchmarks(object):
     ROWS_COUNT = 10**6
-    TIME_LIMIT_SEC = 3
+    TIME_LIMIT_SEC = 30
     MAX_OPERATIONS = 3
     SAMPLE_SIZE = 10**6
     CODECS = {
@@ -22,14 +22,13 @@ class TestRunCompressionBenchmarks(object):
         "none",
         "snappy",
         "brotli_1",
-        "brotli_11",
         "bzip2_1",
         "lzma_0",
         "zlib_1",
         "zstd_1"
     }
 
-    @authors("egor-gutrov")
+    @authors("ermolovd")
     @pytest.mark.skipif('yatest_common.context.sanitize == "address"')
     def test_run_compression_benchmarks(self):
         table = TEST_DIR + "/compression_table"
@@ -45,10 +44,7 @@ class TestRunCompressionBenchmarks(object):
         for codec in self.CODECS:
             assert codec in results
 
-        assert results["brotli_11"]["codec/cpu/encode"] == "Timed out"
-        assert results["brotli_11"]["codec/cpu/decode"] == "Not launched"
-
-    @authors("egor-gutrov")
+    @authors("ermolovd")
     def test_empty_table(self):
         table = TEST_DIR + "/empty_table"
         yt.create("table", table)
