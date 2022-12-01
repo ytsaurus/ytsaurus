@@ -21,23 +21,34 @@ type Config struct {
 	// RobotUsername is the name of the robot from which all the operations are started.
 	// It is used to check permission to the pool during seting "pool" option.
 	RobotUsername string `yson:"robot_username"`
+
+	// PassWorkerNumber is the number of workers used to process oplets.
+	PassWorkerNumber *int `yson:"pass_worker_number"`
 }
 
 const (
-	PassPeriodDefault            = yson.Duration(5000)
-	RevisionCollectPeriodDefault = yson.Duration(5000)
+	DefaultPassPeriod            = yson.Duration(5000)
+	DefaultRevisionCollectPeriod = yson.Duration(5000)
+	DefaultPassWorkerNumber      = 1
 )
 
 func (c *Config) PassPeriodOrDefault() yson.Duration {
 	if c.PassPeriod != nil {
 		return *c.PassPeriod
 	}
-	return PassPeriodDefault
+	return DefaultPassPeriod
 }
 
 func (c *Config) RevisionCollectPeriodOrDefault() yson.Duration {
 	if c.RevisionCollectPeriod != nil {
 		return *c.RevisionCollectPeriod
 	}
-	return RevisionCollectPeriodDefault
+	return DefaultRevisionCollectPeriod
+}
+
+func (c *Config) PassWorkerNumberOrDefault() int {
+	if c.PassWorkerNumber != nil {
+		return *c.PassWorkerNumber
+	}
+	return DefaultPassWorkerNumber
 }

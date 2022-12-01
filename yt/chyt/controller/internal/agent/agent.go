@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"os"
 	"reflect"
+	"sync"
 	"time"
 
 	"a.yandex-team.ru/library/go/core/log"
@@ -90,6 +91,8 @@ func (a *Agent) updateACLs() error {
 }
 
 func (a *Agent) abortDangling() error {
+	startedAt := time.Now()
+
 	family := a.controller.Family()
 	l := log.With(a.l, log.String("family", family))
 
@@ -124,6 +127,7 @@ func (a *Agent) abortDangling() error {
 	l.Debug("collected running operations", log.Strings("operation_ids", opIDStrs))
 
 	l.Info("aborting dangling operations")
+	abortedOps := 0
 	for _, op := range runningOps {
 		needAbort := false
 
@@ -153,6 +157,7 @@ func (a *Agent) abortDangling() error {
 		}
 
 		if needAbort {
+			abortedOps++
 			err := a.ytc.AbortOperation(a.ctx, op.ID, nil)
 			if err != nil {
 				l.Error("error aborting operation",
@@ -162,7 +167,41 @@ func (a *Agent) abortDangling() error {
 		}
 	}
 
+	l.Info("finished aborting dangling operations",
+		log.Duration("elapsed_time", time.Since(startedAt)),
+		log.Int("aborted_operations_count", abortedOps),
+		log.Int("total_operations_count", len(runningOps)))
+
 	return nil
+}
+
+func (a *Agent) processOplets() {
+	startedAt := time.Now()
+
+	a.l.Info("starting processing oplets")
+
+	workerNumber := a.config.PassWorkerNumberOrDefault()
+	var wg sync.WaitGroup
+	wg.Add(workerNumber)
+
+	opletsChan := make(chan *strawberry.Oplet, len(a.aliasToOp))
+
+	for i := 0; i < workerNumber; i++ {
+		go func() {
+			defer wg.Done()
+			for oplet := range opletsChan {
+				_ = oplet.Pass(a.ctx)
+			}
+		}()
+	}
+
+	for _, oplet := range a.aliasToOp {
+		opletsChan <- oplet
+	}
+	close(opletsChan)
+
+	wg.Wait()
+	a.l.Info("finished processing oplets", log.Duration("elapsed_time", time.Since(startedAt)))
 }
 
 func (a *Agent) pass() {
@@ -180,8 +219,8 @@ func (a *Agent) pass() {
 		return
 	}
 
+	a.processOplets()
 	for _, oplet := range a.aliasToOp {
-		_ = oplet.Pass(a.ctx)
 		if oplet.DoesNotExist() || oplet.Broken() || oplet.Inappropriate() {
 			a.unregisterOplet(oplet)
 		}
