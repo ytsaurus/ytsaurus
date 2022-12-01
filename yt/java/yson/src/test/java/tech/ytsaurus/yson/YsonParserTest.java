@@ -468,10 +468,10 @@ class FragmentYsonTextWriter implements ClosableYsonConsumer {
 
     @Override
     public void onListItem() {
-        assert underlying != null;
         if (depth == 0) {
             onNewItem();
         } else {
+            assert underlying != null;
             underlying.onListItem();
         }
     }
@@ -513,10 +513,10 @@ class FragmentYsonTextWriter implements ClosableYsonConsumer {
 
     @Override
     public void onKeyedItem(@Nonnull byte[] value, int offset, int length) {
-        assert underlying != null;
         if (depth == 0) {
             onNewItem();
         } else {
+            assert underlying != null;
             underlying.onKeyedItem(value, offset, length);
         }
     }
