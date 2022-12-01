@@ -616,16 +616,16 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 
     llvm::FoldingSetNodeID id1;
     {
-        TString queryString = 
+        TString queryString =
         R"(
             *
             FROM [//a] e
-            LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover) 
+            LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover)
             WHERE
             if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND (l.profile IN ("")) AND (l.track IN ("")) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
         )";
-        
+
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
@@ -636,16 +636,16 @@ TEST_F(TQueryPrepareTest, SplitWherePredicateWithJoin)
 
     llvm::FoldingSetNodeID id2;
     {
-        TString queryString = 
+        TString queryString =
         R"(
             *
             FROM [//a] e
-            LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover) 
-            WHERE 
+            LEFT JOIN [//b] l ON (e.ride_date, e.ride_time, e.log_time, e.rover) = (l.ride_date, l.ride_time, l.log_time, l.rover)
+            WHERE
             (l.profile IN ("")) AND (l.track IN ("")) AND if(NOT is_null(e.tags), list_contains(e.tags, "0"), false) AND NOT if(NOT is_null(e.tags), list_contains(e.tags, "1"), false)
             ORDER BY e._key DESC OFFSET 0 LIMIT 200
         )";
-        
+
         auto query = PreparePlanFragment(&PrepareMock_, queryString)->Query;
 
         TCGVariables variables;
