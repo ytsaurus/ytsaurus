@@ -622,7 +622,7 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("controller_agent_connector", &TThis::ControllerAgentConnector)
         .Default();
-    
+
     registrar.Parameter("job_abortion_timeout", &TThis::JobAbortionTimeout)
         .Default();
 
