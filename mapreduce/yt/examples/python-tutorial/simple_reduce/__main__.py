@@ -19,7 +19,7 @@ def count_names_reducer(key, input_row_iterator):
     longest_login = ""
     for input_row in input_row_iterator:
         count += 1
-        if len(input_row["login"]) > longest_login:
+        if len(input_row["login"]) > len(longest_login):
             longest_login = input_row["login"]
 
     yield {"name": name, "count": count, "longest_login": longest_login}
