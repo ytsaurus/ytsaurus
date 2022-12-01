@@ -163,22 +163,28 @@ class TestMemoryReserveFactor(YTEnvSetup):
     def test_memory_reserve_factor(self):
         job_count = 20
 
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": i} for i in range(job_count)])
+        create("table", "//tmp/t_out")
+
         create("file", "//tmp/mapper.py")
         write_file("//tmp/mapper.py", create_memory_script(memory=200 * 10 ** 6), attributes={"executable": True})
 
         controller_agent_address = ls("//sys/controller_agents/instances")[0]
         from_barrier = write_log_barrier(controller_agent_address)
 
-        op = run_test_vanilla(
-            track=True,
+        op = map(
+            in_="//tmp/t_in",
+            out="//tmp/t_out",
             command="python mapper.py",
             job_count=job_count,
             spec={
                 "resource_limits": {"cpu": 1},
-            },
-            task_patch={
-                "memory_limit": 350 * 10 ** 6,
-                "file_paths": ["//tmp/mapper.py"],
+                "data_weight_per_job": 1,
+                "mapper": {
+                    "memory_limit": 350 * 10 ** 6,
+                    "file_paths": ["//tmp/mapper.py"],
+                },
             })
 
         time.sleep(1)
