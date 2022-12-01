@@ -33,7 +33,7 @@ public:
 
         return CategoryTrackers_[category];
     }
-    
+
     void Reconfigure(TNodeMemoryReferenceTrackerConfigPtr config) override
     {
         Enabled_ = config->EnableMemoryReferenceTracker;
@@ -114,7 +114,7 @@ private:
     };
 
     const INodeMemoryTrackerPtr MemoryTracker_;
-    
+
     std::array<TReferenceAddressMapShard, ReferenceAddressMapShardCount> ReferenceAddressToState_;
 
     TEnumIndexedVector<EMemoryCategory, IMemoryReferenceTrackerPtr> CategoryTrackers_;
@@ -216,9 +216,7 @@ private:
 
         auto newCategory = GetCategoryByUsage(state->CategoryToUsage);
         if (!newCategory) {
-            if (state->MemoryGuard) {
-                state->MemoryGuard.Release();
-            }
+            state->MemoryGuard.Release();
             return;
         }
 

@@ -43,13 +43,11 @@ public:
         i64 size,
         i64 granularity = 1);
 
-    friend void swap(TMemoryUsageTrackerGuard& lhs, TMemoryUsageTrackerGuard& rhs);
-
     void Release();
 
-    //! Releases memory, but does not return it to the tracker.
-    //! Caller should care about releasing memory himself.
-    void Reset();
+    //! Releases the guard but does not return memory to the tracker.
+    //! The caller should care about releasing memory itself.
+    void ReleaseNoReclaim();
 
     explicit operator bool() const;
 

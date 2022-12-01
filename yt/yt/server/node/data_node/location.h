@@ -110,12 +110,12 @@ class TPendingIOGuard
 {
 public:
     TPendingIOGuard() = default;
-    TPendingIOGuard(TPendingIOGuard&& other) = default;
+    TPendingIOGuard(TPendingIOGuard&& other);
     ~TPendingIOGuard();
 
     void Release();
 
-    TPendingIOGuard& operator = (TPendingIOGuard&& other) = default;
+    TPendingIOGuard& operator=(TPendingIOGuard&& other);
 
     explicit operator bool() const;
 
@@ -128,6 +128,8 @@ private:
         EIOCategory category,
         i64 size,
         TChunkLocationPtr owner);
+
+    void MoveFrom(TPendingIOGuard&& other);
 
     TMemoryUsageTrackerGuard MemoryGuard_;
     EIODirection Direction_;
@@ -142,25 +144,24 @@ class TLockedChunkGuard
 {
 public:
     TLockedChunkGuard() = default;
+    TLockedChunkGuard(TLockedChunkGuard&& other);
     ~TLockedChunkGuard();
-
-    TLockedChunkGuard(const TLockedChunkGuard&) = delete;
-    TLockedChunkGuard& operator=(const TLockedChunkGuard&) = delete;
-
-    TLockedChunkGuard(TLockedChunkGuard&&) = default;
-    TLockedChunkGuard& operator=(TLockedChunkGuard&&) = default;
-
-    explicit operator bool() const;
 
     void Release();
 
+    TLockedChunkGuard& operator=(TLockedChunkGuard&& other);
+
+    explicit operator bool() const;
+
 private:
+    friend class TChunkLocation;
+
     TLockedChunkGuard(TChunkLocationPtr location, TChunkId chunkId);
+
+    void MoveFrom(TLockedChunkGuard&& other);
 
     TChunkLocationPtr Location_;
     TChunkId ChunkId_;
-
-    friend class TChunkLocation;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
