@@ -11,6 +11,8 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/ytlib/security_client/permission_cache.h>
 
 #include <yt/yt/library/auth_server/config.h>
@@ -1154,7 +1156,7 @@ void TClickHouseHandler::UpdateOperationIds()
                 auto strawberryPersistentState = node->Attributes()
                     .Get<IMapNodePtr>("strawberry_persistent_state");
                 auto ytOperationState = ConvertTo<EOperationState>(strawberryPersistentState->GetChildOrThrow("yt_operation_state"));
-                if (ytOperationState == EOperationState::Running) {
+                if (!IsOperationFinished(ytOperationState)) {
                     auto operationId = ConvertTo<TOperationId>(strawberryPersistentState->GetChildOrThrow("yt_operation_id"));
                     aliasToOperationId[alias] = operationId;
                 }
