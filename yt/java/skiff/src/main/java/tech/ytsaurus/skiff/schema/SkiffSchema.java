@@ -71,6 +71,12 @@ public abstract class SkiffSchema {
         return ytreeBuilder.endMap().build();
     }
 
+    public boolean isListSchema() {
+        return type == WireType.REPEATED_VARIANT_8 &&
+                getChildren().size() == 2 &&
+                getChildren().get(0).type == WireType.NOTHING;
+    }
+
     public static SimpleTypeSchema simpleType(WireType type) {
         return new SimpleTypeSchema(type);
     }

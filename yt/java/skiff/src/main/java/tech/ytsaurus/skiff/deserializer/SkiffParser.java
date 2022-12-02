@@ -1,4 +1,4 @@
-package tech.ytsaurus.skiff.parser;
+package tech.ytsaurus.skiff.deserializer;
 
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
@@ -97,7 +97,7 @@ public class SkiffParser {
 
     private byte[] getData(int length) {
         byte[] byteArray = new byte[length];
-        buffer.get(byteArray, buffer.position(), length);
+        buffer.get(byteArray);
         return byteArray;
     }
 }
