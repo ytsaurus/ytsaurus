@@ -492,12 +492,12 @@ class TestSchedulingTags(YTEnvSetup):
             command="cat",
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            spec={"scheduling_tag": "tagB", "job_count": 20},
+            spec={"scheduling_tag": "tagB", "job_count": 10},
         )
         time.sleep(0.8)
         assert get_job_nodes(op) == builtins.set([self.node])
 
-        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 20})
+        op = map(command="cat", in_="//tmp/t_in", out="//tmp/t_out", spec={"job_count": 10})
         time.sleep(0.8)
         assert len(get_job_nodes(op)) <= 2
 
