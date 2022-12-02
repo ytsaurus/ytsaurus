@@ -96,15 +96,21 @@ public enum WireType {
             case NOTHING:
                 return true;
 
-            case TUPLE:
+            default:
+                return false;
+        }
+    }
+
+    public boolean isVariant() {
+        switch (this) {
             case VARIANT_8:
             case VARIANT_16:
             case REPEATED_VARIANT_8:
             case REPEATED_VARIANT_16:
-                return false;
+                return true;
 
             default:
-                throw new IllegalStateException("Illegal enum state");
+                return false;
         }
     }
 }

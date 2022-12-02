@@ -8,7 +8,7 @@ import javax.persistence.Entity;
 import javax.persistence.Transient;
 
 import org.junit.Test;
-import tech.ytsaurus.skiff.serializer.EntitySkiffSerializer;
+import tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator;
 
 import static org.junit.Assert.assertEquals;
 
@@ -86,7 +86,7 @@ public class SchemaOfEntityTest {
 
     @Test
     public void testCreateSchema() {
-        var entitySchema = EntitySkiffSerializer.getEntitySchema(Person.class);
+        var entitySchema = EntitySkiffSchemaCreator.getEntitySchema(Person.class);
 
         SkiffSchema expectedSchema = SkiffSchema.tuple(
                 List.of(SkiffSchema.simpleType(WireType.STRING_32).setName("person-name"),
