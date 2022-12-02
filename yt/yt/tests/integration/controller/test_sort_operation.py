@@ -1974,7 +1974,7 @@ class TestSchedulerSortCommands(YTEnvSetup):
         assert len(read_table("//tmp/out")) == n
 
     @authors("ermolovd")
-    @pytest.mark.timeout(150)
+    @pytest.mark.timeout(200)
     @pytest.mark.parametrize(
         "sort_func",
         [
