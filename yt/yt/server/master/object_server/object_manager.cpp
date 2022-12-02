@@ -615,11 +615,17 @@ public:
         mutation->SetAllowLeaderForwarding(true);
         mutation->SetCurrentTraceContext();
         mutation->Commit()
-            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& result) {
-                if (!context->IsReplied()) {
-                    // Must be a commit error or a forwarded request.
+            .Subscribe(BIND([=] (const TErrorOr<TMutationResponse>& resultOrError) {
+                if (!resultOrError.IsOK()) {
                     // Reply with commit error.
-                    context->Reply(result);
+                    context->Reply(resultOrError);
+                    return;
+                }
+                const auto& result = resultOrError.Value();
+                if (result.Origin != EMutationResponseOrigin::Commit) {
+                    // Reply with explicit response.
+                    context->Reply(result.Data);
+                    return;
                 }
             }));
     }
