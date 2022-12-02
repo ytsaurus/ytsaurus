@@ -1205,6 +1205,28 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         remount_table("//tmp/t", authenticated_user="u")
         sync_unmount_table("//tmp/t", authenticated_user="u")
 
+    @authors("capone212")
+    def test_cell_bundle_manage_permission(self):
+        create_tablet_cell_bundle("bundle212")
+        create_user("user212")
+        set("//sys/tablet_cell_bundles/bundle212/@acl/end", make_ace("allow", "user212", "manage"))
+
+        # try to exercise our permissions
+        bundle_controller_config = {
+            "tablet_node_count" : 10,
+        }
+        config_path = "//sys/tablet_cell_bundles/bundle212/@bundle_controller_target_config"
+
+        set(config_path, bundle_controller_config, authenticated_user="user212")
+
+        create_user("looser212")
+        set("//sys/tablet_cell_bundles/bundle212/@acl/end", make_ace("allow", "looser212", "use"))
+
+        with pytest.raises(YtError):
+            set(config_path, bundle_controller_config, authenticated_user="looser212")
+
+        assert bundle_controller_config == get(config_path, authenticated_user="looser212")
+
     @authors("savrus")
     def test_mount_permission_allowed_by_ancestor(self):
         sync_create_cells(1)

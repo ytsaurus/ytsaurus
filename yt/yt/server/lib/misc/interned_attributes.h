@@ -53,6 +53,7 @@
     XX(BranchedNodeIds, branched_node_ids) \
     XX(Broken, broken) \
     XX(Builtin, builtin) \
+    XX(BundleControllerTargetConfig, bundle_controller_target_config) \
     XX(Cache, cache) \
     XX(CachedReplicas, cached_replicas) \
     XX(Cellars, cellars) \

@@ -81,6 +81,11 @@ private:
             .SetReplicated(true)
             .SetMandatory(true)
             .SetWritePermission(EPermission::Use));
+        attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::BundleControllerTargetConfig)
+            .SetWritable(true)
+            .SetReplicated(true)
+            .SetWritePermission(EPermission::Manage)
+            .SetPresent(cellBundle->GetBundleControllerTargetConfig().has_value()));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletActions)
             .SetOpaque(true));
         attributes->push_back(TAttributeDescriptor(EInternedAttributeKey::ResourceLimits)
@@ -117,6 +122,13 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(cellBundle->TabletBalancerConfig());
                 return true;
+
+            case EInternedAttributeKey::BundleControllerTargetConfig:
+                if (cellBundle->GetBundleControllerTargetConfig()) {
+                    consumer->OnRaw(*cellBundle->GetBundleControllerTargetConfig());
+                    return true;
+                }
+                break;
 
             case EInternedAttributeKey::TabletActions: {
                 BuildYsonFluently(consumer)
@@ -230,6 +242,10 @@ private:
                 cellBundle->TabletBalancerConfig() = ConvertTo<TBundleTabletBalancerConfigPtr>(value);
                 return true;
 
+            case EInternedAttributeKey::BundleControllerTargetConfig:
+                cellBundle->SetBundleControllerTargetConfig(value);
+                return true;
+
             case EInternedAttributeKey::ResourceLimits: {
                 cellBundle->ResourceLimits() = ConvertTo<TTabletResources>(value);
                 return true;
@@ -266,6 +282,11 @@ private:
 
             case EInternedAttributeKey::FolderId: {
                 cellBundle->SetFolderId(std::nullopt);
+                return true;
+            }
+
+            case EInternedAttributeKey::BundleControllerTargetConfig: {
+                cellBundle->SetBundleControllerTargetConfig(std::nullopt);
                 return true;
             }
 
