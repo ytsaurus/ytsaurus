@@ -2242,6 +2242,8 @@ class TestHealExecNode(YTEnvSetup):
         wait(lambda: get("//sys/cluster_nodes/{}/@alerts".format(node_address)))
         wait(lambda: "generic_persistent_error" in get("//sys/cluster_nodes/{}/orchid/job_controller/slot_manager/alerts".format(node_address)))
 
+        update_nodes_dynamic_config({})
+
         wait(lambda: len(op.get_running_jobs()) == 0)
 
         heal_exec_node(node_address, alert_types_to_reset=["generic_persistent_error"], force_reset=True)
