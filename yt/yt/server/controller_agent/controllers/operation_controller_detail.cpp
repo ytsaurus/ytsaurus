@@ -8773,7 +8773,7 @@ void TOperationControllerBase::UpdateJobMetrics(const TJobletPtr& joblet, const 
 {
     YT_LOG_TRACE("Updating job metrics (JobId: %v)", joblet->JobId);
 
-    auto delta = joblet->UpdateJobMetrics(jobSummary, isJobFinished, &(joblet->JobMetricsMonotonicityViolated));
+    auto delta = joblet->UpdateJobMetrics(jobSummary, isJobFinished);
     {
         auto guard = Guard(JobMetricsDeltaPerTreeLock_);
 
