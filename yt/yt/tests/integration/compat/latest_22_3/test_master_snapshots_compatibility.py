@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
-    authors, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells)
+    authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, set, get, sync_create_cells, wait_for_cells)
 
 from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -92,3 +92,31 @@ class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
         self.restart_with_update(NODES_SERVICE, build_snapshots=False)
 
         wait_for_cells(cell_ids)
+
+
+class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):
+    # COMPAT(gepardo): Remove this after 22.4.
+    USE_NATIVE_AUTH = False
+
+    @authors("capone212")
+    def test(self):
+        create_tablet_cell_bundle("bundle212")
+        bundle_controller_config = {
+            "tablet_node_count" : 10,
+        }
+        bundle_path = "//sys/tablet_cell_bundles/bundle212"
+        config_path = "{}/@bundle_controller_target_config".format(bundle_path)
+
+        set(config_path, bundle_controller_config)
+        assert bundle_controller_config == get(config_path)
+
+        self.restart_with_update(MASTERS_SERVICE)
+        assert bundle_controller_config == get(config_path)
+        assert "bundle_controller_target_config" not in get("{}/@user_attribute_keys".format(bundle_path))
+
+        bundle_controller_config["tablet_node_count"] = 11
+        set(config_path, bundle_controller_config)
+
+        self.restart_with_update(MASTERS_SERVICE)
+
+        assert bundle_controller_config == get(config_path)

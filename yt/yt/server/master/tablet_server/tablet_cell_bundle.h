@@ -56,6 +56,8 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TAbcConfigPtr, AbcConfig);
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TString>, FolderId);
 
+    DEFINE_BYVAL_RW_PROPERTY(std::optional<NYson::TYsonString>, BundleControllerTargetConfig);
+
 public:
     using NCellServer::TCellBundle::TCellBundle;
     explicit TTabletCellBundle(TTabletCellBundleId id);

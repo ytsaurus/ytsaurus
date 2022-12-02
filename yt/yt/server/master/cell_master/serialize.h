@@ -79,6 +79,7 @@ DEFINE_ENUM(EMasterReign,
     ((RefCountedCoWs)                                               (2204))  // babenko
     ((RemovableQueueAgentStage)                                     (2205))  // achulkov2
     ((FixTransactionRotator)                                        (2206))  // kvk1920
+    ((BundleControllerConfigAttribute)                              (2207))  // capone212
 );
 
 ////////////////////////////////////////////////////////////////////////////////
