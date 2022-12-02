@@ -13,8 +13,8 @@ import ru.yandex.spark.yt.serializers.SchemaConverter.{SortOption, Sorted, Unord
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient, TableWriter}
-import ru.yandex.yt.ytclient.tables.TableSchema
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient, TableWriter}
+import tech.ytsaurus.core.tables.TableSchema
 
 import java.util
 import java.util.concurrent.CompletableFuture

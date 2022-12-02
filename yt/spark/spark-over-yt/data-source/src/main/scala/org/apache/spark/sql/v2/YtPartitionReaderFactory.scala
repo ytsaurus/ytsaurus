@@ -26,7 +26,7 @@ import ru.yandex.spark.yt.logger.{TaskInfo, YtDynTableLoggerConfig}
 import ru.yandex.spark.yt.serializers.InternalRowDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 
 case class YtPartitionReaderFactory(sqlConf: SQLConf,
                                     broadcastedConf: Broadcast[SerializableConfiguration],

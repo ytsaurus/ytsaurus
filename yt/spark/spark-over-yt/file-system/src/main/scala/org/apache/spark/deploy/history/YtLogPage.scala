@@ -8,7 +8,7 @@ import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
 import ru.yandex.spark.yt.wrapper.model.WorkerLogBlock
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.getMetaPath
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import java.util.UUID
 import javax.servlet.http.HttpServletRequest

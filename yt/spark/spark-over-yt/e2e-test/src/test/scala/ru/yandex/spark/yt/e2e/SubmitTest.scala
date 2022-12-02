@@ -7,7 +7,7 @@ import ru.yandex.spark.e2e.check.{CheckApp, CheckResult}
 import ru.yandex.spark.yt.submit.SubmissionClient
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.DefaultRpcCredentials
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.duration._

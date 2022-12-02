@@ -5,10 +5,9 @@ import ru.yandex.spark.launcher.AutoScaler.{OperationState, SparkState}
 import ru.yandex.spark.launcher.ClusterStateService.State
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.discovery.{DiscoveryService, OperationSet}
-import ru.yandex.yt.ytclient.proxy.CompoundClient
 import ru.yandex.yt.ytclient.proxy.request.UpdateOperationParameters.{ResourceLimits, SchedulingOptions}
-import ru.yandex.yt.ytclient.request.{GetOperation, ResumeOperation, SuspendOperation, UpdateOperationParameters}
-import ru.yandex.yt.ytclient.request.AbortJob
+import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.client.request.{AbortJob, GetOperation, ResumeOperation, SuspendOperation, UpdateOperationParameters}
 import tech.ytsaurus.core.GUID
 
 trait ClusterStateService {

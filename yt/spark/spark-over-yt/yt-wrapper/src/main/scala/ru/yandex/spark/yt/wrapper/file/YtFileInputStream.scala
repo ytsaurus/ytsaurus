@@ -2,8 +2,7 @@ package ru.yandex.spark.yt.wrapper.file
 
 import java.io.InputStream
 import java.util.concurrent.TimeUnit
-
-import ru.yandex.yt.ytclient.proxy.FileReader
+import tech.ytsaurus.client.FileReader
 
 import scala.concurrent.duration.Duration
 

@@ -1,14 +1,14 @@
 package ru.yandex.spark.yt.test
 
-import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.inside.yt.kosher.impl.ytree.`object`.YTreeRowSerializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.yt.ytclient.`object`.{UnversionedRowSerializer, WireRowDeserializer, WireValueDeserializer}
-import ru.yandex.yt.ytclient.proxy.CompoundClient
-import ru.yandex.yt.ytclient.proxy.request.{ObjectType, WriteTable}
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
-import ru.yandex.yt.ytclient.wire.UnversionedRow
+import ru.yandex.yt.ytclient.proxy.request.WriteTable
+import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.client.request.ObjectType
+import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedRowSerializer, WireRowDeserializer, WireValueDeserializer}
+import tech.ytsaurus.core.cypress.YPath
+import tech.ytsaurus.core.rows.YTreeRowSerializer
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.type_info.TiType
 import tech.ytsaurus.yson.YsonConsumer
 import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeNodeUtils, YTreeTextSerializer}

@@ -3,10 +3,8 @@ package ru.yandex.spark.yt.e2e
 import org.scalatest.TestSuite
 import ru.yandex.spark.yt.e2e.E2EYtClient.ytProxy
 import ru.yandex.spark.yt.wrapper.client._
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
-import java.util.NoSuchElementException
-import scala.collection.JavaConverters.mapAsScalaMapConverter
 import scala.concurrent.duration._
 import scala.language.postfixOps
 

@@ -5,7 +5,7 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.PathUtils.getMetaPath
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.{metaSchema, schema}
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 
 import java.io.OutputStream
 import java.time.Clock

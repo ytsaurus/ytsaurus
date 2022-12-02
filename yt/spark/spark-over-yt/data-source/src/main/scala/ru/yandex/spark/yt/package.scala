@@ -8,7 +8,7 @@ import ru.yandex.spark.yt.fs.conf._
 import ru.yandex.spark.yt.serializers.{SchemaConverter, YtLogicalType}
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 package object yt {
   lazy val yt: CompoundClient = YtClientProvider.ytClient(ytClientConfiguration(SparkSession.getDefaultSession.get))

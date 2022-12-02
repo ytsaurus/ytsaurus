@@ -7,7 +7,7 @@ import org.apache.spark.sql.types._
 import org.apache.spark.sql.{DataFrame, Row, SparkSession}
 import org.apache.spark.sql.v2.GroupedIterator._
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import scala.collection.mutable
 import scala.util.Try

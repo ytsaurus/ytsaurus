@@ -13,7 +13,7 @@ import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.serializers.{SchemaConverter, SchemaConverterConfig}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 object YtUtils {
   object Options {

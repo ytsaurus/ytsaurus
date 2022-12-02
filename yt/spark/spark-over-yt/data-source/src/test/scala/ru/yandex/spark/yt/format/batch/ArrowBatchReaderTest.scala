@@ -3,11 +3,11 @@ package ru.yandex.spark.yt.format.batch
 import org.apache.spark.sql.{Row, SaveMode}
 import org.apache.spark.sql.types.{DoubleType, IntegerType, StructType}
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.{OptimizeMode, YtArrowInputStream}
 import ru.yandex.spark.yt.{SchemaTestUtils, YtWriter}
+import tech.ytsaurus.core.cypress.YPath
 
 import java.io.InputStream
 

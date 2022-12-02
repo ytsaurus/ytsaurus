@@ -1,12 +1,12 @@
 package ru.yandex.spark.yt.format.batch
 
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
 import ru.yandex.spark.yt.test.{LocalSpark, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.formatPath
+import tech.ytsaurus.core.cypress.YPath
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

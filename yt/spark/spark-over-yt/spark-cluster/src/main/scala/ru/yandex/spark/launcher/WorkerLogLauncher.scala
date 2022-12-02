@@ -8,7 +8,7 @@ import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 import ru.yandex.spark.yt.wrapper.model.WorkerLogBlock
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.{getMetaPath, metaSchema}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import java.io.{File, RandomAccessFile}
 import java.nio.file.attribute.FileTime

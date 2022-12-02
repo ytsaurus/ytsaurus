@@ -1,13 +1,13 @@
 package ru.yandex.spark.yt.wrapper.file
 
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.client.{YtClientUtils, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
-import ru.yandex.yt.ytclient.proxy.CompoundClient
-import ru.yandex.yt.ytclient.proxy.request.{CreateNode, ObjectType, ReadFile, WriteFile}
+import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.client.request.{CreateNode, ObjectType, ReadFile, WriteFile}
+import tech.ytsaurus.core.cypress.YPath
 import tech.ytsaurus.ysontree.YTreeNode
 
 import java.io.{FileOutputStream, OutputStream}
@@ -30,7 +30,7 @@ trait YtFileUtils {
   def readFile(path: YPath, transaction: Option[String], timeout: Duration)
               (implicit yt: CompoundClient): YtFileInputStream = {
     log.debug(s"Read file: $path, transaction: $transaction")
-    val fileReader = yt.readFile(new ReadFile(path.toString).optionalTransaction(transaction)).join()
+    val fileReader = yt.readFile(ReadFile.builder().setPath(path.toString).optionalTransaction(transaction)).join()
     new YtFileInputStream(fileReader, timeout)
   }
 
@@ -67,12 +67,13 @@ trait YtFileUtils {
   def createFile(path: YPath, transaction: Option[String], force: Boolean)
                 (implicit yt: CompoundClient): Unit = {
     log.debug(s"Create file: $path, transaction: $transaction")
-    val request = new CreateNode(path, ObjectType.File).optionalTransaction(transaction).setForce(force)
+    val request = CreateNode.builder().setPath(path).setType(ObjectType.File).optionalTransaction(transaction).setForce(force)
     yt.createNode(request).join()
   }
 
-  private def writeFileRequest(path: YPath, transaction: Option[String], timeout: Duration): WriteFile = {
-    new WriteFile(path.toString)
+  private def writeFileRequest(path: YPath, transaction: Option[String], timeout: Duration): WriteFile.Builder = {
+    WriteFile.builder()
+      .setPath(path.toString)
       .setWindowSize(10000000L)
       .setPacketSize(1000000L)
       .optionalTransaction(transaction)

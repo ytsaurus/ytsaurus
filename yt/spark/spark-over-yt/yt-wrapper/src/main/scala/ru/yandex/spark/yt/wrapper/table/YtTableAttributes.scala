@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.wrapper.table
 
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
-import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient}
+import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.ysontree.YTreeNode
 
 trait YtTableAttributes {

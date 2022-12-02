@@ -2,11 +2,10 @@ package ru.yandex.spark.yt.wrapper.client
 
 import com.google.protobuf.MessageLite
 import io.netty.channel.nio.NioEventLoopGroup
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toJavaDuration
-import ru.yandex.yt.ytclient.DefaultSerializationResolver
-import ru.yandex.yt.ytclient.bus.{BusConnector, DefaultBusConnector}
-import ru.yandex.yt.ytclient.proxy.CompoundClientImpl
-import ru.yandex.yt.ytclient.proxy.internal.HostPort
+import tech.ytsaurus.client.{CompoundClientImpl, DefaultSerializationResolver}
+import tech.ytsaurus.client.bus.{BusConnector, DefaultBusConnector}
 import tech.ytsaurus.client.rpc._
 
 import java.net.InetSocketAddress
@@ -17,7 +16,7 @@ import scala.language.postfixOps
 class SingleProxyYtClient(connector: BusConnector,
                           rpcCredentials: RpcCredentials,
                           rpcOptions: RpcOptions,
-                          address: HostPort)
+                          address: HostAndPort)
   extends CompoundClientImpl(connector.executorService(), rpcOptions, ForkJoinPool.commonPool, DefaultSerializationResolver.getInstance()) {
 
   private val client = SingleProxyYtClient.createClient(address, connector, rpcCredentials)
@@ -58,13 +57,13 @@ object SingleProxyYtClient {
     val rpcOptions = new RpcOptions()
     rpcOptions.setTimeouts(300 seconds)
 
-    new SingleProxyYtClient(connector, rpcCredentials, rpcOptions, HostPort.parse(address))
+    new SingleProxyYtClient(connector, rpcCredentials, rpcOptions, HostAndPort.fromString(address))
   }
 
-  def createClient(address: HostPort,
+  def createClient(address: HostAndPort,
                    connector: BusConnector,
                    rpcCredentials: RpcCredentials): RpcClient = {
-    new DefaultRpcBusClient(connector, new InetSocketAddress(address.getHost, address.getPort), "single_proxy")
+    new DefaultRpcBusClient(connector, new InetSocketAddress(address.host, address.port), "single_proxy")
       .withTokenAuthentication(rpcCredentials)
   }
 }

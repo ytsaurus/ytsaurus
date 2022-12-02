@@ -6,7 +6,7 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.RichLogger
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import java.io.IOException
 import scala.annotation.tailrec

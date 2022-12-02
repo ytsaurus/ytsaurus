@@ -7,7 +7,7 @@ import ru.yandex.spark.yt.format.YtInputSplit
 import ru.yandex.spark.yt.format.batch.{ArrowBatchReader, BatchReader, WireRowBatchReader}
 import ru.yandex.spark.yt.serializers.ArrayAnyDeserializer
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import scala.concurrent.duration.Duration
 

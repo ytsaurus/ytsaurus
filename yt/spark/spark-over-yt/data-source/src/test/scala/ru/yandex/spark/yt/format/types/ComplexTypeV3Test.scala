@@ -12,8 +12,8 @@ import ru.yandex.spark.yt.format.conf.YtTableSparkSettings
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import ru.yandex.spark.yt.serializers.YtLogicalType
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
-import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.type_info.StructType.Member
 import tech.ytsaurus.type_info.TiType
 import tech.ytsaurus.ysontree.YTreeBuilder

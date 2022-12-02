@@ -2,8 +2,8 @@ package ru.yandex.spark.yt.serializers
 
 import org.apache.spark.sql.sources.Filter
 import org.apache.spark.sql.types._
-import ru.yandex.yt.ytclient.`object`.{WireRowDeserializer, WireValueDeserializer}
-import ru.yandex.yt.ytclient.tables.ColumnValueType
+import tech.ytsaurus.client.rows.{WireRowDeserializer, WireValueDeserializer}
+import tech.ytsaurus.core.tables.ColumnValueType
 import tech.ytsaurus.yson.YsonTags
 import tech.ytsaurus.ysontree.{YTreeNode, YTreeTextSerializer}
 

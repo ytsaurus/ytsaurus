@@ -10,7 +10,7 @@ import ru.yandex.spark.yt.fs.path._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.spark.yt.wrapper.table.TableType
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.ysontree.YTreeNode
 
 import java.io.FileNotFoundException

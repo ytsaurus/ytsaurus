@@ -1,9 +1,8 @@
 package ru.yandex.spark.yt.wrapper.table
 
+import tech.ytsaurus.client.TableReader
+
 import java.nio.ByteBuffer
-
-import ru.yandex.yt.ytclient.proxy.TableReader
-
 import scala.annotation.tailrec
 import scala.concurrent.duration.Duration
 

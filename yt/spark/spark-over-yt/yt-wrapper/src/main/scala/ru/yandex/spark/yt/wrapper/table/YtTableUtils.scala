@@ -1,19 +1,19 @@
 package ru.yandex.spark.yt.wrapper.table
 
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.misc.io.exec.ProcessUtils
 import ru.yandex.spark.yt.wrapper.Utils
+import ru.yandex.spark.yt.wrapper.YtJavaConverters.RichJavaMap
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
 import ru.yandex.spark.yt.wrapper.operation.OperationStatus
 import ru.yandex.spark.yt.wrapper.transaction.YtTransactionUtils
 import ru.yandex.yt.rpcproxy.EOperationType
-import ru.yandex.yt.ytclient.`object`.WireRowDeserializer
-import ru.yandex.yt.ytclient.proxy.CompoundClient
-import ru.yandex.yt.ytclient.proxy.internal.TableAttachmentByteBufferReader
-import ru.yandex.yt.ytclient.proxy.request._
-import ru.yandex.yt.ytclient.request.ReadTable.SerializationContext
+import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.client.request.ReadTable.SerializationContext
+import tech.ytsaurus.client.request.{CreateNode, GetOperation, ObjectType, ReadTable, StartOperation}
+import tech.ytsaurus.client.rows.WireRowDeserializer
 import tech.ytsaurus.core.GUID
+import tech.ytsaurus.core.cypress.YPath
 import tech.ytsaurus.ysontree.{YTreeBuilder, YTreeNode, YTreeTextSerializer}
 
 import java.nio.ByteBuffer
@@ -50,7 +50,10 @@ trait YtTableUtils {
                  (implicit yt: CompoundClient): Unit = {
     log.debug(s"Create table: $path, transaction: $transaction")
     import scala.collection.JavaConverters._
-    val request = new CreateNode(formatPath(path), ObjectType.Table, options.asJava)
+    val request = CreateNode.builder()
+      .setPath(YPath.simple(formatPath(path)))
+      .setType(ObjectType.Table)
+      .setAttributes(options.asJava)
       .optionalTransaction(transaction)
     yt.createNode(request).join()
   }
@@ -58,7 +61,9 @@ trait YtTableUtils {
   def readTable[T](path: YPath, deserializer: WireRowDeserializer[T], timeout: Duration = 1 minute,
                    transaction: Option[String] = None, reportBytesRead: Long => Unit)
                   (implicit yt: CompoundClient): TableIterator[T] = {
-    val request = new ReadTable(path, deserializer)
+    val request = ReadTable.builder()
+      .setPath(path)
+      .setSerializationContext(new SerializationContext(deserializer))
       .setOmitInaccessibleColumns(true)
       .setUnordered(true)
       .optionalTransaction(transaction)
@@ -76,10 +81,10 @@ trait YtTableUtils {
   def readTableArrowStream(path: String, timeout: Duration, transaction: Option[String],
                            reportBytesRead: Long => Unit)
                           (implicit yt: CompoundClient): YtArrowInputStream = {
-    val request = new ReadTable[ByteBuffer](path, null.asInstanceOf[WireRowDeserializer[ByteBuffer]])
+    val request = ReadTable.builder[ByteBuffer]().setPath(path)
       .setSerializationContext(SerializationContext.binaryArrow())
       .optionalTransaction(transaction)
-    val reader = yt.readTable(request, new TableAttachmentByteBufferReader).join()
+    val reader = yt.readTable(request).join()
     new TableCopyByteStream(reader, timeout, reportBytesRead)
   }
 
@@ -115,7 +120,6 @@ trait YtTableUtils {
 
   @tailrec
   private def awaitOperation(guid: GUID)(implicit yt: CompoundClient): OperationStatus = {
-    import ru.yandex.spark.yt.wrapper.YtJavaConverters._
     val info = yt.getOperation(new GetOperation(guid)).join()
     val status = OperationStatus.getByName(info.asMap().getOrThrow("state").stringValue())
     if (status.isFinished) {
@@ -147,7 +151,7 @@ trait YtTableUtils {
       .endMap()
       .build()
 
-    val operationRequest = new StartOperation(EOperationType.OT_MERGE, operationSpec)
+    val operationRequest = new StartOperation(EOperationType.OT_MERGE, operationSpec).toBuilder
       .optionalTransaction(transaction)
     val guid = yt.startOperation(operationRequest).join()
 

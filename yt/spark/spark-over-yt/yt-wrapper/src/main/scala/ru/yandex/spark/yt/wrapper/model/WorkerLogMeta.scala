@@ -1,11 +1,7 @@
 package ru.yandex.spark.yt.wrapper.model
 
-import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key.{APP_DRIVER, EXEC_ID, LENGTH, STREAM, TABLE_NAME}
-import ru.yandex.yt.ytclient.tables.ColumnValueType
+import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key._
 import tech.ytsaurus.ysontree.YTreeNode
-
-import java.time.LocalDate
-import java.util
 
 case class WorkerLogMeta(appDriver: String,
                          execId: String,

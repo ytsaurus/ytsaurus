@@ -1,5 +1,5 @@
 package ru.yandex.spark.yt.wrapper.table
-import ru.yandex.yt.ytclient.tables.TableSchema
+import tech.ytsaurus.core.tables.TableSchema
 import tech.ytsaurus.ysontree.YTreeNode
 
 import scala.collection.JavaConverters._

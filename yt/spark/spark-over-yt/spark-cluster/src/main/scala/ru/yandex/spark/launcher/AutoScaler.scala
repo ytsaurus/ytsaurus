@@ -1,11 +1,10 @@
 package ru.yandex.spark.launcher
 
 import com.codahale.metrics.{Gauge, MetricRegistry}
-import com.google.common.util.concurrent.ThreadFactoryBuilder
 import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.spark.launcher.ClusterStateService.State
 import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import java.io.Closeable
 import java.util.concurrent.atomic.{AtomicLong, AtomicReference}

@@ -3,7 +3,7 @@ package ru.yandex.spark.yt.test
 import com.whisk.docker.{ContainerLink, DockerContainer, DockerReadyChecker}
 import org.scalatest.{BeforeAndAfterAll, TestSuite}
 import ru.yandex.spark.yt.wrapper.client._
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

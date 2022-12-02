@@ -11,7 +11,7 @@ import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider, YtRpcClient}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
 import ru.yandex.yt.TError
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 import tech.ytsaurus.client.rpc.RpcError
 
 import java.io.FileNotFoundException
