@@ -10,7 +10,7 @@ import ru.yandex.spark.metrics.AdditionalMetrics
 import ru.yandex.spark.yt.wrapper.Utils.parseDuration
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.DiscoveryService
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

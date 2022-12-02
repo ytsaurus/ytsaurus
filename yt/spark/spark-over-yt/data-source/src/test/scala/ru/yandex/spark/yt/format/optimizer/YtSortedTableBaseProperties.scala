@@ -10,8 +10,8 @@ import org.scalatestplus.scalacheck.ScalaCheckDrivenPropertyChecks
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration
 import ru.yandex.spark.yt.format.optimizer.YtSortedTableBaseProperties.{Source, compareRows, getTableSchema, getUnversionedRow}
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
-import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.type_info.TiType
 
 import scala.collection.JavaConverters.{collectionAsScalaIterableConverter, seqAsJavaListConverter}

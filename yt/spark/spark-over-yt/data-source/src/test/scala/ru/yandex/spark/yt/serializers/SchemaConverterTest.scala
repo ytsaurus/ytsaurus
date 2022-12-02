@@ -10,7 +10,7 @@ import ru.yandex.spark.yt.format.conf.SparkYtConfiguration.Read.ParsingTypeV3
 import ru.yandex.spark.yt.serializers.SchemaConverter.{MetadataFields, Unordered, ytLogicalSchema}
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.{SchemaTestUtils, YtReader}
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.type_info.StructType.Member
 import tech.ytsaurus.type_info.TiType
 import tech.ytsaurus.ysontree.{YTree, YTreeMapNode}

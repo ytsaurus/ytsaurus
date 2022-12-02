@@ -14,8 +14,9 @@ import ru.yandex.spark.yt.fs.path.GlobalTableSettings
 import ru.yandex.spark.yt.serializers.InternalRowSerializer
 import ru.yandex.spark.yt.wrapper.LogLazy
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
-import ru.yandex.yt.ytclient.proxy.request.{TransactionalOptions, WriteTable}
-import ru.yandex.yt.ytclient.proxy.{CompoundClient, TableWriter}
+import ru.yandex.yt.ytclient.proxy.request.WriteTable
+import tech.ytsaurus.client.{CompoundClient, TableWriter}
+import tech.ytsaurus.client.request.TransactionalOptions
 import tech.ytsaurus.core.GUID
 
 import java.util

@@ -1,20 +1,19 @@
 package ru.yandex.spark.yt.submit
 
-import com.google.common.util.concurrent.ThreadFactoryBuilder
 import io.netty.channel.DefaultEventLoopGroup
 import org.apache.commons.io.FileUtils
-import org.apache.spark.deploy.rest.{ApplicationState, DriverInfo, DriverState, MasterClient, RestSubmissionClientWrapper}
+import org.apache.spark.deploy.rest._
 import org.apache.spark.launcher.InProcessLauncher
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.cypress.YPath
-import ru.yandex.spark.yt.wrapper.config.Utils.{parseRemoteConfig, remoteGlobalConfigPath, remoteVersionConfigPath}
 import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvider}
+import ru.yandex.spark.yt.wrapper.config.Utils.{parseRemoteConfig, remoteGlobalConfigPath, remoteVersionConfigPath}
 import ru.yandex.spark.yt.wrapper.discovery.CypressDiscoveryService
+import tech.ytsaurus.core.cypress.YPath
 
 import java.io.File
 import java.util.UUID
-import java.util.concurrent.{Executors, ThreadFactory, TimeUnit}
 import java.util.concurrent.atomic.AtomicReference
+import java.util.concurrent.{Executors, ThreadFactory}
 import scala.annotation.tailrec
 import scala.concurrent.duration._
 import scala.language.postfixOps

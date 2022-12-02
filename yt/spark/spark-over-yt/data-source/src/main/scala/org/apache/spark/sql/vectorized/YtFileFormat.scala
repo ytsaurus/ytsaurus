@@ -22,7 +22,7 @@ import ru.yandex.spark.yt.logger.YtDynTableLoggerConfig
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 class YtFileFormat extends FileFormat with DataSourceRegister with Serializable {
   override def inferSchema(sparkSession: SparkSession,

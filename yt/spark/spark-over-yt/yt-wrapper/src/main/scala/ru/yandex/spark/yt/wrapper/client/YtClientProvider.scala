@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.wrapper.client
 
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import java.util.concurrent.atomic.AtomicReference
 import scala.collection.concurrent.TrieMap

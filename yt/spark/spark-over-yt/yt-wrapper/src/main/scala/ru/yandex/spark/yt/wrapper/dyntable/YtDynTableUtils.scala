@@ -1,17 +1,18 @@
 package ru.yandex.spark.yt.wrapper.dyntable
 
 import org.slf4j.LoggerFactory
-import ru.yandex.inside.yt.kosher.cypress.YPath
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.YtWrapper.createTable
 import ru.yandex.spark.yt.wrapper.cypress.{YtAttributes, YtCypressUtils}
 import ru.yandex.spark.yt.wrapper.table.YtTableSettings
 import ru.yandex.yt.ytclient.proxy.request.ReshardTable
 import ru.yandex.yt.ytclient.proxy._
-import ru.yandex.yt.ytclient.request.GetTablePivotKeys
-import ru.yandex.yt.ytclient.tables.TableSchema
-import ru.yandex.yt.ytclient.wire.UnversionedRowset
+import tech.ytsaurus.client.request.GetTablePivotKeys
+import tech.ytsaurus.client.rows.UnversionedRowset
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient, ModifyRowsRequest, RetryPolicy, SelectRowsRequest}
 import tech.ytsaurus.client.rpc.AlwaysSwitchRpcFailoverPolicy
+import tech.ytsaurus.core.cypress.YPath
+import tech.ytsaurus.core.tables.TableSchema
 import tech.ytsaurus.ysontree.{YTreeBinarySerializer, YTreeBuilder, YTreeMapNode, YTreeNode}
 
 import java.io.ByteArrayOutputStream

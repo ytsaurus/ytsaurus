@@ -13,7 +13,7 @@ import ru.yandex.spark.yt.fs.path.GlobalTableSettings
 import ru.yandex.spark.yt.fs.path.YPathEnriched.YtRootPath
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 
 class YtOutputCommitter(jobId: String,
                         outputPath: String,

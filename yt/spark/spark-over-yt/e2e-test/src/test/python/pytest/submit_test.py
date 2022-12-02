@@ -217,14 +217,6 @@ def test_link_eda_user_appsession_request_id(submission_client, yt_client):
         run_test(submission_client, yt_client, test_case)
 
 
-def test_link_eda_user_appsession_request_id_python2(submission_client, yt_client):
-    test_case = make_e2e_test_case("link_eda_user_appsession_request_id_python2", ["appsession_id"],
-                                   custom_input_path=e2e_home_path + "/link_eda_user_appsession_request_id/input") \
-        .with_conf("spark.pyspark.python", "python2.7")
-    with TimeoutExecution(160):
-        run_test(submission_client, yt_client, test_case)
-
-
 def test_fct_extreme_user_order_act(submission_client, yt_client):
     test_case = make_e2e_test_case("fct_extreme_user_order_act", ["phone_pd_id"]) \
         .with_conf("spark.sql.mapKeyDedupPolicy", "LAST_WIN")

@@ -2,7 +2,7 @@ package ru.yandex.spark.yt.wrapper.config
 
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.RichJavaMap
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import scala.collection.JavaConverters.mapAsScalaMapConverter
 

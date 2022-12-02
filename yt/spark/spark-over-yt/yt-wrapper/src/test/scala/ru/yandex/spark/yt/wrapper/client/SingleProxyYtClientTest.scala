@@ -2,14 +2,13 @@ package ru.yandex.spark.yt.wrapper.client
 
 import io.netty.channel.nio.NioEventLoopGroup
 import org.scalatest.{FlatSpec, Matchers}
+import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.test.{LocalYt, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.toJavaDuration
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector
-import ru.yandex.yt.ytclient.proxy.CompoundClient
-import ru.yandex.yt.ytclient.proxy.internal.HostPort
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.client.bus.DefaultBusConnector
 import tech.ytsaurus.client.rpc.{RpcCredentials, RpcOptions}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.ysontree.YTreeTextSerializer
 
 import scala.concurrent.duration._
@@ -60,7 +59,7 @@ class SingleProxyYtClientTest extends FlatSpec with Matchers with LocalYt with T
 
     YtRpcClient(
       "single",
-      new SingleProxyYtClient(connector, rpcCredentials, rpcOptions, HostPort.parse(address)),
+      new SingleProxyYtClient(connector, rpcCredentials, rpcOptions, HostAndPort.fromString(address)),
       connector
     )
   }

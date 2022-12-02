@@ -8,7 +8,6 @@ import ru.yandex.spark.yt.test.{LocalSpark, LocalYt, LocalYtClient, TestUtils, T
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema._
-import ru.yandex.yt.ytclient.tables.TableSchema
 import tech.ytsaurus.ysontree.YTreeTextSerializer
 
 import java.io.FileNotFoundException

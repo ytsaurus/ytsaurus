@@ -1,8 +1,8 @@
 package ru.yandex.spark.yt.serializers
 
 import ru.yandex.bolts.collection.Cf
-import ru.yandex.inside.yt.kosher.cypress.RangeLimit
 import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, TuplePoint}
+import tech.ytsaurus.core.cypress.RangeLimit
 import tech.ytsaurus.ysontree.{YTree, YTreeBinarySerializer, YTreeNode}
 
 import java.io.{ByteArrayInputStream, ByteArrayOutputStream}

@@ -18,8 +18,8 @@ import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
-import ru.yandex.yt.ytclient.wire.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.client.rows.{UnversionedRow, UnversionedValue}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.type_info.TiType
 import tech.ytsaurus.ysontree.YTree
 

@@ -12,7 +12,7 @@ import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.common.utils.TypeUtils
 import ru.yandex.spark.yt.format._
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 
 import scala.collection.mutable
 

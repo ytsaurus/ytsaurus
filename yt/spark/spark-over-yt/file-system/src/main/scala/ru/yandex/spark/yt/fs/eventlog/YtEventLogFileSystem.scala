@@ -12,7 +12,7 @@ import ru.yandex.spark.yt.wrapper.client.{YtClientConfiguration, YtClientProvide
 import ru.yandex.spark.yt.wrapper.cypress.PathType
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema.Key._
 import ru.yandex.spark.yt.wrapper.model.EventLogSchema._
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 
 import java.io.FileNotFoundException
 import java.net.URI

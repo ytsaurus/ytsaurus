@@ -17,7 +17,7 @@ import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.test._
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 
 import scala.language.postfixOps
 import scala.util.Random

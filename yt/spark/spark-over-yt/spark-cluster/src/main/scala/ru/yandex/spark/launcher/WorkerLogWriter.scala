@@ -5,7 +5,7 @@ import ru.yandex.spark.launcher.WorkerLogLauncher.WorkerLogConfig
 import ru.yandex.spark.yt.wrapper.model.{WorkerLogBlock, WorkerLogMeta}
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.{getMetaPath, metaSchema, schema}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 
 import java.time.{LocalDate, LocalDateTime}
 import scala.collection.mutable

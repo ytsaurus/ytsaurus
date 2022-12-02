@@ -3,7 +3,7 @@ package org.apache.spark.deploy.history
 import ru.yandex.spark.yt.wrapper.model.{WorkerLogBlock, WorkerLogMeta}
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key.{APP_DRIVER, EXEC_ID, ROW_ID, STREAM}
 import ru.yandex.spark.yt.wrapper.{LogLazy, YtWrapper}
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 object WorkerLogReader extends LogLazy {
   def read(tablePath: String, appDriver: String, execId: String, logType: String, startIndex: Long, endIndex: Long)

@@ -8,7 +8,7 @@ import org.apache.spark.sql.yson.{UInt64Long, UInt64Type}
 import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.test.{LocalSpark, TestUtils, TmpDir}
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 
 class UInt64Test extends FlatSpec with Matchers with LocalSpark with TmpDir with TestUtils {
   behavior of "YtDataSource"

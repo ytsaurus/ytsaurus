@@ -5,7 +5,7 @@ import org.apache.spark.sql.SparkSession
 import ru.yandex.spark.yt.fs.YtClientConfigurationConverter.ytClientConfiguration
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 case class YtDynTableLoggerConfig(ytConfig: YtClientConfiguration,
                                   logTable: String,

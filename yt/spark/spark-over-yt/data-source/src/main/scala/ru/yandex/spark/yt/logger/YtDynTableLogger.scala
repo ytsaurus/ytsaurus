@@ -6,7 +6,7 @@ import org.apache.spark.sql.types.{MapType, StringType}
 import org.slf4j.{Logger, LoggerFactory}
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark.YsonEncoder
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.tables.TableSchema
+import tech.ytsaurus.core.tables.TableSchema
 import tech.ytsaurus.type_info.TiType
 
 import java.time.LocalDateTime

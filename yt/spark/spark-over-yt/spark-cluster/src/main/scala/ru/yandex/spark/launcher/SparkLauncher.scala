@@ -8,7 +8,7 @@ import ru.yandex.spark.yt.wrapper.Utils.{parseDuration, ytHostnameOrIpAddress}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientConfiguration
 import ru.yandex.spark.yt.wrapper.discovery.{Address, CypressDiscoveryService, DiscoveryService}
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import java.io.File
 import java.nio.file.{Files, Path}

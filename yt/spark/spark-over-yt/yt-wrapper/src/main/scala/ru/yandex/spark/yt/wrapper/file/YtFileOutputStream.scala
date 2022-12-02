@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.wrapper.file
 
 import ru.yandex.spark.yt.wrapper.client.YtRpcClient
-import ru.yandex.yt.ytclient.proxy.FileWriter
+import tech.ytsaurus.client.FileWriter
 
 import java.io.OutputStream
 import scala.annotation.tailrec

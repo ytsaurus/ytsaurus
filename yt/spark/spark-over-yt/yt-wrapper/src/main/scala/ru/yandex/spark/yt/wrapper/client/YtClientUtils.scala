@@ -6,9 +6,8 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.HostAndPort
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper.system.SystemUtils
-import ru.yandex.yt.ytclient.bus.DefaultBusConnector
-import ru.yandex.yt.ytclient.proxy.internal.{DiscoveryMethod, HostPort}
-import ru.yandex.yt.ytclient.proxy.{CompoundClient, YtClient, YtCluster}
+import tech.ytsaurus.client.{CompoundClient, DiscoveryMethod, YtClient, YtCluster}
+import tech.ytsaurus.client.bus.DefaultBusConnector
 import tech.ytsaurus.client.rpc.RpcOptions
 
 import java.util.concurrent.ThreadFactory
@@ -121,7 +120,7 @@ trait YtClientUtils {
       connector,
       config.rpcCredentials,
       rpcOptions,
-      HostPort.parse(byopEndpoint.toString)
+      HostAndPort.fromString(byopEndpoint.toString)
     )
   }
 
@@ -133,7 +132,7 @@ trait YtClientUtils {
       config.fullProxy,
       config.port,
       new JArrayList(),
-      toOptional(config.proxyRole))
+      config.proxyRole.orNull)
 
     val client = new YtClient(
       connector,

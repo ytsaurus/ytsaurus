@@ -1,7 +1,7 @@
 package ru.yandex.spark.yt.wrapper.model
 
 import ru.yandex.spark.yt.wrapper.model.WorkerLogSchema.Key._
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 
 object WorkerLogSchema {
   object Key {

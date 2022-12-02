@@ -4,7 +4,7 @@ import org.apache.spark.serializer.{DeserializationStream, SerializationStream, 
 import org.apache.spark.util.Utils
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtWrapper
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import scala.concurrent.duration._
 import scala.language.postfixOps

@@ -38,6 +38,7 @@ object CommonPlugin extends AutoPlugin {
       "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem" -> "ru.yandex.spark.yt.fs.eventlog.YtEventLogFileSystem",
       "ru.yandex.misc.log.**" -> "ru.yandex.misc.log.@1",
       "ru.yandex.**" -> "shadedyandex.ru.yandex.@1",
+      "tech.ytsaurus.**" -> "shadedyandex.tech.ytsaurus.@1",
       "org.asynchttpclient.**" -> "shadedyandex.org.asynchttpclient.@1",
       "org.objenesis.**" -> "shadedyandex.org.objenesis.@1",
       "com.google.protobuf.**" -> "shadedyandex.com.google.protobuf.@1",

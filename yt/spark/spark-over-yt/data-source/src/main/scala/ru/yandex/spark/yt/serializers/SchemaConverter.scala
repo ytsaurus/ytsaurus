@@ -9,7 +9,7 @@ import ru.yandex.spark.yt.common.utils.TypeUtils.{isTuple, isVariant, isVariantO
 import ru.yandex.spark.yt.format.conf.YtTableSparkSettings.isNullTypeAllowed
 import ru.yandex.spark.yt.serializers.YtLogicalType.getStructField
 import ru.yandex.spark.yt.serializers.YtLogicalTypeSerializer.{deserializeTypeV3, serializeType, serializeTypeV3}
-import ru.yandex.yt.ytclient.tables.{ColumnSortOrder, TableSchema}
+import tech.ytsaurus.core.tables.{ColumnSortOrder, TableSchema}
 import tech.ytsaurus.ysontree.{YTree, YTreeNode, YTreeTextSerializer}
 
 object SchemaConverter {

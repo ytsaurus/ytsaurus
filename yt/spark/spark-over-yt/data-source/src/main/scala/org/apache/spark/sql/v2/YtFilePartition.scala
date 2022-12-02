@@ -17,7 +17,7 @@ import ru.yandex.spark.yt.fs.{YtDynamicPath, YtPath, YtStaticPath}
 import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, PivotKeysConverter, SchemaConverter}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import scala.collection.mutable.ArrayBuffer
 

@@ -7,7 +7,7 @@ import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.fs.PathUtils.hadoopPathToYt
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.cypress.PathType
-import ru.yandex.yt.ytclient.proxy.CompoundClient
+import tech.ytsaurus.client.CompoundClient
 
 import java.io.FileNotFoundException
 import scala.language.postfixOps

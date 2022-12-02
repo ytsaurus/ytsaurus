@@ -4,9 +4,8 @@ import java.time.{Duration => JDuration}
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.YtJavaConverters._
 import ru.yandex.spark.yt.wrapper._
-import ru.yandex.yt.ytclient.proxy.request._
-import ru.yandex.yt.ytclient.proxy.{ApiServiceTransaction, CompoundClient}
-import ru.yandex.yt.ytclient.request.{GetLikeReq, MutateNode, TransactionalRequest}
+import tech.ytsaurus.client.request.{MutatePath, ReadFile, ReadTable, StartOperation, StartTransaction, TransactionType, TransactionalOptions, TransactionalRequest, WriteFile}
+import tech.ytsaurus.client.{ApiServiceTransaction, CompoundClient}
 import tech.ytsaurus.core.GUID
 
 import scala.annotation.tailrec
@@ -28,7 +27,7 @@ trait YtTransactionUtils {
   def createTransaction(parent: Option[String], timeout: Duration, sticky: Boolean = false)
                        (implicit yt: CompoundClient): ApiServiceTransaction = {
     log.debugLazy(s"Start transaction, parent $parent, timeout $timeout, sticky $sticky")
-    val request = (if (sticky) StartTransaction.tablet() else StartTransaction.master())
+    val request = new StartTransaction(if (sticky) TransactionType.Tablet else TransactionType.Master).toBuilder
       .setTransactionTimeout(toJavaDuration(timeout))
       .setTimeout(toJavaDuration(timeout))
       .setPing(true)
@@ -106,7 +105,7 @@ trait YtTransactionUtils {
     }
   }
 
-  implicit class RichWriteFileRequest[T <: WriteFile](val request: T) {
+  implicit class RichWriteFileRequest[T <: WriteFile.Builder](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
@@ -114,7 +113,7 @@ trait YtTransactionUtils {
     }
   }
 
-  implicit class RichReadFileRequest[T <: ReadFile](val request: T) {
+  implicit class RichReadFileRequest[T <: ReadFile.Builder](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
@@ -122,7 +121,7 @@ trait YtTransactionUtils {
     }
   }
 
-  implicit class RichStartOperationRequest[T <: StartOperation](val request: T) {
+  implicit class RichStartOperationRequest[T <: StartOperation.Builder](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]
@@ -130,7 +129,7 @@ trait YtTransactionUtils {
     }
   }
 
-  implicit class RichReadTableRequest[T <: ReadTable[_]](val request: T) {
+  implicit class RichReadTableRequest[T <: ReadTable.Builder[_]](val request: T) {
     def optionalTransaction(transaction: Option[String]): T = {
       transaction.map { t =>
         request.setTransactionalOptions(new TransactionalOptions(GUID.valueOf(t))).asInstanceOf[T]

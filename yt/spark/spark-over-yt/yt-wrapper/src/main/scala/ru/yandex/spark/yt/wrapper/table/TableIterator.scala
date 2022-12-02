@@ -1,11 +1,10 @@
 package ru.yandex.spark.yt.wrapper.table
 
-import java.util.concurrent.TimeUnit
-
 import org.slf4j.LoggerFactory
 import ru.yandex.spark.yt.wrapper.LogLazy
-import ru.yandex.yt.ytclient.proxy.TableReader
+import tech.ytsaurus.client.TableReader
 
+import java.util.concurrent.TimeUnit
 import scala.concurrent.duration.Duration
 
 class TableIterator[T](reader: TableReader[T], timeout: Duration,

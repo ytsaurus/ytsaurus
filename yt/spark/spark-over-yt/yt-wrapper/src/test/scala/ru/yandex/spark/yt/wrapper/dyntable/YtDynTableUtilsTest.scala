@@ -5,7 +5,7 @@ import org.scalatest.matchers.should.Matchers
 import ru.yandex.spark.yt.test.{DynTableTestUtils, LocalYtClient, TmpDir}
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.YtWrapper.{countRows, createDynTable, createDynTableAndMount, insertRows, isDynTablePrepared}
-import ru.yandex.yt.ytclient.tables.{ColumnValueType, TableSchema}
+import tech.ytsaurus.core.tables.{ColumnValueType, TableSchema}
 import tech.ytsaurus.ysontree.{YTreeBinarySerializer, YTreeTextSerializer}
 
 import java.io.ByteArrayInputStream
