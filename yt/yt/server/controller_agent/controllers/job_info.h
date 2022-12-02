@@ -129,7 +129,7 @@ struct TJoblet
     NChunkClient::TChunkListId CoreTableChunkListId;
 
     NScheduler::TJobMetrics JobMetrics;
-    bool JobMetricsMonotonicityViolated = false;
+    bool HasLoggedJobMetricsMonotonicityViolation = false;
 
     std::optional<TDuration> JobSpeculationTimeout;
 
@@ -155,8 +155,7 @@ struct TJoblet
 
     NScheduler::TJobMetrics UpdateJobMetrics(
         const TJobSummary& jobSummary,
-        bool isJobFinished,
-        bool* monotonicityViolated);
+        bool isJobFinished);
 
     //! Put controller statistics over job statistics (preferring controller summaries for
     //! common paths) and return result.

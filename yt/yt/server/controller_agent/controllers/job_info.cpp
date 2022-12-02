@@ -53,7 +53,7 @@ TJoblet::TJoblet(
     , TreeIsTentative(treeIsTentative)
 { }
 
-TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobFinished, bool* monotonicityViolated)
+TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobFinished)
 {
     const auto Logger = ControllerLogger.WithTag("JobId: %v", JobId);
 
@@ -62,7 +62,7 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
         return TJobMetrics();
     }
 
-    const auto newJobMetrics = TJobMetrics::FromJobStatistics(
+    auto newJobMetrics = TJobMetrics::FromJobStatistics(
         *JobStatistics,
         *ControllerStatistics,
         jobSummary.TimeStatistics,
@@ -70,18 +70,28 @@ TJobMetrics TJoblet::UpdateJobMetrics(const TJobSummary& jobSummary, bool isJobF
         Task->GetTaskHost()->GetConfig()->CustomJobMetrics,
         /*considerNonMonotonicMetrics*/ isJobFinished);
 
-    if (!(*monotonicityViolated) && !Dominates(newJobMetrics, JobMetrics)) {
-        YT_LOG_WARNING("Job metrics monotonicity violated (Previous: %v, Current: %v)",
-            ConvertToYsonString(JobMetrics, EYsonFormat::Text),
-            ConvertToYsonString(newJobMetrics, EYsonFormat::Text));
-        *monotonicityViolated = true;
+    bool monotonicityViolated = !Dominates(newJobMetrics, JobMetrics);
+    if (monotonicityViolated) {
+        if (!HasLoggedJobMetricsMonotonicityViolation) {
+            YT_LOG_WARNING("Job metrics monotonicity violated (Previous: %v, Current: %v)",
+                ConvertToYsonString(JobMetrics, EYsonFormat::Text),
+                ConvertToYsonString(newJobMetrics, EYsonFormat::Text));
+
+            HasLoggedJobMetricsMonotonicityViolation = true;
+        }
+
+        newJobMetrics = Max(newJobMetrics, JobMetrics);
+        // See YT-17927.
+        if (jobSummary.State == EJobState::Completed) {
+            newJobMetrics.Values()[EJobMetricName::TotalTimeCompleted] = newJobMetrics.Values()[EJobMetricName::TotalTime];
+        } else if (jobSummary.State == EJobState::Aborted) {
+            newJobMetrics.Values()[EJobMetricName::TotalTimeAborted] = newJobMetrics.Values()[EJobMetricName::TotalTime];
+        }
     }
 
-    auto updatedJobMetrics = Max(newJobMetrics, JobMetrics);
-
-    auto delta = updatedJobMetrics - JobMetrics;
+    auto delta = newJobMetrics - JobMetrics;
     YT_VERIFY(Dominates(delta, TJobMetrics()));
-    JobMetrics = updatedJobMetrics;
+    JobMetrics = std::move(newJobMetrics);
 
     return delta;
 }
