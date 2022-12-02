@@ -83,7 +83,6 @@ private:
         TRspHeartbeat* response)
     {
         auto nodeId = request->node_id();
-        auto& statistics = *request->mutable_statistics();
 
         auto jobProxyVersion = YT_PROTO_OPTIONAL(*request, job_proxy_build_version);
 
@@ -93,12 +92,11 @@ private:
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/node_tracker/exec_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing exec node heartbeat (NodeId: %v, Address: %v, State: %v, JobProxyVersion: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing exec node heartbeat (NodeId: %v, Address: %v, State: %v, JobProxyVersion: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
                 node->GetLocalState(),
-                jobProxyVersion,
-                statistics);
+                jobProxyVersion);
 
             nodeTracker->UpdateLastSeenTime(node);
             node->JobProxyVersion() = jobProxyVersion;

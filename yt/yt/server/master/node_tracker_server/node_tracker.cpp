@@ -1224,18 +1224,15 @@ private:
         TRspHeartbeat* response)
     {
         auto nodeId = request->node_id();
-        auto& statistics = request->statistics();
-
         auto* node = GetNodeOrThrow(nodeId);
 
         node->ValidateRegistered();
 
         YT_PROFILE_TIMING("/node_tracker/cluster_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cluster node heartbeat (NodeId: %v, Address: %v, State: %v, %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing cluster node heartbeat (NodeId: %v, Address: %v, State: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                node->GetLocalState(),
-                statistics);
+                node->GetLocalState());
 
             UpdateLastSeenTime(node);
 

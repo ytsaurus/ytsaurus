@@ -446,7 +446,6 @@ private:
         TRspIncrementalHeartbeat* response)
     {
         auto nodeId = request->node_id();
-        auto& statistics = *request->mutable_statistics();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -460,11 +459,10 @@ private:
         }
 
         YT_PROFILE_TIMING("/node_tracker/incremental_data_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing incremental data node heartbeat (NodeId: %v, Address: %v, State: %v, %v",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing incremental data node heartbeat (NodeId: %v, Address: %v, State: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                node->GetLocalState(),
-                statistics);
+                node->GetLocalState());
 
             nodeTracker->UpdateLastSeenTime(node);
 
@@ -478,7 +476,6 @@ private:
         TRspFullHeartbeat* response)
     {
         auto nodeId = request->node_id();
-        auto& statistics = *request->mutable_statistics();
 
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         auto* node = nodeTracker->GetNodeOrThrow(nodeId);
@@ -492,11 +489,10 @@ private:
         }
 
         YT_PROFILE_TIMING("/node_tracker/full_data_node_heartbeat_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing full data node heartbeat (NodeId: %v, Address: %v, State: %v, %v",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Processing full data node heartbeat (NodeId: %v, Address: %v, State: %v)",
                 nodeId,
                 node->GetDefaultAddress(),
-                node->GetLocalState(),
-                statistics);
+                node->GetLocalState());
 
             nodeTracker->UpdateLastSeenTime(node);
 
