@@ -3,6 +3,7 @@ package yt
 import (
 	"context"
 	"fmt"
+	"os"
 
 	"github.com/distribution/distribution/v3"
 	"github.com/distribution/distribution/v3/manifest/ocischema"
@@ -13,30 +14,32 @@ import (
 
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
 
 	"a.yandex-team.ru/yt/go/docker_registry/internal/utils"
 	auth "a.yandex-team.ru/yt/go/docker_registry/internal/ytauth"
 )
 
 const (
-	middlewareName             = "yt"
-	schedulerHintsDocumentName = "scheduler_hints"
-	paramClusterName           = "cluster"
-	paramToken                 = "token"
-	paramHomeDirectory         = "home_directory"
+	middlewareName = "yt"
+	ytHomeEnvName  = "DOCKER_REGISTRY_YT_HOME"
 )
+
+type Clients interface {
+	Init() error
+	GetClientFromContext(ctx context.Context) (yt.Client, error)
+	GetClients() []yt.Client
+}
 
 type repositoryWrapper struct {
 	distribution.Repository
-	client        yt.Client
+	clients       Clients
 	homeDirectory string
 }
 
 type tagServiceWrapper struct {
 	distribution.TagService
 	manifestService distribution.ManifestService
-	client          yt.Client
+	clients         Clients
 	repositoryName  string
 	homeDirectory   string
 }
@@ -80,19 +83,23 @@ func (ts *tagServiceWrapper) getLayers(ctx context.Context, desc distribution.De
 }
 
 func (ts *tagServiceWrapper) initSchedulerHintsDocument(ctx context.Context, repositoryName string) error {
-	schedulerHintsDocument := utils.GetSchedulerHintsDocumentPath(repositoryName)
-	ok, err := ts.client.NodeExists(ctx, schedulerHintsDocument, nil)
+	yc, err := ts.clients.GetClientFromContext(ctx)
 	if err != nil {
 		return err
 	}
 
+	schedulerHintsDocument := utils.GetSchedulerHintsDocumentPath(repositoryName)
+	ok, err := yc.NodeExists(ctx, schedulerHintsDocument, nil)
+	if err != nil {
+		return err
+	}
 	if ok {
 		return nil
 	}
 
 	v := make(map[string]interface{})
 	createNodeOptions := &yt.CreateNodeOptions{Recursive: true, Attributes: map[string]interface{}{"value": v}}
-	if _, err := ts.client.CreateNode(ctx, schedulerHintsDocument, yt.NodeDocument, createNodeOptions); err != nil {
+	if _, err := yc.CreateNode(ctx, schedulerHintsDocument, yt.NodeDocument, createNodeOptions); err != nil {
 		return err
 	}
 	return nil
@@ -124,7 +131,11 @@ func (ts *tagServiceWrapper) saveLayersToCypress(ctx context.Context, tag string
 	p := schedulerHintsDocument.Child(tag)
 	setNodeOptions := &yt.SetNodeOptions{Recursive: true}
 
-	return ts.client.SetNode(ctxWithUserCredentials, p, layers, setNodeOptions)
+	yc, err := ts.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	return yc.SetNode(ctxWithUserCredentials, p, layers, setNodeOptions)
 }
 
 func (ts *tagServiceWrapper) Tag(ctx context.Context, tag string, desc distribution.Descriptor) error {
@@ -134,6 +145,23 @@ func (ts *tagServiceWrapper) Tag(ctx context.Context, tag string, desc distribut
 	return ts.saveLayersToCypress(ctx, tag, desc)
 }
 
+func (ts *tagServiceWrapper) Untag(ctx context.Context, tag string) error {
+	ctxWithUserCredentials, err := ts.getContextWithUserCredentials(ctx)
+	if err != nil {
+		return err
+	}
+	schedulerHintsDocument := utils.GetSchedulerHintsDocumentPath(ts.repositoryName)
+	p := schedulerHintsDocument.Child(tag)
+
+	yc, err := ts.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	// FIXME: check is node exist?
+	removeNodeOptions := &yt.RemoveNodeOptions{Recursive: true}
+	return yc.RemoveNode(ctxWithUserCredentials, p, removeNodeOptions)
+}
+
 func (r *repositoryWrapper) Tags(ctx context.Context) distribution.TagService {
 	tags := r.Repository.Tags(ctx)
 	manifests, _ := r.Repository.Manifests(ctx)
@@ -141,52 +169,24 @@ func (r *repositoryWrapper) Tags(ctx context.Context) distribution.TagService {
 	return &tagServiceWrapper{
 		TagService:      tags,
 		manifestService: manifests,
-		client:          r.client,
+		clients:         r.clients,
 		repositoryName:  r.Repository.Named().Name(),
 		homeDirectory:   r.homeDirectory,
 	}
 }
 
-func initFunc(ctx context.Context, repository distribution.Repository, options map[string]interface{}) (distribution.Repository, error) {
-	clusterName, ok := options[paramClusterName]
-	if !ok || fmt.Sprint(clusterName) == "" {
-		return nil, fmt.Errorf("no %s parameter provided", paramClusterName)
+func newMiddleware(ctx context.Context, repository distribution.Repository, options map[string]interface{}) (distribution.Repository, error) {
+	homeDirectory := os.Getenv(ytHomeEnvName)
+	if homeDirectory == "" {
+		return nil, fmt.Errorf("can't find %q env variable or it's empty", ytHomeEnvName)
 	}
-
-	token, ok := options[paramToken]
-	if !ok {
-		token = ""
-	}
-
-	homeDirectory, ok := options[paramHomeDirectory]
-	if !ok || fmt.Sprint(homeDirectory) == "" {
-		return nil, fmt.Errorf("no %s parameter provided", paramHomeDirectory)
-	}
-
-	logger, stop := utils.GetLogger()
-	defer stop()
-
-	config := &yt.Config{Proxy: clusterName.(string), Logger: logger}
-	if token == "" {
-		config.ReadTokenFromFile = true
-	} else {
-		config.Token = token.(string)
-	}
-
-	yc, err := ythttp.NewClient(config)
-	if err != nil {
+	c := &utils.YTClients{}
+	if err := c.Init(); err != nil {
 		return nil, err
 	}
-
-	repoWrapper := &repositoryWrapper{
-		Repository:    repository,
-		client:        yc,
-		homeDirectory: homeDirectory.(string),
-	}
-
-	return repoWrapper, nil
+	return &repositoryWrapper{Repository: repository, clients: c, homeDirectory: homeDirectory}, nil
 }
 
 func init() {
-	_ = middleware.Register(middlewareName, initFunc)
+	_ = middleware.Register(middlewareName, newMiddleware)
 }

@@ -16,6 +16,10 @@ type authenticationError struct {
 	error
 }
 
+type unauthorizedError struct {
+	error
+}
+
 func (badRequestError) StatusBadRequest(r *http.Request, w http.ResponseWriter) {
 	w.WriteHeader(http.StatusBadRequest)
 }
@@ -26,4 +30,8 @@ func (internalServerError) SetHeaders(r *http.Request, w http.ResponseWriter) {
 
 func (authenticationError) SetHeaders(r *http.Request, w http.ResponseWriter) {
 	w.WriteHeader(http.StatusForbidden)
+}
+
+func (unauthorizedError) SetHeaders(r *http.Request, w http.ResponseWriter) {
+	w.WriteHeader(http.StatusUnauthorized)
 }

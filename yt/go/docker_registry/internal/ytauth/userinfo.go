@@ -11,8 +11,8 @@ type userInfo struct {
 
 var userInfoKey userInfo
 
-func enrichContextWithUserInfo(ctx context.Context, userLogin string, userToken string) context.Context {
-	return context.WithValue(ctx, &userInfoKey, userInfo{user: userLogin, token: userToken})
+func enrichContextWithUserInfo(ctx context.Context, userID string, userToken string) context.Context {
+	return context.WithValue(ctx, &userInfoKey, userInfo{user: userID, token: userToken})
 }
 
 func ReadUserTokenFromContext(ctx context.Context) (userToken string, ok bool) {

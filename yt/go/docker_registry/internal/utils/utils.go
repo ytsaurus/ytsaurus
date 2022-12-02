@@ -11,8 +11,8 @@ import (
 )
 
 const (
-	logDirEnvName = "DOCKER_REGISTRY_YT_LOG_DIR"
 	logFileName   = "ytclient.log"
+	logDirEnvName = "DOCKER_REGISTRY_YT_LOG_DIR"
 )
 
 func GetSchedulerHintsDocumentPath(repositoryName string) ypath.Path {

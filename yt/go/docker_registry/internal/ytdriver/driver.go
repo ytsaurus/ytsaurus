@@ -3,14 +3,13 @@ package yt
 import (
 	"context"
 	"fmt"
-	"strings"
-
 	"io"
 	"io/ioutil"
+	"os"
+	"strings"
 
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yt"
-	"a.yandex-team.ru/yt/go/yt/ythttp"
 	"a.yandex-team.ru/yt/go/yterrors"
 
 	storagedriver "github.com/distribution/distribution/v3/registry/storage/driver"
@@ -25,10 +24,19 @@ const (
 	paramClusterName   = "cluster"
 	paramToken         = "token"
 	paramHomeDirectory = "home_directory"
+	ytClustersEnvName  = "DOCKER_REGISTRY_YT_CLUSTERS"
+	ytHomeEnvName      = "DOCKER_REGISTRY_YT_HOME"
+	ytProxyEnvName     = "YT_PROXY"
 )
 
+type Clients interface {
+	Init() error
+	GetClientFromContext(ctx context.Context) (yt.Client, error)
+	GetClients() []yt.Client
+}
+
 type driver struct {
-	client        yt.Client
+	clients       Clients
 	homeDirectory string
 }
 
@@ -48,59 +56,42 @@ func (factory *YTDriverFactory) Create(parameters map[string]interface{}) (stora
 
 // FromParameters constructs a new Driver with a given parameters map.
 func FromParameters(parameters map[string]interface{}) (*Driver, error) {
-	clusterName, ok := parameters[paramClusterName]
-	if !ok || fmt.Sprint(clusterName) == "" {
-		return nil, fmt.Errorf("no %s parameter provided", paramClusterName)
+	homeDirectory := os.Getenv(ytHomeEnvName)
+	if homeDirectory == "" {
+		return nil, fmt.Errorf("can't find %q env variable or it's empty", ytHomeEnvName)
 	}
-
-	token, ok := parameters[paramToken]
-	if !ok {
-		token = ""
-	}
-
-	homeDirectory, ok := parameters[paramHomeDirectory]
-	if !ok || fmt.Sprint(homeDirectory) == "" {
-		return nil, fmt.Errorf("no %s parameter provided", paramHomeDirectory)
-	}
-
-	return New(fmt.Sprint(clusterName), fmt.Sprint(token), fmt.Sprint(homeDirectory))
+	return New(homeDirectory)
 }
 
-func New(clusterName, token string, homeDirectory string) (*Driver, error) {
-	logger, stop := utils.GetLogger()
-	defer stop()
-
-	config := &yt.Config{Proxy: clusterName, Logger: logger}
-	if token == "" {
-		config.ReadTokenFromFile = true
-	} else {
-		config.Token = token
-	}
-
-	yc, err := ythttp.NewClient(config)
-	if err != nil {
+func New(homeDirectory string) (*Driver, error) {
+	c := &utils.YTClients{}
+	if err := c.Init(); err != nil {
 		return nil, err
-
 	}
-	d := &driver{client: yc, homeDirectory: homeDirectory}
+
+	d := &driver{
+		homeDirectory: homeDirectory,
+		clients:       c,
+	}
+
 	if err := d.initDriver(); err != nil {
 		return nil, err
 	}
 	return &Driver{baseEmbed: baseEmbed{Base: base.Base{StorageDriver: d}}}, nil
 }
 
+func initHomeDirectory(ctx context.Context, c yt.Client, homeDirectory string) error {
+	p := ypath.Path(homeDirectory)
+	_, err := c.CreateNode(ctx, p, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true, IgnoreExisting: true})
+	return err
+}
+
 func (d *driver) initDriver() error {
 	ctx := context.Background()
-	p := d.getCypressPath("")
-
-	ok, err := d.client.NodeExists(ctx, p, nil)
-	if err != nil {
-		return err
-	}
-	if !ok {
-		_, err := d.client.CreateNode(ctx, p, yt.NodeMap, &yt.CreateNodeOptions{Recursive: true})
+	for _, c := range d.clients.GetClients() {
+		err := initHomeDirectory(ctx, c, d.homeDirectory)
 		if err != nil {
-			return err
+			return nil
 		}
 	}
 	return nil
@@ -141,7 +132,11 @@ func (d *driver) translatePathResolveError(err error, p ypath.Path) error {
 }
 
 func (d *driver) nodeExists(ctx context.Context, p ypath.Path) error {
-	ok, err := d.client.NodeExists(ctx, p, nil)
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return err
+	}
+	ok, err := yc.NodeExists(ctx, p, nil)
 	if err != nil {
 		return err
 	}
@@ -152,9 +147,14 @@ func (d *driver) nodeExists(ctx context.Context, p ypath.Path) error {
 }
 
 func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	p := d.getCypressPath(path)
 
-	r, err := d.client.ReadFile(ctx, p, nil)
+	r, err := yc.ReadFile(ctx, p, nil)
 	if err != nil {
 		return nil, d.translatePathResolveError(err, p)
 	}
@@ -169,10 +169,15 @@ func (d *driver) GetContent(ctx context.Context, path string) ([]byte, error) {
 }
 
 func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo, error) {
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	p := d.getCypressPath(path)
 
 	var attrs statAttrs
-	if err := d.client.GetNode(ctx, p.Attrs(), &attrs, nil); err != nil {
+	if err := yc.GetNode(ctx, p.Attrs(), &attrs, nil); err != nil {
 		return nil, d.translatePathResolveError(err, p)
 	}
 
@@ -183,21 +188,26 @@ func (d *driver) Stat(ctx context.Context, path string) (storagedriver.FileInfo,
 }
 
 func (d *driver) PutContent(ctx context.Context, path string, content []byte) error {
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	p := d.getCypressPath(path)
 
 	// FIXME: What if it exists and it is not a NodeFile type?
-	ok, err := d.client.NodeExists(ctx, p, nil)
+	ok, err := yc.NodeExists(ctx, p, nil)
 	if err != nil {
 		return err
 	}
 	if !ok {
-		_, err := d.client.CreateNode(ctx, p, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
+		_, err := yc.CreateNode(ctx, p, yt.NodeFile, &yt.CreateNodeOptions{Recursive: true})
 		if err != nil {
 			return err
 		}
 	}
 
-	w, err := d.client.WriteFile(ctx, p, nil)
+	w, err := yc.WriteFile(ctx, p, nil)
 	if err != nil {
 		return err
 	}
@@ -216,13 +226,19 @@ func (d *driver) PutContent(ctx context.Context, path string, content []byte) er
 }
 
 func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.ReadCloser, error) {
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	p := d.getCypressPath(path)
+
 	if err := d.nodeExists(ctx, p); err != nil {
 		return nil, err
 	}
 
 	readFileOptions := &yt.ReadFileOptions{Offset: &offset}
-	r, err := d.client.ReadFile(ctx, p, readFileOptions)
+	r, err := yc.ReadFile(ctx, p, readFileOptions)
 	if err != nil {
 		return nil, d.translatePathResolveError(err, p)
 	}
@@ -232,10 +248,15 @@ func (d *driver) Reader(ctx context.Context, path string, offset int64) (io.Read
 
 func (d *driver) Writer(ctx context.Context, path string, append bool) (storagedriver.FileWriter, error) {
 	// FIXME: What if it exists and it is not a NodeFile type?
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	p := ypath.NewRich(d.getCypressPath(path).String())
 	size := int64(0)
 
-	tx, err := d.client.BeginTx(ctx, nil)
+	tx, err := yc.BeginTx(ctx, nil)
 	if err != nil {
 		return nil, err
 	}
@@ -277,10 +298,15 @@ func (d *driver) Writer(ctx context.Context, path string, append bool) (storaged
 }
 
 func (d *driver) List(ctx context.Context, path string) ([]string, error) {
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return nil, err
+	}
+
 	p := d.getCypressPath(path)
 
 	fileNames := make([]string, 0)
-	if err := d.client.ListNode(ctx, p, &fileNames, nil); err != nil {
+	if err := yc.ListNode(ctx, p, &fileNames, nil); err != nil {
 		return nil, d.translatePathResolveError(err, p)
 	}
 
@@ -293,18 +319,28 @@ func (d *driver) List(ctx context.Context, path string) ([]string, error) {
 }
 
 func (d *driver) Move(ctx context.Context, sourcePath string, destPath string) error {
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	source := d.getCypressPath(sourcePath)
 	dest := d.getCypressPath(destPath)
 
 	moveNodeOptions := &yt.MoveNodeOptions{Recursive: true, Force: true}
-	_, err := d.client.MoveNode(ctx, source, dest, moveNodeOptions)
+	_, err = yc.MoveNode(ctx, source, dest, moveNodeOptions)
 	return d.translatePathResolveError(err, source)
 }
 
 func (d *driver) Delete(ctx context.Context, path string) error {
+	yc, err := d.clients.GetClientFromContext(ctx)
+	if err != nil {
+		return err
+	}
+
 	p := d.getCypressPath(path)
 	removeNodeOptions := &yt.RemoveNodeOptions{Recursive: true}
-	return d.translatePathResolveError(d.client.RemoveNode(ctx, p, removeNodeOptions), p)
+	return d.translatePathResolveError(yc.RemoveNode(ctx, p, removeNodeOptions), p)
 }
 
 // Walk traverses a filesystem defined within driver, starting
