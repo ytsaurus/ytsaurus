@@ -101,25 +101,9 @@ DEFINE_ENUM(EPeerType,
 
 struct TPeer
 {
-    TPeer() = default;
-    TPeer(
-        TNodeId nodeId,
-        TString address,
-        TNodeDescriptor nodeDescriptor,
-        EPeerType peerType,
-        EAddressLocality locality,
-        std::optional<TInstant> nodeSuspicionMarkTime)
-        : NodeId(nodeId)
-        , Address(std::move(address))
-        , NodeDescriptor(std::move(nodeDescriptor))
-        , Type(peerType)
-        , Locality(locality)
-        , NodeSuspicionMarkTime(nodeSuspicionMarkTime)
-    { }
-
     TNodeId NodeId = InvalidNodeId;
     TString Address;
-    TNodeDescriptor NodeDescriptor;
+    const TNodeDescriptor* NodeDescriptor;
     EPeerType Type;
     EAddressLocality Locality;
     std::optional<TInstant> NodeSuspicionMarkTime;
@@ -136,11 +120,6 @@ using TPeerList = TCompactVector<TPeer, 3>;
 
 struct TPeerQueueEntry
 {
-    TPeerQueueEntry(TPeer peer, int banCount)
-        : Peer(std::move(peer))
-        , BanCount(banCount)
-    { }
-
     TPeer Peer;
     int BanCount = 0;
     ui32 Random = RandomNumber<ui32>();
@@ -617,7 +596,7 @@ protected:
 
     const TNodeDescriptor& GetPeerDescriptor(const TString& address)
     {
-        return GetOrCrash(Peers_, address).NodeDescriptor;
+        return *GetOrCrash(Peers_, address).NodeDescriptor;
     }
 
     //! Register peer and install into the peer queue if neccessary.
@@ -633,16 +612,24 @@ protected:
             return false;
         }
 
-        // TODO(akozhikhov): catch this exception.
-        TPeer peer(
-            nodeId,
-            descriptor.GetAddressOrThrow(Networks_),
-            descriptor,
-            type,
-            GetNodeLocality(descriptor),
-            nodeSuspicionMarkTime);
-        if (!Peers_.insert({address, peer}).second) {
-            // Peer was already handled on current pass.
+        auto optionalAddress = descriptor.FindAddress(Networks_);
+        if (!optionalAddress) {
+            YT_LOG_WARNING("Skipping peer since no suitable address could be found (NodeDescriptor: %v, Networks: %v)",
+                descriptor,
+                Networks_);
+            return false;
+        }
+
+        TPeer peer{
+            .NodeId = nodeId,
+            .Address = std::move(*optionalAddress),
+            .NodeDescriptor = &descriptor,
+            .Type = type,
+            .Locality = GetNodeLocality(descriptor),
+            .NodeSuspicionMarkTime = nodeSuspicionMarkTime
+        };
+        if (!Peers_.emplace(address, peer).second) {
+            // Peer was already handled on the current pass.
             return false;
         }
 
@@ -651,7 +638,10 @@ protected:
             return false;
         }
 
-        PeerQueue_.push(TPeerQueueEntry(peer, reader->GetBanCount(address)));
+        PeerQueue_.push(TPeerQueueEntry{
+            .Peer = std::move(peer),
+            .BanCount = reader->GetBanCount(address)
+        });
         return true;
     }
 
@@ -664,8 +654,12 @@ protected:
         }
 
         YT_LOG_DEBUG("Reinstall peer into peer queue (Address: %v)", address);
+
         const auto& peer = GetOrCrash(Peers_, address);
-        PeerQueue_.push(TPeerQueueEntry(peer, reader->GetBanCount(address)));
+        PeerQueue_.push(TPeerQueueEntry{
+            .Peer = peer,
+            .BanCount = reader->GetBanCount(address)
+        });
     }
 
     bool IsSeed(const TString& address)
@@ -1942,7 +1936,7 @@ private:
         SessionOptions_.ChunkReaderStatistics->DataBytesTransmitted.fetch_add(
             rsp->GetTotalSize(),
             std::memory_order::relaxed);
-        reader->AccountTraffic(rsp->GetTotalSize(), respondedPeer.NodeDescriptor);
+        reader->AccountTraffic(rsp->GetTotalSize(), *respondedPeer.NodeDescriptor);
 
         auto probeResult = ParseProbeResponse(rsp);
 
@@ -3067,9 +3061,7 @@ private:
             response->GetTotalSize(),
             std::memory_order::relaxed);
 
-        reader->AccountTraffic(
-            response->GetTotalSize(),
-            chosenPeer.NodeDescriptor);
+        reader->AccountTraffic(response->GetTotalSize(), *chosenPeer.NodeDescriptor);
 
         if (response->has_request_schema() && response->request_schema()) {
             YT_VERIFY(!response->fetched_rows());
