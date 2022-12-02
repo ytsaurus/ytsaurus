@@ -877,8 +877,7 @@ void TContext::Finalize()
 {
     if (SendKeepAliveExecutor_) {
         YT_LOG_DEBUG("Stopping periodic executor that sends keep_alive frames");
-        SendKeepAliveExecutor_->Stop();
-        Y_UNUSED(WaitFor(FramingStream_->Flush()));
+        Y_UNUSED(WaitFor(SendKeepAliveExecutor_->Stop()));
     }
 
     if (EnableRequestBodyWorkaround(Request_)) {
