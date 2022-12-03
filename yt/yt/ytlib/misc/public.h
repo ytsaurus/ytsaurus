@@ -24,9 +24,10 @@ DEFINE_ENUM(EMemoryCategory,
     ((UserJobs)                    (3))
     ((TabletStatic)                (4))
     ((TabletDynamic)               (5))
-    // COMPAT(babenko): rename to PendingDiskWrite
+    // COMPAT(babenko): drop
     ((BlobSession)                 (6))
     ((PendingDiskRead)            (22))
+    ((PendingDiskWrite)           (23))
     ((VersionedChunkMeta)          (7))
     ((SystemJobs)                  (8))
     ((Query)                       (9))
