@@ -270,41 +270,13 @@ public:
                 try {
                     SyncExecuteVerb(rootService, req);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Failed to create chunk location for a node (NodeAddress: %v, LocationUuid: %v)",
+                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex,
+                        "Failed to create chunk location for a node (NodeAddress: %v, LocationUuid: %v)",
                         node->GetDefaultAddress(),
                         locationUuid);
                     throw;
                 }
             }
-        }
-
-        for (auto* location : node->RealChunkLocations()) {
-            location->SetState(EChunkLocationState::Dangling);
-        }
-
-        for (auto locationUuid : chunkLocationUuids) {
-            auto* location = FindChunkLocationByUuid(locationUuid);
-            if (!IsObjectAlive(location)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Missing chunk location for node (NodeAddress: %v, LocationUuid: %v)",
-                    node->GetDefaultAddress(),
-                    locationUuid);
-                return;
-            }
-
-            if (auto* existingNode = location->GetNode(); IsObjectAlive(existingNode)) {
-                if (existingNode != node) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk location is already bound to another node (NodeAddress: %v, LocationUuid: %v, BoundNodeAddress: %v)",
-                        node->GetDefaultAddress(),
-                        locationUuid,
-                        existingNode->GetDefaultAddress());
-                    return;
-                }
-            } else {
-                location->SetNode(node);
-                node->AddRealChunkLocation(location);
-            }
-
-            location->SetState(EChunkLocationState::Online);
         }
 
         if (Bootstrap_->GetMulticellManager()->IsPrimaryMaster()) {
@@ -313,6 +285,38 @@ public:
             SerializeMediumDirectory(dataNodeInfoExt->mutable_medium_directory(), chunkManager);
             SerializeMediumOverrides(node, dataNodeInfoExt->mutable_medium_overrides());
         }
+
+        node->ClearChunkLocations();
+
+        if (!node->UseImaginaryChunkLocations()) {
+            node->ChunkLocations().reserve(chunkLocationUuids.size());
+        }
+
+        for (auto locationUuid : chunkLocationUuids) {
+            auto* location = FindChunkLocationByUuid(locationUuid);
+            if (!IsObjectAlive(location)) {
+                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    "Missing chunk location for node (NodeAddress: %v, LocationUuid: %v)",
+                    node->GetDefaultAddress(),
+                    locationUuid);
+                continue;
+            }
+
+            if (auto* existingNode = location->GetNode(); IsObjectAlive(existingNode) && existingNode != node) {
+                // It was already checked in DataNodeTracker::ValidateRegisterNode().
+                YT_LOG_FATAL("Chunk location is already bound to another node (NodeAddress: %v, LocationUuid: %v, BoundNodeAddress: %v)",
+                    node->GetDefaultAddress(),
+                    locationUuid,
+                    existingNode->GetDefaultAddress());
+            } else {
+                location->SetNode(node);
+                node->AddRealChunkLocation(location);
+            }
+
+            location->SetState(EChunkLocationState::Online);
+        }
+
+        node->ChunkLocations().shrink_to_fit();
     }
 
 

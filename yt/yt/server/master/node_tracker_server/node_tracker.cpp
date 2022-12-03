@@ -1151,12 +1151,12 @@ private:
             node->UseImaginaryChunkLocations() = true;
         }
 
-        NodeRegistered_.Fire(node);
-
         if (node->IsDataNode() || (node->IsExecNode() && !execNodeIsNotDataNode)) {
             const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
             dataNodeTracker->ProcessRegisterNode(node, request, response);
         }
+
+        NodeRegistered_.Fire(node);
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(),
             "Node registered "

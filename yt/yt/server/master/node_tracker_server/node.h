@@ -156,6 +156,8 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NNodeTrackerClient::NProto::TNodeResourceLimitsOverrides, ResourceLimitsOverrides);
 
     DEFINE_BYREF_RO_PROPERTY(std::vector<NChunkServer::TRealChunkLocation*>, RealChunkLocations);
+
+    //! Detaches real locations from this node. Deletes imaginary locations.
     void ClearChunkLocations();
 
     // COMPAT(kvk1920)
