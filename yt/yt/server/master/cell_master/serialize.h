@@ -71,6 +71,7 @@ DEFINE_ENUM(EMasterReign,
     ((ParameterizedTabletBalancingMetric)                           (2135))  // alexelexa
     ((RemovableQueueAgentStage_22_3)                                (2136))  // achulkov2
     ((FixTransactionRotator_22_3)                                   (2137))  // kvk1920
+    ((FixNodeRegistration_22_3)                                     (2138))  // kvk1920
     // 22.4 starts here.
     ((ZookeeperShards)                                              (2200))  // gritukan
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
@@ -80,6 +81,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemovableQueueAgentStage)                                     (2205))  // achulkov2
     ((FixTransactionRotator)                                        (2206))  // kvk1920
     ((BundleControllerConfigAttribute)                              (2207))  // capone212
+    ((FixNodeRegistration)                                          (2208))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

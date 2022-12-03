@@ -445,8 +445,14 @@ void TNode::RemoveRealChunkLocation(NChunkServer::TRealChunkLocation* location)
 
 void TNode::ClearChunkLocations()
 {
+    ChunkLocations_.clear();
     ImaginaryChunkLocations_.shrink_and_clear();
-    ChunkLocations_ = {};
+
+    for (auto* location : RealChunkLocations_) {
+        location->SetNode(nullptr);
+        location->SetState(EChunkLocationState::Dangling);
+    }
+    RealChunkLocations_.clear();
 }
 
 TImaginaryChunkLocation* TNode::GetOrCreateImaginaryChunkLocation(int mediumIndex, bool duringSnapshotLoading)

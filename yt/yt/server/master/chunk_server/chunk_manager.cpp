@@ -4755,7 +4755,6 @@ private:
         return chunk->IsJournal() ? JournalChunks_[shardIndex] : BlobChunks_[shardIndex];
     }
 
-
     void AddChunkReplica(
         TChunkLocation* chunkLocation,
         const TMedium* medium,
@@ -4784,10 +4783,11 @@ private:
             YT_LOG_EVENT(
                 Logger,
                 reason == EAddReplicaReason::FullHeartbeat ? NLogging::ELogLevel::Trace : NLogging::ELogLevel::Debug,
-                "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v)",
+                "Chunk replica added (ChunkId: %v, NodeId: %v, Address: %v, Reason: %v)",
                 replica.GetPtr()->GetId(),
                 nodeId,
-                node->GetDefaultAddress());
+                node->GetDefaultAddress(),
+                reason);
         }
 
         if (reason == EAddReplicaReason::IncrementalHeartbeat || reason == EAddReplicaReason::Confirmation) {
