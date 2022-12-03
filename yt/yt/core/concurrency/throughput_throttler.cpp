@@ -1024,7 +1024,7 @@ private:
             SatisfyIncomingRequests(available);
         } else {
             YT_LOG_ERROR(error, "Error requesting the underlying throttler");
-            DropAllIncomingRequests(error);
+            DropAllIncomingRequests(available, error);
         }
     }
 
@@ -1068,12 +1068,14 @@ private:
     }
 
     //! Drops all incoming requests propagating an #error received from the underlying throttler.
-    void DropAllIncomingRequests(const TError& error)
+    void DropAllIncomingRequests(i64 available, const TError& error)
     {
         std::vector<TIncomingRequest> fullfilled;
 
         {
             auto guard = Guard(Lock_);
+
+            Balance_ -= available;
 
             while (!IncomingRequests_.empty()) {
                 auto& request = IncomingRequests_.front();

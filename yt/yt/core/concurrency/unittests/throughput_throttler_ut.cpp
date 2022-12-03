@@ -368,6 +368,25 @@ TEST_F(TPrefetchingThrottlerExponentialGrowthTest, DoNotOverloadUnderlyingWhenTh
     }
 }
 
+TEST_F(TPrefetchingThrottlerExponentialGrowthTest, DoNotHangUpAfterAnError)
+{
+    std::vector<TPromise<void>> requests;
+    TPromise<void> lastRequest;
+
+    EXPECT_CALL(*Underlying_, Throttle(_))
+        .Times(AtLeast(2))
+        .WillRepeatedly(DoAll(
+            [&] () { lastRequest = requests.emplace_back(NewPromise<void>()); },
+            ReturnPointee(&lastRequest)
+        ));
+
+    auto failedRequest = Throttler_->Throttle(10);
+    requests[0].Set(TError(NYT::EErrorCode::Generic, "Test error"));
+    EXPECT_FALSE(failedRequest.Get().IsOK());
+
+    Throttler_->Throttle(1);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TStressParameters
