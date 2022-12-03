@@ -280,7 +280,7 @@ TChunkLocation::TChunkLocation(
     , Type_(type)
     , StaticConfig_(std::move(config))
     , ReadMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskRead))
-    , WriteMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::BlobSession))
+    , WriteMemoryTracker_(ChunkStoreHost_->GetMemoryUsageTracker()->WithCategory(EMemoryCategory::PendingDiskWrite))
     , RuntimeConfig_(StaticConfig_)
     , MediumDescriptor_(TMediumDescriptor{
         .Name = StaticConfig_->MediumName

@@ -96,6 +96,10 @@ void TResourceLimitsConfig::Register(TRegistrar registrar)
         if (config->TabletDynamic) {
             config->MemoryLimits[EMemoryCategory::TabletDynamic] = config->TabletDynamic;
         }
+        // COMPAT(babenko)
+        if (config->MemoryLimits[EMemoryCategory::BlobSession]) {
+            config->MemoryLimits[EMemoryCategory::PendingDiskWrite] = config->MemoryLimits[EMemoryCategory::BlobSession];
+        }
     });
 }
 
