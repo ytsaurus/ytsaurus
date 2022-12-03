@@ -119,7 +119,7 @@ DECLARE_REFCOUNTED_STRUCT(IIOThroughputMeter)
 YT_DEFINE_ERROR_ENUM(
     ((LocalChunkReaderFailed)    (1300))
     // This is deprecated, since volume manager is now a part of data node.
-    // ((LayerUnpackingFailed)      (1301)) 
+    // ((LayerUnpackingFailed)      (1301))
 );
 
 DEFINE_ENUM(EDataNodeThrottlerKind,
@@ -176,12 +176,14 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
 );
 
 DEFINE_ENUM(EChunkLocationThrottlerKind,
-    //! Controls incoming location bandwidth used by repair jobs.
-    (RepairIn)
     //! Controls incoming location bandwidth used by replication jobs.
     (ReplicationIn)
     //! Controls outcoming location bandwidth used by replication jobs.
     (ReplicationOut)
+    //! Controls incoming location bandwidth used by repair jobs.
+    (RepairIn)
+    //! Controls outcoming location bandwidth used by repair jobs.
+    (RepairOut)
     //! Controls incoming location bandwidth used by tablet compaction and partitioning.
     (TabletCompactionAndPartitioningIn)
     //! Controls outcoming location bandwidth used by tablet compaction and partitioning.

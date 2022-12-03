@@ -824,6 +824,9 @@ IThroughputThrottlerPtr TChunkLocation::GetOutThrottler(const TWorkloadDescripto
         case EWorkloadCategory::SystemReplication:
             return Throttlers_[EChunkLocationThrottlerKind::ReplicationOut];
 
+        case EWorkloadCategory::SystemRepair:
+            return Throttlers_[EChunkLocationThrottlerKind::RepairOut];
+
         case EWorkloadCategory::SystemTabletCompaction:
         case EWorkloadCategory::SystemTabletPartitioning:
             return Throttlers_[EChunkLocationThrottlerKind::TabletCompactionAndPartitioningOut];
