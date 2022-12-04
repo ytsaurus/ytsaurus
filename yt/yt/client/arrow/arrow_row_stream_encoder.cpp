@@ -575,6 +575,8 @@ void SerializeColumn(
         SerializeStringLikeColumn(typedColumn, context);
     } else if (simpleType == ESimpleLogicalValueType::Boolean) {
         SerializeBooleanColumn(typedColumn, context);
+    } else if (simpleType == ESimpleLogicalValueType::Null) {
+        // No buffers are allocated for null columns.
     } else {
         THROW_ERROR_EXCEPTION("Column %v has unexpected type %Qlv",
             typedColumn.Column->Id,
