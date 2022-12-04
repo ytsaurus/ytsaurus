@@ -30,6 +30,7 @@ public:
     void SetHandler(TCallback<void(TMutationContext*)> handler);
     void SetAllowLeaderForwarding(bool value);
     void SetMutationId(NRpc::TMutationId mutationId, bool retry);
+    void SetEpochId(TEpochId epochId);
     void SetTraceContext(NTracing::TTraceContextPtr traceContext);
     void SetCurrentTraceContext();
 
