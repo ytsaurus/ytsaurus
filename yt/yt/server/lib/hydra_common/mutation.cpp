@@ -74,6 +74,11 @@ void TMutation::SetMutationId(NRpc::TMutationId mutationId, bool retry)
     Request_.Retry = retry;
 }
 
+void TMutation::SetEpochId(TEpochId epochId)
+{
+    Request_.EpochId = epochId;
+}
+
 void TMutation::SetTraceContext(NTracing::TTraceContextPtr traceContext)
 {
     if (traceContext && traceContext->IsRecorded()) {
