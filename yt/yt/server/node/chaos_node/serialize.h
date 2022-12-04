@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
+#include <yt/yt/server/lib/hydra_common/serialize.h>
 
 namespace NYT::NChaosNode {
 

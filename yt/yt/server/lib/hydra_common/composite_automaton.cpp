@@ -5,6 +5,7 @@
 #include "mutation_context.h"
 #include "snapshot.h"
 #include "validate_snapshot.h"
+#include "serialize.h"
 
 #include <yt/yt/ytlib/hydra/proto/hydra_service.pb.h>
 
@@ -29,39 +30,6 @@ using namespace NYTProf;
 static const size_t SnapshotLoadBufferSize = 64_KB;
 static const size_t SnapshotSaveBufferSize = 64_KB;
 static const size_t SnapshotPrefetchWindowSize = 64_MB;
-
-////////////////////////////////////////////////////////////////////////////////
-
-TSaveContext::TSaveContext(
-    ICheckpointableOutputStream* output,
-    int version)
-    : TEntityStreamSaveContext(output, version)
-    , CheckpointableOutput_(output)
-{ }
-
-void TSaveContext::MakeCheckpoint()
-{
-    Output_.FlushBuffer();
-    CheckpointableOutput_->MakeCheckpoint();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-TLoadContext::TLoadContext(ICheckpointableInputStream* input)
-    : TEntityStreamLoadContext(input)
-    , CheckpointableInput_(input)
-{ }
-
-void TLoadContext::SkipToCheckpoint()
-{
-    Input_.ClearBuffer();
-    CheckpointableInput_->SkipToCheckpoint();
-}
-
-i64 TLoadContext::GetOffset() const
-{
-    return CheckpointableInput_->GetOffset();
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

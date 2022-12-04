@@ -1,11 +1,8 @@
 #pragma once
 
 #include "automaton.h"
-#include "checkpointable_stream.h"
 
 #include <yt/yt/core/logging/log.h>
-
-#include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/test_framework/testing_tag.h>
 
@@ -14,41 +11,6 @@
 #include <yt/yt/library/ytprof/api/api.h>
 
 namespace NYT::NHydra {
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TSaveContext
-    : public TEntityStreamSaveContext
-{
-public:
-    explicit TSaveContext(
-        ICheckpointableOutputStream* output,
-        int version = 0);
-
-    void MakeCheckpoint();
-
-private:
-    ICheckpointableOutputStream* const CheckpointableOutput_;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TLoadContext
-    : public TEntityStreamLoadContext
-{
-public:
-    DEFINE_BYVAL_RW_PROPERTY(i64, LowerWriteCountDumpLimit);
-    DEFINE_BYVAL_RW_PROPERTY(i64, UpperWriteCountDumpLimit);
-
-public:
-    explicit TLoadContext(ICheckpointableInputStream* input);
-
-    void SkipToCheckpoint();
-    i64 GetOffset() const;
-
-private:
-    ICheckpointableInputStream* const CheckpointableInput_;
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 

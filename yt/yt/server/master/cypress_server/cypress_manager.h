@@ -12,7 +12,6 @@
 
 #include <yt/yt/server/master/cypress_server/proto/cypress_manager.pb.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 #include <yt/yt/server/lib/hydra_common/mutation.h>
 

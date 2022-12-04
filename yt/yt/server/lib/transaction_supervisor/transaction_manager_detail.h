@@ -3,9 +3,9 @@
 #include "public.h"
 #include "helpers.h"
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
-
 #include <yt/yt/core/logging/logger_owner.h>
+
+#include <yt/yt/core/misc/ring_queue.h>
 
 namespace NYT::NTransactionSupervisor {
 
