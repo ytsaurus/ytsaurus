@@ -29,6 +29,7 @@ TSimpleHydraManagerMock::TSimpleHydraManagerMock(
     : Automaton_(std::move(automaton))
     , AutomatonInvoker_(std::move(automatonInvoker))
     , Reign_(reign)
+    , EpochId_(TEpochId::Create())
 { }
 
 void TSimpleHydraManagerMock::ApplyUpTo(int sequenceNumber, bool recovery)
@@ -209,6 +210,11 @@ bool TSimpleHydraManagerMock::IsActiveLeader() const
 bool TSimpleHydraManagerMock::IsActiveFollower() const
 {
     return InRecoveryUntilSequenceNumber_.has_value();
+}
+
+TEpochId TSimpleHydraManagerMock::GetAutomatonEpochId() const
+{
+    return EpochId_;
 }
 
 TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() const

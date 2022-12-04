@@ -338,6 +338,13 @@ public:
         return AutomatonEpochContext_ ? AutomatonEpochContext_->CancelableContext : nullptr;
     }
 
+    TEpochId GetAutomatonEpochId() const override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return AutomatonEpochContext_ ? AutomatonEpochContext_->EpochId : TEpochId();
+    }
+
     TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

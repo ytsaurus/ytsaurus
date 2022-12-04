@@ -72,6 +72,13 @@ struct ISimpleHydraManager
      */
     virtual TCancelableContextPtr GetAutomatonCancelableContext() const = 0;
 
+    //! Returns the id of the current epoch (null if none), as viewed by the Automaton thread.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual TEpochId GetAutomatonEpochId() const = 0;
+
+
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.
     DECLARE_INTERFACE_SIGNAL(void(), StartLeading);
