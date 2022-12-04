@@ -583,17 +583,6 @@ void TBootstrap::TryLoadSnapshot(
         .ThrowOnError();
 }
 
-TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const TString& localAddress)
-{
-    for (TPeerId id = 0; id < std::ssize(config->Peers); ++id) {
-        const auto& peerAddress = config->Peers[id].Address;
-        if (peerAddress && to_lower(*peerAddress) == to_lower(localAddress)) {
-            return id;
-        }
-    }
-    return InvalidPeerId;
-}
-
 TCellTagList TBootstrap::GetKnownParticipantCellTags() const
 {
     TCellTagList participantCellTags;
@@ -663,10 +652,10 @@ void TBootstrap::DoInitialize()
     TCellConfigPtr localCellConfig;
     TPeerId localPeerId;
 
-    auto primaryId = ComputePeerId(Config_->PrimaryMaster, localAddress);
+    auto primaryId = Config_->PrimaryMaster->FindPeerId(localAddress);
     if (primaryId == InvalidPeerId) {
         for (auto cellConfig : Config_->SecondaryMasters) {
-            auto secondaryId = ComputePeerId(cellConfig, localAddress);
+            auto secondaryId = cellConfig->FindPeerId(localAddress);
             if (secondaryId != InvalidPeerId) {
                 SecondaryMaster_ = true;
                 localCellConfig = cellConfig;

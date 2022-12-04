@@ -73,10 +73,6 @@ private:
     NConcurrency::TActionQueuePtr ControlQueue_;
     ICoreDumperPtr CoreDumper_;
 
-    static NElection::TPeerId ComputePeerId(
-        NElection::TCellConfigPtr config,
-        const TString& localAddress);
-
     void DoInitialize();
     void DoRun();
     void DoLoadSnapshot(const TString& fileName, bool dump);

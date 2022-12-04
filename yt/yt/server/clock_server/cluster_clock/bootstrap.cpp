@@ -178,17 +178,6 @@ void TBootstrap::TryLoadSnapshot(const TString& fileName, bool dump)
         .ThrowOnError();
 }
 
-TPeerId TBootstrap::ComputePeerId(TCellConfigPtr config, const TString& localAddress)
-{
-    for (TPeerId id = 0; id < std::ssize(config->Peers); ++id) {
-        const auto& peerAddress = config->Peers[id].Address;
-        if (peerAddress && to_lower(*peerAddress) == to_lower(localAddress)) {
-            return id;
-        }
-    }
-    return InvalidPeerId;
-}
-
 void TBootstrap::DoInitialize()
 {
     Config_->ClockCell->ValidateAllPeersPresent();
@@ -200,7 +189,7 @@ void TBootstrap::DoInitialize()
     TCellConfigPtr localCellConfig;
     TPeerId localPeerId;
 
-    auto primaryId = ComputePeerId(Config_->ClockCell, localAddress);
+    auto primaryId = Config_->ClockCell->GetPeerIdOrThrow(localAddress);
     localCellConfig = Config_->ClockCell;
     localPeerId = primaryId;
 

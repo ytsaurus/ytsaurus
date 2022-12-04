@@ -158,6 +158,26 @@ int TCellConfig::CountVotingPeers() const
     return votingPeerCount;
 }
 
+int TCellConfig::FindPeerId(const TString& address) const
+{
+    for (TPeerId id = 0; id < std::ssize(Peers); ++id) {
+        const auto& peerAddress = Peers[id].Address;
+        if (peerAddress && to_lower(*peerAddress) == to_lower(address)) {
+            return id;
+        }
+    }
+    return InvalidPeerId;
+}
+
+int TCellConfig::GetPeerIdOrThrow(const TString& address) const
+{
+    auto id = FindPeerId(address);
+    if (id == InvalidPeerId) {
+        THROW_ERROR_EXCEPTION("Cannot determine id of peer %Qv", address);
+    }
+    return id;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NElection
