@@ -465,7 +465,7 @@ class TestAccounts(AccountsTestSuiteBase):
         create_account("max")
         set("//tmp/a", {})
         set("//tmp/a/@account", "max")
-        remove_account("max", sync_deletion=False)
+        remove_account("max", sync=False)
 
         assert get("//sys/accounts/max/@life_stage") == "removal_started"
         with pytest.raises(YtError):
@@ -473,7 +473,7 @@ class TestAccounts(AccountsTestSuiteBase):
         create("map_node", "//tmp/b")
         with pytest.raises(YtError):
             set("//tmp/b/@account", "max")
-        remove_account("max", sync_deletion=False)
+        remove_account("max", sync=False)
         assert get("//sys/accounts/max/@life_stage") == "removal_started"
 
         remove("//tmp/a")
@@ -2435,7 +2435,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     def test_remove1(self):
         create_account("max", empty=True)
         create_account("nested", "max", empty=True)
-        remove_account("nested", sync_deletion=False)
+        remove_account("nested", sync=False)
         assert exists("//sys/account_tree/max")
         wait(lambda: not exists("//sys/account_tree/max/nested"))
         with pytest.raises(YtError):
@@ -2460,7 +2460,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("max69", "max", empty=True)
 
         create("map_node", "//tmp/max42", attributes={"account": "max42"})
-        remove_account("max", recursive=True, force=True, sync_deletion=False)
+        remove_account("max", recursive=True, force=True, sync=False)
         wait(lambda: not exists("//sys/account_tree/max/max69"))
         assert exists("//sys/account_tree/max/max42")
         assert get("//sys/account_tree/max/@life_stage") == "removal_started"
@@ -2663,7 +2663,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("max")
         create_account("tesuto")
         create("file", "//tmp/file", attributes={"account": "tesuto"})
-        remove_account("tesuto", sync_deletion=False)
+        remove_account("tesuto", sync=False)
         assert exists("//sys/account_tree/tesuto")
 
         with pytest.raises(YtError):
@@ -2675,7 +2675,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         assert get("//tmp/file/@account") == "test"
         assert exists("//sys/account_tree/max/test")
 
-        remove_account("max", sync_deletion=False)
+        remove_account("max", sync=False)
         remove("//tmp/file")
         wait(lambda: not exists("//sys/accounts/max"))
 
@@ -2683,7 +2683,7 @@ class TestAccountTree(AccountsTestSuiteBase):
     def test_move_removed_account_fail(self):
         create_account("yt")
         create("map_node", "//tmp/yt", attributes={"account": "yt"})
-        remove_account("yt", sync_deletion=False)
+        remove_account("yt", sync=False)
 
         create_account("YaMR", empty=True)
         with pytest.raises(YtError):
@@ -2703,7 +2703,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create("map_node", "//tmp/dev", attributes={"account": "dev"})
 
         create_account("yt")
-        remove_account("YaMR", sync_deletion=False)
+        remove_account("YaMR", sync=False)
         assert get("//sys/accounts/YaMR/@life_stage") == "removal_started"
         assert exists("//sys/accounts/dev")
         set("//sys/accounts/dev/@name", "development")
@@ -2924,7 +2924,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         )
 
         remove_account("yt-dev-spof-1")
-        remove_account("yt-dev-spof", sync_deletion=False)
+        remove_account("yt-dev-spof", sync=False)
 
         wait(
             lambda: get("//sys/accounts/yt/@recursive_resource_usage/node_count") == 1
@@ -3352,7 +3352,7 @@ class TestAccountTree(AccountsTestSuiteBase):
 
         set("//sys/accounts/kurwa/@name", "work", authenticated_user="babenko")
         assert get("//tmp/yt/renadeen/work/@account") == "work"
-        remove_account("huj", authenticated_user="babenko", sync_deletion=False)
+        remove_account("huj", authenticated_user="babenko", sync=False)
         remove("//tmp/yt/renadeen/never_mind")
         wait(lambda: not exists("//sys/accounts/huj"))
         with pytest.raises(YtError):
@@ -3942,7 +3942,7 @@ class TestAccountTree(AccountsTestSuiteBase):
         create_account("yt-prod", attributes={"resource_limits": {"node_count": 5}})
 
         create("map_node", "//tmp/test", attributes={"account": "yt-dev"})
-        remove_account("yt-dev", sync_deletion=False)
+        remove_account("yt-dev", sync=False)
 
         with pytest.raises(YtError):
             transfer_account_resources("yt-dev", "yt-prod", {"node_count": 4})

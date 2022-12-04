@@ -1707,7 +1707,6 @@ def clear_metadata_caches(driver=None):
 
 
 def create_account(name, parent_name=None, empty=False, **kwargs):
-    sync = kwargs.pop("sync_creation", True)
     kwargs["type"] = "account"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
@@ -1732,12 +1731,9 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
     driver = kwargs.get("driver")
 
     execute_command("create", kwargs)
+
     driver = _get_driver(kwargs.get("driver", None))
-    if sync:
-        wait(
-            lambda: exists("//sys/accounts/{0}".format(name), driver=driver)
-            and get("//sys/accounts/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
-        )
+
     if set_master_memory:
         try:
             set(
@@ -1761,7 +1757,7 @@ def create_account(name, parent_name=None, empty=False, **kwargs):
 def remove_account(name, **kwargs):
     driver = kwargs.get("driver")
     gc_collect(driver)
-    sync = kwargs.pop("sync_deletion", True)
+    sync = kwargs.pop("sync", True)
     account_path = "//sys/accounts/" + name
     remove(account_path, **kwargs)
     if sync:
@@ -1822,25 +1818,17 @@ def create_pool(name, pool_tree="default", parent_name=None, wait_for_orchid=Tru
 
 
 def create_user(name, **kwargs):
-    sync = kwargs.pop("sync_creation", True)
     kwargs["type"] = "user"
     if "attributes" not in kwargs:
         kwargs["attributes"] = dict()
     kwargs["attributes"]["name"] = name
-    driver = kwargs.get("driver")
-    result = execute_command("create", kwargs)
-    if sync:
-        wait(
-            lambda: exists("//sys/users/{0}".format(name), driver=driver)
-            and get("//sys/users/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
-        )
-    return result
+    return execute_command("create", kwargs)
 
 
 def remove_user(name, **kwargs):
     driver = kwargs.get("driver")
     gc_collect(driver)
-    sync = kwargs.pop("sync_deletion", True)
+    sync = kwargs.pop("sync", True)
     user_path = "//sys/users/" + name
     remove(user_path, **kwargs)
     if sync:
@@ -1949,12 +1937,7 @@ def create_tablet_cell_bundle(name, initialize_options=True, **kwargs):
         for option in ("changelog_account", "snapshot_account"):
             if option not in kwargs["attributes"]["options"]:
                 kwargs["attributes"]["options"][option] = "sys"
-    driver = _get_driver(kwargs.get("driver", None))
     execute_command("create", kwargs)
-    wait(
-        lambda: exists("//sys/tablet_cell_bundles/{0}".format(name), driver=driver)
-        and get("//sys/tablet_cell_bundles/{0}/@life_stage".format(name), driver=driver) == "creation_committed"
-    )
 
 
 def remove_tablet_cell_bundle(name, driver=None):

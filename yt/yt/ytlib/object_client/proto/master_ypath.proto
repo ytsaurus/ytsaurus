@@ -19,6 +19,7 @@ message TReqCreateObject
 message TRspCreateObject
 {
     required NYT.NProto.TGuid object_id = 1;
+    optional bool two_phase_creation = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

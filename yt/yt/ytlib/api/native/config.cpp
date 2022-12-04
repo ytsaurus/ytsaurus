@@ -284,6 +284,14 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("replication_card_residency_cache", &TThis::ReplicationCardResidencyCache)
         .DefaultNew();
 
+    registrar.Parameter("object_life_stage_check_period", &TThis::ObjectLifeStageCheckPeriod)
+        .Default(TDuration::MilliSeconds(100));
+    registrar.Parameter("object_life_stage_check_retry_count", &TThis::ObjectLifeStageCheckRetryCount)
+        .GreaterThan(0)
+        .Default(100);
+    registrar.Parameter("object_life_stage_check_timeout", &TThis::ObjectLifeStageCheckTimeout)
+        .Default(TDuration::Seconds(60));
+
     registrar.Preprocessor([] (TThis* config) {
         config->FunctionImplCache->Capacity = 100;
 

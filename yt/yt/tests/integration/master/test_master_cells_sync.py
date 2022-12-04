@@ -56,7 +56,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_users_sync(self):
-        create_user("tester", sync_creation=False)
+        create_user("tester", sync=False)
 
         for i in range(10):
             set("//sys/users/tester/@custom{0}".format(i), "value")
@@ -67,12 +67,12 @@ class TestMasterCellsSync(YTEnvSetup):
         )
         self._check_true_for_secondary(lambda driver: "tester" in ls("//sys/users", driver=driver))
 
-        remove_user("tester", sync_deletion=False)
+        remove_user("tester", sync=False)
         self._check_true_for_secondary(lambda driver: "tester" not in ls("//sys/users", driver=driver))
 
     @authors("asaitgalin")
     def test_groups_sync(self):
-        create_user("tester", sync_creation=False)
+        create_user("tester", sync=False)
         create_group("sudoers")
         add_member("tester", "sudoers")
 
@@ -95,7 +95,7 @@ class TestMasterCellsSync(YTEnvSetup):
 
     @authors("asaitgalin")
     def test_accounts_sync(self):
-        create_account("tst", sync_creation=False)
+        create_account("tst", sync=False)
 
         for i in range(10):
             set("//sys/accounts/tst/@attr{0}".format(i), "value")
@@ -105,7 +105,7 @@ class TestMasterCellsSync(YTEnvSetup):
             )
         )
 
-        remove_account("tst", sync_deletion=False)
+        remove_account("tst", sync=False)
         self._check_true_for_secondary(lambda driver: "tst" not in ls("//sys/accounts", driver=driver))
 
     @authors("asaitgalin")
@@ -133,7 +133,7 @@ class TestMasterCellsSync(YTEnvSetup):
     @authors("babenko")
     def test_acl_sync(self):
         create_group("jupiter")
-        create_account("jupiter", sync_creation=False)
+        create_account("jupiter", sync=False)
         set("//sys/accounts/jupiter/@acl", [make_ace("allow", "jupiter", "use")])
 
         def check(driver):

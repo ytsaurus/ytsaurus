@@ -70,7 +70,7 @@ private:
     {
         DeclareMutating();
 
-        auto type = EObjectType(request->type());
+        auto type = CheckedEnumCast<EObjectType>(request->type());
         auto ignoreExisting = request->ignore_existing();
 
         context->SetRequestInfo("Type: %v, IgnoreExisting: %v",
@@ -82,37 +82,41 @@ private:
             : nullptr;
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
+
+        TObject* object = nullptr;
         if (ignoreExisting) {
-            auto maybeExistingObject = objectManager->FindObjectByAttributes(type, attributes.Get());
-            if (!maybeExistingObject) {
+            auto optionalExistingObject = objectManager->FindObjectByAttributes(type, attributes.Get());
+            if (!optionalExistingObject) {
                 THROW_ERROR_EXCEPTION("\"ignore_existing\" option is not supported for type %Qlv",
                     type);
             }
 
-            if (auto* existingObject = *maybeExistingObject) {
-                auto existingObjectId = existingObject->GetId();
-                ToProto(response->mutable_object_id(), existingObjectId);
-
-                context->SetResponseInfo("ExistingObjectId: %v", existingObjectId);
-                context->Reply();
-                return;
+            if (*optionalExistingObject) {
+                object = *optionalExistingObject;
+                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Existing object returned (Id: %v)",
+                    object->GetId());
             }
         }
 
-        auto* object = objectManager->CreateObject(
-            NullObjectId,
-            type,
-            attributes.Get());
+        if (!object) {
+            object = objectManager->CreateObject(
+                /*hintId*/ NullObjectId,
+                type,
+                attributes.Get());
 
-        const auto& objectId = object->GetId();
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object created (Id: %v, Type: %v)",
+                object->GetId(),
+                type);
+        }
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Object created (Id: %v, Type: %v)",
-            objectId,
-            type);
+        ToProto(response->mutable_object_id(), object->GetId());
 
-        ToProto(response->mutable_object_id(), objectId);
+        const auto& handler = objectManager->GetHandler(object);
+        if (Any(handler->GetFlags() & ETypeFlags::TwoPhaseCreation)) {
+            response->set_two_phase_creation(true);
+        }
 
-        context->SetResponseInfo("ObjectId: %v", objectId);
+        context->SetResponseInfo("ObjectId: %v", object->GetId());
         context->Reply();
     }
 

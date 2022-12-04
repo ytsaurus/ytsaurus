@@ -565,7 +565,54 @@ TObjectId TClient::CreateObjectImpl(
     auto rsp = batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
         .ValueOrThrow();
 
-    return FromProto<TObjectId>(rsp->object_id());
+    auto objectId = FromProto<TObjectId>(rsp->object_id());
+
+    if (rsp->two_phase_creation() && options.Sync) {
+        const auto& config = Connection_->GetConfig();
+        bool ok = false;
+        NProfiling::TWallTimer timer;
+        int retryIndex = 0;
+        auto lifeStage = EObjectLifeStage::CreationStarted; // just a guess
+        while (true) {
+            if (retryIndex > config->ObjectLifeStageCheckRetryCount) {
+                break;
+            }
+            if (retryIndex > 0 && timer.GetElapsedTime() > config->ObjectLifeStageCheckTimeout) {
+                break;
+            }
+
+            ++retryIndex;
+
+            YT_LOG_DEBUG("Retrieving object life stage (ObjectId: %v)",
+                objectId);
+
+            auto lifeStageYson = WaitFor(GetNode(FromObjectId(objectId) + "/@life_stage", /*options*/ {}))
+                .ValueOrThrow();
+
+            lifeStage = ConvertTo<EObjectLifeStage>(lifeStageYson);
+
+            YT_LOG_DEBUG("Object life stage retrieved (ObjectId: %v, LifeStage: %v)",
+                objectId,
+                lifeStage);
+
+            if (lifeStage == EObjectLifeStage::CreationCommitted) {
+                ok = true;
+                break;
+            }
+
+            TDelayedExecutor::WaitForDuration(config->ObjectLifeStageCheckPeriod);
+        }
+
+        if (!ok) {
+            THROW_ERROR_EXCEPTION("Failed to wait until object %v creation is committed",
+                objectId)
+                << TErrorAttribute("retry_count", retryIndex)
+                << TErrorAttribute("retry_time", timer.GetElapsedTime())
+                << TErrorAttribute("last_seen_life_stage", lifeStage);
+        }
+    }
+
+    return objectId;
 }
 
 TClusterMeta TClient::DoGetClusterMeta(

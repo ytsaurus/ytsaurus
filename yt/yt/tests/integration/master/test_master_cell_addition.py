@@ -158,9 +158,8 @@ class TestMasterCellAddition(YTEnvSetup):
         create_account("acc_sync_remove")
         remove_account("acc_sync_remove")
 
-        create_account("acc_async_create", sync_creation=False)
-
-        remove_account("acc_async_remove", sync_deletion=False)
+        create_account("acc_async_create", sync=False)
+        remove_account("acc_async_remove", sync=False)
 
         yield
 

@@ -757,6 +757,7 @@ struct TCreateObjectOptions
     , public TPrerequisiteOptions
 {
     bool IgnoreExisting = false;
+    bool Sync = true;
     NYTree::IAttributeDictionaryPtr Attributes;
 };
 

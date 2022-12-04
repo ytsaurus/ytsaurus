@@ -199,6 +199,8 @@ TCreateObjectCommand::TCreateObjectCommand()
     RegisterParameter("type", Type);
     RegisterParameter("ignore_existing", Options.IgnoreExisting)
         .Optional();
+    RegisterParameter("sync", Options.Sync)
+        .Optional();
     RegisterParameter("attributes", Attributes)
         .Optional();
 }

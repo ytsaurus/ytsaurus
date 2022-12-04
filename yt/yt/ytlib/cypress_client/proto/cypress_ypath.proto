@@ -3,8 +3,8 @@ package NYT.NCypressClient.NProto;
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
+
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
-import "yt_proto/yt/core/ytree/proto/ypath.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
 

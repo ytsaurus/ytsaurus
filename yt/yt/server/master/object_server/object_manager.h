@@ -38,8 +38,11 @@ struct IObjectManager
     //! Returns the handler for a given type or |nullptr| if the type is unknown.
     virtual const IObjectTypeHandlerPtr& FindHandler(EObjectType type) const = 0;
 
-    //! Returns the handler for a given type.
+    //! Returns the handler for a given type. Fails if type is unknown.
     virtual const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const = 0;
+
+    //! Returns the handler for a given type. Throws if type is unknown.
+    virtual const IObjectTypeHandlerPtr& GetHandlerOrThrow(EObjectType type) const = 0;
 
     //! Returns the handler for a given object.
     virtual const IObjectTypeHandlerPtr& GetHandler(const TObject* object) const = 0;

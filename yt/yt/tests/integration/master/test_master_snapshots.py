@@ -2,9 +2,12 @@ from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_helpers import profiler_factory
 
+# COMPAT(babenko): drop this once the local 'create_account' is no longer needed.
+import yt_commands
+
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
-    exists, create_account,
+    exists,
     remove_account, create_proxy_role, create_account_resource_usage_lease, start_transaction, abort_transaction, commit_transaction, lock, insert_rows,
     lookup_rows, alter_table, write_table, wait_for_cells,
     sync_create_cells, sync_mount_table, sync_freeze_table, sync_reshard_table, get_singular_chunk_id,
@@ -23,6 +26,16 @@ from copy import deepcopy
 import time
 
 ##################################################################
+
+
+# COMPAT(babenko): drop this once all involved versions (including those in compat tests) are >= 22.4.
+def create_account(name, parent_name=None, empty=False, **kwargs):
+    yt_commands.create_account(name, parent_name, empty, **kwargs)
+    if kwargs.get("sync", True):
+        wait(
+            lambda: exists("//sys/accounts/{0}".format(name))
+            and get("//sys/accounts/{0}/@life_stage".format(name)) == "creation_committed"
+        )
 
 
 def check_simple_node():
@@ -96,7 +109,7 @@ def check_removed_account():
     for i in range(0, 5):
         remove("//tmp/a1_table" + str(i))
 
-    remove_account("a1", sync_deletion=False)
+    remove_account("a1", sync=False)
 
     yield
 
@@ -115,7 +128,7 @@ def check_hierarchical_accounts():
     write_table("//tmp/b11_table", {"a": "b"})
     create("table", "//tmp/b21_table", attributes={"account": "b21"})
     write_table("//tmp/b21_table", {"a": "b", "c": "d"})
-    remove_account("b2", sync_deletion=False)
+    remove_account("b2", sync=False)
 
     # XXX(kiselyovp) this might be flaky
     wait(lambda: get("//sys/accounts/b11/@resource_usage/disk_space_per_medium/default") > 0)
