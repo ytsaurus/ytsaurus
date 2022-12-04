@@ -43,6 +43,7 @@ public:
     bool IsActiveLeader() const override;
     bool IsActiveFollower() const override;
     TCancelableContextPtr GetAutomatonCancelableContext() const override;
+    TEpochId GetAutomatonEpochId() const override;
 
     // NB: semantics for these signals is not properly reproduced. Only the
     // parts necessary for tablet write manager are introduced.
@@ -61,7 +62,8 @@ public:
 private:
     const TCompositeAutomatonPtr Automaton_;
     const IInvokerPtr AutomatonInvoker_;
-    TReign Reign_;
+    const TReign Reign_;
+    const TEpochId EpochId_;
 
     const TCancelableContextPtr CancelableContext = New<TCancelableContext>();
     std::deque<TMutationRequest> MutationRequests_;
