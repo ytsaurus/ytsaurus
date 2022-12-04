@@ -1,5 +1,7 @@
 #include "serialize.h"
 
+#include <yt/yt/ytlib/hydra/proto/hydra_manager.pb.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -8,6 +10,39 @@ namespace NYT::NHydra {
 
 using namespace NYson;
 using namespace NYTree;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TSaveContext::TSaveContext(
+    ICheckpointableOutputStream* output,
+    int version)
+    : TEntityStreamSaveContext(output, version)
+    , CheckpointableOutput_(output)
+{ }
+
+void TSaveContext::MakeCheckpoint()
+{
+    Output_.FlushBuffer();
+    CheckpointableOutput_->MakeCheckpoint();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TLoadContext::TLoadContext(ICheckpointableInputStream* input)
+    : TEntityStreamLoadContext(input)
+    , CheckpointableInput_(input)
+{ }
+
+void TLoadContext::SkipToCheckpoint()
+{
+    Input_.ClearBuffer();
+    CheckpointableInput_->SkipToCheckpoint();
+}
+
+i64 TLoadContext::GetOffset() const
+{
+    return CheckpointableInput_->GetOffset();
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

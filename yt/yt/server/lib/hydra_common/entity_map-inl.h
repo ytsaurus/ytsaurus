@@ -4,7 +4,8 @@
 #include "entity_map.h"
 #endif
 
-#include <yt/yt/core/misc/serialize.h>
+#include "serialize.h"
+
 #include <yt/yt/core/misc/pool_allocator.h>
 
 namespace NYT::NHydra {

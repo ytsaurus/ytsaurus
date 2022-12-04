@@ -6,9 +6,6 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 
-#include <yt/yt/server/lib/hydra_common/composite_automaton.h>
-#include <yt/yt/server/lib/hydra_common/entity_map.h>
-
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/core/actions/signal.h>
