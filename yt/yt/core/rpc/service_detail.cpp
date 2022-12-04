@@ -1436,13 +1436,11 @@ TServiceBase::TServiceBase(
     , Profiler_(RpcServerProfiler.WithHot().WithTag("yt_service", ServiceId_.ServiceName))
     , AuthenticationTimer_(Profiler_.Timer("/authentication_time"))
     , ServiceLivenessChecker_(New<TPeriodicExecutor>(
-        DefaultInvoker_,
+        TDispatcher::Get()->GetLightInvoker(),
         BIND(&TServiceBase::OnServiceLivenessCheck, MakeWeak(this)),
         ServiceLivenessCheckPeriod))
     , PerformanceCounters_(New<TServiceBase::TPerformanceCounters>(RpcServerProfiler))
 {
-    YT_VERIFY(DefaultInvoker_);
-
     RegisterMethod(RPC_SERVICE_METHOD_DESC(Discover)
         .SetInvoker(TDispatcher::Get()->GetHeavyInvoker())
         .SetConcurrencyLimit(1'000'000)
