@@ -48,7 +48,7 @@ IFileChangelogDispatcherPtr CreateFileChangelogDispatcher(
     IMemoryUsageTrackerPtr memoryUsageTracker,
     TFileChangelogDispatcherConfigPtr config,
     TString threadName,
-    NProfiling::TProfiler profiler);
+    NProfiling::TProfiler profiler = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 

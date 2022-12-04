@@ -165,13 +165,15 @@ DECLARE_REFCOUNTED_STRUCT(TBackupManifest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-extern const TString RpcProxiesPath;
-extern const TString GrpcProxiesPath;
-extern const TString DefaultProxyRole;
-extern const TString BannedAttributeName;
-extern const TString RoleAttributeName;
-extern const TString AddressesAttributeName;
-extern const TString AliveNodeName;
+inline const TString RpcProxiesPath("//sys/rpc_proxies");
+inline const TString GrpcProxiesPath("//sys/grpc_proxies");
+inline const TString AliveNodeName("alive");
+inline const TString BannedAttributeName("banned");
+inline const TString RoleAttributeName("role");
+inline const TString AddressesAttributeName("addresses");
+inline const TString DefaultProxyRole("default");
+inline const TString JournalPayloadKey("payload");
+inline const TString HunkPayloadKey("payload");
 
 ////////////////////////////////////////////////////////////////////////////////
 
