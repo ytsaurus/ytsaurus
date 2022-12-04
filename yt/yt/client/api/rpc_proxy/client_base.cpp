@@ -585,6 +585,7 @@ TFuture<NObjectClient::TObjectId> TClientBase::CreateObject(
 
     req->set_type(ToProto<int>(type));
     req->set_ignore_existing(options.IgnoreExisting);
+    req->set_sync(options.Sync);
     if (options.Attributes) {
         ToProto(req->mutable_attributes(), *options.Attributes);
     }

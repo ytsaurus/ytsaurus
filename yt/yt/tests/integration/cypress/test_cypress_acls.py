@@ -1070,7 +1070,7 @@ class TestCypressAcls(CheckPermissionBase):
         create_group("g")
 
         with pytest.raises(YtError):
-            remove_user("u", sync_deletion=False, authenticated_user="guest")
+            remove_user("u", sync=False, authenticated_user="guest")
         with pytest.raises(YtError):
             remove("//sys/groups/g", authenticated_user="guest")
 
@@ -1106,7 +1106,7 @@ class TestCypressAcls(CheckPermissionBase):
     def test_user_remove_acl(self):
         create_user("u")
         with pytest.raises(YtError):
-            remove_user("u", sync_deletion=False, authenticated_user="guest")
+            remove_user("u", sync=False, authenticated_user="guest")
         set("//sys/users/u/@acl/end", make_ace("allow", "guest", "remove"))
         remove_user("u", authenticated_user="guest")
 

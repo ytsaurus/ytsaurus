@@ -1193,7 +1193,7 @@ class TestCypress(YTEnvSetup):
         remove_user("u")
         assert not exists("//sys/users/u")
         with pytest.raises(YtError):
-            remove_user("u", sync_deletion=False)
+            remove_user("u", sync=False)
         remove_user("u", force=True)
 
     @authors("babenko", "s-v-m")

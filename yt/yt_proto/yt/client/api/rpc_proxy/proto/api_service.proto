@@ -1000,7 +1000,8 @@ message TRspListNode
 message TReqCreateObject
 {
     required int32 type = 1; // NObjectClient::EObjectType
-    optional bool ignore_existing = 3 [default = false];
+    optional bool ignore_existing = 3;
+    optional bool sync = 4;
     optional NYT.NYTree.NProto.TAttributeDictionary attributes = 2;
 
     optional TMutatingOptions mutating_options = 103;

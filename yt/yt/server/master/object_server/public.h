@@ -14,6 +14,7 @@ using NObjectClient::TObjectId;
 using NObjectClient::TTransactionId;
 using NObjectClient::TVersionedObjectId;
 using NObjectClient::EObjectType;
+using NObjectClient::EObjectLifeStage;
 using NObjectClient::TCellTag;
 using NObjectClient::TCellTagList;
 using NObjectClient::NullObjectId;

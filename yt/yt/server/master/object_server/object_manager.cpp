@@ -168,6 +168,7 @@ public:
     void RegisterHandler(IObjectTypeHandlerPtr handler) override;
     const IObjectTypeHandlerPtr& FindHandler(EObjectType type) const override;
     const IObjectTypeHandlerPtr& GetHandler(EObjectType type) const override;
+    const IObjectTypeHandlerPtr& GetHandlerOrThrow(EObjectType type) const override;
     const IObjectTypeHandlerPtr& GetHandler(const TObject* object) const override;
 
     const std::set<EObjectType>& GetRegisteredTypes() const override;
@@ -836,7 +837,21 @@ const IObjectTypeHandlerPtr& TObjectManager::GetHandler(EObjectType type) const
     VERIFY_THREAD_AFFINITY_ANY();
 
     const auto& handler = FindHandler(type);
-    YT_ASSERT(handler);
+    YT_VERIFY(handler);
+
+    return handler;
+}
+
+const IObjectTypeHandlerPtr& TObjectManager::GetHandlerOrThrow(EObjectType type) const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    const auto& handler = FindHandler(type);
+    if (!handler) {
+        THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
+            type);
+    }
+
     return handler;
 }
 
@@ -1342,12 +1357,7 @@ TObject* TObjectManager::CreateObject(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& handler = FindHandler(type);
-    if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
-            type);
-    }
-
+    const auto& handler = GetHandlerOrThrow(type);
     auto flags = handler->GetFlags();
     if (None(flags & ETypeFlags::Creatable)) {
         THROW_ERROR_EXCEPTION("Objects of type %Qlv cannot be created explicitly",
@@ -1498,12 +1508,7 @@ std::optional<TObject*> TObjectManager::FindObjectByAttributes(
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    const auto& handler = FindHandler(type);
-    if (!handler) {
-        THROW_ERROR_EXCEPTION("Unknown object type %Qlv",
-            type);
-    }
-
+    const auto& handler = GetHandlerOrThrow(type);
     return handler->FindObjectByAttributes(attributes);
 }
 

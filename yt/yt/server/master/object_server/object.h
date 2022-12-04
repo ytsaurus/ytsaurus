@@ -20,31 +20,6 @@ struct TObjectDynamicData
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Some objects must be created and removed atomically.
-//
-// Let's consider accounts. In the absence of an atomic commit, it's possible
-// that some cell knows about an account, and some other cell doesn't. Then, the
-// former cell sending a chunk requisition update to the latter will cause
-// trouble.
-//
-// Removal also needs two-phase (and even more!) locking since otherwise a primary master
-// is unable to command the destruction of an object to its secondaries without risking
-// that some secondary still holds a reference to the object.
-DEFINE_ENUM_WITH_UNDERLYING_TYPE(EObjectLifeStage, ui8,
-     // Creation workflow
-     ((CreationStarted)         (0))
-     ((CreationPreCommitted)    (1))
-     ((CreationCommitted)       (2))
-
-     // Removal workflow
-     ((RemovalStarted)          (3))
-     ((RemovalPreCommitted)     (4))
-     ((RemovalAwaitingCellsSync)(5))
-     ((RemovalCommitted)        (6))
-);
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TEpochContext
     : public TRefCounted
 {

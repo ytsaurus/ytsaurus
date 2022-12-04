@@ -220,6 +220,10 @@ public:
 
     NChaosClient::TReplicationCardResidencyCacheConfigPtr ReplicationCardResidencyCache;
 
+    TDuration ObjectLifeStageCheckPeriod;
+    int ObjectLifeStageCheckRetryCount;
+    TDuration ObjectLifeStageCheckTimeout;
+
     //! Replaces all master addresses with given master cache addresses.
     //! Used to proxy all job requests through cluster nodes.
     void OverrideMasterAddresses(const std::vector<TString>& addresses);
