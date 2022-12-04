@@ -427,7 +427,9 @@ void SerializeIntegerColumn(
                 #undef XX
 
                 default:
-                    YT_ABORT();
+                    THROW_ERROR_EXCEPTION("Integer column %v has unexpected type %Qlv",
+                        typedColumn.Column->Id,
+                        simpleType);
             }
         });
 }
@@ -574,7 +576,9 @@ void SerializeColumn(
     } else if (simpleType == ESimpleLogicalValueType::Boolean) {
         SerializeBooleanColumn(typedColumn, context);
     } else {
-        YT_ABORT();
+        THROW_ERROR_EXCEPTION("Column %v has unexpected type %Qlv",
+            typedColumn.Column->Id,
+            simpleType);
     }
 }
 
