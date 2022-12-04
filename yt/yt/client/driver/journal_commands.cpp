@@ -104,7 +104,7 @@ void TReadJournalCommand::DoExecute(ICommandContextPtr context)
         for (auto row : rows) {
             BuildYsonListFragmentFluently(consumer.get())
                 .Item().BeginMap()
-                    .Item("payload").Value(TStringBuf(row.Begin(), row.Size()))
+                    .Item(JournalPayloadKey).Value(TStringBuf(row.Begin(), row.Size()))
                 .EndMap();
         }
 
@@ -229,7 +229,7 @@ private:
         if (State_ != EJournalConsumerState::InsideMap) {
             ThrowMalformedPayload();
         }
-        if (key != TStringBuf("payload")) {
+        if (key != JournalPayloadKey) {
             ThrowMalformedPayload();
         }
         State_ = EJournalConsumerState::AtData;

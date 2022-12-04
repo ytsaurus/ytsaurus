@@ -42,7 +42,7 @@ void TReadHunksCommand::DoExecute(ICommandContextPtr context)
             .Item("hunks").DoListFor(responses, [&] (auto fluent, const TSharedRef& response) {
                 fluent
                     .Item().BeginMap()
-                        .Item("payload").Value(TStringBuf(response.Begin(), response.End()))
+                        .Item(HunkPayloadKey).Value(TStringBuf(response.Begin(), response.End()))
                     .EndMap();
             })
         .EndMap());
