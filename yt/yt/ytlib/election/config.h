@@ -44,6 +44,9 @@ public:
 
     int CountVotingPeers() const;
 
+    int FindPeerId(const TString& address) const;
+    int GetPeerIdOrThrow(const TString& address) const;
+
     REGISTER_YSON_STRUCT(TCellConfig);
 
     static void Register(TRegistrar registrar);

@@ -237,10 +237,6 @@ protected:
 
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
-    static NElection::TPeerId ComputePeerId(
-        NElection::TCellConfigPtr config,
-        const TString& localAddress);
-
     NObjectClient::TCellTagList GetKnownParticipantCellTags() const;
 
     void DoInitialize();
