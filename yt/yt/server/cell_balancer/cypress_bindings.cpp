@@ -293,6 +293,8 @@ void TDeallocationRequestState::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("instance_name", &TThis::InstanceName)
         .Default();
+    registrar.Parameter("strategy", &TThis::Strategy)
+        .Default();
     registrar.Parameter("hulk_request_created", &TThis::HulkRequestCreated)
         .Default(false);
 }
@@ -317,6 +319,8 @@ void TInstanceAnnotations::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("deallocated_at", &TThis::DeallocatedAt)
         .Optional();
+    registrar.Parameter("deallocation_strategy", &TThis::DeallocationStrategy)
+        .Default();
 }
 
 void TTabletSlot::Register(TRegistrar registrar)
@@ -343,6 +347,8 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "disable_tablet_cells", &TThis::DisableTabletCells)
         .Default(false);
+    RegisterAttribute(registrar, "enable_bundle_balancer", &TThis::EnableBundleBalancer)
+        .Optional();
     RegisterAttribute(registrar, "host", &TThis::Host)
         .Default();
     RegisterAttribute(registrar, "state", &TThis::State)
