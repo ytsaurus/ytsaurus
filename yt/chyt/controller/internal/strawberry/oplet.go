@@ -354,6 +354,9 @@ func (oplet *Oplet) needsAbort() (needsAbort bool, reason string) {
 	if !oplet.strawberrySpeclet.ActiveOrDefault() {
 		return true, "oplet is in inactive state"
 	}
+	if oplet.strawberrySpeclet.Pool == nil {
+		return true, "pool is not set"
+	}
 	return false, "up to date"
 }
 
@@ -567,6 +570,10 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	spec["alias"] = "*" + oplet.alias
 	if oplet.strawberrySpeclet.Pool != nil {
 		spec["pool"] = *oplet.strawberrySpeclet.Pool
+	} else {
+		err := yterrors.Err("can't run operation because pool is not set")
+		oplet.setError(err)
+		return err
 	}
 	opACL := toOperationACL(oplet.acl)
 	if oplet.acl != nil {
