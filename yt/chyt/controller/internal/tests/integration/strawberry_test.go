@@ -35,6 +35,7 @@ func createStrawberryOp(t *testing.T, env *yttest.Env, alias string) {
 				"family":                    "sleep",
 				"stage":                     "default",
 				"restart_on_speclet_change": true,
+				"pool":                      "test_pool",
 			},
 		},
 	})
