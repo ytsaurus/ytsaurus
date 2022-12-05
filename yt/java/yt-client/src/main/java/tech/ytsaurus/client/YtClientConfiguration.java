@@ -17,13 +17,10 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.library.svnversion.VcsVersion;
 
 @NonNullApi
 @NonNullFields
 public class YtClientConfiguration {
-    private static final String USER_AGENT = calcUserAgent();
-
     private final RpcOptions rpcOptions;
     @Nullable
     private final YTreeNode specPatch;
@@ -109,11 +106,6 @@ public class YtClientConfiguration {
         return operationPingPeriod;
     }
 
-    private static String calcUserAgent() {
-        VcsVersion version = new VcsVersion(YtClientConfiguration.class);
-        return "yt/java/ytclient@" + version.getProgramSvnRevision();
-    }
-
     private static int getJavaMajorVersion() {
         String javaVersion = System.getProperty("java.version");
         if (javaVersion != null) {
@@ -156,7 +148,7 @@ public class YtClientConfiguration {
         private JavaOptions javaOptions = JavaOptions.empty();
         private Duration jarsUploadTimeout = Duration.ofMinutes(10);
         private int fileCacheReplicationFactor = 10;
-        private String version = USER_AGENT;
+        private String version = "YTsaurusClient@";
         private Duration operationPingPeriod = Duration.ofSeconds(30);
 
         @Nullable

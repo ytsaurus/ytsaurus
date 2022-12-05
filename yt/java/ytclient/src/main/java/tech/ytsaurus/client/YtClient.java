@@ -10,9 +10,12 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
+import ru.yandex.library.svnversion.VcsVersion;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 
 public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
+    private static final String USER_AGENT = calcUserAgent();
+
     /**
      * @deprecated prefer to use {@link #builder()}
      */
@@ -61,7 +64,10 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
                         .setProxyRole(proxyRole)
                         .setRpcCredentials(credentials)
                         .setRpcCompression(compression)
-                        .setRpcOptions(options)
+                        .setYtClientConfiguration(YtClientConfiguration.builder()
+                                .setRpcOptions(options)
+                                .setVersion(USER_AGENT)
+                                .build())
                         .disableValidation()
                 // old constructors did not validate their arguments
         ), YandexSerializationResolver.getInstance());
@@ -106,5 +112,10 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
         public YtClient build() {
             return new YtClient(new YTsaurusClient.BuilderWithDefaults(this));
         }
+    }
+
+    private static String calcUserAgent() {
+        VcsVersion version = new VcsVersion(YtClientConfiguration.class);
+        return "yt/java/ytclient@" + version.getProgramSvnRevision();
     }
 }
