@@ -603,6 +603,10 @@ public:
         , AuthenticatedClientCache_(New<NApi::NNative::TClientCache>(
             config->ClientCache,
             Bootstrap_->GetNativeConnection()))
+        , SelectConsumeDataWeight_(Profiler_.Counter("/select_consume/data_weight"))
+        , SelectConsumeRowCount_(Profiler_.Counter("/select_consume/row_count"))
+        , SelectOutputDataWeight_(Profiler_.Counter("/select_output/data_weight"))
+        , SelectOutputRowCount_(Profiler_.Counter("/select_output/row_count"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GenerateTimestamps));
 
@@ -764,6 +768,12 @@ private:
     TSecurityManager SecurityManager_;
     const IStickyTransactionPoolPtr StickyTransactionPool_;
     const NNative::TClientCachePtr AuthenticatedClientCache_;
+
+    TCounter SelectConsumeDataWeight_;
+    TCounter SelectConsumeRowCount_;
+
+    TCounter SelectOutputDataWeight_;
+    TCounter SelectOutputRowCount_;
 
     struct TDetailedProfilingCountersKey
     {
@@ -3504,8 +3514,14 @@ private:
                     context->GetAuthenticationIdentity().UserTag,
                     detailedProfilingInfo);
 
-                context->SetResponseInfo("RowCount: %v",
-                    result.Rowset->GetRows().Size());
+                auto rows = result.Rowset->GetRows();
+
+                context->SetResponseInfo("RowCount: %v", rows.Size());
+
+                SelectConsumeDataWeight_.Increment(result.Statistics.DataWeightRead);
+                SelectConsumeRowCount_.Increment(result.Statistics.RowsRead);
+                SelectOutputDataWeight_.Increment(GetDataWeight(rows));
+                SelectOutputRowCount_.Increment(rows.Size());
             });
     }
 
