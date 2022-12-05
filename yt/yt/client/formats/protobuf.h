@@ -36,10 +36,11 @@ struct TProtobufTag
     ui32 GetFieldNumber() const;
 };
 
-class TProtobufFieldDescriptionBase
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProtobufFieldDescriptionBase
     : public TProtobufTag
 {
-public:
     TString Name;
 
     // Index of field inside struct (for fields corresponding to struct fields in schema).
@@ -49,13 +50,13 @@ public:
 
     // Is a repeated field packed (i.e. it is encoded as `<tag> <length> <value1> ... <valueK>`)?
     bool Packed = false;
-
 };
 
-class TProtobufTypeBase
+////////////////////////////////////////////////////////////////////////////////
+
+struct TProtobufTypeBase
     : public TRefCounted
 {
-public:
     EProtobufType ProtoType = EProtobufType::Int64;
 
     // Is the corresponding type in schema optional?
@@ -66,6 +67,8 @@ public:
 
     const TEnumerationDescription* EnumerationDescription = nullptr;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct TProtobufWriterEmbeddingDescription
     : public TProtobufTag
@@ -85,11 +88,12 @@ public:
     TProtobufWriterTypePtr Type;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TProtobufWriterType
     : public TProtobufTypeBase
 {
 public:
-
     int AddEmbedding(
         int parentParentEmbeddingIndex,
         const TProtobufColumnConfigPtr& embeddingConfig);
@@ -197,6 +201,8 @@ public:
     // For oneof members -- containing oneof type.
     const TProtobufParserType* ContainingOneof;
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename TType>
 class TProtobufTypeBuilder

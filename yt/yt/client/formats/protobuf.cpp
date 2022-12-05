@@ -173,7 +173,7 @@ static TEnumerationDescription CreateEnumerationMap(
                 result.Add(name, valueNode->GetValue<i64>());
                 break;
             default:
-                THROW_ERROR_EXCEPTION("Invalid specification of %Qv enumeration; enumeration value expected type Int64 or Uint64 actual type: %v",
+                THROW_ERROR_EXCEPTION("Invalid specification of %Qv enumeration: expected type \"int64\" or \"uint64\", actual type %Qlv",
                     enumName,
                     valueNode->GetType());
         }
