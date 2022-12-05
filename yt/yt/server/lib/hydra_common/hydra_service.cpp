@@ -43,14 +43,14 @@ IUpstreamSynchronizerPtr CreateHydraManagerUpstreamSynchronizer(TWeakPtr<IHydraM
 
 THydraServiceBase::THydraServiceBase(
     IHydraManagerPtr hydraManager,
-    IInvokerPtr invoker,
+    IInvokerPtr defaultInvoker,
     const TServiceDescriptor& descriptor,
     const NLogging::TLogger& logger,
     TRealmId realmId,
     IUpstreamSynchronizerPtr upstreamSynchronizer,
     IAuthenticatorPtr authenticator)
     : TServiceBase(
-        invoker,
+        defaultInvoker,
         descriptor,
         logger,
         realmId,

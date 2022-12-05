@@ -28,7 +28,7 @@ class THydraServiceBase
 protected:
     THydraServiceBase(
         IHydraManagerPtr hydraManager,
-        IInvokerPtr invoker,
+        IInvokerPtr defaultInvoker,
         const NRpc::TServiceDescriptor& descriptor,
         const NLogging::TLogger& logger,
         NRpc::TRealmId realmId,
