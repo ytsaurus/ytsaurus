@@ -377,9 +377,7 @@ private:
                         allocationId),
                 });
 
-                if (allocationAge < input.Config->HulkFailedRequestRetryTimeout) {
-                    aliveAllocations[allocationId] = allocationState;
-                }
+                aliveAllocations[allocationId] = allocationState;
                 continue;
             }
 
@@ -419,8 +417,7 @@ private:
         allocationsState.swap(aliveAllocations);
     }
 
-    // Returns false if current deallocation should not be tracked any more.
-    bool ProcessDeallocation(
+    bool ReturnToBundleBalancer(
         const TString& bundleName,
         TInstanceTypeAdapter* adapter,
         const TString& deallocationId,
@@ -428,26 +425,44 @@ private:
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
-        auto deallocationAge = TInstant::Now() - deallocationState->CreationTime;
-        if (deallocationAge > input.Config->HulkRequestTimeout) {
-            YT_LOG_WARNING("Deallocation Request is stuck (BundleName: %v, DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
-                bundleName,
-                deallocationId,
-                deallocationAge,
-                input.Config->HulkRequestTimeout);
+        const auto& instanceName = deallocationState->InstanceName;
 
-            mutations->AlertsToFire.push_back(TAlert{
-                .Id = "stuck_instance_deallocation",
-                .BundleName = bundleName,
-                .Description = Format("Found stuck deallocation %v with age %v which is more than threshold %v.",
-                    deallocationId,
-                    deallocationAge,
-                    input.Config->HulkRequestTimeout),
-            });
+        YT_LOG_DEBUG("Tracking existing deallocation (DeallocationId: %v, InstanceName: %v, BundleName: %v, Strategy: %v)",
+            deallocationId,
+            instanceName,
+            bundleName,
+            DeallocationStrategyReturnToBB);
+
+        if (!adapter->EnsureDeallocatedInstanceTagsSet(instanceName, DeallocationStrategyReturnToBB, input, mutations)) {
+            return true;
         }
 
+        mutations->ChangedDecommissionedFlag[instanceName] = false;
+        mutations->ChangedNodeUserTags[instanceName] = {};
+
+        return false;
+    }
+
+    bool ProcessHulkDeallocation(
+        const TString& bundleName,
+        TInstanceTypeAdapter* adapter,
+        const TString& deallocationId,
+        const TDeallocationRequestStatePtr& deallocationState,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        // Validating node tags
         const auto& instanceName = deallocationState->InstanceName;
-        if (!adapter->IsInstanceReadyToBeDeallocated(instanceName, deallocationId, input, mutations)) {
+        const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
+        const auto& instanceAnnotations = instanceInfo->Annotations;
+
+        if (!deallocationState->HulkRequestCreated && instanceAnnotations->YPCluster.empty()) {
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "invalid_instance_tags",
+                .BundleName = bundleName,
+                .Description = Format("Instance %v cannot be deallocated with hulk. Please check allocation tags",
+                   instanceName),
+            });
             return true;
         }
 
@@ -484,10 +499,12 @@ private:
                     deallocationId),
             });
 
-            return deallocationAge < input.Config->HulkFailedRequestRetryTimeout;
+            return true;
         }
 
-        if (IsAllocationCompleted(it->second) && adapter->EnsureDeallocatedInstanceTagsSet(instanceName, input, mutations)) {
+        if (IsAllocationCompleted(it->second) &&
+            adapter->EnsureDeallocatedInstanceTagsSet(instanceName, DeallocationStrategyHulkRequest, input, mutations))
+        {
             YT_LOG_INFO("Instance deallocation completed (InstanceName: %v, DeallocationId: %v)",
                 instanceName,
                 deallocationId);
@@ -497,6 +514,60 @@ private:
         YT_LOG_DEBUG("Tracking existing deallocation (DeallocationId: %v, InstanceName: %v)",
             deallocationId,
             instanceName);
+        return true;
+    }
+
+    // Returns false if current deallocation should not be tracked any more.
+    bool ProcessDeallocation(
+        const TString& bundleName,
+        TInstanceTypeAdapter* adapter,
+        const TString& deallocationId,
+        const TDeallocationRequestStatePtr& deallocationState,
+        const TSchedulerInputState& input,
+        TSchedulerMutations* mutations)
+    {
+        auto deallocationAge = TInstant::Now() - deallocationState->CreationTime;
+        if (deallocationAge > input.Config->HulkRequestTimeout) {
+            YT_LOG_WARNING("Deallocation Request is stuck (BundleName: %v, DeallocationId: %v, DeallocationAge: %v, Threshold: %v)",
+                bundleName,
+                deallocationId,
+                deallocationAge,
+                input.Config->HulkRequestTimeout);
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "stuck_instance_deallocation",
+                .BundleName = bundleName,
+                .Description = Format("Found stuck deallocation %v with age %v which is more than threshold %v.",
+                    deallocationId,
+                    deallocationAge,
+                    input.Config->HulkRequestTimeout),
+            });
+        }
+
+        const auto& instanceName = deallocationState->InstanceName;
+        if (!adapter->IsInstanceReadyToBeDeallocated(instanceName, deallocationId, input, mutations)) {
+            return true;
+        }
+
+        if (deallocationState->Strategy == DeallocationStrategyHulkRequest) {
+            return ProcessHulkDeallocation(bundleName, adapter, deallocationId, deallocationState, input, mutations);
+        } else if (deallocationState->Strategy == DeallocationStrategyReturnToBB) {
+            return ReturnToBundleBalancer(bundleName, adapter, deallocationId, deallocationState, input, mutations);
+        }
+
+        YT_LOG_WARNING("Unknown deallocation strategy (BundleName: %v, DeallocationId: %v, DeallocationStrategy: %v)",
+            bundleName,
+            deallocationId,
+            deallocationState->Strategy);
+
+        mutations->AlertsToFire.push_back(TAlert{
+            .Id = "unknown_deallocation_strategy",
+            .BundleName = bundleName,
+            .Description = Format("Unknown deallocation strategy %Qv for deallocation %v.",
+                deallocationState->Strategy,
+                deallocationId),
+        });
+
         return true;
     }
 
@@ -527,6 +598,9 @@ private:
     {
         const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
         const auto& instanceAnnotations = instanceInfo->Annotations;
+        YT_VERIFY(instanceAnnotations->DeallocationStrategy.empty() ||
+            instanceAnnotations->DeallocationStrategy == DeallocationStrategyHulkRequest);
+
         auto request = New<TDeallocationRequest>();
         auto& spec = request->Spec;
         spec->YPCluster = instanceAnnotations->YPCluster;
@@ -568,16 +642,25 @@ private:
         const auto instanciesToRemove = adapter->PeekInstanciesToDeallocate(instanceCountToDeallocate, bundleInfo, input);
 
         for (const auto& instanceName : instanciesToRemove) {
+            const auto& instanceInfo = adapter->GetInstanceInfo(instanceName, input);
+
             TString deallocationId = ToString(TGuid::Create());
             auto deallocationState = New<TDeallocationRequestState>();
             deallocationState->CreationTime = TInstant::Now();
             deallocationState->InstanceName = instanceName;
+            deallocationState->Strategy = instanceInfo->Annotations->DeallocationStrategy;
+
+            if (deallocationState->Strategy.empty()) {
+                deallocationState->Strategy = DeallocationStrategyHulkRequest;
+            }
+
             deallocationsState[deallocationId] = deallocationState;
 
-            YT_LOG_INFO("Init instance deallocation (BundleName: %v, InstanceName: %v, DeallocationId: %v)",
+            YT_LOG_INFO("Init instance deallocation (BundleName: %v, InstanceName: %v, DeallocationId: %v, Strategy: %v)",
                 bundleName,
                 instanceName,
-                deallocationId);
+                deallocationId,
+                deallocationState->Strategy);
         }
     }
 
@@ -1035,7 +1118,7 @@ void CreateRemoveTabletCells(
             bundleInfo->TabletCellIds,
             aliveNodes,
             input);
-        
+
         YT_LOG_INFO("Removing tablet cells (BundleName: %v, CellIds: %v)",
             bundleName,
             mutations->CellsToRemove);
@@ -1124,12 +1207,12 @@ void AddQuotaChanges(
     i64 changelogSpace = config->JournalDiskSpacePerCell * multiplier;
 
     if (bundleOptions->ChangelogPrimaryMedium == bundleOptions->SnapshotPrimaryMedium) {
-        quotaDiff.DiskSpacePerMedium[bundleOptions->ChangelogPrimaryMedium] = 
+        quotaDiff.DiskSpacePerMedium[bundleOptions->ChangelogPrimaryMedium] =
             snapshotSpace + changelogSpace - getSpace(bundleOptions->ChangelogPrimaryMedium);
     } else {
-        quotaDiff.DiskSpacePerMedium[bundleOptions->ChangelogPrimaryMedium] = 
+        quotaDiff.DiskSpacePerMedium[bundleOptions->ChangelogPrimaryMedium] =
             changelogSpace - getSpace(bundleOptions->ChangelogPrimaryMedium);
-        quotaDiff.DiskSpacePerMedium[bundleOptions->SnapshotPrimaryMedium] = 
+        quotaDiff.DiskSpacePerMedium[bundleOptions->SnapshotPrimaryMedium] =
             snapshotSpace - getSpace(bundleOptions->SnapshotPrimaryMedium);
     }
 
@@ -1329,6 +1412,7 @@ TInstanceAnnotationsPtr GetInstanceAnnotationsToSet(
     result->NannyService = allocationInfo->Spec->NannyService;
     result->AllocatedForBundle = bundleName;
     result->Allocated = true;
+    result->DeallocationStrategy = DeallocationStrategyHulkRequest;
     *result->Resource = *allocationInfo->Spec->ResourceRequest;
     return result;
 }
@@ -1515,16 +1599,27 @@ public:
 
     bool EnsureDeallocatedInstanceTagsSet(
         const TString& nodeName,
+        const TString& strategy,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
+        YT_VERIFY(!strategy.empty());
+
         const auto& instanceInfo = GetInstanceInfo(nodeName, input);
         const auto& annotations = instanceInfo->Annotations;
         if (!annotations->AllocatedForBundle.empty() || annotations->Allocated) {
             auto newAnnotations = New<TInstanceAnnotations>();
             newAnnotations->DeallocatedAt = TInstant::Now();
+            newAnnotations->DeallocationStrategy = strategy;
             mutations->ChangeNodeAnnotations[nodeName] = newAnnotations;
             return false;
+        }
+
+        if (!instanceInfo->EnableBundleBalancer || *instanceInfo->EnableBundleBalancer == false) {
+            YT_LOG_DEBUG("Returning node to BundleBalancer (NodeName: %v)",
+                nodeName);
+
+            mutations->ChangedEnableBundleBalancerFlag[nodeName] = true;
         }
         return true;
     }
@@ -1736,14 +1831,18 @@ public:
 
     bool EnsureDeallocatedInstanceTagsSet(
         const TString& proxyName,
+        const TString& strategy,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
     {
+        YT_VERIFY(!strategy.empty());
+
         const auto& instanceInfo = GetInstanceInfo(proxyName, input);
         const auto& annotations = instanceInfo->Annotations;
         if (!annotations->AllocatedForBundle.empty() || annotations->Allocated) {
             auto newAnnotations = New<TInstanceAnnotations>();
             newAnnotations->DeallocatedAt = TInstant::Now();
+            newAnnotations->DeallocationStrategy = strategy;
             mutations->ChangedProxyAnnotations[proxyName] = newAnnotations;
             return false;
         }
@@ -1816,6 +1915,9 @@ THashSet<TString> ScanForObsoleteCypressNodes(const TSchedulerInputState& input,
     for (const auto& [instanceName, instanceInfo] : instanceMap) {
         auto annotations = instanceInfo->Annotations;
         if (annotations->Allocated ||  !annotations->DeallocatedAt) {
+            continue;
+        }
+        if (annotations->DeallocationStrategy != DeallocationStrategyHulkRequest) {
             continue;
         }
         if (now - *annotations->DeallocatedAt > obsoleteThreshold) {

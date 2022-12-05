@@ -55,6 +55,9 @@ inline static const TString TabletSlotStateEmpty = "none";
 
 inline static const TString PeerStateLeading = "leading";
 
+inline static const TString DeallocationStrategyHulkRequest = "hulk_deallocation_request";
+inline static const TString DeallocationStrategyReturnToBB = "return_to_bundle_balancer";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TDerived>
@@ -423,6 +426,8 @@ struct TDeallocationRequestState
 {
     TInstant CreationTime;
     TString InstanceName;
+    TString Strategy;
+
     bool HulkRequestCreated;
 
     REGISTER_YSON_STRUCT(TDeallocationRequestState);
@@ -477,6 +482,7 @@ struct TInstanceAnnotations
     TInstanceResourcesPtr Resource;
 
     std::optional<TInstant> DeallocatedAt;
+    TString DeallocationStrategy;
 
     REGISTER_YSON_STRUCT(TInstanceAnnotations);
 
@@ -522,6 +528,7 @@ struct TTabletNodeInfo
     bool Banned;
     bool Decommissioned;
     bool DisableTabletCells;
+    std::optional<bool> EnableBundleBalancer;
     TString Host;
     TString State;
     THashSet<TString> Tags;

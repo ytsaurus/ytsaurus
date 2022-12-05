@@ -93,6 +93,7 @@ struct TSchedulerMutations
     THashMap<TString, TUserTags> ChangedNodeUserTags;
 
     THashMap<TString, bool> ChangedDecommissionedFlag;
+    THashMap<TString, bool> ChangedEnableBundleBalancerFlag;
 
     THashMap<TString, TString> ChangedProxyRole;
 

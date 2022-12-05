@@ -35,9 +35,6 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Hours(1));
     registrar.Parameter("cell_removal_timeout", &TThis::CellRemovalTimeout)
         .Default(TDuration::Hours(1));
-    registrar.Parameter("hulk_failed_request_retry_timeout", &TThis::HulkFailedRequestRetryTimeout)
-        .Default(TDuration::Days(365));
-
 
     registrar.Parameter("root_path", &TThis::RootPath)
         .NonEmpty();
