@@ -331,7 +331,10 @@ class TestHttpProxy(HttpProxyTestBase):
 class TestHttpProxyFraming(HttpProxyTestBase):
     SUSPENDING_TABLE = "//tmp/suspending_table"
     DELAY_BEFORE_COMMAND = 10 * 1000
-    KEEP_ALIVE_PERIOD = 1 * 1000
+    KEEP_ALIVE_PERIOD = 0.1 * 1000
+    # CLIENT_TIMEOUT << DELAY_BEFORE_COMMAND to catch framing bugs
+    # CLIENT_TIMEOUT >> KEEP_ALIVE_PERIOD to avoid false test failures
+    CLIENT_TIMEOUT = 1 * 1000
     DELTA_PROXY_CONFIG = {
         "driver": {
             "use_ws_hack_for_get_columnar_statistics": False,
@@ -345,6 +348,11 @@ class TestHttpProxyFraming(HttpProxyTestBase):
                         "substring": SUSPENDING_TABLE,
                     },
                     "get_table_columnar_statistics": {
+                        "delay": DELAY_BEFORE_COMMAND,
+                        "parameter_path": "/paths/0",
+                        "substring": SUSPENDING_TABLE,
+                    },
+                    "partition_tables": {
                         "delay": DELAY_BEFORE_COMMAND,
                         "parameter_path": "/paths/0",
                         "substring": SUSPENDING_TABLE,
@@ -407,6 +415,7 @@ class TestHttpProxyFraming(HttpProxyTestBase):
             http_method,
             "{}/api/v4/{}".format(self._get_proxy_address(), command_name),
             headers=headers,
+            timeout=timedelta(milliseconds=self.CLIENT_TIMEOUT).total_seconds(),
         )
         try_parse_yt_error_headers(rsp)
 
@@ -477,6 +486,28 @@ class TestHttpProxyFraming(HttpProxyTestBase):
         remove(self.SUSPENDING_TABLE)
         with pytest.raises(YtResponseError):
             self._execute_command("GET", "get_table_columnar_statistics", params)
+
+    @authors("galtsev")
+    @pytest.mark.parametrize("encoding", ["identity", "gzip", "deflate", "brotly"])
+    def test_partition_tables(self, encoding):
+        create("table", self.SUSPENDING_TABLE)
+        write_table(self.SUSPENDING_TABLE, [{"column_1": 1, "column_2": "foo"}])
+        params = {
+            "paths": [self.SUSPENDING_TABLE + "{column_1}"],
+            "data_weight_per_partition": 1 << 30,
+        }
+        headers = {
+            "Accept-Encoding": encoding,
+        }
+        response = self._execute_command("GET", "partition_tables", params, extra_headers=headers)
+        partitioning_response = yson.loads(response)
+        assert len(partitioning_response) == 1
+        assert "partitions" in partitioning_response
+        assert "table_ranges" in partitioning_response["partitions"][0]
+
+        remove(self.SUSPENDING_TABLE)
+        with pytest.raises(YtResponseError):
+            self._execute_command("GET", "get_table_columnar_statistics", params, extra_headers=headers)
 
 
 class TestHttpProxyJobShellAudit(HttpProxyTestBase):
