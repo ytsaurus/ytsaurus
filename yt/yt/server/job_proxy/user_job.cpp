@@ -1575,12 +1575,13 @@ private:
         }
 
         if (UserJobSpec_.has_iops_threshold() &&
-            blockIOStats.IOTotal > static_cast<ui64>(UserJobSpec_.iops_threshold()) &&
+            blockIOStats.IOOps.IsOK() &&
+            blockIOStats.IOOps.Value() > static_cast<ui64>(UserJobSpec_.iops_threshold()) &&
             !Woodpecker_)
         {
             YT_LOG_INFO("Woodpecker detected (IORead: %v, IOTotal: %v, Threshold: %v)",
-                blockIOStats.IORead,
-                blockIOStats.IOTotal,
+                blockIOStats.IOReadOps.IsOK() ? blockIOStats.IOReadOps.Value() : 0,
+                blockIOStats.IOOps.ValueOrThrow(),
                 UserJobSpec_.iops_threshold());
             Woodpecker_ = true;
 

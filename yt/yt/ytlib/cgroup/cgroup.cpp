@@ -22,6 +22,7 @@
 
 namespace NYT::NCGroup {
 
+using namespace NYTree;
 using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -490,9 +491,9 @@ const TString TCpuAccounting::Name = "cpuacct";
 
 TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const TCpuAccounting::TStatistics& rhs)
 {
-    #define XX(name) lhs.name -= rhs.name;
-    XX(UserTime)
-    XX(SystemTime)
+    #define XX(name) lhs.name = lhs.name.ValueOrThrow() - rhs.name.ValueOrThrow();
+    XX(UserUsageTime)
+    XX(SystemUsageTime)
     XX(WaitTime)
     XX(ThrottledTime)
     XX(ContextSwitches)
@@ -528,9 +529,9 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatisticsRecursive() const
 
         for (int i = 0; i < 2; ++i) {
             if (type[i] == "user") {
-                result.UserTime = FromJiffies(jiffies[i]);
+                result.UserUsageTime = FromJiffies(jiffies[i]);
             } else if (type[i] == "system") {
-                result.SystemTime = FromJiffies(jiffies[i]);
+                result.SystemUsageTime = FromJiffies(jiffies[i]);
             }
         }
     } catch (const std::exception& ex) {
@@ -553,17 +554,30 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
     return statistics;
 }
 
+template <class T>
+static void AddMapItem(
+    NYson::IYsonConsumer* consumer,
+    const TString& key,
+    TErrorOr<T> value)
+{
+    if (value.IsOK()) {
+        consumer->OnKeyedItem(key);
+        NYTree::Serialize(value.Value(), consumer);
+    } else {
+        YT_LOG_ERROR("Cannot get statistic field: %Qlv, error: %Qlv", key, ToString(value));
+    }
+}
+
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("user").Value(statistics.UserTime)
-            .Item("system").Value(statistics.SystemTime)
-            .Item("wait").Value(statistics.WaitTime)
-            .Item("throttled").Value(statistics.ThrottledTime)
-            .Item("context_switches").Value(statistics.ContextSwitches)
-            .Item("peak_thread_count").Value(statistics.PeakThreadCount)
-        .EndMap();
+    consumer->OnBeginMap();
+    AddMapItem(consumer, "user", statistics.UserUsageTime);
+    AddMapItem(consumer, "system", statistics.SystemUsageTime);
+    AddMapItem(consumer, "wait", statistics.WaitTime);
+    AddMapItem(consumer, "throttled", statistics.ThrottledTime);
+    AddMapItem(consumer, "context_switches", statistics.ContextSwitches);
+    AddMapItem(consumer, "peak_thread_count", statistics.PeakThreadCount);
+    consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -600,20 +614,20 @@ TBlockIO::TStatistics TBlockIO::GetStatistics() const
         auto bytesStats = GetDetailedStatistics("blkio.io_service_bytes");
         for (const auto& item : bytesStats) {
             if (item.Type == "Read") {
-                result.BytesRead += item.Value;
+                result.IOReadByte = result.IOReadByte.ValueOrThrow() + item.Value;
             } else if (item.Type == "Write") {
-                result.BytesWritten += item.Value;
+                result.IOWriteByte = result.IOReadByte.ValueOrThrow() + item.Value;
             }
         }
 
         auto ioStats = GetDetailedStatistics("blkio.io_serviced");
         for (const auto& item : ioStats) {
             if (item.Type == "Read") {
-                result.IORead += item.Value;
-                result.IOTotal += item.Value;
+                result.IOReadOps = result.IOReadOps.ValueOrThrow() + item.Value;
+                result.IOOps = result.IOOps.ValueOrThrow() + item.Value;
             } else if (item.Type == "Write") {
-                result.IOWrite += item.Value;
-                result.IOTotal += item.Value;
+                result.IOWriteOps = result.IOWriteOps.ValueOrThrow() + item.Value;
+                result.IOOps = result.IOOps.ValueOrThrow() + item.Value;
             }
         }
 #endif
@@ -684,14 +698,13 @@ void TBlockIO::ThrottleOperations(i64 operations) const
 
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("bytes_read").Value(statistics.BytesRead)
-            .Item("bytes_written").Value(statistics.BytesWritten)
-            .Item("io_read").Value(statistics.IORead)
-            .Item("io_write").Value(statistics.IOWrite)
-            .Item("io_total").Value(statistics.IOTotal)
-        .EndMap();
+    consumer->OnBeginMap();
+    AddMapItem(consumer, "bytes_read", statistics.IOReadByte);
+    AddMapItem(consumer, "bytes_written", statistics.IOWriteByte);
+    AddMapItem(consumer, "io_read", statistics.IOReadOps);
+    AddMapItem(consumer, "io_write", statistics.IOWriteOps);
+    AddMapItem(consumer, "io_total", statistics.IOOps);
+    consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -750,27 +763,25 @@ void TMemory::ForceEmpty() const
 
 void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("rss").Value(statistics.Rss)
-            .Item("mapped_file").Value(statistics.MappedFile)
-            .Item("major_page_faults").Value(statistics.MajorPageFaults)
-        .EndMap();
+    consumer->OnBeginMap();
+    AddMapItem(consumer, "rss", statistics.Rss);
+    AddMapItem(consumer, "mapped_file", statistics.MappedFile);
+    AddMapItem(consumer, "major_page_faults", statistics.MajorPageFaults);
+    consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 void Serialize(const TNetwork::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
-    NYTree::BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("tx_bytes").Value(std::max<ui64>(statistics.TxBytes, 0))
-            .Item("tx_packets").Value(std::max<ui64>(statistics.TxPackets, 0))
-            .Item("tx_drops").Value(std::max<ui64>(statistics.TxDrops, 0))
-            .Item("rx_bytes").Value(std::max<ui64>(statistics.RxBytes, 0))
-            .Item("rx_packets").Value(std::max<ui64>(statistics.RxPackets, 0))
-            .Item("rx_drops").Value(std::max<ui64>(statistics.RxDrops, 0))
-        .EndMap();
+    consumer->OnBeginMap();
+    AddMapItem(consumer, "tx_bytes", statistics.TxBytes);
+    AddMapItem(consumer, "tx_packets", statistics.TxPackets);
+    AddMapItem(consumer, "tx_drops", statistics.TxDrops);
+    AddMapItem(consumer, "rx_bytes", statistics.RxBytes);
+    AddMapItem(consumer, "rx_packets", statistics.RxPackets);
+    AddMapItem(consumer, "rx_drops", statistics.RxDrops);
+    consumer->OnEndMap();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

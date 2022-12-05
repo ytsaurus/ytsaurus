@@ -13,27 +13,49 @@ YT_DEFINE_ERROR_ENUM(
 );
 
 DEFINE_ENUM(EStatField,
+    // CPU
     (CpuUsage)
-    (CpuUsageUser)
-    (CpuUsageSystem)
+    (CpuUserUsage)
+    (CpuSystemUsage)
     (CpuWait)
     (CpuThrottled)
     (ContextSwitches)
+    (ThreadCount)
+    (CpuLimit)
+    (CpuGuarantee)
+
+    // Memory
     (Rss)
-    (MappedFiles)
-    (MajorFaults)
-    (MinorFaults)
+    (MappedFile)
+    (MajorPageFaults)
+    (MinorPageFaults)
+    (FileCacheUsage)
+    (AnonMemoryUsage)
+    (AnonMemoryLimit)
+    (MemoryUsage)
+    (MemoryGuarantee)
+    (MemoryLimit)
     (MaxMemoryUsage)
+
+    // IO
     (IOReadByte)
     (IOWriteByte)
-    (IOOperations)
-    (ThreadCount)
+    (IOBytesLimit)
+    (IOReadOps)
+    (IOWriteOps)
+    (IOOps)
+    (IOOpsLimit)
+    (IOTotalTime)
+
+    // Network
     (NetTxBytes)
     (NetTxPackets)
     (NetTxDrops)
+    (NetTxLimit)
     (NetRxBytes)
     (NetRxPackets)
     (NetRxDrops)
+    (NetRxLimit)
 );
 
 DEFINE_ENUM(EEnablePorto,
