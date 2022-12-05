@@ -139,6 +139,8 @@ func (ac *accessController) Authorized(ctx context.Context, accessRecords ...aut
 		return nil, &internalServerError{err}
 	}
 
+	ctxWithUserCredentials := yt.WithCredentials(ctx, &yt.TokenCredentials{Token: userToken})
+
 	for _, ar := range accessRecords {
 		if ar.Resource.Type != accessResourceTypeRepository {
 			// FIXME: ?
@@ -146,7 +148,7 @@ func (ac *accessController) Authorized(ctx context.Context, accessRecords ...aut
 		}
 
 		if ar.Action == accessResourceActionPull {
-			ok, err := isYTReadAuthorized(ctx, yc, userID, utils.GetSchedulerHintsDocumentPath(ar.Resource.Name))
+			ok, err := isYTReadAuthorized(ctxWithUserCredentials, yc, userID, utils.GetSchedulerHintsDocumentPath(ar.Resource.Name))
 			if err != nil {
 				return nil, &internalServerError{err}
 			}
@@ -155,7 +157,7 @@ func (ac *accessController) Authorized(ctx context.Context, accessRecords ...aut
 			}
 		}
 		if ar.Action == accessResourceActionPush {
-			ok, err := isYTWriteAuthorized(ctx, yc, userID, utils.GetSchedulerHintsDocumentPath(ar.Resource.Name))
+			ok, err := isYTWriteAuthorized(ctxWithUserCredentials, yc, userID, utils.GetSchedulerHintsDocumentPath(ar.Resource.Name))
 			if err != nil {
 				return nil, &internalServerError{err}
 			}
@@ -164,7 +166,7 @@ func (ac *accessController) Authorized(ctx context.Context, accessRecords ...aut
 			}
 		}
 		if ar.Action == accessResourceActionDelete {
-			ok, err := isYTDeleteAuthorized(ctx, yc, userID, utils.GetSchedulerHintsDocumentPath(ar.Resource.Name))
+			ok, err := isYTDeleteAuthorized(ctxWithUserCredentials, yc, userID, utils.GetSchedulerHintsDocumentPath(ar.Resource.Name))
 			if err != nil {
 				return nil, &internalServerError{err}
 			}
