@@ -12,6 +12,48 @@ namespace NYT::NContainers {
 
 using TResourceUsage = THashMap<EStatField, TErrorOr<ui64>>;
 
+const std::vector<EStatField> InstanceStatFields{
+    EStatField::CpuUsage,
+    EStatField::CpuUserUsage,
+    EStatField::CpuSystemUsage,
+    EStatField::CpuWait,
+    EStatField::CpuThrottled,
+    EStatField::ContextSwitches,
+    EStatField::ThreadCount,
+    EStatField::CpuLimit,
+    EStatField::CpuGuarantee,
+
+    EStatField::Rss,
+    EStatField::MappedFile,
+    EStatField::MajorPageFaults,
+    EStatField::MinorPageFaults,
+    EStatField::FileCacheUsage,
+    EStatField::AnonMemoryUsage,
+    EStatField::AnonMemoryLimit,
+    EStatField::MemoryUsage,
+    EStatField::MemoryGuarantee,
+    EStatField::MemoryLimit,
+    EStatField::MaxMemoryUsage,
+
+    EStatField::IOReadByte,
+    EStatField::IOWriteByte,
+    EStatField::IOBytesLimit,
+    EStatField::IOReadOps,
+    EStatField::IOWriteOps,
+    EStatField::IOOps,
+    EStatField::IOOpsLimit,
+    EStatField::IOTotalTime,
+
+    EStatField::NetTxBytes,
+    EStatField::NetTxPackets,
+    EStatField::NetTxDrops,
+    EStatField::NetTxLimit,
+    EStatField::NetRxBytes,
+    EStatField::NetRxPackets,
+    EStatField::NetRxDrops,
+    EStatField::NetRxLimit,
+};
+
 struct TResourceLimits
 {
     double CpuLimit;
@@ -46,7 +88,7 @@ struct IInstanceLauncher
     virtual void SetUser(const TString& user) = 0;
     virtual void SetIPAddresses(
         const std::vector<NNet::TIP6Address>& addresses,
-        bool enableNat64=false) = 0;
+        bool enableNat64 = false) = 0;
     virtual void SetHostName(const TString& hostName) = 0;
 
     virtual TFuture<IInstancePtr> Launch(
@@ -64,13 +106,14 @@ IInstanceLauncherPtr CreatePortoInstanceLauncher(const TString& name, IPortoExec
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IInstance
-    :  public TRefCounted
+    : public TRefCounted
 {
     virtual void Kill(int signal) = 0;
     virtual void Stop() = 0;
     virtual void Destroy() = 0;
 
-    virtual TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const = 0;
+    virtual TResourceUsage GetResourceUsage(
+        const std::vector<EStatField>& fields = InstanceStatFields) const = 0;
     virtual TResourceLimits GetResourceLimits() const = 0;
     virtual void SetCpuGuarantee(double cores) = 0;
     virtual void SetCpuLimit(double cores) = 0;

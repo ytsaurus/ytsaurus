@@ -11,8 +11,8 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/collection_helpers.h>
+#include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
@@ -52,14 +52,21 @@ TString EscapeForWordexp(const char* in)
     return buffer;
 }
 
-i64 Extract(const TString& input, const TString& pattern, const TString& terminator = "\n")
+i64 Extract(
+    const TString& input,
+    const TString& pattern,
+    const TString& terminator = "\n")
 {
     auto start = input.find(pattern) + pattern.length();
     auto end = input.find(terminator, start);
     return std::stol(input.substr(start, (end == input.npos) ? end : end - start));
 }
 
-i64 ExtractSum(const TString& input, const TString& pattern, const TString& delimiter, const TString& terminator = "\n")
+i64 ExtractSum(
+    const TString& input,
+    const TString& pattern,
+    const TString& delimiter,
+    const TString& terminator = "\n")
 {
     i64 sum = 0;
     TString::size_type pos = 0;
@@ -84,43 +91,66 @@ i64 ExtractSum(const TString& input, const TString& pattern, const TString& deli
 
 using TPortoStatRule = std::pair<TString, std::function<i64(const TString& input)>>;
 
+static const std::function<i64(const TString&)> LongExtractor = [] (const TString& in) {
+    return std::stol(in);
+};
+
+static const std::function<i64(const TString&)> CorePercentPerSecondAsNsExtractor = [] (const TString& in) {
+    int pos = in.find("c", 0);
+    return (std::stod(in.substr(0, pos)) / 100.) * 1'000'000'000;
+};
+
+static const std::function<i64(const TString&)> GetIOStatExtractor(const TString& rwMode = "")
+{
+    return [rwMode] (const TString& in) {
+        return ExtractSum(in, "hw", rwMode + ":",  ";");
+    };
+}
+
+static const std::function<i64(const TString&)> GetStatByKeyExtractor(const TString& statKey)
+{
+    return [statKey] (const TString& in) {
+        return Extract(in, statKey);
+    };
+}
+
 const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
-    { EStatField::CpuUsage,       { "cpu_usage",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::CpuUsageSystem, { "cpu_usage_system",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::CpuWait,        { "cpu_wait",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::CpuThrottled,   { "cpu_throttled",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::Rss,            { "memory.stat",
-        [] (const TString& in)    { return Extract(in, "total_rss");          } } },
-    { EStatField::MappedFiles,    { "memory.stat",
-        [] (const TString& in)    { return Extract(in, "total_mapped_file");  } } },
-    { EStatField::IOOperations,   { "io_ops",
-        [] (const TString& in)    { return ExtractSum(in, "hw", ":", ";");    } } },
-    { EStatField::IOReadByte,     { "io_read",
-        [] (const TString& in)    { return ExtractSum(in, "hw", ":", ";");    } } },
-    { EStatField::IOWriteByte,    { "io_write",
-        [] (const TString& in)    { return ExtractSum(in, "hw", ":", ";");    } } },
-    { EStatField::MaxMemoryUsage, { "memory.max_usage_in_bytes",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::MajorFaults,    { "major_faults",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::ThreadCount,    { "thread_count",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::NetTxBytes,     { "net_tx_bytes[Uplink]",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::NetTxPackets,   { "net_tx_packets[Uplink]",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::NetTxDrops,     { "net_tx_drops[Uplink]",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::NetRxBytes,     { "net_rx_bytes[Uplink]",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::NetRxPackets,   { "net_rx_packets[Uplink]",
-        [] (const TString& in)    { return std::stol(in);                     } } },
-    { EStatField::NetRxDrops,     { "net_rx_drops[Uplink]",
-        [] (const TString& in)    { return std::stol(in);                     } } },
+    {EStatField::CpuUsage, {"cpu_usage", LongExtractor}},
+    {EStatField::CpuSystemUsage, {"cpu_usage_system", LongExtractor}},
+    {EStatField::CpuWait, {"cpu_wait", LongExtractor}},
+    {EStatField::CpuThrottled, {"cpu_throttled", LongExtractor}},
+    {EStatField::ThreadCount, {"thread_count", LongExtractor}},
+    {EStatField::CpuLimit, {"cpu_limit", CorePercentPerSecondAsNsExtractor}},
+    {EStatField::CpuGuarantee, {"cpu_guarantee", CorePercentPerSecondAsNsExtractor}},
+    {EStatField::Rss, {"memory.stat", GetStatByKeyExtractor("total_rss")}},
+    {EStatField::MappedFile, {"memory.stat", GetStatByKeyExtractor("total_mapped_file")}},
+    {EStatField::MinorPageFaults, {"minor_faults", LongExtractor}},
+    {EStatField::MajorPageFaults, {"major_faults", LongExtractor}},
+    {EStatField::FileCacheUsage, {"cache_usage", LongExtractor}},
+    {EStatField::AnonMemoryUsage, {"anon_usage", LongExtractor}},
+    {EStatField::AnonMemoryLimit, {"anon_limit_total", LongExtractor}},
+    {EStatField::MemoryUsage, {"memory_usage", LongExtractor}},
+    {EStatField::MemoryGuarantee, {"memory_guarantee", LongExtractor}},
+    {EStatField::MemoryLimit, {"memory_limit_total", LongExtractor}},
+    {EStatField::MaxMemoryUsage, {"memory.max_usage_in_bytes", LongExtractor}},
+
+    {EStatField::IOReadByte, {"io_read", GetIOStatExtractor()}},
+    {EStatField::IOWriteByte, {"io_write", GetIOStatExtractor()}},
+    {EStatField::IOBytesLimit, {"io_limit", GetIOStatExtractor()}},
+    {EStatField::IOReadOps, {"io_ops", GetIOStatExtractor("[r]")}},
+    {EStatField::IOWriteOps, {"io_ops", GetIOStatExtractor("[w]")}},
+    {EStatField::IOOps, {"io_ops", GetIOStatExtractor()}},
+    {EStatField::IOOpsLimit, {"io_ops_limit", GetIOStatExtractor()}},
+    {EStatField::IOTotalTime, {"io_time", GetIOStatExtractor()}},
+
+    {EStatField::NetTxBytes, {"net_tx_bytes[Uplink]", LongExtractor}},
+    {EStatField::NetTxPackets, {"net_tx_packets[Uplink]", LongExtractor}},
+    {EStatField::NetTxDrops, {"net_tx_drops[Uplink]", LongExtractor}},
+    {EStatField::NetTxLimit, {"net_limit[Uplink]", LongExtractor}},
+    {EStatField::NetRxBytes, {"net_rx_bytes[Uplink]", LongExtractor}},
+    {EStatField::NetRxPackets, {"net_rx_packets[Uplink]", LongExtractor}},
+    {EStatField::NetRxDrops, {"net_rx_drops[Uplink]", LongExtractor}},
+    {EStatField::NetRxLimit, {"net_rx_limit[Uplink]", LongExtractor}},
 };
 
 std::optional<TString> GetParentName(const TString& name)
@@ -344,11 +374,28 @@ public:
             .ThrowOnError();
     }
 
-    TResourceUsage GetResourceUsage(const std::vector<EStatField>& fields) const override
+    TErrorOr<ui64> СalculateCpuUserUsage(
+        TErrorOr<ui64>& cpuUsage,
+        TErrorOr<ui64>& cpuSystemUsage) const
+    {
+        if (cpuUsage.IsOK() && cpuSystemUsage.IsOK()) {
+            return cpuUsage.Value() - cpuSystemUsage.Value();
+        } else if (cpuUsage.IsOK()) {
+            return TError("Missing property %Qlv in Porto response", EStatField::CpuSystemUsage)
+                << TErrorAttribute("container", Name_);
+        } else {
+            return TError("Missing property %Qlv in Porto response", EStatField::CpuUsage)
+                << TErrorAttribute("container", Name_);
+        }
+    }
+
+    TResourceUsage GetResourceUsage(
+        const std::vector<EStatField>& fields) const override
     {
         std::vector<TString> properties;
         properties.push_back("absolute_name");
 
+        bool userTimeRequested = false;
         bool contextSwitchesRequested = false;
         for (auto field : fields) {
             if (auto it = NDetail::PortoStatRules.find(field)) {
@@ -356,6 +403,8 @@ public:
                 properties.push_back(rule.first);
             } else if (field == EStatField::ContextSwitches) {
                 contextSwitchesRequested = true;
+            } else if (field == EStatField::CpuUserUsage) {
+                userTimeRequested = true;
             } else {
                 THROW_ERROR_EXCEPTION("Unknown resource field %Qlv requested", field)
                     << TErrorAttribute("container", Name_);
@@ -379,6 +428,7 @@ public:
                 const auto& valueOrError = responseIt->second;
                 if (valueOrError.IsOK()) {
                     const auto& value = valueOrError.Value();
+
                     try {
                         record = callback(value);
                     } catch (const std::exception& ex) {
@@ -417,6 +467,12 @@ public:
 
             if (contextSwitchesRequested) {
                 result[EStatField::ContextSwitches] = TotalContextSwitches_;
+            }
+
+            if (userTimeRequested) {
+                result[EStatField::CpuUserUsage] = СalculateCpuUserUsage(
+                    result[EStatField::CpuUsage],
+                    result[EStatField::CpuSystemUsage]);
             }
         }
 
@@ -600,9 +656,7 @@ private:
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
 
-    TPortoInstance(
-        const TString name,
-        IPortoExecutorPtr executor)
+    TPortoInstance(const TString name, IPortoExecutorPtr executor)
         : Name_(std::move(name))
         , Executor_(std::move(executor))
         , Logger(ContainersLogger.WithTag("Container: %v", Name_))
