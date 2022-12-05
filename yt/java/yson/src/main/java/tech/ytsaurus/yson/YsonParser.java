@@ -10,7 +10,7 @@ import javax.annotation.Nullable;
 
 /**
  * Parser of YSON data.
- *
+ * <p>
  * Class throws {@link YsonError} if yson is malformed.
  * All IO errors are translated to {@link UncheckedIOException}.
  */
@@ -55,7 +55,7 @@ public class YsonParser {
 
     /**
      * Parse YSON node.
-     *
+     * <p>
      * This method will consume whole input stream and will throw {@link YsonError} exception if
      * stream contains trailing (non whitespace) bytes.
      */
@@ -77,7 +77,7 @@ public class YsonParser {
 
     /**
      * Parse YSON list fragment
-     *
+     * <p>
      * This method will consume whole input stream and will throw {@link YsonError} exception if
      * stream contains trailing (non whitespace) bytes.
      */
@@ -95,7 +95,7 @@ public class YsonParser {
 
     /**
      * Parses single item of list fragment.
-     *
+     * <p>
      * Unlike {@link #parseListFragment} that calls {@link YsonConsumer#onListItem()} before each top level list item
      * this method doesn't call
      *
