@@ -322,4 +322,4 @@ class TestReadDynamicTableFormats(DynamicTablesBase):
         insert_rows("//tmp/t", items)
         sync_flush_table("//tmp/t")
 
-        assert select_rows("* from [//tmp/t]") == items[::-1]
+        assert select_rows("* from [//tmp/t] order by key limit 2") == items[::-1]
