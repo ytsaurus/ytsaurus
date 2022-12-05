@@ -191,7 +191,7 @@ public:
             THROW_ERROR_EXCEPTION("Parsing service tickets is disabled");
         }
 
-        YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
+        YT_LOG_DEBUG("Parsing service ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
         ParseServiceTicketCountCounter_.Increment();
         TWallTimer timer;
 
@@ -435,7 +435,7 @@ public:
             THROW_ERROR_EXCEPTION("Parsing service tickets is disabled");
         }
 
-        YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", ticket);
+        YT_LOG_DEBUG("Parsing service ticket (Ticket: %v)", ticket);
 
         if (!ticket.StartsWith(TicketPrefix)) {
             THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "Bad ticket header");
