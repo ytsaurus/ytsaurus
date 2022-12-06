@@ -537,7 +537,7 @@ private:
         YT_VERIFY(!queue->HasUnflushedRecords());
 
         EraseOrCrash(Queues_, queue);
-        ShrinkHashTable(&Queues_);
+        ShrinkHashTable(Queues_);
         ProfileQueues();
 
         YT_LOG_DEBUG("Changelog queue unregistered (Path: %v)",

@@ -298,7 +298,7 @@ std::vector<TString> TTabletBalancer::UpdateBundleList()
     }
 
     // Find bundles that are not in the list of bundles (probably deleted) and erase them.
-    DropMissingKeys(&Bundles_, currentBundles);
+    DropMissingKeys(Bundles_, currentBundles);
     return newBundles;
 }
 

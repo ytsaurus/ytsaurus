@@ -305,7 +305,7 @@ void TChunk::RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, const TMed
         if (cachedReplicas->empty()) {
             data->CachedReplicas.reset();
         } else {
-            ShrinkHashTable(cachedReplicas);
+            ShrinkHashTable(*cachedReplicas);
         }
     } else {
         if (approved) {

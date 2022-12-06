@@ -165,7 +165,7 @@ void TBundleState::DoUpdateState()
         }
     }
 
-    DropMissingKeys(&Tablets_, tabletIds);
+    DropMissingKeys(Tablets_, tabletIds);
 
     YT_LOG_DEBUG("Started fetching basic table attributes (NewTableCount: %v)", newTableIds.size());
     Counters_->BasicTableAttributesRequestCount.Increment(newTableIds.size());
@@ -223,7 +223,7 @@ void TBundleState::DoFetchStatistics()
     for (const auto& [id, info] : tableSettings) {
         EmplaceOrCrash(tableIds, id);
     }
-    DropMissingKeys(&Bundle_->Tables, tableIds);
+    DropMissingKeys(Bundle_->Tables, tableIds);
 
     THashSet<TTableId> tableIdsToFetch;
     for (auto& [tableId, tableSettings] : tableSettings) {
@@ -320,8 +320,8 @@ void TBundleState::DoFetchStatistics()
         InsertOrCrash(finalTableIds, tableId);
     }
 
-    DropMissingKeys(&Tablets_, tabletIds);
-    DropMissingKeys(&ProfilingCounters_, finalTableIds);
+    DropMissingKeys(Tablets_, tabletIds);
+    DropMissingKeys(ProfilingCounters_, finalTableIds);
 }
 
 THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTabletCells() const

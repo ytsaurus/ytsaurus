@@ -33,13 +33,13 @@ std::vector<typename std::tuple_element<N, typename T::value_type>::type> GetIth
     size_t sizeLimit = std::numeric_limits<size_t>::max());
 
 template <class T>
-bool ShrinkHashTable(T* collection);
+bool ShrinkHashTable(T&& collection);
 
 template <class TSource, class TTarget>
 void MergeFrom(TTarget* target, const TSource& source);
 
-template <typename TKey, typename TValue>
-void DropMissingKeys(THashMap<TKey, TValue>* map, const THashSet<TKey>& set);
+template <class TMap, class TKeySet>
+void DropMissingKeys(TMap&& map, const TKeySet& set);
 
 /*!
  * This function is supposed to replace a frequent pattern
@@ -50,10 +50,7 @@ void DropMissingKeys(THashMap<TKey, TValue>* map, const THashSet<TKey>& set);
  *    use GetIteratorOrCrash(map, key);
  */
 template <class TMap, class TKey>
-auto GetIteratorOrCrash(const TMap& map, const TKey& key);
-
-template <class TMap, class TKey>
-auto GetIteratorOrCrash(TMap& map, const TKey& key);
+auto GetIteratorOrCrash(TMap&& map, const TKey& key);
 
 /*!
  * This function is supposed to replace a frequent pattern
@@ -67,7 +64,7 @@ template <class TMap, class TKey>
 const auto& GetOrCrash(const TMap& map, const TKey& key);
 
 template <class TMap, class TKey>
-auto& GetOrCrash(TMap& map, const TKey& key);
+auto& GetOrCrash(TMap&& map, const TKey& key);
 
 /*!
  * This function is supposed to replace a frequent pattern
@@ -76,7 +73,7 @@ auto& GetOrCrash(TMap& map, const TKey& key);
  *    EraseOrCrash(map, key);
  */
 template <class TMap, class TKey>
-void EraseOrCrash(const TMap& map, const TKey& key);
+void EraseOrCrash(TMap&& map, const TKey& key);
 
 /*!
  * This function is supposed to replace a frequent pattern
@@ -85,7 +82,7 @@ void EraseOrCrash(const TMap& map, const TKey& key);
  *    InsertOrCrash(map, pair);
  */
 template <class TContainer, class TArg>
-auto InsertOrCrash(TContainer& container, TArg&& arg);
+auto InsertOrCrash(TContainer&& container, TArg&& arg);
 
 /*!
  * This function is supposed to replace a frequent pattern
@@ -94,7 +91,7 @@ auto InsertOrCrash(TContainer& container, TArg&& arg);
  *    EmplaceOrCrash(map, key, value);
  */
 template <class TContainer, class... TArgs>
-auto EmplaceOrCrash(TContainer& container, TArgs&&... args);
+auto EmplaceOrCrash(TContainer&& container, TArgs&&... args);
 
 /*!
  * This function is supposed to replace std::get<T>(variant)
@@ -121,7 +118,7 @@ template <class T>
 void SortByFirst(T begin, T end);
 
 template <class T>
-void SortByFirst(T& collection);
+void SortByFirst(T&& collection);
 
 template <class T>
 std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMapByKeys(const T& hashMap);
