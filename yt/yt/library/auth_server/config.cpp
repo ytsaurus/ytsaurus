@@ -64,6 +64,8 @@ void TTvmServiceConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("client_self_secret", &TThis::ClientSelfSecret)
         .Optional();
+    registrar.Parameter("client_self_secret_path", &TThis::ClientSelfSecretPath)
+        .Optional();
     registrar.Parameter("client_dst_map", &TThis::ClientDstMap)
         .Optional();
     registrar.Parameter("client_enable_service_ticket_checking", &TThis::ClientEnableServiceTicketChecking)

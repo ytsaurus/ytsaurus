@@ -70,7 +70,12 @@ public:
     TString ClientBlackboxEnv;
 
     bool ClientEnableServiceTicketFetching = false;
-    TString ClientSelfSecret;
+
+    std::optional<TString> ClientSelfSecret;
+
+    //! Path to TVM secret. Used if ClientSelfSecret is unset.
+    std::optional<TString> ClientSelfSecretPath;
+
     THashMap<TString, ui32> ClientDstMap;
 
     bool ClientEnableServiceTicketChecking = false;
