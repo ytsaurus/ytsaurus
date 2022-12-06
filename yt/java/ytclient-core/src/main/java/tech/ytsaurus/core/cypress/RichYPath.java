@@ -2,7 +2,6 @@ package tech.ytsaurus.core.cypress;
 
 import java.util.ArrayList;
 import java.util.Collection;
-import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -12,6 +11,8 @@ import java.util.Set;
 import java.util.stream.Collectors;
 import java.util.stream.Stream;
 
+import javax.annotation.Nullable;
+
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -19,53 +20,55 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
+import ru.yandex.lang.NonNullFields;
+
 
 /**
  * @author sankear
  */
+@NonNullFields
 public class RichYPath implements YPath {
 
     private String rootDesignator;
     private List<String> relativePath;
 
-    private Optional<Boolean> append;
-    private Optional<Boolean> primary;
-    private Optional<Boolean> foreign;
+    private @Nullable Boolean append;
+    private @Nullable Boolean primary;
+    private @Nullable Boolean foreign;
     private List<RangeCriteria> ranges;
     private List<String> columns;
     private Map<String, String> renameColumns;
     private List<String> sortedBy;
-    private Optional<Long> timestamp;
-    private Optional<YTreeNode> schema;
-    private Optional<String> format;
-    private Optional<Boolean> bypassArtifactCache;
-    private Optional<Boolean> executable;
+    private @Nullable Long timestamp;
+    private @Nullable YTreeNode schema;
+    private @Nullable String format;
+    private @Nullable Boolean bypassArtifactCache;
+    private @Nullable Boolean executable;
 
     private Map<String, YTreeNode> additionalAttributes;
 
     RichYPath(String rootDesignator, List<String> relativePath) {
         this.rootDesignator = rootDesignator;
         this.relativePath = relativePath;
+        this.append = null;
+        this.primary = null;
+        this.foreign = null;
+        this.ranges = List.of();
+        this.columns = List.of();
+        this.renameColumns = Map.of();
+        this.sortedBy = List.of();
+        this.timestamp = null;
+        this.schema = null;
+        this.format = null;
+        this.bypassArtifactCache = null;
+        this.executable = null;
 
-        this.append = Optional.empty();
-        this.primary = Optional.empty();
-        this.foreign = Optional.empty();
-        this.ranges = Collections.emptyList();
-        this.columns = Collections.emptyList();
-        this.renameColumns = Collections.emptyMap();
-        this.sortedBy = Collections.emptyList();
-        this.timestamp = Optional.empty();
-        this.schema = Optional.empty();
-        this.format = Optional.empty();
-        this.bypassArtifactCache = Optional.empty();
-        this.executable = Optional.empty();
-
-        this.additionalAttributes = Collections.emptyMap();
+        this.additionalAttributes = Map.of();
     }
 
-    private RichYPath(RichYPath other) {
+    private RichYPath(RichYPath other, List<String> relativePath) {
         this.rootDesignator = other.rootDesignator;
-        this.relativePath = other.relativePath;
+        this.relativePath = relativePath;
 
         this.append = other.append;
         this.primary = other.primary;
@@ -81,6 +84,10 @@ public class RichYPath implements YPath {
         this.executable = other.executable;
 
         this.additionalAttributes = other.additionalAttributes;
+    }
+
+    private RichYPath(RichYPath other) {
+        this(other, other.relativePath);
     }
 
     @Override
@@ -131,13 +138,16 @@ public class RichYPath implements YPath {
     }
 
     /**
-     * @return path without RichPath additional attributes
+     * Get path without RichPath additional attributes.
      */
     @Override
     public YPath justPath() {
         return new RichYPath(rootDesignator, relativePath);
     }
 
+    /**
+     * Get last component of the path (e.g. `//foo/bar` -> `bar`).
+     */
     @Override
     public String name() {
         if (isAttribute()) {
@@ -165,7 +175,7 @@ public class RichYPath implements YPath {
     public YPath withObjectRoot(GUID id) {
         RichYPath copy = new RichYPath(this);
         copy.rootDesignator = "#" + id;
-        copy.relativePath = Collections.emptyList();
+        copy.relativePath = List.of();
         return copy;
     }
 
@@ -174,10 +184,8 @@ public class RichYPath implements YPath {
         if (relativePath.isEmpty()) {
             return this;
         }
-
-        RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(relativePath.subList(0, relativePath.size() - 1));
-        return copy;
+        List<String> newRelativePath = List.copyOf(relativePath.subList(0, relativePath.size() - 1));
+        return new RichYPath(this, newRelativePath);
     }
 
     @Override
@@ -185,9 +193,8 @@ public class RichYPath implements YPath {
         List<String> list = new ArrayList<>(relativePath);
         list.addAll(getRelativePath("/".concat(key), 0));
 
-        RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
-        return copy;
+        List<String> newRelativePath = List.copyOf(list);
+        return new RichYPath(this, newRelativePath);
     }
 
     @Override
@@ -195,9 +202,8 @@ public class RichYPath implements YPath {
         List<String> list = new ArrayList<>(relativePath);
         list.add("after:" + index);
 
-        RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
-        return copy;
+        List<String> newRelativePath = List.copyOf(list);
+        return new RichYPath(this, newRelativePath);
     }
 
     @Override
@@ -205,9 +211,8 @@ public class RichYPath implements YPath {
         List<String> list = new ArrayList<>(relativePath);
         list.add("before:" + index);
 
-        RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
-        return copy;
+        List<String> newRelativePath = List.copyOf(list);
+        return new RichYPath(this, newRelativePath);
     }
 
     @Override
@@ -215,9 +220,8 @@ public class RichYPath implements YPath {
         List<String> list = new ArrayList<>(relativePath);
         list.add("begin");
 
-        RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
-        return copy;
+        List<String> newRelativePath = List.copyOf(list);
+        return new RichYPath(this, newRelativePath);
     }
 
     @Override
@@ -225,9 +229,8 @@ public class RichYPath implements YPath {
         List<String> list = new ArrayList<>(relativePath);
         list.add("end");
 
-        RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
-        return copy;
+        List<String> newRelativePath = List.copyOf(list);
+        return new RichYPath(this, newRelativePath);
     }
 
     @Override
@@ -236,7 +239,7 @@ public class RichYPath implements YPath {
         list.add(String.valueOf(index));
 
         RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
+        copy.relativePath = List.copyOf(list);
         return copy;
     }
 
@@ -246,7 +249,7 @@ public class RichYPath implements YPath {
         list.add("@" + key);
 
         RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
+        copy.relativePath = List.copyOf(list);
         return copy;
     }
 
@@ -256,7 +259,7 @@ public class RichYPath implements YPath {
         list.add("*");
 
         RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
+        copy.relativePath = List.copyOf(list);
         return copy;
     }
 
@@ -266,55 +269,55 @@ public class RichYPath implements YPath {
         list.add("@");
 
         RichYPath copy = new RichYPath(this);
-        copy.relativePath = Collections.unmodifiableList(list);
+        copy.relativePath = List.copyOf(list);
         return copy;
     }
 
     @Override
     public Optional<Boolean> getAppend() {
-        return append;
+        return Optional.ofNullable(append);
     }
 
     @Override
     public YPath append(boolean append) {
         RichYPath copy = new RichYPath(this);
-        copy.append = Optional.of(append);
+        copy.append = append;
         return copy;
     }
 
     @Override
     public Optional<Boolean> getPrimary() {
-        return primary;
+        return Optional.ofNullable(primary);
     }
 
     @Override
     public YPath primary(boolean primary) {
         RichYPath copy = new RichYPath(this);
-        copy.primary = Optional.of(primary);
+        copy.primary = primary;
         return copy;
     }
 
     @Override
     public Optional<Boolean> getForeign() {
-        return foreign;
+        return Optional.ofNullable(foreign);
     }
 
     @Override
     public YPath foreign(boolean foreign) {
         RichYPath copy = new RichYPath(this);
-        copy.foreign = Optional.of(foreign);
+        copy.foreign = foreign;
         return copy;
     }
 
     @Override
     public Optional<YTreeNode> getSchema() {
-        return schema;
+        return Optional.ofNullable(schema);
     }
 
     @Override
     public YPath withSchema(YTreeNode schema) {
         RichYPath copy = new RichYPath(this);
-        copy.schema = Optional.of(schema);
+        copy.schema = schema;
         return copy;
     }
 
@@ -326,7 +329,7 @@ public class RichYPath implements YPath {
     @Override
     public YPath ranges(List<RangeCriteria> ranges) {
         RichYPath copy = new RichYPath(this);
-        copy.ranges = Collections.unmodifiableList(new ArrayList<>(ranges));
+        copy.ranges = List.copyOf(new ArrayList<>(ranges));
         return copy;
     }
 
@@ -336,7 +339,7 @@ public class RichYPath implements YPath {
         list.add(range);
 
         RichYPath copy = new RichYPath(this);
-        copy.ranges = Collections.unmodifiableList(new ArrayList<>(list));
+        copy.ranges = List.copyOf(new ArrayList<>(list));
         return copy;
     }
 
@@ -348,7 +351,7 @@ public class RichYPath implements YPath {
     @Override
     public YPath withColumns(Collection<String> columns) {
         RichYPath copy = new RichYPath(this);
-        copy.columns = Collections.unmodifiableList(new ArrayList<>(columns));
+        copy.columns = List.copyOf(new ArrayList<>(columns));
         return copy;
     }
 
@@ -360,7 +363,7 @@ public class RichYPath implements YPath {
     @Override
     public YPath withRenameColumns(Map<String, String> renameColumns) {
         RichYPath copy = new RichYPath(this);
-        copy.renameColumns = Collections.unmodifiableMap(new HashMap<>(renameColumns));
+        copy.renameColumns = Map.copyOf(renameColumns);
         return copy;
     }
 
@@ -370,7 +373,7 @@ public class RichYPath implements YPath {
         map.putAll(renameColumns);
 
         RichYPath copy = new RichYPath(this);
-        copy.renameColumns = Collections.unmodifiableMap(map);
+        copy.renameColumns = Map.copyOf(map);
         return copy;
     }
 
@@ -382,43 +385,43 @@ public class RichYPath implements YPath {
     @Override
     public YPath sortedBy(List<String> sortedBy) {
         RichYPath copy = new RichYPath(this);
-        copy.sortedBy = Collections.unmodifiableList(new ArrayList<>(sortedBy));
+        copy.sortedBy = List.copyOf(new ArrayList<>(sortedBy));
         return copy;
     }
 
     @Override
     public Optional<Long> getTimestamp() {
-        return timestamp;
+        return Optional.ofNullable(timestamp);
     }
 
     @Override
     public YPath withTimestamp(long timestamp) {
         RichYPath copy = new RichYPath(this);
-        copy.timestamp = Optional.of(timestamp);
+        copy.timestamp = timestamp;
         return copy;
     }
 
     @Override
     public Optional<String> getFormat() {
-        return format;
+        return Optional.ofNullable(format);
     }
 
     @Override
     public YPath withFormat(String format) {
         RichYPath copy = new RichYPath(this);
-        copy.format = Optional.of(format);
+        copy.format = format;
         return copy;
     }
 
     @Override
     public Optional<Boolean> getExecutable() {
-        return executable;
+        return Optional.ofNullable(executable);
     }
 
     @Override
     public YPath withExecutable(boolean executable) {
         RichYPath copy = new RichYPath(this);
-        copy.executable = Optional.of(executable);
+        copy.executable = executable;
         return copy;
     }
 
@@ -435,7 +438,7 @@ public class RichYPath implements YPath {
     @Override
     public YPath withAdditionalAttributes(Map<String, YTreeNode> additionalAttributes) {
         RichYPath copy = new RichYPath(this);
-        copy.additionalAttributes = Collections.unmodifiableMap(new HashMap<>(additionalAttributes));
+        copy.additionalAttributes = Map.copyOf(additionalAttributes);
         return copy;
     }
 
@@ -445,19 +448,19 @@ public class RichYPath implements YPath {
         map.put(key, value);
 
         RichYPath copy = new RichYPath(this);
-        copy.additionalAttributes = Collections.unmodifiableMap(map);
+        copy.additionalAttributes = Map.copyOf(map);
         return copy;
     }
 
     @Override
     public Optional<Boolean> getBypassArtifactCache() {
-        return bypassArtifactCache;
+        return Optional.ofNullable(bypassArtifactCache);
     }
 
     @Override
     public YPath withBypassArtifactCache(boolean bypassArtifactCache) {
         RichYPath copy = new RichYPath(this);
-        copy.bypassArtifactCache = Optional.of(bypassArtifactCache);
+        copy.bypassArtifactCache = bypassArtifactCache;
         return copy;
     }
 
@@ -482,14 +485,14 @@ public class RichYPath implements YPath {
     private YTreeBuilder buildAttributes(YTreeBuilder builder) {
         return builder
                 .beginAttributes()
-                .when(append.isPresent(), b -> b.key("append").value(append.get()))
-                .when(primary.isPresent(), b -> b.key("primary").value(primary.get()))
+                .when(append != null, b -> b.key("append").value(append))
+                .when(primary != null, b -> b.key("primary").value(primary))
                 .when(!ranges.isEmpty(), b -> b.key("ranges").value(ranges, (b2, r) -> {
                     YTreeBuilder rangesBuilder = b2.beginMap();
                     rangesBuilder = r.addRangeCriteria(rangesBuilder);
                     return rangesBuilder.endMap();
                 }))
-                .when(foreign.isPresent(), b -> b.key("foreign").value(foreign.get()))
+                .when(foreign != null, b -> b.key("foreign").value(foreign))
                 .when(!columns.isEmpty(), b -> b.key("columns").value(columns))
                 .when(!renameColumns.isEmpty(), b -> {
                     YTreeBuilder mapBuilder = YTree.mapBuilder();
@@ -499,12 +502,12 @@ public class RichYPath implements YPath {
                     return b.key("rename_columns").value(mapBuilder.buildMap());
                 })
                 .when(!sortedBy.isEmpty(), b -> b.key("sorted_by").value(sortedBy))
-                .when(timestamp.isPresent(), b -> b.key("timestamp").value(timestamp.get()))
-                .when(schema.isPresent(), b -> b.key("schema").value(schema.get()))
-                .when(format.isPresent(), b -> b.key("format").value(format.get()))
-                .when(bypassArtifactCache.isPresent(),
-                        b -> b.key("bypass_artifact_cache").value(bypassArtifactCache.get()))
-                .when(executable.isPresent(), b -> b.key("executable").value(executable.get()))
+                .when(timestamp != null, b -> b.key("timestamp").value(timestamp))
+                .when(schema != null, b -> b.key("schema").value(schema))
+                .when(format != null, b -> b.key("format").value(format))
+                .when(bypassArtifactCache != null,
+                        b -> b.key("bypass_artifact_cache").value(bypassArtifactCache))
+                .when(executable != null, b -> b.key("executable").value(executable))
                 .apply(b -> {
                     for (Map.Entry<String, YTreeNode> node : additionalAttributes.entrySet()) {
                         b.key(node.getKey()).value(node.getValue());
@@ -522,11 +525,11 @@ public class RichYPath implements YPath {
     }
 
     public static YPath cypressRoot() {
-        return new RichYPath("/", Collections.emptyList());
+        return new RichYPath("/", List.of());
     }
 
     public static YPath objectRoot(GUID id) {
-        return new RichYPath("#" + id.toString(), Collections.emptyList());
+        return new RichYPath("#" + id.toString(), List.of());
     }
 
     public static YPath simple(String path) {
@@ -565,7 +568,7 @@ public class RichYPath implements YPath {
 
     private static List<String> getRelativePath(String path, int ptr) {
         if (ptr >= path.length()) {
-            return Collections.emptyList();
+            return List.of();
         }
         if (path.charAt(ptr) != '/') {
             throw new IllegalStateException();
@@ -582,7 +585,7 @@ public class RichYPath implements YPath {
             result.add(path.substring(ptr + 1, nextPtr));
             ptr = nextPtr;
         }
-        return Collections.unmodifiableList(result);
+        return List.copyOf(result);
     }
 
     private static YPath fromAttributes(YPath simplePath, Map<String, YTreeNode> attrs) {
@@ -615,7 +618,7 @@ public class RichYPath implements YPath {
                 .collect(Collectors.toSet());
         Map<String, String> renameColumns = Optional.ofNullable(attributes.remove("rename_columns"))
                 .map(v -> v.asMap().entrySet().stream()).orElse(Stream.of())
-                .collect(Collectors.toMap(v -> v.getKey(), v -> v.getValue().stringValue()));
+                .collect(Collectors.toMap(Map.Entry::getKey, v -> v.getValue().stringValue()));
         List<String> sortedBy = Optional.ofNullable(attributes.remove("sorted_by"))
                 .map(v -> v.asList().stream()).orElse(Stream.of())
                 .map(YTreeNode::stringValue)
