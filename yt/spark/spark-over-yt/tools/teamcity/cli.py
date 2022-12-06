@@ -1,16 +1,19 @@
 #!/usr/bin/env/ python3
-
+import logging
 from xml.etree import ElementTree
 import os
 import pathlib
 import re
 import subprocess
+import sys
 import typing
 
 import click
 
-
 ARCADIA_PROJECT_ROOT = 'yt/spark/'
+
+logging.basicConfig(level=logging.DEBUG, stream=sys.stdout)
+logger = logging.getLogger('cli.py')
 
 
 class ComponentVersion(typing.NamedTuple):
@@ -63,10 +66,22 @@ def extract_spark_fork_version(path: pathlib.Path):
         yield ComponentVersion('spark-fork', match.group(1))
 
 
+def get_absolute_path_from_relative_to_module(path: str) -> str:
+    return str(pathlib.Path(__file__).joinpath(pathlib.Path(path)).resolve().absolute())
+
+
 project_version_collectors: typing.Mapping[str, VersionCollector] = {
-    'client': VersionCollector('spark-over-yt/client_version.sbt', extract_client_version),
-    'cluster': VersionCollector('spark-over-yt/cluster_version.sbt', extract_cluster_version),
-    'spark-fork': VersionCollector('spark-over-yt/project/SparkForkVersion.scala', extract_spark_fork_version),
+    'client': VersionCollector(
+        get_absolute_path_from_relative_to_module('../../../../spark-over-yt/client_version.sbt'),
+        extract_client_version,
+    ),
+    'cluster': VersionCollector(
+        get_absolute_path_from_relative_to_module('../../../../spark-over-yt/cluster_version.sbt'),
+        extract_cluster_version,
+    ),
+    'spark-fork': VersionCollector(
+        get_absolute_path_from_relative_to_module('../../../../spark-over-yt/project/SparkForkVersion.scala'),
+        extract_spark_fork_version),
 }
 
 
@@ -74,7 +89,14 @@ def collect_released_versions(*items):
     project_root = pathlib.Path(__file__).absolute().parent.parent.parent.parent
     collected_versions: typing.List[ComponentVersion] = []
     for item in items:
-        collected_versions.extend(project_version_collectors[item].extract_version(project_root))
+        component_versions = list(project_version_collectors[item].extract_version(project_root))
+        collected_versions.extend(component_versions)
+        for component_version in component_versions:
+            logger.debug(
+                'Collected component %s of version %s',
+                component_version.component,
+                component_version.version,
+            )
     return collected_versions
 
 
@@ -134,7 +156,7 @@ def _get_changed_files(branch='trunk'):
     output = diff.stdout.decode('utf-8').strip()
     changed_files = output.split('\n') if output else set()
     for file in changed_files:
-        yield str(pathlib.Path(file).relative_to(ARCADIA_PROJECT_ROOT))
+        yield str(pathlib.Path(file).absolute())
 
 
 @click.group()
@@ -177,16 +199,26 @@ def _(component):
 def _():
     changed_files = set(_get_changed_files('trunk'))
     components = ['cluster', 'client']
-    files_to_commit = []
+    files_to_commit = [
+        get_absolute_path_from_relative_to_module(path) for path in [
+            '../../../../spark/python/pyspark/version.py',
+            '../../../../spark-over-yt/data-source/src/main/python/spyt/version.py',
+            '../../../../spark-over-yt/project/SparkForkVersion.scala',
+            '../../../../spark-over-yt/client_version.sbt',
+            '../../../../spark-over-yt/cluster_version.sbt',
+            '../../../../spark-over-yt/spark_version.sbt',
+        ]
+    ]
     for component_name in project_version_collectors:
         collector = project_version_collectors[component_name]
         if str(collector.path) in changed_files:
             components.append(component_name)
-            files_to_commit.append(collector.path)
+
     released_versions = collect_released_versions(*components)
 
     branch_name = 'spyt-release-' + '-'.join(f'{version.component}{version.version}' for version in released_versions)
 
+    logger.debug('Checking out to branch %s', branch_name)
     subprocess.run([
         'arc',
         'checkout',
@@ -195,12 +227,14 @@ def _():
     ], check=True,
     )
 
+    logger.debug('Adding files to VCS: %s', ' '.join(files_to_commit))
     subprocess.run([
         'arc',
         'add',
         *files_to_commit,
     ], check=True),
 
+    logger.debug('Commiting changes')
     subprocess.run([
         'arc',
         'commit',
@@ -212,6 +246,7 @@ def _():
         f'{version.component} {version.version}'
         for version in released_versions
     )
+    logger.debug('Creating PR with bumped versions')
     subprocess.run([
         'arc',
         'pr',
