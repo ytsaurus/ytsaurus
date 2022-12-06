@@ -24,7 +24,7 @@ setuptools.setup(
     install_requires=[
         'yandex-pyspark=={}'.format(__spark_version__),
         'yandex-yt>=0.9.29',
-        'pyarrow==0.15.1',
+        'pyarrow',
         'pyyaml'
     ],
     scripts=scripts,
