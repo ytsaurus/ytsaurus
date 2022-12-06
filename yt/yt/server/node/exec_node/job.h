@@ -11,7 +11,7 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
 

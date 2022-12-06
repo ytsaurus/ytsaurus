@@ -6,7 +6,7 @@
 #include "environment.h"
 
 #include <yt/yt/server/lib/exec_node/supervisor_service_proxy.h>
-#include <yt/yt/server/lib/containers/porto_resource_tracker.h>
+#include <yt/yt/library/containers/porto_resource_tracker.h>
 
 #include <yt/yt/ytlib/api/native/public.h>
 

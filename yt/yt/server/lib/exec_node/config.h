@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
-#include <yt/yt/server/lib/containers/config.h>
+#include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/server/lib/misc/config.h>
 
@@ -554,7 +554,7 @@ public:
     TControllerAgentConnectorDynamicConfigPtr ControllerAgentConnector;
 
     std::optional<TDuration> JobAbortionTimeout;
-    
+
     bool AbortOnJobsDisabled;
 
     bool TreatJobProxyFailureAsAbort;

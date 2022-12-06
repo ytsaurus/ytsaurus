@@ -1,10 +1,6 @@
 #pragma once
 
-#ifndef __linux__
-#error Platform must be linux to include this
-#endif
-
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/library/process/process.h>
 
@@ -12,7 +8,7 @@
 
 #include <infra/porto/api/libporto.hpp>
 
-namespace NYT {
+namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -46,4 +42,4 @@ DEFINE_REFCOUNTED_TYPE(TPortoProcess)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NContainers

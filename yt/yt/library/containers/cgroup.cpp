@@ -4,9 +4,6 @@
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
-#include <yt/yt/ytlib/tools/registry.h>
-#include <yt/yt/ytlib/tools/tools.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/split.h>
@@ -20,14 +17,13 @@
     #include <errno.h>
 #endif
 
-namespace NYT::NCGroup {
+namespace NYT::NContainers {
 
 using namespace NYTree;
-using namespace NTools;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = CGroupLogger;
+static const auto& Logger = ContainersLogger;
 static const TString CGroupRootPath("/sys/fs/cgroup");
 #ifdef _linux_
 static const int ReadByAll = S_IRUSR | S_IRGRP | S_IROTH;
@@ -82,55 +78,10 @@ TDuration FromJiffies(ui64 jiffies)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunKiller(const TString& processGroupPath)
-{
-    YT_LOG_INFO("Killing processes in cgroup (Cgroup: %v)", processGroupPath);
-
-#ifdef _linux_
-    TNonOwningCGroup group(processGroupPath);
-    if (group.IsNull()) {
-        return;
-    }
-
-    if (!group.Exists()) {
-        YT_LOG_WARNING("Cgroup does not exist; stop killer (Cgroup: %v)", processGroupPath);
-        return;
-    }
-
-    group.Lock();
-
-    auto children = group.GetChildren();
-    auto pids = group.GetProcesses();
-    if (children.empty() && pids.empty())
-        return;
-
-    std::vector<TString> childNames;
-    for (const auto& child : children) {
-        childNames.emplace_back(child.FullPath());
-    }
-
-
-    YT_LOG_INFO("Cgroup requires killing (Cgroup: %v, Children: %v, Pids: %v)", processGroupPath, childNames, pids);
-
-    RunTool<TKillProcessGroupTool>(processGroupPath);
-
-    children = group.GetChildren();
-    pids = group.GetProcesses();
-    childNames.clear();
-
-    for (const auto& child : children) {
-        childNames.emplace_back(child.FullPath());
-    }
-
-    YT_LOG_INFO("Cgroup after killing (Cgroup: %v, Children: %v, Pids: %v)", processGroupPath, childNames, pids);
-
-#endif
-}
-
 void TKillProcessGroupTool::operator()(const TString& processGroupPath) const
 {
     SafeSetUid(0);
-    NCGroup::TNonOwningCGroup group(processGroupPath);
+    TNonOwningCGroup group(processGroupPath);
     group.Kill();
 }
 
@@ -857,4 +808,4 @@ bool IsValidCGroupType(const TString& type)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCGroup
+} // namespace NYT::NContainers

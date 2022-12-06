@@ -12,8 +12,8 @@
 #include "core_watcher.h"
 
 #ifdef __linux__
-#include <yt/yt/server/lib/containers/instance.h>
-#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
 #endif
 
 #include <yt/yt/server/lib/job_proxy/config.h>

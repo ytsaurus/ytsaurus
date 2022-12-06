@@ -1,9 +1,9 @@
 #pragma once
 
-#include <yt/yt/server/lib/containers/instance.h>
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/public.h>
 
-#include <yt/yt/ytlib/cgroup/cgroup.h>
+#include <yt/yt/library/containers/cgroup.h>
 
 #include <yt/yt/core/misc/singleton.h>
 #include <yt/yt/core/net/address.h>
@@ -22,10 +22,10 @@ static constexpr auto ResourceUsageUpdatePeriod = TDuration::MilliSeconds(1000);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TCpuStatistics = NCGroup::TCpuAccounting::TStatistics;
-using TBlockIOStatistics = NCGroup::TBlockIO::TStatistics;
-using TMemoryStatistics = NCGroup::TMemory::TStatistics;
-using TNetworkStatistics = NCGroup::TNetwork::TStatistics;
+using TCpuStatistics = TCpuAccounting::TStatistics;
+using TBlockIOStatistics = TBlockIO::TStatistics;
+using TMemoryStatistics = TMemory::TStatistics;
+using TNetworkStatistics = TNetwork::TStatistics;
 
 struct TTotalStatistics
 {
@@ -147,5 +147,7 @@ DEFINE_REFCOUNTED_TYPE(TPortoResourceProfiler)
 ////////////////////////////////////////////////////////////////////////////////
 
 #endif
+
+void EnablePortoResourceTracker();
 
 } // namespace NYT::NContainers

@@ -19,7 +19,7 @@
 #include <yt/yt/server/node/data_node/location.h>
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/server/lib/controller_agent/helpers.h>
 
@@ -2867,7 +2867,7 @@ void TJob::CollectSensorsFromGpuInfo(ISensorWriter* writer)
 
     static const TString MemoryName = "gpu/memory";
     static const TString PowerName = "gpu/power";
-    
+
     static const TString SMUtilizationName = "gpu/sm_utilization";
     static const TString SMOccupancyName = "gpu/sm_occupancy";
 

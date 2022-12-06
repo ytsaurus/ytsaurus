@@ -4,12 +4,12 @@
 #include "config.h"
 #include "yt/yt/core/misc/error.h"
 
-#include <yt/yt/server/lib/containers/instance.h>
+#include <yt/yt/library/containers/instance.h>
 
 #include <yt/yt/server/lib/exec_node/public.h>
 
 #ifdef __linux__
-#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/library/containers/porto_executor.h>
 #endif
 
 #include <yt/yt/server/lib/misc/public.h>

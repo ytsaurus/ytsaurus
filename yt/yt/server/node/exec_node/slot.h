@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/node/data_node/artifact.h>
 
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 

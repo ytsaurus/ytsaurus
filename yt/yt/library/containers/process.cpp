@@ -2,17 +2,16 @@
 
 #include "process.h"
 
-#include <yt/yt/server/lib/containers/instance.h>
+#include <yt/yt/library/containers/instance.h>
 
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/fs.h>
 
-namespace NYT {
+namespace NYT::NContainers {
 
 using namespace NPipes;
 using namespace NNet;
 using namespace NConcurrency;
-using namespace NContainers;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -150,6 +149,6 @@ IConnectionReaderPtr TPortoProcess::GetStdErrReader()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+} // namespace NYT::NContainers
 
 #endif

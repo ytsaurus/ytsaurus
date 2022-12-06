@@ -18,8 +18,8 @@
 #include <yt/yt/server/node/exec_node/volume.pb.h>
 #include <yt/yt/server/node/exec_node/bootstrap.h>
 
-#include <yt/yt/server/lib/containers/instance.h>
-#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
 
 #include <yt/yt/server/lib/misc/disk_health_checker.h>
 #include <yt/yt/server/lib/misc/private.h>

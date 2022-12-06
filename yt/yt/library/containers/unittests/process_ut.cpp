@@ -13,11 +13,11 @@
 
 #include <yt/yt/core/net/connection.h>
 
-#include <yt/yt/server/lib/misc/process.h>
+#include <yt/yt/library/containers/process.h>
 
-#include <yt/yt/server/lib/containers/config.h>
-#include <yt/yt/server/lib/containers/porto_executor.h>
-#include <yt/yt/server/lib/containers/instance.h>
+#include <yt/yt/library/containers/config.h>
+#include <yt/yt/library/containers/porto_executor.h>
+#include <yt/yt/library/containers/instance.h>
 
 #include <util/system/platform.h>
 #include <util/system/env.h>

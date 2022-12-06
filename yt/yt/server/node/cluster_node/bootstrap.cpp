@@ -83,9 +83,9 @@
 #include <yt/yt/server/lib/io/io_tracker.h>
 
 #ifdef __linux__
-#include <yt/yt/server/lib/containers/instance.h>
-#include <yt/yt/server/lib/containers/instance_limits_tracker.h>
-#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/instance_limits_tracker.h>
+#include <yt/yt/library/containers/porto_executor.h>
 #endif
 
 #include <yt/yt/server/lib/core_dump/core_dumper.h>

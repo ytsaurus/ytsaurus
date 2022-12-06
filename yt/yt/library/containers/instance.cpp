@@ -5,7 +5,7 @@
 #include "porto_executor.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/cgroup/cgroup.h>
+#include <yt/yt/library/containers/cgroup.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -28,7 +28,6 @@
 
 namespace NYT::NContainers {
 
-using namespace NCGroup;
 using namespace NConcurrency;
 using namespace NNet;
 
@@ -95,9 +94,9 @@ static const std::function<i64(const TString&)> LongExtractor = [] (const TStrin
     return std::stol(in);
 };
 
-static const std::function<i64(const TString&)> CorePercentPerSecondAsNsExtractor = [] (const TString& in) {
+static const std::function<i64(const TString&)> CoreNsPerSecondExtractor = [] (const TString& in) {
     int pos = in.find("c", 0);
-    return (std::stod(in.substr(0, pos)) / 100.) * 1'000'000'000;
+    return (std::stod(in.substr(0, pos))) * 1'000'000'000;
 };
 
 static const std::function<i64(const TString&)> GetIOStatExtractor(const TString& rwMode = "")
@@ -120,8 +119,8 @@ const THashMap<EStatField, TPortoStatRule> PortoStatRules = {
     {EStatField::CpuWait, {"cpu_wait", LongExtractor}},
     {EStatField::CpuThrottled, {"cpu_throttled", LongExtractor}},
     {EStatField::ThreadCount, {"thread_count", LongExtractor}},
-    {EStatField::CpuLimit, {"cpu_limit", CorePercentPerSecondAsNsExtractor}},
-    {EStatField::CpuGuarantee, {"cpu_guarantee", CorePercentPerSecondAsNsExtractor}},
+    {EStatField::CpuLimit, {"cpu_limit_bound", CoreNsPerSecondExtractor}},
+    {EStatField::CpuGuarantee, {"cpu_guarantee_bound", CoreNsPerSecondExtractor}},
     {EStatField::Rss, {"memory.stat", GetStatByKeyExtractor("total_rss")}},
     {EStatField::MappedFile, {"memory.stat", GetStatByKeyExtractor("total_mapped_file")}},
     {EStatField::MinorPageFaults, {"minor_faults", LongExtractor}},

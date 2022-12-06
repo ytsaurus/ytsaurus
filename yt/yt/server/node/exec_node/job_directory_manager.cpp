@@ -5,7 +5,7 @@
 #include <yt/yt/server/node/data_node/config.h>
 
 #ifdef _linux_
-#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/library/containers/porto_executor.h>
 #endif
 
 #include <yt/yt/ytlib/tools/tools.h>

@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/core/actions/future.h>
 

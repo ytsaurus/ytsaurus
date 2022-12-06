@@ -18,7 +18,7 @@
 
 #include <yt/yt/server/lib/cellar_agent/public.h>
 
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/server/lib/job_proxy/public.h>
 

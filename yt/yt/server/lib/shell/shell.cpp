@@ -3,7 +3,7 @@
 
 #ifdef _linux_
 
-#include <yt/yt/server/lib/containers/instance.h>
+#include <yt/yt/library/containers/instance.h>
 
 #endif
 

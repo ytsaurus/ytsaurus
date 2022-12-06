@@ -2,9 +2,9 @@
 
 #ifdef _linux_
 
-#include <yt/yt/server/lib/containers/config.h>
-#include <yt/yt/server/lib/containers/porto_executor.h>
-#include <yt/yt/server/lib/containers/instance.h>
+#include <yt/yt/library/containers/config.h>
+#include <yt/yt/library/containers/porto_executor.h>
+#include <yt/yt/library/containers/instance.h>
 
 #include <util/system/platform.h>
 #include <util/system/env.h>
@@ -41,7 +41,7 @@ TEST_F(TContainersTest, ListSubcontainers)
 {
     auto executor = CreatePortoExecutor();
     auto name = GetUniqueName();
-    
+
     WaitFor(executor->CreateContainer(name))
         .ThrowOnError();
 
@@ -69,7 +69,7 @@ TEST_F(TContainersTest, DISABLED_WaitContainer)
 {
     auto executor = CreatePortoExecutor();
     auto name = GetUniqueName();
-    
+
     WaitFor(executor->CreateContainer(name))
         .ThrowOnError();
 
@@ -97,10 +97,10 @@ TEST_F(TContainersTest, CreateFromSpec)
         .Name = name,
         .Command = "sleep 2",
     };
-    
+
     WaitFor(executor->CreateContainer(spec, /*start*/ true))
         .ThrowOnError();
-    
+
     auto exitCode = WaitFor(executor->PollContainer(name))
         .ValueOrThrow();
 
@@ -118,7 +118,7 @@ TEST_F(TContainersTest, ListPids)
 
     auto instance = WaitFor(launcher->Launch("sleep", {"5"}, {}))
         .ValueOrThrow();
-    
+
     auto pids = instance->GetPids();
     EXPECT_LT(0u, pids.size());
 
