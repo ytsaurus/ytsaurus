@@ -93,7 +93,16 @@ NTvmApi::TClientSettings MakeTvmApiSettings(const TTvmServiceConfigPtr& config)
         for (const auto& [alias, dst] : config->ClientDstMap) {
             dsts[alias] = dst;
         }
-        settings.EnableServiceTicketsFetchOptions(config->ClientSelfSecret, std::move(dsts));
+
+        auto secret = config->ClientSelfSecret;
+        if (!secret && config->ClientSelfSecretPath) {
+            TFileInput input(*config->ClientSelfSecretPath);
+            secret = input.ReadLine();
+        }
+
+        if (secret) {
+            settings.EnableServiceTicketsFetchOptions(*secret, std::move(dsts));
+        }
     }
     if (config->ClientEnableServiceTicketChecking) {
         settings.EnableServiceTicketChecking();
