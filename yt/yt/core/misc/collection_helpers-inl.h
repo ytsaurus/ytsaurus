@@ -49,20 +49,20 @@ std::vector<TItem> GetIthsImpl(const T& collection, size_t sizeLimit, const TGet
 } // namespace
 
 template <class T, class C>
-std::vector<typename T::const_iterator> GetSortedIterators(const T& set, C comp)
+std::vector<typename T::const_iterator> GetSortedIterators(const T& collection, C comp)
 {
     using TIterator = typename T::const_iterator;
     std::vector<TIterator> iterators;
-    iterators.reserve(set.size());
-    for (auto it = set.cbegin(); it != set.cend(); ++it) {
+    iterators.reserve(collection.size());
+    for (auto it = collection.cbegin(); it != collection.cend(); ++it) {
         iterators.emplace_back(it);
     }
 
     std::sort(
         iterators.begin(),
         iterators.end(),
-        [comp=std::move(comp)] (TIterator a, TIterator b) {
-            return comp(*a, *b);
+        [&] (auto lhsIt, auto rhtIt) {
+            return comp(*lhsIt, *rhtIt);
         });
 
     return iterators;
@@ -120,14 +120,14 @@ std::vector<typename std::tuple_element<I, typename T::value_type>::type> GetIth
 }
 
 template <class T>
-bool ShrinkHashTable(T* collection)
+bool ShrinkHashTable(T&& collection)
 {
-    if (collection->bucket_count() <= 4 * collection->size() || collection->bucket_count() <= 16) {
+    if (collection.bucket_count() <= 4 * collection.size() || collection.bucket_count() <= 16) {
         return false;
     }
 
-    typename std::remove_reference<decltype(*collection)>::type collectionCopy(collection->begin(), collection->end());
-    collectionCopy.swap(*collection);
+    typename std::decay_t<decltype(collection)> collectionCopy(collection.begin(), collection.end());
+    collectionCopy.swap(collection);
     return true;
 }
 
@@ -139,12 +139,12 @@ void MergeFrom(TTarget* target, const TSource& source)
     }
 }
 
-template <typename TKey, typename TValue>
-void DropMissingKeys(THashMap<TKey, TValue>* map, const THashSet<TKey>& set)
+template <class TMap, class TKeySet>
+void DropMissingKeys(TMap&& map, const TKeySet& set)
 {
-    for (auto it = map->begin(); it != map->end(); ) {
+    for (auto it = map.begin(); it != map.end(); ) {
         if (!set.contains(it->first)) {
-            map->erase(it++);
+            map.erase(it++);
         } else {
             ++it;
         }
@@ -152,15 +152,7 @@ void DropMissingKeys(THashMap<TKey, TValue>* map, const THashSet<TKey>& set)
 }
 
 template <class TMap, class TKey>
-auto GetIteratorOrCrash(const TMap& map, const TKey& key)
-{
-    auto it = map.find(key);
-    YT_VERIFY(it != map.end());
-    return it;
-}
-
-template <class TMap, class TKey>
-auto GetIteratorOrCrash(TMap& map, const TKey& key)
+auto GetIteratorOrCrash(TMap&& map, const TKey& key)
 {
     auto it = map.find(key);
     YT_VERIFY(it != map.end());
@@ -174,19 +166,19 @@ const auto& GetOrCrash(const TMap& map, const TKey& key)
 }
 
 template <class TMap, class TKey>
-auto& GetOrCrash(TMap& map, const TKey& key)
+auto& GetOrCrash(TMap&& map, const TKey& key)
 {
     return GetIteratorOrCrash(map, key)->second;
 }
 
 template <class TMap, class TKey>
-void EraseOrCrash(TMap& map, const TKey& key)
+void EraseOrCrash(TMap&& map, const TKey& key)
 {
     YT_VERIFY(map.erase(key) > 0);
 }
 
 template <class TContainer, class TArg>
-auto InsertOrCrash(TContainer& container, TArg&& arg)
+auto InsertOrCrash(TContainer&& container, TArg&& arg)
 {
     auto [it, inserted] = container.insert(std::forward<TArg>(arg));
     YT_VERIFY(inserted);
@@ -194,7 +186,7 @@ auto InsertOrCrash(TContainer& container, TArg&& arg)
 }
 
 template <class TContainer, class... TArgs>
-auto EmplaceOrCrash(TContainer& container, TArgs&&... args)
+auto EmplaceOrCrash(TContainer&& container, TArgs&&... args)
 {
     auto [it, emplaced] = container.emplace(std::forward<TArgs>(args)...);
     YT_VERIFY(emplaced);
@@ -314,7 +306,7 @@ void SortByFirst(T begin, T end)
 }
 
 template <class T>
-void SortByFirst(T& collection)
+void SortByFirst(T&& collection)
 {
     SortByFirst(collection.begin(), collection.end());
 }
@@ -332,7 +324,7 @@ std::vector<std::pair<typename T::key_type, typename T::mapped_type>> SortHashMa
 }
 
 template <class T>
-Y_FORCE_INLINE void EnsureVectorSize(std::vector<T>& vector, ssize_t size, const T& defaultValue)
+void EnsureVectorSize(std::vector<T>& vector, ssize_t size, const T& defaultValue)
 {
     if (static_cast<ssize_t>(vector.size()) < size) {
         vector.resize(size, defaultValue);
@@ -340,27 +332,27 @@ Y_FORCE_INLINE void EnsureVectorSize(std::vector<T>& vector, ssize_t size, const
 }
 
 template <class T>
-Y_FORCE_INLINE void EnsureVectorIndex(std::vector<T>& vector, ssize_t index, const T& defaultValue)
+void EnsureVectorIndex(std::vector<T>& vector, ssize_t index, const T& defaultValue)
 {
     EnsureVectorSize(vector, index + 1, defaultValue);
 }
 
 template <class T>
-Y_FORCE_INLINE void AssignVectorAt(std::vector<T>& vector, ssize_t index, const T& value, const T& defaultValue)
+void AssignVectorAt(std::vector<T>& vector, ssize_t index, const T& value, const T& defaultValue)
 {
     EnsureVectorIndex(vector, index, defaultValue);
     vector[index] = value;
 }
 
 template <class T>
-Y_FORCE_INLINE void AssignVectorAt(std::vector<T>& vector, ssize_t index, T&& value, const T& defaultValue)
+void AssignVectorAt(std::vector<T>& vector, ssize_t index, T&& value, const T& defaultValue)
 {
     EnsureVectorIndex(vector, index, defaultValue);
     vector[index] = std::move(value);
 }
 
 template <class T>
-Y_FORCE_INLINE const T& VectorAtOr(const std::vector<T>& vector, ssize_t index, const T& defaultValue)
+const T& VectorAtOr(const std::vector<T>& vector, ssize_t index, const T& defaultValue)
 {
     return index < static_cast<ssize_t>(vector.size()) ? vector[index] : defaultValue;
 }

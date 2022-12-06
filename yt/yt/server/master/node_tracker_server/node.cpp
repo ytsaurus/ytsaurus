@@ -928,14 +928,14 @@ void TNode::DetachCell(const TCellBase* cell)
 void TNode::ShrinkHashTables()
 {
     for (auto& queue : ChunkPushReplicationQueues_) {
-        ShrinkHashTable(&queue);
+        ShrinkHashTable(queue);
     }
     for (auto& queue : ChunkPullReplicationQueues_) {
-        ShrinkHashTable(&queue);
+        ShrinkHashTable(queue);
     }
-    ShrinkHashTable(&ChunksBeingPulled_);
-    ShrinkHashTable(&ChunkSealQueue_);
-    ShrinkHashTable(&ChunkSealQueue_);
+    ShrinkHashTable(ChunksBeingPulled_);
+    ShrinkHashTable(ChunkSealQueue_);
+    ShrinkHashTable(ChunkSealQueue_);
     for (auto* location : ChunkLocations_) {
         location->ShrinkHashTables();
     }

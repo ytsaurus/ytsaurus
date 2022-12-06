@@ -427,9 +427,9 @@ void TGarbageCollector::OnSweep()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    ShrinkHashTable(&Zombies_);
-    ShrinkHashTable(&EphemeralGhosts_);
-    ShrinkHashTable(&WeakGhosts_);
+    ShrinkHashTable(Zombies_);
+    ShrinkHashTable(EphemeralGhosts_);
+    ShrinkHashTable(WeakGhosts_);
 
     SweepZombies();
     SweepEphemeralGhosts();

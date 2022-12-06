@@ -111,7 +111,7 @@ void TActionManager::CreateActions(const TString& bundleName)
 
     if (RunningActions_.contains(bundleName)) {
         THROW_ERROR_EXCEPTION(
-            "Cannot create new actions since bundle %v has unfinished actions", 
+            "Cannot create new actions since bundle %v has unfinished actions",
             bundleName);
     }
 
@@ -305,11 +305,11 @@ void TActionManager::MoveFinishedActionsFromRunningToFinished()
         if (!runningActions.empty()) {
             relevantBundles.emplace(bundleName);
         }
-        
+
         GetOrCreateProfilingCounters(bundleName).RunningActions.Update(runningActions.size());
     }
 
-    DropMissingKeys(&RunningActions_, relevantBundles);
+    DropMissingKeys(RunningActions_, relevantBundles);
 }
 
 TActionManager::TBundleProfilingCounters& TActionManager::GetOrCreateProfilingCounters(const TString& bundleName)

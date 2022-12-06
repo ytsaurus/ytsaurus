@@ -84,10 +84,10 @@ TChunkPtrWithReplicaInfo TChunkLocation::PickRandomReplica()
 
 void TChunkLocation::ShrinkHashTables()
 {
-    ShrinkHashTable(&Replicas_);
+    ShrinkHashTable(Replicas_);
     RandomReplicaIter_ = Replicas_.end();
-    ShrinkHashTable(&UnapprovedReplicas_);
-    ShrinkHashTable(&ChunkRemovalQueue_);
+    ShrinkHashTable(UnapprovedReplicas_);
+    ShrinkHashTable(ChunkRemovalQueue_);
 }
 
 void TChunkLocation::Reset()
