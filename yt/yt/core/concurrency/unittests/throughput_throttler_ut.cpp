@@ -399,6 +399,7 @@ struct TStressParameters
     double MaxUnderlyingAmountMultiplier = 2.0;
     double AllowedRpsOverflowMultiplier;
     double TryAcquireAllProbability = -1.0;
+    double ErrorProbability = -1.0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -459,9 +460,13 @@ TEST_P(TPrefetchingStressTest, Stress)
             ReturnPointee(&lastRequest)
         ));
 
-    auto processUnderlyingRequest = [&] {
+    auto processUnderlyingRequest = [&](double errorProbability) {
         if (!requests.empty()) {
-            requests.front().Set();
+            if (probabilisticOutcome(engine) < errorProbability) {
+                requests.front().Set(TError(NYT::EErrorCode::Generic, "Test error"));
+            } else {
+                requests.front().Set();
+            }
             requests.pop_front();
             ++processedUnderlyingRequests;
         }
@@ -516,7 +521,7 @@ TEST_P(TPrefetchingStressTest, Stress)
 
         int underlyingResponseCount = underlyingResponses(engine);
         for (int i = underlyingResponseCount; i > 0; --i) {
-            processUnderlyingRequest();
+            processUnderlyingRequest(parameters.ErrorProbability);
         }
 
         ++iteration;
@@ -530,7 +535,7 @@ TEST_P(TPrefetchingStressTest, Stress)
     }
 
     while (!requests.empty()) {
-        processUnderlyingRequest();
+        processUnderlyingRequest(-1.0);
     }
 
     auto finish = TInstant::Now();
@@ -540,7 +545,11 @@ TEST_P(TPrefetchingStressTest, Stress)
     EXPECT_LE(averageUnderlyingRps / Config_->TargetRps, parameters.AllowedRpsOverflowMultiplier);
 
     for (auto& reply : replies) {
-        EXPECT_TRUE(reply.Get().IsOK());
+        if (parameters.ErrorProbability > 0.0) {
+            reply.Get();
+        } else {
+            EXPECT_TRUE(reply.Get().IsOK());
+        }
     }
 }
 
@@ -562,6 +571,18 @@ INSTANTIATE_TEST_SUITE_P(Stress,
             .TestDuration = TDuration::Seconds(1),
             .AllowedRpsOverflowMultiplier = 20.0,
             .TryAcquireAllProbability = 0.000'1,
+        },
+        TStressParameters {
+            .TestDuration = TDuration::Seconds(10),
+            .AllowedRpsOverflowMultiplier = 5.0,
+            .TryAcquireAllProbability = 0.000'1,
+            .ErrorProbability = 0.01,
+        },
+        TStressParameters{
+            .TestDuration = TDuration::Seconds(1),
+            .AllowedRpsOverflowMultiplier = 20.0,
+            .TryAcquireAllProbability = 0.000'1,
+            .ErrorProbability = 0.01,
         }));
 
 ////////////////////////////////////////////////////////////////////////////////
