@@ -1,6 +1,6 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
-    authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, set, get, sync_create_cells, wait_for_cells)
+    authors, create_tablet_cell_bundle, print_debug, retry,  build_master_snapshots, set, get, sync_create_cells, wait_for_cells)
 
 from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -110,13 +110,14 @@ class TestBundleControllerAttribute(MasterSnapshotsCompatibilityBase):
         set(config_path, bundle_controller_config)
         assert bundle_controller_config == get(config_path)
 
-        self.restart_with_update(MASTERS_SERVICE)
+        retry(lambda: self.restart_with_update(MASTERS_SERVICE))
+
         assert bundle_controller_config == get(config_path)
         assert "bundle_controller_target_config" not in get("{}/@user_attribute_keys".format(bundle_path))
 
         bundle_controller_config["tablet_node_count"] = 11
         set(config_path, bundle_controller_config)
 
-        self.restart_with_update(MASTERS_SERVICE)
+        retry(lambda: self.restart_with_update(MASTERS_SERVICE))
 
         assert bundle_controller_config == get(config_path)
