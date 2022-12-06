@@ -1118,11 +1118,12 @@ private:
             const IClientResponseHandlerPtr& responseHandler,
             TSharedRefArray message) noexcept
         {
-            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v.%v, TotalTime: %v)",
+            YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v.%v, TotalTime: %v, AttachmentsSize: %v)",
                 requestId,
                 requestControl->GetService(),
                 requestControl->GetMethod(),
-                requestControl->GetTotalTime());
+                requestControl->GetTotalTime(),
+                GetTotalMessageAttachmentSize(message));
 
             responseHandler->HandleResponse(std::move(message), Bus_->GetEndpointAddress());
         }
