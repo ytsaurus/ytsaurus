@@ -188,7 +188,7 @@ private:
             EraseOrCrash(JobsInfos_, chunkId);
         }
 
-        ShrinkHashTable(&JobsInfos_);
+        ShrinkHashTable(JobsInfos_);
     }
 };
 
