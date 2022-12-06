@@ -2,10 +2,10 @@ package ru.yandex.inside.yt.kosher.impl.ytree.serialization.spark
 
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.misc.lang.number.UnsignedLong
 import tech.ytsaurus.yson.{YsonError, YsonTags}
 
 import scala.annotation.tailrec
+import scala.math.BigInt
 
 class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) extends YsonBaseReader
   with MapParser with ListParser with VariantParser {
@@ -146,7 +146,7 @@ class YsonDecoder(bytes: Array[Byte], dataType: IndexedDataType) extends YsonBas
         dataType.sparkDataType match {
           case LongType => parseUInt64
           case IntegerType => parseUInt64.toInt
-          case DoubleType => UnsignedLong.valueOf(parseUInt64).doubleValue()
+          case DoubleType => java.lang.Double.parseDouble(java.lang.Long.toUnsignedString(parseUInt64))
           case BinaryType => first +: parseInt64AsBytes
           case NullType =>
             parseUInt64

@@ -1,7 +1,6 @@
 package ru.yandex.spark.yt.wrapper.table
 
 import org.slf4j.LoggerFactory
-import ru.yandex.misc.io.exec.ProcessUtils
 import ru.yandex.spark.yt.wrapper.Utils
 import ru.yandex.spark.yt.wrapper.YtJavaConverters.RichJavaMap
 import ru.yandex.spark.yt.wrapper.cypress.YtCypressUtils
@@ -95,7 +94,7 @@ trait YtTableUtils {
       .key("user").value(System.getProperty("user.name"))
       .key("command").beginList.value("command").endList
       .key("hostname").value(Utils.ytHostnameOrIpAddress)
-      .key("pid").value(ProcessUtils.getPid)
+      .key("pid").value(ProcessHandle.current().pid())
       .key("wrapper_version").value(BuildInfo.ytClientVersion)
       .endMap
   }
