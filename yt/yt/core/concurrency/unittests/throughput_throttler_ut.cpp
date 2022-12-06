@@ -395,6 +395,7 @@ struct TStressParameters
     TDuration IterationDuration = TDuration::MilliSeconds(100);
     int RequestsPerIteration = 10'000;
     int IterationsPerStep = 0;
+    int PassCount = 1;
     double StepMultiplier = 1.0;
     double MaxUnderlyingAmountMultiplier = 2.0;
     double AllowedRpsOverflowMultiplier;
@@ -440,115 +441,117 @@ TEST_P(TPrefetchingStressTest, Stress)
     double tryAcquireProbability = 0.000'1;
     double acquireProbability = 0.000'1;
 
-    i64 lastUnderlyingAmount = 0;
-    i64 iterationUnderlyingAmount = 0;
-    int underlyingRequestCount = 0;
+    for (int pass = 0; pass < parameters.PassCount; ++pass) {
+        i64 lastUnderlyingAmount = 0;
+        i64 iterationUnderlyingAmount = 0;
+        int underlyingRequestCount = 0;
 
-    std::deque<TPromise<void>> requests;
-    std::vector<TFuture<void>> replies;
-    TPromise<void> lastRequest;
-    int processedUnderlyingRequests = 0;
+        std::deque<TPromise<void>> requests;
+        std::vector<TFuture<void>> replies;
+        TPromise<void> lastRequest;
+        int processedUnderlyingRequests = 0;
 
-    EXPECT_CALL(*Underlying_, Throttle(_))
-        .WillRepeatedly(DoAll(
-            SaveArg<0>(&lastUnderlyingAmount),
-            [&] () {
-                lastRequest = requests.emplace_back(NewPromise<void>());
-                ++underlyingRequestCount;
-                iterationUnderlyingAmount += lastUnderlyingAmount;
-            },
-            ReturnPointee(&lastRequest)
-        ));
+        EXPECT_CALL(*Underlying_, Throttle(_))
+            .WillRepeatedly(DoAll(
+                SaveArg<0>(&lastUnderlyingAmount),
+                [&] () {
+                    lastRequest = requests.emplace_back(NewPromise<void>());
+                    ++underlyingRequestCount;
+                    iterationUnderlyingAmount += lastUnderlyingAmount;
+                },
+                ReturnPointee(&lastRequest)
+            ));
 
-    auto processUnderlyingRequest = [&](double errorProbability) {
-        if (!requests.empty()) {
-            if (probabilisticOutcome(engine) < errorProbability) {
-                requests.front().Set(TError(NYT::EErrorCode::Generic, "Test error"));
+        auto processUnderlyingRequest = [&](double errorProbability) {
+            if (!requests.empty()) {
+                if (probabilisticOutcome(engine) < errorProbability) {
+                    requests.front().Set(TError(NYT::EErrorCode::Generic, "Test error"));
+                } else {
+                    requests.front().Set();
+                }
+                requests.pop_front();
+                ++processedUnderlyingRequests;
+            }
+        };
+
+        int iteration = 0;
+        auto requestsPerIteration = parameters.RequestsPerIteration;
+
+        auto start = TInstant::Now();
+        TInstant iterationStart;
+
+        while ((iterationStart = TInstant::Now()) < start + parameters.TestDuration / parameters.PassCount) {
+            iterationUnderlyingAmount = 0;
+            underlyingRequestCount = 0;
+            i64 iterationIncomingAmount = 0;
+
+            auto spikeProbability = 1.0 / requestsPerIteration;
+
+            for (int i = 0; i < requestsPerIteration; ++i) {
+                if (probabilisticOutcome(engine) < parameters.TryAcquireAllProbability) {
+                    Throttler_->TryAcquireAvailable(std::numeric_limits<i64>::max());
+                }
+
+                i64 amount = 0;
+                if (probabilisticOutcome(engine) < spikeProbability) {
+                    amount = std::pow(2.0, incomingSpikeLbAmount(engine));
+                } else {
+                    amount = incomingAmount(engine);
+                }
+                iterationIncomingAmount += amount;
+                auto outcome = probabilisticOutcome(engine);
+                if (outcome < acquireProbability) {
+                    Throttler_->Acquire(amount);
+                } else if (outcome < acquireProbability + tryAcquireProbability) {
+                    Throttler_->TryAcquire(amount);
+                } else {
+                    replies.emplace_back(Throttler_->Throttle(amount));
+                }
+
+                auto requestFinish = TInstant::Now();
+                auto realDuration = requestFinish - iterationStart;
+                if (realDuration < i * parameters.IterationDuration / requestsPerIteration) {
+                    Sleep(i * parameters.IterationDuration / requestsPerIteration - realDuration);
+                }
+            }
+
+            auto iterationFinish = TInstant::Now();
+            auto realDuration = iterationFinish - iterationStart;
+            if (realDuration < parameters.IterationDuration) {
+                Sleep(parameters.IterationDuration - realDuration);
+            }
+
+            int underlyingResponseCount = underlyingResponses(engine);
+            for (int i = underlyingResponseCount; i > 0; --i) {
+                processUnderlyingRequest(parameters.ErrorProbability);
+            }
+
+            ++iteration;
+            if (parameters.IterationsPerStep > 0 && iteration % parameters.IterationsPerStep == 0) {
+                if (iterationIncomingAmount != 0) {
+                    EXPECT_LE(iterationUnderlyingAmount / iterationIncomingAmount, parameters.MaxUnderlyingAmountMultiplier);
+                }
+
+                requestsPerIteration *= parameters.StepMultiplier;
+            }
+        }
+
+        while (!requests.empty()) {
+            processUnderlyingRequest(-1.0);
+        }
+
+        auto finish = TInstant::Now();
+        auto totalDuration = finish - start;
+        auto averageUnderlyingRps = processedUnderlyingRequests / totalDuration.SecondsFloat();
+
+        EXPECT_LE(averageUnderlyingRps / Config_->TargetRps, parameters.AllowedRpsOverflowMultiplier);
+
+        for (auto& reply : replies) {
+            if (parameters.ErrorProbability > 0.0) {
+                reply.Get();
             } else {
-                requests.front().Set();
+                EXPECT_TRUE(reply.Get().IsOK());
             }
-            requests.pop_front();
-            ++processedUnderlyingRequests;
-        }
-    };
-
-    int iteration = 0;
-    auto requestsPerIteration = parameters.RequestsPerIteration;
-
-    auto start = TInstant::Now();
-    TInstant iterationStart;
-
-    while ((iterationStart = TInstant::Now()) < start + parameters.TestDuration) {
-        iterationUnderlyingAmount = 0;
-        underlyingRequestCount = 0;
-        i64 iterationIncomingAmount = 0;
-
-        auto spikeProbability = 1.0 / requestsPerIteration;
-
-        for (int i = 0; i < requestsPerIteration; ++i) {
-            if (probabilisticOutcome(engine) < parameters.TryAcquireAllProbability) {
-                Throttler_->TryAcquireAvailable(std::numeric_limits<i64>::max());
-            }
-
-            i64 amount = 0;
-            if (probabilisticOutcome(engine) < spikeProbability) {
-                amount = std::pow(2.0, incomingSpikeLbAmount(engine));
-            } else {
-                amount = incomingAmount(engine);
-            }
-            iterationIncomingAmount += amount;
-            auto outcome = probabilisticOutcome(engine);
-            if (outcome < acquireProbability) {
-                Throttler_->Acquire(amount);
-            } else if (outcome < acquireProbability + tryAcquireProbability) {
-                Throttler_->TryAcquire(amount);
-            } else {
-                replies.emplace_back(Throttler_->Throttle(amount));
-            }
-
-            auto requestFinish = TInstant::Now();
-            auto realDuration = requestFinish - iterationStart;
-            if (realDuration < i * parameters.IterationDuration / requestsPerIteration) {
-                Sleep(i * parameters.IterationDuration / requestsPerIteration - realDuration);
-            }
-        }
-
-        auto iterationFinish = TInstant::Now();
-        auto realDuration = iterationFinish - iterationStart;
-        if (realDuration < parameters.IterationDuration) {
-            Sleep(parameters.IterationDuration - realDuration);
-        }
-
-        int underlyingResponseCount = underlyingResponses(engine);
-        for (int i = underlyingResponseCount; i > 0; --i) {
-            processUnderlyingRequest(parameters.ErrorProbability);
-        }
-
-        ++iteration;
-        if (parameters.IterationsPerStep > 0 && iteration % parameters.IterationsPerStep == 0) {
-            if (iterationIncomingAmount != 0) {
-                EXPECT_LE(iterationUnderlyingAmount / iterationIncomingAmount, parameters.MaxUnderlyingAmountMultiplier);
-            }
-
-            requestsPerIteration *= parameters.StepMultiplier;
-        }
-    }
-
-    while (!requests.empty()) {
-        processUnderlyingRequest(-1.0);
-    }
-
-    auto finish = TInstant::Now();
-    auto totalDuration = finish - start;
-    auto averageUnderlyingRps = processedUnderlyingRequests / totalDuration.SecondsFloat();
-
-    EXPECT_LE(averageUnderlyingRps / Config_->TargetRps, parameters.AllowedRpsOverflowMultiplier);
-
-    for (auto& reply : replies) {
-        if (parameters.ErrorProbability > 0.0) {
-            reply.Get();
-        } else {
-            EXPECT_TRUE(reply.Get().IsOK());
         }
     }
 }
@@ -573,13 +576,15 @@ INSTANTIATE_TEST_SUITE_P(Stress,
             .TryAcquireAllProbability = 0.000'1,
         },
         TStressParameters {
-            .TestDuration = TDuration::Seconds(10),
+            .TestDuration = TDuration::Seconds(100),
+            .PassCount = 10,
             .AllowedRpsOverflowMultiplier = 5.0,
             .TryAcquireAllProbability = 0.000'1,
             .ErrorProbability = 0.01,
         },
         TStressParameters{
-            .TestDuration = TDuration::Seconds(1),
+            .TestDuration = TDuration::Seconds(10),
+            .PassCount = 10,
             .AllowedRpsOverflowMultiplier = 20.0,
             .TryAcquireAllProbability = 0.000'1,
             .ErrorProbability = 0.01,
