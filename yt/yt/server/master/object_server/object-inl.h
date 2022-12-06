@@ -491,7 +491,7 @@ void TObjectPtr<T, C>::Reset() noexcept
 template <class T, class C>
 T* TObjectPtr<T, C>::operator->() const noexcept
 {
-    YT_ASSERT(IsAlive());
+    YT_ASSERT(IsObjectAlive(*this));
     return Get();
 }
 
@@ -501,14 +501,6 @@ TObjectPtr<T, C>::operator bool() const noexcept
     NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
     return Ptr_ != nullptr;
-}
-
-template <class T, class C>
-bool TObjectPtr<T, C>::IsAlive() const noexcept
-{
-    NDetail::AssertPersistentStateRead();
-    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
-    return IsObjectAlive(ToObject(Ptr_));
 }
 
 template <class T, class C>

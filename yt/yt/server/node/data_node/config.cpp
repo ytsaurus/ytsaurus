@@ -465,6 +465,11 @@ void TDataNodeTestingOptions::Register(TRegistrar registrar)
         "simulate_network_throttling_for_get_block_set",
         &TThis::SimulateNetworkThrottlingForGetBlockSet)
         .Default(false);
+
+    registrar.Parameter(
+        "fail_reincarnation_jobs",
+        &TThis::FailReincarnationJobs)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -646,6 +651,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("autotomy_reader", &TThis::AutotomyReader)
         .DefaultNew();
     registrar.Parameter("autotomy_writer", &TThis::AutotomyWriter)
+        .DefaultNew();
+
+    registrar.Parameter("reincarnation_writer", &TThis::ReincarnationWriter)
         .DefaultNew();
 
     registrar.Parameter("throttlers", &TThis::Throttlers)

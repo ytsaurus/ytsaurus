@@ -352,7 +352,6 @@ public:
     T* operator->() const noexcept;
 
     explicit operator bool() const noexcept;
-    bool IsAlive() const noexcept;
 
     T* Get() const noexcept;
 
@@ -371,6 +370,20 @@ private:
     [[no_unique_address]]
     C Context_;
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class T, class C>
+inline bool IsObjectAlive(const TObjectPtr<T, C>& ptr)
+{
+    return IsObjectAlive(ptr.Get());
+}
+
+template <class T, class C>
+inline TObjectId GetObjectId(const TObjectPtr<T, C>& ptr)
+{
+    return GetObjectId(ptr.Get());
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

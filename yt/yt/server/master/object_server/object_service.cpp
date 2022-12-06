@@ -2309,7 +2309,7 @@ void TObjectService::FinishSession(const TExecuteSessionInfo& sessionInfo)
         return;
     }
 
-    if (sessionInfo.RequestQueueSizeIncreased && sessionInfo.User.IsAlive()) {
+    if (sessionInfo.RequestQueueSizeIncreased && IsObjectAlive(sessionInfo.User)) {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->DecreaseRequestQueueSize(sessionInfo.User.Get());
     }

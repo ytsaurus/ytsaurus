@@ -1437,6 +1437,7 @@ private:
             New<TChunkWriterConfig>(),
             chunkWriterOptions,
             Schema_,
+            /*nameTable*/ nullptr,
             confirmingWriter,
             /*dataSink*/ std::nullopt,
             {minTs, maxTs});
@@ -1678,6 +1679,217 @@ private:
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         return dynamicConfigManager->GetConfig()->DataNode->ChunkMerger;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TChunkReincarnationJob
+    : public TMasterJobBase
+{
+public:
+    TChunkReincarnationJob(
+        TJobId jobId,
+        const TJobSpec& jobSpec,
+        TString jobTrackerAddress,
+        const TNodeResources& resourceLimits,
+        TDataNodeConfigPtr config,
+        IBootstrap* bootstrap)
+        : TMasterJobBase(
+            jobId,
+            std::move(jobSpec),
+            std::move(jobTrackerAddress),
+            resourceLimits,
+            std::move(config),
+            bootstrap)
+        , JobSpecExt_(
+            JobSpec_.GetExtension(TReincarnateChunkJobSpecExt::reincarnate_chunk_job_spec_ext))
+        , OldChunkId_(FromProto<TChunkId>(JobSpecExt_.old_chunk_id()))
+        , NewChunkId_(FromProto<TChunkId>(JobSpecExt_.new_chunk_id()))
+        , CellTag_(CellTagFromId(OldChunkId_))
+        , TargetReplicas_(FromProto<TChunkReplicaWithMediumList>(JobSpecExt_.target_replicas()))
+        , ErasureCodec_(CheckedEnumCast<NErasure::ECodec>(JobSpecExt_.erasure_codec()))
+        , CompressionCodec_(CheckedEnumCast<NCompression::ECodec>(JobSpecExt_.compression_codec()))
+        , MediumIndex_(JobSpecExt_.medium_index())
+        , EnableSkynetSharing_(JobSpecExt_.has_enable_skynet_sharing()
+            ? std::optional(JobSpecExt_.enable_skynet_sharing())
+            : std::nullopt)
+        , NodeDirectory_(New<NNodeTrackerClient::TNodeDirectory>())
+    {
+        NodeDirectory_->MergeFrom(JobSpecExt_.node_directory());
+    }
+
+private:
+    const TReincarnateChunkJobSpecExt JobSpecExt_;
+    const TChunkId OldChunkId_;
+    const TChunkId NewChunkId_;
+    const TCellTag CellTag_;
+    const TChunkReplicaWithMediumList TargetReplicas_;
+    const NErasure::ECodec ErasureCodec_;
+    const NCompression::ECodec CompressionCodec_;
+    const int MediumIndex_;
+    const std::optional<bool> EnableSkynetSharing_;
+    const TNodeDirectoryPtr NodeDirectory_;
+
+    static void CopyMeta(const TDeferredChunkMetaPtr& src, const TDeferredChunkMetaPtr& dst)
+    {
+        #define COPY_EXTENSION(Ext) \
+        do { \
+            if (HasProtoExtension<Ext>(src->extensions())) { \
+                SetProtoExtension( \
+                    dst->mutable_extensions(), \
+                    GetProtoExtension<Ext>(src->extensions())); \
+            }; \
+        } while (false)
+
+        COPY_EXTENSION(NChunkClient::NProto::TMiscExt);
+        COPY_EXTENSION(NChunkClient::NProto::TBlocksExt);
+        COPY_EXTENSION(NChunkClient::NProto::TErasurePlacementExt);
+        COPY_EXTENSION(NTableClient::NProto::TDataBlockMetaExt);
+        COPY_EXTENSION(NTableClient::NProto::TNameTableExt);
+        COPY_EXTENSION(NTableClient::NProto::TBoundaryKeysExt);
+        COPY_EXTENSION(NTableClient::NProto::TColumnMetaExt);
+        COPY_EXTENSION(NTableClient::NProto::TTableSchemaExt);
+        COPY_EXTENSION(NTableClient::NProto::TKeyColumnsExt);
+        COPY_EXTENSION(NTableClient::NProto::TSamplesExt);
+        COPY_EXTENSION(NTableClient::NProto::TColumnarStatisticsExt);
+        COPY_EXTENSION(NTableClient::NProto::THeavyColumnStatisticsExt);
+        #undef COPY_EXTENSION
+    }
+
+    void DoRun() override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        if (IsTestingFailureNeeded()) {
+            THROW_ERROR_EXCEPTION("Testing failure");
+        }
+
+        auto erasureReaderConfig = New<TErasureReaderConfig>();
+        erasureReaderConfig->EnableAutoRepair = false;
+
+        TChunkSpec oldChunkSpec;
+        ToProto(oldChunkSpec.mutable_chunk_id(), OldChunkId_);
+        oldChunkSpec.set_erasure_codec(ToProto<i32>(ErasureCodec_));
+        *oldChunkSpec.mutable_replicas() = JobSpecExt_.source_replicas();
+
+        auto chunkReaderHost = New<TChunkReaderHost>(
+            Bootstrap_->GetClient(),
+            Bootstrap_->GetLocalDescriptor(),
+            Bootstrap_->GetBlockCache(),
+            /*chunkMetaCache*/ nullptr,
+            /*nodeStatusDirectory*/ nullptr,
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReincarnationIn),
+            /*rpsThrottler*/ GetUnlimitedThrottler(),
+            /*trafficMeter*/ nullptr);
+        IChunkReaderPtr remoteReader = CreateRemoteReader(
+            oldChunkSpec,
+            erasureReaderConfig,
+            New<TRemoteReaderOptions>(),
+            std::move(chunkReaderHost));
+
+        TClientChunkReadOptions readerOptions = {
+            .WorkloadDescriptor = TWorkloadDescriptor(
+                EWorkloadCategory::SystemReincarnation,
+                /*band*/ 0,
+                /*instant*/ {},
+                {Format("Reincarnate chunk %v", OldChunkId_)}),
+        };
+
+        TDeferredChunkMetaPtr oldChunkMeta = New<TDeferredChunkMeta>();
+        {
+            auto result = WaitFor(remoteReader->GetMeta(readerOptions));
+            THROW_ERROR_EXCEPTION_IF_FAILED(result, "Reincarnation job failed");
+
+            oldChunkMeta->CopyFrom(*result.Value());
+        }
+
+        auto oldChunkFormat = CheckedEnumCast<EChunkFormat>(oldChunkMeta->format());
+
+        auto columnarMeta = New<TColumnarChunkMeta>(*oldChunkMeta);
+
+        auto oldChunkState = New<TChunkState>(
+            Bootstrap_->GetBlockCache(),
+            oldChunkSpec,
+            /*chunkMeta*/ nullptr,
+            /*overrideTimestamp*/  NullTimestamp,
+            /*lookupHashTable*/ nullptr,
+            /*performanceCounters*/ nullptr,
+            /*keyComparer*/ TKeyComparer{},
+            /*virtualValueDirectory*/ nullptr,
+            /*tableSchema*/ columnarMeta->GetChunkSchema());
+
+        auto reader = CreateSchemalessRangeChunkReader(
+            oldChunkState,
+            New<TColumnarChunkMeta>(*oldChunkMeta),
+            NTableClient::TChunkReaderConfig::GetDefault(),
+            TChunkReaderOptions::GetDefault(),
+            remoteReader,
+            New<TNameTable>(),
+            readerOptions,
+            /*keyColumns*/ {},
+            /*omittedInaccessibleColumns*/ {},
+            NTableClient::TColumnFilter(),
+            NChunkClient::TReadRange());
+
+        auto confirmingWriterOptions = New<TMultiChunkWriterOptions>();
+        confirmingWriterOptions->TableSchema = oldChunkState->TableSchema;
+        confirmingWriterOptions->CompressionCodec = CompressionCodec_;
+        confirmingWriterOptions->ErasureCodec = ErasureCodec_;
+
+        auto confirmingWriter = CreateConfirmingWriter(
+            Config_->ReincarnationWriter,
+            confirmingWriterOptions,
+            CellTag_,
+            NullTransactionId,
+            NullChunkListId,
+            Bootstrap_->GetClient(),
+            Bootstrap_->GetLocalHostName(),
+            Bootstrap_->GetBlockCache(),
+            /*trafficMeter*/ nullptr,
+            Bootstrap_->GetThrottler(NDataNode::EDataNodeThrottlerKind::ReincarnationOut),
+            TSessionId(NewChunkId_, MediumIndex_),
+            TargetReplicas_);
+
+        auto chunkWriterOptions = New<TChunkWriterOptions>();
+        chunkWriterOptions->CompressionCodec = CompressionCodec_;
+        if (EnableSkynetSharing_) {
+            chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
+        }
+
+        switch (oldChunkFormat) {
+            case NYT::NChunkClient::EChunkFormat::TableUnversionedColumnar:
+            case NYT::NChunkClient::EChunkFormat::TableVersionedColumnar:
+                chunkWriterOptions->OptimizeFor = EOptimizeFor::Scan;
+            default:
+                break;
+        }
+
+        auto writer = CreateSchemalessChunkWriter(
+            New<TChunkWriterConfig>(),
+            chunkWriterOptions,
+            columnarMeta->GetChunkSchema(),
+            columnarMeta->ChunkNameTable(),
+            confirmingWriter,
+            /*dataSink*/ std::nullopt);
+
+        while (auto batch = WaitForRowBatch(reader)) {
+            writer->Write(batch->MaterializeRows());
+        }
+
+        CopyMeta(
+            writer->GetMeta(),
+            oldChunkMeta);
+
+        WaitFor(writer->Close())
+            .ThrowOnError();
+    }
+
+    bool IsTestingFailureNeeded()
+    {
+        const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
+        const auto& testingConfig = dynamicConfigManager->GetConfig()->DataNode->TestingOptions;
+        return testingConfig->FailReincarnationJobs;
     }
 };
 
@@ -2348,6 +2560,15 @@ TMasterJobBasePtr CreateJob(
 
         case EJobType::AutotomizeChunk:
             return New<TChunkAutotomyJob>(
+                jobId,
+                std::move(jobSpec),
+                std::move(jobTrackerAddress),
+                resourceLimits,
+                std::move(config),
+                bootstrap);
+
+        case EJobType::ReincarnateChunk:
+            return New<TChunkReincarnationJob>(
                 jobId,
                 std::move(jobSpec),
                 std::move(jobTrackerAddress),

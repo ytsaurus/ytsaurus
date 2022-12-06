@@ -134,6 +134,38 @@ DEFINE_REFCOUNTED_TYPE(TDynamicChunkMergerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicChunkReincarnatorConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+
+    TDuration ChunkScanPeriod;
+    int MaxChunksPerScan;
+    int MaxVisitedChunkListsPerScan;
+
+    TInstant MinAllowedCreationTime;
+
+    int MaxRunningJobCount;
+    int ReplacedChunkBatchSize;
+
+    TDuration TransactionUpdatePeriod;
+
+    int MaxFailedJobs;
+    int MaxTrackedChunks;
+
+    bool ShouldRescheduleAfterChange(const TDynamicChunkReincarnatorConfig& that) const noexcept;
+
+    REGISTER_YSON_STRUCT(TDynamicChunkReincarnatorConfig)
+
+    static void Register(TRegistrar registrar);
+
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicChunkReincarnatorConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicDataNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
@@ -475,6 +507,8 @@ public:
     TDynamicChunkTreeBalancerConfigPtr ChunkTreeBalancer;
 
     TDynamicChunkMergerConfigPtr ChunkMerger;
+
+    TDynamicChunkReincarnatorConfigPtr ChunkReincarnator;
 
     TDynamicAllyReplicaManagerConfigPtr AllyReplicaManager;
 

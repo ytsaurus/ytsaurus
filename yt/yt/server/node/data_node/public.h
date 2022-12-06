@@ -173,6 +173,10 @@ DEFINE_ENUM(EDataNodeThrottlerKind,
     (JobOut)
     //! Controls outcoming bandwidth consumed by P2P block distribution.
     (P2POut)
+    //! Controls incoming bandwidth consumed by reincarnation jobs.
+    (ReincarnationIn)
+    //! Controls outcoming bandwidth consumed by reincarnation jobs.
+    (ReincarnationOut)
 );
 
 DEFINE_ENUM(EChunkLocationThrottlerKind,

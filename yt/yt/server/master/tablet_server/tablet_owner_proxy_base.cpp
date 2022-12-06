@@ -62,7 +62,7 @@ void TTabletOwnerProxyBase::DoListSystemAttributes(
         .SetPresent(showTabletAttributes));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::TabletCellBundle)
         .SetWritable(true)
-        .SetPresent(trunkTable->TabletCellBundle().IsAlive())
+        .SetPresent(IsObjectAlive(trunkTable->TabletCellBundle()))
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
         .SetReplicated(true)

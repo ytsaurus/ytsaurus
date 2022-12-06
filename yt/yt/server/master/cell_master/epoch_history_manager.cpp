@@ -60,13 +60,15 @@ public:
 
     std::pair<TInstant, TInstant> GetEstimatedMutationTime(TVersion version) const override
     {
+        YT_VERIFY(!NHydra::HasHydraContext());
+
         int index = std::upper_bound(Versions_.begin(), Versions_.end(), version) - Versions_.begin();
         if (index == 0) {
             return {};
         }
         return {
             Instants_[index - 1],
-            index < std::ssize(Instants_) ? Instants_[index] : TInstant::Max()
+            index < std::ssize(Instants_) ? Instants_[index] : NProfiling::GetInstant()
         };
     }
 

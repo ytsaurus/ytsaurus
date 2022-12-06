@@ -42,10 +42,12 @@ struct TChunkTimestamps
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! If #nameTable is |nullptr|, it will be inferred from schema.
 ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     TTableSchemaPtr schema,
+    TNameTablePtr nameTable,
     NChunkClient::IChunkWriterPtr chunkWriter,
     const std::optional<NChunkClient::TDataSink>& dataSink,
     const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),

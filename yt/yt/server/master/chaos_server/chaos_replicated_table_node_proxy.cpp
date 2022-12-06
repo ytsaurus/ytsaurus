@@ -75,7 +75,7 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChaosCellBundle)
             .SetWritable(true)
             .SetReplicated(true)
-            .SetPresent(impl->ChaosCellBundle().IsAlive()));
+            .SetPresent(IsObjectAlive(impl->ChaosCellBundle())));
         descriptors->push_back(EInternedAttributeKey::Dynamic);
         descriptors->push_back(EInternedAttributeKey::ReplicationCardId);
         descriptors->push_back(EInternedAttributeKey::OwnsReplicationCard);

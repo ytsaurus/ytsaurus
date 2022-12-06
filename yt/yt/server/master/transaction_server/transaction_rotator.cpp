@@ -72,7 +72,7 @@ void TTransactionRotator::Rotate()
     // to ensure that OnTransactionFinished() does not return |true| for
     // this committed transaction.
     auto previousTransaction = std::exchange(PreviousTransaction_, {});
-    if (previousTransaction.IsAlive()) {
+    if (IsObjectAlive(previousTransaction.Get())) {
         transactionManager->CommitTransaction(
             previousTransaction.Get(),
             /*commitOptions*/ {});
@@ -92,7 +92,7 @@ void TTransactionRotator::Rotate()
 
 TTransactionId TTransactionRotator::TransactionIdFromPtr(const TTransactionWeakPtr& ptr)
 {
-    return ptr.IsAlive() ? ptr->GetId() : NullTransactionId;
+    return IsObjectAlive(ptr) ? ptr->GetId() : NullTransactionId;
 }
 
 TTransactionId TTransactionRotator::GetTransactionId() const

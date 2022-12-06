@@ -35,6 +35,7 @@ public:
     int SealSlots;
     int MergeSlots;
     int AutotomySlots;
+    int ReincarnationSlots;
 
     REGISTER_YSON_STRUCT(TResourceLimitsConfig);
 

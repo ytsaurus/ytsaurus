@@ -353,7 +353,7 @@ protected:
     template <class T>
     TIntrusivePtr<T> GetParent() const
     {
-        if (!Owner_.IsAlive()) {
+        if (!IsObjectAlive(Owner_)) {
             return nullptr;
         }
 
@@ -412,12 +412,12 @@ protected:
             .SetWritable(true)
             .SetRemovable(true)
             .SetReplicated(true)
-            .SetPresent(Owner_.IsAlive() && Owner_->PrincipalAcd().GetOwner()));
+            .SetPresent(IsObjectAlive(Owner_) && Owner_->PrincipalAcd().GetOwner()));
     }
 
     bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
     {
-        if (!Owner_.IsAlive()) {
+        if (!IsObjectAlive(Owner_)) {
             return false;
         }
 
@@ -457,7 +457,7 @@ protected:
 
     bool SetBuiltinAttribute(TInternedAttributeKey key, const TYsonString& value) override
     {
-        if (!Owner_.IsAlive()) {
+        if (!IsObjectAlive(Owner_)) {
             return false;
         }
 
@@ -496,7 +496,7 @@ protected:
 
     bool RemoveBuiltinAttribute(TInternedAttributeKey key) override
     {
-        if (!Owner_.IsAlive()) {
+        if (!IsObjectAlive(Owner_)) {
             return false;
         }
 
@@ -540,7 +540,7 @@ DEFINE_YPATH_SERVICE_METHOD(TAccessControlPrincipalProxy, CheckPermission)
         context,
         [&] (TUser* user, EPermission permission, TPermissionCheckOptions options) {
             const auto& securityManager = Bootstrap_->GetSecurityManager();
-            if (!Owner_.IsAlive()) {
+            if (!IsObjectAlive(Owner_)) {
                 THROW_ERROR_EXCEPTION("Failed to check permission: access control object no longer exists");
             }
             const auto& acl = Owner_->PrincipalAcd().Acl();

@@ -228,3 +228,23 @@ message TAutotomizeChunkJobResultExt
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReincarnateChunkJobSpecExt
+{
+    extend NJobTrackerClient.NProto.TJobSpec
+    {
+        optional TReincarnateChunkJobSpecExt reincarnate_chunk_job_spec_ext = 211;
+    }
+
+    required NYT.NProto.TGuid old_chunk_id = 1;
+    required int32 erasure_codec = 2;
+    required int32 compression_codec = 3;
+    required NYT.NProto.TGuid new_chunk_id = 4;
+    repeated fixed32 source_replicas = 5;
+    repeated fixed64 target_replicas = 6;
+    required int32 medium_index = 7;
+    required NYT.NNodeTrackerClient.NProto.TNodeDirectory node_directory = 8;
+    required bool enable_skynet_sharing = 9;
+}
+
+////////////////////////////////////////////////////////////////////////////////

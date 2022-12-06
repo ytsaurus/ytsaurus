@@ -233,7 +233,7 @@ public:
         std::optional<TInstant> deadline,
         const std::optional<TString>& title,
         const IAttributeDictionary& attributes,
-	TTransactionId hintId = NullTransactionId)
+    TTransactionId hintId = NullTransactionId)
     {
         ValidateNativeTransactionStart(parent, prerequisiteTransactions);
 
@@ -557,7 +557,7 @@ public:
             UnrefTimestampHolder(transactionId);
         }
 
-	    auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
+        auto sequoiaContextGuard = CreateSequoiaContextGuard(transaction);
 
         RunCommitTransactionActions(transaction, options);
 
@@ -689,10 +689,11 @@ public:
 
         auto time = timer.GetElapsedTime();
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, User: %v, Force: %v, WallTime: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction aborted (TransactionId: %v, User: %v, Force: %v, Title: %v, WallTime: %v)",
             transactionId,
             user->GetName(),
             options.Force,
+            transaction->GetTitle(),
             time);
 
         const auto& securityManager = Bootstrap_->GetSecurityManager();
