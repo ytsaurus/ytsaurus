@@ -1,6 +1,5 @@
 package ru.yandex.spark.yt.serializers
 
-import ru.yandex.bolts.collection.Cf
 import ru.yandex.spark.yt.common.utils.{ExpressionTransformer, TuplePoint}
 import tech.ytsaurus.core.cypress.RangeLimit
 import tech.ytsaurus.ysontree.{YTree, YTreeBinarySerializer, YTreeNode}
@@ -56,6 +55,6 @@ object PivotKeysConverter {
   }
 
   def toRangeLimit(list: Seq[YTreeNode]): RangeLimit = {
-    RangeLimit.builder.setKey(Cf.list[YTreeNode](list:_*)).build()
+    RangeLimit.builder.setKey(list: _*).build()
   }
 }

@@ -62,10 +62,7 @@ object Dependencies {
   ).excludeLogging
 
   lazy val yandexIceberg = Seq(
-    "ru.yandex" % "java-ytclient" % "10427495" excludeAll ExclusionRule(organization = "io.netty")
-//    "ru.yandex" % "iceberg-inside-yt-core" % "custom"
-    ,
-    "ru.yandex" % "iceberg-misc" % yandexIcebergVersion  excludeAll ExclusionRule(organization = "io.netty"),
+    "ru.yandex" % "java-ytclient" % "10427495" excludeAll ExclusionRule(organization = "io.netty"),
     "io.netty" % "netty-all" % "4.1.68.Final"
   ).map(_ excludeAll(
     ExclusionRule(organization = "com.fasterxml.jackson.core"),

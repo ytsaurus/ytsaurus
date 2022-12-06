@@ -6,7 +6,6 @@ import org.apache.spark.sql.catalyst.expressions.{GenericRowWithSchema, UnsafeAr
 import org.apache.spark.sql.catalyst.util.MapData
 import org.apache.spark.sql.types._
 import org.apache.spark.unsafe.types.UTF8String
-import ru.yandex.bolts.collection.impl.EmptyMap
 import ru.yandex.spark.yt.serializers.SchemaConverter.Unordered
 import ru.yandex.spark.yt.serializers.YsonRowConverter.{isNull, serializeValue}
 import tech.ytsaurus.client.TableWriter
@@ -21,7 +20,7 @@ import scala.collection.mutable
 
 class YsonRowConverter(schema: StructType, ytSchema: YtTypeHolder,
                        config: YsonEncoderConfig) extends YTreeSerializer[Row] {
-  private val entityNode = new YTreeEntityNodeImpl(new EmptyMap)
+  private val entityNode = new YTreeEntityNodeImpl(java.util.Map.of())
   private val indexedFields = schema.zipWithIndex
   private val indexedFieldsWithHints = {
     if (ytSchema.supportsSearchByName) genHints((f, _) => ytSchema.getByName(f.name))
