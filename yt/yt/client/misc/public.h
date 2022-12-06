@@ -27,6 +27,7 @@ DEFINE_ENUM(EWorkloadCategory,
     ((Idle)                        (0))
     ((SystemArtifactCacheDownload) (9))
     ((SystemRepair)                (2))
+    ((SystemReincarnation)        (17))
     ((SystemReplication)           (1))
     ((SystemMerge)                (16))
     ((SystemTabletCompaction)      (6))

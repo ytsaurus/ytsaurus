@@ -140,12 +140,13 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
+        TNameTablePtr nameTable,
         const TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink)
         : Logger(TableClientLogger.WithTag("ChunkWriterId: %v", TGuid::Create()))
         , Schema_(std::move(schema))
         , ChunkTimestamps_(chunkTimestamps)
-        , ChunkNameTable_(TNameTable::FromSchemaStable(*Schema_))
+        , ChunkNameTable_(nameTable ? std::move(nameTable) : TNameTable::FromSchemaStable(*Schema_))
         , Config_(std::move(config))
         , Options_(std::move(options))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
@@ -531,6 +532,7 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
+        TNameTablePtr nameTable,
         const TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink)
         : TUnversionedChunkWriterBase(
@@ -539,6 +541,7 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             std::move(schema),
+            std::move(nameTable),
             chunkTimestamps,
             dataSink)
         , BlockWriter_(std::make_unique<THorizontalBlockWriter>())
@@ -611,6 +614,7 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
+        TNameTablePtr nameTable,
         const TChunkTimestamps& chunkTimestamps,
         const std::optional<NChunkClient::TDataSink>& dataSink)
         : TUnversionedChunkWriterBase(
@@ -619,6 +623,7 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             std::move(schema),
+            std::move(nameTable),
             chunkTimestamps,
             dataSink)
         , DataToBlockFlush_(Config_->BlockSize)
@@ -816,6 +821,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TChunkWriterConfigPtr config,
     TChunkWriterOptionsPtr options,
     TTableSchemaPtr schema,
+    TNameTablePtr nameTable,
     IChunkWriterPtr chunkWriter,
     const std::optional<NChunkClient::TDataSink>& dataSink,
     const TChunkTimestamps& chunkTimestamps,
@@ -829,6 +835,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
                 std::move(chunkWriter),
                 std::move(blockCache),
                 std::move(schema),
+                std::move(nameTable),
                 chunkTimestamps,
                 dataSink);
         case EOptimizeFor::Scan:
@@ -838,6 +845,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
                 std::move(chunkWriter),
                 std::move(blockCache),
                 std::move(schema),
+                std::move(nameTable),
                 chunkTimestamps,
                 dataSink);
         default:
@@ -857,6 +865,7 @@ public:
         IChunkWriterPtr chunkWriter,
         IBlockCachePtr blockCache,
         TTableSchemaPtr schema,
+        TNameTablePtr nameTable,
         int partitionCount,
         const std::optional<NChunkClient::TDataSink>& dataSink)
         : TUnversionedChunkWriterBase(
@@ -865,6 +874,7 @@ public:
             std::move(chunkWriter),
             std::move(blockCache),
             std::move(schema),
+            std::move(nameTable),
             TChunkTimestamps(),
             dataSink)
     {
@@ -1363,6 +1373,7 @@ public:
                 std::move(underlyingWriter),
                 blockCache,
                 Schema_,
+                /*nameTable*/ nullptr,
                 partitionCount,
                 dataSink);
         };
@@ -1918,6 +1929,7 @@ ISchemalessMultiChunkWriterPtr CreateSchemalessMultiChunkWriter(
                     config,
                     options,
                     schema,
+                    /*nameTable*/ nullptr,
                     underlyingWriter,
                     dataSink,
                     chunkTimestamps,

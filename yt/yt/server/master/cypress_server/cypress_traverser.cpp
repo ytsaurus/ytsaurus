@@ -135,7 +135,7 @@ private:
         VERIFY_THREAD_AFFINITY(Automaton);
 
         try {
-            if (Transaction_ && !Transaction_.IsAlive()) {
+            if (Transaction_ && !IsObjectAlive(Transaction_)) {
                 THROW_ERROR_EXCEPTION(
                     NTransactionClient::EErrorCode::NoSuchTransaction,
                     "Transaction %v no longer exists",
@@ -149,13 +149,13 @@ private:
                     auto& entry = Stack_.back();
                     auto childIndex = entry.ChildIndex++;
                     if (childIndex < 0) {
-                        if (entry.TrunkNode.IsAlive()) {
+                        if (IsObjectAlive(entry.TrunkNode)) {
                             Visitor_->OnNode(entry.TrunkNode.Get(), Transaction_.Get());
                         }
                         ++currentNodeCount;
                     } else if (childIndex < std::ssize(entry.TrunkChildren)) {
                         const auto& child = entry.TrunkChildren[childIndex];
-                        if (child.IsAlive()) {
+                        if (IsObjectAlive(child)) {
                             PushEntry(child.Get());
                         }
                         ++currentNodeCount;

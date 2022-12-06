@@ -131,6 +131,7 @@ message TNodeResources
     optional int32 seal_slots = 8;
     optional int32 merge_slots = 13;
     optional int32 autotomy_slots = 15;
+    optional int32 reincarnation_slots = 17;
     optional int64 replication_data_size = 9;
     optional int64 repair_data_size = 10;
     optional int64 merge_data_size = 14;
@@ -167,6 +168,7 @@ message TNodeResourceLimitsOverrides
     optional int32 seal_slots = 8;
     optional int32 merge_slots = 12;
     optional int32 autotomy_slots = 14;
+    optional int32 reincarnation_slots = 15;
     optional int64 user_memory = 9;
     optional int64 system_memory = 10;
     optional int32 gpu = 11;

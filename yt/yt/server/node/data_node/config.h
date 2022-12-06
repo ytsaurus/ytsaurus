@@ -521,6 +521,9 @@ public:
 
     bool SimulateNetworkThrottlingForGetBlockSet;
 
+    // For testing purposes.
+    bool FailReincarnationJobs;
+
     REGISTER_YSON_STRUCT(TDataNodeTestingOptions);
 
     static void Register(TRegistrar registrar);
@@ -760,6 +763,9 @@ public:
 
     //! Writer configuration used to autotomize chunks.
     NChunkClient::TReplicationWriterConfigPtr AutotomyWriter;
+
+    //! Writer configuration used to reincarnate chunks.
+    NChunkClient::TMultiChunkWriterConfigPtr ReincarnationWriter;
 
     //! Configuration for various Data Node throttlers. Used when fair throttler is not enabled.
     TEnumIndexedVector<EDataNodeThrottlerKind, NConcurrency::TRelativeThroughputThrottlerConfigPtr> Throttlers;

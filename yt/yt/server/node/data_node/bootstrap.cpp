@@ -120,6 +120,7 @@ public:
                 EDataNodeThrottlerKind::TabletSnapshotIn,
                 EDataNodeThrottlerKind::TabletStoreFlushIn,
                 EDataNodeThrottlerKind::JobIn,
+                EDataNodeThrottlerKind::ReincarnationIn,
             }) {
                 Throttlers_[kind] = ClusterNodeBootstrap_->GetInThrottler(FormatEnum(kind));
             }
@@ -137,6 +138,7 @@ public:
                 EDataNodeThrottlerKind::TabletReplicationOut,
                 EDataNodeThrottlerKind::JobOut,
                 EDataNodeThrottlerKind::TabletStoreFlushOut,
+                EDataNodeThrottlerKind::ReincarnationOut,
             }) {
                 Throttlers_[kind] = ClusterNodeBootstrap_->GetOutThrottler(FormatEnum(kind));
             }
@@ -251,6 +253,7 @@ public:
         GetJobController()->RegisterJobFactory(NJobAgent::EJobType::SealChunk, createMasterJob);
         GetJobController()->RegisterJobFactory(NJobAgent::EJobType::MergeChunks, createMasterJob);
         GetJobController()->RegisterJobFactory(NJobAgent::EJobType::AutotomizeChunk, createMasterJob);
+        GetJobController()->RegisterJobFactory(NJobAgent::EJobType::ReincarnateChunk, createMasterJob);
 
         IOThroughputMeter_ = CreateIOThroughputMeter(
             GetDynamicConfigManager(),

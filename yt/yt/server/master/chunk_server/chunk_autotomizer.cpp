@@ -678,9 +678,9 @@ private:
         TransactionRotator_.OnAfterSnapshotLoaded();
     }
 
-    void Save(NCellMaster::TSaveContext& context)
+    void Save(NCellMaster::TSaveContext& context) const
     {
-        using NYT::Save;
+        using ::NYT::Save;
 
         Save(context, RegisteredChunks_);
         Save(context, TransactionRotator_);
@@ -691,6 +691,7 @@ private:
         TMasterAutomatonPart::Clear();
 
         RegisteredChunks_.clear();
+
         TransactionRotator_.Clear();
     }
 

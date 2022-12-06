@@ -34,7 +34,8 @@ namespace NYT::NNodeTrackerClient {
     XX(seal_slots,            SealSlots) \
     XX(merge_slots,           MergeSlots) \
     XX(autotomy_slots,        AutotomySlots) \
-    XX(vcpu,                  VCpu)
+    XX(vcpu,                  VCpu) \
+    XX(reincarnation_slots,   ReincarnationSlots)
 
 #define ITERATE_NODE_RESOURCE_LIMITS_OVERRIDES(XX) \
     XX(cpu,                   Cpu) \
@@ -50,7 +51,8 @@ namespace NYT::NNodeTrackerClient {
     XX(user_memory,           UserMemory) \
     XX(system_memory,         SystemMemory) \
     XX(merge_slots,           MergeSlots) \
-    XX(autotomy_slots,        AutotomySlots)
+    XX(autotomy_slots,        AutotomySlots) \
+    XX(reincarnation_slots,   ReincarnationSlots)
 
 // NB: Types must be numbered from 0 to N - 1.
 DEFINE_ENUM(EResourceType,
@@ -67,6 +69,7 @@ DEFINE_ENUM(EResourceType,
     (Gpu)
     (MergeSlots)
     (AutotomySlots)
+    (ReincarnationSlots)
 );
 
 TString FormatResourceUsage(

@@ -1,0 +1,31 @@
+package NYT.NChunkServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUpdateChunkReincarnatorTransactions
+{ }
+
+message TReqCreateReincarnatedChunks
+{
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid old_chunk_id = 1;
+    }
+
+    repeated TSubrequest subrequests = 1;
+}
+
+message TReqReincarnateChunks
+{
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid old_chunk_id = 1;
+        required NYT.NProto.TGuid new_chunk_id = 2;
+    }
+
+    repeated TSubrequest subrequests = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

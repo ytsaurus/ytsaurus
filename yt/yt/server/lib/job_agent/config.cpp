@@ -54,6 +54,9 @@ void TResourceLimitsConfig::Register(TRegistrar registrar)
     registrar.Parameter("autotomy_slots", &TThis::AutotomySlots)
         .GreaterThanOrEqual(0)
         .Default(4);
+    registrar.Parameter("reincarnation_slots", &TThis::ReincarnationSlots)
+        .GreaterThanOrEqual(0)
+        .Default(2);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

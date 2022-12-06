@@ -251,8 +251,8 @@ public:
 
     void Run()
     {
-        YT_VERIFY(Node_.IsAlive());
-        YT_VERIFY(Account_.IsAlive());
+        YT_VERIFY(IsObjectAlive(Node_));
+        YT_VERIFY(IsObjectAlive(Account_));
 
         auto callbacks = CreateAsyncChunkTraverserContext(
             Bootstrap_,
@@ -412,7 +412,7 @@ private:
 
     bool IsNodeMergeable() const
     {
-        if (!Node_.IsAlive()) {
+        if (!IsObjectAlive(Node_)) {
             return false;
         }
 
@@ -466,7 +466,7 @@ private:
 
     void MaybePlanJob()
     {
-        if (!Account_.IsAlive()) {
+        if (!IsObjectAlive(Account_)) {
             return;
         }
 
@@ -643,7 +643,7 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
     for (const auto& [account, queue] : AccountToNodeQueue_) {
-        if (!account.IsAlive()) {
+        if (!IsObjectAlive(account)) {
             continue;
         }
         TWithTagGuard tagGuard(buffer, "account", account->GetName());
@@ -1114,7 +1114,7 @@ void TChunkMerger::ProcessTouchedNodes()
 
     std::vector<TAccount*> accountsToRemove;
     for (auto& [account, queue] : AccountToNodeQueue_) {
-        if (!account.IsAlive()) {
+        if (!IsObjectAlive(account)) {
             accountsToRemove.push_back(account.Get());
             continue;
         }

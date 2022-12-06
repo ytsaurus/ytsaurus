@@ -135,6 +135,51 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicChunkReincarnatorConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(false);
+    registrar.Parameter("chunk_scan_period", &TThis::ChunkScanPeriod)
+        .Default(TDuration::Minutes(3));
+    registrar.Parameter("max_chunks_per_scan", &TThis::MaxChunksPerScan)
+        .GreaterThanOrEqual(0)
+        .Default(50);
+    registrar.Parameter("max_visited_chunk_lists_per_scan", &TThis::MaxVisitedChunkListsPerScan)
+        .GreaterThan(0)
+        .Default(1000);
+
+    registrar.Parameter("min_allowed_creation_time", &TThis::MinAllowedCreationTime)
+        .Default(TInstant::FromValue(0));
+
+    registrar.Parameter("max_running_job_count", &TThis::MaxRunningJobCount)
+        .GreaterThanOrEqual(1)
+        .Default(300);
+
+    registrar.Parameter("replaced_chunk_batch_size", &TThis::ReplacedChunkBatchSize)
+        .GreaterThanOrEqual(1)
+        .Default(30);
+
+    registrar.Parameter("transaction_update_period", &TThis::TransactionUpdatePeriod)
+        .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("max_failed_jobs", &TThis::MaxFailedJobs)
+        .GreaterThanOrEqual(0)
+        .Default(10);
+
+    registrar.Parameter("max_tracked_chunks", &TThis::MaxTrackedChunks)
+        .GreaterThanOrEqual(0)
+        .Default(400);
+}
+
+bool TDynamicChunkReincarnatorConfig::ShouldRescheduleAfterChange(
+    const TDynamicChunkReincarnatorConfig& that) const noexcept
+{
+    return MinAllowedCreationTime != that.MinAllowedCreationTime ||
+        MaxVisitedChunkListsPerScan != that.MaxVisitedChunkListsPerScan;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicDataNodeTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("max_concurrent_full_heartbeats", &TThis::MaxConcurrentFullHeartbeats)
@@ -448,6 +493,10 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("chunk_merger", &TThis::ChunkMerger)
         .DefaultNew();
 
+
+    registrar.Parameter("chunk_reincarnator", &TThis::ChunkReincarnator)
+        .DefaultNew();
+
     registrar.Parameter("ally_replica_manager", &TThis::AllyReplicaManager)
         .DefaultNew();
 
@@ -508,13 +557,23 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
         .DontSerializeDefault();
 
     registrar.Preprocessor([] (TThis* config) {
+        config->JobThrottler->Limit = 10'000;
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (IsMasterJobType(jobType)) {
                 auto jobThrottler = EmplaceOrCrash(config->JobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
                 jobThrottler->second->Limit = 10'000;
             }
         }
-        config->JobThrottler->Limit = 10'000;
+    });
+
+    registrar.Postprocessor([] (TThis* config) {
+        auto& jobTypeToThrottler = config->JobTypeToThrottler;
+        for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
+            if (IsMasterJobType(jobType) && !jobTypeToThrottler.contains(jobType)) {
+                auto jobThrottler = EmplaceOrCrash(jobTypeToThrottler, jobType, New<NConcurrency::TThroughputThrottlerConfig>());
+                jobThrottler->second->Limit = 10'000;
+            }
+        }
     });
 }
 

@@ -7,6 +7,8 @@
 #include "chunk_list_type_handler.h"
 #include "chunk_merger.h"
 #include "chunk_owner_base.h"
+#include "chunk_reincarnator.h"
+#include "chunk_replicator.h"
 #include "chunk_placement.h"
 #include "chunk_type_handler.h"
 #include "chunk_replicator.h"
@@ -21,9 +23,9 @@
 #include "dynamic_store_type_handler.h"
 #include "expiration_tracker.h"
 #include "helpers.h"
+#include "job.h"
 #include "job_controller.h"
 #include "job_registry.h"
-#include "job.h"
 #include "medium.h"
 #include "medium_type_handler.h"
 #include "chunk_location.h"
@@ -379,6 +381,7 @@ public:
         , ExpirationTracker_(New<TExpirationTracker>(Bootstrap_))
         , ChunkAutotomizer_(CreateChunkAutotomizer(Bootstrap_))
         , ChunkMerger_(New<TChunkMerger>(Bootstrap_))
+        , ChunkReincarnator_(CreateChunkReincarnator(Bootstrap_))
     {
         RegisterMethod(BIND(&TChunkManager::HydraConfirmChunkListsRequisitionTraverseFinished, Unretained(this)));
         RegisterMethod(BIND(&TChunkManager::HydraUpdateChunkRequisition, Unretained(this)));
@@ -415,6 +418,7 @@ public:
         JobController_->RegisterJobController(EJobType::SealChunk, ChunkSealer_);
         JobController_->RegisterJobController(EJobType::MergeChunks, ChunkMerger_);
         JobController_->RegisterJobController(EJobType::AutotomizeChunk, ChunkAutotomizer_);
+        JobController_->RegisterJobController(EJobType::ReincarnateChunk, ChunkReincarnator_);
 
         const auto& hydraFacade = Bootstrap_->GetHydraFacade();
         Y_UNUSED(hydraFacade);
@@ -530,6 +534,7 @@ public:
 
         ChunkMerger_->Initialize();
         ChunkAutotomizer_->Initialize();
+        ChunkReincarnator_->Initialize();
     }
 
 
@@ -1317,6 +1322,8 @@ public:
         ChunkReplicator_->OnChunkDestroyed(chunk);
 
         ChunkSealer_->OnChunkDestroyed(chunk);
+
+        ChunkReincarnator_->OnChunkDestroyed(chunk);
 
         if (chunk->HasConsistentReplicaPlacementHash()) {
             ConsistentChunkPlacement_->RemoveChunk(chunk);
@@ -2590,6 +2597,8 @@ private:
     const IChunkAutotomizerPtr ChunkAutotomizer_;
 
     const TChunkMergerPtr ChunkMerger_;
+
+    const IChunkReincarnatorPtr ChunkReincarnator_;
 
     // Global chunk lists; cf. TChunkDynamicData.
     using TGlobalChunkList = TIntrusiveLinkedList<TChunk, TChunkToLinkedListNode>;

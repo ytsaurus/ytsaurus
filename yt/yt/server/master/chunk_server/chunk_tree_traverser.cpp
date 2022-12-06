@@ -168,7 +168,7 @@ protected:
             }
 
             const auto& chunkList = entry.ChunkList;
-            if (!chunkList.IsAlive() || chunkList->GetVersion() != entry.ChunkListVersion) {
+            if (!IsObjectAlive(chunkList) || chunkList->GetVersion() != entry.ChunkListVersion) {
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::OptimisticLockFailure,
                     "Optimistic locking failed for chunk list %v",

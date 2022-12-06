@@ -206,6 +206,7 @@ protected:
             config,
             options,
             New<TTableSchema>(std::get<1>(GetParam())),
+            /*nameTable*/ nullptr,
             memoryWriter,
             /*dataSink*/ std::nullopt);
 
@@ -368,6 +369,7 @@ protected:
             config,
             options,
             Schema_,
+            /*nameTable*/ nullptr,
             memoryWriter,
             /*dataSink*/ std::nullopt);
 
@@ -609,6 +611,7 @@ protected:
             config,
             options,
             schema,
+            /*nameTable*/ nullptr,
             memoryWriter,
             /*dataSink*/ std::nullopt);
 

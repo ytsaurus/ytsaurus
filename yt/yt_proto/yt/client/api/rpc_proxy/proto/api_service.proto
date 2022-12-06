@@ -165,6 +165,7 @@ enum EJobType
     JT_SEAL_CHUNK = 103;
     JT_MERGE_CHUNKS = 104;
     JT_AUTOTOMIZE_CHUNK = 105;
+    JT_REINCARNATE_CHUNK = 106;
 }
 
 enum EJobState

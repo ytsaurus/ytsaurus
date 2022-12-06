@@ -347,6 +347,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
             tableWriterConfig,
             tableWriterOptions,
             Schema_,
+            /*nameTable*/ nullptr,
             chunkWriter,
             /*dataSink*/ std::nullopt);
 

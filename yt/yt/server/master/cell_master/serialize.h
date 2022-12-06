@@ -82,6 +82,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixTransactionRotator)                                        (2206))  // kvk1920
     ((BundleControllerConfigAttribute)                              (2207))  // capone212
     ((FixNodeRegistration)                                          (2208))  // kvk1920
+    ((ChunkReincarnator)                                            (2209))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

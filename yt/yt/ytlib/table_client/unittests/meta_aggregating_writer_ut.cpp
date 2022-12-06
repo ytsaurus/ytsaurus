@@ -99,6 +99,7 @@ protected:
                 ChunkWriterConfig_,
                 options,
                 Schema_,
+                /*nameTable*/ nullptr,
                 memoryWriter,
                 /*dataSink*/ std::nullopt);
 

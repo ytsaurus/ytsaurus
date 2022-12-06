@@ -120,6 +120,7 @@ DECLARE_REFCOUNTED_STRUCT(IJobController)
 DECLARE_REFCOUNTED_STRUCT(IJobRegistry)
 
 DECLARE_REFCOUNTED_CLASS(TChunkMerger)
+DECLARE_REFCOUNTED_CLASS(IChunkReincarnator)
 DECLARE_REFCOUNTED_CLASS(TChunkReplicator)
 DECLARE_REFCOUNTED_CLASS(TChunkPlacement)
 DECLARE_REFCOUNTED_CLASS(TConsistentChunkPlacement)
@@ -129,6 +130,7 @@ DECLARE_REFCOUNTED_CLASS(TDynamicDataNodeTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkTreeBalancerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkAutotomizerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkMergerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicChunkReincarnatorConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerTestingConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicChunkServiceConfig)
@@ -181,6 +183,7 @@ DEFINE_BIT_ENUM(EChunkScanKind,
     ((Refresh)           (0x0001))
     ((RequisitionUpdate) (0x0002))
     ((Seal)              (0x0004))
+    ((Reincarnation)     (0x0008))
 );
 
 DEFINE_ENUM(EChunkListKind,
