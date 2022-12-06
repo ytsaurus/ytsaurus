@@ -8,19 +8,20 @@
 
 #include <yt/yt/library/process/process.h>
 
-#include <yt/yt/server/lib/containers/instance.h>
-#include <yt/yt/server/lib/containers/porto_executor.h>
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
+#include <yt/yt/library/containers/public.h>
+#include <yt/yt/library/containers/config.h>
 
-#include <yt/yt/ytlib/cgroup/cgroup.h>
+#include <yt/yt/library/containers/cgroup.h>
 
 namespace NYT::NContainers {
 
 using namespace NProfiling;
 
-static const NLogging::TLogger& Logger = ContainersLogger;
-
 #ifdef _linux_
+
+static const NLogging::TLogger& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -401,15 +402,15 @@ void TPortoResourceProfiler::WriteCpuMetrics(
 
     if (totalStatistics.CpuStatistics.GuaranteeTime.IsOK()) {
         i64 guaranteeTimeUs = totalStatistics.CpuStatistics.GuaranteeTime.Value().MicroSeconds();
-        i64 normalizedGuaranteeTimeUs = guaranteeTimeUs * timeDeltaUsec / 1000000;
-        double guaranteePercent = std::max<double>(0.0, (100. * normalizedGuaranteeTimeUs) / timeDeltaUsec);
+        double guaranteePercent = std::max<double>(
+            0.0, (100. * guaranteeTimeUs * timeDeltaUsec) / (1'000'000L * 1'000'000L));
         writer->AddGauge("/cpu/guarantee", guaranteePercent);
     }
 
     if (totalStatistics.CpuStatistics.LimitTime.IsOK()) {
         i64 limitTimeUs = totalStatistics.CpuStatistics.LimitTime.Value().MicroSeconds();
-        i64 normalizedLimitTimeUs = limitTimeUs * timeDeltaUsec / 1000000;
-        double limitPercent = std::max<double>(0.0, (100. * normalizedLimitTimeUs) / timeDeltaUsec);
+        double limitPercent = std::max<double>(
+            0.0, (100. * limitTimeUs * timeDeltaUsec) / (1'000'000L * 1'000'000L));
         writer->AddGauge("/cpu/limit", limitPercent);
     }
 
@@ -507,5 +508,29 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
 ////////////////////////////////////////////////////////////////////////////////
 
 #endif
+
+void EnablePortoResourceTracker()
+{
+#ifdef __linux__
+
+    try {
+        auto executor = CreatePortoExecutor(New<TPortoExecutorConfig>(), "porto-tracker");
+
+        executor->SubscribeFailed(BIND([=] (const TError& error) {
+            YT_LOG_ERROR(error, "Fatal error during Porto polling");
+        }));
+
+        auto portoResourceTracker = New<TPortoResourceTracker>(
+            GetSelfPortoInstance(executor),
+            ResourceUsageUpdatePeriod,
+            true
+        );
+        LeakyRefCountedSingleton<TPortoResourceProfiler>(portoResourceTracker);
+    } catch(const std::exception& exception) {
+        YT_LOG_ERROR(exception, "Failed to enable porto profiler");
+    }
+
+#endif
+}
 
 } // namespace NYT::NContainers

@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/io/config.h>
 
-#include <yt/yt/server/lib/containers/config.h>
+#include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 

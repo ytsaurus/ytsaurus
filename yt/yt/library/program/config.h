@@ -86,6 +86,7 @@ public:
     TTCMallocConfigPtr TCMalloc;
     bool EnableRefCountedTrackerProfiling;
     bool EnableResourceTracker;
+    bool EnablePortoResourceTracker;
 
     REGISTER_YSON_STRUCT(TSingletonsConfig);
 

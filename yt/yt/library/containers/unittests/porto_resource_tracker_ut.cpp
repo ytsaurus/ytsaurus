@@ -9,10 +9,10 @@
 
 #ifdef _linux_
 
-#include <yt/yt/server/lib/containers/config.h>
-#include <yt/yt/server/lib/containers/porto_executor.h>
-#include <yt/yt/server/lib/containers/porto_resource_tracker.h>
-#include <yt/yt/server/lib/containers/instance.h>
+#include <yt/yt/library/containers/config.h>
+#include <yt/yt/library/containers/porto_executor.h>
+#include <yt/yt/library/containers/porto_resource_tracker.h>
+#include <yt/yt/library/containers/instance.h>
 
 #include <util/system/platform.h>
 #include <util/system/env.h>

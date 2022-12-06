@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/lib/core_dump/public.h>
 
-#include <yt/yt/server/lib/containers/public.h>
+#include <yt/yt/library/containers/public.h>
 
 #include <yt/yt/server/lib/exec_node/config.h>
 
@@ -13,8 +13,8 @@
 #include <util/system/fs.h>
 
 #ifdef _linux_
-#include <yt/yt/server/lib/containers/instance.h>
-#include <yt/yt/server/lib/containers/porto_executor.h>
+#include <yt/yt/library/containers/instance.h>
+#include <yt/yt/library/containers/porto_executor.h>
 #endif
 
 #include <yt/yt/library/process/process.h>
@@ -33,7 +33,6 @@ namespace NYT::NJobProxy {
 
 using namespace NConcurrency;
 using namespace NContainers;
-using namespace NCGroup;
 using namespace NExecNode;
 using namespace NJobAgent;
 using namespace NNet;

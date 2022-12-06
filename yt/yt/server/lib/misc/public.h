@@ -29,8 +29,6 @@ DECLARE_REFCOUNTED_CLASS(TForkCounters)
 extern const TString ExecProgramName;
 extern const TString JobProxyProgramName;
 
-DECLARE_REFCOUNTED_CLASS(TPortoProcess)
-
 ////////////////////////////////////////////////////////////////////////////////
 
 extern const TString BanMessageAttributeName;

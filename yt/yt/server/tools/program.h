@@ -10,7 +10,7 @@
 #include <yt/yt/ytlib/tools/proc.h>
 #include <yt/yt/ytlib/tools/signaler.h>
 
-#include <yt/yt/ytlib/cgroup/cgroup.h>
+#include <yt/yt/library/containers/cgroup.h>
 
 #include <util/system/thread.h>
 
@@ -36,16 +36,6 @@ REGISTER_TOOL(TGetDirectorySizesAsRootTool)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTools
-
-namespace NYT::NCGroup {
-
-////////////////////////////////////////////////////////////////////////////////
-
-REGISTER_TOOL(TKillProcessGroupTool)
-
-////////////////////////////////////////////////////////////////////////////////
-
-} // namespace NYT::NCGroup
 
 namespace NYT::NExecNode {
 

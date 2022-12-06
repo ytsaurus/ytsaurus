@@ -14,12 +14,11 @@
 #include <yt/yt/server/node/data_node/config.h>
 
 #include <yt/yt/server/lib/misc/public.h>
+#include <yt/yt/library/containers/process.h>
 
 #ifdef _linux_
-#include <yt/yt/server/lib/containers/porto_executor.h>
-#include <yt/yt/server/lib/containers/instance.h>
-
-#include <yt/yt/server/lib/misc/process.h>
+#include <yt/yt/library/containers/porto_executor.h>
+#include <yt/yt/library/containers/instance.h>
 #endif
 
 #include <yt/yt/ytlib/job_proxy/private.h>

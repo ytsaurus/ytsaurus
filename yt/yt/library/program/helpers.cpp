@@ -15,6 +15,8 @@
 
 #include <yt/yt/library/profiling/resource_tracker/resource_tracker.h>
 
+#include <yt/yt/library/containers/porto_resource_tracker.h>
+
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/concurrency/execution_stack.h>
@@ -134,6 +136,10 @@ void ConfigureSingletonsImpl(const TConfig& config)
 
     if (config->EnableResourceTracker) {
         NProfiling::EnableResourceTracker();
+    }
+
+    if (config->EnablePortoResourceTracker) {
+        NContainers::EnablePortoResourceTracker();
     }
 }
 

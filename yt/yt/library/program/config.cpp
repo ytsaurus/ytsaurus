@@ -65,6 +65,8 @@ void TSingletonsConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_resource_tracker", &TThis::EnableResourceTracker)
         .Default(true);
+    registrar.Parameter("enable_porto_resource_tracker", &TThis::EnablePortoResourceTracker)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

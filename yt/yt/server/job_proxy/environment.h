@@ -2,10 +2,10 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/containers/public.h>
-#include <yt/yt/server/lib/containers/porto_resource_tracker.h>
+#include <yt/yt/library/containers/public.h>
+#include <yt/yt/library/containers/porto_resource_tracker.h>
 
-#include <yt/yt/ytlib/cgroup/cgroup.h>
+#include <yt/yt/library/containers/cgroup.h>
 
 #include <yt/yt/core/net/address.h>
 
