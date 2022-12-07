@@ -781,7 +781,7 @@ TRowset TClient::DoLookupRowsOnce(
             tableInfo->UpstreamReplicaId);
     }
 
-    if (options.FallbackTableSchema) {
+    if (options.FallbackTableSchema && tableInfo->ReplicationCardId) {
         ValidateTableSchemaUpdate(
             *options.FallbackTableSchema,
             *tableInfo->Schemas[ETableSchemaKind::Primary],
