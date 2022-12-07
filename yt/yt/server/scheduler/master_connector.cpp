@@ -725,6 +725,7 @@ private:
             TakeLock();
             AssumeControl();
             StrictUpdateWatchers();
+            InitPersistentStrategyState();
             SyncClusterDirectory();
             SyncMediumDirectory();
             ListOperations();
@@ -1219,6 +1220,81 @@ private:
             // NB: Keep stuff above in sync with #RequestOperationAttributes.
 
             return operation;
+        }
+
+        void InitPersistentStrategyState()
+        {
+            try {
+                DoInitPersistentStrategyState();
+            } catch (const std::exception& ex) {
+                auto error = TError(ex);
+                Owner_->SetSchedulerAlert(ESchedulerAlertType::SchedulerCannotConnect, error);
+                Owner_->UpdateAlerts();
+                THROW_ERROR(error);
+            }
+        }
+
+        void DoInitPersistentStrategyState()
+        {
+            YT_LOG_INFO("Requesting persistent strategy state");
+
+            auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
+            batchReq->AddRequest(TYPathProxy::Get(StrategyStatePath), "get_strategy_state");
+
+            // COMPAT(eshcherbin): Remove when old global scheduling segments state is not used.
+            YT_LOG_INFO("Requesting old scheduling segments state");
+            batchReq->AddRequest(TYPathProxy::Get(OldSegmentsStatePath), "get_old_scheduling_segments_state");
+
+            auto batchRsp = WaitFor(batchReq->Invoke())
+                .ValueOrThrow();
+
+            auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_strategy_state");
+            if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error fetching strategy state"));
+            }
+
+            TPersistentStrategyStatePtr strategyState;
+            {
+                strategyState = New<TPersistentStrategyState>();
+                if (rspOrError.IsOK()) {
+                    auto value = rspOrError.ValueOrThrow()->value();
+                    try {
+                        strategyState = ConvertTo<TPersistentStrategyStatePtr>(TYsonString(value));
+                        YT_LOG_INFO("Successfully fetched strategy state");
+                    } catch (const std::exception& ex) {
+                        YT_LOG_WARNING(
+                            ex,
+                            "Failed to deserialize strategy state; will drop it (Value: %v)",
+                            ConvertToYsonString(value, EYsonFormat::Text));
+                    }
+                }
+            }
+
+            // COMPAT(eshcherbin): Remove when old global scheduling segments state is not used.
+            TPersistentSchedulingSegmentsStatePtr oldSchedulingSegmentsState;
+            {
+                rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_old_scheduling_segments_state");
+                if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
+                    THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error fetching old scheduling segments state"));
+                }
+
+                if (rspOrError.IsOK()) {
+                    auto value = rspOrError.ValueOrThrow()->value();
+                    try {
+                        oldSchedulingSegmentsState = ConvertTo<TPersistentSchedulingSegmentsStatePtr>(TYsonString(value));
+                        YT_LOG_INFO("Successfully fetched old scheduling segments state");
+                    } catch (const std::exception& ex) {
+                        oldSchedulingSegmentsState.Reset();
+
+                        YT_LOG_WARNING(
+                            ex,
+                            "Failed to deserialize old scheduling segments state; will drop it (Value: %v)",
+                            ConvertToYsonString(value, EYsonFormat::Text));
+                    }
+                }
+            }
+
+            Owner_->Bootstrap_->GetScheduler()->GetStrategy()->InitPersistentState(strategyState, oldSchedulingSegmentsState);
         }
 
         void StrictUpdateWatchers()
