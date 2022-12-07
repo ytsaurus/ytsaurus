@@ -943,7 +943,7 @@ private:
         {
             auto guard = Guard(Lock_);
 
-            YT_VERIFY(OutstandingRequestCount() > 0 || Balance_ <= 0);
+            YT_VERIFY(GetOutstandingRequestCount() > 0 || Balance_ <= 0);
 
             auto forecastedAvailable = Available_ + Balance_;
             if (forecastedAvailable >= 0) {
@@ -954,8 +954,8 @@ private:
             underlyingAmount = std::max(PrefetchAmount_, -forecastedAvailable);
             Balance_ += underlyingAmount;
 
-            incomingRps = IncomingRps();
-            underlyingRps = UnderlyingRps();
+            incomingRps = GetIncomingRps();
+            underlyingRps = GetUnderlyingRps();
 
             RegisterUnderlyingRequest(now, underlyingAmount);
 
@@ -1003,7 +1003,7 @@ private:
     {
         UpdateRpsWindow(now);
 
-        auto underlyingRps = UnderlyingRps();
+        auto underlyingRps = GetUnderlyingRps();
         if (UnderlyingRequests_.size() > 0 && UnderlyingAmountInWindow_ > 0) {
             PrefetchAmount_ = UnderlyingAmountInWindow_ * underlyingRps / Config_->TargetRps / UnderlyingRequests_.size();
         }
@@ -1101,19 +1101,20 @@ private:
     }
 
     //! Estimate RPS of incoming requests.
-    double IncomingRps() const
+    double GetIncomingRps() const
     {
         return (IncomingRequestCountInWindow_ + IncomingRequestCountPastWindow_) / Config_->Window.SecondsFloat();
     }
 
     //! Estimate RPS of requests to the underlying throttler.
-    double UnderlyingRps() const
+    double GetUnderlyingRps() const
     {
         return UnderlyingRequests_.size() / Config_->Window.SecondsFloat();
     }
 
     //! Calculate how many requests to the underlying throttler are still active.
-    i64 OutstandingRequestCount() const {
+    i64 GetOutstandingRequestCount() const
+    {
         return UnderlyingRequestId_ - UnderlyingResponseCount_;
     }
 };
