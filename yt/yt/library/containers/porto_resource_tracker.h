@@ -47,7 +47,8 @@ public:
     TPortoResourceTracker(
         IInstancePtr instance,
         TDuration updatePeriod,
-        bool isDeltaTracker = false);
+        bool isDeltaTracker = false,
+        bool isForceUpdate = false);
 
     TCpuStatistics GetCpuStatistics() const;
 
@@ -67,6 +68,7 @@ private:
     const IInstancePtr Instance_;
     const TDuration UpdatePeriod_;
     const bool IsDeltaTracker_;
+    const bool IsForceUpdate_;
 
     mutable std::atomic<TInstant> LastUpdateTime_ = {};
 

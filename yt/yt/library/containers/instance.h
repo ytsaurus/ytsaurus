@@ -43,6 +43,7 @@ const std::vector<EStatField> InstanceStatFields{
     EStatField::IOOps,
     EStatField::IOOpsLimit,
     EStatField::IOTotalTime,
+    EStatField::IOWaitTime,
 
     EStatField::NetTxBytes,
     EStatField::NetTxPackets,
