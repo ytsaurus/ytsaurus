@@ -81,6 +81,7 @@ void TTableNode::TDynamicTableAttributes::Save(NCellMaster::TSaveContext& contex
     Save(context, ForcedCompactionRevision);
     Save(context, ForcedStoreCompactionRevision);
     Save(context, ForcedHunkCompactionRevision);
+    Save(context, ForcedChunkViewCompactionRevision);
     Save(context, Dynamic);
     Save(context, *TabletBalancerConfig);
     Save(context, DynamicTableLocks);
@@ -126,6 +127,10 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, ForcedCompactionRevision);
     Load(context, ForcedStoreCompactionRevision);
     Load(context, ForcedHunkCompactionRevision);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::InternedForcedChunkViewCompactionRevision) {
+        Load(context, ForcedChunkViewCompactionRevision);
+    }
     Load(context, Dynamic);
 
     // COMPAT(gritukan)
@@ -177,6 +182,33 @@ void TTableNode::TDynamicTableAttributes::Load(
     Load(context, TreatAsConsumer);
     Load(context, IsVitalConsumer);
     Load(context, *MountConfigStorage);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < EMasterReign::InternedForcedChunkViewCompactionRevision) {
+        auto value = MountConfigStorage->Find("forced_chunk_view_compaction_revision");
+
+        if (value) {
+            auto node = ConvertToNode(value);
+            switch (node->GetType()) {
+                case ENodeType::Int64:
+                    ForcedChunkViewCompactionRevision = node->AsInt64()->GetValue();
+                    break;
+
+                case ENodeType::Uint64:
+                    ForcedChunkViewCompactionRevision = node->AsUint64()->GetValue();
+                    break;
+
+                default:
+                    YT_LOG_ERROR("Found table with invalid type of \"forced_chunk_view_compaction_revision\" "
+                        "attribute: expected integral, got %Qlv (TableId: %v, Value: %v)",
+                        node->GetType(),
+                        tabletOwner->GetId(),
+                        ConvertToYsonString(node, EYsonFormat::Text));
+            }
+
+            MountConfigStorage->Remove("forced_chunk_view_compaction_revision");
+        }
+    }
 
     // COMPAT(aleksandra-zh)
     if (context.GetVersion() >= EMasterReign::LinkHunkStorageNode) {

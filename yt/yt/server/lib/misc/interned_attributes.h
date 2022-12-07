@@ -188,6 +188,7 @@
     XX(FlushLagTime, flush_lag_time) \
     XX(FlushedRowCount, flushed_row_count) \
     XX(FolderId, folder_id) \
+    XX(ForcedChunkViewCompactionRevision, forced_chunk_view_compaction_revision) \
     XX(ForcedCompactionRevision, forced_compaction_revision) \
     XX(ForcedStoreCompactionRevision, forced_store_compaction_revision) \
     XX(ForcedHunkCompactionRevision, forced_hunk_compaction_revision) \

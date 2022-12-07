@@ -83,6 +83,7 @@ DEFINE_ENUM(EMasterReign,
     ((BundleControllerConfigAttribute)                              (2207))  // capone212
     ((FixNodeRegistration)                                          (2208))  // kvk1920
     ((ChunkReincarnator)                                            (2209))  // kvk1920
+    ((InternedForcedChunkViewCompactionRevision)                    (2210))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

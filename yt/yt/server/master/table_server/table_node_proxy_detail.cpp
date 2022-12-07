@@ -288,6 +288,11 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetRemovable(true)
         .SetReplicated(true)
         .SetPresent(static_cast<bool>(table->GetForcedHunkCompactionRevision())));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ForcedChunkViewCompactionRevision)
+        .SetWritable(true)
+        .SetRemovable(true)
+        .SetReplicated(true)
+        .SetPresent(static_cast<bool>(table->GetForcedChunkViewCompactionRevision())));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::FlushLagTime)
         .SetExternal(isExternal)
         .SetPresent(isDynamic && isSorted));
@@ -657,6 +662,14 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             }
             BuildYsonFluently(consumer)
                 .Value(*trunkTable->GetForcedHunkCompactionRevision());
+            return true;
+
+        case EInternedAttributeKey::ForcedChunkViewCompactionRevision:
+            if (!trunkTable->GetForcedChunkViewCompactionRevision()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(*trunkTable->GetForcedChunkViewCompactionRevision());
             return true;
 
         case EInternedAttributeKey::FlushLagTime: {
@@ -1076,6 +1089,13 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
             return true;
         }
 
+        case EInternedAttributeKey::ForcedChunkViewCompactionRevision: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetForcedChunkViewCompactionRevision(std::nullopt);
+            return true;
+        }
+
         case EInternedAttributeKey::EnableDynamicStoreRead: {
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
@@ -1283,6 +1303,13 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             ValidateNoTransaction();
             auto* lockedTable = LockThisImpl();
             lockedTable->SetForcedHunkCompactionRevision(revision);
+            return true;
+        }
+
+        case EInternedAttributeKey::ForcedChunkViewCompactionRevision: {
+            ValidateNoTransaction();
+            auto* lockedTable = LockThisImpl();
+            lockedTable->SetForcedChunkViewCompactionRevision(revision);
             return true;
         }
 

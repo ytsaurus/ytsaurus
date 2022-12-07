@@ -64,6 +64,8 @@ void TBuiltinTableMountConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("forced_hunk_compaction_revision", &TThis::ForcedHunkCompactionRevision)
         .Default();
+    registrar.Parameter("forced_chunk_view_compaction_revision", &TThis::ForcedChunkViewCompactionRevision)
+        .Default();
     registrar.Parameter("profiling_mode", &TThis::ProfilingMode)
         .Default(EDynamicTableProfilingMode::Path);
     registrar.Parameter("profiling_tag", &TThis::ProfilingTag)
@@ -184,9 +186,6 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_eden_stores_per_tablet", &TThis::MaxEdenStoresPerTablet)
         .Default(100)
         .GreaterThan(0);
-
-    registrar.Parameter("forced_chunk_view_compaction_revision", &TThis::ForcedChunkViewCompactionRevision)
-        .Default();
 
     registrar.Parameter("dynamic_store_auto_flush_period", &TThis::DynamicStoreAutoFlushPeriod)
         .Default(TDuration::Minutes(15));

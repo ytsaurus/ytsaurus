@@ -94,6 +94,7 @@ public:
     std::optional<NHydra::TRevision> ForcedCompactionRevision;
     std::optional<NHydra::TRevision> ForcedStoreCompactionRevision;
     std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
+    std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
 
     EDynamicTableProfilingMode ProfilingMode;
     TString ProfilingTag;
@@ -159,9 +160,6 @@ public:
 
     int MaxStoresPerTablet;
     int MaxEdenStoresPerTablet;
-
-    // TODO(babenko,ifsmirnov): make builtin
-    std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
 
     std::optional<TDuration> DynamicStoreAutoFlushPeriod;
     TDuration DynamicStoreFlushPeriodSplay;

@@ -1328,8 +1328,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             return count
 
         assert _get_chunk_view_count() == 2
-        set("//tmp/t/@dummy", 1)
-        set("//tmp/t/@forced_chunk_view_compaction_revision", get("//tmp/t/@revision"))
+        set("//tmp/t/@forced_chunk_view_compaction_revision", 1)
         remount_table("//tmp/t")
         wait(lambda: _get_chunk_view_count() == 0)
 

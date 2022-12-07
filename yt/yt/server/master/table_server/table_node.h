@@ -62,6 +62,7 @@ private:
         std::optional<NHydra::TRevision> ForcedCompactionRevision;
         std::optional<NHydra::TRevision> ForcedStoreCompactionRevision;
         std::optional<NHydra::TRevision> ForcedHunkCompactionRevision;
+        std::optional<NHydra::TRevision> ForcedChunkViewCompactionRevision;
         bool Dynamic = false;
         NTabletBalancer::TTableTabletBalancerConfigPtr TabletBalancerConfig = New<NTabletBalancer::TTableTabletBalancerConfig>();
         THashMap<NTransactionClient::TTransactionId, TDynamicTableLock> DynamicTableLocks;
@@ -113,6 +114,7 @@ public:
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedStoreCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedHunkCompactionRevision);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, ForcedChunkViewCompactionRevision);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, Dynamic);
     DEFINE_BYREF_RW_EXTRA_PROPERTY(DynamicTableAttributes, DynamicTableLocks);
     DEFINE_BYVAL_RW_EXTRA_PROPERTY(DynamicTableAttributes, UnconfirmedDynamicTableLockCount);
