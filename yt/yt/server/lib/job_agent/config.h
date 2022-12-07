@@ -217,6 +217,8 @@ public:
 
     TMemoryPressureDetectorConfigPtr MemoryPressureDetector;
 
+    TDuration OperationInfosRequestPeriod;
+
     REGISTER_YSON_STRUCT(TJobControllerDynamicConfig);
 
     static void Register(TRegistrar registrar);

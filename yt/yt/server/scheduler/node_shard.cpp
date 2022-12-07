@@ -722,6 +722,11 @@ void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
         schedulingContext,
         /*requestContext*/ context);
 
+    // COMPAT(pogorelov)
+    if constexpr (std::is_same_v<TCtxNodeHeartbeatPtr, TScheduler::TCtxNodeHeartbeatPtr>) {
+        ProcessOperationInfoHeartbeat(request, response);
+    }
+
     context->SetResponseInfo(
         "NodeId: %v, NodeAddress: %v, IsThrottling: %v",
         nodeId,
@@ -1280,7 +1285,7 @@ void TNodeShard::ReleaseJob(TJobId jobId, TReleaseJobFlags releaseFlags)
                 execNode->GetDefaultAddress(),
                 releaseFlags);
             auto& recentlyFinishedJobInfo = it->second;
-            recentlyFinishedJobInfo.ReleaseFlags = std::move(releaseFlags);
+            recentlyFinishedJobInfo.ReleaseFlags = releaseFlags;
         }
     } else {
         YT_LOG_DEBUG("Execution node was unregistered for a job that should be removed (JobId: %v, NodeId: %v)",
@@ -1996,7 +2001,7 @@ TJobPtr TNodeShard::ProcessJobHeartbeat(
         // TJob structures of the operation are materialized. Also we should
         // not remove the completed jobs that were not saved to the snapshot.
         if ((operation && !operation->JobsReady) ||
-            WaitingForRegisterOperationIds_.find(operationId) != std::cend(WaitingForRegisterOperationIds_))
+            WaitingForRegisterOperationIds_.contains(operationId))
         {
             if (operation && !operation->OperationUnreadyLoggedJobIds.contains(jobId)) {
                 YT_LOG_DEBUG("Job is skipped since operation jobs are not ready yet");
@@ -2477,6 +2482,35 @@ void TNodeShard::SetFinishedState(const TJobPtr& job)
 {
     UpdateProfilingCounter(job, -1);
     job->SetAllocationState(EAllocationState::Finished);
+}
+
+void TNodeShard::ProcessOperationInfoHeartbeat(
+    const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
+    TScheduler::TCtxNodeHeartbeat::TTypedResponse* response)
+{
+    for (const auto& protoOperationId : request->operations_ids_to_request_info()) {
+        auto operationId = FromProto<TOperationId>(protoOperationId);
+
+        auto* protoOperationInfo = response->add_operation_infos();
+        *protoOperationInfo->mutable_operation_id() = protoOperationId;
+
+        const auto* operationState = FindOperationState(operationId);
+        if (!operationState) {
+            if (WaitingForRegisterOperationIds_.contains(operationId)) {
+                protoOperationInfo->set_running(true);
+            }
+            continue;
+        }
+
+        protoOperationInfo->set_running(true);
+
+        auto agent = operationState->Controller->FindAgent();
+        if (!agent) {
+            continue;
+        }
+
+        SetControllerAgentInfo(agent, protoOperationInfo->mutable_controller_agent_descriptor());
+    }
 }
 
 void TNodeShard::RegisterJob(const TJobPtr& job)

@@ -100,8 +100,6 @@ public:
 
     const NControllerAgent::NProto::TJobSpec& GetSpec() const;
 
-    bool IsUrgent() const;
-
     const std::vector<int>& GetPorts() const;
 
     EJobState GetState() const;
@@ -206,6 +204,8 @@ public:
 
     NScheduler::EInterruptReason GetInterruptionReason() const noexcept;
     const std::optional<NScheduler::TPreemptedFor>& GetPreemptedFor() const noexcept;
+
+    bool IsFinished() const noexcept;
 
 private:
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);

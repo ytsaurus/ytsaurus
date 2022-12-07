@@ -24,6 +24,8 @@ message TReqHeartbeat
     optional int32 job_reporter_write_failures_count = 7;
     optional bool job_reporter_queue_is_too_large = 8;
 
+    repeated NYT.NProto.TGuid operations_ids_to_request_info = 11;
+
     // COMPAT(pogorelov)
     repeated NYT.NProto.TGuid unconfirmed_allocations = 9;
     required int64 confirmed_job_count = 10;
@@ -55,6 +57,14 @@ message TAllocationToInterrupt
     optional NYT.NJobTrackerClient.NProto.TPreemptedFor preempted_for = 5;
 }
 
+message TOperationInfo
+{
+    required NYT.NProto.TGuid operation_id = 1;
+    required bool running = 2;
+
+    optional NJobTrackerClient.NProto.TControllerAgentDescriptor controller_agent_descriptor = 3;
+}
+
 message TRspHeartbeat
 {
     repeated TAllocationStartInfo allocations_to_start = 1;
@@ -67,6 +77,8 @@ message TRspHeartbeat
     repeated NYT.NProto.TGuid jobs_to_store = 7;
     repeated NYT.NProto.TGuid jobs_to_fail = 8;
     repeated NJobTrackerClient.NProto.TJobToConfirm jobs_to_confirm = 9;
+
+    repeated TOperationInfo operation_infos = 10;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

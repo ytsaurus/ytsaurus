@@ -162,7 +162,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
             if (const auto& timeStatistics = job->GetTimeStatistics(); !timeStatistics.IsEmpty()) {
                 TStatistics timeStatisticsToSend;
                 timeStatisticsToSend.SetTimestamp(TInstant::Now());
-                
+
                 timeStatistics.AddSamplesTo(&timeStatisticsToSend);
 
                 statistics = NYson::ConvertToYsonString(timeStatisticsToSend);
@@ -307,6 +307,8 @@ TControllerAgentConnectorPool::TControllerAgentConnectorPtr TControllerAgentConn
     const TJob* job)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    YT_VERIFY(job->GetControllerAgentDescriptor());
 
     if (const auto it = ControllerAgentConnectors_.find(job->GetControllerAgentDescriptor());
         it != std::cend(ControllerAgentConnectors_))

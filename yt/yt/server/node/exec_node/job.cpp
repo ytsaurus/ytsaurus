@@ -555,6 +555,16 @@ void TJob::UpdateControllerAgentDescriptor(TControllerAgentDescriptor agentDescr
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
+    if (ControllerAgentDescriptor_ == agentDescriptor) {
+        return;
+    }
+
+    YT_LOG_DEBUG(
+        "Updating controller agent (ControllerAgentAddress: %v -> %v, ControllerAgentIncarnationId: %v)",
+        ControllerAgentDescriptor_.Address,
+        agentDescriptor.Address,
+        agentDescriptor.IncarnationId);
+
     ControllerAgentDescriptor_ = std::move(agentDescriptor);
     ControllerAgentConnector_ = Bootstrap_
         ->GetControllerAgentConnectorPool()
@@ -566,13 +576,6 @@ EJobType TJob::GetType() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return CheckedEnumCast<EJobType>(JobSpec_.type());
-}
-
-bool TJob::IsUrgent() const
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    return false;
 }
 
 const TJobSpec& TJob::GetSpec() const
@@ -1223,6 +1226,18 @@ NScheduler::EInterruptReason TJob::GetInterruptionReason() const noexcept
 const std::optional<NScheduler::TPreemptedFor>& TJob::GetPreemptedFor() const noexcept
 {
     return PreemptedFor_;
+}
+
+bool TJob::IsFinished() const noexcept
+{
+    switch (JobState_) {
+        case EJobState::Aborted:
+        case EJobState::Completed:
+        case EJobState::Failed:
+            return true;
+        default:
+            return false;
+    }
 }
 
 // Helpers.

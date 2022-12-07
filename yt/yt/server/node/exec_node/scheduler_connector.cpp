@@ -99,6 +99,8 @@ void TSchedulerConnector::OnDynamicConfigChanged(
 template <class TServiceProxy>
 void TSchedulerConnector::DoSendHeartbeat()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     const auto& client = Bootstrap_->GetClient();
 
     TServiceProxy proxy(client->GetSchedulerChannel());

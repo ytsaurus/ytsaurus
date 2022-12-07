@@ -231,6 +231,9 @@ void TJobControllerDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_pressure_detector", &TThis::MemoryPressureDetector)
         .DefaultNew();
 
+    registrar.Parameter("operation_infos_request_period", &TThis::OperationInfosRequestPeriod)
+        .Default(TDuration::Seconds(5));
+
     registrar.Postprocessor([] (TThis* config) {
         if (config->CpuToVCpuFactor && *config->CpuToVCpuFactor <= 0) {
             THROW_ERROR_EXCEPTION("`cpu_to_vcpu_factor` must be greated than 0")
