@@ -2228,15 +2228,6 @@ private:
 
         ToProto(req->mutable_attributes()->mutable_keys(), PoolTreeKeysHolder.Keys);
         batchReq->AddRequest(req, "get_pool_trees");
-
-        if (!Strategy_->IsInitialized()) {
-            YT_LOG_INFO("Requesting strategy state");
-            batchReq->AddRequest(TYPathProxy::Get(StrategyStatePath), "get_strategy_state");
-
-            // COMPAT(eshcherbin): Remove when old global scheduling segments state is not used.
-            YT_LOG_INFO("Requesting old scheduling segments state");
-            batchReq->AddRequest(TYPathProxy::Get(OldSegmentsStatePath), "get_old_scheduling_segments_state");
-        }
     }
 
     void HandlePoolTrees(TObjectServiceProxy::TRspExecuteBatchPtr batchRsp)
@@ -2249,55 +2240,7 @@ private:
         }
 
         auto poolTreesYson = TYsonString(rspOrError.Value()->value());
-
-        // TODO(eshcherbin): This is a little bit ugly. Maybe make this a separate step in the registration pipeline?
-        TPersistentStrategyStatePtr strategyState;
-        if (!Strategy_->IsInitialized()) {
-            rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_strategy_state");
-            if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error fetching strategy state"));
-            }
-
-            strategyState = New<TPersistentStrategyState>();
-            if (rspOrError.IsOK()) {
-                auto value = rspOrError.ValueOrThrow()->value();
-                try {
-                    strategyState = ConvertTo<TPersistentStrategyStatePtr>(TYsonString(value));
-                    YT_LOG_INFO("Successfully fetched strategy state");
-                } catch (const std::exception& ex) {
-                    YT_LOG_WARNING(
-                        ex,
-                        "Failed to deserialize strategy state; will drop it (Value: %v)",
-                        ConvertToYsonString(value, EYsonFormat::Text));
-                }
-            }
-        }
-
-        // COMPAT(eshcherbin): Remove when old global scheduling segments state is not used.
-        TPersistentSchedulingSegmentsStatePtr oldSchedulingSegmentsState;
-        if (!Strategy_->IsInitialized()) {
-            rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>("get_old_scheduling_segments_state");
-            if (!rspOrError.IsOK() && !rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-                THROW_ERROR(rspOrError.Wrap(EErrorCode::WatcherHandlerFailed, "Error fetching old scheduling segments state"));
-            }
-
-            if (rspOrError.IsOK()) {
-                auto value = rspOrError.ValueOrThrow()->value();
-                try {
-                    oldSchedulingSegmentsState = ConvertTo<TPersistentSchedulingSegmentsStatePtr>(TYsonString(value));
-                    YT_LOG_INFO("Successfully fetched old scheduling segments state");
-                } catch (const std::exception& ex) {
-                    oldSchedulingSegmentsState.Reset();
-
-                    YT_LOG_WARNING(
-                        ex,
-                        "Failed to deserialize old scheduling segments state; will drop it (Value: %v)",
-                        ConvertToYsonString(value, EYsonFormat::Text));
-                }
-            }
-        }
-
-        Strategy_->UpdatePoolTrees(poolTreesYson, strategyState, oldSchedulingSegmentsState);
+        Strategy_->UpdatePoolTrees(poolTreesYson);
     }
 
     void RequestNodesAttributes(TObjectServiceProxy::TReqExecuteBatchPtr batchReq)

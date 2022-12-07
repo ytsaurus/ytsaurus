@@ -308,10 +308,7 @@ public:
         state->SetEnabled(false);
     }
 
-    void UpdatePoolTrees(
-        const TYsonString& poolTreesYson,
-        const TPersistentStrategyStatePtr& persistentStrategyState,
-        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState) override
+    void UpdatePoolTrees(const TYsonString& poolTreesYson) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
@@ -421,11 +418,6 @@ public:
             // Updating default fair-share tree and global tree map.
             DefaultTreeId_ = defaultTreeId;
             std::swap(IdToTree_, idToTree);
-            if (!Initialized_) {
-                YT_VERIFY(persistentStrategyState);
-                InitPersistentStrategyState(persistentStrategyState, oldPersistentSchedulingSegmentsState);
-                Initialized_ = true;
-            }
 
             // Setting alerts.
             if (!errors.empty()) {
@@ -484,11 +476,6 @@ public:
 
         Host_->SetSchedulerAlert(ESchedulerAlertType::UpdateUserToDefaultPoolMap, result);
         return result;
-    }
-
-    bool IsInitialized() override
-    {
-        return Initialized_;
     }
 
     void BuildOperationProgress(TOperationId operationId, TFluentMap fluent) override
@@ -2196,10 +2183,13 @@ private:
         }
     }
 
-    void InitPersistentStrategyState(
+    void InitPersistentState(
         const TPersistentStrategyStatePtr& persistentStrategyState,
-        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState)
+        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState) override
     {
+        YT_VERIFY(!Initialized_);
+        YT_VERIFY(persistentStrategyState);
+
         YT_LOG_INFO("Initializing persistent strategy state %v",
             ConvertToYsonString(persistentStrategyState, EYsonFormat::Text));
 
@@ -2234,6 +2224,8 @@ private:
                 treeId,
                 ConvertToYsonString(treeState, EYsonFormat::Text));
         }
+
+        Initialized_ = true;
     }
 
     class TPoolTreeService

@@ -242,16 +242,14 @@ struct ISchedulerStrategy
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 
-    virtual void UpdatePoolTrees(
-        const NYson::TYsonString& poolTreesYson,
-        const TPersistentStrategyStatePtr& persistentStrategyState,
-        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState) = 0;
+    virtual void UpdatePoolTrees(const NYson::TYsonString& poolTreesYson) = 0;
 
     virtual TError UpdateUserToDefaultPoolMap(const THashMap<TString, TString>& userToDefaultPoolMap) = 0;
 
-    //! TODO(ignat): is it really needed.
-    //! Used only to make a decision about loading persistent state.
-    virtual bool IsInitialized() = 0;
+    //! Initializes persistent strategy state.
+    virtual void InitPersistentState(
+        const TPersistentStrategyStatePtr& persistentStrategyState,
+        const TPersistentSchedulingSegmentsStatePtr& oldPersistentSchedulingSegmentsState) = 0;
 
     virtual void ApplyOperationRuntimeParameters(IOperationStrategyHost* operation) = 0;
 
