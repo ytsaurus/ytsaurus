@@ -9,7 +9,10 @@ from yt_commands import (
     get_active_primary_master_follower_address,
     is_active_primary_master_leader,
     is_active_primary_master_follower,
-    switch_leader)
+    switch_leader,
+    make_batch_request, execute_batch, get_batch_output)
+
+from yt.common import YtError
 
 from yt_helpers import profiler_factory
 from yt_type_helpers import make_schema
@@ -85,7 +88,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
         create("table", path, attributes=attributes)
 
     def _wait_for_chunk_obsolescence(self, chunk_id):
-        wait(lambda: datetime.strptime(get(f"//sys/estimated_creation_time/{chunk_id}/min"), "%Y-%m-%dT%H:%M:%S.%fZ")
+        wait(lambda: datetime.strptime(get(f"//sys/estimated_creation_time/{chunk_id}/max"), "%Y-%m-%dT%H:%M:%S.%fZ")
              < datetime.utcnow() - timedelta(seconds=1))
 
     def _wait_for_reincarnation(
@@ -100,6 +103,7 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             chunk_ids = list(filter(lambda chunk: chunk in interesting_chunks, chunk_ids))
 
         if min_allowed_creation_time is not None:
+            print_debug("setting min_allowed_creation_time:", min_allowed_creation_time)
             set("//sys/@config/chunk_manager/chunk_reincarnator/min_allowed_creation_time",
                 str(min_allowed_creation_time))
 
@@ -112,14 +116,20 @@ class TestChunkReincarnatorBase(YTEnvSetup):
                 print_debug(f"new_chunks: {new_chunk_ids}")
                 return (builtins.set(chunk_ids) & builtins.set(new_chunk_ids)) != builtins.set(chunk_ids)
 
-            if builtins.set(new_chunk_ids) & builtins.set(chunk_ids) == builtins.set(chunk_ids):
+            if builtins.set(new_chunk_ids) & builtins.set(chunk_ids):
                 return False
 
-            chunks = ls("//sys/chunks", attributes=["ref_counter"])
-            for chunk_id in chunk_ids:
-                if chunk_id in chunks and chunks[chunk_id]["ref_counter"] > 0:
-                    print_debug(f"Chunk {chunk_id} is still alive")
-                    return False
+            old_chunk_ref_counters = execute_batch([
+                make_batch_request("get", path=f"#{chunk_id}/@ref_counter")
+                for chunk_id in chunk_ids])
+
+            for old_chunk_ref_counter, chunk_id in zip(old_chunk_ref_counters, chunk_ids):
+                try:
+                    if get_batch_output(old_chunk_ref_counter) > 0:
+                        print_debug(f"Chunk {chunk_id} is still alive")
+                        return False
+                except YtError:
+                    pass
 
             return True
 
