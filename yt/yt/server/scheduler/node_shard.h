@@ -400,6 +400,10 @@ private:
     void RemoveOperationScheduleJobEntries(TOperationId operationId);
 
     void SetFinishedState(const TJobPtr& job);
+
+    void ProcessOperationInfoHeartbeat(
+        const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
+        TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

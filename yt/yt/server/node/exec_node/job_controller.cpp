@@ -368,7 +368,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return 
+        return
             BIND(&TJobController::DoProcessHeartbeatResponse<TRspOldHeartbeatPtr>, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(response);
@@ -496,6 +496,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, JobMapLock_);
     THashMap<TJobId, TJobPtr> JobMap_;
+    THashMap<TOperationId, THashSet<TJobPtr>> OperationIdToJobs_;
 
     // Map of jobs to hold after remove. It is used to prolong lifetime of stderrs and job specs.
     struct TRecentlyRemovedJobRecord
@@ -541,6 +542,8 @@ private:
     TInstant LastStoredJobsSendTime_;
 
     TAtomicObject<TErrorOr<TBuildInfoPtr>> CachedJobProxyBuildInfo_;
+
+    TInstant LastOperationInfosRequestTime_;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
@@ -975,6 +978,8 @@ private:
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
+            YT_LOG_DEBUG("Requested to confirm job (JobId: %v)", jobId);
+
             auto agentInfoOrError = TryParseControllerAgentDescriptor(*jobInfo.mutable_controller_agent_descriptor());
             if (!agentInfoOrError.IsOK()) {
                 YT_LOG_WARNING(
@@ -994,6 +999,32 @@ private:
         JobIdsToConfirm_.clear();
         if (!jobIdsToConfirm.empty()) {
             JobIdsToConfirm_.insert(std::cbegin(jobIdsToConfirm), std::cend(jobIdsToConfirm));
+        }
+
+        // COMPAT(pogorelov)
+        if constexpr (std::is_same_v<TRspHeartbeatPtr, IJobController::TRspHeartbeatPtr>) {
+            for (const auto& protoOperationInfo : response->operation_infos()) {
+                auto operationId = FromProto<TOperationId>(protoOperationInfo.operation_id());
+                if (!protoOperationInfo.running()) {
+                    RemoveOperationFinishedJobs(operationId);
+                    continue;
+                }
+
+                if (!protoOperationInfo.has_controller_agent_descriptor()) {
+                    // TODO(pogorelov): Set empty descriptor to operation jobs
+                    // to not send job info to old CA (it requires refactoring).
+                    continue;
+                }
+
+                auto descriptorOrError = TryParseControllerAgentDescriptor(protoOperationInfo.controller_agent_descriptor());
+                YT_LOG_FATAL_IF(
+                    !descriptorOrError.IsOK(),
+                    descriptorOrError,
+                    "Failed to parse new controller agent descriptor for operation (OperationId: %v)",
+                    operationId);
+
+                UpdateOperationControllerAgent(operationId, std::move(descriptorOrError.Value()));
+            }
         }
 
         YT_VERIFY(response->Attachments().empty());
@@ -1020,6 +1051,8 @@ private:
         const TReqHeartbeatPtr& request)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("Preparing scheduler heartbeat request");
 
         request->set_node_id(Bootstrap_->GetNodeId());
         ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
@@ -1057,10 +1090,19 @@ private:
 
         bool shouldSendControllerAgentHeartbeatsOutOfBand = false;
 
+        const bool requestOperationInfosForStoredJobs =
+            TInstant::Now() > LastOperationInfosRequestTime_ +
+                DynamicConfig_.Load()->OperationInfosRequestPeriod;
+        THashSet<TOperationId> operationIdsToRequestInfo;
+
         for (const auto& job : GetJobs()) {
             auto jobId = job->GetId();
 
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
+
+            if (job->GetStored() && requestOperationInfosForStoredJobs) {
+                operationIdsToRequestInfo.insert(job->GetOperationId());
+            }
 
             auto confirmIt = JobIdsToConfirm_.find(jobId);
             if (job->GetStored() && !totalConfirmation && confirmIt == std::cend(JobIdsToConfirm_)) {
@@ -1136,6 +1178,21 @@ private:
             ToProto(MutableUnconfirmedAllocations(request), JobIdsToConfirm_);
         }
 
+        // COMPAT(pogorelov)
+        if constexpr (std::is_same_v<TReqHeartbeatPtr, IJobController::TReqHeartbeatPtr>) {
+            if (requestOperationInfosForStoredJobs) {
+                YT_LOG_DEBUG("Adding operation info requests for stored jobs (Count: %v)", std::size(operationIdsToRequestInfo));
+
+                for (auto operationId : operationIdsToRequestInfo) {
+                    ToProto(request->add_operations_ids_to_request_info(), operationId);
+                }
+
+                LastOperationInfosRequestTime_ = TInstant::Now();
+            }
+        }
+
+        YT_LOG_DEBUG("Scheduler heartbeat request prepared");
+
         if (shouldSendControllerAgentHeartbeatsOutOfBand) {
             Bootstrap_
                 ->GetExecNodeBootstrap()
@@ -1206,13 +1263,14 @@ private:
         return job;
     }
 
-    void RegisterJob(const TJobId jobId, const TJobPtr& job, const TDuration waitingJobTimeout)
+    void RegisterJob(TJobId jobId, const TJobPtr& job, TDuration waitingJobTimeout)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         {
             auto guard = WriterGuard(JobMapLock_);
             EmplaceOrCrash(JobMap_, jobId, job);
+            EmplaceOrCrash(OperationIdToJobs_[job->GetOperationId()], job);
         }
 
         job->SubscribeResourcesUpdated(
@@ -1233,6 +1291,23 @@ private:
             BIND(&TJobController::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job), waitingJobTimeout),
             waitingJobTimeout,
             Bootstrap_->GetJobInvoker());
+    }
+
+    void UnregisterJob(const TJobPtr& job)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto operationId = job->GetOperationId();
+
+        auto guard = WriterGuard(JobMapLock_);
+
+        EraseOrCrash(JobMap_, job->GetId());
+
+        auto& jobIds = GetOrCrash(OperationIdToJobs_, operationId);
+        EraseOrCrash(jobIds, job);
+        if (std::empty(jobIds)) {
+            EraseOrCrash(OperationIdToJobs_, operationId);
+        }
     }
 
     void OnWaitingJobTimeout(const TWeakPtr<TJob>& weakJob, TDuration waitingJobTimeout)
@@ -1311,10 +1386,7 @@ private:
             RecentlyRemovedJobMap_.emplace(jobId, TRecentlyRemovedJobRecord{job, TInstant::Now()});
         }
 
-        {
-            auto guard = WriterGuard(JobMapLock_);
-            EraseOrCrash(JobMap_, jobId);
-        }
+        UnregisterJob(job);
 
         YT_LOG_INFO("Job removed (JobId: %v, Save: %v)", job->GetId(), shouldSave);
     }
@@ -1453,19 +1525,19 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        std::vector<TJobId> jobIdsToRemove;
-        jobIdsToRemove.reserve(std::size(JobMap_));
+        std::vector<TJobPtr> jobsToRemove;
+        jobsToRemove.reserve(std::size(JobMap_));
         for (const auto& [jobId, job] : JobMap_) {
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
             YT_LOG_INFO("Removing job %v due to fatal alert");
             job->Abort(TError("Job aborted due to fatal alert"));
-            jobIdsToRemove.push_back(jobId);
+
+            jobsToRemove.push_back(job);
         }
 
-        auto guard = WriterGuard(JobMapLock_);
-        for (auto jobId : jobIdsToRemove) {
-            EraseOrCrash(JobMap_, jobId);
+        for (const auto& job : jobsToRemove) {
+            UnregisterJob(job);
         }
     }
 
@@ -1589,6 +1661,49 @@ private:
         CachedJobProxyBuildInfo_.Store(buildInfo);
 
         JobProxyBuildInfoUpdated_.Fire(static_cast<TError>(buildInfo));
+    }
+
+    void RemoveOperationFinishedJobs(TOperationId operationId)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        YT_LOG_DEBUG("Removing jobs of operation (OperationId: %v)", operationId);
+
+        auto operationJobsIt = OperationIdToJobs_.find(operationId);
+        if (operationJobsIt == std::cend(OperationIdToJobs_)) {
+            YT_LOG_DEBUG("There are no operation jobs on node (OperationId: %v)", operationId);
+
+            return;
+        }
+        std::vector operationJobs(std::begin(operationJobsIt->second), std::end(operationJobsIt->second));
+        for (auto job : operationJobs) {
+            if (job->IsFinished()) {
+                RemoveJob(job, TReleaseJobFlags{});
+            }
+        }
+    }
+
+    void UpdateOperationControllerAgent(
+        TOperationId operationId,
+        TControllerAgentDescriptor controllerAgentDescriptor)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        auto operationJobsIt = OperationIdToJobs_.find(operationId);
+        if (operationJobsIt == std::cend(OperationIdToJobs_)) {
+            return;
+        }
+
+        YT_LOG_DEBUG(
+            "Updating controller agent for jobs (OperationId: %v, ControllerAgentAddress: %v, ControllerAgentIncarnationId: %v)",
+            operationId,
+            controllerAgentDescriptor.Address,
+            controllerAgentDescriptor.IncarnationId);
+
+        auto& operationJobs = operationJobsIt->second;
+        for (const auto& job : operationJobs) {
+            job->UpdateControllerAgentDescriptor(controllerAgentDescriptor);
+        }
     }
 };
 
