@@ -46,6 +46,7 @@ DEFINE_ENUM(EStatField,
     (IOOps)
     (IOOpsLimit)
     (IOTotalTime)
+    (IOWaitTime)
 
     // Network
     (NetTxBytes)

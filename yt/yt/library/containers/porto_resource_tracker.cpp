@@ -45,10 +45,12 @@ static TErrorOr<ui64> GetFieldOrError(
 TPortoResourceTracker::TPortoResourceTracker(
     IInstancePtr instance,
     TDuration updatePeriod,
-    bool isDeltaTracker)
+    bool isDeltaTracker,
+    bool isForceUpdate)
     : Instance_(std::move(instance))
     , UpdatePeriod_(updatePeriod)
     , IsDeltaTracker_(isDeltaTracker)
+    , IsForceUpdate_(isForceUpdate)
 { }
 
 static TErrorOr<TDuration> ExtractDuration(TErrorOr<ui64> timeNs)
@@ -117,6 +119,7 @@ TBlockIOStatistics TPortoResourceTracker::ExtractBlockIOStatistics(
     TResourceUsage& resourceUsage) const
 {
     auto totalTimeNs = GetFieldOrError(resourceUsage, EStatField::IOTotalTime);
+    auto waitTimeNs = GetFieldOrError(resourceUsage, EStatField::IOWaitTime);
 
     return TBlockIOStatistics{
         .IOReadByte = GetFieldOrError(resourceUsage, EStatField::IOReadByte),
@@ -126,7 +129,8 @@ TBlockIOStatistics TPortoResourceTracker::ExtractBlockIOStatistics(
         .IOWriteOps = GetFieldOrError(resourceUsage, EStatField::IOWriteOps),
         .IOOps = GetFieldOrError(resourceUsage, EStatField::IOOps),
         .IOOpsLimit = GetFieldOrError(resourceUsage, EStatField::IOOpsLimit),
-        .IOTotalTime = ExtractDuration(totalTimeNs)
+        .IOTotalTime = ExtractDuration(totalTimeNs),
+        .IOWaitTime = ExtractDuration(waitTimeNs)
     };
 }
 
@@ -242,7 +246,7 @@ TInstant TPortoResourceTracker::GetLastUpdateTime() const
 
 void TPortoResourceTracker::UpdateResourceUsageStatisticsIfExpired() const
 {
-    if (AreResourceUsageStatisticsExpired()) {
+    if (IsForceUpdate_ || AreResourceUsageStatisticsExpired()) {
         DoUpdateResourceUsage();
     }
 }
@@ -278,6 +282,7 @@ static bool IsCumulativeStatistics(EStatField statistic)
         statistic == EStatField::IOWriteOps ||
         statistic == EStatField::IOOps ||
         statistic == EStatField::IOTotalTime ||
+        statistic == EStatField::IOWaitTime ||
 
         statistic == EStatField::NetTxBytes ||
         statistic == EStatField::NetTxPackets ||
@@ -451,6 +456,12 @@ void TPortoResourceProfiler::WriteBlockingIOMetrics(
         double totalPercent = std::max<double>(0.0, 100. * totalTimeUs / timeDeltaUsec);
         writer->AddGauge("/io/total", totalPercent);
     }
+
+    if (totalStatistics.BlockIOStatistics.IOWaitTime.IsOK()) {
+        i64 waitTimeUs = totalStatistics.BlockIOStatistics.IOWaitTime.Value().MicroSeconds();
+        double waitPercent = std::max<double>(0.0, 100. * waitTimeUs / timeDeltaUsec);
+        writer->AddGauge("/io/wait", waitPercent);
+    }
 }
 
 void TPortoResourceProfiler::WriteNetworkMetrics(
@@ -523,6 +534,7 @@ void EnablePortoResourceTracker()
         auto portoResourceTracker = New<TPortoResourceTracker>(
             GetSelfPortoInstance(executor),
             ResourceUsageUpdatePeriod,
+            true,
             true
         );
         LeakyRefCountedSingleton<TPortoResourceProfiler>(portoResourceTracker);

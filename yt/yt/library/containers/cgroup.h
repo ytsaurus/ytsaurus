@@ -174,6 +174,7 @@ public:
         TErrorOr<ui64> IOOpsLimit = 0;
 
         TErrorOr<TDuration> IOTotalTime;
+        TErrorOr<TDuration> IOWaitTime;
     };
 
     struct TStatisticsItem
