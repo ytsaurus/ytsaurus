@@ -2262,6 +2262,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         reshard_and_check(5, 5, first_tablet_index=None, last_tablet_index=None)
 
     @authors("alexelexa")
+    @pytest.mark.timeout(120)
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
     def test_reshard_with_slicing_and_compaction_big(self, optimize_for):
         sync_create_cells(1)
