@@ -53,11 +53,6 @@ bool IsInAutomatonThread()
     return InAutomatonThread;
 }
 
-bool IsInMutation()
-{
-    return InMutationCounter > 0;
-}
-
 bool IsInTeardown()
 {
     return InTeardownFlag;
@@ -345,14 +340,14 @@ void TObjectIdFormatter::operator()(TStringBuilderBase* builder, const TObject* 
 
 void TStrongObjectPtrContext::Ref(TObject* object)
 {
-    YT_VERIFY(NDetail::IsInMutation());
+    YT_VERIFY(IsInMutation());
     NDetail::Bootstrap->GetObjectManager()->RefObject(object);
 }
 
 void TStrongObjectPtrContext::Unref(TObject* object)
 {
-    YT_VERIFY(NDetail::IsInMutation() || NDetail::IsInTeardown());
-    if (NDetail::IsInMutation()) {
+    YT_VERIFY(IsInMutation() || NDetail::IsInTeardown());
+    if (IsInMutation()) {
         NDetail::ObjectsWithScheduledUnref.push_back(object);
     }
 }
@@ -361,14 +356,14 @@ void TStrongObjectPtrContext::Unref(TObject* object)
 
 void TWeakObjectPtrContext::Ref(TObject* object)
 {
-    YT_VERIFY(NDetail::IsInMutation());
+    YT_VERIFY(IsInMutation());
     NDetail::Bootstrap->GetObjectManager()->WeakRefObject(object);
 }
 
 void TWeakObjectPtrContext::Unref(TObject* object)
 {
-    YT_VERIFY(NDetail::IsInMutation() || NDetail::IsInTeardown());
-    if (NDetail::IsInMutation()) {
+    YT_VERIFY(IsInMutation() || NDetail::IsInTeardown());
+    if (IsInMutation()) {
         NDetail::ObjectsWithScheduledWeakUnref.push_back(object);
     }
 }
@@ -482,17 +477,22 @@ void BeginMutation()
 void EndMutation()
 {
     NDetail::AssertAutomatonThreadAffinity();
-    YT_VERIFY(NDetail::IsInMutation());
+    YT_VERIFY(IsInMutation());
     YT_VERIFY(!NDetail::IsInTeardown());
 
     NDetail::DoFlushObjectUnrefs();
     YT_VERIFY(--NDetail::InMutationCounter >= 0);
 }
 
+bool IsInMutation()
+{
+    return NDetail::InMutationCounter > 0;
+}
+
 void BeginTeardown()
 {
     NDetail::VerifyAutomatonThreadAffinity();
-    YT_VERIFY(!NDetail::IsInMutation());
+    YT_VERIFY(!IsInMutation());
     YT_VERIFY(!NDetail::IsInTeardown());
 
     NDetail::InTeardownFlag = true;
@@ -501,7 +501,7 @@ void BeginTeardown()
 void EndTeardown()
 {
     NDetail::VerifyAutomatonThreadAffinity();
-    YT_VERIFY(!NDetail::IsInMutation());
+    YT_VERIFY(!IsInMutation());
     YT_VERIFY(NDetail::IsInTeardown());
 
     NDetail::InTeardownFlag = false;
@@ -510,7 +510,7 @@ void EndTeardown()
 void FlushObjectUnrefs()
 {
     NDetail::AssertAutomatonThreadAffinity();
-    YT_VERIFY(NDetail::IsInMutation());
+    YT_VERIFY(IsInMutation());
     YT_VERIFY(!NDetail::IsInTeardown());
 
     NDetail::DoFlushObjectUnrefs();

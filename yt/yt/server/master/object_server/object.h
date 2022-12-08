@@ -321,6 +321,8 @@ TEpoch GetCurrentEpoch();
 void BeginMutation();
 void EndMutation();
 
+bool IsInMutation();
+
 void BeginTeardown();
 void EndTeardown();
 
@@ -354,6 +356,9 @@ public:
     explicit operator bool() const noexcept;
 
     T* Get() const noexcept;
+
+    //! Same as |Get| but does not check thread affinity.
+    T* GetUnsafe() const noexcept;
 
     template <class U>
     bool operator==(const TObjectPtr<U, C>& other) const noexcept;

@@ -336,7 +336,7 @@ bool TTableNode::IsUniqueKeys() const
 
 TAccount* TTableNode::GetAccount() const
 {
-    return TCypressNode::GetAccount();
+    return TCypressNode::Account().Get();
 }
 
 bool TTableNode::IsReplicated() const

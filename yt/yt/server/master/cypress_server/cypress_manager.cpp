@@ -512,7 +512,7 @@ public:
                 .Mode = mode,
                 .SourceNodeId = TVersionedObjectId(sourceNode->GetId(), externalizedSourceTransactionId),
                 .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), externalizedClonedTransactionId),
-                .CloneAccountId = clonedNode->GetAccount()->GetId(),
+                .CloneAccountId = clonedNode->Account()->GetId(),
                 .ExternalCellTag = externalCellTag,
                 .NativeContentRevision = clonedNode->GetContentRevision()
             });
@@ -559,7 +559,7 @@ public:
                 .Mode = context->GetMode(),
                 .SourceNodeId = TVersionedObjectId(sourceNodeId, sourceNodeExternalizedTransactionId),
                 .ClonedNodeId = TVersionedObjectId(clonedNode->GetId(), clonedNodeExternalizedTransactionId),
-                .CloneAccountId = clonedNode->GetAccount()->GetId(),
+                .CloneAccountId = clonedNode->Account()->GetId(),
                 .ExternalCellTag = externalCellTag
             });
         }
@@ -1079,7 +1079,7 @@ public:
 
         node->SetShard(shard);
 
-        if (auto* account = node->GetAccount()) {
+        if (auto* account = node->Account().Get()) {
             UpdateShardNodeCount(shard, account, +1);
         }
 
@@ -1098,7 +1098,7 @@ public:
 
         node->SetShard(nullptr);
 
-        if (auto* account = node->GetAccount()) {
+        if (auto* account = node->Account().Get()) {
             UpdateShardNodeCount(shard, account, -1);
         }
 
@@ -1115,17 +1115,14 @@ public:
         TAccount* account,
         int delta) override
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
         auto it = shard->AccountStatistics().find(account);
         if (it == shard->AccountStatistics().end()) {
             it = shard->AccountStatistics().emplace(account, TCypressShardAccountStatistics()).first;
-            objectManager->RefObject(account);
         }
         auto& statistics = it->second;
         statistics.NodeCount += delta;
         if (statistics.IsZero()) {
             shard->AccountStatistics().erase(it);
-            objectManager->UnrefObject(account);
         }
     }
 
@@ -1203,10 +1200,10 @@ public:
 
         ValidateCreatedNodeTypePermission(sourceNode->GetType());
 
-        auto* clonedAccount = factory->GetClonedNodeAccount(sourceNode->GetAccount());
+        auto* clonedAccount = factory->GetClonedNodeAccount(sourceNode->Account().Get());
         factory->ValidateClonedAccount(
             mode,
-            sourceNode->GetAccount(),
+            sourceNode->Account().Get(),
             sourceNode->GetTotalResourceUsage(),
             clonedAccount);
 
@@ -2512,7 +2509,7 @@ private:
             const auto& securityManager = Bootstrap_->GetSecurityManager();
             auto rootNodeHolder = TPoolAllocator::New<TMapNode>(TVersionedNodeId(RootNodeId_));
             rootNodeHolder->SetTrunkNode(rootNodeHolder.get());
-            rootNodeHolder->SetAccount(securityManager->GetSysAccount());
+            rootNodeHolder->Account().Assign(securityManager->GetSysAccount());
             rootNodeHolder->Acd().SetInherit(false);
             rootNodeHolder->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
@@ -2648,7 +2645,7 @@ private:
         handler->Destroy(trunkNode);
 
         // Remove the object from the map but keep it alive.
-        NodeMap_.Release(trunkNode->GetVersionedId()).release();
+        Y_UNUSED(NodeMap_.Release(trunkNode->GetVersionedId()).release());
     }
 
     void RecreateNodeAsGhost(TCypressNode* trunkNode)
@@ -3592,7 +3589,7 @@ private:
         ENodeCloneMode mode)
     {
         // Prepare account.
-        auto* account = factory->GetClonedNodeAccount(sourceNode->GetAccount());
+        auto* account = factory->GetClonedNodeAccount(sourceNode->Account().Get());
 
         const auto& handler = GetHandler(sourceNode);
         auto* clonedTrunkNode = handler->Clone(

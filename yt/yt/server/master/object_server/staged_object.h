@@ -21,7 +21,7 @@ class TStagedObject
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, StagingTransaction);
-    DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, StagingAccount);
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccountPtr, StagingAccount);
 
 public:
     using TObject::TObject;

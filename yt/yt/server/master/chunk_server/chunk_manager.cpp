@@ -1745,11 +1745,7 @@ public:
             return;
         }
 
-        chunkTree->SetStagingAccount(account);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        // XXX(portals)
-        objectManager->RefObject(account);
+        chunkTree->StagingAccount().Assign(account);
     }
 
     void UnstageChunkList(TChunkList* chunkList, bool recursive) override
@@ -1768,13 +1764,8 @@ public:
 
     void UnstageChunkTree(TChunkTree* chunkTree)
     {
-        if (auto* account = chunkTree->GetStagingAccount()) {
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->UnrefObject(account);
-        }
-
         chunkTree->SetStagingTransaction(nullptr);
-        chunkTree->SetStagingAccount(nullptr);
+        chunkTree->StagingAccount().Reset();
     }
 
 

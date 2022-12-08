@@ -242,7 +242,7 @@ public:
         , Node_(std::move(node))
         , ConfigVersion_(configVersion)
         , Mode_(Node_->GetChunkMergerMode())
-        , Account_(Node_->GetAccount())
+        , Account_(Node_->Account().Get())
         , ChunkVisitorHost_(std::move(chunkVisitorHost))
         , CurrentJobMode_(Mode_)
     {
@@ -902,7 +902,7 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
     YT_VERIFY(IsLeader());
 
     auto nodeId = chunkOwner->GetId();
-    auto* account = chunkOwner->GetAccount();
+    auto* account = chunkOwner->Account().Get();
 
     YT_LOG_DEBUG("Starting new merge job session (NodeId: %v, Account: %v)",
         nodeId,
@@ -1210,7 +1210,7 @@ void TChunkMerger::CreateChunks()
             req->set_replication_factor(1);
         }
 
-        req->set_account(chunkOwner->GetAccount()->GetName());
+        req->set_account(chunkOwner->Account()->GetName());
 
         req->set_vital(chunkOwner->Replication().GetVital());
         ToProto(req->mutable_job_id(), jobInfo.JobId);

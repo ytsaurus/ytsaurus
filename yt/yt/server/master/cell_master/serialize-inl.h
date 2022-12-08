@@ -94,7 +94,7 @@ struct TStrongNonversionedObjectPtrSerializer
     template <class C, class T>
     static void Save(C& context, const T& object)
     {
-        TRawNonversionedObjectPtrSerializer::Save(context, object.Get());
+        TRawNonversionedObjectPtrSerializer::Save(context, object.GetUnsafe());
     }
 
     template <class C, class T>
@@ -141,7 +141,7 @@ struct TStrongVersionedObjectPtrSerializer
     template <class C, class T>
     static void Save(C& context, const T& object)
     {
-        TRawVersionedObjectPtrSerializer::Save(context, object.Get());
+        TRawVersionedObjectPtrSerializer::Save(context, object.GetUnsafe());
     }
 
     template <class C, class T>

@@ -42,8 +42,7 @@ class TCypressShard
     , public TRefTracked<TCypressShard>
 {
 public:
-    // NB: Pointers to accounts are strong references.
-    using TAccountStatistics = THashMap<NSecurityServer::TAccount*, TCypressShardAccountStatistics>;
+    using TAccountStatistics = THashMap<NSecurityServer::TAccountPtr, TCypressShardAccountStatistics>;
     DEFINE_BYREF_RW_PROPERTY(TAccountStatistics, AccountStatistics);
 
     DEFINE_BYVAL_RW_PROPERTY(TCypressNode*, Root);

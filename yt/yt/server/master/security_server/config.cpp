@@ -8,6 +8,9 @@ void TSecurityManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("user_throttler", &TThis::UserThrottler)
         .DefaultNew();
+
+    registrar.Parameter("alert_on_ref_counter_mismatch", &TThis::AlertOnAccountRefCounterMismatch)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

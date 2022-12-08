@@ -767,7 +767,7 @@ private:
                     break;
                 }
                 BuildYsonFluently(consumer)
-                    .Value(chunk->GetStagingAccount()->GetName());
+                    .Value(chunk->StagingAccount()->GetName());
                 return true;
 
             case EInternedAttributeKey::ExpirationTime:

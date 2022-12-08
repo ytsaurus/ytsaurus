@@ -170,7 +170,7 @@ public:
     {
         return TThreadPoolBase::GetThreadCount();
     }
-    
+
     void Shutdown() override
     {
         TThreadPoolBase::Shutdown();
@@ -205,6 +205,8 @@ private:
             ThreadPriority_);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IThreadPoolPtr CreateThreadPool(
     int threadCount,

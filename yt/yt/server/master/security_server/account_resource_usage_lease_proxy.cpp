@@ -18,9 +18,6 @@ using namespace NYson;
 using namespace NYTree;
 using namespace NObjectServer;
 
-using NYT::ToProto;
-using NYT::FromProto;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TAccountResourceUsageLeaseProxy
@@ -55,7 +52,7 @@ private:
         switch (key) {
             case EInternedAttributeKey::Account:
                 BuildYsonFluently(consumer)
-                    .Value(accountResourceUsageLease->GetAccount()->GetName());
+                    .Value(accountResourceUsageLease->Account()->GetName());
                 return true;
 
             case EInternedAttributeKey::TransactionId:
@@ -102,8 +99,8 @@ private:
         return TBase::SetBuiltinAttribute(key, value);
     }
 };
-////////////////////////////////////////////////////////////////////////////////
 
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateAccountResourceUsageLeaseProxy(
     NCellMaster::TBootstrap* bootstrap,

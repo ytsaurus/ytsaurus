@@ -77,7 +77,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(THashSet<NTableServer::TTableNode*>, TablesWithBackupCheckpoints);
 
     // Security Manager stuff
-    using TAccountResourcesMap = THashMap<NSecurityServer::TAccount*, NSecurityServer::TClusterResources>;
+    using TAccountResourcesMap = THashMap<NSecurityServer::TAccountPtr, NSecurityServer::TClusterResources>;
     DEFINE_BYREF_RW_PROPERTY(TAccountResourcesMap, AccountResourceUsage);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
