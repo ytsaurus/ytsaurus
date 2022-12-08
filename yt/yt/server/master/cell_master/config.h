@@ -62,6 +62,7 @@ class TMasterHydraManagerConfig
 {
 public:
     NRpc::TResponseKeeperConfigPtr ResponseKeeper;
+    int SnapshotBackgroundThreadCount;
 
     REGISTER_YSON_STRUCT(TMasterHydraManagerConfig);
 

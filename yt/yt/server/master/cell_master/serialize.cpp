@@ -21,8 +21,8 @@ TReign GetCurrentReign()
 
 bool ValidateSnapshotReign(TReign reign)
 {
-    for (auto v : TEnumTraits<EMasterReign>::GetDomainValues()) {
-        if (v == reign) {
+    for (auto value : TEnumTraits<EMasterReign>::GetDomainValues()) {
+        if (value == reign) {
             return true;
         }
     }
@@ -39,18 +39,35 @@ EFinalRecoveryAction GetActionToRecoverFromReign(TReign reign)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSaveContext::TSaveContext(ICheckpointableOutputStream* output)
-    : NHydra::TSaveContext(output, GetCurrentReign())
+TSaveContext::TSaveContext(
+    ICheckpointableOutputStream* output,
+    NConcurrency::IThreadPoolPtr backgroundThreadPool)
+    : NHydra::TSaveContext(
+        output,
+        GetCurrentReign(),
+        std::move(backgroundThreadPool))
+{ }
+
+TSaveContext::TSaveContext(
+    IZeroCopyOutput* output,
+    const TSaveContext* parentContext)
+    : NHydra::TSaveContext(output, parentContext)
+    , ParentContext_(parentContext)
 { }
 
 TEntitySerializationKey TSaveContext::RegisterInternedYsonString(NYson::TYsonString str)
 {
+    if (ParentContext_) {
+        return GetOrCrash(ParentContext_->InternedYsonStrings_, str);
+    }
+
     TYsonStringMap::insert_ctx context;
     if (auto it = InternedYsonStrings_.find(str, context)) {
         return it->second;
     }
-    auto key = static_cast<int>(InternedYsonStrings_.size());
-    InternedYsonStrings_.emplace_direct(context, std::move(str), key);
+
+    auto key = std::ssize(InternedYsonStrings_);
+    InternedYsonStrings_.emplace_direct(context, str, key);
     return InlineKey;
 }
 

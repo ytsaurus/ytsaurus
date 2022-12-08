@@ -8,6 +8,7 @@
 #include <yt/yt/server/master/cypress_server/public.h>
 
 #include <yt/yt/server/lib/hydra_common/serialize.h>
+#include <yt/yt/server/lib/hydra_common/checkpointable_stream.h>
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
@@ -20,6 +21,8 @@
 #include <yt/yt/server/master/tablet_server/public.h>
 
 #include <yt/yt/server/master/transaction_server/public.h>
+
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 namespace NYT::NCellMaster {
 
@@ -93,13 +96,21 @@ class TSaveContext
     : public NHydra::TSaveContext
 {
 public:
-    explicit TSaveContext(NHydra::ICheckpointableOutputStream* output);
+    TSaveContext(
+        NHydra::ICheckpointableOutputStream* output,
+        NConcurrency::IThreadPoolPtr backgroundThreadPool);
+
+    TSaveContext(
+        IZeroCopyOutput* output,
+        const TSaveContext* parentContext);
 
     TEntitySerializationKey RegisterInternedYsonString(NYson::TYsonString str);
 
     EMasterReign GetVersion();
 
 private:
+    const TSaveContext* const ParentContext_ = nullptr;
+
     using TYsonStringMap = THashMap<NYson::TYsonString, TEntitySerializationKey>;
     TYsonStringMap InternedYsonStrings_;
 };

@@ -2,12 +2,16 @@
 #include "bootstrap.h"
 #include "hydra_facade.h"
 #include "serialize.h"
+#include "config.h"
 
 #include <yt/yt/server/master/object_server/object.h>
+
+#include <yt/yt/core/concurrency/thread_pool.h>
 
 namespace NYT::NCellMaster {
 
 using namespace NHydra;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +53,12 @@ void TMasterAutomaton::SetZeroState()
 std::unique_ptr<NHydra::TSaveContext> TMasterAutomaton::CreateSaveContext(
     ICheckpointableOutputStream* output)
 {
-    return std::make_unique<TSaveContext>(output);
+    auto backgroundThreadPool = Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount > 0
+        ? CreateThreadPool(Bootstrap_->GetConfig()->HydraManager->SnapshotBackgroundThreadCount, "SnapshotBack")
+        : nullptr;
+   return std::make_unique<TSaveContext>(
+        output,
+        std::move(backgroundThreadPool));
 }
 
 std::unique_ptr<NHydra::TLoadContext> TMasterAutomaton::CreateLoadContext(

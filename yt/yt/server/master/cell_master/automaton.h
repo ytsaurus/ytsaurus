@@ -16,8 +16,6 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/misc/property.h>
-
 namespace NYT::NCellMaster {
 
 ////////////////////////////////////////////////////////////////////////////////

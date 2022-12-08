@@ -8,7 +8,14 @@
 
 #include <yt/yt/core/misc/pool_allocator.h>
 
+#include <library/cpp/yt/memory/chunked_output_stream.h>
+
 namespace NYT::NHydra {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TEntityMapSaveBufferTag
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -258,21 +265,60 @@ template <class TValue, class TTraits>
 template <class TContext>
 void TEntityMap<TValue, TTraits>::SaveKeys(TContext& context) const
 {
-    TSizeSerializer::Save(context, this->Map_.size());
-
     SaveIterators_.clear();
-    SaveIterators_.reserve(this->Map_.size());
-    for (auto it = this->Map_.begin(); it != this->Map_.end(); ++it) {
-        SaveIterators_.push_back(it);
+
+    if (auto backgroundInvoker = context.GetBackgroundInvoker()) {
+        constexpr size_t Parallelism = 256;
+        std::array<int, Parallelism> counters{};
+        for (auto it = this->Map_.begin(); it != this->Map_.end(); ++it) {
+            ++counters[TEntityHash<TValue>()(it->first) % Parallelism];
+        }
+
+        std::array<int, Parallelism> currentPositions;
+        currentPositions[0] = 0;
+        for (size_t index = 1; index < Parallelism; ++index) {
+            currentPositions[index] = currentPositions[index - 1] + counters[index - 1];
+        }
+
+        auto startPositions = currentPositions;
+
+        SaveIterators_.resize(this->Map_.size());
+        for (auto it = this->Map_.begin(); it != this->Map_.end(); ++it) {
+            auto position = currentPositions[TEntityHash<TValue>()(it->first) % Parallelism]++;
+            SaveIterators_[position] = it;
+        }
+
+        const auto& endPositions = currentPositions;
+
+        std::vector<TFuture<void>> futures;
+        for (size_t index = 0; index < Parallelism; ++index) {
+            futures.push_back(
+                BIND([this, startPosition = startPositions[index], endPosition = endPositions[index]] {
+                    std::sort(
+                        SaveIterators_.begin() + startPosition,
+                        SaveIterators_.begin() + endPosition,
+                        [] (auto lhs, auto rhs) { return lhs->first < rhs->first; });
+                })
+                    .AsyncVia(backgroundInvoker)
+                    .Run());
+        }
+
+        AllSucceeded(std::move(futures))
+            .Get()
+            .ThrowOnError();
+    } else {
+        SaveIterators_.reserve(this->Map_.size());
+        for (auto it = this->Map_.begin(); it != this->Map_.end(); ++it) {
+            SaveIterators_.push_back(it);
+        }
+
+        std::sort(
+            SaveIterators_.begin(),
+            SaveIterators_.end(),
+            [] (auto lhs, auto rhs) { return lhs->first < rhs->first; });
     }
 
-    std::sort(
-        SaveIterators_.begin(),
-        SaveIterators_.end(),
-        [] (const typename TMapType::const_iterator& lhs, const typename TMapType::const_iterator& rhs) {
-            return lhs->first < rhs->first;
-        });
-
+    TSizeSerializer::Save(context, SaveIterators_.size());
     for (const auto& it : SaveIterators_) {
         Save(context, it->first);
         it->second->GetDynamicData()->SerializationKey = context.GenerateSerializationKey();
@@ -287,6 +333,105 @@ void TEntityMap<TValue, TTraits>::SaveValues(TContext& context) const
         Save(context, *it->second);
     }
     SaveIterators_.clear();
+}
+
+template <class TValue, class TTraits>
+template <class TContext>
+void TEntityMap<TValue, TTraits>::SaveValuesParallel(TContext& context) const
+{
+    auto backgroundInvoker = context.GetBackgroundInvoker();
+    if (!backgroundInvoker) {
+        SaveValues(context);
+        return;
+    }
+
+    int batchSize = EstimateParallelSaveBatchSize(context);
+
+    std::vector<std::vector<TSharedRef>> batchResults;
+    std::vector<TCallback<TFuture<void>()>> batchExecutors;
+    int entityStartIndex = 0;
+    while (entityStartIndex < std::ssize(SaveIterators_)) {
+        int entityEndIndex = std::min<int>(entityStartIndex + batchSize, std::ssize(SaveIterators_));
+        int batchIndex = std::ssize(batchExecutors);
+        batchExecutors.push_back(BIND([this, &context, &batchResults, entityStartIndex, entityEndIndex, batchIndex] {
+            TChunkedOutputStream batchOutput(GetRefCountedTypeCookie<TEntityMapSaveBufferTag>());
+            TContext batchContext(&batchOutput, &context);
+            for (int index = entityStartIndex; index < entityEndIndex; ++index) {
+                Save(batchContext, *SaveIterators_[index]->second);
+            }
+            batchContext.Finish();
+            batchResults[batchIndex] = batchOutput.Finish();
+        }).AsyncVia(backgroundInvoker));
+        entityStartIndex = entityEndIndex;
+    }
+
+    int batchCount = std::ssize(batchExecutors);
+
+    batchResults.resize(batchCount);
+    std::vector<TFuture<void>> batchFutures(batchCount);
+
+    int batchIndexToStart = 0;
+    int batchesRunning = 0;
+
+    auto startMoreBatches = [&] {
+        while (batchIndexToStart < batchCount && batchesRunning < context.GetBackgroundParallelism()) {
+            YT_VERIFY(!batchFutures[batchIndexToStart]);
+            batchFutures[batchIndexToStart] = batchExecutors[batchIndexToStart]();
+            ++batchesRunning;
+            ++batchIndexToStart;
+        }
+    };
+
+    int batchIndexToWaitFor = 0;
+    auto waitForBatch = [&] {
+        if (batchIndexToWaitFor >= batchCount) {
+            return false;
+        }
+        batchFutures[batchIndexToWaitFor]
+            .Get()
+            .ThrowOnError();
+        --batchesRunning;
+        auto batchResult = std::move(batchResults[batchIndexToWaitFor]);
+        for (const auto& chunk : batchResult) {
+            context.GetOutput()->Write(chunk.Begin(), chunk.Size());
+        }
+        ++batchIndexToWaitFor;
+        return true;
+    };
+
+    do {
+        startMoreBatches();
+    } while (waitForBatch());
+
+    SaveIterators_.clear();
+
+}
+
+template <class TValue, class TTraits>
+template <class TContext>
+int TEntityMap<TValue, TTraits>::EstimateParallelSaveBatchSize(TContext& context) const
+{
+    constexpr auto TargetBatchDuration = TDuration::MilliSeconds(100);
+    const auto TargetCpuDuration = NProfiling::DurationToCpuDuration(TargetBatchDuration);
+
+    TChunkedOutputStream batchOutput(GetRefCountedTypeCookie<TEntityMapSaveBufferTag>());
+    TContext batchContext(&batchOutput, &context);
+
+    NProfiling::TWallTimer timer;
+    int index = 0;
+    while (index < std::ssize(SaveIterators_)) {
+        Save(batchContext, *SaveIterators_[index++]->second);
+        if (timer.GetElapsedCpuTime() >= TargetCpuDuration) {
+            break;
+        }
+    }
+
+    int batchSize = index;
+    // Make sure we actually save values in parallel; this is important for test coverage.
+    batchSize = std::min(batchSize, static_cast<int>(std::ssize(SaveIterators_) / context.GetBackgroundParallelism()));
+    // The above could have decreased the size down to zero; fix it.
+    batchSize = std::max(batchSize, 1);
+    return batchSize;
 }
 
 template <class TValue, class TTraits>
