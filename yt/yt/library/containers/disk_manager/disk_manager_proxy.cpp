@@ -16,7 +16,7 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static EDiskState MapDiskState(diskman::DiskStatus_State state)
+EDiskState MapDiskState(diskman::DiskStatus_State state)
 {
     switch (state) {
         case diskman::DiskStatus_State::DiskStatus_State_OK:
@@ -33,26 +33,35 @@ static EDiskState MapDiskState(diskman::DiskStatus_State state)
 ////////////////////////////////////////////////////////////////////////////////
 
 TDiskManagerProxy::TDiskManagerProxy(
-    NYT::NRpc::IChannelPtr channel,
+    NRpc::IChannelPtr channel,
     TString serviceName,
     TDiskManagerProxyConfigPtr config)
-    : TProxyBase(std::move(channel)
-    , NYT::NRpc::TServiceDescriptor(std::move(serviceName)))
-    , Config_(config)
-{ }
+    : TProxyBase(std::move(channel),
+        NRpc::TServiceDescriptor(std::move(serviceName)))
+    , Config_(std::move(config))
+{
+    DynamicConfig_.Store(New<TDiskManagerProxyDynamicConfig>());
+}
 
 TFuture<std::vector<TString>> TDiskManagerProxy::GetYTDiskDeviceNames()
 {
-    auto responseFuture = ExecuteApiCall<TReqGetYTMountedDevices, TRspGetYTMountedDevices>(
-        &TDiskManagerProxy::GetYTMountedDevices,
-        [] (auto /*request*/) {}
-    );
+    auto request = GetYTMountedDevices();
+    auto responseFuture = request->Invoke()
+        .WithTimeout(GetRequestTimeout());
 
-    return responseFuture.Apply(BIND([] (const TRspGetYTMountedDevicesPtr response) {
-        std::vector<TString> paths(response->mounted_devices().size());
+    return responseFuture.Apply(BIND([] (const TErrorOr<TRspGetYTMountedDevicesPtr>& responseOrError) {
+        if (!responseOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to fetch disk names from disk manager")
+                << responseOrError;
+        }
+
+        auto& response = responseOrError.Value();
+
+        std::vector<TString> paths;
+        paths.reserve(response->mounted_devices().size());
 
         for (const auto& device : response->mounted_devices()) {
-            paths.emplace_back(NFS::GetFileName(TString(device.device_path())));
+            paths.emplace_back(NFS::GetFileName(device.device_path()));
         }
 
         return paths;
@@ -61,20 +70,26 @@ TFuture<std::vector<TString>> TDiskManagerProxy::GetYTDiskDeviceNames()
 
 TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
 {
-    auto responseFuture = ExecuteApiCall<TReqListDisks, TRspListDisks>(
-        &TDiskManagerProxy::ListDisks,
-        [] (auto /*request*/) {}
-    );
+    auto request = ListDisks();
+    auto responseFuture = request->Invoke()
+        .WithTimeout(GetRequestTimeout());
 
-    return responseFuture.Apply(BIND([] (const TRspListDisksPtr response) {
-        std::vector<TDiskInfo> disks(response->disks().size());
+    return responseFuture.Apply(BIND([] (const TErrorOr<TRspListDisksPtr>& responseOrError) {
+        if (!responseOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to fetch disks info from disk manager")
+                << responseOrError;
+        }
+
+        auto& response = responseOrError.Value();
+        std::vector<TDiskInfo> disks;
+        disks.reserve(response->disks().size());
 
         for (const auto& device : response->disks()) {
             disks.emplace_back(
                 TDiskInfo{
                     .DiskId = device.meta().id(),
                     .DevicePath = device.spec().device_path(),
-                    .DeviceName = NFS::GetFileName(TString(device.spec().device_path())),
+                    .DeviceName = NFS::GetFileName(device.spec().device_path()),
                     .DiskModel = device.spec().model(),
                     .State = MapDiskState(device.status().hw_state())
                 }
@@ -85,34 +100,16 @@ TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
     }));
 }
 
-template <class Request, class Response>
-TFuture<TIntrusivePtr<Response>> TDiskManagerProxy::ExecuteApiCall(
-    TIntrusivePtr<Request> (TDiskManagerProxy::*callMethod)(),
-    std::function<void(TIntrusivePtr<Request>)> enrichRequest)
-{
-    try {
-        auto req = (this->*callMethod)();
-        enrichRequest(req);
-        return req->Invoke()
-            .WithTimeout(GetHealthCheckTimeout());
-    } catch(const std::exception& exception) {
-        THROW_ERROR_EXCEPTION("Failed to execute request to Disk Manager")
-            << exception;
-    }
-}
-
-TDuration TDiskManagerProxy::GetHealthCheckTimeout() const
+TDuration TDiskManagerProxy::GetRequestTimeout() const
 {
     auto dynamicConfig = DynamicConfig_.Load();
-    return dynamicConfig
-        ? dynamicConfig->HealthCheckTimeout.value_or(Config_->HealthCheckTimeout)
-        : Config_->HealthCheckTimeout;
+    return dynamicConfig->RequestTimeout.value_or(Config_->RequestTimeout);
 }
 
 void TDiskManagerProxy::OnDynamicConfigChanged(
-    const TDiskManagerProxyDynamicConfigPtr& newNodeConfig)
+    const TDiskManagerProxyDynamicConfigPtr& newConfig)
 {
-    DynamicConfig_.Store(newNodeConfig);
+    DynamicConfig_.Store(newConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

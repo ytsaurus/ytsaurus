@@ -12,7 +12,7 @@ struct TDiskManagerProxyConfig
     : public NYTree::TYsonStruct
 {
 public:
-    TDuration HealthCheckTimeout;
+    TDuration RequestTimeout;
 
     REGISTER_YSON_STRUCT(TDiskManagerProxyConfig);
 
@@ -25,7 +25,7 @@ struct TDiskManagerProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    std::optional<TDuration> HealthCheckTimeout;
+    std::optional<TDuration> RequestTimeout;
 
     REGISTER_YSON_STRUCT(TDiskManagerProxyDynamicConfig);
 
