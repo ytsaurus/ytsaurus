@@ -63,6 +63,9 @@ void Initialize(int argc, const char **argv, const TInitializeOptions &options =
 /// Similar to @ref NYT::Initialize(int, const char**, const TInitializeOptions&)
 void Initialize(int argc, char **argv, const TInitializeOptions &options = TInitializeOptions());
 
+/// Similar to @ref NYT::Initialize(int, const char**, const TInitializeOptions&)
+void Initialize(const TInitializeOptions &options = TInitializeOptions());
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

@@ -15,7 +15,6 @@
 #include <mapreduce/yt/raw_client/raw_batch_request.h>
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
-#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/digest/md5/md5.h>
 
@@ -747,15 +746,17 @@ void TJobPreparer::PrepareJobBinary(const IJob& job, int outputTableCount, bool 
     }
 
     ClassName_ = TJobFactory::Get()->GetJobName(&job);
+
+    auto jobArguments = TNode::CreateMap();
+    jobArguments["job_name"] = ClassName_;
+    jobArguments["output_table_count"] = static_cast<i64>(outputTableCount);
+    jobArguments["has_state"] = hasState;
+    Spec_.AddEnvironment("YT_JOB_ARGUMENTS", NodeToYsonString(jobArguments));
+
     Command_ = ::TStringBuilder() <<
         jobCommandPrefix <<
         (TConfig::Get()->UseClientProtobuf ? "YT_USE_CLIENT_PROTOBUF=1" : "YT_USE_CLIENT_PROTOBUF=0") << " " <<
-        binaryPathInsideJob << " " <<
-        // This argument has no meaning, but historically is checked in job initialization.
-        "--yt-map " <<
-        "\"" << ClassName_ << "\" " <<
-        outputTableCount << " " <<
-        hasState <<
+        binaryPathInsideJob <<
         jobCommandSuffix;
 }
 
