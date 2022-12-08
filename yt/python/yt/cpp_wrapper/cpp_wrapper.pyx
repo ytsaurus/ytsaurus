@@ -1,5 +1,7 @@
 cimport cython
 
+import os
+
 from libcpp.vector cimport vector
 
 from util.generic.ptr cimport TIntrusiveConstPtr
@@ -28,7 +30,7 @@ cdef extern from "mapreduce/yt/interface/operation.h" namespace "NYT":
 cdef extern from "mapreduce/yt/interface/init.h" namespace "NYT":
     cdef cppclass TInitializeOptions:
         TInitializeOptions() except +
-    void Initialize(int, const char**, const TInitializeOptions&) except +
+    void Initialize(const TInitializeOptions&) except +
 
 
 cdef extern from "mapreduce/yt/client/py_helpers.h" namespace "NYT":
@@ -137,8 +139,6 @@ class CppJob:
         return state, spec_patch
 
 
-def exec_cpp_job(args):
-    cdef vector[char*] argv
-    for i in xrange(len(args)):
-        argv.push_back(<char*>args[i])
-    Initialize(len(args), argv.data(), TInitializeOptions())
+def exec_cpp_job(job_arguments):
+    os.environ["YT_JOB_ARGUMENTS"] = yson.dumps(job_arguments).decode("UTF-8")
+    Initialize(TInitializeOptions())

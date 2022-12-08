@@ -180,6 +180,49 @@ void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
     // We take this setting from environment variable to be consistent with client code.
     TConfig::Get()->UseClientProtobuf = IsTrue(GetEnv("YT_USE_CLIENT_PROTOBUF", ""));
 
+    auto execJobImpl = [&options](TString jobName, i64 outputTableCount, bool hasState) {
+        auto jobProfiler = CreateJobProfiler();
+        jobProfiler->Start();
+
+        InitializeSecureVault();
+
+        NDetail::OutputTableCount = static_cast<i64>(outputTableCount);
+
+        THolder<IInputStream> jobStateStream;
+        if (hasState) {
+            jobStateStream = MakeHolder<TIFStream>("jobstate");
+        } else {
+            jobStateStream = MakeHolder<TBufferStream>(0);
+        }
+
+        int ret = 1;
+        try {
+            ret = TJobFactory::Get()->GetJobFunction(jobName.data())(outputTableCount, *jobStateStream);
+        } catch (const TSystemError& ex) {
+            if (ex.Status() == EPIPE) {
+                // 32 == EPIPE, write number here so it's easier to grep this exit code in source files
+                exit(32);
+            }
+            throw;
+        }
+
+        jobProfiler->Stop();
+
+        if (options.JobOnExitFunction_) {
+            (*options.JobOnExitFunction_)();
+        }
+        exit(ret);
+    };
+
+    auto jobArguments = NodeFromYsonString(GetEnv("YT_JOB_ARGUMENTS", "#"));
+    if (jobArguments.HasValue()) {
+        execJobImpl(
+            jobArguments["job_name"].AsString(),
+            jobArguments["output_table_count"].AsInt64(),
+            jobArguments["has_state"].AsBool());
+        Y_UNREACHABLE();
+    }
+
     TString jobType = argc >= 2 ? argv[1] : TString();
     if (argc != 5 || jobType != "--yt-map" && jobType != "--yt-reduce") {
         // We are inside job but probably using old API
@@ -188,40 +231,11 @@ void ExecJob(int argc, const char** argv, const TInitializeOptions& options)
         return;
     }
 
-    auto jobProfiler = CreateJobProfiler();
-    jobProfiler->Start();
-
-    InitializeSecureVault();
-
     TString jobName(argv[2]);
-    size_t outputTableCount = FromString<size_t>(argv[3]);
-    NDetail::OutputTableCount = static_cast<i64>(outputTableCount);
+    i64 outputTableCount = FromString<i64>(argv[3]);
     int hasState = FromString<int>(argv[4]);
-
-    THolder<IInputStream> jobStateStream;
-    if (hasState) {
-        jobStateStream = MakeHolder<TIFStream>("jobstate");
-    } else {
-        jobStateStream = MakeHolder<TBufferStream>(0);
-    }
-
-    int ret = 1;
-    try {
-        ret = TJobFactory::Get()->GetJobFunction(jobName.data())(outputTableCount, *jobStateStream);
-    } catch (const TSystemError& ex) {
-        if (ex.Status() == EPIPE) {
-            // 32 == EPIPE, write number here so it's easier to grep this exit code in source files
-            exit(32);
-        }
-        throw;
-    }
-
-    jobProfiler->Stop();
-
-    if (options.JobOnExitFunction_) {
-        (*options.JobOnExitFunction_)();
-    }
-    exit(ret);
+    execJobImpl(jobName, outputTableCount, hasState);
+    Y_UNREACHABLE();
 }
 
 } // namespace NDetail
@@ -250,8 +264,15 @@ void Initialize(int argc, const char* argv[], const TInitializeOptions& options)
     }
 }
 
-void Initialize(int argc, char* argv[], const TInitializeOptions& options) {
+void Initialize(int argc, char* argv[], const TInitializeOptions& options)
+{
     return Initialize(argc, const_cast<const char**>(argv), options);
+}
+
+void Initialize(const TInitializeOptions& options)
+{
+    static const char* fakeArgv[] = {"unknown..."};
+    Initialize(1, fakeArgv, options);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
