@@ -205,7 +205,8 @@ class TestMemoryReserveFactor(YTEnvSetup):
                     event["statistics"]["user_job"]["memory_reserve"]["sum"],
                     event["statistics"]["user_job"]["max_memory"]["sum"],
                 )
-                last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
+                if event.get("predecessor_type") != "resource_overdraft":
+                    last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert last_memory_reserve is not None
         assert 2e8 <= last_memory_reserve <= 3e8
 
