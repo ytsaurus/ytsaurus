@@ -189,6 +189,8 @@ struct IChunkStore
     virtual const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const = 0;
 
     virtual const std::vector<THunkChunkRef>& HunkChunkRefs() const = 0;
+
+    virtual i64 GetMemoryUsage() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IChunkStore)

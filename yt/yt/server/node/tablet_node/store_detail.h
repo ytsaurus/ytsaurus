@@ -250,6 +250,7 @@ public:
     const NChunkClient::NProto::TChunkMeta& GetChunkMeta() const override;
 
     const std::vector<THunkChunkRef>& HunkChunkRefs() const override;
+    i64 GetMemoryUsage() const override;
 
     NChunkClient::IBlockCachePtr GetBlockCache();
 

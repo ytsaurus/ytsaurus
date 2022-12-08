@@ -39,6 +39,7 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
+#include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
 #include <yt/yt/ytlib/table_client/lookup_reader.h>
 
@@ -827,6 +828,36 @@ i64 TChunkStoreBase::GetCompressedDataSize() const
 i64 TChunkStoreBase::GetUncompressedDataSize() const
 {
     return MiscExt_.uncompressed_data_size();
+}
+
+i64 TChunkStoreBase::GetMemoryUsage() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = ReaderGuard(SpinLock_);
+    i64 result = 0;
+
+    switch (InMemoryMode_) {
+        case EInMemoryMode::Compressed:
+            result = GetCompressedDataSize();
+            break;
+
+        case EInMemoryMode::Uncompressed:
+            result = GetUncompressedDataSize();
+            break;
+
+        case EInMemoryMode::None:
+            break;
+
+        default:
+            YT_ABORT();
+    }
+
+    if (ChunkState_ && ChunkState_->LookupHashTable) {
+        result += ChunkState_->LookupHashTable->GetByteSize();
+    }
+
+    return result;
 }
 
 i64 TChunkStoreBase::GetRowCount() const

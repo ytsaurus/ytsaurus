@@ -384,20 +384,8 @@ public:
                 }
             };
 
-            switch (chunk->GetInMemoryMode()) {
-                case EInMemoryMode::Compressed:
-                    countChunkStoreMemory(chunk->GetCompressedDataSize());
-                    break;
-
-                case EInMemoryMode::Uncompressed:
-                    countChunkStoreMemory(chunk->GetUncompressedDataSize());
-                    break;
-
-                case EInMemoryMode::None:
-                    break;
-
-                default:
-                    YT_ABORT();
+            if (chunk->GetInMemoryMode() != EInMemoryMode::None) {
+                countChunkStoreMemory(chunk->GetMemoryUsage());
             }
         }
     }
