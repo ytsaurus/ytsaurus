@@ -1319,7 +1319,7 @@ private:
             if (!newChunk->IsConfirmed()) {
                 OnReincarnationFinished(EReincarnationResult::Transient);
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
-                    "New chunk is not alive; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
+                    "New chunk is not confirmed; chunk reincarnation skipped (OldChunkId: %v, NewChunkId: %v)",
                     oldChunk->GetId(),
                     newChunkId);
                 rescheduleChunkIfNeeded(oldChunk);
