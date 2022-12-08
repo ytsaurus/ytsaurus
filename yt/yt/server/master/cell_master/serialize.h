@@ -84,6 +84,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixNodeRegistration)                                          (2208))  // kvk1920
     ((ChunkReincarnator)                                            (2209))  // kvk1920
     ((InternedForcedChunkViewCompactionRevision)                    (2210))  // ifsmirnov
+    ((MaintenanceRequests)                                          (2211))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////

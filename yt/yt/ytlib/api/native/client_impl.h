@@ -570,6 +570,18 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options),
         (cellIds, options))
+    IMPLEMENT_METHOD(NNodeTrackerClient::TMaintenanceId, AddMaintenance, (
+        const TString& nodeAddress,
+        NNodeTrackerClient::EMaintenanceType type,
+        const TString& comment,
+        const TAddMaintenanceOptions& options),
+        (nodeAddress, type, comment, options))
+    IMPLEMENT_METHOD(void, RemoveMaintenance, (
+        const TString& nodeAddress,
+        NNodeTrackerClient::TMaintenanceId id,
+        const TRemoveMaintenanceOptions& options),
+        (nodeAddress, id, options))
+
 
     IMPLEMENT_METHOD(std::vector<NChaosClient::TAlienCellDescriptor>, SyncAlienCells, (
         const std::vector<NChaosClient::TAlienCellDescriptorLite>& alienCellDescriptors,
@@ -1491,6 +1503,15 @@ private:
     void DoResumeTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options);
+    NNodeTrackerClient::TMaintenanceId DoAddMaintenance(
+        const TString& nodeAddress,
+        NNodeTrackerClient::EMaintenanceType type,
+        const TString& comment,
+        const TAddMaintenanceOptions& options);
+    void DoRemoveMaintenance(
+        const TString& nodeAddress,
+        NNodeTrackerClient::TMaintenanceId id,
+        const TRemoveMaintenanceOptions& options);
 
     void SyncCellsIfNeeded(const std::vector<NObjectClient::TCellId>& cellIds);
 

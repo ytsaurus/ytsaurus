@@ -34,6 +34,8 @@ using NNodeTrackerClient::TDataCenterId;
 using NNodeTrackerClient::TAddressMap;
 using NNodeTrackerClient::TNodeAddressMap;
 using NNodeTrackerClient::TNodeDescriptor;
+using NNodeTrackerClient::EMaintenanceType;
+using NNodeTrackerClient::TMaintenanceId;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,6 +81,10 @@ DEFINE_ENUM(ENodeHeartbeatType,
     ((Tablet)       (3))
     ((Cellar)       (4))
 );
+
+////////////////////////////////////////////////////////////////////////////////
+
+constexpr int TypicalMaintenanceRequestCount = 10;
 
 ////////////////////////////////////////////////////////////////////////////////
 

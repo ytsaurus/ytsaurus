@@ -198,4 +198,35 @@ void TResumeTabletCellsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAddMaintenanceCommand::TAddMaintenanceCommand()
+{
+    RegisterParameter("node_address", NodeAddress_);
+    RegisterParameter("type", Type_);
+    RegisterParameter("comment", Comment_);
+}
+
+void TAddMaintenanceCommand::DoExecute(ICommandContextPtr context)
+{
+    auto id = WaitFor(context->GetClient()->AddMaintenance(NodeAddress_, Type_, Comment_, Options))
+        .ValueOrThrow();
+
+    ProduceSingleOutputValue(context, "id", id);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRemoveMaintenanceCommand::TRemoveMaintenanceCommand()
+{
+    RegisterParameter("node_address", NodeAddress_);
+    RegisterParameter("id", Id_);
+}
+
+void TRemoveMaintenanceCommand::DoExecute(ICommandContextPtr context)
+{
+    WaitFor(context->GetClient()->RemoveMaintenance(NodeAddress_, Id_, Options))
+        .ThrowOnError();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

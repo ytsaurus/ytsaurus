@@ -495,7 +495,11 @@ class TestTableCommands(object):
             replicas = client.get("#%s/@stored_replicas" % chunk_id)
             address = str(replicas[0])
 
-            client.set("//sys/cluster_nodes/{0}/@banned".format(address), True)
+            # COMPAT(kvk1920)
+            if client.exists("//sys/cluster_nodes/{0}/@maintenance_requests".format(address)):
+                client.add_maintenance(address, "ban", "test read lost chunk")
+            else:
+                client.set("//sys/cluster_nodes/{0}/@banned".format(address), True)
             wait(lambda: client.get("//sys/cluster_nodes/{0}/@state".format(address)) == "offline")
 
             assert list(client.read_table(table)) == [{"x": 1}, {"x": 2}]

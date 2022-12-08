@@ -2,6 +2,8 @@ package NYT.NNodeTrackerServer.NProto;
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqUnregisterNode
@@ -66,6 +68,25 @@ message TReqUpdateNodesForRole
 {
     required int32 node_role = 1; // ENodeRole
     repeated int32 node_ids = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAddClusterNodeMaintenance
+{
+    required string node_address = 1;
+    optional NYT.NProto.TGuid id = 2;
+    required string user_name = 3;
+    required int32 type = 4; // EMaintenanceType
+    required string comment = 5;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveClusterNodeMaintenance
+{
+    required string node_address = 1;
+    required NYT.NProto.TGuid id = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

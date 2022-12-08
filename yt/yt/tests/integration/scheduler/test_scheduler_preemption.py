@@ -11,7 +11,8 @@ from yt_commands import (
     create, ls, get, set, remove, exists, create_pool, read_table, write_table,
     map, run_test_vanilla, run_sleeping_vanilla, get_job,
     sync_create_cells, update_controller_agent_config, update_pool_tree_config, update_pool_tree_config_option,
-    update_scheduler_config, update_op_parameters, create_test_tables, retry, create_medium)
+    update_scheduler_config, update_op_parameters, create_test_tables, retry, create_medium,
+    disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node)
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_node_path, scheduler_orchid_default_pool_tree_path,
@@ -909,7 +910,7 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) >= 2
 
-        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[0]), True)
+        disable_scheduler_jobs_on_node(nodes[0], "test scheduler force abort")
         wait(
             lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 0
         )
@@ -942,12 +943,12 @@ class TestResourceLimitsOverdraftPreemption(YTEnvSetup):
 
         # TODO(ignat): add check that jobs are not preemptible.
 
-        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[0]), False)
+        enable_scheduler_jobs_on_node(nodes[0])
         wait(
             lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[0])) == 2
         )
 
-        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[1]), True)
+        disable_scheduler_jobs_on_node(nodes[1], "test scheduler force abort")
         wait(
             lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(nodes[1])) == 0
         )

@@ -6,7 +6,8 @@ from yt_commands import (
     set, remove, exists, create_user, make_ace, start_transaction, commit_transaction, write_file, read_table,
     write_table, map, reduce, map_reduce, sort, alter_table,
     abort_job, get_operation,
-    raises_yt_error)
+    raises_yt_error,
+    ban_node, unban_node)
 
 from yt_type_helpers import struct_type, list_type, tuple_type, optional_type, make_schema, make_column
 
@@ -773,7 +774,7 @@ print "x={0}\ty={1}".format(x, y)
         assert len(replicas) == 1
         node_id = replicas[0]
 
-        set("//sys/cluster_nodes/{}/@banned".format(node_id), True)
+        ban_node(node_id, "node with intermediate chunk")
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node_id)) == "offline")
 
         return [node_id]
@@ -877,8 +878,8 @@ print "x={0}\ty={1}".format(x, y)
         wait(lambda: get_unavailable_chunk_count() > 0)
 
         # Make chunk available again.
-        for n in banned_nodes:
-            set("//sys/cluster_nodes/{0}/@banned".format(n), False)
+        for node in banned_nodes:
+            unban_node(node)
 
         wait(lambda: get_unavailable_chunk_count() == 0)
 

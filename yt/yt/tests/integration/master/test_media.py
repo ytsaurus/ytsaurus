@@ -5,7 +5,7 @@ from yt_commands import (
     create_medium, write_file,
     read_table, write_table, write_journal, wait_until_sealed,
     get_singular_chunk_id, set_account_disk_space_limit, get_account_disk_space_limit,
-    get_media)
+    get_media, ban_node)
 
 from yt.common import YtError
 
@@ -133,7 +133,7 @@ class TestMedia(YTEnvSetup):
         banned = False
         for node in ls("//sys/cluster_nodes"):
             if node in nodes:
-                set("//sys/cluster_nodes/{0}/@banned".format(node), True)
+                ban_node(node, "_ban_nodes()")
                 banned = True
         assert banned
 
@@ -546,7 +546,7 @@ class TestMedia(YTEnvSetup):
         chunk2_nodes = get("#{0}/@stored_replicas".format(chunk2))
 
         for node in chunk1_nodes + chunk2_nodes:
-            set("//sys/cluster_nodes/{0}/@banned".format(node), True)
+            ban_node(node, "test transient only chunks not vital")
 
         set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
         wait(lambda: get("//sys/@chunk_replicator_enabled"))

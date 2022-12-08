@@ -88,6 +88,9 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_real_chunk_locations", &TThis::EnableRealChunkLocations)
         .Default(false);
+
+    registrar.Parameter("forbid_maintenance_attribute_writes", &TThis::ForbidMaintenanceAttributeWrites)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1600,6 +1600,14 @@ struct TListUserTokensResult
     std::vector<TString> Tokens;
 };
 
+struct TAddMaintenanceOptions
+    : public TTimeoutOptions
+{ };
+
+struct TRemoveMaintenanceOptions
+    : public TTimeoutOptions
+{ };
+
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Provides a basic set of functions that can be invoked
@@ -2103,6 +2111,17 @@ struct IClient
     virtual TFuture<void> ResumeTabletCells(
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options = {}) = 0;
+
+    virtual TFuture<NNodeTrackerClient::TMaintenanceId> AddMaintenance(
+        const TString& nodeAddress,
+        NNodeTrackerClient::EMaintenanceType type,
+        const TString& comment,
+        const TAddMaintenanceOptions& options = {}) = 0;
+
+    virtual TFuture<void> RemoveMaintenance(
+        const TString& nodeAdress,
+        NNodeTrackerClient::TMaintenanceId id,
+        const TRemoveMaintenanceOptions& options = {}) = 0;
 
     // YQL
 

@@ -13,7 +13,8 @@ from yt_commands import (
     sync_unfreeze_table, sorted_dicts, mount_table, update_nodes_dynamic_config,
     sync_reshard_table, sync_flush_table, sync_compact_table,
     get_singular_chunk_id, create_dynamic_table, get_tablet_leader_address,
-    raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp)
+    raises_yt_error, build_snapshot, AsyncLastCommittedTimestamp, MinTimestamp,
+    disable_write_sessions_on_node, ban_node, disable_tablet_cells_on_node)
 
 import yt_error_codes
 
@@ -196,9 +197,9 @@ class TestSortedDynamicTablesBase(DynamicTablesBase):
         self._nodes = ls("//sys/cluster_nodes")
         assert len(self._nodes) == self.NUM_NODES
 
-        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(self._nodes[0]), True)
+        disable_write_sessions_on_node(self._nodes[0], "separate tablet and data nodes")
         for node in self._nodes[1:]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+            disable_tablet_cells_on_node(node, "separate tablet and data nodes")
 
 
 ##################################################################
@@ -807,7 +808,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         build_snapshot(cell_id=cell_id)
 
         peer = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{}/@banned".format(peer), True)
+        ban_node(peer, "test save chunk view to snapshot")
 
         wait_for_cells([cell_id], decommissioned_addresses=[peer])
 

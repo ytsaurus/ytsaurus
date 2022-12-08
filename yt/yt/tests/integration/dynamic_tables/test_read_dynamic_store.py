@@ -11,7 +11,9 @@ from yt_commands import (
     unmount_table, remount_table,
     generate_timestamp, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_freeze_table, sync_unfreeze_table, sync_flush_table, sync_reshard_table,
-    get_singular_chunk_id, update_op_parameters)
+    get_singular_chunk_id, update_op_parameters,
+    disable_scheduler_jobs_on_node, ban_node, disable_write_sessions_on_node, disable_tablet_cells_on_node,
+    enable_tablet_cells_on_node, unban_node)
 
 from yt.common import YtError
 import yt.yson as yson
@@ -388,7 +390,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_read_nothing_from_located_chunk(self):
         cell_id = sync_create_cells(1)[0]
         node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
+        disable_scheduler_jobs_on_node(node, "test read nothing from located chunk")
         node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
 
         self._create_simple_table("//tmp/t", dynamic_store_auto_flush_period=yson.YsonEntity())
@@ -453,7 +455,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         insert_rows("//tmp/t_in", rows)
 
         for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/{}/@disable_tablet_cells".format(node), True)
+            disable_tablet_cells_on_node(node, "test dynamic store unavailable")
 
         wait(lambda: get("#{}/@health".format(cell_id)) == "failed")
 
@@ -461,7 +463,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         wait(lambda: len(op.get_running_jobs()) > 0)
 
         for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/{}/@disable_tablet_cells".format(node), False)
+            enable_tablet_cells_on_node(node)
 
         wait(lambda: get("#{}/@health".format(cell_id)) == "good")
 
@@ -472,7 +474,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
     def test_dynamic_store_not_scraped(self):
         cell_id = sync_create_cells(1)[0]
         cell_node = get("#{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{}/@disable_write_sessions".format(cell_node), True)
+        disable_write_sessions_on_node(cell_node, "test dynamic store not scraped")
 
         self._prepare_simple_table(
             "//tmp/t_in",
@@ -484,19 +486,21 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         chunk_node = stored_replicas[0]
         assert chunk_node != cell_node
 
-        set("//sys/cluster_nodes/{}/@banned".format(chunk_node), True)
+        ban_node(chunk_node, "test dynamic store not scraped")
 
         create("table", "//tmp/t_out")
         op = merge(in_="//tmp/t_in", out="//tmp/t_out", mode="ordered", track=False)
         wait(lambda: op.get_state() == "materializing")
 
-        set("//sys/cluster_nodes/{}/@banned".format(chunk_node), False)
+        unban_node(chunk_node)
         op.track()
 
     def test_dynamic_store_not_unavailable_after_job_aborted(self):
         cell_id = sync_create_cells(1)[0]
         cell_node = get("#{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{}/@disable_write_sessions".format(cell_node), True)
+        disable_write_sessions_on_node(
+            cell_node,
+            "test dynamic store not unavailable after job aborted")
 
         self._prepare_simple_table(
             "//tmp/t_in",
@@ -526,7 +530,7 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
             })
         wait(lambda: op.get_state() == "running")
 
-        set("//sys/cluster_nodes/{}/@banned".format(chunk_node), True)
+        ban_node(chunk_node, "ban chunk node")
         wait(lambda: get("#{}/@replication_status/default/lost".format(chunk_id)))
 
         update_op_parameters(
@@ -545,7 +549,8 @@ class TestReadSortedDynamicTables(TestSortedDynamicTablesBase):
         wait(lambda: get(orchid_path))
         assert get(orchid_path) == [chunk_id]
 
-        set("//sys/cluster_nodes/{}/@banned".format(chunk_node), False)
+        unban_node(chunk_node)
+
         op.track()
 
 
@@ -971,7 +976,7 @@ class TestReadGenericDynamicTables(DynamicTablesBase):
     def test_locate_preserves_limits(self, disturbance_type, sorted):
         cell_id = sync_create_cells(1)[0]
         node = get("//sys/tablet_cells/{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(node), True)
+        disable_write_sessions_on_node(node, "test locate preserves limtis")
         node_index = get("//sys/cluster_nodes/{}/@annotations/yt_env_index".format(node))
 
         if sorted:

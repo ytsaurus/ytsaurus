@@ -143,4 +143,35 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TAddMaintenanceCommand
+    : public TTypedCommand<NApi::TAddMaintenanceOptions>
+{
+public:
+    TAddMaintenanceCommand();
+
+private:
+    TString NodeAddress_;
+    NNodeTrackerClient::EMaintenanceType Type_;
+    TString Comment_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TRemoveMaintenanceCommand
+    : public TTypedCommand<NApi::TRemoveMaintenanceOptions>
+{
+public:
+    TRemoveMaintenanceCommand();
+
+private:
+    TString NodeAddress_;
+    NNodeTrackerClient::TMaintenanceId Id_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

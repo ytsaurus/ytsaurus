@@ -45,6 +45,22 @@ public:
     using TCtxHeartbeatPtr = TIntrusivePtr<TCtxHeartbeat>;
     virtual void ProcessHeartbeat(TCtxHeartbeatPtr context) = 0;
 
+    using TCtxAddMaintenance = NRpc::TTypedServiceContext<
+        NNodeTrackerClient::NProto::TReqAddMaintenance,
+        NNodeTrackerClient::NProto::TRspAddMaintenance>;
+    using TCtxAddMaintenancePtr = TIntrusivePtr<TCtxAddMaintenance>;
+    virtual void ProcessAddMaintenance(
+        TCtxAddMaintenancePtr context,
+        const NNodeTrackerClient::NProto::TReqAddMaintenance* request) = 0;
+
+    using TCtxRemoveMaintenance = NRpc::TTypedServiceContext<
+        NNodeTrackerClient::NProto::TReqRemoveMaintenance,
+        NNodeTrackerClient::NProto::TRspRemoveMaintenance>;
+    using TCtxRemoveMaintenancePtr = TIntrusivePtr<TCtxRemoveMaintenance>;
+    virtual void ProcessRemoveMaintenance(
+        TCtxRemoveMaintenancePtr context,
+        const NNodeTrackerClient::NProto::TReqRemoveMaintenance* request) = 0;
+
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Node, TNode);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Host, THost);
     DECLARE_INTERFACE_ENTITY_MAP_ACCESSORS(Rack, TRack);
@@ -185,11 +201,9 @@ public:
     //! Sets last seen time of the node to now.
     virtual void UpdateLastSeenTime(TNode* node) = 0;
 
-    //! Sets the "banned" flag and notifies the subscribers.
-    virtual void SetNodeBanned(TNode* node, bool value) = 0;
+    //! Recalculates maintenance status.
+    virtual void OnNodeMaintenanceUpdated(TNode* node, NNodeTrackerClient::EMaintenanceType type) = 0;
 
-    //! Sets the "decommissioned" flag and notifies the subscribers.
-    virtual void SetNodeDecommissioned(TNode* node, bool value) = 0;
 
     //! Sets the rack and notifies the subscribers.
     virtual void SetNodeHost(TNode* node, THost* host) = 0;
@@ -200,12 +214,6 @@ public:
     //! Creates a mutation that updates node's resource usage and limits.
     virtual std::unique_ptr<NHydra::TMutation> CreateUpdateNodeResourcesMutation(
         const NProto::TReqUpdateNodeResources& request) = 0;
-
-    //! Sets the flag disabling write sessions at the node.
-    virtual void SetDisableWriteSessions(TNode* node, bool value) = 0;
-
-    //! Sets the flag disabling tablet cells at the node.
-    virtual void SetDisableTabletCells(TNode* node, bool value) = 0;
 
     //! Renames an existing racks. Throws on name conflict.
     virtual void RenameRack(TRack* rack, const TString& newName) = 0;

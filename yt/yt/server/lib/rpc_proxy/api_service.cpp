@@ -40,6 +40,8 @@
 
 #include <yt/yt/client/formats/config.h>
 
+#include <yt/yt/client/node_tracker_client/helpers.h>
+
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
@@ -96,6 +98,7 @@ using namespace NChunkClient;
 using namespace NCompression;
 using namespace NConcurrency;
 using namespace NLogging;
+using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NRpc;
@@ -691,6 +694,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(SuspendCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ResumeCoordinator));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMaintenance));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
@@ -4027,6 +4032,53 @@ private:
             [=] {
                 return client->MigrateReplicationCards(chaosCellId, options);
             });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, AddMaintenance)
+    {
+        auto nodeAddress = request->node_address();
+        auto type = FromProto<EMaintenanceType>(request->type());
+        auto comment = request->comment();
+        ValidateMaintenanceComment(comment);
+
+        TAddMaintenanceOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("NodeAddress: %v, Type: %v, Comment: %v",
+            nodeAddress,
+            type,
+            comment);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->AddMaintenance(nodeAddress, type, comment, options);
+            },
+            [=] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_id(), result);
+            });
+    }
+
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RemoveMaintenance)
+    {
+        auto nodeAddress = request->node_address();
+        auto id = FromProto<TMaintenanceId>(request->id());
+        TRemoveMaintenanceOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("NodeAddress: %v, Id: %v",
+            nodeAddress,
+            id);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        ExecuteCall(context, [=] {
+            return client->RemoveMaintenance(nodeAddress, id);
+        });
     }
 
     ////////////////////////////////////////////////////////////////////////////////

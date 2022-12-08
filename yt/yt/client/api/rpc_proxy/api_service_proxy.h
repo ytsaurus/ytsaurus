@@ -144,6 +144,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, SuspendCoordinator);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ResumeCoordinator);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MigrateReplicationCards);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMaintenance);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemoveMaintenance);
 
     // Security
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMember);

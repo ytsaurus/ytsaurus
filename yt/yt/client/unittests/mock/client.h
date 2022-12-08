@@ -228,6 +228,17 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options), (override));
 
+    MOCK_METHOD(TFuture<NNodeTrackerClient::TMaintenanceId>, AddMaintenance, (
+        const TString& nodeAddress,
+        NNodeTrackerClient::EMaintenanceType type,
+        const TString& comment,
+        const TAddMaintenanceOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, RemoveMaintenance, (
+        const TString& nodeAddress,
+        NNodeTrackerClient::TMaintenanceId,
+        const TRemoveMaintenanceOptions& options), (override));
+
     // IClient
     NTabletClient::ITableMountCachePtr TableMountCache;
     NTransactionClient::ITimestampProviderPtr TimestampProvider;

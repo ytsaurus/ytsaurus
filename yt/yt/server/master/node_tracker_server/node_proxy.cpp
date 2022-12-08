@@ -8,6 +8,8 @@
 #include "private.h"
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
+#include <yt/yt/server/master/cell_master/config.h>
+#include <yt/yt/server/master/cell_master/config_manager.h>
 
 #include <yt/yt/server/master/cell_server/cell_base.h>
 #include <yt/yt/server/master/cell_server/cell_bundle.h>
@@ -15,6 +17,8 @@
 #include <yt/yt/server/master/chunk_server/chunk_location.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
+
+#include <yt/yt/server/master/node_tracker_server/config.h>
 
 #include <yt/yt/server/master/object_server/object_detail.h>
 
@@ -90,6 +94,8 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DisableTabletCells)
             .SetWritable(true)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MaintenanceRequests)
+            .SetWritable(false));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Rack)
             .SetPresent(node->GetRack())
             .SetWritable(true)
@@ -166,28 +172,48 @@ private:
         switch (key) {
             case EInternedAttributeKey::Banned:
                 BuildYsonFluently(consumer)
-                    .Value(node->GetBanned());
+                    .Value(node->IsBanned());
                 return true;
 
             case EInternedAttributeKey::Decommissioned:
                 BuildYsonFluently(consumer)
-                    .Value(node->GetDecommissioned());
+                    .Value(node->IsDecommissioned());
                 return true;
 
             case EInternedAttributeKey::DisableWriteSessions:
                 BuildYsonFluently(consumer)
-                    .Value(node->GetDisableWriteSessions());
+                    .Value(node->AreWriteSessionsDisabled());
                 return true;
 
             case EInternedAttributeKey::DisableSchedulerJobs:
                 BuildYsonFluently(consumer)
-                    .Value(node->GetDisableSchedulerJobs());
+                    .Value(node->AreSchedulerJobsDisabled());
                 return true;
 
             case EInternedAttributeKey::DisableTabletCells:
                 BuildYsonFluently(consumer)
-                    .Value(node->GetDisableTabletCells());
+                    .Value(node->AreTabletCellsDisabled());
                 return true;
+
+            case EInternedAttributeKey::MaintenanceRequests: {
+                TCompactVector<std::pair<TMaintenanceId, TMaintenanceRequest>, TypicalMaintenanceRequestCount> requests(
+                    node->MaintenanceRequests().begin(),
+                    node->MaintenanceRequests().end());
+                Sort(requests, [] (const auto& lhs, const auto& rhs) {
+                    return lhs.second.Type < rhs.second.Type;
+                });
+                BuildYsonFluently(consumer)
+                    .DoMapFor(requests, [] (TFluentMap map, const auto& request) {
+                        map.Item(ToString(request.first))
+                            .BeginMap()
+                                .Item("user_name").Value(request.second.UserName)
+                                .Item("comment").Value(request.second.Comment)
+                                .Item("timestamp").Value(request.second.Timestamp)
+                                .Item("maintenance_type").Value(request.second.Type)
+                            .EndMap();
+                    });
+                return true;
+            }
 
             case EInternedAttributeKey::Rack:
                 if (!node->GetRack()) {
@@ -577,7 +603,7 @@ private:
                     break;
                 }
 
-                if (node->GetDecommissioned()) {
+                if (node->IsDecommissioned()) {
                     break;
                 }
 
@@ -642,35 +668,14 @@ private:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
 
         switch (key) {
-            case EInternedAttributeKey::Banned: {
-                auto banned = ConvertTo<bool>(value);
-                nodeTracker->SetNodeBanned(node, banned);
+            case EInternedAttributeKey::Banned: [[fallthrough]];
+            case EInternedAttributeKey::Decommissioned: [[fallthrough]];
+            case EInternedAttributeKey::DisableTabletCells: [[fallthrough]];
+            case EInternedAttributeKey::DisableSchedulerJobs: [[fallthrough]];
+            case EInternedAttributeKey::DisableWriteSessions:
+                // COMPAT(kvk1920): In near future this attribute will not be writable.
+                SetMaintenanceFlag(key, ConvertTo<bool>(value));
                 return true;
-            }
-
-            case EInternedAttributeKey::Decommissioned: {
-                auto decommissioned = ConvertTo<bool>(value);
-                nodeTracker->SetNodeDecommissioned(node, decommissioned);
-                return true;
-            }
-
-            case EInternedAttributeKey::DisableWriteSessions: {
-                auto disableWriteSessions = ConvertTo<bool>(value);
-                nodeTracker->SetDisableWriteSessions(node, disableWriteSessions);
-                return true;
-            }
-
-            case EInternedAttributeKey::DisableSchedulerJobs: {
-                auto disableSchedulerJobs = ConvertTo<bool>(value);
-                node->SetDisableSchedulerJobs(disableSchedulerJobs);
-                return true;
-            }
-
-            case EInternedAttributeKey::DisableTabletCells: {
-                auto disableTabletCells = ConvertTo<bool>(value);
-                nodeTracker->SetDisableTabletCells(node, disableTabletCells);
-                return true;
-            }
 
             case EInternedAttributeKey::Rack: {
                 auto rackName = ConvertTo<TString>(value);
@@ -773,6 +778,51 @@ private:
                     })
                     .EndMap();
             });
+    }
+
+    void SetMaintenanceFlag(TInternedAttributeKey key, bool value)
+    {
+        const auto& configManager = Bootstrap_->GetConfigManager();
+        const auto& config = configManager->GetConfig()->NodeTracker;
+        THROW_ERROR_EXCEPTION_IF(config->ForbidMaintenanceAttributeWrites,
+            "Node attribute %Qv is deprecated; use add_maintenance/remove_maintenance commands instead",
+            key.Unintern());
+
+        auto getMaintenanceType = [=] {
+            switch (key) {
+                case EInternedAttributeKey::Banned:
+                    return EMaintenanceType::Ban;
+                case EInternedAttributeKey::Decommissioned:
+                    return EMaintenanceType::Decommission;
+                case EInternedAttributeKey::DisableSchedulerJobs:
+                    return EMaintenanceType::DisableSchedulerJobs;
+                case EInternedAttributeKey::DisableTabletCells:
+                    return EMaintenanceType::DisableTabletCells;
+                case EInternedAttributeKey::DisableWriteSessions:
+                    return EMaintenanceType::DisableWriteSessions;
+                default:
+                    YT_ABORT();
+            }
+        };
+
+        auto type = getMaintenanceType();
+
+        auto* node = GetThisImpl();
+        bool maintenanceUpdated;
+        if (value) {
+            const auto& securityManager = Bootstrap_->GetSecurityManager();
+            auto* user = securityManager->GetAuthenticatedUser();
+            auto* hydraContext = NHydra::GetCurrentHydraContext();
+            auto timestamp = hydraContext->GetTimestamp();
+            maintenanceUpdated = node->SetMaintenanceFlag(type, user ? user->GetName() : "", timestamp);
+        } else {
+            maintenanceUpdated = node->ClearMaintenanceFlag(type);
+        }
+
+        if (maintenanceUpdated) {
+            const auto& nodeTracker = Bootstrap_->GetNodeTracker();
+            nodeTracker->OnNodeMaintenanceUpdated(node, type);
+        }
     }
 };
 

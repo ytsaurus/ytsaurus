@@ -449,7 +449,7 @@ void TCellTrackerImpl::SchedulePeerRevocation(
 bool TCellTrackerImpl::SchedulePeerCountChange(TCellBase* cell, TReqReassignPeers* request)
 {
     const auto& leadingPeer = cell->Peers()[cell->GetLeadingPeerId()];
-    bool leaderDecommissioned = leadingPeer.Node && leadingPeer.Node->GetDecommissioned();
+    bool leaderDecommissioned = leadingPeer.Node && leadingPeer.Node->IsDecommissioned();
     bool hasExtraPeers = cell->PeerCount().has_value();
     if (cell->Peers().size() == 1 && leaderDecommissioned && !hasExtraPeers) {
         // There are no followers and leader's node is decommissioned
@@ -492,21 +492,21 @@ TError TCellTrackerImpl::IsFailed(
                 peer.Descriptor.GetDefaultAddress());
         }
 
-        if (node->GetBanned()) {
+        if (node->IsBanned()) {
             return TError(
                 NCellServer::EErrorCode::NodeBanned,
                 "Node %v banned",
                 node->GetDefaultAddress());
         }
 
-        if (node->GetDecommissioned()) {
+        if (node->IsDecommissioned()) {
             return TError(
                 NCellServer::EErrorCode::NodeDecommissioned,
                 "Node %v decommissioned",
                 node->GetDefaultAddress());
         }
 
-        if (node->GetDisableTabletCells()) {
+        if (node->AreTabletCellsDisabled()) {
             return TError(
                 NCellServer::EErrorCode::NodeTabletSlotsDisabled,
                 "Node %v tablet slots disabled",
@@ -534,7 +534,7 @@ bool TCellTrackerImpl::IsDecommissioned(
         return false;
     }
 
-    if (node->GetBanned()) {
+    if (node->IsBanned()) {
         return false;
     }
 
@@ -542,11 +542,11 @@ bool TCellTrackerImpl::IsDecommissioned(
         return false;
     }
 
-    if (node->GetDecommissioned()) {
+    if (node->IsDecommissioned()) {
         return true;
     }
 
-    if (node->GetDisableTabletCells()) {
+    if (node->AreTabletCellsDisabled()) {
         return true;
     }
 

@@ -19,7 +19,7 @@ from yt_commands import (
     build_snapshot, get_driver,
     create_user, make_ace,
     create_access_control_object_namespace, create_access_control_object,
-    print_debug)
+    print_debug, decommission_node)
 
 from yt.test_helpers import assert_items_equal
 
@@ -289,7 +289,7 @@ class TestMasterCellAddition(YTEnvSetup):
         set("//sys/hosts/{}/@rack".format(host), "r")
         set("//sys/racks/r/@data_center", "d")
 
-        set("//sys/cluster_nodes/{}/@decommissioned".format(host), True)
+        decommission_node(host, "check clster node hierarchy")
         set("//sys/racks/r/@foo", "oof")
         set("//sys/data_centers/d/@bar", "rab")
 

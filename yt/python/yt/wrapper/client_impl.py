@@ -2250,3 +2250,24 @@ class YtClient(ClientState):
             table, row_type, input_stream,
             client=self,
             table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, force_create=force_create)
+
+    def add_maintenance(self, node_address, maintenance_type, comment):
+        """
+        Adds maintenance request for given node
+
+        :param node_address: node address.
+        :param maintenance_type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
+        disable_write_sessions, disable_tablet_cells.
+        :param comment: any string with length not larger than 512 characters.
+        :return: unique (per node) maintenance id.
+        """
+        return client_api.add_maintenance(node_address, maintenance_type, comment, self)
+
+    def remove_maintenance(self, node_address, maintenance_id):
+        """
+        Removes maintenance request from given node
+
+        :param node_address: node address.
+        :param maintenance_id: maintenance id.
+        """
+        return client_api.remove_maintenance(node_address, maintenance_id, self)

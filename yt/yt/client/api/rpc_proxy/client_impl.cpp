@@ -1630,6 +1630,59 @@ TFuture<void> TClient::MigrateReplicationCards(
     return req->Invoke().As<void>();
 }
 
+TFuture<NNodeTrackerClient::TMaintenanceId> TClient::AddMaintenance(
+    const TString& nodeAddress,
+    NNodeTrackerClient::EMaintenanceType type,
+    const TString& comment,
+    const TAddMaintenanceOptions& options)
+{
+    using NNodeTrackerClient::EMaintenanceType;
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.AddMaintenance();
+    req->set_node_address(nodeAddress);
+    switch (type) {
+        case EMaintenanceType::Ban:
+            req->set_type(NProto::ENodeMaintenanceType::NMT_BAN);
+            break;
+        case EMaintenanceType::Decommission:
+            req->set_type(NProto::ENodeMaintenanceType::NMT_DECOMMISSION);
+            break;
+        case EMaintenanceType::DisableSchedulerJobs:
+            req->set_type(NProto::ENodeMaintenanceType::NMT_DISABLE_SCHEDULER_JOBS);
+            break;
+        case EMaintenanceType::DisableWriteSessions:
+            req->set_type(NProto::ENodeMaintenanceType::NMT_DISABLE_WRITE_SESSIONS);
+            break;
+        case EMaintenanceType::DisableTabletCells:
+            req->set_type(NProto::ENodeMaintenanceType::NMT_DISABLE_TABLET_CELLS);
+            break;
+        default:
+            THROW_ERROR_EXCEPTION("Invalid maintenance type: %v", type);
+    }
+    req->set_comment(comment);
+    SetTimeoutOptions(*req, options);
+
+    return req->Invoke().Apply(BIND([] (const TErrorOr<TApiServiceProxy::TRspAddMaintenancePtr>& rsp) {
+        return FromProto<NNodeTrackerClient::TMaintenanceId>(rsp.ValueOrThrow()->id());
+    }));
+}
+
+TFuture<void> TClient::RemoveMaintenance(
+    const TString& nodeAddress,
+    NNodeTrackerClient::TMaintenanceId id,
+    const TRemoveMaintenanceOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.RemoveMaintenance();
+    req->set_node_address(nodeAddress);
+    ToProto(req->mutable_id(), id);
+    SetTimeoutOptions(*req, options);
+
+    return req->Invoke().AsVoid();
+}
+
 TFuture<void> TClient::SuspendTabletCells(
     const std::vector<TCellId>& /*cellIds*/,
     const TSuspendTabletCellsOptions& /*options*/)

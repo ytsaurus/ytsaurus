@@ -530,8 +530,7 @@ struct TValueBoundSerializer
     struct TSaver<
         T,
         C,
-        decltype(std::declval<T&>().Persist(std::declval<C&>()), void())
-        >
+        decltype(std::declval<T&>().Persist(std::declval<C&>()), void())>
     {
         static void Do(C& context, const T& value)
         {
