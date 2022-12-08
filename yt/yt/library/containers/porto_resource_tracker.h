@@ -87,26 +87,27 @@ private:
     T GetStatistics(
         std::optional<T>& cachedStatistics,
         const TString& statisticsKind,
-        F func) const;
+        F extractor) const;
 
-    TCpuStatistics ExtractCpuStatistics(TResourceUsage& resourceUsage) const;
-    TMemoryStatistics ExtractMemoryStatistics(TResourceUsage& resourceUsage) const;
-    TBlockIOStatistics ExtractBlockIOStatistics(TResourceUsage& resourceUsage) const;
-    TNetworkStatistics ExtractNetworkStatistics(TResourceUsage& resourceUsage) const;
-    TTotalStatistics ExtractTotalStatistics(TResourceUsage& resourceUsage) const;
+    TCpuStatistics ExtractCpuStatistics(const TResourceUsage& resourceUsage) const;
+    TMemoryStatistics ExtractMemoryStatistics(const TResourceUsage& resourceUsage) const;
+    TBlockIOStatistics ExtractBlockIOStatistics(const TResourceUsage& resourceUsage) const;
+    TNetworkStatistics ExtractNetworkStatistics(const TResourceUsage& resourceUsage) const;
+    TTotalStatistics ExtractTotalStatistics(const TResourceUsage& resourceUsage) const;
 
-    TErrorOr<ui64> CalculateCounterDelta(TErrorOr<ui64>& oldValue, TErrorOr<ui64>& newValue) const;
+    TErrorOr<ui64> CalculateCounterDelta(
+        const TErrorOr<ui64>& oldValue,
+        const TErrorOr<ui64>& newValue) const;
 
     TResourceUsage CalculateResourceUsageDelta(
-        TResourceUsage& oldResourceUsage,
-        TResourceUsage& newResourceUsage) const;
+        const TResourceUsage& oldResourceUsage,
+        const TResourceUsage& newResourceUsage) const;
 
     void UpdateResourceUsageStatisticsIfExpired() const;
 
     void DoUpdateResourceUsage() const;
 };
 
-DECLARE_REFCOUNTED_TYPE(TPortoResourceTracker)
 DEFINE_REFCOUNTED_TYPE(TPortoResourceTracker)
 
 ////////////////////////////////////////////////////////////////////////////////

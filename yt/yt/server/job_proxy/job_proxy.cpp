@@ -1348,26 +1348,20 @@ bool TJobProxy::TrySetCpuGuarantee(double cpuGuarantee)
     }
 }
 
-template <class T>
-static const T& ValueOrDefault(const TErrorOr<T>& value, const T& def)
-{
-    return value.IsOK() ? value.Value() : def;
-}
-
 TDuration TJobProxy::GetSpentCpuTime() const
 {
     auto result = TDuration::Zero();
 
     if (auto job = FindJob()) {
         auto jobCpu = job->GetCpuStatistics();
-        result += ValueOrDefault(jobCpu.SystemUsageTime, TDuration::Zero()) +
-            ValueOrDefault(jobCpu.UserUsageTime, TDuration::Zero());
+        result += jobCpu.SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
+            jobCpu.UserUsageTime.ValueOrDefault(TDuration::Zero());
     }
 
     if (auto environment = FindJobProxyEnvironment()) {
         auto proxyCpu = environment->GetCpuStatistics();
-        result += ValueOrDefault(proxyCpu.SystemUsageTime, TDuration::Zero()) +
-            ValueOrDefault(proxyCpu.UserUsageTime, TDuration::Zero());
+        result += proxyCpu.SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
+            proxyCpu.UserUsageTime.ValueOrDefault(TDuration::Zero());
     }
 
     return result;

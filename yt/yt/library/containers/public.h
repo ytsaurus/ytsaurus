@@ -92,6 +92,7 @@ DECLARE_REFCOUNTED_STRUCT(IPortoExecutor)
 
 DECLARE_REFCOUNTED_CLASS(TInstanceLimitsTracker)
 DECLARE_REFCOUNTED_CLASS(TPortoProcess)
+DECLARE_REFCOUNTED_CLASS(TPortoResourceTracker)
 DECLARE_REFCOUNTED_CLASS(TPortoExecutorConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

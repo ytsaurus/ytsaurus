@@ -235,6 +235,24 @@ const T& TErrorOr<T>::Value() const &
     return *Value_;
 }
 
+template <class T>
+const T& TErrorOr<T>::ValueOrDefault(const T& defaultValue) const &
+{
+    return IsOK() ? *Value_ : defaultValue;
+}
+
+template <class T>
+T& TErrorOr<T>::ValueOrDefault(T& defaultValue) &
+{
+    return IsOK() ? *Value_ : defaultValue;
+}
+
+template <class T>
+T&& TErrorOr<T>::ValueOrDefault(T&& defaultValue) &&
+{
+    return IsOK() ? std::move(*Value_) : defaultValue;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class T>

@@ -122,9 +122,9 @@ public:
         TErrorOr<TDuration> WaitTime;
         TErrorOr<TDuration> ThrottledTime;
 
-        TErrorOr<ui64> ThreadCount = 0;
-        TErrorOr<ui64> ContextSwitches = 0;
-        TErrorOr<ui64> PeakThreadCount = 0;
+        TErrorOr<ui64> ThreadCount;
+        TErrorOr<ui64> ContextSwitches;
+        TErrorOr<ui64> PeakThreadCount;
 
         TErrorOr<TDuration> LimitTime;
         TErrorOr<TDuration> GuaranteeTime;
@@ -164,14 +164,14 @@ public:
 
     struct TStatistics
     {
-        TErrorOr<ui64> IOReadByte = 0;
-        TErrorOr<ui64> IOWriteByte = 0;
-        TErrorOr<ui64> IOBytesLimit = 0;
+        TErrorOr<ui64> IOReadByte;
+        TErrorOr<ui64> IOWriteByte;
+        TErrorOr<ui64> IOBytesLimit;
 
-        TErrorOr<ui64> IOReadOps = 0;
-        TErrorOr<ui64> IOWriteOps = 0;
-        TErrorOr<ui64> IOOps = 0;
-        TErrorOr<ui64> IOOpsLimit = 0;
+        TErrorOr<ui64> IOReadOps;
+        TErrorOr<ui64> IOWriteOps;
+        TErrorOr<ui64> IOOps;
+        TErrorOr<ui64> IOOpsLimit;
 
         TErrorOr<TDuration> IOTotalTime;
         TErrorOr<TDuration> IOWaitTime;
@@ -213,18 +213,18 @@ public:
 
     struct TStatistics
     {
-        TErrorOr<ui64> Rss = 0;
-        TErrorOr<ui64> MappedFile = 0;
-        TErrorOr<ui64> MinorPageFaults = 0;
-        TErrorOr<ui64> MajorPageFaults = 0;
+        TErrorOr<ui64> Rss;
+        TErrorOr<ui64> MappedFile;
+        TErrorOr<ui64> MinorPageFaults;
+        TErrorOr<ui64> MajorPageFaults;
 
-        TErrorOr<ui64> FileCacheUsage = 0;
-        TErrorOr<ui64> AnonUsage = 0;
-        TErrorOr<ui64> AnonLimit = 0;
-        TErrorOr<ui64> MemoryUsage = 0;
-        TErrorOr<ui64> MemoryGuarantee = 0;
-        TErrorOr<ui64> MemoryLimit = 0;
-        TErrorOr<ui64> MaxMemoryUsage = 0;
+        TErrorOr<ui64> FileCacheUsage;
+        TErrorOr<ui64> AnonUsage;
+        TErrorOr<ui64> AnonLimit;
+        TErrorOr<ui64> MemoryUsage;
+        TErrorOr<ui64> MemoryGuarantee;
+        TErrorOr<ui64> MemoryLimit;
+        TErrorOr<ui64> MaxMemoryUsage;
     };
 
     explicit TMemory(const TString& name);
@@ -246,15 +246,15 @@ class TNetwork
 public:
     struct TStatistics
     {
-        TErrorOr<ui64> TxBytes = 0;
-        TErrorOr<ui64> TxPackets = 0;
-        TErrorOr<ui64> TxDrops = 0;
-        TErrorOr<ui64> TxLimit = 0;
+        TErrorOr<ui64> TxBytes;
+        TErrorOr<ui64> TxPackets;
+        TErrorOr<ui64> TxDrops;
+        TErrorOr<ui64> TxLimit;
 
-        TErrorOr<ui64> RxBytes = 0;
-        TErrorOr<ui64> RxPackets = 0;
-        TErrorOr<ui64> RxDrops = 0;
-        TErrorOr<ui64> RxLimit = 0;
+        TErrorOr<ui64> RxBytes;
+        TErrorOr<ui64> RxPackets;
+        TErrorOr<ui64> RxDrops;
+        TErrorOr<ui64> RxLimit;
     };
 };
 
