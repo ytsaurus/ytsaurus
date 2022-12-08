@@ -174,7 +174,7 @@ class TDecoratedAutomaton
 {
 public:
     TDecoratedAutomaton(
-        NHydra::TDistributedHydraManagerConfigPtr config,
+        TConfigWrapperPtr config,
         const NHydra::TDistributedHydraManagerOptions& options,
         NHydra::IAutomatonPtr automaton,
         IInvokerPtr automatonInvoker,
@@ -255,7 +255,7 @@ private:
 
     const NLogging::TLogger Logger;
 
-    const NHydra::TDistributedHydraManagerConfigPtr Config_;
+    const TConfigWrapperPtr Config_;
     const NHydra::TDistributedHydraManagerOptions Options_;
     const NElection::TCellManagerPtr CellManager_;
     const NHydra::IAutomatonPtr Automaton_;

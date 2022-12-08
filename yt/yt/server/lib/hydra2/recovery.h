@@ -68,7 +68,7 @@ private:
      *  The current segment id should match that of #changeLog.
      *  The method ensures that no mutation is applied twice.
      */
-    bool ReplayChangelog(const NHydra::IChangelogPtr& changelog, i64 sequenceNumber);
+    void ReplayChangelog(const NHydra::IChangelogPtr& changelog, i64 sequenceNumber);
 };
 
 DEFINE_REFCOUNTED_TYPE(TRecovery)

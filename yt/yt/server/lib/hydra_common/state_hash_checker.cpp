@@ -11,8 +11,8 @@ using namespace NConcurrency;
 TStateHashChecker::TStateHashChecker(
     int limit,
     NLogging::TLogger logger)
-    : Limit_(limit)
-    , Logger(std::move(logger))
+    : Logger(std::move(logger))
+    , Limit_(limit)
 { }
 
 void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
@@ -34,6 +34,15 @@ void TStateHashChecker::Report(i64 sequenceNumber, ui64 stateHash)
             it->second,
             stateHash);
     }
+}
+
+void TStateHashChecker::ReconfigureLimit(int limit)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = WriterGuard(Lock_);
+
+    Limit_ = limit;
 }
 
 THashMap<i64, ui64> TStateHashChecker::GetStateHashes(const std::vector<i64>& sequenceNumbers)

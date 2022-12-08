@@ -52,7 +52,7 @@ i64 GetMutationDataSize(const TPendingMutationPtr& mutation)
 ////////////////////////////////////////////////////////////////////////////////
 
 TCommitterBase::TCommitterBase(
-    TDistributedHydraManagerConfigPtr config,
+    TConfigWrapperPtr config,
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
@@ -70,11 +70,12 @@ TCommitterBase::TCommitterBase(
     YT_VERIFY(EpochContext_);
 
     VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochControlInvoker, ControlThread);
-    VERIFY_INVOKER_THREAD_AFFINITY(EpochContext_->EpochUserAutomatonInvoker, AutomatonThread);
 }
 
 TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutationPtr> mutations)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return BIND(&TDecoratedAutomaton::ApplyMutations, DecoratedAutomaton_)
         .AsyncViaGuarded(
             EpochContext_->EpochUserAutomatonInvoker,
@@ -84,12 +85,16 @@ TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutatio
 
 TFuture<void> TCommitterBase::GetLastLoggedMutationFuture()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return LastLoggedMutationFuture_;
 }
 
 void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
 {
-    if (!Config_->CloseChangelogs || !changelog) {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (!Config_->Get()->CloseChangelogs || !changelog) {
         return;
     }
 
@@ -110,7 +115,7 @@ void TCommitterBase::CloseChangelog(const IChangelogPtr& changelog)
 ////////////////////////////////////////////////////////////////////////////////
 
 TLeaderCommitter::TLeaderCommitter(
-    TDistributedHydraManagerConfigPtr config,
+    TConfigWrapperPtr config,
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TLeaderLeasePtr leaderLease,
@@ -121,7 +126,7 @@ TLeaderCommitter::TLeaderCommitter(
     TLogger logger,
     TProfiler profiler)
     : TCommitterBase(
-        std::move(config),
+        config,
         options,
         std::move(decoratedAutomaton),
         epochContext,
@@ -132,15 +137,15 @@ TLeaderCommitter::TLeaderCommitter(
     , FlushMutationsExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::FlushMutations, MakeWeak(this)),
-        Config_->MutationFlushPeriod))
+        Config_->Get()->MutationFlushPeriod))
     , SerializeMutationsExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::SerializeMutations, MakeWeak(this)),
-        Config_->MutationSerializationPeriod))
+        Config_->Get()->MutationSerializationPeriod))
     , CheckpointCheckExecutor_(New<TPeriodicExecutor>(
         EpochContext_->EpochControlInvoker,
         BIND(&TLeaderCommitter::MaybeCheckpoint, MakeWeak(this)),
-        Config_->CheckpointCheckPeriod))
+        Config_->Get()->CheckpointCheckPeriod))
     , InitialState_(reachableState)
     , CommittedState_(std::move(reachableState))
     , BatchSummarySize_(profiler.Summary("/mutation_batch_size"))
@@ -214,7 +219,7 @@ void TLeaderCommitter::SerializeMutations()
     NTracing::TNullTraceContextGuard traceContextGuard;
 
     std::vector<TMutationDraft> mutationDrafts;
-    while (std::ssize(mutationDrafts) < Config_->MaxCommitBatchRecordCount) {
+    while (std::ssize(mutationDrafts) < Config_->Get()->MaxCommitBatchRecordCount) {
         TMutationDraft mutationDraft;
         if (!MutationDraftQueue_->TryDequeue(&mutationDraft)) {
             break;
@@ -257,6 +262,13 @@ void TLeaderCommitter::SerializeMutations()
 
     MaybeFlushMutations();
     DrainQueue();
+}
+
+void TLeaderCommitter::Reconfigure()
+{
+    FlushMutationsExecutor_->SetPeriod(Config_->Get()->MutationFlushPeriod);
+    SerializeMutationsExecutor_->SetPeriod(Config_->Get()->MutationSerializationPeriod);
+    CheckpointCheckExecutor_->SetPeriod(Config_->Get()->CheckpointCheckPeriod);
 }
 
 void TLeaderCommitter::Start()
@@ -316,6 +328,8 @@ void TLeaderCommitter::Stop()
 
 void TLeaderCommitter::FlushMutations()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     YT_LOG_DEBUG("Started flushing mutations");
 
     for (auto followerId = 0; followerId < CellManager_->GetTotalPeerCount(); ++followerId) {
@@ -336,10 +350,10 @@ void TLeaderCommitter::FlushMutations()
             continue;
         }
 
-        if (followerState.Mode == EAcceptMutationsMode::Fast
-            && (followerState.InFlightRequestCount > Config_->MaxInFlightAcceptMutationsRequestCount
-            || followerState.InFlightMutationCount > Config_->MaxInFlightMutationCount
-            || followerState.InFlightMutationDataSize > Config_->MaxInFlightMutationDataSize))
+        if (followerState.Mode == EAcceptMutationsMode::Fast &&
+            (followerState.InFlightRequestCount > Config_->Get()->MaxInFlightAcceptMutationsRequestCount ||
+            followerState.InFlightMutationCount > Config_->Get()->MaxInFlightMutationCount ||
+            followerState.InFlightMutationDataSize > Config_->Get()->MaxInFlightMutationDataSize))
         {
             YT_LOG_DEBUG("Skipping sending mutations to follower since in-flight limits are violated (FollowerId: %v,"
                 "InFlightRequestCount: %v, InFlightMutationCount: %v, InFlightMutationDataSize: %v)",
@@ -377,14 +391,14 @@ void TLeaderCommitter::FlushMutations()
         }
 
         TInternalHydraServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config_->CommitFlushRpcTimeout);
+        proxy.SetDefaultTimeout(Config_->Get()->CommitFlushRpcTimeout);
 
         auto getMutationCount = [&] () -> i64 {
             if (MutationQueue_.empty() || followerState.NextExpectedSequenceNumber == -1) {
                 return 0;
             }
             return std::min<i64>(
-                Config_->MaxCommitBatchRecordCount,
+                Config_->Get()->MaxCommitBatchRecordCount,
                 MutationQueue_.back()->SequenceNumber - followerState.NextExpectedSequenceNumber + 1);
         };
 
@@ -451,6 +465,8 @@ void TLeaderCommitter::FlushMutations()
 
 void TLeaderCommitter::OnSnapshotReply(int peerId)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (LastSnapshotInfo_->HasReply[peerId]) {
         return;
     }
@@ -472,6 +488,8 @@ void TLeaderCommitter::OnMutationsAcceptedByFollower(
     i64 mutationDataSize,
     const TInternalHydraServiceProxy::TErrorOrRspAcceptMutationsPtr& rspOrError)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto& peerState = PeerStates_[followerId];
 
     --peerState.InFlightRequestCount;
@@ -615,19 +633,23 @@ void TLeaderCommitter::MaybePromoteCommittedSequenceNumber()
 
 void TLeaderCommitter::MaybeFlushMutations()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (MutationQueue_.empty()) {
         return;
     }
 
     // TODO(aleksandra-zh): Some peers may have larger batches. Consider looking at each separately.
     auto batchSize = MutationQueue_.back()->SequenceNumber - CommittedState_.SequenceNumber;
-    if (batchSize >= Config_->MaxCommitBatchRecordCount) {
+    if (batchSize >= Config_->Get()->MaxCommitBatchRecordCount) {
         FlushMutations();
     }
 }
 
 void TLeaderCommitter::DrainQueue()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto popMutationQueue = [&] () {
         const auto& mutation = MutationQueue_.front();
         MutationQueueDataSize_ -= GetMutationDataSize(mutation);
@@ -637,7 +659,7 @@ void TLeaderCommitter::DrainQueue()
         MutationQueueSummaryDataSize_.Record(MutationQueueDataSize_);
     };
 
-    while (std::ssize(MutationQueue_) > Config_->MaxQueuedMutationCount) {
+    while (std::ssize(MutationQueue_) > Config_->Get()->MaxQueuedMutationCount) {
         const auto& mutation = MutationQueue_.front();
         if (mutation->SequenceNumber > CommittedState_.SequenceNumber) {
             LoggingFailed_.Fire(TError("Mutation queue mutation count limit exceeded, but the first mutation in queue is still uncommitted")
@@ -648,7 +670,7 @@ void TLeaderCommitter::DrainQueue()
         popMutationQueue();
     }
 
-    while (MutationQueueDataSize_ > Config_->MaxQueuedMutationDataSize) {
+    while (MutationQueueDataSize_ > Config_->Get()->MaxQueuedMutationDataSize) {
         const auto& mutation = MutationQueue_.front();
         if (mutation->SequenceNumber > CommittedState_.SequenceNumber) {
             LoggingFailed_.Fire(TError("Mutation queue data size limit exceeded, but the first mutation in queue is still uncommitted")
@@ -671,22 +693,24 @@ void TLeaderCommitter::DrainQueue()
 
 void TLeaderCommitter::MaybeCheckpoint()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (AcquiringChangelog_ || LastSnapshotInfo_) {
         return;
     }
 
-    if (NextLoggedVersion_.RecordId >= Config_->MaxChangelogRecordCount) {
+    if (NextLoggedVersion_.RecordId >= Config_->Get()->MaxChangelogRecordCount) {
         YT_LOG_INFO("Requesting checkpoint due to record count limit (RecordCountSinceLastCheckpoint: %v, MaxChangelogRecordCount: %v)",
             NextLoggedVersion_.RecordId,
-            Config_->MaxChangelogRecordCount);
-    } else if (Changelog_->GetDataSize() >= Config_->MaxChangelogDataSize)  {
+            Config_->Get()->MaxChangelogRecordCount);
+    } else if (Changelog_->GetDataSize() >= Config_->Get()->MaxChangelogDataSize)  {
         YT_LOG_INFO("Requesting checkpoint due to data size limit (DataSizeSinceLastCheckpoint: %v, MaxChangelogDataSize: %v)",
             Changelog_->GetDataSize(),
-            Config_->MaxChangelogDataSize);
+            Config_->Get()->MaxChangelogDataSize);
     } else if (TInstant::Now() > SnapshotBuildDeadline_) {
         YT_LOG_INFO("Requesting periodic snapshot (SnapshotBuildPeriod: %v, SnapshotBuildSplay: %v)",
-            Config_->SnapshotBuildPeriod,
-            Config_->SnapshotBuildSplay);
+            Config_->Get()->SnapshotBuildPeriod,
+            Config_->Get()->SnapshotBuildSplay);
     } else {
         return;
     }
@@ -696,24 +720,30 @@ void TLeaderCommitter::MaybeCheckpoint()
 
 void TLeaderCommitter::UpdateSnapshotBuildDeadline()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     SnapshotBuildDeadline_ =
         TInstant::Now() +
-        Config_->SnapshotBuildPeriod +
-        RandomDuration(Config_->SnapshotBuildSplay);
+        Config_->Get()->SnapshotBuildPeriod +
+        RandomDuration(Config_->Get()->SnapshotBuildSplay);
 }
 
 void TLeaderCommitter::Checkpoint()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     YT_VERIFY(!AcquiringChangelog_);
 
     AcquiringChangelog_ = true;
-    RunChangelogAcquisition(Config_, EpochContext_, NextLoggedVersion_.SegmentId + 1, std::nullopt).Subscribe(
+    RunChangelogAcquisition(Config_->Get(), EpochContext_, NextLoggedVersion_.SegmentId + 1, std::nullopt).Subscribe(
         BIND(&TLeaderCommitter::OnChangelogAcquired, MakeStrong(this))
             .Via(EpochContext_->EpochControlInvoker));
 }
 
 void TLeaderCommitter::OnSnapshotsComplete()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     YT_VERIFY(LastSnapshotInfo_);
 
     int successCount = 0;
@@ -735,7 +765,7 @@ void TLeaderCommitter::OnSnapshotsComplete()
         successCount);
 
     // TODO(aleksandra-zh): remove when we stop building snapshots on all peers.
-    if (Config_->AlertOnSnapshotFailure && successCount == 0) {
+    if (Config_->Get()->AlertOnSnapshotFailure && successCount == 0) {
         YT_LOG_ALERT("Not enough successfull snapshots built (SnapshotId: %v, SuccessCount: %v)",
             LastSnapshotInfo_->SnapshotId,
             successCount);
@@ -765,12 +795,16 @@ void TLeaderCommitter::OnSnapshotsComplete()
 
 bool TLeaderCommitter::CanBuildSnapshot() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     // We can be acquiring changelog, it is ok.
     return !LastSnapshotInfo_;
 }
 
 TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion, bool readOnly)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     YT_VERIFY(!LastSnapshotInfo_);
     LastSnapshotInfo_ = TShapshotInfo{
         .SnapshotId = NextLoggedVersion_.SegmentId + 1,
@@ -790,6 +824,8 @@ TFuture<int> TLeaderCommitter::BuildSnapshot(bool waitForCompletion, bool readOn
 
 std::optional<TFuture<int>> TLeaderCommitter::GetLastSnapshotFuture(bool waitForCompletion, bool readOnly)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (!LastSnapshotInfo_) {
         return std::nullopt;
     }
@@ -805,6 +841,8 @@ std::optional<TFuture<int>> TLeaderCommitter::GetLastSnapshotFuture(bool waitFor
 
 void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemoteSnapshotParams>& rspOrError)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (!LastSnapshotInfo_ || LastSnapshotInfo_->SnapshotId > snapshotId) {
         YT_LOG_INFO("Stale local snapshot built, ignoring (SnapshotId: %v)", snapshotId);
         return;
@@ -832,6 +870,8 @@ void TLeaderCommitter::OnLocalSnapshotBuilt(int snapshotId, const TErrorOr<TRemo
 
 void TLeaderCommitter::OnChangelogAcquired(const TError& error)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (!error.IsOK()) {
         if (LastSnapshotInfo_) {
             LastSnapshotInfo_->Promise.TrySet(error);
@@ -1042,32 +1082,31 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
     LastOffloadedMutationsFuture_ = ScheduleApplyMutations(std::move(mutations));
 }
 
-TReachableState TLeaderCommitter::GetCommittedState() const
-{
-    return CommittedState_;
-}
-
 TVersion TLeaderCommitter::GetLoggedVersion() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return NextLoggedVersion_;
 }
 
 i64 TLeaderCommitter::GetLoggedSequenceNumber() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return PeerStates_[CellManager_->GetSelfPeerId()].LastLoggedSequenceNumber;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TFollowerCommitter::TFollowerCommitter(
-    TDistributedHydraManagerConfigPtr config,
+    TConfigWrapperPtr config,
     const TDistributedHydraManagerOptions& options,
     TDecoratedAutomatonPtr decoratedAutomaton,
     TEpochContext* epochContext,
     TLogger logger,
     TProfiler profiler)
     : TCommitterBase(
-        std::move(config),
+        config,
         options,
         std::move(decoratedAutomaton),
         epochContext,
@@ -1077,11 +1116,15 @@ TFollowerCommitter::TFollowerCommitter(
 
 i64 TFollowerCommitter::GetLoggedSequenceNumber() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return LastLoggedSequenceNumber_;
 }
 
 void TFollowerCommitter::SetSequenceNumber(i64 number)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     YT_VERIFY(LoggedMutations_.empty());
     LastLoggedSequenceNumber_ = number;
 
@@ -1096,6 +1139,8 @@ bool TFollowerCommitter::AcceptMutations(
     i64 startSequenceNumber,
     const std::vector<TSharedRef>& recordsData)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto expectedSequenceNumber = GetExpectedSequenceNumber();
     YT_LOG_DEBUG("Trying to accept mutations (ExpectedSequenceNumber: %v, StartSequenceNumber: %v, MutationCount: %v)",
         expectedSequenceNumber,
@@ -1152,17 +1197,23 @@ void TFollowerCommitter::DoAcceptMutation(const TSharedRef& recordData)
 
 i64 TFollowerCommitter::GetExpectedSequenceNumber() const
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     return LastAcceptedSequenceNumber_ + 1;
 }
 
 void TFollowerCommitter::RegisterNextChangelog(int id, IChangelogPtr changelog)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     InsertOrCrash(NextChangelogs_, std::make_pair(id, changelog));
     YT_LOG_INFO("Changelog registered (ChangelogId: %v)", id);
 }
 
 IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     auto changelogId = version.SegmentId;
 
     while (!NextChangelogs_.empty() && NextChangelogs_.begin()->first < changelogId) {
@@ -1218,6 +1269,8 @@ IChangelogPtr TFollowerCommitter::GetNextChangelog(TVersion version)
 
 void TFollowerCommitter::PrepareNextChangelog(TVersion version)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     YT_LOG_INFO("Preparing changelog (Version: %v)", version);
 
     auto changelogId = version.SegmentId;
@@ -1238,6 +1291,8 @@ void TFollowerCommitter::PrepareNextChangelog(TVersion version)
 
 void TFollowerCommitter::LogMutations()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     // Logging more than one batch at a time makes it difficult to promote LoggedSequenceNumber_ correctly.
     // (And creates other weird problems.)
     // We should at least have a barrier around PrepareNextChangelog.
@@ -1305,6 +1360,8 @@ void TFollowerCommitter::OnMutationsLogged(
     i64 lastSequenceNumber,
     const TError& error)
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
     if (!error.IsOK()) {
         LoggingFailed_.Fire(TError("Error logging mutations at follower")
             << error);

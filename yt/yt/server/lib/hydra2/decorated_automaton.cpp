@@ -331,7 +331,7 @@ protected:
     void ReleaseLock()
     {
         if (LockAcquired_) {
-            auto delay = Owner_->Config_->BuildSnapshotDelay;
+            auto delay = Owner_->Config_->Get()->BuildSnapshotDelay;
             if (delay != TDuration::Zero()) {
                 YT_LOG_DEBUG("Working in testing mode, sleeping (BuildSnapshotDelay: %v)", delay);
                 TDelayedExecutor::WaitForDuration(delay);
@@ -405,12 +405,12 @@ private:
 
     TDuration GetTimeout() const override
     {
-        return Owner_->Config_->SnapshotBuildTimeout;
+        return Owner_->Config_->Get()->SnapshotBuildTimeout;
     }
 
     TDuration GetForkTimeout() const override
     {
-        return Owner_->Config_->SnapshotForkTimeout;
+        return Owner_->Config_->Get()->SnapshotForkTimeout;
     }
 
     void RunChild() override
@@ -659,7 +659,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 TDecoratedAutomaton::TDecoratedAutomaton(
-    TDistributedHydraManagerConfigPtr config,
+    TConfigWrapperPtr config,
     const TDistributedHydraManagerOptions& options,
     IAutomatonPtr automaton,
     IInvokerPtr automatonInvoker,
@@ -1084,11 +1084,11 @@ void TDecoratedAutomaton::DoApplyMutation(TMutationContext* mutationContext, TVe
     ++MutationCountSinceLastSnapshot_;
     MutationSizeSinceLastSnapshot_ += mutationSize;
 
-    if (Config_->EnableStateHashChecker) {
+    if (Config_->Get()->EnableStateHashChecker) {
         StateHashChecker_->Report(sequenceNumber, StateHash_);
     }
 
-    if (auto invariantsCheckProbability = Config_->InvariantsCheckProbability) {
+    if (auto invariantsCheckProbability = Config_->Get()->InvariantsCheckProbability) {
         if (RandomNumber<double>() <= invariantsCheckProbability) {
             CheckInvariants();
         }
@@ -1291,7 +1291,7 @@ bool TDecoratedAutomaton::IsMutationLoggingEnabled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return !IsRecovery() || Config_->ForceMutationLogging;
+    return !IsRecovery() || Config_->Get()->ForceMutationLogging;
 }
 
 bool TDecoratedAutomaton::IsBuildingSnapshotNow() const

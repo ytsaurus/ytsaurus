@@ -4,6 +4,8 @@
 
 namespace NYT::NHydra {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TFileChangelogConfig::Register(TRegistrar registrar)
@@ -128,6 +130,146 @@ void TLocalHydraJanitorConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void TDynamicDistributedHydraManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("control_rpc_timeout", &TThis::ControlRpcTimeout)
+        .Optional();
+
+    registrar.Parameter("commit_flush_rpc_timeout", &TThis::CommitFlushRpcTimeout)
+        .Optional();
+    registrar.Parameter("commit_forwarding_rpc_timeout", &TThis::CommitForwardingRpcTimeout)
+        .Optional();
+
+    registrar.Parameter("snapshot_build_timeout", &TThis::SnapshotBuildTimeout)
+        .Optional();
+    registrar.Parameter("snapshot_fork_timeout", &TThis::SnapshotForkTimeout)
+        .Optional();
+    registrar.Parameter("snapshot_build_period", &TThis::SnapshotBuildPeriod)
+        .Optional();
+    registrar.Parameter("snapshot_build_splay", &TThis::SnapshotBuildSplay)
+        .Optional();
+
+    registrar.Parameter("max_commit_batch_record_count", &TThis::MaxCommitBatchRecordCount)
+        .Optional();
+
+    registrar.Parameter("mutation_serialization_period", &TThis::MutationSerializationPeriod)
+        .Optional();
+    registrar.Parameter("mutation_flush_period", &TThis::MutationFlushPeriod)
+        .Optional();
+
+    registrar.Parameter("leader_sync_delay", &TThis::LeaderSyncDelay)
+        .Optional();
+
+    registrar.Parameter("max_changelog_record_count", &TThis::MaxChangelogRecordCount)
+        .Optional();
+
+    registrar.Parameter("max_changelog_data_size", &TThis::MaxChangelogDataSize)
+        .Optional();
+
+    registrar.Parameter("heartbeat_mutation_period", &TThis::HeartbeatMutationPeriod)
+        .Optional();
+    registrar.Parameter("heartbeat_mutation_timeout", &TThis::HeartbeatMutationTimeout)
+        .Optional();
+
+    registrar.Parameter("abandon_leader_lease_request_timeout", &TThis::AbandonLeaderLeaseRequestTimeout)
+        .Optional();
+
+    registrar.Parameter("enable_state_hash_checker", &TThis::EnableStateHashChecker)
+        .Optional();
+    registrar.Parameter("max_state_hash_checker_entry_count", &TThis::MaxStateHashCheckerEntryCount)
+        .Optional();
+    registrar.Parameter("state_hash_checker_mutation_verification_sampling_rate", &TThis::StateHashCheckerMutationVerificationSamplingRate)
+        .Optional();
+
+    registrar.Parameter("max_queued_mutation_count", &TThis::MaxQueuedMutationCount)
+        .Optional();
+    registrar.Parameter("max_queued_mutation_data_size", &TThis::MaxQueuedMutationDataSize)
+        .Optional();
+
+    registrar.Parameter("leader_switch_timeout", &TThis::LeaderSwitchTimeout)
+        .Optional();
+
+    registrar.Parameter("max_in_flight_accept_mutations_request_count", &TThis::MaxInFlightAcceptMutationsRequestCount)
+        .Optional();
+    registrar.Parameter("max_in_flight_mutations_count", &TThis::MaxInFlightMutationCount)
+        .Optional();
+    registrar.Parameter("max_in_flight_mutation_data_size", &TThis::MaxInFlightMutationDataSize)
+        .Optional();
+
+    registrar.Parameter("max_changelogs_for_recovery", &TThis::MaxChangelogsForRecovery)
+        .Optional();
+    registrar.Parameter("max_changelog_mutation_count_for_recovery", &TThis::MaxChangelogMutationCountForRecovery)
+        .Optional();
+    registrar.Parameter("max_total_changelog_size_for_recovery", &TThis::MaxTotalChangelogSizeForRecovery)
+        .Optional();
+
+    registrar.Parameter("checkpoint_check_period", &TThis::CheckpointCheckPeriod)
+        .Optional();
+
+    registrar.Parameter("alert_on_snapshot_failure", &TThis::AlertOnSnapshotFailure)
+        .Optional();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDistributedHydraManagerConfigPtr TDistributedHydraManagerConfig::ApplyDynamic(
+    const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig)
+{
+    auto config = CloneYsonSerializable(MakeStrong(this));
+    config->ApplyDynamicInplace(*dynamicConfig);
+    config->Postprocess();
+    return config;
+}
+
+void TDistributedHydraManagerConfig::ApplyDynamicInplace(const TDynamicDistributedHydraManagerConfig& dynamicConfig)
+{
+    UpdateYsonStructField(ControlRpcTimeout, dynamicConfig.ControlRpcTimeout);
+
+    UpdateYsonStructField(CommitFlushRpcTimeout, dynamicConfig.CommitFlushRpcTimeout);
+    UpdateYsonStructField(CommitForwardingRpcTimeout, dynamicConfig.CommitForwardingRpcTimeout);
+
+    UpdateYsonStructField(SnapshotBuildTimeout, dynamicConfig.SnapshotBuildTimeout);
+    UpdateYsonStructField(SnapshotForkTimeout, dynamicConfig.SnapshotForkTimeout);
+    UpdateYsonStructField(SnapshotBuildPeriod, dynamicConfig.SnapshotBuildPeriod);
+    UpdateYsonStructField(SnapshotBuildSplay, dynamicConfig.SnapshotBuildSplay);
+
+    UpdateYsonStructField(MaxCommitBatchRecordCount, dynamicConfig.MaxCommitBatchRecordCount);
+
+    UpdateYsonStructField(MutationSerializationPeriod, dynamicConfig.MutationSerializationPeriod);
+    UpdateYsonStructField(MutationFlushPeriod, dynamicConfig.MutationFlushPeriod);
+
+    UpdateYsonStructField(LeaderSyncDelay, dynamicConfig.LeaderSyncDelay);
+
+    UpdateYsonStructField(MaxChangelogRecordCount, dynamicConfig.MaxChangelogRecordCount);
+    UpdateYsonStructField(MaxChangelogDataSize, dynamicConfig.MaxChangelogDataSize);
+
+    UpdateYsonStructField(HeartbeatMutationPeriod, dynamicConfig.HeartbeatMutationPeriod);
+    UpdateYsonStructField(HeartbeatMutationTimeout, dynamicConfig.HeartbeatMutationTimeout);
+
+    UpdateYsonStructField(AbandonLeaderLeaseRequestTimeout, dynamicConfig.AbandonLeaderLeaseRequestTimeout);
+
+    UpdateYsonStructField(EnableStateHashChecker, dynamicConfig.EnableStateHashChecker);
+    UpdateYsonStructField(MaxStateHashCheckerEntryCount, dynamicConfig.MaxStateHashCheckerEntryCount);
+    UpdateYsonStructField(StateHashCheckerMutationVerificationSamplingRate, dynamicConfig.StateHashCheckerMutationVerificationSamplingRate);
+
+    UpdateYsonStructField(LeaderSwitchTimeout, dynamicConfig.LeaderSwitchTimeout);
+
+    UpdateYsonStructField(MaxQueuedMutationCount, dynamicConfig.MaxQueuedMutationCount);
+    UpdateYsonStructField(MaxQueuedMutationDataSize, dynamicConfig.MaxQueuedMutationDataSize);
+
+    UpdateYsonStructField(MaxInFlightAcceptMutationsRequestCount, dynamicConfig.MaxInFlightAcceptMutationsRequestCount);
+    UpdateYsonStructField(MaxInFlightMutationCount, dynamicConfig.MaxInFlightMutationCount);
+    UpdateYsonStructField(MaxInFlightMutationDataSize, dynamicConfig.MaxInFlightMutationDataSize);
+
+    UpdateYsonStructField(MaxChangelogsForRecovery, dynamicConfig.MaxChangelogsForRecovery);
+    UpdateYsonStructField(MaxChangelogMutationCountForRecovery, dynamicConfig.MaxChangelogMutationCountForRecovery);
+    UpdateYsonStructField(MaxTotalChangelogSizeForRecovery, dynamicConfig.MaxTotalChangelogSizeForRecovery);
+
+    UpdateYsonStructField(CheckpointCheckPeriod, dynamicConfig.CheckpointCheckPeriod);
+
+    UpdateYsonStructField(AlertOnSnapshotFailure, dynamicConfig.AlertOnSnapshotFailure);
+}
 
 void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
 {

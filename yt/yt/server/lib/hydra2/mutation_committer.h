@@ -51,7 +51,7 @@ public:
     TFuture<void> GetLastLoggedMutationFuture();
 
 protected:
-    const NHydra::TDistributedHydraManagerConfigPtr Config_;
+    const TConfigWrapperPtr Config_;
     const NHydra::TDistributedHydraManagerOptions Options_;
     const TDecoratedAutomatonPtr DecoratedAutomaton_;
     TEpochContext* const EpochContext_;
@@ -68,7 +68,7 @@ protected:
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
     TCommitterBase(
-        NHydra::TDistributedHydraManagerConfigPtr config,
+        TConfigWrapperPtr config,
         const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,
@@ -98,7 +98,7 @@ class TLeaderCommitter
 {
 public:
     TLeaderCommitter(
-        NHydra::TDistributedHydraManagerConfigPtr config,
+        TConfigWrapperPtr config,
         const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TLeaderLeasePtr leaderLease,
@@ -109,7 +109,6 @@ public:
         NLogging::TLogger logger,
         NProfiling::TProfiler profiler);
 
-    TReachableState GetCommittedState() const;
     TVersion GetLoggedVersion() const;
     i64 GetLoggedSequenceNumber() const;
 
@@ -120,6 +119,8 @@ public:
     void SetReadOnly();
 
     TFuture<void> GetLastMutationFuture();
+
+    void Reconfigure();
 
     void Start();
     void Stop();
@@ -232,7 +233,7 @@ class TFollowerCommitter
 {
 public:
     TFollowerCommitter(
-        NHydra::TDistributedHydraManagerConfigPtr config,
+        TConfigWrapperPtr config,
         const NHydra::TDistributedHydraManagerOptions& options,
         TDecoratedAutomatonPtr decoratedAutomaton,
         TEpochContext* epochContext,

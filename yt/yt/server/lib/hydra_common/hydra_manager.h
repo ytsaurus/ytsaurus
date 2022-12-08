@@ -78,6 +78,11 @@ struct ISimpleHydraManager
      */
     virtual TEpochId GetAutomatonEpochId() const = 0;
 
+    //! Applies changes to Hydra config.
+    /*!
+     *  \note Thread affinity: AutomatonThread
+     */
+    virtual TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr config) = 0;
 
     //! Raised within the automaton thread when the peer has started leading
     //! and enters recovery.

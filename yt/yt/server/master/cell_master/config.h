@@ -330,6 +330,7 @@ public:
     NSequoiaServer::TDynamicSequoiaManagerConfigPtr SequoiaManager;
     NIncumbentServer::TIncumbentManagerConfigPtr IncumbentManager;
     TDynamicQueueAgentServerConfigPtr QueueAgentServer;
+    NHydra::TDynamicDistributedHydraManagerConfigPtr HydraManager;
 
     REGISTER_YSON_STRUCT(TDynamicClusterConfig);
 

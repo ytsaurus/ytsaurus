@@ -339,6 +339,8 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("queue_agent_server", &TThis::QueueAgentServer)
         .DefaultNew();
+    registrar.Parameter("hydra_manager", &TThis::HydraManager)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->EnableDescendingSortOrderDynamic && !config->EnableDescendingSortOrder) {
