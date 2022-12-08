@@ -169,6 +169,15 @@ class TestYsonFunctions(ClickHouseTestBase):
             }
         ]
 
+    @authors("gudqeit")
+    def test_parse_unexpected_type(self):
+        with Clique(1) as clique:
+            with raises_yt_error(QueryFailedError):
+                clique.make_query("select YPathArrayInt64Strict('[[6];[7];[8]]', '')")
+
+            result = clique.make_query("select YPathArrayInt64('[[6];[7];[8]]', '') as value")
+            assert result == [{"value": []}]
+
     @authors("max42")
     def test_const_args(self):
         with Clique(1) as clique:
