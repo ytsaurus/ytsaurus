@@ -6,7 +6,7 @@ namespace NYT::NContainers {
 
 void TDiskManagerProxyConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("health_check_timeout", &TThis::HealthCheckTimeout)
+    registrar.Parameter("health_check_timeout", &TThis::RequestTimeout)
         .Default(TDuration::Seconds(10));
 }
 
@@ -14,7 +14,7 @@ void TDiskManagerProxyConfig::Register(TRegistrar registrar)
 
 void TDiskManagerProxyDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("health_check_timeout", &TThis::HealthCheckTimeout)
+    registrar.Parameter("health_check_timeout", &TThis::RequestTimeout)
         .Default();
 }
 

@@ -23,19 +23,19 @@ using TRspListDisks = diskman::ListDisksResponse;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiskManagerProxy
-    : public NYT::NRpc::TProxyBase
+    : public NRpc::TProxyBase
     , public TRefCounted
 {
 public:
     TDiskManagerProxy(
-        NYT::NRpc::IChannelPtr channel,
+        NRpc::IChannelPtr channel,
         TString serviceName,
         TDiskManagerProxyConfigPtr config);
 
     TFuture<std::vector<TString>> GetYTDiskDeviceNames();
     TFuture<std::vector<TDiskInfo>> GetDisks();
 
-    void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newNodeConfig);
+    void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig);
 
 private:
     const TDiskManagerProxyConfigPtr Config_;
@@ -44,12 +44,7 @@ private:
     DEFINE_RPC_PROXY_METHOD(NContainers, GetYTMountedDevices);
     DEFINE_RPC_PROXY_METHOD(NContainers, ListDisks);
 
-    template <class Request, class Response>
-    TFuture<TIntrusivePtr<Response>> ExecuteApiCall(
-        TIntrusivePtr<Request> (TDiskManagerProxy::*callMethod)(),
-        std::function<void(TIntrusivePtr<Request>)> enrichRequest);
-
-    TDuration GetHealthCheckTimeout() const;
+    TDuration GetRequestTimeout() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TDiskManagerProxy)
