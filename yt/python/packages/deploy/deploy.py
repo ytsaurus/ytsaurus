@@ -6,6 +6,7 @@ import logging
 import os
 import shutil
 import sys
+from copy import deepcopy
 
 from helpers import get_version, copy_tree, import_file, execute_command
 from find_debian_package import find_debian_package
@@ -97,7 +98,7 @@ def deploy_debian_package(package, version, repos=None):
     try:
         for repo in repos:
             if find_debian_package(repo, package, version):
-                logging.warning("Package {} already uploaded to the repository {}, skipping uploaded")
+                logging.warning("Package {} already uploaded to the repository {}, skipping uploaded".format(package, repo))
                 continue
 
             if repo == "common":
@@ -170,7 +171,7 @@ def clean(python_binary, final=False):
     if os.path.exists("debian/rules"):
         execute_command(["make", "-f", "debian/rules", "clean"], check=False)
 
-    for path in ["stable_versions", "MANIFEST.in", "requirements.txt", "setup.py"]:
+    for path in ["stable_versions", "MANIFEST.in", "requirements.txt", "setup.py", "postprocess.py"]:
         remove_path(path)
 
     if final:
@@ -203,8 +204,10 @@ def main(args=None):
         if args.deploy:
             deploy_package(package, args.package_type, args.python_binary, repos=args.repos)
 
-            if os.path.exists("./postprocess.sh"):
-                execute_command(["./postprocess.sh"])
+            if os.path.exists("./postprocess.py"):
+                postprocess_args = deepcopy(args)
+                postprocess_args.create_conductor_ticket = bool(os.environ["CREATE_CONDUCTOR_TICKET"])
+                import_file("postprocess", "./postprocess.py").main(postprocess_args)
 
         clean(args.python_binary, final=args.deploy)
 

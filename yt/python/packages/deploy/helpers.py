@@ -84,7 +84,7 @@ def import_file(module_name, path):
     return module
 
 
-def execute_command(cmd, env=None, check=True):
+def execute_command(cmd, env=None, check=True, capture_output=False):
     logging.debug("Executing command (check={check}, env={env}):\n $ {cmd}".format(
         cmd=" ".join(["'{}'".format(arg) for arg in cmd]),
         check=check,
@@ -92,7 +92,7 @@ def execute_command(cmd, env=None, check=True):
     ))
 
     # if True, the child process' output will directly printed in stdout/stderr
-    share_output_fds = logging.root.level <= logging.DEBUG
+    share_output_fds = logging.root.level <= logging.DEBUG and not capture_output
 
     proc = subprocess.Popen(
         cmd,
@@ -113,4 +113,4 @@ def execute_command(cmd, env=None, check=True):
             logging.error("Command stdout: {}".format(stdout))
             logging.error("Command stderr: {}".format(stderr))
         raise RuntimeError("Executing of command '{}' failed. Process exited with code {}".format(cmd, returncode))
-    return returncode
+    return returncode, stdout, stderr
