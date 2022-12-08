@@ -1,0 +1,42 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/ytree/yson_struct.h>
+
+namespace NYT::NContainers {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiskManagerProxyConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration HealthCheckTimeout;
+
+    REGISTER_YSON_STRUCT(TDiskManagerProxyConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TDiskManagerProxyDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<TDuration> HealthCheckTimeout;
+
+    REGISTER_YSON_STRUCT(TDiskManagerProxyDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyConfig)
+DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NContainers
