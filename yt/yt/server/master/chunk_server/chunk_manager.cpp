@@ -4163,8 +4163,8 @@ private:
     {
         using NYT::Save;
 
-        ChunkMap_.SaveValues(context);
-        ChunkListMap_.SaveValues(context);
+        ChunkMap_.SaveValuesParallel(context);
+        ChunkListMap_.SaveValuesParallel(context);
         MediumMap_.SaveValues(context);
         Save(context, ChunkRequisitionRegistry_);
         Save(context, ChunkListsAwaitingRequisitionTraverse_);

@@ -297,7 +297,7 @@ def _build_master_configs(yt_config,
                 "master_index": str(master_index),
             })
 
-            config["hydra_manager"] = _get_hydra_manager_config()
+            set_at(config, "hydra_manager", _get_hydra_manager_config(), merge=True)
 
             config["rpc_port"], config["monitoring_port"] = ports[cell_index][master_index]
 
@@ -384,7 +384,7 @@ def _build_clock_configs(yt_config, clock_dirs, clock_tmpfs_dirs, ports_generato
             "clock_index": str(clock_index)
         })
 
-        config["hydra_manager"] = _get_hydra_manager_config()
+        set_at(config, "hydra_manager", _get_hydra_manager_config(), merge=True)
 
         config["rpc_port"], config["monitoring_port"] = ports[clock_index]
 

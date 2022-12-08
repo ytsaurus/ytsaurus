@@ -65,6 +65,9 @@ void TMasterHydraManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("response_keeper", &TThis::ResponseKeeper)
         .DefaultNew();
+    registrar.Parameter("snapshot_background_thread_count", &TThis::SnapshotBackgroundThreadCount)
+        .GreaterThanOrEqual(0)
+        .Default(0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

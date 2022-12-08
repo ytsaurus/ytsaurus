@@ -147,6 +147,9 @@ public:
     void SaveValues(TContext& context) const;
 
     template <class TContext>
+    void SaveValuesParallel(TContext& context) const;
+
+    template <class TContext>
     void LoadKeys(TContext& context);
 
     template <class TContext>
@@ -166,6 +169,9 @@ private:
     std::vector<TValue*> LoadValues_;
     mutable std::vector<typename TMapType::const_iterator> SaveIterators_;
 
+
+    template <class TContext>
+    int EstimateParallelSaveBatchSize(TContext& context) const;
 
     TDynamicData* AllocateDynamicData();
     void FreeDynamicData(TDynamicData* data);

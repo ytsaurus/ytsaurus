@@ -6,24 +6,47 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <yt/yt/core/concurrency/thread_pool.h>
+
 namespace NYT::NHydra {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TSaveContext::TSaveContext(
     ICheckpointableOutputStream* output,
-    int version)
+    int version,
+    IThreadPoolPtr backgroundThreadPool)
     : TEntityStreamSaveContext(output, version)
     , CheckpointableOutput_(output)
+    , BackgroundThreadPool_(std::move(backgroundThreadPool))
+{ }
+
+TSaveContext::TSaveContext(
+    IZeroCopyOutput* output,
+    const TSaveContext* parentContext)
+    : TEntityStreamSaveContext(
+        output,
+        parentContext->GetVersion())
 { }
 
 void TSaveContext::MakeCheckpoint()
 {
     Output_.FlushBuffer();
     CheckpointableOutput_->MakeCheckpoint();
+}
+
+IInvokerPtr TSaveContext::GetBackgroundInvoker() const
+{
+    return BackgroundThreadPool_ ? BackgroundThreadPool_->GetInvoker() : nullptr;
+}
+
+int TSaveContext::GetBackgroundParallelism() const
+{
+    return BackgroundThreadPool_ ? BackgroundThreadPool_->GetThreadCount() : 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

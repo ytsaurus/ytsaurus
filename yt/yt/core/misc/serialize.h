@@ -230,6 +230,10 @@ class TEntityStreamSaveContext
 public:
     using TStreamSaveContext::TStreamSaveContext;
 
+    TEntityStreamSaveContext(
+        IZeroCopyOutput* output,
+        TEntityStreamSaveContext* parentContext);
+
     TEntitySerializationKey GenerateSerializationKey();
 
     static inline const TEntitySerializationKey InlineKey = TEntitySerializationKey(-3);
@@ -240,6 +244,8 @@ public:
     TEntitySerializationKey RegisterRefCountedEntity(const TIntrusivePtr<T>& entity);
 
 private:
+    const TEntityStreamSaveContext* const ParentContext_ = nullptr;
+
     int SerializationKeyIndex_ = 0;
     THashMap<void*, TEntitySerializationKey> RawPtrs_;
     THashMap<TRefCountedPtr, TEntitySerializationKey> RefCountedPtrs_;

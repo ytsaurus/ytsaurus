@@ -312,12 +312,17 @@ inline void TEntitySerializationKey::Load(TEntityStreamLoadContext& context)
 
 inline TEntitySerializationKey TEntityStreamSaveContext::GenerateSerializationKey()
 {
+    YT_VERIFY(!ParentContext_);
     return TEntitySerializationKey(SerializationKeyIndex_++);
 }
 
 template <class T>
 TEntitySerializationKey TEntityStreamSaveContext::RegisterRawEntity(T* entity)
 {
+    if (ParentContext_) {
+        return GetOrCrash(ParentContext_->RawPtrs_, entity);
+    }
+
     if (auto it = RawPtrs_.find(entity)) {
         return it->second;
     }
@@ -329,9 +334,14 @@ TEntitySerializationKey TEntityStreamSaveContext::RegisterRawEntity(T* entity)
 template <class T>
 TEntitySerializationKey TEntityStreamSaveContext::RegisterRefCountedEntity(const TIntrusivePtr<T>& entity)
 {
+    if (ParentContext_) {
+        return GetOrCrash(ParentContext_->RefCountedPtrs_, entity);
+    }
+
     if (auto it = RefCountedPtrs_.find(entity)) {
         return it->second;
     }
+
     auto key = GenerateSerializationKey();
     EmplaceOrCrash(RefCountedPtrs_, entity, key);
     return InlineKey;
@@ -342,7 +352,7 @@ TEntitySerializationKey TEntityStreamSaveContext::RegisterRefCountedEntity(const
 template <class T>
 inline TEntitySerializationKey TEntityStreamLoadContext::RegisterRawEntity(T* entity)
 {
-    auto key = TEntitySerializationKey(static_cast<int>(RawPtrs_.size()));
+    auto key = TEntitySerializationKey(std::ssize(RawPtrs_));
     RawPtrs_.push_back(entity);
     return key;
 }
@@ -359,7 +369,7 @@ template <class T>
 T* TEntityStreamLoadContext::GetRawEntity(TEntitySerializationKey key) const
 {
     YT_ASSERT(key.Index >= 0);
-    YT_ASSERT(key.Index < static_cast<int>(RawPtrs_.size()));
+    YT_ASSERT(key.Index < std::ssize(RawPtrs_));
     return static_cast<T*>(RawPtrs_[key.Index]);
 }
 

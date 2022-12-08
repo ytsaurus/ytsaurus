@@ -9,6 +9,8 @@
 
 #include <yt/yt/core/misc/serialize.h>
 
+#include <yt/yt/core/concurrency/public.h>
+
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NHydra {
@@ -21,12 +23,21 @@ class TSaveContext
 public:
     explicit TSaveContext(
         ICheckpointableOutputStream* output,
-        int version = 0);
+        int version = 0,
+        NConcurrency::IThreadPoolPtr backgroundThreadPool = nullptr);
+
+    TSaveContext(
+        IZeroCopyOutput* output,
+        const TSaveContext* parentContext);
 
     void MakeCheckpoint();
 
+    IInvokerPtr GetBackgroundInvoker() const;
+    int GetBackgroundParallelism() const;
+
 private:
-    ICheckpointableOutputStream* const CheckpointableOutput_;
+    ICheckpointableOutputStream* const CheckpointableOutput_ = nullptr;
+    const NConcurrency::IThreadPoolPtr BackgroundThreadPool_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
