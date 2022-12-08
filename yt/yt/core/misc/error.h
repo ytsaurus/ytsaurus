@@ -361,12 +361,17 @@ public:
     T& ValueOrThrow() &;
     T&& ValueOrThrow() &&;
 
+    const T& ValueOrDefault(const T& defaultValue) const &;
+    T& ValueOrDefault(T& defaultValue) &;
+    T&& ValueOrDefault(T&& defaultValue) &&;
+
 private:
     std::optional<T> Value_;
 };
 
 template <class T>
 void FormatValue(TStringBuilderBase* builder, const TErrorOr<T>& error, TStringBuf spec);
+
 template <class T>
 TString ToString(const TErrorOr<T>& valueOrError);
 

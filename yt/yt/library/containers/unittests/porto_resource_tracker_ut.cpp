@@ -7,8 +7,7 @@
 #include <util/system/fs.h>
 #include <util/system/tempfile.h>
 
-#ifdef _linux_
-
+#include <yt/yt/library/profiling/producer.h>
 #include <yt/yt/library/containers/config.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/porto_resource_tracker.h>
@@ -25,43 +24,41 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static auto TestUpdatePeriod = TDuration::MilliSeconds(10);
+static constexpr auto TestUpdatePeriod = TDuration::MilliSeconds(10);
 
 class TPortoTrackerTest
     : public ::testing::Test
 {
 public:
+    IPortoExecutorPtr Executor;
+
     void SetUp() override
     {
         if (GetEnv("SKIP_PORTO_TESTS") != "") {
             GTEST_SKIP();
         }
+        Executor = CreatePortoExecutor(New<TPortoExecutorConfig>(), "default");
     }
 };
 
-static TString GetUniqueName()
+TString GetUniqueName()
 {
     return "yt_porto_ut_" + ToString(TGuid::Create());
 }
 
-IPortoExecutorPtr CreatePortoExecutor()
-{
-    return CreatePortoExecutor(New<TPortoExecutorConfig>(), "default");
-}
-
-TPortoResourceTrackerPtr CreateSumPortoTracker(IPortoExecutorPtr executor, const TString& name)
+TPortoResourceTrackerPtr CreateSumPortoTracker(IPortoExecutorPtr Executor, const TString& name)
 {
     return New<TPortoResourceTracker>(
-        GetPortoInstance(executor, name),
+        GetPortoInstance(Executor, name),
         TestUpdatePeriod,
         false
     );
 }
 
-TPortoResourceTrackerPtr CreateDeltaPortoTracker(IPortoExecutorPtr executor, const TString& name)
+TPortoResourceTrackerPtr CreateDeltaPortoTracker(IPortoExecutorPtr Executor, const TString& name)
 {
     return New<TPortoResourceTracker>(
-        GetPortoInstance(executor, name),
+        GetPortoInstance(Executor, name),
         TestUpdatePeriod,
         true
     );
@@ -69,45 +66,38 @@ TPortoResourceTrackerPtr CreateDeltaPortoTracker(IPortoExecutorPtr executor, con
 
 TEST_F(TPortoTrackerTest, ValidateSummaryPortoTracker)
 {
-    auto executor = CreatePortoExecutor();
     auto name = GetUniqueName();
 
-    WaitFor(executor->CreateContainer(
+    WaitFor(Executor->CreateContainer(
         TRunnableContainerSpec {
             .Name = name,
             .Command = "sleep .1",
         }, true))
         .ThrowOnError();
 
-    auto tracker = CreateSumPortoTracker(executor, name);
+    auto tracker = CreateSumPortoTracker(Executor, name);
 
     auto firstStatistics = tracker->GetTotalStatistics();
 
-    WaitFor(executor->StopContainer(name))
+    WaitFor(Executor->StopContainer(name))
         .ThrowOnError();
-    WaitFor(executor->SetContainerProperty(
+    WaitFor(Executor->SetContainerProperty(
         name,
         "command",
         "find /"))
         .ThrowOnError();
-    WaitFor(executor->StartContainer(name))
+    WaitFor(Executor->StartContainer(name))
         .ThrowOnError();
     Sleep(TDuration::MilliSeconds(500));
 
     auto secondStatistics = tracker->GetTotalStatistics();
 
-    auto exitCode = WaitFor(executor->PollContainer(name))
-        .ValueOrThrow();
-
-    EXPECT_EQ(0, exitCode);
-
-    WaitFor(executor->DestroyContainer(name))
+    WaitFor(Executor->DestroyContainer(name))
         .ThrowOnError();
 }
 
 TEST_F(TPortoTrackerTest, ValidateDeltaPortoTracker)
 {
-    auto executor = CreatePortoExecutor();
     auto name = GetUniqueName();
 
     auto spec = TRunnableContainerSpec {
@@ -115,32 +105,31 @@ TEST_F(TPortoTrackerTest, ValidateDeltaPortoTracker)
         .Command = "sleep .1",
     };
 
-    WaitFor(executor->CreateContainer(spec, true))
+    WaitFor(Executor->CreateContainer(spec, true))
         .ThrowOnError();
 
-    auto tracker = CreateDeltaPortoTracker(executor, name);
-
+    auto tracker = CreateDeltaPortoTracker(Executor, name);
     auto firstStatistics = tracker->GetTotalStatistics();
 
-    WaitFor(executor->StopContainer(name))
+    WaitFor(Executor->StopContainer(name))
         .ThrowOnError();
-    WaitFor(executor->SetContainerProperty(
+    WaitFor(Executor->SetContainerProperty(
         name,
         "command",
         "find /"))
         .ThrowOnError();
-    WaitFor(executor->StartContainer(name))
+    WaitFor(Executor->StartContainer(name))
         .ThrowOnError();
 
     Sleep(TDuration::MilliSeconds(500));
 
     auto secondStatistics = tracker->GetTotalStatistics();
-    auto exitCode = WaitFor(executor->PollContainer(name))
-        .ValueOrThrow();
+    auto profiler = New<TPortoResourceProfiler>(tracker);
+    auto buffer = New<TSensorBuffer>();
+    profiler->CollectSensors(buffer.Get());
+    auto gauges = buffer->GetGauges();
 
-    EXPECT_EQ(0, exitCode);
-
-    WaitFor(executor->DestroyContainer(name))
+    WaitFor(Executor->DestroyContainer(name))
         .ThrowOnError();
 }
 
@@ -148,5 +137,3 @@ TEST_F(TPortoTrackerTest, ValidateDeltaPortoTracker)
 
 } // namespace
 } // namespace NYT::NContainers
-
-#endif

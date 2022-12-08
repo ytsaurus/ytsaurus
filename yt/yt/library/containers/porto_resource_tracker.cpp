@@ -2,18 +2,20 @@
 #include "private.h"
 
 #include <yt/yt/core/logging/log.h>
+
 #include <yt/yt/core/misc/error.h>
+
 #include <yt/yt/core/net/address.h>
+
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/library/process/process.h>
 
+#include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/containers/config.h>
 #include <yt/yt/library/containers/instance.h>
 #include <yt/yt/library/containers/porto_executor.h>
 #include <yt/yt/library/containers/public.h>
-#include <yt/yt/library/containers/config.h>
-
-#include <yt/yt/library/containers/cgroup.h>
 
 namespace NYT::NContainers {
 
@@ -21,7 +23,7 @@ using namespace NProfiling;
 
 #ifdef _linux_
 
-static const NLogging::TLogger& Logger = ContainersLogger;
+static const auto& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -62,8 +64,7 @@ static TErrorOr<TDuration> ExtractDuration(TErrorOr<ui64> timeNs)
     }
 }
 
-TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(
-    TResourceUsage& resourceUsage) const
+TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage& resourceUsage) const
 {
     // NB: Job proxy uses last sample of CPU statistics but we are interested in
     // peak thread count value.
@@ -97,8 +98,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(
     };
 }
 
-TMemoryStatistics TPortoResourceTracker::ExtractMemoryStatistics(
-    TResourceUsage& resourceUsage) const
+TMemoryStatistics TPortoResourceTracker::ExtractMemoryStatistics(const TResourceUsage& resourceUsage) const
 {
     return TMemoryStatistics{
         .Rss = GetFieldOrError(resourceUsage, EStatField::Rss),
@@ -115,8 +115,7 @@ TMemoryStatistics TPortoResourceTracker::ExtractMemoryStatistics(
     };
 }
 
-TBlockIOStatistics TPortoResourceTracker::ExtractBlockIOStatistics(
-    TResourceUsage& resourceUsage) const
+TBlockIOStatistics TPortoResourceTracker::ExtractBlockIOStatistics(const TResourceUsage& resourceUsage) const
 {
     auto totalTimeNs = GetFieldOrError(resourceUsage, EStatField::IOTotalTime);
     auto waitTimeNs = GetFieldOrError(resourceUsage, EStatField::IOWaitTime);
@@ -134,8 +133,7 @@ TBlockIOStatistics TPortoResourceTracker::ExtractBlockIOStatistics(
     };
 }
 
-TNetworkStatistics TPortoResourceTracker::ExtractNetworkStatistics(
-    TResourceUsage& resourceUsage) const
+TNetworkStatistics TPortoResourceTracker::ExtractNetworkStatistics(const TResourceUsage& resourceUsage) const
 {
     return TNetworkStatistics{
         .TxBytes = GetFieldOrError(resourceUsage, EStatField::NetTxBytes),
@@ -150,8 +148,7 @@ TNetworkStatistics TPortoResourceTracker::ExtractNetworkStatistics(
     };
 }
 
-TTotalStatistics TPortoResourceTracker::ExtractTotalStatistics(
-    TResourceUsage& resourceUsage) const
+TTotalStatistics TPortoResourceTracker::ExtractTotalStatistics(const TResourceUsage& resourceUsage) const
 {
     return TTotalStatistics{
         .CpuStatistics = ExtractCpuStatistics(resourceUsage),
@@ -252,8 +249,8 @@ void TPortoResourceTracker::UpdateResourceUsageStatisticsIfExpired() const
 }
 
 TErrorOr<ui64> TPortoResourceTracker::CalculateCounterDelta(
-    TErrorOr<ui64>& oldValue,
-    TErrorOr<ui64>& newValue) const
+    const TErrorOr<ui64>& oldValue,
+    const TErrorOr<ui64>& newValue) const
 {
     if (oldValue.IsOK() && newValue.IsOK()) {
         return newValue.Value() - oldValue.Value();
@@ -267,7 +264,8 @@ TErrorOr<ui64> TPortoResourceTracker::CalculateCounterDelta(
 
 static bool IsCumulativeStatistics(EStatField statistic)
 {
-    return statistic == EStatField::CpuUsage ||
+    return
+        statistic == EStatField::CpuUsage ||
         statistic == EStatField::CpuUserUsage ||
         statistic == EStatField::CpuSystemUsage ||
         statistic == EStatField::CpuWait ||
@@ -293,23 +291,23 @@ static bool IsCumulativeStatistics(EStatField statistic)
 }
 
 TResourceUsage TPortoResourceTracker::CalculateResourceUsageDelta(
-    TResourceUsage& oldResourceUsage,
-    TResourceUsage& newResourceUsage) const
+    const TResourceUsage& oldResourceUsage,
+    const TResourceUsage& newResourceUsage) const
 {
     TResourceUsage delta;
 
     for (const auto& stat : InstanceStatFields) {
+        TErrorOr<ui64> oldValue;
+        TErrorOr<ui64> newValue;
+
+        if (auto newValueIt = newResourceUsage.find(stat); newValueIt.IsEnd()) {
+            newValue = TError("Missing property %Qlv in Porto response", stat)
+                << TErrorAttribute("container", Instance_->GetName());
+        } else {
+            newValue = newValueIt->second;
+        }
+
         if (IsCumulativeStatistics(stat)) {
-            TErrorOr<ui64> oldValue;
-            TErrorOr<ui64> newValue;
-
-            if (auto newValueIt = newResourceUsage.find(stat); newValueIt.IsEnd()) {
-                newValue = TError("Missing property %Qlv in Porto response", stat)
-                    << TErrorAttribute("container", Instance_->GetName());
-            } else {
-                newValue = newValueIt->second;
-            }
-
             if (auto oldValueIt = oldResourceUsage.find(stat); oldValueIt.IsEnd()) {
                 // If it is first delta calculating.
                 oldValue = newValue;
@@ -319,7 +317,7 @@ TResourceUsage TPortoResourceTracker::CalculateResourceUsageDelta(
 
             delta[stat] = CalculateCounterDelta(oldValue, newValue);
         } else {
-            delta[stat] = newResourceUsage[stat];
+            delta[stat] = newValue;
         }
     }
 
@@ -399,23 +397,15 @@ void TPortoResourceProfiler::WriteCpuMetrics(
         writer->AddGauge("/cpu/total", totalUsagePercent);
     }
 
-    // Normalize guarantee and limit time because this times
-    // calculated per second, but time delta may be more than 1s:
-    //                     time delta(us)
-    // quota_per_sec(us) * --------------   -> normalized quota (per time delta)
-    //                     1_000_000 (s/us)
-
     if (totalStatistics.CpuStatistics.GuaranteeTime.IsOK()) {
         i64 guaranteeTimeUs = totalStatistics.CpuStatistics.GuaranteeTime.Value().MicroSeconds();
-        double guaranteePercent = std::max<double>(
-            0.0, (100. * guaranteeTimeUs * timeDeltaUsec) / (1'000'000L * 1'000'000L));
+        double guaranteePercent = std::max<double>(0.0, (100. * guaranteeTimeUs) / (1'000'000L));
         writer->AddGauge("/cpu/guarantee", guaranteePercent);
     }
 
     if (totalStatistics.CpuStatistics.LimitTime.IsOK()) {
         i64 limitTimeUs = totalStatistics.CpuStatistics.LimitTime.Value().MicroSeconds();
-        double limitPercent = std::max<double>(
-            0.0, (100. * limitTimeUs * timeDeltaUsec) / (1'000'000L * 1'000'000L));
+        double limitPercent = std::max<double>(0.0, (100. * limitTimeUs) / (1'000'000L));
         writer->AddGauge("/cpu/limit", limitPercent);
     }
 

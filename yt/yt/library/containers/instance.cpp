@@ -656,7 +656,7 @@ private:
     mutable i64 TotalContextSwitches_ = 0;
     mutable THashMap<TString, i64> ContextSwitchMap_;
 
-    TPortoInstance(const TString name, IPortoExecutorPtr executor)
+    TPortoInstance(TString name, IPortoExecutorPtr executor)
         : Name_(std::move(name))
         , Executor_(std::move(executor))
         , Logger(ContainersLogger.WithTag("Container: %v", Name_))

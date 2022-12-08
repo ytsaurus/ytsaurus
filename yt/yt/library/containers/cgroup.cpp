@@ -508,14 +508,14 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
 template <class T>
 static void AddMapItem(
     NYson::IYsonConsumer* consumer,
-    const TString& key,
+    const TStringBuf& key,
     TErrorOr<T> value)
 {
     if (value.IsOK()) {
         consumer->OnKeyedItem(key);
         NYTree::Serialize(value.Value(), consumer);
     } else {
-        YT_LOG_ERROR("Cannot get statistic field: %Qlv, error: %Qlv", key, ToString(value));
+        YT_LOG_WARNING(value, "Cannot get statistic (field: %v)", key);
     }
 }
 
