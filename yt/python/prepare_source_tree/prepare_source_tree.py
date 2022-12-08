@@ -140,18 +140,26 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
             package_relative_path = package_name
 
         logger.info("Preparing package %s", package_name)
-        # By some reason tqdm has both tqdm dir and tqdm.py file, second must be ignored.
-        files_to_copy = []
-        if package_name != "tqdm":
-            files_to_copy += glob.glob(
-                "{arcadia_root}/contrib/python/{package_name}/{package_name}*.py".format(
-                    arcadia_root=arcadia_root,
+
+        def find_package_files(contrib_path):
+            files_to_copy = glob.glob(
+                "{contrib_path}/{package_name}/{package_name}*.py".format(
+                    contrib_path=contrib_path,
                     package_name=package_name))
-        files_to_copy += glob.glob(
-            "{arcadia_root}/contrib/python/{package_relative_path}/{package_name}".format(
-                arcadia_root=arcadia_root,
-                package_relative_path=package_relative_path,
-                package_name=package_name))
+            files_to_copy += glob.glob(
+                "{contrib_path}/{package_relative_path}/{package_name}".format(
+                    contrib_path=contrib_path,
+                    package_relative_path=package_relative_path,
+                    package_name=package_name))
+            return files_to_copy
+
+        files_to_copy = find_package_files("{arcadia_root}/contrib/python".format(arcadia_root=arcadia_root))
+
+        if not files_to_copy:
+            files_to_copy += find_package_files("{arcadia_root}/contrib/deprecated/python".format(arcadia_root=arcadia_root))
+            if files_to_copy:
+                logger.warning("Package %s was not found at default contrib path and was taken from contrib/deprecated", package_name)
+
         for path in files_to_copy:
             cp_r(path, packages_dir)
 
