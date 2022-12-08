@@ -74,7 +74,7 @@ func (c *YTClients) GetClientFromContext(ctx context.Context) (yt.Client, error)
 	} else {
 		parts := strings.Split(req.Host, ".")
 		if len(parts) != 5 {
-			return nil, fmt.Errorf("bed registry fqdn")
+			return nil, fmt.Errorf("bad registry fqdn")
 		}
 		clusterName = strings.Split(req.Host, ".")[1]
 	}
