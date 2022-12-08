@@ -69,7 +69,7 @@ bool ParseMapOrAttributesUntilKey(TYsonPullParserCursor* cursor, TStringBuf key)
     return false;
 }
 
-TResult ParseValue(TYsonPullParserCursor* cursor)
+std::optional<TResult> TryParseValue(TYsonPullParserCursor* cursor)
 {
     switch ((*cursor)->GetType()) {
         case EYsonItemType::BooleanValue:
@@ -83,8 +83,15 @@ TResult ParseValue(TYsonPullParserCursor* cursor)
         case EYsonItemType::StringValue:
             return TString((*cursor)->UncheckedAsString());
         default:
-            YT_ABORT();
+            return std::nullopt;
     }
+}
+
+TResult ParseValue(TYsonPullParserCursor* cursor)
+{
+    auto result = TryParseValue(cursor);
+    YT_VERIFY(result);
+    return std::move(*result);
 }
 
 TString ParseAnyValue(TYsonPullParserCursor* cursor)
@@ -348,7 +355,8 @@ std::optional<TString> TryGetAny(TStringBuf yson, const TYPath& ypath)
 template <class T>
 std::optional<T> TryParseValue(TYsonPullParserCursor* cursor)
 {
-    return TScalarTypeTraits<T>::TryCast(NDetail::ParseValue(cursor));
+    auto result = NDetail::TryParseValue(cursor);
+    return result ? TScalarTypeTraits<T>::TryCast(std::move(*result)) : std::nullopt;
 }
 
 template std::optional<i64> TryParseValue<i64>(TYsonPullParserCursor* cursor);
