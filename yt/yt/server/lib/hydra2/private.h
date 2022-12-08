@@ -7,6 +7,7 @@
 
 #include <yt/yt/ytlib/hydra/private.h>
 
+#include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/lazy_ptr.h>
 
 #include <yt/yt/core/concurrency/fls.h>
@@ -23,6 +24,7 @@ DECLARE_REFCOUNTED_CLASS(TLeaderLease)
 DECLARE_REFCOUNTED_CLASS(TLeaseTracker)
 DECLARE_REFCOUNTED_CLASS(TLeaderCommitter)
 DECLARE_REFCOUNTED_CLASS(TFollowerCommitter)
+DECLARE_REFCOUNTED_CLASS(TConfigWrapper)
 
 DECLARE_REFCOUNTED_STRUCT(TEpochContext)
 DECLARE_REFCOUNTED_STRUCT(IChangelogDiscarder)
@@ -41,6 +43,23 @@ public:
     explicit TCurrentEpochIdGuard(NElection::TEpochId epochId);
     ~TCurrentEpochIdGuard();
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TConfigWrapper
+    : public TRefCounted
+{
+public:
+    explicit TConfigWrapper(NHydra::TDistributedHydraManagerConfigPtr config);
+
+    void Set(NHydra::TDistributedHydraManagerConfigPtr config);
+    NHydra::TDistributedHydraManagerConfigPtr Get() const;
+
+private:
+    TAtomicPtr<NHydra::TDistributedHydraManagerConfig> Config_;
+};
+
+DEFINE_REFCOUNTED_TYPE(TConfigWrapper)
 
 ////////////////////////////////////////////////////////////////////////////////
 

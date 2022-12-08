@@ -88,6 +88,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkReincarnator)                                            (2209))  // kvk1920
     ((InternedForcedChunkViewCompactionRevision)                    (2210))  // ifsmirnov
     ((MaintenanceRequests)                                          (2211))  // kvk1920
+    ((HydraDynamicConfig)                                           (2212))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

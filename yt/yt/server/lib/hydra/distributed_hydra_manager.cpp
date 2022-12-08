@@ -345,6 +345,14 @@ public:
         return AutomatonEpochContext_ ? AutomatonEpochContext_->EpochId : TEpochId();
     }
 
+    TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/) override
+    {
+        VERIFY_THREAD_AFFINITY_ANY();
+
+        // Do nothing.
+        return VoidFuture;
+    }
+
     TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);

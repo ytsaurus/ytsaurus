@@ -18,6 +18,7 @@ using namespace NHydra;
 using namespace NObjectClient;
 using namespace NYson;
 using namespace NYTree;
+using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -81,6 +82,8 @@ public:
         DoSetConfig(std::move(newConfig));
 
         ReplicateConfigToSecondaryMasters();
+
+        HydraManager_->Reconfigure(Config_->HydraManager);
 
         NTracing::TNullTraceContextGuard nullTraceContext;
         ConfigChanged_.Fire(oldConfig);
@@ -169,6 +172,11 @@ private:
     void FireConfigChanged()
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
+        YT_VERIFY(!HasMutationContext());
+
+        // Wait for config to be applied, so that it has all overrides after LeaderActive call.
+        WaitFor(HydraManager_->Reconfigure(Config_->HydraManager))
+            .ThrowOnError();
 
         ConfigChanged_.Fire(Config_);
     }

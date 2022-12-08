@@ -177,7 +177,8 @@ public:
         IAuthenticatorPtr authenticator,
         const TDistributedHydraManagerOptions& options,
         const TDistributedHydraManagerDynamicOptions& dynamicOptions)
-        : Config_(std::move(config))
+        : StaticConfig_(config)
+        , Config_(New<TConfigWrapper>(config))
         , RpcServer_(std::move(rpcServer))
         , ElectionManager_(std::move(electionManager))
         , ControlInvoker_(std::move(controlInvoker))
@@ -186,7 +187,7 @@ public:
         , ChangelogStoreFactory_(std::move(changelogStoreFactory))
         , SnapshotStore_(std::move(snapshotStore))
         , Options_(options)
-        , StateHashChecker_(New<TStateHashChecker>(Config_->MaxStateHashCheckerEntryCount, HydraLogger))
+        , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, HydraLogger))
         , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
         , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
@@ -321,7 +322,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        return !IsRecovery() || Config_->ForceMutationLogging;
+        return !IsRecovery() || Config_->Get()->ForceMutationLogging;
     }
 
     TCancelableContextPtr GetControlCancelableContext() const override
@@ -343,6 +344,15 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         return AutomatonEpochContext_ ? AutomatonEpochContext_->EpochId : TEpochId();
+    }
+
+    TFuture<void> Reconfigure(TDynamicDistributedHydraManagerConfigPtr dynamicConfig) override
+    {
+        VERIFY_THREAD_AFFINITY(AutomatonThread);
+
+        return BIND(&TDistributedHydraManager::ReconfigureControl, MakeStrong(this), std::move(dynamicConfig))
+            .AsyncVia(AutomatonEpochContext_->EpochControlInvoker)
+            .Run();
     }
 
     TFuture<int> BuildSnapshot(bool setReadOnly, bool waitForSnapshotCompletion) override
@@ -464,7 +474,7 @@ public:
         YT_VERIFY(channel);
 
         TInternalHydraServiceProxy proxy(channel);
-        proxy.SetDefaultTimeout(Config_->CommitForwardingRpcTimeout);
+        proxy.SetDefaultTimeout(Config_->Get()->CommitForwardingRpcTimeout);
 
         auto req = proxy.CommitMutation();
         req->set_type(request.Type);
@@ -568,7 +578,8 @@ public:
 private:
     const TCancelableContextPtr CancelableContext_ = New<TCancelableContext>();
 
-    const TDistributedHydraManagerConfigPtr Config_;
+    const TDistributedHydraManagerConfigPtr StaticConfig_;
+    const TConfigWrapperPtr Config_;
     const IServerPtr RpcServer_;
     const IElectionManagerPtr ElectionManager_;
     const IInvokerPtr ControlInvoker_;
@@ -1028,8 +1039,8 @@ private:
 
             auto owner = GetOwnerOrThrow();
 
-            // TODO: remove it from here.
-            if (owner->Config_->EnableStateHashChecker) {
+            // TODO(aleksandra-zh): remove it from here.
+            if (owner->Config_->Get()->EnableStateHashChecker) {
                 for (const auto& mutationInfo : request->mutations_info()) {
                     auto sequenceNumber = mutationInfo.sequence_number();
                     auto stateHash = mutationInfo.state_hash();
@@ -1103,7 +1114,7 @@ private:
         auto asyncRecordsData = changelog->Read(
             startRecordId,
             recordCount,
-            Config_->MaxChangelogBytesPerRequest);
+            Config_->Get()->MaxChangelogBytesPerRequest);
         return WaitFor(asyncRecordsData)
             .ValueOrThrow();
     }
@@ -1409,7 +1420,7 @@ private:
                 .ThrowOnError();
         }
 
-        auto startChangelogId = std::max(currentChangelogId + 1, changelogId - Config_->MaxChangelogsToCreateDuringAcquisition);
+        auto startChangelogId = std::max(currentChangelogId + 1, changelogId - Config_->Get()->MaxChangelogsToCreateDuringAcquisition);
         for (int id = startChangelogId; id <= changelogId; ++id) {
             auto changelog = WaitFor(changelogStore->CreateChangelog(id, {}))
                 .ValueOrThrow();
@@ -1472,8 +1483,9 @@ private:
             THROW_ERROR_EXCEPTION("Leader is already being switched");
         }
 
+        auto leaderSwitchTimeout = Config_->Get()->LeaderSwitchTimeout;
         YT_LOG_INFO("Preparing leader switch (Timeout: %v)",
-            Config_->LeaderSwitchTimeout);
+            leaderSwitchTimeout);
 
         TDelayedExecutor::Submit(
             BIND([=, this, this_ = MakeWeak(this)] {
@@ -1481,7 +1493,7 @@ private:
                     epochContext,
                     TError("Leader switch did not complete within timeout"));
             }),
-            Config_->LeaderSwitchTimeout);
+            leaderSwitchTimeout);
 
         epochContext->LeaderSwitchStarted = true;
         WaitFor(epochContext->LeaderCommitter->GetLastMutationFuture())
@@ -1689,7 +1701,7 @@ private:
 
         YT_LOG_INFO("Initializing persistent stores");
 
-        auto backoffTime = Config_->MinPersistentStoreInitializationBackoffTime;
+        auto backoffTime = Config_->Get()->MinPersistentStoreInitializationBackoffTime;
 
         while (true) {
             try {
@@ -1710,8 +1722,8 @@ private:
                 YT_LOG_WARNING(ex, "Error initializing persistent stores, backing off and retrying");
                 TDelayedExecutor::WaitForDuration(backoffTime);
                 backoffTime = std::min(
-                    backoffTime * Config_->PersistentStoreInitializationBackoffTimeMultiplier,
-                    Config_->MaxPersistentStoreInitializationBackoffTime);
+                    backoffTime * Config_->Get()->PersistentStoreInitializationBackoffTimeMultiplier,
+                    Config_->Get()->MaxPersistentStoreInitializationBackoffTime);
             }
         }
 
@@ -1752,6 +1764,23 @@ private:
         YT_LOG_INFO("Hydra instance finalized");
     }
 
+    void ReconfigureControl(TDynamicDistributedHydraManagerConfigPtr dynamicConfig)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        auto newConfig = StaticConfig_->ApplyDynamic(dynamicConfig);
+        Config_->Set(newConfig);
+
+        StateHashChecker_->ReconfigureLimit(newConfig->MaxStateHashCheckerEntryCount);
+
+        if (!ControlEpochContext_) {
+            return;
+        }
+
+        if (ControlEpochContext_->LeaderCommitter) {
+            ControlEpochContext_->LeaderCommitter->Reconfigure();
+        }
+    }
 
     IChangelogPtr OpenChangelogOrThrow(int id)
     {
@@ -1801,7 +1830,7 @@ private:
         YT_VERIFY(ElectionPriority_);
 
         auto asyncResult = ComputeQuorumLatestChangelogId(
-            Config_,
+            Config_->Get(),
             ControlEpochContext_->CellManager,
             selfChangelogId,
             ChangelogStore_->GetTermOrThrow());
@@ -1821,7 +1850,7 @@ private:
             newChangelogId,
             priority,
             newTerm);
-        WaitFor(RunChangelogAcquisition(Config_, ControlEpochContext_, newChangelogId, priority))
+        WaitFor(RunChangelogAcquisition(Config_->Get(), ControlEpochContext_, newChangelogId, priority))
             .ThrowOnError();
         YT_LOG_INFO("Changelog acquired");
 
@@ -1871,7 +1900,7 @@ private:
 
         try {
             epochContext->LeaseTracker = New<TLeaseTracker>(
-                Config_,
+                Config_->Get(),
                 epochContext.Get(),
                 LeaderLease_,
                 LeaderLeaseCheck_.ToVector(),
@@ -1903,7 +1932,7 @@ private:
                 BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
             epochContext->Recovery = New<TRecovery>(
-                Config_,
+                Config_->Get(),
                 Options_,
                 GetDynamicOptions(),
                 DecoratedAutomaton_,
@@ -1917,7 +1946,7 @@ private:
             WaitFor(epochContext->Recovery->Run())
                 .ThrowOnError();
 
-            if (Config_->DisableLeaderLeaseGraceDelay) {
+            if (Config_->Get()->DisableLeaderLeaseGraceDelay) {
                 YT_LOG_WARNING("Leader lease grace delay disabled; cluster can only be used for testing purposes");
                 GraceDelayStatus_ = EGraceDelayStatus::GraceDelayDisabled;
             } else if (TryAbandonExistingLease(epochContext)) {
@@ -1925,8 +1954,8 @@ private:
                 GraceDelayStatus_ = EGraceDelayStatus::PreviousLeaseAbandoned;
             } else {
                 YT_LOG_INFO("Waiting for previous leader lease to expire (Delay: %v)",
-                    Config_->LeaderLeaseGraceDelay);
-                TDelayedExecutor::WaitForDuration(Config_->LeaderLeaseGraceDelay);
+                    Config_->Get()->LeaderLeaseGraceDelay);
+                TDelayedExecutor::WaitForDuration(Config_->Get()->LeaderLeaseGraceDelay);
                 GraceDelayStatus_ = EGraceDelayStatus::GraceDelayExecuted;
             }
 
@@ -1976,9 +2005,9 @@ private:
             auto mutationSize = DecoratedAutomaton_->GetMutationSizeSinceLastSnapshot();
             auto lastSnapshotId = DecoratedAutomaton_->GetLastSuccessfulSnapshotId();
             auto tailChangelogCount = epochContext->ReachableState.SegmentId - lastSnapshotId - 1;
-            if (tailChangelogCount >= Config_->MaxChangelogsForRecovery
-                || mutationCount >= Config_->MaxChangelogMutationCountForRecovery
-                || mutationSize >= Config_->MaxTotalChangelogSizeForRecovery)
+            if (tailChangelogCount >= Config_->Get()->MaxChangelogsForRecovery ||
+                mutationCount >= Config_->Get()->MaxChangelogMutationCountForRecovery ||
+                mutationSize >= Config_->Get()->MaxTotalChangelogSizeForRecovery)
             {
                 YT_LOG_INFO("Tail changelogs limits violated, force building snapshot "
                     "(TailChangelogCount: %v, MutationCount: %v, TotalChangelogSize: %v)",
@@ -2000,7 +2029,7 @@ private:
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Leader recovery failed, backing off");
-            TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
+            TDelayedExecutor::WaitForDuration(Config_->Get()->RestartBackoffTime);
             ScheduleRestart(epochContext, ex);
         }
     }
@@ -2052,7 +2081,7 @@ private:
 
             TInternalHydraServiceProxy proxy(std::move(peerChannel));
             auto req = proxy.AbandonLeaderLease();
-            req->SetTimeout(Config_->AbandonLeaderLeaseRequestTimeout);
+            req->SetTimeout(Config_->Get()->AbandonLeaderLeaseRequestTimeout);
             req->set_peer_id(cellManager->GetSelfPeerId());
             futures.push_back(req->Invoke());
         }
@@ -2220,7 +2249,7 @@ private:
             }
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Follower recovery failed, backing off");
-            TDelayedExecutor::WaitForDuration(Config_->RestartBackoffTime);
+            TDelayedExecutor::WaitForDuration(Config_->Get()->RestartBackoffTime);
             ScheduleRestart(epochContext, ex);
         }
     }
@@ -2309,7 +2338,7 @@ private:
             term);
 
         epochContext->Recovery = New<TRecovery>(
-            Config_,
+            Config_->Get(),
             Options_,
             GetDynamicOptions(),
             DecoratedAutomaton_,
@@ -2427,7 +2456,7 @@ private:
         epochContext->HeartbeatMutationCommitExecutor = New<TPeriodicExecutor>(
             epochContext->EpochControlInvoker,
             BIND(&TDistributedHydraManager::OnHeartbeatMutationCommit, MakeWeak(this)),
-            Config_->HeartbeatMutationPeriod);
+            Config_->Get()->HeartbeatMutationPeriod);
         if (epochContext->LeaderId == selfPeerId) {
             YT_VERIFY(voting);
             epochContext->AlivePeersUpdateExecutor = New<TPeriodicExecutor>(
@@ -2438,7 +2467,7 @@ private:
         }
         epochContext->LeaderSyncBatcher = New<TAsyncBatcher<void>>(
             BIND_NO_PROPAGATE(&TDistributedHydraManager::DoSyncWithLeader, MakeWeak(this), MakeWeak(epochContext)),
-            Config_->LeaderSyncDelay);
+            Config_->Get()->LeaderSyncDelay);
 
         YT_VERIFY(!ControlEpochContext_);
         ControlEpochContext_ = epochContext;
@@ -2550,7 +2579,7 @@ private:
         YT_VERIFY(channel);
 
         TInternalHydraServiceProxy proxy(std::move(channel));
-        proxy.SetDefaultTimeout(Config_->ControlRpcTimeout);
+        proxy.SetDefaultTimeout(Config_->Get()->ControlRpcTimeout);
 
         auto req = proxy.SyncWithLeader();
         ToProto(req->mutable_epoch_id(), epochContext->EpochId);
@@ -2651,7 +2680,7 @@ private:
 
         CheckForPendingLeaderSync();
 
-        if (Config_->EnableStateHashChecker) {
+        if (Config_->Get()->EnableStateHashChecker) {
             ReportMutationStateHashesToLeader(result);
         }
     }
@@ -2660,16 +2689,16 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        auto rate = Config_->StateHashCheckerMutationVerificationSamplingRate;
+        auto rate = Config_->Get()->StateHashCheckerMutationVerificationSamplingRate;
         auto startSequenceNumber = (result.FirstSequenceNumber + rate - 1) / rate * rate;
         auto endSequenceNumber = result.LastSequenceNumber / rate * rate;
         if (startSequenceNumber > endSequenceNumber) {
             return;
         }
 
-        auto epochContext = AutomatonEpochContext_;
+        auto epochContext = ControlEpochContext_;
 
-        auto channel = epochContext->CellManager->GetPeerChannel(AutomatonEpochContext_->LeaderId);
+        auto channel = epochContext->CellManager->GetPeerChannel(epochContext->LeaderId);
         YT_VERIFY(channel);
 
         TInternalHydraServiceProxy proxy(std::move(channel));
@@ -2714,7 +2743,7 @@ private:
         YT_LOG_DEBUG("Committing heartbeat mutation");
 
         CommitMutation(MakeHeartbeatMutationRequest())
-            .WithTimeout(Config_->HeartbeatMutationTimeout)
+            .WithTimeout(Config_->Get()->HeartbeatMutationTimeout)
             .Subscribe(BIND([=, this, this_ = MakeStrong(this), weakEpochContext = MakeWeak(ControlEpochContext_)] (const TErrorOr<TMutationResponse>& result){
                 if (result.IsOK()) {
                     YT_LOG_DEBUG("Heartbeat mutation commit succeeded");

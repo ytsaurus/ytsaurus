@@ -233,10 +233,7 @@ void TRecovery::DoRun()
             SyncChangelog(changelog);
         }
 
-        if (!ReplayChangelog(changelog, TargetState_.SequenceNumber)) {
-            TDelayedExecutor::WaitForDuration(Config_->ChangelogRecordCountCheckRetryPeriod);
-            continue;
-        }
+        ReplayChangelog(changelog, TargetState_.SequenceNumber);
 
         ++changelogId;
         WaitFor(changelog->Close())
@@ -346,7 +343,7 @@ void TRecovery::SyncChangelog(const IChangelogPtr& changelog)
     }
 }
 
-bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequenceNumber)
+void TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequenceNumber)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -408,8 +405,6 @@ bool TRecovery::ReplayChangelog(const IChangelogPtr& changelog, i64 targetSequen
     YT_LOG_INFO("Changelog replayed (AutomatonSequenceNumber: %v, TargetSequenceNumber: %v)",
         automatonSequenceNumber,
         targetSequenceNumber);
-
-    return true;
 }
 
 TFuture<void> TRecovery::Run()

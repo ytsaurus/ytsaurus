@@ -222,6 +222,12 @@ TCancelableContextPtr TSimpleHydraManagerMock::GetAutomatonCancelableContext() c
     return CancelableContext;
 }
 
+TFuture<void> TSimpleHydraManagerMock::Reconfigure(TDynamicDistributedHydraManagerConfigPtr /*config*/)
+{
+    // Do nothing.
+    return VoidFuture;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NHydra

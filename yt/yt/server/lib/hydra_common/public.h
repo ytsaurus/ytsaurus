@@ -76,6 +76,7 @@ DECLARE_REFCOUNTED_CLASS(TLocalSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteSnapshotStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TRemoteChangelogStoreConfig)
 DECLARE_REFCOUNTED_CLASS(TDistributedHydraManagerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicDistributedHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(THydraJanitorConfig)
 DECLARE_REFCOUNTED_CLASS(TLocalHydraJanitorConfig)
 
