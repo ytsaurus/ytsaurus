@@ -1530,7 +1530,7 @@ private:
         for (const auto& [jobId, job] : JobMap_) {
             YT_VERIFY(TypeFromId(jobId) == EObjectType::SchedulerJob);
 
-            YT_LOG_INFO("Removing job %v due to fatal alert");
+            YT_LOG_INFO("Removing job %v due to fatal alert", jobId);
             job->Abort(TError("Job aborted due to fatal alert"));
 
             jobsToRemove.push_back(job);
