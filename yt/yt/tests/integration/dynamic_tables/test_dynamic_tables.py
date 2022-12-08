@@ -25,7 +25,8 @@ from yt_commands import (
     sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
     sync_remove_tablet_cells, set_node_decommissioned, create_dynamic_table, build_snapshot, get_driver,
     AsyncLastCommittedTimestamp, create_medium, raises_yt_error, get_tablet_errors,
-    suspend_tablet_cells, resume_tablet_cells)
+    suspend_tablet_cells, resume_tablet_cells,
+    ban_node, unban_node, decommission_node, recommission_node, disable_tablet_cells_on_node, enable_tablet_cells_on_node)
 
 from yt_type_helpers import make_schema, optional_type
 import yt_error_codes
@@ -182,7 +183,7 @@ class DynamicTablesBase(YTEnvSetup):
 
     def _disable_tablet_cells_on_peer(self, cell):
         peer = get("#{0}/@peers/0/address".format(cell))
-        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
+        disable_tablet_cells_on_node(peer, "disable tablet cells on peer")
 
         def check():
             peers = get("#{0}/@peers".format(cell))
@@ -1546,19 +1547,19 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         nodes = ls("//sys/cluster_nodes")
 
-        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(nodes[0]), True)
+        disable_tablet_cells_on_node(nodes[0], "test cell bundle distribution")
         _check(nodes[:1], 0, 0)
         _check(nodes[1:], 1, 2)
 
-        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(nodes[0]), False)
+        enable_tablet_cells_on_node(nodes[0])
         _check(nodes, 1, 1)
 
         for node in nodes[: len(nodes) // 2]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+            disable_tablet_cells_on_node(node, "test cell bundle distribution")
         _check(nodes[len(nodes) // 2:], 2, 2)
 
         for node in nodes[: len(nodes) // 2]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), False)
+            enable_tablet_cells_on_node(node)
         _check(nodes, 1, 1)
 
     @authors("savrus")
@@ -1975,20 +1976,20 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         set("//sys/cluster_nodes/{0}/@user_tags".format(node), ["b"])
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        set("//sys/cluster_nodes/{0}/@banned".format(node), True)
+        ban_node(node, "test bunle node list")
         assert get("//sys/tablet_cell_bundles/b/@nodes") == []
-        set("//sys/cluster_nodes/{0}/@banned".format(node), False)
+        unban_node(node)
         wait(lambda: get("//sys/cluster_nodes/{0}/@state".format(node)) == "online")
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        set("//sys/cluster_nodes/{0}/@decommissioned".format(node), True)
+        decommission_node(node, "test bunle node list")
         assert get("//sys/tablet_cell_bundles/b/@nodes") == []
-        set("//sys/cluster_nodes/{0}/@decommissioned".format(node), False)
+        recommission_node(node)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
-        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+        disable_tablet_cells_on_node(node, "test bunle node list")
         assert get("//sys/tablet_cell_bundles/b/@nodes") == []
-        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), False)
+        enable_tablet_cells_on_node(node)
         assert get("//sys/tablet_cell_bundles/b/@nodes") == [node]
 
         build_snapshot(cell_id=None)
@@ -2495,12 +2496,12 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         chunk_replica_address = list(
             [str(r) for r in get("#{}/@stored_replicas".format(chunk_id)) if r.attributes["index"] == 0]
         )[0]
-        set("//sys/cluster_nodes/{0}/@banned".format(chunk_replica_address), True)
+        ban_node(chunk_replica_address, "test erasure snapshots")
 
         wait_for_cells([cell_id], decommissioned_addresses=[chunk_replica_address])
 
         tablet_address = get("#{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{0}/@decommissioned".format(tablet_address), True)
+        decommission_node(tablet_address, "test erasure snapshots")
 
         wait_for_cells([cell_id], decommissioned_addresses=[tablet_address])
 

@@ -204,8 +204,8 @@ public:
             SerializeMediumOverrides(node, response->mutable_medium_overrides());
 
             node->SetDisableWriteSessionsReportedByNode(request->write_sessions_disabled());
-            response->set_disable_write_sessions(node->GetDisableWriteSessions());
-            node->SetDisableWriteSessionsSentToNode(node->GetDisableWriteSessions());
+            response->set_disable_write_sessions(node->AreWriteSessionsDisabled());
+            node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
         }
 
         IncrementalHeartbeat_.Fire(node, request, response);

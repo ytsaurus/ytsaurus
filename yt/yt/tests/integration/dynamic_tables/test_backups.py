@@ -6,7 +6,7 @@ from yt_commands import (
     generate_timestamp, set, sync_compact_table, read_table, merge, create,
     get_driver, sync_enable_table_replica, create_table_replica, sync_disable_table_replica,
     sync_alter_table_replica_mode, remount_table, get_tablet_infos, alter_table_replica,
-    write_table, remote_copy, alter_table, copy, move, delete_rows)
+    write_table, remote_copy, alter_table, copy, move, delete_rows, disable_write_sessions_on_node)
 
 import yt_error_codes
 
@@ -238,7 +238,7 @@ class TestBackups(DynamicTablesBase):
     def test_clip_timestamp_various_chunk_formats(self, optimize_for, in_memory_mode):
         cell_id = sync_create_cells(1)[0]
         tablet_node = get("#{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{}/@disable_write_sessions".format(tablet_node), True)
+        disable_write_sessions_on_node(tablet_node, "test clip timestamp various chunk formats")
 
         self._create_sorted_table(
             "//tmp/t",

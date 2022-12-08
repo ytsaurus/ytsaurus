@@ -107,6 +107,7 @@ using namespace NYson;
 using namespace NYTree;
 
 using NYT::FromProto;
+using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -129,6 +130,8 @@ public:
         RegisterMethod(BIND(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodesForRole, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraAddMaintenance, Unretained(this)));
+        RegisterMethod(BIND(&TNodeTracker::HydraRemoveMaintenance, Unretained(this)));
 
         RegisterLoader(
             "NodeTracker.Keys",
@@ -255,6 +258,63 @@ public:
             &TNodeTracker::HydraClusterNodeHeartbeat,
             this);
         CommitMutationWithSemaphore(std::move(mutation), std::move(context), HeartbeatSemaphore_);
+    }
+
+    void ProcessAddMaintenance(
+        TCtxAddMaintenancePtr context,
+        const NNodeTrackerClient::NProto::TReqAddMaintenance* request) override
+    {
+        CheckedEnumCast<EMaintenanceType>(request->type());
+
+        auto* node = GetNodeByAddress(request->node_address());
+        // We have already checked it.
+        YT_ASSERT(IsObjectAlive(node));
+
+        const auto& securityManager = Bootstrap_->GetSecurityManager();
+        auto userName = securityManager->GetAuthenticatedUser()->GetName();
+
+        TReqAddClusterNodeMaintenance mutationRequest;
+        mutationRequest.set_comment(request->comment());
+        mutationRequest.set_user_name(userName);
+        mutationRequest.set_type(request->type());
+        mutationRequest.set_node_address(request->node_address());
+        auto mutation = CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            context,
+            mutationRequest,
+            &TNodeTracker::HydraAddMaintenance,
+            this);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
+    }
+
+    void ProcessRemoveMaintenance(
+        TCtxRemoveMaintenancePtr context,
+        const NNodeTrackerClient::NProto::TReqRemoveMaintenance* request) override
+    {
+        auto nodeAddress = request->node_address();
+        auto* node = GetNodeByAddress(nodeAddress);
+        // We have already checked it.
+        YT_ASSERT(IsObjectAlive(node));
+        auto id = FromProto<TMaintenanceId>(request->id());
+
+        if (!node->MaintenanceRequests().contains(id)) {
+            context->Reply(TError("Invalid request id"));
+            return;
+        }
+
+        TReqRemoveClusterNodeMaintenance mutationRequest;
+        mutationRequest.set_node_address(nodeAddress);
+        ToProto(mutationRequest.mutable_id(), id);
+
+        auto mutation = CreateMutation(
+            Bootstrap_->GetHydraFacade()->GetHydraManager(),
+            context,
+            mutationRequest,
+            &TNodeTracker::HydraRemoveMaintenance,
+            this);
+        mutation->SetCurrentTraceContext();
+        mutation->CommitAndReply(context);
     }
 
     DECLARE_ENTITY_MAP_ACCESSORS_OVERRIDE(Node, TNode);
@@ -464,78 +524,29 @@ public:
         node->SetLastSeenTime(mutationContext->GetTimestamp());
     }
 
-    void SetNodeBanned(TNode* node, bool value) override
+    void OnNodeMaintenanceUpdated(TNode* node, EMaintenanceType type) override
     {
-        if (node->GetBanned() != value) {
-            node->SetBanned(value);
-            if (value) {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node banned (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                if (multicellManager->IsPrimaryMaster()) {
-                    auto state = node->GetLocalState();
-                    if (state == ENodeState::Online || state == ENodeState::Registered) {
-                        UnregisterNode(node, true);
-                    }
-                }
-            } else {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is no longer banned (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            }
-            NodeBanChanged_.Fire(node);
-        }
-    }
+        YT_VERIFY(HasHydraContext());
 
-    void SetNodeDecommissioned(TNode* node, bool value) override
-    {
-        if (node->GetDecommissioned() != value) {
-            node->SetDecommissioned(value);
-            if (value) {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node decommissioned (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            } else {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            }
-            NodeDecommissionChanged_.Fire(node);
-        }
-    }
-
-    void SetDisableWriteSessions(TNode* node, bool value) override
-    {
-        if (node->GetDisableWriteSessions() != value) {
-            node->SetDisableWriteSessions(value);
-            if (value) {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            } else {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            }
-            NodeDisableWriteSessionsChanged_.Fire(node);
-        }
-    }
-
-    void SetDisableTabletCells(TNode* node, bool value) override
-    {
-        if (node->GetDisableTabletCells() != value) {
-            node->SetDisableTabletCells(value);
-            if (value) {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            } else {
-                YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
-                    node->GetId(),
-                    node->GetDefaultAddress());
-            }
-            NodeDisableTabletCellsChanged_.Fire(node);
+        switch (type) {
+        case EMaintenanceType::Ban:
+            OnNodeBanUpdated(node);
+            break;
+        case EMaintenanceType::Decommission:
+            OnNodeDecommissionUpdated(node);
+            break;
+        case EMaintenanceType::DisableTabletCells:
+            OnDisableTabletCellsUpdated(node);
+            break;
+        case EMaintenanceType::DisableWriteSessions:
+            OnDisableWriteSessionsUpdated(node);
+            break;
+        case EMaintenanceType::DisableSchedulerJobs:
+            break;
+        default:
+            YT_LOG_ALERT("Invalid maintenance type (Type: %v)", type);
+            THROW_ERROR_EXCEPTION("Invalid maintenance type")
+                << TErrorAttribute("type", type);
         }
     }
 
@@ -1306,6 +1317,68 @@ private:
             MakeFormattableView(nodeList, TNodePtrAddressFormatter()));
     }
 
+    void HydraAddMaintenance(
+        const TCtxAddMaintenancePtr& /*context*/,
+        TReqAddClusterNodeMaintenance* request,
+        NNodeTrackerClient::NProto::TRspAddMaintenance* response)
+    {
+        auto nodeAddress = request->node_address();
+        auto* node = GetNodeByAddressOrThrow(nodeAddress);
+        if (!IsObjectAlive(node)) {
+            THROW_ERROR_EXCEPTION("No such node")
+                << TErrorAttribute("address", request->node_address());
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+
+        if (multicellManager->IsPrimaryMaster()) {
+            YT_VERIFY(!request->has_id());
+            ToProto(request->mutable_id(), node->GenerateMaintenanceId());
+        } else {
+            YT_VERIFY(request->has_id());
+        }
+
+        auto id = FromProto<TMaintenanceId>(request->id());
+        auto type = CheckedEnumCast<EMaintenanceType>(request->type());
+        if (node->AddMaintenance(
+            id,
+            {request->user_name(), type, request->comment(), GetCurrentHydraContext()->GetTimestamp()}))
+        {
+            OnNodeMaintenanceUpdated(node, type);
+        }
+
+        ToProto(response->mutable_id(), FromProto<TMaintenanceId>(request->id()));
+
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(*request);
+        }
+    }
+
+    void HydraRemoveMaintenance(
+        const TCtxRemoveMaintenancePtr& /*context*/,
+        TReqRemoveClusterNodeMaintenance* request,
+        NNodeTrackerClient::NProto::TRspRemoveMaintenance* /*response*/)
+    {
+        auto nodeAddress = request->node_address();
+        auto* node = GetNodeByAddressOrThrow(nodeAddress);
+        if (!IsObjectAlive(node)) {
+            THROW_ERROR_EXCEPTION("Node does not exist")
+                << TErrorAttribute("node_address", request->node_address());
+        }
+
+        auto id = FromProto<TMaintenanceId>(request->id());
+        THROW_ERROR_EXCEPTION_IF(!node->MaintenanceRequests().contains(id), "Maintenance %Qv does not exist", id);
+
+        if (auto type = node->RemoveMaintenance(id)) {
+            OnNodeMaintenanceUpdated(node, *type);
+        }
+
+        const auto& multicellManager = Bootstrap_->GetMulticellManager();
+        if (multicellManager->IsPrimaryMaster()) {
+            multicellManager->PostToSecondaryMasters(*request);
+        }
+    }
+
     void DoProcessHeartbeat(
         TNode* node,
         TReqHeartbeat* request,
@@ -1345,9 +1418,9 @@ private:
         }
 
         *response->mutable_resource_limits_overrides() = node->ResourceLimitsOverrides();
-        response->set_decommissioned(node->GetDecommissioned());
+        response->set_decommissioned(node->IsDecommissioned());
 
-        node->SetDisableWriteSessionsSentToNode(node->GetDisableWriteSessions());
+        node->SetDisableWriteSessionsSentToNode(node->AreWriteSessionsDisabled());
     }
 
     void SaveKeys(NCellMaster::TSaveContext& context) const
@@ -1869,7 +1942,6 @@ private:
         DisposeNodeSemaphore_->AsyncAcquire(handler, EpochAutomatonInvoker_);
     }
 
-
     void PostRegisterNodeMutation(TNode* node, const TReqRegisterNode* originalRequest)
     {
         TReqRegisterNode request;
@@ -1995,6 +2067,15 @@ private:
                 TReqUnregisterNode request;
                 request.set_node_id(node->GetId());
                 multicellManager->PostToMaster(request, cellTag);
+            }
+            for (const auto& [id, request] : node->MaintenanceRequests()) {
+                TReqAddClusterNodeMaintenance addMaintenance;
+                addMaintenance.set_comment(request.Comment);
+                addMaintenance.set_user_name(request.UserName);
+                addMaintenance.set_type(ToProto<i32>(request.Type));
+                addMaintenance.set_node_address(node->GetDefaultAddress());
+                ToProto(addMaintenance.mutable_id(), id);
+                multicellManager->PostToMaster(addMaintenance, cellTag);
             }
         }
 
@@ -2251,8 +2332,8 @@ private:
             // It's forbidden to capture structured binding in lambda, so we copy #node here.
             auto* node_ = node;
             auto updateStatistics = [&] (TAggregatedNodeStatistics* statistics) {
-                statistics->BannedNodeCount += node_->GetBanned();
-                statistics->DecommissinedNodeCount += node_->GetDecommissioned();
+                statistics->BannedNodeCount += node_->IsBanned();
+                statistics->DecommissinedNodeCount += node_->IsDecommissioned();
                 statistics->WithAlertsNodeCount += !node_->Alerts().empty();
 
                 if (node_->GetAggregatedState() != ENodeState::Online) {
@@ -2264,7 +2345,7 @@ private:
                 const auto& nodeStatistics = node_->DataNodeStatistics();
                 for (const auto& location : nodeStatistics.chunk_locations()) {
                     int mediumIndex = location.medium_index();
-                    if (!node_->GetDecommissioned()) {
+                    if (!node_->IsDecommissioned()) {
                         statistics->SpacePerMedium[mediumIndex].Available += location.available_space();
                         statistics->TotalSpace.Available += location.available_space();
                     }
@@ -2302,6 +2383,88 @@ private:
         RebuildAggregatedNodeStatistics();
 
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
+    }
+
+    static void LogNodeMaintenanceUpdate(TNode* node, EMaintenanceType type)
+    {
+        auto requestCount = node->MaintenanceCounts_[type];
+        YT_LOG_ALERT_UNLESS(requestCount == 0 || requestCount == 1,
+            "Node maintenance update triggered unexpectedly"
+            "(NodeAddress: %v, MaintenanceType: %v, MaintenanceRequestCount: %v)",
+            node->GetDefaultAddress(),
+            type,
+            requestCount);
+    }
+
+    void OnNodeBanUpdated(TNode* node)
+    {
+        LogNodeMaintenanceUpdate(node, EMaintenanceType::Ban);
+
+        if (node->IsBanned()) {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is banned (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsPrimaryMaster()) {
+                auto state = node->GetLocalState();
+                if (state == ENodeState::Online || state == ENodeState::Registered) {
+                    UnregisterNode(node, true);
+                }
+            }
+        } else {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is no longer banned (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        }
+        NodeBanChanged_.Fire(node);
+    }
+
+    void OnNodeDecommissionUpdated(TNode* node)
+    {
+        LogNodeMaintenanceUpdate(node, EMaintenanceType::Decommission);
+
+        if (node->IsDecommissioned()) {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is decommissioned (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        } else {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node is no longer decommissioned (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        }
+        NodeDecommissionChanged_.Fire(node);
+    }
+
+    void OnDisableWriteSessionsUpdated(TNode* node)
+    {
+        LogNodeMaintenanceUpdate(node, EMaintenanceType::DisableWriteSessions);
+
+        if (node->AreWriteSessionsDisabled()) {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disabled write sessions on node (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        } else {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Enabled write sessions on node (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        }
+        NodeDisableWriteSessionsChanged_.Fire(node);
+    }
+
+    void OnDisableTabletCellsUpdated(TNode* node)
+    {
+        LogNodeMaintenanceUpdate(node, EMaintenanceType::DisableTabletCells);
+
+        if (node->AreTabletCellsDisabled()) {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Disabled tablet cells on node (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        } else {
+            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Enabled tablet cells on node (NodeId: %v, Address: %v)",
+                node->GetId(),
+                node->GetDefaultAddress());
+        }
+        NodeDisableTabletCellsChanged_.Fire(node);
     }
 };
 

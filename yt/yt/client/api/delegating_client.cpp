@@ -781,6 +781,23 @@ TFuture<void> TDelegatingClient::ResumeTabletCells(
     return Underlying_->ResumeTabletCells(cellIds, options);
 }
 
+TFuture<NNodeTrackerClient::TMaintenanceId> TDelegatingClient::AddMaintenance(
+    const TString& nodeAddress,
+    NNodeTrackerClient::EMaintenanceType type,
+    const TString& comment,
+    const TAddMaintenanceOptions& options)
+{
+    return Underlying_->AddMaintenance(nodeAddress, type, comment, options);
+}
+
+TFuture<void> TDelegatingClient::RemoveMaintenance(
+    const TString& nodeAddress,
+    NNodeTrackerClient::TMaintenanceId id,
+    const TRemoveMaintenanceOptions& options)
+{
+    return Underlying_->RemoveMaintenance(nodeAddress, id, options);
+}
+
 TFuture<TStartYqlQueryResult> TDelegatingClient::StartYqlQuery(
     const TString& query,
     const TStartYqlQueryOptions& options)

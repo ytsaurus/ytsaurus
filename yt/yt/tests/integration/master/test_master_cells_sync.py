@@ -5,7 +5,7 @@ from yt_commands import (
     exists, get, set, ls, remove, create_account, remove_account, make_ace, create_rack,
     create_user, remove_user, add_member, remove_member, create_group, remove_group,
     create_tablet_cell, create_tablet_cell_bundle, remove_tablet_cell_bundle, create_area, wait_for_cells,
-    get_driver)
+    get_driver, disable_tablet_cells_on_node)
 
 from flaky import flaky
 
@@ -209,7 +209,7 @@ class TestMasterCellsSync(YTEnvSetup):
             return get("#{0}/@peers/0/address".format(cell_id), default=None)
 
         peer = _get_peer_address(cell_id)
-        set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(peer), True)
+        disable_tablet_cells_on_node(peer, "test tablet cell sync")
         wait(lambda: _get_peer_address(cell_id) != peer)
 
         remove("#{0}".format(cell_id))

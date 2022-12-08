@@ -92,3 +92,29 @@ message TRspHeartbeat
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqAddMaintenance
+{
+    required string node_address = 1;
+    required int32 type = 2; // EMaintenanceType
+    required string comment = 3;
+}
+
+message TRspAddMaintenance
+{
+    required NYT.NProto.TGuid id = 1; // TMaintenanceId
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveMaintenance
+{
+    required string node_address = 1;
+    required NYT.NProto.TGuid id = 2; // TMaintenanceId
+}
+
+message TRspRemoveMaintenance
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////

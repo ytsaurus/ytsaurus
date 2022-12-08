@@ -2353,7 +2353,7 @@ void TChunkReplicator::RemoveChunkFromQueuesOnDestroy(TChunk* chunk)
 
 bool TChunkReplicator::IsReplicaDecommissioned(TChunkLocation* replica)
 {
-    return replica->GetNode()->GetDecommissioned();
+    return replica->GetNode()->IsDecommissioned();
 }
 
 TChunkReplication TChunkReplicator::GetChunkAggregatedReplication(const TChunk* chunk) const

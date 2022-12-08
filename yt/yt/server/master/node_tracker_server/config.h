@@ -106,6 +106,9 @@ public:
     // COMPAT(kvk1920)
     bool EnableRealChunkLocations;
 
+    // COMPAT(kvk1920)
+    bool ForbidMaintenanceAttributeWrites;
+
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 
     static void Register(TRegistrar registrar);

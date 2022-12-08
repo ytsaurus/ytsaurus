@@ -3,7 +3,8 @@ from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 from yt_commands import (
     authors, wait, ls, get, set, insert_rows, remount_table,
     sync_create_cells, sync_mount_table, sync_reshard_table,
-    sync_flush_table, sync_unmount_table, create_dynamic_table)
+    sync_flush_table, sync_unmount_table, create_dynamic_table,
+    disable_tablet_cells_on_node)
 
 #################################################################
 
@@ -25,7 +26,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
         NUM_TABLES = 3
         nodes = ls("//sys/cluster_nodes")
         for node in nodes[1:]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+            disable_tablet_cells_on_node(node, "test compact orchid")
         node = nodes[0]
         table_names = [f"//tmp/t{i}" for i in range(NUM_TABLES)]
 
@@ -108,7 +109,7 @@ class TestStoreCompactorOrchid(TestSortedDynamicTablesBase):
     def test_partitioning_orchid(self):
         nodes = ls("//sys/cluster_nodes")
         for node in nodes[1:]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+            disable_tablet_cells_on_node(node, "test partitioning orchid")
         node = nodes[0]
 
         sync_create_cells(1)

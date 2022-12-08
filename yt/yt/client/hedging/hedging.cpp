@@ -214,6 +214,8 @@ public:
     UNSUPPORTED_METHOD(TFuture<void>, ResumeTabletCells, (const std::vector<NObjectClient::TCellId>&, const TResumeTabletCellsOptions&));
     UNSUPPORTED_METHOD(TFuture<NChaosClient::TReplicationCardPtr>, GetReplicationCard, (NChaosClient::TReplicationCardId, const TGetReplicationCardOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, UpdateChaosTableReplicaProgress, (NChaosClient::TReplicaId, const TUpdateChaosTableReplicaProgressOptions&));
+    UNSUPPORTED_METHOD(TFuture<NNodeTrackerClient::TMaintenanceId>, AddMaintenance, (const TString&, NNodeTrackerClient::EMaintenanceType, const TString&, const TAddMaintenanceOptions&));
+    UNSUPPORTED_METHOD(TFuture<void>, RemoveMaintenance, (const TString&, NNodeTrackerClient::TMaintenanceId, const TRemoveMaintenanceOptions&));
     UNSUPPORTED_METHOD(TFuture<TPullRowsResult>, PullRows, (const NYPath::TYPath&, const TPullRowsOptions&));
     UNSUPPORTED_METHOD(TFuture<TStartYqlQueryResult>, StartYqlQuery, (const TString&, const TStartYqlQueryOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, SetUserPassword, (const TString&, const TString&, const TString&, const TSetUserPasswordOptions&));

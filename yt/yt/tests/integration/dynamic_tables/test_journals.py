@@ -6,7 +6,8 @@ from yt_commands import (
     abort_transaction, commit_transaction, build_master_snapshots, update_nodes_dynamic_config,
     read_journal, write_journal, truncate_journal, wait_until_sealed, get_singular_chunk_id,
     set_node_banned, set_banned_flag, start_transaction,
-    get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space)
+    get_account_disk_space, get_account_committed_disk_space, get_chunk_owner_disk_space,
+    ban_node)
 
 from yt_helpers import get_chunk_owner_master_cell_counters, get_chunk_owner_master_cell_gauges
 
@@ -1042,7 +1043,7 @@ class TestChunkAutotomizer(TestJournalsBase):
         body_chunk_id = get("//tmp/j/@chunk_ids/0")
         replica = self._find_replicas_with_length(body_chunk_id, 7)[0]
 
-        set("//sys/cluster_nodes/{}/@banned".format(replica), True)
+        ban_node(replica, "ban replica")
 
         set("//sys/@config/chunk_manager/enable_chunk_autotomizer", True)
         set("//sys/@config/chunk_manager/enable_chunk_sealer", True)

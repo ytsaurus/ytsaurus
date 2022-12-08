@@ -10,7 +10,8 @@ from yt_commands import (
     map, merge, sort, generate_timestamp, get_tablet_leader_address, sync_create_cells,
     sync_mount_table, sync_unmount_table, sync_freeze_table,
     sync_reshard_table, sync_flush_table, sync_compact_table, get_account_disk_space,
-    create_dynamic_table, raises_yt_error, sorted_dicts, print_debug)
+    create_dynamic_table, raises_yt_error, sorted_dicts, print_debug,
+    disable_write_sessions_on_node, disable_tablet_cells_on_node)
 
 from yt_type_helpers import make_schema
 import yt_error_codes
@@ -1118,9 +1119,9 @@ class TestBulkInsert(DynamicTablesBase):
     @authors("akozhikhov")
     def test_data_node_lookup(self):
         nodes = ls("//sys/cluster_nodes")
-        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(nodes[0]), True)
+        disable_write_sessions_on_node(nodes[0], "test data node lookup")
         for node in nodes[1:]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+            disable_tablet_cells_on_node(node, "test data node lookup")
         sync_create_cells(1)
 
         self._create_simple_dynamic_table("//tmp/t_output")
@@ -1169,7 +1170,7 @@ class TestBulkInsert(DynamicTablesBase):
     def test_chunk_timestamp_various_chunk_formats(self, dynamic, optimize_for, in_memory_mode):
         cell_id = sync_create_cells(1)[0]
         tablet_node = get("#{}/@peers/0/address".format(cell_id))
-        set("//sys/cluster_nodes/{}/@disable_write_sessions".format(tablet_node), True)
+        disable_write_sessions_on_node(tablet_node, "test chunk timestamp")
 
         self._create_simple_dynamic_table(
             "//tmp/t_output",

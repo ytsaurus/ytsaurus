@@ -12,6 +12,8 @@ NYPath::TYPath GetClusterNodesPath();
 
 NYPath::TYPath GetExecNodesPath();
 
+void ValidateMaintenanceComment(const TString& comment);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace NProto {

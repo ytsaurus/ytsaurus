@@ -1,6 +1,7 @@
 from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE, NODES_SERVICE
 from yt_commands import (
-    authors, create_tablet_cell_bundle, print_debug, retry,  build_master_snapshots, set, get, sync_create_cells, wait_for_cells)
+    authors, create_tablet_cell_bundle, print_debug, build_master_snapshots, sync_create_cells, wait_for_cells,
+    ls, get, set, retry)
 
 from original_tests.yt.yt.tests.integration.master.test_master_snapshots \
     import MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
@@ -56,14 +57,32 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
             os.symlink(ytserver_all_trunk_path, master_path)
 
 
+##################################################################
+
+
+def check_maintenance_flags():
+    node = ls("//sys/cluster_nodes")[0]
+    set(f"//sys/cluster_nodes/{node}/@banned", True)
+
+    yield
+
+    assert get(f"//sys/cluster_nodes/{node}/@banned")
+    maintenances = get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
+    assert list(map(lambda req: req["maintenance_type"], maintenances.values())) == ["ban"]
+    set(f"//sys/cluster_nodes/{node}/@banned", False)
+    assert not get(f"//sys/cluster_nodes/{node}/@banned")
+    assert not get(f"//sys/cluster_nodes/{node}/@maintenance_requests")
+
+
 class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
     # COMPAT(gepardo): Remove this after 22.4.
     USE_NATIVE_AUTH = False
+    TEST_MAINTENANCE_FLAGS = True
 
     @authors("gritukan", "kvk1920")
     @pytest.mark.timeout(150)
     def test(self):
-        CHECKER_LIST = MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
+        CHECKER_LIST = [check_maintenance_flags] + MASTER_SNAPSHOT_COMPATIBILITY_CHECKER_LIST
 
         checker_state_list = [iter(c()) for c in CHECKER_LIST]
         for s in checker_state_list:
@@ -74,6 +93,9 @@ class TestMasterSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):
         for s in checker_state_list:
             with pytest.raises(StopIteration):
                 next(s)
+
+
+##################################################################
 
 
 class TestTabletCellsSnapshotsCompatibility(MasterSnapshotsCompatibilityBase):

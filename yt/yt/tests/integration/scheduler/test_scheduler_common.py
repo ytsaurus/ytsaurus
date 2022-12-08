@@ -16,7 +16,7 @@ from yt_commands import (
     get_singular_chunk_id, PrepareTables,
     raises_yt_error, update_scheduler_config, update_pool_tree_config, update_controller_agent_config,
     assert_statistics, sorted_dicts,
-    set_banned_flag)
+    set_banned_flag, disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node, ban_node, unban_node)
 
 from yt_type_helpers import make_schema
 
@@ -2161,14 +2161,14 @@ class TestEventLog(YTEnvSetup):
         write_table("//tmp/t1", [{"a": "b"}])
 
         for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/{0}/@banned".format(node), True)
+            ban_node(node, "test scheduler event log buffering")
 
         time.sleep(2)
         op = map(track=False, in_="//tmp/t1", out="//tmp/t2", command="cat")
         time.sleep(2)
 
         for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/{0}/@banned".format(node), False)
+            unban_node(node)
 
         op.track()
 
@@ -3062,7 +3062,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
         update_controller_agent_config("safe_online_node_count", 10000)
 
         # We want to control the moment we start schedule jobs on node.
-        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(first_node), True)
+        disable_scheduler_jobs_on_node(first_node, "test node heartbeat delay")
         wait(
             lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(first_node)) == 0
         )
@@ -3077,7 +3077,7 @@ class TestDelayInNodeHeartbeat(YTEnvSetup):
         op = run_test_vanilla("sleep 5", job_count=1)
 
         # Scheduler starts making a delay in heartbeat processing here.
-        set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(first_node), False)
+        enable_scheduler_jobs_on_node(first_node)
         wait(
             lambda: get("//sys/cluster_nodes/{}/orchid/job_controller/resource_limits/user_slots".format(first_node)) > 0
         )

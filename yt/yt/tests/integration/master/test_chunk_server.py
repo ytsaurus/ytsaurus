@@ -4,7 +4,7 @@ from yt_commands import (
     authors, create_user, wait, create, ls, get, set, remove, exists,
     start_transaction, insert_rows, build_snapshot, gc_collect, concatenate, create_account,
     read_table, write_table, write_journal, merge, sync_create_cells, sync_mount_table, sync_unmount_table, sync_control_chunk_replicator, get_singular_chunk_id,
-    multicell_sleep, update_nodes_dynamic_config, switch_leader,
+    multicell_sleep, update_nodes_dynamic_config, switch_leader, ban_node, add_maintenance, remove_maintenance,
     set_node_decommissioned, execute_command, is_active_primary_master_leader, is_active_primary_master_follower,
     get_active_primary_master_leader_address, get_active_primary_master_follower_address, create_tablet_cell_bundle, print_debug)
 
@@ -169,7 +169,7 @@ class TestChunkServer(YTEnvSetup):
         nodes = get("#%s/@stored_replicas" % chunk_id)
 
         for index in (4, 6, 11, 15):
-            set("//sys/cluster_nodes/%s/@banned" % nodes[index], True)
+            ban_node(nodes[index], "test decommission erasure 3")
         set_node_decommissioned(nodes[0], True)
 
         wait(lambda: len(get("#%s/@stored_replicas" % chunk_id)) == 12)
@@ -201,7 +201,7 @@ class TestChunkServer(YTEnvSetup):
         assert get("//sys/@chunk_replicator_enabled")
 
         for i in range(19):
-            set("//sys/cluster_nodes/%s/@banned" % nodes[i], True)
+            ban_node(nodes[i], "test disable replicator when few nodes are online")
 
         wait(lambda: not get("//sys/@chunk_replicator_enabled"))
 
@@ -692,7 +692,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         wait(lambda: self._are_chunks_collocated(chunk_ids))
 
     @authors("shakurov")
-    @pytest.mark.parametrize("trouble_mode", ["banned", "decommissioned", "disable_write_sessions"])
+    @pytest.mark.parametrize("trouble_mode", ["ban", "decommission", "disable_write_sessions"])
     def test_node_trouble(self, trouble_mode):
         self._disable_token_redistribution()
 
@@ -700,7 +700,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
         troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
-        set("//sys/cluster_nodes/" + troubled_node + "/@" + trouble_mode, True)
+        add_maintenance(troubled_node, trouble_mode, "test node trouble")
 
         def are_chunks_collocated():
             chunk0_replicas = get("#{}/@stored_replicas".format(chunk_ids[0]))
@@ -724,7 +724,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         wait(are_chunks_collocated, iter=30, sleep_backoff=1.0)
 
     @authors("shakurov")
-    @pytest.mark.parametrize("trouble_mode", ["banned", "decommissioned", "disable_write_sessions"])
+    @pytest.mark.parametrize("trouble_mode", ["ban", "decommission", "disable_write_sessions"])
     def test_troubled_node_restart(self, trouble_mode):
         self._disable_token_redistribution()
 
@@ -732,7 +732,7 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         chunk_ids = get("//tmp/t5/@chunk_ids")
 
         troubled_node = get("#{}/@stored_replicas".format(chunk_ids[0]))[1]
-        set("//sys/cluster_nodes/" + troubled_node + "/@" + trouble_mode, True)
+        maintenance_id = add_maintenance(troubled_node, trouble_mode, "test roubled node restart")
 
         def are_chunks_collocated(troubled_node_ok):
             chunk0_replicas = get("#{}/@stored_replicas".format(chunk_ids[0]))
@@ -756,9 +756,9 @@ class TestConsistentChunkReplicaPlacement(TestConsistentChunkReplicaPlacementBas
         wait(lambda: are_chunks_collocated(False), iter=120, sleep_backoff=1.0)
 
         with Restarter(self.Env, NODES_SERVICE):
-            if trouble_mode == "banned":
+            if trouble_mode == "ban":
                 # Otherwise the node won't restart.
-                set("//sys/cluster_nodes/" + troubled_node + "/@" + trouble_mode, False)
+                remove_maintenance(troubled_node, maintenance_id)
 
         wait(lambda: are_chunks_collocated(True), iter=120, sleep_backoff=1.0)
 

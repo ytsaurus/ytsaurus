@@ -489,6 +489,17 @@ public:
         const std::vector<NObjectClient::TCellId>& cellIds,
         const TResumeTabletCellsOptions& options = {}) override;
 
+    TFuture<NNodeTrackerClient::TMaintenanceId> AddMaintenance(
+        const TString& nodeAddress,
+        NNodeTrackerClient::EMaintenanceType type,
+        const TString& comment,
+        const TAddMaintenanceOptions& options = {}) override;
+
+    TFuture<void> RemoveMaintenance(
+        const TString& nodeAddress,
+        NNodeTrackerClient::TMaintenanceId id,
+        const TRemoveMaintenanceOptions& options = {}) override;
+
     TFuture<TStartYqlQueryResult> StartYqlQuery(
         const TString& query,
         const TStartYqlQueryOptions& options = {}) override;

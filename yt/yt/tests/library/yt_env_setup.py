@@ -280,6 +280,9 @@ class YTEnvSetup(object):
     # COMPAT(kvk1920)
     TEST_LOCATION_AWARE_REPLICATOR = False
 
+    # COMPAT(kvk1920)
+    TEST_MAINTENANCE_FLAGS = False
+
     @classmethod
     def is_multicell(cls):
         return cls.NUM_SECONDARY_MASTER_CELLS > 0
@@ -954,15 +957,22 @@ class YTEnvSetup(object):
 
         yt_commands.execute_batch(requests)
 
+    # COMPAT(kvk1920)
+    def _check_if_maintenance_requests_available(self, driver):
+        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
+        if not nodes:
+            return False
+        return yt_commands.exists(f"//sys/cluster_nodes/{nodes[0]}/@maintenance_requests", driver=driver)
+
     def _reset_nodes(self, driver=None):
-        boolean_attributes = [
-            "banned",
-            "decommissioned",
-            "disable_write_sessions",
-            "disable_scheduler_jobs",
-            "disable_tablet_cells",
-        ]
-        attributes = boolean_attributes + [
+        use_maintenance_requests = self._check_if_maintenance_requests_available(driver)
+        if use_maintenance_requests:
+            maintenance_attributes = ["maintenance_requests"]
+        else:
+            maintenance_attributes = ["banned", "decommissioned", "disable_write_sessions", "disable_scheduler_jobs", "disable_tablet_cells"]
+
+        attributes = maintenance_attributes + [
+            "maintenance_requests",
             "resource_limits_overrides",
             "user_tags",
         ]
@@ -971,15 +981,6 @@ class YTEnvSetup(object):
         requests = []
         for node in nodes:
             node_name = str(node)
-            for attribute in boolean_attributes:
-                if node.attributes[attribute]:
-                    requests.append(
-                        yt_commands.make_batch_request(
-                            "set",
-                            path="//sys/cluster_nodes/{0}/@{1}".format(node_name, attribute),
-                            input=False,
-                        )
-                    )
             if node.attributes["resource_limits_overrides"] != {}:
                 requests.append(
                     yt_commands.make_batch_request(
@@ -996,6 +997,24 @@ class YTEnvSetup(object):
                         input=[],
                     )
                 )
+            if use_maintenance_requests:
+                for maintenance in node.attributes["maintenance_requests"]:
+                    requests.append(
+                        yt_commands.make_batch_request(
+                            "remove_maintenance",
+                            node_address=node_name,
+                            id=maintenance,
+                        )
+                    )
+            else:
+                for maintenance_flag in maintenance_attributes:
+                    if node.attributes[maintenance_flag]:
+                        requests.append(
+                            yt_commands.make_batch_request(
+                                "set",
+                                path=f"//sys/cluster_nodes/{node}/@{maintenance_flag}",
+                                input="false"
+                            ))
 
         for response in yt_commands.execute_batch(requests, driver=driver):
             assert not yt_commands.get_batch_error(response)
@@ -1117,6 +1136,9 @@ class YTEnvSetup(object):
 
         if self.TEST_LOCATION_AWARE_REPLICATOR:
             assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")
+
+        if self.TEST_MAINTENANCE_FLAGS:
+            assert dynamic_master_config["node_tracker"].pop("forbid_maintenance_attribute_writes")
 
         default_pool_tree_config = {
             "nodes_filter": "",

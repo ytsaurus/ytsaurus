@@ -12,7 +12,7 @@ from yt_commands import (
     list_jobs, get_job, get_job_stderr,
     sync_create_cells, get_singular_chunk_id,
     update_nodes_dynamic_config, set_node_banned, check_all_stderrs, assert_statistics,
-    heal_exec_node,
+    heal_exec_node, ban_node,
     make_random_string, raises_yt_error, update_controller_agent_config)
 
 
@@ -939,7 +939,7 @@ class TestFilesInSandbox(YTEnvSetup):
         banned = False
         for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                set("//sys/cluster_nodes/{0}/@banned".format(node), True)
+                ban_node(node, "test operation abort with lost file")
                 banned = True
         assert banned
 

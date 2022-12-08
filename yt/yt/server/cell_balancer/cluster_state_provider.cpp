@@ -60,9 +60,15 @@ TClusterStateProvider::TClusterStateProvider(NCellBalancerClient::NProto::TRspGe
             CellHostNodes_.insert(node);
         }
         node->SetNodeAddresses(FromProto<TNodeAddressMap>(protoNode->node_addresses()));
-        node->SetDecommissioned(protoNode->decommissioned());
-        node->SetDisableTabletCells(protoNode->disable_tablet_cells());
-        node->SetBanned(protoNode->banned());
+        if (protoNode->decommissioned()) {
+            Y_UNUSED(node->SetMaintenanceFlag(NNodeTrackerClient::EMaintenanceType::Decommission, "", TInstant::Zero()));
+        }
+        if (protoNode->disable_tablet_cells()) {
+            Y_UNUSED(node->SetMaintenanceFlag(NNodeTrackerClient::EMaintenanceType::DisableTabletCells, "", TInstant::Zero()));
+        }
+        if (protoNode->banned()) {
+            Y_UNUSED(node->SetMaintenanceFlag(NNodeTrackerClient::EMaintenanceType::Ban, "", TInstant::Zero()));
+        }
         return node;
     };
 

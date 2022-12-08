@@ -1,4 +1,7 @@
+from .batch_response import apply_function_to_result
 from .driver import make_request
+
+import json
 
 
 def build_snapshot(cell_id=None, client=None):
@@ -43,3 +46,31 @@ def resume_tablet_cells(cell_ids, client=None):
     }
 
     return make_request("resume_tablet_cells", params=params, client=client)
+
+
+def add_maintenance(node_address, maintenance_type, comment, client=None):
+    """Add maintenance request for given node"""
+    params = {
+        "node_address": node_address,
+        "type": maintenance_type,
+        "comment": comment
+    }
+
+    def _process_result(result):
+        try:
+            return str(json.loads(result)["id"])
+        except Exception:
+            return result
+
+    result = make_request("add_maintenance", params=params, client=client)
+    return apply_function_to_result(_process_result, result)
+
+
+def remove_maintenance(node_address, maintenance_id, client=None):
+    """Remove maintenance request from given node"""
+    params = {
+        "node_address": node_address,
+        "id": maintenance_id,
+    }
+
+    return make_request("remove_maintenance", params=params, client=client)

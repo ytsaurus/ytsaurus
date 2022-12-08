@@ -245,6 +245,15 @@ enum EPartitionTablesMode
     TPM_UNORDERED = 2;
 }
 
+enum ENodeMaintenanceType
+{
+    NMT_BAN = 1;
+    NMT_DECOMMISSION = 2;
+    NMT_DISABLE_SCHEDULER_JOBS = 3;
+    NMT_DISABLE_WRITE_SESSIONS = 4;
+    NMT_DISABLE_TABLET_CELLS = 5;
+}
+
 // COMPAT(max42).
 // A legacy analog of NYT.NYTree.NProto.TAttributeFilter.
 // It is different in that universal filter is encoded via all = true
@@ -836,6 +845,32 @@ message TReqMigrateReplicationCards
 }
 
 message TRspMigrateReplicationCards
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAddMaintenance
+{
+    required string node_address = 1;
+    required ENodeMaintenanceType type = 2;
+    required string comment = 3;
+}
+
+message TRspAddMaintenance
+{
+    required NYT.NProto.TGuid id = 1;  // TMaintenanceId
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveMaintenance
+{
+    required string node_address = 1;
+    required NYT.NProto.TGuid id = 2;  // TMaintenanceId
+}
+
+message TRspRemoveMaintenance
 {
 }
 

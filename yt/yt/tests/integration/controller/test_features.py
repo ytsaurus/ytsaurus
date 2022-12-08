@@ -1,9 +1,9 @@
 from yt_env_setup import YTEnvSetup, Restarter, CONTROLLER_AGENTS_SERVICE
 from yt_commands import (
     authors, clean_operations, wait_breakpoint, release_breakpoint, with_breakpoint, create,
-    remove, abort_job, ls, set,
+    remove, abort_job, ls,
     vanilla,
-    write_table, map, get_operation, sync_create_cells, raises_yt_error)
+    write_table, map, get_operation, sync_create_cells, raises_yt_error, disable_scheduler_jobs_on_node)
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -274,8 +274,8 @@ class TestPendingTimeFeatures(YTEnvSetup):
     def test_pending_time_features(self):
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) > 2
-        for i in range(2):
-            set("//sys/cluster_nodes/{}/@disable_scheduler_jobs".format(nodes[i]), True)
+        for node in nodes[:2]:
+            disable_scheduler_jobs_on_node(node, "test pending time features")
 
         op = vanilla(
             spec={

@@ -5,7 +5,8 @@ from yt_commands import (
     remove, update_nodes_dynamic_config, get_applied_node_dynamic_config,
     insert_rows, lookup_rows, write_file, read_table, write_table, map, sort,
     sync_create_cells, sync_mount_table, sync_flush_table, sync_unmount_table,
-    get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error)
+    get_singular_chunk_id, set_node_banned, set_banned_flag, create_dynamic_table, raises_yt_error,
+    disable_tablet_cells_on_node, disable_write_sessions_on_node)
 
 from yt_driver_bindings import BufferedStream
 from yt.common import YtResponseError, YtError
@@ -634,9 +635,9 @@ class TestDynamicTablesErasure(TestErasureBase):
         self._nodes = ls("//sys/cluster_nodes")
         assert len(self._nodes) == self.NUM_NODES
 
-        set("//sys/cluster_nodes/{0}/@disable_write_sessions".format(self._nodes[0]), True)
+        disable_write_sessions_on_node(self._nodes[0], "separate tablet and data nodes")
         for node in self._nodes[1:]:
-            set("//sys/cluster_nodes/{0}/@disable_tablet_cells".format(node), True)
+            disable_tablet_cells_on_node(node, "separate tablet and data nodes")
 
     @authors("akozhikhov")
     def test_erasure_reader_failures(self):

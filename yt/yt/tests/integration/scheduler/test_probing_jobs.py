@@ -11,8 +11,8 @@ from yt_env_setup import (
 from yt_helpers import create_custom_pool_tree_with_one_node
 
 from yt_commands import (
-    abort_job, authors, create_test_tables, wait, wait_breakpoint, release_breakpoint, with_breakpoint, get, set, ls,
-    run_test_vanilla, map, map_reduce)
+    abort_job, authors, create_test_tables, wait, wait_breakpoint, release_breakpoint, with_breakpoint, get, ls,
+    run_test_vanilla, map, map_reduce, ban_node)
 
 from yt.common import YtError
 
@@ -147,7 +147,7 @@ class TestCrashOnLostProbingJobResult(YTEnvSetup):
         assert len(replicas) == 1
         node_id = replicas[0]
 
-        set("//sys/cluster_nodes/{}/@banned".format(node_id), True)
+        ban_node(node_id, "ban node with intermediate chunks")
 
         wait(lambda: get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(node_id)) == "offline")
 

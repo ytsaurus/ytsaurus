@@ -10,7 +10,8 @@ from yt_commands import (
     set, exists, create_user, make_ace, alter_table, write_file, read_table, write_table,
     map, merge, sort, interrupt_job, get_first_chunk_id,
     get_singular_chunk_id, check_all_stderrs,
-    create_test_tables, assert_statistics, extract_statistic_v2)
+    create_test_tables, assert_statistics, extract_statistic_v2,
+    ban_node, unban_node)
 
 from yt_type_helpers import make_schema, normalize_schema, make_column
 
@@ -1977,7 +1978,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         banned = False
         for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                set("//sys/cluster_nodes/{0}/@banned".format(node), True)
+                ban_node(node, "test unavailable chunk")
                 banned = True
         assert banned
 
@@ -2002,7 +2003,7 @@ class TestJobSizeAdjuster(YTEnvSetup):
         unbanned = False
         for node in ls("//sys/cluster_nodes"):
             if node == replica_to_ban:
-                set("//sys/cluster_nodes/{0}/@banned".format(node), False)
+                unban_node(node)
                 unbanned = True
         assert unbanned
 

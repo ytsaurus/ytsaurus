@@ -258,6 +258,7 @@
     XX(LockedNodeIds, locked_node_ids) \
     XX(Locks, locks) \
     XX(LowerLimit, lower_limit) \
+    XX(MaintenanceRequests, maintenance_requests) \
     XX(MasterAlerts, master_alerts) \
     XX(MasterCacheNodes, master_cache_nodes) \
     XX(MasterMetaSize, master_meta_size) \

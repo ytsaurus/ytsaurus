@@ -37,6 +37,8 @@
 
 #include <yt/yt/client/chaos_client/helpers.h>
 
+#include <yt/yt/client/node_tracker_client/helpers.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -423,6 +425,45 @@ void TClient::DoResumeTabletCells(
     }
 
     return WaitFor(AllSucceeded(std::move(futures)))
+        .ThrowOnError();
+}
+
+TMaintenanceId TClient::DoAddMaintenance(
+    const TString& nodeAddress,
+    EMaintenanceType type,
+    const TString& comment,
+    const TAddMaintenanceOptions& options)
+{
+    ValidateMaintenanceComment(comment);
+
+    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(std::move(channel));
+
+    auto req = proxy.AddMaintenance();
+    req->set_node_address(nodeAddress);
+    req->set_type(ToProto<i32>(type));
+    req->set_comment(comment);
+    req->SetTimeout(options.Timeout);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return FromProto<TMaintenanceId>(rsp->id());
+}
+
+void TClient::DoRemoveMaintenance(
+    const TString& nodeAddress,
+    TMaintenanceId id,
+    const TRemoveMaintenanceOptions& options)
+{
+    auto channel = GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+    TNodeTrackerServiceProxy proxy(std::move(channel));
+
+    auto req = proxy.RemoveMaintenance();
+    req->set_node_address(nodeAddress);
+    ToProto(req->mutable_id(), id);
+    req->SetTimeout(options.Timeout);
+
+    WaitFor(req->Invoke())
         .ThrowOnError();
 }
 

@@ -71,7 +71,7 @@ public:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->OnNodeHeartbeat(node, ENodeHeartbeatType::Exec);
 
-        response->set_disable_scheduler_jobs(node->GetDisableSchedulerJobs());
+        response->set_disable_scheduler_jobs(node->AreSchedulerJobsDisabled());
     }
 
 private:

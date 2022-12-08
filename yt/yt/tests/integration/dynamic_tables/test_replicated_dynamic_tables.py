@@ -12,7 +12,8 @@ from yt_commands import (
     sync_mount_table, sync_unmount_table, sync_freeze_table, alter_table, get_tablet_errors,
     sync_unfreeze_table, sync_flush_table, sync_enable_table_replica, sync_disable_table_replica,
     remove_table_replica, alter_table_replica, get_in_sync_replicas, sync_alter_table_replica_mode,
-    get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id)
+    get_driver, SyncLastCommittedTimestamp, raises_yt_error, get_singular_chunk_id,
+    ban_node, unban_node)
 
 from yt.test_helpers import are_items_equal, assert_items_equal
 import yt_error_codes
@@ -1239,11 +1240,10 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
 
         nodes = ls("//sys/cluster_nodes", driver=self.replica_driver)
         for node in nodes:
-            set(
-                "//sys/cluster_nodes/" + node + "/@banned",
-                "true",
-                driver=self.replica_driver,
-            )
+            ban_node(
+                node,
+                "test sync replication switch bundle health",
+                driver=self.replica_driver)
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) != "good")
 
@@ -1251,11 +1251,7 @@ class TestReplicatedDynamicTables(TestReplicatedDynamicTablesBase):
         wait(lambda: get("#{0}/@mode".format(replica_id2)) == "sync")
 
         for node in nodes:
-            set(
-                "//sys/cluster_nodes/" + node + "/@banned",
-                "false",
-                driver=self.replica_driver,
-            )
+            unban_node(node, driver=self.replica_driver)
 
         wait(lambda: get("//sys/tablet_cell_bundles/default/@health", driver=self.replica_driver) == "good")
 

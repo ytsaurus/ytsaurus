@@ -182,9 +182,9 @@ private:
             protoNode->set_node_id(::NYT::ToProto<i32>(node.GetId()));
             protoNode->set_is_node_can_host_cells(CheckIfNodeCanHostCells(&node));
             ToProto(protoNode->mutable_node_addresses(), node.GetNodeAddresses());
-            protoNode->set_decommissioned(node.GetDecommissioned());
-            protoNode->set_banned(node.GetBanned());
-            protoNode->set_disable_tablet_cells(node.GetDisableTabletCells());
+            protoNode->set_decommissioned(node.IsDecommissioned());
+            protoNode->set_banned(node.IsBanned());
+            protoNode->set_disable_tablet_cells(node.AreTabletCellsDisabled());
             for (const auto& [type, cellar] : node.Cellars()) {
                 fillCellar(protoNode->add_cellars(), cellar, type);
             }

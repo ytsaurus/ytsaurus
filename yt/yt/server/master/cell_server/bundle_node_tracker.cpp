@@ -214,15 +214,15 @@ bool CheckIfNodeCanHostCells(const TNode* node)
         return false;
     }
 
-    if (node->GetBanned()) {
+    if (node->IsBanned()) {
         return false;
     }
 
-    if (node->GetDecommissioned()) {
+    if (node->IsDecommissioned()) {
         return false;
     }
 
-    if (node->GetDisableTabletCells()) {
+    if (node->AreTabletCellsDisabled()) {
         return false;
     }
 

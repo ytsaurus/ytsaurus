@@ -203,7 +203,7 @@ public:
 
         bool hasDecommissionedNodes = false;
         for (const auto& node : Nodes_) {
-            if (!node.GetSlots().empty() && node.GetNode()->GetDecommissioned()) {
+            if (!node.GetSlots().empty() && node.GetNode()->IsDecommissioned()) {
                 hasDecommissionedNodes = true;
             }
         }

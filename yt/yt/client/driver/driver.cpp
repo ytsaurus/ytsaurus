@@ -321,6 +321,9 @@ public:
         REGISTER_ALL(TSuspendTabletCellsCommand,           "suspend_tablet_cells",            Null,       Structured, false,  false);
         REGISTER_ALL(TResumeTabletCellsCommand,            "resume_tablet_cells",             Null,       Structured, false,  false);
 
+        REGISTER_ALL(TAddMaintenanceCommand,               "add_maintenance",                 Null,       Structured, true,   false);
+        REGISTER_ALL(TRemoveMaintenanceCommand,            "remove_maintenance",              Null,       Null,       true,   false);
+
         REGISTER    (TStartYqlQueryCommand,                "start_yql_query",                 Null,       Structured, false,  false, ApiVersion4);
 
         REGISTER_ALL(TSetUserPasswordCommand,              "set_user_password",               Null,       Structured, false,  false);

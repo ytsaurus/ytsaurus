@@ -1640,6 +1640,16 @@ def resume_coordinator(coordinator_cell_id, **kwargs):
     return execute_command("resume_coordinator", parameters, **kwargs)
 
 
+def add_maintenance(node_address, type, comment, **kwargs):
+    kwargs.update({"node_address": node_address, "type": type, "comment": comment})
+    return execute_command("add_maintenance", kwargs, parse_yson=True)
+
+
+def remove_maintenance(node_address, id, **kwargs):
+    kwargs.update({"node_address": node_address, "id": id})
+    return execute_command("remove_maintenance", kwargs, parse_yson=False)
+
+
 def set_user_password(user, new_password, current_password=None, **kwargs):
     def encode_password(password):
         return hashlib.sha256(password.encode("utf-8")).hexdigest()
@@ -2393,30 +2403,29 @@ def check_all_stderrs(op, expected_content, expected_count, substring=False):
 
 
 def set_banned_flag(value, nodes=None, driver=None, wait_for_scheduler=False):
-    if value:
-        flag = True
-        expected_state = "offline"
-    else:
-        flag = False
-        expected_state = "online"
-
     if not nodes:
         nodes = ls("//sys/cluster_nodes", driver=driver)
 
-    for address in nodes:
-        set("//sys/cluster_nodes/{0}/@banned".format(address), flag, driver=driver)
+    if not nodes:
+        return
+
+    for node in nodes:
+        (ban_node if value else unban_node)(node, driver=driver)
+
+    target_state = "offline" if value else "online"
 
     def check():
         return all(
-            get("//sys/cluster_nodes/{0}/@state".format(address), driver=driver) == expected_state for address in nodes
+            get("//sys/cluster_nodes/{0}/@state".format(address), driver=driver) == target_state for address in nodes
         )
 
+    print_debug(f"waiting for nodes {nodes} to become {target_state}...")
     wait(check)
 
     if wait_for_scheduler:
         def check():
             return all(
-                get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(address)) == expected_state for address in nodes
+                get("//sys/scheduler/orchid/scheduler/nodes/{}/master_state".format(address)) == target_state for address in nodes
             )
 
         wait(check)
@@ -2440,16 +2449,115 @@ class PrepareTables(object):
 ##################################################################
 
 
-def set_node_banned(address, flag, driver=None):
-    set("//sys/cluster_nodes/%s/@banned" % address, flag, driver=driver)
-    ban, state = ("banned", "offline") if flag else ("unbanned", "online")
-    print_debug("Waiting for node %s to become %s..." % (address, ban))
-    wait(lambda: get("//sys/cluster_nodes/%s/@state" % address, driver=driver) == state)
+_MAINTENANCE_FLAGS = {
+    "ban": "banned",
+    "decommission": "decommissioned",
+    "disable_write_sessions": "disable_write_sessions",
+    "disable_scheduler_jobs": "disable_scheduler_jobs",
+    "disable_tablet_cells": "disable_tablet_cells",
+}
 
 
-def set_node_decommissioned(address, flag, driver=None):
-    set("//sys/cluster_nodes/%s/@decommissioned" % address, flag, driver=driver)
-    print_debug("Node %s is %s" % (address, "decommissioned" if flag else "not decommissioned"))
+def clear_node_maintenance_flag(address, maintenance_type, driver=None):
+    try:
+        maintenance_ids = [
+            maintenance_id
+            for maintenance_id, request
+            in get(f"//sys/cluster_nodes/{address}/@maintenance_requests", driver=driver).items()
+            if request["maintenance_type"] == maintenance_type
+        ]
+        for maintenance_id in maintenance_ids:
+            remove_maintenance(address, maintenance_id, driver=driver)
+        return
+    except YtResponseError as error:
+        if not error.is_resolve_error() or not error.contains_text("maintenance_requests"):
+            raise
+
+    # COMPAT(kvk1920)
+    flag = _MAINTENANCE_FLAGS[maintenance_type]
+    set(f"//sys/cluster_nodes/{address}/@{flag}", False, driver=driver)
+
+
+def set_node_maintenance_flag(address, maintenance_type, reason="", driver=None):
+    # COMPAT(kvk1920)
+    if exists(f"//sys/cluster_nodes/{address}/@maintenance_requests", driver=driver):
+        new_request = add_maintenance(address, maintenance_type, reason, driver=driver)
+        other_requests = [
+            request_id for request_id, request
+            in get(f"//sys/cluster_nodes/{address}/@maintenance_requests", driver=driver).items()
+            if request_id != new_request and request["maintenance_type"] == maintenance_type
+        ]
+        for request in other_requests:
+            remove_maintenance(address, request, driver=driver)
+    else:
+        flag = _MAINTENANCE_FLAGS[maintenance_type]
+        set(f"//sys/cluster_nodes/{address}/@{flag}", True, driver=driver)
+
+
+def ban_node(address, reason="", driver=None):
+    set_node_maintenance_flag(address, "ban", reason=reason, driver=driver)
+
+
+def unban_node(address, driver=None):
+    clear_node_maintenance_flag(address, "ban", driver=driver)
+
+
+def set_node_banned(address, value, driver=None):
+    if value:
+        ban_node(address, reason="set_node_banned(True)", driver=driver)
+        state = "offline"
+    else:
+        unban_node(address, driver=driver)
+        state = "online"
+    print_debug(f"waiting for node {address} to become {state}...")
+    wait(lambda: get(f"//sys/cluster_nodes/{address}/@state", driver=driver) == state)
+
+
+def decommission_node(address, reason="", driver=None):
+    set_node_maintenance_flag(address, "decommission", reason=reason, driver=driver)
+    print_debug(f"Node {address} is decommissioned")
+
+
+def recommission_node(address, driver=None):
+    clear_node_maintenance_flag(address, "decommission", driver=driver)
+    print_debug(f"Node {address} is recommissioned")
+
+
+def set_node_decommissioned(address, value, driver=None):
+    if value:
+        decommission_node(address, "set_node_decommissioned(True)", driver=driver)
+    else:
+        recommission_node(address, driver=driver)
+
+
+def disable_write_sessions_on_node(address, reason="", driver=None):
+    set_node_maintenance_flag(address, "disable_write_sessions", reason=reason, driver=driver)
+    print_debug(f"Write sessions are disabled on node {address}")
+
+
+def enable_write_sessions_on_node(address, driver=None):
+    clear_node_maintenance_flag(address, "disable_write_sessions", driver=driver)
+    print_debug(f"Write sessions are enabled on node {address}")
+
+
+def disable_scheduler_jobs_on_node(address, reason="", driver=None):
+    set_node_maintenance_flag(address, "disable_scheduler_jobs", reason=reason, driver=driver)
+    print_debug(f"Scheduler jobs are disabled on node {address}")
+
+
+def enable_scheduler_jobs_on_node(address, driver=None):
+    clear_node_maintenance_flag(address, "disable_scheduler_jobs", driver=driver)
+    print_debug(f"Scheduler jobs are enabled on node {address}")
+
+
+def disable_tablet_cells_on_node(address, reason="", driver=None):
+    set_node_maintenance_flag(address, "disable_tablet_cells", reason=reason, driver=driver)
+    print_debug(f"Tablet cells are disabled on node {address}")
+
+
+def enable_tablet_cells_on_node(address, driver=None):
+    clear_node_maintenance_flag(address, "disable_tablet_cells", driver=driver)
+    print_debug(f"Tablet cells are enabled on node {address}")
 
 
 def wait_for_nodes(driver=None):
