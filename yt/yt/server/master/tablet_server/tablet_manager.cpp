@@ -358,7 +358,7 @@ public:
             table->GetId(),
             tablet->GetId(),
             type,
-            table->GetAccount()->GetName());
+            table->Account()->GetName());
 
         return tablet;
     }
@@ -3896,7 +3896,7 @@ private:
         // Prepare store writer options.
         auto storeWriterOptions = New<NTabletNode::THunkStoreWriterOptions>();
         storeWriterOptions->MediumName = primaryMedium->GetName();
-        storeWriterOptions->Account = hunkStorage->GetAccount()->GetName();
+        storeWriterOptions->Account = hunkStorage->Account()->GetName();
         storeWriterOptions->ErasureCodec = hunkStorage->GetErasureCodec();
         storeWriterOptions->ReplicationFactor = replicationFactor;
         storeWriterOptions->ReadQuorum = hunkStorage->GetReadQuorum();
@@ -7788,7 +7788,7 @@ private:
         // Old-fashioned account validation.
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         securityManager->ValidateResourceUsageIncrease(
-            account ? account : table->GetAccount(),
+            account ? account : table->Account().Get(),
             ConvertToClusterResources(delta));
 
         // Brand-new bundle validation.

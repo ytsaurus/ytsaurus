@@ -428,7 +428,11 @@ TObjectPtr<T, C>::TObjectPtr(T* ptr, TObjectPtrLoadTag) noexcept
 template <class T, class C>
 TObjectPtr<T, C>::~TObjectPtr() noexcept
 {
-    NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    // NB: Object may be invalid during Clear.
+    if (IsInMutation()) {
+        NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    }
+
     if (Ptr_) {
         Context_.Unref(ToObject(Ptr_));
     }
@@ -508,6 +512,12 @@ T* TObjectPtr<T, C>::Get() const noexcept
 {
     NDetail::AssertPersistentStateRead();
     NDetail::AssertObjectValidOrNull(ToObject(Ptr_));
+    return Ptr_;
+}
+
+template <class T, class C>
+T* TObjectPtr<T, C>::GetUnsafe() const noexcept
+{
     return Ptr_;
 }
 

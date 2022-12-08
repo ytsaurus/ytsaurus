@@ -16,6 +16,9 @@ class TSecurityManagerConfig
 public:
     NDistributedThrottler::TDistributedThrottlerConfigPtr UserThrottler;
 
+    // COMPAT(gritukan): Remove after RecomputeAccountRefCounters.
+    bool AlertOnAccountRefCounterMismatch;
+
     REGISTER_YSON_STRUCT(TSecurityManagerConfig);
 
     static void Register(TRegistrar registrar);

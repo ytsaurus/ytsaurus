@@ -205,7 +205,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, AttributeRevision);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, ContentRevision);
 
-    DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccountPtr, Account);
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, Opaque);

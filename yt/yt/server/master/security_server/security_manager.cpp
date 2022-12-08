@@ -26,12 +26,17 @@
 #include <yt/yt/server/master/cell_master/serialize.h>
 #include <yt/yt/server/master/cell_master/config.h>
 
+#include <yt/yt/server/master/chunk_server/chunk.h>
+#include <yt/yt/server/master/chunk_server/chunk_list.h>
 #include <yt/yt/server/master/chunk_server/chunk_manager.h>
 #include <yt/yt/server/master/chunk_server/chunk_requisition.h>
+#include <yt/yt/server/master/chunk_server/chunk_view.h>
+#include <yt/yt/server/master/chunk_server/dynamic_store.h>
 #include <yt/yt/server/master/chunk_server/medium.h>
 
 #include <yt/yt/server/master/cypress_server/node.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/shard.h>
 
 #include <yt/yt/server/master/tablet_server/tablet.h>
 
@@ -856,7 +861,7 @@ public:
         TAccountResourceUsageLease* accountResourceUsageLease,
         const TClusterResources& resources) override
     {
-        auto* account = accountResourceUsageLease->GetAccount();
+        auto* account = accountResourceUsageLease->Account().Get();
         auto* transaction = accountResourceUsageLease->GetTransaction();
 
         if (resources.GetNodeCount() > 0) {
@@ -895,7 +900,7 @@ public:
         YT_ASSERT(chunk->IsDiskSizeFinal());
 
         auto* stagingTransaction = chunk->GetStagingTransaction();
-        auto* stagingAccount = chunk->GetStagingAccount();
+        auto* stagingAccount = chunk->StagingAccount().Get();
 
         auto chargeTransaction = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*masterMemoryUsage*/, bool /*committed*/) {
             // If a chunk has been created before the migration but is being confirmed after it,
@@ -915,7 +920,7 @@ public:
 
     void ResetMasterMemoryUsage(TCypressNode* node)
     {
-        auto* account = node->GetAccount();
+        auto* account = node->Account().Get();
         auto chargedMasterMemoryUsage = ChargeMasterMemoryUsage(
             account,
             TDetailedMasterMemory(),
@@ -932,7 +937,7 @@ public:
 
     void UpdateMasterMemoryUsage(TCypressNode* node, bool accountChanged = false) override
     {
-        auto* account = node->GetAccount();
+        auto* account = node->Account().Get();
         if (!account) {
             return;
         }
@@ -1027,10 +1032,6 @@ public:
 
     void ResetTransactionAccountResourceUsage(TTransaction* transaction) override
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
-            objectManager->UnrefObject(account);
-        }
         transaction->AccountResourceUsage().clear();
     }
 
@@ -1047,7 +1048,7 @@ public:
             if (node->IsExternal()) {
                 return;
             }
-            auto* account = node->GetAccount();
+            auto* account = node->Account().Get();
             auto* transactionUsage = GetTransactionAccountUsage(transaction, account);
             *transactionUsage += node->GetDeltaResourceUsage();
         };
@@ -1069,14 +1070,13 @@ public:
         YT_VERIFY(newAccount);
         YT_VERIFY(node->IsTrunk() == !transaction);
 
-        auto* oldAccount = node->GetAccount();
+        auto* oldAccount = node->Account().Get();
         YT_VERIFY(!oldAccount || !transaction);
 
         if (oldAccount == newAccount) {
             return;
         }
 
-        const auto& objectManager = Bootstrap_->GetObjectManager();
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
         if (oldAccount) {
@@ -1085,34 +1085,29 @@ public:
             }
             UpdateAccountNodeCountUsage(node, oldAccount, nullptr, -1);
             ResetMasterMemoryUsage(node);
-            objectManager->UnrefObject(oldAccount);
         }
 
         if (auto* shard = node->GetShard()) {
             cypressManager->UpdateShardNodeCount(shard, newAccount, +1);
         }
         UpdateAccountNodeCountUsage(node, newAccount, transaction, +1);
-        node->SetAccount(newAccount);
+        node->Account().Assign(newAccount);
         UpdateMasterMemoryUsage(node, /*accountChanged*/ true);
-        objectManager->RefObject(newAccount);
         UpdateAccountTabletResourceUsage(node, oldAccount, true, newAccount, !transaction);
     }
 
     void ResetAccount(TCypressNode* node) override
     {
-        auto* account = node->GetAccount();
+        auto* account = node->Account().Get();
         if (!account) {
             return;
         }
 
         ResetMasterMemoryUsage(node);
-        node->SetAccount(nullptr);
+        node->Account().Reset();
 
         UpdateAccountNodeCountUsage(node, account, node->GetTransaction(), -1);
         UpdateAccountTabletResourceUsage(node, account, !node->GetTransaction(), nullptr, false);
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->UnrefObject(account);
     }
 
     void UpdateAccountNodeCountUsage(TCypressNode* node, TAccount* account, TTransaction* transaction, i64 delta)
@@ -1158,7 +1153,7 @@ public:
 
     void UpdateTabletResourceUsage(TCypressNode* node, const TClusterResources& resourceUsageDelta) override
     {
-        UpdateTabletResourceUsage(node->GetAccount(), resourceUsageDelta, node->IsTrunk());
+        UpdateTabletResourceUsage(node->Account().Get(), resourceUsageDelta, node->IsTrunk());
     }
 
     void UpdateTabletResourceUsage(TAccount* account, const TClusterResources& resourceUsageDelta, bool committed)
@@ -1205,14 +1200,13 @@ public:
 
         // NB: lifetime of the lease is bound to the lifetime of the transaction.
         // Therefore we should not call RefObject on the transaction object.
-        objectManager->RefObject(account);
         YT_VERIFY(transaction->AccountResourceUsageLeases().insert(accountResourceUsageLease).second);
 
         YT_LOG_DEBUG_IF(
             IsMutationLoggingEnabled(),
             "Account usage lease created (Id: %v, Account: %v, TransactionId: %v)",
             accountResourceUsageLease->GetId(),
-            accountResourceUsageLease->GetAccount()->GetName(),
+            accountResourceUsageLease->Account()->GetName(),
             accountResourceUsageLease->GetTransaction()->GetId());
 
         return accountResourceUsageLease;
@@ -1220,16 +1214,12 @@ public:
 
     void DestroyAccountResourceUsageLease(TAccountResourceUsageLease* accountResourceUsageLease)
     {
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-
         auto accountResourceUsageLeaseId = accountResourceUsageLease->GetId();
 
         DoUpdateAccountResourceUsageLease(accountResourceUsageLease, TClusterResources());
 
         auto* transaction = accountResourceUsageLease->GetTransaction();
         YT_VERIFY(transaction->AccountResourceUsageLeases().erase(accountResourceUsageLease) == 1);
-
-        objectManager->UnrefObject(accountResourceUsageLease->GetAccount());
 
         YT_LOG_DEBUG_IF(
             IsMutationLoggingEnabled(),
@@ -2492,6 +2482,7 @@ private:
     // COMPAT(shakurov)
     bool RecomputeAccountResourceUsage_ = false;
     bool ValidateAccountResourceUsage_ = false;
+    bool RecomputeAccountRefCounters_ = false;
 
     bool MustRecomputeMembershipClosure_ = false;
 
@@ -2517,13 +2508,7 @@ private:
 
     TClusterResources* GetTransactionAccountUsage(TTransaction* transaction, TAccount* account)
     {
-        auto it = transaction->AccountResourceUsage().find(account);
-        if (it == transaction->AccountResourceUsage().end()) {
-            it = transaction->AccountResourceUsage().emplace(account, TClusterResources()).first;
-            const auto& objectManager = Bootstrap_->GetObjectManager();
-            objectManager->RefObject(account);
-        }
-        return &it->second;
+        return &transaction->AccountResourceUsage()[account];
     }
 
     template <class T>
@@ -2805,6 +2790,8 @@ private:
         NetworkProjectMap_.LoadKeys(context);
         ProxyRoleMap_.LoadKeys(context);
         AccountResourceUsageLeaseMap_.LoadKeys(context);
+
+        RecomputeAccountRefCounters_ = context.GetVersion() < EMasterReign::RecomputeAccountRefCounters;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2905,6 +2892,9 @@ private:
         RecomputeAccountResourceUsage();
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
+        if (RecomputeAccountRefCounters_) {
+            RecomputeAccountRefCounters();
+        }
     }
 
     void RecomputeAccountResourceUsage()
@@ -2936,7 +2926,7 @@ private:
                 continue;
             }
 
-            auto* account = node->GetAccount();
+            auto* account = node->Account().Get();
 
             auto usage = node->GetDeltaResourceUsage();
             auto tabletResourceUsage = node->GetTabletResourceUsage();
@@ -2966,7 +2956,7 @@ private:
                 continue;
             }
 
-            auto* account = lease->GetAccount();
+            auto* account = lease->Account().Get();
             statMap[account].NodeUsage += lease->Resources();
         }
 
@@ -3113,6 +3103,122 @@ private:
         YT_LOG_INFO("Finished recomputing account master memory usage");
     }
 
+    void RecomputeAccountRefCounters()
+    {
+        auto accountRefCounters = ComputeAccountRefCounters();
+        for (auto [accountId, account] : AccountMap_) {
+            auto expectedRefCounter = GetOrCrash(accountRefCounters, account);
+            auto actualRefCounter = account->GetObjectRefCounter();
+
+            if (expectedRefCounter != actualRefCounter) {
+                auto logLevel = Bootstrap_->GetConfig()->SecurityManager->AlertOnAccountRefCounterMismatch
+                    ? ELogLevel::Alert
+                    : ELogLevel::Error;
+
+                YT_LOG_EVENT(Logger, logLevel, "Account has invalid ref counter; setting proper value "
+                    "(AccountName: %v, AccountId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                    account->GetName(),
+                    account->GetId(),
+                    expectedRefCounter,
+                    actualRefCounter);
+
+                const auto& objectManager = Bootstrap_->GetObjectManager();
+                if (actualRefCounter > expectedRefCounter) {
+                    for (int index = 0; index < actualRefCounter - expectedRefCounter; ++index) {
+                        objectManager->UnrefObject(account);
+                    }
+                } else {
+                    for (int index = 0; index < expectedRefCounter - actualRefCounter; ++index) {
+                        objectManager->RefObject(account);
+                    }
+                }
+
+                YT_VERIFY(account->GetObjectRefCounter() == expectedRefCounter);
+            }
+        }
+    }
+
+    void CheckInvariants() override
+    {
+        auto accountRefCounters = ComputeAccountRefCounters();
+        for (auto [accountId, account] : AccountMap_) {
+            auto expectedRefCounter = GetOrCrash(accountRefCounters, account);
+            auto actualRefCounter = account->GetObjectRefCounter();
+            YT_LOG_FATAL_UNLESS(expectedRefCounter == actualRefCounter,
+                "Account has unexpected ref counter "
+                "(AccountName: %v, AccountId: %v, ExpectedRefCounter: %v, ActualRefCounter: %v)",
+                account->GetName(),
+                account->GetId(),
+                expectedRefCounter,
+                actualRefCounter);
+        }
+    }
+
+    THashMap<TAccount*, int> ComputeAccountRefCounters() const
+    {
+        THashMap<TAccount*, int> accountToRefCounter;
+        for (auto [accountId, account] : AccountMap_) {
+            // Fake ref counter cannot be estimated from the automaton
+            // state, so we believe that account is either a zombie or
+            // has fake ref counter.
+            auto fakeRefCounter = IsObjectAlive(account) ? 1 : 0;
+            EmplaceOrCrash(accountToRefCounter, account, fakeRefCounter);
+        }
+
+        // Accounts are referenced by staged chunk trees.
+        const auto& chunkManager = Bootstrap_->GetChunkManager();
+        auto processChunkTrees = [&]<class TMap>(const TMap& map) {
+            for (auto [treeId, tree] : map) {
+                if (tree->IsStaged() && tree->StagingAccount()) {
+                    ++accountToRefCounter[tree->StagingAccount().Get()];
+                }
+            }
+        };
+        processChunkTrees(chunkManager->Chunks());
+        processChunkTrees(chunkManager->ChunkLists());
+        processChunkTrees(chunkManager->ChunkViews());
+        processChunkTrees(chunkManager->DynamicStores());
+
+        // Accounts are referenced by cypress shards.
+        const auto& cypressManager = Bootstrap_->GetCypressManager();
+        for (auto [shardId, shard] : cypressManager->Shards()) {
+            for (const auto& [account, statistics] : shard->AccountStatistics()) {
+                YT_VERIFY(!statistics.IsZero());
+                ++accountToRefCounter[account.Get()];
+            }
+        }
+
+        // Accounts are referenced by transactions.
+        const auto& transactionManager = Bootstrap_->GetTransactionManager();
+        for (auto [transactionId, transaction] : transactionManager->Transactions()) {
+            for (const auto& [account, usage] : transaction->AccountResourceUsage()) {
+                ++accountToRefCounter[account.Get()];
+            }
+        }
+
+        // Accounts are referenced by cypress nodes.
+        for (auto [nodeId, node] : cypressManager->Nodes()) {
+            if (const auto& account = node->Account()) {
+                ++accountToRefCounter[account.Get()];
+            }
+        }
+
+        // Accounts are referenced by resource usage leases.
+        for (auto [leaseId, lease] : AccountResourceUsageLeaseMap_) {
+            ++accountToRefCounter[lease->Account().Get()];
+        }
+
+        // Finally, accounts are arranged into tree, in which child
+        // references parent.
+        for (auto [accountId, account] : AccountMap_) {
+            if (auto* parent = account->GetParent()) {
+                ++accountToRefCounter[parent];
+            }
+        }
+
+        return accountToRefCounter;
+    }
+
     void Clear() override
     {
         TMasterAutomatonPart::Clear();
@@ -3164,6 +3270,7 @@ private:
         SequoiaAccount_ = nullptr;
 
         MustRecomputeMembershipClosure_ = false;
+        RecomputeAccountRefCounters_ = false;
 
         ResetAuthenticatedUser();
     }
@@ -3725,7 +3832,7 @@ private:
         TAccountResourceUsageLease* accountResourceUsageLease,
         const TClusterResources& resources)
     {
-        auto* account = accountResourceUsageLease->GetAccount();
+        auto* account = accountResourceUsageLease->Account().Get();
         auto* transaction = accountResourceUsageLease->GetTransaction();
 
         auto resourcesDelta = resources - accountResourceUsageLease->Resources();

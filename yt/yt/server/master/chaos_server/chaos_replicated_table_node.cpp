@@ -42,7 +42,7 @@ void TChaosReplicatedTableNode::SetSchema(TMasterTableSchema* schema)
 
 TAccount* TChaosReplicatedTableNode::GetAccount() const
 {
-    return TCypressNode::GetAccount();
+    return TCypressNode::Account().Get();
 }
 
 void TChaosReplicatedTableNode::Save(TSaveContext& context) const

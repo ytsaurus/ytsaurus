@@ -188,7 +188,7 @@ void TNontemplateCypressNodeProxyBase::TCustomAttributeDictionary::SetYson(const
     if (Proxy_->TrunkNode_->GetNativeCellTag() == multicellManager->GetCellTag()) {
         auto resourceUsageIncrease = TClusterResources()
             .SetDetailedMasterMemory(EMasterMemoryType::Attributes, 1);
-        securityManager->ValidateResourceUsageIncrease(node->GetAccount(), resourceUsageIncrease);
+        securityManager->ValidateResourceUsageIncrease(node->Account().Get(), resourceUsageIncrease);
     }
 
     auto* userAttributes = node->GetMutableAttributes();
@@ -251,7 +251,7 @@ TNontemplateCypressNodeProxyBase::TNontemplateCypressNodeProxyBase(
 
 std::unique_ptr<ITransactionalNodeFactory> TNontemplateCypressNodeProxyBase::CreateFactory() const
 {
-    auto* account = GetThisImpl()->GetAccount();
+    auto* account = GetThisImpl()->Account().Get();
     return CreateCypressFactory(account, TNodeFactoryOptions(), /*unresolvedPathSuffix*/ TYPath());
 }
 
@@ -398,10 +398,10 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             ValidatePermission(account, EPermission::Use);
 
             auto* node = LockThisImpl();
-            if (node->GetAccount() != account) {
+            if (node->Account() != account) {
                 // TODO(savrus) See YT-7050
                 securityManager->ValidateResourceUsageIncrease(account, TClusterResources().SetNodeCount(1));
-                securityManager->SetAccount(node, account, /* transaction */ nullptr);
+                securityManager->SetAccount(node, account, /*transaction*/ nullptr);
             }
 
             if (GetDynamicCypressManagerConfig()->EnableRevisionChangingForBuiltinAttributes) {
@@ -773,7 +773,7 @@ bool TNontemplateCypressNodeProxyBase::GetBuiltinAttribute(
 
         case EInternedAttributeKey::Account:
             BuildYsonFluently(consumer)
-                .Value(node->GetAccount()->GetName());
+                .Value(node->Account()->GetName());
             return true;
 
         case EInternedAttributeKey::Opaque:
@@ -1525,7 +1525,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto* node = GetThisImpl();
     // The node inside which the new node must be created.
     auto* intendedParentNode = replace ? node->GetParent() : node;
-    auto* account = intendedParentNode->GetAccount();
+    auto* account = intendedParentNode->Account().Get();
 
     auto inheritedAttributes = New<TInheritedAttributeDictionary>(Bootstrap_);
     GatherInheritableAttributes(
@@ -1590,7 +1590,7 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     context->SetResponseInfo("NodeId: %v, CellTag: %v, Account: %v",
         newNodeId,
         newNodeCellTag,
-        newNode->GetAccount()->GetName());
+        newNode->Account()->GetName());
 
     context->Reply();
 }
@@ -1882,8 +1882,8 @@ void TNontemplateCypressNodeProxyBase::CopyCore(
     ValidateCopyToThisDestinationPermissions(replace && !inplace, preserveAcl);
 
     auto* account = (replace && !inplace)
-        ? ICypressNodeProxy::FromNode(parentProxy.Get())->GetTrunkNode()->GetAccount()
-        : GetThisImpl()->GetAccount();
+        ? ICypressNodeProxy::FromNode(parentProxy.Get())->GetTrunkNode()->Account().Get()
+        : GetThisImpl()->Account().Get();
 
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
 

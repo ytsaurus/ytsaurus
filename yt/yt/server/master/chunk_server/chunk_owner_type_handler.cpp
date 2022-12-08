@@ -559,7 +559,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
             clonedTrunkNode->SetChunkList(contentType, chunkList);
             if (chunkList) {
                 chunkList->AddOwningNode(clonedTrunkNode);
-                if (clonedTrunkNode->IsTrunk() && sourceNode->GetAccount() != clonedTrunkNode->GetAccount()) {
+                if (clonedTrunkNode->IsTrunk() && sourceNode->Account() != clonedTrunkNode->Account()) {
                     const auto& chunkManager = TBase::Bootstrap_->GetChunkManager();
                     chunkManager->ScheduleChunkRequisitionUpdate(chunkList);
                 }

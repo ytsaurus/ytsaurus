@@ -25,6 +25,9 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
         "logging": {
             "abort_on_alert": True,
         },
+        "security_manager": {
+            "alert_on_ref_counter_mismatch": False,
+        },
     }
 
     ARTIFACT_COMPONENTS = {

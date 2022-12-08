@@ -206,7 +206,7 @@ public:
 
         NProto::TReqCreatePortalExit request;
         ToProto(request.mutable_entrance_node_id(), trunkNode->GetId());
-        ToProto(request.mutable_account_id(), trunkNode->GetAccount()->GetId());
+        ToProto(request.mutable_account_id(), trunkNode->Account()->GetId());
         request.set_path(path);
         request.set_effective_acl(ConvertToYsonString(effectiveAcl).ToString());
         request.set_direct_acl(ConvertToYsonString(trunkNode->Acd().Acl()).ToString());
@@ -231,10 +231,11 @@ public:
 
         YT_VERIFY(EntranceNodes_.emplace(trunkNode->GetId(), trunkNode).second);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Portal entrance registered (EntranceNodeId: %v, ExitCellTag: %v, Account: %v, Path: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Portal entrance registered (EntranceNodeId: %v, ExitCellTag: %v, Account: %v, Path: %v)",
             trunkNode->GetId(),
             trunkNode->GetExitCellTag(),
-            trunkNode->GetAccount()->GetName(),
+            trunkNode->Account()->GetName(),
             path);
     }
 

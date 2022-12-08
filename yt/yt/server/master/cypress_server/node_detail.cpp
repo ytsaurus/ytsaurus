@@ -163,7 +163,7 @@ bool TNontemplateCypressNodeTypeHandlerBase::BeginCopyCore(
     Save(*context, node->GetExternalCellTag());
 
     // These are loaded in type handler.
-    Save(*context, node->GetAccount());
+    Save(*context, node->Account().Get());
     Save(*context, node->GetTotalResourceUsage());
     Save(*context, node->Acd());
     Save(*context, node->GetOpaque());
@@ -366,9 +366,9 @@ void TNontemplateCypressNodeTypeHandlerBase::BranchCorePrologue(
     branchedNode->SetOpaque(originatingNode->GetOpaque());
 
     // Copying node's account requires special handling.
-    YT_VERIFY(!branchedNode->GetAccount());
+    YT_VERIFY(!branchedNode->Account());
     const auto& securityManager = Bootstrap_->GetSecurityManager();
-    auto* account = originatingNode->GetAccount();
+    auto* account = originatingNode->Account().Get();
     securityManager->SetAccount(branchedNode, account, transaction);
 
     // Branch user attributes.

@@ -25,7 +25,7 @@ class TAccountResourceUsageLease
 public:
     DEFINE_BYVAL_RW_PROPERTY(TInstant, CreationTime);
     DEFINE_BYVAL_RW_PROPERTY(NTransactionServer::TTransaction*, Transaction);
-    DEFINE_BYVAL_RW_PROPERTY(NSecurityServer::TAccount*, Account);
+    DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccountPtr, Account);
     DEFINE_BYREF_RW_PROPERTY(TClusterResources, Resources);
 
 public:
