@@ -1085,6 +1085,7 @@ public:
             }
             UpdateAccountNodeCountUsage(node, oldAccount, nullptr, -1);
             ResetMasterMemoryUsage(node);
+            node->Account().Reset();
         }
 
         if (auto* shard = node->GetShard()) {
@@ -1104,10 +1105,11 @@ public:
         }
 
         ResetMasterMemoryUsage(node);
-        node->Account().Reset();
 
         UpdateAccountNodeCountUsage(node, account, node->GetTransaction(), -1);
         UpdateAccountTabletResourceUsage(node, account, !node->GetTransaction(), nullptr, false);
+
+        node->Account().Reset();
     }
 
     void UpdateAccountNodeCountUsage(TCypressNode* node, TAccount* account, TTransaction* transaction, i64 delta)
@@ -3167,7 +3169,7 @@ private:
 
         // Accounts are referenced by staged chunk trees.
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto processChunkTrees = [&]<class TMap>(const TMap& map) {
+        auto processChunkTrees = [&] (const auto& map) {
             for (auto [treeId, tree] : map) {
                 if (tree->IsStaged() && tree->StagingAccount()) {
                     ++accountToRefCounter[tree->StagingAccount().Get()];
