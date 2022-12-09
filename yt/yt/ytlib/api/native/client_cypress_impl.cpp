@@ -1540,6 +1540,25 @@ private:
 
         YT_LOG_DEBUG("Chunk specs fetched (ChunkSpecCount: %v)",
             ChunkSpecs_.size());
+
+        if (Options_.UniqualizeChunks) {
+            std::vector<NChunkClient::NProto::TChunkSpec> chunkSpecs;
+            chunkSpecs.reserve(ChunkSpecs_.size());
+
+            THashSet<TChunkId> seenChunksIds;
+
+            for (auto& chunkSpec : ChunkSpecs_) {
+                auto chunkId = FromProto<TChunkId>(chunkSpec.chunk_id());
+                if (seenChunksIds.insert(chunkId).second) {
+                    chunkSpecs.push_back(std::move(chunkSpec));
+                }
+            }
+
+            ChunkSpecs_ = std::move(chunkSpecs);
+
+            YT_LOG_DEBUG("Chunk specs uniqualized (ChunkSpecCount: %v)",
+                ChunkSpecs_.size());
+        }
     }
 
     void ValidateChunkSchemas()

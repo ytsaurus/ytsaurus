@@ -431,6 +431,9 @@ TConcatenateCommand::TConcatenateCommand()
     RegisterParameter("source_paths", SourcePaths);
     RegisterParameter("destination_path", DestinationPath);
 
+    RegisterParameter("uniqualize_chunks", Options.UniqualizeChunks)
+        .Default(false);
+
     RegisterPostprocessor([&] {
         for (auto& path : SourcePaths) {
             path = path.Normalize();
