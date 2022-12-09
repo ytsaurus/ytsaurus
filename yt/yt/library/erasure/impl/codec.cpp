@@ -66,8 +66,10 @@ const std::vector<ECodec>& GetSupportedCodecIds()
                 codecIds.push_back(codecId);
             }
         }
-
         codecIds.push_back(ECodec::None);
+
+        SortUnique(codecIds);
+
         return codecIds;
     }();
     return supportedCodecIds;
