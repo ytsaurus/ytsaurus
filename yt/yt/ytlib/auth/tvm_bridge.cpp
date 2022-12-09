@@ -212,9 +212,13 @@ private:
             ToProto(req->mutable_destinations(), GetKeys(ServiceIdToTicket_));
         }
 
-        auto rsp = WaitFor(req->Invoke())
-            .ValueOrThrow();
-        UpdateServiceTickets(*rsp);
+        auto rspOrError = WaitFor(req->Invoke());
+        if (!rspOrError.IsOK()) {
+            YT_LOG_WARNING(rspOrError, "Failed to refresh service tickets");
+            return;
+        }
+
+        UpdateServiceTickets(*rspOrError.Value());
 
         YT_LOG_DEBUG("Service tickets refreshed");
     }
