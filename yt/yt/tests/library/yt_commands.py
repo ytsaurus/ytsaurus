@@ -3003,9 +3003,12 @@ def get_applied_node_dynamic_config(node, driver=None):
 
 # Implements config.update(new_config) for dynamic nodes config and waits until config is applied
 # assuming the only nodes config filter is `%true`.
-def update_nodes_dynamic_config(new_config, driver=None):
+def update_nodes_dynamic_config(new_config, replace=False, driver=None):
     current_config = get("//sys/cluster_nodes/@config", driver=driver)
-    current_config["%true"].update(new_config)
+    if replace:
+        current_config["%true"] = new_config
+    else:
+        current_config["%true"].update(new_config)
     set("//sys/cluster_nodes/@config", current_config, driver=driver)
 
     for node in ls("//sys/cluster_nodes", driver=driver):
