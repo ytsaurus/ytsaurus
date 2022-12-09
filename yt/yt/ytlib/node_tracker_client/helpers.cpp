@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/chunk_client/medium_directory.h>
 
+#include <yt/yt/client/node_tracker_client/helpers.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/misc/arithmetic_formula.h>
@@ -112,23 +114,6 @@ TString FormatResourceUsage(
     return Format("{%v}", FormatResources(usage, limits));
 }
 
-void FormatValue(TStringBuilderBase* builder, const NProto::TDiskResources& diskResources, TStringBuf /*spec*/)
-{
-    builder->AppendFormat(
-        "%v",
-        MakeFormattableView(diskResources.disk_location_resources(), [] (TStringBuilderBase* builder, const NProto::TDiskLocationResources& locationResources) {
-            builder->AppendFormat("{usage: %v, limit: %v, medium_index: %v}",
-                locationResources.usage(),
-                locationResources.limit(),
-                locationResources.medium_index());
-        }));
-}
-
-TString ToString(const NProto::TDiskResources& diskResources)
-{
-    return ToStringViaBuilder(diskResources);
-}
-
 TString ToString(const NProto::TDiskResources& diskResources, const NChunkClient::TMediumDirectoryPtr& mediumDirectory)
 {
     return Format(
@@ -153,7 +138,7 @@ TString FormatResourceUsage(
     const TNodeResources& limits,
     const TDiskResources& diskResources)
 {
-    return Format("{%v, DiskResources: %v}", FormatResources(usage, limits), ToString(diskResources));
+    return Format("{%v, DiskResources: %v}", FormatResources(usage, limits), diskResources);
 }
 
 TString FormatResources(const TNodeResources& resources)
