@@ -204,7 +204,7 @@ class TableSchema(object):
             kwargs["strict"] = attrs["strict"]
         if "unique_keys" in attrs:
             kwargs["unique_keys"] = attrs["unique_keys"]
-        return TableSchema(columns, **kwargs)
+        return cls(columns, **kwargs)
 
     def is_empty_nonstrict(self):
         return not self.strict and len(self.columns) == 0
