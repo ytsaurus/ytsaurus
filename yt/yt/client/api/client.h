@@ -851,6 +851,8 @@ struct TConcatenateNodesOptions
     , public TMutatingOptions
 {
     NChunkClient::TFetcherConfigPtr ChunkMetaFetcherConfig;
+
+    bool UniqualizeChunks = false;
 };
 
 struct TNodeExistsOptions

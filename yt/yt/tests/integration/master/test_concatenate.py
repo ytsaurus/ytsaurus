@@ -786,6 +786,22 @@ class TestConcatenate(YTEnvSetup):
         with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             concatenate(["//tmp/t1", "//tmp/t4"], "//tmp/union")
 
+    @authors("gritukan")
+    def test_uniqualize_chunks(self):
+        if self.DRIVER_BACKEND == "rpc":
+            return
+
+        create("table", "//tmp/t")
+        write_table("//tmp/t", {"a": 1})
+        concatenate(["//tmp/t", "//tmp/t"], "//tmp/t")
+
+        chunk_ids = get("//tmp/t/@chunk_ids")
+        assert len(chunk_ids) == 2
+        assert chunk_ids[0] == chunk_ids[1]
+
+        concatenate(["//tmp/t"], "//tmp/t", uniqualize_chunks=True)
+        assert get("//tmp/t/@chunk_ids") == [chunk_ids[0]]
+        assert read_table("//tmp/t") == [{"a": 1}]
 
 ##################################################################
 
