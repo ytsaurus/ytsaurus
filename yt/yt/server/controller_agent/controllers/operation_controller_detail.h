@@ -868,6 +868,8 @@ protected:
     //! Returns |true| as long as the operation is waiting for jobs abort events.
     bool IsFailing() const;
 
+    bool IsFailingByTimeout() const;
+
     // Unsorted helpers.
 
     //! Enables verification that the output is sorted.
@@ -1230,6 +1232,8 @@ private:
 
     //! Error that lead to operation failure.
     TError Error_;
+
+    bool OperationTimedOut_ = false;
 
     // Used for testing purposes.
     bool CommitSleepStarted_ = false;

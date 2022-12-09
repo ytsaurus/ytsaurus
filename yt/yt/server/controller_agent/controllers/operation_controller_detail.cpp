@@ -3189,11 +3189,18 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (FailedJobCount_ >= maxFailedJobCount) {
-        OnOperationFailed(
-            TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
+        if (IsFailingByTimeout()) {
+            error = GetTimeLimitError()
+                << (TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
+                    << TErrorAttribute("max_failed_job_count", maxFailedJobCount))
+                << error;
+        } else {
+            error = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
                 << TErrorAttribute("max_failed_job_count", maxFailedJobCount)
-                << error
-        );
+                << error;
+        }
+
+        OnOperationFailed(error);
         return;
     }
 
@@ -4900,6 +4907,7 @@ void TOperationControllerBase::OnOperationTimeLimitExceeded()
 
     if (State == EControllerState::Running) {
         State = EControllerState::Failing;
+        OperationTimedOut_ = true;
     }
 
     auto error = GetTimeLimitError();
@@ -5123,6 +5131,11 @@ bool TOperationControllerBase::IsRunning() const
 bool TOperationControllerBase::IsFailing() const
 {
     return State == EControllerState::Failing;
+}
+
+bool TOperationControllerBase::IsFailingByTimeout() const
+{
+    return IsFailing() && OperationTimedOut_;
 }
 
 bool TOperationControllerBase::IsFinished() const
