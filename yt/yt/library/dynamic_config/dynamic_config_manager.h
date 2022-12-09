@@ -6,7 +6,7 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/yt/client/api/public.h>
+#include <yt/yt/ytlib/api/native/public.h>
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
@@ -37,7 +37,8 @@ public:
         TDynamicConfigManagerOptions options,
         TDynamicConfigManagerConfigPtr config,
         NApi::IClientPtr client,
-        IInvokerPtr invoker);
+        IInvokerPtr invoker,
+        NYTree::INodePtr baseConfigNode = nullptr);
 
     explicit TDynamicConfigManagerBase(
         TConfigPtr staticConfig);
@@ -61,6 +62,9 @@ public:
     //! Returns the current dynamic config as a deserialized instance.
     TConfigPtr GetConfig() const;
 
+    //! Returns the initial dynamic config as a deserialized instance.
+    TConfigPtr GetInitialConfig() const;
+
     //! Returns a future that becomes set when dynamic config
     //! is loaded for the first time.
     TFuture<void> GetConfigLoadedFuture() const;
@@ -76,6 +80,7 @@ private:
     const NApi::IClientPtr Client_;
 
     const IInvokerPtr Invoker_;
+    const NYTree::INodePtr BaseConfigNode_;
     const NConcurrency::TPeriodicExecutorPtr UpdateExecutor_;
 
     const NLogging::TLogger Logger;
@@ -85,8 +90,9 @@ private:
     TError UnrecognizedOptionError_;
     TInstant LastConfigUpdateTime_;
     TInstant LastConfigChangeTime_;
-    NYTree::IMapNodePtr AppliedConfigNode_ = NYTree::GetEphemeralNodeFactory()->CreateMap();
-    TConfigPtr AppliedConfig_ = New<TConfig>();
+    NYTree::IMapNodePtr AppliedConfigNode_;
+    TConfigPtr AppliedConfig_;
+    TConfigPtr InitialConfig_;
 
     std::vector<TString> InstanceTags_;
 

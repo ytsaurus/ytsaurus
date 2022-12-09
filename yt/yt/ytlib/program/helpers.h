@@ -9,6 +9,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 void ConfigureNativeSingletons(const TNativeSingletonsConfigPtr& config);
+
 void ReconfigureNativeSingletons(
     const TNativeSingletonsConfigPtr& config,
     const TNativeSingletonsDynamicConfigPtr& dynamicConfig);
