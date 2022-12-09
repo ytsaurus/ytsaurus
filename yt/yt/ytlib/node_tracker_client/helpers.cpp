@@ -99,10 +99,10 @@ TString FormatResources(
         limits.merge_data_size(),
         // Autotomy slots
         usage.autotomy_slots(),
-        limits.autotomy_slots());
+        limits.autotomy_slots(),
         // Reincarnation slots
-        usage.reincarnation_slots();
-        limits.reincarnation_slots();
+        usage.reincarnation_slots(),
+        limits.reincarnation_slots());
 }
 
 TString FormatResourceUsage(
