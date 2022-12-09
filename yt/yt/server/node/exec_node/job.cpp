@@ -1797,14 +1797,14 @@ void TJob::Cleanup()
 
     YT_LOG_INFO("Cleaning up after scheduler job");
 
-    if (auto delay = JobTestingOptions_->DelayInCleanup) {
-        TDelayedExecutor::WaitForDuration(*delay);
-    }
-
     FinishTime_ = TInstant::Now();
     SetJobPhase(EJobPhase::Cleanup);
 
     TDelayedExecutor::Cancel(InterruptionTimeoutCookie_);
+
+    if (auto delay = JobTestingOptions_->DelayInCleanup) {
+        TDelayedExecutor::WaitForDuration(*delay);
+    }
 
     if (Slot_) {
         try {
