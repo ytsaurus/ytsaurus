@@ -30,8 +30,8 @@ TYsonString BuildTabletPerformanceCountersYson(
                 fluent
                     .Item(performanceCountersKeys[i] + "_count").Value(counter.count())
                     .Item(performanceCountersKeys[i] + "_rate").Value(counter.rate())
-                    .Item(performanceCountersKeys[i] + "_rate_10m").Value(counter.rate_10m())
-                    .Item(performanceCountersKeys[i] + "_rate_1h").Value(counter.rate_1h());
+                    .Item(performanceCountersKeys[i] + "_10m_rate").Value(counter.rate_10m())
+                    .Item(performanceCountersKeys[i] + "_1h_rate").Value(counter.rate_1h());
             }
     });
 }
