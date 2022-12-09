@@ -2125,7 +2125,7 @@ private:
         }
 
         THROW_ERROR_EXCEPTION(
-            "Operations of type %Qlv must have small enough specified resource limits in spec or in some of ancestor pools",
+            "Operations of type %Qlv must have small enough specified resource limits in some of ancestor pools",
             operation->GetType())
             << TErrorAttribute("operation_id", operation->GetId())
             << TErrorAttribute("pool", pool->GetId())
