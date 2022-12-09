@@ -7,7 +7,7 @@
 #include "config.h"
 #include "private.h"
 
-#include <yt/yt/client/api/client.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
@@ -26,18 +26,31 @@ TDynamicConfigManagerBase<TConfig>::TDynamicConfigManagerBase(
     TDynamicConfigManagerOptions options,
     TDynamicConfigManagerConfigPtr config,
     NApi::IClientPtr client,
-    IInvokerPtr invoker)
+    IInvokerPtr invoker,
+    NYTree::INodePtr baseConfigNode)
     : Options_(std::move(options))
     , Config_(std::move(config))
     , Client_(std::move(client))
     , Invoker_(std::move(invoker))
+    , BaseConfigNode_(baseConfigNode
+        ? baseConfigNode
+        : NYTree::GetEphemeralNodeFactory()->CreateMap())
     , UpdateExecutor_(New<NConcurrency::TPeriodicExecutor>(
         Invoker_,
         BIND(&TDynamicConfigManagerBase<TConfig>::DoUpdateConfig, MakeWeak(this)),
         Config_->UpdatePeriod))
     , Logger(DynamicConfigLogger.WithTag("DynamicConfigManagerName: %v", Options_.Name))
+    , AppliedConfigNode_(BaseConfigNode_->AsMap())
 {
+    AppliedConfig_ = New<TConfig>();
+    AppliedConfig_->Load(BaseConfigNode_);
     AppliedConfig_->Postprocess();
+
+    InitialConfig_ = AppliedConfig_;
+
+    auto now = TInstant::Now();
+    LastConfigUpdateTime_ = now;
+    LastConfigChangeTime_ = now;
 }
 
 template <typename TConfig>
@@ -54,7 +67,7 @@ void TDynamicConfigManagerBase<TConfig>::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YT_LOG_DEBUG("Starting Dynamic Config Manager (ConfigPath: %v, UpdatePeriod: %v)",
+    YT_LOG_DEBUG("Starting dynamic config manager (ConfigPath: %v, UpdatePeriod: %v)",
         Options_.ConfigPath,
         Config_->UpdatePeriod);
 
@@ -114,6 +127,15 @@ auto TDynamicConfigManagerBase<TConfig>::GetConfig() const -> TConfigPtr
 }
 
 template <typename TConfig>
+auto TDynamicConfigManagerBase<TConfig>::GetInitialConfig() const -> TConfigPtr
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto guard = Guard(SpinLock_);
+    return InitialConfig_;
+}
+
+template <typename TConfig>
 TFuture<void> TDynamicConfigManagerBase<TConfig>::GetConfigLoadedFuture() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -162,67 +184,69 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
     NApi::TGetNodeOptions getOptions;
     getOptions.ReadFrom = Options_.ReadFrom;
     auto configOrError = NConcurrency::WaitFor(Client_->GetNode(Options_.ConfigPath, getOptions));
-    if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError) && Config_->IgnoreConfigAbsence) {
-        YT_LOG_INFO("Dynamic config node does not exist (ConfigPath: %v)",
-            Options_.ConfigPath);
-        return false;
-    }
-
-    if (!configOrError.IsOK()) {
-        THROW_ERROR_EXCEPTION(
-            NDynamicConfig::EErrorCode::FailedToFetchDynamicConfig,
-            "Failed to fetch dynamic config from Cypress")
-            << TErrorAttribute("config_name", Options_.Name)
-            << configOrError;
-    }
-
-    auto configNode = NYTree::ConvertTo<NYTree::IMapNodePtr>(configOrError.Value());
 
     NYTree::IMapNodePtr matchedConfigNode;
-    if (Options_.ConfigIsTagged) {
-        auto instanceTags = GetInstanceTags();
-        if (instanceTags != InstanceTags_) {
-            YT_LOG_INFO("Instance tags list has changed (OldTagList: %v, NewTagList: %v)",
-                InstanceTags_,
-                instanceTags);
-            InstanceTags_ = instanceTags;
-        }
+    if (configOrError.IsOK()) {
+        auto configNode = NYTree::ConvertTo<NYTree::IMapNodePtr>(configOrError.Value());
 
-        auto configs = configNode->GetChildren();
-
-        TString matchingConfigFilter;
-        for (const auto& [configFilter, configNode] : configs) {
-            if (configNode->GetType() != NYTree::ENodeType::Map) {
-                THROW_ERROR_EXCEPTION(
-                    NDynamicConfig::EErrorCode::InvalidDynamicConfig,
-                    "Dynamic config child %Qv has invalid type: expected %Qlv, actual %Qlv",
-                    configFilter,
-                    NYTree::ENodeType::Map,
-                    configNode->GetType())
-                    << TErrorAttribute("dynamic_config_name", Options_.Name);
+        if (Options_.ConfigIsTagged) {
+            auto instanceTags = GetInstanceTags();
+            if (instanceTags != InstanceTags_) {
+                YT_LOG_INFO("Instance tags list has changed (OldTagList: %v, NewTagList: %v)",
+                    InstanceTags_,
+                    instanceTags);
+                InstanceTags_ = instanceTags;
             }
 
-            auto configMapNode = configNode->AsMap();
+            auto configs = configNode->GetChildren();
 
-            if (MakeBooleanFormula(configFilter).IsSatisfiedBy(InstanceTags_)) {
-                if (matchedConfigNode) {
+            TString matchingConfigFilter;
+            for (const auto& [configFilter, configNode] : configs) {
+                if (configNode->GetType() != NYTree::ENodeType::Map) {
                     THROW_ERROR_EXCEPTION(
-                        EErrorCode::DuplicateMatchingDynamicConfigs,
-                        "Found duplicate matching dynamic config")
-                        << TErrorAttribute("dynamic_config_name", Options_.Name)
-                        << TErrorAttribute("first_config_filter", matchingConfigFilter)
-                        << TErrorAttribute("second_config_filter", configFilter);
+                        NDynamicConfig::EErrorCode::InvalidDynamicConfig,
+                        "Dynamic config child %Qv has invalid type: expected %Qlv, actual %Qlv",
+                        configFilter,
+                        NYTree::ENodeType::Map,
+                        configNode->GetType())
+                        << TErrorAttribute("dynamic_config_name", Options_.Name);
                 }
 
-                YT_LOG_DEBUG("Found matching dynamic config (ConfigFilter: %v)",
-                    configFilter);
+                auto configMapNode = configNode->AsMap();
 
-                matchedConfigNode = configMapNode;
-                matchingConfigFilter = configFilter;
+                if (MakeBooleanFormula(configFilter).IsSatisfiedBy(InstanceTags_)) {
+                    if (matchedConfigNode) {
+                        THROW_ERROR_EXCEPTION(
+                            EErrorCode::DuplicateMatchingDynamicConfigs,
+                            "Found duplicate matching dynamic config")
+                            << TErrorAttribute("dynamic_config_name", Options_.Name)
+                            << TErrorAttribute("first_config_filter", matchingConfigFilter)
+                            << TErrorAttribute("second_config_filter", configFilter);
+                    }
+
+                    YT_LOG_DEBUG("Found matching dynamic config (ConfigFilter: %v)",
+                        configFilter);
+
+                    matchedConfigNode = configMapNode;
+                    matchingConfigFilter = configFilter;
+                }
             }
+        } else {
+            matchedConfigNode = configNode;
         }
     } else {
-        matchedConfigNode = configNode;
+        if (configOrError.FindMatching(NYTree::EErrorCode::ResolveError) && Config_->IgnoreConfigAbsence) {
+            YT_LOG_INFO("Dynamic config node does not exist (ConfigPath: %v)",
+                Options_.ConfigPath);
+            // XXX
+            // return false;
+        } else {
+            THROW_ERROR_EXCEPTION(
+                NDynamicConfig::EErrorCode::FailedToFetchDynamicConfig,
+                "Failed to fetch dynamic config from Cypress")
+                << TErrorAttribute("config_name", Options_.Name)
+                << configOrError;
+        }
     }
 
     if (!matchedConfigNode) {
@@ -237,6 +261,7 @@ bool TDynamicConfigManagerBase<TConfig>::TryUpdateConfig()
         }
     }
 
+    matchedConfigNode = PatchNode(BaseConfigNode_, matchedConfigNode)->AsMap();
     if (AreNodesEqual(matchedConfigNode, AppliedConfigNode_)) {
         return false;
     }
