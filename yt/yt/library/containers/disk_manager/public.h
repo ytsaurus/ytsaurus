@@ -26,7 +26,9 @@ struct TDiskInfo
 
 DECLARE_REFCOUNTED_STRUCT(TDiskManagerProxyConfig)
 DECLARE_REFCOUNTED_STRUCT(TDiskManagerProxyDynamicConfig)
+
 DECLARE_REFCOUNTED_CLASS(TDiskManagerProxy)
+DECLARE_REFCOUNTED_CLASS(TDiskInfoProvider)
 
 ////////////////////////////////////////////////////////////////////////////////
 

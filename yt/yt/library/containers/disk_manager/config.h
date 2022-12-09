@@ -19,6 +19,8 @@ public:
     static void Register(TRegistrar registrar);
 };
 
+DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyConfig)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 struct TDiskManagerProxyDynamicConfig
@@ -32,9 +34,6 @@ public:
     static void Register(TRegistrar registrar);
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyConfig)
 DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////

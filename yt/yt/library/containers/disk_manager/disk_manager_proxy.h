@@ -32,7 +32,7 @@ public:
         TString serviceName,
         TDiskManagerProxyConfigPtr config);
 
-    TFuture<std::vector<TString>> GetYTDiskDeviceNames();
+    TFuture<THashSet<TString>> GetYtDiskDeviceNames();
     TFuture<std::vector<TDiskInfo>> GetDisks();
 
     void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig);
