@@ -84,9 +84,6 @@ TString ToString(
     const NProto::TDiskResources& diskResources,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory);
 
-void FormatValue(TStringBuilderBase* builder, const NProto::TDiskResources& diskResources, TStringBuf spec);
-TString ToString(const NProto::TDiskResources& diskResources);
-
 void ProfileResources(NProfiling::ISensorWriter* writer, const NProto::TNodeResources& resources);
 
 const NProto::TNodeResources& ZeroNodeResources();
