@@ -182,6 +182,9 @@ def start(master_count=1,
     if jobs_user_slot_count is not None:
         jobs_resource_limits["user_slots"] = jobs_user_slot_count
 
+    if scheduler_count == 0:
+        controller_agent_count = 0
+
     yt_config = LocalYtConfig(
         master_count=master_count,
         clock_count=clock_count,
