@@ -1,40 +1,41 @@
 {
-    "cluster" = "hume";
-    "table_path" = "//home/kristevalex/ytprof/testing";
-    "meta_config" = {
-        "used" = [
-            "DefaultSampleType";
-            "Function"
-        ]
+    "ports" = {
+        "node" = 10012;
+        "dat-node" = 10012;
+        "exe-node" = 10012;
+        "exe-tab-node" = 10012;
+        "tab-node" = 10022;
+        "chaos-node" = 10023;
+        "master" = 10010;
+        "master-caches" = 10018;
+        "scheduler" = 10011;
+        "rpc-proxy" = 10017;
+        "http-proxy" = 10013;
+        "controller-agent" = 10014;
+        "clock" = 10016;
+        "discovery" = 10020;
+        "timestamp-provider" = 10021;
     };
-    "services" = [
+    "yp_clusters" = [
+        "sas";
+        "man";
+        "vla";
+        "vlx";
+        "iva";
+        "myt";
+        "xdc";
+        "man-pre";
+        "sas-test";
+    ];
+    "configs" = [
         {
+            "cluster" = "hume";
             "profile_type" = "cpu";
-            "service_type" = "node";
-            "period" = 300000000000;
-            "probability" = 0.2;
             "path" = "ytprof/profile";
-            "resolvers" = [
-                {
-                    "port" = 10012;
-                    "endpoint" = "yt_hume__node";
-                    "cluster" = "man-pre"
-                }
-            ]
-        };
-        {
-            "profile_type" = "memory";
-            "service_type" = "node";
             "period" = 300000000000;
-            "probability" = 0.2;
-            "path" = "ytprof/heap";
-            "resolvers" = [
-                {
-                    "port" = 10012;
-                    "endpoint" = "yt_hume__node";
-                    "cluster" = "man-pre"
-                }
-            ]
-        }    
+            "probability" = 0.5;
+            "resolver_min_profiles" = 2;
+            "resolver_max_profiles" = 70;
+        };
     ]
 }
