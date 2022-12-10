@@ -2963,6 +2963,15 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         assert dict(provided_extra) == {"unrecognized": [2, "foo", {}]}
 
+    @authors("ifsmirnov")
+    def test_mount_config_shared_lock(self):
+        self._create_sorted_table("//tmp/t")
+        tx = start_transaction()
+        lock("//tmp/t", mode="shared", tx=tx)
+        set("//tmp/t/@mount_config/min_data_ttl", 123)
+        set("//tmp/t/@max_data_ttl", 456)
+        assert get("//tmp/t/@mount_config") == {"min_data_ttl": 123, "max_data_ttl": 456}
+
     @authors("gritukan")
     def test_suspend_tablet_cell(self):
         sync_create_cells(1)

@@ -1070,28 +1070,32 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
 
         case EInternedAttributeKey::ForcedCompactionRevision: {
             ValidateNoTransaction();
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedCompactionRevision(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::ForcedStoreCompactionRevision: {
             ValidateNoTransaction();
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedStoreCompactionRevision(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::ForcedHunkCompactionRevision: {
             ValidateNoTransaction();
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedHunkCompactionRevision(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::ForcedChunkViewCompactionRevision: {
             ValidateNoTransaction();
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedChunkViewCompactionRevision(std::nullopt);
             return true;
         }
@@ -1113,13 +1117,15 @@ bool TTableNodeProxy::RemoveBuiltinAttribute(TInternedAttributeKey key)
         }
 
         case EInternedAttributeKey::ProfilingMode: {
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetProfilingMode(std::nullopt);
             return true;
         }
 
         case EInternedAttributeKey::ProfilingTag: {
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetProfilingTag(std::nullopt);
             return true;
         }
@@ -1287,28 +1293,32 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
         case EInternedAttributeKey::ForcedCompactionRevision: {
             ValidateNoTransaction();
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedCompactionRevision(revision);
             return true;
         }
 
         case EInternedAttributeKey::ForcedStoreCompactionRevision: {
             ValidateNoTransaction();
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedStoreCompactionRevision(revision);
             return true;
         }
 
         case EInternedAttributeKey::ForcedHunkCompactionRevision: {
             ValidateNoTransaction();
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedHunkCompactionRevision(revision);
             return true;
         }
 
         case EInternedAttributeKey::ForcedChunkViewCompactionRevision: {
             ValidateNoTransaction();
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedChunkViewCompactionRevision(revision);
             return true;
         }
@@ -1319,7 +1329,8 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             }
             ValidateNoTransaction();
 
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->MutableTabletBalancerConfig() = ConvertTo<NTabletBalancer::TTableTabletBalancerConfigPtr>(value);
             return true;
         }
@@ -1342,13 +1353,15 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         }
 
         case EInternedAttributeKey::ProfilingMode: {
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetProfilingMode(ConvertTo<EDynamicTableProfilingMode>(value));
             return true;
         }
 
         case EInternedAttributeKey::ProfilingTag: {
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetProfilingTag(ConvertTo<TString>(value));
             return true;
         }
@@ -1358,7 +1371,8 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
                 break;
             }
 
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetEnableDetailedProfiling(ConvertTo<bool>(value));
             return true;
         }
@@ -1457,7 +1471,8 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
         case EInternedAttributeKey::MountConfig: {
             ValidateNoTransaction();
 
-            auto* lockedTable = LockThisImpl();
+            auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
+            auto* lockedTable = LockThisImpl(lockRequest);
             auto* storage = lockedTable->GetMutableMountConfigStorage();
             storage->SetSelf(value);
 

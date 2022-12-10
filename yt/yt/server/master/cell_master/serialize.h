@@ -90,6 +90,7 @@ DEFINE_ENUM(EMasterReign,
     ((MaintenanceRequests)                                          (2211))  // kvk1920
     ((HydraDynamicConfig)                                           (2212))  // aleksandra-zh
     ((RecomputeAccountRefCounters)                                  (2213))  // gritukan
+    ((SharedLockIsEnoughForMountConfig)                             (2214))  // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////
