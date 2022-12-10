@@ -1015,7 +1015,7 @@ void ValidateValueType(
 {
     THROW_ERROR_EXCEPTION(
         NTableClient::EErrorCode::SchemaViolation,
-        "Invalid type, expected type %Qlv but got %Qlv",
+        "Invalid type: expected %Qlv, actual %Qlv",
         expected,
         actual);
 }

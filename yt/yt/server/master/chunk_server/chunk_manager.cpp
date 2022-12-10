@@ -102,7 +102,7 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/tables.h>
+#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
@@ -1161,26 +1161,11 @@ public:
         return transaction->Start(/*startOptions*/ {})
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] {
                 const auto& chunkMeta = request.chunk_meta();
-                const auto& chunkInfo = request.chunk_info();
-                const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
-                TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow;
-                chunkMetaExtensionRow.IdHash = chunkId.Parts32[0];
-                chunkMetaExtensionRow.Id = ToString(chunkId);
-                chunkMetaExtensionRow.MiscExt = SerializeProtoToString(miscExt);
-                if (auto hunkChunkMiscExt = FindProtoExtension<NTableClient::NProto::THunkChunkMiscExt>(chunkMeta.extensions())) {
-                    chunkMetaExtensionRow.HunkChunkMiscExt = SerializeProtoToString(*hunkChunkMiscExt);
-                }
-                if (auto hunkChunkRefsExt = FindProtoExtension<NTableClient::NProto::THunkChunkRefsExt>(chunkMeta.extensions())) {
-                    chunkMetaExtensionRow.HunkChunkRefsExt = SerializeProtoToString(*hunkChunkRefsExt);
-                }
-                if (auto boundaryKeysExt = FindProtoExtension<NTableClient::NProto::TBoundaryKeysExt>(chunkMeta.extensions())) {
-                    chunkMetaExtensionRow.BoundaryKeysExt = SerializeProtoToString(*boundaryKeysExt);
-                }
-                if (auto heavyColumnStatisticsExt = FindProtoExtension<NTableClient::NProto::THeavyColumnStatisticsExt>(chunkMeta.extensions())) {
-                    chunkMetaExtensionRow.HeavyColumnStatisticsExt = SerializeProtoToString(*heavyColumnStatisticsExt);
-                }
 
-                transaction->WriteRow(chunkMetaExtensionRow);
+                TChunkMetaExtensions chunkMetaExtensions;
+                static_cast<TChunkMetaExtensionsKey&>(chunkMetaExtensions) = GetChunkMetaExtensionsKey(chunkId);
+                FromProto(&chunkMetaExtensions, chunkMeta.extensions());
+                transaction->WriteRow(chunkMetaExtensions);
 
                 transaction->AddTransactionAction(
                     Bootstrap_->GetCellTag(),
@@ -1196,6 +1181,8 @@ public:
 
                 TConfirmChunkResponse response;
                 if (request.request_statistics()) {
+                    const auto& chunkInfo = request.chunk_info();
+                    const auto& miscExt = GetProtoExtension<TMiscExt>(chunkMeta.extensions());
                     auto statistics = ConstructChunkStatistics(chunkId, miscExt, chunkInfo);
                     *response.mutable_statistics() = statistics.ToDataStatistics();
                 }
@@ -1234,12 +1221,10 @@ public:
                 auto chunkType = CheckedEnumCast<EObjectType>(request.type());
                 auto chunkId = transaction->GenerateObjectId(chunkType, Bootstrap_->GetCellTag());
 
-                TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow{
-                    .IdHash = chunkId.Parts32[0],
-                    .Id = ToString(chunkId),
-                    .MiscExt = "tilted",
-                };
-                transaction->WriteRow(chunkMetaExtensionRow);
+                TChunkMetaExtensions chunkMetaExtensions;
+                static_cast<TChunkMetaExtensionsKey&>(chunkMetaExtensions) = GetChunkMetaExtensionsKey(chunkId);
+                chunkMetaExtensions.MiscExt = "tilted",
+                transaction->WriteRow(chunkMetaExtensions);
 
                 ToProto(request.mutable_chunk_id(), chunkId);
 

@@ -10,81 +10,80 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <class TRow>
-TFuture<std::vector<TRow>> ISequoiaTransaction::LookupRows(
-    const std::vector<TRow>& keys,
+template <class TRecordKey>
+TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> ISequoiaTransaction::LookupRows(
+    const std::vector<TRecordKey>& keys,
     NTransactionClient::TTimestamp timestamp,
     const NTableClient::TColumnFilter& columnFilter)
 {
-    auto tableDescriptor = TRow::TTable::Get();
-
     std::vector<NTableClient::TLegacyKey> rawKeys;
     rawKeys.reserve(keys.size());
     for (const auto& key : keys) {
-        rawKeys.push_back(tableDescriptor->ToKey(key, GetRowBuffer()));
+        rawKeys.push_back(key.ToKey(GetRowBuffer()));
     }
 
-    auto asyncRowset = LookupRows(
-        tableDescriptor->GetType(),
+    auto rowsetFuture = LookupRows(
+        TRecordKey::Table,
         MakeSharedRange(std::move(rawKeys), GetRowBuffer()),
         timestamp,
         columnFilter);
-    return asyncRowset.Apply(BIND([=, keyCount = std::ssize(keys)] (const NApi::IUnversionedRowsetPtr& rowset) {
-        auto wireRows = rowset->GetRows();
-        YT_VERIFY(std::ssize(wireRows) == keyCount);
+    return rowsetFuture.Apply(BIND([=, keyCount = std::ssize(keys)] (const NApi::IUnversionedRowsetPtr& rowset) {
+        auto rows = rowset->GetRows();
+        YT_VERIFY(std::ssize(rows) == keyCount);
 
-        std::vector<TRow> rows;
-        rows.reserve(wireRows.size());
-        for (auto wireRow : wireRows) {
-            rows.push_back(tableDescriptor->FromUnversionedRow(wireRow, rowset->GetNameTable()));
+        typename TRecordKey::TRecordDescriptor::TIdMapping idMapping(rowset->GetNameTable());
+        std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>> optionalRecords;
+        optionalRecords.reserve(rows.size());
+        for (auto row : rows) {
+            if (row) {
+                optionalRecords.emplace_back(TRecordKey::TRecordDescriptor::TRecord::FromUnversionedRow(row, idMapping));
+            } else {
+                optionalRecords.push_back(std::nullopt);
+            }
         }
 
-        return rows;
+        return optionalRecords;
     }));
 }
 
-template <class TRow>
+template <class TRecord>
 void ISequoiaTransaction::DatalessLockRow(
     NObjectClient::TCellTag masterCellTag,
-    const TRow& row,
+    const TRecord& record,
     NTableClient::ELockType lockType)
 {
-    const auto& tableDescriptor = TRow::TTable::Get();
     DatalessLockRow(
         masterCellTag,
-        tableDescriptor->GetType(),
-        tableDescriptor->ToKey(row, GetRowBuffer()),
+        TRecord::Table,
+        record.ToKey(GetRowBuffer()),
         lockType);
 }
 
-template <class TRow>
+template <class TRecord>
 void ISequoiaTransaction::LockRow(
-    const TRow& row,
+    const TRecord& record,
     NTableClient::ELockType lockType)
 {
-    const auto& tableDescriptor = TRow::TTable::Get();
     LockRow(
-        tableDescriptor->GetType(),
-        tableDescriptor->ToKey(row, GetRowBuffer()),
+        TRecord::Table,
+        record.ToKey(GetRowBuffer()),
         lockType);
 }
 
-template <class TRow>
-void ISequoiaTransaction::WriteRow(const TRow& row)
+template <class TRecord>
+void ISequoiaTransaction::WriteRow(const TRecord& record)
 {
-    const auto& tableDescriptor = TRow::TTable::Get();
     WriteRow(
-        tableDescriptor->GetType(),
-        tableDescriptor->ToUnversionedRow(row, GetRowBuffer()));
+        TRecord::Table,
+        record.ToUnversionedRow(GetRowBuffer()));
 }
 
-template <class TRow>
-void ISequoiaTransaction::DeleteRow(const TRow& row)
+template <class TRecordKey>
+void ISequoiaTransaction::DeleteRow(const TRecordKey& key)
 {
-    const auto& tableDescriptor = TRow::TTable::Get();
     DeleteRow(
-        tableDescriptor->GetType(),
-        tableDescriptor->ToKey(row, GetRowBuffer()));
+        TRecordKey::Table,
+        key.ToKey(GetRowBuffer()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

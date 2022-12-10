@@ -336,8 +336,7 @@ private:
             }
 
             if (dynamicStore->IsFlushed()) {
-                auto* chunk = dynamicStore->GetFlushedChunk();
-                if (chunk) {
+                if (auto* chunk = dynamicStore->GetFlushedChunk()) {
                     auto rowIndex = dynamicStore->GetType() == EObjectType::OrderedDynamicTabletStore
                         ? std::make_optional(dynamicStore->GetTableRowIndex())
                         : std::nullopt;

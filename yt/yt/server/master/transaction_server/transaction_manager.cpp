@@ -50,7 +50,7 @@
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
-#include <yt/yt/ytlib/sequoia_client/tables.h>
+#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/transaction_client/proto/transaction_service.pb.h>
 #include <yt/yt/ytlib/transaction_client/helpers.h>

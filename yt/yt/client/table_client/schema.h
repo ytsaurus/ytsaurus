@@ -207,9 +207,10 @@ void PrintTo(const TColumnSchema& columnSchema, std::ostream* os);
 class TTableSchema final
 {
 public:
-    class TNameMapping {
+    class TNameMapping
+    {
     public:
-        TNameMapping(const TTableSchema& schema);
+        explicit TNameMapping(const TTableSchema& schema);
         TString StableNameToName(const TStableName& stableName) const;
         TStableName NameToStableName(TStringBuf name) const;
 

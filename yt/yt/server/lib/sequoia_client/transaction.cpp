@@ -13,7 +13,8 @@
 #include <yt/yt/ytlib/api/native/tablet_helpers.h>
 #include <yt/yt/ytlib/api/native/transaction_helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/tables.h>
+#include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
+#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 
@@ -21,6 +22,7 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
+#include <yt/yt/client/table_client/record_descriptor.h>
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
@@ -106,11 +108,10 @@ public:
         options.ColumnFilter = columnFilter;
         options.Timestamp = timestamp;
 
-        const auto& tableDescriptor = GetTableDescriptor(table);
-
+        const auto* tableDescriptor = ITableDescriptor::Get(table);
         return Client_->LookupRows(
-            GetTablePath(table),
-            tableDescriptor->GetNameTable(),
+            GetTablePath(tableDescriptor),
+            tableDescriptor->GetRecordDescriptor()->GetNameTable(),
             std::move(keys),
             options);
     }
@@ -321,17 +322,16 @@ private:
         VERIFY_SPINLOCK_AFFINITY(Lock_);
 
         auto it = TableCommitSessions_.find(table);
-        if (it == TableCommitSessions_.end()) {
-            auto session = New<TTableCommitSession>();
-
-            session->Path = GetTablePath(table);
-            session->Table = table;
-
-            EmplaceOrCrash(TableCommitSessions_, table, session);
-            return session;
-        } else {
+        if (it != TableCommitSessions_.end()) {
             return it->second;
         }
+
+        auto session = New<TTableCommitSession>();
+        const auto* tableDescriptor = ITableDescriptor::Get(table);
+        session->Path = GetTablePath(tableDescriptor);
+        session->Table = table;
+        EmplaceOrCrash(TableCommitSessions_, table, session);
+        return session;
     }
 
     ITabletCommitSessionPtr GetOrCreateTabletCommitSession(
@@ -344,21 +344,22 @@ private:
 
         auto key = std::make_pair(tabletId, dataless);
         auto sessionIt = TabletCommitSessions_.find(key);
-        if (sessionIt == TabletCommitSessions_.end()) {
-            // TODO(gritukan): Handle dataless.
-            TTabletCommitOptions options;
-            auto tabletCommitSession = CreateTabletCommitSession(
-                Client_,
-                std::move(options),
-                MakeWeak(Transaction_),
-                CellCommitSessionProvider_,
-                tabletInfo,
-                tableMountInfo,
-                Logger);
-            sessionIt = TabletCommitSessions_.emplace(key, std::move(tabletCommitSession)).first;
+        if (sessionIt != TabletCommitSessions_.end()) {
+             return sessionIt->second;
         }
 
-        return sessionIt->second;
+        // TODO(gritukan): Handle dataless.
+        TTabletCommitOptions options;
+        auto session = CreateTabletCommitSession(
+            Client_,
+            std::move(options),
+            MakeWeak(Transaction_),
+            CellCommitSessionProvider_,
+            tabletInfo,
+            tableMountInfo,
+            Logger);
+        EmplaceOrCrash(TabletCommitSessions_, key, session);
+        return session;
     }
 
     void OnTransactionStarted(const TTransactionPtr& transaction)
@@ -533,11 +534,10 @@ private:
         return Transaction_->Commit(options).AsVoid();
     }
 
-    TYPath GetTablePath(ESequoiaTable table) const
+    TYPath GetTablePath(const ITableDescriptor* tableDescriptor) const
     {
         const auto& sequoiaPath = Client_->GetNativeConnection()->GetConfig()->SequoiaPath;
-        const auto& tableDescriptor = GetTableDescriptor(table);
-        return sequoiaPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetName());
+        return sequoiaPath + "/" + NYPath::ToYPathLiteral(tableDescriptor->GetTableName());
     }
 };
 
