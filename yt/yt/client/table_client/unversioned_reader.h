@@ -14,6 +14,7 @@ namespace NYT::NTableClient {
 struct IUnversionedReaderBase
     : public virtual NChunkClient::IReaderBase
 {
+    //! NB: The returned batch can be invalidated by the next call to `Read`.
     virtual IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options = {}) = 0;
 };
 

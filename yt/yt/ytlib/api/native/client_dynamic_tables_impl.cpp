@@ -2379,9 +2379,16 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     struct TPullQueueTag {};
     auto responseData = MergeRefsToRef<TPullQueueTag>(rsp->Attachments());
     auto reader = CreateWireProtocolReader(responseData, New<TRowBuffer>(TPullQueueTag{}));
-    auto rows = reader->ReadUnversionedRowset(/*captureValues*/ true);
+    std::vector<TUnversionedRow> rows;
+    while (!reader->IsFinished()) {
+        auto batch = reader->ReadUnversionedRowset(/*captureValues*/ true);
+        rows.reserve(rows.size() + batch.size());
+        rows.insert(rows.end(), batch.begin(), batch.end());
+    }
 
-    return CreateRowset(tableInfo->Schemas[ETableSchemaKind::Query], rows);
+    return CreateRowset(
+        tableInfo->Schemas[ETableSchemaKind::Query],
+        MakeSharedRange(rows, reader->GetRowBuffer()));
 }
 
 std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(
