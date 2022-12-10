@@ -297,11 +297,11 @@ public:
             .Item("brief_spec").Value(operation->BriefSpecString())
             .Finish();
 
-        auto req = TYPathProxy::Multiset(GetOperationPath(operationId) + "/@");
+        auto req = TYPathProxy::MultisetAttributes(GetOperationPath(operationId) + "/@");
         GenerateMutationId(req);
-        for (const auto& [key, value] : attributes->ListPairs()) {
+        for (const auto& [attribute, value] : attributes->ListPairs()) {
             auto* subrequest = req->add_subrequests();
-            subrequest->set_key(key);
+            subrequest->set_attribute(attribute);
             ValidateYson(value, GetYsonNestingLevelLimit());
             subrequest->set_value(value.ToString());
         }
@@ -1753,47 +1753,47 @@ private:
                 }
             }
 
-            auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
+            auto multisetReq = TYPathProxy::MultisetAttributes(operationPath + "/@");
 
             // Set suspended flag.
             {
                 auto req = multisetReq->add_subrequests();
-                req->set_key("suspended");
+                req->set_attribute("suspended");
                 req->set_value(ConvertToYsonStringNestingLimited(operation->GetSuspended()).ToString());
             }
 
             // Set events.
             {
                 auto req = multisetReq->add_subrequests();
-                req->set_key("events");
+                req->set_attribute("events");
                 req->set_value(ConvertToYsonStringNestingLimited(operation->Events()).ToString());
             }
 
             // Set result.
             if (operation->IsFinishedState()) {
                 auto req = multisetReq->add_subrequests();
-                req->set_key("result");
+                req->set_attribute("result");
                 req->set_value(ConvertToYsonStringNestingLimited(operation->BuildResultString()).ToString());
             }
 
             // Set end time, if given.
             if (operation->GetFinishTime()) {
                 auto req = multisetReq->add_subrequests();
-                req->set_key("finish_time");
+                req->set_attribute("finish_time");
                 req->set_value(ConvertToYsonStringNestingLimited(*operation->GetFinishTime()).ToString());
             }
 
             // Set state.
             {
                 auto req = multisetReq->add_subrequests();
-                req->set_key("state");
+                req->set_attribute("state");
                 req->set_value(ConvertToYsonStringNestingLimited(operation->GetState()).ToString());
             }
 
             // Set alerts.
             {
                 auto req = multisetReq->add_subrequests();
-                req->set_key("alerts");
+                req->set_attribute("alerts");
                 req->set_value(ConvertToYsonStringNestingLimited(operation->BuildAlertsString()).ToString());
             }
 
@@ -1801,7 +1801,7 @@ private:
             {
                 bool enableHeavyRuntimeParameters = Config_->EnableHeavyRuntimeParameters;
                 auto req = multisetReq->add_subrequests();
-                req->set_key("runtime_parameters");
+                req->set_attribute("runtime_parameters");
                 auto valueYson = BuildYsonStringFluently()
                     .Value(operation->GetRuntimeParameters(), /* serializeHeavy */ !enableHeavyRuntimeParameters);
                 ValidateYson(valueYson, GetYsonNestingLevelLimit());
@@ -1809,7 +1809,7 @@ private:
 
                 if (enableHeavyRuntimeParameters) {
                     auto reqHeavy = multisetReq->add_subrequests();
-                    reqHeavy->set_key("heavy_runtime_parameters");
+                    reqHeavy->set_attribute("heavy_runtime_parameters");
                     auto valueYson = BuildYsonStringFluently()
                         .DoMap([&] (auto fluent) {
                             SerializeHeavyRuntimeParameters(fluent, *operation->GetRuntimeParameters());
@@ -1822,7 +1822,7 @@ private:
             // Set initial aggregated min needed resources.
             if (auto initialMinNeededResources = operation->GetInitialAggregatedMinNeededResources()) {
                 auto req = multisetReq->add_subrequests();
-                req->set_key("initial_aggregated_min_needed_resources");
+                req->set_attribute("initial_aggregated_min_needed_resources");
                 req->set_value(ConvertToYsonStringNestingLimited(*initialMinNeededResources).ToString());
             }
 
