@@ -1297,13 +1297,13 @@ private:
             auto attributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);
 
             auto batchReq = proxy.ExecuteBatch();
-            auto req = TYPathProxy::Multiset(path + "/@");
+            auto req = TYPathProxy::MultisetAttributes(path + "/@");
             SetTransactionId(req, OutputCompletionTransaction->GetId());
 
-            for (const auto& key : attributeKeys) {
+            for (const auto& attribute : attributeKeys) {
                 auto* subrequest = req->add_subrequests();
-                subrequest->set_key(key);
-                auto value = InputTableAttributes_->GetYson(key);
+                subrequest->set_attribute(attribute);
+                auto value = InputTableAttributes_->GetYson(attribute);
                 ValidateYson(value, GetYsonNestingLevelLimit());
                 subrequest->set_value(value.ToString());
             }

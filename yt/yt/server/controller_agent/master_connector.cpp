@@ -835,17 +835,17 @@ private:
 
         auto operationPath = GetOperationPath(operationId);
 
-        auto multisetReq = TYPathProxy::Multiset(operationPath + "/@");
+        auto multisetReq = TYPathProxy::MultisetAttributes(operationPath + "/@");
 
         {
             auto req = multisetReq->add_subrequests();
-            req->set_key("progress");
+            req->set_attribute("progress");
             req->set_value(progress.ToString());
         }
 
         {
             auto req = multisetReq->add_subrequests();
-            req->set_key("brief_progress");
+            req->set_attribute("brief_progress");
             req->set_value(briefProgress.ToString());
         }
 
