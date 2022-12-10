@@ -6,12 +6,14 @@
 
 #include <yt/yt/server/lib/tablet_node/proto/tablet_manager.pb.h>
 
-#include <yt/yt/ytlib/sequoia_client/tables.h>
+#include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
+#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/api/native/tablet_request_batcher.h>
 #include <yt/yt/ytlib/api/native/transaction_helpers.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/record_descriptor.h>
 
 namespace NYT::NSequoiaServer {
 
@@ -38,7 +40,7 @@ public:
         FromProto(&WriteSet_, protoWriteSet, RowBuffer_);
 
         for (auto table : TEnumTraits<ESequoiaTable>::GetDomainValues()) {
-            auto tableDescriptor = GetTableDescriptor(table);
+            const auto* tableDescriptor = ITableDescriptor::Get(table);
             for (const auto& [key, lockedRowInfo] : WriteSet_[table]) {
                 auto tabletId = lockedRowInfo.TabletId;
                 auto cellId = lockedRowInfo.TabletCellId;
@@ -54,8 +56,8 @@ public:
                         TabletIdToRequestBatcher_,
                         tabletId,
                         CreateTabletRequestBatcher(
-                            TTabletRequestBatcherOptions{}, // TODO
-                            tableDescriptor->GetSchema(),
+                            TTabletRequestBatcherOptions{}, // TODO(gritukan)
+                            tableDescriptor->GetRecordDescriptor()->GetSchema(),
                             tableDescriptor->GetColumnEvaluator()));
                     EmplaceOrCrash(TabletIdToTabletCellId_, tabletId, cellId);
                 }
@@ -65,8 +67,8 @@ public:
 
     void WriteRow(ESequoiaTable table, TUnversionedRow row) override
     {
-        auto tableDescriptor = GetTableDescriptor(table);
-        auto keyColumnCount = tableDescriptor->GetSchema()->GetKeyColumnCount();
+        const auto* tableDescriptor = ITableDescriptor::Get(table);
+        auto keyColumnCount = tableDescriptor->GetRecordDescriptor()->GetSchema()->GetKeyColumnCount();
         auto key = GetKeyPrefix(row, keyColumnCount, RowBuffer_);
         const auto& lockedRowInfo = GetOrCrash(WriteSet_[table], key);
         const auto& tabletRequestBatcher = GetOrCrash(TabletIdToRequestBatcher_, lockedRowInfo.TabletId);

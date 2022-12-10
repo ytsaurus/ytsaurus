@@ -2,15 +2,11 @@
 
 #include "public.h"
 
-#include <yt/yt/ytlib/api/native/public.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
-#include <yt/yt/ytlib/transaction_client/action.h>
+#include <yt/yt/core/misc/shared_range.h>
 
-#include <yt/yt/client/api/client.h>
-
-#include <yt/yt/client/table_client/schema.h>
-
-#include <yt/yt/core/logging/log_manager.h>
+#include <library/cpp/yt/logging/logger.h>
 
 namespace NYT::NSequoiaClient {
 
@@ -30,9 +26,9 @@ public:
         NTransactionClient::TTimestamp timestamp,
         const NTableClient::TColumnFilter& columnFilter) = 0;
 
-    template <class TRow>
-    TFuture<std::vector<TRow>> LookupRows(
-        const std::vector<TRow>& keys,
+    template <class TRecordKey>
+    TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> LookupRows(
+        const std::vector<TRecordKey>& keys,
         NTransactionClient::TTimestamp timestamp,
         const NTableClient::TColumnFilter& columnFilter = {});
 
@@ -42,10 +38,10 @@ public:
         NTableClient::TLegacyKey key,
         NTableClient::ELockType lockType) = 0;
 
-    template <class TRow>
+    template <class TRecordKey>
     void DatalessLockRow(
         NObjectClient::TCellTag masterCellTag,
-        const TRow& row,
+        const TRecordKey& key,
         NTableClient::ELockType lockType);
 
     virtual void LockRow(
@@ -53,24 +49,24 @@ public:
         NTableClient::TLegacyKey key,
         NTableClient::ELockType lockType) = 0;
 
-    template <class TRow>
+    template <class TRecordKey>
     void LockRow(
-        const TRow& row,
+        const TRecordKey& key,
         NTableClient::ELockType lockType);
 
     virtual void WriteRow(
         ESequoiaTable table,
         NTableClient::TUnversionedRow row) = 0;
 
-    template <class TRow>
-    void WriteRow(const TRow& row);
+    template <class TRecord>
+    void WriteRow(const TRecord& record);
 
     virtual void DeleteRow(
         ESequoiaTable table,
         NTableClient::TUnversionedRow row) = 0;
 
-    template <class TRow>
-    void DeleteRow(const TRow& row);
+    template <class TRecordKey>
+    void DeleteRow(const TRecordKey& key);
 
     virtual void AddTransactionAction(
         NObjectClient::TCellTag masterCellTag,

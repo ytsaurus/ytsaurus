@@ -7,7 +7,7 @@
 
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
-#include <yt/yt/ytlib/sequoia_client/tables.h>
+#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
@@ -75,11 +75,8 @@ private:
             return;
         }
 
-        TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow chunkMetaExtensionRow{
-            .IdHash = chunk->GetId().Parts32[0],
-            .Id = ToString(chunk->GetId()),
-        };
-        transaction->DeleteRow(chunkMetaExtensionRow);
+        auto key = GetChunkMetaExtensionsKey(chunk->GetId());
+        transaction->DeleteRow(key);
     }
 
     void DoUnstageObject(TChunk* chunk, bool recursive) override

@@ -47,7 +47,7 @@
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
-#include <yt/yt/ytlib/sequoia_client/tables.h>
+#include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
@@ -323,34 +323,30 @@ TFuture<void> FetchChunkMetasFromSequoia(
 
     TColumnFilter columnFilter;
     if (!fetchAllMetaExtensions) {
-        auto table = DynamicPointerCast<TChunkMetaExtensionsTableDescriptor>(GetTableDescriptor(ESequoiaTable::ChunkMetaExtensions));
-        columnFilter = table->GetColumnFilter(extensionTags);
+        columnFilter = GetChunkMetaExtensionsColumnFilter(extensionTags);
     }
 
-    using TRow = TChunkMetaExtensionsTableDescriptor::TChunkMetaExtensionsRow;
-    std::vector<TRow> keys;
-    for (auto* chunkSpec : chunkSpecs) {
+    std::vector<TChunkMetaExtensionsKey> keys;
+    for (const auto* chunkSpec : chunkSpecs) {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
-        TRow key{
-            .IdHash = chunkId.Parts32[0],
-            .Id = ToString(chunkId),
-        };
+        auto key = GetChunkMetaExtensionsKey(chunkId);
         keys.push_back(key);
     }
 
-    auto asyncMetas = transaction->LookupRows(
+    auto future = transaction->LookupRows(
         std::move(keys),
         NTransactionClient::SyncLastCommittedTimestamp,
         columnFilter);
     // TODO(babenko): capturing client is needed to ensure its in-flight requests get executed properly
-    return asyncMetas.Apply(BIND([chunkSpecs = std::move(chunkSpecs), client] (const std::vector<TRow>& rows) {
-        YT_VERIFY(rows.size() == chunkSpecs.size());
-
-        auto table = DynamicPointerCast<TChunkMetaExtensionsTableDescriptor>(GetTableDescriptor(ESequoiaTable::ChunkMetaExtensions));
-        for (int index = 0; index < std::ssize(rows); ++index) {
-            table->SetMetaExtensions(
-                rows[index],
-                chunkSpecs[index]->mutable_chunk_meta()->mutable_extensions());
+    return future.Apply(BIND([chunkSpecs = std::move(chunkSpecs), client] (const std::vector<std::optional<TChunkMetaExtensions>>& optionalRecords) {
+        YT_VERIFY(optionalRecords.size() == chunkSpecs.size());
+        for (int index = 0; index < std::ssize(optionalRecords); ++index) {
+            const auto& optionalRecord = optionalRecords[index];
+            if (!optionalRecord) {
+                THROW_ERROR_EXCEPTION("Missing meta extensions for Sequoia chunk %v",
+                    FromProto<TChunkId>(chunkSpecs[index]->chunk_id()));
+            }
+            ToProto(chunkSpecs[index]->mutable_chunk_meta()->mutable_extensions(), *optionalRecord);
         }
     }));
 }
@@ -598,7 +594,7 @@ private:
             return;
         }
 
-        auto fetchFuture = ::NYT::NChunkServer::FetchChunkMetasFromSequoia(
+        auto fetchFuture = NChunkServer::FetchChunkMetasFromSequoia(
             RpcContext_->Request().fetch_all_meta_extensions(),
             ExtensionTags_,
             std::move(ChunkSpecsToFetchMetaFromSequoia_),
