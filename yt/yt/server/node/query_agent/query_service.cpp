@@ -1546,6 +1546,7 @@ private:
         }
 
         TFetchRowsFromOrderedStoreResult fetchRowsResult;
+        auto writer = CreateWireProtocolWriter();
 
         if (desiredStore) {
             YT_LOG_DEBUG(
@@ -1569,18 +1570,11 @@ private:
                 rowIndex,
                 request->max_row_count(),
                 request->max_data_weight(),
-                chunkReadOptions);
+                chunkReadOptions,
+                writer.get());
         }
 
-        auto writer = CreateWireProtocolWriter();
-        std::vector<TUnversionedRow> rows;
-        rows.reserve(fetchRowsResult.RowCount);
-        for (const auto& rowBatch : fetchRowsResult.RowBatches) {
-            rows.insert(rows.end(), rowBatch.begin(), rowBatch.end());
-        }
-        writer->WriteUnversionedRowset(rows);
         response->Attachments() = writer->Finish();
-
         context->SetResponseInfo(
             "RowCount: %v, DataWeight: %v",
             fetchRowsResult.RowCount,
@@ -1590,7 +1584,6 @@ private:
 
     struct TFetchRowsFromOrderedStoreResult
     {
-        std::vector<TSharedRange<TUnversionedRow>> RowBatches;
         i64 RowCount = 0;
         i64 DataWeight = 0;
     };
@@ -1602,7 +1595,8 @@ private:
         i64 rowIndex,
         i64 maxRowCount,
         i64 maxDataWeight,
-        const TClientChunkReadOptions& chunkReadOptions)
+        const TClientChunkReadOptions& chunkReadOptions,
+        IWireProtocolWriter* writer)
     {
         auto tabletId = tabletSnapshot->TabletId;
 
@@ -1630,8 +1624,6 @@ private:
             .MaxDataWeightPerRead = maxDataWeight,
         };
 
-        std::vector<TSharedRange<TUnversionedRow>> batches;
-
         i64 readRows = 0;
         i64 readDataWeight = 0;
         while (auto batch = reader->Read(options)) {
@@ -1650,7 +1642,7 @@ private:
             readRows += std::ssize(rows);
             readDataWeight += static_cast<i64>(GetDataWeight(rows));
 
-            batches.push_back(std::move(rows));
+            writer->WriteUnversionedRowset(rows);
 
             if (readRows >= maxRowCount || readDataWeight >= maxDataWeight) {
                 break;
@@ -1667,7 +1659,6 @@ private:
             readDataWeight);
 
         return {
-            .RowBatches = std::move(batches),
             .RowCount = readRows,
             .DataWeight = readDataWeight,
         };
