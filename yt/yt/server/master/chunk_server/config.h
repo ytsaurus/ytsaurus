@@ -385,11 +385,6 @@ public:
     //! (where the chunk will be put).
     int MaxRunningReplicationJobsPerTargetNode;
 
-    //! Minimum difference in fill coefficient (between the most and the least loaded nodes) to start balancing.
-    double MinChunkBalancingFillFactorDiff;
-    //! Minimum fill coefficient of the most loaded node to start balancing.
-    double MinChunkBalancingFillFactor;
-
     //! If set to false, fully disables background chunk refresh.
     //! Only use during bulk node restarts to save leaders' CPU.
     //! Don't forget to turn it on afterwards.
@@ -454,15 +449,6 @@ public:
     //! When the number of lost chunks grows above this margin,
     //! replicator gets disabled.
     int SafeLostChunkCount;
-
-    //! Maximum number of replication/balancing jobs writing to each target node.
-    /*!
-     *  This limit is approximate and is only maintained when scheduling balancing jobs.
-     *  This makes sense since balancing jobs specifically target nodes with lowest fill factor
-     *  and thus risk overloading them.
-     *  Replication jobs distribute data evenly across the cluster and thus pose no threat.
-     */
-    int MaxReplicationWriteSessions;
 
     //! Memory usage assigned to every repair job.
     i64 RepairJobMemoryUsage;

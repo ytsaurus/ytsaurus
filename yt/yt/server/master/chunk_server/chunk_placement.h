@@ -69,17 +69,15 @@ private:
     std::vector<TRange> Ranges_;
 };
 
-struct TFillFactorToNodeMapItemComparator
+struct TLoadFactorToNodeMapItemComparator
 {
-    TFillFactorToNodeMapItemComparator() = default;
+    TLoadFactorToNodeMapItemComparator() = default;
 
-    bool operator()(TFillFactorToNodeMap::const_reference a, TFillFactorToNodeMap::const_reference b)
+    bool operator()(TLoadFactorToNodeMap::const_reference lhs, TLoadFactorToNodeMap::const_reference rhs)
     {
-        return a.first < b.first;
+        return lhs.first < rhs.first;
     }
 };
-
-using TLoadFactorToNodeMapItemComparator = TFillFactorToNodeMapItemComparator;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -130,18 +128,6 @@ public:
     // on different location of the same node.
     TChunkLocation* GetRemovalTarget(TChunkPtrWithReplicaAndMediumIndex replica);
 
-    bool HasBalancingTargets(TMedium* medium, double maxFillFactor);
-
-    std::vector<TChunkPtrWithReplicaInfo> GetBalancingChunks(
-        TMedium* medium,
-        TNode* node,
-        int replicaCount);
-
-    TNode* AllocateBalancingTarget(
-        TMedium* medium,
-        TChunk* chunk,
-        double maxFillFactor);
-
     int GetMaxReplicasPerRack(
         const TMedium* medium,
         const TChunk* chunk,
@@ -171,14 +157,10 @@ private:
     const TChunkManagerConfigPtr Config_;
     const TConsistentChunkPlacementPtr ConsistentPlacement_;
 
-    TReusableMergeIterator<TFillFactorToNodeIterator, TFillFactorToNodeMapItemComparator> FillFactorToNodeIterator_;
     TReusableMergeIterator<TLoadFactorToNodeIterator, TLoadFactorToNodeMapItemComparator> LoadFactorToNodeIterator_;
 
-    using TFillFactorToNodeMaps = THashMap<const TMedium*, TFillFactorToNodeMap>;
     using TLoadFactorToNodeMaps = THashMap<const TMedium*, TLoadFactorToNodeMap>;
 
-    //! Nodes listed here must pass #IsValidBalancingTargetToInsert test.
-    TFillFactorToNodeMaps MediumToFillFactorToNode_;
     //! Nodes listed here must pass #IsValidWriteTargetToInsert test.
     TLoadFactorToNodeMaps MediumToLoadFactorToNode_;
 
@@ -193,9 +175,6 @@ private:
 
     void RegisterNode(TNode* node);
     void UnregisterNode(TNode* node);
-
-    void InsertToFillFactorMaps(TNode* node);
-    void RemoveFromFillFactorMaps(TNode* node);
 
     void InsertToLoadFactorMaps(TNode* node);
     void RemoveFromLoadFactorMaps(TNode* node);
@@ -223,11 +202,6 @@ private:
         const TNodeList* allocatedNodes,
         TNode* preferredNode);
 
-    TNode* GetBalancingTarget(
-        TMedium* medium,
-        TChunk* chunk,
-        double maxFillFactor);
-
     TNode* FindPreferredNode(
         const std::optional<TString>& preferredHostName,
         TMedium* medium);
@@ -244,14 +218,6 @@ private:
     // additional checking of their media is required.
     bool IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium* medium);
 
-    bool IsValidBalancingTargetToInsert(TMedium* medium, TNode* node);
-    bool IsValidBalancingTargetToAllocate(
-        TNode* node,
-        TTargetCollector* collector,
-        bool enableRackAwareness,
-        bool enableDataCenterAwareness);
-    bool IsValidBalancingTargetCore(TNode* node);
-
     bool IsValidRemovalTarget(TNode* node);
 
     void AddSessionHint(
@@ -259,7 +225,6 @@ private:
         int mediumIndex,
         NChunkClient::ESessionType sessionType);
 
-    void PrepareFillFactorIterator(const TMedium* medium);
     void PrepareLoadFactorIterator(const TMedium* medium);
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;

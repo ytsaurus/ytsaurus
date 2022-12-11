@@ -225,16 +225,10 @@ public:
     // Precondition: this node has maintenance request with such id.
     std::optional<EMaintenanceType> RemoveMaintenance(TMaintenanceId id);
 
-    using TFillFactorIterator = std::optional<NChunkServer::TFillFactorToNodeIterator>;
-    using TFillFactorIterators = TMediumMap<TFillFactorIterator>;
-
     using TLoadFactorIterator = std::optional<NChunkServer::TLoadFactorToNodeIterator>;
     using TLoadFactorIterators = TMediumMap<TLoadFactorIterator>;
 
-    DEFINE_BYREF_RW_PROPERTY(TFillFactorIterators, FillFactorIterators);
     DEFINE_BYREF_RW_PROPERTY(TLoadFactorIterators, LoadFactorIterators);
-    TFillFactorIterator GetFillFactorIterator(int mediumIndex) const;
-    void SetFillFactorIterator(int mediumIndex, TFillFactorIterator iter);
     TLoadFactorIterator GetLoadFactorIterator(int mediumIndex) const;
     void SetLoadFactorIterator(int mediumIndex, TLoadFactorIterator iter);
 
