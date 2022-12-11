@@ -585,6 +585,10 @@ public:
             jobRegistry->OnEpochFinished(JobEpoch_);
             JobEpoch_ = InvalidJobEpoch;
         }
+
+        for (int shardIndex = 0; shardIndex < ChunkShardCount; ++shardIndex) {
+            ChunkScanner_.Stop(shardIndex);
+        }
     }
 
     void OnChunkDestroyed(TChunk* chunk) override
