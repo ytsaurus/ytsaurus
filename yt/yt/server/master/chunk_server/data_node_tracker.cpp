@@ -270,7 +270,7 @@ public:
                 try {
                     SyncExecuteVerb(rootService, req);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex,
+                    YT_LOG_ALERT(ex,
                         "Failed to create chunk location for a node (NodeAddress: %v, LocationUuid: %v)",
                         node->GetDefaultAddress(),
                         locationUuid);
@@ -295,7 +295,7 @@ public:
         for (auto locationUuid : chunkLocationUuids) {
             auto* location = FindChunkLocationByUuid(locationUuid);
             if (!IsObjectAlive(location)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Missing chunk location for node (NodeAddress: %v, LocationUuid: %v)",
                     node->GetDefaultAddress(),
                     locationUuid);
@@ -375,7 +375,7 @@ public:
 
         if (node) {
             if (node->GetAggregatedState() != ENodeState::Offline) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Destroying chunk location of a non-offline node (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
+                YT_LOG_ALERT("Destroying chunk location of a non-offline node (LocationId: %v, LocationUuid: %v, NodeAddress: %v)",
                     location->GetId(),
                     location->GetUuid(),
                     node->GetDefaultAddress());
@@ -535,7 +535,7 @@ private:
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         auto locationUuid = location->GetUuid();
         if (!medium) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Location medium is unknown (LocationUuid: %v, MediumIndex: %v)",
+            YT_LOG_ALERT("Location medium is unknown (LocationUuid: %v, MediumIndex: %v)",
                 locationUuid,
                 mediumIndex);
             return;
@@ -548,7 +548,7 @@ private:
                 diskFamilyWhitelist->end(),
                 diskFamily))
         {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Inconsistent medium (LocationUuid: %v, DiskFamily: %v, Medium: %v, DiskFamilyWhitelist: %v)",
+            YT_LOG_ALERT("Inconsistent medium (LocationUuid: %v, DiskFamily: %v, Medium: %v, DiskFamilyWhitelist: %v)",
                 locationUuid,
                 medium->GetName(),
                 diskFamilyWhitelist,
@@ -569,7 +569,7 @@ private:
             auto locationUuid = FromProto<TChunkLocationUuid>(chunkLocationStatistics.location_uuid());
             auto* location = FindChunkLocationByUuid(locationUuid);
             if (!IsObjectAlive(location)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Node reports statistics for non-existing chunk location (NodeAddress: %v, LocationUuid: %v)",
+                YT_LOG_ALERT("Node reports statistics for non-existing chunk location (NodeAddress: %v, LocationUuid: %v)",
                     node->GetDefaultAddress(),
                     locationUuid);
                 continue;

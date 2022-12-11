@@ -325,8 +325,7 @@ public:
                 // COMPAT(shakurov)
                 // This is a hive mutation posted by a pre-20.3 master (and being
                 // applied by a post-20.3 one).
-                YT_LOG_ALERT_UNLESS(IsRecovery(),
-                    "Upload transaction has generic type despite dedicated types being enabled (TransactionId: %v)",
+                YT_LOG_ALERT("Upload transaction has generic type despite dedicated types being enabled (TransactionId: %v)",
                     hintId);
             } else {
                 YT_ABORT();
@@ -725,13 +724,11 @@ public:
             }
 
             if (transactionToCheck == transaction) {
-                YT_LOG_ALERT_UNLESS(IsRecovery(),
-                    "Unexpected transaction state encountered while replicating (TransactionId: %v, TransactionState: %Qlv)",
+                YT_LOG_ALERT("Unexpected transaction state encountered while replicating (TransactionId: %v, TransactionState: %Qlv)",
                     transaction->GetId(),
                     state);
             } else {
-                YT_LOG_ALERT_UNLESS(IsRecovery(),
-                    "Unexpected ancestor transaction state encountered while replicating (TransactionId: %v, AncestorTransactionId: %v, AncestorTransactionState: %Qlv)",
+                YT_LOG_ALERT("Unexpected ancestor transaction state encountered while replicating (TransactionId: %v, AncestorTransactionId: %v, AncestorTransactionState: %Qlv)",
                     transaction->GetId(),
                     transactionToCheck->GetId(),
                     state);

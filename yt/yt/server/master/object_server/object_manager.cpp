@@ -2002,7 +2002,7 @@ void TObjectManager::HydraRemoveForeignObject(NProto::TReqRemoveForeignObject* r
     }
 
     if (object->GetLifeStage() != EObjectLifeStage::CreationCommitted) {
-        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+        YT_LOG_ALERT(
             "Requested to remove a foreign object with inappropriate life stage (ObjectId: %v, LifeStage: %v)",
             objectId,
             object->GetLifeStage());
@@ -2034,7 +2034,7 @@ void TObjectManager::HydraUnrefExportedObjects(NProto::TReqUnrefExportedObjects*
         auto* object = FindObject(objectId);
 
         if (!IsObjectAlive(object)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Requested to unexport non-existing object (ObjectId: %v, ImportRefCounter: %v, CellTag: %v)",
                 objectId,
                 importRefCounter,
@@ -2123,7 +2123,7 @@ void TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqCon
     for (auto objectId : objectIds) {
         auto* object = FindObject(objectId);
         if (!object) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Cells sync confirmed for a non-existing object (ObjectId: %v)",
                 objectId);
             continue;
@@ -2131,7 +2131,7 @@ void TObjectManager::HydraConfirmRemovalAwaitingCellsSyncObjects(NProto::TReqCon
 
         auto oldLifeStage = object->GetLifeStage();
         if (oldLifeStage != EObjectLifeStage::RemovalAwaitingCellsSync) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Cells sync confirmed for an object with invalid life stage (ObjectId: %v, LifeStage: %v)",
                 objectId,
                 oldLifeStage);
@@ -2164,7 +2164,7 @@ void TObjectManager::DoRemoveObject(TObject* object)
         object->GetId());
     FlushObjectUnrefs();
     if (auto refCounter = UnrefObject(object); refCounter != 0) {
-        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+        YT_LOG_ALERT(
             "Non-zero reference counter after object removal (ObjectId: %v, RefCounter: %v)",
             object->GetId(),
             refCounter);
@@ -2223,7 +2223,7 @@ void TObjectManager::CheckObjectLifeStageVoteCount(NYT::NObjectServer::TObject* 
                 newLifeStage = EObjectLifeStage::RemovalAwaitingCellsSync;
                 break;
             default:
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unexpected object life stage (ObjectId: %v, LifeStage: %v)",
+                YT_LOG_ALERT("Unexpected object life stage (ObjectId: %v, LifeStage: %v)",
                     object->GetId(),
                     oldLifeStage);
                 return;

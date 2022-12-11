@@ -243,7 +243,7 @@ private:
 
                 for (const auto& alienPeer : alienCell.AlienPeers) {
                     if (alienPeer.PeerId < 0 || alienPeer.PeerId >= std::ssize(cell->Peers())) {
-                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Trying to update alien peer with invalid peer id (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
+                        YT_LOG_ALERT("Trying to update alien peer with invalid peer id (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
                             cell->GetId(),
                             alienPeer.PeerId,
                             AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex));
@@ -251,7 +251,7 @@ private:
                     }
 
                     if (!cell->IsAlienPeer(alienPeer.PeerId)) {
-                        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Trying to update local peer as alien, ignored (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
+                        YT_LOG_ALERT("Trying to update local peer as alien, ignored (ChaosCellId: %v, PeerId: %v, AlienCluster: %v)",
                             cell->GetId(),
                             alienPeer.PeerId,
                             AlienClusterRegistry_->GetAlienClusterName(alienClusterIndex));

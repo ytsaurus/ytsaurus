@@ -1846,7 +1846,7 @@ private:
                 commit->GetPersistentState(),
                 NRpc::GetCurrentAuthenticationIdentity());
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Coordinator failure; ignored (TransactionId: %v, State: %v, %v)",
+            YT_LOG_ALERT(ex, "Coordinator failure; ignored (TransactionId: %v, State: %v, %v)",
                 transactionId,
                 commit->GetPersistentState(),
                 NRpc::GetCurrentAuthenticationIdentity());

@@ -187,7 +187,7 @@ public:
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
         if (RemovedCellIds_.erase(cellId) != 0 && !allowResurrection) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
+            YT_LOG_ALERT("Mailbox has been resurrected (SelfCellId: %v, CellId: %v)",
                 SelfCellId_,
                 cellId);
         }
@@ -265,7 +265,7 @@ public:
         }
 
         if (!RemovedCellIds_.insert(cellId).second) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
+            YT_LOG_ALERT("Mailbox is already removed (SrcCellId: %v, DstCellId: %v)",
                 SelfCellId_,
                 cellId);
         }
@@ -548,7 +548,7 @@ private:
 
         auto& outcomingMessages = mailbox->OutcomingMessages();
         if (acknowledgeCount > std::ssize(outcomingMessages)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT("Requested to acknowledge too many messages (SrcCellId: %v, DstCellId: %v, "
                 "NextPersistentIncomingMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -581,7 +581,7 @@ private:
         auto* mailbox = FindMailbox(srcCellId);
         if (!mailbox) {
             if (firstMessageId != 0) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received a non-initial message to a missing mailbox (SrcCellId: %v, MessageId: %v)",
+                YT_LOG_ALERT("Received a non-initial message to a missing mailbox (SrcCellId: %v, MessageId: %v)",
                     srcCellId,
                     firstMessageId);
                 return;
@@ -1395,7 +1395,7 @@ private:
     bool CheckRequestedMessageIdAgainstMailbox(TMailbox* mailbox, TMessageId requestedMessageId)
     {
         if (requestedMessageId < mailbox->GetFirstOutcomingMessageId()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT("Destination is out of sync: requested to receive already truncated messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -1406,7 +1406,7 @@ private:
         }
 
         if (requestedMessageId > mailbox->GetFirstOutcomingMessageId() + std::ssize(mailbox->OutcomingMessages())) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT("Destination is out of sync: requested to receive nonexisting messages (SrcCellId: %v, DstCellId: %v, "
                 "RequestedMessageId: %v, FirstOutcomingMessageId: %v, OutcomingMessageCount: %v)",
                 SelfCellId_,
                 mailbox->GetCellId(),
@@ -1475,7 +1475,7 @@ private:
     void ApplyReliableIncomingMessage(TMailbox* mailbox, TMessageId messageId, const TEncapsulatedMessage& message)
     {
         if (messageId != mailbox->GetNextPersistentIncomingMessageId()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
+            YT_LOG_ALERT("Attempt to apply an out-of-order message (SrcCellId: %v, DstCellId: %v, "
                 "ExpectedMessageId: %v, ActualMessageId: %v, MutationType: %v)",
                 mailbox->GetCellId(),
                 SelfCellId_,

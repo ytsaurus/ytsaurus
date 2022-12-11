@@ -709,7 +709,7 @@ private:
         }
 
         if (stage == EBackupStage::RespondedToMasterSuccess) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), error,
+            YT_LOG_ALERT(error,
                 "Attempted to abort tablet backup when it has already reported success "
                 "to master (%v)",
                 tablet->GetLoggingTag());

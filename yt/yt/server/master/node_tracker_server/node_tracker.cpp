@@ -1091,7 +1091,7 @@ private:
             try {
                 SyncExecuteVerb(rootService, req);
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Failed to create host for a node");
+                YT_LOG_ALERT(ex, "Failed to create host for a node");
 
                 const auto& objectManager = Bootstrap_->GetObjectManager();
                 objectManager->UnrefObject(node);

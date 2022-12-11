@@ -283,7 +283,7 @@ private:
             auto era = protoShortcut.era();
 
             if (auto it = Shortcuts_.find(replicationCardId)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Granting shortcut while shortcut already present (ChaosCellId: %v, ReplicationCardId: %v, OldEra: %v, OldState: %v)",
+                YT_LOG_ALERT("Granting shortcut while shortcut already present (ChaosCellId: %v, ReplicationCardId: %v, OldEra: %v, OldState: %v)",
                     chaosCellId,
                     replicationCardId,
                     it->second.Era,
@@ -321,7 +321,7 @@ private:
             auto era = protoShortcut.era();
 
             if (!Shortcuts_.contains(replicationCardId)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Revoking unknown shortcut (ChaosCellId: %v, ReplicationCardId: %v, Era: %v)",
+                YT_LOG_ALERT("Revoking unknown shortcut (ChaosCellId: %v, ReplicationCardId: %v, Era: %v)",
                     chaosCellId,
                     replicationCardId,
                     era);
@@ -331,7 +331,7 @@ private:
             auto& shortcut = Shortcuts_[replicationCardId];
 
             if (shortcut.Era != era) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Revoking shortcut with invalid era (ChaosCellId: %v, ReplicationCardId: %v, ShortcutEra: %v, RequestedEra: %v)",
+                YT_LOG_ALERT("Revoking shortcut with invalid era (ChaosCellId: %v, ReplicationCardId: %v, ShortcutEra: %v, RequestedEra: %v)",
                     chaosCellId,
                     replicationCardId,
                     shortcut.Era,

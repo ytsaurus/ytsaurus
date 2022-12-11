@@ -882,9 +882,7 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
     }
 
     if (chunkOwner->GetUpdatedSinceLastMerge()) {
-        YT_LOG_ALERT_IF(
-            IsMutationLoggingEnabled(),
-            "Node is marked as updated, but has no running merge sessions (NodeId: %v)",
+        YT_LOG_ALERT("Node is marked as updated, but has no running merge sessions (NodeId: %v)",
             chunkOwner->GetId());
         chunkOwner->SetUpdatedSinceLastMerge(false);
     }
@@ -1595,7 +1593,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         }
 
         if (!newChunk->IsConfirmed()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: new chunk is not confirmed (NodeId: %v, ChunkId: %v)",
+            YT_LOG_ALERT("Cannot replace chunks after merge: new chunk is not confirmed (NodeId: %v, ChunkId: %v)",
                 nodeId,
                 newChunkId);
             ++ChunkReplacementFailed_;
@@ -1618,9 +1616,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             if (IsLeader()) {
                 auto& session = GetOrCrash(RunningSessions_, nodeId);
                 if (session.TraversalInfo.ChunkCount < 0) {
-                    YT_LOG_ALERT_IF(
-                        IsMutationLoggingEnabled(),
-                        "Node traversed chunk count is negative (NodeId: %v, TraversalInfo: %v)",
+                    YT_LOG_ALERT("Node traversed chunk count is negative (NodeId: %v, TraversalInfo: %v)",
                         chunkOwner->GetId(),
                         session.TraversalInfo);
                     session.TraversalInfo.ChunkCount = 0;
@@ -1739,9 +1735,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
 
         auto* oldRootChunkList = chunkOwner->GetChunkList();
         if (oldRootChunkList->GetKind() != EChunkListKind::Static) {
-            YT_LOG_ALERT_IF(
-                IsMutationLoggingEnabled(),
-                "Merge session finalized with chunk list of unexpected kind, ignored "
+            YT_LOG_ALERT("Merge session finalized with chunk list of unexpected kind, ignored "
                 "(NodeId: %v, ChunkListId: %v, ChunkListKind: %v)",
                 nodeId,
                 oldRootChunkList->GetId(),

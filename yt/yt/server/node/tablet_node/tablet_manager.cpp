@@ -1116,7 +1116,7 @@ private:
 
         auto state = tablet->GetState();
         if (IsInUnmountWorkflow(state) || IsInFreezeWorkflow(state)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Requested to freeze a tablet in a wrong state, ignored (State: %v, %v)",
+            YT_LOG_ALERT("Requested to freeze a tablet in a wrong state, ignored (State: %v, %v)",
                 state,
                 tablet->GetLoggingTag());
             return;
@@ -2351,7 +2351,7 @@ private:
                 transaction->GetId(),
                 static_cast<NChaosClient::TReplicationProgress>(*progress));
         } else if (validateStrictAdvance) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Failed to advance tablet replication progress because current tablet progress is greater (TabletId: %v, TransactionId: %v, CurrentProgress: %v, NewProgress: %v)",
+            YT_LOG_ALERT("Failed to advance tablet replication progress because current tablet progress is greater (TabletId: %v, TransactionId: %v, CurrentProgress: %v, NewProgress: %v)",
                 tabletId,
                 transaction->GetId(),
                 static_cast<NChaosClient::TReplicationProgress>(*tabletProgress),
@@ -2549,7 +2549,7 @@ private:
         auto newCurrentReplicationTimestamp = request->new_replication_timestamp();
 
         if (newCurrentReplicationRowIndex < prevCurrentReplicationRowIndex) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "CurrentReplicationIndex went back (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+            YT_LOG_ALERT("CurrentReplicationIndex went back (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
                 "CurrentReplicationRowIndex: %v -> %v)",
                 tabletId,
                 replicaId,
@@ -2559,7 +2559,7 @@ private:
             newCurrentReplicationRowIndex = prevCurrentReplicationRowIndex;
         }
         if (newCurrentReplicationTimestamp < prevCurrentReplicationTimestamp) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "CurrentReplicationTimestamp went back (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
+            YT_LOG_ALERT("CurrentReplicationTimestamp went back (TabletId: %v, ReplicaId: %v, TransactionId: %v, "
                 "CurrentReplicationTimestamp: %v -> %v)",
                 tabletId,
                 replicaId,

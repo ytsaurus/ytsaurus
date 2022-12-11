@@ -1331,7 +1331,7 @@ private:
             }
 
             if (newChunk->GetChunkFormat() == EChunkFormat::FileDefault) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Reincarnated chunk has weird format (NewChunkId: %v, Format: %v)",
                     newChunk->GetId(),
                     newChunk->GetChunkFormat());

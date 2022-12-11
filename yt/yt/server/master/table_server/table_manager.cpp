@@ -380,13 +380,13 @@ public:
         YT_VERIFY(schema != EmptyMasterTableSchema_);
 
         if (!schema->ReferencingAccounts().empty()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table schema being destroyed is still referenced by some accounts (SchemaId: %v, AccountCount: %v)",
+            YT_LOG_ALERT("Table schema being destroyed is still referenced by some accounts (SchemaId: %v, AccountCount: %v)",
                 schema->GetId(),
                 schema->ReferencingAccounts().size());
         }
 
         if (!schema->ChargedMasterMemoryUsage().empty()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table schema being destroyed is still charged to some accounts (SchemaId: %v, AccountCount: %v)",
+            YT_LOG_ALERT("Table schema being destroyed is still charged to some accounts (SchemaId: %v, AccountCount: %v)",
                 schema->GetId(),
                 schema->ChargedMasterMemoryUsage().size());
         }
@@ -595,7 +595,7 @@ public:
         }
 
         if (!collocation->Tables().insert(table).second) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table %v is already present in collocation %v",
+            YT_LOG_ALERT("Table %v is already present in collocation %v",
                 table->GetId(),
                 collocation->GetId());
         }
@@ -635,7 +635,7 @@ public:
         }
 
         if (collocation->Tables().erase(table) != 1) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table %v is already missing from collocation %v",
+            YT_LOG_ALERT("Table %v is already missing from collocation %v",
                 table->GetId(),
                 collocation->GetId());
             return;
@@ -686,9 +686,7 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.insert(node).second) {
-            YT_LOG_ALERT_IF(
-                IsMutationLoggingEnabled(),
-                "Attempting to register a queue twice (Node: %v, Path: %Qv)",
+            YT_LOG_ALERT("Attempting to register a queue twice (Node: %v, Path: %Qv)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
@@ -700,9 +698,7 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!Queues_.erase(node)) {
-            YT_LOG_ALERT_IF(
-                IsMutationLoggingEnabled(),
-                "Attempting to unregister an unknown queue (Node: %v, Path: %Qv)",
+            YT_LOG_ALERT("Attempting to unregister an unknown queue (Node: %v, Path: %Qv)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
         }
@@ -721,8 +717,7 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!Consumers_.insert(node).second) {
-            YT_LOG_ALERT_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Attempting to register a consumer twice (Node: %v, Path: %Qv)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
@@ -735,8 +730,7 @@ public:
         YT_VERIFY(HasHydraContext());
 
         if (!Consumers_.erase(node)) {
-            YT_LOG_ALERT_IF(
-                IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Attempting to unregister an unknown consumer (Node: %v, Path: %Qv)",
                 node->GetId(),
                 Bootstrap_->GetCypressManager()->GetNodePath(node, /*transaction*/ nullptr));
@@ -951,7 +945,7 @@ private:
             YT_VERIFY(IsSupportedNodeType(node->GetType()));
 
             if (statistics.UpdateTabletResourceUsage && !IsTableType(node->GetType())) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Requested to send tablet resource usage update for a non-table node; ignored (NodeId: %v)",
+                YT_LOG_ALERT("Requested to send tablet resource usage update for a non-table node; ignored (NodeId: %v)",
                     nodeId);
                 continue;
             }
@@ -1044,7 +1038,7 @@ private:
                     auto tabletResourceUsage = FromProto<TTabletResources>(entry.tablet_resource_usage());
                     table->SetExternalTabletResourceUsage(tabletResourceUsage);
                 } else {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received tablet resource usage update for a non-table node (NodeId: %v)",
+                    YT_LOG_ALERT("Received tablet resource usage update for a non-table node (NodeId: %v)",
                         nodeId);
                 }
             }
@@ -1095,7 +1089,7 @@ private:
             if (actualContentRevision >= chunkOwner->GetNativeContentRevision()) {
                 chunkOwner->SetNativeContentRevision(actualContentRevision);
             } else {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %x, NodeRevision: %x)",
+                YT_LOG_ALERT("Received non-monotonic revision with content revision CAS failure notification; ignored (NodeId: %v, ReceivedRevision: %x, NodeRevision: %x)",
                     nodeId,
                     actualContentRevision,
                     chunkOwner->GetNativeContentRevision());

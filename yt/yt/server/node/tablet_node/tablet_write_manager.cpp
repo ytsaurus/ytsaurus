@@ -376,7 +376,7 @@ public:
         auto progress = Tablet_->RuntimeData()->ReplicationProgress.Load();
         auto maxTimestamp = GetReplicationProgressMaxTimestamp(*progress);
         if (maxTimestamp >= commitTimestamp) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Tablet replication progress is beyond current serialized transaction commit timestamp "
+            YT_LOG_ALERT("Tablet replication progress is beyond current serialized transaction commit timestamp "
                 "(TabletId: %v, TransactionId: %v, CommitTimestamp: %v, MaxReplicationProgressTimestamp: %v, ReplicatiomProgress: %v)",
                 Tablet_->GetId(),
                 transaction->GetId(),

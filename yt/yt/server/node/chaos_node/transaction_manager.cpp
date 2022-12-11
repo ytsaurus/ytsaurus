@@ -575,7 +575,7 @@ private:
         }
 
         if (ClockClusterTag_ != timestampClusterTag) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
+            YT_LOG_ALERT("Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
                 transactionId,
                 timestampClusterTag,
                 ClockClusterTag_);
