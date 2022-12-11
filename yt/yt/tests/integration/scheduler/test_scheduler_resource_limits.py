@@ -147,6 +147,8 @@ class TestMemoryReserveFactor(YTEnvSetup):
     DELTA_CONTROLLER_AGENT_CONFIG = {
         "controller_agent": {
             "user_job_memory_digest_precision": 0.05,
+            # To be sure that 20 jobs is enough to avoid outliers.
+            "user_job_memory_reserve_quantile": 0.85,
         }
     }
 
