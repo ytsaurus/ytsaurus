@@ -3247,7 +3247,7 @@ private:
                 !trunkNode->GetTouchTime() &&
                 trunkNode->IsNative()) // COMPAT(shakurov): remove this part.
             {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Touching a node with an expiration timeout but without a touch time (NodeId: %v)",
                     trunkNode->GetId());
                 auto* context = GetCurrentHydraContext();
@@ -3562,7 +3562,7 @@ private:
     void RemoveBranchedNodes(TTransaction* transaction)
     {
         if (transaction->BranchedNodes().size() != transaction->LockedNodes().size()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Transaction branched node count differs from its locked node count (TransactionId: %v, BranchedNodeCount: %v, LockedNodeCount: %v)",
+            YT_LOG_ALERT("Transaction branched node count differs from its locked node count (TransactionId: %v, BranchedNodeCount: %v, LockedNodeCount: %v)",
                 transaction->GetId(),
                 transaction->BranchedNodes().size(),
                 transaction->LockedNodes().size());
@@ -3767,7 +3767,7 @@ private:
             ? transactionManager->FindTransaction(clonedTransactionId)
             : nullptr;
         if (clonedTransactionId && !IsObjectAlive(clonedTransaction)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Cloned transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
+            YT_LOG_ALERT("Cloned transaction is not alive (SourceNodeId: %v, ClonedNodeId: %v, SourceTransactionId: %v, ClonedTransactionId: %v, Mode: %v)",
                 sourceNodeId,
                 clonedNodeId,
                 sourceTransactionId,
@@ -3877,7 +3877,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Lock transaction is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT("Lock transaction is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -3885,7 +3885,7 @@ private:
 
         auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
         if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Lock node is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT("Lock node is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -3907,7 +3907,7 @@ private:
             lockRequest,
             false);
         if (!error.IsOK()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), error, "Cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
+            YT_LOG_ALERT(error, "Cannot lock foreign node (NodeId: %v, TransactionId: %v, Mode: %v, Key: %v)",
                 nodeId,
                 transactionId,
                 lockRequest.Mode,
@@ -3933,7 +3933,7 @@ private:
         const auto& transactionManager = Bootstrap_->GetTransactionManager();
         auto* transaction = transactionManager->FindTransaction(transactionId);
         if (!IsObjectAlive(transaction)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unlock transaction is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT("Unlock transaction is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -3941,7 +3941,7 @@ private:
 
         auto* trunkNode = FindNode(TVersionedObjectId(nodeId));
         if (!IsObjectAlive(trunkNode)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unlock node is missing (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT("Unlock node is missing (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;
@@ -3949,7 +3949,7 @@ private:
 
         auto error = CheckUnlock(trunkNode, transaction, false, explicitOnly);
         if (!error.IsOK()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), error, "Cannot unlock foreign node (NodeId: %v, TransactionId: %v)",
+            YT_LOG_ALERT(error, "Cannot unlock foreign node (NodeId: %v, TransactionId: %v)",
                 nodeId,
                 transactionId);
             return;

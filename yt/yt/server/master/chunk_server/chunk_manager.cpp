@@ -1279,7 +1279,7 @@ public:
                 auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
                 auto* hunkChunk = FindChunk(hunkChunkId);
                 if (!IsObjectAlive(hunkChunk)) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk being destroyed references an unknown hunk chunk (ChunkId: %v, HunkChunkId: %v)",
+                    YT_LOG_ALERT("Chunk being destroyed references an unknown hunk chunk (ChunkId: %v, HunkChunkId: %v)",
                         chunk->GetId(),
                         hunkChunkId);
                     continue;
@@ -2616,7 +2616,7 @@ private:
         auto locationUuid = replica.GetChunkLocationUuid();
 
         if (locationUuid == InvalidChunkLocationUuid || locationUuid == EmptyChunkLocationUuid) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Real chunk locations are used but chunk confirmation request "
                 "does not have location UUID "
                 "(ChunkId: %v, NodeId: %v)",
@@ -3424,14 +3424,14 @@ private:
         for (auto chunkListId : chunkListIds) {
             auto* chunkList = FindChunkList(chunkListId);
             if (!chunkList) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ALERT("Chunk list is missing during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
 
             auto it = ChunkListsAwaitingRequisitionTraverse_.find(chunkList);
             if (it == ChunkListsAwaitingRequisitionTraverse_.end()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
+                YT_LOG_ALERT("Chunk list does not hold an additional strong ref during requisition traverse finish confirmation (ChunkListId: %v)",
                     chunkListId);
                 continue;
             }
@@ -4838,7 +4838,7 @@ private:
         if (node->UseImaginaryChunkLocations()) {
             auto* medium = FindMediumByIndex(chunkIdWithIndexes.MediumIndex);
             if (!IsObjectAlive(medium)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Cannot process chunk event with unknown medium "
                     "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, ChunkEventType: %v)",
                     node->GetId(),
@@ -4852,7 +4852,7 @@ private:
         }
 
         if (!locationUuid.has_value()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Real chunk locations are used but chunk event does not contain location UUID "
                 "(NodeId: %v, Address: %v, ChunkId: %v, ChunkEventType: %v)",
                 node->GetId(),
@@ -4865,7 +4865,7 @@ private:
         const auto& dataNodeTracker = Bootstrap_->GetDataNodeTracker();
         auto* location = dataNodeTracker->FindChunkLocationByUuid(*locationUuid);
         if (!IsObjectAlive(location)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Cannot process chunk event with unknown location "
                 "(NodeId: %v, Address: %v, ChunkId: %v, LocationUuid: %v, ChunkEventType: %v)",
                 node->GetId(),
@@ -4879,7 +4879,7 @@ private:
         int mediumIndex = location->GetEffectiveMediumIndex();
         auto* medium = FindMediumByIndex(mediumIndex);
         if (!IsObjectAlive(medium)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Cannot process chunk event with unknown medium "
                 "(NodeId: %v, Address: %v, ChunkId: %v, MediumIndex: %v, ChunkEventType: %v)",
                 node->GetId(),
@@ -5032,7 +5032,7 @@ private:
             return;
         }
         if (parentCount > 1) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Improper number of parents of a sealed chunk (ChunkId: %v, ParentCount: %v)",
+            YT_LOG_ALERT("Improper number of parents of a sealed chunk (ChunkId: %v, ParentCount: %v)",
                 chunk->GetId(),
                 parentCount);
             return;
@@ -5045,7 +5045,7 @@ private:
         // NB: Journal row count is not a sum of chunk row counts since chunks may overlap.
         if (chunk->IsJournal()) {
             if (!chunkList->Parents().empty()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Journal has a non-trivial chunk tree structure (ChunkId: %v, ChunkListId: %v, ParentCount: %v)",
+                YT_LOG_ALERT("Journal has a non-trivial chunk tree structure (ChunkId: %v, ChunkListId: %v, ParentCount: %v)",
                     chunk->GetId(),
                     chunkList->GetId(),
                     chunkList->Parents().size());
@@ -5069,7 +5069,7 @@ private:
 
             if (firstOverlayedRowIndex) {
                 if (*firstOverlayedRowIndex > oldJournalRowCount) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                    YT_LOG_ALERT(
                         "Chunk seal produced row gap in journal (ChunkId: %v, StartRowIndex: %v, FirstOverlayedRowIndex: %v)",
                         chunk->GetId(),
                         oldJournalRowCount,

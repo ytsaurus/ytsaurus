@@ -311,7 +311,7 @@ public:
         }
 
         if (!transaction->TablesWithBackupCheckpoints().contains(table)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Attempted to remove unknown backup checkpoint table from "
                 "a transaction (TableId: %v, TransactionId: %v)",
                 table->GetId(),
@@ -873,7 +873,7 @@ private:
             return;
         }
 
-        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+        YT_LOG_ALERT(
             "Table backup transaction was committed manually before cloning (TransactionId: %v)",
             transaction->GetId());
 

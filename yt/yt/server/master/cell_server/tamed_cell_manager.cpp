@@ -350,7 +350,7 @@ public:
                                 SyncExecuteVerb(cellNode, req);
                             }
                         } catch (const std::exception& ex) {
-                            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex,
+                            YT_LOG_ALERT(ex,
                                 "Caught exception while changing ACL (CellarType: %v, Bundle: %v, CellId: %v)",
                                 cellBundle->GetCellarType(),
                                 cellBundle->GetName(),
@@ -663,10 +663,7 @@ public:
                 // NB: Subtree transactions were already aborted above.
                 cellNodeProxy->GetParent()->RemoveChild(cellNodeProxy);
             } catch (const std::exception& ex) {
-                YT_LOG_ALERT_IF(
-                    IsMutationLoggingEnabled(),
-                    ex,
-                    "Error unregistering cell from Cypress (CellId: %v)",
+                YT_LOG_ALERT(ex, "Error unregistering cell from Cypress (CellId: %v)",
                     cellId);
             }
         }
@@ -1587,7 +1584,7 @@ private:
 
             auto cellarType = FromProto<ECellarType>(cellarRequest.type());
             if (!seenCellarTypes.insert(cellarType).second) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Duplicate cellar type in heartbeat, skipped (CellarType: %v)",
+                YT_LOG_ALERT("Duplicate cellar type in heartbeat, skipped (CellarType: %v)",
                     cellarType);
                 continue;
             }

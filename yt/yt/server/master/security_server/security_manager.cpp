@@ -1023,7 +1023,7 @@ public:
                 account->DetailedMasterMemoryUsage() += delta;
             });
         if (account->DetailedMasterMemoryUsage().IsNegative()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Master memory usage is negative (Account: %v, MasterMemoryUsage: %v)",
+            YT_LOG_ALERT("Master memory usage is negative (Account: %v, MasterMemoryUsage: %v)",
                 account->GetName(),
                 account->DetailedMasterMemoryUsage());
         }

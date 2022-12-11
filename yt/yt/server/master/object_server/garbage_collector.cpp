@@ -354,7 +354,7 @@ void TGarbageCollector::UnregisterRemovalAwaitingCellsSyncObject(TObject* object
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Removal awaiting cells sync object unregistered (ObjectId: %v)",
             object->GetId());
     } else {
-        YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to unregister an unknown removal awaiting cells sync object (ObjectId: %v)",
+        YT_LOG_ALERT("Attempt to unregister an unknown removal awaiting cells sync object (ObjectId: %v)",
             object->GetId());
     }
 }

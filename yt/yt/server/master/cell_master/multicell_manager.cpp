@@ -697,7 +697,7 @@ private:
 
         auto cellTag = request->cell_tag();
         if (!IsValidSecondaryCellTag(cellTag)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Received registration request from an unknown secondary cell, ignored (CellTag: %v)",
+            YT_LOG_ALERT("Received registration request from an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
         }
@@ -774,13 +774,13 @@ private:
 
         auto cellTag = request->cell_tag();
         if (!IsValidSecondaryCellTag(cellTag)) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Receieved registration request for an unknown secondary cell, ignored (CellTag: %v)",
+            YT_LOG_ALERT("Receieved registration request for an unknown secondary cell, ignored (CellTag: %v)",
                 cellTag);
             return;
         }
 
         if (FindMasterEntry(cellTag))  {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempted to re-register secondary master, ignored (CellTag: %v)",
+            YT_LOG_ALERT("Attempted to re-register secondary master, ignored (CellTag: %v)",
                 cellTag);
             return;
         }

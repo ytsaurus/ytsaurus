@@ -369,7 +369,7 @@ public:
 
         // XXX(savrus): this is a workaround for YTINCIDENTS-42
         if (auto* cell = tablet->GetCell()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Destroying tablet with non-null tablet cell (TabletId: %v, CellId: %v)",
+            YT_LOG_ALERT("Destroying tablet with non-null tablet cell (TabletId: %v, CellId: %v)",
                 tablet->GetId(),
                 cell->GetId());
 
@@ -379,13 +379,13 @@ public:
             }
 
             if (cell->Tablets().erase(tablet) > 0) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unbinding tablet from tablet cell since tablet is destroyed (TabletId: %v, CellId: %v)",
+                YT_LOG_ALERT("Unbinding tablet from tablet cell since tablet is destroyed (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     cell->GetId());
             }
 
             if (tablet->GetState() == ETabletState::Mounted) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Sending force unmount request to node since tablet is destroyed (TabletId: %v, CellId: %v)",
+                YT_LOG_ALERT("Sending force unmount request to node since tablet is destroyed (TabletId: %v, CellId: %v)",
                     tablet->GetId(),
                     cell->GetId());
 
@@ -411,7 +411,7 @@ public:
         if (tablet->GetType() == EObjectType::Tablet) {
             auto dynamicStoreCount = tablet->As<TTablet>()->DynamicStores().size();
             if (dynamicStoreCount > 0) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Tablet has dynamic stores upon destruction "
                     "(TabletId: %v, StoreCount: %v)",
                     tablet->GetId(),
@@ -1176,7 +1176,7 @@ public:
         DoRemount(table, firstTabletIndex, lastTabletIndex);
 
         if (resourceUsageBefore != table->GetTabletResourceUsage()) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Tablet resource usage changed during table remount "
                 "(TableId: %v, UsageBefore: %v, UsageAfter: %v)",
                 table->GetId(),
@@ -1971,7 +1971,7 @@ public:
                     YT_ABORT();
             }
         } catch (const std::exception& ex) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Error cloning table (TableId: %v, %v)",
+            YT_LOG_ALERT(ex, "Error cloning table (TableId: %v, %v)",
                 sourceTable->GetId(),
                 NRpc::GetCurrentAuthenticationIdentity());
         }
@@ -2082,7 +2082,7 @@ public:
                         if (tablet->BackedUpReplicaInfos().contains(replica->GetId())) {
                             replicaInfo = &GetOrCrash(tablet->BackedUpReplicaInfos(), replica->GetId());
                         } else {
-                            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                            YT_LOG_ALERT(
                                 "Tablet does not contain replica info during backup (TabletId: %v, "
                                 "TableId: %v, ReplicaId: %v)",
                                 tablet->GetId(),
@@ -2619,7 +2619,7 @@ public:
         YT_VERIFY(tablet->GetState() == ETabletState::Unmounted);
 
         if (!maxClipTimestamp) {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+            YT_LOG_ALERT(
                 "Attempted to clip backup table by null timestamp (TableId: %v, TabletId: %v)",
                 tablet->GetTable()->GetId(),
                 tablet->GetId());
@@ -3497,7 +3497,7 @@ private:
                         }
                         for (auto* tablet : oldTablets) {
                             if (tablet->GetExpectedState() != expectedState) {
-                                YT_LOG_ALERT_IF(IsMutationLoggingEnabled() && (tablet->GetExpectedState() != expectedState),
+                                YT_LOG_ALERT_IF(tablet->GetExpectedState() != expectedState,
                                     "Unexpected tablet expected state, try fixing with unmount plus mount "
                                     "(TableId: %v, TabletId: %v, ActionId: %v, ActionExpected: %v, TabletExpected: %v)",
                                     tablet->As<TTablet>()->GetTable()->GetId(),
@@ -4500,7 +4500,7 @@ private:
                 << TErrorAttribute("cutoff_child_index", cutoffChildIndex);
             auto error = TError("Cannot backup ordered tablet due to an internal error")
                 << innerError;
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), error, "Failed to perform backup cutoff");
+            YT_LOG_ALERT(error, "Failed to perform backup cutoff");
             return error;
         };
 
@@ -5057,7 +5057,7 @@ private:
                             upperPivot < readRange.UpperLimit().GetLegacyKey())
                         {
                             if (!chunkView->GetTransactionId()) {
-                                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Chunk view without transaction id is not fully inside its tablet "
+                                YT_LOG_ALERT("Chunk view without transaction id is not fully inside its tablet "
                                     "(ChunkViewId: %v, UnderlyingTreeId: %v, "
                                     "EffectiveLowerLimit: %v, EffectiveUpperLimit: %v, "
                                     "PivotKey: %v, NextPivotKey: %v)",
@@ -5197,7 +5197,7 @@ private:
                 try {
                     mergedChunkViews = MergeChunkViewRanges(newTabletChildrenToBeMerged[relativeIndex], lowerPivot, upperPivot);
                 } catch (const std::exception& ex) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), ex, "Failed to merge chunk view ranges");
+                    YT_LOG_ALERT(ex, "Failed to merge chunk view ranges");
                 }
 
                 auto* newTabletChunkList = newTabletChunkLists[EChunkListContentType::Main][relativeIndex]->AsChunkList();
@@ -5319,7 +5319,7 @@ private:
             auto hunkChunkId = FromProto<TChunkId>(protoRef.chunk_id());
             auto* hunkChunk = chunkManager->FindChunk(hunkChunkId);
             if (!IsObjectAlive(hunkChunk)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Store references a non-existing hunk chunk (StoreId: %v, HunkChunkId: %v)",
+                YT_LOG_ALERT("Store references a non-existing hunk chunk (StoreId: %v, HunkChunkId: %v)",
                     storeChunk->GetId(),
                     hunkChunkId);
                 continue;
@@ -6022,7 +6022,7 @@ private:
                 // - TRspFreezeTablet finally arrives while the tablet is in mounting state
                 // However, forced unmount should be done for this to happen, and only superusers
                 // have the permission for it.
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                YT_LOG_ALERT("Mounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                     state,
                     tabletId);
             }
@@ -6105,7 +6105,7 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Freezing) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                YT_LOG_ALERT("Frozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                     state,
                     tabletId);
             }
@@ -6141,7 +6141,7 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Unfreezing) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                YT_LOG_ALERT("Unfrozen notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                     state,
                     tabletId);
             }
@@ -6383,7 +6383,7 @@ private:
         auto state = tablet->GetState();
         if (state != ETabletState::Unmounting) {
             if (!tablet->GetWasForcefullyUnmounted()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
+                YT_LOG_ALERT("Unmounted notification received for a tablet in %Qlv state, ignored (TabletId: %v)",
                     state,
                     tablet->GetId());
             }
@@ -6461,7 +6461,7 @@ private:
                     YT_LOG_WARNING_IF(IsMutationLoggingEnabled(), message);
                     tablet->SetTrimmedRowCount(chunkListStatistics.LogicalRowCount);
                 } else {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), message);
+                    YT_LOG_ALERT(message);
                 }
             }
         }
@@ -6470,7 +6470,7 @@ private:
             auto* replica = it->first;
             auto& replicaInfo = it->second;
             if (replica->TransitioningTablets().erase(tablet) == 1) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
+                YT_LOG_ALERT("Table replica is still transitioning (TableId: %v, TabletId: %v, ReplicaId: %v, State: %v)",
                     tablet->GetTable()->GetId(),
                     tablet->GetId(),
                     replica->GetId(),
@@ -6635,7 +6635,7 @@ public:
             newRootChunkList->AddOwningNode(table);
             oldRootChunkList->RemoveOwningNode(table);
             if (!checkStatisticsMatch(newRootChunkList->Statistics(), statistics)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Invalid new root chunk list statistics "
                     "(TableId: %v, ContentType: %v, NewRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
@@ -6666,7 +6666,7 @@ public:
             }
 
             if (!checkStatisticsMatch(oldRootChunkList->Statistics(), statistics)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Invalid old root chunk list statistics "
                     "(TableId: %v, ContentType: %v, OldRootChunkListStatistics: %v, Statistics: %v)",
                     table->GetId(),
@@ -7175,11 +7175,11 @@ private:
 
         auto validateChunkAttach = [&] (TChunk* chunk) {
             if (!IsObjectAlive(chunk)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to attach a zombie chunk (ChunkId: %v)",
+                YT_LOG_ALERT("Attempt to attach a zombie chunk (ChunkId: %v)",
                     chunk->GetId());
             }
             if (chunk->HasParents()) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to attach a chunk that already has a parent (ChunkId: %v)",
+                YT_LOG_ALERT("Attempt to attach a chunk that already has a parent (ChunkId: %v)",
                     chunk->GetId());
             }
         };
@@ -7199,7 +7199,7 @@ private:
                 chunksToAttach.push_back(chunk);
             } else if (IsDynamicTabletStoreType(type)) {
                 if (IsDynamicStoreReadEnabled(table)) {
-                    YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Attempt to attach dynamic store to a table "
+                    YT_LOG_ALERT("Attempt to attach dynamic store to a table "
                         "with readable dynamic stores (TableId: %v, TabletId: %v, StoreId: %v, Reason: %v)",
                         table->GetId(),
                         tablet->GetId(),
@@ -7315,7 +7315,7 @@ private:
 
             // +2 is due to that the accounting is not very precise at the node part.
             if (allDynamicStores.size() > NTabletNode::DynamicStoreCountLimit + 2) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Too many dynamic stores in ordered tablet chunk list "
+                YT_LOG_ALERT("Too many dynamic stores in ordered tablet chunk list "
                     "(TableId: %v, TabletId: %v, ChunkListId: %v, DynamicStoreCount: %v, "
                     "Limit: %v)",
                     table->GetId(),
@@ -7424,7 +7424,7 @@ private:
             auto chunkId = FromProto<NChunkClient::TSessionId>(storeToAdd.session_id()).ChunkId;
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Requested to attach dead chunk to hunk tablet; ignored "
                     "(ChunkId: %v, HunkStorageId: %v, TableId: %v)",
                     chunk->GetId(),
@@ -7444,7 +7444,7 @@ private:
             auto chunkId = FromProto<TChunkId>(storeToRemove.store_id());
             auto* chunk = chunkManager->FindChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Requested to detach dead chunk from hunk tablet; ignored "
                     "(ChunkId: %v, TabletId: %v, HunkStorageId: %v)",
                     chunk->GetId(),
@@ -7463,7 +7463,7 @@ private:
             auto chunkId = FromProto<TChunkId>(chunkToMarkSealable.store_id());
             auto* chunk = chunkManager->GetChunk(chunkId);
             if (!IsObjectAlive(chunk)) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     "Requested to mark dead chunk as sealable; ignored "
                     "(ChunkId: %v, TabletId: %v, HunkStorageId: %v)",
                     chunk->GetId(),

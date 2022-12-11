@@ -1163,7 +1163,7 @@ private:
             TypeFromId(transaction->GetId()) == EObjectType::Transaction &&
             transaction->AuthenticationIdentity() == GetRootAuthenticationIdentity())
         {
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Allow transaction in decommissioned state to proceed "
+            YT_LOG_ALERT("Allow transaction in decommissioned state to proceed "
                 "(TransactionId: %v, AuthenticationIdentity: %v)",
                 transaction->GetId(),
                 transaction->AuthenticationIdentity());
@@ -1195,7 +1195,7 @@ private:
                     << TErrorAttribute("clock_cluster_tag", ClockClusterTag_);
             }
 
-            YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
+            YT_LOG_ALERT("Transaction timestamp is generated from unexpected clock (TransactionId: %v, TransactionClusterTag: %v, ClockClusterTag: %v)",
                 transactionId,
                 timestampClusterTag,
                 ClockClusterTag_);

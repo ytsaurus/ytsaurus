@@ -86,7 +86,7 @@ public:
             auto& statistics = *cellarInfo.mutable_statistics();
 
             if (!seenCellarTypes.insert(cellarType).second) {
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(), "Duplicate cellar type in heartbeat (CellarType: %v)",
+                YT_LOG_ALERT("Duplicate cellar type in heartbeat (CellarType: %v)",
                     cellarType);
                 continue;
             }

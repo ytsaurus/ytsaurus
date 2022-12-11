@@ -635,7 +635,7 @@ private:
             } catch (const TErrorException& ex) {
                 // This situation is not that bad since both body and tail chunks will stay alive
                 // and still can be (unreliably) sealed to prevent data loss.
-                YT_LOG_ALERT_IF(IsMutationLoggingEnabled(),
+                YT_LOG_ALERT(
                     ex,
                     "Failed to seal chunk (ChunkId: %v)",
                     chunk->GetId());
