@@ -348,7 +348,7 @@ void DoSerializeClusterResources(
     auto totalDiskSpace = i64(0);
     auto addMediumIndex = [&] (int mediumIndex, i64 mediumDiskSpace) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!IsObjectAlive(medium) || medium->GetCache()) {
+        if (!IsObjectAlive(medium)) {
             return;
         }
 

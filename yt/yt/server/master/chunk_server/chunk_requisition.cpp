@@ -236,16 +236,6 @@ void ValidateChunkReplication(
             "configuring otherwise would result in a data loss");
     }
 
-    for (auto entry : replication) {
-        auto* medium = chunkManager->FindMediumByIndex(entry.GetMediumIndex());
-        YT_VERIFY(IsObjectAlive(medium));
-
-        if (entry.Policy() && medium->GetCache()) {
-            THROW_ERROR_EXCEPTION("Cache medium %Qv cannot be configured explicitly",
-                medium->GetName());
-        }
-    }
-
     if (primaryMediumIndex) {
         const auto* primaryMedium = chunkManager->GetMediumByIndex(*primaryMediumIndex);
         const auto& policy = replication.Get(*primaryMediumIndex);
@@ -423,10 +413,8 @@ TPhysicalReplication TChunkRequisition::ToPhysicalReplication() const
     TPhysicalReplication physicalReplication;
 
     for (const auto& entry : Entries_) {
-        if (entry.MediumIndex != DefaultCacheMediumIndex) {
-            ++physicalReplication.MediumCount;
-            physicalReplication.ReplicaCount += entry.ReplicationPolicy.GetReplicationFactor();
-        }
+        ++physicalReplication.MediumCount;
+        physicalReplication.ReplicaCount += entry.ReplicationPolicy.GetReplicationFactor();
     }
 
     return physicalReplication;

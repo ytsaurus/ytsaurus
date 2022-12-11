@@ -212,13 +212,6 @@ public:
     //! Returns the medium name.
     TString GetMediumName() const;
 
-    //! Sets medium name and reconfigures medium descriptors using given medium directory.
-    //! Returns |true| if location medium was changed.
-    bool UpdateMediumName(
-        const TString& newMediumName,
-        const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
-        bool onInitialize);
-
     //! Sets medium descriptor.
     //! #onInitialize indicates whether this method called before any data node heartbeat or on heartbeat response.
     void UpdateMediumDescriptor(
@@ -410,7 +403,6 @@ private:
     TChunkLocationUuid Uuid_;
 
     TAtomicObject<TError> LocationDisabledAlert_;
-    TAtomicObject<TError> MediumAlert_;
 
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TDynamicTagPtr MediumTag_;

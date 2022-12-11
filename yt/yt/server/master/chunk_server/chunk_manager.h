@@ -347,7 +347,6 @@ private:
     virtual TMedium* CreateMedium(
         const TString& name,
         std::optional<bool> transient,
-        std::optional<bool> cache,
         std::optional<int> priority,
         NObjectClient::TObjectId hintId) = 0;
     virtual void DestroyMedium(TMedium* medium) = 0;

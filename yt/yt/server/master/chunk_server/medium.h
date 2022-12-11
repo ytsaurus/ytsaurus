@@ -1,8 +1,10 @@
 #pragma once
 
 #include "public.h"
+#include "config.h"
 
 #include <yt/yt/server/master/object_server/object.h>
+
 #include <yt/yt/server/master/security_server/acl.h>
 
 #include <yt/yt/core/misc/property.h>
@@ -19,12 +21,11 @@ class TMedium
 {
 public:
     DEFINE_BYVAL_RW_PROPERTY(TString, Name);
-    DEFINE_BYVAL_RW_PROPERTY(int, Index);
+    DEFINE_BYVAL_RW_PROPERTY(int, Index, -1);
     DEFINE_BYVAL_RW_PROPERTY(int, Priority, MediumDefaultPriority);
     DEFINE_BYVAL_RW_PROPERTY(bool, Transient, false);
-    DEFINE_BYVAL_RW_PROPERTY(bool, Cache, false);
     // TODO(savrus): Switch to BYVAL when generic property getter will return reference.
-    DEFINE_BYREF_RW_PROPERTY(TMediumConfigPtr, Config);
+    DEFINE_BYREF_RW_PROPERTY(TMediumConfigPtr, Config, New<TMediumConfig>());
 
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, Acd);
 

@@ -44,7 +44,6 @@ using NYT::FromProto;
 
 static const auto& Logger = ChunkServerLogger;
 
-const TChunk::TCachedReplicas TChunk::EmptyCachedReplicas;
 const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -257,79 +256,57 @@ bool TChunk::HasParents() const
     return !Parents_.empty();
 }
 
-void TChunk::AddReplica(TChunkLocationPtrWithReplicaInfo replica, const TMedium* medium, bool approved)
+void TChunk::AddReplica(
+    TChunkLocationPtrWithReplicaInfo replica,
+    const TMedium* medium,
+    bool approved)
 {
     auto* data = MutableReplicasData();
-    if (medium->GetCache()) {
-        YT_VERIFY(!IsJournal());
-        auto* data = MutableReplicasData();
-        auto& cachedReplicas = data->GetOrCreateCachedReplicas();
-        InsertOrCrash(cachedReplicas, replica);
-    } else {
-        if (IsJournal()) {
-            for (auto& existingReplica : data->MutableStoredReplicas()) {
-                if (existingReplica.ToGenericState() == replica.ToGenericState()) {
-                    existingReplica = replica;
-                    return;
-                }
-            }
-        }
-
-        if (approved) {
-            ++data->ApprovedReplicaCount;
-        }
-
-        data->AddStoredReplica(replica);
-        if (!medium->GetTransient()) {
-            auto lastSeenReplicas = data->MutableLastSeenReplicas();
-            auto nodeId = GetChunkLocationNodeId(replica);
-            if (IsErasure()) {
-                lastSeenReplicas[replica.GetReplicaIndex()] = nodeId;
-            } else {
-                lastSeenReplicas[data->CurrentLastSeenReplicaIndex] = nodeId;
-                data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % lastSeenReplicas.size();
-            }
-        }
-    }
-}
-
-void TChunk::RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, const TMedium* medium, bool approved)
-{
-    auto* data = MutableReplicasData();
-    if (medium->GetCache()) {
-        auto* cachedReplicas = data->FindCachedReplicas();
-        if (!cachedReplicas) {
-            return;
-        }
-        YT_VERIFY(cachedReplicas->erase(TChunkLocationPtrWithReplicaInfo(replica)) == 1);
-        if (cachedReplicas->empty()) {
-            data->CachedReplicas.reset();
-        } else {
-            ShrinkHashTable(*cachedReplicas);
-        }
-    } else {
-        if (approved) {
-            --data->ApprovedReplicaCount;
-            YT_ASSERT(data->ApprovedReplicaCount >= 0);
-        }
-
-        auto storedReplicas = data->GetStoredReplicas();
-        for (int replicaIndex = 0; replicaIndex < std::ssize(storedReplicas); ++replicaIndex) {
-            auto existingReplica = storedReplicas[replicaIndex];
-            if (existingReplica.GetPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
-                data->RemoveStoredReplica(replicaIndex);
+    if (IsJournal()) {
+        for (auto& existingReplica : data->MutableStoredReplicas()) {
+            if (existingReplica.ToGenericState() == replica.ToGenericState()) {
+                existingReplica = replica;
                 return;
             }
         }
-        YT_ABORT();
+    }
+
+    if (approved) {
+        ++data->ApprovedReplicaCount;
+    }
+
+    data->AddStoredReplica(replica);
+    if (!medium->GetTransient()) {
+        auto lastSeenReplicas = data->MutableLastSeenReplicas();
+        auto nodeId = GetChunkLocationNodeId(replica);
+        if (IsErasure()) {
+            lastSeenReplicas[replica.GetReplicaIndex()] = nodeId;
+        } else {
+            lastSeenReplicas[data->CurrentLastSeenReplicaIndex] = nodeId;
+            data->CurrentLastSeenReplicaIndex = (data->CurrentLastSeenReplicaIndex + 1) % lastSeenReplicas.size();
+        }
     }
 }
 
-TChunkLocationPtrWithReplicaInfoList TChunk::GetReplicas() const
+void TChunk::RemoveReplica(
+    TChunkLocationPtrWithReplicaIndex replica,
+    bool approved)
 {
-    // TODO(shakurov): get rid of GetReplicas() in particular and of CachedReplicas_ in general.
-    auto storedReplicas = StoredReplicas();
-    return {storedReplicas.Begin(), storedReplicas.End()};
+    auto* data = MutableReplicasData();
+    if (approved) {
+        --data->ApprovedReplicaCount;
+        YT_ASSERT(data->ApprovedReplicaCount >= 0);
+    }
+
+    auto storedReplicas = data->GetStoredReplicas();
+    for (int replicaIndex = 0; replicaIndex < std::ssize(storedReplicas); ++replicaIndex) {
+        auto existingReplica = storedReplicas[replicaIndex];
+        if (existingReplica.GetPtr() == replica.GetPtr() && existingReplica.GetReplicaIndex() == replica.GetReplicaIndex()) {
+            data->RemoveStoredReplica(replicaIndex);
+            return;
+        }
+    }
+    YT_ABORT();
 }
 
 void TChunk::ApproveReplica(TChunkLocationPtrWithReplicaInfo replica)
@@ -715,21 +692,6 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunk::TCachedReplicas& TChunk::TReplicasDataBase::GetOrCreateCachedReplicas()
-{
-    if (!CachedReplicas) {
-        CachedReplicas = std::make_unique<TCachedReplicasVariant>(std::in_place_type_t<TCachedReplicas>{});
-    }
-    return GetOrCrash<TCachedReplicas>(*CachedReplicas);
-}
-
-TChunk::TCachedReplicas* TChunk::TReplicasDataBase::FindCachedReplicas()
-{
-    return CachedReplicas ? &GetOrCrash<TCachedReplicas>(*CachedReplicas) : nullptr;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
 void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Initialize()
 {
@@ -785,23 +747,19 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Loa
         auto& storedReplicas = StoredReplicas.template emplace<TCompatStoredReplicas>();
         Load(context, storedReplicas);
 
-        auto cachedReplicas = Load<std::unique_ptr<TCompatCachedReplicas>>(context);
-        if (cachedReplicas) {
-            CachedReplicas = std::make_unique<TCachedReplicasVariant>();
-            *CachedReplicas = std::move(*cachedReplicas);
-        }
+        // Cached replicas are simply dropped.
+        Load<std::unique_ptr<THashSet<TCompatPtrWithIndexes<TNode>>>>(context);
     } else {
         auto& storedReplicas = StoredReplicas.template emplace<TStoredReplicas>();
         Load(context, storedReplicas);
 
-        // COMPAT(kvk1920)
-        auto cachedReplicasPresented = Load<bool>(context);
-        if (cachedReplicasPresented) {
-            CachedReplicas = std::make_unique<TCachedReplicasVariant>(
-                std::in_place_type_t<TCachedReplicas>{});
-
-            auto& cachedReplicas = GetOrCrash<TCachedReplicas>(*CachedReplicas);
-            Load(context, cachedReplicas);
+        // COMPAT(kvk1920, gritukan)
+        if (context.GetVersion() < EMasterReign::RemoveCacheMedium) {
+            auto cachedReplicasPresented = Load<bool>(context);
+            if (cachedReplicasPresented) {
+                // Cached replicas are simply dropped.
+                Load<THashSet<TChunkLocationPtrWithReplicaInfo>>(context);
+            }
         }
     }
 
@@ -832,28 +790,6 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Tra
             });
         StoredReplicas = std::move(storedReplicas);
     }
-
-    if (CachedReplicas) {
-        auto& compatCachedReplicas = GetOrCrash<TCompatCachedReplicas>(*CachedReplicas);
-        auto cachedReplicasHolder = std::make_unique<TCachedReplicasVariant>(
-            std::in_place_type_t<TCachedReplicas>{});
-        auto& cachedReplicas = GetOrCrash<TCachedReplicas>(*cachedReplicasHolder);
-        cachedReplicas.reserve(compatCachedReplicas.size());
-        std::transform(
-            compatCachedReplicas.begin(),
-            compatCachedReplicas.end(),
-            std::inserter(cachedReplicas, cachedReplicas.end()),
-            [] (const auto& compatReplica) {
-                auto* node = compatReplica.GetPtr();
-                auto mediumIndex = compatReplica.GetMediumIndex();
-                auto location = node->GetOrCreateImaginaryChunkLocation(mediumIndex);
-                return TChunkLocationPtrWithReplicaInfo(
-                    location,
-                    compatReplica.GetReplicaIndex(),
-                    compatReplica.GetState());
-            });
-        CachedReplicas = std::move(cachedReplicasHolder);
-    }
 }
 
 template <size_t TypicalStoredReplicaCount, size_t LastSeenReplicaCount>
@@ -865,11 +801,6 @@ void TChunk::TReplicasData<TypicalStoredReplicaCount, LastSeenReplicaCount>::Sav
     // deterministic (i.e. when unregistering a node we traverse certain hashtables).
     // COMPAT(kvk1920)
     TVectorSerializer<TDefaultSerializer, TSortedTag>::Save(context, GetOrCrash<TStoredReplicas>(StoredReplicas));
-    // COMPAT(kvk1920): After removal TCompatCachedReplicas just save std::unique_ptr<TCachedReplicas> here.
-    Save(context, CachedReplicas.operator bool());
-    if (CachedReplicas) {
-        Save(context, GetOrCrash<TCachedReplicas>(*CachedReplicas));
-    }
     Save(context, LastSeenReplicas);
     Save(context, CurrentLastSeenReplicaIndex);
     Save(context, ApprovedReplicaCount);

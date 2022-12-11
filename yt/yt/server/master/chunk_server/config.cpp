@@ -429,9 +429,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_chunks_per_fetch", &TThis::MaxChunksPerFetch)
         .GreaterThan(0)
         .Default(1000000);
-    registrar.Parameter("max_cached_replicas_per_fetch", &TThis::MaxCachedReplicasPerFetch)
-        .GreaterThanOrEqual(0)
-        .Default(20);
 
     registrar.Parameter("job_timeout", &TThis::JobTimeout)
         .Default(TDuration::Minutes(5));

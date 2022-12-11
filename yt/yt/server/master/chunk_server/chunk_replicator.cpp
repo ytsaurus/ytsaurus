@@ -604,10 +604,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeErasureChunkStatisti
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         YT_VERIFY(IsObjectAlive(medium));
 
-        if (medium->GetCache()) {
-            continue;
-        }
-
         auto mediumTransient = medium->GetTransient();
 
         auto replicationPolicy = entry.Policy();
@@ -675,10 +671,6 @@ TMediumMap<TNodeList> TChunkReplicator::GetChunkConsistentPlacementNodes(const T
         auto mediumIndex = entry.GetMediumIndex();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         YT_VERIFY(IsObjectAlive(medium));
-
-        if (medium->GetCache()) {
-            continue;
-        }
 
         auto it = result.emplace(
             mediumIndex,
@@ -813,10 +805,6 @@ void TChunkReplicator::ComputeErasureChunkStatisticsCrossMedia(
     } else {
         for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
             auto* medium = mediumIdAndPtrPair.second;
-            if (medium->GetCache()) {
-                continue;
-            }
-
             transientMedia.set(medium->GetIndex(), medium->GetTransient());
         }
     }
@@ -1027,10 +1015,6 @@ TChunkReplicator::TChunkStatistics TChunkReplicator::ComputeRegularChunkStatisti
         auto mediumIndex = entry.GetMediumIndex();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         YT_VERIFY(IsObjectAlive(medium));
-
-        if (medium->GetCache()) {
-            continue;
-        }
 
         auto& mediumStatistics = results.PerMediumStatistics[mediumIndex];
         auto mediumTransient = medium->GetTransient();
@@ -1787,10 +1771,6 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
     if (GetActiveShardCount() == GetShardCount()) {
         for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
             auto* medium = mediumIdAndPtrPair.second;
-            if (medium->GetCache()) {
-                continue;
-            }
-
             auto mediumIndex = medium->GetIndex();
             auto sourceFillFactor = node->GetFillFactor(mediumIndex);
             if (!sourceFillFactor) {
@@ -2071,12 +2051,6 @@ void TChunkReplicator::RefreshChunk(TChunk* chunk)
         auto mediumIndex = entry.GetMediumIndex();
         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
         YT_VERIFY(IsObjectAlive(medium));
-
-        // For now, chunk cache-as-medium support is rudimentary, and replicator
-        // ignores chunk cache to preserve original behavior.
-        if (medium->GetCache()) {
-            continue;
-        }
 
         auto& statistics = allMediaStatistics.PerMediumStatistics[mediumIndex];
         if (statistics.Status == EChunkStatus::None) {
@@ -2419,7 +2393,7 @@ void TChunkReplicator::ScheduleNodeRefresh(TNode* node)
 
     for (auto* location : node->ChunkLocations()) {
         const auto* medium = chunkManager->FindMediumByIndex(location->GetEffectiveMediumIndex());
-        if (medium == nullptr || medium->GetCache()) {
+        if (!medium) {
             continue;
         }
 

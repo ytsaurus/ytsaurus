@@ -23,8 +23,8 @@ class TestMedia(YTEnvSetup):
     NUM_MASTERS = 1
     NUM_NODES = 10
 
-    NON_DEFAULT_MEDIUM = "hdd2"
-    NON_DEFAULT_TRANSIENT_MEDIUM = "hdd3"
+    NON_DEFAULT_MEDIUM = "hdd1"
+    NON_DEFAULT_TRANSIENT_MEDIUM = "hdd2"
 
     @classmethod
     def setup_class(cls):
@@ -145,14 +145,6 @@ class TestMedia(YTEnvSetup):
     def test_default_store_medium_index(self):
         assert get("//sys/media/default/@index") == 0
 
-    @authors()
-    def test_default_cache_medium_name(self):
-        assert get("//sys/media/cache/@name") == "cache"
-
-    @authors()
-    def test_default_cache_medium_index(self):
-        assert get("//sys/media/cache/@index") == 1
-
     @authors("shakurov")
     def test_create(self):
         assert get("//sys/media/hdd4/@name") == "hdd4"
@@ -183,8 +175,6 @@ class TestMedia(YTEnvSetup):
     def test_rename_default_fails(self):
         with pytest.raises(YtError):
             set("//sys/media/default/@name", "new_default")
-        with pytest.raises(YtError):
-            set("//sys/media/cache/@name", "new_cache")
 
     @authors()
     def test_create_empty_name_fails(self):
@@ -355,11 +345,6 @@ class TestMedia(YTEnvSetup):
                 chunk_media_2 == get("#" + chunk_id + "/@media")
                 and chunk_vital_2 == get("#" + chunk_id + "/@vital"))
 
-    @authors("babenko")
-    def test_no_create_cache_media(self):
-        with pytest.raises(YtError):
-            create_medium("new_cache", attributes={"cache": True})
-
     @authors("shakurov")
     def test_chunks_intersecting_by_nodes(self):
         create("table", "//tmp/t8")
@@ -388,7 +373,6 @@ class TestMedia(YTEnvSetup):
     @authors("shakurov")
     def test_default_media_priorities(self):
         assert get("//sys/media/default/@priority") == 0
-        assert get("//sys/media/cache/@priority") == 0
 
     @authors("shakurov")
     def test_new_medium_default_priority(self):

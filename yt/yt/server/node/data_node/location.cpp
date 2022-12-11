@@ -1134,8 +1134,6 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
 
     auto oldDescriptor = MediumDescriptor_.Exchange(newDescriptor);
 
-    MediumAlert_.Store(TError());
-
     if (newDescriptor == oldDescriptor) {
         return;
     }
@@ -1154,31 +1152,9 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
         newDescriptor.Priority);
 }
 
-bool TChunkLocation::UpdateMediumName(
-    const TString& newMediumName,
-    const TMediumDirectoryPtr& mediumDirectory,
-    bool onInitialize)
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    const auto* newDescriptor = mediumDirectory->FindByName(newMediumName);
-
-    if (!newDescriptor) {
-        auto error = TError("Location %Qv refers to unknown medium %Qv",
-            GetId(),
-            newMediumName);
-        YT_LOG_WARNING(error);
-        MediumAlert_.Store(std::move(error));
-        return false;
-    }
-
-    UpdateMediumDescriptor(*newDescriptor, onInitialize);
-    return true;
-}
-
 void TChunkLocation::PopulateAlerts(std::vector<TError>* alerts)
 {
-    for (const auto* alertHolder : {&LocationDisabledAlert_, &MediumAlert_}) {
+    for (const auto* alertHolder : {&LocationDisabledAlert_}) {
         if (auto alert = alertHolder->Load(); !alert.IsOK()) {
             alerts->push_back(std::move(alert));
         }

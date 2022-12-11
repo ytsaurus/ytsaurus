@@ -12,15 +12,6 @@ namespace NYT::NChunkServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-inline const TChunk::TCachedReplicas& TChunk::CachedReplicas() const
-{
-    if (auto* data = ReplicasData().CachedReplicas.get()) {
-        return GetOrCrash<TCachedReplicas>(*data);
-    }
-
-    return EmptyCachedReplicas;
-}
-
 inline TRange<TChunkLocationPtrWithReplicaInfo> TChunk::StoredReplicas() const
 {
     const auto& data = ReplicasData();

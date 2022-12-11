@@ -91,6 +91,7 @@ DEFINE_ENUM(EMasterReign,
     ((HydraDynamicConfig)                                           (2212))  // aleksandra-zh
     ((RecomputeAccountRefCounters)                                  (2213))  // gritukan
     ((SharedLockIsEnoughForMountConfig)                             (2214))  // ifsmirnov
+    ((RemoveCacheMedium)                                            (2215))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

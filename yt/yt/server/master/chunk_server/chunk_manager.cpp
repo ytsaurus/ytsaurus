@@ -197,7 +197,7 @@ class TChunkTreeBalancerCallbacks
     : public IChunkTreeBalancerCallbacks
 {
 public:
-    explicit TChunkTreeBalancerCallbacks(NCellMaster::TBootstrap* bootstrap)
+    explicit TChunkTreeBalancerCallbacks(TBootstrap* bootstrap)
         : Bootstrap_(bootstrap)
     { }
 
@@ -264,7 +264,7 @@ public:
     }
 
 private:
-    NCellMaster::TBootstrap* const Bootstrap_;
+    TBootstrap* const Bootstrap_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -410,7 +410,6 @@ public:
 
         auto primaryCellTag = Bootstrap_->GetMulticellManager()->GetPrimaryCellTag();
         DefaultStoreMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xffffffffffffffff);
-        DefaultCacheMediumId_ = MakeWellKnownId(EObjectType::Medium, primaryCellTag, 0xfffffffffffffffe);
 
         JobController_->RegisterJobController(EJobType::ReplicateChunk, ChunkReplicator_);
         JobController_->RegisterJobController(EJobType::RemoveChunk, ChunkReplicator_);
@@ -881,15 +880,6 @@ public:
                 continue;
             }
 
-            int mediumIndex = location->GetEffectiveMediumIndex();
-            const auto* medium = GetMediumByIndexOrThrow(mediumIndex);
-            if (medium->GetCache()) {
-                YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tried to confirm chunk at a cache medium (ChunkId: %v, Medium: %v)",
-                    id,
-                    medium->GetName());
-                continue;
-            }
-
             if (!node->ReportedDataNodeHeartbeat()) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Tried to confirm chunk at node that did not report data node heartbeat yet "
                     "(ChunkId: %v, Address: %v, State: %v)",
@@ -905,7 +895,11 @@ public:
                     chunk,
                     replica.GetReplicaIndex(),
                     chunk->IsJournal() ? EChunkReplicaState::Active : EChunkReplicaState::Generic);
+
+                int mediumIndex = location->GetEffectiveMediumIndex();
+                const auto* medium = GetMediumByIndexOrThrow(mediumIndex);
                 AddChunkReplica(location, medium, replicaWithState, EAddReplicaReason::Confirmation);
+
                 location->AddUnapprovedReplica(chunkWithReplicaIndex, mutationTimestamp);
             }
         }
@@ -1323,29 +1317,18 @@ public:
 
         // Unregister chunk replicas from all known locations.
         // Schedule removal jobs.
-        auto unregisterReplica = [&] (TChunkLocationPtrWithReplicaInfo locationWithInfo, bool cached) {
-            auto* location = locationWithInfo.GetPtr();
-            auto replicaIndex = locationWithInfo.GetReplicaIndex();
+        for (auto storedReplica : chunk->StoredReplicas()) {
+            auto* location = storedReplica.GetPtr();
+            auto replicaIndex = storedReplica.GetReplicaIndex();
             TChunkPtrWithReplicaIndex replica(chunk, replicaIndex);
             if (!location->RemoveReplica(replica)) {
-                return;
-            }
-            if (cached) {
-                return;
+                continue;
             }
 
             TChunkIdWithIndex chunkIdWithIndexes(chunk->GetId(), replicaIndex);
             if (location->AddDestroyedReplica(chunkIdWithIndexes)) {
                 ++DestroyedReplicaCount_;
             }
-        };
-
-        for (auto replica : chunk->StoredReplicas()) {
-            unregisterReplica(replica, false);
-        }
-
-        for (auto replica : chunk->CachedReplicas()) {
-            unregisterReplica(replica, true);
         }
 
         chunk->UnrefUsedRequisitions(
@@ -1782,8 +1765,7 @@ public:
         TouchChunk(chunk);
 
         TNodePtrWithReplicaIndexList result;
-        auto replicas = chunk->GetReplicas();
-        for (auto replica : replicas) {
+        for (auto replica : chunk->StoredReplicas()) {
             if (replicaIndex != GenericChunkReplicaIndex && replica.GetReplicaIndex() != replicaIndex) {
                 continue;
             }
@@ -2209,7 +2191,6 @@ public:
     TMedium* CreateMedium(
         const TString& name,
         std::optional<bool> transient,
-        std::optional<bool> cache,
         std::optional<int> priority,
         TObjectId hintId) override
     {
@@ -2235,7 +2216,6 @@ public:
             mediumIndex,
             name,
             transient,
-            cache,
             priority);
     }
 
@@ -2598,9 +2578,6 @@ private:
     TMediumId DefaultStoreMediumId_;
     TMedium* DefaultStoreMedium_ = nullptr;
 
-    TMediumId DefaultCacheMediumId_;
-    TMedium* DefaultCacheMedium_ = nullptr;
-
     TChunkRequisitionRegistry ChunkRequisitionRegistry_;
 
     // Each requisition update scheduled for a chunk list should eventually be
@@ -2847,22 +2824,17 @@ private:
     void OnNodeDisposed(TNode* node)
     {
         for (auto* location : node->ChunkLocations()) {
-            const auto* medium = FindMediumByIndex(location->GetEffectiveMediumIndex());
-            if (!medium) {
-                continue;
-            }
             for (auto replica : location->Replicas()) {
                 TChunkPtrWithReplicaIndex replicaWithoutState(replica);
                 bool approved = !location->HasUnapprovedReplica(replicaWithoutState);
                 RemoveChunkReplica(
-                    medium,
                     location,
                     replicaWithoutState,
                     ERemoveReplicaReason::NodeDisposed,
                     approved);
 
                 auto* chunk = replica.GetPtr();
-                if (!medium->GetCache() && chunk->IsBlob()) {
+                if (chunk->IsBlob()) {
                     ScheduleEndorsement(chunk);
                 }
             }
@@ -3125,7 +3097,7 @@ private:
 
         for (auto replica : chunk->StoredReplicas()) {
             auto* medium = FindMediumByIndex(replica.GetPtr()->GetEffectiveMediumIndex());
-            if (!medium || medium->GetCache()) {
+            if (!medium) {
                 continue;
             }
 
@@ -3254,11 +3226,7 @@ private:
                     reason = ERemoveReplicaReason::ApproveTimeout;
                 }
                 if (reason != ERemoveReplicaReason::None) {
-                    // This also removes replica from unapproved set.
-                    auto mediumIndex = location->GetEffectiveMediumIndex();
-                    const auto* medium = GetMediumByIndex(mediumIndex);
                     RemoveChunkReplica(
-                        medium,
                         location,
                         replica,
                         reason,
@@ -3333,10 +3301,6 @@ private:
 
         for (auto [_, medium] : Media()) {
             if (!IsObjectAlive(medium)) {
-                continue;
-            }
-
-            if (medium->GetCache()) {
                 continue;
             }
 
@@ -4129,7 +4093,9 @@ private:
         DynamicStoreMap_.SaveKeys(context);
     }
 
-    void SaveHistogramValues(NCellMaster::TSaveContext& context, const THistogramSnapshot& snapshot) const
+    void SaveHistogramValues(
+        NCellMaster::TSaveContext& context,
+        const THistogramSnapshot& snapshot) const
     {
         Save(context, snapshot.Bounds);
         Save(context, snapshot.Values);
@@ -4164,7 +4130,9 @@ private:
         DynamicStoreMap_.LoadKeys(context);
     }
 
-    void LoadHistogramValues(NCellMaster::TLoadContext& context, TGaugeHistogram& histogram)
+    void LoadHistogramValues(
+        NCellMaster::TLoadContext& context,
+        TGaugeHistogram& histogram)
     {
         THistogramSnapshot snapshot;
         Load(context, snapshot.Bounds);
@@ -4238,18 +4206,14 @@ private:
                 UpdateChunkWeightStatisticsHistogram(chunk, /*add*/ true);
             }
 
-            auto addReplicas = [&, chunk = chunk] (const auto& replicas) {
-                for (auto replica : replicas) {
-                    TChunkPtrWithReplicaInfo chunkWithIndexes(
-                        chunk,
-                        replica.GetReplicaIndex(),
-                        replica.GetReplicaState());
-                    replica.GetPtr()->AddReplica(chunkWithIndexes);
-                    ++TotalReplicaCount_;
-                }
-            };
-            addReplicas(chunk->StoredReplicas());
-            addReplicas(chunk->CachedReplicas());
+            for (auto replica : chunk->StoredReplicas()) {
+                TChunkPtrWithReplicaInfo chunkWithIndexes(
+                    chunk,
+                    replica.GetReplicaIndex(),
+                    replica.GetReplicaState());
+                replica.GetPtr()->AddReplica(chunkWithIndexes);
+                ++TotalReplicaCount_;
+            }
 
             if (chunk->IsForeign()) {
                 YT_VERIFY(ForeignChunks_.insert(chunk).second);
@@ -4358,7 +4322,6 @@ private:
         ChunkDataWeightHistogram_.Reset();
 
         DefaultStoreMedium_ = nullptr;
-        DefaultCacheMedium_ = nullptr;
 
         ExpirationTracker_->Clear();
 
@@ -4392,24 +4355,9 @@ private:
             DefaultStoreMedium_,
             DefaultStoreMediumId_,
             DefaultStoreMediumIndex,
-            DefaultStoreMediumName,
-            false))
+            DefaultStoreMediumName))
         {
             DefaultStoreMedium_->Acd().AddEntry(TAccessControlEntry(
-                ESecurityAction::Allow,
-                securityManager->GetUsersGroup(),
-                EPermission::Use));
-        }
-
-        // cache
-        if (EnsureBuiltinMediumInitialized(
-            DefaultCacheMedium_,
-            DefaultCacheMediumId_,
-            DefaultCacheMediumIndex,
-            DefaultCacheMediumName,
-            true))
-        {
-            DefaultCacheMedium_->Acd().AddEntry(TAccessControlEntry(
                 ESecurityAction::Allow,
                 securityManager->GetUsersGroup(),
                 EPermission::Use));
@@ -4420,8 +4368,7 @@ private:
         TMedium*& medium,
         TMediumId id,
         int mediumIndex,
-        const TString& name,
-        bool cache)
+        const TString& name)
     {
         if (medium) {
             return false;
@@ -4430,7 +4377,12 @@ private:
         if (medium) {
             return false;
         }
-        medium = DoCreateMedium(id, mediumIndex, name, false, cache, std::nullopt);
+        medium = DoCreateMedium(
+            id,
+            mediumIndex,
+            name,
+            /*transient*/ false,
+            /*priority*/ std::nullopt);
         return true;
     }
 
@@ -4747,7 +4699,6 @@ private:
         EAddReplicaReason reason)
     {
         auto* chunk = replica.GetPtr();
-        bool cached = medium->GetCache();
         auto* node = chunkLocation->GetNode();
         auto nodeId = node->GetId();
 
@@ -4783,10 +4734,8 @@ private:
             ScheduleChunkExpiration(chunk);
         }
 
-        if (!cached) {
-            ScheduleChunkRefresh(chunk);
-            ScheduleChunkSeal(chunk);
-        }
+        ScheduleChunkRefresh(chunk);
+        ScheduleChunkSeal(chunk);
     }
 
     void ApproveChunkReplica(
@@ -4812,11 +4761,7 @@ private:
         ScheduleChunkSeal(chunk);
     }
 
-    // TODO(kvk1920): Use location's medium instead of passing it into function.
-    // Right now location does not contain pointer to medium. So ,edium pointer
-    // is passed as parameter to avoid unnecessary lookup by medium index.
     void RemoveChunkReplica(
-        const TMedium* medium,
         TChunkLocation* chunkLocation,
         TChunkPtrWithReplicaIndex replica,
         ERemoveReplicaReason reason,
@@ -4826,23 +4771,20 @@ private:
         YT_VERIFY(chunk);
         auto* node = chunkLocation->GetNode();
         auto nodeId = node->GetId();
-        bool cached = medium->GetCache();
         TChunkLocationPtrWithReplicaIndex locationWithIndex(chunkLocation, replica.GetReplicaIndex());
 
         if (reason == ERemoveReplicaReason::IncrementalHeartbeat && !chunkLocation->HasReplica(replica)) {
             return;
         }
 
-        chunk->RemoveReplica(locationWithIndex, medium, approved);
+        chunk->RemoveReplica(locationWithIndex, approved);
 
         switch (reason) {
             case ERemoveReplicaReason::IncrementalHeartbeat:
             case ERemoveReplicaReason::ApproveTimeout:
             case ERemoveReplicaReason::ChunkDestroyed:
                 chunkLocation->RemoveReplica(replica);
-                if (!cached) {
-                    ChunkReplicator_->OnReplicaRemoved(chunkLocation, replica, reason);
-                }
+                ChunkReplicator_->OnReplicaRemoved(chunkLocation, replica, reason);
                 break;
             case ERemoveReplicaReason::NodeDisposed:
                 // Do nothing.
@@ -4864,9 +4806,7 @@ private:
                 node->GetDefaultAddress());
         }
 
-        if (!cached) {
-            ScheduleChunkRefresh(chunk);
-        }
+        ScheduleChunkRefresh(chunk);
 
         ++ChunkReplicasRemoved_;
     }
@@ -4975,20 +4915,12 @@ private:
             return nullptr;
         }
 
-        bool cached = medium->GetCache();
-
         const auto* counters = incremental
             ? &GetIncrementalHeartbeatCounters(node)
             : nullptr;
 
         auto* chunk = FindChunk(chunkIdWithIndexes.Id);
         if (!IsObjectAlive(chunk)) {
-            if (cached) {
-                // Nodes may still contain cached replicas of chunks that no longer exist.
-                // We just silently ignore this case.
-                return nullptr;
-            }
-
             if (incremental) {
                 counters->AddedDestroyedReplicas.Increment();
             }
@@ -5010,7 +4942,7 @@ private:
         TChunkPtrWithReplicaInfo chunkWithIndexes(chunk, chunkIdWithIndexes.ReplicaIndex, state);
         TChunkLocationPtrWithReplicaInfo locationWithIndexes(location, chunkIdWithIndexes.ReplicaIndex, state);
 
-        if (!cached && location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk, chunkIdWithIndexes.ReplicaIndex))) {
+        if (location->HasUnapprovedReplica(TChunkPtrWithReplicaIndex(chunk, chunkIdWithIndexes.ReplicaIndex))) {
             if (incremental) {
                 counters->ApprovedReplicas.Increment();
             }
@@ -5071,7 +5003,6 @@ private:
         YT_VERIFY(replica.GetPtr());
         bool approved = !location->HasUnapprovedReplica(replica);
         RemoveChunkReplica(
-            medium,
             location,
             replica,
             ERemoveReplicaReason::IncrementalHeartbeat,
@@ -5261,7 +5192,6 @@ private:
         int mediumIndex,
         const TString& name,
         std::optional<bool> transient,
-        std::optional<bool> cache,
         std::optional<int> priority)
     {
         auto mediumHolder = TPoolAllocator::New<TMedium>(id);
@@ -5269,9 +5199,6 @@ private:
         mediumHolder->SetIndex(mediumIndex);
         if (transient) {
             mediumHolder->SetTransient(*transient);
-        }
-        if (cache) {
-            mediumHolder->SetCache(*cache);
         }
         if (priority) {
             ValidateMediumPriority(*priority);

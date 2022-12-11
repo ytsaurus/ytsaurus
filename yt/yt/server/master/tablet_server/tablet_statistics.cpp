@@ -358,9 +358,6 @@ TSerializableTabletCellStatisticsBase::TSerializableTabletCellStatisticsBase(
     DiskSpace_ = 0;
     for (const auto& [mediumIndex, mediumDiskSpace] : DiskSpacePerMedium) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (medium->GetCache()) {
-            continue;
-        }
         YT_VERIFY(DiskSpacePerMediumMap_.emplace(medium->GetName(), mediumDiskSpace).second);
         DiskSpace_ += mediumDiskSpace;
     }

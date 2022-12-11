@@ -155,9 +155,6 @@ void BuildChunkSpec(
     TBootstrap* bootstrap,
     NChunkClient::NProto::TChunkSpec* chunkSpec)
 {
-    const auto& configManager = bootstrap->GetConfigManager();
-    const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
-
     if (rowIndex) {
         chunkSpec->set_table_row_index(*rowIndex);
     }
@@ -171,10 +168,8 @@ void BuildChunkSpec(
         ? std::numeric_limits<int>::max() // all replicas are feasible
         : NErasure::GetCodec(erasureCodecId)->GetDataPartCount();
 
-    auto maxCachedReplicasPerFetch = dynamicConfig->MaxCachedReplicasPerFetch;
-
     TNodePtrWithReplicaIndexList replicas;
-    replicas.reserve(chunk->StoredReplicas().size() + std::min<int>(maxCachedReplicasPerFetch, chunk->CachedReplicas().size()));
+    replicas.reserve(chunk->StoredReplicas().size());
 
     auto addReplica = [&] (TChunkLocationPtrWithReplicaInfo replica)  {
         if (replica.GetReplicaIndex() >= firstInfeasibleReplicaIndex) {
@@ -187,16 +182,6 @@ void BuildChunkSpec(
 
     for (auto replica : chunk->StoredReplicas()) {
         addReplica(replica);
-    }
-
-    int cachedReplicaCount = 0;
-    for (auto replica : chunk->CachedReplicas()) {
-        if (cachedReplicaCount >= maxCachedReplicasPerFetch) {
-            break;
-        }
-        if (addReplica(replica)) {
-            ++cachedReplicaCount;
-        }
     }
 
     ToProto(chunkSpec->mutable_replicas(), replicas);

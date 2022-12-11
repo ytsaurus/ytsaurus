@@ -43,7 +43,6 @@ using NChunkClient::TypicalReplicaCount;
 using NChunkClient::MaxMediumCount;
 using NChunkClient::MediumIndexBound;
 using NChunkClient::DefaultStoreMediumIndex;
-using NChunkClient::DefaultCacheMediumIndex;
 using NChunkClient::MaxMediumPriority;
 using NChunkClient::TDataCenterName;
 using NChunkClient::TChunkLocationUuid;

@@ -11,8 +11,6 @@ using namespace NCellMaster;
 
 TMedium::TMedium(TMediumId id)
     : TObject(id)
-    , Index_(-1)
-    , Config_(New<TMediumConfig>())
     , Acd_(this)
 { }
 
@@ -35,7 +33,6 @@ void TMedium::Save(NCellMaster::TSaveContext& context) const
     Save(context, Index_);
     Save(context, Priority_);
     Save(context, Transient_);
-    Save(context, Cache_);
     Save(context, *Config_);
     Save(context, Acd_);
     Save(context, DiskFamilyWhitelist_);
@@ -50,7 +47,12 @@ void TMedium::Load(NCellMaster::TLoadContext& context)
     Load(context, Index_);
     Load(context, Priority_);
     Load(context, Transient_);
-    Load(context, Cache_);
+
+    // COMPAT(gritukan)
+    if (context.GetVersion() < EMasterReign::RemoveCacheMedium) {
+        Load<bool>(context);
+    }
+
     Load(context, *Config_);
     Load(context, Acd_);
 
