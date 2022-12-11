@@ -1086,7 +1086,6 @@ void TNode::Reset(const INodeTrackerPtr& nodeTracker)
     // (in order to unref chunks being pulled for other nodes).
 
     ChunkSealQueue_.clear();
-    FillFactorIterators_.clear();
     LoadFactorIterators_.clear();
     DisableWriteSessionsSentToNode_ = false;
     DisableWriteSessionsReportedByNode_ = false;
@@ -1154,16 +1153,6 @@ std::optional<double> TNode::GetLoadFactor(int mediumIndex, int chunkHostMasterC
             static_cast<double>(GetHintedSessionCount(mediumIndex, chunkHostMasterCellCount)) /
             std::max(IOWeights_.lookup(mediumIndex), 0.000000001))
         : std::nullopt;
-}
-
-TNode::TFillFactorIterator TNode::GetFillFactorIterator(int mediumIndex) const
-{
-    return FillFactorIterators_.lookup(mediumIndex);
-}
-
-void TNode::SetFillFactorIterator(int mediumIndex, TFillFactorIterator iter)
-{
-    FillFactorIterators_[mediumIndex] = iter;
 }
 
 TNode::TLoadFactorIterator TNode::GetLoadFactorIterator(int mediumIndex) const

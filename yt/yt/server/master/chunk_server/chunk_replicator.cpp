@@ -1414,60 +1414,6 @@ bool TChunkReplicator::TryScheduleReplicationJob(
     return std::ssize(targetNodes) == replicasNeeded;
 }
 
-bool TChunkReplicator::TryScheduleBalancingJob(
-    IJobSchedulingContext* context,
-    TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
-    double maxFillFactor)
-{
-    auto* sourceNode = context->GetNode();
-    auto* chunk = chunkWithIndexes.GetPtr();
-
-    if (chunk->GetScanFlag(EChunkScanKind::Refresh)) {
-        return true;
-    }
-
-    if (chunk->HasJobs()) {
-        return true;
-    }
-
-    auto replicaIndex = chunkWithIndexes.GetReplicaIndex();
-    auto mediumIndex = chunkWithIndexes.GetMediumIndex();
-
-    const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
-
-    auto* targetNode = ChunkPlacement_->AllocateBalancingTarget(
-        medium,
-        chunk,
-        maxFillFactor);
-    if (!targetNode) {
-        return false;
-    }
-
-    TNodePtrWithReplicaAndMediumIndexList targetReplicas{
-        TNodePtrWithReplicaAndMediumIndex(targetNode, replicaIndex, mediumIndex)
-    };
-
-    auto job = New<TReplicationJob>(
-        context->GenerateJobId(),
-        GetJobEpoch(chunk),
-        sourceNode,
-        chunkWithIndexes,
-        targetReplicas,
-        InvalidNodeId);
-    context->ScheduleJob(job);
-
-    YT_LOG_DEBUG("Balancing job scheduled "
-        "(JobId: %v, JobEpoch: %v, Address: %v, ChunkId: %v, TargetAddress: %v)",
-        job->GetJobId(),
-        job->GetJobEpoch(),
-        sourceNode->GetDefaultAddress(),
-        chunkWithIndexes,
-        targetNode->GetDefaultAddress());
-
-    return true;
-}
-
 bool TChunkReplicator::TryScheduleRemovalJob(
     IJobSchedulingContext* context,
     const TChunkIdWithIndexes& chunkIdWithIndexes,
@@ -1761,47 +1707,6 @@ void TChunkReplicator::ScheduleReplicationJobs(IJobSchedulingContext* context)
 
             if (mediumIndexSet.none()) {
                 queue.erase(jt);
-            }
-        }
-    }
-
-    // Schedule balancing jobs.
-    // TODO(gritukan): YT-17358, balancing jobs are probably not needed and are hard to
-    // implement with sharded replicator.
-    if (GetActiveShardCount() == GetShardCount()) {
-        for (const auto& mediumIdAndPtrPair : Bootstrap_->GetChunkManager()->Media()) {
-            auto* medium = mediumIdAndPtrPair.second;
-            auto mediumIndex = medium->GetIndex();
-            auto sourceFillFactor = node->GetFillFactor(mediumIndex);
-            if (!sourceFillFactor) {
-                continue; // No storage of this medium on this node.
-            }
-
-            double targetFillFactor = *sourceFillFactor - GetDynamicConfig()->MinChunkBalancingFillFactorDiff;
-            if (hasSpareReplicationResources() &&
-                *sourceFillFactor > GetDynamicConfig()->MinChunkBalancingFillFactor &&
-                ChunkPlacement_->HasBalancingTargets(
-                    medium,
-                    targetFillFactor))
-            {
-                int maxJobs = std::max(0, resourceLimits.replication_slots() - resourceUsage.replication_slots());
-                auto chunksToBalance = ChunkPlacement_->GetBalancingChunks(medium, node, maxJobs);
-                for (auto chunkWithReplicaInfo : chunksToBalance) {
-                    if (!hasSpareReplicationResources()) {
-                        break;
-                    }
-
-                    if (!TryScheduleBalancingJob(
-                        context,
-                        TChunkPtrWithReplicaAndMediumIndex(
-                            chunkWithReplicaInfo.GetPtr(),
-                            chunkWithReplicaInfo.GetReplicaIndex(),
-                            medium->GetIndex()),
-                        targetFillFactor))
-                    {
-                        ++misscheduledReplicationJobs;
-                    }
-                }
             }
         }
     }

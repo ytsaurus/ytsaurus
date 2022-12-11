@@ -369,13 +369,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_running_replication_jobs_per_target_node", &TThis::MaxRunningReplicationJobsPerTargetNode)
         .Default(128);
 
-    registrar.Parameter("min_chunk_balancing_fill_factor_diff", &TThis::MinChunkBalancingFillFactorDiff)
-        .InRange(0.0, 1.0)
-        .Default(0.2);
-    registrar.Parameter("min_chunk_balancing_fill_factor", &TThis::MinChunkBalancingFillFactor)
-        .InRange(0.0, 1.0)
-        .Default(0.1);
-
     registrar.Parameter("enable_chunk_refresh", &TThis::EnableChunkRefresh)
         .Default(true);
     registrar.Parameter("chunk_refresh_delay", &TThis::ChunkRefreshDelay)
@@ -442,10 +435,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("safe_lost_chunk_count", &TThis::SafeLostChunkCount)
         .GreaterThan(0)
         .Default(1000);
-
-    registrar.Parameter("max_replication_write_sessions", &TThis::MaxReplicationWriteSessions)
-        .GreaterThanOrEqual(1)
-        .Default(128);
 
     registrar.Parameter("repair_job_memory_usage", &TThis::RepairJobMemoryUsage)
         .Default(256_MB)
