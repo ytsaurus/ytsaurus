@@ -24,7 +24,9 @@ class TMediumTypeHandler
 {
 public:
     explicit TMediumTypeHandler(TBootstrap* bootstrap)
-        : TObjectTypeHandlerWithMapBase(bootstrap, &bootstrap->GetChunkManager()->MutableMedia())
+        : TObjectTypeHandlerWithMapBase(
+            bootstrap,
+            &bootstrap->GetChunkManager()->MutableMedia())
     { }
 
     ETypeFlags GetFlags() const override
@@ -49,13 +51,9 @@ public:
         // These three are optional.
         auto priority = attributes->FindAndRemove<int>("priority");
         auto transient = attributes->FindAndRemove<bool>("transient");
-        auto cache = attributes->FindAndRemove<bool>("cache");
-        if (cache && *cache) {
-            THROW_ERROR_EXCEPTION("Cannot create a new cache medium");
-        }
 
         const auto& chunkManager = Bootstrap_->GetChunkManager();
-        return chunkManager->CreateMedium(name, transient, cache, priority, hintId);
+        return chunkManager->CreateMedium(name, transient, priority, hintId);
     }
 
 private:

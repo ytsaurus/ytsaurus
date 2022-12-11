@@ -293,7 +293,7 @@ private:
                         [&] (TFluentMap fluent, NChunkClient::TMediumMap<TDiskSpaceStatistics>::const_iterator it) {
                             auto mediumIndex = it->first;
                             const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                            if (!medium || medium->GetCache()) {
+                            if (!medium) {
                                 return;
                             }
                             fluent

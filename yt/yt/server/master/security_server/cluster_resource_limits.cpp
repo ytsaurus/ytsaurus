@@ -397,7 +397,7 @@ void SerializeClusterResourceLimits(
             [&] (TFluentMap fluent, auto pair) {
                 auto [mediumIndex, mediumDiskSpace] = pair;
                 const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                if (!IsObjectAlive(medium) || medium->GetCache()) {
+                if (!IsObjectAlive(medium)) {
                     return;
                 }
                 fluent.Item(medium->GetName()).Value(mediumDiskSpace);
@@ -411,7 +411,7 @@ void SerializeClusterResourceLimits(
                     [&] (i64 totalDiskSpace, auto pair) {
                         auto [mediumIndex, mediumDiskSpace] = pair;
                         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (!IsObjectAlive(medium) || medium->GetCache()) {
+                        if (!IsObjectAlive(medium)) {
                             return totalDiskSpace;
                         }
                         return totalDiskSpace + mediumDiskSpace;
@@ -478,7 +478,7 @@ void SerializeViolatedClusterResourceLimits(
             [&] (TFluentMap fluent, auto pair) {
                 auto [mediumIndex, mediumDiskSpace] = pair;
                 const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                if (!IsObjectAlive(medium) || medium->GetCache()) {
+                if (!IsObjectAlive(medium)) {
                     return;
                 }
                 fluent.Item(medium->GetName()).Value(mediumDiskSpace);
@@ -521,7 +521,7 @@ void SerializeViolatedClusterResourceLimitsInCompactFormat(
     bool diskSpaceLimitViolated = false;
     for (auto [mediumIndex, mediumDiskSpace] : violatedResourceLimits.DiskSpace()) {
         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!IsObjectAlive(medium) || medium->GetCache() || mediumDiskSpace == 0) {
+        if (!IsObjectAlive(medium) || mediumDiskSpace == 0) {
             continue;
         }
         diskSpaceLimitViolated = true;
@@ -535,7 +535,7 @@ void SerializeViolatedClusterResourceLimitsInCompactFormat(
                 [&] (TFluentMap fluent, auto pair) {
                     auto [mediumIndex, mediumDiskSpace] = pair;
                     const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                    if (!IsObjectAlive(medium) || medium->GetCache() || mediumDiskSpace == 0) {
+                    if (!IsObjectAlive(medium) || mediumDiskSpace == 0) {
                         return;
                     }
                     fluent.Item(medium->GetName()).Value(mediumDiskSpace);
@@ -579,10 +579,9 @@ void SerializeViolatedClusterResourceLimitsInBooleanFormat(
             [&] (TFluentMap fluent, auto pair) {
                 auto [mediumIndex, mediumDiskSpace] = pair;
                 const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                if (!IsObjectAlive(medium) || medium->GetCache()) {
-                    return;
+                if (IsObjectAlive(medium)) {
+                    fluent.Item(medium->GetName()).Value(mediumDiskSpace != 0);
                 }
-                fluent.Item(medium->GetName()).Value(mediumDiskSpace != 0);
             })
         .DoIf(serializeDiskSpace, [&] (TFluentMap fluent) {
             fluent
@@ -592,7 +591,7 @@ void SerializeViolatedClusterResourceLimitsInBooleanFormat(
                     [&] (auto pair) {
                         auto [mediumIndex, mediumDiskSpace] = pair;
                         const auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (!IsObjectAlive(medium) || medium->GetCache()) {
+                        if (!IsObjectAlive(medium)) {
                             return false;
                         }
                         return mediumDiskSpace != 0;

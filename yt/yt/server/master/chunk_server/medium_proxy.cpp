@@ -42,9 +42,6 @@ private:
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Transient)
             .SetReplicated(true)
             .SetMandatory(true));
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Cache)
-            .SetReplicated(true)
-            .SetMandatory(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Priority)
             .SetWritable(true)
             .SetReplicated(true));
@@ -78,11 +75,6 @@ private:
                     .Value(medium->GetTransient());
                 return true;
 
-            case EInternedAttributeKey::Cache:
-                BuildYsonFluently(consumer)
-                    .Value(medium->GetCache());
-                return true;
-
             case EInternedAttributeKey::Priority:
                 BuildYsonFluently(consumer)
                     .Value(medium->GetPriority());
@@ -92,7 +84,7 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(medium->Config());
                 return true;
-            
+
             case EInternedAttributeKey::DiskFamilyWhitelist:
                 if (!medium->DiskFamilyWhitelist()) {
                     break;

@@ -38,7 +38,7 @@ struct TArtifactDownloadOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Manages chunks cached at Data Node.
+//! Manages chunks cached at Exec Node.
 /*!
  *  \note
  *  Thread affinity: any

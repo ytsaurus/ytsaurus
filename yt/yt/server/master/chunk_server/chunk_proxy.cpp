@@ -93,8 +93,6 @@ private:
         bool hasHunkChunkMiscExt = chunk->ChunkMeta()->HasExtension<THunkChunkMiscExt>();
         auto isForeign = chunk->IsForeign();
 
-        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::CachedReplicas)
-            .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoredReplicas)
             .SetPresent(!isForeign));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::LastSeenReplicas)
@@ -289,23 +287,6 @@ private:
         };
 
         switch (key) {
-            case EInternedAttributeKey::CachedReplicas: {
-                if (isForeign) {
-                    break;
-                }
-                TNodePtrWithReplicaInfoAndMediumIndexList replicas;
-                replicas.reserve(chunk->CachedReplicas().size());
-                for (auto replica : chunk->CachedReplicas()) {
-                    replicas.emplace_back(
-                        replica.GetPtr()->GetNode(),
-                        replica.GetReplicaIndex(),
-                        replica.GetPtr()->GetEffectiveMediumIndex(),
-                        replica.GetReplicaState());
-                }
-                serializePhysicalReplicas(consumer, replicas);
-                return true;
-            }
-
             case EInternedAttributeKey::StoredReplicas: {
                 if (isForeign) {
                     break;
@@ -378,7 +359,7 @@ private:
                     [&] (TFluentMap fluent, TMediumMap<EChunkStatus>::iterator it) {
                         auto mediumIndex = it->first;
                         auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-                        if (!IsObjectAlive(medium) || medium->GetCache()) {
+                        if (!IsObjectAlive(medium)) {
                             return;
                         }
 
@@ -1089,7 +1070,7 @@ private:
 
         const auto* chunk = GetThisImpl();
 
-        auto replicas = chunk->GetReplicas();
+        auto replicas = chunk->StoredReplicas();
 
         TNodeDirectoryBuilder nodeDirectoryBuilder(response->mutable_node_directory());
         nodeDirectoryBuilder.Add(replicas);

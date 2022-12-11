@@ -467,12 +467,6 @@ private:
             auto mediumDirectory = nativeConnection->GetMediumDirectory();
 
             const auto& execNodeBootstrap = Bootstrap_->GetExecNodeBootstrap();
-
-            const auto& cacheLocations = execNodeBootstrap->GetChunkCache()->Locations();
-            for (const auto& location : cacheLocations) {
-                location->UpdateMediumName(location->GetMediumName(), mediumDirectory, /*onInitialize*/ true);
-            }
-
             execNodeBootstrap->GetSlotManager()->InitMedia(mediumDirectory);
         }
     }

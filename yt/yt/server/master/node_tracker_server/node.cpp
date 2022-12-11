@@ -37,7 +37,6 @@
 
 #include <atomic>
 
-
 namespace NYT::NNodeTrackerServer {
 
 using namespace NNet;
@@ -485,11 +484,9 @@ void TNode::RecomputeIOWeights(const IChunkManagerPtr& chunkManager)
     IOWeights_.clear();
     for (const auto& statistics : DataNodeStatistics_.media()) {
         auto mediumIndex = statistics.medium_index();
-        auto* medium = chunkManager->FindMediumByIndex(mediumIndex);
-        if (!medium || medium->GetCache()) {
-            continue;
+        if (chunkManager->FindMediumByIndex(mediumIndex)) {
+            IOWeights_[mediumIndex] = statistics.io_weight();
         }
-        IOWeights_[mediumIndex] = statistics.io_weight();
     }
 }
 

@@ -148,7 +148,6 @@ class TestChunkReincarnatorBase(YTEnvSetup):
             "ephemeral_ref_counter",
             "weak_ref_counter",
             "estimated_creation_time",
-            "cached_replicas",
             "stored_replicas",
             "last_seen_replicas",
             "replication_status",

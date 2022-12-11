@@ -35,7 +35,7 @@ namespace NYT::NChunkServer {
 
 struct TChunkExportData
 {
-    ui32 RefCounter = 0 ;
+    ui32 RefCounter = 0;
     TChunkRequisitionIndex ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
 };
 
@@ -158,11 +158,6 @@ public:
     int GetParentCount() const;
     bool HasParents() const;
 
-    // COMPAT(kvk1920)
-    using TCompatCachedReplicas = THashSet<TCompatPtrWithIndexes<TNode>>;
-    using TCachedReplicas = THashSet<TChunkLocationPtrWithReplicaInfo>;
-    const TCachedReplicas& CachedReplicas() const;
-
     TRange<TChunkLocationPtrWithReplicaInfo> StoredReplicas() const;
 
     //! For non-erasure chunks, contains a FIFO queue of seen replicas; its tail position is kept in #CurrentLastSeenReplicaIndex_.
@@ -170,8 +165,7 @@ public:
     TRange<TNodeId> LastSeenReplicas() const;
 
     void AddReplica(TChunkLocationPtrWithReplicaInfo replica, const TMedium* medium, bool approved);
-    void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, const TMedium* medium, bool approved);
-    TChunkLocationPtrWithReplicaInfoList GetReplicas() const;
+    void RemoveReplica(TChunkLocationPtrWithReplicaIndex replica, bool approved);
 
     void ApproveReplica(TChunkLocationPtrWithReplicaInfo replica);
     int GetApprovedReplicaCount() const;
@@ -398,16 +392,6 @@ private:
     struct TReplicasDataBase
         : public TPoolAllocator::TObjectBase
     {
-        // COMPAT(kvk1920)
-        using TCachedReplicasVariant = std::variant<
-            TCachedReplicas,
-            // NB: CompatReplicas is used until TransformOldReplicas() is called.
-            TCompatCachedReplicas>;
-
-        // COMPAT(kvk1920): Replicas cannot be converted while loading.
-        //! This set is usually empty. Keeping a holder is very space efficient.
-        std::unique_ptr<TCachedReplicasVariant> CachedReplicas;
-
         //! Number of approved replicas among stored.
         int ApprovedReplicaCount = 0;
 
@@ -426,9 +410,6 @@ private:
         //! Null entries are InvalidNodeId.
         virtual TRange<TNodeId> GetLastSeenReplicas() const = 0;
         virtual TMutableRange<TNodeId> MutableLastSeenReplicas() = 0;
-
-        TCachedReplicas& GetOrCreateCachedReplicas();
-        TCachedReplicas* FindCachedReplicas();
 
         virtual void Load(NCellMaster::TLoadContext& context) = 0;
         virtual void Save(NCellMaster::TSaveContext& context) const = 0;
@@ -496,8 +477,6 @@ private:
     void MaybeResetObsoleteEpochData();
 
     void OnMiscExtUpdated(const NChunkClient::NProto::TMiscExt& miscExt);
-
-    static const TCachedReplicas EmptyCachedReplicas;
 
     using TEmptyChunkReplicasData = TReplicasData<0, 0>;
     static const TEmptyChunkReplicasData EmptyChunkReplicasData;

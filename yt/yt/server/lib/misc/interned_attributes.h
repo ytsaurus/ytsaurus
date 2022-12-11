@@ -54,8 +54,6 @@
     XX(Broken, broken) \
     XX(Builtin, builtin) \
     XX(BundleControllerTargetConfig, bundle_controller_target_config) \
-    XX(Cache, cache) \
-    XX(CachedReplicas, cached_replicas) \
     XX(Cellars, cellars) \
     XX(CellBalancerConfig, cell_balancer_config) \
     XX(CellBundle, cell_bundle) \

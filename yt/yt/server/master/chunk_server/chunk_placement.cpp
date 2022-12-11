@@ -967,11 +967,6 @@ TNode* TChunkPlacement::GetBalancingTarget(
 
 bool TChunkPlacement::IsValidWriteTargetToInsert(TMedium* medium, TNode* node)
 {
-    if (medium->GetCache()) {
-        // Direct writing to cache locations is not allowed.
-        return false;
-    }
-
     if (!node->IsWriteEnabled(medium->GetIndex())) {
         // Do not write anything to nodes not accepting writes.
         return false;
@@ -982,10 +977,6 @@ bool TChunkPlacement::IsValidWriteTargetToInsert(TMedium* medium, TNode* node)
 
 bool TChunkPlacement::IsValidPreferredWriteTargetToAllocate(TNode* node, TMedium* medium)
 {
-    if (medium->GetCache()) {
-        return false;
-    }
-
     if (!node->IsWriteEnabled(medium->GetIndex())) {
         return false;
     }

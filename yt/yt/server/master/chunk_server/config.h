@@ -440,8 +440,6 @@ public:
 
     //! Maximum number of chunks to report per single fetch request.
     int MaxChunksPerFetch;
-    //! Maximum number of cached replicas to be returned on fetch request.
-    int MaxCachedReplicasPerFetch;
 
     //! Maximum duration a job can run before it is considered dead.
     TDuration JobTimeout;

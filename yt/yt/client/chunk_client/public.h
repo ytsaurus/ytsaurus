@@ -116,7 +116,6 @@ constexpr int ChunkReplicaIndexBound = 32;
 constexpr int GenericMediumIndex      = 126; // internal sentinel meaning "no specific medium"
 constexpr int AllMediaIndex           = 127; // passed to various APIs to indicate that any medium is OK
 constexpr int DefaultStoreMediumIndex =   0;
-constexpr int DefaultCacheMediumIndex =   1;
 constexpr int DefaultSlotsMediumIndex =   0;
 
 //! Valid indexes (including sentinels) are in range |[0, MediumIndexBound)|.
