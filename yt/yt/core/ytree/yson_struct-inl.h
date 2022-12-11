@@ -111,7 +111,12 @@ TTargetStruct* TYsonStructRegistry::CachedDynamicCast(const TYsonStructBase* con
     // TODO(renadeen): is there a better way to use same function for const and non-const contexts?
     auto source = const_cast<TYsonStructBase*>(constSource);
     ptrdiff_t* offset = holder->OffsetCache.FindOrInsert(std::type_index(typeid(*source)), [=] () {
-        return reinterpret_cast<intptr_t>(dynamic_cast<TTargetStruct*>(source)) - reinterpret_cast<intptr_t>(source);
+        auto* target = dynamic_cast<TTargetStruct*>(source);
+        // NB: Unfortunatly it is possible that dynamic cast fails.
+        // For example when class is derived from template class with `const char *` template parameter
+        // and variable with internal linkage is used for this parameter.
+        YT_VERIFY(target);
+        return reinterpret_cast<intptr_t>(target) - reinterpret_cast<intptr_t>(source);
     }).first;
     return reinterpret_cast<TTargetStruct*>(reinterpret_cast<intptr_t>(source) + *offset);
 }
