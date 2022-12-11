@@ -213,7 +213,7 @@ public:
         : SchedulerConfig_(std::move(config))
         , Config_(SchedulerConfig_->ControllerAgentTracker)
         , Bootstrap_(bootstrap)
-        , MessageOffloadThreadPool_(CreateThreadPool(Config_->MessageOffloadThreadCount, "MessageOffload"))
+        , MessageOffloadThreadPool_(CreateThreadPool(Config_->MessageOffloadThreadCount, "MsgOffload"))
         , ResponseKeeper_(CreateResponseKeeper(
             Config_->ResponseKeeper,
             Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
