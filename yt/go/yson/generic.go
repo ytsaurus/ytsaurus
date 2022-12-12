@@ -150,3 +150,48 @@ func decodeGeneric(r *Reader, v *interface{}) error {
 
 	return nil
 }
+
+func decodeMap(r *Reader, v *map[string]interface{}) error {
+	e, err := r.Next(true)
+	if err != nil {
+		return err
+	}
+
+	switch e {
+	case EventLiteral:
+		if r.currentType != TypeEntity {
+			panic("invalid decoder state")
+		}
+	case EventBeginMap:
+		m := make(map[string]interface{})
+		*v = m
+		for {
+			if ok, err := r.NextKey(); err != nil {
+				return err
+			} else if !ok {
+				break
+			}
+
+			mapKey := r.String()
+			var mapValue interface{}
+			if err = decodeGeneric(r, &mapValue); err != nil {
+				return err
+			}
+
+			m[mapKey] = mapValue
+		}
+
+		e, err = r.Next(false)
+		if err != nil {
+			return err
+		}
+
+		if e != EventEndMap {
+			panic("invalid decoder state")
+		}
+	default:
+		panic("invalid decoder state")
+	}
+
+	return nil
+}

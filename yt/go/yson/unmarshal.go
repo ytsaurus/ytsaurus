@@ -316,6 +316,9 @@ func decodeAny(r *Reader, v interface{}, opts *DecoderOptions) (err error) {
 		}
 		err = vv.UnmarshalBinary(b)
 
+	case *map[string]interface{}:
+		err = decodeMap(r, vv)
+
 	case *interface{}:
 		err = decodeGeneric(r, vv)
 
