@@ -1350,7 +1350,7 @@ private:
     const TIntrusivePtr<TThread> LoggingThread_;
     const TShutdownCookie ShutdownCookie_ = RegisterShutdownCallback(
         "LogManager",
-        BIND(&TImpl::Shutdown, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TImpl::Shutdown, MakeWeak(this)),
         /*priority*/ 200);
 
     DECLARE_THREAD_AFFINITY_SLOT(LoggingThread);

@@ -354,7 +354,7 @@ public:
 private:
     const TShutdownCookie ShutdownCookie_ = RegisterShutdownCallback(
         "FiberManager",
-        BIND(&TFiberManager::DestroyIdleFibers, this),
+        BIND_NO_PROPAGATE(&TFiberManager::DestroyIdleFibers, this),
         /*priority*/ -100);
 
     TLockFreeStack<TFiberPtr> IdleFibers_;

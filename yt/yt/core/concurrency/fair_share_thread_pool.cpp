@@ -545,7 +545,7 @@ private:
 
     TClosure MakeFinalizerCallback() override
     {
-        return BIND([queue = Queue_, callback = TThreadPoolBase::MakeFinalizerCallback()] {
+        return BIND_NO_PROPAGATE([queue = Queue_, callback = TThreadPoolBase::MakeFinalizerCallback()] {
             callback();
             queue->Drain();
         });
@@ -585,4 +585,3 @@ IFairShareThreadPoolPtr CreateFairShareThreadPool(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-

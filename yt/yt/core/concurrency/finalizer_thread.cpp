@@ -48,7 +48,7 @@ private:
             /*shutdownPriority*/ -201))
         , ShutdownCookie_(RegisterShutdownCallback(
             "FinalizerManager",
-            BIND(&TFinalizerManager::Shutdown, this),
+            BIND_NO_PROPAGATE(&TFinalizerManager::Shutdown, this),
             /*priority*/ -200))
     {
         Thread_->Start();
@@ -70,4 +70,3 @@ const IInvokerPtr& GetFinalizerInvoker()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NConcurrency
-

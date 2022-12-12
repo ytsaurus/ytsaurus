@@ -67,7 +67,7 @@ public:
         , Config_(std::move(config))
         , ShutdownCookie_(RegisterShutdownCallback(
             "GrpcServer",
-            BIND(&TServer::Shutdown, MakeWeak(this), /*graceful*/ true),
+            BIND_NO_PROPAGATE(&TServer::Shutdown, MakeWeak(this), /*graceful*/ true),
             /*priority*/ GrpcServerShutdownPriority))
         , LibraryLock_(TDispatcher::Get()->CreateLibraryLock())
         , CompletionQueue_(TDispatcher::Get()->PickRandomGuardedCompletionQueue()->UnwrapUnsafe())

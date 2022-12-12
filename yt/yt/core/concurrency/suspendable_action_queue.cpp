@@ -25,7 +25,7 @@ public:
             threadName))
         , ShutdownCookie_(RegisterShutdownCallback(
             Format("SuspendableActionQueue(%v)", threadName),
-            BIND(&TSuspendableActionQueue::Shutdown, MakeWeak(this), /*graceful*/ false),
+            BIND_NO_PROPAGATE(&TSuspendableActionQueue::Shutdown, MakeWeak(this), /*graceful*/ false),
             /*priority*/ 100))
     { }
 
