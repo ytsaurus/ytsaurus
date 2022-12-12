@@ -1,23 +1,41 @@
 {
-    "cluster" = "socrates";
-    "root" = "//home/kristevalex/ytprof/testing";
-    "services" = [
+    "ports" = {
+        "node" = 10012;
+        "dat-node" = 10012;
+        "exe-node" = 10012;
+        "exe-tab-node" = 10012;
+        "tab-node" = 10022;
+        "chaos-node" = 10023;
+        "master" = 10010;
+        "master-caches" = 10018;
+        "scheduler" = 10011;
+        "rpc-proxy" = 10017;
+        "http-proxy" = 10013;
+        "controller-agent" = 10014;
+        "clock" = 10016;
+        "discovery" = 10020;
+        "timestamp-provider" = 10021;
+    };
+    "yp_clusters" = [
+        "sas";
+        "man";
+        "vla";
+        "vlx";
+        "iva";
+        "myt";
+        "xdc";
+        "man-pre";
+        "sas-test";
+    ];
+    "configs" = [
         {
-            "service_type" = "node";
+            "cluster" = "socrates";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
             "period" = 300000000000;
-            "probability" = 1;
-            "path" = "ytprof/cpu";
-            "resolvers" = [
-                {
-                    "port" = 10012;
-                    "urls" = [
-                        "man0-1003-dat-exe-node-socrates.man-pre.yp-c.yandex.net"; 
-                        "man0-1014-dat-exe-node-socrates.man-pre.yp-c.yandex.net"
-                    ]
-                }
-            ]
-        }    
+            "probability" = 0.5;
+            "resolver_min_profiles" = 2;
+            "resolver_max_profiles" = 55;
+        };
     ]
 }
-
-7Fpt2zim4HECtkH9CDUhDDqiXyUxI8nVssQczekrv0Q.1.dcf1090c65b5c257
