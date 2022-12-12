@@ -52,6 +52,7 @@ public:
         std::vector<TString> performanceCountersKeys,
         bool ignoreTableWiseConfig,
         int maxMoveActionCount,
+        double deviationThreshold,
         const TLogger& logger);
 
     std::vector<TMoveDescriptor> BuildActionDescriptors() override;
@@ -70,6 +71,7 @@ private:
     const int MaxMoveActionCount_;
     const bool IgnoreTableWiseConfig_;
     const std::vector<TString> PerformanceCountersKeys_;
+    const double DeviationThreshold_;
 
     std::vector<TTabletCellPtr> Cells_;
 
@@ -96,6 +98,7 @@ private:
         const TTablet* rhsTablet);
 
     bool TryFindBestAction(bool canMakeSwap);
+    bool ShouldTrigger() const;
 };
 
 TParameterizedReassignSolver::TParameterizedReassignSolver(
@@ -103,12 +106,14 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
     std::vector<TString> performanceCountersKeys,
     bool ignoreTableWiseConfig,
     int maxMoveActionCount,
+    double deviationThreshold,
     const TLogger& logger)
     : Bundle_(std::move(bundle))
     , Logger(logger.WithTag("BundleName: %v", Bundle_->Name))
     , MaxMoveActionCount_(maxMoveActionCount)
     , IgnoreTableWiseConfig_(ignoreTableWiseConfig)
     , PerformanceCountersKeys_(std::move(performanceCountersKeys))
+    , DeviationThreshold_(deviationThreshold)
 { }
 
 void TParameterizedReassignSolver::Initialize()
@@ -158,6 +163,30 @@ void TParameterizedReassignSolver::Initialize()
     }
 
     CurrentMetric_ = CalculateTotalBundleMetric();
+}
+
+bool TParameterizedReassignSolver::ShouldTrigger() const
+{
+    if (CellToMetric_.empty()) {
+        return false;
+    }
+
+    auto [minCell, maxCell] = std::minmax_element(
+        CellToMetric_.begin(),
+        CellToMetric_.end(),
+        [] (auto lhs, auto rhs) {
+            return lhs.second < rhs.second;
+        });
+
+    YT_LOG_DEBUG_IF(
+        Bundle_->Config->EnableVerboseLogging,
+        "Arguments for checking whether parameterized balancing should trigger have been calculated "
+        "(MinCellMetric: %v, MaxCellMetric: %v, DeviationThreshold: %v)",
+        minCell->second,
+        maxCell->second,
+        DeviationThreshold_);
+
+    return maxCell->second > minCell->second * (1 + DeviationThreshold_);
 }
 
 double TParameterizedReassignSolver::GetTabletMetric(const TTabletPtr& tablet) const
@@ -340,6 +369,12 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
 {
     Initialize();
 
+    if (!ShouldTrigger()) {
+        YT_LOG_DEBUG("Parameterized balancing was not triggered (DeviationThreshold: %v)",
+            DeviationThreshold_);
+        return {};
+    }
+
     int availiableActionCount = MaxMoveActionCount_;
     while (availiableActionCount > 0) {
         if (TryFindBestAction(/*canMakeSwap*/ availiableActionCount >= 2)) {
@@ -391,6 +426,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     std::vector<TString> performanceCountersKeys,
     bool ignoreTableWiseConfig,
     int moveActionLimit,
+    double deviationThreshold,
     const NLogging::TLogger& logger)
 {
     return New<TParameterizedReassignSolver>(
@@ -398,6 +434,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
         std::move(performanceCountersKeys),
         ignoreTableWiseConfig,
         moveActionLimit,
+        deviationThreshold,
         logger);
 }
 

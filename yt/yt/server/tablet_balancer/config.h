@@ -50,6 +50,8 @@ public:
 
     int MaxParameterizedMoveActionCount;
 
+    double ParameterizedDeviationThreshold;
+
     TTimeFormula Schedule;
 
     REGISTER_YSON_STRUCT(TTabletBalancerDynamicConfig);
