@@ -76,11 +76,12 @@ TFuture<void> TCommitterBase::ScheduleApplyMutations(std::vector<TPendingMutatio
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    return BIND(&TDecoratedAutomaton::ApplyMutations, DecoratedAutomaton_)
+    LastOffloadedMutationsFuture_ = BIND(&TDecoratedAutomaton::ApplyMutations, DecoratedAutomaton_)
         .AsyncViaGuarded(
             EpochContext_->EpochUserAutomatonInvoker,
             TError("Error applying mutations"))
         .Run(std::move(mutations));
+    return LastOffloadedMutationsFuture_;
 }
 
 TFuture<void> TCommitterBase::GetLastLoggedMutationFuture()
@@ -1079,7 +1080,7 @@ void TLeaderCommitter::OnCommittedSequenceNumberUpdated()
 
     YT_VERIFY(LastOffloadedSequenceNumber_ + std::ssize(mutations) == CommittedState_.SequenceNumber);
     LastOffloadedSequenceNumber_ = CommittedState_.SequenceNumber;
-    LastOffloadedMutationsFuture_ = ScheduleApplyMutations(std::move(mutations));
+    ScheduleApplyMutations(std::move(mutations));
 }
 
 TVersion TLeaderCommitter::GetLoggedVersion() const
@@ -1135,6 +1136,42 @@ void TFollowerCommitter::SetSequenceNumber(i64 number)
     CommittedSequenceNumber_ = number;
 }
 
+TFuture<void> TFollowerCommitter::GetCatchUpFuture() const
+{
+    return СaughtUpPromise_;
+}
+
+void TFollowerCommitter::CompleteRecovery()
+{
+    RecoveryComplete_ = true;
+}
+
+void TFollowerCommitter::CheckIfCaughtUp()
+{
+    if (СaughtUpPromise_.IsSet()) {
+        return;
+    }
+
+    if (!RecoveryComplete_) {
+        return;
+    }
+
+    auto config = Config_->Get();
+    if (ssize(AcceptedMutations_) > config->MaxCatchUpAcceptedMutationCount) {
+        return;
+    }
+
+    if (ssize(LoggedMutations_) > config->MaxCatchUpLoggedMutationCount) {
+        return;
+    }
+
+    if (CommittedSequenceNumber_ - DecoratedAutomaton_->GetSequenceNumber() > config->MaxCatchUpSequenceNumberGap) {
+        return;
+    }
+
+    СaughtUpPromise_.Set();
+}
+
 bool TFollowerCommitter::AcceptMutations(
     i64 startSequenceNumber,
     const std::vector<TSharedRef>& recordsData)
@@ -1163,6 +1200,8 @@ bool TFollowerCommitter::AcceptMutations(
         "Mutations accepted (FirstMutationIndex: %v, LastMutationIndex: %v)",
         firstMutationIndex,
         lastMutationIndex);
+
+    CheckIfCaughtUp();
 
     return true;
 }
@@ -1349,6 +1388,8 @@ void TFollowerCommitter::LogMutations()
         firstSequenceNumber,
         lastSequenceNumber);
 
+    CheckIfCaughtUp();
+
     auto future = Changelog_->Append(std::move(recordsData));
     LastLoggedMutationFuture_ = future.Apply(
         BIND(&TFollowerCommitter::OnMutationsLogged, MakeStrong(this), firstSequenceNumber, lastSequenceNumber)
@@ -1414,6 +1455,8 @@ TFuture<TFollowerCommitter::TCommitMutationsResult> TFollowerCommitter::CommitMu
     YT_LOG_DEBUG("Committing mutations at follower (SequenceNumbers: %v-%v)",
         result.FirstSequenceNumber,
         result.LastSequenceNumber);
+
+    CheckIfCaughtUp();
 
     return ScheduleApplyMutations(std::move(mutations))
         .Apply(BIND([=] { return result; }));
