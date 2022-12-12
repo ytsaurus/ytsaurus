@@ -1680,10 +1680,14 @@ public:
         }
 
         YT_PROFILE_TIMING("/chunk_server/chunk_tree_rebalance_time") {
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree rebalancing started (RootId: %v)",
-                chunkList->GetId());
+            auto chunklistId = chunkList->GetId();
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree rebalancing started (RootId: %v, Mode: %v)",
+                chunklistId,
+                settingsMode);
             ChunkTreeBalancer_.Rebalance(chunkList);
-            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree rebalancing completed");
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Chunk tree rebalancing completed (RootId: %v, Mode: %v)",
+                chunklistId,
+                settingsMode);
         }
     }
 
