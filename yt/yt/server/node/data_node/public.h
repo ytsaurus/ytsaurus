@@ -98,6 +98,8 @@ DECLARE_REFCOUNTED_CLASS(TRepairReaderConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkAutotomizerConfig)
 DECLARE_REFCOUNTED_CLASS(TMediumThroughputMeterConfig);
 DECLARE_REFCOUNTED_CLASS(TIOThroughputMeterConfig);
+DECLARE_REFCOUNTED_CLASS(TLocationHealthCheckerConfig)
+DECLARE_REFCOUNTED_CLASS(TLocationHealthCheckerDynamicConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkMergerConfig);
 DECLARE_REFCOUNTED_CLASS(TChunkRepairJobDynamicConfig);
 

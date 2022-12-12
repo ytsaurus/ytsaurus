@@ -6,7 +6,12 @@ namespace NYT::NContainers {
 
 void TDiskManagerProxyConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("health_check_timeout", &TThis::RequestTimeout)
+    registrar.Parameter("disk_manager_address", &TThis::DiskManagerAddress)
+        .Default("unix:/var/run/diskman.sock");
+    registrar.Parameter("disk_manager_service_name", &TThis::DiskManagerServiceName)
+        .Default("DiskManager");
+
+    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default(TDuration::Seconds(10));
 }
 
@@ -14,7 +19,7 @@ void TDiskManagerProxyConfig::Register(TRegistrar registrar)
 
 void TDiskManagerProxyDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("health_check_timeout", &TThis::RequestTimeout)
+    registrar.Parameter("request_timeout", &TThis::RequestTimeout)
         .Default();
 }
 

@@ -27,10 +27,7 @@ class TDiskManagerProxy
     , public TRefCounted
 {
 public:
-    TDiskManagerProxy(
-        NRpc::IChannelPtr channel,
-        TString serviceName,
-        TDiskManagerProxyConfigPtr config);
+    explicit TDiskManagerProxy(TDiskManagerProxyConfigPtr config);
 
     TFuture<THashSet<TString>> GetYtDiskDeviceNames();
     TFuture<std::vector<TDiskInfo>> GetDisks();
