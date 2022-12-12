@@ -17,22 +17,23 @@ type (
 	}
 
 	NullTest struct {
-		Val   *NullTestVal      `json:"val,omitempty" yson:"val,omitempty"`
-		Int   *int              `json:"int,omitempty" yson:"int,omitempty"`
-		Map   map[string]string `json:"map,omitempty" yson:"map,omitempty"`
-		Array []string          `json:"array,omitempty" yson:"array,omitempty"`
-		Str   string            `json:"str,omitempty" yson:"str,omitempty"`
-		Bytes []byte            `json:"bytes,omitempty" yson:"bytes,omitempty"`
+		Val    *NullTestVal           `json:"val,omitempty" yson:"val,omitempty"`
+		Int    *int                   `json:"int,omitempty" yson:"int,omitempty"`
+		Map    map[string]interface{} `json:"map,omitempty" yson:"map,omitempty"`
+		MapStr map[string]string      `json:"map_str,omitempty" yson:"map_str,omitempty"`
+		Array  []string               `json:"array,omitempty" yson:"array,omitempty"`
+		Str    string                 `json:"str,omitempty" yson:"str,omitempty"`
+		Bytes  []byte                 `json:"bytes,omitempty" yson:"bytes,omitempty"`
 	}
 )
 
 func TestNullHandling(t *testing.T) {
 	var jsonTest NullTest
-	msgJSON := `{"val": null, "int": null, "map": null, "array": null, "str": null, "bytes": null}`
+	msgJSON := `{"val": null, "int": null, "map": null, "map_str": null, "array": null, "str": null, "bytes": null}`
 	require.NoError(t, json.Unmarshal([]byte(msgJSON), &jsonTest))
 
 	var ysonTest NullTest
-	msgYSON := `{val=#;int=#;map=#;array=#;str=#;bytes=#}`
+	msgYSON := `{val=#;int=#;map=#;map_str=#;array=#;str=#;bytes=#}`
 	require.NoError(t, yson.Unmarshal([]byte(msgYSON), &ysonTest))
 
 	require.Equal(t, jsonTest, ysonTest)

@@ -145,11 +145,19 @@ func BenchmarkDecoderInterface(b *testing.B) {
 	})
 }
 
-func TestUnmarshalTestfile(t *testing.T) {
+func TestUnmarshalInterfaceTestfile(t *testing.T) {
 	contents, err := os.ReadFile(SimpleLinePath)
 	require.NoError(t, err)
 
 	var value interface{}
+	require.NoError(t, Unmarshal(contents[:len(contents)-1], &value))
+}
+
+func TestUnmarshalMapTestfile(t *testing.T) {
+	contents, err := os.ReadFile(LinePath)
+	require.NoError(t, err)
+
+	var value map[string]interface{}
 	require.NoError(t, Unmarshal(contents[:len(contents)-1], &value))
 }
 
