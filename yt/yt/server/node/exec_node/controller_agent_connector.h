@@ -8,7 +8,23 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 
+#include <yt/yt/core/concurrency/throughput_throttler.h>
+
 namespace NYT::NExecNode {
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TAgentHeartbeatContext
+    : public TRefCounted
+{
+    TControllerAgentDescriptor AgentDescriptor;
+    NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
+    TDuration RunningJobInfoSendingBackoff;
+
+    std::vector<TJobPtr> SentEnqueuedJobs;
+};
+
+DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -25,7 +41,7 @@ private:
         TControllerAgentConnector(
             TControllerAgentConnectorPool* controllerAgentConnectorPool,
             TControllerAgentDescriptor controllerAgentDescriptor);
-        
+
         NRpc::IChannelPtr GetChannel() const noexcept;
         void SendOutOfBandHeartbeatIfNeeded();
         void EnqueueFinishedJob(const TJobPtr& job);
@@ -77,7 +93,7 @@ public:
     void OnDynamicConfigChanged(
         const TExecNodeDynamicConfigPtr& oldConfig,
         const TExecNodeDynamicConfigPtr& newConfig);
-    
+
 private:
     //! TControllerAgentConnector object lifetime include lifetime of map entry, so we can use raw pointers here.
     THashMap<TControllerAgentDescriptor, TControllerAgentConnector*> ControllerAgentConnectors_;
