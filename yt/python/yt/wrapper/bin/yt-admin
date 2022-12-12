@@ -70,6 +70,7 @@ def main():
         "build-snapshot",
         help="Build snapshot for a given cell (either master or tablet)")
     build_snapshot_parser.set_defaults(func=build_snapshot)
+    build_snapshot_parser.add_argument("--cell-id", required=True)
     add_set_readonly_parser(build_snapshot_parser)
     add_wait_for_snapshot_completion_parser(build_snapshot_parser)
 
