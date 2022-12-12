@@ -16,7 +16,8 @@ class TDispatcherConfig
     : public NYTree::TYsonStruct
 {
 public:
-    int ThreadCount;
+    int DispatcherThreadCount;
+    int GrpcThreadCount;
 
     REGISTER_YSON_STRUCT(TDispatcherConfig);
 

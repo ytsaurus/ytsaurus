@@ -8,7 +8,12 @@ namespace NYT::NRpc::NGrpc {
 
 void TDispatcherConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("thread_count", &TThis::ThreadCount)
+    registrar.Parameter("dispatcher_thread_count", &TThis::DispatcherThreadCount)
+        .Alias("thread_count")
+        .GreaterThan(0)
+        .Default(4);
+
+    registrar.Parameter("grpc_thread_count", &TThis::GrpcThreadCount)
         .GreaterThan(0)
         .Default(4);
 }
