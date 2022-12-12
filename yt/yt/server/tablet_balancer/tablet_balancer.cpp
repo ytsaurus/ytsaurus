@@ -442,6 +442,9 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
 
 void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleState) const
 {
+    YT_LOG_DEBUG("Balancing tablets via parameterized move started (BundleName: %v)",
+        bundleState->GetBundle()->Name);
+
     if (bundleState->GetBundle()->Config->ParameterizedBalancingMetric.empty()) {
         YT_LOG_DEBUG("Balance tablets via parameterized move is disabled (BundleName: %v)",
             bundleState->GetBundle()->Name);

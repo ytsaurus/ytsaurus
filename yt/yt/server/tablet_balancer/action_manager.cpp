@@ -204,7 +204,7 @@ void TActionManager::Start(const TTransactionId& prerequisiteTransactionId)
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
-    YT_LOG_INFO("Starting tablet action manager");
+    YT_LOG_INFO("Starting tablet action manager (PrerequisiteTransactionId: %v)", prerequisiteTransactionId);
 
     Started_ = true;
 

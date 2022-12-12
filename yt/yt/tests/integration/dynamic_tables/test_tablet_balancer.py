@@ -1,3 +1,4 @@
+from .test_dynamic_tables import DynamicTablesBase
 from .test_tablet_actions import TabletBalancerBase
 
 from yt_commands import (
@@ -11,10 +12,9 @@ import pytest
 ##################################################################
 
 
-class TestStandaloneTabletBalancer(TabletBalancerBase):
+class TestStandaloneTabletBalancerBase:
     NUM_TABLET_BALANCERS = 3
     ENABLE_STANDALONE_TABLET_BALANCER = True
-    NUM_TEST_PARTITIONS = 5
 
     @classmethod
     def modify_tablet_balancer_config(cls, config):
@@ -23,13 +23,17 @@ class TestStandaloneTabletBalancer(TabletBalancerBase):
                 "period" : 100,
                 "tablet_action_polling_period": 100,
             },
+            "election_manager": {
+                "transaction_ping_period": 100,
+                "leader_cache_update_period": 100,
+            }
         })
         for rule in config["logging"]["rules"]:
             rule.pop("exclude_categories", None)
 
     @classmethod
     def setup_class(cls):
-        super(TestStandaloneTabletBalancer, cls).setup_class()
+        super(TestStandaloneTabletBalancerBase, cls).setup_class()
 
         tablet_balancer_config = cls.Env._cluster_configuration["tablet_balancer"][0]
         cls.root_path = tablet_balancer_config.get("root", "//sys/tablet_balancer")
@@ -53,6 +57,10 @@ class TestStandaloneTabletBalancer(TabletBalancerBase):
 
         wait(config_updated_on_all_instances)
 
+
+class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalancerBase):
+    NUM_TEST_PARTITIONS = 5
+
     def _set_enable_tablet_balancer(self, value):
         self._apply_dynamic_config_patch({
             "enable": value
@@ -75,6 +83,17 @@ class TestStandaloneTabletBalancer(TabletBalancerBase):
         assert self._get_enable_tablet_balancer()
         assert get("//sys/tablet_balancer/config/enable_everywhere")
 
+
+class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
+    @classmethod
+    def modify_tablet_balancer_config(cls, config):
+        super(TestStandaloneTabletBalancerBase, cls).modify_tablet_balancer_config(config)
+        update_inplace(config, {
+            "tablet_balancer": {
+                "period" : 5000,
+            },
+        })
+
     @authors("alexelexa")
     @pytest.mark.parametrize(
         "parameterized_balancing_metric",
@@ -84,7 +103,6 @@ class TestStandaloneTabletBalancer(TabletBalancerBase):
         ],
     )
     def test_parameterized_balancing(self, parameterized_balancing_metric):
-        self._configure_bundle("default")
         cells = sync_create_cells(2)
 
         self._create_sorted_table("//tmp/t")
@@ -114,6 +132,9 @@ class TestStandaloneTabletBalancer(TabletBalancerBase):
 
         wait(lambda: not all(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")))
 
+        wait(lambda: all(action["state"] in ("completed", "failed")
+             for action in get("//sys/tablet_cell_bundles/default/@tablet_actions")))
+
         tablets = get("//tmp/t/@tablets")
         assert(tablets[0]["cell_id"] == tablets[1]["cell_id"])
         assert(tablets[2]["cell_id"] == tablets[3]["cell_id"])
@@ -123,4 +144,8 @@ class TestStandaloneTabletBalancer(TabletBalancerBase):
 
 
 class TestStandaloneTabletBalancerMulticell(TestStandaloneTabletBalancer):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+
+class TestParameterizedBalancingMulticell(TestParameterizedBalancing):
     NUM_SECONDARY_MASTER_CELLS = 2
