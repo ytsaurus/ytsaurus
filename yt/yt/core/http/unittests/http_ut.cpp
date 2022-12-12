@@ -403,7 +403,13 @@ TEST(THttpOutputTest, Full)
 
 TEST(THttpOutputTest, LargeResponse)
 {
-    constexpr ui64 Size = (4ULL << 30) + 1;
+#ifdef _unix_
+    constexpr ui64 SizeGib = 4;
+#else
+    constexpr ui64 SizeGib = 1;
+#endif
+
+    constexpr ui64 Size = (SizeGib << 30) + 1;
     const auto body = TString(Size, 'x');
 
     struct TLargeFakeConnection
@@ -433,15 +439,16 @@ TEST(THttpOutputTest, LargeResponse)
     FinishBody(output.Get());
 
     // The large part is skipped and saved in LargeRef field.
-    ASSERT_EQ(fake->Output,
+    ASSERT_EQ(fake->Output, Format(
         "HTTP/1.1 200 OK\r\n"
         "Transfer-Encoding: chunked\r\n"
         "\r\n"
-        "100000001\r\n" // 4 GiB + 1B
+        "%llX\r\n"
         "\r\n"
         "0\r\n"
-        "\r\n"
-    );
+        "\r\n",
+        Size
+    ));
 
     if (TStringBuf(fake->LargeRef.Begin(), fake->LargeRef.Size()) != body) {
         ADD_FAILURE() << "Wrong large chunk";
@@ -942,7 +949,13 @@ TEST_P(THttpServerTest, RequestStreaming)
     Server->AddHandler("/consuming", New<TConsumingHandler>());
     Server->Start();
 
-    auto body = TSharedMutableRef::Allocate(128 * 1024 * 1024);
+#ifdef _win_
+    constexpr int BodySizeMib = 1;
+#else
+    constexpr int BodySizeMib = 128;
+#endif
+
+    auto body = TSharedMutableRef::Allocate(BodySizeMib * 1024 * 1024);
     ASSERT_EQ(EStatusCode::OK,
         WaitFor(Client->Post(TestUrl + "/consuming", body))
             .ValueOrThrow()->GetStatusCode());
@@ -957,9 +970,15 @@ class TStreamingHandler
 public:
     void HandleRequest(const IRequestPtr& /*req*/, const IResponseWriterPtr& rsp) override
     {
+#ifdef _win_
+        constexpr int BodySizeKib = 64;
+#else
+        constexpr int BodySizeKib = 16 * 1024;
+#endif
+
         rsp->SetStatus(EStatusCode::OK);
         auto data = TSharedRef::FromString(TString(1024, 'f'));
-        for (int i = 0; i < 16 * 1024; i++) {
+        for (int i = 0; i < BodySizeKib; i++) {
             WaitFor(rsp->Write(data))
                 .ThrowOnError();
         }
@@ -974,8 +993,14 @@ TEST_P(THttpServerTest, ResponseStreaming)
     Server->AddHandler("/streaming", New<TStreamingHandler>());
     Server->Start();
 
+#ifdef _win_
+    constexpr int BodySizeKib = 64;
+#else
+    constexpr int BodySizeKib = 16 * 1024;
+#endif
+
     auto rsp = WaitFor(Client->Get(TestUrl + "/streaming")).ValueOrThrow();
-    ASSERT_EQ(16 * 1024 * 1024, std::ssize(ReadAll(rsp)));
+    ASSERT_EQ(BodySizeKib * 1024, std::ssize(ReadAll(rsp)));
 
     Server->Stop();
     Sleep(TDuration::MilliSeconds(10));
@@ -1014,7 +1039,7 @@ TEST_P(THttpServerTest, RequestCancel)
         return;
     }
 
-#if defined(_darwin_)
+#if defined(_darwin_) || defined(_win_)
     return;
 #endif
 
@@ -1214,6 +1239,7 @@ TEST_P(THttpServerTest, DropConnectionsByTimeout)
     auto clientConfig = New<NHttp::TClientConfig>();
     clientConfig->MaxIdleConnections = 1;
     clientConfig->ConnectionIdleTimeout = TDuration::MilliSeconds(300);
+
     auto client = CreateClient(clientConfig, dialerMock, Poller->GetInvoker());
 
     auto reqBody = TSharedMutableRef::Allocate(1024);
@@ -1250,7 +1276,7 @@ TEST_P(THttpServerTest, ConnectionsDropRoutine)
     auto clientConfig = New<NHttp::TClientConfig>();
     clientConfig->MaxIdleConnections = 1;
     clientConfig->ConnectionIdleTimeout = TDuration::MilliSeconds(100);
-    
+
     auto pool = New<TConnectionPool>(dialerMock, clientConfig, Poller->GetInvoker());
 
     auto url = ParseUrl(TestUrl + "/echo");

@@ -94,7 +94,7 @@ TTcpConnection::TTcpConnection(
     TTcpBusConfigPtr config,
     EConnectionType connectionType,
     TConnectionId id,
-    int socket,
+    SOCKET socket,
     EMultiplexingBand multiplexingBand,
     const TString& endpointDescription,
     const IAttributeDictionary& endpointAttributes,

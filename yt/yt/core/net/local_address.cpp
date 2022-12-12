@@ -7,10 +7,16 @@
 
 #include <library/cpp/yt/threading/fork_aware_spin_lock.h>
 
-#include <sys/types.h>
-#include <sys/socket.h>
-#include <netdb.h>
-#include <errno.h>
+#ifdef _unix_
+    #include <sys/types.h>
+    #include <sys/socket.h>
+    #include <netdb.h>
+    #include <errno.h>
+#endif
+
+#ifdef _win_
+    #include <winsock2.h>
+#endif
 
 #include <array>
 
@@ -157,4 +163,3 @@ void UpdateLocalHostName(const TAddressResolverConfigPtr& config)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNet
-

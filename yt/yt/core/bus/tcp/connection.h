@@ -28,6 +28,14 @@
 
 #include <util/network/init.h>
 
+#ifdef _win_
+#include <winsock2.h>
+
+#include <stddef.h>
+#include <sys/uio.h>
+#include <fcntl.h>
+#endif
+
 #include <atomic>
 
 namespace NYT::NBus {

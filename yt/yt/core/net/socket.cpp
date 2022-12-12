@@ -15,6 +15,12 @@
     #include <sys/stat.h>
 #endif
 
+#ifdef _win_
+    #include <util/network/socket.h>
+
+    #include <winsock2.h>
+#endif
+
 #ifdef _linux_
     #include <linux/filter.h>
 #endif
@@ -67,7 +73,11 @@ SOCKET CreateTcpServerSocket()
             << TError::FromSystem(lastError);
     }
 
-#ifndef _linux_
+#ifdef _win_
+    SetNonBlock(serverSocket);
+#endif
+
+#if defined _unix_ && !defined _linux_
     {
         int flags = fcntl(serverSocket, F_GETFL);
         int result = fcntl(serverSocket, F_SETFL, flags | O_NONBLOCK);
@@ -139,6 +149,10 @@ SOCKET CreateUnixServerSocket()
             << TError::FromSystem();
     }
 
+#ifdef _win_
+    SetNonBlock(serverSocket);
+#endif
+
     return serverSocket;
 }
 
@@ -198,6 +212,8 @@ SOCKET CreateTcpClientSocket(int family)
                 << TError::FromSystem(lastError);
         }
     }
+#elif defined _win_
+    SetNonBlock(clientSocket);
 #endif
 
     return clientSocket;
@@ -246,6 +262,8 @@ SOCKET CreateUnixClientSocket()
                 << TError::FromSystem(lastError);
         }
     }
+#elif defined _win_
+    SetNonBlock(clientSocket);
 #endif
 
     return clientSocket;
@@ -268,6 +286,10 @@ SOCKET CreateUdpSocket()
             "Failed to create a server socket")
             << TError::FromSystem(lastError);
     }
+
+#ifdef _win_
+    SetNonBlock(udpSocket);
+#endif
 
     return udpSocket;
 }
@@ -342,7 +364,7 @@ int AcceptSocket(SOCKET serverSocket, TNetworkAddress* clientAddress)
         return clientSocket;
     }
 
-#ifndef _linux_
+#if defined _unix_ && !defined _linux_
     {
         int flags = fcntl(clientSocket, F_GETFL);
         int result = fcntl(clientSocket, F_SETFL, flags | O_NONBLOCK);
@@ -368,6 +390,8 @@ int AcceptSocket(SOCKET serverSocket, TNetworkAddress* clientAddress)
                 << TError::FromSystem(lastError);
         }
     }
+#elif defined _win_
+    SetNonBlock(clientSocket);
 #endif
 
     return clientSocket;
@@ -463,6 +487,7 @@ bool TrySetSocketEnableQuickAck(SOCKET socket)
 
 bool TrySetSocketTosLevel(SOCKET socket, int tosLevel)
 {
+#ifdef _unix_
     if (setsockopt(socket, IPPROTO_IP, IP_TOS, &tosLevel, sizeof(tosLevel)) != 0) {
         return false;
     }
@@ -470,6 +495,9 @@ bool TrySetSocketTosLevel(SOCKET socket, int tosLevel)
         return false;
     }
     return true;
+#else
+    return false;
+#endif
 }
 
 bool TrySetSocketInputFilter(SOCKET socket, bool drop)

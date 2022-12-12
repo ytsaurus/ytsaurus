@@ -714,7 +714,7 @@ private:
             }
 
             auto micros = gpr_timespec_to_micros(gpr_time_sub(deadline, now));
-            if (micros > std::numeric_limits<ui64>::max() / 2) {
+            if (micros > static_cast<double>(std::numeric_limits<ui64>::max() / 2)) {
                 return;
             }
 

@@ -737,6 +737,8 @@ TEST_F(TLoggingTest, DISABLED_LogFatal)
     YT_LOG_FATAL("FATAL");
 }
 
+// Windows does not support request tracing for now.
+#ifndef _win_
 TEST_F(TLoggingTest, RequestSuppression)
 {
     TTempFile logFile(GenerateLogFileName());
@@ -776,6 +778,7 @@ TEST_F(TLoggingTest, RequestSuppression)
     EXPECT_EQ(1, std::ssize(lines));
     EXPECT_TRUE(lines[0].find("Info message") != TString::npos);
 }
+#endif
 
 ////////////////////////////////////////////////////////////////////////////////
 

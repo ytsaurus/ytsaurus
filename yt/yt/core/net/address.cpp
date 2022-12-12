@@ -19,12 +19,16 @@
 
 #include <util/generic/singleton.h>
 
+#include <util/network/interface.h>
+
 #include <util/string/hex.h>
 
 #ifdef _win_
     #include <ws2ipdef.h>
     #include <winsock2.h>
-#else
+#endif
+
+#ifdef _unix_
     #include <ifaddrs.h>
     #include <netdb.h>
     #include <netinet/in.h>
@@ -425,8 +429,8 @@ bool operator == (const TNetworkAddress& lhs, const TNetworkAddress& rhs)
     auto rhsAddr = rhs.GetSockAddr();
     auto rhsSize = rhs.GetLength();
 
-    TStringBuf rawLhs{reinterpret_cast<const char*>(lhsAddr), lhsSize};
-    TStringBuf rawRhs{reinterpret_cast<const char*>(rhsAddr), rhsSize};
+    TStringBuf rawLhs{reinterpret_cast<const char*>(lhsAddr), static_cast<size_t>(lhsSize)};
+    TStringBuf rawRhs{reinterpret_cast<const char*>(rhsAddr), static_cast<size_t>(rhsSize)};
 
     return rawLhs == rawRhs;
 }
@@ -986,29 +990,8 @@ const std::vector<TNetworkAddress>& TAddressResolver::TImpl::GetLocalAddresses()
     }
 
     std::vector<TNetworkAddress> localAddresses;
-
-    struct ifaddrs* ifAddresses;
-    if (getifaddrs(&ifAddresses) == -1) {
-        auto error = TError("getifaddrs failed")
-            << TError::FromSystem();
-        YT_LOG_WARNING(error, "Failed to initialize local addresses");
-    } else {
-        auto holder = std::unique_ptr<ifaddrs, decltype(&freeifaddrs)>(ifAddresses, &freeifaddrs);
-
-        for (const auto* currentAddress = ifAddresses;
-            currentAddress;
-            currentAddress = currentAddress->ifa_next)
-        {
-            if (currentAddress->ifa_addr == nullptr) {
-                continue;
-            }
-
-            auto family = currentAddress->ifa_addr->sa_family;
-            if (family != AF_INET && family != AF_INET6) {
-                continue;
-            }
-            localAddresses.push_back(TNetworkAddress(*currentAddress->ifa_addr));
-        }
+    for (const auto& interface : NAddr::GetNetworkInterfaces()) {
+        localAddresses.push_back(TNetworkAddress(*interface.Address->Addr()));
     }
 
     {
@@ -1216,4 +1199,3 @@ std::optional<TString> InferYPClusterFromHostName(TStringBuf hostName)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNet
-
