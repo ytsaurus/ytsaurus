@@ -516,6 +516,28 @@ void TIOThroughputMeterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TLocationHealthCheckerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default(false);
+
+    registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
+        .Default(TDuration::Seconds(10));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TLocationHealthCheckerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enabled", &TThis::Enabled)
+        .Default();
+
+    registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChunkMergerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("fail_shallow_merge_validation", &TThis::FailShallowMergeValidation)
@@ -599,6 +621,8 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .DefaultNew();
+    registrar.Parameter("location_health_checker", &TThis::LocationHealthChecker)
+        .DefaultNew();
 
     registrar.Parameter("session_timeout", &TThis::SessionTimeout)
         .Default(TDuration::Seconds(120));
@@ -665,6 +689,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
+        .DefaultNew();
+
+    registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
         .DefaultNew();
 
     registrar.Parameter("max_write_sessions", &TThis::MaxWriteSessions)
@@ -820,6 +847,8 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("table_schema_cache", &TThis::TableSchemaCache)
         .DefaultNew();
+    registrar.Parameter("location_health_checker", &TThis::LocationHealthChecker)
+        .DefaultNew();
 
     registrar.Parameter("master_connector", &TThis::MasterConnector)
         .DefaultNew();
@@ -849,6 +878,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
         .Optional();
 
     registrar.Parameter("io_throughput_meter", &TThis::IOThroughputMeter)
+        .DefaultNew();
+
+    registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
         .DefaultNew();
 
     registrar.Parameter("chunk_merger", &TThis::ChunkMerger)

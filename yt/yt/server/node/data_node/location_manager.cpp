@@ -8,7 +8,10 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <yt/yt/core/misc/atomic_object.h>
 
 namespace NYT::NDataNode {
 
@@ -67,9 +70,44 @@ TFuture<std::vector<TStoreLocationPtr>> TLocationManager::GetFailedLocations()
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocationHealthChecker::TLocationHealthChecker(
-    TLocationManagerPtr locationManager)
-    : LocationManager_(std::move(locationManager))
+    TLocationManagerPtr locationManager,
+    IInvokerPtr invoker,
+    TLocationHealthCheckerConfigPtr config)
+    : Config_(std::move(config))
+    , Invoker_(std::move(invoker))
+    , LocationManager_(std::move(locationManager))
+    , HealthCheckerExecutor_(New<TPeriodicExecutor>(
+        Invoker_,
+        BIND(&TLocationHealthChecker::OnHealthCheck, MakeWeak(this)),
+        Config_->HealthCheckPeriod))
 { }
+
+void TLocationHealthChecker::Start()
+{
+    if (Enabled_.load()) {
+        YT_LOG_DEBUG("Starting location health checker");
+        HealthCheckerExecutor_->Start();
+    }
+}
+
+void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthCheckerDynamicConfigPtr& newConfig)
+{
+    auto oldEnabled = Enabled_.load();
+    auto newEnabled = newConfig->Enabled.value_or(Config_->Enabled);
+    auto newHealthCheckPeriod = newConfig->HealthCheckPeriod.value_or(Config_->HealthCheckPeriod);
+
+    HealthCheckerExecutor_->SetPeriod(newHealthCheckPeriod);
+
+    if (oldEnabled && !newEnabled) {
+        YT_LOG_DEBUG("Stopping location health checker");
+        HealthCheckerExecutor_->Stop();
+    } else if (!oldEnabled && newEnabled) {
+        YT_LOG_DEBUG("Starting location health checker");
+        HealthCheckerExecutor_->Start();
+    }
+
+    Enabled_.store(newEnabled);
+}
 
 void TLocationHealthChecker::OnHealthCheck()
 {

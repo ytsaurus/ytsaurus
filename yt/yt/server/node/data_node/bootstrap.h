@@ -52,6 +52,9 @@ struct IBootstrap
     virtual const NTabletClient::IRowComparerProviderPtr& GetRowComparerProvider() const = 0;
 
     virtual const IIOThroughputMeterPtr& GetIOThroughputMeter() const = 0;
+
+    // Disk management.
+    virtual const TLocationHealthCheckerPtr& GetLocationHealthChecker() const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -11,7 +11,9 @@ namespace NYT::NContainers {
 struct TDiskManagerProxyConfig
     : public NYTree::TYsonStruct
 {
-public:
+    TString DiskManagerAddress;
+    TString DiskManagerServiceName;
+
     TDuration RequestTimeout;
 
     REGISTER_YSON_STRUCT(TDiskManagerProxyConfig);
@@ -26,7 +28,6 @@ DEFINE_REFCOUNTED_TYPE(TDiskManagerProxyConfig)
 struct TDiskManagerProxyDynamicConfig
     : public NYTree::TYsonStruct
 {
-public:
     std::optional<TDuration> RequestTimeout;
 
     REGISTER_YSON_STRUCT(TDiskManagerProxyDynamicConfig);

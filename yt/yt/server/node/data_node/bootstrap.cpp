@@ -21,14 +21,17 @@
 #include "ytree_integration.h"
 #include "chunk_detail.h"
 #include "location.h"
+#include "location_manager.h"
 
 #include <yt/yt/server/node/cluster_node/config.h>
 #include <yt/yt/server/node/cluster_node/dynamic_config_manager.h>
 
-
 #include <yt/yt/ytlib/tablet_client/row_comparer_generator.h>
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
+
+#include <yt/yt/library/containers/disk_manager/disk_info_provider.h>
+#include <yt/yt/library/containers/disk_manager/disk_manager_proxy.h>
 
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
@@ -41,6 +44,7 @@ namespace NYT::NDataNode {
 using namespace NClusterNode;
 using namespace NCypressClient;
 using namespace NConcurrency;
+using namespace NContainers;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -260,6 +264,17 @@ public:
             ChunkStore_,
             DataNodeLogger.WithTag("IOMeter"));
         JobController_->Initialize();
+
+        DiskManagerProxy_ = New<TDiskManagerProxy>(
+            GetConfig()->DataNode->DiskManagerProxy);
+        auto diskInfoProvider = New<TDiskInfoProvider>(DiskManagerProxy_);
+        LocationHealthChecker_ = New<TLocationHealthChecker>(
+            New<TLocationManager>(
+                ChunkStore_,
+                GetControlInvoker(),
+                diskInfoProvider),
+            GetControlInvoker(),
+            GetConfig()->DataNode->LocationHealthChecker);
     }
 
     void Run() override
@@ -287,6 +302,8 @@ public:
         SkynetHttpServer_->Start();
 
         AllyReplicaManager_->Start();
+
+        LocationHealthChecker_->Start();
     }
 
     const TChunkStorePtr& GetChunkStore() const override
@@ -406,6 +423,11 @@ public:
         return IOThroughputMeter_;
     }
 
+    const TLocationHealthCheckerPtr& GetLocationHealthChecker() const override
+    {
+        return LocationHealthChecker_;
+    }
+
 private:
     NClusterNode::IBootstrap* const ClusterNodeBootstrap_;
 
@@ -441,6 +463,10 @@ private:
 
     IIOThroughputMeterPtr IOThroughputMeter_;
 
+    TDiskManagerProxyPtr DiskManagerProxy_;
+
+    TLocationHealthCheckerPtr LocationHealthChecker_;
+
     TMasterJobSensors MasterJobSensors_;
 
     void OnDynamicConfigChanged(
@@ -472,6 +498,9 @@ private:
         P2PDistributor_->UpdateConfig(newConfig->DataNode->P2P);
 
         ChunkStore_->UpdateConfig(newConfig->DataNode);
+
+        DiskManagerProxy_->OnDynamicConfigChanged(newConfig->DataNode->DiskManagerProxy);
+        LocationHealthChecker_->OnDynamicConfigChanged(newConfig->DataNode->LocationHealthChecker);
     }
 };
 

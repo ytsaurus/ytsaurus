@@ -10,6 +10,8 @@
 
 #include <yt/yt/library/containers/config.h>
 
+#include <yt/yt/library/containers/disk_manager/config.h>
+
 #include <yt/yt/ytlib/chunk_client/config.h>
 
 #include <yt/yt/ytlib/journal_client/config.h>
@@ -581,6 +583,40 @@ DEFINE_REFCOUNTED_TYPE(TIOThroughputMeterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TLocationHealthCheckerConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enabled;
+
+    TDuration HealthCheckPeriod;
+
+    REGISTER_YSON_STRUCT(TLocationHealthCheckerConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLocationHealthCheckerConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLocationHealthCheckerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    std::optional<bool> Enabled;
+
+    std::optional<TDuration> HealthCheckPeriod;
+
+    REGISTER_YSON_STRUCT(TLocationHealthCheckerDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TLocationHealthCheckerDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkMergerConfig
     : public NYTree::TYsonStruct
 {
@@ -695,6 +731,13 @@ public:
 
     //! Table schema and row key comparer cache.
     TTableSchemaCacheConfigPtr TableSchemaCache;
+
+    //! Configuration of the location health checker that is responsible for looking up
+    //! for failed locations and alerting about them.
+    TLocationHealthCheckerConfigPtr LocationHealthChecker;
+
+    //! Configuration of the interaction with the host disk manager.
+    NContainers::TDiskManagerProxyConfigPtr DiskManagerProxy;
 
     //! Upload session timeout.
     /*!
@@ -876,6 +919,9 @@ public:
     TMasterConnectorDynamicConfigPtr MasterConnector;
     TAllyReplicaManagerDynamicConfigPtr AllyReplicaManager;
 
+    //! Configuration of the interaction with the host disk manager.
+    NContainers::TDiskManagerProxyDynamicConfigPtr DiskManagerProxy;
+
     //! Prepared chunk readers are kept open during this period of time after the last use.
     TDuration ChunkReaderRetentionTimeout;
 
@@ -899,6 +945,8 @@ public:
     TChunkMergerConfigPtr ChunkMerger;
 
     TChunkRepairJobDynamicConfigPtr ChunkRepairJob;
+
+    TLocationHealthCheckerDynamicConfigPtr LocationHealthChecker;
 
     THashMap<TString, TStoreLocationDynamicConfigPtr> StoreLocationConfigPerMedium;
 

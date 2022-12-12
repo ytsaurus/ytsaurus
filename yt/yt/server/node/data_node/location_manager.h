@@ -38,12 +38,25 @@ class TLocationHealthChecker
     : public TRefCounted
 {
 public:
-    explicit TLocationHealthChecker(TLocationManagerPtr locationManager);
+    TLocationHealthChecker(
+        TLocationManagerPtr locationManager,
+        IInvokerPtr invoker,
+        TLocationHealthCheckerConfigPtr config);
+
+    void Start();
 
     void OnHealthCheck();
 
+    void OnDynamicConfigChanged(const TLocationHealthCheckerDynamicConfigPtr& newConfig);
+
 private:
+    const TLocationHealthCheckerConfigPtr Config_;
+    std::atomic<bool> Enabled_;
+
+    const IInvokerPtr Invoker_;
+
     const TLocationManagerPtr LocationManager_;
+    NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocationHealthChecker)

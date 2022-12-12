@@ -10,9 +10,25 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/rpc/client.h>
+#include <yt/yt/core/rpc/grpc/channel.h>
+#include <yt/yt/core/rpc/grpc/config.h>
+
 namespace NYT::NContainers {
 
 using namespace NConcurrency;
+
+using namespace NRpc;
+using namespace NRpc::NGrpc;
+
+////////////////////////////////////////////////////////////////////////////////
+
+IChannelPtr CreateDiskManagerRpcChannel(TString diskManagerAddress)
+{
+    auto channelConfig = New<TChannelConfig>();
+    channelConfig->Address = std::move(diskManagerAddress);
+    return CreateGrpcChannel(std::move(channelConfig));
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,12 +49,10 @@ EDiskState MapDiskState(diskman::DiskStatus_State state)
 ////////////////////////////////////////////////////////////////////////////////
 
 TDiskManagerProxy::TDiskManagerProxy(
-    NRpc::IChannelPtr channel,
-    TString serviceName,
     TDiskManagerProxyConfigPtr config)
     : TProxyBase(
-        std::move(channel),
-        NRpc::TServiceDescriptor(std::move(serviceName)))
+        CreateDiskManagerRpcChannel(config->DiskManagerAddress),
+        TServiceDescriptor(config->DiskManagerServiceName))
     , Config_(std::move(config))
     , DynamicConfig_(New<TDiskManagerProxyDynamicConfig>())
 { }
