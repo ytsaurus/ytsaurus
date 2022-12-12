@@ -506,28 +506,25 @@ TCpuAccounting::TStatistics TCpuAccounting::GetStatistics() const
 }
 
 template <class T>
-static void AddMapItem(
+void AddMapItem(
     NYson::IYsonConsumer* consumer,
     const TStringBuf& key,
-    TErrorOr<T> value)
+    TErrorOr<T> value,
+    T defaultValue)
 {
-    if (value.IsOK()) {
-        consumer->OnKeyedItem(key);
-        NYTree::Serialize(value.Value(), consumer);
-    } else {
-        YT_LOG_WARNING(value, "Cannot get statistic (field: %v)", key);
-    }
+    consumer->OnKeyedItem(key);
+    NYTree::Serialize(value.ValueOrDefault(defaultValue), consumer);
 }
 
 void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    AddMapItem(consumer, "user", statistics.UserUsageTime);
-    AddMapItem(consumer, "system", statistics.SystemUsageTime);
-    AddMapItem(consumer, "wait", statistics.WaitTime);
-    AddMapItem(consumer, "throttled", statistics.ThrottledTime);
-    AddMapItem(consumer, "context_switches", statistics.ContextSwitches);
-    AddMapItem(consumer, "peak_thread_count", statistics.PeakThreadCount);
+    AddMapItem(consumer, "user", statistics.UserUsageTime, TDuration::Zero());
+    AddMapItem(consumer, "system", statistics.SystemUsageTime, TDuration::Zero());
+    AddMapItem(consumer, "wait", statistics.WaitTime, TDuration::Zero());
+    AddMapItem(consumer, "throttled", statistics.ThrottledTime, TDuration::Zero());
+    AddMapItem(consumer, "context_switches", statistics.ContextSwitches, 0UL);
+    AddMapItem(consumer, "peak_thread_count", statistics.PeakThreadCount, 0UL);
     consumer->OnEndMap();
 }
 
@@ -650,11 +647,11 @@ void TBlockIO::ThrottleOperations(i64 operations) const
 void Serialize(const TBlockIO::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    AddMapItem(consumer, "bytes_read", statistics.IOReadByte);
-    AddMapItem(consumer, "bytes_written", statistics.IOWriteByte);
-    AddMapItem(consumer, "io_read", statistics.IOReadOps);
-    AddMapItem(consumer, "io_write", statistics.IOWriteOps);
-    AddMapItem(consumer, "io_total", statistics.IOOps);
+    AddMapItem(consumer, "bytes_read", statistics.IOReadByte, 0UL);
+    AddMapItem(consumer, "bytes_written", statistics.IOWriteByte, 0UL);
+    AddMapItem(consumer, "io_read", statistics.IOReadOps, 0UL);
+    AddMapItem(consumer, "io_write", statistics.IOWriteOps, 0UL);
+    AddMapItem(consumer, "io_total", statistics.IOOps, 0UL);
     consumer->OnEndMap();
 }
 
@@ -715,9 +712,9 @@ void TMemory::ForceEmpty() const
 void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    AddMapItem(consumer, "rss", statistics.Rss);
-    AddMapItem(consumer, "mapped_file", statistics.MappedFile);
-    AddMapItem(consumer, "major_page_faults", statistics.MajorPageFaults);
+    AddMapItem(consumer, "rss", statistics.Rss, 0UL);
+    AddMapItem(consumer, "mapped_file", statistics.MappedFile, 0UL);
+    AddMapItem(consumer, "major_page_faults", statistics.MajorPageFaults, 0UL);
     consumer->OnEndMap();
 }
 
@@ -726,12 +723,12 @@ void Serialize(const TMemory::TStatistics& statistics, NYson::IYsonConsumer* con
 void Serialize(const TNetwork::TStatistics& statistics, NYson::IYsonConsumer* consumer)
 {
     consumer->OnBeginMap();
-    AddMapItem(consumer, "tx_bytes", statistics.TxBytes);
-    AddMapItem(consumer, "tx_packets", statistics.TxPackets);
-    AddMapItem(consumer, "tx_drops", statistics.TxDrops);
-    AddMapItem(consumer, "rx_bytes", statistics.RxBytes);
-    AddMapItem(consumer, "rx_packets", statistics.RxPackets);
-    AddMapItem(consumer, "rx_drops", statistics.RxDrops);
+    AddMapItem(consumer, "tx_bytes", statistics.TxBytes, 0UL);
+    AddMapItem(consumer, "tx_packets", statistics.TxPackets, 0UL);
+    AddMapItem(consumer, "tx_drops", statistics.TxDrops, 0UL);
+    AddMapItem(consumer, "rx_bytes", statistics.RxBytes, 0UL);
+    AddMapItem(consumer, "rx_packets", statistics.RxPackets, 0UL);
+    AddMapItem(consumer, "rx_drops", statistics.RxDrops, 0UL);
     consumer->OnEndMap();
 }
 
