@@ -1,0 +1,20 @@
+namespace: NYT::NScheduler::NRecords
+
+types:
+  - type_name: TOperationAlias
+    fields:
+      - cpp_name: Alias
+        cpp_type: TString
+        field_name: alias
+        field_type: String
+        sort_order: Ascending
+
+      - cpp_name: OperationIdHi
+        cpp_type: ui64
+        field_name: operation_id_hi
+        field_type: Uint64
+
+      - cpp_name: OperationIdLo
+        cpp_type: ui64
+        field_name: operation_id_lo
+        field_type: Uint64

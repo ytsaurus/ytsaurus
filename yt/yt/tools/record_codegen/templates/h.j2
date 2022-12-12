@@ -2,11 +2,7 @@
 
 #pragma once
 
-#include <yt/yt/client/table_client/record_descriptor.h>
-
-#include <yt/yt/core/misc/singleton.h>
-
-#include <initializer_list>
+#include <yt/yt/client/table_client/record_codegen_h.h>
 
 {% if h_verbatim %}
 {{h_verbatim}}
@@ -76,7 +72,12 @@ struct {{type.type_name}}Key
 {%- endfor %}
 
     NYT::NTableClient::TLegacyKey ToKey(const NYT::NTableClient::TRowBufferPtr& rowBuffer) const;
+    static NYT::TSharedRange<NYT::NTableClient::TLegacyKey> ToKeys(
+        NYT::TRange<{{type.type_name}}Key> keys,
+        const NYT::NTableClient::TRowBufferPtr& rowBuffer);
+
     static {{type.type_name}}Key FromKey(NYT::NTableClient::TLegacyKey key);
+    static std::vector<{{type.type_name}}Key> FromKeys(NYT::TRange<NYT::NTableClient::TLegacyKey> keys);
 };
 
 struct {{type.type_name}}
@@ -96,9 +97,13 @@ struct {{type.type_name}}
         const NYT::NTableClient::TRowBufferPtr& rowBuffer,
         std::initializer_list<E{{type.type_name[1:]}}Field> fields,
         const {{type.type_name}}IdMapping& idMapping = {{type.type_name}}Descriptor::Get()->GetIdMapping()) const;
-    static {{type.type_name}} FromUnversionedRow(
+
+    static std::optional<{{type.type_name}}> FromUnversionedRow(
         NYT::NTableClient::TUnversionedRow row,
-        const {{type.type_name}}IdMapping& idMapping = {{type.type_name}}Descriptor::Get()->GetIdMapping());
+        const {{type.type_name}}IdMapping& idMapping);
+    static std::vector<std::optional<{{type.type_name}}>> FromUnversionedRows(
+        NYT::TRange<NYT::NTableClient::TUnversionedRow> rows,
+        const {{type.type_name}}IdMapping& idMapping);
 };
 
 {% endfor %}

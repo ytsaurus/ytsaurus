@@ -2,14 +2,7 @@
 
 #include <{{h_path}}>
 
-#include <yt/yt/client/table_client/comparator.h>
-#include <yt/yt/client/table_client/helpers.h>
-#include <yt/yt/client/table_client/name_table.h>
-#include <yt/yt/client/table_client/row_base.h>
-#include <yt/yt/client/table_client/schema.h>
-#include <yt/yt/client/table_client/unversioned_row.h>
-
-#include <array>
+#include <yt/yt/client/table_client/record_codegen_cpp.h>
 
 {% if cpp_verbatim %}
 {{cpp_verbatim}}
@@ -81,8 +74,21 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
     return rowBuffer->CaptureRow(MakeRange(values), /*captureValues*/ false);
 }
 
+TSharedRange<TLegacyKey> {{type.type_name}}Key::ToKeys(
+    TRange<{{type.type_name}}Key> keys,
+    const TRowBufferPtr& rowBuffer)
+{
+    std::vector<TLegacyKey> result;
+    result.reserve(keys.size());
+    for (const auto& key : keys) {
+        result.push_back(key.ToKey(rowBuffer));
+    }
+    return MakeSharedRange(std::move(result), rowBuffer);
+}
+
 {{type.type_name}}Key {{type.type_name}}Key::FromKey(TLegacyKey key)
 {
+    YT_ASSERT(key);
     static const auto ExpectedCount = {{type.type_name}}Descriptor::Get()->GetSchema()->GetKeyColumnCount();
     if (static_cast<int>(key.GetCount()) != ExpectedCount) {
         THROW_ERROR_EXCEPTION("Invalid number of key values: expected %v, got %v",
@@ -93,6 +99,16 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
 {%- for field in type.fields if field.sort_order %}
     FromUnversionedValue(&result.{{field.cpp_name}}, key[{{loop.index0}}]);
 {%- endfor %}
+    return result;
+}
+
+std::vector<{{type.type_name}}Key> {{type.type_name}}Key::FromKeys(TRange<TLegacyKey> keys)
+{
+    std::vector<{{type.type_name}}Key> result;
+    result.reserve(keys.size());
+    for (auto key : keys) {
+        result.push_back({{type.type_name}}Key::FromKey(key));
+    }
     return result;
 }
 
@@ -130,10 +146,13 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     return builder.GetRow();
 }
 
-{{type.type_name}} {{type.type_name}}::FromUnversionedRow(
+std::optional<{{type.type_name}}> {{type.type_name}}::FromUnversionedRow(
     TUnversionedRow row,
     const {{type.type_name}}IdMapping& idMapping)
 {
+    if (!row) {
+        return std::nullopt;
+    }
     {{type.type_name}} result;
 {%- for field in type.fields %}
     if (idMapping.{{field.cpp_name}}) {
@@ -141,6 +160,18 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     }
 {%- endfor %}
     return result;
+}
+
+std::vector<std::optional<{{type.type_name}}>> {{type.type_name}}::FromUnversionedRows(
+    TRange<TUnversionedRow> rows,
+    const {{type.type_name}}IdMapping& idMapping)
+{
+    std::vector<std::optional<{{type.type_name}}>> optionalResults;
+    optionalResults.reserve(rows.size());
+    for (auto row : rows) {
+        optionalResults.push_back(FromUnversionedRow(row, idMapping));
+    }
+    return optionalResults;
 }
 
 {% endfor %}

@@ -16,33 +16,14 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
     NTransactionClient::TTimestamp timestamp,
     const NTableClient::TColumnFilter& columnFilter)
 {
-    std::vector<NTableClient::TLegacyKey> rawKeys;
-    rawKeys.reserve(keys.size());
-    for (const auto& key : keys) {
-        rawKeys.push_back(key.ToKey(GetRowBuffer()));
-    }
-
     auto rowsetFuture = LookupRows(
         TRecordKey::Table,
-        MakeSharedRange(std::move(rawKeys), GetRowBuffer()),
+        TRecordKey::ToKeys(keys, GetRowBuffer()),
         timestamp,
         columnFilter);
-    return rowsetFuture.Apply(BIND([=, keyCount = std::ssize(keys)] (const NApi::IUnversionedRowsetPtr& rowset) {
-        auto rows = rowset->GetRows();
-        YT_VERIFY(std::ssize(rows) == keyCount);
-
+    return rowsetFuture.Apply(BIND([] (const NApi::IUnversionedRowsetPtr& rowset) {
         typename TRecordKey::TRecordDescriptor::TIdMapping idMapping(rowset->GetNameTable());
-        std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>> optionalRecords;
-        optionalRecords.reserve(rows.size());
-        for (auto row : rows) {
-            if (row) {
-                optionalRecords.emplace_back(TRecordKey::TRecordDescriptor::TRecord::FromUnversionedRow(row, idMapping));
-            } else {
-                optionalRecords.push_back(std::nullopt);
-            }
-        }
-
-        return optionalRecords;
+        return TRecordKey::TRecordDescriptor::TRecord::FromUnversionedRows(rowset->GetRows(), idMapping);
     }));
 }
 

@@ -229,24 +229,4 @@ TJobFailContextTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationAliasesTableDescriptor::TOperationAliasesTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Index(NameTable)
-{ }
-
-const TOperationAliasesTableDescriptor& TOperationAliasesTableDescriptor::Get()
-{
-    static const TOperationAliasesTableDescriptor descriptor;
-    return descriptor;
-}
-
-TOperationAliasesTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
-    : AliasHash(nameTable->RegisterName("alias_hash"))
-    , Alias(nameTable->RegisterName("alias"))
-    , OperationIdHi(nameTable->RegisterName("operation_id_hi"))
-    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NApi
