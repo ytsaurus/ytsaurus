@@ -5,6 +5,14 @@
 #include "private.h"
 #include "rpc_helpers.h"
 
+#include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
+
+#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+
+#include <yt/yt/ytlib/security_client/helpers.h>
+
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/client/api/operation_archive_schema.h>
 #include <yt/yt/client/api/rowset.h>
 
@@ -15,12 +23,6 @@
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
-
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
-
-#include <yt/yt/ytlib/security_client/helpers.h>
-
-#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -403,13 +405,15 @@ TOperationId TClient::ResolveOperationAlias(
             << TErrorAttribute("operation_alias", alias);
     }
 
-    TOperationAliasesTableDescriptor tableDescriptor;
     auto rowBuffer = New<TRowBuffer>();
 
-    std::vector<TUnversionedRow> keys;
-    auto key = rowBuffer->AllocateUnversioned(1);
-    key[0] = MakeUnversionedStringValue(alias, tableDescriptor.Index.Alias);
-    keys.push_back(key);
+    NRecords::TOperationAliasKey key{
+        .Alias = alias
+    };
+
+    std::vector<TUnversionedRow> keys{
+        key.ToKey(rowBuffer)
+    };
 
     TLookupRowsOptions lookupOptions;
     lookupOptions.KeepMissingRows = true;
@@ -417,22 +421,23 @@ TOperationId TClient::ResolveOperationAlias(
 
     auto rowset = WaitFor(LookupRows(
         GetOperationsArchiveOperationAliasesPath(),
-        tableDescriptor.NameTable,
+        NRecords::TOperationAliasDescriptor::Get()->GetNameTable(),
         MakeSharedRange(std::move(keys), std::move(rowBuffer)),
         lookupOptions))
         .ValueOrThrow();
 
-    auto rows = rowset->GetRows();
-    YT_VERIFY(!rows.Empty());
-    if (rows[0]) {
-        TOperationId operationId;
-        operationId.Parts64[0] = rows[0][tableDescriptor.Index.OperationIdHi].Data.Uint64;
-        operationId.Parts64[1] = rows[0][tableDescriptor.Index.OperationIdLo].Data.Uint64;
-        return operationId;
+    NRecords::TOperationAliasIdMapping idMapping(rowset->GetNameTable());
+    auto optionalRecords = NRecords::TOperationAlias::FromUnversionedRows(rowset->GetRows(), idMapping);
+
+    YT_VERIFY(optionalRecords.size() == 1);
+    const auto& optionalRecord = optionalRecords[0];
+
+    if (!optionalRecord) {
+        THROW_ERROR_EXCEPTION("Operation alias is unknown")
+            << TErrorAttribute("alias", alias);
     }
 
-    THROW_ERROR_EXCEPTION("Operation alias is unknown")
-        << TErrorAttribute("alias", alias);
+    return TOperationId(optionalRecord->OperationIdHi, optionalRecord->OperationIdLo);
 }
 
 static TInstant GetProgressBuildTime(const TYsonString& progressYson)

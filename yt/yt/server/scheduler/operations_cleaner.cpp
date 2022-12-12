@@ -18,6 +18,7 @@
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/records/operation_alias.record.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
@@ -441,18 +442,13 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
 TUnversionedRow BuildOperationAliasesTableRow(
     const TRowBufferPtr& rowBuffer,
     const TArchiveOperationRequest& request,
-    const TOperationAliasesTableDescriptor::TIndex& index,
-    int /* version */)
+    int /*version*/)
 {
-    // All any and string values passed to MakeUnversioned* functions MUST be alive till
-    // they are captured in row buffer (they are not owned by unversioned value or builder).
-
-    TUnversionedRowBuilder builder;
-    builder.AddValue(MakeUnversionedStringValue(*request.Alias, index.Alias));
-    builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[0], index.OperationIdHi));
-    builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[1], index.OperationIdLo));
-
-    return rowBuffer->CaptureRow(builder.GetRow());
+    NRecords::TOperationAlias alias;
+    alias.Alias = *request.Alias;
+    alias.OperationIdHi = request.Id.Parts64[0];
+    alias.OperationIdLo = request.Id.Parts64[1];
+    return alias.ToUnversionedRow(rowBuffer);
 }
 
 void AddEventToAlertEventsMap(TAlertEventsMap* map, const TOperationAlertEvent& event, int maxAlertEventCountPerAlertType)
@@ -1163,7 +1159,6 @@ private:
 
             // operation_aliases rows
             {
-                TOperationAliasesTableDescriptor desc;
                 auto rowBuffer = New<TRowBuffer>(TOperationAliasesTag{});
                 std::vector<TUnversionedRow> rows;
                 rows.reserve(operationIds.size());
@@ -1174,17 +1169,16 @@ private:
                     }
 
                     const auto& request = GetRequest(operationId);
-
                     if (request.Alias) {
-                        auto row = NDetail::BuildOperationAliasesTableRow(rowBuffer, request, desc.Index, version);
-                        rows.emplace_back(row);
+                        auto row = NDetail::BuildOperationAliasesTableRow(rowBuffer, request, version);
+                        rows.push_back(row);
                         operationAliasesRowsDataWeight += GetDataWeight(row);
                     }
                 }
 
                 transaction->WriteRows(
                     GetOperationsArchiveOperationAliasesPath(),
-                    desc.NameTable,
+                    NRecords::TOperationAliasDescriptor::Get()->GetNameTable(),
                     MakeSharedRange(std::move(rows), std::move(rowBuffer)));
             }
         }
