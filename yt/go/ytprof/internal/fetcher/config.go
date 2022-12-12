@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
+	"a.yandex-team.ru/infra/nanny/go/client/nanny"
+	"a.yandex-team.ru/infra/nanny/go/client/nanny/httpnanny"
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/zap"
-	"a.yandex-team.ru/library/go/yandex/nanny"
-	"a.yandex-team.ru/library/go/yandex/nanny/httpnanny"
 )
 
 // Resolver describes url to fetch to a way to resolve those urls
