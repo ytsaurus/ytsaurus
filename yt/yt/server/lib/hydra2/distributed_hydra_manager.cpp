@@ -2227,6 +2227,17 @@ private:
 
             YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
             ControlState_ = EPeerState::Following;
+
+            YT_LOG_INFO("Waiting for follower to catch up");
+
+            auto followerCommitter = epochContext->FollowerCommitter;
+            YT_VERIFY(followerCommitter);
+            followerCommitter->CompleteRecovery();
+            WaitFor(followerCommitter->GetCatchUpFuture())
+                .ThrowOnError();
+
+            YT_LOG_INFO("Follower caught up");
+
             ControlFollowerRecoveryComplete_.Fire();
 
             YT_LOG_INFO("Follower recovery completed");

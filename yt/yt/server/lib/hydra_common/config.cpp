@@ -438,6 +438,15 @@ void TDistributedHydraManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("alert_on_snapshot_failure", &TThis::AlertOnSnapshotFailure)
         .Default(true);
 
+    registrar.Parameter("max_catch_up_accepted_mutation_count", &TThis::MaxCatchUpAcceptedMutationCount)
+        .Default(10'000);
+
+    registrar.Parameter("max_catch_up_logged_mutation_count", &TThis::MaxCatchUpLoggedMutationCount)
+        .Default(10'000);
+
+    registrar.Parameter("max_catch_up_sequence_number_gap", &TThis::MaxCatchUpSequenceNumberGap)
+        .Default(10'000);
+
     registrar.Postprocessor([] (TThis* config) {
         if (!config->DisableLeaderLeaseGraceDelay && config->LeaderLeaseGraceDelay <= config->LeaderLeaseTimeout) {
             THROW_ERROR_EXCEPTION("\"leader_lease_grace_delay\" must be larger than \"leader_lease_timeout\"");

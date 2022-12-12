@@ -504,6 +504,16 @@ public:
     //! Alert if no successful snapshots are built.
     bool AlertOnSnapshotFailure;
 
+    //! Maximum number of mutations in AcceptedMutations_ to consider follower active.
+    int MaxCatchUpAcceptedMutationCount;
+
+    //! Maximum number of mutations in LoggedMutations_ to consider follower active.
+    int MaxCatchUpLoggedMutationCount;
+
+    //! Maximum sequence number difference between applied and committed sequence
+    //! number to consider follower active.
+    int MaxCatchUpSequenceNumberGap;
+
     TDistributedHydraManagerConfigPtr ApplyDynamic(const TDynamicDistributedHydraManagerConfigPtr& dynamicConfig);
     void ApplyDynamicInplace(const TDynamicDistributedHydraManagerConfig& dynamicConfig);
 

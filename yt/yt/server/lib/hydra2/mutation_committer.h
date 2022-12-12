@@ -62,6 +62,8 @@ protected:
     NHydra::NProto::TMutationHeader MutationHeader_;
     TFuture<void> LastLoggedMutationFuture_ = VoidFuture;
 
+    TFuture<void> LastOffloadedMutationsFuture_ = VoidFuture;
+
     NHydra::IChangelogPtr Changelog_;
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -156,7 +158,6 @@ private:
     TReachableState InitialState_;
     TReachableState CommittedState_;
     i64 LastOffloadedSequenceNumber_ = 0;
-    TFuture<void> LastOffloadedMutationsFuture_ = VoidFuture;
     i64 NextLoggedSequenceNumber_ = 0;
     TVersion NextLoggedVersion_;
 
@@ -261,12 +262,17 @@ public:
     i64 GetExpectedSequenceNumber() const;
     void SetSequenceNumber(i64 number);
 
+    TFuture<void> GetCatchUpFuture() const;
+    void CompleteRecovery();
+
     void RegisterNextChangelog(int id, NHydra::IChangelogPtr changelog);
 
     //! Cleans things up, aborts all pending mutations with a human-readable error.
     void Stop();
 
 private:
+    const TPromise<void> СaughtUpPromise_ = NewPromise<void>();
+
     // Accepted, but not logged.
     TRingQueue<TPendingMutationPtr> AcceptedMutations_;
     i64 LastAcceptedSequenceNumber_ = 0;
@@ -279,10 +285,14 @@ private:
 
     bool LoggingMutations_ = false;
 
+    bool RecoveryComplete_ = true;
+
     TCompactFlatMap<int, NHydra::IChangelogPtr, 4> NextChangelogs_;
 
     NHydra::IChangelogPtr GetNextChangelog(TVersion version);
     void PrepareNextChangelog(TVersion version);
+
+    void CheckIfCaughtUp();
 
     void DoAcceptMutation(const TSharedRef& recordData);
     void OnMutationsLogged(
