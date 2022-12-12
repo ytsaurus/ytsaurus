@@ -1749,9 +1749,9 @@ private:
 
         void ThreadMainStep()
         {
-            auto cqe = GetCqe(true);
+            io_uring_cqe* cqe = GetCqe(true);
             while (cqe) {
-                auto* userData = io_uring_cqe_get_data(&*cqe);
+                auto* userData = io_uring_cqe_get_data(cqe);
                 if (userData == reinterpret_cast<void*>(StopNotificationUserData)) {
                     YT_VERIFY(cqe->res == sizeof(ui64));
                     HandleStop();
@@ -2220,12 +2220,12 @@ private:
             }
         }
 
-        std::optional<io_uring_cqe> GetCqe(bool wait)
+        io_uring_cqe* GetCqe(bool wait)
         {
-            auto* cqe = wait ? Uring_.WaitCqe() : Uring_.PeekCqe();
-            if (!cqe) {
+            io_uring_cqe* cqe = wait ? Uring_.WaitCqe() : Uring_.PeekCqe();
+            if (cqe == nullptr) {
                 YT_VERIFY(!wait);
-                return std::nullopt;
+                return nullptr;
             }
             auto userData = reinterpret_cast<intptr_t>(io_uring_cqe_get_data(cqe));
             if (userData != StopNotificationUserData && userData != RequestNotificationUserData) {
@@ -2235,9 +2235,8 @@ private:
             YT_LOG_TRACE("CQE received (PendingRequestCount: %v)",
                 PendingSubmissionsCount_);
 
-            auto result = *cqe;
             Uring_.CqeSeen(cqe);
-            return result;
+            return cqe;
         }
 
         io_uring_sqe* AllocateNonRequestSqe()
