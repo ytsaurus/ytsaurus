@@ -436,7 +436,7 @@ INSTANTIATE_TEST_SUITE_P(
                         .Tablets = std::vector<TStringBuf>{
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
-            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]"), 
+            /*moveDescriptors*/ "[{tablet_index=1; cell_index=1};]"),
         std::make_tuple(
             TTestBundleParams{
                 .Cells = "[{memory_size=150}; {memory_size=0}; {memory_size=0}]",
@@ -450,7 +450,7 @@ INSTANTIATE_TEST_SUITE_P(
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"},
                             TTestTabletParams{"{uncompressed_data_size=50; cell_index=0; memory_size=50}"}}}}},
             /*moveDescriptors*/ "[{tablet_index=1; cell_index=1}; {tablet_index=2; cell_index=2};]")));
- 
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTestMergeSplitTabletsOfTable
@@ -697,6 +697,7 @@ TEST_P(TTestReassignTabletsParameterized, SimpleViaMemorySize)
         /*performanceCountersKeys*/ {},
         /*ignoreTableWiseConfig*/ false,
         /*moveActionLimit*/ std::get<2>(params),
+        /*deviationThreshold*/ 0.0,
         Logger);
 
     auto expected = ConvertTo<std::vector<TTestMoveDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));

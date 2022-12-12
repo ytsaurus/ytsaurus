@@ -34,6 +34,7 @@ IParameterizedReassignSolverPtr CreateParameterizedReassignSolver(
     std::vector<TString> performanceCountersKeys,
     bool ignoreTableWiseConfig,
     int maxMoveActionCount,
+    double deviationThreshold,
     const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////

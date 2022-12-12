@@ -773,6 +773,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
     const std::vector<TString>& performanceCountersKeys,
     bool ignoreTableWiseConfig,
     int maxMoveActionCount,
+    double deviationThreshold,
     const TLogger& logger)
 {
     auto solver = CreateParameterizedReassignSolver(
@@ -780,6 +781,7 @@ std::vector<TMoveDescriptor> ReassignTabletsParameterized(
         performanceCountersKeys,
         ignoreTableWiseConfig,
         maxMoveActionCount,
+        deviationThreshold,
         logger);
 
     return solver->BuildActionDescriptors();

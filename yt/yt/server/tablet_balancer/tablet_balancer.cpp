@@ -73,6 +73,7 @@ private:
     std::atomic<bool> Enable_{false};
     std::atomic<bool> EnableEverywhere_{false};
     std::atomic<int> MaxParameterizedMoveActionCount_{0};
+    std::atomic<double> ParameterizedDeviationThreshold_{0.0};
     TAtomicObject<TTimeFormula> ScheduleFormula_;
 
     TInstant CurrentIterationStartTime_;
@@ -257,6 +258,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
     Enable_.store(newConfig->Enable);
     EnableEverywhere_.store(newConfig->EnableEverywhere);
     MaxParameterizedMoveActionCount_.store(newConfig->MaxParameterizedMoveActionCount);
+    ParameterizedDeviationThreshold_.store(newConfig->ParameterizedDeviationThreshold);
     ScheduleFormula_.Store(newConfig->Schedule);
 
     YT_LOG_DEBUG(
@@ -456,6 +458,7 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         bundleState->DefaultPerformanceCountersKeys_,
         /*ignoreTableWiseConfig*/ false,
         MaxParameterizedMoveActionCount_.load(),
+        ParameterizedDeviationThreshold_.load(),
         Logger);
 
     int actionCount = 0;

@@ -9,6 +9,8 @@ from yt.common import update_inplace
 
 import pytest
 
+from time import sleep
+
 ##################################################################
 
 
@@ -74,6 +76,11 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
     def _get_enable_tablet_balancer(self):
         return get("//sys/tablet_balancer/config/enable")
 
+    def _set_parameterized_deviation_threshold(self, value):
+        self._apply_dynamic_config_patch({
+            "parameterized_deviation_threshold": value
+        })
+
     @authors("alexelexa")
     def test_builtin_tablet_balancer_disabled(self):
         assert not get("//sys/@config/tablet_manager/tablet_balancer/enable_tablet_balancer")
@@ -138,6 +145,49 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         tablets = get("//tmp/t/@tablets")
         assert(tablets[0]["cell_id"] == tablets[1]["cell_id"])
         assert(tablets[2]["cell_id"] == tablets[3]["cell_id"])
+
+    @authors("alexelexa")
+    def test_parameterized_balancing_trigger(self):
+        parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
+
+        self._configure_bundle("default")
+        cells = sync_create_cells(2)
+
+        self._create_sorted_table("//tmp/t")
+        set(
+            "//sys/tablet_cell_bundles/default/@tablet_balancer_config/parameterized_balancing_metric",
+            parameterized_balancing_metric
+        )
+
+        set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/enable_verbose_logging", True)
+
+        config = {
+            "enable_auto_reshard": False,
+            "enable_auto_tablet_move": False,
+        }
+        set("//tmp/t/@tablet_balancer_config", config)
+        self._set_parameterized_deviation_threshold(0.3)
+
+        sync_reshard_table("//tmp/t", [[]] + [[i] for i in range(1, 20)])
+
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=8, cell_id=cells[0])  # 9 out of 20
+        sync_mount_table("//tmp/t", first_tablet_index=9, last_tablet_index=19, cell_id=cells[1])  # 11 out of 20
+
+        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(20)])  # 20 rows, one row per tablet
+        sync_flush_table("//tmp/t")
+
+        assert(sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 9)
+        assert(sum(t["cell_id"] == cells[1] for t in get("//tmp/t/@tablets")) == 11)
+
+        set("//tmp/t/@enable_parameterized_balancing", True)
+
+        sleep(5)
+
+        assert(sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 9)
+        assert(sum(t["cell_id"] == cells[1] for t in get("//tmp/t/@tablets")) == 11)
+
+        self._set_parameterized_deviation_threshold(0.)
+        wait(lambda: sum(t["cell_id"] == cells[0] for t in get("//tmp/t/@tablets")) == 10)
 
 
 ##################################################################
