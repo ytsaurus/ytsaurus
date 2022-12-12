@@ -54,8 +54,8 @@ private:
 };
 REGISTER_MAPPER(TGrepper);
 
-int main(int argc, const char** argv) {
-    NYT::Initialize(argc, argv);
+int main() {
+    NYT::Initialize();
 
     auto client = CreateClient("freud");
 
@@ -71,4 +71,3 @@ int main(int argc, const char** argv) {
 
     return 0;
 }
-

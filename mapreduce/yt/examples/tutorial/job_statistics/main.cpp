@@ -37,8 +37,8 @@ class TComputeEmailsMapper
 };
 REGISTER_MAPPER(TComputeEmailsMapper);
 
-int main(int argc, const char** argv) {
-    NYT::Initialize(argc, argv);
+int main() {
+    NYT::Initialize();
 
     auto client = CreateClient("freud");
     const TString outputTable = "//tmp/" + GetUsername() + "-tutorial-emails";

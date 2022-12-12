@@ -35,8 +35,8 @@ public:
 };
 REGISTER_REDUCER(TSplitHumanRobotsReduce)
 
-int main(int argc, const char** argv) {
-    NYT::Initialize(argc, argv);
+int main() {
+    NYT::Initialize();
 
     auto client = CreateClient("freud");
 

@@ -23,8 +23,8 @@ public:
 };
 REGISTER_MAPPER(TComputeEmailsMapper); // Подобное заклинание нужно говорить для каждого mapper'а / reducer'а.
 
-int main(int argc, const char** argv) {
-    Initialize(argc, argv); // Инициализируем библиотеку, важно не забывать это делать,
+int main() {
+    Initialize(); // Инициализируем библиотеку, важно не забывать это делать,
                             // иначе некоторые вещи, например запуск операций не будут работать.
 
     auto client = CreateClient("freud");

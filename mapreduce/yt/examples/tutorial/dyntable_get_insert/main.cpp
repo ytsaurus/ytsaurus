@@ -7,7 +7,7 @@
 using namespace NYT;
 
 int main(int argc, const char** argv) {
-    NYT::Initialize(argc, argv);
+    NYT::Initialize();
 
     //
     // Программа принимает аргументами имя кластера и путь к таблице, с которой она будет работать (таблица не должна существовать).
@@ -84,4 +84,3 @@ int main(int argc, const char** argv) {
 
     return 0;
 }
-
