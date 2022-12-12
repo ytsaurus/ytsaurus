@@ -105,6 +105,10 @@ struct TConfig
 
     bool MountSandboxInTmpfs;
 
+    /// @brief Set upload options (e.g.) for files created by library.
+    ///
+    /// Path itself is always ignored but path options (e.g. `BypassArtifactCache`) are used when uploading system files:
+    /// cppbinary, job state, etc
     TRichYPath ApiFilePathOptions;
 
     // Testing options, should never be used in user programs.
