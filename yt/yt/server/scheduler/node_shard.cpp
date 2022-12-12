@@ -2496,9 +2496,7 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
 
         const auto* operationState = FindOperationState(operationId);
         if (!operationState) {
-            if (WaitingForRegisterOperationIds_.contains(operationId)) {
-                protoOperationInfo->set_running(true);
-            }
+            protoOperationInfo->set_running(WaitingForRegisterOperationIds_.contains(operationId));
             continue;
         }
 

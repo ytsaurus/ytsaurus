@@ -1672,9 +1672,9 @@ private:
         auto operationJobsIt = OperationIdToJobs_.find(operationId);
         if (operationJobsIt == std::cend(OperationIdToJobs_)) {
             YT_LOG_DEBUG("There are no operation jobs on node (OperationId: %v)", operationId);
-
             return;
         }
+
         std::vector operationJobs(std::begin(operationJobsIt->second), std::end(operationJobsIt->second));
         for (auto job : operationJobs) {
             if (job->IsFinished()) {
