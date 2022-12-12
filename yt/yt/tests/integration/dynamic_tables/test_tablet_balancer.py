@@ -18,6 +18,24 @@ class TestStandaloneTabletBalancerBase:
     NUM_TABLET_BALANCERS = 3
     ENABLE_STANDALONE_TABLET_BALANCER = True
 
+    def _set_enable_tablet_balancer(self, value):
+        self._apply_dynamic_config_patch({
+            "enable": value
+        })
+
+    def _set_default_schedule_formula(self, value):
+        self._apply_dynamic_config_patch({
+            "schedule": value
+        })
+
+    def _get_enable_tablet_balancer(self):
+        return get("//sys/tablet_balancer/config/enable")
+
+    def _set_parameterized_deviation_threshold(self, value):
+        self._apply_dynamic_config_patch({
+            "parameterized_deviation_threshold": value
+        })
+
     @classmethod
     def modify_tablet_balancer_config(cls, config):
         update_inplace(config, {
@@ -62,24 +80,6 @@ class TestStandaloneTabletBalancerBase:
 
 class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalancerBase):
     NUM_TEST_PARTITIONS = 5
-
-    def _set_enable_tablet_balancer(self, value):
-        self._apply_dynamic_config_patch({
-            "enable": value
-        })
-
-    def _set_default_schedule_formula(self, value):
-        self._apply_dynamic_config_patch({
-            "schedule": value
-        })
-
-    def _get_enable_tablet_balancer(self):
-        return get("//sys/tablet_balancer/config/enable")
-
-    def _set_parameterized_deviation_threshold(self, value):
-        self._apply_dynamic_config_patch({
-            "parameterized_deviation_threshold": value
-        })
 
     @authors("alexelexa")
     def test_builtin_tablet_balancer_disabled(self):
@@ -150,7 +150,6 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
     def test_parameterized_balancing_trigger(self):
         parameterized_balancing_metric = "double([/statistics/uncompressed_data_size])"
 
-        self._configure_bundle("default")
         cells = sync_create_cells(2)
 
         self._create_sorted_table("//tmp/t")
