@@ -18,7 +18,7 @@ TThreadPoolBase::TThreadPoolBase(
     , ThreadPriority_(threadPriority)
     , ShutdownCookie_(RegisterShutdownCallback(
         Format("ThreadPool(%v)", ThreadNamePrefix_),
-        BIND(&TThreadPoolBase::Shutdown, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TThreadPoolBase::Shutdown, MakeWeak(this)),
         /*priority*/ 100))
 { }
 
@@ -94,7 +94,7 @@ TClosure TThreadPoolBase::MakeFinalizerCallback()
         std::swap(threads, Threads_);
     }
 
-    return BIND([threads = std::move(threads)] () {
+    return BIND_NO_PROPAGATE([threads = std::move(threads)] () {
         for (const auto& thread : threads) {
             thread->Stop();
         }

@@ -62,7 +62,7 @@ bool TThread::StartSlow()
 
     ShutdownCookie_ = RegisterShutdownCallback(
         Format("Thread(%v)", ThreadName_),
-        BIND(&TThread::Stop, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TThread::Stop, MakeWeak(this)),
         ShutdownPriority_);
     if (!ShutdownCookie_) {
         Stopping_ = true;
