@@ -5,6 +5,7 @@
 #include <yt/yt/core/concurrency/async_stream.h>
 
 #include <yt/yt/core/misc/ref_counted.h>
+#include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/net/address.h>
 
@@ -90,13 +91,13 @@ std::pair<IConnectionPtr, IConnectionPtr> CreateConnectionPair(const NConcurrenc
 
 //! File descriptor must be in nonblocking mode.
 IConnectionPtr CreateConnectionFromFD(
-    int fd,
+    TFileDescriptor fd,
     const TNetworkAddress& localAddress,
     const TNetworkAddress& remoteAddress,
     const NConcurrency::IPollerPtr& poller);
 
 IConnectionReaderPtr CreateInputConnectionFromFD(
-    int fd,
+    TFileDescriptor fd,
     const TString& pipePath,
     const NConcurrency::IPollerPtr& poller,
     const TRefCountedPtr& pipeHolder);

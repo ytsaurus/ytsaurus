@@ -9,6 +9,8 @@
 #include <yt/yt/core/concurrency/poller.h>
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 
+#include <util/network/pollerimpl.h>
+
 namespace NYT::NNet {
 namespace {
 
@@ -88,7 +90,12 @@ TEST_F(TNetTest, TransferFourBytesUsingWriteV)
 
 TEST_F(TNetTest, BigTransfer)
 {
+// Select-based poller implementation is much slower there.
+#if defined(HAVE_EPOLL_POLLER)
     const int N = 1024, K = 256 * 1024;
+#else
+    const int N = 32, K = 256 * 1024;
+#endif
 
     IConnectionPtr a, b;
     std::tie(a, b) = CreateConnectionPair(Poller_);
@@ -124,7 +131,12 @@ TEST_F(TNetTest, BigTransfer)
 
 TEST_F(TNetTest, BidirectionalTransfer)
 {
+// Select-based poller implementation is much slower there.
+#if defined(HAVE_EPOLL_POLLER)
     const int N = 1024, K = 256 * 1024;
+#else
+    const int N = 32, K = 256 * 1024;
+#endif
 
     IConnectionPtr a, b;
     std::tie(a, b) = CreateConnectionPair(Poller_);
@@ -213,7 +225,15 @@ TEST_F(TNetTest, Bind)
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
         auto listener = CreateListener(address, Poller_, Poller_);
+
+    // On Windows option SO_REUSEADDR (which is enabled by CreateTcpSocket) behaves exactly like combination
+    // SO_REUSEADDR | SO_REUSEPORT, so consecutive binds on the same address will succeed.
+    // https://stackoverflow.com/questions/14388706/how-do-so-reuseaddr-and-so-reuseport-differ
+    #ifdef _linux_
         EXPECT_THROW(CreateListener(listener->GetAddress(), Poller_, Poller_), TErrorException);
+    #else
+        EXPECT_NO_THROW(CreateListener(listener->GetAddress(), Poller_, Poller_));
+    #endif
     })
         .AsyncVia(Poller_->GetInvoker())
         .Run()

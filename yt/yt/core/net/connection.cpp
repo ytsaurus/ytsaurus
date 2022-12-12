@@ -9,12 +9,85 @@
 
 #include <yt/yt/core/net/socket.h>
 
+#include <util/network/pollerimpl.h>
+
 #include <errno.h>
+
+#ifdef _win_
+    #include <util/network/socket.h>
+    #include <util/network/pair.h>
+
+    #include <winsock2.h>
+
+    #include <sys/uio.h>
+    #include <fcntl.h>
+
+    #define SHUT_RD SD_RECEIVE
+    #define SHUT_WR SD_SEND
+    #define SHUT_RDWR SD_BOTH
+
+    #define EWOULDBLOCK WSAEWOULDBLOCK
+#endif
 
 namespace NYT::NNet {
 
 using namespace NConcurrency;
 using namespace NProfiling;
+
+#ifdef _unix_
+    using TIOVecBasePtr = void*;
+#else
+    using TIOVecBasePtr = char*;
+#endif
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+int GetLastNetworkError()
+{
+#ifdef _win_
+    return WSAGetLastError();
+#else
+    return errno;
+#endif
+}
+
+ssize_t ReadFromFD(TFileDescriptor fd, char* buffer, size_t length)
+{
+#ifdef _win_
+    return ::recv(
+        fd,
+        buffer,
+        length,
+        /*flags*/ 0);
+#else
+    return HandleEintr(
+        ::read,
+        fd,
+        buffer,
+        length);
+#endif
+}
+
+ssize_t WriteToFD(TFileDescriptor fd, const char* buffer, size_t length)
+{
+#ifdef _win_
+    return ::send(
+        fd,
+        buffer,
+        length,
+        /*flags*/ 0);
+#else
+    return HandleEintr(
+        ::write,
+        fd,
+        buffer,
+        length);
+#endif
+}
+
+} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,7 +110,7 @@ struct IIOOperation
 {
     virtual ~IIOOperation() = default;
 
-    virtual TErrorOr<TIOResult> PerformIO(int fd) = 0;
+    virtual TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) = 0;
 
     virtual void Abort(const TError& error) = 0;
 
@@ -54,13 +127,16 @@ public:
         : Buffer_(buffer)
     { }
 
-    TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) override
     {
         size_t bytesRead = 0;
         while (true) {
-            ssize_t size = HandleEintr(::read, fd, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
+            ssize_t size = ReadFromFD(
+                fd,
+                Buffer_.Begin() + Position_,
+                Buffer_.Size() - Position_);
             if (size == -1) {
-                if (errno == EAGAIN) {
+                if (GetLastNetworkError() == EWOULDBLOCK) {
                     return TIOResult(Position_ == 0, bytesRead);
                 }
 
@@ -109,19 +185,19 @@ public:
         : Buffer_(buffer)
     { }
 
-    TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) override
     {
         ssize_t size = HandleEintr(
             ::recvfrom,
             fd,
             Buffer_.Begin(),
             Buffer_.Size(),
-            0, // flags
+            /*flags*/ 0,
             RemoteAddress_.GetSockAddr(),
             RemoteAddress_.GetLengthPtr());
 
         if (size == -1) {
-            if (errno == EAGAIN) {
+            if (GetLastNetworkError() == EWOULDBLOCK) {
                 return TIOResult(true, 0);
             }
 
@@ -166,15 +242,17 @@ public:
         : Buffer_(buffer)
     { }
 
-    TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) override
     {
         size_t bytesWritten = 0;
         while (true) {
             YT_VERIFY(Position_ < Buffer_.Size());
-            ssize_t size = HandleEintr(::write, fd, Buffer_.Begin() + Position_, Buffer_.Size() - Position_);
-
+            ssize_t size = WriteToFD(
+                fd,
+                Buffer_.Begin() + Position_,
+                Buffer_.Size() - Position_);
             if (size == -1) {
-                if (errno == EAGAIN) {
+                if (GetLastNetworkError() == EWOULDBLOCK) {
                     return TIOResult(true, bytesWritten);
                 }
 
@@ -224,21 +302,21 @@ public:
         : Buffers_(buffers)
     { }
 
-    TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) override
     {
         size_t bytesWritten = 0;
         while (true) {
             constexpr int MaxEntries = 128;
             iovec ioVectors[MaxEntries];
 
-            ioVectors[0].iov_base = reinterpret_cast<void*>(const_cast<char*>(Buffers_[Index_].Begin() + Position_));
+            ioVectors[0].iov_base = reinterpret_cast<TIOVecBasePtr>(const_cast<char*>(Buffers_[Index_].Begin() + Position_));
             ioVectors[0].iov_len = Buffers_[Index_].Size() - Position_;
 
             size_t ioVectorsCount = 1;
             for (; ioVectorsCount < MaxEntries && ioVectorsCount + Index_ < Buffers_.Size(); ++ioVectorsCount) {
                 const auto& ref = Buffers_[Index_ + ioVectorsCount];
 
-                ioVectors[ioVectorsCount].iov_base = reinterpret_cast<void*>(const_cast<char*>(ref.Begin()));
+                ioVectors[ioVectorsCount].iov_base = reinterpret_cast<TIOVecBasePtr>(const_cast<char*>(ref.Begin()));
                 ioVectors[ioVectorsCount].iov_len = ref.Size();
             }
 
@@ -301,7 +379,7 @@ public:
         : ShutdownRead_(shutdownRead)
     { }
 
-    TErrorOr<TIOResult> PerformIO(int fd) override
+    TErrorOr<TIOResult> PerformIO(TFileDescriptor fd) override
     {
         int res = HandleEintr(::shutdown, fd, ShutdownRead_ ? SHUT_RD : SHUT_WR);
         if (res == -1) {
@@ -338,7 +416,7 @@ class TFDConnectionImpl
 {
 public:
     static TFDConnectionImplPtr Create(
-        int fd,
+        TFileDescriptor fd,
         const TString& filePath,
         const IPollerPtr& poller)
     {
@@ -348,7 +426,7 @@ public:
     }
 
     static TFDConnectionImplPtr Create(
-        int fd,
+        TFileDescriptor fd,
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
@@ -531,7 +609,7 @@ public:
         return RemoteAddress_;
     }
 
-    int GetHandle() const
+    TFileDescriptor GetHandle() const
     {
         return FD_;
     }
@@ -606,12 +684,12 @@ private:
     const TString LoggingTag_;
     const TNetworkAddress LocalAddress_;
     const TNetworkAddress RemoteAddress_;
-    int FD_ = -1;
+    TFileDescriptor FD_ = -1;
     const IPollerPtr Poller_;
 
 
     TFDConnectionImpl(
-        int fd,
+        TFileDescriptor fd,
         const TString& filePath,
         const IPollerPtr& poller)
         : Name_(Format("File{%v}", filePath))
@@ -620,7 +698,7 @@ private:
     { }
 
     TFDConnectionImpl(
-        int fd,
+        TFileDescriptor fd,
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
@@ -901,7 +979,7 @@ class TFDConnection
 {
 public:
     TFDConnection(
-        int fd,
+        TFileDescriptor fd,
         const TString& pipePath,
         const IPollerPtr& poller,
         TRefCountedPtr pipeHolder = nullptr)
@@ -910,7 +988,7 @@ public:
     { }
 
     TFDConnection(
-        int fd,
+        TFileDescriptor fd,
         const TNetworkAddress& localAddress,
         const TNetworkAddress& remoteAddress,
         const IPollerPtr& poller)
@@ -1031,16 +1109,28 @@ private:
 
 std::pair<IConnectionPtr, IConnectionPtr> CreateConnectionPair(const IPollerPtr& poller)
 {
-    int flags = SOCK_STREAM;
-#ifdef _linux_
-    flags |= SOCK_NONBLOCK | SOCK_CLOEXEC;
-#endif
+    SOCKET fds[2];
 
-    int fds[2];
+#ifdef _unix_
+    int flags = SOCK_STREAM;
+
+    #ifdef _linux_
+        flags |= SOCK_NONBLOCK | SOCK_CLOEXEC;
+    #endif
+
     if (HandleEintr(::socketpair, AF_LOCAL, flags, 0, fds) == -1) {
         THROW_ERROR_EXCEPTION("Failed to create socket pair")
             << TError::FromSystem();
     }
+#else
+    if (SocketPair(fds, /*overlapped*/ false, /*cloexec*/ true) == SOCKET_ERROR) {
+        THROW_ERROR_EXCEPTION("Failed to create socket pair")
+            << TError::FromSystem();
+    }
+
+    SetNonBlock(fds[0]);
+    SetNonBlock(fds[1]);
+#endif
 
     try {
         auto address0 = GetSocketName(fds[0]);
@@ -1057,7 +1147,7 @@ std::pair<IConnectionPtr, IConnectionPtr> CreateConnectionPair(const IPollerPtr&
 }
 
 IConnectionPtr CreateConnectionFromFD(
-    int fd,
+    TFileDescriptor fd,
     const TNetworkAddress& localAddress,
     const TNetworkAddress& remoteAddress,
     const IPollerPtr& poller)
@@ -1066,7 +1156,7 @@ IConnectionPtr CreateConnectionFromFD(
 }
 
 IConnectionReaderPtr CreateInputConnectionFromFD(
-    int fd,
+    TFileDescriptor fd,
     const TString& pipePath,
     const IPollerPtr& poller,
     const TRefCountedPtr& pipeHolder)
@@ -1079,6 +1169,7 @@ IConnectionReaderPtr CreateInputConnectionFromPath(
     const IPollerPtr& poller,
     const TRefCountedPtr& pipeHolder)
 {
+#ifdef _unix_
     int flags = O_RDONLY | O_CLOEXEC | O_NONBLOCK;
     int fd = HandleEintr(::open, pipePath.c_str(), flags);
     if (fd == -1) {
@@ -1088,6 +1179,9 @@ IConnectionReaderPtr CreateInputConnectionFromPath(
     }
 
     return New<TFDConnection>(fd, pipePath, poller, pipeHolder);
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
 }
 
 IConnectionWriterPtr CreateOutputConnectionFromPath(
@@ -1095,6 +1189,7 @@ IConnectionWriterPtr CreateOutputConnectionFromPath(
     const IPollerPtr& poller,
     const TRefCountedPtr& pipeHolder)
 {
+#ifdef _unix_
     int flags = O_WRONLY | O_CLOEXEC;
     int fd = HandleEintr(::open, pipePath.c_str(), flags);
     if (fd == -1) {
@@ -1110,6 +1205,9 @@ IConnectionWriterPtr CreateOutputConnectionFromPath(
         throw;
     }
     return New<TFDConnection>(fd, pipePath, poller, pipeHolder);
+#else
+    THROW_ERROR_EXCEPTION("Unsupported platform");
+#endif
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1119,7 +1217,7 @@ class TPacketConnection
 {
 public:
     TPacketConnection(
-        int fd,
+        TFileDescriptor fd,
         const TNetworkAddress& localAddress,
         const IPollerPtr& poller)
         : Impl_(TFDConnectionImpl::Create(fd, localAddress, TNetworkAddress{}, poller))

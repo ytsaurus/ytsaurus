@@ -158,7 +158,7 @@ private:
         : public TPollableBase
     {
     public:
-        TPollable(TAsyncDialerSession* owner, TGuid id, int socket)
+        TPollable(TAsyncDialerSession* owner, TGuid id, SOCKET socket)
             : Owner_(MakeWeak(owner))
             , LoggingTag_(Format("AsyncDialerSession{%v:%v}", id, socket))
         { }
@@ -264,7 +264,7 @@ private:
 
             if (ConnectSocket(Socket_, Address_) == 0) {
                 // Connection was established synchronously.
-                int socket = Socket_;
+                SOCKET socket = Socket_;
                 Socket_ = INVALID_SOCKET;
                 Finished_ = true;
                 guard.Release();
@@ -304,7 +304,7 @@ private:
 
         TDelayedExecutor::CancelAndClear(TimeoutCookie_);
 
-        int socket = Socket_;
+        SOCKET socket = Socket_;
         YT_VERIFY(socket != INVALID_SOCKET);
 
         if (int socketError = GetSocketError(socket); socketError == 0) {

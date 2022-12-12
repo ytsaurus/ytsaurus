@@ -17,19 +17,25 @@
 
 #include <ares.h>
 
-#ifdef _linux_
-#define YT_DNS_RESOLVER_USE_EPOLL
+#ifdef _unix_
+    #ifdef _linux_
+        #define YT_DNS_RESOLVER_USE_EPOLL
+    #endif
+
+    #include <arpa/inet.h>
+    #include <netdb.h>
+    #include <netinet/in.h>
+    #include <sys/socket.h>
+
+    #ifdef YT_DNS_RESOLVER_USE_EPOLL
+        #include <sys/epoll.h>
+    #else
+        #include <sys/select.h>
+    #endif
 #endif
 
-#include <arpa/inet.h>
-#include <netdb.h>
-#include <netinet/in.h>
-#include <sys/socket.h>
-
-#ifdef YT_DNS_RESOLVER_USE_EPOLL
-#include <sys/epoll.h>
-#else
-#include <sys/select.h>
+#ifdef _win_
+    #include <winsock2.h>
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -364,7 +370,11 @@ private:
                 nFDs = std::max(nFDs, 1 + wakeupFD);
                 FD_SET(wakeupFD, &readFDs);
 
-                YT_VERIFY(nFDs <= FD_SETSIZE); // This is inherent limitation by select().
+                // Windows has no such limitation since fd_set there implemented as an array, not as bit fields.
+                // https://docs.microsoft.com/en-us/windows/win32/api/winsock2/nf-winsock2-select
+                #ifndef _win_
+                    YT_VERIFY(nFDs <= FD_SETSIZE); // This is inherent limitation by select().
+                #endif
 
                 timeval timeout;
                 timeout.tv_sec = PollTimeoutMs / 1000;
@@ -414,12 +424,14 @@ private:
         }
     #else
         Y_UNUSED(opaque);
-        if (socket >= FD_SETSIZE) {
-            YT_LOG_WARNING("File descriptor is out of valid range (FD: %v, Limit: %v)",
-                socket,
-                FD_SETSIZE);
-            result = -1;
-        }
+        #ifndef _win_
+            if (socket >= FD_SETSIZE) {
+                YT_LOG_WARNING("File descriptor is out of valid range (FD: %v, Limit: %v)",
+                    socket,
+                    FD_SETSIZE);
+                result = -1;
+            }
+        #endif
     #endif
         return result;
     }
@@ -443,7 +455,9 @@ private:
         YT_VERIFY(epoll_ctl(this_->EpollFD_, op, socket, &event) == 0);
     #else
         Y_UNUSED(opaque, readable, writable);
-        YT_VERIFY(socket < FD_SETSIZE);
+        #ifndef _win_
+            YT_VERIFY(socket < FD_SETSIZE);
+        #endif
     #endif
     }
 
@@ -519,4 +533,3 @@ TFuture<TNetworkAddress> TDnsResolver::ResolveName(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NNet
-
