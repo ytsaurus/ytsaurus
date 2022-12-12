@@ -13,6 +13,8 @@
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 
+#include <contrib/libs/grpc/src/core/lib/iomgr/executor.h>
+
 #include <atomic>
 
 namespace NYT::NRpc::NGrpc {
@@ -177,10 +179,11 @@ private:
         VERIFY_SPINLOCK_AFFINITY(ConfigureLock_);
         YT_VERIFY(!Configured_.load());
 
-        for (int index = 0; index < config->ThreadCount; ++index) {
+        grpc_core::Executor::SetThreadsLimit(config->GrpcThreadCount);
+
+        for (int index = 0; index < config->DispatcherThreadCount; ++index) {
             Threads_.push_back(New<TDispatcherThread>(index));
         }
-
         Configured_.store(true);
     }
 
