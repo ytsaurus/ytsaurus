@@ -148,7 +148,7 @@ class TestMemoryReserveFactor(YTEnvSetup):
         "controller_agent": {
             "user_job_memory_digest_precision": 0.05,
             # To be sure that 20 jobs is enough to avoid outliers.
-            "user_job_memory_reserve_quantile": 0.85,
+            "user_job_memory_reserve_quantile": 0.8,
         }
     }
 
@@ -184,7 +184,8 @@ class TestMemoryReserveFactor(YTEnvSetup):
                 "resource_limits": {"cpu": 1},
                 "data_weight_per_job": 1,
                 "mapper": {
-                    "memory_limit": 350 * 10 ** 6,
+                    "memory_limit": 400 * 10 ** 6,
+                    "user_job_memory_digest_default_value": 0.9,
                     "file_paths": ["//tmp/mapper.py"],
                 },
             })
@@ -210,7 +211,8 @@ class TestMemoryReserveFactor(YTEnvSetup):
                 if event.get("predecessor_type") != "resource_overdraft":
                     last_memory_reserve = int(event["statistics"]["user_job"]["memory_reserve"]["sum"])
         assert last_memory_reserve is not None
-        assert 2e8 <= last_memory_reserve <= 3e8
+        # Sometimes we observe memory usage of ytserver-exec + script that is about 320MB.
+        assert 2e8 <= last_memory_reserve <= 3.5e8
 
 ###############################################################################################
 
