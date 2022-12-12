@@ -2608,7 +2608,9 @@ private:
     {
         if (!IsLeader()) {
             for (const auto& [id, cellBundle] : CellBundleMap_) {
-                cellBundle->ProfilingCounters().TabletCellCount.Update(0.0);
+                for (auto health : TEnumTraits<NTabletClient::ETabletCellHealth>::GetDomainValues()) {
+                    cellBundle->ProfilingCounters().TabletCellCount[health].Update(0.0);
+                }
             }
 
             return;
@@ -2617,14 +2619,27 @@ private:
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (!multicellManager->IsPrimaryMaster()) {
             for (const auto& [id, cellBundle] : CellBundleMap_) {
-                cellBundle->ProfilingCounters().TabletCellCount.Update(0.0);
+                for (auto health : TEnumTraits<ECellHealth>::GetDomainValues()) {
+                    cellBundle->ProfilingCounters().TabletCellCount[health].Update(0.0);
+                }
             }
 
             return;
         }
 
         for (const auto& [id, cellBundle] : CellBundleMap_) {
-            cellBundle->ProfilingCounters().TabletCellCount.Update(cellBundle->Cells().size());
+            THashMap<ECellHealth, i64> cellCountByHealth;
+            for (auto health : TEnumTraits<ECellHealth>::GetDomainValues()) {
+                cellCountByHealth[health] = 0;
+            }
+
+            for (const auto& cell : cellBundle->Cells()) {
+                ++cellCountByHealth[cell->GetMulticellHealth()];
+            }
+
+            for (const auto& [health, count] : cellCountByHealth) {
+                cellBundle->ProfilingCounters().TabletCellCount[health].Update(count);
+            }
         }
     }
 

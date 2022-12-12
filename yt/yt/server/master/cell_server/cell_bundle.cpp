@@ -110,13 +110,17 @@ void TCellBundle::InitializeProfilingCounters()
         .WithTag("tablet_cell_bundle", Name_);
 
     ProfilingCounters_.Profiler = profiler;
-    ProfilingCounters_.TabletCellCount = profiler.WithSparse().Gauge("/tablet_cell_count");
+    for (auto health : TEnumTraits<ECellHealth>::GetDomainValues()) {
+        ProfilingCounters_.TabletCellCount[health] = profiler.WithSparse()
+            .WithTag("health", FormatEnum(health))
+            .Gauge("/tablet_cell_count");
+    }
+
     ProfilingCounters_.ReplicaModeSwitch = profiler.Counter("/replica_mode_switch");
     ProfilingCounters_.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
     ProfilingCounters_.ExtMemoryMoves = profiler.Counter("/tablet_balancer/ext_memory_moves");
     ProfilingCounters_.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
     ProfilingCounters_.TabletCellMoves = profiler.Counter("/tablet_tracker/tablet_cell_moves");
-
     ProfilingCounters_.PeerAssignment = profiler.Counter("/tablet_tracker/peer_assignment");
 }
 

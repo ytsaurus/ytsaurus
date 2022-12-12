@@ -33,7 +33,7 @@ struct TCellBundleProfilingCounters
     NProfiling::TCounter TabletCellMoves;
     NProfiling::TCounter PeerAssignment;
 
-    NProfiling::TGauge TabletCellCount;
+    TEnumIndexedVector<ECellHealth, NProfiling::TGauge> TabletCellCount;
 
     NProfiling::TProfiler Profiler;
 
