@@ -34,6 +34,8 @@
 
 #include <yt/yt/core/misc/atomic_object.h>
 
+#include <yt/yt/core/misc/statistics.h>
+
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
 namespace NYT::NExecNode {
@@ -67,12 +69,12 @@ namespace {
 
 // COMPAT(pogorelov)
 
-const auto& GetAllocationsToAbort(const IJobController::TRspHeartbeatPtr& response)
+const auto& GetAllocationsToAbort(const IJobController::TRspSchedulerHeartbeatPtr& response)
 {
     return response->allocations_to_abort();
 }
 
-const auto& GetAllocationsToAbort(const IJobController::TRspOldHeartbeatPtr& response)
+const auto& GetAllocationsToAbort(const IJobController::TRspOldSchedulerHeartbeatPtr& response)
 {
     return response->jobs_to_abort();
 }
@@ -93,12 +95,12 @@ NScheduler::TAllocationToAbort ParseAllocationToAbort(const NJobTrackerClient::N
     return {jobToAbort.JobId, jobToAbort.AbortReason};
 }
 
-const auto& GetAllocationsToInterrupt(const IJobController::TRspHeartbeatPtr& response)
+const auto& GetAllocationsToInterrupt(const IJobController::TRspSchedulerHeartbeatPtr& response)
 {
     return response->allocations_to_interrupt();
 }
 
-const auto& GetAllocationsToInterrupt(const IJobController::TRspOldHeartbeatPtr& response)
+const auto& GetAllocationsToInterrupt(const IJobController::TRspOldSchedulerHeartbeatPtr& response)
 {
     return response->jobs_to_interrupt();
 }
@@ -113,41 +115,41 @@ const auto& GetAllocationId(const NJobTrackerClient::NProto::TJobToInterrupt& jo
     return jobToInterrupt.job_id();
 }
 
-auto* AddAllocations(const IJobController::TReqHeartbeatPtr& request)
+auto* AddAllocations(const IJobController::TReqSchedulerHeartbeatPtr& request)
 {
     return request->add_allocations();
 }
 
-auto* AddAllocations(const IJobController::TReqOldHeartbeatPtr& request)
+auto* AddAllocations(const IJobController::TReqOldSchedulerHeartbeatPtr& request)
 {
     return request->add_jobs();
 }
 
-auto* MutableUnconfirmedAllocations(const IJobController::TReqHeartbeatPtr& request)
+auto* MutableUnconfirmedAllocations(const IJobController::TReqSchedulerHeartbeatPtr& request)
 {
     return request->mutable_unconfirmed_allocations();
 }
 
-auto* MutableUnconfirmedAllocations(const IJobController::TReqOldHeartbeatPtr& request)
+auto* MutableUnconfirmedAllocations(const IJobController::TReqOldSchedulerHeartbeatPtr& request)
 {
     return request->mutable_unconfirmed_jobs();
 }
 
-const auto& GetAllocationsToStart(const IJobController::TRspHeartbeatPtr& response)
+const auto& GetAllocationsToStart(const IJobController::TRspSchedulerHeartbeatPtr& response)
 {
     return response->allocations_to_start();
 }
 
-const auto& GetAllocationsToStart(const IJobController::TRspOldHeartbeatPtr& response)
+const auto& GetAllocationsToStart(const IJobController::TRspOldSchedulerHeartbeatPtr& response)
 {
     return response->jobs_to_start();
 }
 
-[[maybe_unused]] TAllocationStartInfo GetAllocationStartInfoType(const IJobController::TRspHeartbeatPtr& response);
-[[maybe_unused]] NJobTrackerClient::NProto::TJobStartInfo GetAllocationStartInfoType(const IJobController::TRspOldHeartbeatPtr& response);
+[[maybe_unused]] TAllocationStartInfo GetAllocationStartInfoType(const IJobController::TRspSchedulerHeartbeatPtr& response);
+[[maybe_unused]] NJobTrackerClient::NProto::TJobStartInfo GetAllocationStartInfoType(const IJobController::TRspOldSchedulerHeartbeatPtr& response);
 
-[[maybe_unused]] TAllocationResult GetAllocationResultType(const IJobController::TReqHeartbeatPtr& request);
-[[maybe_unused]] NJobTrackerClient::NProto::TJobResult GetAllocationResultType(const IJobController::TReqOldHeartbeatPtr& request);
+[[maybe_unused]] TAllocationResult GetAllocationResultType(const IJobController::TReqSchedulerHeartbeatPtr& request);
+[[maybe_unused]] NJobTrackerClient::NProto::TJobResult GetAllocationResultType(const IJobController::TReqOldSchedulerHeartbeatPtr& request);
 
 const auto& GetAllocationId(const TAllocationStartInfo& allocationToInterrupt)
 {
@@ -330,46 +332,64 @@ public:
         }
     }
 
-    TFuture<void> PrepareHeartbeatRequest(
-        const TReqHeartbeatPtr& request) override
+    void PrepareAgentHeartbeatRequest(
+        const TReqAgentHeartbeatPtr& request,
+        const TAgentHeartbeatContextPtr& context) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        DoPrepareAgentHeartbeatRequest(request, context);
+    }
+
+    void ProcessAgentHeartbeatResponse(
+        const TRspAgentHeartbeatPtr& response,
+        const TAgentHeartbeatContextPtr& context) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        DoProcessAgentHeartbeatResponse(response, context);
+    }
+
+    TFuture<void> PrepareSchedulerHeartbeatRequest(
+        const TReqSchedulerHeartbeatPtr& request) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
-            BIND(&TJobController::DoPrepareHeartbeatRequest<TReqHeartbeatPtr>, MakeStrong(this))
+            BIND(&TJobController::DoPrepareSchedulerHeartbeatRequest<TReqSchedulerHeartbeatPtr>, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(request);
     }
 
-    TFuture<void> ProcessHeartbeatResponse(
-        const TRspHeartbeatPtr& response) override
+    TFuture<void> ProcessSchedulerHeartbeatResponse(
+        const TRspSchedulerHeartbeatPtr& response) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
-            BIND(&TJobController::DoProcessHeartbeatResponse<TRspHeartbeatPtr>, MakeStrong(this))
+            BIND(&TJobController::DoProcessSchedulerHeartbeatResponse<TRspSchedulerHeartbeatPtr>, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(response);
     }
 
-    TFuture<void> PrepareHeartbeatRequest(
-        const TReqOldHeartbeatPtr& request) override
+    TFuture<void> PrepareSchedulerHeartbeatRequest(
+        const TReqOldSchedulerHeartbeatPtr& request) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
-            BIND(&TJobController::DoPrepareHeartbeatRequest<TReqOldHeartbeatPtr>, MakeStrong(this))
+            BIND(&TJobController::DoPrepareSchedulerHeartbeatRequest<TReqOldSchedulerHeartbeatPtr>, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(request);
     }
 
-    TFuture<void> ProcessHeartbeatResponse(
-        const TRspOldHeartbeatPtr& response) override
+    TFuture<void> ProcessSchedulerHeartbeatResponse(
+        const TRspOldSchedulerHeartbeatPtr& response) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         return
-            BIND(&TJobController::DoProcessHeartbeatResponse<TRspOldHeartbeatPtr>, MakeStrong(this))
+            BIND(&TJobController::DoProcessSchedulerHeartbeatResponse<TRspOldSchedulerHeartbeatPtr>, MakeStrong(this))
                 .AsyncVia(Bootstrap_->GetJobInvoker())
                 .Run(response);
     }
@@ -880,9 +900,128 @@ private:
         ScheduleStartJobs();
     }
 
-    template <class TRspHeartbeatPtr>
-    void DoProcessHeartbeatResponse(
-        const TRspHeartbeatPtr& response)
+    void DoPrepareAgentHeartbeatRequest(
+        TReqAgentHeartbeatPtr request,
+        TAgentHeartbeatContextPtr context)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        std::vector<TJobPtr> jobs;
+        for (const auto& [id, job] : JobMap_) {
+            if (job->GetState() != EJobState::Running) {
+                continue;
+            }
+
+            const auto& controllerAgentDescriptor = job->GetControllerAgentDescriptor();
+
+            if (!controllerAgentDescriptor) {
+                YT_LOG_DEBUG(
+                    "Skipping heartbeat for job since old agent incarnation is outdated and new incarnation is not received yet (JobId: %v)",
+                    job->GetId());
+                continue;
+            }
+
+            if (controllerAgentDescriptor != context->AgentDescriptor) {
+                continue;
+            }
+
+            jobs.push_back(std::move(job));
+        }
+
+        request->set_node_id(Bootstrap_->GetNodeId());
+        ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
+        ToProto(request->mutable_controller_agent_incarnation_id(), context->AgentDescriptor.IncarnationId);
+
+        auto getJobStatistics = [] (const TJobPtr& job) {
+            auto statistics = job->GetStatistics();
+            if (!statistics) {
+                if (const auto& timeStatistics = job->GetTimeStatistics(); !timeStatistics.IsEmpty()) {
+                    TStatistics timeStatisticsToSend;
+                    timeStatisticsToSend.SetTimestamp(TInstant::Now());
+
+                    timeStatistics.AddSamplesTo(&timeStatisticsToSend);
+
+                    statistics = NYson::ConvertToYsonString(timeStatisticsToSend);
+                }
+            }
+
+            return statistics;
+        };
+
+        i64 finishedJobsStatisticsSize = 0;
+        for (const auto& job : context->SentEnqueuedJobs) {
+            auto* const jobStatus = request->add_jobs();
+            FillSchedulerJobStatus(jobStatus, job);
+
+            *jobStatus->mutable_result() = job->GetResult();
+
+            job->ResetStatisticsLastSendTime();
+
+            if (auto statistics = getJobStatistics(job)) {
+                auto statisticsString = statistics.ToString();
+                finishedJobsStatisticsSize += std::ssize(statisticsString);
+                jobStatus->set_statistics(std::move(statisticsString));
+            }
+        }
+
+        // In case of statistics size throttling we want to report older jobs first to ensure
+        // that all jobs will sent statistics eventually.
+        std::sort(
+            jobs.begin(),
+            jobs.end(),
+            [] (const auto& lhs, const auto& rhs) noexcept {
+                return lhs->GetStatisticsLastSendTime() < rhs->GetStatisticsLastSendTime();
+            });
+
+        const auto now = TInstant::Now();
+        int consideredRunnigJobCount = 0;
+        int reportedRunningJobCount = 0;
+        i64 runningJobsStatisticsSize = 0;
+        for (const auto& job : jobs) {
+            if (now - job->GetStatisticsLastSendTime() < context->RunningJobInfoSendingBackoff) {
+                break;
+            }
+
+            ++consideredRunnigJobCount;
+
+            if (auto statistics = getJobStatistics(job)) {
+                auto statisticsString = statistics.ToString();
+                if (context->StatisticsThrottler->TryAcquire(statisticsString.size())) {
+                    ++reportedRunningJobCount;
+                    auto* const jobStatus = request->add_jobs();
+
+                    FillSchedulerJobStatus(jobStatus, job);
+
+                    runningJobsStatisticsSize += statisticsString.size();
+                    job->ResetStatisticsLastSendTime();
+                    jobStatus->set_statistics(std::move(statisticsString));
+                }
+            }
+        }
+
+        YT_LOG_DEBUG(
+            "Job statistics for agent prepared (RunningJobsStatisticsSize: %v, FinishedJobsStatisticsSize: %v, "
+            "RunningJobCount: %v, SkippedJobCountDueToBackoff: %v, SkippedJobCountDueToStatisticsSizeThrottling: %v, "
+            "AgentAddress: %v, IncarnationId: %v)",
+            runningJobsStatisticsSize,
+            finishedJobsStatisticsSize,
+            std::size(jobs),
+            std::ssize(jobs) - consideredRunnigJobCount,
+            consideredRunnigJobCount - reportedRunningJobCount,
+            context->AgentDescriptor.Address,
+            context->AgentDescriptor.IncarnationId);
+    }
+
+    void DoProcessAgentHeartbeatResponse(
+        TRspAgentHeartbeatPtr /*response*/,
+        TAgentHeartbeatContextPtr /*context*/)
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+    }
+
+    template <class TRspSchedulerHeartbeatPtr>
+    void DoProcessSchedulerHeartbeatResponse(
+        TRspSchedulerHeartbeatPtr response)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1002,7 +1141,7 @@ private:
         }
 
         // COMPAT(pogorelov)
-        if constexpr (std::is_same_v<TRspHeartbeatPtr, IJobController::TRspHeartbeatPtr>) {
+        if constexpr (std::is_same_v<TRspSchedulerHeartbeatPtr, IJobController::TRspSchedulerHeartbeatPtr>) {
             for (const auto& protoOperationInfo : response->operation_infos()) {
                 auto operationId = FromProto<TOperationId>(protoOperationInfo.operation_id());
                 if (!protoOperationInfo.running()) {
@@ -1046,9 +1185,9 @@ private:
             "Failed to request some job specs");
     }
 
-    template <class TReqHeartbeatPtr>
-    void DoPrepareHeartbeatRequest(
-        const TReqHeartbeatPtr& request)
+    template <class TReqSchedulerHeartbeatPtr>
+    void DoPrepareSchedulerHeartbeatRequest(
+        TReqSchedulerHeartbeatPtr request)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1179,7 +1318,7 @@ private:
         }
 
         // COMPAT(pogorelov)
-        if constexpr (std::is_same_v<TReqHeartbeatPtr, IJobController::TReqHeartbeatPtr>) {
+        if constexpr (std::is_same_v<TReqSchedulerHeartbeatPtr, IJobController::TReqSchedulerHeartbeatPtr>) {
             if (requestOperationInfosForStoredJobs) {
                 YT_LOG_DEBUG("Adding operation info requests for stored jobs (Count: %v)", std::size(operationIdsToRequestInfo));
 

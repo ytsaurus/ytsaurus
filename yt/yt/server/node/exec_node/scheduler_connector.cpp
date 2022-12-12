@@ -109,8 +109,13 @@ void TSchedulerConnector::DoSendHeartbeat()
     req->SetRequestCodec(NCompression::ECodec::Lz4);
 
     const auto& jobController = Bootstrap_->GetJobController();
-    YT_VERIFY(WaitFor(jobController->PrepareHeartbeatRequest(req))
-        .IsOK());
+    {
+        auto error = WaitFor(jobController->PrepareSchedulerHeartbeatRequest(req));
+        YT_LOG_FATAL_IF(
+            !error.IsOK(),
+            error,
+            "Failed to prepare scheduler heartbeat");
+    }
 
     auto profileInterval = [&] (TInstant lastTime, NProfiling::TEventTimer& counter) {
         if (lastTime != TInstant::Zero()) {
@@ -162,8 +167,10 @@ void TSchedulerConnector::DoSendHeartbeat()
         Bootstrap_->GetJobReporter()->SetOperationArchiveVersion(rsp->operation_archive_version());
     }
 
-    const auto result = WaitFor(jobController->ProcessHeartbeatResponse(rsp));
-    YT_LOG_FATAL_IF(!result.IsOK(), result, "Error while processing scheduler heartbeat response");
+    {
+        auto error = WaitFor(jobController->ProcessSchedulerHeartbeatResponse(rsp));
+        YT_LOG_FATAL_IF(!error.IsOK(), error, "Error while processing scheduler heartbeat response");
+    }
 }
 
 void TSchedulerConnector::SendHeartbeat()

@@ -35,9 +35,9 @@ public:
     virtual void RegisterJobFactory(
         EJobType type,
         TJobFactory factory) = 0;
-    
+
     virtual void ScheduleStartJobs() = 0;
-    
+
     //! Finds the job by its id, returns |nullptr| if no job is found.
     /*
      * \note Thread affinity: any
@@ -64,37 +64,53 @@ public:
 
     virtual bool AreSchedulerJobsDisabled() const noexcept = 0;
 
-    using TRspHeartbeat = NRpc::TTypedClientResponse<
+    using TRspAgentHeartbeat = NRpc::TTypedClientResponse<
+        NControllerAgent::NProto::TRspHeartbeat>;
+    using TReqAgentHeartbeat = NRpc::TTypedClientRequest<
+        NControllerAgent::NProto::TReqHeartbeat,
+        TRspAgentHeartbeat>;
+    using TRspAgentHeartbeatPtr = TIntrusivePtr<TRspAgentHeartbeat>;
+    using TReqAgentHeartbeatPtr = TIntrusivePtr<TReqAgentHeartbeat>;
+
+    using TRspSchedulerHeartbeat = NRpc::TTypedClientResponse<
         NScheduler::NProto::NNode::TRspHeartbeat>;
-    using TRspOldHeartbeat = NRpc::TTypedClientResponse<
-         NJobTrackerClient::NProto::TRspHeartbeat>;
-    using TReqHeartbeat = NRpc::TTypedClientRequest<
+    using TReqSchedulerHeartbeat = NRpc::TTypedClientRequest<
         NScheduler::NProto::NNode::TReqHeartbeat,
-        TRspHeartbeat>;
-    using TReqOldHeartbeat = NRpc::TTypedClientRequest<
+        TRspSchedulerHeartbeat>;
+    using TRspSchedulerHeartbeatPtr = TIntrusivePtr<TRspSchedulerHeartbeat>;
+    using TReqSchedulerHeartbeatPtr = TIntrusivePtr<TReqSchedulerHeartbeat>;
+
+    // COMPAT(pogorelov)
+    using TRspOldSchedulerHeartbeat = NRpc::TTypedClientResponse<
+         NJobTrackerClient::NProto::TRspHeartbeat>;
+    using TReqOldSchedulerHeartbeat = NRpc::TTypedClientRequest<
         NJobTrackerClient::NProto::TReqHeartbeat,
-        TRspOldHeartbeat>;
-    using TRspHeartbeatPtr = TIntrusivePtr<TRspHeartbeat>;
-    using TReqHeartbeatPtr = TIntrusivePtr<TReqHeartbeat>;
+        TRspOldSchedulerHeartbeat>;
+    using TRspOldSchedulerHeartbeatPtr = TIntrusivePtr<TRspOldSchedulerHeartbeat>;
+    using TReqOldSchedulerHeartbeatPtr = TIntrusivePtr<TReqOldSchedulerHeartbeat>;
 
-    using TRspOldHeartbeatPtr = TIntrusivePtr<TRspOldHeartbeat>;
-    using TReqOldHeartbeatPtr = TIntrusivePtr<TReqOldHeartbeat>;
+    virtual void PrepareAgentHeartbeatRequest(
+        const TReqAgentHeartbeatPtr& request,
+        const TAgentHeartbeatContextPtr& context) = 0;
+    virtual void ProcessAgentHeartbeatResponse(
+        const TRspAgentHeartbeatPtr& response,
+        const TAgentHeartbeatContextPtr& context) = 0;
 
-    //! Prepares a heartbeat request.
-    virtual TFuture<void> PrepareHeartbeatRequest(
-        const TReqHeartbeatPtr& request) = 0;
+    //! Prepares a scheduler heartbeat request.
+    virtual TFuture<void> PrepareSchedulerHeartbeatRequest(
+        const TReqSchedulerHeartbeatPtr& request) = 0;
 
-    //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
-    virtual TFuture<void> ProcessHeartbeatResponse(
-        const TRspHeartbeatPtr& response) = 0;
-    
-    //! Prepares a heartbeat request.
-    virtual TFuture<void> PrepareHeartbeatRequest(
-        const TReqOldHeartbeatPtr& request) = 0;
+    //! Handles scheduler heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
+    virtual TFuture<void> ProcessSchedulerHeartbeatResponse(
+        const TRspSchedulerHeartbeatPtr& response) = 0;
 
-    //! Handles heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
-    virtual TFuture<void> ProcessHeartbeatResponse(
-        const TRspOldHeartbeatPtr& response) = 0;
+    // COMPAT(pogorelov)
+    //! Prepares a scheduler heartbeat request.
+    virtual TFuture<void> PrepareSchedulerHeartbeatRequest(
+        const TReqOldSchedulerHeartbeatPtr& request) = 0;
+    //! Handles scheduler heartbeat response, i.e. starts new jobs, aborts and removes old ones etc.
+    virtual TFuture<void> ProcessSchedulerHeartbeatResponse(
+        const TRspOldSchedulerHeartbeatPtr& response) = 0;
 
     virtual TBuildInfoPtr GetBuildInfo() const = 0;
 

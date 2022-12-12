@@ -17,8 +17,6 @@
 
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
-#include <yt/yt/core/misc/statistics.h>
-
 namespace NYT::NExecNode {
 
 using namespace NConcurrency;
@@ -104,12 +102,12 @@ TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConne
     HeartbeatExecutor_->Stop();
 }
 
+// This method will be called in control thread when controller agent controls job lifetime.
 void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
 
-    if (!ControllerAgentConnectorPool_->Bootstrap_->IsConnected())
-    {
+    if (!ControllerAgentConnectorPool_->Bootstrap_->IsConnected()) {
         return;
     }
 
@@ -121,119 +119,22 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
         return;
     }
 
-    std::vector<TJobPtr> jobs;
-    const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
-    for (auto& job : jobController->GetJobs()) {
-        if (job->GetState() != EJobState::Running) {
-            continue;
-        }
-
-        const auto& controllerAgentDescriptor = job->GetControllerAgentDescriptor();
-
-        if (!controllerAgentDescriptor) {
-            YT_LOG_DEBUG(
-                "Skipping heartbeat for job since old agent incarnation is outdated and new incarnation is not received yet (JobId: %v)",
-                job->GetId());
-            continue;
-        }
-
-        if (controllerAgentDescriptor != ControllerAgentDescriptor_) {
-            continue;
-        }
-
-        jobs.push_back(std::move(job));
-    }
-
-    std::vector<TJobPtr> sentEnqueuedJobs;
-    sentEnqueuedJobs.reserve(std::size(EnqueuedFinishedJobs_));
-    for (const auto& job : EnqueuedFinishedJobs_) {
-        sentEnqueuedJobs.push_back(job);
-    }
-
     TJobTrackerServiceProxy proxy(Channel_);
     auto request = proxy.Heartbeat();
-    request->set_node_id(ControllerAgentConnectorPool_->Bootstrap_->GetNodeId());
-    ToProto(request->mutable_node_descriptor(), ControllerAgentConnectorPool_->Bootstrap_->GetLocalDescriptor());
-    ToProto(request->mutable_controller_agent_incarnation_id(), ControllerAgentDescriptor_.IncarnationId);
 
-    auto getJobStatistics = [] (const TJobPtr& job) {
-        auto statistics = job->GetStatistics();
-        if (!statistics) {
-            if (const auto& timeStatistics = job->GetTimeStatistics(); !timeStatistics.IsEmpty()) {
-                TStatistics timeStatisticsToSend;
-                timeStatisticsToSend.SetTimestamp(TInstant::Now());
+    auto context = New<TAgentHeartbeatContext>();
 
-                timeStatistics.AddSamplesTo(&timeStatisticsToSend);
+    context->AgentDescriptor = ControllerAgentDescriptor_;
+    context->StatisticsThrottler = StatisticsThrottler_;
+    context->RunningJobInfoSendingBackoff = RunningJobInfoSendingBackoff_;
+    context->SentEnqueuedJobs.insert(
+        std::end(context->SentEnqueuedJobs),
+        std::begin(EnqueuedFinishedJobs_),
+        std::end(EnqueuedFinishedJobs_));
 
-                statistics = NYson::ConvertToYsonString(timeStatisticsToSend);
-            }
-        }
+    const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
 
-        return statistics;
-    };
-
-    i64 finishedJobsStatisticsSize = 0;
-    for (const auto& job : sentEnqueuedJobs) {
-        auto* const jobStatus = request->add_jobs();
-        FillSchedulerJobStatus(jobStatus, job);
-
-        *jobStatus->mutable_result() = job->GetResult();
-
-        job->ResetStatisticsLastSendTime();
-
-        if (auto statistics = getJobStatistics(job)) {
-            auto statisticsString = statistics.ToString();
-            finishedJobsStatisticsSize += std::ssize(statisticsString);
-            jobStatus->set_statistics(std::move(statisticsString));
-        }
-    }
-
-    // In case of statistics size throttling we want to report older jobs first to ensure
-    // that all jobs will sent statistics eventually.
-    std::sort(
-        jobs.begin(),
-        jobs.end(),
-        [] (const auto& lhs, const auto& rhs) noexcept {
-            return lhs->GetStatisticsLastSendTime() < rhs->GetStatisticsLastSendTime();
-        });
-
-    const auto now = TInstant::Now();
-    int consideredRunnigJobCount = 0;
-    int reportedRunningJobCount = 0;
-    i64 runningJobsStatisticsSize = 0;
-    for (const auto& job : jobs) {
-        if (now - job->GetStatisticsLastSendTime() < RunningJobInfoSendingBackoff_) {
-            break;
-        }
-
-        ++consideredRunnigJobCount;
-
-        if (auto statistics = getJobStatistics(job)) {
-            auto statisticsString = statistics.ToString();
-            if (StatisticsThrottler_->TryAcquire(statisticsString.size())) {
-                ++reportedRunningJobCount;
-                auto* const jobStatus = request->add_jobs();
-
-                FillSchedulerJobStatus(jobStatus, job);
-
-                runningJobsStatisticsSize += statisticsString.size();
-                job->ResetStatisticsLastSendTime();
-                jobStatus->set_statistics(std::move(statisticsString));
-            }
-        }
-    }
-
-    YT_LOG_DEBUG(
-        "Job statistics for agent prepared (RunningJobsStatisticsSize: %v, FinishedJobsStatisticsSize: %v, "
-        "RunningJobCount: %v, SkippedJobCountDueToBackoff: %v, SkippedJobCountDueToStatisticsSizeThrottling: %v, "
-        "AgentAddress: %v, IncarnationId: %v)",
-        runningJobsStatisticsSize,
-        finishedJobsStatisticsSize,
-        std::size(jobs),
-        std::ssize(jobs) - consideredRunnigJobCount,
-        consideredRunnigJobCount - reportedRunningJobCount,
-        ControllerAgentDescriptor_.Address,
-        ControllerAgentDescriptor_.IncarnationId);
+    jobController->PrepareAgentHeartbeatRequest(request, context);
 
     HeartbeatInfo_.LastSentHeartbeatTime = TInstant::Now();
 
@@ -267,7 +168,10 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
         return;
     }
 
-    for (const auto& job : sentEnqueuedJobs) {
+    jobController->ProcessAgentHeartbeatResponse(responseOrError.Value(), context);
+
+    // This will be removed when controller agent controls job lifetime.
+    for (const auto& job : context->SentEnqueuedJobs) {
         EnqueuedFinishedJobs_.erase(job);
     }
 
