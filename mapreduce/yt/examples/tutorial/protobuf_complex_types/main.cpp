@@ -31,8 +31,8 @@ public:
 };
 REGISTER_REDUCER(AggregateLinksReducer);
 
-int main(int argc, const char** argv) {
-    NYT::Initialize(argc, argv);
+int main() {
+    NYT::Initialize();
 
     TString cluster = "hume";
     auto client = CreateClient(cluster);
@@ -58,4 +58,3 @@ int main(int argc, const char** argv) {
 
     return 0;
 }
-
