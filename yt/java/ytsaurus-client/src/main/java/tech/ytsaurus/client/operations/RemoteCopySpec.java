@@ -6,7 +6,7 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.client.request.CreateNode;
-import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
@@ -45,7 +45,7 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         yt.createNode(CreateNode.builder()
                 .setPath(getOutputTable())
-                .setType(ObjectType.Table)
+                .setType(CypressNodeType.TABLE)
                 .setAttributes(getOutputTableAttributes())
                 .setRecursive(true)
                 .setIgnoreExisting(true)

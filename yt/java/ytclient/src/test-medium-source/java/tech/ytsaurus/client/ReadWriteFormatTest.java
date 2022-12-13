@@ -14,7 +14,6 @@ import org.junit.runners.Parameterized;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.Format;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowSerializer;
@@ -24,6 +23,7 @@ import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -130,7 +130,7 @@ public class ReadWriteFormatTest {
 
         YPath path = YPath.simple("//tmp/write-table-example-1");
 
-        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         TableWriter<UnversionedRow> writer =
                 yt.writeTable(new WriteTable<>(path, new UnversionedRowSerializer())).join();
@@ -189,7 +189,7 @@ public class ReadWriteFormatTest {
     public void testYsonFormatWrite() throws Exception {
         YPath path = YPath.simple("//tmp/write-table-example-1");
 
-        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         TableWriter<YTreeMapNode> writer =
                 yt.writeTable(new WriteTable<>(

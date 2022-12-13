@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 import ru.yandex.yt.rpcproxy.TReqCreateObject;
@@ -16,7 +17,7 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 
 public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject>
         implements HighLevelRequest<TReqCreateObject.Builder> {
-    private final ObjectType type;
+    private final CypressNodeType type;
     private final Map<String, YTreeNode> attributes;
     private final boolean ignoreExisting;
 
@@ -27,7 +28,7 @@ public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject
         this.ignoreExisting = builder.ignoreExisting;
     }
 
-    public CreateObject(ObjectType type) {
+    public CreateObject(CypressNodeType type) {
         this(builder().setType(type));
     }
 
@@ -40,7 +41,7 @@ public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject
      */
     @Override
     public void writeTo(RpcClientRequestBuilder<TReqCreateObject.Builder, ?> builder) {
-        builder.body().setType(type.value());
+        builder.body().setType(type.protoValue());
         builder.body().setIgnoreExisting(ignoreExisting);
 
         final TAttributeDictionary.Builder aBuilder = builder.body().getAttributesBuilder();
@@ -72,7 +73,7 @@ public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject
 
     public static class Builder extends RequestBase.Builder<Builder, CreateObject> {
         @Nullable
-        private ObjectType type;
+        private CypressNodeType type;
         private Map<String, YTreeNode> attributes = new HashMap<>();
         private boolean ignoreExisting = TReqCreateObject.getDefaultInstance().getIgnoreExisting();
 
@@ -86,7 +87,7 @@ public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject
             this.ignoreExisting = builder.ignoreExisting;
         }
 
-        public Builder setType(ObjectType type) {
+        public Builder setType(CypressNodeType type) {
             this.type = type;
             return self();
         }

@@ -48,11 +48,11 @@ import tech.ytsaurus.client.request.GetFileFromCache;
 import tech.ytsaurus.client.request.GetFileFromCacheResult;
 import tech.ytsaurus.client.request.ListNode;
 import tech.ytsaurus.client.request.MoveNode;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.PutFileToCache;
 import tech.ytsaurus.client.request.RemoveNode;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -140,7 +140,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
         yt.createNode(CreateNode.builder()
                 .setPath(jarsDir)
-                .setType(ObjectType.MapNode)
+                .setType(CypressNodeType.MAP)
                 .setRecursive(true)
                 .setIgnoreExisting(true)
                 .build()).join();
@@ -160,7 +160,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     }
 
     protected void writeFile(TransactionalClient yt, YPath path, InputStream data) {
-        yt.createNode(new CreateNode(path, ObjectType.File)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.FILE)).join();
         FileWriter writer = yt.writeFile(WriteFile.builder()
                 .setPath(path.toString())
                 .setComputeMd5(true)
@@ -376,14 +376,14 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     private void collectJars(TransactionalClient yt) {
         yt.createNode(CreateNode.builder()
                 .setPath(jarsDir)
-                .setType(ObjectType.MapNode)
+                .setType(CypressNodeType.MAP)
                 .setRecursive(true)
                 .setIgnoreExisting(true)
                 .build()).join();
         if (isUsingFileCache()) {
             yt.createNode(CreateNode.builder()
                     .setPath(cacheDir)
-                    .setType(ObjectType.MapNode)
+                    .setType(CypressNodeType.MAP)
                     .setRecursive(true)
                     .setIgnoreExisting(true)
                     .build()
@@ -551,7 +551,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
             YPath dllDir = jarsDir.child(md5);
             yt.createNode(CreateNode.builder()
                     .setPath(dllDir)
-                    .setType(ObjectType.MapNode)
+                    .setType(CypressNodeType.MAP)
                     .setRecursive(true)
                     .setIgnoreExisting(true)
                     .build()).join();
@@ -568,7 +568,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
         yt.createNode(CreateNode.builder()
                 .setPath(tmpPath)
-                .setType(ObjectType.File)
+                .setType(CypressNodeType.FILE)
                 .addAttribute("replication_factor", YTree.integerNode(actualFileCacheReplicationFactor))
                 .setIgnoreExisting(true)
                 .build()).join();

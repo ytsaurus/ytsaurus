@@ -5,7 +5,7 @@ import java.io.FileInputStream;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.FileWriter;
-import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
@@ -29,7 +29,7 @@ public class WriteFileExample {
                 logger.info("Write file");
 
                 String path = "//tmp/bigfile1";
-                client.createNode(new CreateNode(path, ObjectType.File).setForce(true)).join();
+                client.createNode(new CreateNode(path, CypressNodeType.FILE).setForce(true)).join();
                 FileWriter writer = client.writeFile(new WriteFile(path)
                         .setWindowSize(10000000L)
                         .setPacketSize(1000000L)
@@ -64,7 +64,7 @@ public class WriteFileExample {
                 logger.info("Write file 2");
 
                 String path = "//tmp/bigfile2";
-                client.createNode(new CreateNode(path, ObjectType.File).setForce(true)).join();
+                client.createNode(new CreateNode(path, CypressNodeType.FILE).setForce(true)).join();
                 FileWriter writer = client.writeFile(new WriteFile(path)
                         .setWindowSize(16000000L)
                         .setPacketSize(1000000L)

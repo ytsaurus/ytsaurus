@@ -15,9 +15,9 @@ import java.util.function.Supplier;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
@@ -68,7 +68,7 @@ public class YtClientRetryWithTransactionTest extends YtClientTestBase {
         var serializer = new YTreeObjectSerializer<>(KeyValue.class);
 
         yt.createNode(
-                new CreateNode(tablePath, ObjectType.Table)
+                new CreateNode(tablePath, CypressNodeType.TABLE)
                         .addAttribute("schema", keyValueTableSchema.toYTree())
                         .addAttribute("dynamic", true)
         ).join();

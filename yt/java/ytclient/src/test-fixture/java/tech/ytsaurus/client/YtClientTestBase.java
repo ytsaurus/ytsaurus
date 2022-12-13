@@ -9,10 +9,10 @@ import java.util.concurrent.CompletionException;
 import org.junit.After;
 import org.junit.Rule;
 import org.junit.rules.TestName;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTreeMapNode;
@@ -75,7 +75,7 @@ public class YtClientTestBase {
         var testDirectory = YPath.simple("//tmp/ytclient-test/" + runId + "-" + methodName);
 
         yt.createNode(
-                new CreateNode(testDirectory, ObjectType.MapNode)
+                new CreateNode(testDirectory, CypressNodeType.MAP)
                         .setRecursive(true)
                         .setForce(true)
         ).join();
@@ -87,7 +87,7 @@ public class YtClientTestBase {
 
     protected void writeTable(YtClient yt, YPath path, TableSchema tableSchema, List<YTreeMapNode> data) {
         try {
-            yt.createNode(path.justPath().toString(), ObjectType.Table).join();
+            yt.createNode(path.justPath().toString(), CypressNodeType.TABLE).join();
         } catch (CompletionException ignored) {
         }
 

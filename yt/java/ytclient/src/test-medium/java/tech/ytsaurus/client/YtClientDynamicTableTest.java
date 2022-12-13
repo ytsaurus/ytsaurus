@@ -15,9 +15,9 @@ import javax.annotation.Nullable;
 import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
@@ -84,7 +84,7 @@ public class YtClientDynamicTableTest extends YtClientTestBase {
         yt = ytFixture.yt;
 
         yt.createNode(
-                new CreateNode(path, ObjectType.Table)
+                new CreateNode(path, CypressNodeType.TABLE)
                         .setRecursive(true)
                         .setForce(true)
                         .setAttributes(

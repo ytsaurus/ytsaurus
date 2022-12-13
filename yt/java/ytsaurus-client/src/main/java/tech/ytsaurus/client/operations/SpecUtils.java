@@ -10,7 +10,7 @@ import java.util.Optional;
 
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.client.request.CreateNode;
-import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -85,7 +85,7 @@ final class SpecUtils {
         for (YPath outputTable : outputTables) {
             yt.createNode(CreateNode.builder()
                     .setPath(outputTable)
-                    .setType(ObjectType.Table)
+                    .setType(CypressNodeType.TABLE)
                     .setAttributes(outputTableAttributes)
                     .setRecursive(true)
                     .setIgnoreExisting(true)

@@ -25,7 +25,6 @@ import tech.ytsaurus.client.request.ColumnFilter;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.GetNode;
 import tech.ytsaurus.client.request.LockNode;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.UnversionedRow;
@@ -33,6 +32,7 @@ import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.request.LockMode;
 import tech.ytsaurus.core.tables.TableSchema;
@@ -168,7 +168,7 @@ class RetryingTableWriterBaseImpl<T> {
                         createNodeFuture = transaction.createNode(
                                 CreateNode.builder()
                                         .setPath(path)
-                                        .setType(ObjectType.Table)
+                                        .setType(CypressNodeType.TABLE)
                                         .setIgnoreExisting(true)
                                         .build());
                     } else {

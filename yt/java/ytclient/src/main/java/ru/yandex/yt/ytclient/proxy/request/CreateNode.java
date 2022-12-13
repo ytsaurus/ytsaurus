@@ -2,7 +2,6 @@ package ru.yandex.yt.ytclient.proxy.request;
 
 import java.util.Map;
 
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -28,21 +27,17 @@ public class CreateNode extends tech.ytsaurus.client.request.CreateNode.BuilderB
         super(other);
     }
 
-    public CreateNode(String path, ObjectType type) {
+    public CreateNode(String path, CypressNodeType type) {
         this(YPath.simple(path), type);
     }
 
-    public CreateNode(YPath path, ObjectType type) {
+    public CreateNode(YPath path, CypressNodeType type) {
         setPath(path).setType(type);
     }
 
-    public CreateNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
+    public CreateNode(String path, CypressNodeType type, Map<String, YTreeNode> attributes) {
         this(path, type);
         setAttributes(attributes);
-    }
-
-    public CreateNode(YPath path, CypressNodeType type) {
-        this(path, ObjectType.from(type));
     }
 
     public CreateNode(YPath path, CypressNodeType type, Map<String, YTreeNode> attributes) {

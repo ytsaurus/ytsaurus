@@ -29,7 +29,6 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.AlterTable;
 import tech.ytsaurus.client.request.ModifyRowsRequest;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowDeserializer;
 import tech.ytsaurus.client.rows.UnversionedRowSerializer;
@@ -355,7 +354,7 @@ public class YtClientTest {
     public void earlyReaderClose() throws IOException {
         String table = path + "/table";
 
-        client.createNode(new CreateNode(table, ObjectType.Table).setRecursive(true)).join();
+        client.createNode(new CreateNode(table, CypressNodeType.TABLE).setRecursive(true)).join();
 
         {
             TableWriter<MappedObject> writer =
@@ -406,7 +405,7 @@ public class YtClientTest {
                 .addValue("array", TiType.list(TiType.int64()))
                 .build();
 
-        client.createNode(new CreateNode(table, ObjectType.Table, Map.of(
+        client.createNode(new CreateNode(table, CypressNodeType.TABLE, Map.of(
                 "schema", schema.toYTree()
         )).setRecursive(true)).join();
 
@@ -500,7 +499,7 @@ public class YtClientTest {
                 .addValue("value", TiType.string())
                 .build();
 
-        client.createNode(new CreateNode(table, ObjectType.Table)
+        client.createNode(new CreateNode(table, CypressNodeType.TABLE)
                 .setRecursive(true)
                 .addAttribute("dynamic", true)
                 .addAttribute("schema", schema.toYTree())

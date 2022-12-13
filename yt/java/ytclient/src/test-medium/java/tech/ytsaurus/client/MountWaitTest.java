@@ -11,7 +11,7 @@ import java.util.concurrent.atomic.AtomicInteger;
 import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
-import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -53,7 +53,7 @@ public class MountWaitTest extends YtClientTestBase {
         attributes.put("dynamic", new YTreeBuilder().value(true).build());
         attributes.put("schema", schema.toYTree());
 
-        yt.createNode(new CreateNode(path, ObjectType.Table, attributes)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE, attributes)).join();
 
         CompletableFuture<Void> mountFuture = yt.mountTable(path, null, false, true);
 

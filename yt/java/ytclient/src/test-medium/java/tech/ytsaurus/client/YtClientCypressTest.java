@@ -8,10 +8,10 @@ import java.util.Objects;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.ReadFile;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.TestingOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTree;
 
@@ -99,7 +99,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         //
         // Write table and while we write data ban the proxy.
         // We expect connection not to be closed until writer completes.
-        yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+        yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
         var writer = yt.writeTable(
                 new WriteTable<>(tablePath, YTreeObjectSerializerFactory.forClass(TableRow.class))
@@ -162,7 +162,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         var tablePath = ytFixture.testDirectory.child("static-table");
         var yt = ytFixture.yt;
 
-        yt.createNode(tablePath.toString(), ObjectType.File).get(2, TimeUnit.SECONDS);
+        yt.createNode(tablePath.toString(), CypressNodeType.FILE).get(2, TimeUnit.SECONDS);
         var writer = yt.writeFile(
                 new WriteFile(tablePath.toString())
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);
@@ -242,7 +242,7 @@ public class YtClientCypressTest extends YtClientTestBase {
         {
             var testPath = fixture.testDirectory.child("some-list");
 
-            yt.createNode(new CreateNode(testPath, ObjectType.ListNode)).join();
+            yt.createNode(new CreateNode(testPath, CypressNodeType.LIST)).join();
 
             var setRequest = new SetNode(YPath.simple(testPath + "/end"), YTree.integerNode(1));
             yt.setNode(setRequest).join();

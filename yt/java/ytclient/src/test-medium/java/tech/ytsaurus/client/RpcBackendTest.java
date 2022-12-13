@@ -15,12 +15,12 @@ import org.junit.Before;
 import org.junit.Test;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -72,7 +72,7 @@ public class RpcBackendTest {
         attributes.put("dynamic", new YTreeBuilder().value(true).build());
         attributes.put("schema", schema.toYTree());
 
-        yt.createNode(new CreateNode(path, ObjectType.Table, attributes)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE, attributes)).join();
         yt.mountTable(path).join();
 
         while (true) {

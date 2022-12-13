@@ -6,12 +6,12 @@ import java.util.concurrent.ExecutionException;
 import java.util.concurrent.TimeUnit;
 
 import org.junit.Test;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcFailoverPolicy;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcRequestsTestingController;
 import tech.ytsaurus.client.rpc.TestingOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 
 import ru.yandex.yt.TError;
 import ru.yandex.yt.rpcproxy.TReqCreateNode;
@@ -118,7 +118,7 @@ public class RetriesTest extends YtClientTestBase {
             rpcRequestsTestingController.clear();
             outageController.addFails("CreateNode", 1, error100);
 
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             var createRequests = rpcRequestsTestingController.getRequestsByMethod("CreateNode");
             assertThat("One fail, one ok", createRequests.size() == 2);
@@ -143,7 +143,7 @@ public class RetriesTest extends YtClientTestBase {
             rpcRequestsTestingController.clear();
             outageController.addFails("CreateNode", 2, error100);
 
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             var createRequests = rpcRequestsTestingController.getRequestsByMethod("CreateNode");
             assertThat("Two fails, one ok", createRequests.size() == 3);
@@ -179,7 +179,7 @@ public class RetriesTest extends YtClientTestBase {
 
             assertThrows(
                     ExecutionException.class,
-                    () -> yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS)
+                    () -> yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS)
             );
 
             var createRequests = rpcRequestsTestingController.getRequestsByMethod("CreateNode");
