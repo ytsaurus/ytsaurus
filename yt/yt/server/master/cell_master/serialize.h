@@ -75,6 +75,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemovableQueueAgentStage_22_3)                                (2136))  // achulkov2
     ((FixTransactionRotator_22_3)                                   (2137))  // kvk1920
     ((FixNodeRegistration_22_3)                                     (2138))  // kvk1920
+    ((CopyChunkMergerMode)                                          (2139))  // aleksandra-zh
     // 22.4 starts here.
     ((ZookeeperShards)                                              (2200))  // gritukan
     ((QueueAgentStageWritabilityAndDefaults)                        (2201))  // achulkov2
