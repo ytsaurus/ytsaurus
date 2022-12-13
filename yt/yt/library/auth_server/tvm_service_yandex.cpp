@@ -18,6 +18,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/misc/tls_expiring_cache.h>
+
 #include <library/cpp/tvmauth/client/facade.h>
 #include <library/cpp/tvmauth/client/logger.h>
 #include <library/cpp/tvmauth/client/misc/api/dynamic_dst/tvm_client.h>
@@ -120,20 +122,16 @@ public:
         TTvmServiceConfigPtr config,
         TProfiler profiler)
         : Config_(std::move(config))
-        , GetServiceTicketCountCounter_(profiler.Counter("/get_service_ticket_count"))
-        , SuccessfulGetServiceTicketCountCounter_(profiler.Counter("/successful_get_service_ticket_count"))
-        , FailedGetServiceTicketCountCounter_(profiler.Counter("/failed_get_service_ticket_count"))
-        , GetServiceTicketTime_(profiler.Timer("/get_service_ticket_time"))
-        , ParseUserTicketCountCounter_(profiler.Counter("/parse_user_ticket_count"))
-        , SuccessfulParseUserTicketCountCounter_(profiler.Counter("/successful_parse_user_ticket_count"))
-        , FailedParseUserTicketCountCounter_(profiler.Counter("/failed_parse_user_ticket_count"))
-        , ParseUserTicketTime_(profiler.Timer("/parse_user_ticket_time"))
+        , GetServiceTicketCounter_(profiler.WithPrefix("/get_service_ticket"))
+        , ParseServiceTicketHitCounter_(profiler.WithTag("cache", "hit").WithPrefix("/parse_service_ticket"))
+        , ParseServiceTicketMissCounter_(profiler.WithTag("cache", "miss").WithPrefix("/parse_service_ticket"))
+        , ParseUserTicketCounter_(profiler.WithPrefix("/parse_user_ticket"))
         , ClientErrorCountCounter_(profiler.Counter("/client_error_count"))
-        , ParseServiceTicketCountCounter_(profiler.Counter("/parse_service_ticket_count"))
-        , SuccessfulParseServiceTicketCountCounter_(profiler.Counter("/successful_parse_service_ticket_count"))
-        , FailedParseServiceTicketCountCounter_(profiler.Counter("/failed_parse_service_ticket_count"))
-        , ParseServiceTicketTime_(profiler.Timer("/parse_service_ticket_time"))
-    { }
+    {
+        if (Config_->EnableTicketParseCache) {
+            TicketParseCache_ = std::make_unique<TTicketParseCache>(Config_->TicketCheckingCacheTimeout);
+        }
+    }
 
     TTvmId GetSelfTvmId() override
     {
@@ -167,7 +165,6 @@ public:
         }
 
         YT_LOG_DEBUG("Parsing user ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
-        ParseUserTicketCountCounter_.Increment();
         TWallTimer timer;
 
         try {
@@ -183,13 +180,12 @@ public:
                 result.Scopes.emplace(scope);
             }
 
-            SuccessfulParseUserTicketCountCounter_.Increment();
-            ParseUserTicketTime_.Record(timer.GetElapsedTime());
+            ParseUserTicketCounter_.OnSuccess(timer);
             return result;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
-            YT_LOG_WARNING(error);
-            FailedParseUserTicketCountCounter_.Increment();
+            YT_LOG_DEBUG(error);
+            ParseUserTicketCounter_.OnFailure(timer);
             THROW_ERROR error;
         }
     }
@@ -201,8 +197,20 @@ public:
         }
 
         YT_LOG_DEBUG("Parsing service ticket (Ticket: %v)", NUtils::RemoveTicketSignature(ticket));
-        ParseServiceTicketCountCounter_.Increment();
         TWallTimer timer;
+
+        if (TicketParseCache_) {
+            if (auto resultOrError = TicketParseCache_->Get(ticket)) {
+                if (resultOrError->IsOK()) {
+                    ParseServiceTicketHitCounter_.OnSuccess(timer);
+                    return std::move(resultOrError->Value());
+                } else {
+                    YT_LOG_DEBUG(resultOrError);
+                    ParseServiceTicketHitCounter_.OnFailure(timer);
+                    THROW_ERROR *resultOrError;
+                }
+            }
+        }
 
         try {
             CheckClient();
@@ -214,13 +222,21 @@ public:
             TParsedServiceTicket result;
             result.TvmId = serviceTicket.GetSrc();
 
-            SuccessfulParseServiceTicketCountCounter_.Increment();
-            ParseServiceTicketTime_.Record(timer.GetElapsedTime());
+            if (TicketParseCache_) {
+                TicketParseCache_->Set(ticket, result);
+            }
+
+            ParseServiceTicketMissCounter_.OnSuccess(timer);
             return result;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
-            YT_LOG_WARNING(error);
-            FailedParseServiceTicketCountCounter_.Increment();
+
+            if (TicketParseCache_) {
+                TicketParseCache_->Set(ticket, error);
+            }
+
+            YT_LOG_DEBUG(error);
+            ParseServiceTicketMissCounter_.OnFailure(timer);
             THROW_ERROR error;
         }
     }
@@ -231,22 +247,42 @@ protected:
     virtual TTvmClient& GetClient() = 0;
 
 private:
-    TCounter GetServiceTicketCountCounter_;
-    TCounter SuccessfulGetServiceTicketCountCounter_;
-    TCounter FailedGetServiceTicketCountCounter_;
-    TEventTimer GetServiceTicketTime_;
+    struct TTicketCounter
+    {
+        TCounter Successful;
+        TCounter Failed;
+        TEventTimer SuccessTime;
+        TEventTimer FailureTime;
 
-    TCounter ParseUserTicketCountCounter_;
-    TCounter SuccessfulParseUserTicketCountCounter_;
-    TCounter FailedParseUserTicketCountCounter_;
-    TEventTimer ParseUserTicketTime_;
+        explicit TTicketCounter(const TProfiler& profiler)
+            : Successful(profiler.WithTag("status", "ok").Counter("/success_count"))
+            , Failed(profiler.WithTag("status", "fail").Counter("/count"))
+            , SuccessTime(profiler.WithTag("status", "ok").Timer("/time"))
+            , FailureTime(profiler.WithTag("status", "fail").Timer("/time"))
+        { }
+
+        void OnSuccess(const TWallTimer& timer)
+        {
+            Successful.Increment();
+            SuccessTime.Record(timer.GetElapsedTime());
+        }
+
+        void OnFailure(const TWallTimer& timer)
+        {
+            Failed.Increment();
+            FailureTime.Record(timer.GetElapsedTime());
+        }
+    };
+
+    TTicketCounter GetServiceTicketCounter_;
+    TTicketCounter ParseServiceTicketHitCounter_;
+    TTicketCounter ParseServiceTicketMissCounter_;
+    TTicketCounter ParseUserTicketCounter_;
 
     TCounter ClientErrorCountCounter_;
 
-    TCounter ParseServiceTicketCountCounter_;
-    TCounter SuccessfulParseServiceTicketCountCounter_;
-    TCounter FailedParseServiceTicketCountCounter_;
-    TEventTimer ParseServiceTicketTime_;
+    using TTicketParseCache = TThreadLocalExpiringCache<TString, TErrorOr<TParsedServiceTicket>>;
+    std::unique_ptr<TTicketParseCache> TicketParseCache_;
 
 private:
     void CheckClient()
@@ -268,19 +304,17 @@ private:
     TString DoGetServiceTicket(const auto& serviceId)
     {
         TWallTimer timer;
-        GetServiceTicketCountCounter_.Increment();
 
         try {
             CheckClient();
             // The client caches everything locally, no need for async.
             auto result = GetClient().GetServiceTicketFor(serviceId);
-            SuccessfulGetServiceTicketCountCounter_.Increment();
-            GetServiceTicketTime_.Record(timer.GetElapsedTime());
+            GetServiceTicketCounter_.OnSuccess(timer);
             return result;
         } catch (const std::exception& ex) {
             auto error = TError(NRpc::EErrorCode::Unavailable, "TVM call failed") << TError(ex);
             YT_LOG_WARNING(error);
-            FailedGetServiceTicketCountCounter_.Increment();
+            GetServiceTicketCounter_.OnFailure(timer);
             THROW_ERROR error;
         }
     }

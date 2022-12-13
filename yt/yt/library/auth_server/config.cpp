@@ -71,6 +71,11 @@ void TTvmServiceConfig::Register(TRegistrar registrar)
     registrar.Parameter("client_enable_service_ticket_checking", &TThis::ClientEnableServiceTicketChecking)
         .Default(false);
 
+    registrar.Parameter("enable_ticket_parse_cache", &TThis::EnableTicketParseCache)
+        .Default(false);
+    registrar.Parameter("ticket_checking_cache_timeout", &TThis::TicketCheckingCacheTimeout)
+        .Default(TDuration::Minutes(1));
+
     registrar.Parameter("tvm_tool_self_alias", &TThis::TvmToolSelfAlias)
         .Optional();
     registrar.Parameter("tvm_tool_port", &TThis::TvmToolPort)
