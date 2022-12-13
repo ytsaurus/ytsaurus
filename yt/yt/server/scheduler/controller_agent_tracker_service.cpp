@@ -33,11 +33,13 @@ public:
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(Heartbeat)
                 .SetHeavy(true)
+                .SetCancelable(true)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetPooled(false));
         RegisterMethod(
             RPC_SERVICE_METHOD_DESC(ScheduleJobHeartbeat)
                 .SetHeavy(true)
+                .SetCancelable(true)
                 .SetResponseCodec(NCompression::ECodec::Lz4)
                 .SetPooled(false));
     }
