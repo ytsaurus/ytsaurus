@@ -80,6 +80,10 @@ public:
 
     bool ClientEnableServiceTicketChecking = false;
 
+    //! If true, then checked tickets are cached, allowing us to speed up checking.
+    bool EnableTicketParseCache = false;
+    TDuration TicketCheckingCacheTimeout;
+
     TString TvmToolSelfAlias;
     int TvmToolPort = 0;
     TString TvmToolAuthToken;
