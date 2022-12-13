@@ -434,8 +434,8 @@ template std::unique_ptr<TChunkServiceProxy> TClient::CreateWriteProxy<TChunkSer
 IChannelPtr TClient::GetReadCellChannelOrThrow(TTabletCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
-    const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
-    const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(cellDescriptor, NHydra::EPeerKind::Leader);
+    auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+    const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(*cellDescriptor, NHydra::EPeerKind::Leader);
     return ChannelFactory_->CreateChannel(primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks()));
 }
 
@@ -475,11 +475,11 @@ IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
         std::move(channel));
 }
 
-TCellDescriptor TClient::GetCellDescriptorOrThrow(TCellId cellId)
+TCellDescriptorPtr TClient::GetCellDescriptorOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
     if (auto cellDescriptor = cellDirectory->FindDescriptor(cellId)) {
-        return *cellDescriptor;
+        return cellDescriptor;
     }
 
     WaitFor(Connection_->GetCellDirectorySynchronizer()->Sync())
@@ -494,7 +494,7 @@ std::vector<TString> TClient::GetCellAddressesOrThrow(NObjectClient::TCellId cel
     if (cellDirectory->IsCellRegistered(cellId)) {
         std::vector<TString> addresses;
         auto cellDescriptor = GetCellDescriptorOrThrow(cellId);
-        for (const auto& peerDescriptor : cellDescriptor.Peers) {
+        for (const auto& peerDescriptor : cellDescriptor->Peers) {
             addresses.push_back(peerDescriptor.GetDefaultAddress());
         }
         return addresses;

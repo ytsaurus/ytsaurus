@@ -59,7 +59,7 @@ void FromProto(TCellPeerDescriptor* descriptor, const NProto::TCellPeerDescripto
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TCellDescriptor
+struct TCellDescriptor final
 {
     TCellDescriptor() = default;
     explicit TCellDescriptor(TCellId cellId);
@@ -71,6 +71,8 @@ struct TCellDescriptor
     int ConfigVersion = -1;
     std::vector<TCellPeerDescriptor> Peers;
 };
+
+DEFINE_REFCOUNTED_TYPE(TCellDescriptor)
 
 void ToProto(NProto::TCellDescriptor* protoDescriptor, const TCellDescriptor& descriptor);
 void FromProto(TCellDescriptor* descriptor, const NProto::TCellDescriptor& protoDescriptor);
@@ -123,13 +125,13 @@ struct ICellDirectory
 
 
     //! Returns the descriptor for a given cell id (null if the cell is not known).
-    virtual std::optional<TCellDescriptor> FindDescriptor(TCellId cellId) = 0;
+    virtual TCellDescriptorPtr FindDescriptor(TCellId cellId) = 0;
 
     //! Returns the descriptor for a given cell id (throws if the cell is not known).
-    virtual TCellDescriptor GetDescriptorOrThrow(TCellId cellId) = 0;
+    virtual TCellDescriptorPtr GetDescriptorOrThrow(TCellId cellId) = 0;
 
     //! Similar to #FindDescriptor but relies on cell tag rather than full cell id.
-    virtual std::optional<TCellDescriptor> FindDescriptorByCellTag(NObjectClient::TCellTag cellTag) = 0;
+    virtual TCellDescriptorPtr FindDescriptorByCellTag(NObjectClient::TCellTag cellTag) = 0;
 
     //! Returns peer address for a given cell (null if cell is not known or peer has no address).
     virtual std::optional<TString> FindPeerAddress(TCellId cellId, NElection::TPeerId peerId) = 0;
@@ -154,7 +156,7 @@ struct ICellDirectory
 
         struct TReconfigureRequest
         {
-            TCellDescriptor NewDescriptor;
+            TCellDescriptorPtr NewDescriptor;
             int OldConfigVersion;
         };
         std::vector<TReconfigureRequest> ReconfigureRequests;

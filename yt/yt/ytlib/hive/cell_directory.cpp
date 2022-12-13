@@ -337,7 +337,7 @@ public:
         std::vector<TCellInfo> result;
         result.reserve(CellIdToEntry_.size());
         for (const auto& [cellId, entry] : CellIdToEntry_) {
-            result.push_back({cellId, entry.Descriptor.ConfigVersion});
+            result.push_back({cellId, entry.Descriptor->ConfigVersion});
         }
         return result;
     }
@@ -354,28 +354,28 @@ public:
         return CellIdToEntry_.find(cellId) != CellIdToEntry_.end();
     }
 
-    std::optional<TCellDescriptor> FindDescriptor(TCellId cellId) override
+    TCellDescriptorPtr FindDescriptor(TCellId cellId) override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellIdToEntry_.find(cellId);
-        return it == CellIdToEntry_.end() ? std::nullopt : std::make_optional(it->second.Descriptor);
+        return it == CellIdToEntry_.end() ? nullptr : it->second.Descriptor;
     }
 
-    std::optional<TCellDescriptor> FindDescriptorByCellTag(TCellTag cellTag) override
+    TCellDescriptorPtr FindDescriptorByCellTag(TCellTag cellTag) override
     {
         auto guard = ReaderGuard(SpinLock_);
         auto it = CellTagToEntry_.find(cellTag);
-        return it == CellTagToEntry_.end() ? std::nullopt : std::make_optional(it->second->Descriptor);
+        return it == CellTagToEntry_.end() ? nullptr : it->second->Descriptor;
     }
 
-    TCellDescriptor GetDescriptorOrThrow(TCellId cellId) override
+    TCellDescriptorPtr GetDescriptorOrThrow(TCellId cellId) override
     {
         auto result = FindDescriptor(cellId);
         if (!result) {
             THROW_ERROR_EXCEPTION("Unknown cell %v",
                 cellId);
         }
-        return *result;
+        return result;
     }
 
     std::optional<TString> FindPeerAddress(TCellId cellId, TPeerId peerId) override
@@ -386,7 +386,7 @@ public:
             return {};
         }
 
-        const auto& peers = it->second.Descriptor.Peers;
+        const auto& peers = it->second.Descriptor->Peers;
         if (peerId >= std::ssize(peers)) {
             return {};
         }
@@ -404,7 +404,7 @@ public:
             auto cellId = knownCell.CellId;
             if (auto it = CellIdToEntry_.find(cellId)) {
                 const auto& entry = it->second;
-                if (knownCell.ConfigVersion < entry.Descriptor.ConfigVersion) {
+                if (knownCell.ConfigVersion < entry.Descriptor->ConfigVersion) {
                     result.ReconfigureRequests.push_back({entry.Descriptor, knownCell.ConfigVersion});
                 }
                 ++foundKnownCells;
@@ -484,7 +484,7 @@ public:
                 if (auto [jt, inserted] = CellTagToEntry_.emplace(cellTag, entry); !inserted) {
                     YT_LOG_ALERT("Duplicate global cell id (CellTag: %v, ExistingCellId: %v, NewCellId: %v)",
                         cellTag,
-                        jt->second->Descriptor.CellId,
+                        jt->second->Descriptor->CellId,
                         descriptor.CellId);
                 }
             }
@@ -492,8 +492,8 @@ public:
                 descriptor.CellId,
                 descriptor.ConfigVersion);
             return true;
-        } else if (it->second.Descriptor.ConfigVersion < descriptor.ConfigVersion) {
-            it->second.Descriptor = descriptor;
+        } else if (it->second.Descriptor->ConfigVersion < descriptor.ConfigVersion) {
+            it->second.Descriptor = New<TCellDescriptor>(descriptor);
             InitChannel(&it->second);
             YT_LOG_DEBUG("Cell reconfigured (CellId: %v, ConfigVersion: %v)",
                 descriptor.CellId,
@@ -539,10 +539,10 @@ private:
     struct TEntry
     {
         explicit TEntry(const TCellDescriptor& descriptor)
-            : Descriptor(descriptor)
+            : Descriptor(New<TCellDescriptor>(descriptor))
         { }
 
-        TCellDescriptor Descriptor;
+        TCellDescriptorPtr Descriptor;
         TEnumIndexedVector<EPeerKind, IChannelPtr> Channels;
     };
 
@@ -558,10 +558,10 @@ private:
         THashSet<TString> nativeClusterAddresses;
 
         auto peerConfig = New<TPeerConnectionConfig>();
-        peerConfig->CellId = entry->Descriptor.CellId;
+        peerConfig->CellId = entry->Descriptor->CellId;
         peerConfig->Addresses.emplace();
 
-        for (const auto& peer : entry->Descriptor.Peers) {
+        for (const auto& peer : entry->Descriptor->Peers) {
             if (peer.IsNull()) {
                 continue;
             }
