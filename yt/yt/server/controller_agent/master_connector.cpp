@@ -1406,7 +1406,9 @@ private:
 
             auto cellTag = CellTagFromId(transactionId);
             auto it = batchRsps.find(cellTag);
-            YT_VERIFY(it != batchRsps.end());
+            if (it == batchRsps.end()) {
+                continue;
+            }
 
             auto intermediateMediumRsp = it->second->GetResponse<TYPathProxy::TRspGet>(ToString(transactionId));
             if (!intermediateMediumRsp.IsOK()) {
