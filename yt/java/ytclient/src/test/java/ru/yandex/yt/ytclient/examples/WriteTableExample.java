@@ -8,11 +8,11 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.TableWriter;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.UnversionedValue;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
 
@@ -90,7 +90,7 @@ public class WriteTableExample {
 
                 String path = "//tmp/write-table-example-1";
 
-                client.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+                client.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
                 TableWriter writer = client.writeTable(new WriteTable<>(path, new UnversionedRowSerializer())).join();
 
@@ -122,7 +122,7 @@ public class WriteTableExample {
 
                 String path = "//tmp/write-table-example-2";
 
-                client.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+                client.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
                 TableWriter writer = client.writeTable(new WriteTable<>(path, new UnversionedRowSerializer())).join();
 

@@ -27,7 +27,6 @@ import tech.ytsaurus.client.request.MapReduceOperation;
 import tech.ytsaurus.client.request.MergeOperation;
 import tech.ytsaurus.client.request.MoveNode;
 import tech.ytsaurus.client.request.MultiTablePartition;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PutFileToCache;
 import tech.ytsaurus.client.request.PutFileToCacheResult;
@@ -44,6 +43,7 @@ import tech.ytsaurus.client.request.VanillaOperation;
 import tech.ytsaurus.client.request.WriteFile;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.request.LockMode;
 import tech.ytsaurus.ysontree.YTreeNode;
@@ -343,11 +343,11 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
         return existsNode(ExistsNode.builder().setPath(YPath.simple(path)).setTimeout(requestTimeout).build());
     }
 
-    default CompletableFuture<GUID> createNode(String path, ObjectType type) {
+    default CompletableFuture<GUID> createNode(String path, CypressNodeType type) {
         return createNode(new CreateNode(YPath.simple(path), type));
     }
 
-    default CompletableFuture<GUID> createNode(String path, ObjectType type, @Nullable Duration requestTimeout) {
+    default CompletableFuture<GUID> createNode(String path, CypressNodeType type, @Nullable Duration requestTimeout) {
         return createNode(CreateNode.builder()
                 .setPath(YPath.simple(path))
                 .setType(type)
@@ -355,13 +355,13 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
                 .build());
     }
 
-    default CompletableFuture<GUID> createNode(String path, ObjectType type, Map<String, YTreeNode> attributes) {
+    default CompletableFuture<GUID> createNode(String path, CypressNodeType type, Map<String, YTreeNode> attributes) {
         return createNode(path, type, attributes, null);
     }
 
     default CompletableFuture<GUID> createNode(
             String path,
-            ObjectType type,
+            CypressNodeType type,
             Map<String, YTreeNode> attributes,
             @Nullable Duration requestTimeout
     ) {

@@ -11,7 +11,6 @@ import org.junit.Test;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.MultiTablePartition;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PartitionTablesMode;
 import tech.ytsaurus.client.rpc.Compression;
@@ -19,6 +18,7 @@ import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.DataSize;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.RangeLimit;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnSchema;
@@ -53,7 +53,7 @@ public class PartitionTablesTest {
     public void testBasic() {
         YPath tablePath = YPath.simple("//tmp/partition-test-table");
 
-        yt.createNode(tablePath.justPath().toString(), ObjectType.Table).join();
+        yt.createNode(tablePath.justPath().toString(), CypressNodeType.TABLE).join();
         var schema = TableSchema.newBuilder().add(new ColumnSchema("value", TiType.string())).build();
 
         TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(tablePath, YTreeMapNode.class)).join();

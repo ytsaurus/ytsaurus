@@ -32,7 +32,7 @@ import ru.yandex.yt.ytree.TAttributeDictionary;
 public class CreateNode
         extends MutatePath<CreateNode.Builder, CreateNode>
         implements HighLevelRequest<TReqCreateNode.Builder> {
-    private final ObjectType type;
+    private final CypressNodeType type;
     private final boolean recursive;
     private final boolean force;
     private final boolean ignoreExisting;
@@ -49,27 +49,19 @@ public class CreateNode
         this.attributes = new HashMap<>(builder.attributes);
     }
 
-    public CreateNode(YPath path, ObjectType type) {
+    public CreateNode(YPath path, CypressNodeType type) {
         this(builder().setPath(path).setType(type));
     }
 
-    public CreateNode(YPath path, ObjectType type, Map<String, YTreeNode> attributes) {
-        this(builder().setPath(path).setType(type).setAttributes(attributes));
-    }
-
-    public CreateNode(YPath path, CypressNodeType type) {
-        this(path, ObjectType.from(type));
-    }
-
     public CreateNode(YPath path, CypressNodeType type, Map<String, YTreeNode> attributes) {
-        this(path, ObjectType.from(type), attributes);
+        this(builder().setPath(path).setType(type).setAttributes(attributes));
     }
 
     public static Builder builder() {
         return new Builder();
     }
 
-    public ObjectType getType() {
+    public CypressNodeType getType() {
         return type;
     }
 
@@ -100,7 +92,7 @@ public class CreateNode
     public void writeTo(RpcClientRequestBuilder<TReqCreateNode.Builder, ?> builder) {
         builder.body()
                 .setPath(path.toString())
-                .setType(type.value())
+                .setType(type.protoValue())
                 .setRecursive(recursive)
                 .setForce(force)
                 .setIgnoreExisting(ignoreExisting)
@@ -130,7 +122,7 @@ public class CreateNode
     public YTreeBuilder toTree(@Nonnull YTreeBuilder builder) {
         return builder
                 .apply(super::toTree)
-                .key("type").value(type.toCypressNodeType().value())
+                .key("type").value(type.value())
                 .when(recursive, b -> b.key("recursive").value(recursive))
                 .when(ignoreExisting, b -> b.key("ignore_existing").value(ignoreExisting))
                 .when(lockExisting, b -> b.key("lock_existing").value(lockExisting))
@@ -190,7 +182,7 @@ public class CreateNode
             TBuilder extends BuilderBase<TBuilder>>
             extends MutatePath.Builder<TBuilder, CreateNode> {
         @Nullable
-        protected ObjectType type;
+        protected CypressNodeType type;
         protected boolean recursive = false;
         protected boolean force = false;
         protected boolean ignoreExisting = false;
@@ -211,7 +203,7 @@ public class CreateNode
             this.attributes.putAll(builder.attributes);
         }
 
-        public TBuilder setType(ObjectType type) {
+        public TBuilder setType(CypressNodeType type) {
             this.type = type;
             return self();
         }
@@ -257,7 +249,7 @@ public class CreateNode
             return self();
         }
 
-        public ObjectType getType() {
+        public CypressNodeType getType() {
             return Objects.requireNonNull(type);
         }
 
@@ -286,7 +278,7 @@ public class CreateNode
 
             return builder
                     .apply(super::toTree)
-                    .key("type").value(type.toCypressNodeType().value())
+                    .key("type").value(type.value())
                     .when(recursive, b -> b.key("recursive").value(recursive))
                     .when(ignoreExisting, b -> b.key("ignore_existing").value(ignoreExisting))
                     .when(lockExisting, b -> b.key("lock_existing").value(lockExisting))

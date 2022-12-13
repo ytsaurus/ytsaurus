@@ -11,13 +11,13 @@ import java.util.concurrent.TimeUnit;
 import java.util.function.Supplier;
 
 import org.junit.Test;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.TransactionType;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcRequestsTestingController;
 import tech.ytsaurus.client.rpc.TestingOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 
@@ -73,7 +73,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             List<TableRow> curData = data.subList(0, dataSize);
 
             if (existsTable) {
-                yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+                yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
             }
 
             var writer = writeTable(yt, tablePath, maxWritesInFlight, chunkSize);
@@ -174,7 +174,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             List<TableRow> curData = data.subList(0, dataSize);
 
             if (existsTable) {
-                yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+                yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
             }
 
             var writer = writeTableV2(yt, tablePath, maxWritesInFlight, chunkSize);
@@ -433,7 +433,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // Table exists, append=true, OK.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-1");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             var writer = writeTable(yt, tablePath.append(true));
 
@@ -447,7 +447,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // Table exists, append=false, OK.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-2");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             var writer = writeTable(yt, tablePath);
 
@@ -495,7 +495,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
 
         // Create some test data.
         List<TableRow> data = new ArrayList<>();
-        for (int i = 0; i != 100; ++i) {
+        for (int i = 0; i != 10; ++i) {
             data.add(new TableRow(Integer.toString(i)));
         }
 
@@ -518,7 +518,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // LockNode fail.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-4");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             outageController.addFails("LockNode", 1, error);
 
@@ -534,7 +534,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // Local transaction start fail.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-5");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             var writer = writeTable(yt, tablePath.append(true));
 
@@ -556,7 +556,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // Commit transaction fail.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-6");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             var writer = writeTable(yt, tablePath.append(true), 1, 10);
 
@@ -595,7 +595,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // CreateNode fail, but it isn't affect because append=true and no need to create node.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-3");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             outageController.addFails("CreateNode", 1, error);
 
@@ -652,7 +652,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // LockNode fail.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-4");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             outageController.addFails("LockNode", 1, error);
 
@@ -669,7 +669,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // Local transaction start fail.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-5");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             var writer = writeTableV2(yt, tablePath.append(true));
 
@@ -688,7 +688,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // Commit transaction fail.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-6");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             var writer = writeTableV2(yt, tablePath.append(true), 1, 10);
 
@@ -726,7 +726,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
         // CreateNode fail, but it isn't affect because append=true and no need to create node.
         {
             var tablePath = ytFixture.testDirectory.child("static-table-3");
-            yt.createNode(tablePath.toString(), ObjectType.Table).get(2, TimeUnit.SECONDS);
+            yt.createNode(tablePath.toString(), CypressNodeType.TABLE).get(2, TimeUnit.SECONDS);
 
             outageController.addFails("CreateNode", 1, error);
 

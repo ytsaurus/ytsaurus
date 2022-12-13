@@ -7,8 +7,8 @@ import joptsimple.OptionSet;
 import joptsimple.OptionSpec;
 import tech.ytsaurus.client.ApiServiceTransaction;
 import tech.ytsaurus.client.ApiServiceTransactionOptions;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 
 import ru.yandex.yt.rpcproxy.ETransactionType;
 
@@ -56,7 +56,7 @@ public class CypressExample {
                         }
                     }).get();
 
-                    GUID guid = t.createNode(node, ObjectType.Table).get();
+                    GUID guid = t.createNode(node, CypressNodeType.TABLE).get();
                     /*
                     Map<String, YTreeNode> data = new HashMap<String, YTreeNode>();
                     data.put("k1", new YTreeInt64Node(10, new HashMap<>()));

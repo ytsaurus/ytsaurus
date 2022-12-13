@@ -101,7 +101,7 @@ public abstract class RequestBase<
         protected @Nullable GUID requestId;
         protected @Nullable GUID traceId;
         protected boolean traceSampled = false;
-        protected String userAgent = "yt/java/ytclient@";
+        protected String userAgent = "yt/java/ytsaurus-client@";
 
         protected @Nullable Message additionalData;
 

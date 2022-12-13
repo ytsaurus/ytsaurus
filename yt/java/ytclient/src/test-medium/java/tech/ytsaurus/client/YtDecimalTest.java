@@ -9,7 +9,7 @@ import java.util.concurrent.TimeUnit;
 
 import org.junit.Assert;
 import org.junit.Test;
-import tech.ytsaurus.client.request.ObjectType;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
@@ -37,7 +37,7 @@ public class YtDecimalTest extends YtClientTestBase {
                 .addValue("value", TiType.decimal(7, 3))
                 .build();
 
-        yt.createNode(new CreateNode(tablePath.toString(), ObjectType.Table, Map.of(
+        yt.createNode(new CreateNode(tablePath.toString(), CypressNodeType.TABLE, Map.of(
                 "schema", schema.toYTree()
         ))).get(2, TimeUnit.SECONDS);
 
@@ -63,7 +63,7 @@ public class YtDecimalTest extends YtClientTestBase {
                 .addValue("value", TiType.decimal(7, 3))
                 .build();
 
-        yt.createNode(new CreateNode(tablePath.toString(), ObjectType.Table, Map.of(
+        yt.createNode(new CreateNode(tablePath.toString(), CypressNodeType.TABLE, Map.of(
                 "schema", schema.toYTree()
         ))).get(2, TimeUnit.SECONDS);
 
@@ -89,7 +89,7 @@ public class YtDecimalTest extends YtClientTestBase {
                 .addValue("value", TiType.decimal(7, 3))
                 .build();
 
-        yt.createNode(new CreateNode(tablePath.toString(), ObjectType.Table, Map.of(
+        yt.createNode(new CreateNode(tablePath.toString(), CypressNodeType.TABLE, Map.of(
                 "schema", schema.toYTree()
         ))).get(2, TimeUnit.SECONDS);
 
@@ -115,7 +115,7 @@ public class YtDecimalTest extends YtClientTestBase {
                 .addValue("value", TiType.decimal(7, 3))
                 .build();
 
-        yt.createNode(new CreateNode(tablePath.toString(), ObjectType.Table, Map.of(
+        yt.createNode(new CreateNode(tablePath.toString(), CypressNodeType.TABLE, Map.of(
                 "schema", schema.toYTree()
         ))).get(2, TimeUnit.SECONDS);
 
@@ -140,7 +140,7 @@ public class YtDecimalTest extends YtClientTestBase {
         String value = "4571.34";
         TableRow row = new TableRow(value);
 
-        yt.createNode(new CreateNode(tablePath.toString(), ObjectType.Table)).join();
+        yt.createNode(new CreateNode(tablePath.toString(), CypressNodeType.TABLE)).join();
         write(yt, tablePath, row);
         List<TableRow> result = read(yt, tablePath);
 

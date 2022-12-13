@@ -19,7 +19,6 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.MappedRowSerializer;
@@ -32,6 +31,7 @@ import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcCompression;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.ColumnValueType;
@@ -103,7 +103,7 @@ public class ReadWriteTest {
     public void testFileReadWrite() throws Exception {
         String path = "//tmp/bigfile1";
 
-        yt.createNode(new CreateNode(path, ObjectType.File).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.FILE).setForce(true)).join();
 
         Random random = new Random();
 
@@ -275,7 +275,7 @@ public class ReadWriteTest {
 
         YPath path = YPath.simple("//tmp/write-table-example-1");
 
-        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         TableWriter<UnversionedRow> writer =
                 yt.writeTable(new WriteTable<>(
@@ -344,7 +344,7 @@ public class ReadWriteTest {
 
         YPath path = YPath.simple("//tmp/write-table-example-1");
 
-        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         UnversionedRowset rowset = generator.nextRows();
 
@@ -405,7 +405,7 @@ public class ReadWriteTest {
 
         YPath path = YPath.simple("//tmp/write-table-example-2");
 
-        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         TableWriter<Row> writer = yt.writeTable(new WriteTable<>(path,
                 new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
@@ -469,7 +469,7 @@ public class ReadWriteTest {
 
         YPath path = YPath.simple("//tmp/write-table-example-2");
 
-        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         AsyncWriter<Row> writer = yt.writeTableV2(new WriteTable<>(
                 path, new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
@@ -573,7 +573,7 @@ public class ReadWriteTest {
 
         YPath path = YPath.simple("//tmp/write-table-example-3");
 
-        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         YTreeSerializer<YTreeMapNode> serializer = YTreeObjectSerializerFactory.forClass(YTreeMapNode.class);
 
@@ -637,7 +637,7 @@ public class ReadWriteTest {
 
         YPath path = YPath.simple("//tmp/write-table-example-3");
 
-        yt.createNode(new CreateNode(path, ObjectType.Table).setForce(true)).join();
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         YTreeSerializer<YTreeMapNode> serializer = YTreeObjectSerializerFactory.forClass(YTreeMapNode.class);
 

@@ -6,11 +6,11 @@ import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.LookupRowsRequest;
 import tech.ytsaurus.client.request.ModifyRowsRequest;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.TransactionType;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowset;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnSortOrder;
@@ -60,7 +60,7 @@ public class Example04DynamicTable {
             // а потом проставить эти атрибуты.
             CreateNode createNode = CreateNode.builder()
                     .setPath(YPath.simple(path))
-                    .setType(ObjectType.Table)
+                    .setType(CypressNodeType.TABLE)
                     .setAttributes(Map.of(
                             "dynamic", YTree.booleanNode(true),
                             "schema", schema.toYTree()

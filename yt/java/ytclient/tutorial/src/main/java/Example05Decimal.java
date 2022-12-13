@@ -6,9 +6,9 @@ import java.util.UUID;
 
 import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.request.CreateNode;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
@@ -161,7 +161,7 @@ public class Example05Decimal {
                 client.createNode(
                         CreateNode.builder()
                                 .setPath(path)
-                                .setType(ObjectType.Table)
+                                .setType(CypressNodeType.TABLE)
                                 .setAttributes(Map.of(
                                         "schema", schema.toYTree()
                                 ))

@@ -7,10 +7,10 @@ import java.util.concurrent.ExecutorService;
 import java.util.concurrent.Executors;
 
 import org.junit.Test;
-import tech.ytsaurus.client.request.ObjectType;
 import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.TestingOptions;
+import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
@@ -83,12 +83,12 @@ public class MultiYtClientIntegrationTest {
     }
 
     private void init() {
-        clientOne.createNode(new CreateNode(tablePath, ObjectType.Table)
+        clientOne.createNode(new CreateNode(tablePath, CypressNodeType.TABLE)
                 .addAttribute("dynamic", YTree.booleanNode(true))
                 .addAttribute("schema", KEY_VALUE_TABLE_SCHEMA.toYTree())
         ).join();
 
-        clientTwo.createNode(new CreateNode(tablePath, ObjectType.Table)
+        clientTwo.createNode(new CreateNode(tablePath, CypressNodeType.TABLE)
                 .addAttribute("dynamic", YTree.booleanNode(true))
                 .addAttribute("schema", KEY_VALUE_TABLE_SCHEMA.toYTree())
         ).join();
