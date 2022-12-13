@@ -13,7 +13,7 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
-#include <yt/yt/orm/library/expression_evaluator.h>
+#include <yt/yt/orm/library/query/expression_evaluator.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -82,7 +82,7 @@ private:
     double CurrentMetric_;
     TBestAction BestAction_;
 
-    NOrm::NLibrary::IExpressionEvaluatorPtr Evaluator_;
+    NOrm::NQuery::IExpressionEvaluatorPtr Evaluator_;
 
     void Initialize();
 
@@ -120,7 +120,7 @@ void TParameterizedReassignSolver::Initialize()
 {
     Cells_ = Bundle_->GetAliveCells();
 
-    Evaluator_ = NOrm::NLibrary::CreateExpressionEvaluator(
+    Evaluator_ = NOrm::NQuery::CreateExpressionEvaluator(
         Bundle_->Config->ParameterizedBalancingMetric,
         ParameterizedBalancingAttributes);
 
