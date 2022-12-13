@@ -8,7 +8,7 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
-#include <yt/yt/orm/library/filter_matcher.h>
+#include <yt/yt/orm/library/query/filter_matcher.h>
 
 #include <random>
 
@@ -104,7 +104,7 @@ void TExperimentConfig::Register(TRegistrar registrar)
 
         // Check that query is well-formed.
         if (config->Filter) {
-            NOrm::NLibrary::CreateFilterMatcher(*config->Filter);
+            NOrm::NQuery::CreateFilterMatcher(*config->Filter);
         }
     });
 }
@@ -190,7 +190,7 @@ void TExperimentAssigner::UpdateExperimentConfigs(const THashMap<TString, TExper
         auto preparedExperiment = New<TPreparedExperiment>();
         preparedExperiment->Config = experimentConfig;
         if (experimentConfig->Filter) {
-            preparedExperiment->FilterMatcher = NOrm::NLibrary::CreateFilterMatcher(
+            preparedExperiment->FilterMatcher = NOrm::NQuery::CreateFilterMatcher(
                 *experimentConfig->Filter);
         }
         EmplaceOrCrash(preparedExperiments->Experiments, name, preparedExperiment);
