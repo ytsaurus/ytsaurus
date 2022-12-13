@@ -96,8 +96,21 @@ TTransactionCounters::TTransactionCounters(const TProfiler& profiler)
     #undef XX
 }
 
+TOperationApiCounters::TOperationApiCounters(const TProfiler& profiler)
+{
+    #define XX(name) \
+        name ## Counter = profiler.Counter("/" + CamelCaseToUnderscoreCase(#name) + "_count");
+
+        XX(GetOperationFromArchiveTimeout)
+        XX(GetOperationFromArchiveFailure)
+        XX(GetOperationFromArchiveSuccess)
+
+    #undef XX
+}
+
 TClientCounters::TClientCounters(const TProfiler& profiler)
     : TransactionCounters(profiler)
+    , OperationApiCounters(profiler)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

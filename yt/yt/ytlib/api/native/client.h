@@ -51,12 +51,23 @@ struct TTransactionCounters
     NProfiling::TCounter FailedTabletSessionCommitCounter;
 };
 
+struct TOperationApiCounters
+{
+    TOperationApiCounters() = default;
+    explicit TOperationApiCounters(const NProfiling::TProfiler& profiler);
+
+    NProfiling::TCounter GetOperationFromArchiveTimeoutCounter;
+    NProfiling::TCounter GetOperationFromArchiveSuccessCounter;
+    NProfiling::TCounter GetOperationFromArchiveFailureCounter;
+};
+
 struct TClientCounters
 {
     TClientCounters() = default;
     explicit TClientCounters(const NProfiling::TProfiler& profiler);
 
     TTransactionCounters TransactionCounters;
+    TOperationApiCounters OperationApiCounters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
