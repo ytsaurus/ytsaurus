@@ -95,7 +95,7 @@ func TestDataAndMetadataTables(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
-	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3")
+	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3", nil)
 	require.NoError(t, err)
 
 	tlow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
@@ -103,7 +103,7 @@ func TestDataAndMetadataTables(t *testing.T) {
 	thigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	resultIDs, err := tsData.MetadataIdsQuery(env.Ctx, tlow, thigh, 10000)
+	resultIDs, err := tsData.MetadataIDsQuery(env.Ctx, tlow, thigh, 10000)
 	require.NoError(t, err)
 	resultData, err := tsData.FindProfiles(env.Ctx, resultIDs)
 	require.NoError(t, err)
@@ -122,7 +122,7 @@ func TestDataExpr(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
-	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3")
+	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3", nil)
 	require.NoError(t, err)
 
 	tLow := time.Now().Add(-time.Hour)
@@ -139,7 +139,7 @@ func TestDataExpr(t *testing.T) {
 		},
 	}
 
-	resultIDs, err := tsData.MetadataIdsQueryExpr(env.Ctx, metaquery)
+	resultIDs, err := tsData.MetadataIDsQueryExpr(env.Ctx, metaquery, false)
 	require.NoError(t, err)
 	resultData, err := tsData.FindProfiles(env.Ctx, resultIDs)
 	require.NoError(t, err)
@@ -158,7 +158,7 @@ func TestDataRegexp(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
-	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3")
+	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3", nil)
 	require.NoError(t, err)
 
 	tLow := time.Now().Add(-time.Hour)
@@ -178,7 +178,7 @@ func TestDataRegexp(t *testing.T) {
 		},
 	}
 
-	resultIDs, err := tsData.MetadataIdsQueryExpr(env.Ctx, metaquery)
+	resultIDs, err := tsData.MetadataIDsQueryExpr(env.Ctx, metaquery, false)
 	require.NoError(t, err)
 	resultData, err := tsData.FindProfiles(env.Ctx, resultIDs)
 	require.NoError(t, err)
@@ -197,7 +197,7 @@ func TestDataSkip(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
-	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3")
+	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3", nil)
 	require.NoError(t, err)
 
 	tlow := time.Now().Add(-time.Hour)
@@ -224,9 +224,9 @@ func TestDataSkip(t *testing.T) {
 		ResultSkip: 1,
 	}
 
-	resultIDs1, err := tsData.MetadataIdsQueryExpr(env.Ctx, metaquery1)
+	resultIDs1, err := tsData.MetadataIDsQueryExpr(env.Ctx, metaquery1, false)
 	require.NoError(t, err)
-	resultIDs2, err := tsData.MetadataIdsQueryExpr(env.Ctx, metaquery2)
+	resultIDs2, err := tsData.MetadataIDsQueryExpr(env.Ctx, metaquery2, false)
 	require.NoError(t, err)
 
 	require.True(t, len(resultIDs1) == 2)
@@ -234,7 +234,7 @@ func TestDataSkip(t *testing.T) {
 	require.Equal(t, resultIDs1[1], resultIDs2[0])
 }
 
-func TestMetadataIdsQuery(t *testing.T) {
+func TestMetadataIDsQuery(t *testing.T) {
 	l, err := ytlog.New()
 	require.NoError(t, err)
 
@@ -247,7 +247,7 @@ func TestMetadataIdsQuery(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, tmpPath))
 
-	_, err = tsData.PushData(env.Ctx, []*profile.Profile{TestProfile}, TestHosts, "t1", "t2", "t3")
+	_, err = tsData.PushData(env.Ctx, []*profile.Profile{TestProfile}, TestHosts, "t1", "t2", "t3", nil)
 	require.NoError(t, err)
 
 	tLow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
@@ -255,7 +255,7 @@ func TestMetadataIdsQuery(t *testing.T) {
 	tHigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	resultIDs, err := tsData.MetadataIdsQuery(env.Ctx, tLow, tHigh, 10000)
+	resultIDs, err := tsData.MetadataIDsQuery(env.Ctx, tLow, tHigh, 10000)
 	require.NoError(t, err)
 	require.NotEmpty(t, resultIDs)
 }
@@ -272,7 +272,7 @@ func TestMetadataQueryAndTags(t *testing.T) {
 
 	require.NoError(t, ytprof.MigrateTables(env.YT, dataPath))
 
-	_, err = tsData.PushData(env.Ctx, []*profile.Profile{TestProfile}, TestHosts, "t1", "t2", "t3")
+	_, err = tsData.PushData(env.Ctx, []*profile.Profile{TestProfile}, TestHosts, "t1", "t2", "t3", nil)
 	require.NoError(t, err)
 
 	tLow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
@@ -284,7 +284,7 @@ func TestMetadataQueryAndTags(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, result)
 
-	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3")
+	_, err = tsData.PushData(env.Ctx, TestProfiles, TestHosts, "t1", "t2", "t3", nil)
 	require.NoError(t, err)
 
 	tags, err := tsData.FindTags(env.Ctx)

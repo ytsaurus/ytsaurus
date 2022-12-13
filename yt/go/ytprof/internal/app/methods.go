@@ -90,7 +90,7 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 		return nil, err
 	}
 
-	resp, err := a.ts.MetadataQueryExpr(ctx, metaquery)
+	resp, err := a.ts.MetadataQueryExpr(ctx, metaquery, false)
 	if err != nil {
 		a.l.Error("metaquery failed", log.Error(err))
 		return nil, err
@@ -99,7 +99,7 @@ func (a *App) List(ctx context.Context, in *api.ListRequest, opts ...grpc.CallOp
 	// TODO: if this is too slow add cash for sizes
 	metaquery.ResultSkip = 0
 	metaquery.ResultLimit = 0
-	respLen, err := a.ts.MetadataIdsQueryExpr(ctx, metaquery)
+	respLen, err := a.ts.MetadataIDsQueryExpr(ctx, metaquery, false)
 	if err != nil {
 		a.l.Error("metaquery failed", log.Error(err))
 		return nil, err
@@ -184,7 +184,7 @@ func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grp
 	metaquery.ResultSkip = 0
 	metaquery.ResultLimit = 0
 
-	resp, err := a.ts.MetadataIdsQueryExpr(ctx, metaquery)
+	resp, err := a.ts.MetadataIDsQueryExpr(ctx, metaquery, false)
 	if err != nil {
 		a.l.Error("metaquery failed", log.Error(err))
 		return nil, err

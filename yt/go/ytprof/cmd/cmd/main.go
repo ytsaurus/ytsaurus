@@ -15,6 +15,7 @@ var (
 	flagProxy        string
 	flagTablePath    string
 	flagMetaquery    string
+	flagIgnoreErrors bool
 	flagTimestampMin string
 	flagTimestampMax string
 	flagTimeLast     string
@@ -41,7 +42,11 @@ var rootCmd = &cobra.Command{
 func init() {
 	rootCmd.PersistentFlags().StringVar(&flagProxy, "storage-proxy", "hahn", "name of the YT cluster")
 	rootCmd.PersistentFlags().StringVar(&flagTablePath, "storage-path", "//home/ytprof/storage/manual", "path to directory with table data & metadata")
-	rootCmd.PersistentFlags().StringVar(&flagMetaquery, "metaquery", "true", "query to metadata like (\"Metadata['BinaryVersion'] == '22.1.9091469-stable-ya~42704c91e804aabc'\")")
+	rootCmd.PersistentFlags().StringVar(&flagMetaquery, "metaquery", "true",
+		`query to metadata like 
+		("Metadata['BinaryVersion'] == '22.1.9091469-stable-ya~42704c91e804aabc'" or
+		"Metadata['BinaryVersion'].matches('^22.3.*stable')")`)
+	rootCmd.PersistentFlags().BoolVar(&flagIgnoreErrors, "ignore-errors", false, "considers errors in metaquery evaluation not a match")
 	rootCmd.PersistentFlags().StringVar(&flagTimestampMin, "mintime", "", "start of the time period")
 	rootCmd.PersistentFlags().StringVar(&flagTimestampMax, "maxtime", "", "end of the time period")
 	rootCmd.PersistentFlags().StringVar(&flagTimeLast, "last", "", "alternate way to to describe period: [now-last, now]")

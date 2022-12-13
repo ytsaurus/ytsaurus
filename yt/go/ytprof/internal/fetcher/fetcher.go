@@ -165,7 +165,7 @@ func (sf *ServiceFetcher) fetchService() {
 	}
 
 	sf.f.l.Debug("getting ready to push data", log.String("cluster", sf.f.config.Cluster), log.String("service", sf.service.ServiceType), log.Int("data_size", len(resultslice)))
-	_, err := sf.f.storage.PushData(context.Background(), resultslice, hostslice, sf.service.ProfileType, sf.f.config.Cluster, sf.service.ServiceType)
+	_, err := sf.f.storage.PushData(context.Background(), resultslice, hostslice, sf.service.ProfileType, sf.f.config.Cluster, sf.service.ServiceType, nil)
 	if err != nil {
 		sf.f.l.Error("error while storing profiles", log.String("cluster", sf.f.config.Cluster), log.Error(err))
 	}

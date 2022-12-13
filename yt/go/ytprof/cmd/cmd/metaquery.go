@@ -32,7 +32,9 @@ var (
 	flagProfileCluster       string
 	flagProfileService       string
 	flagProfileHost          string
+	flagProfileName          string
 	flagMetadataDisplayLimit int
+	flagDisplayLink          bool
 )
 
 var findMetadataCmd = &cobra.Command{
@@ -67,10 +69,12 @@ func init() {
 	getDataCmd.Flags().StringVar(&flagProfileGUID, "guid", "", "guid of the profiles")
 	findDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type")
 	pushDataCmd.Flags().StringVar(&flagProfileType, "type", "cpu", "profile type")
-	pushDataCmd.Flags().StringVar(&flagProfileHost, "host", defaultNone, "service of profile")
+	pushDataCmd.Flags().StringVar(&flagProfileHost, "host", defaultNone, "host of profile")
+	pushDataCmd.Flags().StringVar(&flagProfileName, "name", defaultNone, "name of profile")
 	pushDataCmd.Flags().StringVar(&flagProfileCluster, "cluster", defaultNone, "cluster of profile, run subcommand 'clusters', to see supported")
 	pushDataCmd.Flags().StringVar(&flagProfileService, "service", defaultNone, "service of profile, run subcommand 'services', to see supported")
-	findMetadataCmd.Flags().IntVar(&flagMetadataDisplayLimit, "displaylimit", 1000000000, "max number of metadata elements to display")
+	findMetadataCmd.Flags().IntVar(&flagMetadataDisplayLimit, "displaylimit", 100, "max number of metadata elements to display")
+	findMetadataCmd.Flags().BoolVar(&flagDisplayLink, "link", false, "display links to profiles, only for manual storage")
 
 	rootCmd.AddCommand(getDataCmd)
 	rootCmd.AddCommand(findDataCmd)
@@ -199,7 +203,7 @@ func findMetadata(cmd *cobra.Command, args []string) error {
 
 	metaquery := getMetaquery(flagMetaquery, l)
 
-	resp, err := s.MetadataQueryExpr(context.Background(), metaquery)
+	resp, err := s.MetadataQueryExpr(context.Background(), metaquery, flagIgnoreErrors)
 
 	if err != nil {
 		l.Fatal("metaquery failed", log.Error(err))
@@ -212,6 +216,9 @@ func findMetadata(cmd *cobra.Command, args []string) error {
 			break
 		}
 		fmt.Println(metadata.String())
+		if flagDisplayLink {
+			fmt.Println(getProfileLink(app.UIManualRequestPrefix, ytprof.GUIDFormProfID(metadata.ProfID())))
+		}
 	}
 
 	if flagStats {
@@ -236,7 +243,7 @@ func findData(cmd *cobra.Command, args []string) error {
 
 	metaquery := getMetaquery(metaqueryWithProfileType(flagMetaquery, flagProfileType), l)
 
-	mergedProfile, err := s.FindAndMergeQueryExpr(context.Background(), metaquery)
+	mergedProfile, err := s.FindAndMergeQueryExpr(context.Background(), metaquery, flagIgnoreErrors)
 	if err != nil {
 		l.Fatal("metaquery.FindData failed", log.Error(err))
 		return err
@@ -250,7 +257,7 @@ func findData(cmd *cobra.Command, args []string) error {
 	defer file.Close()
 
 	if flagStats {
-		resp, err := s.MetadataQueryExpr(context.Background(), metaquery)
+		resp, err := s.MetadataQueryExpr(context.Background(), metaquery, flagIgnoreErrors)
 
 		if err != nil {
 			l.Fatal("metaquery failed", log.Error(err))
@@ -296,6 +303,10 @@ func getData(cmd *cobra.Command, args []string) error {
 	return profile.Write(file)
 }
 
+func getProfileLink(prefix string, guid guid.GUID) string {
+	return fmt.Sprintf("https://ytprof.yt.yandex-team.ru%s/%s/", app.UIManualRequestPrefix, guid)
+}
+
 func pushData(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	l := ytlog.Must()
@@ -326,6 +337,7 @@ func pushData(cmd *cobra.Command, args []string) error {
 		flagProfileType,
 		flagProfileCluster,
 		flagProfileService,
+		map[string]string{"Name": flagProfileName},
 	)
 	if err != nil {
 		l.Error("pushing data failed", log.Error(err))
@@ -337,7 +349,7 @@ func pushData(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Link to view your profile:")
-	fmt.Printf("https://ytprof.yt.yandex-team.ru%s/%s/\n", app.UIManualRequestPrefix, guids[0])
+	fmt.Println(getProfileLink(app.UIManualRequestPrefix, guids[0]))
 
 	return nil
 }

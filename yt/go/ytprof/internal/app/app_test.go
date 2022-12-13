@@ -115,7 +115,7 @@ func TestAppGet(t *testing.T) {
 
 	ctx := context.Background()
 
-	_, err := ts.PushData(ctx, TestProfiles, TestHosts, "t1", "t2", "t3")
+	_, err := ts.PushData(ctx, TestProfiles, TestHosts, "t1", "t2", "t3", nil)
 	require.NoError(t, err)
 
 	tLow, err := schema.NewTimestamp(time.Now().Add(-time.Hour))
@@ -123,7 +123,7 @@ func TestAppGet(t *testing.T) {
 	tHigh, err := schema.NewTimestamp(time.Now().Add(time.Hour))
 	require.NoError(t, err)
 
-	resultIDs, err := ts.MetadataIdsQuery(ctx, tLow, tHigh, 10000)
+	resultIDs, err := ts.MetadataIDsQuery(ctx, tLow, tHigh, 10000)
 	require.NoError(t, err)
 	require.Equal(t, len(resultIDs), len(TestProfiles))
 

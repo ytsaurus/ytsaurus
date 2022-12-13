@@ -8,18 +8,63 @@ API for storing and finding profiles and their metadata & more
 
 ## <a name="s-CommandLine"></a> Command Line
 
-Here is an instruction how to directly run ytprof commands locally from `arcadia/yt/go/ytprof` directory:
+Here is an instruction how to directly run ytprof commands locally from arcadia root:
 
-Build
+### Build
 ```
-ya make -r ./cmd/cmd
+ya make -r ./yt/go/ytprof/cmd/cmd
 ```
 
-Help
+### Help
+```
+./yt/go/ytprof/cmd/cmd/cmd --help
+```
 
+### Example of using manual storage
+First step is to build:
 ```
-./cmd/cmd/cmd --help
+ya make -r ./yt/go/ytprof/cmd/cmd
 ```
+
+Now if you have a cpu profile in `./cpu.prof` you want to view or/and save:
+```
+./yt/go/ytprof/cmd/cmd/cmd push --file ./cpu.prof --type cpu --name "I_can_name_it!"
+```
+Result:
+```
+Link to view your profile:
+https://ytprof.yt.yandex-team.ru/manual/ui/7f178d72-a1a7381-dee75c0b-dcf54b5c/
+```
+
+In case you lost a link or want to find some profiles you can use metaquery command:
+```
+./yt/go/ytprof/cmd/cmd/cmd list --stats --last 10h --link --metaquery "Metadata['Name'].matches('^I.can.*t.$')"
+```
+Result:
+```
+GUID:7f178d72-a1a7381-dee75c0b-dcf54b5c Timestamp:2022-12-13T09:56:41 ArcRevision:b63f925fe3f01719d017920dc988f16639a9e1b4 BinaryVersion:22.4.0-local-ya~b63f925fe3f01719+achulkov2 Cluster:none Host:none ProfileType:cpu Service:none Name:I_can_name_it! 
+https://ytprof.yt.yandex-team.ru/manual/ui/7f178d72-a1a7381-dee75c0b-dcf54b5c/
+GUID:9c45c275-2c68c505-aceaa2ea-4fddd736 Timestamp:2022-12-13T10:09:37 ArcRevision:b63f925fe3f01719d017920dc988f16639a9e1b4 BinaryVersion:22.4.0-local-ya~b63f925fe3f01719+achulkov2 Cluster:test Host:none ProfileType:cpu Service:none Name:I_can't_name_it! 
+https://ytprof.yt.yandex-team.ru/manual/ui/9c45c275-2c68c505-aceaa2ea-4fddd736/
+2	 - Total
+2	 - Total of Service
+	2	 - of none.
+2	 - Total of BinaryVersion
+	2	 - of 22.4.0-local-ya~b63f925fe3f01719+achulkov2.
+2	 - Total of ArcRevision
+	2	 - of b63f925fe3f01719d017920dc988f16639a9e1b4.
+2	 - Total of Name
+	1	 - of I_can_name_it!.
+	1	 - of I_can't_name_it!.
+2	 - Total of ProfileType
+	2	 - of cpu.
+2	 - Total of Host
+	2	 - of none.
+2	 - Total of Cluster
+	1	 - of test.
+	1	 - of none.
+```
+If not every profile has tag `Name` you will encounter this error `{"level":"fatal","ts":"2022-12-13T14:36:46.381+0300","caller":"cmd/metaquery.go:209","msg":"metaquery failed","error":"no such key: Name"}`, to fix that use `--ignore-errors` option.
 
 ## <a name="s-API"></a> API
 
@@ -27,7 +72,7 @@ Here is a [link](https://nanny.yandex-team.ru/ui/#/services/catalog/yt_ytprof) t
 
 ### Pprof UI
 
-* `https://ytprof.yt.yandex-team.ru/ui/{profile_id}/`: entry point to pprof UI for given profile
+* `https://ytprof.yt.yandex-team.ru/ui/{profile_id}/` or `https://ytprof.yt.yandex-team.ru/manual/ui/{profile_id}/`: entry point to pprof UI for given profile
 Example: `curl https://ytprof.yt.yandex-team.ru/ui/5b9e57db-630103fe-7b30799-8760a484/`
 
 ### HTTP Requests
@@ -50,14 +95,14 @@ See `requests` and `responses` [here](https://a.yandex-team.ru/arcadia/yt/go/ytp
 
 ### Run Service
 
-Here is an instruction how to run API & UI service locally from `arcadia/yt/go/ytprof` directory:
+Here is an instruction how to run API & UI service locally from arcadia root directory:
 
 Build
 ```
-ya make -r ./cmd/ytprof-api
+ya make -r ./yt/go/ytprof/cmd/ytprof-api
 ```
 
 Run
 ```
-./cmd/ytprof-api/ytprof-api --log-to-stderr --config-json '{"http_endpoint": "0.0.0.0:8080", "proxy": "freud", "table_path": "//sys/ytprof/testing"}'
+./yt/go/ytprof/cmd/ytprof-api/ytprof-api --log-to-stderr --config-json '{"http_endpoint": "0.0.0.0:8080", "proxy": "freud", "table_path": "//sys/ytprof/testing"}'
 ```
