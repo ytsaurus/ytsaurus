@@ -541,6 +541,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
 {
     TBase::DoClone(sourceNode, clonedTrunkNode, factory, mode, account);
 
+    clonedTrunkNode->SetChunkMergerMode(sourceNode->GetChunkMergerMode());
     clonedTrunkNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
     clonedTrunkNode->Replication() = sourceNode->Replication();
     clonedTrunkNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
@@ -597,6 +598,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBeginCopy(
     Save(*context, node->GetErasureCodec());
     Save(*context, node->GetEnableStripedErasure());
     Save(*context, node->GetEnableSkynetSharing());
+    Save(*context, node->GetChunkMergerMode());
 
     context->RegisterExternalCellTag(node->GetExternalCellTag());
 }
@@ -623,6 +625,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     trunkNode->SetErasureCodec(Load<NErasure::ECodec>(*context));
     trunkNode->SetEnableStripedErasure(Load<bool>(*context));
     trunkNode->SetEnableSkynetSharing(Load<bool>(*context));
+    trunkNode->SetChunkMergerMode(Load<EChunkMergerMode>(*context));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

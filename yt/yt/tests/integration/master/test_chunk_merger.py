@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, remove,
-    exists, concatenate,
+    exists, concatenate, move,
     create_account, create_user, make_ace, insert_rows,
     alter_table, read_table, write_table, map, merge,
     sync_create_cells, sync_mount_table, update_nodes_dynamic_config,
@@ -361,6 +361,19 @@ class TestChunkMerger(YTEnvSetup):
 
         assert get("//tmp/t/@chunk_count") > 1
         assert read_table("//tmp/t") == rows
+
+    @authors("aleksandra-zh")
+    def test_copy_move(self):
+        create("table", "//tmp/t")
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"a": "c"})
+        write_table("<append=true>//tmp/t", {"a": "d"})
+
+        set("//tmp/t/@chunk_merger_mode", "deep")
+        copy("//tmp/t", "//tmp/t1")
+        move("//tmp/t1", "//tmp/t2")
+
+        assert get("//tmp/t2/@chunk_merger_mode") == "deep"
 
     @authors("aleksandra-zh")
     def test_schedule_again(self):

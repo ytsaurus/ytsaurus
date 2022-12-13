@@ -808,7 +808,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
                 break;
             }
             BuildYsonFluently(consumer)
-                .Value(FormatEnum(node->GetChunkMergerMode()));
+                .Value(FormatEnum(node->GetTrunkNode()->As<TChunkOwnerBase>()->GetChunkMergerMode()));
             return true;
 
         case EInternedAttributeKey::IsBeingMerged: {
