@@ -4812,6 +4812,8 @@ void TOperationControllerBase::FlushOperationNode(bool checkFlushResult)
         // We do not want to complete operation if progress flush has failed.
         OnOperationFailed(flushResult, /*flush*/ false);
     }
+
+    YT_LOG_DEBUG("Operation node flushed");
 }
 
 void TOperationControllerBase::OnOperationCompleted(bool /*interrupted*/)
