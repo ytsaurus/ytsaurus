@@ -33,14 +33,14 @@ TLocationManager::TLocationManager(
     , DiskInfoProvider_(std::move(diskInfoProvider))
 { }
 
-std::vector<TStoreLocationPtr> TLocationManager::GetDiskLocations(
+std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivelinessInfo(
     const std::vector<TDiskInfo>& disks)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     // Fast path.
     if (disks.empty()) {
-        return std::vector<TStoreLocationPtr>();
+        return {};
     }
 
     THashSet<TString> diskNames;
@@ -49,21 +49,23 @@ std::vector<TStoreLocationPtr> TLocationManager::GetDiskLocations(
         diskNames.insert(failedDisk.DeviceName);
     }
 
-    std::vector<TStoreLocationPtr> locations;
+    std::vector<TLocationLivenessInfo> locationLivelinessInfos;
+    const auto& locations = ChunkStore_->Locations();
+    locationLivelinessInfos.reserve(locations.size());
 
-    for (const auto& location : ChunkStore_->Locations()) {
-        if (diskNames.contains(location->GetStaticConfig()->DeviceName)) {
-            locations.push_back(location);
-        }
+    for (const auto& location : locations) {
+        locationLivelinessInfos.push_back({
+            .Location = location,
+            .IsDiskAlive = !diskNames.contains(location->GetStaticConfig()->DeviceName)});
     }
 
-    return locations;
+    return locationLivelinessInfos;
 }
 
-TFuture<std::vector<TStoreLocationPtr>> TLocationManager::GetFailedLocations()
+TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveliness()
 {
     return DiskInfoProvider_->GetFailedYtDisks()
-        .Apply(BIND(&TLocationManager::GetDiskLocations, MakeStrong(this))
+        .Apply(BIND(&TLocationManager::MapLocationToLivelinessInfo, MakeStrong(this))
             .AsyncVia(ControlInvoker_));
 }
 
@@ -74,6 +76,7 @@ TLocationHealthChecker::TLocationHealthChecker(
     IInvokerPtr invoker,
     TLocationHealthCheckerConfigPtr config)
     : Config_(std::move(config))
+    , Enabled_(Config_->Enabled)
     , Invoker_(std::move(invoker))
     , LocationManager_(std::move(locationManager))
     , HealthCheckerExecutor_(New<TPeriodicExecutor>(
@@ -84,7 +87,7 @@ TLocationHealthChecker::TLocationHealthChecker(
 
 void TLocationHealthChecker::Start()
 {
-    if (Enabled_.load()) {
+    if (Enabled_) {
         YT_LOG_DEBUG("Starting location health checker");
         HealthCheckerExecutor_->Start();
     }
@@ -92,7 +95,7 @@ void TLocationHealthChecker::Start()
 
 void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthCheckerDynamicConfigPtr& newConfig)
 {
-    auto oldEnabled = Enabled_.load();
+    auto oldEnabled = Enabled_;
     auto newEnabled = newConfig->Enabled.value_or(Config_->Enabled);
     auto newHealthCheckPeriod = newConfig->HealthCheckPeriod.value_or(Config_->HealthCheckPeriod);
 
@@ -106,24 +109,37 @@ void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthChecker
         HealthCheckerExecutor_->Start();
     }
 
-    Enabled_.store(newEnabled);
+    Enabled_ = newEnabled;
 }
 
 void TLocationHealthChecker::OnHealthCheck()
 {
-    auto locationsOrError = WaitFor(LocationManager_->GetFailedLocations());
+    auto livelinessInfosOrError = WaitFor(LocationManager_->GetLocationsLiveliness());
 
-    if (locationsOrError.IsOK()) {
-        const auto& failedLocations = locationsOrError.Value();
+    if (livelinessInfosOrError.IsOK()) {
+        const auto& livelinessInfos = livelinessInfosOrError.Value();
 
-        // TODO(don-dron): Add alerting for node (push failed locations to alerts).
-        for (const auto& failedLocation : failedLocations) {
-            YT_LOG_WARNING("Disk with store location failed (LocationId: %v, DiskName: %v)",
-                failedLocation->GetId(),
-                failedLocation->GetStaticConfig()->DeviceName);
+        for (const auto& livelinessInfo : livelinessInfos) {
+            const auto& location = livelinessInfo.Location;
+
+            if (livelinessInfo.IsDiskAlive && !location->IsLocationDiskOK()) {
+                YT_LOG_WARNING("Disk with store location repaired (LocationId: %v, DiskName: %v)",
+                    location->GetUuid(),
+                    location->GetStaticConfig()->DeviceName);
+            } else if (!livelinessInfo.IsDiskAlive && location->IsLocationDiskOK()) {
+                YT_LOG_WARNING("Disk with store location failed (LocationId: %v, DiskName: %v)",
+                    location->GetUuid(),
+                    location->GetStaticConfig()->DeviceName);
+            }
+
+            if (livelinessInfo.IsDiskAlive) {
+                location->MarkLocationDiskAsOK();
+            } else {
+                location->MarkLocationDiskAsFailed();
+            }
         }
     } else {
-        YT_LOG_ERROR(locationsOrError, "Failed to list failed locations");
+        YT_LOG_ERROR(livelinessInfosOrError, "Failed to list location livelinesses");
     }
 }
 
