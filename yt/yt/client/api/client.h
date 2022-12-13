@@ -2121,7 +2121,7 @@ struct IClient
         const TAddMaintenanceOptions& options = {}) = 0;
 
     virtual TFuture<void> RemoveMaintenance(
-        const TString& nodeAdress,
+        const TString& nodeAddress,
         NNodeTrackerClient::TMaintenanceId id,
         const TRemoveMaintenanceOptions& options = {}) = 0;
 

@@ -1282,10 +1282,10 @@ class TestSchedulerConfig(YTEnvSetup):
         wait(lambda: get("{0}/event_log/retry_backoff_time".format(orchid_scheduler_config)) == 7)
 
     @authors("ignat")
-    def test_adresses(self):
-        adresses = get("//sys/scheduler/@addresses")
-        assert adresses["ipv4"].startswith("127.0.0.1:")
-        assert adresses["ipv6"].startswith("::1:")
+    def test_addresses(self):
+        addresses = get("//sys/scheduler/@addresses")
+        assert addresses["ipv4"].startswith("127.0.0.1:")
+        assert addresses["ipv6"].startswith("::1:")
 
     @authors("ignat")
     def test_specs(self):
