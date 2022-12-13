@@ -4,12 +4,14 @@ from yt_commands import (
     authors, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create, ls, get,
     set, remove,
     exists, make_ace, start_transaction, lock, insert_rows, lookup_rows, write_table, map, vanilla, abort_op,
-    complete_op, suspend_op, resume_op, get_operation, list_operations,
+    complete_op, suspend_op, resume_op, get_operation, list_operations, run_test_vanilla,
     clean_operations, get_operation_cypress_path, sync_create_cells,
     sync_mount_table, sync_unmount_table, update_controller_agent_config,
     update_op_parameters, raises_yt_error)
 
 import yt_error_codes
+
+from yt_helpers import profiler_factory
 
 import yt.environment.init_operation_archive as init_operation_archive
 
@@ -413,9 +415,6 @@ class TestGetOperation(YTEnvSetup):
 
     @authors("levysotsky")
     def test_archive_failure(self):
-        if self.ENABLE_RPC_PROXY:
-            pytest.skip("This test is independent from rpc proxy.")
-
         create("table", "//tmp/t1")
         create("table", "//tmp/t2")
         write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
@@ -462,8 +461,25 @@ class TestGetOperation(YTEnvSetup):
         assert res_cypress["progress"]["jobs"]["running"] > 0
 
         sync_unmount_table("//sys/operations_archive/ordered_by_id")
+
         with raises_yt_error(yt_error_codes.RetriableArchiveError):
             get_operation(op.id, maximum_cypress_progress_age=0)
+
+        if self.ENABLE_RPC_PROXY:
+            proxy = ls("//sys/rpc_proxies")[0]
+            profiler = profiler_factory().at_rpc_proxy(proxy)
+
+            get_operation_from_archive_success_counter = profiler.counter("native_client/get_operation_from_archive_success_count")
+            get_operation_from_archive_timeout_counter = profiler.counter("native_client/get_operation_from_archive_timeout_count")
+            get_operation_from_archive_failure_counter = profiler.counter("native_client/get_operation_from_archive_failure_count")
+
+            with raises_yt_error(yt_error_codes.RetriableArchiveError):
+                get_operation(op.id, maximum_cypress_progress_age=0)
+
+            assert get_operation_from_archive_success_counter.get_delta() == 0
+            assert get_operation_from_archive_timeout_counter.get_delta() == 0
+            wait(lambda: get_operation_from_archive_failure_counter.get_delta() > 0)
+
         sync_mount_table("//sys/operations_archive/ordered_by_id")
 
         clean_operations()
@@ -504,6 +520,32 @@ class TestGetOperation(YTEnvSetup):
         assert res_api["brief_progress"] == res_cypress["brief_progress"]
         assert res_api["progress"] == res_cypress["progress"]
 
+    @authors("ignat")
+    def test_get_operation_profiler(self):
+        if not self.ENABLE_RPC_PROXY:
+            pytest.skip()
+
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        write_table("//tmp/t1", [{"foo": "bar"}, {"foo": "baz"}, {"foo": "qux"}])
+
+        op = run_test_vanilla("sleep 1", job_count=1)
+
+        clean_operations()
+
+        proxy = ls("//sys/rpc_proxies")[0]
+        profiler = profiler_factory().at_rpc_proxy(proxy)
+
+        get_operation_from_archive_success_counter = profiler.counter("native_client/get_operation_from_archive_success_count")
+        get_operation_from_archive_timeout_counter = profiler.counter("native_client/get_operation_from_archive_timeout_count")
+        get_operation_from_archive_failure_counter = profiler.counter("native_client/get_operation_from_archive_failure_count")
+
+        get_operation(op.id)
+
+        wait(lambda: get_operation_from_archive_success_counter.get_delta() == 1)
+        assert get_operation_from_archive_timeout_counter.get_delta() == 0
+        assert get_operation_from_archive_failure_counter.get_delta() == 0
+
 
 ##################################################################
 
@@ -511,8 +553,15 @@ class TestGetOperation(YTEnvSetup):
 class TestGetOperationRpcProxy(TestGetOperation):
     USE_DYNAMIC_TABLES = True
     DRIVER_BACKEND = "rpc"
+    NUM_RPC_PROXIES = 1
     ENABLE_RPC_PROXY = True
     ENABLE_HTTP_PROXY = True
+
+    DELTA_RPC_PROXY_CONFIG = {
+        "cluster_connection": {
+            "default_get_operation_timeout": 10 * 1000,
+        },
+    }
 
 
 class TestGetOperationHeavyRuntimeParameters(TestGetOperation):

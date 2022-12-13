@@ -374,10 +374,16 @@ std::optional<TOperation> TClient::DoGetOperationFromArchive(
             attributes,
             deadline - Now(),
             Logger);
+
+        GetCounters().OperationApiCounters.GetOperationFromArchiveSuccessCounter.Increment();
+
     } catch (const TErrorException& exception) {
         if (exception.Error().FindMatching(NYTree::EErrorCode::ResolveError)) {
             return {};
         }
+
+        GetCounters().OperationApiCounters.GetOperationFromArchiveFailureCounter.Increment();
+
         throw;
     }
 
@@ -504,6 +510,11 @@ TOperation TClient::DoGetOperationImpl(
         .ValueOrThrow();
 
     auto archiveResultOrError = archiveFuture.Get();
+
+    if (archiveResultOrError.FindMatching(NYT::EErrorCode::Timeout)) {
+        GetCounters().OperationApiCounters.GetOperationFromArchiveTimeoutCounter.Increment();
+    }
+
     std::optional<TOperation> archiveResult;
     if (archiveResultOrError.IsOK()) {
         archiveResult = archiveResultOrError.Value();
@@ -543,6 +554,7 @@ TOperation TClient::DoGetOperationImpl(
         }
         return oldestBuildTime;
     };
+
 
     if (cypressResult) {
         auto needArchiveResult = false;
