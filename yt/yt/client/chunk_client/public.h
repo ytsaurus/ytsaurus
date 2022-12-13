@@ -74,6 +74,7 @@ YT_DEFINE_ERROR_ENUM(
     ((WaitedForSchemaForTooLong)             (746))
     ((UnrecoverableRepairError)              (747))
     ((MissingJournalChunkRecord)             (748))
+    ((LocationDiskFailed)                    (749))
 );
 
 using TChunkId = NObjectClient::TObjectId;

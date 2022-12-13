@@ -353,6 +353,15 @@ public:
     //! Reports throttled write.
     void ReportThrottledWrite() const;
 
+    //! Location disk is OK.
+    bool IsLocationDiskOK() const;
+
+    //! Disable alert about location disk failing.
+    void MarkLocationDiskAsOK();
+
+    //! Enable alert about location disk failing.
+    void MarkLocationDiskAsFailed();
+
     //! Returns |true| if location is sick.
     bool IsSick() const;
 
@@ -403,6 +412,7 @@ private:
     TChunkLocationUuid Uuid_;
 
     TAtomicObject<TError> LocationDisabledAlert_;
+    TAtomicObject<TError> LocationDiskFailedAlert_;
 
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TDynamicTagPtr MediumTag_;

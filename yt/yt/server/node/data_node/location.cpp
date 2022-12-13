@@ -1037,6 +1037,27 @@ void TChunkLocation::OnHealthCheckFailed(const TError& error)
     Disable(error);
 }
 
+bool TChunkLocation::IsLocationDiskOK() const
+{
+    return LocationDiskFailedAlert_.Load().IsOK();
+}
+
+void TChunkLocation::MarkLocationDiskAsOK()
+{
+    LocationDiskFailedAlert_.Store(TError());
+}
+
+void TChunkLocation::MarkLocationDiskAsFailed()
+{
+    LocationDiskFailedAlert_.Store(
+        TError(
+            NChunkClient::EErrorCode::LocationDiskFailed,
+            "Disk of chunk location is marked as failed")
+            << TErrorAttribute("location_uuid", GetUuid())
+            << TErrorAttribute("location_path", GetPath())
+            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
+}
+
 void TChunkLocation::MarkAsDisabled(const TError& error)
 {
     LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath())
@@ -1154,7 +1175,7 @@ void TChunkLocation::UpdateMediumDescriptor(const NChunkClient::TMediumDescripto
 
 void TChunkLocation::PopulateAlerts(std::vector<TError>* alerts)
 {
-    for (const auto* alertHolder : {&LocationDisabledAlert_}) {
+    for (const auto* alertHolder : {&LocationDisabledAlert_, &LocationDiskFailedAlert_}) {
         if (auto alert = alertHolder->Load(); !alert.IsOK()) {
             alerts->push_back(std::move(alert));
         }

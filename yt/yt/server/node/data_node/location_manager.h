@@ -8,6 +8,14 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TLocationLivenessInfo
+{
+    TStoreLocationPtr Location;
+    bool IsDiskAlive;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TLocationManager
     : public TRefCounted
 {
@@ -17,14 +25,14 @@ public:
         IInvokerPtr controlInvoker,
         NContainers::TDiskInfoProviderPtr diskInfoProvider);
 
-    TFuture<std::vector<TStoreLocationPtr>> GetFailedLocations();
+    TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveliness();
 
 private:
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
     const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
 
-    std::vector<TStoreLocationPtr> GetDiskLocations(
+    std::vector<TLocationLivenessInfo> MapLocationToLivelinessInfo(
         const std::vector<NContainers::TDiskInfo>& failedDisks);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
@@ -51,7 +59,7 @@ public:
 
 private:
     const TLocationHealthCheckerConfigPtr Config_;
-    std::atomic<bool> Enabled_;
+    bool Enabled_;
 
     const IInvokerPtr Invoker_;
 
