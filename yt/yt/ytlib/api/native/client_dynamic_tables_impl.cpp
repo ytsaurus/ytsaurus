@@ -1026,19 +1026,19 @@ TRowset TClient::DoLookupRowsOnce(
         // Cells with multiple peers, as well as with zero peers, are not frequent.
         // We do not coalesce them and allow each cell to pick its channel (possibly hedging)
         // individually.
-        if (descriptor.Peers.size() != 1) {
+        if (descriptor->Peers.size() != 1) {
             cellIdsByChannels.push_back({cellId});
             continue;
         }
 
-        if (descriptor.Peers[0].IsNull()) {
+        if (descriptor->Peers[0].IsNull()) {
             THROW_ERROR_EXCEPTION(
                 NTabletClient::EErrorCode::CellHasNoAssignedPeers,
                 "Cell %v has no assigned peers",
                 cellId);
         }
 
-        const auto& address = descriptor.Peers[0].GetAddressOrThrow(networks);
+        const auto& address = descriptor->Peers[0].GetAddressOrThrow(networks);
         auto emplaced = channelIndexByAddress.emplace(
             address,
             cellIdsByChannels.size());
@@ -1056,7 +1056,7 @@ TRowset TClient::DoLookupRowsOnce(
     for (const auto& cellIds : cellIdsByChannels) {
         auto channel = CreateTabletReadChannel(
             ChannelFactory_,
-            cellDirectory->GetDescriptorOrThrow(cellIds[0]),
+            *cellDirectory->GetDescriptorOrThrow(cellIds[0]),
             options,
             networks);
 
@@ -2505,7 +2505,7 @@ private:
         const auto& networks = connection->GetNetworks();
         auto channel = CreateTabletReadChannel(
             Client_->GetChannelFactory(),
-            cellDirectory->GetDescriptorOrThrow(TabletInfo_->CellId),
+            *cellDirectory->GetDescriptorOrThrow(TabletInfo_->CellId),
             Options_,
             networks);
 

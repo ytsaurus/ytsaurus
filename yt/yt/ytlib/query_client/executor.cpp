@@ -65,6 +65,7 @@ using NObjectClient::TObjectId;
 using NObjectClient::FromObjectId;
 
 using NHiveClient::TCellDescriptor;
+using NHiveClient::TCellDescriptorPtr;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -472,7 +473,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateNotPhysicallyLog();
 
-    THashMap<NTabletClient::TTabletCellId, TCellDescriptor> tabletCellReplicas;
+    THashMap<NTabletClient::TTabletCellId, TCellDescriptorPtr> tabletCellReplicas;
 
     auto getAddress = [&] (const TTabletInfoPtr& tabletInfo) {
         const auto& cellDirectory = connection->GetCellDirectory();
@@ -480,7 +481,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
 
         ValidateTabletMountedOrFrozen(tableInfo, tabletInfo);
 
-        auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TCellDescriptor());
+        auto insertResult = tabletCellReplicas.emplace(tabletInfo->CellId, TCellDescriptorPtr());
         auto& descriptor = insertResult.first->second;
 
         if (insertResult.second) {
@@ -488,7 +489,7 @@ std::vector<std::pair<TDataSource, TString>> InferRanges(
         }
 
         // TODO(babenko): pass proper read options
-        const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(descriptor);
+        const auto& peerDescriptor = GetPrimaryTabletPeerDescriptor(*descriptor);
         return peerDescriptor.GetAddressOrThrow(networks);
     };
 

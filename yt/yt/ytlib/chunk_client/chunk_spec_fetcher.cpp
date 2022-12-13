@@ -398,10 +398,10 @@ void TTabletChunkSpecFetcher::AddSorted(
                 tabletIndex,
                 tablet->TabletId,
                 tablet->CellId);
-            const auto& cellId = tablet->CellId;
-            const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+            auto cellId = tablet->CellId;
+            auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
             const auto& primaryPeerDescriptor = NApi::NNative::GetPrimaryTabletPeerDescriptor(
-                cellDescriptor,
+                *cellDescriptor,
                 NHydra::EPeerKind::Leader);
 
             const auto& address = primaryPeerDescriptor.GetAddressOrThrow(connection->GetNetworks());

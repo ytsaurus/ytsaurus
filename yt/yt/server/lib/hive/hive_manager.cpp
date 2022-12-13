@@ -402,11 +402,11 @@ private:
 
         for (const auto& request : syncResult.ReconfigureRequests) {
             YT_LOG_DEBUG("Requesting cell reconfiguration (CellId: %v, ConfigVersion: %v -> %v)",
-                request.NewDescriptor.CellId,
+                request.NewDescriptor->CellId,
                 request.OldConfigVersion,
-                request.NewDescriptor.ConfigVersion);
+                request.NewDescriptor->ConfigVersion);
             auto* protoInfo = response->add_cells_to_reconfigure();
-            ToProto(protoInfo->mutable_cell_descriptor(), request.NewDescriptor);
+            ToProto(protoInfo->mutable_cell_descriptor(), *request.NewDescriptor);
         }
 
         for (const auto& request : syncResult.UnregisterRequests) {

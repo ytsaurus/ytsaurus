@@ -406,10 +406,10 @@ TFuture<TTableReplicaInfoPtrList> PickInSyncReplicas(
             continue;
         }
 
-        const auto& cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
+        auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(cellId);
         auto channel = CreateTabletReadChannel(
             channelFactory,
-            cellDescriptor,
+            *cellDescriptor,
             options,
             connection->GetNetworks());
 

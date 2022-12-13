@@ -949,12 +949,12 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
     const IInvokerPtr& controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    const NHiveClient::TCellDescriptor& cellDescriptor,
+    const NHiveClient::TCellDescriptorPtr& cellDescriptor,
     EInMemoryMode inMemoryMode,
     const TInMemoryManagerConfigPtr& config)
 {
     std::vector<TNodePtr> nodes;
-    for (const auto& target : cellDescriptor.Peers) {
+    for (const auto& target : cellDescriptor->Peers) {
         const auto& address = target.GetDefaultAddress();
         auto channel = address == localDescriptor.GetDefaultAddress()
             ? CreateLocalChannel(localRpcServer)
@@ -1007,13 +1007,13 @@ IRemoteInMemoryBlockCachePtr DoCreateRemoteInMemoryBlockCache(
 }
 
 TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
-    const NNative::IClientPtr& client,
-    const IInvokerPtr& controlInvoker,
+    NNative::IClientPtr client,
+    IInvokerPtr controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    const NHiveClient::TCellDescriptor& cellDescriptor,
+    NHiveClient::TCellDescriptorPtr cellDescriptor,
     EInMemoryMode inMemoryMode,
-    const TInMemoryManagerConfigPtr& config)
+    TInMemoryManagerConfigPtr config)
 {
     if (inMemoryMode == EInMemoryMode::None) {
         return MakeFuture<IRemoteInMemoryBlockCachePtr>(New<TDummyInMemoryBlockCache>());
@@ -1022,13 +1022,13 @@ TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
     return BIND(&DoCreateRemoteInMemoryBlockCache)
         .AsyncVia(controlInvoker)
         .Run(
-            client,
+            std::move(client),
             controlInvoker,
             localDescriptor,
-            localRpcServer,
-            cellDescriptor,
+            std::move(localRpcServer),
+            std::move(cellDescriptor),
             inMemoryMode,
-            config);
+            std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

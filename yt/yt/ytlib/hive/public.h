@@ -23,9 +23,9 @@ class TEncapsulatedMessage;
 
 using TMessageId = i64;
 
-class TCellPeerDescriptor;
-struct TCellDescriptor;
 struct TCellInfo;
+class TCellPeerDescriptor;
+DECLARE_REFCOUNTED_STRUCT(TCellDescriptor)
 
 DECLARE_REFCOUNTED_STRUCT(ICellDirectory)
 DECLARE_REFCOUNTED_STRUCT(ICellDirectorySynchronizer)

@@ -118,13 +118,13 @@ struct IRemoteInMemoryBlockCache
 DEFINE_REFCOUNTED_TYPE(IRemoteInMemoryBlockCache)
 
 TFuture<IRemoteInMemoryBlockCachePtr> CreateRemoteInMemoryBlockCache(
-    const NApi::NNative::IClientPtr& client,
-    const IInvokerPtr& controlInvoker,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr controlInvoker,
     const NNodeTrackerClient::TNodeDescriptor& localDescriptor,
     NRpc::IServerPtr localRpcServer,
-    const NHiveClient::TCellDescriptor& cellDescriptor,
+    NHiveClient::TCellDescriptorPtr cellDescriptor,
     NTabletClient::EInMemoryMode inMemoryMode,
-    const TInMemoryManagerConfigPtr& config);
+    TInMemoryManagerConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
