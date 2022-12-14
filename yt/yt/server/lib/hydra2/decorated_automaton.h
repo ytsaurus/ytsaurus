@@ -93,6 +93,7 @@ struct TEpochContext
     bool LeaderSwitchStarted = false;
     bool LeaderLeaseExpired = false;
     bool AcquiringChangelog = false;
+    bool CatchingUp = false;
 
     TIntrusivePtr<NConcurrency::TAsyncBatcher<void>> LeaderSyncBatcher;
     std::optional<i64> LeaderSyncSequenceNumber;
