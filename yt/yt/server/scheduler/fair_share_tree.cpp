@@ -2963,6 +2963,8 @@ private:
 
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "satisfaction_ratio", element->PostUpdateAttributes().SatisfactionRatio)
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "local_satisfaction_ratio", element->PostUpdateAttributes().LocalSatisfactionRatio)
+
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "schedulable", element->IsSchedulable())
             .Do(BIND(&TFairShareTreeJobScheduler::BuildElementYson, ConstRef(treeSnapshot), Unretained(element), filter));
     }
 
