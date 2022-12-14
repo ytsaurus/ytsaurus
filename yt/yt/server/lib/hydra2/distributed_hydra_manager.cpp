@@ -1241,7 +1241,7 @@ private:
             startSequenceNumber,
             request->Attachments());
 
-        if (IsActiveFollower()) {
+        if (controlState == EPeerState::Following) {
             epochContext->FollowerCommitter->LogMutations();
             CommitMutationsAtFollower(committedSequenceNumber);
         }

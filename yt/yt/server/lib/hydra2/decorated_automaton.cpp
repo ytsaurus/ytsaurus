@@ -1013,7 +1013,7 @@ void TDecoratedAutomaton::ApplyMutation(const TPendingMutationPtr& mutation)
             mutationContext.GetResponseData()
         });
     } else {
-        YT_VERIFY(GetState() == EPeerState::Following);
+        YT_VERIFY(GetState() == EPeerState::Following || GetState() == EPeerState::FollowerRecovery);
     }
 
     // Mutation could remain alive for quite a while even after it has been applied at leader,
