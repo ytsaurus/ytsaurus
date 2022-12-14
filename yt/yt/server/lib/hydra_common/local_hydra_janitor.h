@@ -8,26 +8,19 @@ namespace NYT::NHydra {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalHydraJanitor
+struct ILocalHydraJanitor
     : public TRefCounted
 {
-public:
-    TLocalHydraJanitor(
-        TString snapshotPath,
-        TString changelogPath,
-        TLocalHydraJanitorConfigPtr config,
-        IInvokerPtr invoker);
-
-    ~TLocalHydraJanitor();
-
-    void Start();
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void Start() = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TLocalHydraJanitor)
+DEFINE_REFCOUNTED_TYPE(ILocalHydraJanitor)
+
+ILocalHydraJanitorPtr CreateLocalHydraJanitor(
+    TString snapshotPath,
+    TString changelogPath,
+    TLocalHydraJanitorConfigPtr config,
+    IInvokerPtr ioInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

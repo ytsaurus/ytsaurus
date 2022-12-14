@@ -139,6 +139,7 @@ public:
     const NHiveServer::THiveManagerPtr& GetHiveManager() const;
     const NHiveClient::ICellDirectoryPtr& GetCellDirectory() const;
     const IInvokerPtr& GetControlInvoker() const;
+    const IInvokerPtr& GetSnapshotIOInvoker() const;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetNodeChannelFactory() const;
     const NTabletServer::IReplicatedTableTrackerPtr& GetNewReplicatedTableTracker() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
@@ -222,6 +223,7 @@ protected:
     NHiveClient::ICellDirectoryPtr CellDirectory_;
     NHiveServer::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
+    NConcurrency::TActionQueuePtr SnapshotIOQueue_;
     ICoreDumperPtr CoreDumper_;
     NConcurrency::TActionQueuePtr DiscoveryQueue_;
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;

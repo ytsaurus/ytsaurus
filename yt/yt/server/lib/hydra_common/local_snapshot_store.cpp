@@ -5,7 +5,6 @@
 #include <yt/yt/server/lib/hydra_common/file_helpers.h>
 #include <yt/yt/server/lib/hydra_common/format.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/core/actions/signal.h>
 
@@ -47,9 +46,11 @@ public:
     TLocalSnapshotReaderBase(
         TString fileName,
         int snapshotId,
+        IInvokerPtr ioInvoker,
         NLogging::TLogger logger)
         : FileName_(std::move(fileName))
         , SnapshotId_(snapshotId)
+        , IOInvoker_(std::move(ioInvoker))
         , Logger(std::move(logger))
     { }
 
@@ -61,14 +62,14 @@ public:
     TFuture<void> Open() override
     {
         return BIND(&TLocalSnapshotReaderBase::DoOpen, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run();
     }
 
     TFuture<TSharedRef> Read() override
     {
         return BIND(&TLocalSnapshotReaderBase::DoRead, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run();
     }
 
@@ -85,6 +86,7 @@ public:
 private:
     const TString FileName_;
     const int SnapshotId_;
+    const IInvokerPtr IOInvoker_;
 
     const NLogging::TLogger Logger;
 
@@ -175,10 +177,12 @@ public:
     TRawLocalSnapshotReader(
         TString fileName,
         int snapshotId,
-        i64 offset)
+        i64 offset,
+        IInvokerPtr ioInvoker)
         : TLocalSnapshotReaderBase(
             fileName,
             snapshotId,
+            std::move(ioInvoker),
             HydraLogger.WithTag("Path: %v, Raw: true, Offset: %v", fileName, offset))
         , Offset_(offset)
     { }
@@ -207,10 +211,12 @@ class TLocalSnapshotReader
 public:
     TLocalSnapshotReader(
         TString fileName,
-        int snapshotId)
+        int snapshotId,
+        IInvokerPtr ioInvoker)
         : TLocalSnapshotReaderBase(
             fileName,
             snapshotId,
+            std::move(ioInvoker),
             HydraLogger.WithTag("Path: %v, Raw: false", fileName))
     { }
 
@@ -243,11 +249,13 @@ DEFINE_REFCOUNTED_TYPE(TLocalSnapshotReader)
 
 ISnapshotReaderPtr CreateLocalSnapshotReader(
     TString fileName,
-    int snapshotId)
+    int snapshotId,
+    IInvokerPtr ioInvoker)
 {
     return New<TLocalSnapshotReader>(
         std::move(fileName),
-        snapshotId);
+        snapshotId,
+        std::move(ioInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -261,12 +269,14 @@ public:
         ECodec codec,
         int snapshotId,
         TSnapshotMeta meta,
-        bool raw)
+        bool raw,
+        IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
         , Codec_(codec)
         , SnapshotId_(snapshotId)
         , Meta_(std::move(meta))
         , IsRaw_(raw)
+        , IOInvoker_(std::move(ioInvoker))
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
     {
         SerializedMeta_ = SerializeProtoToRef(Meta_);
@@ -292,21 +302,21 @@ public:
     TFuture<void> Open() override
     {
         return BIND(&TLocalSnapshotWriter::DoOpen, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run();
     }
 
     TFuture<void> Write(const TSharedRef& buffer) override
     {
         return BIND(&TLocalSnapshotWriter::DoWrite, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run(buffer);
     }
 
     TFuture<void> Close() override
     {
         return BIND(&TLocalSnapshotWriter::DoClose, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run();
     }
 
@@ -324,6 +334,7 @@ private:
     const int SnapshotId_;
     const TSnapshotMeta Meta_;
     const bool IsRaw_;
+    const IInvokerPtr IOInvoker_;
 
     const NLogging::TLogger Logger;
 
@@ -469,9 +480,113 @@ class TLocalSystemSnapshotStore
     : public ILegacySnapshotStore
 {
 public:
-    explicit TLocalSystemSnapshotStore(TLocalSnapshotStoreConfigPtr config)
+    TLocalSystemSnapshotStore(
+        TLocalSnapshotStoreConfigPtr config,
+        IInvokerPtr ioInvoker)
         : Config_(std::move(config))
+        , IOInvoker_(std::move(ioInvoker))
         , Logger(HydraLogger.WithTag("Path: %v", Config_->Path))
+    { }
+
+    TFuture<void> Initialize()
+    {
+        return BIND(&TLocalSystemSnapshotStore::DoInitialize, MakeStrong(this))
+            .AsyncVia(IOInvoker_)
+            .Run();
+    }
+
+    TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
+    {
+        auto guard = Guard(SpinLock_);
+
+        auto it = RegisteredSnapshotIds_.upper_bound(maxSnapshotId);
+        if (it == RegisteredSnapshotIds_.begin()) {
+            return MakeFuture(InvalidSegmentId);
+        }
+
+        int snapshotId = *(--it);
+        YT_VERIFY(snapshotId <= maxSnapshotId);
+        return MakeFuture(snapshotId);
+    }
+
+    ISnapshotReaderPtr CreateReader(int snapshotId) override
+    {
+        if (!CheckSnapshotExists(snapshotId)) {
+            THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "No such snapshot %v", snapshotId);
+        }
+
+        return CreateLocalSnapshotReader(
+            GetSnapshotPath(snapshotId),
+            snapshotId,
+            IOInvoker_);
+    }
+
+    ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset) override
+    {
+        return New<TRawLocalSnapshotReader>(
+            GetSnapshotPath(snapshotId),
+            snapshotId,
+            offset,
+            IOInvoker_);
+    }
+
+    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
+    {
+        return DoCreateWriter(
+            snapshotId,
+            GetSnapshotPath(snapshotId),
+            Config_->Codec,
+            snapshotId,
+            meta,
+            /*raw*/ false);
+    }
+
+    ISnapshotWriterPtr CreateRawWriter(int snapshotId) override
+    {
+        return DoCreateWriter(
+            snapshotId,
+            GetSnapshotPath(snapshotId),
+            Config_->Codec,
+            snapshotId,
+            TSnapshotMeta(),
+            /*raw*/ true);
+    }
+
+private:
+    const TLocalSnapshotStoreConfigPtr Config_;
+    const IInvokerPtr IOInvoker_;
+    const NLogging::TLogger Logger;
+
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
+    std::set<int> RegisteredSnapshotIds_;
+    THashMap<int, TWeakPtr<TLocalSnapshotWriter>> SnapshotIdToWriter_;
+
+
+    TString GetSnapshotPath(int snapshotId)
+    {
+        return NFS::CombinePaths(
+            Config_->Path,
+            Format("%09d.%v", snapshotId, SnapshotExtension));
+    }
+
+    bool CheckSnapshotExists(int snapshotId)
+    {
+        if (NFS::Exists(GetSnapshotPath(snapshotId))) {
+            return true;
+        }
+
+        {
+            auto guard = Guard(SpinLock_);
+            if (RegisteredSnapshotIds_.erase(snapshotId) == 1) {
+                YT_LOG_WARNING("Erased orphaned snapshot from store (SnapshotId: %v)",
+                    snapshotId);
+            }
+        }
+
+        return false;
+    }
+
+    void DoInitialize()
     {
         auto path = Config_->Path;
 
@@ -502,94 +617,6 @@ public:
         }
 
         YT_LOG_INFO("Snapshot scan completed");
-    }
-
-    TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
-    {
-        auto guard = Guard(SpinLock_);
-
-        auto it = RegisteredSnapshotIds_.upper_bound(maxSnapshotId);
-        if (it == RegisteredSnapshotIds_.begin()) {
-            return MakeFuture(InvalidSegmentId);
-        }
-
-        int snapshotId = *(--it);
-        YT_VERIFY(snapshotId <= maxSnapshotId);
-        return MakeFuture(snapshotId);
-    }
-
-    ISnapshotReaderPtr CreateReader(int snapshotId) override
-    {
-        if (!CheckSnapshotExists(snapshotId)) {
-            THROW_ERROR_EXCEPTION(EErrorCode::NoSuchSnapshot, "No such snapshot %v", snapshotId);
-        }
-
-        return CreateLocalSnapshotReader(
-            GetSnapshotPath(snapshotId),
-            snapshotId);
-    }
-
-    ISnapshotReaderPtr CreateRawReader(int snapshotId, i64 offset) override
-    {
-        return New<TRawLocalSnapshotReader>(
-            GetSnapshotPath(snapshotId),
-            snapshotId,
-            offset);
-    }
-
-    ISnapshotWriterPtr CreateWriter(int snapshotId, const TSnapshotMeta& meta) override
-    {
-        return DoCreateWriter(
-            snapshotId,
-            GetSnapshotPath(snapshotId),
-            Config_->Codec,
-            snapshotId,
-            meta,
-            /*raw*/ false);
-    }
-
-    ISnapshotWriterPtr CreateRawWriter(int snapshotId) override
-    {
-        return DoCreateWriter(
-            snapshotId,
-            GetSnapshotPath(snapshotId),
-            Config_->Codec,
-            snapshotId,
-            TSnapshotMeta(),
-            /*raw*/ true);
-    }
-
-private:
-    const TLocalSnapshotStoreConfigPtr Config_;
-    const NLogging::TLogger Logger;
-
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
-    std::set<int> RegisteredSnapshotIds_;
-    THashMap<int, TWeakPtr<TLocalSnapshotWriter>> SnapshotIdToWriter_;
-
-
-    TString GetSnapshotPath(int snapshotId)
-    {
-        return NFS::CombinePaths(
-            Config_->Path,
-            Format("%09d.%v", snapshotId, SnapshotExtension));
-    }
-
-    bool CheckSnapshotExists(int snapshotId)
-    {
-        if (NFS::Exists(GetSnapshotPath(snapshotId))) {
-            return true;
-        }
-
-        {
-            auto guard = Guard(SpinLock_);
-            if (RegisteredSnapshotIds_.erase(snapshotId) == 1) {
-                YT_LOG_WARNING("Erased orphaned snapshot from store (SnapshotId: %v)",
-                    snapshotId);
-            }
-        }
-
-        return false;
     }
 
     template <class... TArgs>
@@ -624,7 +651,7 @@ private:
             ++it;
         }
 
-        auto writer = New<TLocalSnapshotWriter>(std::forward<TArgs>(args)...);
+        auto writer = New<TLocalSnapshotWriter>(std::forward<TArgs>(args)..., IOInvoker_);
         writer->SubscribeClosed(BIND(
             &TLocalSystemSnapshotStore::OnWriterClosed,
             MakeWeak(this),
@@ -659,10 +686,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ILegacySnapshotStorePtr CreateLocalSnapshotStore(
-    TLocalSnapshotStoreConfigPtr config)
+TFuture<ILegacySnapshotStorePtr> CreateLocalSnapshotStore(
+    TLocalSnapshotStoreConfigPtr config,
+    IInvokerPtr ioInvoker)
 {
-    return New<TLocalSystemSnapshotStore>(std::move(config));
+    auto store = New<TLocalSystemSnapshotStore>(
+        std::move(config),
+        std::move(ioInvoker));
+    return store->Initialize()
+        .Apply(BIND([=] () -> ILegacySnapshotStorePtr { return store; }));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -673,23 +705,25 @@ class TUncompressedHeaderlessLocalSnapshotReader
 public:
     TUncompressedHeaderlessLocalSnapshotReader(
         TString fileName,
-        NProto::TSnapshotMeta meta)
+        NProto::TSnapshotMeta meta,
+        IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
         , Meta_(std::move(meta))
+        , IOInvoker_(std::move(ioInvoker))
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
     { }
 
     TFuture<void> Open() override
     {
         return BIND(&TUncompressedHeaderlessLocalSnapshotReader::DoOpen, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run();
     }
 
     TFuture<TSharedRef> Read() override
     {
         return BIND(&TUncompressedHeaderlessLocalSnapshotReader::DoRead, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run();
     }
 
@@ -701,6 +735,7 @@ public:
 private:
     const TString FileName_;
     const NProto::TSnapshotMeta Meta_;
+    const IInvokerPtr IOInvoker_;
     const NLogging::TLogger Logger;
 
     std::unique_ptr<TFile> File_;
@@ -743,11 +778,13 @@ private:
 
 ISnapshotReaderPtr CreateUncompressedHeaderlessLocalSnapshotReader(
     TString fileName,
-    NProto::TSnapshotMeta meta)
+    NProto::TSnapshotMeta meta,
+    IInvokerPtr ioInvoker)
 {
     return New<TUncompressedHeaderlessLocalSnapshotReader>(
         std::move(fileName),
-        std::move(meta));
+        std::move(meta),
+        std::move(ioInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -756,8 +793,11 @@ class TUncompressedHeaderlessLocalSnapshotWriter
     : public ISnapshotWriter
 {
 public:
-    explicit TUncompressedHeaderlessLocalSnapshotWriter(TString fileName)
+    TUncompressedHeaderlessLocalSnapshotWriter(
+        TString fileName,
+        IInvokerPtr ioInvoker)
         : FileName_(std::move(fileName))
+        , IOInvoker_(std::move(ioInvoker))
         , Logger(HydraLogger.WithTag("Path: %v", FileName_))
     { }
 
@@ -780,21 +820,21 @@ public:
     TFuture<void> Open() override
     {
         return BIND(&TUncompressedHeaderlessLocalSnapshotWriter::DoOpen, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run();
     }
 
     TFuture<void> Write(const TSharedRef& buffer) override
     {
         return BIND(&TUncompressedHeaderlessLocalSnapshotWriter::DoWrite, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run(buffer);
     }
 
     TFuture<void> Close() override
     {
         return BIND(&TUncompressedHeaderlessLocalSnapshotWriter::DoClose, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(IOInvoker_)
             .Run();
     }
 
@@ -808,6 +848,7 @@ public:
 
 private:
     const TString FileName_;
+    const IInvokerPtr IOInvoker_;
     const NLogging::TLogger Logger;
 
     bool IsOpened_ = false;
@@ -874,10 +915,12 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 ISnapshotWriterPtr CreateUncompressedHeaderlessLocalSnapshotWriter(
-    TString fileName)
+    TString fileName,
+    IInvokerPtr ioInvoker)
 {
     return New<TUncompressedHeaderlessLocalSnapshotWriter>(
-        std::move(fileName));
+        std::move(fileName),
+        std::move(ioInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

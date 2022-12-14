@@ -177,11 +177,11 @@ public:
 
         electionManagerThunk->SetUnderlying(ElectionManager_);
 
-        LocalJanitor_ = New<TLocalHydraJanitor>(
+        LocalJanitor_ = CreateLocalHydraJanitor(
             Config_->Snapshots->Path,
             Config_->Changelogs->Path,
             Config_->HydraManager,
-            GetHydraIOInvoker());
+            Bootstrap_->GetSnapshotIOInvoker());
     }
 
     void Initialize() override
@@ -321,7 +321,7 @@ private:
 
     IResponseKeeperPtr ResponseKeeper_;
 
-    TLocalHydraJanitorPtr LocalJanitor_;
+    ILocalHydraJanitorPtr LocalJanitor_;
 
     TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> GuardedInvokers_;
     TEnumIndexedVector<EAutomatonThreadQueue, IInvokerPtr> EpochInvokers_;

@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 
+#include <yt/yt/core/concurrency/action_queue.h>
+
 #include <util/stream/file.h>
 
 namespace NYT::NHydra::NTools::NUnpackLocalSnapshot {
@@ -34,7 +36,10 @@ private:
 
     void DoRun(const NLastGetopt::TOptsParseResult& /*parseResult*/) override
     {
-        auto reader = CreateLocalSnapshotReader(InputFile_, InvalidSegmentId);
+        auto snapshotIOQueue = New<TActionQueue>("SnapshotIO");
+        auto snapshotIOInvoker = snapshotIOQueue->GetInvoker();
+
+        auto reader = CreateLocalSnapshotReader(InputFile_, InvalidSegmentId, snapshotIOInvoker);
 
         WaitFor(reader->Open())
             .ThrowOnError();
