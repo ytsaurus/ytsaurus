@@ -151,6 +151,15 @@
             "resolver_max_profiles" = 10;
         };
         {
+            "cluster" = "vanga";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "period" = 300000000000;
+            "probability" = 0.6;
+            "resolver_min_profiles" = 3;
+            "resolver_max_profiles" = 10;
+        };
+        {
             "cluster" = "none";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
