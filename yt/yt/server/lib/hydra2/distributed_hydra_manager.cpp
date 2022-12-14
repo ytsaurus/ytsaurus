@@ -1241,7 +1241,7 @@ private:
             startSequenceNumber,
             request->Attachments());
 
-        if (controlState == EPeerState::Following) {
+        if (controlState == EPeerState::Following || epochContext->CatchingUp) {
             epochContext->FollowerCommitter->LogMutations();
             CommitMutationsAtFollower(committedSequenceNumber);
         }
@@ -2225,10 +2225,9 @@ private:
             WaitFor(epochContext->Recovery->Run())
                 .ThrowOnError();
 
-            YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
-            ControlState_ = EPeerState::Following;
-
             YT_LOG_INFO("Waiting for follower to catch up");
+
+            epochContext->CatchingUp = true;
 
             auto followerCommitter = epochContext->FollowerCommitter;
             YT_VERIFY(followerCommitter);
@@ -2236,7 +2235,12 @@ private:
             WaitFor(followerCommitter->GetCatchUpFuture())
                 .ThrowOnError();
 
+            // Do not discard CatchingUp.
+
             YT_LOG_INFO("Follower caught up");
+
+            YT_VERIFY(ControlState_ == EPeerState::FollowerRecovery);
+            ControlState_ = EPeerState::Following;
 
             ControlFollowerRecoveryComplete_.Fire();
 
