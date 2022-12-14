@@ -2,7 +2,7 @@
 from __future__ import print_function
 
 from .conftest import authors
-from .helpers import set_config_option
+from .helpers import set_config_option, yatest_common
 
 from yt.common import update, YtResponseError
 from yt.wrapper.driver import make_request, get_api_version
@@ -131,6 +131,9 @@ class TestParseYpath(object):
     @authors("ostyakov")
     @flaky(max_runs=5)
     def test_speed(self):
+        if yatest_common.context.sanitize == "address":
+            pytest.skip("speed tests disabled under asan")
+
         start_time = time.time()
         for _ in xrange(50):
             for path in TEST_PATHS:
