@@ -49,6 +49,7 @@ public:
     const THydraFacadePtr& GetHydraFacade() const;
 
     const IInvokerPtr& GetControlInvoker() const;
+    const IInvokerPtr& GetSnapshotIOInvoker() const;
 
     void Initialize();
     void Run();
@@ -71,6 +72,7 @@ private:
     NTransactionClient::ITimestampProviderPtr TimestampProvider_;
     THydraFacadePtr HydraFacade_;
     NConcurrency::TActionQueuePtr ControlQueue_;
+    NConcurrency::TActionQueuePtr SnapshotIOQueue_;
     ICoreDumperPtr CoreDumper_;
 
     void DoInitialize();

@@ -1194,7 +1194,13 @@ private:
 
     void DoValidateSnapshot(const TString& fileName)
     {
-        auto reader = CreateUncompressedHeaderlessLocalSnapshotReader(fileName, /*meta*/ {});
+        auto snapshotIOQueue = New<TActionQueue>();
+        auto snapshotIOInvoker = snapshotIOQueue->GetInvoker();
+
+        auto reader = CreateUncompressedHeaderlessLocalSnapshotReader(
+            fileName,
+            /*meta*/ {},
+            snapshotIOInvoker);
 
         ValidateTabletCellSnapshot(this, reader);
     }

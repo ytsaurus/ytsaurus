@@ -19,19 +19,24 @@ struct ILegacySnapshotStore
 DEFINE_REFCOUNTED_TYPE(ILegacySnapshotStore)
 
 // COMPAT(shakurov): change return type to ISnapshotStorePtr after removing old Hydra.
-ILegacySnapshotStorePtr CreateLocalSnapshotStore(TLocalSnapshotStoreConfigPtr config);
+TFuture<ILegacySnapshotStorePtr> CreateLocalSnapshotStore(
+    TLocalSnapshotStoreConfigPtr config,
+    IInvokerPtr ioInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 ISnapshotReaderPtr CreateUncompressedHeaderlessLocalSnapshotReader(
     TString fileName,
-    NProto::TSnapshotMeta meta);
+    NProto::TSnapshotMeta meta,
+    IInvokerPtr ioInvoker);
 ISnapshotReaderPtr CreateLocalSnapshotReader(
     TString fileName,
-    int snapshotId);
+    int snapshotId,
+    IInvokerPtr ioInvoker);
 
 ISnapshotWriterPtr CreateUncompressedHeaderlessLocalSnapshotWriter(
-    TString fileName);
+    TString fileName,
+    IInvokerPtr ioInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

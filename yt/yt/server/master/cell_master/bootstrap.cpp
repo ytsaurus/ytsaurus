@@ -502,6 +502,11 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue_->GetInvoker();
 }
 
+const IInvokerPtr& TBootstrap::GetSnapshotIOInvoker() const
+{
+    return SnapshotIOQueue_->GetInvoker();
+}
+
 const INodeChannelFactoryPtr& TBootstrap::GetNodeChannelFactory() const
 {
     return NodeChannelFactory_;
@@ -549,6 +554,7 @@ NDistributedThrottler::IDistributedThrottlerFactoryPtr TBootstrap::CreateDistrib
 void TBootstrap::Initialize()
 {
     ControlQueue_ = New<TActionQueue>("Control");
+    SnapshotIOQueue_ = New<TActionQueue>("SnapshotIO");
 
     BIND(&TBootstrap::DoInitialize, this)
         .AsyncVia(GetControlInvoker())
@@ -748,7 +754,11 @@ void TBootstrap::DoInitialize()
         "ChangelogFlush",
         NProfiling::TProfiler("/changelogs"));
 
-    auto snapshotStore = CreateLocalSnapshotStore(Config_->Snapshots);
+    auto snapshotStoreFuture = CreateLocalSnapshotStore(
+        Config_->Snapshots,
+        GetSnapshotIOInvoker());
+    auto snapshotStore = WaitFor(snapshotStoreFuture)
+        .ValueOrThrow();
     SnapshotStore_ = snapshotStore;
 
     HydraFacade_ = CreateHydraFacade(this);
@@ -1129,7 +1139,10 @@ void TBootstrap::DoLoadSnapshot(
     bool enableTotalWriteCountReport,
     const TSerializationDumperConfigPtr& dumpConfig)
 {
-    auto reader = CreateLocalSnapshotReader(fileName, InvalidSegmentId);
+    auto reader = CreateLocalSnapshotReader(
+        fileName,
+        InvalidSegmentId,
+        GetSnapshotIOInvoker());
     auto automaton = HydraFacade_->GetAutomaton();
     ValidateSnapshot(
         automaton,

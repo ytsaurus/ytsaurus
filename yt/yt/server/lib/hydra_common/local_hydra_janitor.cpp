@@ -4,7 +4,6 @@
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/file_helpers.h>
 #include <yt/yt/server/lib/hydra_common/hydra_janitor_helpers.h>
-#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/core/misc/fs.h>
 
@@ -20,25 +19,25 @@ static const auto& Logger = HydraLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLocalHydraJanitor::TImpl
-    : public TRefCounted
+class TLocalHydraJanitor
+    : public ILocalHydraJanitor
 {
 public:
-    TImpl(
+    TLocalHydraJanitor(
         TString snapshotPath,
         TString changelogPath,
         TLocalHydraJanitorConfigPtr config,
-        IInvokerPtr invoker)
+        IInvokerPtr ioInvoker)
         : SnapshotPath_(std::move(snapshotPath))
         , ChangelogPath_(std::move(changelogPath))
         , Config_(std::move(config))
         , PeriodicExecutor_(New<TPeriodicExecutor>(
-            std::move(invoker),
-            BIND(&TImpl::OnCleanup, MakeWeak(this)),
+            std::move(ioInvoker),
+            BIND(&TLocalHydraJanitor::OnCleanup, MakeWeak(this)),
             Config_->CleanupPeriod))
     { }
 
-    void Start()
+    void Start() override
     {
         PeriodicExecutor_->Start();
     }
@@ -134,24 +133,17 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TLocalHydraJanitor::TLocalHydraJanitor(
+ILocalHydraJanitorPtr CreateLocalHydraJanitor(
     TString snapshotPath,
     TString changelogPath,
     TLocalHydraJanitorConfigPtr config,
-    IInvokerPtr invoker)
-    : Impl_(New<TImpl>(
+    IInvokerPtr ioInvoker)
+{
+    return New<TLocalHydraJanitor>(
         std::move(snapshotPath),
         std::move(changelogPath),
         std::move(config),
-        std::move(invoker)))
-{ }
-
-TLocalHydraJanitor::~TLocalHydraJanitor()
-{ }
-
-void TLocalHydraJanitor::Start()
-{
-    Impl_->Start();
+        std::move(ioInvoker));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

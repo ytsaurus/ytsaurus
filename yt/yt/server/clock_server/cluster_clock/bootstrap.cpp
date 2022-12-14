@@ -148,9 +148,15 @@ const IInvokerPtr& TBootstrap::GetControlInvoker() const
     return ControlQueue_->GetInvoker();
 }
 
+const IInvokerPtr& TBootstrap::GetSnapshotIOInvoker() const
+{
+    return SnapshotIOQueue_->GetInvoker();
+}
+
 void TBootstrap::Initialize()
 {
     ControlQueue_ = New<TActionQueue>("Control");
+    SnapshotIOQueue_ = New<TActionQueue>("SnapshotIO");
 
     BIND(&TBootstrap::DoInitialize, this)
         .AsyncVia(GetControlInvoker())
@@ -226,7 +232,11 @@ void TBootstrap::DoInitialize()
         "ChangelogFlush",
         NProfiling::TProfiler("/changelogs"));
 
-    auto snapshotStore = CreateLocalSnapshotStore(Config_->Snapshots);
+    auto snapshotStoreFuture = CreateLocalSnapshotStore(
+        Config_->Snapshots,
+        GetSnapshotIOInvoker());
+    auto snapshotStore = WaitFor(snapshotStoreFuture)
+        .ValueOrThrow();
     SnapshotStore_ = snapshotStore;
 
     HydraFacade_ = New<THydraFacade>(Config_, this);
@@ -294,7 +304,10 @@ void TBootstrap::DoRun()
 
 void TBootstrap::DoLoadSnapshot(const TString& fileName, bool dump)
 {
-    auto reader = CreateLocalSnapshotReader(fileName, InvalidSegmentId);
+    auto reader = CreateLocalSnapshotReader(
+        fileName,
+        InvalidSegmentId,
+        GetSnapshotIOInvoker());
     HydraFacade_->LoadSnapshot(reader, dump);
 }
 
