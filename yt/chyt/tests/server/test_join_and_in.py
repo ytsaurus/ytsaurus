@@ -227,7 +227,7 @@ class TestJoinAndIn(ClickHouseTestBase):
         # Small values (uncomment for debugging):
         # row_count, key_range, chunk_count = 5, 7, 2
         # Large values:
-        row_count, key_range, chunk_count = 300, 500, 15
+        row_count, key_range, chunk_count = 200, 400, 10
 
         def generate_rows(row_count, key_range, chunk_count, payload_column_name, payload_value):
             keys = [rnd.randint(0, key_range - 1) for _ in range(row_count)]
