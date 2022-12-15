@@ -12,10 +12,10 @@ namespace NYT::NJobTrackerClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// COMPAT(max42): these methods are legacy and must be removed when their last usage is removed.
 NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics);
-NChunkClient::NProto::TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics);
+std::vector<NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
 
-THashMap<int, NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics);
 THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics);
 
 // TODO(pogorelov): move to CA

@@ -283,7 +283,9 @@ protected:
         TJobFinishedResult OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary& jobSummary) override
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
-            TotalOutputRowCount_ += GetTotalOutputDataStatistics(*jobSummary.Statistics).row_count();
+            if (jobSummary.TotalOutputDataStatistics) {
+                TotalOutputRowCount_ += jobSummary.TotalOutputDataStatistics->row_count();
+            }
 
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 

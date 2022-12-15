@@ -27,9 +27,9 @@ public:
     void UpdateStatistics(const TCompletedJobSummary& summary) override
     {
         if (!summary.Abandoned) {
-            YT_VERIFY(summary.Statistics);
+            YT_VERIFY(summary.TotalInputDataStatistics);
             UpdateStatistics(
-                GetNumericValue(*summary.Statistics, "/data/input/data_weight"),
+                summary.TotalInputDataStatistics->data_weight(),
                 summary.TimeStatistics.PrepareDuration.value_or(TDuration()) - summary.TimeStatistics.ArtifactsDownloadDuration.value_or(TDuration()),
                 summary.TimeStatistics.ExecDuration.value_or(TDuration()));
         }

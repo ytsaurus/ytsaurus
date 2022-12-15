@@ -263,7 +263,7 @@ protected:
     std::unique_ptr<IJobSplitter> JobSplitter_;
 
     NChunkPools::TInputChunkMappingPtr InputChunkMapping_;
-    
+
     virtual std::optional<EScheduleJobFailReason> GetScheduleFailReason(ISchedulingContext* context);
 
     virtual void OnTaskCompleted();
@@ -277,14 +277,14 @@ protected:
 
     void DoUpdateOutputEdgesForJob(
         const TDataFlowGraph::TVertexDescriptor& vertex,
-        const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics);
+        const std::vector<NChunkClient::NProto::TDataStatistics>& dataStatistics);
 
     virtual void UpdateInputEdges(
         const NChunkClient::NProto::TDataStatistics& dataStatistics,
         const TJobletPtr& joblet);
     virtual void UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatistics& dataStatistics);
     virtual void UpdateOutputEdgesForJob(
-        const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
+        const std::vector<NChunkClient::NProto::TDataStatistics>& dataStatistics,
         const TJobletPtr& joblet);
 
     void ReinstallJob(std::function<void()> releaseOutputCookie);

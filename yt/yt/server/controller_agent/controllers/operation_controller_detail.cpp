@@ -2845,13 +2845,12 @@ void TOperationControllerBase::RemoveValueFromEstimatedHistogram(const TJobletPt
     }
 }
 
-void TOperationControllerBase::UpdateActualHistogram(const TJobletPtr& joblet)
+void TOperationControllerBase::UpdateActualHistogram(const TCompletedJobSummary& jobSummary)
 {
-    const auto& jobStatistics = *joblet->JobStatistics;
-    if (InputDataSizeHistogram_) {
-        auto dataWeight = FindNumericValue(jobStatistics, "/data/input/data_weight");
-        if (dataWeight && *dataWeight > 0) {
-            InputDataSizeHistogram_->AddValue(*dataWeight);
+    if (InputDataSizeHistogram_ && jobSummary.TotalInputDataStatistics) {
+        auto dataWeight = jobSummary.TotalInputDataStatistics->data_weight();
+        if (dataWeight > 0) {
+            InputDataSizeHistogram_->AddValue(dataWeight);
         }
     }
 }
@@ -3036,7 +3035,7 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         UpdateJobletFromSummary(*jobSummary, joblet);
 
         joblet->Task->UpdateMemoryDigests(joblet, /*resourceOverdraft*/ false);
-        UpdateActualHistogram(joblet);
+        UpdateActualHistogram(*jobSummary);
 
         if (joblet->ShouldLogFinishedEvent()) {
             LogFinishedJobFluently(ELogEventType::JobCompleted, joblet);
@@ -3058,8 +3057,8 @@ void TOperationControllerBase::OnJobCompleted(std::unique_ptr<TCompletedJobSumma
         }
 
         // We want to know row count before moving jobSummary to OnJobFinished.
-        if (RowCountLimitTableIndex) {
-            optionalRowCount = FindNumericValue(*jobSummary->Statistics, Format("/data/output/%v/row_count", *RowCountLimitTableIndex));
+        if (RowCountLimitTableIndex && jobSummary->OutputDataStatistics) {
+            optionalRowCount = VectorAtOr(*jobSummary->OutputDataStatistics, *RowCountLimitTableIndex).row_count();
         }
 
         Host->GetJobProfiler()->ProfileCompletedJob(*joblet, *jobSummary);

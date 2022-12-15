@@ -4,6 +4,8 @@ import "yt/ytlib/job_tracker_client/proto/job.proto";
 
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
+import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
+
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
@@ -46,7 +48,11 @@ message TJobStatus
     optional double progress = 6;
     optional TJobResult result = 7;
     optional NNodeTrackerClient.NProto.TNodeResources resource_usage = 8;
+
     optional bytes statistics = 9;
+    optional NYT.NChunkClient.NProto.TDataStatistics total_input_data_statistics = 20;
+    repeated NYT.NChunkClient.NProto.TDataStatistics output_data_statistics = 21;
+
     optional int64 stderr_size = 13;
 
     optional int32 interruption_reason = 18;

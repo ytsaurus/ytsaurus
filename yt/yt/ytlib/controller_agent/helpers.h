@@ -12,6 +12,7 @@ namespace NYT::NControllerAgent {
 
 bool IsFinishedState(EControllerState state);
 
+// Used in node and client.
 NYson::TYsonString BuildBriefStatistics(const NYTree::INodePtr& statistics);
 
 ////////////////////////////////////////////////////////////////////////////////

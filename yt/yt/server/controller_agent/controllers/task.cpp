@@ -36,6 +36,8 @@
 
 #include <yt/yt/core/misc/finally.h>
 
+#include <yt/yt/core/misc/collection_helpers.h>
+
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NChunkClient;
@@ -914,7 +916,7 @@ bool TTask::CanLoseJobs() const
 
 void TTask::DoUpdateOutputEdgesForJob(
     const TDataFlowGraph::TVertexDescriptor& vertex,
-    const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics)
+    const std::vector<NChunkClient::NProto::TDataStatistics>& dataStatistics)
 {
     for (int index = 0; index < std::ssize(StreamDescriptors_); ++index) {
         const auto& targetVertex = StreamDescriptors_[index]->TargetDescriptor;
@@ -923,7 +925,7 @@ void TTask::DoUpdateOutputEdgesForJob(
             TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
                 vertex,
                 targetVertex,
-                dataStatistics.Value(index, NChunkClient::NProto::TDataStatistics()));
+                VectorAtOr(dataStatistics, index));
         }
     }
 }
@@ -942,8 +944,8 @@ void TTask::UpdateOutputEdgesForTeleport(const NChunkClient::NProto::TDataStatis
 }
 
 void TTask::UpdateOutputEdgesForJob(
-        const THashMap<int, NChunkClient::NProto::TDataStatistics>& dataStatistics,
-        const TJobletPtr& joblet)
+    const std::vector<NChunkClient::NProto::TDataStatistics>& dataStatistics,
+    const TJobletPtr& joblet)
 {
     DoUpdateOutputEdgesForJob(GetVertexDescriptorForJoblet(joblet), dataStatistics);
 }
@@ -980,10 +982,10 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     const auto& statistics = *jobSummary.Statistics;
 
     if (!jobSummary.Abandoned) {
-        auto outputStatisticsMap = GetOutputDataStatistics(statistics);
+        YT_VERIFY(jobSummary.OutputDataStatistics);
+        const auto& outputDataStatistics = *jobSummary.OutputDataStatistics;
         for (int index = 0; index < static_cast<int>(joblet->ChunkListIds.size()); ++index) {
-            YT_VERIFY(outputStatisticsMap.find(index) != outputStatisticsMap.end());
-            auto outputStatistics = outputStatisticsMap[index];
+            auto outputStatistics = VectorAtOr(outputDataStatistics, index);
             if (outputStatistics.chunk_count() == 0) {
                 if (!joblet->Revived) {
                     TaskHost_->GetOutputChunkListPool()->Reinstall(joblet->ChunkListIds[index]);
@@ -991,27 +993,29 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
             if (joblet->ChunkListIds[index] && StreamDescriptors_[index]->ImmediatelyUnstageChunkLists) {
-                this->TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, false /* unstageRecursively */);
+                this->TaskHost_->ReleaseChunkTrees({joblet->ChunkListIds[index]}, /*unstageRecursively*/ false);
                 joblet->ChunkListIds[index] = NullChunkListId;
             }
         }
 
-        auto inputStatistics = GetTotalInputDataStatistics(statistics);
-        auto outputStatistics = GetTotalOutputDataStatistics(statistics);
+        YT_VERIFY(jobSummary.TotalInputDataStatistics);
+        YT_VERIFY(jobSummary.TotalOutputDataStatistics);
+        const auto& totalInputStatistics = *jobSummary.TotalInputDataStatistics;
+        const auto& totalOutputStatistics = *jobSummary.TotalOutputDataStatistics;
         // It's impossible to check row count preservation on interrupted job.
         if (TaskHost_->IsRowCountPreserved() && jobSummary.InterruptReason == EInterruptReason::None) {
-            YT_LOG_ERROR_IF(inputStatistics.row_count() != outputStatistics.row_count(),
+            YT_LOG_ERROR_IF(totalInputStatistics.row_count() != totalOutputStatistics.row_count(),
                 "Input/output row count mismatch in completed job (Input: %v, Output: %v, Task: %v)",
-                inputStatistics.row_count(),
-                outputStatistics.row_count(),
+                totalInputStatistics.row_count(),
+                totalOutputStatistics.row_count(),
                 GetTitle());
-            YT_VERIFY(inputStatistics.row_count() == outputStatistics.row_count());
+            YT_VERIFY(totalInputStatistics.row_count() == totalOutputStatistics.row_count());
         }
 
         YT_VERIFY(InputVertex_ != "");
 
-        UpdateInputEdges(inputStatistics, joblet);
-        UpdateOutputEdgesForJob(outputStatisticsMap, joblet);
+        UpdateInputEdges(totalInputStatistics, joblet);
+        UpdateOutputEdgesForJob(outputDataStatistics, joblet);
 
         TaskHost_->RegisterStderr(joblet, jobSummary);
         TaskHost_->RegisterCores(joblet, jobSummary);
@@ -1047,9 +1051,10 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
 
     UpdateMaximumUsedTmpfsSizes(statistics);
 
-    if (auto dataWeight = FindNumericValue(statistics, "/data/input/data_weight")) {
-        if (InputDataWeightHistogram_ && *dataWeight > 0) {
-            InputDataWeightHistogram_->AddValue(*dataWeight);
+    if (jobSummary.TotalInputDataStatistics) {
+        auto dataWeight = jobSummary.TotalInputDataStatistics->data_weight();
+        if (InputDataWeightHistogram_ && dataWeight > 0) {
+            InputDataWeightHistogram_->AddValue(dataWeight);
         }
     }
 
@@ -1577,7 +1582,7 @@ void TTask::OnJobResourceOverdraft(TJobletPtr joblet, const TAbortedJobSummary& 
             state.DedicatedUserJobMemoryReserveFactor = userJobMemoryReserveUpperBound;
         }
     }
-    
+
     YT_LOG_DEBUG(
         "Job was aborted with resource overdraft "
         "(HasUserJobMemoryOverdraft: %v, HasJobProxyMemoryOverdraft: %v, UserJobOverdraftStatus: %v, JobProxyOverdraftStatus: %v)",
@@ -2001,7 +2006,8 @@ std::optional<double> TTask::GetUserJobMemoryReserveFactor() const
 
 int TTask::EstimateSplitJobCount(const TCompletedJobSummary& jobSummary, const TJobletPtr& joblet)
 {
-    auto inputDataStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
+    YT_VERIFY(jobSummary.TotalInputDataStatistics);
+    const auto& inputDataStatistics = *jobSummary.TotalInputDataStatistics;
 
     // We don't estimate unread row count based on unread slices,
     // because foreign slices are not passed back to scheduler.

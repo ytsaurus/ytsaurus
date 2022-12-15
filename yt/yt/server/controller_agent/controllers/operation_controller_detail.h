@@ -1286,7 +1286,7 @@ private:
 
     void BuildAndSaveProgress();
 
-    void UpdateActualHistogram(const TJobletPtr& joblet);
+    void UpdateActualHistogram(const TCompletedJobSummary& jobSummary);
 
     void CreateOutputTables(
         const NApi::NNative::IClientPtr& client,
