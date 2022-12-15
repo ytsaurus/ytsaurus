@@ -178,8 +178,8 @@ public:
         }
 
         double execDuration = summary.TimeStatistics.ExecDuration.value_or(TDuration()).SecondsFloat();
-        YT_VERIFY(summary.Statistics);
-        i64 processedRowCount = GetNumericValue(*summary.Statistics, "/data/input/row_count");
+        YT_VERIFY(summary.TotalInputDataStatistics);
+        i64 processedRowCount = summary.TotalInputDataStatistics->row_count();
         if (unreadRowCount <= 1 || processedRowCount == 0 || execDuration == 0.0) {
             return 1;
         }
@@ -398,7 +398,11 @@ private:
             ExecDuration_ = summary.TimeStatistics.ExecDuration.value_or(TDuration());
             YT_VERIFY(summary.Statistics);
 
-            RowCount_ = FindNumericValue(*summary.Statistics, "/data/input/row_count").value_or(0);
+            if (!summary.TotalInputDataStatistics) {
+                return;
+            }
+
+            RowCount_ = summary.TotalInputDataStatistics->row_count();
             if (RowCount_ == 0) {
                 return;
             }

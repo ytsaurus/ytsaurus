@@ -16,6 +16,7 @@ DEFINE_ENUM(ESnapshotVersion,
     // 22.4 starts here
     ((BumpTo_22_4)                          (301100))
     ((ReworkJobProfilerSpec)                (301101))
+    ((PersistDataStatistics)                (301102))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

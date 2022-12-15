@@ -149,6 +149,8 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
     briefStatistics->JobProxyCpuUsage = FindNumericValue(statistics, JobProxyCpuUsagePath);
     briefStatistics->Timestamp = statistics.GetTimestamp().value_or(TInstant::Now());
 
+    // TODO(max42): this maximization logic is not correct if statistics are truncated, but let
+    // us ignore this for now.
     auto outputPipeIdleTimes = GetOutputPipeIdleTimes(statistics);
     if (!outputPipeIdleTimes.empty()) {
         briefStatistics->OutputPipeIdleTime = 0;
@@ -158,12 +160,11 @@ TBriefJobStatisticsPtr BuildBriefStatistics(std::unique_ptr<TJobSummary> jobSumm
         }
     }
 
-    // TODO(max42): GetTotalOutputDataStatistics is implemented very inefficiently (it creates THashMap containing
-    // output data statistics per output table and then aggregates them). Rewrite it without any new allocations.
-    auto outputDataStatistics = GetTotalOutputDataStatistics(statistics);
-    briefStatistics->ProcessedOutputUncompressedDataSize = outputDataStatistics.uncompressed_data_size();
-    briefStatistics->ProcessedOutputCompressedDataSize = outputDataStatistics.compressed_data_size();
-    briefStatistics->ProcessedOutputRowCount = outputDataStatistics.row_count();
+    YT_VERIFY(jobSummary->TotalOutputDataStatistics);
+    const auto& totalOutputDataStatistics = *jobSummary->TotalOutputDataStatistics;
+    briefStatistics->ProcessedOutputUncompressedDataSize = totalOutputDataStatistics.uncompressed_data_size();
+    briefStatistics->ProcessedOutputCompressedDataSize = totalOutputDataStatistics.compressed_data_size();
+    briefStatistics->ProcessedOutputRowCount = totalOutputDataStatistics.row_count();
 
     return briefStatistics;
 }
@@ -188,7 +189,7 @@ void UpdateJobletFromSummary(
     // Update controller statistics.
 
     auto controllerStatistics = std::make_shared<TStatistics>();
-    
+
     auto endTime = std::max(
         jobSummary.FinishTime.value_or(TInstant::Now()),
         joblet->LastUpdateTime);

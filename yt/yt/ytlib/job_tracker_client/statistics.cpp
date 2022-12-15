@@ -5,6 +5,7 @@
 #include <yt/yt/client/chunk_client/data_statistics.h>
 
 #include <yt/yt/core/misc/statistics.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <util/string/util.h>
 
@@ -30,9 +31,9 @@ TDataStatistics GetTotalInputDataStatistics(const TStatistics& jobStatistics)
     return result;
 }
 
-THashMap<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
+std::vector<TDataStatistics> GetOutputDataStatistics(const TStatistics& jobStatistics)
 {
-    THashMap<int, TDataStatistics> result;
+    std::vector<TDataStatistics> result;
     for (const auto& [path, summary] : jobStatistics.GetRangeByPrefix(OutputPrefix)) {
         TStringBuf currentPath(path.begin() + OutputPrefix.size() + 1, path.end());
         size_t slashPos = currentPath.find("/");
@@ -41,6 +42,7 @@ THashMap<int, TDataStatistics> GetOutputDataStatistics(const TStatistics& jobSta
             continue;
         }
         int tableIndex = a2i(TString(currentPath.substr(0, slashPos)));
+        EnsureVectorIndex(result, tableIndex);
         SetDataStatisticsField(result[tableIndex], currentPath.substr(slashPos + 1), summary.GetSum());
     }
 
@@ -62,15 +64,6 @@ THashMap<int, i64> GetOutputPipeIdleTimes(const TStatistics& jobStatistics)
 
     return result;
 };
-
-TDataStatistics GetTotalOutputDataStatistics(const TStatistics& jobStatistics)
-{
-    TDataStatistics result;
-    for (const auto& [_, statistics] : GetOutputDataStatistics(jobStatistics)) {
-        result += statistics;
-    }
-    return result;
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

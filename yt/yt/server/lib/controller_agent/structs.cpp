@@ -9,6 +9,10 @@
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
+#include <yt/yt/ytlib/job_tracker_client/statistics.h>
+
+#include <yt/yt/client/chunk_client/data_statistics.h>
+
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <library/cpp/yt/misc/variant.h>
@@ -21,6 +25,7 @@ using namespace NScheduler;
 using namespace NYson;
 using namespace NYTree;
 using namespace NLogging;
+using namespace NJobTrackerClient;
 
 using NYT::FromProto;
 using NYT::ToProto;
@@ -87,6 +92,15 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
         *mutableStatistics = ConvertTo<TStatistics>(TYsonStringBuf(status->statistics()));
         Statistics = std::move(mutableStatistics);
     }
+
+    if (status->has_total_input_data_statistics()) {
+        TotalInputDataStatistics = FromProto<NChunkClient::NProto::TDataStatistics>(status->total_input_data_statistics());
+        OutputDataStatistics = FromProto<std::vector<NChunkClient::NProto::TDataStatistics>>(status->output_data_statistics());
+    } else {
+        // COMPAT(max42): remove this when all nodes are 22.4+.
+        FillDataStatisticsFromStatistics();
+    }
+
     if (status->has_phase()) {
         Phase = CheckedEnumCast<EJobPhase>(status->phase());
     }
@@ -113,6 +127,12 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     Persist(context, ReleaseFlags);
     Persist(context, Phase);
     Persist(context, TimeStatistics);
+
+    if (context.GetVersion() >= ESnapshotVersion::PersistDataStatistics) {
+        Persist(context, TotalInputDataStatistics);
+        Persist(context, OutputDataStatistics);
+        Persist(context, TotalOutputDataStatistics);
+    }
 }
 
 NProto::TJobResult& TJobSummary::GetJobResult()
@@ -147,6 +167,21 @@ const TSchedulerJobResultExt* TJobSummary::FindSchedulerJobResult() const
     return Result->HasExtension(TSchedulerJobResultExt::job_result_ext)
         ? &Result->GetExtension(TSchedulerJobResultExt::job_result_ext)
         : nullptr;
+}
+
+void TJobSummary::FillDataStatisticsFromStatistics()
+{
+    if (!Statistics) {
+        return;
+    }
+
+    TotalInputDataStatistics = GetTotalInputDataStatistics(*Statistics);
+    OutputDataStatistics = GetOutputDataStatistics(*Statistics);
+
+    TotalOutputDataStatistics.emplace();
+    for (const auto& statistics : *OutputDataStatistics) {
+        *TotalOutputDataStatistics += statistics;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

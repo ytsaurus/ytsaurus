@@ -52,6 +52,7 @@
 #include <yt/yt/core/concurrency/periodic_yielder.h>
 
 #include <yt/yt/core/misc/numeric_helpers.h>
+#include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/logging/serializable_logger.h>
 
@@ -1201,7 +1202,7 @@ protected:
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
             if (IsFinalSort_) {
-                Controller_->AccountRows(*jobSummary.Statistics);
+                Controller_->AccountRows(jobSummary);
 
                 RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
             } else {
@@ -1435,14 +1436,14 @@ protected:
         {
             auto result = TSortTaskBase::OnJobCompleted(joblet, jobSummary);
 
-            // TODO(gritukan): It seems to be the easiest way to distgunish data sent from partition task
+            // TODO(gritukan): It seems to be the easiest way to distinguish data sent from partition task
             // to intermediate sort and to final sort. Do it more generic way.
             if (!jobSummary.Abandoned) {
-                auto totalInputStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
+                YT_VERIFY(jobSummary.TotalInputDataStatistics);
                 TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
                     Controller_->GetFinalPartitionTask()->GetVertexDescriptor(),
                     GetVertexDescriptor(),
-                    totalInputStatistics);
+                    *jobSummary.TotalInputDataStatistics);
             }
 
             if (!IsFinalSort_) {
@@ -1680,14 +1681,10 @@ protected:
             for (const auto& jobOutput : JobOutputs_[partitionIndex]) {
                 YT_VERIFY(jobOutput.JobSummary.Statistics);
                 auto tableIndex = Controller_->GetRowCountLimitTableIndex();
-                if (tableIndex) {
-                    auto optionalCount = FindNumericValue(
-                        *jobOutput.JobSummary.Statistics,
-                        Format("/data/output/%v/row_count", *tableIndex));
-                    if (optionalCount) {
-                        // We have to unregister registered output rows.
-                        Controller_->RegisterOutputRows(-(*optionalCount), *tableIndex);
-                    }
+                if (tableIndex && jobOutput.JobSummary.OutputDataStatistics) {
+                    auto count = VectorAtOr(*jobOutput.JobSummary.OutputDataStatistics, *tableIndex).row_count();
+                    // We have to unregister registered output rows.
+                    Controller_->RegisterOutputRows(-count, *tableIndex);
                 }
             }
             JobOutputs_[partitionIndex].clear();
@@ -1784,6 +1781,9 @@ protected:
             {
                 using NYT::Persist;
 
+                // TODO(max42): this place seems to be the only occurrence of job summary persistence.
+                // Do we really need this?
+
                 Persist(context, Joblet);
                 Persist(context, JobSummary);
             }
@@ -1796,7 +1796,7 @@ protected:
         {
             for (auto& jobOutputs : JobOutputs_) {
                 for (auto& jobOutput : jobOutputs) {
-                    Controller_->AccountRows(*jobOutput.JobSummary.Statistics);
+                    Controller_->AccountRows(jobOutput.JobSummary);
                     RegisterOutput(jobOutput.JobSummary, jobOutput.Joblet->ChunkListIds, jobOutput.Joblet);
                 }
             }
@@ -2003,17 +2003,17 @@ protected:
         {
             auto result = TTask::OnJobCompleted(joblet, jobSummary);
 
-            Controller_->AccountRows(*jobSummary.Statistics);
+            Controller_->AccountRows(jobSummary);
             RegisterOutput(jobSummary, joblet->ChunkListIds, joblet);
 
-            // TODO(gritukan): It seems to be the easiest way to distgunish data sent from partition task
+            // TODO(gritukan): It seems to be the easiest way to distinguish data sent from partition task
             // to intermediate sort and to final sort. Do it more generic way.
             if (!jobSummary.Abandoned) {
-                auto totalInputStatistics = GetTotalInputDataStatistics(*jobSummary.Statistics);
+                YT_VERIFY(jobSummary.TotalInputDataStatistics);
                 TaskHost_->GetDataFlowGraph()->UpdateEdgeJobDataStatistics(
                     Controller_->GetFinalPartitionTask()->GetVertexDescriptor(),
                     GetVertexDescriptor(),
-                    totalInputStatistics);
+                    *jobSummary.TotalInputDataStatistics);
             }
 
             return result;
@@ -2977,10 +2977,10 @@ protected:
         }
     }
 
-    void AccountRows(const std::optional<TStatistics>& statistics)
+        void AccountRows(const TCompletedJobSummary& jobSummary)
     {
-        YT_VERIFY(statistics);
-        TotalOutputRowCount += GetTotalOutputDataStatistics(*statistics).row_count();
+        YT_VERIFY(jobSummary.TotalOutputDataStatistics);
+        TotalOutputRowCount += jobSummary.TotalOutputDataStatistics->row_count();
     }
 
     void ValidateMergeDataSliceLimit()

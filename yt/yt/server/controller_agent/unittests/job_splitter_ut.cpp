@@ -36,9 +36,9 @@ TJobSummary CreateOneRowProgressJobSummary(TJobId jobId, bool isSlow = false)
     TJobSummary jobSummary;
     jobSummary.Id = jobId;
     jobSummary.TimeStatistics.ExecDuration = TDuration::Seconds(isSlow ? 100 : 1);
-    auto statistics = std::make_shared<TStatistics>();
-    statistics->AddSample("/data/input/row_count", 1);
-    jobSummary.Statistics = std::move(statistics);
+    jobSummary.Statistics = std::make_shared<TStatistics>();
+    auto& inputDataStatistics = jobSummary.TotalInputDataStatistics.emplace();
+    inputDataStatistics.set_row_count(1);
     return jobSummary;
 }
 
@@ -48,9 +48,9 @@ TJobSummary CreateNoProgressJobSummary(TJobId jobId)
     jobSummary.Id = jobId;
     jobSummary.TimeStatistics.PrepareDuration = TDuration::Seconds(100);
     jobSummary.TimeStatistics.ExecDuration = TDuration::Seconds(0);
-    auto statistics = std::make_shared<TStatistics>();
-    statistics->AddSample("/data/input/row_count", 0);
-    jobSummary.Statistics = std::move(statistics);
+    jobSummary.Statistics = std::make_shared<TStatistics>();
+    auto& inputDataStatistics = jobSummary.TotalInputDataStatistics.emplace();
+    inputDataStatistics.set_row_count(0);
     return jobSummary;
 }
 

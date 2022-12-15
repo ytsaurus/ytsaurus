@@ -13,6 +13,8 @@
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
+#include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/core/misc/phoenix.h>
@@ -46,6 +48,9 @@ struct TJobSummary
     //! result extension is missing.
     const NScheduler::NProto::TSchedulerJobResultExt* FindSchedulerJobResult() const;
 
+    // COMPAT(max42): remove this when data statistics are always sent separately from the rest of statistics.
+    void FillDataStatisticsFromStatistics();
+
     // NB: may be nullopt or may miss scheduler job result extension while job
     // result is being combined from scheduler and node parts.
     // Prefer using GetJobResult() and GetSchedulerJobResult() helpers.
@@ -61,6 +66,13 @@ struct TJobSummary
     //! Statistics produced by job and node. May be absent for running job events,
     //! always present for aborted/failed/completed job summaries.
     std::shared_ptr<const TStatistics> Statistics;
+
+    //! Total input data statistics. May be absent for running job summary.
+    std::optional<NChunkClient::NProto::TDataStatistics> TotalInputDataStatistics;
+    //! Per-table output data statistics. May be absent for running job summary or for abandoned completed job summary.
+    std::optional<std::vector<NChunkClient::NProto::TDataStatistics>> OutputDataStatistics;
+    //! Total output data statistics. May be absent for running job summary or for abandoned completed job summary.
+    std::optional<NChunkClient::NProto::TDataStatistics> TotalOutputDataStatistics;
 
     NJobTrackerClient::TReleaseJobFlags ReleaseFlags;
 
