@@ -447,7 +447,7 @@ TCpuAccounting::TStatistics& operator-=(TCpuAccounting::TStatistics& lhs, const 
     XX(SystemUsageTime)
     XX(WaitTime)
     XX(ThrottledTime)
-    XX(ContextSwitches)
+    XX(ContextSwitchesDiff)
     XX(PeakThreadCount)
     #undef XX
     return lhs;
@@ -523,7 +523,7 @@ void Serialize(const TCpuAccounting::TStatistics& statistics, NYson::IYsonConsum
     AddMapItem(consumer, "system", statistics.SystemUsageTime, TDuration::Zero());
     AddMapItem(consumer, "wait", statistics.WaitTime, TDuration::Zero());
     AddMapItem(consumer, "throttled", statistics.ThrottledTime, TDuration::Zero());
-    AddMapItem(consumer, "context_switches", statistics.ContextSwitches, 0UL);
+    AddMapItem(consumer, "context_switches", statistics.ContextSwitchesDiff, 0UL);
     AddMapItem(consumer, "peak_thread_count", statistics.PeakThreadCount, 0UL);
     consumer->OnEndMap();
 }

@@ -401,7 +401,7 @@ public:
             if (auto it = NDetail::PortoStatRules.find(field)) {
                 const auto& rule = it->second;
                 properties.push_back(rule.first);
-            } else if (field == EStatField::ContextSwitches) {
+            } else if (field == EStatField::ContextSwitchesDiff || field == EStatField::ContextSwitches) {
                 contextSwitchesRequested = true;
             } else if (field == EStatField::CpuUserUsage) {
                 userTimeRequested = true;
@@ -456,6 +456,7 @@ public:
         auto metricMap = WaitFor(Executor_->GetContainerMetrics(subcontainers, "ctxsw"))
             .ValueOrThrow();
 
+        // TODO(don-dron): remove diff calculation from GetResourceUsage, because GetResourceUsage must return only snapshot stat.
         {
             auto guard = Guard(ContextSwitchMapLock_);
 
@@ -466,14 +467,24 @@ public:
             }
 
             if (contextSwitchesRequested) {
-                result[EStatField::ContextSwitches] = TotalContextSwitches_;
+                result[EStatField::ContextSwitchesDiff] = TotalContextSwitches_;
+            }
+        }
+
+        if (contextSwitchesRequested) {
+            ui64 totalContextSwitches = 0;
+
+            for (const auto& [container, newValue] : metricMap) {
+                totalContextSwitches += std::max<ui64>(0UL, newValue);
             }
 
-            if (userTimeRequested) {
-                result[EStatField::CpuUserUsage] = СalculateCpuUserUsage(
-                    result[EStatField::CpuUsage],
-                    result[EStatField::CpuSystemUsage]);
-            }
+            result[EStatField::ContextSwitches] = totalContextSwitches;
+        }
+
+        if (userTimeRequested) {
+            result[EStatField::CpuUserUsage] = СalculateCpuUserUsage(
+                result[EStatField::CpuUsage],
+                result[EStatField::CpuSystemUsage]);
         }
 
         return result;

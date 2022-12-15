@@ -124,6 +124,7 @@ public:
 
         TErrorOr<ui64> ThreadCount;
         TErrorOr<ui64> ContextSwitches;
+        TErrorOr<ui64> ContextSwitchesDiff;
         TErrorOr<ui64> PeakThreadCount;
 
         TErrorOr<TDuration> LimitTime;
