@@ -507,7 +507,7 @@ void TBundleState::InitializeProfilingCounters(const TTablePtr& table)
         .WithTag("table", table->Path);
 
     profilingCounters.InMemoryMoves = profiler.Counter("/tablet_balancer/in_memory_moves");
-    profilingCounters.OrdinaryMoves = profiler.Counter("/tablet_balancer/ext_memory_moves");
+    profilingCounters.OrdinaryMoves = profiler.Counter("/tablet_balancer/ordinary_moves");
     profilingCounters.TabletMerges = profiler.Counter("/tablet_balancer/tablet_merges");
     profilingCounters.TabletSplits = profiler.Counter("/tablet_balancer/tablet_splits");
     profilingCounters.NonTrivialReshards = profiler.Counter("/tablet_balancer/non_trivial_reshards");
