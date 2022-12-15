@@ -459,6 +459,26 @@ class TestRuntimeParameters(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_limits/cpu") == 0.5)
         wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="other") + "/resource_usage/cpu") == 0.5)
 
+    @authors("renadeen")
+    def test_scheduling_options_priority(self):
+        create_custom_pool_tree_with_one_node("other")
+        op = run_sleeping_vanilla(
+            spec={
+                "pool": "pool1",
+                "weight": 2,
+                "scheduling_options_per_pool_tree": {
+                    "default": {
+                        "pool": "pool2",
+                        "weight": 3,
+                    },
+                },
+            },
+        )
+
+        wait(lambda: exists(scheduler_orchid_operation_path(op.id, tree="default")))
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/pool") == "pool2")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id, tree="default") + "/weight") == 3.0)
+
     @authors("dakovalkov")
     def test_acl_change(self):
         create_user("u1")
