@@ -92,6 +92,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
         .ThrottledTime = ExtractDuration(throttledNs),
         .ThreadCount = GetFieldOrError(resourceUsage, EStatField::ThreadCount),
         .ContextSwitches = GetFieldOrError(resourceUsage, EStatField::ContextSwitches),
+        .ContextSwitchesDiff = GetFieldOrError(resourceUsage, EStatField::ContextSwitchesDiff),
         .PeakThreadCount = PeakThreadCount_,
         .LimitTime = ExtractDuration(limitTimeNs),
         .GuaranteeTime = ExtractDuration(guaranteeTimeNs),
@@ -270,6 +271,8 @@ static bool IsCumulativeStatistics(EStatField statistic)
         statistic == EStatField::CpuSystemUsage ||
         statistic == EStatField::CpuWait ||
         statistic == EStatField::CpuThrottled ||
+
+        statistic == EStatField::ContextSwitches ||
 
         statistic == EStatField::MinorPageFaults ||
         statistic == EStatField::MajorPageFaults ||
