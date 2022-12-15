@@ -176,14 +176,16 @@ class TestPortoMetrics(MetricsTestBase):
             "porto/network/tx_limit"
         ]
 
-        def check_node_sensors(node, node_sensors):
+        def check_node_sensors(node, container_category, node_sensors):
             node_profiler = profiler_factory().at_proxy(node)
             for sensor_name in node_sensors:
-                sensor = node_profiler.gauge(name=sensor_name)
+                sensor = node_profiler.gauge(name=sensor_name, fixed_tags={"container_category": container_category})
                 value = sensor.get()
                 if ((value is None) or (sensor.get() < 0)) and (sensor.name not in may_be_empty):
                     print("Sensor {0} not found".format(sensor.name))
                     return False
             return True
 
-        wait(lambda: any(check_node_sensors(node, gauges) for node in proxies))
+        wait(lambda: any(check_node_sensors(node, "daemon", gauges) for node in proxies))
+        wait(lambda: any(check_node_sensors(node, "pod", gauges) for node in proxies))
+        wait(lambda: any(not check_node_sensors(node, "", gauges) for node in proxies))

@@ -27,6 +27,24 @@ static const auto& Logger = ContainersLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TPortoProfilers
+    : public TRefCounted
+{
+    TPortoResourceProfilerPtr DaemonProfiler;
+    TPortoResourceProfilerPtr ContainerProfiler;
+
+    TPortoProfilers(
+        TPortoResourceProfilerPtr daemonProfiler,
+        TPortoResourceProfilerPtr containerProfiler)
+        : DaemonProfiler(std::move(daemonProfiler))
+        , ContainerProfiler(std::move(containerProfiler))
+    { }
+};
+
+DEFINE_REFCOUNTED_TYPE(TPortoProfilers)
+
+////////////////////////////////////////////////////////////////////////////////
+
 static TErrorOr<ui64> GetFieldOrError(
     const TResourceUsage& usage,
     EStatField field)
@@ -511,6 +529,23 @@ void TPortoResourceProfiler::CollectSensors(ISensorWriter* writer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TPortoResourceProfilerPtr CreatePortoProfilerWithTags(IInstancePtr instance, const TString containerCategory)
+{
+    auto portoResourceTracker = New<TPortoResourceTracker>(
+        instance,
+        ResourceUsageUpdatePeriod,
+        true,
+        true);
+
+    return New<TPortoResourceProfiler>(
+        portoResourceTracker,
+        TProfiler("/porto")
+            .WithTag("porto_name", instance->GetName())
+            .WithTag("container_category", containerCategory));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 #endif
 
 void EnablePortoResourceTracker()
@@ -524,18 +559,16 @@ void EnablePortoResourceTracker()
             YT_LOG_ERROR(error, "Fatal error during Porto polling");
         }));
 
-        auto portoResourceTracker = New<TPortoResourceTracker>(
-            GetSelfPortoInstance(executor),
-            ResourceUsageUpdatePeriod,
-            true,
-            true
-        );
-        LeakyRefCountedSingleton<TPortoResourceProfiler>(portoResourceTracker);
+        LeakyRefCountedSingleton<TPortoProfilers>(
+            CreatePortoProfilerWithTags(GetSelfPortoInstance(executor), "daemon"),
+            CreatePortoProfilerWithTags(GetRootPortoInstance(executor), "pod"));
     } catch(const std::exception& exception) {
         YT_LOG_ERROR(exception, "Failed to enable porto profiler");
     }
 
 #endif
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NContainers

@@ -167,6 +167,24 @@ std::optional<TString> GetParentName(const TString& name)
     return name.substr(0, slashPosition);
 }
 
+std::optional<TString> GetRootName(const TString& name)
+{
+    if (name.empty()) {
+        return std::nullopt;
+    }
+
+    if (name == "/") {
+        return name;
+    }
+
+    auto slashPosition = name.find('/');
+    if (slashPosition == TString::npos) {
+        return name;
+    }
+
+    return name.substr(0, slashPosition);
+}
+
 } // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -594,6 +612,11 @@ public:
         return NDetail::GetParentName(Name_);
     }
 
+    std::optional<TString> GetRootName() const override
+    {
+        return NDetail::GetRootName(Name_);
+    }
+
     pid_t GetPid() const override
     {
         auto pid = *WaitFor(Executor_->GetContainerProperty(Name_, "root_pid"))
@@ -732,6 +755,12 @@ IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor)
 IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name)
 {
     return TPortoInstance::GetInstance(executor, name);
+}
+
+IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor)
+{
+    auto self = GetSelfPortoInstance(executor);
+    return TPortoInstance::GetInstance(executor, *self->GetRootName());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
