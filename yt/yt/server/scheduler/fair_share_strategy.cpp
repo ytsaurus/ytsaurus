@@ -626,9 +626,9 @@ public:
             auto treeParams = New<TOperationFairShareTreeRuntimeParameters>();
             auto specIt = spec->SchedulingOptionsPerPoolTree.find(poolTreeDescription.Name);
             if (specIt != spec->SchedulingOptionsPerPoolTree.end()) {
-                treeParams->Weight = spec->Weight ? spec->Weight : specIt->second->Weight;
-                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool ? spec->Pool : specIt->second->Pool, user);
-                treeParams->ResourceLimits = spec->ResourceLimits->IsNonTrivial() ? spec->ResourceLimits : specIt->second->ResourceLimits;
+                treeParams->Weight = specIt->second->Weight ? specIt->second->Weight : spec->Weight;
+                treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(specIt->second->Pool ? specIt->second->Pool : spec->Pool, user);
+                treeParams->ResourceLimits = specIt->second->ResourceLimits->IsNonTrivial() ? specIt->second->ResourceLimits : spec->ResourceLimits;
             } else {
                 treeParams->Weight = spec->Weight;
                 treeParams->Pool = GetTree(poolTreeDescription.Name)->CreatePoolName(spec->Pool, user);
