@@ -27,6 +27,7 @@ inline const TString LockFileName("lock");
 
 inline const NProfiling::TProfiler HydraProfiler("/hydra");
 
+// TODO(babenko): drop once Hydra1 is no more.
 IInvokerPtr GetHydraIOInvoker();
 
 ////////////////////////////////////////////////////////////////////////////////

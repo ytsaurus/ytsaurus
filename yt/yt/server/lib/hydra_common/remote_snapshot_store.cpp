@@ -3,7 +3,6 @@
 
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>
@@ -81,7 +80,7 @@ public:
     TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(GetCurrentInvoker())
             .Run(maxSnapshotId);
     }
 
@@ -110,14 +109,14 @@ private:
         TFuture<void> Open() override
         {
             return BIND(&TReader::DoOpen, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetCurrentInvoker())
                 .Run();
         }
 
         TFuture<TSharedRef> Read() override
         {
             return BIND(&TReader::DoRead, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetCurrentInvoker())
                 .Run();
         }
 
@@ -230,7 +229,7 @@ private:
         TFuture<void> Open() override
         {
             return BIND(&TWriter::DoOpen, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetCurrentInvoker())
                 .Run();
         }
 
@@ -244,7 +243,7 @@ private:
         TFuture<void> Close() override
         {
             return BIND(&TWriter::DoClose, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetCurrentInvoker())
                 .Run();
         }
 
