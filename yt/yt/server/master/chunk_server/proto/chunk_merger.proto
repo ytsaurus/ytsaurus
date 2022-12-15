@@ -40,6 +40,7 @@ message TReqReplaceChunks
 
     required NYT.NProto.TGuid node_id = 2;
     required NYT.NProto.TGuid chunk_list_id = 3;
+    required NYT.NProto.TGuid account_id = 4;
 }
 
 message TTraversalInfo

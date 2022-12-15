@@ -93,6 +93,7 @@ DEFINE_ENUM(EMasterReign,
     ((RecomputeAccountRefCounters)                                  (2213))  // gritukan
     ((SharedLockIsEnoughForMountConfig)                             (2214))  // ifsmirnov
     ((RemoveCacheMedium)                                            (2215))  // gritukan
+    ((PerAccountMergerStatistics)                                   (2216))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////
