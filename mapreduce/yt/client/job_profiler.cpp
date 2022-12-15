@@ -20,7 +20,7 @@ using namespace NYTProf;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void RunSubprocess(const std::vector<TString>& cmd)
+static void RunSubprocess(const std::vector<TString>& cmd)
 {
     auto command = cmd[0];
     auto args = TList<TString>(cmd.begin() + 1, cmd.end());
