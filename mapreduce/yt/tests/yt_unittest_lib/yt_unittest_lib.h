@@ -101,7 +101,7 @@ public:
     // Return precreated client.
     IClientPtr GetClient() const;
 
-    // Return newly created client. Useful for cases: 
+    // Return newly created client. Useful for cases:
     //  - when we want to have multiple clients objects;
     //  - when we want to control to control destruction of client object;
     IClientPtr CreateClient(const TCreateClientOptions& options = {}) const;
@@ -178,8 +178,16 @@ void Out<NYT::NTesting::TOwningYaMRRow>(IOutputStream& out, const NYT::NTesting:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// for UNITTEST()
 #define ASSERT_SERIALIZABLES_EQUAL(a, b) \
     UNIT_ASSERT_EQUAL_C(a, b, NYT::NTesting::ToYson(a) << " != " << NYT::NTesting::ToYson(b))
 
 #define ASSERT_SERIALIZABLES_UNEQUAL(a, b) \
     UNIT_ASSERT_UNEQUAL_C(a, b, NYT::NTesting::ToYson(a) << " == " << NYT::NTesting::ToYson(b))
+
+// for GTEST()
+#define ASSERT_SERIALIZABLES_EQ(a, b) \
+    ASSERT_EQ(a, b) << NYT::NTesting::ToYson(a) << " != " << NYT::NTesting::ToYson(b)
+
+#define ASSERT_SERIALIZABLES_NE(a, b) \
+    ASSERT_NE(a, b) << NYT::NTesting::ToYson(a) << " == " << NYT::NTesting::ToYson(b)
