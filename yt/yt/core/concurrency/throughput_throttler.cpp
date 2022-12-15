@@ -892,6 +892,9 @@ private:
     //! The id of the last underlying request.
     i64 UnderlyingRequestId_ = 0;
 
+    //! The total count of responses from the underlying throttler.
+    i64 UnderlyingResponseCount_ = 0;
+
     //! If there are no pending incoming requests, tries to acquire #amount from the local #Available_.
     bool DoTryAcquire(i64 amount)
     {
@@ -939,6 +942,8 @@ private:
 
         {
             auto guard = Guard(Lock_);
+
+            YT_VERIFY(GetOutstandingRequestCount() > 0 || Balance_ <= 0);
 
             auto forecastedAvailable = Available_ + Balance_;
             if (forecastedAvailable >= 0) {
@@ -1043,6 +1048,7 @@ private:
             Balance_ -= available;
             available += Available_;
             Available_ = 0;
+            ++UnderlyingResponseCount_;
 
             while (!IncomingRequests_.empty() && available >= IncomingRequests_.front().Amount) {
                 auto& request = IncomingRequests_.front();
@@ -1076,6 +1082,7 @@ private:
             auto guard = Guard(Lock_);
 
             Balance_ -= available;
+            ++UnderlyingResponseCount_;
 
             while (!IncomingRequests_.empty()) {
                 auto& request = IncomingRequests_.front();
@@ -1103,6 +1110,12 @@ private:
     double UnderlyingRps() const
     {
         return UnderlyingRequests_.size() / Config_->Window.SecondsFloat();
+    }
+
+    //! Calculate how many requests to the underlying throttler are still active.
+    i64 GetOutstandingRequestCount() const
+    {
+        return UnderlyingRequestId_ - UnderlyingResponseCount_;
     }
 };
 
