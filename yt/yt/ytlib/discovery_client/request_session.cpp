@@ -60,7 +60,7 @@ void TServerAddressPool::BanAddress(const TString& address)
         auto guard = Guard(Lock_);
         auto it = UpAddresses_.find(address);
         if (it == UpAddresses_.end()) {
-            YT_LOG_WARNING("Cannot ban server: server is already banned (Address: %v)", address);
+            YT_LOG_DEBUG("Cannot ban server: server is already banned (Address: %v)", address);
             return;
         }
         UpAddresses_.erase(it);
