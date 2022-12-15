@@ -245,30 +245,36 @@ private:
 
         ~TRunEventGuard()
         {
-            if (!Pollable_) {
-                return;
-            }
-
-            auto* cookie = TPollableCookie::FromPollable(Pollable_);
-            YT_VERIFY(cookie);
-            auto activeEventCount = cookie->ActiveEventCount.fetch_sub(2) - 2;
-            if (activeEventCount == 0) {
-                Pollable_->OnShutdown();
-                cookie->UnregisterPromise.Set();
-                auto pollerThread = MakeStrong(cookie->PollerThread);
-                pollerThread->UnregisterQueue_.Enqueue(Pollable_);
-                pollerThread->WakeupHandle_.Raise();
+            if (Pollable_) {
+                // This is unlikely but might happen on thread pool termination.
+                GetFinalizerInvoker()->Invoke(BIND(&Destroy, Unretained(Pollable_)));
             }
         }
 
-        void operator()() const
+        void operator()()
         {
             Pollable_->OnEvent(Control_);
+            Destroy(Pollable_);
+            Pollable_ = nullptr;
         }
 
     private:
         IPollable* Pollable_;
         EPollControl Control_;
+
+        static void Destroy(IPollable* pollable)
+        {
+            auto* cookie = TPollableCookie::FromPollable(pollable);
+            YT_VERIFY(cookie);
+            auto activeEventCount = cookie->ActiveEventCount.fetch_sub(2) - 2;
+            if (activeEventCount == 0) {
+                pollable->OnShutdown();
+                cookie->UnregisterPromise.Set();
+                auto pollerThread = MakeStrong(cookie->PollerThread);
+                pollerThread->UnregisterQueue_.Enqueue(pollable);
+                pollerThread->WakeupHandle_.Raise();
+            }
+        }
     };
 
     const NLogging::TLogger Logger;
