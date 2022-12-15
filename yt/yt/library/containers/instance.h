@@ -128,6 +128,7 @@ struct IInstance
 
     virtual TString GetName() const = 0;
     virtual std::optional<TString> GetParentName() const = 0;
+    virtual std::optional<TString> GetRootName() const = 0;
 
     //! Returns externally visible pid of the root proccess inside container.
     //! Throws if container is not running.
@@ -150,6 +151,7 @@ DEFINE_REFCOUNTED_TYPE(IInstance)
 TString GetSelfContainerName(const IPortoExecutorPtr& executor);
 
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
+IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor);
 IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name);
 #endif
 
