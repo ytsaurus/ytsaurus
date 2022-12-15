@@ -24,7 +24,7 @@ using namespace NYson;
 
 static const auto& Logger = BusLogger;
 
-static constexpr auto PeriodcCheckPeriod = TDuration::MilliSeconds(100);
+static constexpr auto PeriodicCheckPeriod = TDuration::MilliSeconds(100);
 static constexpr auto PerConnectionPeriodicCheckPeriod = TDuration::Seconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -207,7 +207,7 @@ void TTcpDispatcher::TImpl::StartPeriodicExecutors()
         PeriodicCheckExecutor_ = New<TPeriodicExecutor>(
             invoker,
             BIND(&TImpl::OnPeriodicCheck, MakeWeak(this)),
-            PeriodcCheckPeriod);
+            PeriodicCheckPeriod);
         PeriodicCheckExecutor_->Start();
     }
 }
@@ -296,7 +296,7 @@ void TTcpDispatcher::TImpl::OnPeriodicCheck()
 
     i64 connectionsToCheck = std::max(
         std::ssize(ConnectionList_) *
-        static_cast<i64>(PeriodcCheckPeriod.GetValue()) /
+        static_cast<i64>(PeriodicCheckPeriod.GetValue()) /
         static_cast<i64>(PerConnectionPeriodicCheckPeriod.GetValue()),
         static_cast<i64>(1));
     for (i64 index = 0; index < connectionsToCheck && !ConnectionList_.empty(); ++index) {

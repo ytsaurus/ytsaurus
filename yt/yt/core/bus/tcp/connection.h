@@ -238,7 +238,6 @@ private:
 
     std::atomic<TTosLevel> TosLevel_ = DefaultTosLevel;
 
-    NProfiling::TCpuInstant StatisticsUpdateDeadline_ = 0;
     i64 LastRetransmitCount_ = 0;
 
     bool SupportsHandshakes_ = false;
@@ -309,11 +308,15 @@ private:
     std::optional<NProto::THandshake> TryParseHandshakeMessage(const TSharedRefArray& message);
 
     void UpdateConnectionCount(int delta);
-    void UpdatePendingOut(int countDelta, i64 sizeDelta);
-    void UpdateStatistics(bool force);
+
+    void IncrementPendingOut(i64 packetSize);
+    void DecrementPendingOut(i64 packetSize);
+
+    void FlushStatistics();
 
     template <class T, class U>
-    void IncrementBusCounter(T TBusNetworkBandCounters::* field, U delta);
+    i64 UpdateBusCounter(T TBusNetworkBandCounters::* field, U delta);
+
     void UpdateTcpStatistics();
     void FlushBusStatistics();
 
