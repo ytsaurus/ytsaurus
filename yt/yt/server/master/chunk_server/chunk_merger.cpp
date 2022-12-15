@@ -638,7 +638,7 @@ void TChunkMerger::ScheduleJobs(EJobType jobType, IJobSchedulingContext* context
     }
 }
 
-void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
+void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -654,9 +654,18 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer) const
     buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", JobsUndergoingChunkCreation_.size());
     buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", JobsAwaitingNodeHeartbeat_.size());
 
-    buffer->AddCounter("/chunk_merger_chunk_replacement_succeeded", ChunkReplacementSucceeded_);
-    buffer->AddCounter("/chunk_merger_chunk_replacement_failed", ChunkReplacementFailed_);
-    buffer->AddCounter("/chunk_merger_chunk_count_saving", ChunkCountSaving_);
+    const auto& securityManager = Bootstrap_->GetSecurityManager();
+    for (const auto& [accountId, statistics] : AccountToChunkReplacementStatistics_) {
+        auto* account = securityManager->FindAccount(accountId);
+        if (!IsObjectAlive(account)) {
+            continue;
+        }
+        TWithTagGuard tagGuard(buffer, "account", account->GetName());
+        buffer->AddGauge("/chunk_merger_chunk_replacements_succeeded", statistics.ChunkReplacementsSucceeded);
+        buffer->AddGauge("/chunk_merger_chunk_replacements_failed", statistics.ChunkReplacementsFailed);
+        buffer->AddGauge("/chunk_merger_chunk_count_saving", statistics.ChunkCountSaving);
+    }
+    AccountToChunkReplacementStatistics_.clear();
 
     buffer->AddCounter("/chunk_merger_sessions_awaiting_finalization", SessionsAwaitingFinalization_.size());
 
@@ -905,7 +914,7 @@ void TChunkMerger::RegisterSessionTransient(TChunkOwnerBase* chunkOwner)
     YT_LOG_DEBUG("Starting new merge job session (NodeId: %v, Account: %v)",
         nodeId,
         account->GetName());
-    YT_VERIFY(RunningSessions_.emplace(nodeId, TChunkMergerSession()).second);
+    YT_VERIFY(RunningSessions_.emplace(nodeId, TChunkMergerSession({.AccountId = account->GetId()})).second);
 
     auto [it, inserted] = AccountToNodeQueue_.emplace(account, TNodeQueue());
 
@@ -943,7 +952,11 @@ void TChunkMerger::FinalizeJob(
         EraseOrCrash(session.ChunkListIdToRunningJobs, parentChunkListId);
         auto completedJobsIt = session.ChunkListIdToCompletedJobs.find(parentChunkListId);
         if (completedJobsIt != session.ChunkListIdToCompletedJobs.end()) {
-            ScheduleReplaceChunks(nodeId, parentChunkListId, &completedJobsIt->second);
+            ScheduleReplaceChunks(
+                nodeId,
+                parentChunkListId,
+                session.AccountId,
+                &completedJobsIt->second);
         }
     }
 
@@ -978,11 +991,13 @@ void TChunkMerger::FinalizeReplacement(
 void TChunkMerger::ScheduleReplaceChunks(
     TObjectId nodeId,
     TChunkListId parentChunkListId,
+    TObjectId accountId,
     std::vector<TMergeJobInfo>* jobInfos)
 {
-    YT_LOG_DEBUG("Scheduling chunk replace after merge (NodeId: %v, ParentChunkListId: %v, JobIds: %v)",
+    YT_LOG_DEBUG("Scheduling chunk replacement (NodeId: %v, ParentChunkListId: %v, AccountId: %v, JobIds: %v)",
         nodeId,
         parentChunkListId,
+        accountId,
         MakeFormattableView(*jobInfos, [] (auto* builder, const auto& jobInfo) {
             builder->AppendFormat("%v", jobInfo.JobId);
         }));
@@ -1000,6 +1015,7 @@ void TChunkMerger::ScheduleReplaceChunks(
     }
 
     ToProto(request.mutable_node_id(), nodeId);
+    ToProto(request.mutable_account_id(), accountId);
     ToProto(request.mutable_chunk_list_id(), parentChunkListId);
 
     CreateMutation(Bootstrap_->GetHydraFacade()->GetHydraManager(), request)
@@ -1539,13 +1555,22 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
 {
     auto nodeId = FromProto<TObjectId>(request->node_id());
     auto chunkListId = FromProto<TChunkListId>(request->chunk_list_id());
+    auto accountId = FromProto<TObjectId>(request->account_id());
+
+    auto& statistics = AccountToChunkReplacementStatistics_[accountId];
+    auto updateFailedReplacements = [&] (int replacementCount) {
+        if (!IsLeader()) {
+            return;
+        }
+        statistics.ChunkReplacementsFailed += replacementCount;
+    };
 
     auto replacementCount = request->replacements_size();
     auto* chunkOwner = FindChunkOwner(nodeId);
     if (!chunkOwner) {
         YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk owner node (NodeId: %v)",
             nodeId);
-        ChunkReplacementFailed_ += replacementCount;
+        updateFailedReplacements(replacementCount);
         FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
         return;
     }
@@ -1555,7 +1580,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
         if (table->IsDynamic()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: table is dynamic (NodeId: %v)",
                 chunkOwner->GetId());
-            ChunkReplacementFailed_ += replacementCount;
+            updateFailedReplacements(replacementCount);
             FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::PermanentFailure);
             return;
         }
@@ -1573,13 +1598,13 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             "Cannot replace chunks after merge: parent chunk list is no longer there (NodeId: %v, ParentChunkListId: %v)",
             nodeId,
             chunkListId);
-        ChunkReplacementFailed_ += replacementCount;
+        updateFailedReplacements(replacementCount);
         FinalizeReplacement(nodeId, chunkListId, EMergeSessionResult::TransientFailure);
         return;
     }
 
     const auto& chunkManager = Bootstrap_->GetChunkManager();
-    auto chunkReplacementSucceeded = 0;
+    auto chunkReplacementsSucceeded = 0;
     for (int index = 0; index < replacementCount; ++index) {
         const auto& replacement = request->replacements()[index];
         auto newChunkId = FromProto<TChunkId>(replacement.new_chunk_id());
@@ -1588,7 +1613,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Cannot replace chunks after merge: no such chunk (NodeId: %v, ChunkId: %v)",
                 nodeId,
                 newChunkId);
-            ++ChunkReplacementFailed_;
+            updateFailedReplacements(1);
             continue;
         }
 
@@ -1596,7 +1621,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
             YT_LOG_ALERT("Cannot replace chunks after merge: new chunk is not confirmed (NodeId: %v, ChunkId: %v)",
                 nodeId,
                 newChunkId);
-            ++ChunkReplacementFailed_;
+            updateFailedReplacements(1);
             continue;
         }
 
@@ -1609,11 +1634,13 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 chunkIds,
                 newChunkId);
 
-            ++ChunkReplacementSucceeded_;
-            ++chunkReplacementSucceeded;
-            auto chunkCountDiff = std::ssize(chunkIds) - 1;
-            ChunkCountSaving_ += chunkCountDiff;
+            ++chunkReplacementsSucceeded;
             if (IsLeader()) {
+                auto chunkCountDiff = std::ssize(chunkIds) - 1;
+
+                ++statistics.ChunkReplacementsSucceeded;
+                statistics.ChunkCountSaving += chunkCountDiff;
+
                 auto& session = GetOrCrash(RunningSessions_, nodeId);
                 if (session.TraversalInfo.ChunkCount < 0) {
                     YT_LOG_ALERT("Node traversed chunk count is negative (NodeId: %v, TraversalInfo: %v)",
@@ -1629,17 +1656,17 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
                 nodeId,
                 chunkIds,
                 newChunkId);
-            ChunkReplacementFailed_ += replacementCount - index;
+            updateFailedReplacements(1);
             break;
         }
     }
 
-    auto result = chunkReplacementSucceeded == replacementCount
+    auto result = chunkReplacementsSucceeded == replacementCount
         ? EMergeSessionResult::OK
         : EMergeSessionResult::TransientFailure;
     FinalizeReplacement(nodeId, chunkListId, result);
 
-    if (chunkReplacementSucceeded == 0) {
+    if (chunkReplacementsSucceeded == 0) {
         return;
     }
 

@@ -61,6 +61,8 @@ struct TChunkMergerSession
     THashMap<NCypressClient::TObjectId, std::vector<TMergeJobInfo>> ChunkListIdToCompletedJobs;
     EMergeSessionResult Result = EMergeSessionResult::None;
 
+    NCypressClient::TObjectId AccountId;
+
     TChunkMergerTraversalInfo TraversalInfo;
 
     int JobCount = 0;
@@ -135,7 +137,7 @@ public:
 
     bool IsNodeBeingMerged(NCypressClient::TObjectId nodeId) const;
 
-    void OnProfiling(NProfiling::TSensorBuffer* buffer) const;
+    void OnProfiling(NProfiling::TSensorBuffer* buffer);
 
     // IJobController implementation.
     void ScheduleJobs(EJobType jobType, IJobSchedulingContext* context) override;
@@ -166,9 +168,13 @@ private:
     THashSet<NCypressClient::TObjectId> NodesBeingMerged_;
     i64 ConfigVersion_ = 0;
 
-    i64 ChunkReplacementSucceeded_ = 0;
-    i64 ChunkReplacementFailed_ = 0;
-    i64 ChunkCountSaving_ = 0;
+    struct TChunkReplacementStatistics
+    {
+        i64 ChunkReplacementsSucceeded = 0;
+        i64 ChunkReplacementsFailed = 0;
+        i64 ChunkCountSaving = 0;
+    };
+    THashMap<NCypressClient::TObjectId, TChunkReplacementStatistics> AccountToChunkReplacementStatistics_;
 
     TEnumIndexedVector<NChunkClient::EChunkMergerMode, i64> CompletedJobCountPerMode_;
     i64 AutoMergeFallbackJobCount_ = 0;
@@ -254,6 +260,7 @@ private:
     void ScheduleReplaceChunks(
         NCypressClient::TObjectId nodeId,
         TChunkListId parentChunkListId,
+        NCypressClient::TObjectId accountId,
         std::vector<TMergeJobInfo>* jobInfos);
 
     void OnJobFinished(const TMergeJobPtr& job);
