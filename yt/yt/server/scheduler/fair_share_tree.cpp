@@ -2642,7 +2642,7 @@ private:
 
         TSerializedFairShareInfo fairShareInfo;
         fairShareInfo.PoolCount = BuildYsonStringFluently<EYsonType::MapFragment>()
-            .Item("pool_count").Value(treeSnapshot->PoolMap().size())
+            .Item("pool_count").Value(std::ssize(treeSnapshot->PoolMap()))
             .Finish();
         fairShareInfo.ResourceDistributionInfo = BuildYsonStringFluently<EYsonType::MapFragment>()
             .Item("resource_distribution_info").BeginMap()
@@ -2990,7 +2990,7 @@ private:
     {
         const auto& poolMap = treeSnapshot->PoolMap();
         fluent
-            .Item("pool_count").Value(poolMap.size())
+            .Item("pool_count").Value(std::ssize(poolMap))
             .Item("pools").DoMapFor(poolMap, [&] (TFluentMap fluent, const TNonOwningPoolElementMap::value_type& pair) {
                 const auto& [poolName, pool] = pair;
                 fluent
