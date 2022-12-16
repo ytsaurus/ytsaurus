@@ -3498,8 +3498,6 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
             OperationId);
     }
 
-    EmplaceOrCrash(JobsWaitingForFinalization_, jobId, TFinishedJobInfo::CreateRemovingInfo());
-
     auto joblet = GetJobletOrThrow(jobId);
 
     switch (joblet->JobType) {
@@ -3518,6 +3516,8 @@ void TOperationControllerBase::SafeAbandonJob(TJobId jobId)
                 OperationId,
                 joblet->JobType);
     }
+
+    EmplaceOrCrash(JobsWaitingForFinalization_, jobId, TFinishedJobInfo::CreateRemovingInfo());
 
     OnJobCompleted(CreateAbandonedJobSummary(jobId));
 }
