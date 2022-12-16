@@ -467,6 +467,12 @@ public:
         // TODO(aleksandra-zh): Change affinity to any.
         VERIFY_THREAD_AFFINITY(ControlThread);
 
+        if (!ControlEpochContext_) {
+            return MakeFuture<TMutationResponse>(TError(
+                NRpc::EErrorCode::Unavailable,
+                "Peer is not active"));
+        }
+
         auto epochContext = ControlEpochContext_;
 
         const auto& cellManager = epochContext->CellManager;
@@ -505,6 +511,8 @@ public:
 
     TFuture<TMutationResponse> CommitMutation(TMutationRequest&& request) override
     {
+        VERIFY_THREAD_AFFINITY_ANY();
+
         auto state = GetAutomatonState();
         switch (state) {
             case EPeerState::Leading: {
@@ -523,9 +531,8 @@ public:
                         "Leader mutation forwarding is not allowed"));
                 }
 
-                YT_VERIFY(ControlEpochContext_);
                 return BIND(&TDistributedHydraManager::Forward, MakeStrong(this))
-                    .AsyncVia(ControlEpochContext_->EpochControlInvoker)
+                    .AsyncVia(ControlInvoker_)
                     .Run(std::move(request));
 
             default:
