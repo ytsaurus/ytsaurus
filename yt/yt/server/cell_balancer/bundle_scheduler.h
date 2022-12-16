@@ -27,6 +27,27 @@ struct TSpareProxiesInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TZoneDisruptedState
+{
+    int OfflineNodeCount = 0;
+    int OfflineNodeThreshold = 0;
+
+    int OfflineProxyCount = 0;
+    int OfflineProxyThreshold = 0;
+
+    bool IsNodesDisrupted() const
+    {
+        return OfflineNodeThreshold > 0 && OfflineNodeCount > OfflineNodeThreshold;
+    }
+
+    bool IsProxiesDisrupted() const
+    {
+        return OfflineProxyThreshold > 0 && OfflineProxyCount > OfflineProxyThreshold;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TSchedulerInputState
 {
     TBundleControllerConfigPtr Config;
@@ -68,6 +89,8 @@ struct TSchedulerInputState
     THashMap<TString, TInstanceCountBySize> AliveNodesBySize;
     THashMap<TString, TInstanceCountBySize> AllocatedProxiesBySize;
     THashMap<TString, TInstanceCountBySize> AliveProxiesBySize;
+
+    THashMap<TString, TZoneDisruptedState> ZonesDisrupted;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

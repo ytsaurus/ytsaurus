@@ -1062,6 +1062,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 
         usedSpare.insert(nodeName);
         input.TabletNodes[nodeName]->UserTags = tags;
+        input.TabletNodes[nodeName]->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
     }
 
     EXPECT_EQ(2, std::ssize(usedSpare));
@@ -1161,6 +1162,39 @@ TEST(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
     EXPECT_EQ(2, std::ssize(mutations.ChangedNodeUserTags));
 }
 
+TEST(TNodeTagsFilterManager, SpareNodesExhausted)
+{
+    const int SlotCount = 5;
+
+    auto input = GenerateSimpleInputContext(2, SlotCount);
+    input.Bundles["default-bundle"]->EnableNodeTagFilterManagement = true;
+
+    GenerateTabletCellsForBundle(input, "default-bundle", 20);
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, SlotCount);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(3, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        input.TabletNodes[nodeName]->UserTags = tags;
+        input.TabletNodes[nodeName]->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "no_free_spare_nodes");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TEST(TBundleSchedulerTest, CheckDisruptedState)
@@ -1179,7 +1213,7 @@ TEST(TBundleSchedulerTest, CheckDisruptedState)
 
     ScheduleBundles(input, &mutations);
 
-    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_TRUE(std::ssize(mutations.AlertsToFire) > 0);
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 }
@@ -1661,7 +1695,7 @@ TEST(TBundleSchedulerTest, CheckProxyZoneDisruptedState)
 
     ScheduleBundles(input, &mutations);
 
-    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_TRUE(std::ssize(mutations.AlertsToFire) > 0);
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 }
@@ -1814,6 +1848,35 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
 
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+}
+
+TEST(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 4);
+    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
+
+    // Generate Spare proxies
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
+    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(3, std::ssize(mutations.ChangedProxyRole));
+
+    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        ASSERT_EQ(role, "default-bundle");
+        input.RpcProxies[proxyName]->Role = role;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "no_free_spare_proxies");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
