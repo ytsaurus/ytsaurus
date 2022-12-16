@@ -15,10 +15,12 @@ public enum YtClientParameters implements Function<Properties, DriverPropertyInf
             Stream.of(Compression.values()).map(Enum::name).toArray(String[]::new)),
     DEBUG_OUTPUT("debug_output", "false", new String[]{"true", "false"}),
     MAX_INPUT_LIMIT("max_input_limit", "10000000", null),
+    MAX_OUTPUT_LIMIT("max_output_limit", "10000", null),
     HOME("home"),
     SCAN_RECURSIVE("scan_recursive", "true", new String[]{"true", "false"}),
     ALLOW_JOIN_WITHOUT_INDEX("allowJoinWithoutIndex", "false", new String[]{"true", "false"}),
-    UDF_REGISTRY_PATH("udf_registry_path");
+    UDF_REGISTRY_PATH("udf_registry_path"),
+    FAIL_ON_INCOMPLETE_RESULT("fail_on_incomplete_result");
 
     private final String key;
     private final String defaultValue;
