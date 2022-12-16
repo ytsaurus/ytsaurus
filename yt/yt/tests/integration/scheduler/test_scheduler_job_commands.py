@@ -3,7 +3,7 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, create,
     get, create_user,
-    create_group, add_member, read_table, write_table, map,
+    create_group, add_member, read_table, write_table, map, merge,
     run_test_vanilla, abort_job, abandon_job, update_op_parameters,
     poll_job_shell, raises_yt_error)
 
@@ -82,6 +82,44 @@ class TestJobProber(YTEnvSetup):
 
         op.track()
         assert len(read_table("//tmp/t2")) == 0
+
+    @authors("pogorelov")
+    def test_abandon_job_failure(self):
+        create(
+            "table",
+            "//tmp/t_in",
+            attributes={"schema": [{"name": "a", "type": "int64", "sort_order": "ascending"}]},
+        )
+        create("table", "//tmp/t_out")
+
+        rows = [{"a": i} for i in range(25)]
+        for row in rows:
+            write_table("<append=%true>//tmp/t_in", row)
+        op = merge(
+            track=False,
+            in_=["//tmp/t_in"],
+            out="//tmp/t_out",
+            spec={
+                "force_transform": True,
+                "mode": "sorted",
+                "job_io": {
+                    "testing_options": {"pipe_delay": 250},
+                    "buffer_row_count": 1,
+                },
+                "enable_job_splitting": False,
+            },
+        )
+        wait(lambda: len(op.get_running_jobs()) > 0)
+        jobs = list(op.get_running_jobs())
+        assert len(jobs) >= 1
+        job_id = jobs[0]
+
+        try:
+            abandon_job(job_id)
+        except YtResponseError:
+            pass
+
+        op.track()
 
     @authors("ignat")
     def test_abandon_job_permissions(self):
