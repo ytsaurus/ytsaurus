@@ -13,8 +13,8 @@ import os
 class Field:
     cpp_name: str
     cpp_type: str
-    field_name: str
-    field_type: str
+    column_name: str
+    column_type: str
     sort_order: Optional[str]
 
 

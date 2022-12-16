@@ -5,16 +5,16 @@ types:
     fields:
       - cpp_name: Alias
         cpp_type: TString
-        field_name: alias
-        field_type: String
+        column_name: alias
+        column_type: String
         sort_order: Ascending
 
       - cpp_name: OperationIdHi
         cpp_type: ui64
-        field_name: operation_id_hi
-        field_type: Uint64
+        column_name: operation_id_hi
+        column_type: Uint64
 
       - cpp_name: OperationIdLo
         cpp_type: ui64
-        field_name: operation_id_lo
-        field_type: Uint64
+        column_name: operation_id_lo
+        column_type: Uint64

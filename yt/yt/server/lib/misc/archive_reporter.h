@@ -10,7 +10,7 @@
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
- 
+
 //! A primitive for getting an archive version.
 //! It allows the uploader to update the format version on the go.
 class TArchiveVersionHolder
@@ -29,11 +29,10 @@ DEFINE_REFCOUNTED_TYPE(TArchiveVersionHolder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class IArchiveRowlet
+struct IArchiveRowlet
 {
-public:
     virtual size_t EstimateSize() const = 0;
-    
+
     //! Converts an inner representation of data to a row in the specified archive version.
     //! Returns null-row if data cannot be represented as a row in the specified archive version.
     virtual NTableClient::TUnversionedOwningRow ToRow(int archiveVersion) const = 0;

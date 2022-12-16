@@ -11,13 +11,14 @@
 namespace {{namespace}} {
 
 using namespace NTableClient;
+using namespace NTableClient::NDetail;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 {% for type in types %}
 {{type.type_name}}IdMapping::{{type.type_name}}IdMapping(const TNameTablePtr& nameTable)
 {%- for field in type.fields %}
-    {{":" if loop.index0 == 0 else ","}} {{field.cpp_name}}(nameTable->FindId("{{field.field_name}}"))
+    {{":" if loop.index0 == 0 else ","}} {{field.cpp_name}}(nameTable->FindId("{{field.column_name}}"))
 {%- endfor %}
 { }
 
@@ -48,8 +49,8 @@ const {{type.type_name}}IdMapping& {{type.type_name}}Descriptor::GetIdMapping() 
         std::vector{
 {%- for field in type.fields %}
             TColumnSchema{
-                /*name*/ "{{field.field_name}}",
-                /*type*/ ESimpleLogicalValueType::{{field.field_type}},
+                /*name*/ "{{field.column_name}}",
+                /*type*/ ESimpleLogicalValueType::{{field.column_type}},
 {%- if field.sort_order %}
                 /*sortOrder*/ ESortOrder::{{field.sort_order}}
 {%- else %}
@@ -74,41 +75,14 @@ TLegacyKey {{type.type_name}}Key::ToKey(const TRowBufferPtr& rowBuffer) const
     return rowBuffer->CaptureRow(MakeRange(values), /*captureValues*/ false);
 }
 
-TSharedRange<TLegacyKey> {{type.type_name}}Key::ToKeys(
-    TRange<{{type.type_name}}Key> keys,
-    const TRowBufferPtr& rowBuffer)
-{
-    std::vector<TLegacyKey> result;
-    result.reserve(keys.size());
-    for (const auto& key : keys) {
-        result.push_back(key.ToKey(rowBuffer));
-    }
-    return MakeSharedRange(std::move(result), rowBuffer);
-}
-
 {{type.type_name}}Key {{type.type_name}}Key::FromKey(TLegacyKey key)
 {
-    YT_ASSERT(key);
-    static const auto ExpectedCount = {{type.type_name}}Descriptor::Get()->GetSchema()->GetKeyColumnCount();
-    if (static_cast<int>(key.GetCount()) != ExpectedCount) {
-        THROW_ERROR_EXCEPTION("Invalid number of key values: expected %v, got %v",
-            ExpectedCount,
-            key.GetCount());
-    }
+    YT_VERIFY(key);
+    ValidateKeyValueCount(key, {{type.type_name}}Descriptor::Get()->GetSchema()->GetKeyColumnCount());
     {{type.type_name}}Key result;
 {%- for field in type.fields if field.sort_order %}
     FromUnversionedValue(&result.{{field.cpp_name}}, key[{{loop.index0}}]);
 {%- endfor %}
-    return result;
-}
-
-std::vector<{{type.type_name}}Key> {{type.type_name}}Key::FromKeys(TRange<TLegacyKey> keys)
-{
-    std::vector<{{type.type_name}}Key> result;
-    result.reserve(keys.size());
-    for (auto key : keys) {
-        result.push_back({{type.type_name}}Key::FromKey(key));
-    }
     return result;
 }
 
@@ -120,58 +94,55 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
 {
     std::array values{
 {%- for field in type.fields %}
-        ToUnversionedValue({{field.cpp_name}}, rowBuffer, *idMapping.{{field.cpp_name}}),
+        ToUnversionedValue({{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
 {%- endfor %}
     };
     return rowBuffer->CaptureRow(MakeRange(values), /*captureValues*/ false);
 }
 
-TUnversionedRow {{type.type_name}}::ToUnversionedRow(
-    const TRowBufferPtr& rowBuffer,
-    std::initializer_list<E{{type.type_name[1:]}}Field> fields,
-    const {{type.type_name}}IdMapping& idMapping) const
-{
-    TUnversionedRowBuilder builder;
-    for (auto field : fields) {
-        switch (field) {
-{%- for field in type.fields %}
-            case E{{type.type_name[1:]}}Field::{{field.cpp_name}}:
-                builder.AddValue(ToUnversionedValue({{field.cpp_name}}, rowBuffer, *idMapping.{{field.cpp_name}}));
-                break;
-{%- endfor %}
-            default:
-                YT_ABORT();
-        }
-    }
-    return builder.GetRow();
-}
-
-std::optional<{{type.type_name}}> {{type.type_name}}::FromUnversionedRow(
+{{type.type_name}} {{type.type_name}}::FromUnversionedRow(
     TUnversionedRow row,
     const {{type.type_name}}IdMapping& idMapping)
 {
-    if (!row) {
-        return std::nullopt;
-    }
     {{type.type_name}} result;
 {%- for field in type.fields %}
     if (idMapping.{{field.cpp_name}}) {
+        auto id = *idMapping.{{field.cpp_name}};
+        ValidateRowValueCount(row, id);
         FromUnversionedValue(&result.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
     }
 {%- endfor %}
     return result;
 }
 
-std::vector<std::optional<{{type.type_name}}>> {{type.type_name}}::FromUnversionedRows(
-    TRange<TUnversionedRow> rows,
+////////////////////////////////////////////////////////////////////////////////
+
+TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
+    const TRowBufferPtr& rowBuffer,
+    const {{type.type_name}}IdMapping& idMapping) const
+{
+    TUnversionedRowBuilder builder;
+{%- for field in type.fields %}
+    if (idMapping.{{field.cpp_name}} && {{field.cpp_name}}) {
+        builder.AddValue(ToUnversionedValue(*{{field.cpp_name}}, rowBuffer, *idMapping.{{field.cpp_name}}));
+    }
+{%- endfor %}
+    return builder.GetRow();
+}
+
+{{type.type_name}}Partial {{type.type_name}}Partial::FromUnversionedRow(
+    TUnversionedRow row,
     const {{type.type_name}}IdMapping& idMapping)
 {
-    std::vector<std::optional<{{type.type_name}}>> optionalResults;
-    optionalResults.reserve(rows.size());
-    for (auto row : rows) {
-        optionalResults.push_back(FromUnversionedRow(row, idMapping));
+    {{type.type_name}}Partial result;
+{%- for field in type.fields %}
+    if (idMapping.{{field.cpp_name}}) {
+        auto id = *idMapping.{{field.cpp_name}};
+        ValidateRowValueCount(row, id);
+        FromUnversionedValue(&result.{{field.cpp_name}}, row[id]);
     }
-    return optionalResults;
+{%- endfor %}
+    return result;
 }
 
 {% endfor %}

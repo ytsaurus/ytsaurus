@@ -41,7 +41,7 @@ DECLARE_REFCOUNTED_CLASS(TArchiveHandlerConfig)
 DECLARE_REFCOUNTED_CLASS(TArchiveVersionHolder)
 DECLARE_REFCOUNTED_CLASS(TArchiveReporter)
 
-class IArchiveRowlet;
+struct IArchiveRowlet;
 
 ////////////////////////////////////////////////////////////////////////////////
 

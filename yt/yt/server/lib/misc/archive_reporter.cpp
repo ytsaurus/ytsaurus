@@ -143,7 +143,7 @@ public:
             Batcher_->Enqueue(std::move(rowStub));
             PendingCounter_.Update(PendingCount_++);
             EnqueuedCounter_.Increment();
-            QueueIsTooLargeCounter_.Update(QueueIsTooLarge() ? 1 : 0);
+            QueueIsTooLargeCounter_.Update(IsQueueTooLarge() ? 1 : 0);
         } else {
             DroppedCount_.fetch_add(1, std::memory_order::relaxed);
             DroppedCounter_.Increment();
@@ -163,18 +163,19 @@ public:
         return WriteFailuresCount_.exchange(0);
     }
 
-    bool QueueIsTooLarge() const
+    bool IsQueueTooLarge() const
     {
         return NYT::NDetail::QueueIsTooLargeMultiplier * Limiter_.GetValue() > Limiter_.GetMaxValue();
     }
 
 private:
-    TLogger Logger;
+    const TLogger Logger;
     const TArchiveReporterConfigPtr ReporterConfig_;
     const TArchiveHandlerConfigPtr HandlerConfig_;
-    TNameTablePtr NameTable_;
+    const TNameTablePtr NameTable_;
     const TArchiveVersionHolderPtr Version_;
     const NNative::IClientPtr Client_;
+
     NYT::NDetail::TLimiter Limiter_;
     TNonblockingBatchPtr<std::unique_ptr<IArchiveRowlet>> Batcher_;
 
@@ -187,11 +188,11 @@ private:
     TCounter CommittedCounter_;
     TCounter CommittedDataWeightCounter_;
 
-    TAsyncSemaphorePtr EnableSemaphore_ = New<TAsyncSemaphore>(1);
-    std::atomic<bool> Enabled_ = {false};
-    std::atomic<ui64> PendingCount_ = {0};
-    std::atomic<ui64> DroppedCount_ = {0};
-    std::atomic<ui64> WriteFailuresCount_ = {0};
+    const TAsyncSemaphorePtr EnableSemaphore_ = New<TAsyncSemaphore>(1);
+    std::atomic<bool> Enabled_ = false;
+    std::atomic<ui64> PendingCount_ = 0;
+    std::atomic<ui64> DroppedCount_ = 0;
+    std::atomic<ui64> WriteFailuresCount_ = 0;
 
     void Loop()
     {
@@ -340,7 +341,7 @@ private:
             auto valueWeight = GetDataWeight(value);
             if (valueWeight > MaxStringValueLength) {
                 YT_LOG_WARNING(
-                    "Archive table row violates value data weight, archivation skipped"
+                    "Archive table row violates value data weight, archivation skipped "
                     "(Key: %v, Weight: %v, WeightLimit: %v)",
                     NameTable_->GetNameOrThrow(value.Id),
                     valueWeight,
@@ -393,7 +394,7 @@ int TArchiveReporter::ExtractWriteFailuresCount()
 
 bool TArchiveReporter::QueueIsTooLarge() const
 {
-    return Impl_->QueueIsTooLarge();
+    return Impl_->IsQueueTooLarge();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

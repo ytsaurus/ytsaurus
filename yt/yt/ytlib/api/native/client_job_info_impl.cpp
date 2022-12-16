@@ -13,6 +13,7 @@
 
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
@@ -38,6 +39,7 @@
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -870,50 +872,44 @@ TSharedRef TClient::DoGetJobFailContextFromArchive(
     TJobId jobId)
 {
     try {
-        TJobFailContextTableDescriptor tableDescriptor;
+        NRecords::TJobFailContextKey recordKey{
+            .OperationIdHi = operationId.Parts64[0],
+            .OperationIdLo = operationId.Parts64[1],
+            .JobIdHi = jobId.Parts64[0],
+            .JobIdLo = jobId.Parts64[1]
+        };
 
-        auto rowBuffer = New<TRowBuffer>();
-
-        std::vector<TUnversionedRow> keys;
-        auto key = rowBuffer->AllocateUnversioned(4);
-        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.OperationIdHi);
-        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.OperationIdLo);
-        key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Index.JobIdHi);
-        key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Index.JobIdLo);
-        keys.push_back(key);
+        auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
 
         TLookupRowsOptions lookupOptions;
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Index.FailContext});
+        const auto& idMapping = NRecords::TJobFailContextDescriptor::Get()->GetIdMapping();
+        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({*idMapping.FailContext});
         lookupOptions.KeepMissingRows = true;
 
         auto rowset = WaitFor(LookupRows(
             GetOperationsArchiveJobFailContextsPath(),
-            tableDescriptor.NameTable,
-            MakeSharedRange(keys, rowBuffer),
+            NRecords::TJobFailContextDescriptor::Get()->GetNameTable(),
+            std::move(keys),
             lookupOptions))
             .ValueOrThrow();
 
-        auto rows = rowset->GetRows();
-        YT_VERIFY(!rows.Empty());
+        auto optionalRecords = ToOptionalRecords<NRecords::TJobFailContextPartial>(rowset);
+        YT_VERIFY(optionalRecords.size() == 1);
 
-        if (rows[0]) {
-            auto value = rows[0][0];
-
-            YT_VERIFY(value.Type == EValueType::String);
-            return TSharedRef::MakeCopy<char>(TRef(value.Data.String, value.Length));
+        if (optionalRecords[0] && optionalRecords[0]->FailContext) {
+            return TSharedRef::FromString(*optionalRecords[0]->FailContext);
         }
-    } catch (const TErrorException& exception) {
-        auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
-
+    } catch (const TErrorException& ex) {
+        auto matchedError = ex.Error().FindMatching(NYTree::EErrorCode::ResolveError);
         if (!matchedError) {
             THROW_ERROR_EXCEPTION("Failed to get job fail_context from archive")
                 << TErrorAttribute("operation_id", operationId)
                 << TErrorAttribute("job_id", jobId)
-                << exception.Error();
+                << ex.Error();
         }
     }
 
-    return TSharedRef();
+    return {};
 }
 
 TSharedRef TClient::DoGetJobFailContext(
