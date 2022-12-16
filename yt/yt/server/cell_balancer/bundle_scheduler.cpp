@@ -120,12 +120,32 @@ public:
         const TString& bundleName,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
-        TSchedulerMutations* mutations)
+        TSchedulerMutations* mutations,
+        bool disrupted)
     {
+        if (disrupted) {
+            YT_LOG_WARNING("Instance management skipped for bundle due zone unhealthy state"
+                " (BundleName: %v, InstanceType: %v)",
+                bundleName,
+                adapter->GetInstanceType());
+
+            mutations->AlertsToFire.push_back(TAlert{
+                .Id = "zone_is_disrupted",
+                .BundleName = bundleName,
+                .Description = Format("Zone is disrupted. Disabling all %v allocations.",
+                    adapter->GetInstanceType())
+            });
+        }
+
         ProcessExistingAllocations(bundleName, adapter, input, mutations);
-        InitNewAllocations(bundleName, adapter, input, mutations);
+        if (!disrupted) {
+            InitNewAllocations(bundleName, adapter, input, mutations);
+        }
+
         ProcessExistingDeallocations(bundleName, adapter, input, mutations);
-        InitNewDeallocations(bundleName, adapter, input, mutations);
+        if (!disrupted) {
+            InitNewDeallocations(bundleName, adapter, input, mutations);
+        }
     }
 
 private:
@@ -1331,12 +1351,6 @@ TString GetSpareBundleName(const TString& /*zoneName*/)
     return "spare";
 }
 
-struct TZoneDisruptedState
-{
-    bool NodesDisrupted = false;
-    bool ProxiesDisrupted = false;
-};
-
 THashMap<TString, TZoneDisruptedState> GetZoneDisruptedState(TSchedulerInputState& input)
 {
     THashMap<TString, int> zoneOfflineNodeCount;
@@ -1373,27 +1387,28 @@ THashMap<TString, TZoneDisruptedState> GetZoneDisruptedState(TSchedulerInputStat
 
     THashMap<TString, TZoneDisruptedState> result;
     for (const auto& [zoneName, zoneInfo] : input.Zones) {
-        int disruptedThreshold = zoneInfo->SpareTargetConfig->TabletNodeCount * zoneInfo->DisruptedThresholdFactor;
-        bool nodesDisrupted = disruptedThreshold > 0 && zoneOfflineNodeCount[zoneName] > disruptedThreshold;
-        result[zoneName].NodesDisrupted = nodesDisrupted;
 
-        YT_LOG_WARNING_IF(nodesDisrupted, "Zone is in disrupted state"
+        auto& zoneDisrupted = result[zoneName];
+
+        zoneDisrupted.OfflineNodeCount = zoneOfflineNodeCount[zoneName];
+        zoneDisrupted.OfflineNodeThreshold = zoneInfo->SpareTargetConfig->TabletNodeCount * zoneInfo->DisruptedThresholdFactor;
+
+        YT_LOG_WARNING_IF(zoneDisrupted.IsNodesDisrupted(), "Zone is in disrupted state"
             " (ZoneName: %v, NannyService: %v, DisruptedThreshold: %v, OfflineNodeCount: %v)",
             zoneName,
             zoneInfo->TabletNodeNannyService,
-            disruptedThreshold,
-            zoneOfflineNodeCount[zoneName]);
+            zoneDisrupted.OfflineNodeThreshold,
+            zoneDisrupted.OfflineNodeCount);
 
-        disruptedThreshold = zoneInfo->SpareTargetConfig->RpcProxyCount * zoneInfo->DisruptedThresholdFactor;
-        bool proxiesDisrupted = disruptedThreshold > 0 && zoneOfflineProxyCount[zoneName] > disruptedThreshold;
-        result[zoneName].ProxiesDisrupted = proxiesDisrupted;
+        zoneDisrupted.OfflineProxyThreshold = zoneInfo->SpareTargetConfig->RpcProxyCount * zoneInfo->DisruptedThresholdFactor;
+        zoneDisrupted.OfflineProxyCount = zoneOfflineProxyCount[zoneName];
 
-        YT_LOG_WARNING_IF(proxiesDisrupted, "Zone is in disrupted state"
+        YT_LOG_WARNING_IF(zoneDisrupted.IsProxiesDisrupted(), "Zone is in disrupted state"
             " (ZoneName: %v, NannyService: %v, DisruptedThreshold: %v, OfflineProxyCount: %v)",
             zoneName,
             zoneInfo->RpcProxyNannyService,
-            disruptedThreshold,
-            zoneOfflineProxyCount[zoneName]);
+            zoneDisrupted.OfflineProxyThreshold,
+            zoneDisrupted.OfflineProxyCount);
     }
 
     return result;
@@ -1945,7 +1960,7 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
 
     CalculateResourceUsage(input);
 
-    auto zoneDisrupted = GetZoneDisruptedState(input);
+    input.ZonesDisrupted = GetZoneDisruptedState(input);
 
     TInstanceManager<TTabletNodeAllocatorAdapter> nodeAllocator(BundleControllerLogger);
     TInstanceManager<TRpcProxyAllocatorAdapter> proxyAllocator(BundleControllerLogger);
@@ -1961,33 +1976,21 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         }
         mutations->ChangedStates[bundleName] = bundleState;
 
-        if (zoneDisrupted[bundleInfo->Zone].NodesDisrupted) {
-            YT_LOG_WARNING("Node management skipped for bundle due zone unhealthy state"
-                " (BundleName: %v, Zone: %v)",
-                bundleName,
-                bundleInfo->Zone);
-        } else {
-            const auto& bundleNodes = input.BundleNodes[bundleName];
-            auto aliveNodes = GetAliveNodes(
-                bundleName,
-                bundleNodes,
-                input,
-                EGracePeriodBehaviour::Wait);
-            TTabletNodeAllocatorAdapter nodeAdapter(bundleState, bundleNodes, aliveNodes);
-            nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations);
-        }
+        const auto& zoneDisruptedInfo = input.ZonesDisrupted[bundleInfo->Zone];
 
-        if (zoneDisrupted[bundleInfo->Zone].ProxiesDisrupted) {
-            YT_LOG_WARNING("RpcProxies management skipped for bundle due zone unhealthy state"
-                " (BundleName: %v, Zone: %v)",
-                bundleName,
-                bundleInfo->Zone);
-        } else {
-            const auto& bundleProxies = input.BundleProxies[bundleName];
-            auto aliveProxies = GetAliveProxies(bundleProxies, input);
-            TRpcProxyAllocatorAdapter proxyAdapter(bundleState, bundleProxies, aliveProxies);
-            proxyAllocator.ManageInstancies(bundleName, &proxyAdapter, input, mutations);
-        }
+        const auto& bundleNodes = input.BundleNodes[bundleName];
+        auto aliveNodes = GetAliveNodes(
+            bundleName,
+            bundleNodes,
+            input,
+            EGracePeriodBehaviour::Wait);
+        TTabletNodeAllocatorAdapter nodeAdapter(bundleState, bundleNodes, aliveNodes);
+        nodeAllocator.ManageInstancies(bundleName, &nodeAdapter, input, mutations, zoneDisruptedInfo.IsNodesDisrupted());
+
+        const auto& bundleProxies = input.BundleProxies[bundleName];
+        auto aliveProxies = GetAliveProxies(bundleProxies, input);
+        TRpcProxyAllocatorAdapter proxyAdapter(bundleState, bundleProxies, aliveProxies);
+        proxyAllocator.ManageInstancies(bundleName, &proxyAdapter, input, mutations, zoneDisruptedInfo.IsProxiesDisrupted());
     }
 
     mutations->NodesToCleanup = ScanForObsoleteCypressNodes(input, input.TabletNodes);

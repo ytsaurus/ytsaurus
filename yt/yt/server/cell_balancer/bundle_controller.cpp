@@ -67,9 +67,28 @@ struct TBundleSensors final
 
     THashMap<TString, TGauge> TargetTabletNodeSize;
     THashMap<TString, TGauge> TargetRpcProxSize;
+
+    TGauge UsingSpareNodeCount;
+    TGauge UsingSpareProxyCount;
 };
 
 using TBundleSensorsPtr = TIntrusivePtr<TBundleSensors>;
+
+struct TZoneSensors final
+{
+    TProfiler Profiler;
+
+    TGauge OfflineNodeCount;
+    TGauge OfflineNodeThreshold;
+
+    TGauge OfflineProxyCount;
+    TGauge OfflineProxyThreshold;
+
+    TGauge FreeSpareNodeCount;
+    TGauge FreeSpareProxyCount;
+};
+
+using TZoneSensorsPtr = TIntrusivePtr<TZoneSensors>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -168,6 +187,7 @@ private:
     TCounter ChangedResourceLimitsCounter_;
 
     mutable THashMap<TString, TBundleSensorsPtr> BundleSensors_;
+    mutable THashMap<TString, TZoneSensorsPtr> ZoneSensors_;
     mutable Orchid::TBundlesInfo OrchidBundlesInfo_;
 
 
@@ -553,6 +573,24 @@ private:
                 sensors->Profiler,
                 sensors->TargetRpcProxSize);
         }
+
+        for (const auto& [zoneName, zoneDisrupted] : input.ZonesDisrupted) {
+            auto sensor = GetZoneSensors(zoneName);
+            sensor->OfflineNodeCount.Update(zoneDisrupted.OfflineNodeCount);
+            sensor->OfflineNodeThreshold.Update(zoneDisrupted.OfflineNodeThreshold);
+            sensor->OfflineProxyCount.Update(zoneDisrupted.OfflineProxyCount);
+            sensor->OfflineProxyThreshold.Update(zoneDisrupted.OfflineProxyThreshold);
+        }
+
+        for (const auto& [zoneName, spareInfo] : input.ZoneToSpareNodes) {
+            auto sensor = GetZoneSensors(zoneName);
+            sensor->FreeSpareNodeCount.Update(std::ssize(spareInfo.FreeNodes));
+        }
+
+        for (const auto& [zoneName, spareInfo] : input.ZoneToSpareProxies) {
+            auto sensor = GetZoneSensors(zoneName);
+            sensor->FreeSpareProxyCount.Update(std::ssize(spareInfo.FreeProxies));
+        }
     }
 
     TBundleSensorsPtr GetBundleSensors(const TString& bundleName) const
@@ -580,7 +618,34 @@ private:
         sensors->TabletDynamicSize = bundleProfiler.Gauge("/tablet_dynamic_size");
         sensors->TabletStaticSize = bundleProfiler.Gauge("/tablet_static_size");
 
+        sensors->UsingSpareNodeCount = bundleProfiler.Gauge("/using_spare_node_count");
+        sensors->UsingSpareProxyCount = bundleProfiler.Gauge("/using_spare_proxy_count");
+
         BundleSensors_[bundleName] = sensors;
+        return sensors;
+    }
+
+    TZoneSensorsPtr GetZoneSensors(const TString& zoneName) const
+    {
+        auto it = ZoneSensors_.find(zoneName);
+        if (it != ZoneSensors_.end()) {
+            return it->second;
+        }
+
+        auto sensors = New<TZoneSensors>();
+        sensors->Profiler = Profiler.WithPrefix("/resource").WithTag("zone", zoneName);
+        auto& zoneProfiler = sensors->Profiler;
+
+        sensors->OfflineNodeCount = zoneProfiler.Gauge("/offline_node_count");
+        sensors->OfflineNodeThreshold = zoneProfiler.Gauge("/offline_node_threshold");
+
+        sensors->OfflineProxyCount = zoneProfiler.Gauge("/offline_proxy_count");
+        sensors->OfflineProxyThreshold = zoneProfiler.Gauge("/offline_proxy_threshold");
+
+        sensors->FreeSpareNodeCount = zoneProfiler.Gauge("/free_spare_node_count");
+        sensors->FreeSpareProxyCount = zoneProfiler.Gauge("/free_spare_proxy_count");
+
+        ZoneSensors_[zoneName] = sensors;
         return sensors;
     }
 

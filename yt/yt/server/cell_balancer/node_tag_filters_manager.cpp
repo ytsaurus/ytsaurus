@@ -269,6 +269,20 @@ void ManageNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* muta
 {
     for (const auto& [zoneName, _] : input.Zones) {
         input.ZoneToSpareNodes[zoneName] = GetSpareNodesInfo(zoneName, input, mutations);
+
+        const auto& spareInfo = input.ZoneToSpareNodes[zoneName];
+
+        auto inUseSpareNodes = std::ssize(spareInfo.UsedByBundle) + std::ssize(spareInfo.DecommissionedByBundle);
+        if (std::ssize(spareInfo.FreeNodes) == 0 && inUseSpareNodes > 0) {
+            YT_LOG_WARNING("No free spare nodes available (Zone: %v)",
+                zoneName);
+
+            mutations->AlertsToFire.push_back({
+                .Id = "no_free_spare_nodes",
+                .Description = Format("No free spare node available in zone: %v.",
+                    zoneName),
+            });
+        }
     }
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {

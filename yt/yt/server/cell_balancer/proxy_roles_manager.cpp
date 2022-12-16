@@ -136,6 +136,19 @@ void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutat
 {
     for (const auto& [zoneName, _] : input.Zones) {
         input.ZoneToSpareProxies[zoneName] = GetSpareProxiesInfo(zoneName, input);
+
+        const auto& spareInfo = input.ZoneToSpareProxies[zoneName];
+
+        if (std::ssize(spareInfo.FreeProxies) == 0 && std::ssize(spareInfo.UsedByBundle) > 0) {
+            YT_LOG_WARNING("No free spare proxies available (Zone: %v)",
+                zoneName);
+
+            mutations->AlertsToFire.push_back({
+                .Id = "no_free_spare_proxies",
+                .Description = Format("No free spare proxies available in zone: %v.",
+                    zoneName),
+            });
+        }
     }
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
