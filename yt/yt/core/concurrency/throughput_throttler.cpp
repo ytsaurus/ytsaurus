@@ -7,6 +7,8 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
+#include <yt/yt/core/tracing/trace_context.h>
+
 #include <queue>
 
 namespace NYT::NConcurrency {
@@ -28,6 +30,7 @@ struct TThrottlerRequest
     TPromise<void> Promise;
     std::atomic_flag Set = ATOMIC_FLAG_INIT;
     NProfiling::TCpuInstant StartTime = NProfiling::GetCpuInstant();
+    NTracing::TTraceContextPtr TraceContext;
 };
 
 DEFINE_REFCOUNTED_TYPE(TThrottlerRequest)
@@ -250,16 +253,19 @@ private:
         YT_LOG_DEBUG("Started waiting for throttler (Amount: %v)", amount);
         auto promise = NewPromise<void>();
         auto request = New<TThrottlerRequest>(amount);
+        request->TraceContext = NTracing::CreateTraceContextFromCurrent("Throttler");
         promise.OnCanceled(BIND([weakRequest = MakeWeak(request), amount, this, this_ = MakeStrong(this)] (const TError& error) {
             auto request = weakRequest.Lock();
             if (request && !request->Set.test_and_set()) {
+                NTracing::TTraceContextFinishGuard guard(std::move(request->TraceContext));
+                YT_LOG_DEBUG("Canceled waiting for throttler (Amount: %v)",
+                    amount);
                 request->Promise.Set(TError(NYT::EErrorCode::Canceled, "Throttled request canceled")
                     << error);
                 QueueTotalAmount_ -= amount;
                 QueueSizeCounter_.Update(QueueTotalAmount_);
             }
         }));
-
         request->Promise = std::move(promise);
         Requests_.push(request);
         QueueTotalAmount_ += amount;
@@ -322,7 +328,7 @@ private:
 
         auto delay = Max<i64>(0, -Available_ * 1000 / limit);
         UpdateCookie_ = TDelayedExecutor::Submit(
-            BIND(&TReconfigurableThroughputThrottler::Update, MakeWeak(this)),
+            BIND_NO_PROPAGATE(&TReconfigurableThroughputThrottler::Update, MakeWeak(this)),
             TDuration::MilliSeconds(delay));
     }
 
@@ -383,6 +389,8 @@ private:
         while (!Requests_.empty() && (limit < 0 || Available_ >= 0)) {
             const auto& request = Requests_.front();
             if (!request->Set.test_and_set()) {
+                NTracing::TTraceContextGuard traceGuard(std::move(request->TraceContext));
+
                 auto waitTime = NProfiling::CpuDurationToDuration(NProfiling::GetCpuInstant() - request->StartTime);
                 YT_LOG_DEBUG("Finished waiting for throttler (Amount: %v, WaitTime: %v)",
                     request->Amount,
