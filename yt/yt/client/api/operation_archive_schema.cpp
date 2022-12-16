@@ -208,25 +208,4 @@ TJobProfileTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobFailContextTableDescriptor::TJobFailContextTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Index(NameTable)
-{ }
-
-const TJobFailContextTableDescriptor& TJobFailContextTableDescriptor::Get()
-{
-    static const TJobFailContextTableDescriptor descriptor;
-    return descriptor;
-}
-
-TJobFailContextTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
-    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
-    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
-    , JobIdHi(nameTable->RegisterName("job_id_hi"))
-    , JobIdLo(nameTable->RegisterName("job_id_lo"))
-    , FailContext(nameTable->RegisterName("fail_context"))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NApi

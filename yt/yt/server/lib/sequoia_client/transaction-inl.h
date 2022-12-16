@@ -6,6 +6,8 @@
 
 #include <yt/yt/client/api/rowset.h>
 
+#include <yt/yt/client/table_client/record_helpers.h>
+
 namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,12 +20,11 @@ TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecor
 {
     auto rowsetFuture = LookupRows(
         TRecordKey::Table,
-        TRecordKey::ToKeys(keys, GetRowBuffer()),
+        FromRecordKeys<TRecordKey>(keys, GetRowBuffer()),
         timestamp,
         columnFilter);
     return rowsetFuture.Apply(BIND([] (const NApi::IUnversionedRowsetPtr& rowset) {
-        typename TRecordKey::TRecordDescriptor::TIdMapping idMapping(rowset->GetNameTable());
-        return TRecordKey::TRecordDescriptor::TRecord::FromUnversionedRows(rowset->GetRows(), idMapping);
+        return NTableClient::ToOptionalRecords<typename TRecordKey::TRecordDescriptor::TRecord>(rowset);
     }));
 }
 
@@ -56,7 +57,7 @@ void ISequoiaTransaction::WriteRow(const TRecord& record)
 {
     WriteRow(
         TRecord::Table,
-        record.ToUnversionedRow(GetRowBuffer()));
+        NTableClient::FromRecord(record, GetRowBuffer()));
 }
 
 template <class TRecordKey>
@@ -64,7 +65,7 @@ void ISequoiaTransaction::DeleteRow(const TRecordKey& key)
 {
     DeleteRow(
         TRecordKey::Table,
-        key.ToKey(GetRowBuffer()));
+        NTableClient::FromRecordKey(key, GetRowBuffer()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

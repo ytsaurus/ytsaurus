@@ -8,40 +8,40 @@ types:
     fields:
       - cpp_name: IdHash
         cpp_type: ui32
-        field_name: id_hash
-        field_type: Uint32
+        column_name: id_hash
+        column_type: Uint32
         sort_order: Ascending
 
       - cpp_name: Id
         cpp_type: TString
-        field_name: id
-        field_type: String
+        column_name: id
+        column_type: String
         sort_order: Ascending
 
       - cpp_name: MiscExt
         cpp_type: TString
-        field_name: misc_ext
-        field_type: String
+        column_name: misc_ext
+        column_type: String
 
       - cpp_name: HunkChunkMiscExt
         cpp_type: TString
-        field_name: hunk_chunk_misc_ext
-        field_type: String
+        column_name: hunk_chunk_misc_ext
+        column_type: String
 
       - cpp_name: HunkChunkRefsExt
         cpp_type: TString
-        field_name: hunk_chunk_refs_ext
-        field_type: String
+        column_name: hunk_chunk_refs_ext
+        column_type: String
 
       - cpp_name: BoundaryKeysExt
         cpp_type: TString
-        field_name: boundary_keys_ext
-        field_type: String
+        column_name: boundary_keys_ext
+        column_type: String
 
       - cpp_name: HeavyColumnStatisticsExt
         cpp_type: TString
-        field_name: heavy_column_statistics_ext
-        field_type: String
+        column_name: heavy_column_statistics_ext
+        column_type: String
 
     key_verbatim: |
         static constexpr auto Table = ESequoiaTable::ChunkMetaExtensions;

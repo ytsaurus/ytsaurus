@@ -21,6 +21,7 @@
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 #include <yt/yt/client/table_client/name_table.h>
 #include <yt/yt/client/table_client/schema.h>
 
@@ -432,8 +433,7 @@ TOperationId TClient::ResolveOperationAlias(
         lookupOptions))
         .ValueOrThrow();
 
-    NRecords::TOperationAliasIdMapping idMapping(rowset->GetNameTable());
-    auto optionalRecords = NRecords::TOperationAlias::FromUnversionedRows(rowset->GetRows(), idMapping);
+    auto optionalRecords = ToOptionalRecords<NRecords::TOperationAlias>(rowset);
 
     YT_VERIFY(optionalRecords.size() == 1);
     const auto& optionalRecord = optionalRecords[0];

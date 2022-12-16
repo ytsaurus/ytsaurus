@@ -16,11 +16,6 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using NYT::NApi::TJobTableDescriptor;
-using NYT::NApi::TJobSpecTableDescriptor;
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! Periodically reports job statistics to the dynamic table.
 class TJobReporter
     : public TRefCounted

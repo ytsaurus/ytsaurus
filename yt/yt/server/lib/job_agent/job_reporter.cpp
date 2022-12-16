@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/controller_agent/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
 
 #include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/transaction.h>
@@ -19,6 +20,7 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/name_table.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -64,17 +66,17 @@ class TJobRowlet
 {
 public:
     TJobRowlet(
-        TJobReport&& statistics,
+        TJobReport&& report,
         bool reportStatisticsLz4,
         const std::optional<TString>& localAddress)
-        : Statistics_(statistics)
+        : Report_(std::move(report))
         , ReportStatisticsLz4_(reportStatisticsLz4)
         , DefaultLocalAddress_(localAddress)
     { }
 
     size_t EstimateSize() const override
     {
-        return Statistics_.EstimateSize();
+        return Report_.EstimateSize();
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
@@ -88,93 +90,93 @@ public:
         TYsonString briefStatisticsYsonString;
 
         TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[1], index.OperationIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[1], index.JobIdLo));
-        if (Statistics_.Type()) {
-            builder.AddValue(MakeUnversionedStringValue(*Statistics_.Type(), index.Type));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[0], index.OperationIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[1], index.OperationIdLo));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
+        if (Report_.Type()) {
+            builder.AddValue(MakeUnversionedStringValue(*Report_.Type(), index.Type));
         }
-        if (Statistics_.State()) {
+        if (Report_.State()) {
             builder.AddValue(MakeUnversionedStringValue(
-                *Statistics_.State(),
+                *Report_.State(),
                 index.TransientState));
         }
-        if (Statistics_.StartTime()) {
-            builder.AddValue(MakeUnversionedInt64Value(*Statistics_.StartTime(), index.StartTime));
+        if (Report_.StartTime()) {
+            builder.AddValue(MakeUnversionedInt64Value(*Report_.StartTime(), index.StartTime));
         }
-        if (Statistics_.FinishTime()) {
-            builder.AddValue(MakeUnversionedInt64Value(*Statistics_.FinishTime(), index.FinishTime));
+        if (Report_.FinishTime()) {
+            builder.AddValue(MakeUnversionedInt64Value(*Report_.FinishTime(), index.FinishTime));
         }
         if (DefaultLocalAddress_) {
             builder.AddValue(MakeUnversionedStringValue(*DefaultLocalAddress_, index.Address));
         }
-        if (Statistics_.Error()) {
-            builder.AddValue(MakeUnversionedAnyValue(*Statistics_.Error(), index.Error));
+        if (Report_.Error()) {
+            builder.AddValue(MakeUnversionedAnyValue(*Report_.Error(), index.Error));
         }
-        if (Statistics_.Statistics()) {
+        if (Report_.Statistics()) {
             if (ReportStatisticsLz4_) {
                 auto codec = NCompression::GetCodec(NCompression::ECodec::Lz4);
-                statisticsLz4 = ToString(codec->Compress(TSharedRef::FromString(*Statistics_.Statistics())));
+                statisticsLz4 = ToString(codec->Compress(TSharedRef::FromString(*Report_.Statistics())));
                 builder.AddValue(MakeUnversionedStringValue(statisticsLz4, index.StatisticsLz4));
             } else {
-                builder.AddValue(MakeUnversionedAnyValue(*Statistics_.Statistics(), index.Statistics));
+                builder.AddValue(MakeUnversionedAnyValue(*Report_.Statistics(), index.Statistics));
             }
-            briefStatisticsYsonString = BuildBriefStatistics(ConvertToNode(TYsonStringBuf(*Statistics_.Statistics())));
+            briefStatisticsYsonString = BuildBriefStatistics(ConvertToNode(TYsonStringBuf(*Report_.Statistics())));
             builder.AddValue(MakeUnversionedAnyValue(briefStatisticsYsonString.AsStringBuf(), index.BriefStatistics));
         }
-        if (Statistics_.Events()) {
-            builder.AddValue(MakeUnversionedAnyValue(*Statistics_.Events(), index.Events));
+        if (Report_.Events()) {
+            builder.AddValue(MakeUnversionedAnyValue(*Report_.Events(), index.Events));
         }
-        if (Statistics_.StderrSize()) {
-            builder.AddValue(MakeUnversionedUint64Value(*Statistics_.StderrSize(), index.StderrSize));
+        if (Report_.StderrSize()) {
+            builder.AddValue(MakeUnversionedUint64Value(*Report_.StderrSize(), index.StderrSize));
         }
-        if (Statistics_.CoreInfos()) {
-            coreInfosYsonString = ConvertToYsonString(*Statistics_.CoreInfos());
+        if (Report_.CoreInfos()) {
+            coreInfosYsonString = ConvertToYsonString(*Report_.CoreInfos());
             builder.AddValue(MakeUnversionedAnyValue(coreInfosYsonString.AsStringBuf(), index.CoreInfos));
         }
         builder.AddValue(MakeUnversionedInt64Value(TInstant::Now().MicroSeconds(), index.UpdateTime));
-        if (Statistics_.Spec()) {
-            builder.AddValue(MakeUnversionedBooleanValue(Statistics_.Spec().operator bool(), index.HasSpec));
+        if (Report_.Spec()) {
+            builder.AddValue(MakeUnversionedBooleanValue(Report_.Spec().operator bool(), index.HasSpec));
         }
-        if (Statistics_.FailContext()) {
-            builder.AddValue(MakeUnversionedUint64Value(Statistics_.FailContext()->size(), index.FailContextSize));
+        if (Report_.FailContext()) {
+            builder.AddValue(MakeUnversionedUint64Value(Report_.FailContext()->size(), index.FailContextSize));
         }
-        if (Statistics_.JobCompetitionId()) {
-            jobCompetitionIdString = ToString(Statistics_.JobCompetitionId());
+        if (Report_.JobCompetitionId()) {
+            jobCompetitionIdString = ToString(Report_.JobCompetitionId());
             builder.AddValue(MakeUnversionedStringValue(jobCompetitionIdString, index.JobCompetitionId));
         }
-        if (Statistics_.ProbingJobCompetitionId()) {
-            probingJobCompetitionIdString = ToString(Statistics_.ProbingJobCompetitionId());
+        if (Report_.ProbingJobCompetitionId()) {
+            probingJobCompetitionIdString = ToString(Report_.ProbingJobCompetitionId());
             builder.AddValue(MakeUnversionedStringValue(probingJobCompetitionIdString, index.ProbingJobCompetitionId));
         }
-        if (Statistics_.HasCompetitors().has_value()) {
-            builder.AddValue(MakeUnversionedBooleanValue(Statistics_.HasCompetitors().value(), index.HasCompetitors));
+        if (Report_.HasCompetitors().has_value()) {
+            builder.AddValue(MakeUnversionedBooleanValue(Report_.HasCompetitors().value(), index.HasCompetitors));
         }
-        if (Statistics_.HasProbingCompetitors().has_value()) {
-            builder.AddValue(MakeUnversionedBooleanValue(Statistics_.HasProbingCompetitors().value(), index.HasProbingCompetitors));
+        if (Report_.HasProbingCompetitors().has_value()) {
+            builder.AddValue(MakeUnversionedBooleanValue(Report_.HasProbingCompetitors().value(), index.HasProbingCompetitors));
         }
-        if (Statistics_.ExecAttributes()) {
-            builder.AddValue(MakeUnversionedAnyValue(*Statistics_.ExecAttributes(), index.ExecAttributes));
+        if (Report_.ExecAttributes()) {
+            builder.AddValue(MakeUnversionedAnyValue(*Report_.ExecAttributes(), index.ExecAttributes));
         }
-        if (Statistics_.TaskName()) {
-            builder.AddValue(MakeUnversionedStringValue(*Statistics_.TaskName(), index.TaskName));
+        if (Report_.TaskName()) {
+            builder.AddValue(MakeUnversionedStringValue(*Report_.TaskName(), index.TaskName));
         }
-        if (Statistics_.TreeId()) {
-            builder.AddValue(MakeUnversionedStringValue(*Statistics_.TreeId(), index.PoolTree));
+        if (Report_.TreeId()) {
+            builder.AddValue(MakeUnversionedStringValue(*Report_.TreeId(), index.PoolTree));
         }
         // COMPAT(levysotsky)
-        if (archiveVersion >= 39 && Statistics_.MonitoringDescriptor()) {
-            builder.AddValue(MakeUnversionedStringValue(*Statistics_.MonitoringDescriptor(), index.MonitoringDescriptor));
+        if (archiveVersion >= 39 && Report_.MonitoringDescriptor()) {
+            builder.AddValue(MakeUnversionedStringValue(*Report_.MonitoringDescriptor(), index.MonitoringDescriptor));
         }
 
         return builder.FinishRow();
     }
 
 private:
-    TJobReport Statistics_;
-    bool ReportStatisticsLz4_;
-    const std::optional<TString>& DefaultLocalAddress_;
+    const TJobReport Report_;
+    const bool ReportStatisticsLz4_;
+    const std::optional<TString> DefaultLocalAddress_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -183,13 +185,13 @@ class TOperationIdRowlet
     : public IArchiveRowlet
 {
 public:
-    TOperationIdRowlet(TJobReport&& statistics)
-        : Statistics_(statistics)
+    explicit TOperationIdRowlet(TJobReport&& report)
+        : Report_(std::move(report))
     { }
 
     size_t EstimateSize() const override
     {
-        return Statistics_.EstimateSize();
+        return Report_.EstimateSize();
     }
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
@@ -197,16 +199,16 @@ public:
         const auto& index = TOperationIdTableDescriptor::Get().Index;
 
         TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[1], index.JobIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[1], index.OperationIdLo));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[0], index.OperationIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[1], index.OperationIdLo));
 
         return builder.FinishRow();
     }
 
 private:
-    TJobReport Statistics_;
+    const TJobReport Report_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -215,13 +217,13 @@ class TJobSpecRowlet
     : public IArchiveRowlet
 {
 public:
-    TJobSpecRowlet(TJobReport&& statistics)
-        : Statistics_(statistics)
+    explicit TJobSpecRowlet(TJobReport&& report)
+        : Report_(std::move(report))
     { }
 
     size_t EstimateSize() const override
     {
-        return Statistics_.EstimateSize();
+        return Report_.EstimateSize();
     }
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
@@ -229,23 +231,23 @@ public:
         const auto& index = TJobSpecTableDescriptor::Get().Index;
 
         TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[1], index.JobIdLo));
-        if (Statistics_.Spec()) {
-            builder.AddValue(MakeUnversionedStringValue(*Statistics_.Spec(), index.Spec));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
+        if (Report_.Spec()) {
+            builder.AddValue(MakeUnversionedStringValue(*Report_.Spec(), index.Spec));
         }
-        if (Statistics_.SpecVersion()) {
-            builder.AddValue(MakeUnversionedInt64Value(*Statistics_.SpecVersion(), index.SpecVersion));
+        if (Report_.SpecVersion()) {
+            builder.AddValue(MakeUnversionedInt64Value(*Report_.SpecVersion(), index.SpecVersion));
         }
-        if (Statistics_.Type()) {
-            builder.AddValue(MakeUnversionedStringValue(*Statistics_.Type(), index.Type));
+        if (Report_.Type()) {
+            builder.AddValue(MakeUnversionedStringValue(*Report_.Type(), index.Type));
         }
 
         return builder.FinishRow();
     }
 
 private:
-    TJobReport Statistics_;
+    const TJobReport Report_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -254,35 +256,35 @@ class TJobStderrRowlet
     : public IArchiveRowlet
 {
 public:
-    TJobStderrRowlet(TJobReport&& statistics)
-        : Statistics_(statistics)
+    explicit TJobStderrRowlet(TJobReport&& report)
+        : Report_(std::move(report))
     { }
 
     size_t EstimateSize() const override
     {
-        return Statistics_.EstimateSize();
+        return Report_.EstimateSize();
     }
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TJobStderrTableDescriptor::Get().Index;
 
-        if (!Statistics_.Stderr()) {
+        if (!Report_.Stderr()) {
             return {};
         }
 
         TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[1], index.OperationIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[1], index.JobIdLo));
-        builder.AddValue(MakeUnversionedStringValue(*Statistics_.Stderr(), index.Stderr));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[0], index.OperationIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[1], index.OperationIdLo));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
+        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
+        builder.AddValue(MakeUnversionedStringValue(*Report_.Stderr(), index.Stderr));
 
         return builder.FinishRow();
     }
 
 private:
-    TJobReport Statistics_;
+    const TJobReport Report_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -291,35 +293,32 @@ class TJobFailContextRowlet
     : public IArchiveRowlet
 {
 public:
-    TJobFailContextRowlet(TJobReport&& statistics)
-        : Statistics_(statistics)
+    explicit TJobFailContextRowlet(TJobReport&& report)
+        : Report_(std::move(report))
     { }
 
     size_t EstimateSize() const override
     {
-        return Statistics_.EstimateSize();
+        return Report_.EstimateSize();
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
     {
-        const auto& index = TJobFailContextTableDescriptor::Get().Index;
-
-        if (archiveVersion < 21 || !Statistics_.FailContext() || Statistics_.FailContext()->size() > MaxStringValueLength) {
+        if (archiveVersion < 21 || !Report_.FailContext() || Report_.FailContext()->size() > MaxStringValueLength) {
             return {};
         }
 
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[1], index.OperationIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[1], index.JobIdLo));
-        builder.AddValue(MakeUnversionedStringValue(*Statistics_.FailContext(), index.FailContext));
-
-        return builder.FinishRow();
+        NRecords::TJobFailContext record;
+        record.OperationIdHi = Report_.OperationId().Parts64[0];
+        record.OperationIdLo = Report_.OperationId().Parts64[1];
+        record.JobIdHi = Report_.JobId().Parts64[0];
+        record.JobIdLo = Report_.JobId().Parts64[1];
+        record.FailContext = *Report_.FailContext();
+        return FromRecord(record);
     }
 
 private:
-    TJobReport Statistics_;
+    const TJobReport Report_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,8 +327,8 @@ class TJobProfileRowlet
     : public IArchiveRowlet
 {
 public:
-    TJobProfileRowlet(TJobReport&& statistics)
-        : Statistics_(statistics)
+    explicit TJobProfileRowlet(TJobReport&& report)
+        : Statistics_(std::move(report))
     { }
 
     size_t EstimateSize() const override
@@ -360,7 +359,7 @@ public:
     }
 
 private:
-    TJobReport Statistics_;
+    const TJobReport Statistics_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -426,7 +425,7 @@ public:
                 Version_,
                 Config_,
                 Config_->JobFailContextHandler,
-                TJobFailContextTableDescriptor::Get().NameTable,
+                NRecords::TJobFailContextDescriptor::Get()->GetNameTable(),
                 "fail_contexts",
                 Client_,
                 Reporter_->GetInvoker(),

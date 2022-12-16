@@ -28,6 +28,7 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/helpers.h>
+#include <yt/yt/client/table_client/record_helpers.h>
 
 #include <yt/yt/core/actions/cancelable_context.h>
 
@@ -448,7 +449,7 @@ TUnversionedRow BuildOperationAliasesTableRow(
     alias.Alias = *request.Alias;
     alias.OperationIdHi = request.Id.Parts64[0];
     alias.OperationIdLo = request.Id.Parts64[1];
-    return alias.ToUnversionedRow(rowBuffer);
+    return FromRecord(alias, rowBuffer);
 }
 
 void AddEventToAlertEventsMap(TAlertEventsMap* map, const TOperationAlertEvent& event, int maxAlertEventCountPerAlertType)

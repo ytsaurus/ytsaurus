@@ -212,27 +212,6 @@ struct TJobProfileTableDescriptor
     const TIndex Index;
 };
 
-struct TJobFailContextTableDescriptor
-{
-    TJobFailContextTableDescriptor();
-
-    static const TJobFailContextTableDescriptor& Get();
-
-    struct TIndex
-    {
-        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
-
-        const int OperationIdHi;
-        const int OperationIdLo;
-        const int JobIdHi;
-        const int JobIdLo;
-        const int FailContext;
-    };
-
-    const NTableClient::TNameTablePtr NameTable;
-    const TIndex Index;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT::NApi
