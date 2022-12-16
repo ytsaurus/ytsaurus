@@ -154,6 +154,11 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceUsageAtUpdate);
     DEFINE_BYREF_RO_PROPERTY(TJobResources, ResourceLimits);
 
+    // Used for profiling in snapshotted version.
+    DEFINE_BYREF_RW_PROPERTY(int, SchedulableElementCount, 0);
+    DEFINE_BYREF_RW_PROPERTY(int, SchedulablePoolCount, 0);
+    DEFINE_BYREF_RW_PROPERTY(int, SchedulableOperationCount, 0);
+
     // Assigned in preupdate, used in schedule jobs.
     DEFINE_BYVAL_RO_PROPERTY(bool, Tentative, false);
     DEFINE_BYVAL_RO_PROPERTY(bool, HasSpecifiedResourceLimits, false);
@@ -343,7 +348,9 @@ protected:
 
     virtual void ComputeSatisfactionRatioAtUpdate();
 
-    virtual int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) = 0;
+    void ResetSchedulableCounters();
+
+    virtual void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) = 0;
 
     // Enumerates elements of the tree using inorder traversal. Returns first unused index.
     virtual int EnumerateElements(int startIndex, bool isSchedulableValueFilter);
@@ -374,9 +381,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(int, RunningOperationCount);
     DEFINE_BYREF_RW_PROPERTY(int, OperationCount);
     DEFINE_BYREF_RW_PROPERTY(std::list<TOperationId>, PendingOperationIds);
-
-    // Used for profiling in snapshotted version.
-    DEFINE_BYREF_RW_PROPERTY(int, SchedulableElementCount, 0);
 
     // Computed in fair share update and used in schedule jobs.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TSchedulerElementPtr>, SchedulableChildren);
@@ -492,7 +496,7 @@ protected:
     void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
     //! Post fair share update methods.
-    int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
+    void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     int EnumerateElements(int startIndex, bool isSchedulableValueFilter) override;
 
@@ -839,7 +843,7 @@ protected:
     void CheckForStarvation(TInstant now) override;
 
     void OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context);
-    int BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
+    void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     void BuildElementMapping(TFairSharePostUpdateContext* context) override;
 
