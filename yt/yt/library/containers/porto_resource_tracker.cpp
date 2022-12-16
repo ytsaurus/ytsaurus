@@ -376,10 +376,14 @@ TPortoResourceProfiler::TPortoResourceProfiler(
 static void WriteGaugeIfOk(
     ISensorWriter* writer,
     const TString& path,
-    TErrorOr<ui64> value)
+    TErrorOr<ui64> valueOrError)
 {
-    if (value.IsOK()) {
-        writer->AddGauge(path, value.Value());
+    if (valueOrError.IsOK()) {
+        i64 value = static_cast<i64>(valueOrError.Value());
+
+        if (value >= 0) {
+            writer->AddGauge(path, value);
+        }
     }
 }
 
