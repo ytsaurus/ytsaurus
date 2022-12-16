@@ -290,9 +290,9 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .InRange(1, 16);
 
     registrar.Parameter("enable_new_scan_reader_for_lookup", &TThis::EnableNewScanReaderForLookup)
-        .Default(false);
+        .Default(true);
     registrar.Parameter("enable_new_scan_reader_for_select", &TThis::EnableNewScanReaderForSelect)
-        .Default(false);
+        .Default(true);
 
     registrar.Parameter("enable_hunk_columnar_profiling", &TThis::EnableHunkColumnarProfiling)
         .Default(false);
