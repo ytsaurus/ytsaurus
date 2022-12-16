@@ -22,7 +22,8 @@ select * from [TABLE_NAME] order by FIELD limit 10
 
 
 # Где скачать
-https://proxy.sandbox.yandex-team.ru/3233227946
+https://proxy.sandbox.yandex-team.ru/3233227946 - сборка под Java 8. Не самая актальная версия.
+https://proxy.sandbox.yandex-team.ru/3892574841 - сборка под Java 11 (свежвая версия).
 
 # Регистрация в IDEA
 
