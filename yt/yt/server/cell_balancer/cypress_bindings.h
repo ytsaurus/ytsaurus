@@ -280,6 +280,7 @@ struct TZoneInfo
     TString YPCluster;
     TString TabletNodeNannyService;
     TString RpcProxyNannyService;
+    std::optional<TString> ShortName;
 
     int MaxTabletNodeCount;
     int MaxRpcProxyCount;

@@ -2382,6 +2382,7 @@ TEST(TBundleSchedulerTest, CheckBundleShortName)
     auto input = GenerateSimpleInputContext(5);
     auto bundleInfo = GetOrCrash(input.Bundles, "default-bundle");
     bundleInfo->ShortName = "short-xyz";
+    input.Zones["default-zone"]->ShortName = "short-cluster";
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -2396,7 +2397,9 @@ TEST(TBundleSchedulerTest, CheckBundleShortName)
     for (auto& [_, request] : mutations.NewAllocations) {
         templates.insert(request->Spec->PodIdTemplate);
         EXPECT_TRUE(request->Spec->PodIdTemplate.find("short-xyz") != std::string::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find("short-cluster") != std::string::npos);
         EXPECT_TRUE(request->Spec->PodIdTemplate.find("default-bundle") == std::string::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(input.Config->Cluster) == std::string::npos);
     }
 
     EXPECT_EQ(templates.size(), 5u);

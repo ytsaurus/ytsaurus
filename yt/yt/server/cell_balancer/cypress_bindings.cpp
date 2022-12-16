@@ -201,6 +201,8 @@ void TZoneInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "rpc_proxy_nanny_service", &TThis::RpcProxyNannyService)
         .Default();
+    RegisterAttribute(registrar, "short_name", &TThis::ShortName)
+        .Optional();
     RegisterAttribute(registrar, "spare_target_config", &TThis::SpareTargetConfig)
         .DefaultNew();
     RegisterAttribute(registrar, "disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
