@@ -113,6 +113,13 @@ void TSchedulerElement::ComputeSatisfactionRatioAtUpdate()
     PostUpdateAttributes_.SatisfactionRatio = PostUpdateAttributes_.LocalSatisfactionRatio;
 }
 
+void TSchedulerElement::ResetSchedulableCounters()
+{
+    SchedulableElementCount_ = 0;
+    SchedulablePoolCount_ = 0;
+    SchedulableOperationCount_ = 0;
+}
+
 const TSchedulingTagFilter& TSchedulerElement::GetSchedulingTagFilter() const
 {
     return EmptySchedulingTagFilter;
@@ -718,20 +725,27 @@ void TSchedulerCompositeElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     TSchedulerElement::PreUpdateBottomUp(context);
 }
 
-int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
+void TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
 {
     PostUpdateAttributes_.UnschedulableOperationsResourceUsage = TJobResources();
     SchedulableChildren_.clear();
-    SchedulableElementCount_ = 0;
+
+    ResetSchedulableCounters();
+    auto updateSchedulableCounters = [&] (const TSchedulerElementPtr& child) {
+        SchedulableElementCount_ += child->SchedulableElementCount();
+        SchedulablePoolCount_ += child->SchedulablePoolCount();
+        SchedulableOperationCount_ += child->SchedulableOperationCount();
+    };
 
     auto maxSchedulableElementCount = TreeConfig_->MaxSchedulableElementCountInFifoPool;
 
     if (Mode_ == ESchedulingMode::FairShare || !maxSchedulableElementCount.has_value()) {
         for (const auto& child : EnabledChildren_) {
-            SchedulableElementCount_ += child->BuildSchedulableChildrenLists(context);
+            child->BuildSchedulableChildrenLists(context);
             PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
             if (child->IsSchedulable()) {
                 SchedulableChildren_.push_back(child);
+                updateSchedulableCounters(child);
             }
         }
     } else { // Fifo pool, MaxSchedulableElementCountInFifoPool specified.
@@ -748,7 +762,7 @@ int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
             });
 
         for (auto* child : sortedChildren) {
-            int childSchedulableElementCount = child->BuildSchedulableChildrenLists(context);
+            child->BuildSchedulableChildrenLists(context);
             PostUpdateAttributes_.UnschedulableOperationsResourceUsage += child->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
             if (SchedulableElementCount_ >= *maxSchedulableElementCount &&
                 Dominates(TResourceVector::SmallEpsilon(), child->Attributes().FairShare.Total))
@@ -757,14 +771,14 @@ int TSchedulerCompositeElement::BuildSchedulableChildrenLists(TFairSharePostUpda
             }
             if (child->IsSchedulable()) {
                 SchedulableChildren_.push_back(child);
-                SchedulableElementCount_ += childSchedulableElementCount;
+                updateSchedulableCounters(child);
             }
         }
     }
     if (IsRoot() || IsSchedulable()) {
         ++SchedulableElementCount_;
+        ++SchedulablePoolCount_;
     }
-    return SchedulableElementCount_;
 }
 
 void TSchedulerCompositeElement::ComputeSatisfactionRatioAtUpdate()
@@ -1644,14 +1658,16 @@ void TSchedulerOperationElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdate
     TSchedulerElement::PreUpdateBottomUp(context);
 }
 
-int TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
+void TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context)
 {
-    if (!IsSchedulable()) {
+    ResetSchedulableCounters();
+    if (IsSchedulable()) {
+        ++SchedulableElementCount_;
+        ++SchedulableOperationCount_;
+    } else {
         ++context->UnschedulableReasons[*UnschedulableReason_];
         PostUpdateAttributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
-        return 0;
     }
-    return 1;
 }
 
 void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context)

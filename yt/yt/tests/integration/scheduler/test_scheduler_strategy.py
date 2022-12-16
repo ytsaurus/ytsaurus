@@ -3424,12 +3424,20 @@ class TestFifoPools(YTEnvSetup):
 
         schedulable_element_count_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "fifo"}) \
             .gauge("scheduler/pools/schedulable_element_count")
+        schedulable_pool_count_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "fifo"}) \
+            .gauge("scheduler/pools/schedulable_pool_count")
+        schedulable_operation_count_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "fifo"}) \
+            .gauge("scheduler/pools/schedulable_operation_count")
         wait(lambda: schedulable_element_count_sensor.get() is not None)
+        wait(lambda: schedulable_pool_count_sensor.get() is not None)
+        wait(lambda: schedulable_operation_count_sensor.get() is not None)
 
         ops = []
         for _ in range(5):
             ops.append(run_test_vanilla("sleep 1", task_patch={"cpu_limit": 10.0}, spec={"pool": "fifo"}))
             assert schedulable_element_count_sensor.get() <= 2
+            assert schedulable_pool_count_sensor.get() <= 1
+            assert schedulable_operation_count_sensor.get() <= 1
             time.sleep(0.1)
         for op in ops:
             op.track()

@@ -445,6 +445,8 @@ void TFairShareTreeProfileManager::ProfilePool(
     buffer.AddGauge("/running_operation_count", element->RunningOperationCount());
     buffer.AddGauge("/total_operation_count", element->OperationCount());
     buffer.AddGauge("/schedulable_element_count", element->SchedulableElementCount());
+    buffer.AddGauge("/schedulable_pool_count", element->SchedulablePoolCount());
+    buffer.AddGauge("/schedulable_operation_count", element->SchedulableOperationCount());
 
     ProfileResources(&buffer, element->GetSpecifiedStrongGuaranteeResources(), "/strong_guarantee_resources");
     ProfileResources(&buffer, element->Attributes().EffectiveStrongGuaranteeResources, "/effective_strong_guarantee_resources");
