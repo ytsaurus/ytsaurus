@@ -122,7 +122,7 @@ public:
         , CellDescriptor_(FromProto<TCellId>(createInfo.cell_id()))
         , CellBundleName_(createInfo.cell_bundle())
         , Options_(ConvertTo<TTabletCellOptionsPtr>(TYsonString(createInfo.options())))
-        , Logger(GetLogger())
+        , Logger(MakeLogger())
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetOccupier()->GetOccupierAutomatonInvoker(), AutomatonThread);
     }
@@ -293,7 +293,7 @@ public:
                 PeerId_ = peerId;
 
                 // Logger has peer_id tag so should be updated.
-                Logger = GetLogger();
+                Logger = MakeLogger();
             }
         }
 
@@ -332,18 +332,12 @@ public:
         auto snapshotClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellSnapshotterUserName));
         auto changelogClient = connection->CreateNativeClient(TClientOptions::FromUser(NSecurityClient::TabletCellChangeloggerUserName));
 
-        bool independent = Options_->IndependentPeers;
-        TStringBuilder builder;
-        builder.AppendFormat("%v/%v", GetCellCypressPrefix(GetCellId()), GetCellId());
-        if (independent) {
-            builder.AppendFormat("/%v", PeerId_);
-        }
-        auto path = builder.Flush();
+        auto storesPath = GetStoresPath();
 
         auto snapshotStore = CreateRemoteSnapshotStore(
             Config_->Snapshots,
             Options_,
-            path + "/snapshots",
+            storesPath + "/snapshots",
             snapshotClient,
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId);
         SnapshotStoreThunk_->SetUnderlying(snapshotStore);
@@ -358,13 +352,14 @@ public:
         auto changelogStoreFactory = CreateRemoteChangelogStoreFactory(
             Config_->Changelogs,
             Options_,
-            path + "/changelogs",
+            storesPath + "/changelogs",
             changelogClient,
             Bootstrap_->GetResourceLimitsManager(),
             PrerequisiteTransaction_ ? PrerequisiteTransaction_->GetId() : NullTransactionId,
             TJournalWriterPerformanceCounters{changelogProfiler});
         ChangelogStoreFactoryThunk_->SetUnderlying(changelogStoreFactory);
 
+        bool independent = Options_->IndependentPeers;
         if (independent) {
             connection->GetCellDirectory()->ReconfigureCell(CellDescriptor_);
         }
@@ -665,6 +660,20 @@ private:
 
     NLogging::TLogger Logger;
 
+    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
+    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
+
+
+    TYPath GetStoresPath()
+    {
+        TStringBuilder builder;
+        builder.AppendFormat("%v/%v", GetCellCypressPrefix(GetCellId()), GetCellId());
+        if (Options_->IndependentPeers) {
+            builder.AppendFormat("/%v", PeerId_);
+        }
+        return builder.Flush();
+    }
+
     TCompositeMapServicePtr CreateOrchidService()
     {
         return New<TCompositeMapService>()
@@ -800,16 +809,12 @@ private:
             : CreateRemoteClusterTimestampProvider(connection, clockClusterTag, Logger);
     }
 
-    NLogging::TLogger GetLogger() const
+    NLogging::TLogger MakeLogger() const
     {
         return CellarAgentLogger.WithTag("CellId: %v, PeerId: %v",
             CellDescriptor_.CellId,
             PeerId_);
     }
-
-
-    DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
-    DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
