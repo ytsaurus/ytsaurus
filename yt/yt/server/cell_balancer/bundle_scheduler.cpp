@@ -249,7 +249,14 @@ private:
             spec->YPCluster = zoneInfo->YPCluster;
             spec->NannyService = adapter->GetNannyService(zoneInfo);
             *spec->ResourceRequest = *adapter->GetResourceGuarantee(bundleInfo);
-            spec->PodIdTemplate = GetPodIdTemplate(bundleName, bundleInfo, adapter, input, mutations);
+            spec->PodIdTemplate = GetPodIdTemplate(
+                bundleName,
+                bundleInfo,
+                zoneInfo,
+                adapter,
+                input,
+                mutations);
+
             spec->InstanceRole = adapter->GetInstanceRole();
 
             auto request = New<TAllocationRequest>();
@@ -302,6 +309,7 @@ private:
     TString GetPodIdTemplate(
         const TString& bundleName,
         const TBundleInfoPtr& bundleInfo,
+        const TZoneInfoPtr& zoneInfo,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
         TSchedulerMutations* mutations)
@@ -334,18 +342,23 @@ private:
             knownPodIds.push_back(GetPodIdForInstance(state->InstanceName));
         }
 
+        auto clusterShortName = input.Config->Cluster;
+        if (zoneInfo->ShortName && !zoneInfo->ShortName->empty()) {
+            clusterShortName = *zoneInfo->ShortName;
+        }
+
         auto instanceIndex = FindNextInstanceId(
             knownPodIds,
-            input.Config->Cluster,
+            clusterShortName,
             adapter->GetInstanceType());
 
-        TString bundleShortName = bundleName;
+        auto bundleShortName = bundleName;
         if (bundleInfo->ShortName && !bundleInfo->ShortName->empty()) {
             bundleShortName = *bundleInfo->ShortName;
         }
 
         return GetInstancePodIdTemplate(
-            input.Config->Cluster,
+            clusterShortName,
             bundleShortName,
             adapter->GetInstanceType(),
             instanceIndex);
