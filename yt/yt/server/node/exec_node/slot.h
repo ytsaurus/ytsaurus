@@ -121,6 +121,7 @@ ISlotPtr CreateSlot(
     const TString& nodeTag,
     ESlotType slotType,
     double requestedCpu,
+    NScheduler::NProto::TDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity);
 
 ////////////////////////////////////////////////////////////////////////////////

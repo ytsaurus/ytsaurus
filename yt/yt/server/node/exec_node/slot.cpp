@@ -46,6 +46,7 @@ public:
         const TString& nodeTag,
         ESlotType slotType,
         double requestedCpu,
+        NScheduler::NProto::TDiskRequest diskRequest,
         const std::optional<TNumaNodeInfo>& numaNodeAffinity)
         : JobEnvironment_(std::move(environment))
         , Location_(std::move(location))
@@ -57,6 +58,9 @@ public:
         , NumaNodeAffinity_(numaNodeAffinity)
     {
         Location_->IncreaseSessionCount();
+        if (diskRequest.disk_space() > 0) {
+            Location_->AcquireDiskSpace(SlotIndex_, diskRequest.disk_space());
+        }
     }
 
     void CleanProcesses() override
@@ -70,6 +74,7 @@ public:
         WaitFor(Location_->CleanSandboxes(
             SlotIndex_))
             .ThrowOnError();
+        Location_->ReleaseDiskSpace(SlotIndex_);
         Location_->DecreaseSessionCount();
     }
 
@@ -316,6 +321,7 @@ ISlotPtr CreateSlot(
     const TString& nodeTag,
     ESlotType slotType,
     double requestedCpu,
+    NScheduler::NProto::TDiskRequest diskRequest,
     const std::optional<TNumaNodeInfo>& numaNodeAffinity)
 {
     auto slot = New<TSlot>(
@@ -326,6 +332,7 @@ ISlotPtr CreateSlot(
         nodeTag,
         slotType,
         requestedCpu,
+        std::move(diskRequest),
         numaNodeAffinity);
 
     return slot;

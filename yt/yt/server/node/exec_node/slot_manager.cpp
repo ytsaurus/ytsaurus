@@ -186,10 +186,6 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest,
             << TErrorAttribute("skipped_by_medium", skippedByMedium);
     }
 
-    if (diskRequest.disk_space() > 0) {
-        bestLocation->AcquireDiskSpace(diskRequest.disk_space());
-    }
-
     auto slotType = ESlotType::Common;
     if (cpuRequest.allow_cpu_idle_policy() &&
         IdlePolicyRequestedCpu_ + cpuRequest.cpu() <= JobEnvironment_->GetCpuLimit(ESlotType::Idle))
@@ -223,6 +219,7 @@ ISlotPtr TSlotManager::AcquireSlot(NScheduler::NProto::TDiskRequest diskRequest,
         NodeTag_,
         slotType,
         cpuRequest.cpu(),
+        std::move(diskRequest),
         numaNodeAffinity);
 }
 
