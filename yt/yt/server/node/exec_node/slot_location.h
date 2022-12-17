@@ -85,7 +85,8 @@ public:
     void DecreaseSessionCount();
 
     NNodeTrackerClient::NProto::TDiskLocationResources GetDiskResources() const;
-    void AcquireDiskSpace(i64 diskSpace);
+    void AcquireDiskSpace(int slotIndex, i64 diskSpace);
+    void ReleaseDiskSpace(int slotIndex);
 
     NNodeTrackerClient::NProto::TSlotLocationStatistics GetSlotLocationStatistics() const;
 
@@ -147,6 +148,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, DiskResourcesLock_);
     NNodeTrackerClient::NProto::TDiskLocationResources DiskResources_;
+    THashMap<int, i64> ReservedDiskSpacePerSlot_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SlotLocationStatisticsLock_);
     NNodeTrackerClient::NProto::TSlotLocationStatistics SlotLocationStatistics_;

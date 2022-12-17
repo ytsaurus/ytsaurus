@@ -163,6 +163,12 @@ void TSlotLocation::DoRepair(bool force)
             SlotsWithQuota_.clear();
         }
 
+        {
+            auto guard = WriterGuard(DiskResourcesLock_);
+            ReservedDiskSpacePerSlot_.clear();
+            DiskResources_.set_usage(0);
+        }
+
         WaitFor(JobDirectoryManager_->CleanDirectories(Config_->Path))
             .ThrowOnError();
 
@@ -229,7 +235,7 @@ std::vector<TString> TSlotLocation::DoPrepareSandboxDirectories(int slotIndex, T
 
     {
         auto guard = WriterGuard(SlotsLock_);
-        YT_VERIFY(SandboxOptionsPerSlot_.emplace(slotIndex, options).second);
+        EmplaceOrCrash(SandboxOptionsPerSlot_, slotIndex, options);
     }
 
     std::vector<TString> result;
@@ -1001,23 +1007,30 @@ void TSlotLocation::UpdateDiskResources()
             DiskStatisticsPerSlot_ = diskStatisticsPerSlot;
         }
 
-        auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace, diskLimit - diskUsage));
-        diskLimit = Min(diskLimit, diskUsage + availableSpace);
-
-        diskLimit -= Config_->DiskUsageWatermark;
-
-        YT_LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v, Medium: %v)",
-            Config_->Path,
-            diskUsage,
-            diskLimit,
-            Config_->MediumName);
-
-        auto mediumDescriptor = GetMediumDescriptor();
-        if (mediumDescriptor.Index != NChunkClient::GenericMediumIndex) {
+        {
             auto guard = WriterGuard(DiskResourcesLock_);
-            DiskResources_.set_usage(diskUsage);
-            DiskResources_.set_limit(diskLimit);
-            DiskResources_.set_medium_index(mediumDescriptor.Index);
+            for (auto [slotIndex, diskSpace] : ReservedDiskSpacePerSlot_) {
+                if (!sandboxOptionsPerSlot.contains(slotIndex)) {
+                    diskUsage += diskSpace;
+                }
+            }
+
+            auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace, diskLimit - diskUsage));
+            diskLimit = Min(diskLimit, diskUsage + availableSpace);
+            diskLimit -= Config_->DiskUsageWatermark;
+
+            YT_LOG_DEBUG("Disk info (Path: %v, Usage: %v, Limit: %v, Medium: %v)",
+                Config_->Path,
+                diskUsage,
+                diskLimit,
+                Config_->MediumName);
+
+            auto mediumDescriptor = GetMediumDescriptor();
+            if (mediumDescriptor.Index != NChunkClient::GenericMediumIndex) {
+                DiskResources_.set_usage(diskUsage);
+                DiskResources_.set_limit(diskLimit);
+                DiskResources_.set_medium_index(mediumDescriptor.Index);
+            }
         }
     } catch (const std::exception& ex) {
         auto error = TError("Failed to get disk info") << ex;
@@ -1079,10 +1092,19 @@ NNodeTrackerClient::NProto::TDiskLocationResources TSlotLocation::GetDiskResourc
     return DiskResources_;
 }
 
-void TSlotLocation::AcquireDiskSpace(i64 diskSpace)
+void TSlotLocation::AcquireDiskSpace(int slotIndex, i64 diskSpace)
 {
     auto guard = WriterGuard(DiskResourcesLock_);
+
     DiskResources_.set_usage(DiskResources_.usage() + diskSpace);
+    EmplaceOrCrash(ReservedDiskSpacePerSlot_, slotIndex, diskSpace);
+}
+
+void TSlotLocation::ReleaseDiskSpace(int slotIndex)
+{
+    auto guard = WriterGuard(DiskResourcesLock_);
+
+    ReservedDiskSpacePerSlot_.erase(slotIndex);
 }
 
 NNodeTrackerClient::NProto::TSlotLocationStatistics TSlotLocation::GetSlotLocationStatistics() const
