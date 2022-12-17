@@ -6,6 +6,7 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString CreateBranchCommitVersion(TStringBuf branch);
 TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch);
 TString GetYaHostName();
 TString GetYaBuildDate();

@@ -40,12 +40,9 @@ TString TruncateCommitHash(TString commit)
     return commit;
 }
 
-TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
+void OutputCreateBranchCommitVersion(TStringBuf branch, TStringStream& out)
 {
-    TStringStream out;
-    out << major << "." << minor << "." << patch;
-    out << "-" << branch;
-    out << "-ya";
+    out << branch << "-ya";
 
 #if !defined(NDEBUG)
     out << "debug";
@@ -73,7 +70,20 @@ TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
     if (buildUser != "teamcity") {
         out << "+" << buildUser;
     }
+}
 
+TString CreateBranchCommitVersion(TStringBuf branch)
+{
+    TStringStream out;
+    OutputCreateBranchCommitVersion(branch, out);
+    return out.Str();
+}
+
+TString CreateYTVersion(int major, int minor, int patch, TStringBuf branch)
+{
+    TStringStream out;
+    out << major << "." << minor << "." << patch << "-";
+    OutputCreateBranchCommitVersion(branch, out);
     return out.Str();
 }
 
