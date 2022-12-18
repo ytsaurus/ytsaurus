@@ -2397,19 +2397,25 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
                 cat""".format(self.default_disk_path),
         )
         time.sleep(5.0)
-        statistics = get(op.get_path() + "/@progress/job_statistics")["user_job"]["block_io"]
-        raw_events = self.wait_for_raw_events(count=1, from_barrier=from_barrier,
-                                              filter=lambda e: e.get("job_io_kind@") == "user_job",
-                                              check_event_count=False)
 
-        sum_bytes = {"read": 0, "write": 0}
-        sum_io_requests = {"read": 0, "write": 0}
-        for event in raw_events:
-            self._validate_basic_tags(event, op.id, "map", users=["root"], allow_zero=True)
-            sum_bytes[event["direction@"]] += event["bytes"]
-            sum_io_requests[event["direction@"]] += event["io_requests"]
+        def check_statistic():
+            statistics = get(op.get_path() + "/@progress/job_statistics")["user_job"]["block_io"]
+            raw_events = self.wait_for_raw_events(
+                count=1,
+                from_barrier=from_barrier,
+                filter=lambda e: e.get("job_io_kind@") == "user_job",
+                check_event_count=False)
 
-        assert statistics["bytes_read"]["$"]["completed"]["map"]["sum"] == sum_bytes["read"]
-        assert statistics["bytes_written"]["$"]["completed"]["map"]["sum"] == sum_bytes["write"]
-        assert statistics["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["read"]
-        assert statistics["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["write"]
+            sum_bytes = {"read": 0, "write": 0}
+            sum_io_requests = {"read": 0, "write": 0}
+            for event in raw_events:
+                self._validate_basic_tags(event, op.id, "map", users=["root"], allow_zero=True)
+                sum_bytes[event["direction@"]] += event["bytes"]
+                sum_io_requests[event["direction@"]] += event["io_requests"]
+
+            return statistics["bytes_read"]["$"]["completed"]["map"]["sum"] == sum_bytes["read"] and \
+                statistics["bytes_written"]["$"]["completed"]["map"]["sum"] == sum_bytes["write"] and \
+                statistics["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["read"] and \
+                statistics["io_total"]["$"]["completed"]["map"]["sum"] == sum_io_requests["write"]
+
+        wait(check_statistic)
