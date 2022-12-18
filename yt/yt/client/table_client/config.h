@@ -138,15 +138,11 @@ public:
     //! e.g. to produce good slices for reduce.
     i64 MaxDataWeightBetweenBlocks;
 
-    i64 MaxKeyFilterSize;
-
     double SampleRate;
 
-    double KeyFilterFalsePositiveRate;
+    TChunkIndexesWriterConfigPtr ChunkIndexes;
 
     TChunkWriterTestingOptionsPtr TestingOptions;
-
-    TChunkIndexesWriterConfigPtr ChunkIndexes;
 
     REGISTER_YSON_STRUCT(TChunkWriterConfig);
 
