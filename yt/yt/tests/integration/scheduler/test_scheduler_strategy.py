@@ -1301,7 +1301,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         wait(lambda: op.get_state() == "failed")
 
         result = str(get(op.get_path() + "/@result"))
-        assert "scheduling is hanged" in result
+        assert "scheduling hung" in result
         assert "no successful scheduled jobs" in result
 
     @authors("eshcherbin")
@@ -1364,7 +1364,7 @@ class TestSchedulerHangingOperations(YTEnvSetup):
         wait(lambda: op.get_state() == "failed")
 
         result = str(get(op.get_path() + "/@result"))
-        assert "scheduling is hanged" in result
+        assert "scheduling hung" in result
         assert "limiting_ancestor" in result and "limiting_pool" in result
 
     @authors("eshcherbin")
