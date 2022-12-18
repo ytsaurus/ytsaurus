@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <library/cpp/yt/misc/preprocessor.h>
+
 namespace NYT::NYTree {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -41,7 +43,7 @@ void InternAttribute(const TString& uninternedKey, TInternedAttributeKey interne
 ////////////////////////////////////////////////////////////////////////////////
 
 #define REGISTER_INTERNED_ATTRIBUTE(uninternedKey, internedKey) \
-    YT_ATTRIBUTE_USED const void* InternedAttribute_##uninternedKey = [] () -> void* { \
+    YT_ATTRIBUTE_USED const void* PP_ANONYMOUS_VARIABLE(RegisterInterndAttribute) = [] { \
             ::NYT::NYTree::InternAttribute(#uninternedKey, internedKey); \
             return nullptr; \
         } ();
