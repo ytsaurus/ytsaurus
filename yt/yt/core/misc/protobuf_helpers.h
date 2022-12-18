@@ -9,12 +9,12 @@
 
 #include <yt/yt/core/compression/public.h>
 
-#include <yt/yt/core/misc/defines.h>
-
 #include <yt/yt_proto/yt/core/misc/proto/guid.pb.h>
 #include <yt/yt_proto/yt/core/misc/proto/protobuf_helpers.pb.h>
 
 #include <library/cpp/yt/memory/ref.h>
+
+#include <library/cpp/yt/misc/preprocessor.h>
 
 #include <google/protobuf/message.h>
 #include <google/protobuf/repeated_field.h>
@@ -293,27 +293,48 @@ struct TProtoExtensionTag;
         static constexpr i32 Value = tag; \
     };
 
-//! Registers protobuf extension for further conversions. Do not call
-//! this method explicitly; use macro below which defers invocation
-//! until static protobuf descriptors are ready.
-void RegisterProtobufExtension(
-    const google::protobuf::Descriptor* descriptor,
-    int tag,
-    const TString& name);
+struct TProtobufExtensionDescriptor
+{
+    const google::protobuf::Descriptor* MessageDescriptor;
+    const int Tag;
+    const TString Name;
+};
 
-//! This method is assumed to be called during static initialization only.
-//! We defer running actions until static protobuf descriptors are ready.
-//! Accessing type descriptors during static initialization phase may break
-//! descriptors (at least under darwin).
-void AddProtobufExtensionRegisterAction(std::function<void()> action);
+struct IProtobufExtensionRegistry
+{
+    using TRegisterAction = std::function<void()>;
+
+    //! This method is assumed to be called during static initialization only.
+    //! We defer running actions until static protobuf descriptors are ready.
+    //! Accessing type descriptors during static initialization phase may cause UB.
+    virtual void AddAction(TRegisterAction action) = 0;
+
+    //! Registers protobuf extension for further conversions. Do not call
+    //! this method explicitly; use REGISTER_PROTO_EXTENSION macro that defers invocation
+    //! until static protobuf descriptors are ready.
+    virtual void RegisterDescriptor(const TProtobufExtensionDescriptor& descriptor) = 0;
+
+    //! Finds a descriptor by tag value.
+    virtual const TProtobufExtensionDescriptor* FindDescriptorByTag(int tag) = 0;
+
+    //! Finds a descriptor by name.
+    virtual const TProtobufExtensionDescriptor* FindDescriptorByName(const TString& name) = 0;
+
+    //! Returns the singleton instance.
+    static IProtobufExtensionRegistry* Get();
+};
 
 #define REGISTER_PROTO_EXTENSION(type, tag, name) \
-    const bool UNIQUE_NAME(TmpBool) = [] {        \
-        AddProtobufExtensionRegisterAction([] {            \
+    YT_ATTRIBUTE_USED static const void* PP_ANONYMOUS_VARIABLE(RegisterProtoExtension) = [] { \
+        NYT::IProtobufExtensionRegistry::Get()->AddAction([] { \
             const auto* descriptor = type::default_instance().GetDescriptor(); \
-            RegisterProtobufExtension(descriptor, tag, #name);              \
-        });                                     \
-        return false; \
+            NYT::IProtobufExtensionRegistry::Get()->RegisterDescriptor({ \
+                .MessageDescriptor = descriptor, \
+                .Tag = tag, \
+                .Name = #name \
+            });\
+        }); \
+        return nullptr; \
     } ();
 
 //! Finds and deserializes an extension of the given type. Fails if no matching

@@ -1,6 +1,8 @@
 #include "protobuf_helpers.h"
 #include "mpl.h"
 
+#include <yt/yt/core/misc/singleton.h>
+
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/logging/log.h>
@@ -25,9 +27,10 @@ using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static inline const NLogging::TLogger Logger("Serialize");
+static const NLogging::TLogger Logger("Serialize");
 
-struct TSerializedMessageTag { };
+struct TSerializedMessageTag
+{ };
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -282,96 +285,77 @@ TSharedRef PushEnvelope(const TSharedRef& data)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TProtobufExtensionDescriptor
-{
-    const google::protobuf::Descriptor* MessageDescriptor;
-    const int Tag;
-    const TString Name;
-};
-
 class TProtobufExtensionRegistry
+    : public IProtobufExtensionRegistry
 {
 public:
-    using TRegisterAction = std::function<void()>;
-
-    void AddAction(TRegisterAction action)
+    void AddAction(TRegisterAction action) override
     {
-        Actions_.emplace_back(std::move(action));
+        YT_VERIFY(State_ == EState::Uninitialized);
+
+        Actions_.push_back(std::move(action));
     }
 
-    void Initialize() const
+    void RegisterDescriptor(const TProtobufExtensionDescriptor& descriptor) override
     {
-        for (const auto& action : Actions_) {
-            action();
-        }
-        Actions_.clear();
+        YT_VERIFY(State_ == EState::Initializing);
+
+        EmplaceOrCrash(ExtensionTagToExtensionDescriptor_, descriptor.Tag, descriptor);
+        EmplaceOrCrash(ExtensionNameToExtensionDescriptor_, descriptor.Name, descriptor);
     }
 
-    void Register(
-        const google::protobuf::Descriptor* descriptor,
-        int tag,
-        TString name)
+    const TProtobufExtensionDescriptor* FindDescriptorByTag(int tag) override
     {
-        TProtobufExtensionDescriptor extensionDescriptor{
-            .MessageDescriptor = descriptor,
-            .Tag = tag,
-            .Name = name
-        };
-
-        YT_VERIFY(ExtensionTagToExtensionDescriptor_.emplace(tag, extensionDescriptor).second);
-        YT_VERIFY(ExtensionNameToExtensionDescriptor_.emplace(name, extensionDescriptor).second);
-    }
-
-    std::optional<TProtobufExtensionDescriptor> Find(int tag) const
-    {
-        Initialize();
+        EnsureInitialized();
 
         auto it = ExtensionTagToExtensionDescriptor_.find(tag);
-        if (it == ExtensionTagToExtensionDescriptor_.end()) {
-            return std::nullopt;
-        } else {
-            return it->second;
-        }
+        return it == ExtensionTagToExtensionDescriptor_.end() ? nullptr : &it->second;
     }
 
-    std::optional<TProtobufExtensionDescriptor> Find(const TString& name) const
+    const TProtobufExtensionDescriptor* FindDescriptorByName(const TString& name) override
     {
-        Initialize();
+        EnsureInitialized();
 
         auto it = ExtensionNameToExtensionDescriptor_.find(name);
-        if (it == ExtensionNameToExtensionDescriptor_.end()) {
-            return std::nullopt;
-        } else {
-            return it->second;
-        }
-    }
-
-    static TProtobufExtensionRegistry* Get()
-    {
-        return Singleton<TProtobufExtensionRegistry>();
+        return it == ExtensionNameToExtensionDescriptor_.end() ? nullptr : &it->second;
     }
 
 private:
-    Y_DECLARE_SINGLETON_FRIEND();
-    TProtobufExtensionRegistry() = default;
+    enum class EState
+    {
+        Uninitialized,
+        Initializing,
+        Initialized
+    };
+
+    EState State_ = EState::Uninitialized;
 
     THashMap<int, TProtobufExtensionDescriptor> ExtensionTagToExtensionDescriptor_;
     THashMap<TString, TProtobufExtensionDescriptor> ExtensionNameToExtensionDescriptor_;
 
-    mutable std::vector<TRegisterAction> Actions_;
+    std::vector<TRegisterAction> Actions_;
+
+    void EnsureInitialized()
+    {
+        if (State_ == EState::Initialized) {
+            return;
+        }
+
+        YT_VERIFY(State_ == EState::Uninitialized);
+        State_ = EState::Initializing;
+
+        for (const auto& action : Actions_) {
+            action();
+        }
+        Actions_.clear();
+
+        State_ = EState::Initialized;
+    }
 };
 
-void RegisterProtobufExtension(
-    const google::protobuf::Descriptor* descriptor,
-    int tag,
-    const TString& name)
+IProtobufExtensionRegistry* IProtobufExtensionRegistry::Get()
 {
-    TProtobufExtensionRegistry::Get()->Register(descriptor, tag, name);
-}
-
-void AddProtobufExtensionRegisterAction(std::function<void()> action)
-{
-    TProtobufExtensionRegistry::Get()->AddAction(std::move(action));
+    return LeakySingleton<TProtobufExtensionRegistry>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -394,11 +378,9 @@ struct TExtensionSet
 
 void FromProto(TExtensionSet* extensionSet, const NYT::NProto::TExtensionSet& protoExtensionSet)
 {
-    const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
-
     for (const auto& protoExtension : protoExtensionSet.extensions()) {
         // Do not parse unknown extensions.
-        if (extensionRegistry->Find(protoExtension.tag())) {
+        if (IProtobufExtensionRegistry::Get()->FindDescriptorByTag(protoExtension.tag())) {
             TExtension extension{
                 .Tag = protoExtension.tag(),
                 .Data = protoExtension.data()
@@ -419,11 +401,9 @@ void ToProto(NYT::NProto::TExtensionSet* protoExtensionSet, const TExtensionSet&
 
 void Serialize(const TExtensionSet& extensionSet, NYson::IYsonConsumer* consumer)
 {
-    const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
-
     BuildYsonFluently(consumer)
         .DoMapFor(extensionSet.Extensions, [&] (TFluentMap fluent, const TExtension& extension) {
-            auto extensionDescriptor = extensionRegistry->Find(extension.Tag);
+            const auto* extensionDescriptor = IProtobufExtensionRegistry::Get()->FindDescriptorByTag(extension.Tag);
             YT_VERIFY(extensionDescriptor);
 
             fluent
@@ -441,11 +421,9 @@ void Serialize(const TExtensionSet& extensionSet, NYson::IYsonConsumer* consumer
 
 void Deserialize(TExtensionSet& extensionSet, NYTree::INodePtr node)
 {
-    const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
-
     auto mapNode = node->AsMap();
     for (const auto& [name, value] : mapNode->GetChildren()) {
-        auto extensionDescriptor = extensionRegistry->Find(name);
+        const auto* extensionDescriptor = IProtobufExtensionRegistry::Get()->FindDescriptorByName(name);
         // Do not parse unknown extensions.
         if (!extensionDescriptor) {
             continue;
@@ -544,8 +522,7 @@ THashSet<int> GetExtensionTagSet(const NYT::NProto::TExtensionSet& source)
 
 std::optional<TString> FindExtensionName(int tag)
 {
-    const auto* extensionRegistry = TProtobufExtensionRegistry::Get();
-    auto extensionDescriptor = extensionRegistry->Find(tag);
+    const auto* extensionDescriptor = IProtobufExtensionRegistry::Get()->FindDescriptorByTag(tag);
     if (!extensionDescriptor) {
         return std::nullopt;
     }

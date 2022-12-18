@@ -1,11 +1,11 @@
 #pragma once
 
-#include <yt/yt/core/misc/defines.h>
-
 #include <library/cpp/yt/misc/enum.h>
 #include <library/cpp/yt/misc/port.h>
 
 #include <util/generic/hash_set.h>
+
+#include <library/cpp/yt/misc/preprocessor.h>
 
 namespace NYT {
 
@@ -81,7 +81,7 @@ TString ToString(const TErrorCodeRegistry::TErrorCodeRangeInfo& errorCodeInfo);
 
 //! NB: This macro should only by used in cpp files.
 #define YT_DEFINE_ERROR_CODE_RANGE(from, to, namespaceName, formatter) \
-    YT_ATTRIBUTE_USED static const void* CONCAT(RegisterErrorCodeRange, __LINE__) = [] { \
+    YT_ATTRIBUTE_USED static const void* PP_ANONYMOUS_VARIABLE(RegisterErrorCodeRange) = [] { \
         ::NYT::TErrorCodeRegistry::Get()->RegisterErrorCodeRange(from, to, namespaceName, formatter); \
         return nullptr; \
     } ()

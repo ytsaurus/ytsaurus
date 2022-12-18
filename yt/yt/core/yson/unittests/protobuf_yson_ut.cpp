@@ -23,8 +23,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DECLARE_PROTO_EXTENSION(NYT::NYson::NProto::TMessageExt, 123)
-REGISTER_PROTO_EXTENSION(NYT::NYson::NProto::TNestedMessageWithCustomConverter, 123, ext)
+DECLARE_PROTO_EXTENSION(NYT::NYson::NProto::TMessageExt, 12345)
+REGISTER_PROTO_EXTENSION(NYT::NYson::NProto::TNestedMessageWithCustomConverter, 12345, ext)
 
 ////////////////////////////////////////////////////////////////////////////////
 
