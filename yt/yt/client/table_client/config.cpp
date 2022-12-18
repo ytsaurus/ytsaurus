@@ -126,25 +126,15 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(2_GB);
 
-    registrar.Parameter("max_key_filter_size", &TThis::MaxKeyFilterSize)
-        .GreaterThan(0)
-        .LessThanOrEqual(1_MB)
-        .Default(64_KB);
-
     registrar.Parameter("sample_rate", &TThis::SampleRate)
         .GreaterThan(0)
         .LessThanOrEqual(0.001)
         .Default(0.0001);
 
-    registrar.Parameter("key_filter_false_positive_rate", &TThis::KeyFilterFalsePositiveRate)
-        .GreaterThan(0)
-        .LessThanOrEqual(1.0)
-        .Default(0.03);
-
-    registrar.Parameter("testing_options", &TThis::TestingOptions)
+    registrar.Parameter("chunk_indexes", &TThis::ChunkIndexes)
         .DefaultNew();
 
-    registrar.Parameter("chunk_indexes", &TThis::ChunkIndexes)
+    registrar.Parameter("testing_options", &TThis::TestingOptions)
         .DefaultNew();
 }
 

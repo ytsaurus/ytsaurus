@@ -449,8 +449,6 @@ private:
             return;
         }
 
-        //FIXME: insert key into bloom filter.
-        //KeyFilter_.Insert(GetFarmFingerprint(rows.front().BeginKeys(), rows.front().EndKeys()));
         auto firstRow = rows.Front();
 
         WriteRow(firstRow, LastKey_.Begin(), LastKey_.End());

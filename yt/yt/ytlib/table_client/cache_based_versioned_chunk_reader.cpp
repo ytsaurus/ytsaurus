@@ -512,8 +512,6 @@ private:
 
     TVersionedRow LookupWithoutHashTable(TLegacyKey key)
     {
-        // FIXME(savrus): Use bloom filter here.
-
         int blockIndex = this->GetBlockIndex(key);
         auto blockCount = this->ChunkMeta_->DataBlockMeta()->data_blocks_size();
 

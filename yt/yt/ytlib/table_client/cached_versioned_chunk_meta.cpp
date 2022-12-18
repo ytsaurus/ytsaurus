@@ -13,8 +13,6 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/bloom_filter.h>
-
 namespace NYT::NTableClient {
 
 using namespace NTableClient::NProto;
