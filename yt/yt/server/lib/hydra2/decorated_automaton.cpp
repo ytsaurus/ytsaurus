@@ -290,7 +290,7 @@ public:
 
             return DoRun().Apply(
                 BIND(&TSnapshotBuilderBase::OnFinished, MakeStrong(this))
-                    .AsyncVia(Owner_->ControlInvoker_));
+                    .AsyncVia(GetHydraIOInvoker()));
         } catch (const std::exception& ex) {
             ReleaseLock();
             return MakeFuture<TRemoteSnapshotParams>(TError(ex));
@@ -400,7 +400,7 @@ private:
 
         return Fork().Apply(
             BIND(&TForkSnapshotBuilder::OnFinished, MakeStrong(this))
-                .AsyncVia(Owner_->ControlInvoker_));
+                .AsyncVia(GetHydraIOInvoker()));
     }
 
     TDuration GetTimeout() const override
@@ -626,7 +626,7 @@ private:
         SwitchableSnapshotWriter_->Suspend();
 
         return BIND(&TNoForkSnapshotBuilder::DoRunAsync, MakeStrong(this))
-            .AsyncVia(Owner_->ControlInvoker_)
+            .AsyncVia(GetHydraIOInvoker())
             .Run();
     }
 
