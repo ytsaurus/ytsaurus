@@ -1047,7 +1047,22 @@ TJobFinishedResult TTask::OnJobCompleted(TJobletPtr joblet, TCompletedJobSummary
     for (const auto& dataSlice : jobSummary.UnreadInputDataSlices) {
         AdjustInputKeyBounds(dataSlice);
     }
-    GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
+
+    try {
+        GetChunkPoolOutput()->Completed(joblet->OutputCookie, jobSummary);
+    } catch (const TErrorException& exception) {
+        const auto& error = exception.Error();
+
+        if (error.FindMatching(NChunkPools::EErrorCode::DataSliceLimitExceeded) ||
+            error.FindMatching(NChunkPools::EErrorCode::MaxDataWeightPerJobExceeded) ||
+            error.FindMatching(NChunkPools::EErrorCode::MaxPrimaryDataWeightPerJobExceeded))
+        {
+            YT_LOG_ERROR(error);
+            TaskHost_->OnOperationFailed(error);
+        } else {
+            throw;
+        }
+    }
 
     UpdateMaximumUsedTmpfsSizes(statistics);
 
