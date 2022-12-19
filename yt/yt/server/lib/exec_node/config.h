@@ -55,6 +55,28 @@ DEFINE_REFCOUNTED_TYPE(TSimpleJobEnvironmentConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ETestingJobEnvironmentScenario,
+    (None)
+    (IncreasingMajorPageFaultCount)
+)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TTestingJobEnvironmentConfig
+    : public TSimpleJobEnvironmentConfig
+{
+public:
+    ETestingJobEnvironmentScenario TestingJobEnvironmentScenario;
+
+    REGISTER_YSON_STRUCT(TTestingJobEnvironmentConfig);
+
+    static void Register(TRegistrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTestingJobEnvironmentConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TPortoJobEnvironmentConfig
     : public TJobEnvironmentConfig
 {

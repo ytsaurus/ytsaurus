@@ -176,6 +176,7 @@ void TMemoryPressureDetectorConfig::Register(TRegistrar registrar)
     registrar.Parameter("memory_watermark_multiplier_increase_step", &TThis::MemoryWatermarkMultiplierIncreaseStep)
         .Default(0.1);
     registrar.Parameter("max_memory_watermark_multiplier", &TThis::MaxMemoryWatermarkMultiplier)
+        .GreaterThan(1)
         .Default(2);
 }
 

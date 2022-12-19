@@ -23,6 +23,14 @@ void TJobEnvironmentConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TTestingJobEnvironmentConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("testing_job_environment_scenario", &TThis::TestingJobEnvironmentScenario)
+        .Default();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPortoJobEnvironmentConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("porto_executor", &TThis::PortoExecutor)

@@ -88,6 +88,7 @@ public:
         , MajorPageFaultsGauge_(Profiler_.Gauge("major_page_faults"))
         , FreeMemoryWatermarkMultiplierGauge_(Profiler_.Gauge("free_memory_watermark_multiplier"))
         , FreeMemoryWatermarkAddedMemoryGauge_(Profiler_.Gauge("free_memory_watermark_added_memory"))
+        , FreeMemoryWatermarkIsIncreasedGauge_(Profiler_.Gauge("free_memory_watermark_is_increased"))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
@@ -133,6 +134,9 @@ public:
     void Start() override
     {
         ProfilingExecutor_->Start();
+        if (MemoryPressureDetector_) {
+            MemoryPressureDetector_->Start();
+        }
         if (ReservedMappedMemoryChecker_) {
             ReservedMappedMemoryChecker_->Start();
         }
@@ -151,6 +155,10 @@ public:
         ProfilingExecutor_->SetPeriod(
             jobControllerConfig->ProfilingPeriod.value_or(
                 Config_->ProfilingPeriod));
+
+        if (MemoryPressureDetector_) {
+            MemoryPressureDetector_->SetPeriod(jobControllerConfig->MemoryPressureDetector->CheckPeriod);
+        }
     }
 
     void OnProfiling()
@@ -171,6 +179,7 @@ public:
             if (FreeMemoryWatermarkMultiplier_ != 1.0 && DynamicConfig_.Load()->MemoryPressureDetector->Enabled) {
                 FreeMemoryWatermarkMultiplierGauge_.Update(FreeMemoryWatermarkMultiplier_);
                 FreeMemoryWatermarkAddedMemoryGauge_.Update(GetFreeMemoryWatermark() - Config_->FreeMemoryWatermark);
+                FreeMemoryWatermarkIsIncreasedGauge_.Update(1);
             }
         }
     }
@@ -586,6 +595,7 @@ private:
     TGauge MajorPageFaultsGauge_;
     TGauge FreeMemoryWatermarkMultiplierGauge_;
     TGauge FreeMemoryWatermarkAddedMemoryGauge_;
+    TGauge FreeMemoryWatermarkIsIncreasedGauge_;
 
     TNodeResources ResourceUsage_ = ZeroNodeResources();
     TNodeResources WaitingResources_ = ZeroNodeResources();
@@ -593,7 +603,7 @@ private:
     TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
     TPeriodicExecutorPtr MemoryPressureDetector_;
 
-    int64_t LastMajorPageFaultCount_ = 0;
+    i64 LastMajorPageFaultCount_ = 0;
     double FreeMemoryWatermarkMultiplier_ = 1.0;
 
     bool ShouldNotifyResourcesUpdated_ = false;
@@ -650,7 +660,7 @@ private:
         if (currentFaultCount != LastMajorPageFaultCount_) {
             auto config = DynamicConfig_.Load()->MemoryPressureDetector;
             YT_LOG_DEBUG(
-                "Major page faults in root YT container detected (MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v)",
+                "Increased rate of major page faults in node container detected (MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v)",
                 LastMajorPageFaultCount_,
                 currentFaultCount,
                 currentFaultCount - LastMajorPageFaultCount_,
@@ -667,10 +677,10 @@ private:
 
                 YT_LOG_DEBUG(
                     "Increasing memory watermark multiplier "
-                    "(MemoryWatermarkMultiplier: %v -> %v, ",
+                    "(MemoryWatermarkMultiplier: %v -> %v, "
                     "UpdatedFreeMemoryWatermark: %v, "
-                    "UserMemoryUsageTrackerLimit: %v, ",
-                    "UserMemoryUsageTrackerUsed: %v, ",
+                    "UserMemoryUsageTrackerLimit: %v, "
+                    "UserMemoryUsageTrackerUsed: %v, "
                     "NodeMemoryUsageTrackerTotalFree: %v)",
                     previousMemoryWatermarkMultiplier,
                     FreeMemoryWatermarkMultiplier_,

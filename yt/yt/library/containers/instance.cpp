@@ -626,9 +626,11 @@ public:
 
     i64 GetMajorPageFaultCount() const override
     {
-        auto faults = *WaitFor(Executor_->GetContainerProperty(Name_, "major_faults"))
+        auto faults = WaitFor(Executor_->GetContainerProperty(Name_, "major_faults"))
             .ValueOrThrow();
-        return std::stoll(faults);
+        return faults
+            ? std::stoll(*faults)
+            : 0;
     }
 
     std::vector<pid_t> GetPids() const override
