@@ -31,6 +31,7 @@ import tech.ytsaurus.client.request.PartitionTables;
 import tech.ytsaurus.client.request.PutFileToCache;
 import tech.ytsaurus.client.request.PutFileToCacheResult;
 import tech.ytsaurus.client.request.ReadFile;
+import tech.ytsaurus.client.request.ReadSerializationContext;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.ReadTableDirect;
 import tech.ytsaurus.client.request.ReduceOperation;
@@ -189,7 +190,7 @@ public interface TransactionalClient extends ImmutableTransactionalClient {
             ReadTable.BuilderBase<T, ?> req,
             @Nullable TableAttachmentReader<T> reader) {
         if (reader != null) {
-            req.setSerializationContext(new ReadTable.SerializationContext<T>(reader));
+            req.setSerializationContext(new ReadSerializationContext<T>(reader));
         }
         return readTable(req.build());
     }

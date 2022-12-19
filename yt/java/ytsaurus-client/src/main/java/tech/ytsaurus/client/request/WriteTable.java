@@ -7,13 +7,9 @@ import java.util.Optional;
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
-import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
-import tech.ytsaurus.core.rows.YTreeRowSerializer;
-import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.rpcproxy.TReqWriteTable;
 import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
@@ -69,7 +65,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
     }
 
     public static <T> Builder<T> builder() {
-        return new Builder<T>();
+        return new Builder<>();
     }
 
     public SerializationContext<T> getSerializationContext() {
@@ -151,67 +147,6 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         return builder;
     }
 
-    public static class SerializationContext<T> {
-        @Nullable
-        private final WireRowSerializer<T> serializer;
-        @Nullable
-        private final YTreeSerializer<T> ysonSerializer;
-        @Nullable
-        private final Class<T> objectClazz;
-        private ERowsetFormat rowsetFormat = ERowsetFormat.RF_YT_WIRE;
-        @Nullable
-        private Format format = null;
-
-        public SerializationContext(WireRowSerializer<T> serializer) {
-            this.serializer = serializer;
-            this.objectClazz = null;
-            this.ysonSerializer = null;
-        }
-
-        public SerializationContext(YTreeSerializer<T> serializer) {
-            this.ysonSerializer = serializer;
-            this.serializer = null;
-            this.objectClazz = null;
-        }
-
-        public SerializationContext(YTreeSerializer<T> serializer, Format format) {
-            if (!(serializer instanceof YTreeRowSerializer)) {
-                throw new IllegalArgumentException("YTreeRowSerializer was expected");
-            }
-            this.ysonSerializer = serializer;
-            this.serializer = null;
-            this.objectClazz = null;
-            this.rowsetFormat = ERowsetFormat.RF_FORMAT;
-            this.format = format;
-        }
-
-        public SerializationContext(Class<T> objectClazz) {
-            this.ysonSerializer = null;
-            this.serializer = null;
-            this.objectClazz = objectClazz;
-        }
-
-        public Optional<WireRowSerializer<T>> getSerializer() {
-            return Optional.ofNullable(this.serializer);
-        }
-
-        public Optional<YTreeSerializer<T>> getYsonSerializer() {
-            return Optional.ofNullable(this.ysonSerializer);
-        }
-
-        public Optional<Class<T>> getObjectClazz() {
-            return Optional.ofNullable(this.objectClazz);
-        }
-
-        public ERowsetFormat getRowsetFormat() {
-            return rowsetFormat;
-        }
-
-        public Optional<Format> getFormat() {
-            return Optional.ofNullable(format);
-        }
-    }
-
     @Override
     public Builder<T> toBuilder() {
         return WriteTable.<T>builder()
@@ -277,6 +212,9 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         }
 
         public TBuilder setSerializationContext(SerializationContext<T> serializationContext) {
+            if (serializationContext instanceof ReadSerializationContext) {
+                throw new IllegalArgumentException("ReadSerializationContext do not allowed here");
+            }
             this.serializationContext = serializationContext;
             return self();
         }
@@ -371,7 +309,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
 
         @Override
         public WriteTable<T> build() {
-            return new WriteTable<T>(this);
+            return new WriteTable<>(this);
         }
     }
 }

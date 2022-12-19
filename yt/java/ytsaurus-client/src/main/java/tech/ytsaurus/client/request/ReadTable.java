@@ -1,17 +1,12 @@
 package tech.ytsaurus.client.request;
 
 import java.io.ByteArrayOutputStream;
-import java.nio.ByteBuffer;
 import java.util.Objects;
-import java.util.Optional;
 
 import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
-import tech.ytsaurus.client.TableAttachmentReader;
-import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.cypress.YPath;
-import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.rpcproxy.TReqReadTable;
 import tech.ytsaurus.rpcproxy.TTransactionalOptions;
@@ -72,9 +67,9 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
             byte[] data = baos.toByteArray();
             builder.setConfig(ByteString.copyFrom(data));
         }
-        if (serializationContext.format != null) {
+        if (serializationContext.getFormat().isPresent()) {
             ByteArrayOutputStream baos = new ByteArrayOutputStream();
-            YTreeBinarySerializer.serialize(serializationContext.format.toTree(), baos);
+            YTreeBinarySerializer.serialize(serializationContext.getFormat().get().toTree(), baos);
             byte[] data = baos.toByteArray();
             builder.setFormat(ByteString.copyFrom(data));
         }
@@ -84,96 +79,13 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         if (additionalData != null) {
             builder.mergeFrom(additionalData);
         }
-        builder.setDesiredRowsetFormat(serializationContext.desiredRowsetFormat);
-        if (serializationContext.desiredRowsetFormat == ERowsetFormat.RF_FORMAT) {
-            if (serializationContext.format == null) {
+        builder.setDesiredRowsetFormat(serializationContext.getRowsetFormat());
+        if (serializationContext.getRowsetFormat() == ERowsetFormat.RF_FORMAT) {
+            if (serializationContext.getFormat().isEmpty()) {
                 throw new IllegalStateException("`format` is required for desiredRowsetFormat == RF_FORMAT");
             }
         }
         return builder;
-    }
-
-    public static class SerializationContext<T> {
-        private static final String YSON = "yson";
-
-        @Nullable
-        private final WireRowDeserializer<T> deserializer;
-        @Nullable
-        private final YTreeSerializer<T> serializer;
-        @Nullable
-        private final Class<T> objectClazz;
-        private ERowsetFormat desiredRowsetFormat = ERowsetFormat.RF_YT_WIRE;
-        @Nullable
-        private Format format = null;
-        @Nullable
-        private TableAttachmentReader<T> attachmentReader = null;
-
-        public SerializationContext(TableAttachmentReader<T> attachmentReader) {
-            this.attachmentReader = attachmentReader;
-            this.deserializer = null;
-            this.serializer = null;
-            this.objectClazz = null;
-        }
-
-        public SerializationContext(WireRowDeserializer<T> deserializer) {
-            this(TableAttachmentReader.wireProtocol(deserializer));
-        }
-
-        public SerializationContext(YTreeSerializer<T> serializer) {
-            this.serializer = serializer;
-            this.deserializer = null;
-            this.objectClazz = null;
-        }
-
-        public SerializationContext(Format format, TableAttachmentReader<T> attachmentReader) {
-            this.deserializer = null;
-            this.serializer = null;
-            this.objectClazz = null;
-            this.format = format;
-            if (!format.getType().equals(YSON)) {
-                throw new IllegalArgumentException("Unknown format: " + format.getType());
-            }
-            this.desiredRowsetFormat = ERowsetFormat.RF_FORMAT;
-            this.attachmentReader = attachmentReader;
-        }
-
-        public SerializationContext(Class<T> objectClazz) {
-            this.deserializer = null;
-            this.serializer = null;
-            this.objectClazz = objectClazz;
-        }
-
-        private SerializationContext(ERowsetFormat desiredRowsetFormat, TableAttachmentReader<T> attachmentReader) {
-            this.deserializer = null;
-            this.serializer = null;
-            this.objectClazz = null;
-            this.desiredRowsetFormat = desiredRowsetFormat;
-            this.attachmentReader = attachmentReader;
-        }
-
-        public static SerializationContext<ByteBuffer> binaryArrow() {
-            return new SerializationContext<>(ERowsetFormat.RF_ARROW, TableAttachmentReader.byteBuffer());
-        }
-
-        public static SerializationContext<YTreeNode> ysonBinary() {
-            return new SerializationContext<>(Format.ysonBinary(), TableAttachmentReader.ysonBinary());
-        }
-
-        public Optional<WireRowDeserializer<T>> getDeserializer() {
-            return Optional.ofNullable(this.deserializer);
-        }
-
-        public Optional<YTreeSerializer<T>> getSerializer() {
-            return Optional.ofNullable(this.serializer);
-        }
-
-        public Optional<Class<T>> getObjectClazz() {
-            return Optional.ofNullable(this.objectClazz);
-        }
-
-        public Optional<TableAttachmentReader<T>> getAttachmentReader() {
-            return Optional.ofNullable(attachmentReader);
-        }
     }
 
     @Override
@@ -229,6 +141,9 @@ public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>
         }
 
         public TBuilder setSerializationContext(SerializationContext<T> serializationContext) {
+            if (serializationContext instanceof WriteSerializationContext) {
+                throw new IllegalArgumentException("WriteSerializationContext do not allowed here");
+            }
             this.serializationContext = serializationContext;
             return self();
         }

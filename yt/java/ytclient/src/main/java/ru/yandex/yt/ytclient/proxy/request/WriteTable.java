@@ -3,6 +3,7 @@ package ru.yandex.yt.ytclient.proxy.request;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.request.Format;
+import tech.ytsaurus.client.request.WriteSerializationContext;
 import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.client.rows.WireRowSerializer;
 import tech.ytsaurus.core.cypress.YPath;
@@ -17,29 +18,29 @@ import ru.yandex.lang.NonNullFields;
 public class WriteTable<T> extends tech.ytsaurus.client.request.WriteTable.BuilderBase<T, WriteTable<T>> {
 
     public WriteTable(YPath path, WireRowSerializer<T> serializer, @Nullable TableSchema tableSchema) {
-        setSerializationContext(new tech.ytsaurus.client.request.WriteTable.SerializationContext<T>(serializer));
+        setSerializationContext(new WriteSerializationContext<T>(serializer));
         setPath(path).setTableSchema(tableSchema);
     }
 
     public WriteTable(YPath path, WireRowSerializer<T> serializer) {
         setPath(path);
-        setSerializationContext(new tech.ytsaurus.client.request.WriteTable.SerializationContext<T>(serializer));
+        setSerializationContext(new WriteSerializationContext<T>(serializer));
     }
 
     public WriteTable(YPath path, YTreeSerializer<T> serializer) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.WriteTable.SerializationContext<T>(
+                new WriteSerializationContext<T>(
                         MappedRowSerializer.forClass(serializer)));
     }
 
     public WriteTable(YPath path, YTreeSerializer<T> serializer, Format format) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.WriteTable.SerializationContext<T>(serializer, format));
+                new tech.ytsaurus.client.request.SerializationContext<T>(serializer, format));
     }
 
     public WriteTable(YPath path, Class<T> objectClazz, @Nullable TableSchema tableSchema) {
-       setPath(path).setTableSchema(tableSchema).setSerializationContext(
-               new tech.ytsaurus.client.request.WriteTable.SerializationContext<T>(objectClazz));
+        setPath(path).setTableSchema(tableSchema).setSerializationContext(
+                new tech.ytsaurus.client.request.SerializationContext<T>(objectClazz));
     }
 
     public WriteTable(YPath path, Class<T> objectClazz) {
@@ -53,7 +54,7 @@ public class WriteTable<T> extends tech.ytsaurus.client.request.WriteTable.Build
     @Deprecated
     public WriteTable(String path, WireRowSerializer<T> serializer) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.WriteTable.SerializationContext<T>(serializer));
+                new WriteSerializationContext<T>(serializer));
     }
 
     /**

@@ -1,5 +1,7 @@
 package ru.yandex.yt.ytclient.proxy.request;
 
+import tech.ytsaurus.client.request.ReadSerializationContext;
+import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeSerializer;
@@ -14,22 +16,22 @@ public class ReadTable<T> extends tech.ytsaurus.client.request.ReadTable.Builder
 
     public ReadTable(YPath path, WireRowDeserializer<T> deserializer) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.ReadTable.SerializationContext<T>(deserializer));
+                new ReadSerializationContext<>(deserializer));
     }
 
     public ReadTable(YPath path, YTreeObjectSerializer<T> serializer) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.ReadTable.SerializationContext<T>(serializer));
+                new SerializationContext<T>(serializer));
     }
 
     public ReadTable(YPath path, YTreeSerializer<T> serializer) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.ReadTable.SerializationContext<T>(serializer));
+                new tech.ytsaurus.client.request.SerializationContext<T>(serializer));
     }
 
     public ReadTable(YPath path, Class<T> objectClazz) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.ReadTable.SerializationContext<T>(objectClazz));
+                new tech.ytsaurus.client.request.SerializationContext<T>(objectClazz));
     }
 
     /**
@@ -38,7 +40,7 @@ public class ReadTable<T> extends tech.ytsaurus.client.request.ReadTable.Builder
     @Deprecated
     public ReadTable(String path, WireRowDeserializer<T> deserializer) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.ReadTable.SerializationContext<T>(deserializer));
+                new ReadSerializationContext<>(deserializer));
     }
 
     /**
@@ -47,16 +49,16 @@ public class ReadTable<T> extends tech.ytsaurus.client.request.ReadTable.Builder
     @Deprecated
     public ReadTable(String path, YTreeObjectSerializer<T> serializer) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.ReadTable.SerializationContext<T>(serializer));
+                new tech.ytsaurus.client.request.SerializationContext<T>(serializer));
     }
 
     /**
-     * @deprecated Use {@link #ReadTable(YPath path,  YTreeSerializer<T> serializer)} instead.
+     * @deprecated Use {@link #ReadTable(YPath path, YTreeSerializer<T> serializer)} instead.
      */
     @Deprecated
     public ReadTable(String path, YTreeSerializer<T> serializer) {
         setPath(path).setSerializationContext(
-                new tech.ytsaurus.client.request.ReadTable.SerializationContext<T>(serializer));
+                new tech.ytsaurus.client.request.SerializationContext<T>(serializer));
     }
 
     @Override

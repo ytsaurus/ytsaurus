@@ -56,10 +56,10 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
             logger.debug("schema -> {}", schema.toYTree().toString());
 
             if (this.tableRowsSerializer == null) {
-                if (!this.req.getSerializationContext().getObjectClazz().isPresent()) {
+                if (this.req.getSerializationContext().getObjectClass().isEmpty()) {
                     throw new IllegalStateException("No object clazz");
                 }
-                Class<T> objectClazz = self.req.getSerializationContext().getObjectClazz().get();
+                Class<T> objectClazz = self.req.getSerializationContext().getObjectClass().get();
                 if (UnversionedRow.class.equals(objectClazz)) {
                     this.tableRowsSerializer =
                             (TableRowsSerializer<T>) new TableRowsWireSerializer<>(new UnversionedRowSerializer());
@@ -76,7 +76,7 @@ class TableWriterBaseImpl<T> extends RawTableWriterImpl {
     }
 
     public boolean write(List<T> rows, TableSchema schema) throws IOException {
-        byte[] serializedRows = tableRowsSerializer.serialize(rows, schema);
+        byte[] serializedRows = tableRowsSerializer.serializeRows(rows, schema);
         return write(serializedRows);
     }
 }

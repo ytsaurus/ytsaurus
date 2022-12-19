@@ -12,6 +12,8 @@ import java.util.Random;
 import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
+import javax.persistence.Entity;
+
 import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
 import org.junit.Test;
@@ -19,7 +21,10 @@ import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
+import tech.ytsaurus.client.request.ReadSerializationContext;
 import tech.ytsaurus.client.request.ReadTable;
+import tech.ytsaurus.client.request.SerializationContext;
+import tech.ytsaurus.client.request.WriteSerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedRow;
@@ -51,7 +56,7 @@ import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 public class ReadWriteTest {
     YtClient yt;
 
-    private static final AtomicInteger counter = new AtomicInteger(0);
+    private static final AtomicInteger COUNTER = new AtomicInteger(0);
 
     public ReadWriteTest(YtClient yt) {
         this.yt = yt;
@@ -109,7 +114,7 @@ public class ReadWriteTest {
 
         MessageDigest md = MessageDigest.getInstance("MD5");
 
-        int currentCounter = counter.getAndIncrement();
+        int currentCounter = COUNTER.getAndIncrement();
 
         String testDataFile = "test-" + currentCounter + ".bin";
 
@@ -229,6 +234,7 @@ public class ReadWriteTest {
         }
     }
 
+    @Entity
     @YTreeObject
     static class Row {
         final String key;
@@ -239,6 +245,12 @@ public class ReadWriteTest {
             this.key = key;
             this.value = value;
             this.intValue = intValue;
+        }
+
+        Row() {
+            this.key = null;
+            this.value = null;
+            this.intValue = 0;
         }
     }
 
@@ -280,7 +292,7 @@ public class ReadWriteTest {
         TableWriter<UnversionedRow> writer =
                 yt.writeTable(new WriteTable<>(
                         path,
-                        new WriteTable.SerializationContext<>(new UnversionedRowSerializer()))).join();
+                        new WriteSerializationContext<>(new UnversionedRowSerializer()))).join();
 
         UnversionedRowset rowset = generator.nextRows();
 
@@ -296,7 +308,7 @@ public class ReadWriteTest {
 
         TableReader<UnversionedRow> reader =
                 yt.readTable(new ReadTable<>(
-                        path, new ReadTable.SerializationContext<>(new UnversionedRowDeserializer()))).join();
+                        path, new ReadSerializationContext<>(new UnversionedRowDeserializer()))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -349,7 +361,7 @@ public class ReadWriteTest {
         UnversionedRowset rowset = generator.nextRows();
 
         AsyncWriter<UnversionedRow> writer = yt.writeTableV2(
-                new WriteTable<>(path, new WriteTable.SerializationContext<>(UnversionedRow.class), rowset.getSchema())
+                new WriteTable<>(path, new SerializationContext<>(UnversionedRow.class), rowset.getSchema())
         ).join();
 
         while (rowset != null) {
@@ -362,7 +374,7 @@ public class ReadWriteTest {
         AsyncReader<UnversionedRow> reader =
                 yt.readTableV2(new ReadTable<>(
                         path,
-                        new ReadTable.SerializationContext<>(new UnversionedRowDeserializer()))).join();
+                        new ReadSerializationContext<>(new UnversionedRowDeserializer()))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -408,7 +420,7 @@ public class ReadWriteTest {
         yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         TableWriter<Row> writer = yt.writeTable(new WriteTable<>(path,
-                new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
+                new SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
 
         List<Row> rows = generator.nextRows();
 
@@ -425,7 +437,7 @@ public class ReadWriteTest {
         TableReader<Row> reader = yt.readTable(
                 new ReadTable<>(
                         path,
-                        new ReadTable.SerializationContext<>(
+                        new SerializationContext<>(
                                 (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class)))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
@@ -472,7 +484,7 @@ public class ReadWriteTest {
         yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
 
         AsyncWriter<Row> writer = yt.writeTableV2(new WriteTable<>(
-                path, new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
+                path, new SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
 
         List<Row> rows = generator.nextRows();
 
@@ -486,7 +498,7 @@ public class ReadWriteTest {
         AsyncReader<Row> reader = yt.readTableV2(
                 new ReadTable<>(
                         path,
-                        new ReadTable.SerializationContext<>(
+                        new SerializationContext<>(
                                 (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class)))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
@@ -518,6 +530,85 @@ public class ReadWriteTest {
         }
     }
 
+    @Test
+    public void testEntityReadWriteInSkiff() throws Exception {
+        testSkiffReadWrite(false);
+    }
+
+    @Test
+    public void testEntityReadWriteInSkiffWithRetries() throws Exception {
+        testSkiffReadWrite(true);
+    }
+
+    private void testSkiffReadWrite(boolean needRetries) throws Exception {
+        ObjectsRowsGenerator generator = new ObjectsRowsGenerator();
+
+        YPath path = YPath.simple("//tmp/write-table-example-2");
+
+        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
+
+        TableWriter<Row> writer = yt.writeTable(
+                WriteTable.<Row>builder()
+                        .setPath(path)
+                        .setSerializationContext(
+                                SerializationContext.skiff(Row.class)
+                        )
+                        .setNeedRetries(needRetries)
+                        .build()).join();
+
+        List<Row> rows = generator.nextRows();
+
+        while (rows != null) {
+            while (rows != null && writer.write(rows)) {
+                rows = generator.nextRows();
+            }
+
+            writer.readyEvent().join();
+        }
+
+        writer.close().join();
+
+        TableReader<Row> reader = yt.readTable(
+                ReadTable.<Row>builder()
+                        .setPath(path)
+                        .setSerializationContext(
+                                SerializationContext.skiff(Row.class)
+                        )
+                        .build()).join();
+
+        List<Boolean> rowsSeen = new ArrayList<>();
+
+        for (int i = 0; i < generator.rowsCount(); ++i) {
+            rowsSeen.add(false);
+        }
+
+        int currentRowNumber = 0;
+
+        while (reader.canRead()) {
+            List<Row> rowset;
+
+            while ((rowset = reader.read()) != null) {
+                for (Row row : rowset) {
+                    long intValue = row.intValue;
+
+                    Assert.assertEquals(row.toString(), row.key, "key-" + intValue);
+                    Assert.assertEquals(row.toString(), row.value, "value-" + intValue);
+
+                    Assert.assertEquals(false, rowsSeen.get(currentRowNumber));
+                    rowsSeen.set(currentRowNumber, true);
+
+                    currentRowNumber += 1;
+                }
+            }
+            reader.readyEvent().join();
+        }
+
+        reader.close().join();
+
+        for (int i = 0; i < rowsSeen.size(); ++i) {
+            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
+        }
+    }
 
     static class YTreeMapNodeRowsGenerator {
         private long currentRowNumber = 0;
@@ -578,7 +669,7 @@ public class ReadWriteTest {
         YTreeSerializer<YTreeMapNode> serializer = YTreeObjectSerializerFactory.forClass(YTreeMapNode.class);
 
         TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(
-                path, new WriteTable.SerializationContext<>(serializer))).join();
+                path, new SerializationContext<>(serializer))).join();
 
         List<YTreeMapNode> rows = generator.nextRows();
 
@@ -593,7 +684,7 @@ public class ReadWriteTest {
         writer.close().join();
 
         TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(
-                path,new ReadTable.SerializationContext<>(serializer))).join();
+                path, new SerializationContext<>(serializer))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 
@@ -645,7 +736,7 @@ public class ReadWriteTest {
 
         AsyncWriter<YTreeMapNode> writer = yt.writeTableV2(new WriteTable<>(
                 path,
-                new WriteTable.SerializationContext<>(MappedRowSerializer.forClass(serializer)),
+                new WriteSerializationContext<>(MappedRowSerializer.forClass(serializer)),
                 generator.getSchema())
         ).join();
 
@@ -657,7 +748,7 @@ public class ReadWriteTest {
         writer.finish().join();
 
         AsyncReader<YTreeMapNode> reader = yt.readTableV2(new ReadTable<>(
-                path, new ReadTable.SerializationContext<>(serializer))).join();
+                path, new SerializationContext<>(serializer))).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
 

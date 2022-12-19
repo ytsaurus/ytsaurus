@@ -77,7 +77,7 @@ class Buffer<T> {
 
     public byte[] finish(TableRowsSerializer<T> rowsSerializer) {
         try {
-            return rowsSerializer.serialize(buffer, rowsCount);
+            return rowsSerializer.serializeRowsWithDescriptor(buffer, rowsCount);
         } catch (IOException ex) {
             throw new RuntimeException("Serialization was failed, but it wasn't expected");
         }
@@ -187,10 +187,10 @@ class RetryingTableWriterBaseImpl<T> {
                                     transaction, TableSchema.fromYTree(node.getAttributeOrThrow("schema"))))
                             .thenApply(result -> {
                                 if (this.tableRowsSerializer == null) {
-                                    if (!this.req.getSerializationContext().getObjectClazz().isPresent()) {
+                                    if (this.req.getSerializationContext().getObjectClass().isEmpty()) {
                                         throw new IllegalStateException("No object clazz");
                                     }
-                                    Class<T> objectClazz = this.req.getSerializationContext().getObjectClazz().get();
+                                    Class<T> objectClazz = this.req.getSerializationContext().getObjectClass().get();
                                     if (UnversionedRow.class.equals(objectClazz)) {
                                         this.tableRowsSerializer =
                                                 (TableRowsSerializer<T>) new TableRowsWireSerializer<>(
@@ -404,7 +404,7 @@ class RetryingTableWriterBaseImpl<T> {
             return false;
         }
 
-        ByteBuf serializedRows = tableRowsSerializer.serializeRows(rows, schema);
+        ByteBuf serializedRows = tableRowsSerializer.serializeRowsToBuf(rows, schema);
         currentBuffer.write(serializedRows);
         currentBuffer.rowsCount += rows.size();
 

@@ -29,12 +29,21 @@ public class EntitySkiffDeserializer {
     public static <T> Optional<T> deserialize(byte[] objectBytes,
                                               Class<T> objectClass,
                                               SkiffSchema schema) {
+        return deserialize(new SkiffParser(objectBytes), objectClass, schema);
+    }
+
+    public static <T> Optional<T> deserialize(SkiffParser parser,
+                                              Class<T> objectClass,
+                                              SkiffSchema schema) {
+        validateEntity(objectClass);
+
+        return Optional.ofNullable(deserializeObject(parser, objectClass, schema));
+    }
+
+    private static <T> void validateEntity(Class<T> objectClass) {
         if (!objectClass.isAnnotationPresent(Entity.class)) {
             throw new IllegalArgumentException("Class must be annotated with @Entity");
         }
-
-        return Optional.ofNullable(castToType(
-                deserializeObject(new SkiffParser(objectBytes), objectClass, schema)));
     }
 
     private static <T> @Nullable T deserializeObject(SkiffParser parser, Class<T> clazz, SkiffSchema schema) {
@@ -51,7 +60,7 @@ public class EntitySkiffDeserializer {
                                                   Class<T> clazz,
                                                   SkiffSchema schema) {
         if (schema.getWireType() != WireType.TUPLE) {
-            throwInvalidSchemeException();
+            throwInvalidSchemeException(null);
         }
 
         T object;
@@ -59,8 +68,9 @@ public class EntitySkiffDeserializer {
             Constructor<T> defaultConstructor = clazz.getDeclaredConstructor();
             defaultConstructor.setAccessible(true);
             object = defaultConstructor.newInstance();
-        } catch (InstantiationException | IllegalAccessException | InvocationTargetException |
-                 NoSuchMethodException e) {
+        } catch (NoSuchMethodException e) {
+            throw new RuntimeException("Entity must have empty constructor", e);
+        } catch (InstantiationException | IllegalAccessException | InvocationTargetException e) {
             throw new RuntimeException(e);
         }
 
@@ -76,7 +86,7 @@ public class EntitySkiffDeserializer {
                         parser, field, schema.getChildren().get(indexInSchema)));
                 indexInSchema++;
             } catch (IllegalAccessException | IndexOutOfBoundsException e) {
-                throwInvalidSchemeException();
+                throwInvalidSchemeException(e);
             }
         }
         return object;
@@ -106,7 +116,7 @@ public class EntitySkiffDeserializer {
                                             Class<E> typeParameter,
                                             SkiffSchema schema) {
         if (!schema.isListSchema()) {
-            throwInvalidSchemeException();
+            throwInvalidSchemeException(null);
         }
 
         List<E> list = castToList(new ArrayList<E>());
@@ -141,7 +151,7 @@ public class EntitySkiffDeserializer {
                             "\") is not supported");
             }
         } catch (ClassCastException e) {
-            throwInvalidSchemeException();
+            throwInvalidSchemeException(e);
         }
         throw new IllegalStateException();
     }
@@ -162,7 +172,7 @@ public class EntitySkiffDeserializer {
         return schema.getChildren().get(tag);
     }
 
-    private static void throwInvalidSchemeException() {
-        throw new IllegalStateException("Scheme does not correspond to object");
+    private static void throwInvalidSchemeException(@Nullable Exception e) {
+        throw new IllegalStateException("Scheme does not correspond to object", e);
     }
 }

@@ -13,57 +13,57 @@ public class SkiffParser {
         this.buffer = ByteBuffer.wrap(buffer).order(ByteOrder.LITTLE_ENDIAN);
     }
 
-    byte parseInt8() {
+    public byte parseInt8() {
         return buffer.get();
     }
 
-    short parseInt16() {
+    public short parseInt16() {
         return buffer.getShort();
     }
 
-    int parseInt32() {
+    public int parseInt32() {
         return buffer.getInt();
     }
 
-    long parseInt64() {
+    public long parseInt64() {
         return buffer.getLong();
     }
 
-    BigInteger parseInt128() {
+    public BigInteger parseInt128() {
         byte[] data = getDataInBigEndian(16);
         int sign = (data[0] < 0 ? -1 : 1);
         return new BigInteger(sign, data);
     }
 
-    short parseUint8() {
+    public short parseUint8() {
         return (short) (buffer.get() & 0xff);
     }
 
-    int parseUint16() {
+    public int parseUint16() {
         return new BigInteger(1, getDataInBigEndian(2)).intValue();
     }
 
-    long parseUint32() {
+    public long parseUint32() {
         return new BigInteger(1, getDataInBigEndian(4)).longValue();
     }
 
-    BigInteger parseUint64() {
+    public BigInteger parseUint64() {
         return new BigInteger(1, getDataInBigEndian(8));
     }
 
-    BigInteger parseUint128() {
+    public BigInteger parseUint128() {
         return new BigInteger(1, getDataInBigEndian(16));
     }
 
-    double parseDouble() {
+    public double parseDouble() {
         return buffer.getDouble();
     }
 
-    boolean parseBoolean() {
+    public boolean parseBoolean() {
         return (buffer.get() != 0);
     }
 
-    byte[] parseString32() {
+    public byte[] parseString32() {
         int length = buffer.getInt();
         if (length < 0) {
             throw new IllegalArgumentException("Max length of string in Java = Integer.MAX_VALUE");
@@ -71,21 +71,21 @@ public class SkiffParser {
         return getData(length);
     }
 
-    byte[] parseYson32() {
+    public byte[] parseYson32() {
         return parseString32();
     }
 
-    short parseVariant8Tag() {
+    public short parseVariant8Tag() {
         return (short) (buffer.get() & 0xff);
     }
 
-    int parseVariant16Tag() {
+    public int parseVariant16Tag() {
         byte firstByte = buffer.get();
         byte secondByte = buffer.get();
         return ((secondByte & 0xff) << 8) | (firstByte & 0xff);
     }
 
-    boolean hasMoreData() {
+    public boolean hasMoreData() {
         return buffer.hasRemaining();
     }
 
