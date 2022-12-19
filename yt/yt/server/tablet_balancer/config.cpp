@@ -40,6 +40,8 @@ void TTabletBalancerDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("schedule", &TThis::Schedule)
         .Default(DefaultTabletBalancerSchedule);
+    registrar.Parameter("period", &TThis::Period)
+        .Default();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->Schedule.IsEmpty()) {

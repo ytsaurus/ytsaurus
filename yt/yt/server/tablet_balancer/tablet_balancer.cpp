@@ -261,6 +261,12 @@ void TTabletBalancer::OnDynamicConfigChanged(
     ParameterizedDeviationThreshold_.store(newConfig->ParameterizedDeviationThreshold);
     ScheduleFormula_.Store(newConfig->Schedule);
 
+    auto oldPeriod = oldConfig->Period.value_or(Config_->Period);
+    auto newPeriod = newConfig->Period.value_or(Config_->Period);
+    if (newPeriod != oldPeriod) {
+        PollExecutor_->SetPeriod(newPeriod);
+    }
+
     YT_LOG_DEBUG(
         "Updated tablet balancer dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
