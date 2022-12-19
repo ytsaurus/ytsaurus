@@ -46,13 +46,13 @@ public class RpcCredentials {
      *
      * <p>
      * Username is searched in following places (in that order):
-     *   1. YT_USER environment variable
-     *   2. Current username got from system
+     * 1. YT_USER environment variable
+     * 2. Current username got from system
      *
      * <p>
      * User token is searched in following places (in that order):
-     *   1. YT_TOKEN environment variable
-     *   2. ~/.yt/token file
+     * 1. YT_TOKEN environment variable
+     * 2. ~/.yt/token file
      *
      * @throws RuntimeException if username or user token cannot be obtained.
      */

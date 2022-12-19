@@ -1,13 +1,13 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.rpcproxy.EAtomicity;
+import tech.ytsaurus.rpcproxy.EAtomicity;
 
 /**
  * Atomicity of transaction or table.
  *
  * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#atomarnost">
- *     dynamic table documentation
- *     </a>
+ * dynamic table documentation
+ * </a>
  */
 public enum Atomicity {
     Full(EAtomicity.A_FULL, "full"),

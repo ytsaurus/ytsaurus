@@ -76,8 +76,8 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
     public <T> CompletableFuture<TableWriter<T>> writeTable(WriteTable<T> req) {
         if (req.getNeedRetries()) {
             return CompletableFuture.completedFuture(
-                            new RetryingTableWriterImpl<>(this, executorService, req, rpcOptions,
-                                    serializationResolver))
+                    new RetryingTableWriterImpl<>(this, executorService, req, rpcOptions,
+                            serializationResolver))
                     .thenCompose(writer -> writer.readyEvent().thenApply(unused -> writer));
         }
 

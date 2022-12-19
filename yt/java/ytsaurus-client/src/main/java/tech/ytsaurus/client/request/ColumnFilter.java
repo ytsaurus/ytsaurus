@@ -5,12 +5,12 @@ import java.util.Collection;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.rpcproxy.TLegacyAttributeKeys;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
-
 public class ColumnFilter {
-    @Nullable private Collection<String> columns;
+    @Nullable
+    private Collection<String> columns;
 
     public ColumnFilter() {
     }

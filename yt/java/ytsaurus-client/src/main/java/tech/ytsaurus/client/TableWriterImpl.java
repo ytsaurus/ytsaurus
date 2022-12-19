@@ -13,16 +13,18 @@ import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.TWriteTableMeta;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpcproxy.TWriteTableMeta;
 
 @NonNullApi
 class TableWriterBaseImpl<T> extends RawTableWriterImpl {
-    protected @Nullable TableSchema schema;
+    protected @Nullable
+    TableSchema schema;
     protected final WriteTable<T> req;
-    protected @Nullable TableRowsSerializer<T> tableRowsSerializer;
+    protected @Nullable
+    TableRowsSerializer<T> tableRowsSerializer;
     private final SerializationResolver serializationResolver;
 
     TableWriterBaseImpl(WriteTable<T> req, SerializationResolver serializationResolver) {

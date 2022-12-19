@@ -11,14 +11,13 @@ import javax.annotation.Nullable;
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.rpcproxy.TReqUpdateOperationParameters;
 import tech.ytsaurus.yson.YsonTextWriter;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeNodeUtils;
-
-import ru.yandex.yt.rpcproxy.TReqUpdateOperationParameters;
 
 public class UpdateOperationParameters
         extends OperationReq<UpdateOperationParameters.Builder, UpdateOperationParameters>
@@ -156,10 +155,13 @@ public class UpdateOperationParameters
     }
 
     public static class SchedulingOptions {
-        @Nullable private Double weight;
-        @Nullable private ResourceLimits resourceLimits;
+        @Nullable
+        private Double weight;
+        @Nullable
+        private ResourceLimits resourceLimits;
 
-        public SchedulingOptions() { }
+        public SchedulingOptions() {
+        }
 
         public SchedulingOptions(SchedulingOptions other) {
             this.weight = other.weight;
@@ -198,12 +200,17 @@ public class UpdateOperationParameters
     }
 
     public static class ResourceLimits {
-        @Nullable private Long userSlots;
-        @Nullable private Double cpu;
-        @Nullable private Long network;
-        @Nullable private Long memory;
+        @Nullable
+        private Long userSlots;
+        @Nullable
+        private Double cpu;
+        @Nullable
+        private Long network;
+        @Nullable
+        private Long memory;
 
-        public ResourceLimits() { }
+        public ResourceLimits() {
+        }
 
         public ResourceLimits(ResourceLimits other) {
             this.userSlots = other.userSlots;

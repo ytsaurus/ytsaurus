@@ -23,8 +23,10 @@ public class UserOperationSpecBase {
     private final List<YPath> inputTables;
     private final List<YPath> outputTables;
 
-    private final @Nullable String pool;
-    private final @Nullable String title;
+    private final @Nullable
+    String pool;
+    private final @Nullable
+    String title;
 
     private final Map<String, String> secureVault;
     private final Map<String, YTreeNode> additionalSpecParameters;
@@ -100,8 +102,10 @@ public class UserOperationSpecBase {
         private List<YPath> inputTables = new ArrayList<>();
         private List<YPath> outputTables = new ArrayList<>();
 
-        private @Nullable String pool;
-        private @Nullable String title;
+        private @Nullable
+        String pool;
+        private @Nullable
+        String title;
 
         private Map<String, String> secureVault = new HashMap<>();
         private Map<String, YTreeNode> outputTableAttributes = new HashMap<>();

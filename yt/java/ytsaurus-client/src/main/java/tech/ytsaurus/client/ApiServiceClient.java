@@ -49,16 +49,15 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.EAtomicity;
+import tech.ytsaurus.rpcproxy.ETableReplicaMode;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.EAtomicity;
-import ru.yandex.yt.rpcproxy.ETableReplicaMode;
 
 public interface ApiServiceClient extends TransactionalClient {
     CompletableFuture<ApiServiceTransaction> startTransaction(StartTransaction startTransaction);
 
     /**
-     * @deprecated  prefer to use {@link #startTransaction(StartTransaction)}
+     * @deprecated prefer to use {@link #startTransaction(StartTransaction)}
      */
     @Deprecated
     default CompletableFuture<ApiServiceTransaction> startTransaction(
@@ -318,12 +317,13 @@ public interface ApiServiceClient extends TransactionalClient {
     /**
      * Request to abort operation.
      * <p>
-     *     Operation will be finished in erroneous aborted state.
+     * Operation will be finished in erroneous aborted state.
      * <p>
+     *
      * @see AbortOperation
      * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
-     *     abort_job documentation
-     *     </a>
+     * abort_job documentation
+     * </a>
      */
     CompletableFuture<Void> abortOperation(AbortOperation req);
 
@@ -352,11 +352,12 @@ public interface ApiServiceClient extends TransactionalClient {
     /**
      * Request to abort job.
      * <p>
-     *     Job will be aborted. In the future scheduler will restart this job.
+     * Job will be aborted. In the future scheduler will restart this job.
      * <p>
+     *
      * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
-     *     abort_job documentation
-     *     </a>
+     * abort_job documentation
+     * </a>
      */
     CompletableFuture<Void> abortJob(AbortJob req);
 

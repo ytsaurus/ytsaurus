@@ -9,11 +9,10 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.TMasterReadOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqCheckPermission;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import tech.ytsaurus.rpcproxy.TMasterReadOptions;
+import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
+import tech.ytsaurus.rpcproxy.TReqCheckPermission;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 
 public class CheckPermission
         extends MutateNode<CheckPermission.Builder, CheckPermission>

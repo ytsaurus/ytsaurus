@@ -1,6 +1,6 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.rpcproxy.ETableReplicaMode;
+import tech.ytsaurus.rpcproxy.ETableReplicaMode;
 
 public enum TableReplicaMode {
     Sync(ETableReplicaMode.TRM_SYNC, "sync"),

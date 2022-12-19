@@ -9,8 +9,7 @@ import tech.ytsaurus.client.ApiServiceTransaction;
 import tech.ytsaurus.client.ApiServiceTransactionOptions;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.CypressNodeType;
-
-import ru.yandex.yt.rpcproxy.ETransactionType;
+import tech.ytsaurus.rpcproxy.ETransactionType;
 
 public class CypressExample {
 

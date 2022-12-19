@@ -1,13 +1,12 @@
 package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.TLegacyAttributeKeys;
-import ru.yandex.yt.rpcproxy.TMasterReadOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqGetNode;
-import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import tech.ytsaurus.rpcproxy.TLegacyAttributeKeys;
+import tech.ytsaurus.rpcproxy.TMasterReadOptions;
+import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
+import tech.ytsaurus.rpcproxy.TReqGetNode;
+import tech.ytsaurus.rpcproxy.TSuppressableAccessTrackingOptions;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 
 public class GetNode extends GetLikeReq<GetNode.Builder, GetNode> implements HighLevelRequest<TReqGetNode.Builder> {
     public GetNode(BuilderBase<?> builder) {

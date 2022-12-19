@@ -25,8 +25,10 @@ public class SystemOperationSpecBase {
     private final List<YPath> inputTables;
     private final YPath outputTable;
 
-    private final @Nullable String pool;
-    private final @Nullable String title;
+    private final @Nullable
+    String pool;
+    private final @Nullable
+    String title;
 
     private final Map<String, YTreeNode> outputTableAttributes;
     private final Map<String, YTreeNode> additionalSpecParameters;
@@ -112,10 +114,13 @@ public class SystemOperationSpecBase {
     public abstract static class Builder<T extends Builder<T>> {
         // N.B. some clients have methods taking this class as argument therefore it must be public
         private List<YPath> inputTables = new ArrayList<>();
-        private @Nullable YPath outputTable;
+        private @Nullable
+        YPath outputTable;
 
-        private @Nullable String pool;
-        private @Nullable String title;
+        private @Nullable
+        String pool;
+        private @Nullable
+        String title;
 
         private Map<String, YTreeNode> outputTableAttributes = new HashMap<>();
         private Map<String, YTreeNode> additionalSpecParameters = new HashMap<>();

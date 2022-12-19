@@ -14,12 +14,11 @@ import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.yson.ClosableYsonConsumer;
 import tech.ytsaurus.yson.YsonConsumer;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
-
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 
 public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
     // Маленький размер буфера для кодирования заголовков и размеров
@@ -409,7 +408,8 @@ public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
     static class ColumnWithIndex {
         private final int columnId;
         private final ColumnValueType columnType;
-        @Nullable private final String aggregate;
+        @Nullable
+        private final String aggregate;
 
         ColumnWithIndex(int columnId, ColumnValueType columnType, @Nullable String aggregate) {
             this.columnId = columnId;

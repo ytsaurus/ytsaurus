@@ -3,7 +3,7 @@ package tech.ytsaurus.client.request;
 import java.util.HashMap;
 import java.util.Map;
 
-import ru.yandex.yt.rpcproxy.EJobState;
+import tech.ytsaurus.rpcproxy.EJobState;
 
 public enum JobState {
     Unknown("unknown", 100),

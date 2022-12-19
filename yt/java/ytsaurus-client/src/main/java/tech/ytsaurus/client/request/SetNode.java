@@ -11,14 +11,13 @@ import javax.annotation.Nullable;
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.rpcproxy.TMutatingOptions;
+import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
+import tech.ytsaurus.rpcproxy.TReqSetNode;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqSetNode;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
 public class SetNode extends MutatePath<SetNode.Builder, SetNode> implements HighLevelRequest<TReqSetNode.Builder> {
     private final byte[] value;

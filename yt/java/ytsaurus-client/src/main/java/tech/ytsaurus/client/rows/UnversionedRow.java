@@ -54,7 +54,7 @@ public class UnversionedRow {
 
     public void writeTo(YsonConsumer consumer, TableSchema schema, boolean ignoreSystemColumns) {
         consumer.onBeginMap();
-        for (UnversionedValue value : values)  {
+        for (UnversionedValue value : values) {
             int index = value.getId();
             String name = schema.getColumnName(index);
 

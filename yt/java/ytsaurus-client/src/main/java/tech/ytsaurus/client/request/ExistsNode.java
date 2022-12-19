@@ -3,12 +3,11 @@ package tech.ytsaurus.client.request;
 import java.util.Objects;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.TMasterReadOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqExistsNode;
-import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import tech.ytsaurus.rpcproxy.TMasterReadOptions;
+import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
+import tech.ytsaurus.rpcproxy.TReqExistsNode;
+import tech.ytsaurus.rpcproxy.TSuppressableAccessTrackingOptions;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 
 public class ExistsNode
         extends GetLikeReq<ExistsNode.Builder, ExistsNode>

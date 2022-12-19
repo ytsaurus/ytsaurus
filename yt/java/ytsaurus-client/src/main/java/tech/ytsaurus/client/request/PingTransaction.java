@@ -8,15 +8,14 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TReqPingTransaction;
+import tech.ytsaurus.rpcproxy.TReqPingTransaction;
 
 /**
  * Request for pinging transaction.
  *
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#ping_tx">
- *     ping_tx documentation
- *     </a>
+ * ping_tx documentation
+ * </a>
  */
 public class PingTransaction extends RequestBase<PingTransaction.Builder, PingTransaction>
         implements HighLevelRequest<TReqPingTransaction.Builder> {

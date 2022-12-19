@@ -3,10 +3,9 @@ package tech.ytsaurus.client;
 import java.time.Duration;
 
 import org.junit.Test;
+import tech.ytsaurus.TError;
 import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcOptions;
-
-import ru.yandex.yt.TError;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;

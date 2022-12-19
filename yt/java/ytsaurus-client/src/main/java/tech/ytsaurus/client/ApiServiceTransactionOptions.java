@@ -15,11 +15,10 @@ import tech.ytsaurus.client.request.Atomicity;
 import tech.ytsaurus.client.request.Durability;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.rpcproxy.EAtomicity;
+import tech.ytsaurus.rpcproxy.EDurability;
+import tech.ytsaurus.rpcproxy.ETransactionType;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.EAtomicity;
-import ru.yandex.yt.rpcproxy.EDurability;
-import ru.yandex.yt.rpcproxy.ETransactionType;
 
 public class ApiServiceTransactionOptions {
     private final ETransactionType type;

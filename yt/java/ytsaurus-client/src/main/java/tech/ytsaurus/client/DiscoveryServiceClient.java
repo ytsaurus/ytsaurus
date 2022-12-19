@@ -3,13 +3,12 @@ package tech.ytsaurus.client;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
 
+import tech.ytsaurus.TReqDiscoverProxies;
+import tech.ytsaurus.TRspDiscoverProxies;
 import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcUtil;
-
-import ru.yandex.yt.TReqDiscoverProxies;
-import ru.yandex.yt.TRspDiscoverProxies;
 
 public class DiscoveryServiceClient {
     private final RpcClient client;

@@ -6,8 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.TReqGenerateTimestamps;
+import tech.ytsaurus.rpcproxy.TReqGenerateTimestamps;
 
 public class GenerateTimestamps extends RequestBase<GenerateTimestamps.Builder, GenerateTimestamps>
         implements HighLevelRequest<TReqGenerateTimestamps.Builder> {

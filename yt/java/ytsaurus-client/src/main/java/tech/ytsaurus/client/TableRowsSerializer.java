@@ -25,11 +25,12 @@ import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.ERowsetFormat;
+import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpcproxy.ERowsetFormat;
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
+
 
 @NonNullApi
 @NonNullFields

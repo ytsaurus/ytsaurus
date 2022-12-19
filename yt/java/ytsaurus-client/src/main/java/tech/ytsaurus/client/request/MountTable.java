@@ -7,8 +7,7 @@ import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.yt.rpcproxy.TReqMountTable;
+import tech.ytsaurus.rpcproxy.TReqMountTable;
 
 public class MountTable
         extends TableReq<MountTable.Builder, MountTable>

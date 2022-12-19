@@ -22,12 +22,12 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.ETransactionType;
 import tech.ytsaurus.ysontree.YTree;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeField;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
-import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.MappedModifyRowsRequest;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 

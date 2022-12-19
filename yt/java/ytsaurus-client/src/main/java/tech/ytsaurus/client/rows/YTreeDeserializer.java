@@ -21,7 +21,8 @@ public class YTreeDeserializer<T> implements WireRowsetDeserializer<T>, WireValu
     private final ConsumerSource<T> consumer;
 
     public YTreeDeserializer(YTreeSerializer<T> serializer) {
-        this(serializer, (unused) -> { });
+        this(serializer, (unused) -> {
+        });
     }
 
     public YTreeDeserializer(YTreeSerializer<T> serializer, @Nullable ConsumerSource<T> consumer) {

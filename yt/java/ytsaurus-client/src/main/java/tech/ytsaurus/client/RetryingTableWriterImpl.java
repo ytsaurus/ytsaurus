@@ -64,7 +64,7 @@ class Buffer<T> {
     int rowsCount = 0;
 
     Buffer() {
-        this.buffer =  Unpooled.buffer();
+        this.buffer = Unpooled.buffer();
     }
 
     public int size() {
@@ -109,7 +109,8 @@ class RetryingTableWriterBaseImpl<T> {
     final ScheduledExecutorService executor;
     final WriteTable<T> secondaryReq;
     final RpcOptions rpcOptions;
-    @Nullable TableRowsSerializer<T> tableRowsSerializer;
+    @Nullable
+    TableRowsSerializer<T> tableRowsSerializer;
 
     final Queue<WriteTask<T>> writeTasks = new ConcurrentLinkedQueue<>();
     final Set<Abortable<?>> processing = new HashSet<>();
@@ -122,7 +123,8 @@ class RetryingTableWriterBaseImpl<T> {
     final CompletableFuture<Void> firstBufferHandled;
 
     volatile WriteTable<T> req;
-    @Nullable private volatile Buffer<T> buffer;
+    @Nullable
+    private volatile Buffer<T> buffer;
 
     volatile boolean canceled = false;
     volatile boolean closed = false;

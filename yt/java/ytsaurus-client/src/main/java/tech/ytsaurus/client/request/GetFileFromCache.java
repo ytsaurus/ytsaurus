@@ -6,10 +6,9 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.yt.rpcproxy.TMasterReadOptions;
-import ru.yandex.yt.rpcproxy.TReqGetFileFromCache;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import tech.ytsaurus.rpcproxy.TMasterReadOptions;
+import tech.ytsaurus.rpcproxy.TReqGetFileFromCache;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 
 public class GetFileFromCache
         extends TransactionalRequest<GetFileFromCache.Builder, GetFileFromCache>

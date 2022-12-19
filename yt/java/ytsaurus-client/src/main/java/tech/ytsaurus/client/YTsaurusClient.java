@@ -34,24 +34,25 @@ import tech.ytsaurus.client.rpc.RpcCredentials;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.rpc.TResponseHeader;
+import tech.ytsaurus.rpc.TStreamingFeedbackHeader;
+import tech.ytsaurus.rpc.TStreamingPayloadHeader;
+
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpc.TResponseHeader;
-import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
-import ru.yandex.yt.rpc.TStreamingPayloadHeader;
 
 /**
- *  Asynchronous YT client.
- *  <p>
- *      <b>WARNING</b> Callbacks that <b>can block</b> (e.g. they use {@link CompletableFuture#join})
- *      <b>MUST NEVER BE USED</b> with non-Async (thenApply, whenComplete etc.) methods
- *      called on futures returned by this client. Otherwise, deadlock may appear.
- *      Always use Async versions of these methods with blocking callbacks.
- *  <p>
- *      Explanation. When using non-async thenApply callback is invoked by the thread that sets the future.
- *      In our case it is internal thread of YtClient.
- *      When all internal threads of YtClient are blocked by such callbacks
- *      YtClient becomes unable to send requests and receive responses.
+ * Asynchronous YT client.
+ * <p>
+ * <b>WARNING</b> Callbacks that <b>can block</b> (e.g. they use {@link CompletableFuture#join})
+ * <b>MUST NEVER BE USED</b> with non-Async (thenApply, whenComplete etc.) methods
+ * called on futures returned by this client. Otherwise, deadlock may appear.
+ * Always use Async versions of these methods with blocking callbacks.
+ * <p>
+ * Explanation. When using non-async thenApply callback is invoked by the thread that sets the future.
+ * In our case it is internal thread of YtClient.
+ * When all internal threads of YtClient are blocked by such callbacks
+ * YtClient becomes unable to send requests and receive responses.
  */
 public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     private final BusConnector busConnector;
@@ -67,14 +68,14 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
             RpcCredentials credentials,
             YtClientConfiguration configuration) {
         this(new BuilderWithDefaults<>(
-                new Builder()
-                        .setSharedBusConnector(connector)
-                        .setClusters(List.of(cluster))
-                        .setPreferredClusterName(cluster.getName())
-                        .setRpcCredentials(credentials)
-                        .setRpcCompression(new RpcCompression())
-                        .setYtClientConfiguration(configuration)
-            ), DefaultSerializationResolver.getInstance()
+                        new Builder()
+                                .setSharedBusConnector(connector)
+                                .setClusters(List.of(cluster))
+                                .setPreferredClusterName(cluster.getName())
+                                .setRpcCredentials(credentials)
+                                .setRpcCompression(new RpcCompression())
+                                .setYtClientConfiguration(configuration)
+                ), DefaultSerializationResolver.getInstance()
         );
     }
 
@@ -115,12 +116,12 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         final RpcClientFactory rpcClientFactory =
                 outageController != null
                         ? new OutageRpcClientFactoryImpl(
-                                busConnector, builder.credentials, builder.builder.compression,
-                                outageController)
+                        busConnector, builder.credentials, builder.builder.compression,
+                        outageController)
                         : new RpcClientFactoryImpl(
-                            busConnector,
-                            builder.credentials,
-                            builder.builder.compression);
+                        busConnector,
+                        builder.credentials,
+                        builder.builder.compression);
 
         this.poolProvider = new ClientPoolProvider(
                 busConnector,
@@ -259,14 +260,14 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
 
         @SuppressWarnings("checkstyle:ParameterNumber")
         ClientPoolProvider(
-            BusConnector connector,
-            List<YtCluster> clusters,
-            @Nullable String localDataCenterName,
-            @Nullable String proxyRole,
-            RpcCredentials credentials,
-            RpcClientFactory rpcClientFactory,
-            RpcOptions options,
-            Executor heavyExecutor
+                BusConnector connector,
+                List<YtCluster> clusters,
+                @Nullable String localDataCenterName,
+                @Nullable String proxyRole,
+                RpcCredentials credentials,
+                RpcClientFactory rpcClientFactory,
+                RpcOptions options,
+                Executor heavyExecutor
         ) {
             this.options = options;
             this.localDcName = localDataCenterName;
@@ -298,8 +299,8 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                     );
                 } else if (
                         curCluster.addresses != null && !curCluster.addresses.isEmpty() && (
-                        options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
-                        || curCluster.balancerFqdn == null || curCluster.balancerFqdn.isEmpty())
+                                options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
+                                        || curCluster.balancerFqdn == null || curCluster.balancerFqdn.isEmpty())
                 ) {
                     // use rpc
                     List<HostPort> initialProxyList =
@@ -436,6 +437,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          *
          * <p>
          * When no rpc credentials is set they are loaded from environment.
+         *
          * @see RpcCredentials#loadFromEnvironment()
          */
         public TBuilder setRpcCredentials(RpcCredentials rpcCredentials) {
@@ -456,6 +458,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         /**
          * Set miscellaneous options.
          * Part of YtClientConfiguration.
+         *
          * @deprecated prefer to use {@link #setYtClientConfiguration(YtClientConfiguration)} ()}
          */
         @Deprecated
@@ -502,10 +505,13 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
             TClient extends YTsaurusClient,
             TBuilder extends ClientBuilder<TClient, TBuilder>>
             extends BaseBuilder<TClient, TBuilder> {
-        @Nullable BusConnector busConnector;
+        @Nullable
+        BusConnector busConnector;
         boolean isBusConnectorOwner = true;
-        @Nullable String preferredClusterName;
-        @Nullable String proxyRole;
+        @Nullable
+        String preferredClusterName;
+        @Nullable
+        String proxyRole;
         List<YtCluster> clusters = new ArrayList<>();
 
         boolean enableValidation = true;
@@ -588,6 +594,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
         /**
          * Set heavy executor for YT client. This is used for deserialization of lookup/select response.
          * By default, ForkJoinPool.commonPool().
+         *
          * @return self
          */
         public TBuilder setHeavyExecutor(Executor heavyExecutor) {

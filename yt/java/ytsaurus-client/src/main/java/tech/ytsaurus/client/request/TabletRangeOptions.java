@@ -2,11 +2,13 @@ package tech.ytsaurus.client.request;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.yt.rpcproxy.TTabletRangeOptions;
+import tech.ytsaurus.rpcproxy.TTabletRangeOptions;
 
 public class TabletRangeOptions {
-    private @Nullable Integer firstTabletIndex = null;
-    private @Nullable Integer lastTabletIndex = null;
+    private @Nullable
+    Integer firstTabletIndex = null;
+    private @Nullable
+    Integer lastTabletIndex = null;
 
     public TabletRangeOptions() {
     }

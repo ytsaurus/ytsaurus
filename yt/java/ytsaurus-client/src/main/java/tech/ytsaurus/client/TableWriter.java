@@ -6,6 +6,7 @@ import java.util.concurrent.CompletableFuture;
 
 
 import tech.ytsaurus.core.tables.TableSchema;
+
 public interface TableWriter<T> {
     TableSchema getSchema();
 

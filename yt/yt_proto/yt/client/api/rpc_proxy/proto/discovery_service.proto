@@ -1,6 +1,6 @@
 package NYT.NApi.NRpcProxy.NProto;
 
-option java_package = "ru.yandex.yt";
+option java_package = "tech.ytsaurus";
 option java_outer_classname = "DiscoveryProtos";
 option java_multiple_files = true;
 

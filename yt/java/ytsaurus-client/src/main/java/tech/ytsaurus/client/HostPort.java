@@ -76,7 +76,7 @@ class HostPort {
 
         String host = hostPortString.substring(1, closeBracketIndex);
         if (closeBracketIndex + 1 == hostPortString.length()) {
-            return new String[] {host, ""};
+            return new String[]{host, ""};
         } else {
             checkArgument(
                     hostPortString.charAt(closeBracketIndex + 1) == ':',
@@ -90,7 +90,7 @@ class HostPort {
                         hostPortString
                 );
             }
-            return new String[] {host, hostPortString.substring(closeBracketIndex + 2)};
+            return new String[]{host, hostPortString.substring(closeBracketIndex + 2)};
         }
     }
 

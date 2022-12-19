@@ -23,10 +23,10 @@ import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.ETransactionType;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import ru.yandex.yt.rpcproxy.ETransactionType;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 
 public class RpcBackendTest {

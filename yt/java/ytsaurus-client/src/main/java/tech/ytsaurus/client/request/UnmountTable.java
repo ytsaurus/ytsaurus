@@ -2,14 +2,13 @@ package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.yt.rpcproxy.TReqUnmountTable;
+import tech.ytsaurus.rpcproxy.TReqUnmountTable;
 
 /**
  * Unmount table request.
  *
  * @see <a href="https://yt.yandex-team.ru/docs/api/commands#unmount_table">documentation</a>
- * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#unmountTable(UnmountTable)
+ * @see tech.ytsaurus.ytclient.proxy.ApiServiceClient#unmountTable(UnmountTable)
  */
 public class UnmountTable
         extends TableReq<UnmountTable.Builder, UnmountTable>

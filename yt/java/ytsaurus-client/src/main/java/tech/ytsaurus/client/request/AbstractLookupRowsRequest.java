@@ -14,19 +14,19 @@ import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpcproxy.TReqLookupRows;
-import ru.yandex.yt.rpcproxy.TReqVersionedLookupRows;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.rpcproxy.TReqLookupRows;
+import tech.ytsaurus.rpcproxy.TReqVersionedLookupRows;
 
 /**
  * Base class for lookup rows requests.
  * <p>
  * Users use one of the inheritors of this class.
  * <p>
+ *
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#lookup_rows">
- *     lookup_rows documentation
- *     </a>
+ * lookup_rows documentation
+ * </a>
  */
 public abstract class AbstractLookupRowsRequest<
         TBuilder extends AbstractLookupRowsRequest.Builder<TBuilder, TRequest>,
@@ -229,6 +229,7 @@ public abstract class AbstractLookupRowsRequest<
          * It must be "lookup schema". Such schema contains only key columns of a table.
          * Schema is used to properly serialize and send to server keys to lookup.
          * <p>
+         *
          * @see TableSchema#toLookup()
          */
         public TBuilder setSchema(TableSchema schema) {
@@ -308,6 +309,7 @@ public abstract class AbstractLookupRowsRequest<
 
         /**
          * Get value of keep-missing-rows parameter.
+         *
          * @see #setKeepMissingRows(boolean)
          */
         public boolean getKeepMissingRows() {

@@ -9,9 +9,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
 import tech.ytsaurus.ysontree.YTreeBuilder;
-
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
 
 public class PrerequisiteOptions {
     public static class RevisionPrerequsite {

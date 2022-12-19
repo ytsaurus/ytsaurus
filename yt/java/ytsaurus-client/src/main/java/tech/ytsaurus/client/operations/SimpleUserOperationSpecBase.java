@@ -14,9 +14,12 @@ import ru.yandex.lang.NonNullFields;
 @NonNullApi
 @NonNullFields
 public class SimpleUserOperationSpecBase extends UserOperationSpecBase {
-    private final @Nullable Integer jobCount;
-    private final @Nullable DataSize maxDataSizePerJob;
-    private final @Nullable DataSize dataSizePerJob;
+    private final @Nullable
+    Integer jobCount;
+    private final @Nullable
+    DataSize maxDataSizePerJob;
+    private final @Nullable
+    DataSize dataSizePerJob;
 
     protected SimpleUserOperationSpecBase(Builder<?> builder) {
         super(builder);
@@ -52,9 +55,12 @@ public class SimpleUserOperationSpecBase extends UserOperationSpecBase {
     @NonNullApi
     @NonNullFields
     protected abstract static class Builder<T extends Builder<T>> extends UserOperationSpecBase.Builder<T> {
-        private @Nullable Integer jobCount;
-        private @Nullable DataSize maxDataSizePerJob;
-        private @Nullable DataSize dataSizePerJob;
+        private @Nullable
+        Integer jobCount;
+        private @Nullable
+        DataSize maxDataSizePerJob;
+        private @Nullable
+        DataSize dataSizePerJob;
 
         public T setJobCount(@Nullable Integer jobCount) {
             this.jobCount = jobCount;

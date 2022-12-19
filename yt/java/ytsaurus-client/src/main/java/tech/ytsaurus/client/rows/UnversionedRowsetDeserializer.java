@@ -9,6 +9,7 @@ import javax.annotation.Nonnull;
 
 
 import tech.ytsaurus.core.tables.TableSchema;
+
 public class UnversionedRowsetDeserializer
         extends UnversionedRowDeserializer
         implements WireRowsetDeserializer<UnversionedRow> {

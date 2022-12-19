@@ -12,12 +12,11 @@ import tech.ytsaurus.client.TableAttachmentReader;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.rpcproxy.ERowsetFormat;
+import tech.ytsaurus.rpcproxy.TReqReadTable;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.ERowsetFormat;
-import ru.yandex.yt.rpcproxy.TReqReadTable;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
 public class ReadTable<T> extends RequestBase<ReadTable.Builder<T>, ReadTable<T>> {
     @Nullable

@@ -13,12 +13,11 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.ERowsetFormat;
+import tech.ytsaurus.rpcproxy.TReqWriteTable;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.ERowsetFormat;
-import ru.yandex.yt.rpcproxy.TReqWriteTable;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
 import static java.nio.charset.StandardCharsets.UTF_8;
 
@@ -290,6 +289,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         /**
          * If you need a writer with retries, set needRetries=true.
          * RetryPolicy should be set in RpcOptions
+         *
          * @return self
          */
         public TBuilder setNeedRetries(boolean needRetries) {
@@ -300,6 +300,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
         /**
          * If a rows ordering doesn't matter, you can set maxWritesInFlight more than 1.
          * This will make writing faster.
+         *
          * @return self
          */
         public TBuilder setMaxWritesInFlight(int maxWritesInFlight) {
@@ -309,6 +310,7 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
 
         /**
          * Allows to regular a chunk size in the output table.
+         *
          * @return self
          */
         public TBuilder setChunkSize(int chunkSize) {

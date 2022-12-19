@@ -10,10 +10,10 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TResponseHeader;
 
 import ru.yandex.lang.NonNullApi;
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpc.TResponseHeader;
 
 @NonNullApi
 public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder, ResponseType extends MessageLite>
@@ -21,8 +21,10 @@ public class RequestWithResponseBuilder<RequestType extends MessageLite.Builder,
     private final TRequestHeader.Builder header;
     private final RequestType body;
     private final List<byte[]> attachments = new ArrayList<>();
-    private @Nullable List<byte[]> compressedAttachments = null;
-    private @Nullable Compression compressedAttachmentsCodec = null;
+    private @Nullable
+    List<byte[]> compressedAttachments = null;
+    private @Nullable
+    Compression compressedAttachmentsCodec = null;
     private final RpcOptions options;
     private final Parser<ResponseType> parser;
 

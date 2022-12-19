@@ -15,8 +15,7 @@ import tech.ytsaurus.client.rpc.RpcClientWrapper;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.client.rpc.RpcRequest;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
-
-import ru.yandex.yt.rpc.TResponseHeader;
+import tech.ytsaurus.rpc.TResponseHeader;
 
 // TODO: move closer to user an make package private
 class FailureDetectingRpcClient extends RpcClientWrapper {

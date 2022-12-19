@@ -90,7 +90,8 @@ public class JobIo {
     public abstract static class BuilderBase<T extends BuilderBase<T>> {
         private boolean enableTableIndex = false;
         private boolean enableRowIndex = false;
-        private @Nullable TableWriterOptions tableWriter;
+        private @Nullable
+        TableWriterOptions tableWriter;
 
         public JobIo build() {
             return new JobIo(this);

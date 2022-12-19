@@ -9,8 +9,7 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.YtTimestamp;
-
-import ru.yandex.yt.rpcproxy.TReqSelectRows;
+import tech.ytsaurus.rpcproxy.TReqSelectRows;
 
 public class SelectRowsRequest
         extends RequestBase<SelectRowsRequest.Builder, SelectRowsRequest>
@@ -204,17 +203,28 @@ public class SelectRowsRequest
     public abstract static class BuilderBase<
             TBuilder extends BuilderBase<TBuilder>>
             extends RequestBase.Builder<TBuilder, SelectRowsRequest> {
-        @Nullable private String query;
-        @Nullable private YtTimestamp timestamp;
-        @Nullable private YtTimestamp retentionTimestamp;
-        @Nullable private Long inputRowsLimit;
-        @Nullable private Long outputRowsLimit;
-        @Nullable private Boolean failOnIncompleteResult;
-        @Nullable private Integer maxSubqueries;
-        @Nullable private Boolean allowJoinWithoutIndex;
-        @Nullable private String udfRegistryPath;
-        @Nullable private String executionPool;
-        @Nullable private Boolean allowFullScan;
+        @Nullable
+        private String query;
+        @Nullable
+        private YtTimestamp timestamp;
+        @Nullable
+        private YtTimestamp retentionTimestamp;
+        @Nullable
+        private Long inputRowsLimit;
+        @Nullable
+        private Long outputRowsLimit;
+        @Nullable
+        private Boolean failOnIncompleteResult;
+        @Nullable
+        private Integer maxSubqueries;
+        @Nullable
+        private Boolean allowJoinWithoutIndex;
+        @Nullable
+        private String udfRegistryPath;
+        @Nullable
+        private String executionPool;
+        @Nullable
+        private Boolean allowFullScan;
 
         public BuilderBase() {
         }

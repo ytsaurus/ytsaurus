@@ -4,11 +4,10 @@ import java.util.function.Consumer;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.TGuid;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.ysontree.YTreeBuilder;
-
-import ru.yandex.yt.TGuid;
 
 abstract class OperationReq<
         TBuilder extends OperationReq.Builder<TBuilder, TRequest>,

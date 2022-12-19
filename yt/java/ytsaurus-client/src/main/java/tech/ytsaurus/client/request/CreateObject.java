@@ -10,10 +10,9 @@ import javax.annotation.Nullable;
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.CypressNodeType;
+import tech.ytsaurus.rpcproxy.TReqCreateObject;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.TReqCreateObject;
-import ru.yandex.yt.ytree.TAttributeDictionary;
+import tech.ytsaurus.ytree.TAttributeDictionary;
 
 public class CreateObject extends RequestBase<CreateObject.Builder, CreateObject>
         implements HighLevelRequest<TReqCreateObject.Builder> {

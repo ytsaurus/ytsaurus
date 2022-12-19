@@ -6,7 +6,8 @@ public class RpcCompression {
     private Compression requestCodecId = null;
     private Compression responseCodecId = null;
 
-    public RpcCompression() { }
+    public RpcCompression() {
+    }
 
     public RpcCompression(Compression codecId) {
         this(codecId, codecId);

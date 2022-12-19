@@ -18,11 +18,11 @@ import java.util.function.Supplier;
 import org.junit.After;
 import org.junit.Test;
 import tech.ytsaurus.client.RetryPolicy;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TResponseHeader;
+import tech.ytsaurus.rpcproxy.TReqGetNode;
 
 import ru.yandex.inside.yt.kosher.impl.common.YtException;
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpc.TResponseHeader;
-import ru.yandex.yt.rpcproxy.TReqGetNode;
 
 import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.containsString;

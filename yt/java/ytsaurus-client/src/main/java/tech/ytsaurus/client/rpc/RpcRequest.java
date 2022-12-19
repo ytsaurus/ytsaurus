@@ -9,17 +9,19 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.MessageLite;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpc.TRequestHeaderOrBuilder;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TRequestHeaderOrBuilder;
 
 @SuppressWarnings("checkstyle:VisibilityModifier")
 public class RpcRequest<RequestType extends MessageLite> {
     public final TRequestHeader header;
     public final RequestType body;
-    public final @Nullable List<byte[]> attachments;
-    public final @Nullable List<byte[]> compressedAttachments;
-    public final @Nullable Compression compressedAttachmentsCodec;
+    public final @Nullable
+    List<byte[]> attachments;
+    public final @Nullable
+    List<byte[]> compressedAttachments;
+    public final @Nullable
+    Compression compressedAttachmentsCodec;
 
     public RpcRequest(TRequestHeader header, RequestType body, @Nonnull List<byte[]> attachments) {
         this.header = header;

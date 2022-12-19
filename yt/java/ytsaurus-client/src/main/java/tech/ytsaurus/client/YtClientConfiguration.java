@@ -28,7 +28,8 @@ public class YtClientConfiguration {
     private final YTreeNode jobSpecPatch;
 
     private final YPath tmpDir;
-    @Nullable private final YPath cacheDir;
+    @Nullable
+    private final YPath cacheDir;
     private final JarsProcessor jarsProcessor;
     private final boolean isLocalMode;
     private final String javaBinary;
@@ -140,7 +141,8 @@ public class YtClientConfiguration {
         private RpcOptions rpcOptions;
         private YPath tmpDir = YPath.simple("//tmp/yt_wrapper/file_storage");
         @Nullable
-        private YPath cacheDir = YPath.simple("//tmp/yt_wrapper/file_storage").child("new_cache");;
+        private YPath cacheDir = YPath.simple("//tmp/yt_wrapper/file_storage").child("new_cache");
+
         @Nullable
         private JarsProcessor jarsProcessor;
         private boolean isLocalMode = false;

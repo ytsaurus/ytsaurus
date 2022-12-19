@@ -60,9 +60,8 @@ import tech.ytsaurus.client.rpc.RpcErrorCode;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 
 public class ApiServiceTransaction implements TransactionalClient, AutoCloseable, Abortable {
     enum State {
@@ -71,6 +70,7 @@ public class ApiServiceTransaction implements TransactionalClient, AutoCloseable
         COMMITTED,
         CLOSED,
     }
+
     private static final Logger logger = LoggerFactory.getLogger(ApiServiceTransaction.class);
 
     private final ApiServiceClientImpl client;

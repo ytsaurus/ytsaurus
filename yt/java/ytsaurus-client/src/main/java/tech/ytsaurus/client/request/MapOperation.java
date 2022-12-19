@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 
 import tech.ytsaurus.client.operations.MapSpec;
+
 public class MapOperation extends BaseOperation<MapSpec> {
     MapOperation(Builder builder) {
         super(builder);

@@ -8,15 +8,14 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TReqCommitTransaction;
+import tech.ytsaurus.rpcproxy.TReqCommitTransaction;
 
 /**
  * Request for committing transaction.
  *
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#commit_tx">
- *     commit_tx documentation
- *     </a>
+ * commit_tx documentation
+ * </a>
  */
 public class CommitTransaction extends RequestBase<CommitTransaction.Builder, CommitTransaction>
         implements HighLevelRequest<TReqCommitTransaction.Builder> {

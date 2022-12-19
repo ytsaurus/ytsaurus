@@ -26,13 +26,13 @@ import ru.yandex.lang.NonNullFields;
  * Class determines which errors must be retried.
  *
  * <p>
- *     Users must not override this class, instead they should use factory methods.
+ * Users must not override this class, instead they should use factory methods.
  * </p>
  * <p>
- *     Example below creates retry policy that retries codes 100 and 500 no more than 10 times:
- *     <code>
- *         RequestRetryPolicy.attemptLimited(10, RequestRetryPolicy.forCodes(100, 500))
- *     </code>
+ * Example below creates retry policy that retries codes 100 and 500 no more than 10 times:
+ * <code>
+ * RequestRetryPolicy.attemptLimited(10, RequestRetryPolicy.forCodes(100, 500))
+ * </code>
  * </p>
  */
 @NonNullApi
@@ -319,7 +319,8 @@ public abstract class RetryPolicy {
 @NonNullApi
 @NonNullFields
 class BackoffProvider {
-    private @Nullable Duration currentExponentialBackoff = null;
+    private @Nullable
+    Duration currentExponentialBackoff = null;
 
     Duration getBackoffTime(RpcError error, RpcOptions options) {
         Set<Integer> errorCodes = error.getErrorCodes();

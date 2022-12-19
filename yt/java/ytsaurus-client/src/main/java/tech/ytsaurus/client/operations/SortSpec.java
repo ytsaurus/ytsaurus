@@ -25,13 +25,18 @@ import ru.yandex.lang.NonNullFields;
 public class SortSpec extends SystemOperationSpecBase implements Spec {
     private final List<SortColumn> sortBy;
 
-    private final @Nullable Integer partitionCount;
-    private final @Nullable Integer partitionJobCount;
-    private final @Nullable Integer sortJobCount;
+    private final @Nullable
+    Integer partitionCount;
+    private final @Nullable
+    Integer partitionJobCount;
+    private final @Nullable
+    Integer sortJobCount;
     private final @Nullable
     DataSize maxDataSizePerSortJob;
-    private final @Nullable DataSize maxDataSizePerUnorderedMergeJob;
-    private final @Nullable JobIo mergeJobIo;
+    private final @Nullable
+    DataSize maxDataSizePerUnorderedMergeJob;
+    private final @Nullable
+    JobIo mergeJobIo;
 
     public SortSpec(
             List<YPath> inputTables,
@@ -133,12 +138,18 @@ public class SortSpec extends SystemOperationSpecBase implements Spec {
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SystemOperationSpecBase.Builder<T> {
         List<SortColumn> sortBy = new ArrayList<>();
-        @Nullable Integer partitionCount;
-        @Nullable Integer partitionJobCount;
-        @Nullable Integer sortJobCount;
-        @Nullable DataSize maxDataSizePerSortJob;
-        @Nullable DataSize maxDataSizePerUnorderedMergeJob;
-        @Nullable JobIo mergeJobIo;
+        @Nullable
+        Integer partitionCount;
+        @Nullable
+        Integer partitionJobCount;
+        @Nullable
+        Integer sortJobCount;
+        @Nullable
+        DataSize maxDataSizePerSortJob;
+        @Nullable
+        DataSize maxDataSizePerUnorderedMergeJob;
+        @Nullable
+        JobIo mergeJobIo;
 
         public SortSpec build() {
             return new SortSpec(this);

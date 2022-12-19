@@ -32,13 +32,12 @@ import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.BusDeliveryTracking;
 import tech.ytsaurus.client.bus.BusListener;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpc.TRequestCancelationHeader;
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpc.TResponseHeader;
-import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
-import ru.yandex.yt.rpc.TStreamingParameters;
-import ru.yandex.yt.rpc.TStreamingPayloadHeader;
+import tech.ytsaurus.rpc.TRequestCancelationHeader;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TResponseHeader;
+import tech.ytsaurus.rpc.TStreamingFeedbackHeader;
+import tech.ytsaurus.rpc.TStreamingParameters;
+import tech.ytsaurus.rpc.TStreamingPayloadHeader;
 
 /**
  * Базовая реализация rpc клиента поверх bus
@@ -975,7 +974,7 @@ public class DefaultRpcBusClient implements RpcClient {
             throw new IllegalStateException("Trying to unref dead object");
         }
         if (newValue == 0) {
-           close();
+            close();
         }
     }
 

@@ -8,8 +8,7 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TReqGCCollect;
+import tech.ytsaurus.rpcproxy.TReqGCCollect;
 
 public class GcCollect
         extends RequestBase<GcCollect.Builder, GcCollect>

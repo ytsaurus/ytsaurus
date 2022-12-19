@@ -119,6 +119,26 @@ import tech.ytsaurus.core.YtTimestamp;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.rpcproxy.EAtomicity;
+import tech.ytsaurus.rpcproxy.EOperationType;
+import tech.ytsaurus.rpcproxy.ETableReplicaMode;
+import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
+import tech.ytsaurus.rpcproxy.TReqGetInSyncReplicas;
+import tech.ytsaurus.rpcproxy.TReqModifyRows;
+import tech.ytsaurus.rpcproxy.TReqReadFile;
+import tech.ytsaurus.rpcproxy.TReqReadTable;
+import tech.ytsaurus.rpcproxy.TReqStartTransaction;
+import tech.ytsaurus.rpcproxy.TReqWriteFile;
+import tech.ytsaurus.rpcproxy.TReqWriteTable;
+import tech.ytsaurus.rpcproxy.TRspLookupRows;
+import tech.ytsaurus.rpcproxy.TRspReadFile;
+import tech.ytsaurus.rpcproxy.TRspReadTable;
+import tech.ytsaurus.rpcproxy.TRspSelectRows;
+import tech.ytsaurus.rpcproxy.TRspStartTransaction;
+import tech.ytsaurus.rpcproxy.TRspVersionedLookupRows;
+import tech.ytsaurus.rpcproxy.TRspWriteFile;
+import tech.ytsaurus.rpcproxy.TRspWriteTable;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeBuilder;
@@ -129,26 +149,6 @@ import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpcproxy.EAtomicity;
-import ru.yandex.yt.rpcproxy.EOperationType;
-import ru.yandex.yt.rpcproxy.ETableReplicaMode;
-import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
-import ru.yandex.yt.rpcproxy.TReqGetInSyncReplicas;
-import ru.yandex.yt.rpcproxy.TReqModifyRows;
-import ru.yandex.yt.rpcproxy.TReqReadFile;
-import ru.yandex.yt.rpcproxy.TReqReadTable;
-import ru.yandex.yt.rpcproxy.TReqStartTransaction;
-import ru.yandex.yt.rpcproxy.TReqWriteFile;
-import ru.yandex.yt.rpcproxy.TReqWriteTable;
-import ru.yandex.yt.rpcproxy.TRspLookupRows;
-import ru.yandex.yt.rpcproxy.TRspReadFile;
-import ru.yandex.yt.rpcproxy.TRspReadTable;
-import ru.yandex.yt.rpcproxy.TRspSelectRows;
-import ru.yandex.yt.rpcproxy.TRspStartTransaction;
-import ru.yandex.yt.rpcproxy.TRspVersionedLookupRows;
-import ru.yandex.yt.rpcproxy.TRspWriteFile;
-import ru.yandex.yt.rpcproxy.TRspWriteTable;
 
 /**
  * Клиент для высокоуровневой работы с ApiService
@@ -161,7 +161,8 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
     private final ScheduledExecutorService executorService;
     private final Executor heavyExecutor;
     private final ExecutorService prepareSpecExecutor = Executors.newSingleThreadExecutor();
-    @Nullable private final RpcClient rpcClient;
+    @Nullable
+    private final RpcClient rpcClient;
     private final YtClientConfiguration configuration;
     protected final RpcOptions rpcOptions;
     protected final SerializationResolver serializationResolver;
@@ -214,6 +215,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Start new master or tablet transaction.
+     *
      * @see StartTransaction
      */
     @Override
@@ -278,6 +280,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Ping existing transaction
+     *
      * @see PingTransaction
      */
     @Override
@@ -289,6 +292,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Commit existing transaction
+     *
      * @see CommitTransaction
      */
     @Override
@@ -300,6 +304,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Abort existing transaction
+     *
      * @see AbortTransaction
      */
     @Override
@@ -313,6 +318,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Get cypress node
+     *
      * @see GetNode
      */
     @Override
@@ -324,6 +330,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * List cypress node
+     *
      * @see ListNode
      */
     @Override
@@ -335,6 +342,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Set cypress node
+     *
      * @see SetNode
      */
     @Override
@@ -346,6 +354,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Check if cypress node exists
+     *
      * @see ExistsNode
      */
     @Override
@@ -357,6 +366,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Get table pivot keys.
+     *
      * @see GetTablePivotKeys
      */
     @Override
@@ -370,6 +380,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Create new master object.
+     *
      * @see CreateObject
      */
     public CompletableFuture<GUID> createObject(CreateObject req) {
@@ -380,6 +391,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Check cluster's liveness
+     *
      * @see CheckClusterLiveness
      */
     public CompletableFuture<Void> checkClusterLiveness(CheckClusterLiveness req) {
@@ -390,6 +402,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Create cypress node
+     *
      * @see CreateNode
      */
     @Override
@@ -401,6 +414,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Remove cypress node
+     *
      * @see RemoveNode
      */
     @Override
@@ -412,6 +426,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Lock cypress node
+     *
      * @see LockNode
      */
     @Override
@@ -425,6 +440,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Copy cypress node
+     *
      * @see CopyNode
      */
     @Override
@@ -436,6 +452,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Move cypress node
+     *
      * @see MoveNode
      */
     @Override
@@ -447,6 +464,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Link cypress node
+     *
      * @see LinkNode
      */
     @Override
@@ -458,6 +476,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
     /**
      * Concatenate nodes
+     *
      * @see ConcatenateNodes
      */
     @Override

@@ -4,11 +4,10 @@ import java.util.Objects;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqCopyNode;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import tech.ytsaurus.rpcproxy.TMutatingOptions;
+import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
+import tech.ytsaurus.rpcproxy.TReqCopyNode;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 
 public class CopyNode
         extends CopyLikeReq<CopyNode.Builder, CopyNode>

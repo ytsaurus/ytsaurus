@@ -3,7 +3,7 @@ package tech.ytsaurus.client.request;
 import java.util.List;
 import java.util.stream.Collectors;
 
-import ru.yandex.yt.rpcproxy.TRspListJobs;
+import tech.ytsaurus.rpcproxy.TRspListJobs;
 
 public class ListJobsResult {
     private final List<JobResult> jobs;

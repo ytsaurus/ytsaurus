@@ -11,8 +11,7 @@ import tech.ytsaurus.client.ModifyRowsRequest;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.yt.rpcproxy.ETransactionType;
+import tech.ytsaurus.rpcproxy.ETransactionType;
 
 public class ModifyRowsExample2 {
     private static final Logger logger = LoggerFactory.getLogger(ModifyRowsExample.class);

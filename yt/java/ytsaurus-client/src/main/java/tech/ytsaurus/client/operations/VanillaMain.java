@@ -4,6 +4,7 @@ import java.io.OutputStream;
 
 
 import tech.ytsaurus.core.operations.Yield;
+
 public class VanillaMain {
     private VanillaMain() {
     }

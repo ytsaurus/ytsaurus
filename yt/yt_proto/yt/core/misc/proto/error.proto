@@ -1,8 +1,7 @@
 package NYT.NProto;
 
-option java_package = "ru.yandex.yt";
+option java_package = "tech.ytsaurus";
 option java_multiple_files = true;
-
 
 option go_package = "a.yandex-team.ru/yt/go/proto/core/misc";
 

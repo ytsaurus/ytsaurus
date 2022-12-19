@@ -4,6 +4,7 @@ import java.util.List;
 
 /**
  * Тело ответа с
+ *
  * @param <ResponseType>
  */
 public interface RpcClientResponse<ResponseType> {

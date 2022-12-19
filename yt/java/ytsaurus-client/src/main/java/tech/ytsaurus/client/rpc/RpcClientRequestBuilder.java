@@ -6,8 +6,7 @@ import java.util.concurrent.ScheduledExecutorService;
 
 import com.google.protobuf.MessageLite;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TRequestHeader;
 
 /**
  * Позволяет построить и в дальнейшем сделать запрос

@@ -5,9 +5,8 @@ import java.util.concurrent.CompletableFuture;
 import com.google.protobuf.Parser;
 import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcUtil;
-
-import ru.yandex.yt.rpcproxy.TReadFileMeta;
-import ru.yandex.yt.rpcproxy.TRspReadFile;
+import tech.ytsaurus.rpcproxy.TReadFileMeta;
+import tech.ytsaurus.rpcproxy.TRspReadFile;
 
 class FileReaderImpl extends StreamReaderImpl<TRspReadFile> implements FileReader {
     private long revision = -1;

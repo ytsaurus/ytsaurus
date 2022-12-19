@@ -1,8 +1,7 @@
 package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.TReqCheckClusterLiveness;
+import tech.ytsaurus.rpcproxy.TReqCheckClusterLiveness;
 
 public class CheckClusterLiveness extends RequestBase<CheckClusterLiveness.Builder, CheckClusterLiveness>
         implements HighLevelRequest<TReqCheckClusterLiveness.Builder> {
