@@ -84,13 +84,24 @@ TSkiffStructuredIterator::TSkiffStructuredIterator(Py::PythonClassInstance* self
 void TSkiffStructuredIterator::Initialize(
     std::unique_ptr<IInputStream> inputStreamHolder,
     const Py::List& pySchemaList,
-    TSkiffSchemaList skiffSchemaList)
+    TSkiffSchemaList skiffSchemaList,
+    bool raw)
 {
+    Raw_ = raw;
     InputStreamHolder_ = std::move(inputStreamHolder);
     BufferedStream_ = std::make_unique<TBufferedInput>(InputStreamHolder_.get());
+
+    IZeroCopyInput* parserInputStream;
+    if (Raw_) {
+        BufferedStreamRepeater_ = std::make_unique<TTeeInputStream>(BufferedStream_.get());
+        parserInputStream = BufferedStreamRepeater_.get();
+    } else {
+        parserInputStream = BufferedStream_.get();
+    }
+
     Parser_ = std::make_unique<TCheckedInDebugSkiffParser>(
         CreateVariant16Schema(std::move(skiffSchemaList)),
-        BufferedStream_.get());
+        parserInputStream);
     for (const auto& pySchema : pySchemaList) {
         Converters_.emplace_back(CreateRowSkiffToPythonConverter(pySchema));
     }
@@ -109,6 +120,7 @@ PyObject* TSkiffStructuredIterator::iternext()
     }
 
     ++RowContext_.RowIndex;
+    size_t numParsedBytes = Parser_->GetReadBytesCount();
 
     ui16 tableIndex;
     try {
@@ -125,7 +137,16 @@ PyObject* TSkiffStructuredIterator::iternext()
     RowContext_.TableIndex = tableIndex;
 
     try {
-        return Converters_[tableIndex](Parser_.get(), &RowContext_).release();
+        PyObjectPtr obj = Converters_[tableIndex](Parser_.get(), &RowContext_);
+        if (Raw_) {
+            size_t curRowBytesSize = Parser_->GetReadBytesCount() - numParsedBytes;
+            TmpBuffer_.Clear();
+            BufferedStreamRepeater_->ExtractFromBuffer(&TmpBuffer_, curRowBytesSize);
+            PyObject* bytes = PyBytes_FromStringAndSize(TmpBuffer_.data(), TmpBuffer_.size());
+            return bytes;
+        } else {
+            return obj.release();
+        }
     } catch (const TErrorException& exception) {
         throw CreateSkiffError(
             "Skiff to Python conversion failed",
@@ -203,6 +224,11 @@ Py::Object LoadSkiffStructured(Py::Tuple& args, Py::Dict& kwargs)
     }
     auto skiffSchemasPython = Py::List(skiffSchemasArg);
 
+    bool raw = false;
+    if (HasArgument(args, kwargs, "raw")) {
+        raw = ExtractArgument(args, kwargs, "raw").as_bool();
+    }
+
     ValidateArgumentsEmpty(args, kwargs);
 
     TSkiffSchemaList skiffSchemas;
@@ -210,7 +236,7 @@ Py::Object LoadSkiffStructured(Py::Tuple& args, Py::Dict& kwargs)
         Py::PythonClassObject<TSkiffSchemaPython> schemaPythonObject(schema);
         skiffSchemas.push_back(schemaPythonObject.getCxxObject()->GetSchemaObject()->GetSkiffSchema());
     }
-
+    // TODO(aleexfi): Add TSkiffRawStructuredIteartor to parse only system fields
     Py::Callable classType(TSkiffStructuredIterator::type());
     Py::PythonClassObject<TSkiffStructuredIterator> pythonIter(classType.apply(Py::Tuple(), Py::Dict()));
 
@@ -218,7 +244,8 @@ Py::Object LoadSkiffStructured(Py::Tuple& args, Py::Dict& kwargs)
     iter->Initialize(
         std::move(inputStreamHolder),
         std::move(pySchemas),
-        std::move(skiffSchemas));
+        std::move(skiffSchemas),
+        raw);
     return pythonIter;
 }
 

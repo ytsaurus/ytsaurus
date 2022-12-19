@@ -4,6 +4,8 @@
 
 #include "converter_skiff_to_python.h"
 
+#include <yt/yt/python/common/tee_input_stream.h>
+
 #include <Extensions.hxx> // pycxx
 #include <Objects.hxx> // pycxx
 
@@ -26,7 +28,8 @@ public:
     void Initialize(
         std::unique_ptr<IInputStream> inputStreamHolder,
         const Py::List& pySchemaList,
-        NSkiff::TSkiffSchemaList skiffSchemaList);
+        NSkiff::TSkiffSchemaList skiffSchemaList,
+        bool raw);
 
     Py::Object iter() override;
     PyObject* iternext() override;
@@ -36,9 +39,13 @@ public:
 private:
     std::unique_ptr<IInputStream> InputStreamHolder_;
     std::unique_ptr<TBufferedInput> BufferedStream_;
+    std::unique_ptr<TTeeInputStream> BufferedStreamRepeater_;
+    TBuffer TmpBuffer_;
+
     std::unique_ptr<NSkiff::TCheckedInDebugSkiffParser> Parser_;
     std::vector<TRowSkiffToPythonConverter> Converters_;
     TSkiffRowContext RowContext_;
+    bool Raw_ = false;
 
 private:
     Py::Object GetTableIndex() const;
