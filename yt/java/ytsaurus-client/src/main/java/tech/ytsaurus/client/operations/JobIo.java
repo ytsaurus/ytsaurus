@@ -10,6 +10,9 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable job I/O options.
+ */
 @NonNullApi
 @NonNullFields
 public class JobIo {
@@ -18,10 +21,16 @@ public class JobIo {
     private final @Nullable
     TableWriterOptions tableWriter;
 
+    /**
+     * Create job I/O with all options set to defaults.
+     */
     public JobIo() {
         this(builder());
     }
 
+    /**
+     * Create job I/O options from table writer options with other options set to defaults.
+     */
     public JobIo(TableWriterOptions tableWriter) {
         this(builder().setTableWriter(tableWriter));
     }
@@ -32,18 +41,30 @@ public class JobIo {
         tableWriter = builder.tableWriter;
     }
 
+    /**
+     * @see Builder#setTableWriter(TableWriterOptions)
+     */
     public Optional<TableWriterOptions> getTableWriter() {
         return Optional.ofNullable(tableWriter);
     }
 
+    /**
+     * @see Builder#setEnableTableIndex(boolean)
+     */
     public boolean isEnableTableIndex() {
         return enableTableIndex;
     }
 
+    /**
+     * @see Builder#setEnableRowIndex(boolean)
+     */
     public boolean isEnableRowIndex() {
         return enableRowIndex;
     }
 
+    /**
+     * Construct a builder with options set from this request.
+     */
     public BuilderBase<?> toBuilder() {
         BuilderBase<?> result = builder()
                 .setEnableRowIndex(isEnableRowIndex())
@@ -58,6 +79,9 @@ public class JobIo {
         return result;
     }
 
+    /**
+     * Convert job I/O options to yson.
+     */
     public YTreeMapNode prepare() {
         return YTree.mapBuilder()
                 .when(tableWriter != null, b -> b.key("table_writer").value(tableWriter.prepare()))
@@ -76,6 +100,9 @@ public class JobIo {
         return new Builder();
     }
 
+    /**
+     * Builder of {@link JobIo}.
+     */
     protected static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
@@ -93,20 +120,32 @@ public class JobIo {
         private @Nullable
         TableWriterOptions tableWriter;
 
+        /**
+         * Create instance of {@link JobIo}.
+         */
         public JobIo build() {
             return new JobIo(this);
         }
 
+        /**
+         * Set if actual table index will be available in OperationContext.
+         */
         public T setEnableTableIndex(boolean enableTableIndex) {
             this.enableTableIndex = enableTableIndex;
             return self();
         }
 
+        /**
+         * Set if actual row index will be available in OperationContext.
+         */
         public T setEnableRowIndex(boolean enableRowIndex) {
             this.enableRowIndex = enableRowIndex;
             return self();
         }
 
+        /**
+         * Set operation of table writer.
+         */
         public T setTableWriter(@Nullable TableWriterOptions tableWriter) {
             this.tableWriter = tableWriter;
             return self();

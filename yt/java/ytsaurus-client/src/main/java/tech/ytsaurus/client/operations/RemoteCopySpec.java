@@ -13,6 +13,9 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable spec for remote copy operation.
+ */
 @NonNullApi
 @NonNullFields
 public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
@@ -22,6 +25,9 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
     private final @Nullable
     Boolean copyAttributes;
 
+    /**
+     * Create remote copy spec for paths and cluster with other options set to defaults.
+     */
     public RemoteCopySpec(YPath source, YPath destination, String cluster) {
         this(builder()
                 .setInputTables(source)
@@ -39,10 +45,16 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
         Objects.requireNonNull(this.cluster);
     }
 
+    /**
+     * Construct empty builder for remote copy spec.
+     */
     public static BuilderBase<?> builder() {
         return new Builder();
     }
 
+    /**
+     * Create output table if it does not exist and convert remote copy spec to yson.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         yt.createNode(CreateNode.builder()
@@ -51,7 +63,8 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
                 .setAttributes(getOutputTableAttributes())
                 .setRecursive(true)
                 .setIgnoreExisting(true)
-                .build());
+                .build()).join();
+
         return builder.beginMap()
                 .apply(b -> toTree(b, context))
                 .key("cluster_name").value(cluster)
@@ -60,6 +73,9 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
                 .endMap();
     }
 
+    /**
+     * Builder for {@link RemoteCopySpec}
+     */
     protected static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
@@ -83,6 +99,9 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
             return new RemoteCopySpec(this);
         }
 
+        /**
+         * Set the name of the cluster to copy data from.
+         */
         public T setCluster(String cluster) {
             this.cluster = cluster;
             return self();
@@ -93,6 +112,10 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
             return self();
         }
 
+        /**
+         * Set whether to copy the attributes of the input table (only available if there is only one input table).
+         * Only user attributes (not system ones) are copied.
+         */
         public T setCopyAttributes(@Nullable Boolean copyAttributes) {
             this.copyAttributes = copyAttributes;
             return self();

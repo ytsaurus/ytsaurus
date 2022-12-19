@@ -6,7 +6,6 @@ import java.util.Set;
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.core.cypress.YPath;
 
-
 public interface JarsProcessor {
     /**
      * Detects classpath and uploads it to YT.

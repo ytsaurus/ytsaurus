@@ -19,9 +19,12 @@ import ru.yandex.lang.NonNullFields;
 @NonNullFields
 public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
     private final UserJobSpec mapperSpec;
-    private final @Nullable
-    JobIo jobIo;
+    @Nullable
+    private final JobIo jobIo;
 
+    /**
+     * Construct map spec from input and output tables and command with other options set by defaults.
+     */
     public MapSpec(
             List<YPath> inputTables,
             List<YPath> outputTables,
@@ -32,6 +35,9 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
                 .setMapperCommand(command));
     }
 
+    /**
+     * Construct map spec from input and output tables and mapper with other options set by defaults.
+     */
     public MapSpec(
             List<YPath> inputTables,
             List<YPath> outputTables,
@@ -42,6 +48,9 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
                 .setMapperSpec(new MapperSpec(mapper)));
     }
 
+    /**
+     * Construct map spec from input and output tables and mapperSpec with other options set by defaults.
+     */
     public MapSpec(
             List<YPath> inputTables,
             List<YPath> outputTables,
@@ -70,14 +79,23 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
         }
     }
 
+    /**
+     * @see Builder#setJobIo
+     */
     public Optional<JobIo> getJobIo() {
         return Optional.ofNullable(jobIo);
     }
 
+    /**
+     * @see Builder#setMapperSpec
+     */
     public UserJobSpec getMapperSpec() {
         return mapperSpec;
     }
 
+    /**
+     * Create yson map spec to transfer to YT.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
@@ -89,10 +107,16 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
                 .endMap();
     }
 
+    /**
+     * Construct empty builder for map spec.
+     */
     public static BuilderBase<?> builder() {
         return new Builder();
     }
 
+    /**
+     * Builder for {@link MapSpec}
+     */
     protected static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
@@ -100,6 +124,10 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
         }
     }
 
+    /**
+     * BuilderBase was taken out because there is another client
+     * which we need to support too and which use the same MapSpec class.
+     */
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SimpleUserOperationSpecBase.Builder<T> {
@@ -111,19 +139,34 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
         protected BuilderBase() {
         }
 
+        /**
+         * Construct {@link MapSpec} instance.
+         */
         public MapSpec build() {
             return new MapSpec(this);
         }
 
+        /**
+         * Set mapper spec.
+         * @see MapperSpec
+         * @see CommandSpec
+         */
         public T setMapperSpec(UserJobSpec mapperSpec) {
             this.mapperSpec = mapperSpec;
             return self();
         }
 
+        /**
+         * Set mapper command.
+         */
         public T setMapperCommand(String command) {
             return setMapperSpec(new CommandSpec(command));
         }
 
+        /**
+         * Set job I/O options.
+         * @see JobIo
+         */
         public T setJobIo(@Nullable JobIo jobIo) {
             this.jobIo = jobIo;
             return self();

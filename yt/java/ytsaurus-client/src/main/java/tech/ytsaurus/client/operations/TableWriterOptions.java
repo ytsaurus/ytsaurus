@@ -11,6 +11,9 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable table writer options.
+ */
 @NonNullApi
 @NonNullFields
 public class TableWriterOptions {
@@ -27,22 +30,37 @@ public class TableWriterOptions {
         this.desiredChunkSize = builder.desiredChunkSize;
     }
 
+    /**
+     * Create empty builder of {@link TableWriterOptions}.
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * @see Builder#setMaxRowWeight(DataSize)
+     */
     public Optional<DataSize> getMaxRowWeight() {
         return Optional.ofNullable(maxRowWeight);
     }
 
+    /**
+     * @see Builder#setBlockSize(DataSize)
+     */
     public Optional<DataSize> getBlockSize() {
         return Optional.ofNullable(blockSize);
     }
 
+    /**
+     * @see Builder#setDesiredChunkSize(DataSize)
+     */
     public Optional<DataSize> getDesiredChunkSize() {
         return Optional.ofNullable(desiredChunkSize);
     }
 
+    /**
+     * Convert to yson.
+     */
     public YTreeMapNode prepare() {
         return YTree.mapBuilder()
                 .when(maxRowWeight != null, b -> b.key("max_row_weight").value(maxRowWeight.toBytes()))
@@ -52,6 +70,9 @@ public class TableWriterOptions {
                 .buildMap();
     }
 
+    /**
+     * Builder of {@link TableWriterOptions}.
+     */
     @NonNullApi
     @NonNullFields
     public static class Builder {
@@ -65,21 +86,35 @@ public class TableWriterOptions {
         Builder() {
         }
 
+        /**
+         * Set max weight of one row, it can't greater than 128 MB.
+         * By default, 16 MB.
+         */
         public Builder setMaxRowWeight(@Nullable DataSize maxRowWeight) {
             this.maxRowWeight = maxRowWeight;
             return this;
         }
 
+        /**
+         * Set block size, it can't be less than 1 KB.
+         * By default, 16 MB.
+         */
         public Builder setBlockSize(@Nullable DataSize blockSize) {
             this.blockSize = blockSize;
             return this;
         }
 
+        /**
+         * Set desired chunk size.
+         */
         public Builder setDesiredChunkSize(@Nullable DataSize desiredChunkSize) {
             this.desiredChunkSize = desiredChunkSize;
             return this;
         }
 
+        /**
+         * Create instance of {@link TableWriterOptions}.
+         */
         public TableWriterOptions build() {
             return new TableWriterOptions(this);
         }

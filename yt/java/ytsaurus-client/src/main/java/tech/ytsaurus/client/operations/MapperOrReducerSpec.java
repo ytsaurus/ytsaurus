@@ -33,6 +33,9 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Base class from {@link MapperSpec} and {@link ReducerSpec}.
+ */
 @NonNullApi
 @NonNullFields
 public abstract class MapperOrReducerSpec implements UserJobSpec {
@@ -89,8 +92,18 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         prepareTimeLimit = builder.prepareTimeLimit;
     }
 
+    /**
+     * @return name of mapper or reducer class.
+     */
     public String getMapperOrReducerTitle() {
         return mapperOrReducer.getClass().getName();
+    }
+
+    /**
+     * @return if actual row and table indexes will be available in OperationContext.
+     */
+    public boolean trackIndices() {
+        return mapperOrReducer.trackIndices();
     }
 
     protected static class Resource {
@@ -160,6 +173,10 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         return String.join(":", canonicalPathParts);
     }
 
+    /**
+     * Upload necessary jars and files to YT if it is needed,
+     * construct java command and create spec as yson.
+     */
     @Override
     public YTreeBuilder prepare(
             YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context, int outputTableCount) {
@@ -240,6 +257,9 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                 .endMap();
     }
 
+    /**
+     * Builder for {@link MapperOrReducerSpec}
+     */
     @NonNullApi
     @NonNullFields
     public abstract static class Builder<T extends Builder<T>> {
@@ -282,16 +302,26 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             return userJob;
         }
 
+        /**
+         * Set additional files which should be available inside operation jobs.
+         */
         public T setAdditionalFiles(Set<YPath> additionalFiles) {
             this.additionalFiles = additionalFiles;
             return self();
         }
 
+        /**
+         * Set java options for the command which will be run.
+         */
         public T setJavaOptions(JavaOptions javaOptions) {
             this.javaOptions = javaOptions;
             return self();
         }
 
+        /**
+         * Set memoryLimit which specifies how much memory job process can use.
+         * By default, 512 MB.
+         */
         public T setMemoryLimit(DataSize memoryLimit) {
             this.memoryLimit = memoryLimit;
             return self();
@@ -307,38 +337,58 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             return self();
         }
 
+        /**
+         * Set maximum number of CPU cores for a single job to use.
+         */
         public T setCpuLimit(@Nullable Double cpuLimit) {
             this.cpuLimit = cpuLimit;
             return self();
         }
 
+        /**
+         * Set limit on job execution time.
+         * Jobs that exceed this limit will be considered failed.
+         */
         public T setJobTimeLimit(@Nullable Long jobTimeLimit) {
             this.jobTimeLimit = jobTimeLimit;
             return self();
         }
 
+        /**
+         * Set how many jobs should be run, it is advisory.
+         */
         public T setJobCount(@Nullable Integer jobCount) {
             this.jobCount = jobCount;
             return self();
         }
 
+        /**
+         * Set a dictionary of environment variables that will be specified during the operation.
+         */
         public T setEnvironment(Map<String, String> environment) {
             this.environment = environment;
             return self();
         }
 
+        /**
+         * Set list of paths to porto layers in Cypress.
+         * Layers are listed from top to bottom.
+         */
         public T setLayerPaths(List<YPath> layerPaths) {
             this.layerPaths = layerPaths;
             return self();
         }
 
+        /**
+         * Set limit on the number of user statistics that can be written from a job.
+         */
         public T setCustomStatisticsCountLimit(@Nullable Integer customStatisticsCountLimit) {
             this.customStatisticsCountLimit = customStatisticsCountLimit;
             return self();
         }
 
         /**
-         * Set memory reserve factor.
+         * Set memory reserve factor (fraction of memoryLimit that job gets at start).
          * <a href="https://yt.yandex-team.ru/docs/description/mr/operations_options#memory_reserve_factor">
          * documentation
          * </a>
@@ -355,13 +405,12 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             return self();
         }
 
+        /**
+         * Set time limit for the job preparation stage.
+         */
         public T setPrepareTimeLimit(@Nullable Duration prepareTimeLimit) {
             this.prepareTimeLimit = prepareTimeLimit;
             return self();
         }
-    }
-
-    public boolean trackIndices() {
-        return mapperOrReducer.trackIndices();
     }
 }

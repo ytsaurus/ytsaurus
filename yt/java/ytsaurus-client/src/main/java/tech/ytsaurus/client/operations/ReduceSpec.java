@@ -29,6 +29,10 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     JobIo jobIo;
     private final boolean enableKeyGuarantee;
 
+    /**
+     * Construct reduce spec from input and output tables, `reduceBy` list of columns
+     * and command with other options set by defaults.
+     */
     public ReduceSpec(
             List<YPath> inputTables,
             List<YPath> outputTables,
@@ -37,6 +41,10 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         this(inputTables, outputTables, reduceBy, new CommandSpec(command));
     }
 
+    /**
+     * Construct reduce spec from input and output tables, `reduceBy` list of columns
+     * and reducer with other options set by defaults.
+     */
     public ReduceSpec(
             List<YPath> inputTables,
             List<YPath> outputTables,
@@ -45,6 +53,10 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         this(inputTables, outputTables, reduceBy, new ReducerSpec(reducer));
     }
 
+    /**
+     * Construct reduce spec from input and output tables, `reduceBy` list of columns
+     * and reducer spec with other options set by defaults.
+     */
     public ReduceSpec(
             List<YPath> inputTables,
             List<YPath> outputTables,
@@ -103,22 +115,36 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         enableKeyGuarantee = builder.enableKeyGuarantee;
     }
 
+    /**
+     * @see Builder#setJobIo(JobIo)
+     */
     public Optional<JobIo> getJobIo() {
         return Optional.ofNullable(jobIo);
     }
-
+    /**
+     * @see Builder#setReduceBy(List)
+     */
     public List<String> getReduceBy() {
         return reduceBy;
     }
 
+    /**
+     * @see Builder#setReducerSpec(UserJobSpec)
+     */
     public UserJobSpec getReducerSpec() {
         return reducerSpec;
     }
 
+    /**
+     * @see Builder#setJoinBy(List)
+     */
     public List<String> getJoinBy() {
         return joinBy;
     }
 
+    /**
+     * Create yson reduce spec to transfer to YT.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
@@ -133,10 +159,16 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
                 .endMap();
     }
 
+    /**
+     * Construct empty builder for reduce spec.
+     */
     public static BuilderBase<?> builder() {
         return new Builder();
     }
 
+    /**
+     * Builder for {@link ReduceSpec}
+     */
     protected static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
@@ -144,6 +176,10 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         }
     }
 
+    /**
+     * BuilderBase was taken out because there is another client
+     * which we need to support too and which use the same ReduceSpec class.
+     */
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SimpleUserOperationSpecBase.Builder<T> {
@@ -158,24 +194,42 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         protected BuilderBase() {
         }
 
+        /**
+         * Construct {@link ReduceSpec} instance.
+         */
         public ReduceSpec build() {
             return new ReduceSpec(this);
         }
 
+        /**
+         * Set reducer spec.
+         * @see ReducerSpec
+         * @see CommandSpec
+         */
         public T setReducerSpec(UserJobSpec reducerSpec) {
             this.reducerSpec = reducerSpec;
             return self();
         }
 
+        /**
+         * Set reducer command.
+         * Create CommandSpec as user job spec from command with other options set by defaults.
+         */
         public T setReducerCommand(String command) {
             return setReducerSpec(new CommandSpec(command));
         }
 
+        /**
+         * Set a list of columns by which reduce is carried out;
+         */
         public T setReduceBy(List<String> reduceBy) {
             this.reduceBy = new ArrayList<>(reduceBy);
             return self();
         }
 
+        /**
+         * Set a list of columns by which reduce is carried out;
+         */
         public T setReduceBy(String... reduceBy) {
             return setReduceBy(Arrays.asList(reduceBy));
         }
@@ -189,6 +243,10 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
             return setJoinBy(Arrays.asList(joinBy));
         }
 
+        /**
+         * Set job I/O options.
+         * @see JobIo
+         */
         public T setJobIo(@Nullable JobIo jobIo) {
             this.jobIo = jobIo;
             return self();
