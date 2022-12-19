@@ -1669,8 +1669,10 @@ void TSortedDynamicStore::LoadRow(
         int lockIndex = ColumnIndexToLockIndex_[index];
         // Values are ordered by descending timestamps but we need ascending ones here.
         for (const auto* value = endValue - 1; value >= beginValue; --value) {
+            auto valueCopy = *value;
+            DecodeInlineHunkInUnversionedValue(&valueCopy);
             TDynamicValue dynamicValue;
-            ui32 revision = CaptureVersionedValue(&dynamicValue, *value, timestampToRevision);
+            ui32 revision = CaptureVersionedValue(&dynamicValue, valueCopy, timestampToRevision);
             AddValue(dynamicRow, index, std::move(dynamicValue));
             scratchData->WriteRevisions[lockIndex].push_back(revision);
         }

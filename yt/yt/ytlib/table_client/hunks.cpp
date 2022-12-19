@@ -1942,4 +1942,18 @@ IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void DecodeInlineHunkInUnversionedValue(TUnversionedValue* value)
+{
+    if (Any(value->Flags & EValueFlags::Hunk)) {
+        YT_VERIFY(IsStringLikeType(value->Type));
+        auto hunkValue = ReadHunkValue(GetValueRef(*value));
+        YT_VERIFY(std::holds_alternative<TInlineHunkValue>(hunkValue));
+        value->Data.String++;
+        value->Length--;
+        value->Flags &= ~EValueFlags::Hunk;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
