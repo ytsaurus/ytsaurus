@@ -287,6 +287,7 @@ pools_config = yson.to_yson_type(
                             "memory": 4 * ONE_GB,
                         },
                         "mode": "fifo",
+                        "id": "10dd2-ac0ee-3ff03e9-8d975f74",
                     },
                 )
             },

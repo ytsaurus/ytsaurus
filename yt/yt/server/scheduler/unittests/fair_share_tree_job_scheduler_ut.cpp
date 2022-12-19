@@ -163,7 +163,8 @@ public:
     }
 
     void ValidatePoolPermission(
-        const NYPath::TYPath& /*path*/,
+        NObjectClient::TObjectId /*poolObjectId*/,
+        const TString& /*poolName*/,
         const TString& /*user*/,
         NYTree::EPermission /*permission*/) const override
     { }
@@ -582,6 +583,7 @@ protected:
             strategyHost,
             FairShareTreeElementHostMock_.Get(),
             name,
+            /*objectId*/ NObjectClient::TObjectId(),
             std::move(config),
             /*defaultConfigured*/ true,
             TreeConfig_,

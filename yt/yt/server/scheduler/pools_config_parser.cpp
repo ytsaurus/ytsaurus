@@ -85,6 +85,7 @@ bool TPoolsConfigParser::TryParse(const INodePtr& configNode, const TString& par
             poolConfig->Validate(childName);
 
             updatePoolAction.PoolConfig = poolConfig;
+            updatePoolAction.ObjectId = childNode->Attributes().Get<TGuid>("id");
         } catch (const std::exception& ex) {
             Error_ = TError("Parsing configuration of pool %Qv failed", childName)
                 << ex;

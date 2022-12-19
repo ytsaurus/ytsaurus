@@ -72,7 +72,8 @@ public:
     void SerializeDiskQuota(const NScheduler::TDiskQuota& diskQuota, NYson::IYsonConsumer* consumer) const override;
 
     void ValidatePoolPermission(
-        const NYPath::TYPath& path,
+        NObjectClient::TObjectId poolObjectId,
+        const TString& poolName,
         const TString& user,
         NYTree::EPermission permission) const override;
 

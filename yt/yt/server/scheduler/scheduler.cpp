@@ -138,11 +138,12 @@ struct TPoolTreeKeysHolder
         auto poolConfigTemplate = New<TPoolConfig>();
         auto poolConfigKeys = poolConfigTemplate->GetRegisteredKeys();
 
-        Keys.reserve(treeConfigKeys.size() + poolConfigKeys.size() + 2);
+        Keys.reserve(treeConfigKeys.size() + poolConfigKeys.size() + 3);
         Keys.insert(Keys.end(), treeConfigKeys.begin(), treeConfigKeys.end());
         Keys.insert(Keys.end(), poolConfigKeys.begin(), poolConfigKeys.end());
         Keys.insert(Keys.end(), DefaultTreeAttributeName);
         Keys.insert(Keys.end(), TreeConfigAttributeName);
+        Keys.insert(Keys.end(), IdAttributeName);
     }
 
     std::vector<TString> Keys;
@@ -507,27 +508,33 @@ public:
     }
 
     void ValidatePoolPermission(
-        const TYPath& path,
+        NObjectClient::TObjectId poolObjectId,
+        const TString& poolName,
         const TString& user,
         EPermission permission) const override
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v)",
+        auto path = poolObjectId
+            ? Format("#%v", poolObjectId)
+            : Config_->PoolTreesRoot;
+
+        YT_LOG_DEBUG("Validating pool permission (Permission: %v, User: %v, Pool: %v, Path: %v)",
             permission,
             user,
+            poolName,
             path);
 
-        const auto& client = GetClient();
-        auto result = WaitFor(client->CheckPermission(user, Config_->PoolTreesRoot + path, permission))
+        auto result = WaitFor(GetClient()->CheckPermission(user, path, permission))
             .ValueOrThrow();
         if (result.Action == ESecurityAction::Deny) {
             THROW_ERROR_EXCEPTION(
                 NSecurityClient::EErrorCode::AuthorizationError,
                 "User %Qv has been denied access to pool %v",
                 user,
-                path.empty() ? RootPoolName : path)
-                << result.ToError(user, permission);
+                poolName)
+                << result.ToError(user, permission)
+                << TErrorAttribute("path", path);
         }
 
         YT_LOG_DEBUG("Pool permission successfully validated");

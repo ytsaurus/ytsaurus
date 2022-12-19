@@ -1787,7 +1787,7 @@ class TOperationJobShellRuntimeParameters
 {
 public:
     std::vector<TString> Owners;
-    
+
     REGISTER_YSON_STRUCT(TOperationJobShellRuntimeParameters);
 
     static void Register(TRegistrar registrar);
@@ -1812,7 +1812,7 @@ public:
     THashMap<TString, TOperationFairShareTreeRuntimeParametersPtr> SchedulingOptionsPerPoolTree;
     NYTree::IMapNodePtr Annotations;
     TString ControllerAgentTag;
-    
+
     // Erased trees of operation, should be used only for information purposes.
     std::vector<TString> ErasedTrees;
 };

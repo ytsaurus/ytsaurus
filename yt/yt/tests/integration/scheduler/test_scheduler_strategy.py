@@ -1716,6 +1716,17 @@ class TestEphemeralPools(YTEnvSetup):
         wait(lambda: self.get_pool_parent("u") == "default_parent_for_u")
         wait(lambda: get(scheduler_orchid_pool_path("u") + "/is_ephemeral", default=False))
 
+    @authors("renadeen")
+    def test_user_runs_operation_in_ephemeral_pool_under_root(self):
+        create_user("u")
+
+        op = run_sleeping_vanilla(authenticated_user="u")
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/pool", default="") == "u")
+        wait(lambda: self.get_pool_parent("u") == "<Root>")
+
+        op2 = run_sleeping_vanilla(authenticated_user="u")
+        wait(lambda: get(scheduler_orchid_operation_path(op2.id) + "/pool", default="") == "u")
+
     @authors("ignat")
     def test_ephemeral_pools_limit(self):
         create("table", "//tmp/t_in")
