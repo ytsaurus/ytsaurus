@@ -11,12 +11,11 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.DataSize;
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.yt.rpcproxy.EPartitionTablesMode;
-import ru.yandex.yt.rpcproxy.TFetchChunkSpecConfig;
-import ru.yandex.yt.rpcproxy.TFetcherConfig;
-import ru.yandex.yt.rpcproxy.TReqPartitionTables;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
+import tech.ytsaurus.rpcproxy.EPartitionTablesMode;
+import tech.ytsaurus.rpcproxy.TFetchChunkSpecConfig;
+import tech.ytsaurus.rpcproxy.TFetcherConfig;
+import tech.ytsaurus.rpcproxy.TReqPartitionTables;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 
 public class PartitionTables
         extends RequestBase<PartitionTables.Builder, PartitionTables>

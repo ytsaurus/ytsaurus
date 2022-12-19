@@ -8,17 +8,20 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TReqAlterTableReplica;
+import tech.ytsaurus.rpcproxy.TReqAlterTableReplica;
 
 public class AlterTableReplica
         extends RequestBase<AlterTableReplica.Builder, AlterTableReplica>
         implements HighLevelRequest<TReqAlterTableReplica.Builder> {
     private final GUID replicaId;
-    @Nullable private final Boolean enabled;
-    @Nullable private final TableReplicaMode mode;
-    @Nullable private final Boolean preserveTimestamps;
-    @Nullable private final Atomicity atomicity;
+    @Nullable
+    private final Boolean enabled;
+    @Nullable
+    private final TableReplicaMode mode;
+    @Nullable
+    private final Boolean preserveTimestamps;
+    @Nullable
+    private final Atomicity atomicity;
 
     AlterTableReplica(Builder builder) {
         super(builder);
@@ -92,11 +95,16 @@ public class AlterTableReplica
     }
 
     public static class Builder extends RequestBase.Builder<Builder, AlterTableReplica> {
-        @Nullable GUID replicaId;
-        @Nullable Boolean enabled;
-        @Nullable TableReplicaMode mode;
-        @Nullable Boolean preserveTimestamps;
-        @Nullable Atomicity atomicity;
+        @Nullable
+        GUID replicaId;
+        @Nullable
+        Boolean enabled;
+        @Nullable
+        TableReplicaMode mode;
+        @Nullable
+        Boolean preserveTimestamps;
+        @Nullable
+        Atomicity atomicity;
 
         Builder() {
         }

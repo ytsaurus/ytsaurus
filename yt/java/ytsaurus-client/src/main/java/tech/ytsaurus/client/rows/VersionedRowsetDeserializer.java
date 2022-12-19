@@ -7,6 +7,7 @@ import java.util.Objects;
 
 
 import tech.ytsaurus.core.tables.TableSchema;
+
 public class VersionedRowsetDeserializer
         extends VersionedRowDeserializer
         implements WireVersionedRowsetDeserializer<VersionedRow> {

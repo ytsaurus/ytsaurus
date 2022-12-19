@@ -46,16 +46,15 @@ import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.request.LockMode;
+import tech.ytsaurus.rpcproxy.TCheckPermissionResult;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.TCheckPermissionResult;
 
 /**
  * Interface of transactional YT client.
  * <p>
- *     <b>WARNING</b> Callbacks that <b>can block</b> (e.g. they use {@link CompletableFuture#join})
- *     <b>MUST NEVER BE USED</b> with non-Async thenApply, whenComplete etc methods
- *     called on futures returned by this client.
+ * <b>WARNING</b> Callbacks that <b>can block</b> (e.g. they use {@link CompletableFuture#join})
+ * <b>MUST NEVER BE USED</b> with non-Async thenApply, whenComplete etc methods
+ * called on futures returned by this client.
  *
  * @see ApiServiceClient
  */

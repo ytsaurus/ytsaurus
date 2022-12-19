@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 
 import tech.ytsaurus.client.operations.MergeSpec;
+
 public class MergeOperation extends BaseOperation<MergeSpec> {
     MergeOperation(Builder builder) {
         super(builder);

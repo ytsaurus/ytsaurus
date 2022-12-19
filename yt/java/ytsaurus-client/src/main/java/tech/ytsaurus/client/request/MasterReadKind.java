@@ -1,6 +1,6 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.rpcproxy.EMasterReadKind;
+import tech.ytsaurus.rpcproxy.EMasterReadKind;
 
 public enum MasterReadKind {
     Leader("leader", EMasterReadKind.MRK_LEADER),

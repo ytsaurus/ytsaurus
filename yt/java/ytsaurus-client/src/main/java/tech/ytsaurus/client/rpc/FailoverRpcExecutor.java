@@ -16,9 +16,8 @@ import org.slf4j.LoggerFactory;
 import tech.ytsaurus.client.RetryPolicy;
 import tech.ytsaurus.client.misc.ScheduledSerializedExecutorService;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.rpc.TResponseHeader;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TResponseHeader;
 
 class FailoverRpcExecutor {
     private static final Logger logger = LoggerFactory.getLogger(FailoverRpcExecutor.class);

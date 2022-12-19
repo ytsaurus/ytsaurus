@@ -16,7 +16,7 @@ public interface AsyncReader<T> extends Closeable {
 
     /**
      * Low level interface: read next batch of data.
-     *
+     * <p>
      * Once reader is exhausted returned future is set with null.
      */
     CompletableFuture<List<T>> next();

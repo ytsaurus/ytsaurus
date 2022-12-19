@@ -11,11 +11,10 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.rpcproxy.TMutatingOptions;
+import tech.ytsaurus.rpcproxy.TReqConcatenateNodes;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 import tech.ytsaurus.ysontree.YTreeBuilder;
-
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TReqConcatenateNodes;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
 public class ConcatenateNodes extends MutateNode<ConcatenateNodes.Builder, ConcatenateNodes>
         implements HighLevelRequest<TReqConcatenateNodes.Builder> {

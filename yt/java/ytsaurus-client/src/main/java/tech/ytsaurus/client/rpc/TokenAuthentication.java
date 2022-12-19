@@ -2,8 +2,8 @@ package tech.ytsaurus.client.rpc;
 
 import java.util.Objects;
 
-import ru.yandex.yt.rpc.TCredentialsExt;
-import ru.yandex.yt.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TCredentialsExt;
+import tech.ytsaurus.rpc.TRequestHeader;
 
 /**
  * Декоратор для RpcClient, добавляющий аутентификацию по токену

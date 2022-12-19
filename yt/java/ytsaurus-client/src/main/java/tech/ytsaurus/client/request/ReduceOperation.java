@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 
 import tech.ytsaurus.client.operations.ReduceSpec;
+
 public class ReduceOperation extends BaseOperation<ReduceSpec> {
     ReduceOperation(Builder builder) {
         super(builder);

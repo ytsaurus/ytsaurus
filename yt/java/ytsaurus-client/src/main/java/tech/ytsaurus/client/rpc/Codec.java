@@ -250,7 +250,7 @@ class ZlibCodec extends Codec {
         } catch (Exception ex) {
             throw new RuntimeException(ex);
         } finally {
-           closeQuietly(decoder);
+            closeQuietly(decoder);
         }
     }
 
@@ -292,6 +292,7 @@ public abstract class Codec {
     private static final Map<Compression, Supplier<Codec>> CODEC_BY_COMPRESSION = getAllCodecs();
 
     public abstract byte[] compress(byte[] src);
+
     public abstract byte[] decompress(byte[] src);
 
     private static Map<Compression, Supplier<Codec>> getAllCodecs() {

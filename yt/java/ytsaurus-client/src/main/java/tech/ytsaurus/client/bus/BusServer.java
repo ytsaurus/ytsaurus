@@ -9,7 +9,7 @@ import io.netty.channel.ServerChannel;
 
 /**
  * Интерфейс для серверного соединения bus
- *
+ * <p>
  * Пока используется только в тестах bus.
  */
 public interface BusServer {

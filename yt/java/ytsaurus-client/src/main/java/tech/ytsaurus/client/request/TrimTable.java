@@ -6,8 +6,7 @@ import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.TReqTrimTable;
+import tech.ytsaurus.rpcproxy.TReqTrimTable;
 
 public class TrimTable
         extends RequestBase<TrimTable.Builder, TrimTable>

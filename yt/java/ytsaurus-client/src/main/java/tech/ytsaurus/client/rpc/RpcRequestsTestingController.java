@@ -7,8 +7,7 @@ import java.util.List;
 import java.util.Map;
 
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TRequestHeader;
 
 public class RpcRequestsTestingController {
     private final Map<GUID, List<CapturedRequest>> requestIdToRequest = new HashMap<>();

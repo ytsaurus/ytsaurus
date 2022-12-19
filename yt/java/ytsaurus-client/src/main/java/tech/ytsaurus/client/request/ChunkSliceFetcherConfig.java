@@ -2,7 +2,7 @@ package tech.ytsaurus.client.request;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.yt.rpcproxy.TReqPartitionTables;
+import tech.ytsaurus.rpcproxy.TReqPartitionTables;
 
 public class ChunkSliceFetcherConfig {
     @Nullable

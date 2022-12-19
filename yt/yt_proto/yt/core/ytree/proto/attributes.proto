@@ -2,7 +2,7 @@ package NYT.NYTree.NProto;
 
 import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
 
-option java_package = "ru.yandex.yt.ytree";
+option java_package = "tech.ytsaurus.ytree";
 option java_multiple_files = true;
 
 option go_package = "a.yandex-team.ru/yt/go/proto/core/ytree";

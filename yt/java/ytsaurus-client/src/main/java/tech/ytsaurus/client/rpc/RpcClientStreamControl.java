@@ -7,6 +7,7 @@ public interface RpcClientStreamControl extends RpcClientRequestControl {
     Compression getExpectedPayloadCompression();
 
     CompletableFuture<Void> feedback(long offset);
+
     CompletableFuture<Void> sendEof();
 
     CompletableFuture<Void> sendPayload(List<byte[]> attachments);

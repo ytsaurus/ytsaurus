@@ -5,6 +5,7 @@ import java.util.Objects;
 
 
 import tech.ytsaurus.core.tables.TableSchema;
+
 public class SchemafulRowsetDeserializer
         extends UnversionedRowsetDeserializer
         implements WireSchemafulRowsetDeserializer<UnversionedRow> {

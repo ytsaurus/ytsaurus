@@ -1,13 +1,13 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.rpcproxy.EDurability;
+import tech.ytsaurus.rpcproxy.EDurability;
 
 /**
  * Durability of transactions.
  *
  * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#sohrannost">
- *     dynamic table documentation
- *     </a>
+ * dynamic table documentation
+ * </a>
  */
 public enum Durability {
     Sync(EDurability.D_SYNC, "sync"),

@@ -3,9 +3,8 @@ package tech.ytsaurus.client.request;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.EJobState;
-import ru.yandex.yt.rpcproxy.TReqListJobs;
+import tech.ytsaurus.rpcproxy.EJobState;
+import tech.ytsaurus.rpcproxy.TReqListJobs;
 
 public class ListJobs
         extends OperationReq<ListJobs.Builder, ListJobs>
@@ -33,7 +32,7 @@ public class ListJobs
         if (state != null) {
             builder.setState(state);
         }
-        if (limit != null)  {
+        if (limit != null) {
             builder.setLimit(limit);
         }
         builder.setTimeout(timeout)

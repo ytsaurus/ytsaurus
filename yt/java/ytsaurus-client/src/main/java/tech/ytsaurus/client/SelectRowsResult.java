@@ -13,10 +13,10 @@ import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rpc.RpcClientResponse;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
+import tech.ytsaurus.rpcproxy.TRspSelectRows;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpcproxy.TRspSelectRows;
 
 @NonNullApi
 @NonNullFields
@@ -40,9 +40,9 @@ public class SelectRowsResult {
 
     public CompletableFuture<UnversionedRowset> getUnversionedRowset() {
         return handleResponse(response ->
-                        ApiServiceUtil.deserializeUnversionedRowset(
-                                response.body().getRowsetDescriptor(),
-                                response.attachments()));
+                ApiServiceUtil.deserializeUnversionedRowset(
+                        response.body().getRowsetDescriptor(),
+                        response.attachments()));
     }
 
     public <T> CompletableFuture<List<T>> getRowsList(YTreeRowSerializer<T> serializer) {

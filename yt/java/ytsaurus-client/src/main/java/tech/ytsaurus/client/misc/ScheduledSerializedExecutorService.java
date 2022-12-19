@@ -14,10 +14,10 @@ import javax.annotation.Nonnull;
 /**
  * An executor than ensurers serial execution of submitted tasks
  * i.e. no two tasks submitted to it will be executed simultaneously.
- *
+ * <p>
  * It also can schedule commands to run after a given delay, or to execute them periodically.
  *
- * @see ru.yandex.yt.ytclient.misc.SerializedExecutorService
+ * @see tech.ytsaurus.ytclient.misc.SerializedExecutorService
  * @see java.util.concurrent.ScheduledExecutorService
  */
 public class ScheduledSerializedExecutorService extends SerializedExecutorService implements ScheduledExecutorService {

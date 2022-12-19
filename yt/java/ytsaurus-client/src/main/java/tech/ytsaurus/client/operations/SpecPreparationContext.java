@@ -2,6 +2,7 @@ package tech.ytsaurus.client.operations;
 
 
 import tech.ytsaurus.client.YtClientConfiguration;
+
 public class SpecPreparationContext {
     private final YtClientConfiguration configuration;
 

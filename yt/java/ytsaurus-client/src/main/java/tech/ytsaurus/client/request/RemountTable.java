@@ -2,8 +2,7 @@ package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.yt.rpcproxy.TReqRemountTable;
+import tech.ytsaurus.rpcproxy.TReqRemountTable;
 
 public class RemountTable
         extends TableReq<RemountTable.Builder, RemountTable>

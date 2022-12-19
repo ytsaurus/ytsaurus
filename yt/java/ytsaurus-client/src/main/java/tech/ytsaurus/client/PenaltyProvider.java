@@ -142,28 +142,28 @@ public abstract class PenaltyProvider implements Closeable {
                         }
                         return null;
                     }).handle((unused, ex) -> {
-                        if (ex != null) {
-                            logger.info("Lag penalty updater for {} failed: {}", tablePath, ex);
+                if (ex != null) {
+                    logger.info("Lag penalty updater for {} failed: {}", tablePath, ex);
 
-                            if (clearPenaltiesOnErrors) {
-                                for (Map.Entry<String, ReplicaInfo> entry : replicaClusters.entrySet()) {
-                                    logger.info(
-                                            "Clearing penalty for cluster {} and table {}",
-                                            entry.getValue(),
-                                            tablePath
-                                    );
-                                    entry.getValue().setCurrentLagPenalty(Duration.ZERO);
-                                }
-                            }
+                    if (clearPenaltiesOnErrors) {
+                        for (Map.Entry<String, ReplicaInfo> entry : replicaClusters.entrySet()) {
+                            logger.info(
+                                    "Clearing penalty for cluster {} and table {}",
+                                    entry.getValue(),
+                                    tablePath
+                            );
+                            entry.getValue().setCurrentLagPenalty(Duration.ZERO);
                         }
-                        if (!closed.isDone()) {
-                            client.getExecutor().schedule(
-                                    this::updateCurrentLagPenalty,
-                                    checkPeriod.toMillis(),
-                                    TimeUnit.MILLISECONDS);
-                        }
-                        return null;
-                    });
+                    }
+                }
+                if (!closed.isDone()) {
+                    client.getExecutor().schedule(
+                            this::updateCurrentLagPenalty,
+                            checkPeriod.toMillis(),
+                            TimeUnit.MILLISECONDS);
+                }
+                return null;
+            });
         }
 
         private Duration calculateLagPenalty(long totalTabletsCount, long tabletsWithLagCount) {

@@ -22,12 +22,12 @@ import tech.ytsaurus.client.rpc.RpcClientResponse;
 import tech.ytsaurus.client.rpc.RpcClientStreamControl;
 import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
+import tech.ytsaurus.rpc.TResponseHeader;
+import tech.ytsaurus.rpc.TStreamingFeedbackHeader;
+import tech.ytsaurus.rpc.TStreamingPayloadHeader;
+import tech.ytsaurus.rpcproxy.TRspWriteTable;
 
 import ru.yandex.lang.NonNullApi;
-import ru.yandex.yt.rpc.TResponseHeader;
-import ru.yandex.yt.rpc.TStreamingFeedbackHeader;
-import ru.yandex.yt.rpc.TStreamingPayloadHeader;
-import ru.yandex.yt.rpcproxy.TRspWriteTable;
 
 abstract class StreamBase<RspType extends Message> implements RpcStreamConsumer {
     protected static final Logger logger = LoggerFactory.getLogger(StreamBase.class);

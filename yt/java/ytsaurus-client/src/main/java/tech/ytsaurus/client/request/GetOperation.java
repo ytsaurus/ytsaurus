@@ -9,13 +9,12 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TMasterReadOptions;
-import ru.yandex.yt.rpcproxy.TReqGetOperation;
+import tech.ytsaurus.rpcproxy.TMasterReadOptions;
+import tech.ytsaurus.rpcproxy.TReqGetOperation;
 
 public class GetOperation
-          extends OperationReq<GetOperation.Builder, GetOperation>
-          implements HighLevelRequest<TReqGetOperation.Builder> {
+        extends OperationReq<GetOperation.Builder, GetOperation>
+        implements HighLevelRequest<TReqGetOperation.Builder> {
     private final List<String> attributes;
 
     @Nullable
@@ -72,7 +71,7 @@ public class GetOperation
 
     @Override
     public Builder toBuilder() {
-        Builder builder =  builder()
+        Builder builder = builder()
                 .setOperationId(operationId)
                 .setOperationAlias(operationAlias)
                 .setAttributes(new ArrayList<>(attributes))

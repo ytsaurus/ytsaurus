@@ -3,7 +3,7 @@ package tech.ytsaurus.client.rpc;
 import java.util.List;
 import java.util.concurrent.CancellationException;
 
-import ru.yandex.yt.rpc.TResponseHeader;
+import tech.ytsaurus.rpc.TResponseHeader;
 
 /**
  * Интерфейс для низкоуровневой обработки жизненного цикла запроса

@@ -46,7 +46,8 @@ public class CommandSpec implements Spec, UserJobSpec {
     // Only relevant for vanilla operations
     // (TODO: move to separate class VanillaCommandSpec)
     protected final List<YPath> outputTablePaths;
-    private final @Nullable Integer jobCount;
+    private final @Nullable
+    Integer jobCount;
 
     public CommandSpec(String command) {
         this(builder().setCommand(command));
@@ -183,17 +184,23 @@ public class CommandSpec implements Spec, UserJobSpec {
     @NonNullFields
     @NonNullApi
     public abstract static class BuilderBase<T extends BuilderBase<T>> {
-        @Nullable String command = null;
+        @Nullable
+        String command = null;
         YTableEntryType<?> inputType = YTableEntryTypes.YSON;
         YTableEntryType<?> outputType = YTableEntryTypes.YSON;
         List<YPath> files = new ArrayList<>();
-        @Nullable DataSize memoryLimit = null;
+        @Nullable
+        DataSize memoryLimit = null;
         boolean useTmpfs = false;
-        @Nullable DataSize tmpfsSize = null;
+        @Nullable
+        DataSize tmpfsSize = null;
         Map<String, String> environment = new HashMap<>();
-        @Nullable Double cpuLimit = null;
-        @Nullable Long jobTimeLimit = null;
-        @Nullable Integer jobCount = null;
+        @Nullable
+        Double cpuLimit = null;
+        @Nullable
+        Long jobTimeLimit = null;
+        @Nullable
+        Integer jobCount = null;
         List<YPath> outputTablePaths = new ArrayList<>();
 
         public CommandSpec build() {

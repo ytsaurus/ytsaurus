@@ -25,7 +25,8 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     private final List<String> reduceBy;
     private final List<String> joinBy;
 
-    private final @Nullable JobIo jobIo;
+    private final @Nullable
+    JobIo jobIo;
     private final boolean enableKeyGuarantee;
 
     public ReduceSpec(
@@ -146,8 +147,10 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SimpleUserOperationSpecBase.Builder<T> {
-        private @Nullable UserJobSpec reducerSpec;
-        private @Nullable JobIo jobIo;
+        private @Nullable
+        UserJobSpec reducerSpec;
+        private @Nullable
+        JobIo jobIo;
         private List<String> reduceBy = new ArrayList<>();
         private List<String> joinBy = new ArrayList<>();
         private boolean enableKeyGuarantee = true;

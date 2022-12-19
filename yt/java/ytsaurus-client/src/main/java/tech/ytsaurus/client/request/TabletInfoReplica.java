@@ -1,8 +1,7 @@
 package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.ETableReplicaMode;
+import tech.ytsaurus.rpcproxy.ETableReplicaMode;
 
 public class TabletInfoReplica {
     private final GUID replicaId;

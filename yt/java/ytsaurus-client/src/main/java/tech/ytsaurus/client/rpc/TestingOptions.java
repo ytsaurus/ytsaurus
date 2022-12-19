@@ -9,18 +9,22 @@ import ru.yandex.lang.NonNullFields;
 
 @NonNullFields
 public class TestingOptions {
-    @Nullable private OutageController outageController;
-    @Nullable private RpcRequestsTestingController rpcRequestsTestingController;
+    @Nullable
+    private OutageController outageController;
+    @Nullable
+    private RpcRequestsTestingController rpcRequestsTestingController;
 
     /**
      * @return controller if the client wants to enable the ability to have programmable errors.
      */
-    public @Nullable OutageController getOutageController() {
+    public @Nullable
+    OutageController getOutageController() {
         return outageController;
     }
 
     /**
      * Allows to simulate rpc errors using controller.
+     *
      * @return self
      */
     public TestingOptions setOutageController(@Nonnull OutageController controller) {
@@ -31,12 +35,14 @@ public class TestingOptions {
     /**
      * @return requests testing controller.
      */
-    public @Nullable RpcRequestsTestingController getRpcRequestsTestingController() {
+    public @Nullable
+    RpcRequestsTestingController getRpcRequestsTestingController() {
         return this.rpcRequestsTestingController;
     }
 
     /**
      * Allows to get sent requests.
+     *
      * @return self
      */
     public TestingOptions setRpcRequestsTestingController(

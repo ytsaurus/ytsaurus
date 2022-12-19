@@ -8,16 +8,16 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TReqAbortJob;
+import tech.ytsaurus.rpcproxy.TReqAbortJob;
 
 /**
  * Immutable abort job request.
  * <p>
- * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#abortJob(AbortJob)
+ *
+ * @see tech.ytsaurus.ytclient.proxy.ApiServiceClient#abortJob(AbortJob)
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
- *     abort_job documentation
- *     </a>
+ * abort_job documentation
+ * </a>
  */
 public class AbortJob
         extends RequestBase<AbortJob.Builder, AbortJob>

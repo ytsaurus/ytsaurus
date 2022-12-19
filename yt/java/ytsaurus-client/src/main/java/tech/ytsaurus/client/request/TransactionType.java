@@ -1,6 +1,6 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.rpcproxy.ETransactionType;
+import tech.ytsaurus.rpcproxy.ETransactionType;
 
 public enum TransactionType {
     Master(ETransactionType.TT_MASTER, "master"),

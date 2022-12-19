@@ -50,8 +50,7 @@ interface FilteringRpcClientPool extends RpcClientPool {
      * Peek client with filter.
      *
      * @param filter pool will try to return future that satisfies given filter;
-     *              if none of the clients satisfies filter some client will be returned nevertheless.
-     *
+     *               if none of the clients satisfies filter some client will be returned nevertheless.
      * @see #peekClient(CompletableFuture)
      */
     CompletableFuture<RpcClient> peekClient(CompletableFuture<?> releaseFuture, Predicate<RpcClient> filter);
@@ -65,6 +64,7 @@ interface FilteringRpcClientPool extends RpcClientPool {
 @NonNullApi
 interface DataCenterRpcClientPool extends FilteringRpcClientPool {
     String getDataCenterName();
+
     CompletableFuture<Integer> banClient(String address);
 }
 
@@ -94,7 +94,7 @@ class NonRepeatingClientPool implements RpcClientPool {
 /**
  * This client pool tracks several data center pools.
  * If everything is ok it peeks clients from the local data center (or from data center with the lowest ping).
- *
+ * <p>
  * When this data center goes down, pool switches to others.
  */
 @NonNullFields
@@ -103,7 +103,8 @@ class MultiDcClientPool implements FilteringRpcClientPool {
     static final Logger logger = LoggerFactory.getLogger(MultiDcClientPool.class);
 
     final DataCenterRpcClientPool[] clientPools;
-    @Nullable final DataCenterRpcClientPool localDcPool;
+    @Nullable
+    final DataCenterRpcClientPool localDcPool;
     final DataCenterMetricsHolder dcMetricHolder;
 
     private MultiDcClientPool(Builder builder) {
@@ -215,9 +216,11 @@ class MultiDcClientPool implements FilteringRpcClientPool {
     @NonNullApi
     @NonNullFields
     static class Builder {
-        @Nullable String localDc;
+        @Nullable
+        String localDc;
         List<DataCenterRpcClientPool> clientPools = new ArrayList<>();
-        @Nullable DataCenterMetricsHolder dcMetricHolder = null;
+        @Nullable
+        DataCenterMetricsHolder dcMetricHolder = null;
 
         Builder setLocalDc(@Nullable String localDcName) {
             localDc = localDcName;
@@ -398,13 +401,20 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     }
 
     abstract static class BaseBuilder<T extends BaseBuilder<T>> {
-        @Nullable String role;
-        @Nullable String token;
-        @Nullable String dataCenterName;
-        @Nullable RpcOptions options;
-        @Nullable RpcClientFactory clientFactory;
-        @Nullable EventLoopGroup eventLoop;
-        @Nullable Random random;
+        @Nullable
+        String role;
+        @Nullable
+        String token;
+        @Nullable
+        String dataCenterName;
+        @Nullable
+        RpcOptions options;
+        @Nullable
+        RpcClientFactory clientFactory;
+        @Nullable
+        EventLoopGroup eventLoop;
+        @Nullable
+        Random random;
 
         T setDataCenterName(String dataCenterName) {
             this.dataCenterName = dataCenterName;
@@ -455,7 +465,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
      */
     static class HttpBuilder extends BaseBuilder<HttpBuilder> {
         private static final String IP_V6_REG_EX = "[0-9a-fA-F]{0,4}(:[0-9a-fA-F]{0,4}){2,7}";
-        @Nullable String balancerAddress;
+        @Nullable
+        String balancerAddress;
 
         HttpBuilder setBalancerAddress(String host, int port) {
             // We could use InetSocketAddress.createUnresolved(host, port).toString()
@@ -480,7 +491,8 @@ class ClientPoolService extends ClientPool implements AutoCloseable {
     }
 
     static class RpcBuilder extends BaseBuilder<RpcBuilder> {
-        @Nullable List<HostPort> initialProxyList;
+        @Nullable
+        List<HostPort> initialProxyList;
 
         RpcBuilder setInitialProxyList(List<HostPort> initialProxyList) {
             this.initialProxyList = initialProxyList;
@@ -523,7 +535,8 @@ class ClientPool implements DataCenterRpcClientPool {
 
     // Array of healthy clients that are used for optimization of peekClient.
     private volatile PooledRpcClient[] clientCache = new PooledRpcClient[0];
-    @Nullable private volatile Runnable onAllBannedCallback = null;
+    @Nullable
+    private volatile Runnable onAllBannedCallback = null;
 
     ClientPool(
             String dataCenterName,
@@ -799,8 +812,10 @@ interface ProxyGetter {
 class HttpProxyGetter implements ProxyGetter {
     AsyncHttpClient httpClient;
     String balancerHost;
-    @Nullable String role;
-    @Nullable String token;
+    @Nullable
+    String role;
+    @Nullable
+    String token;
 
     HttpProxyGetter(AsyncHttpClient httpClient, String balancerHost, @Nullable String role, @Nullable String token) {
         this.httpClient = httpClient;
@@ -866,8 +881,10 @@ class HttpProxyGetter implements ProxyGetter {
 @NonNullApi
 class RpcProxyGetter implements ProxyGetter {
     final List<HostPort> initialProxyList;
-    final @Nullable RpcClientPool clientPool;
-    final @Nullable String role;
+    final @Nullable
+    RpcClientPool clientPool;
+    final @Nullable
+    String role;
     final String dataCenterName;
     final RpcClientFactory clientFactory;
     final RpcOptions options;

@@ -6,9 +6,8 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 import tech.ytsaurus.ysontree.YTreeBuilder;
-
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
 public class TransactionalOptions {
     @Nullable

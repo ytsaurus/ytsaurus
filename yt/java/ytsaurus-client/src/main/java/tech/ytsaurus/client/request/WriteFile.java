@@ -7,12 +7,11 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.ByteString;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
+import tech.ytsaurus.rpcproxy.TReqWriteFile;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.TPrerequisiteOptions;
-import ru.yandex.yt.rpcproxy.TReqWriteFile;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
 public class WriteFile extends RequestBase<WriteFile.Builder, WriteFile> {
     private final String path;

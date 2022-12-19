@@ -15,16 +15,17 @@ import tech.ytsaurus.client.rpc.Compression;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.yt.rpcproxy.TRspReadTable;
-import ru.yandex.yt.rpcproxy.TRspReadTableMeta;
+import tech.ytsaurus.rpcproxy.TRspReadTable;
+import tech.ytsaurus.rpcproxy.TRspReadTableMeta;
 
 class TableReaderBaseImpl<T> extends StreamReaderImpl<TRspReadTable> {
     private static final Parser<TRspReadTableMeta> META_PARSER = TRspReadTableMeta.parser();
 
-    @Nullable protected TableAttachmentReader<T> reader;
+    @Nullable
+    protected TableAttachmentReader<T> reader;
     // Need for creating TableAttachmentReader later
-    @Nullable private final Class<T> objectClazz;
+    @Nullable
+    private final Class<T> objectClazz;
     protected TRspReadTableMeta metadata = null;
 
     TableReaderBaseImpl(Class<T> objectClazz) {

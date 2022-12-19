@@ -6,10 +6,9 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.rpcproxy.TJob;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.TJob;
 
 public class JobResult {
     private final GUID id;

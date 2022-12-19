@@ -23,6 +23,7 @@ public class OutageController {
     /**
      * Planning more fails of 'requestType' queries.
      * So 'count' calls of 'requestType' queries will fail with error = 'exception'.
+     *
      * @return self
      */
     public OutageController addFails(String requestType, int count, Throwable exception) {
@@ -40,6 +41,7 @@ public class OutageController {
     /**
      * Planning more OKs of 'requestType' queries.
      * So 'count' calls of 'requestType' queries won't fail
+     *
      * @return self
      */
     public OutageController addOk(String requestType, int count) {
@@ -57,6 +59,7 @@ public class OutageController {
     /**
      * Planning more delays of 'requestType' queries.
      * So 'count' calls of 'requestType' queries will postpone with delay.
+     *
      * @return self
      */
     public OutageController addDelays(String requestType, int count, Duration delay) {
@@ -73,6 +76,7 @@ public class OutageController {
 
     /**
      * Cancel all scheduled fails and delays.
+     *
      * @return self
      */
     public OutageController clear() {

@@ -19,7 +19,8 @@ import ru.yandex.lang.NonNullFields;
 @NonNullFields
 public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
     private final UserJobSpec mapperSpec;
-    private final @Nullable JobIo jobIo;
+    private final @Nullable
+    JobIo jobIo;
 
     public MapSpec(
             List<YPath> inputTables,
@@ -102,8 +103,10 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SimpleUserOperationSpecBase.Builder<T> {
-        private @Nullable UserJobSpec mapperSpec;
-        private @Nullable JobIo jobIo;
+        private @Nullable
+        UserJobSpec mapperSpec;
+        private @Nullable
+        JobIo jobIo;
 
         protected BuilderBase() {
         }

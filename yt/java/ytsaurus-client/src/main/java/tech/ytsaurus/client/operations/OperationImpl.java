@@ -92,12 +92,12 @@ public class OperationImpl implements Operation {
     private void watchImpl() {
         logger.debug("Operation's watch iteration was started (OperationId: {})", id);
         client.getOperation(GetOperation.builder()
-                        .setOperationId(id)
-                        .addAttribute("state")
-                        .addAttribute("brief_progress")
-                        .addAttribute("type")
-                        .addAttribute("operation_type")
-                        .build())
+                .setOperationId(id)
+                .addAttribute("state")
+                .addAttribute("brief_progress")
+                .addAttribute("type")
+                .addAttribute("operation_type")
+                .build())
                 .thenApply(this::getAndLogStatus)
                 .thenCompose(status -> {
                     if (status.isFinished()) {
@@ -112,11 +112,11 @@ public class OperationImpl implements Operation {
                     }
                     return CompletableFuture.completedFuture(null);
                 }).handle((unused, ex) -> {
-                    if (!watchResult.isDone()) {
-                        executorService.schedule(this::watchImpl, pingPeriod.toNanos(), TimeUnit.NANOSECONDS);
-                    }
-                    return null;
-                });
+            if (!watchResult.isDone()) {
+                executorService.schedule(this::watchImpl, pingPeriod.toNanos(), TimeUnit.NANOSECONDS);
+            }
+            return null;
+        });
     }
 
     private OperationStatus getAndLogStatus(YTreeNode getOperationResult) {
@@ -171,14 +171,14 @@ public class OperationImpl implements Operation {
 
     private CompletableFuture<Void> getAndLogFailedJobs(GUID operationId) {
         return client.listJobs(ListJobs.builder()
-                        .setOperationId(operationId)
-                        .setState(JobState.Failed)
-                        .setLimit(5L).build())
+                .setOperationId(operationId)
+                .setState(JobState.Failed)
+                .setLimit(5L).build())
                 .thenCompose(listJobsResult -> CompletableFuture.allOf(listJobsResult
-                            .getJobs()
-                            .stream()
-                            .map(j -> getAndLogFailedJob(operationId, j))
-                            .collect(Collectors.toList()).toArray(new CompletableFuture<?>[0])));
+                        .getJobs()
+                        .stream()
+                        .map(j -> getAndLogFailedJob(operationId, j))
+                        .collect(Collectors.toList()).toArray(new CompletableFuture<?>[0])));
     }
 
     private CompletableFuture<Void> getAndLogFailedJob(GUID operationId, JobResult job) {

@@ -2,11 +2,10 @@ package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
+import tech.ytsaurus.rpcproxy.TMutatingOptions;
+import tech.ytsaurus.rpcproxy.TReqRemoveNode;
+import tech.ytsaurus.rpcproxy.TTransactionalOptions;
 import tech.ytsaurus.ysontree.YTreeBuilder;
-
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
-import ru.yandex.yt.rpcproxy.TReqRemoveNode;
-import ru.yandex.yt.rpcproxy.TTransactionalOptions;
 
 public class RemoveNode
         extends MutatePath<RemoveNode.Builder, RemoveNode>

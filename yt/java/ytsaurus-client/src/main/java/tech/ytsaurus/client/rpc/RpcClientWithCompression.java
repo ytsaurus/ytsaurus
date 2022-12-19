@@ -1,6 +1,6 @@
 package tech.ytsaurus.client.rpc;
 
-import ru.yandex.yt.rpc.TRequestHeader;
+import tech.ytsaurus.rpc.TRequestHeader;
 
 public class RpcClientWithCompression extends RpcClientWrapper {
     private final RpcCompression compression;

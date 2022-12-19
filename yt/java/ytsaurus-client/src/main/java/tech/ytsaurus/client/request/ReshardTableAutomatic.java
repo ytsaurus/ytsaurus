@@ -1,8 +1,7 @@
 package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.yt.rpcproxy.TReqReshardTableAutomatic;
+import tech.ytsaurus.rpcproxy.TReqReshardTableAutomatic;
 
 public class ReshardTableAutomatic
         extends TableReq<ReshardTableAutomatic.Builder, ReshardTableAutomatic> {

@@ -16,8 +16,7 @@ import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedValue;
 import tech.ytsaurus.client.rows.WireProtocolWriter;
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.yt.rpcproxy.ERowModificationType;
+import tech.ytsaurus.rpcproxy.ERowModificationType;
 
 /**
  * Row modification request that uses {@link UnversionedRow} as table row representation

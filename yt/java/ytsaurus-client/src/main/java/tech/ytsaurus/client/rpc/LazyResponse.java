@@ -8,10 +8,10 @@ import javax.annotation.Nullable;
 
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
+import tech.ytsaurus.rpc.TResponseHeader;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
-import ru.yandex.yt.rpc.TResponseHeader;
 
 /**
  * Реализация RpcClientResponse с ленивой десериализацией тела ответа при первом обращении

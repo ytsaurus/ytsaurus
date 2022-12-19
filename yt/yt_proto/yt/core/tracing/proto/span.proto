@@ -2,7 +2,7 @@ package NYT.NTracing.NProto;
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
-option java_package = "ru.yandex.yt.tracing";
+option java_package = "tech.ytsaurus.tracing";
 option java_multiple_files = true;
 
 option go_package = "a.yandex-team.ru/yt/go/proto/core/tracing";

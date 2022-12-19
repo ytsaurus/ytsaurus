@@ -24,7 +24,8 @@ public class RpcOptions {
     /**
      * @see #setAcknowledgementTimeout
      */
-    private @Nullable Duration acknowledgementTimeout = Duration.ofSeconds(15);
+    private @Nullable
+    Duration acknowledgementTimeout = Duration.ofSeconds(15);
 
     private Duration globalTimeout = Duration.ofMillis(60000);  // fails request after this timeout
 
@@ -47,7 +48,8 @@ public class RpcOptions {
     private int windowSize = 32 * 1024 * 1024;
 
     private boolean randomizeDcs = false;
-    @Nonnull private Supplier<RetryPolicy> retryPolicyFactory =
+    @Nonnull
+    private Supplier<RetryPolicy> retryPolicyFactory =
             () -> RetryPolicy.attemptLimited(3, RetryPolicy.fromRpcFailoverPolicy(new DefaultRpcFailoverPolicy()));
 
     private BalancingResponseHandlerMetricsHolder responseMetricsHolder =
@@ -194,7 +196,7 @@ public class RpcOptions {
         return this.windowSize;
     }
 
-    public RpcOptions  setStreamingWriteTimeout(Duration timeout) {
+    public RpcOptions setStreamingWriteTimeout(Duration timeout) {
         this.writeTimeout = timeout;
         return this;
     }
@@ -239,6 +241,7 @@ public class RpcOptions {
 
     /**
      * Allow setting custom factory of retry policies
+     *
      * @return self
      */
     public RpcOptions setRetryPolicyFactory(Supplier<RetryPolicy> retryPolicyFactory) {
@@ -310,7 +313,8 @@ public class RpcOptions {
     /**
      * @see #setAcknowledgementTimeout
      */
-    public @Nullable Duration getAcknowledgementTimeout() {
+    public @Nullable
+    Duration getAcknowledgementTimeout() {
         return acknowledgementTimeout;
     }
 
@@ -327,12 +331,13 @@ public class RpcOptions {
     /**
      * Set minimal backoff time.
      * <p>
-     *     When retrying request ytclient might wait for some time before making next attempt.
-     *     This time lies in interval [minBackoffTime, maxBackoffTime].
-     *     Exact value is unspecified. It might depend on:
-     *       - error that is being retried (e.g RequestQueueSizeLimitExceeded is retried with increasing backoff time)
-     *       - version of the ytclient library (we might tune backoff times)
+     * When retrying request ytclient might wait for some time before making next attempt.
+     * This time lies in interval [minBackoffTime, maxBackoffTime].
+     * Exact value is unspecified. It might depend on:
+     * - error that is being retried (e.g RequestQueueSizeLimitExceeded is retried with increasing backoff time)
+     * - version of the ytclient library (we might tune backoff times)
      * </p>
+     *
      * @see #setMaxBackoffTime
      */
     public RpcOptions setMinBackoffTime(Duration minBackoffTime) {
@@ -380,6 +385,7 @@ public class RpcOptions {
 
     /**
      * Get current {@link ProxySelector}
+     *
      * @see ProxySelector
      */
     public ProxySelector getRpcProxySelector() {
@@ -388,6 +394,7 @@ public class RpcOptions {
 
     /**
      * Set {@link ProxySelector} for ranking of a proxy list
+     *
      * @see ProxySelector for a list of available implementations
      */
     public RpcOptions setRpcProxySelector(@Nullable ProxySelector rpcProxySelector) {

@@ -26,13 +26,12 @@ import com.google.protobuf.CodedInputStream;
 import com.google.protobuf.CodedOutputStream;
 import com.google.protobuf.MessageLite;
 import com.google.protobuf.Parser;
+import tech.ytsaurus.TGuid;
+import tech.ytsaurus.TGuidOrBuilder;
+import tech.ytsaurus.TSerializedMessageEnvelope;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.TGuid;
-import ru.yandex.yt.TGuidOrBuilder;
-import ru.yandex.yt.TSerializedMessageEnvelope;
-import ru.yandex.yt.rpc.TRequestCancelationHeader;
-import ru.yandex.yt.rpc.TStreamingPayloadHeader;
+import tech.ytsaurus.rpc.TRequestCancelationHeader;
+import tech.ytsaurus.rpc.TStreamingPayloadHeader;
 
 public class RpcUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;
@@ -157,7 +156,7 @@ public class RpcUtil {
 
     /**
      * Returns a new CompletableFuture that is already completed exceptionally with the given exception.
-     *
+     * <p>
      * NB. This is compat with JDK8 that doesn't have {@link CompletableFuture#failedFuture(Throwable)} method.
      */
     public static <T> CompletableFuture<T> failedFuture(Throwable ex) {

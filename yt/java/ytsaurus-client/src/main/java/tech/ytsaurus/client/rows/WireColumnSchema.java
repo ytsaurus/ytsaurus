@@ -4,6 +4,7 @@ import java.util.Objects;
 
 
 import tech.ytsaurus.core.tables.ColumnValueType;
+
 public class WireColumnSchema {
     private final int id;
     private final ColumnValueType type;

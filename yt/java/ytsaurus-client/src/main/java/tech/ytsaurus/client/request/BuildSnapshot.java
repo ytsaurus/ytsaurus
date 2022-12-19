@@ -8,8 +8,7 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TReqBuildSnapshot;
+import tech.ytsaurus.rpcproxy.TReqBuildSnapshot;
 
 public class BuildSnapshot extends RequestBase<BuildSnapshot.Builder, BuildSnapshot>
         implements HighLevelRequest<TReqBuildSnapshot.Builder> {

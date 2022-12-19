@@ -20,6 +20,7 @@ import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
 import tech.ytsaurus.ysontree.YTreeStringNodeImpl;
 
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
@@ -28,7 +29,6 @@ import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSeria
 import ru.yandex.inside.yt.kosher.impl.ytree.serialization.YTreeBinarySerializer;
 import ru.yandex.misc.codec.Hex;
 import ru.yandex.misc.lang.number.UnsignedLong;
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 
 /**

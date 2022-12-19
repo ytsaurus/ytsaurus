@@ -4,6 +4,7 @@ import java.util.Objects;
 
 
 import tech.ytsaurus.core.tables.TableSchema;
+
 public class UnversionedRowSerializer implements WireRowSerializer<UnversionedRow> {
     private final TableSchema schema;
 

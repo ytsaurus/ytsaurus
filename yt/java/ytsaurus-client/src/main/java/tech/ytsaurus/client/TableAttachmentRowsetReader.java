@@ -10,9 +10,8 @@ import javax.annotation.Nullable;
 
 import NYT.NChunkClient.NProto.DataStatistics;
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
-import ru.yandex.yt.rpcproxy.TRowsetStatistics;
+import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
+import tech.ytsaurus.rpcproxy.TRowsetStatistics;
 
 abstract class TableAttachmentRowsetReader<T> implements TableAttachmentReader<T> {
     protected final AtomicLong totalRowCount = new AtomicLong(-1);

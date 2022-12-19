@@ -1,6 +1,6 @@
 package tech.ytsaurus.client.request;
 
-import ru.yandex.yt.rpcproxy.TSuppressableAccessTrackingOptions;
+import tech.ytsaurus.rpcproxy.TSuppressableAccessTrackingOptions;
 
 public class SuppressableAccessTrackingOptions {
     public SuppressableAccessTrackingOptions() {

@@ -16,8 +16,7 @@ import tech.ytsaurus.client.rows.WireProtocolWriter;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.yt.rpcproxy.TReqReshardTable;
+import tech.ytsaurus.rpcproxy.TReqReshardTable;
 
 public class ReshardTable
         extends TableReq<ReshardTable.Builder, ReshardTable>

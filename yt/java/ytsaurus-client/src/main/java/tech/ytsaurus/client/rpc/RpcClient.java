@@ -53,6 +53,7 @@ public interface RpcClient extends AutoCloseable {
 
     /**
      * Возвращает клиент с аутентификацией запросов по токену
+     *
      * @deprecated {@see #withTokenAuthentication}
      */
     @Deprecated

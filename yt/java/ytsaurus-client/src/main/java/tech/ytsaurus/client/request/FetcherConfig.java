@@ -2,7 +2,7 @@ package tech.ytsaurus.client.request;
 
 import javax.annotation.Nullable;
 
-import ru.yandex.yt.rpcproxy.TFetcherConfig;
+import tech.ytsaurus.rpcproxy.TFetcherConfig;
 
 public class FetcherConfig {
     @Nullable

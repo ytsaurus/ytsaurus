@@ -4,16 +4,16 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TReqAbortOperation;
+import tech.ytsaurus.rpcproxy.TReqAbortOperation;
 
 /**
  * Immutable abort operation request.
  * <p>
- * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#abortOperation(AbortOperation)
+ *
+ * @see tech.ytsaurus.ytclient.proxy.ApiServiceClient#abortOperation(AbortOperation)
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_operation">
- *     abort_op documentation
- *     </a>
+ * abort_op documentation
+ * </a>
  */
 public class AbortOperation extends OperationReq<AbortOperation.Builder, AbortOperation>
         implements HighLevelRequest<TReqAbortOperation.Builder> {

@@ -2,9 +2,8 @@ package tech.ytsaurus.client.request;
 
 import javax.annotation.Nullable;
 
+import tech.ytsaurus.rpcproxy.TMasterReadOptions;
 import tech.ytsaurus.ysontree.YTreeBuilder;
-
-import ru.yandex.yt.rpcproxy.TMasterReadOptions;
 
 public class MasterReadOptions {
     private MasterReadKind readFrom = MasterReadKind.Follower;

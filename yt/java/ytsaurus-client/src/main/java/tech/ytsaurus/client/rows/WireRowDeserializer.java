@@ -15,5 +15,6 @@ public interface WireRowDeserializer<T> {
     @Nullable
     T onNullRow();
 
-    default void updateSchema(TableSchema schema) { }
+    default void updateSchema(TableSchema schema) {
+    }
 }

@@ -2,8 +2,7 @@ package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TMutatingOptions;
+import tech.ytsaurus.rpcproxy.TMutatingOptions;
 
 public class MutatingOptions {
     private GUID id;

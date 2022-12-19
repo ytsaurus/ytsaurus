@@ -21,14 +21,16 @@ import ru.yandex.lang.NonNullFields;
 @NonNullApi
 @NonNullFields
 public class MergeSpec extends SystemOperationSpecBase implements Spec {
-    private final @Nullable Integer jobCount;
+    private final @Nullable
+    Integer jobCount;
     private final MergeMode mergeMode;
     private final boolean combineChunks;
 
     private final List<String> mergeBy;
     private final @Nullable
     DataSize maxDataSizePerJob;
-    private final @Nullable JobIo jobIo;
+    private final @Nullable
+    JobIo jobIo;
 
     public MergeSpec(List<YPath> inputTables, YPath outputTable) {
         this(builder().setInputTables(inputTables).setOutputTable(outputTable));
@@ -130,13 +132,16 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SystemOperationSpecBase.Builder<T> {
-        private @Nullable Integer jobCount;
+        private @Nullable
+        Integer jobCount;
         private MergeMode mergeMode = MergeMode.UNORDERED;
         private boolean combineChunks = false;
 
         private List<String> mergeBy = new ArrayList<>();
-        private @Nullable DataSize maxDataSizePerJob;
-        private @Nullable JobIo jobIo;
+        private @Nullable
+        DataSize maxDataSizePerJob;
+        private @Nullable
+        JobIo jobIo;
 
         public MergeSpec build() {
             return new MergeSpec(this);

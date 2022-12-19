@@ -211,7 +211,8 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
         final CompletableFuture<Optional<YPath>> cacheCheckResult;
         final String md5;
         final Map.Entry<String, Supplier<InputStream>> entry;
-        @Nullable Future<YPath> result;
+        @Nullable
+        Future<YPath> result;
 
         public CacheUploadTask(
                 CompletableFuture<Optional<YPath>> cacheCheckResult,

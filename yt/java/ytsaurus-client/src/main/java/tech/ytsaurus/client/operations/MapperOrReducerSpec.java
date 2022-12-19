@@ -47,16 +47,24 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
     protected final JavaOptions javaOptions;
     protected final DataSize memoryLimit;
     protected final boolean useTmpfs;
-    protected final @Nullable DataSize tmpfsSize;
-    protected final @Nullable Double cpuLimit;
-    protected final @Nullable Long jobTimeLimit;
-    protected final @Nullable Integer jobCount;
+    protected final @Nullable
+    DataSize tmpfsSize;
+    protected final @Nullable
+    Double cpuLimit;
+    protected final @Nullable
+    Long jobTimeLimit;
+    protected final @Nullable
+    Integer jobCount;
     protected final Map<String, String> environment;
     protected final List<YPath> layerPaths;
-    protected final @Nullable Integer customStatisticsCountLimit;
-    protected final @Nullable Double memoryReserveFactor;
-    protected final @Nullable String networkProject;
-    protected final @Nullable Duration prepareTimeLimit;
+    protected final @Nullable
+    Integer customStatisticsCountLimit;
+    protected final @Nullable
+    Double memoryReserveFactor;
+    protected final @Nullable
+    String networkProject;
+    protected final @Nullable
+    Duration prepareTimeLimit;
 
     protected MapperOrReducerSpec(Class<?> mainClazz, Builder<?> builder) {
         if (builder.userJob == null) {
@@ -235,21 +243,30 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
     @NonNullApi
     @NonNullFields
     public abstract static class Builder<T extends Builder<T>> {
-        @Nullable MapperOrReducer<?, ?> userJob = null;
+        @Nullable
+        MapperOrReducer<?, ?> userJob = null;
         Set<YPath> additionalFiles = Collections.emptySet();
         JavaOptions javaOptions = DEFAULT_JAVA_OPTIONS;
         DataSize memoryLimit = DEFAULT_MEMORY_LIMIT;
         boolean useTmpfs = false;
-        @Nullable DataSize tmpfsSize = null;
-        @Nullable Double cpuLimit = null;
-        @Nullable Long jobTimeLimit = null;
-        @Nullable Integer jobCount = null;
+        @Nullable
+        DataSize tmpfsSize = null;
+        @Nullable
+        Double cpuLimit = null;
+        @Nullable
+        Long jobTimeLimit = null;
+        @Nullable
+        Integer jobCount = null;
         Map<String, String> environment = new HashMap<>();
         List<YPath> layerPaths = new ArrayList<>();
-        @Nullable Integer customStatisticsCountLimit = null;
-        @Nullable Double memoryReserveFactor = null;
-        @Nullable String networkProject = null;
-        @Nullable Duration prepareTimeLimit = null; // defaults to 45 minutes
+        @Nullable
+        Integer customStatisticsCountLimit = null;
+        @Nullable
+        Double memoryReserveFactor = null;
+        @Nullable
+        String networkProject = null;
+        @Nullable
+        Duration prepareTimeLimit = null; // defaults to 45 minutes
 
         public abstract MapperOrReducerSpec build();
 
@@ -260,7 +277,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             return self();
         }
 
-        protected @Nullable MapperOrReducer<?, ?> getUserJob() {
+        protected @Nullable
+        MapperOrReducer<?, ?> getUserJob() {
             return userJob;
         }
 
@@ -322,8 +340,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         /**
          * Set memory reserve factor.
          * <a href="https://yt.yandex-team.ru/docs/description/mr/operations_options#memory_reserve_factor">
-         *     documentation
-         *     </a>
+         * documentation
+         * </a>
          *
          * @param memoryReserveFactor memory reserve factor, if set to null default value (0.5) will be used.
          */

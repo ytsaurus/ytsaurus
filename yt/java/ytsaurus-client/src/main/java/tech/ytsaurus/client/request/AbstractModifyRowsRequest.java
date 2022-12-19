@@ -11,9 +11,8 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.SerializationResolver;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.tables.TableSchema;
-
-import ru.yandex.yt.rpcproxy.ERowModificationType;
-import ru.yandex.yt.rpcproxy.TReqModifyRows;
+import tech.ytsaurus.rpcproxy.ERowModificationType;
+import tech.ytsaurus.rpcproxy.TReqModifyRows;
 
 /**
  * Base class for all kinds of modify row requests.

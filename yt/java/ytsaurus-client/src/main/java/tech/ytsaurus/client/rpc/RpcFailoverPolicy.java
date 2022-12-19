@@ -5,6 +5,8 @@ package tech.ytsaurus.client.rpc;
  */
 public interface RpcFailoverPolicy {
     boolean onError(Throwable error);
+
     boolean onTimeout();
+
     boolean randomizeDcs();
 }

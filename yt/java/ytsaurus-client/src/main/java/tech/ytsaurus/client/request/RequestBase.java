@@ -8,18 +8,21 @@ import javax.annotation.Nullable;
 import com.google.protobuf.Message;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpc.TRequestHeader;
-import ru.yandex.yt.tracing.TTracingExt;
+import tech.ytsaurus.rpc.TRequestHeader;
+import tech.ytsaurus.tracing.TTracingExt;
 
 public abstract class RequestBase<
         TBuilder extends RequestBase.Builder<TBuilder, TRequest>, TRequest extends RequestBase<TBuilder, TRequest>> {
-    protected @Nullable Duration timeout;
-    protected @Nullable GUID requestId;
-    protected @Nullable GUID traceId;
+    protected @Nullable
+    Duration timeout;
+    protected @Nullable
+    GUID requestId;
+    protected @Nullable
+    GUID traceId;
     protected boolean traceSampled;
     protected String userAgent;
-    protected @Nullable Message additionalData;
+    protected @Nullable
+    Message additionalData;
 
     RequestBase(Builder<?, ?> builder) {
         this.timeout = builder.timeout;
@@ -40,7 +43,8 @@ public abstract class RequestBase<
     }
 
     @SuppressWarnings("unused")
-    @Nullable Message getAdditionalData() {
+    @Nullable
+    Message getAdditionalData() {
         return additionalData;
     }
 
@@ -97,13 +101,17 @@ public abstract class RequestBase<
 
     public abstract static class Builder<
             TBuilder extends Builder<TBuilder, TRequest>, TRequest> {
-        protected @Nullable Duration timeout;
-        protected @Nullable GUID requestId;
-        protected @Nullable GUID traceId;
+        protected @Nullable
+        Duration timeout;
+        protected @Nullable
+        GUID requestId;
+        protected @Nullable
+        GUID traceId;
         protected boolean traceSampled = false;
         protected String userAgent = "yt/java/ytsaurus-client@";
 
-        protected @Nullable Message additionalData;
+        protected @Nullable
+        Message additionalData;
 
         /**
          * Construct empty builder.
@@ -184,7 +192,8 @@ public abstract class RequestBase<
         }
 
         @SuppressWarnings("unused")
-        @Nullable Message getAdditionalData() {
+        @Nullable
+        Message getAdditionalData() {
             return additionalData;
         }
 

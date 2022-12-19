@@ -17,20 +17,19 @@ import tech.ytsaurus.client.ApiServiceUtil;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.rpcproxy.TReqStartTransaction;
 import tech.ytsaurus.ysontree.YTreeNode;
-
-import ru.yandex.yt.rpcproxy.TReqStartTransaction;
-import ru.yandex.yt.ytree.TAttributeDictionary;
+import tech.ytsaurus.ytree.TAttributeDictionary;
 
 /**
  * Request for starting transaction.
  *
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#start_tx">
- *     start_tx documentation
- *     </a>
+ * start_tx documentation
+ * </a>
  * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables">
- *     dynamic tables documentation
- *     </a>
+ * dynamic tables documentation
+ * </a>
  */
 public class StartTransaction
         extends RequestBase<StartTransaction.Builder, StartTransaction>
@@ -94,7 +93,7 @@ public class StartTransaction
 
     /**
      * Create request for starting master transaction.
-     *
+     * <p>
      * Master transactions are for working with static tables and cypress objects.
      */
     public static StartTransaction master() {
@@ -103,7 +102,7 @@ public class StartTransaction
 
     /**
      * Create request for starting tablet transaction.
-     *
+     * <p>
      * Tablet transactions are for working with dynamic tables.
      */
     public static StartTransaction tablet() {
@@ -112,8 +111,9 @@ public class StartTransaction
 
     /**
      * Create request for starting sticky master transaction.
-     *
-     * Such type of transactions can be used to work with all types of objects: cypress / static tables / dynamic tables.
+     * <p>
+     * Such type of transactions can be used to work with all types of objects: cypress / static tables / dynamic
+     * tables.
      * Though their usage is discouraged: prefer to use either master or tablet transactions.
      * Compared to tablet transactions they create additional load on masters and have other special effects that you
      * might not want to have.
@@ -151,6 +151,7 @@ public class StartTransaction
 
     /**
      * Get operation executed on ping failure.
+     *
      * @see Builder#setOnPingFailed
      */
     public Optional<Consumer<Exception>> getOnPingFailed() {
@@ -159,6 +160,7 @@ public class StartTransaction
 
     /**
      * Get deadline.
+     *
      * @see Builder#setDeadline
      */
     public Optional<Instant> getDeadline() {
@@ -167,6 +169,7 @@ public class StartTransaction
 
     /**
      * Get GUID to use with transaction being created.
+     *
      * @see Builder#setId
      */
     public Optional<GUID> getId() {
@@ -347,11 +350,12 @@ public class StartTransaction
 
         /**
          * Set transaction timeout.
-         *
+         * <p>
          * Transaction is aborted by server if it's not pinged for this specified duration.
          * If it's not specified, then server will use default value of 15 seconds.
-         *
+         * <p>
          * If you ever change default timeout consider also change ping period.
+         *
          * @see #setPingPeriod
          */
         public TBuilder setTransactionTimeout(Duration timeout) {
@@ -361,8 +365,9 @@ public class StartTransaction
 
         /**
          * Set ping period.
-         *
+         * <p>
          * If ping period is set yt client will automatically ping transaction with specified period.
+         *
          * @see #setTimeout
          */
         public TBuilder setPingPeriod(@Nullable Duration pingPeriod) {
@@ -372,8 +377,9 @@ public class StartTransaction
 
         /**
          * Set failed ping retry period.
-         *
+         * <p>
          * If transaction ping fails, it will retry with this period
+         *
          * @see #setPingPeriod
          */
         public TBuilder setFailedPingRetryPeriod(@Nullable Duration failedPingRetryPeriod) {
@@ -393,7 +399,7 @@ public class StartTransaction
 
         /**
          * Set deadline.
-         *
+         * <p>
          * If deadline is set transaction will be forcefully aborted upon reaching it.
          */
         public TBuilder setDeadline(@Nullable Instant deadline) {
@@ -404,7 +410,7 @@ public class StartTransaction
         /**
          * Use specified GUID for newly created transaction.
          * Can only be used with Tablet transactions.
-         *
+         * <p>
          * If id is not specified, server will assign default value.
          */
         public TBuilder setId(@Nullable GUID id) {
@@ -422,11 +428,12 @@ public class StartTransaction
 
         /**
          * Set atomicity of transaction.
-         *
+         * <p>
          * If not specified atomicity FULL will be used.
+         *
          * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#atomarnost">
-         *     documentation
-         *     </a>
+         * documentation
+         * </a>
          */
         public TBuilder setAtomicity(@Nullable Atomicity atomicity) {
             this.atomicity = atomicity;
@@ -435,12 +442,12 @@ public class StartTransaction
 
         /**
          * Set durability of transaction.
-         *
+         * <p>
          * By default, durability SYNC is used.
          *
          * @see <a href="https://docs.yandex-team.ru/yt/description/dynamic_tables/sorted_dynamic_tables#sohrannost">
-         *     documentation
-         *     </a>
+         * documentation
+         * </a>
          */
         public TBuilder setDurability(@Nullable Durability durability) {
             this.durability = durability;

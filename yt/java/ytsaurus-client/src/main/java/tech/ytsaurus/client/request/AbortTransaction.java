@@ -8,16 +8,16 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
-
-import ru.yandex.yt.rpcproxy.TReqAbortTransaction;
+import tech.ytsaurus.rpcproxy.TReqAbortTransaction;
 
 /**
  * Immutable abort transaction request.
  * <p>
- * @see ru.yandex.yt.ytclient.proxy.ApiServiceClient#abortTransaction(AbortTransaction)
+ *
+ * @see tech.ytsaurus.ytclient.proxy.ApiServiceClient#abortTransaction(AbortTransaction)
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_tx">
- *     abort_tx documentation
- *     </a>
+ * abort_tx documentation
+ * </a>
  */
 public class AbortTransaction
         extends RequestBase<AbortTransaction.Builder, AbortTransaction>

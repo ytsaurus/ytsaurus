@@ -22,22 +22,34 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
     private final List<String> reduceBy;
     private final List<SortColumn> sortBy;
 
-    private final @Nullable UserJobSpec mapperSpec;
-    private final @Nullable UserJobSpec reduceCombinerSpec;
+    private final @Nullable
+    UserJobSpec mapperSpec;
+    private final @Nullable
+    UserJobSpec reduceCombinerSpec;
     private final UserJobSpec reducerSpec;
 
-    private final @Nullable Integer mapJobCount;
-    private final @Nullable Integer partitionCount;
-    private final @Nullable Integer partitionJobCount;
-    private final @Nullable Integer sortJobCount;
+    private final @Nullable
+    Integer mapJobCount;
+    private final @Nullable
+    Integer partitionCount;
+    private final @Nullable
+    Integer partitionJobCount;
+    private final @Nullable
+    Integer sortJobCount;
 
-    private final @Nullable DataSize dataSizePerSortJob;
-    private final @Nullable DataSize maxDataSizePerSortJob;
-    private final @Nullable Integer mapperOutputTableCount;
+    private final @Nullable
+    DataSize dataSizePerSortJob;
+    private final @Nullable
+    DataSize maxDataSizePerSortJob;
+    private final @Nullable
+    Integer mapperOutputTableCount;
 
-    private final @Nullable JobIo mapJobIo;
-    private final @Nullable JobIo sortJobIo;
-    private final @Nullable JobIo reduceJobIo;
+    private final @Nullable
+    JobIo mapJobIo;
+    private final @Nullable
+    JobIo sortJobIo;
+    private final @Nullable
+    JobIo reduceJobIo;
 
     protected <T extends BuilderBase<T>> MapReduceSpec(BuilderBase<T> builder) {
         super(builder);
@@ -235,22 +247,35 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
         private List<String> reduceBy = new ArrayList<>();
         private List<SortColumn> sortBy = new ArrayList<>();
 
-        private @Nullable UserJobSpec mapperSpec;
-        private @Nullable UserJobSpec reduceCombinerSpec;
-        private @Nullable UserJobSpec reducerSpec;
+        private @Nullable
+        UserJobSpec mapperSpec;
+        private @Nullable
+        UserJobSpec reduceCombinerSpec;
+        private @Nullable
+        UserJobSpec reducerSpec;
 
-        private @Nullable Integer mapJobCount;
-        private @Nullable Integer partitionCount;
-        private @Nullable Integer partitionJobCount;
-        private @Nullable Integer sortJobCount;
+        private @Nullable
+        Integer mapJobCount;
+        private @Nullable
+        Integer partitionCount;
+        private @Nullable
+        Integer partitionJobCount;
+        private @Nullable
+        Integer sortJobCount;
 
-        private @Nullable DataSize dataSizePerSortJob;
-        private @Nullable DataSize maxDataSizePerSortJob;
-        private @Nullable Integer mapperOutputTableCount;
+        private @Nullable
+        DataSize dataSizePerSortJob;
+        private @Nullable
+        DataSize maxDataSizePerSortJob;
+        private @Nullable
+        Integer mapperOutputTableCount;
 
-        private @Nullable JobIo mapJobIo;
-        private @Nullable JobIo sortJobIo;
-        private @Nullable JobIo reduceJobIo;
+        private @Nullable
+        JobIo mapJobIo;
+        private @Nullable
+        JobIo sortJobIo;
+        private @Nullable
+        JobIo reduceJobIo;
 
         public MapReduceSpec build() {
             return new MapReduceSpec(this);

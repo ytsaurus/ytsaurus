@@ -17,8 +17,10 @@ import ru.yandex.lang.NonNullFields;
 @NonNullFields
 public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
     private final String cluster;
-    private final @Nullable String network;
-    private final @Nullable Boolean copyAttributes;
+    private final @Nullable
+    String network;
+    private final @Nullable
+    Boolean copyAttributes;
 
     public RemoteCopySpec(YPath source, YPath destination, String cluster) {
         this(builder()
@@ -70,9 +72,12 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SystemOperationSpecBase.Builder<T> {
-        private @Nullable String cluster;
-        private @Nullable String network;
-        private @Nullable Boolean copyAttributes;
+        private @Nullable
+        String cluster;
+        private @Nullable
+        String network;
+        private @Nullable
+        Boolean copyAttributes;
 
         public RemoteCopySpec build() {
             return new RemoteCopySpec(this);

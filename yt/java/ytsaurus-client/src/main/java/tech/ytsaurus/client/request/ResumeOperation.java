@@ -2,16 +2,15 @@ package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.rpcproxy.TReqResumeOperation;
 import tech.ytsaurus.ysontree.YTreeBuilder;
-
-import ru.yandex.yt.rpcproxy.TReqResumeOperation;
 
 /**
  * Request for resuming suspended operation
  *
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#suspend_operation">
- *     resume_operation documentation
- *     </a>
+ * resume_operation documentation
+ * </a>
  * @see SuspendOperation
  */
 public class ResumeOperation extends OperationReq<ResumeOperation.Builder, ResumeOperation>

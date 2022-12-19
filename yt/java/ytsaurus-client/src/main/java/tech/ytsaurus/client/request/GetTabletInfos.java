@@ -7,8 +7,7 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.TReqGetTabletInfos;
+import tech.ytsaurus.rpcproxy.TReqGetTabletInfos;
 
 public class GetTabletInfos
         extends RequestBase<GetTabletInfos.Builder, GetTabletInfos>

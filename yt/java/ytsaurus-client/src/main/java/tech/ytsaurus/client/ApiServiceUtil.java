@@ -20,13 +20,12 @@ import tech.ytsaurus.core.tables.ColumnSchema;
 import tech.ytsaurus.core.tables.ColumnSortOrder;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.rpcproxy.ERowsetKind;
+import tech.ytsaurus.rpcproxy.TColumnSchema;
+import tech.ytsaurus.rpcproxy.TRowsetDescriptor;
+import tech.ytsaurus.rpcproxy.TTableSchema;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.type_info.TypeIO;
-
-import ru.yandex.yt.rpcproxy.ERowsetKind;
-import ru.yandex.yt.rpcproxy.TColumnSchema;
-import ru.yandex.yt.rpcproxy.TRowsetDescriptor;
-import ru.yandex.yt.rpcproxy.TTableSchema;
 
 public class ApiServiceUtil {
     public static final long MICROS_PER_SECOND = 1_000_000L;

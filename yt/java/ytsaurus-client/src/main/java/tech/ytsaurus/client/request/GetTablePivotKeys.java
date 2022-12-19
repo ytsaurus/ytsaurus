@@ -5,8 +5,7 @@ import java.util.Objects;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
-
-import ru.yandex.yt.rpcproxy.TReqGetTablePivotKeys;
+import tech.ytsaurus.rpcproxy.TReqGetTablePivotKeys;
 
 public class GetTablePivotKeys extends RequestBase<GetTablePivotKeys.Builder, GetTablePivotKeys>
         implements HighLevelRequest<TReqGetTablePivotKeys.Builder> {

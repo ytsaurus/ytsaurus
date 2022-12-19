@@ -2,8 +2,7 @@ package tech.ytsaurus.client.request;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
 import tech.ytsaurus.core.cypress.YPath;
-
-import ru.yandex.yt.rpcproxy.TReqFreezeTable;
+import tech.ytsaurus.rpcproxy.TReqFreezeTable;
 
 public class FreezeTable
         extends TableReq<FreezeTable.Builder, FreezeTable>

@@ -2,6 +2,7 @@ package tech.ytsaurus.client.request;
 
 
 import tech.ytsaurus.client.operations.VanillaSpec;
+
 public class VanillaOperation extends BaseOperation<VanillaSpec> {
     VanillaOperation(Builder builder) {
         super(builder);

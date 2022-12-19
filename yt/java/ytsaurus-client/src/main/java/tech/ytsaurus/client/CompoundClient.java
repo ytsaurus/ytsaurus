@@ -22,8 +22,8 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
      * <p>
      * Retries are performed until retry policy says to stop or action is successfully executed
      *
-     * @param action action to be retried; it should not call commit; action might be called multiple times.
-     * @param executor executor that will run user action
+     * @param action      action to be retried; it should not call commit; action might be called multiple times.
+     * @param executor    executor that will run user action
      * @param retryPolicy retry policy that determines which error should be retried
      * @return future that contains:
      * <ul>
@@ -94,6 +94,7 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
      * @see UnmountTable
      */
     CompletableFuture<Void> unmountTableAndWaitTablets(UnmountTable req);
+
     default CompletableFuture<Void> unmountTableAndWaitTablets(UnmountTable.BuilderBase<?> req) {
         return unmountTableAndWaitTablets(req.build());
     }
@@ -110,7 +111,7 @@ public interface CompoundClient extends ApiServiceClient, Closeable {
 
     /**
      * Unmount table.
-     *
+     * <p>
      * This method doesn't wait until tablets become unmounted.
      *
      * @see ApiServiceClient#unmountTable(UnmountTable)
