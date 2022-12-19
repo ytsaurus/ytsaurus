@@ -48,6 +48,8 @@ public:
     // Ignore bundle attribute EnableStandaloneTabletBalancer and balance each bundle.
     bool EnableEverywhere;
 
+    std::optional<TDuration> Period;
+
     int MaxParameterizedMoveActionCount;
 
     double ParameterizedDeviationThreshold;
