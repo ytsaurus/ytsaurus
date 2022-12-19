@@ -471,6 +471,8 @@ public:
 
     NYPath::TYPath GetFullPath(bool explicitOnly, bool withTreeId = true) const;
 
+    virtual TGuid GetObjectId() const = 0;
+
     //! Other methods.
     virtual THashSet<TString> GetAllowedProfilingTags() const = 0;
 
@@ -521,7 +523,7 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerCompositeElement)
 class TSchedulerPoolElementFixedState
 {
 protected:
-    explicit TSchedulerPoolElementFixedState(TString id);
+    TSchedulerPoolElementFixedState(TString id, NObjectClient::TObjectId objectId);
 
     const TString Id_;
 
@@ -529,6 +531,7 @@ protected:
     bool DefaultConfigured_ = true;
     bool EphemeralInDefaultParentPool_ = false;
     std::optional<TString> UserName_;
+    NObjectClient::TObjectId ObjectId_;
 
     // Used in preupdate.
     TSchedulingTagFilter SchedulingTagFilter_;
@@ -546,6 +549,7 @@ public:
         ISchedulerStrategyHost* strategyHost,
         IFairShareTreeElementHost* treeElementHost,
         const TString& id,
+        TGuid objectId,
         TPoolConfigPtr config,
         bool defaultConfigured,
         TFairShareStrategyTreeConfigPtr treeConfig,
@@ -575,6 +579,7 @@ public:
     TPoolConfigPtr GetConfig() const;
     void SetConfig(TPoolConfigPtr config);
     void SetDefaultConfig();
+    void SetObjectId(NObjectClient::TObjectId objectId);
 
     void SetUserName(const std::optional<TString>& userName);
     const std::optional<TString>& GetUserName() const;
@@ -625,6 +630,8 @@ public:
         TMeteringMap* meteringMap) const override;
 
     THashSet<TString> GetAllowedProfilingTags() const override;
+
+    TGuid GetObjectId() const override;
 
 protected:
     //! Pre fair share update methods.
@@ -946,6 +953,8 @@ public:
 
     TResourceDistributionInfo GetResourceDistributionInfo() const;
     void BuildResourceDistributionInfo(NYTree::TFluentMap fluent) const;
+
+    TGuid GetObjectId() const override;
 
 protected:
     //! Post update methods.

@@ -168,7 +168,8 @@ public:
     }
 
     void ValidatePoolPermission(
-        const NYPath::TYPath& /*path*/,
+        NObjectClient::TObjectId /*poolObjectId*/,
+        const TString& /*poolName*/,
         const TString& /*user*/,
         NYTree::EPermission /*permission*/) const override
     { }
@@ -507,6 +508,7 @@ protected:
             strategyHost,
             FairShareTreeElementHostMock_.Get(),
             name,
+            /*objectId*/ NObjectClient::TObjectId(),
             std::move(config),
             /*defaultConfigured*/ true,
             TreeConfig_,
@@ -638,7 +640,7 @@ protected:
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-		NVectorHdrf::TFairShareUpdateContext context(
+        NVectorHdrf::TFairShareUpdateContext context(
             /*totalResourceLimits*/ strategyHost->GetResourceLimits(TreeConfig_->NodesFilter),
             TreeConfig_->MainResource,
             TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod,
@@ -652,10 +654,10 @@ protected:
 
         rootElement->PreUpdate(&context);
 
-		NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
-		updateExecutor.Run();
+        NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
+        updateExecutor.Run();
 
-		rootElement->PostUpdate(&fairSharePostUpdateContext);
+        rootElement->PostUpdate(&fairSharePostUpdateContext);
     }
 
 private:

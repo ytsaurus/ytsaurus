@@ -780,6 +780,7 @@ public:
                         StrategyHost_,
                         this,
                         updatePoolAction.Name,
+                        updatePoolAction.ObjectId,
                         updatePoolAction.PoolConfig,
                         /* defaultConfigured */ false,
                         Config_,
@@ -819,7 +820,7 @@ public:
                         }
                         pool->SetUserName(std::nullopt);
                     }
-                    ReconfigurePool(pool, updatePoolAction.PoolConfig);
+                    ReconfigurePool(pool, updatePoolAction.PoolConfig, updatePoolAction.ObjectId);
                     if (updatePoolAction.Type == EUpdatePoolActionType::Move) {
                         const auto& parent = updatePoolAction.ParentName == RootPoolName
                             ? static_cast<TSchedulerCompositeElementPtr>(RootElement_)
@@ -1629,11 +1630,15 @@ private:
             parent->GetId());
     }
 
-    void ReconfigurePool(const TSchedulerPoolElementPtr& pool, const TPoolConfigPtr& config)
+    void ReconfigurePool(
+        const TSchedulerPoolElementPtr& pool,
+        const TPoolConfigPtr& config,
+        TGuid objectId)
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         pool->SetConfig(config);
+        pool->SetObjectId(objectId);
     }
 
     void UnregisterPool(const TSchedulerPoolElementPtr& pool)
@@ -1687,6 +1692,7 @@ private:
             StrategyHost_,
             this,
             poolName.GetPool(),
+            TGuid(),
             poolConfig,
             /*defaultConfigured*/ true,
             Config_,
@@ -2101,7 +2107,7 @@ private:
 
     void ValidateSpecifiedResourceLimits(
         const IOperationStrategyHost* operation,
-        const TSchedulerCompositeElementPtr& pool,
+        const TSchedulerCompositeElement* pool,
         const TJobResourcesConfigPtr& requiredLimitsConfig) const
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
@@ -2114,7 +2120,7 @@ private:
             operation->GetId());
 
         auto actualLimits = TJobResources::Infinite();
-        const auto* current = pool.Get();
+        const auto* current = pool;
         while (!current->IsRoot()) {
             actualLimits = Min(actualLimits, current->GetSpecifiedResourceLimits());
             if (Dominates(requiredLimits, actualLimits)) {
@@ -2137,21 +2143,26 @@ private:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        TSchedulerCompositeElementPtr pool = FindPool(poolName.GetPool());
+        const TSchedulerCompositeElement* pool = FindPool(poolName.GetPool()).Get();
         // NB: Check is not performed if operation is started in default or unknown pool.
         if (pool && pool->AreImmediateOperationsForbidden()) {
             THROW_ERROR_EXCEPTION("Starting operations immediately in pool %Qv is forbidden", poolName.GetPool());
         }
 
         if (!pool) {
-            pool = GetPoolOrParent(poolName, operation->GetAuthenticatedUser());
+            pool = GetPoolOrParent(poolName, operation->GetAuthenticatedUser()).Get();
+        }
+
+        if (pool->IsDefaultConfigured()) {
+            pool = pool->GetParent();
         }
 
         if (operation->GetType() == EOperationType::RemoteCopy && Config_->FailRemoteCopyOnMissingResourceLimits) {
             ValidateSpecifiedResourceLimits(operation, pool, Config_->RequiredResourceLimitsForRemoteCopy);
         }
         StrategyHost_->ValidatePoolPermission(
-            pool->GetFullPath(/*explicitOnly*/ true),
+            pool->GetObjectId(),
+            pool->GetId(),
             operation->GetAuthenticatedUser(),
             EPermission::Use);
     }

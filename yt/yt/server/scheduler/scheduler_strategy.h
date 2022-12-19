@@ -79,7 +79,8 @@ struct ISchedulerStrategyHost
     virtual TMemoryDistribution GetExecNodeMemoryDistribution(const TSchedulingTagFilter& filter) const = 0;
 
     virtual void ValidatePoolPermission(
-        const NYPath::TYPath& path,
+        TGuid poolObjectId,
+        const TString& poolName,
         const TString& user,
         NYTree::EPermission permission) const = 0;
 

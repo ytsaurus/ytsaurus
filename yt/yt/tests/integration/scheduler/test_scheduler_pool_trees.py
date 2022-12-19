@@ -8,7 +8,7 @@ from yt_env_setup import (
 from yt_commands import (
     authors, print_debug, wait, wait_breakpoint, release_breakpoint, with_breakpoint, events_on_fs,
     create, ls,
-    get, set, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, map,
+    get, set, move, remove, exists, create_pool, create_pool_tree, remove_pool_tree, write_table, map,
     map_reduce, run_test_vanilla, run_sleeping_vanilla, abort_job, list_jobs, start_transaction, lock,
     sync_create_cells, update_controller_agent_config, update_op_parameters, create_test_tables,
     extract_statistic_v2, update_pool_tree_config_option)
@@ -744,6 +744,19 @@ class TestPoolTreesUpdateUnderLock(YTEnvSetup):
 
         wait(lambda: len(get("//sys/scheduler/@alerts")) == 1)
         assert get("//sys/scheduler/@alerts")[0]["attributes"]["alert_type"] == "update_pools"
+
+    def test_operation_launches_in_moved_pool(self):
+        create_pool("my_pool")
+        create_pool("parent_pool")
+
+        tx = start_transaction(timeout=60000)
+        lock_id = lock("//sys/scheduler/pool_trees_lock", mode="exclusive", tx=tx, waitable=True)["lock_id"]
+        wait(lambda: get("#" + lock_id + "/@state") == "acquired")
+
+        move("//sys/pool_trees/default/my_pool", "//sys/pool_trees/default/parent_pool/my_pool")
+
+        run_test_vanilla(":", pool="my_pool")
+
 
 ##################################################################
 

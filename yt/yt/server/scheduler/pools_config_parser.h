@@ -24,9 +24,10 @@ class TPoolsConfigParser
 public:
     struct TUpdatePoolAction
     {
-        TString Name = nullptr;
-        TString ParentName = nullptr;
-        TPoolConfigPtr PoolConfig = nullptr;
+        TString Name;
+        TString ParentName;
+        TPoolConfigPtr PoolConfig;
+        NObjectClient::TObjectId ObjectId;
         EUpdatePoolActionType Type = EUpdatePoolActionType::Keep;
     };
 

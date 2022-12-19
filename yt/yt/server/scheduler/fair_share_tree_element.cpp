@@ -1118,8 +1118,9 @@ TYPath TSchedulerCompositeElement::GetFullPath(bool explicitOnly, bool withTreeI
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSchedulerPoolElementFixedState::TSchedulerPoolElementFixedState(TString id)
+TSchedulerPoolElementFixedState::TSchedulerPoolElementFixedState(TString id, NObjectClient::TObjectId objectId)
     : Id_(std::move(id))
+    , ObjectId_(objectId)
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1128,6 +1129,7 @@ TSchedulerPoolElement::TSchedulerPoolElement(
     ISchedulerStrategyHost* strategyHost,
     IFairShareTreeElementHost* treeElementHost,
     const TString& id,
+    TGuid objectId,
     TPoolConfigPtr config,
     bool defaultConfigured,
     TFairShareStrategyTreeConfigPtr treeConfig,
@@ -1143,7 +1145,7 @@ TSchedulerPoolElement::TSchedulerPoolElement(
         logger.WithTag("PoolId: %v, SchedulingMode: %v",
             id,
             config->Mode))
-    , TSchedulerPoolElementFixedState(id)
+    , TSchedulerPoolElementFixedState(id, objectId)
 {
     DoSetConfig(std::move(config));
     DefaultConfigured_ = defaultConfigured;
@@ -1194,6 +1196,13 @@ void TSchedulerPoolElement::SetDefaultConfig()
 
     DoSetConfig(New<TPoolConfig>());
     DefaultConfigured_ = true;
+}
+
+void TSchedulerPoolElement::SetObjectId(NObjectClient::TObjectId objectId)
+{
+    YT_VERIFY(Mutable_);
+
+    ObjectId_ = objectId;
 }
 
 void TSchedulerPoolElement::SetEphemeralInDefaultParentPool()
@@ -1551,6 +1560,11 @@ bool TSchedulerPoolElement::ShouldDistributeFreeVolumeAmongChildren() const
 bool TSchedulerPoolElement::AreDetailedLogsEnabled() const
 {
     return Config_->EnableDetailedLogs;
+}
+
+TGuid TSchedulerPoolElement::GetObjectId() const
+{
+    return ObjectId_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2395,6 +2409,10 @@ double TSchedulerRootElement::GetSpecifiedResourceFlowRatio() const
     return 0.0;
 }
 
+TGuid TSchedulerRootElement::GetObjectId() const
+{
+    return {};
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NScheduler
