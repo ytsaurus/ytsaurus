@@ -85,14 +85,20 @@ public:
 
         PackBaggages();
         CreateChunkWriters();
-        BuildInputChunkStates();
-        CalculateTotalBlocksSize();
 
         YT_LOG_INFO("Shallow merge job initialized");
     }
 
     TJobResult Run() override
     {
+        YT_LOG_INFO("Shallow merge job preparing");
+
+        BuildInputChunkStates();
+        CalculateTotalBlocksSize();
+        Prepared_.store(true);
+
+        YT_LOG_INFO("Shallow merge job prepared");
+
         Host_->OnPrepared();
 
         if (Host_->GetJobSpecHelper()->GetJobTestingOptions()->ThrowInShallowMerge) {
@@ -145,6 +151,10 @@ public:
 
     double GetProgress() const override
     {
+        if (!Prepared_.load()) {
+            return 0.0;
+        }
+
         YT_VERIFY(TotalBlocksSize_ != 0);
         return static_cast<double>(ProcessedBlocksSize_) / TotalBlocksSize_;
     }
@@ -189,6 +199,7 @@ private:
 
     std::vector<TInputChunkState> InputChunkStates_;
 
+    std::atomic<bool> Prepared_ = false;
     i64 TotalBlocksSize_ = 0;
     i64 ProcessedBlocksSize_ = 0;
 
