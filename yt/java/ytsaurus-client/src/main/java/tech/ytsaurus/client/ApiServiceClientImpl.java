@@ -116,6 +116,7 @@ import tech.ytsaurus.client.rpc.RpcStreamConsumer;
 import tech.ytsaurus.client.rpc.RpcUtil;
 import tech.ytsaurus.core.GUID;
 import tech.ytsaurus.core.YtTimestamp;
+import tech.ytsaurus.core.cypress.RichYPathParser;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.rows.YTreeRowSerializer;
 import tech.ytsaurus.core.rows.YTreeSerializer;
@@ -145,7 +146,6 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeNodeUtils;
-import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
@@ -492,8 +492,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
                 sendRequest(req, ApiServiceMethodTable.PARTITION_TABLES.createRequestBuilder(rpcOptions)),
                 response -> response.body().getPartitionsList().stream()
                         .map(p -> new MultiTablePartition(p.getTableRangesList().stream()
-                                .map(range -> YPath.fromTree(YTreeTextSerializer.deserialize(
-                                        new ByteArrayInputStream(range.getBytes()))))
+                                .map(RichYPathParser::parse)
                                 .collect(Collectors.toList())))
                         .collect(Collectors.toList()));
     }

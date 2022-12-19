@@ -2,7 +2,7 @@ package tech.ytsaurus.yson;
 
 public final class YsonTags {
     public static final byte ENTITY = '#';
-
+    public static final byte COMMA = ',';
     public static final byte BEGIN_LIST = '[';
     public static final byte ITEM_SEPARATOR = ';';
     public static final byte END_LIST = ']';

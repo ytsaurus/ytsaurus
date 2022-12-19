@@ -3,22 +3,39 @@ package tech.ytsaurus.core.cypress;
 import java.util.Objects;
 
 import javax.annotation.Nonnull;
+import javax.annotation.Nullable;
 
 import tech.ytsaurus.ysontree.YTreeBuilder;
 
-/**
- * @author sankear
- */
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+
+@NonNullApi
+@NonNullFields
 public class Range extends RangeCriteria {
 
     @SuppressWarnings("VisibilityModifier")
+    @Nullable
     public final RangeLimit lower;
     @SuppressWarnings("VisibilityModifier")
+    @Nullable
     public final RangeLimit upper;
 
-    public Range(RangeLimit lower, RangeLimit upper) {
+    public Range(@Nullable RangeLimit lower, @Nullable RangeLimit upper) {
         this.lower = lower;
         this.upper = upper;
+    }
+
+    public static Range lower(RangeLimit lowerLimit) {
+        return new Range(lowerLimit, null);
+    }
+
+    public static Range upper(RangeLimit upperLimit) {
+        return new Range(null, upperLimit);
+    }
+
+    public static Range of(RangeLimit lowerLimit, RangeLimit upperLimit) {
+        return new Range(lowerLimit, upperLimit);
     }
 
     @Override
@@ -41,8 +58,12 @@ public class Range extends RangeCriteria {
 
     @Override
     public YTreeBuilder addRangeCriteria(YTreeBuilder builder) {
-        addReadLimit(builder, lower, "lower_limit");
-        addReadLimit(builder, upper, "upper_limit");
+        if (lower != null) {
+            addReadLimit(builder, lower, "lower_limit");
+        }
+        if (upper != null) {
+            addReadLimit(builder, upper, "upper_limit");
+        }
         return builder;
     }
 
@@ -50,5 +71,32 @@ public class Range extends RangeCriteria {
     @Nonnull
     public RangeCriteria forRetry(long nextRowIndex) {
         return new Range(lower.toBuilder().setRowIndex(nextRowIndex).build(), upper);
+    }
+
+    public static Builder builder() {
+        return new Builder();
+    }
+
+    @NonNullApi
+    @NonNullFields
+    public static class Builder {
+        @Nullable
+        RangeLimit lowerLimit;
+        @Nullable
+        RangeLimit upperLimit;
+
+        public Builder setLowerLimit(RangeLimit lowerLimit) {
+            this.lowerLimit = lowerLimit;
+            return this;
+        }
+
+        public Builder setUpperLimit(RangeLimit upperLimit) {
+            this.upperLimit = upperLimit;
+            return this;
+        }
+
+        public Range build() {
+            return new Range(lowerLimit, upperLimit);
+        }
     }
 }

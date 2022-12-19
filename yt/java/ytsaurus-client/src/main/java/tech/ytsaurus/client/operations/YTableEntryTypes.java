@@ -1,6 +1,5 @@
 package tech.ytsaurus.client.operations;
 
-
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
 public final class YTableEntryTypes {

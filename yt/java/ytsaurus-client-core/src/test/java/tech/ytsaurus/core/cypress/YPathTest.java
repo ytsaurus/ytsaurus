@@ -448,8 +448,10 @@ public class YPathTest {
                         "k1", YTree.stringNode("v1"),
                         "k2", YTree.stringNode("v2")
                 ));
-        Assert.assertEquals("<\"k1\"=\"v1\";\"k2\"=\"v2\">//some/table", path.toString());
-        Assert.assertEquals("{k1=\"v1\", k2=\"v2\"}", path.getAdditionalAttributes().toString());
+        Assert.assertTrue(path.toString().equals("<\"k1\"=\"v1\";\"k2\"=\"v2\">//some/table")
+                || path.toString().equals("<\"k2\"=\"v2\";\"k1\"=\"v1\">//some/table"));
+        Assert.assertTrue(path.getAdditionalAttributes().toString().equals("{k1=\"v1\", k2=\"v2\"}")
+                || path.getAdditionalAttributes().toString().equals("{k2=\"v2\", k1=\"v1\"}"));
     }
 
     @Test
@@ -460,6 +462,10 @@ public class YPathTest {
 
         Assert.assertEquals("<\"k1\"=\"v1\";\"k2\"=\"v2\">//some/table", path.toString());
         Assert.assertEquals("{k1=\"v1\", k2=\"v2\"}", path.getAdditionalAttributes().toString());
+        Assert.assertTrue(path.toString().equals("<\"k1\"=\"v1\";\"k2\"=\"v2\">//some/table")
+                || path.toString().equals("<\"k2\"=\"v2\";\"k1\"=\"v1\">//some/table"));
+        Assert.assertTrue(path.getAdditionalAttributes().toString().equals("{k1=\"v1\", k2=\"v2\"}")
+                || path.getAdditionalAttributes().toString().equals("{k2=\"v2\", k1=\"v1\"}"));
     }
 
     @Test
