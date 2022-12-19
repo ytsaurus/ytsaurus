@@ -8,14 +8,15 @@ from yt_commands import (
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag,
-    get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error)
+    get_cell_leader_address, get_tablet_leader_address, WaitFailed, raises_yt_error,
+    ban_node, wait_for_cells, build_snapshot)
 
 from yt_type_helpers import make_schema
 
 import yt_error_codes
 
 from yt.environment.helpers import assert_items_equal
-from yt.common import YtError
+from yt.common import YtError, update
 import yt.yson as yson
 
 from yt_driver_bindings import Driver
@@ -1132,11 +1133,11 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         }
     }
 
-    DELTA_DYNAMIC_MASTER_CONFIG = {
+    DELTA_DYNAMIC_MASTER_CONFIG = update(TestSortedDynamicTablesBase.DELTA_DYNAMIC_MASTER_CONFIG, {
         "tablet_manager": {
             "enable_hunks": True
         }
-    }
+    })
 
     def create_simple_table(self, path, hunks, **kwargs):
         value_column_schema = {"name": "value", "type": "string"}
@@ -1453,6 +1454,33 @@ class TestLookupCache(TestSortedDynamicTablesBase):
         tablet_profiling = self._get_table_profiling("//tmp/t")
         assert tablet_profiling.get_counter("lookup/cache_hits") > 0
         assert tablet_profiling.get_counter("lookup/cache_misses") > 0
+
+    @authors("lukyan")
+    def test_lookup_cache_hunks_cell_restart(self):
+        sync_create_cells(1)
+
+        def make_value(i):
+            return str(i) + ("payload" * (i % 5))
+
+        self.create_simple_table("//tmp/t", True, lookup_cache_rows_per_tablet=50)
+
+        sync_mount_table("//tmp/t")
+
+        rows = [{"key": i, "value": make_value(i)} for i in range(0, 300, 2)]
+        insert_rows("//tmp/t", rows)
+
+        cell_id = ls("//sys/tablet_cells")[0]
+        peers = get("#" + cell_id + "/@peers")
+        leader_address = list(x["address"] for x in peers if x["state"] == "leading")[0]
+
+        build_snapshot(cell_id=cell_id)
+
+        ban_node(leader_address)
+        wait_for_cells([cell_id], decommissioned_addresses=[leader_address])
+
+        expected = [{"key": i, "value": make_value(i)} for i in range(100, 200, 2)]
+        actual = lookup_rows("//tmp/t", [{"key": i} for i in range(100, 200, 2)], use_lookup_cache=True)
+        assert_items_equal(actual, expected)
 
 ################################################################################
 

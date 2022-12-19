@@ -354,6 +354,13 @@ protected:
             if (activeStore) {
                 // Add key without values.
                 CacheRowMerger_.AddPartialRow(partialRow, MinTimestamp);
+
+                if (partialRow) {
+                    for (const auto& value : MakeRange(partialRow.BeginValues(), partialRow.EndValues())) {
+                        YT_VERIFY(None(value.Flags & EValueFlags::Hunk));
+                    }
+                }
+
                 RowsFromActiveStore_[CurrentRowIndex_] = RowBuffer_->CaptureRow(partialRow);
             } else {
                 CacheRowMerger_.AddPartialRow(partialRow, MaxTimestamp);
@@ -392,6 +399,12 @@ protected:
 
     void WriteRow(TVersionedRow lookupedRow)
     {
+        if (lookupedRow) {
+            for (const auto& value : MakeRange(lookupedRow.BeginValues(), lookupedRow.EndValues())) {
+                YT_VERIFY(None(value.Flags & EValueFlags::Hunk));
+            }
+        }
+
         Merger_.AddPartialRow(lookupedRow, Timestamp_ + 1);
 
         auto cachedItemRef = std::move(RowsFromCache_[WriteRowIndex_]);
