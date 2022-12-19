@@ -148,7 +148,7 @@ func (r *blobTableReader) Err() error {
 	return r.tr.Err()
 }
 
-func ReadBlobTable(ctx context.Context, yc yt.Client, path ypath.YPath) (r BlobTableReader, err error) {
+func ReadBlobTable(ctx context.Context, yc yt.TableClient, path ypath.YPath) (r BlobTableReader, err error) {
 	tr, err := yc.ReadTable(ctx, path, nil)
 	if err != nil {
 		return nil, err
