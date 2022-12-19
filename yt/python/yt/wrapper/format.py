@@ -418,9 +418,8 @@ class StructuredSkiffFormat(Format):
 
     def load_rows(self, stream, raw=None):
         assert self._for_reading
-        assert not raw
         skiff_schemas = [skiff.SkiffSchema([s]) for s in self._skiff_schemas]
-        return skiff.load_structured(stream, self._py_schemas, skiff_schemas)
+        return skiff.load_structured(stream, self._py_schemas, skiff_schemas, raw)
 
     def _dump_row(self, row, stream):
         self._dump_rows([row], stream)

@@ -27,6 +27,7 @@ from yt.wrapper.schema import (
 from yt.wrapper.schema.internal_schema import _get_annotation
 
 from yt.wrapper.prepare_operation import TypedJob
+from yt.testlib.helpers import set_config_option
 
 import yt.yson as yson
 import yt.wrapper as yt
@@ -1371,3 +1372,103 @@ class TestTypedApi(object):
             ]])
 
         assert TableSchema.from_row_type(TheRow) == expected_schema
+
+    @authors("aleexfi")
+    def test_read_skiff_with_retries(self):
+        old_value = yt.config["read_retries"]["enable"]
+        yt.config["read_retries"]["enable"] = True
+        yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
+        yt.config._ENABLE_HTTP_CHAOS_MONKEY = True
+
+        try:
+            table = "//tmp/table"
+
+            with pytest.raises(yt.YtError):
+                yt.read_table(table)
+
+            yt.create("table", table)
+            with pytest.raises(StopIteration):
+                next(yt.read_table_structured(table, TheRow))
+
+            yt.write_table_structured(table, TheRow, ROWS)
+            all_rows = list(yt.read_table_structured(table, TheRow))
+            assert len(all_rows) == 2 and all_rows == ROWS
+
+            rsp = yt.read_table_structured(table, TheRow)
+            assert next(rsp) == ROWS[0]
+            new_row = copy.deepcopy(ROWS[1])
+            new_row.struct_field.uint8_field = 42
+            yt.write_table_structured(table, TheRow, [ROWS[0], new_row])
+            assert next(rsp) == ROWS[1]
+
+            with pytest.raises(StopIteration):
+                next(rsp)
+
+            all_rows = list(yt.read_table_structured(table, TheRow))
+            assert len(all_rows) == 2 and all_rows == [ROWS[0], new_row]
+
+            response_parameters = {}
+            rsp = yt.read_table(table, response_parameters=response_parameters, format=yt.JsonFormat(), raw=True)
+            assert response_parameters["start_row_index"] == 0
+            assert response_parameters["approximate_row_count"] == 2
+            rsp.close()
+        finally:
+            yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+            yt.config._ENABLE_HTTP_CHAOS_MONKEY = False
+            yt.config["read_retries"]["enable"] = old_value
+
+    @authors("aleexfi")
+    def test_read_skiff_ranges_with_retries(self):
+        @yt_dataclass
+        class SimpleRow:
+            x: typing.Optional[Int64]
+
+        yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = True
+        try:
+            table = "//tmp/table"
+
+            yt.create("table", table)
+            with pytest.raises(StopIteration):
+                next(yt.read_table_structured(table, SimpleRow))
+
+            x1, x2, x3 = SimpleRow(1), SimpleRow(2), SimpleRow(3)
+            yt.write_table_structured("<sorted_by=[x]>" + table, SimpleRow, [x1, x2, x3])
+
+            assert [x1, x2, x3] == list(yt.read_table_structured(table, SimpleRow))
+            assert [x1] == list(yt.read_table_structured(table + "[#0]", SimpleRow))
+
+            table_path = yt.TablePath(table, exact_key=[2])
+            for i in range(10):
+                assert [x2] == list(yt.read_table_structured(table_path, SimpleRow))
+
+            assert [x1, x3, x2, x1, x2] == list(yt.read_table_structured(table + '[#0,"2":"1",#2,#1,1:3]', SimpleRow))
+
+            expected_rows = [x1, x3]
+            expectated_attributes = [
+                {"range_index": 0, "row_index": 0},
+                {"range_index": 1, "row_index": 2},
+            ]
+            for i, (row, ctx) in enumerate(yt.read_table_structured(table + "[#0,#2]", SimpleRow).with_context()):
+                assert expectated_attributes[i] == {"range_index": ctx.get_range_index(), "row_index": ctx.get_row_index()}
+                assert expected_rows[i] == row
+
+            if not yt.config["read_parallel"]["enable"]:
+                two_exact_ranges = yt.TablePath(table, attributes={"ranges": [{"exact": {"key": [1]}}, {"exact": {"key": [3]}}]})
+                assert [x1, x3] == list(yt.read_table_structured(two_exact_ranges, SimpleRow))
+
+                yt.write_table_structured("<sorted_by=[x]>" + table, SimpleRow, [x1, x1, x2, x3, x3, x3])
+                two_exact_ranges = yt.TablePath(table, attributes={"ranges": [{"exact": {"key": [1]}}, {"exact": {"key": [3]}}]})
+                assert [x1, x1, x3, x3, x3] == list(yt.read_table_structured(two_exact_ranges, SimpleRow))
+
+        finally:
+            yt.config._ENABLE_READ_TABLE_CHAOS_MONKEY = False
+
+    @authors("aleexfi")
+    def test_read_skiff_parallel_with_retries(self):
+        with set_config_option("read_parallel/enable", True):
+            self.test_read_skiff_with_retries()
+
+    @authors("aleexfi")
+    def test_read_skiff_ranges_parallel_with_retries(self):
+        with set_config_option("read_parallel/enable", True):
+            self.test_read_skiff_ranges_with_retries()

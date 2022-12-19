@@ -505,9 +505,9 @@ class _ReadTableRetriableState(object):
                         "Read table with multiple ranges using retries is disabled, "
                         "turn on read_retries/allow_multiple_ranges")
 
-                if self.format.name() not in ["json", "yson"]:
+                if self.format.name() not in ["json", "yson", "skiff"]:
                     raise YtError("Read table with multiple ranges using retries "
-                                  "is supported only in YSON and JSON formats")
+                                  "is supported only in YSON, JSON and SKIFF formats")
                 if self.format.name() == "json" and self.format.attributes.get("format") == "pretty":
                     raise YtError("Read table with multiple ranges using retries "
                                   "is not supported for pretty JSON format")
@@ -523,8 +523,18 @@ class _ReadTableRetriableState(object):
         return merge_blobs_by_size(row_generator, self._max_row_buffer_size)
 
     class YsonControlRowFormat:
+        def __init__(self, raw_load_format):
+            self._raw_load_format = raw_load_format
+
+        def load_rows(self, *args, **kwargs):
+            return self._raw_load_format.load_rows(*args, **kwargs)
+
+        @classmethod
+        def has_payload(cls, row):
+            return not cls.has_control_info(row)
+
         @staticmethod
-        def is_control_row(row):
+        def has_control_info(row):
             # First check is fast-path.
             return not row.endswith(b"};") and row.strip().endswith(b"#;")
 
@@ -537,8 +547,18 @@ class _ReadTableRetriableState(object):
             return yson.dumps([row], yson_type="list_fragment")
 
     class JsonControlRowFormat:
+        def __init__(self, raw_load_format):
+            self._raw_load_format = raw_load_format
+
+        def load_rows(self, *args, **kwargs):
+            return self._raw_load_format.load_rows(*args, **kwargs)
+
+        @classmethod
+        def has_payload(cls, row):
+            return not cls.has_control_info(row)
+
         @staticmethod
-        def is_control_row(row):
+        def has_control_info(row):
             if b"$value" not in row:
                 return False
             loaded_row = json.loads(row)
@@ -555,9 +575,55 @@ class _ReadTableRetriableState(object):
                 row = row.encode("utf-8")
             return row + b"\n"
 
-    class DummyControlRowFormat:
+    class SkiffControlRowFormat:
+        class ContextRichSkiffRow:
+            def __init__(self, raw_bytes, attributes=None):
+                self.raw_bytes = raw_bytes
+                self.attributes = attributes
+
+        def __init__(self, raw_load_format):
+            self._raw_load_format = raw_load_format
+            self._context = None
+
+        def load_rows(self, *args, **kwargs):
+            iterator = self._raw_load_format.load_rows(*args, **kwargs)
+            self._context = iterator
+            return iterator
+
         @staticmethod
-        def is_control_row(row):
+        def has_payload(row):
+            return True
+
+        @staticmethod
+        def has_control_info(row):
+            return True
+
+        def load_control_row(self, row):
+            context_rich_row = self.ContextRichSkiffRow(row, attributes=None)
+            if self._context:
+                context_rich_row.attributes = {
+                    "range_index": self._context.get_range_index(),
+                    "row_index": self._context.get_row_index(),
+                }
+            return context_rich_row
+
+        @staticmethod
+        def dump_control_row(row):
+            return row.raw_bytes
+
+    class DummyControlRowFormat:
+        def __init__(self, raw_load_format):
+            self._raw_load_format = raw_load_format
+
+        def load_rows(self, *args, **kwargs):
+            return self._raw_load_format.load_rows(*args, **kwargs)
+
+        @staticmethod
+        def has_payload(row):
+            return True
+
+        @staticmethod
+        def has_control_info(row):
             return False
 
         @staticmethod
@@ -576,13 +642,15 @@ class _ReadTableRetriableState(object):
         format_for_raw_load_name = format_for_raw_load.name()
 
         if format_for_raw_load_name == "yson":
-            control_row_format = self.YsonControlRowFormat
+            control_row_format = self.YsonControlRowFormat(format_for_raw_load)
         elif format_for_raw_load_name == "json":
-            control_row_format = self.JsonControlRowFormat
+            control_row_format = self.JsonControlRowFormat(format_for_raw_load)
+        elif format_for_raw_load_name == "skiff" and isinstance(format_for_raw_load, StructuredSkiffFormat):
+            control_row_format = self.SkiffControlRowFormat(format_for_raw_load)
         else:
-            control_row_format = self.DummyControlRowFormat
+            control_row_format = self.DummyControlRowFormat(format_for_raw_load)
 
-        range_index = 0
+        self.current_range_index = 0
 
         chaos_monkey_enabled = get_option("_ENABLE_READ_TABLE_CHAOS_MONKEY", self.client)
         chaos_monkey = default_chaos_monkey(chaos_monkey_enabled)
@@ -592,51 +660,75 @@ class _ReadTableRetriableState(object):
             self.next_row_index = response.response_parameters.get("start_row_index", None)
             self.started = True
 
-        for row in format_for_raw_load.load_rows(response, raw=True):
+        for row in control_row_format.load_rows(response, raw=True):
             if chaos_monkey_enabled:
                 run_chaos_monkey(chaos_monkey)
 
-            # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
-            if control_row_format.is_control_row(row):
-                row = control_row_format.load_control_row(row)
-
-                # NB: row with range index must go before row with row index.
-                if hasattr(row, "attributes") and "range_index" in row.attributes:
-                    self.range_started = False
-                    ranges_to_skip = row.attributes["range_index"] - range_index
-                    self.params["path"].attributes["ranges"] = self.params["path"].attributes["ranges"][ranges_to_skip:]
-                    self.current_range_index += ranges_to_skip
-                    range_index = row.attributes["range_index"]
-                    if not self.is_range_index_initially_enabled:
-                        del row.attributes["range_index"]
-                        assert not row.attributes
-                        continue
-                    else:
-                        if self.range_index_row_yielded:
-                            continue
-                        row.attributes["range_index"] = self.current_range_index
-                        self.range_index_row_yielded = True
-
-                if hasattr(row, "attributes") and "row_index" in row.attributes:
-                    self.next_row_index = row.attributes["row_index"]
-                    if not self.is_row_index_initially_enabled:
-                        del row.attributes["row_index"]
-                        assert not row.attributes
-                        continue
-                    else:
-                        if self.row_index_row_yielded:
-                            continue
-                        self.row_index_row_yielded = True
-
-                row = control_row_format.dump_control_row(row)
-            else:
-                if not self.range_started:
-                    self.range_started = True
-                    self.range_index_row_yielded = False
-                    self.row_index_row_yielded = False
-                self.next_row_index += 1
+            can_omit_control_info = self._process_control_info(control_row_format, row)
+            if can_omit_control_info and not control_row_format.has_payload(row):
+                continue
 
             yield row
+
+    def _process_control_info(self, control_row_format, raw_row):
+        """
+        :return: True if control info in the row can be omitted
+        """
+
+        def process_range_index():
+            if hasattr(row, "attributes") and "range_index" in row.attributes and "ranges" in self.params["path"].attributes:
+                self.range_started = False
+                ranges_to_skip = row.attributes["range_index"] - self.current_range_index
+                self.params["path"].attributes["ranges"] = self.params["path"].attributes["ranges"][ranges_to_skip:]
+                self.current_range_index += ranges_to_skip
+                if not self.is_range_index_initially_enabled:
+                    del row.attributes["range_index"]
+                    assert not row.attributes
+                    return True
+                else:
+                    if self.range_index_row_yielded:
+                        return True
+                    row.attributes["range_index"] = self.current_range_index
+                    self.range_index_row_yielded = True
+                    return False
+            return True
+
+        def process_row_index():
+            if hasattr(row, "attributes") and "row_index" in row.attributes:
+                self.next_row_index = row.attributes["row_index"]
+                if not self.is_row_index_initially_enabled:
+                    del row.attributes["row_index"]
+                    assert not row.attributes
+                    return True
+                else:
+                    if self.row_index_row_yielded:
+                        return True
+                    self.row_index_row_yielded = True
+                    return False
+            return True
+
+        can_omit_control_info = False
+        # NB: Low level check for optimization purposes. Only YSON and JSON format supported!
+        if control_row_format.has_control_info(raw_row):
+            row = control_row_format.load_control_row(raw_row)
+
+            # NB: row with range index must go before row with row index.
+            can_omit_range_index = process_range_index()
+            can_omit_row_index = process_row_index()
+
+            if can_omit_range_index and can_omit_row_index:
+                can_omit_control_info = True
+
+            raw_row = control_row_format.dump_control_row(row)
+
+        if control_row_format.has_payload(raw_row):
+            if not self.range_started:
+                self.range_started = True
+                self.range_index_row_yielded = False
+                self.row_index_row_yielded = False
+            self.next_row_index += 1
+
+        return can_omit_control_info
 
 
 def read_table(table, format=None, table_reader=None, control_attributes=None, unordered=None,
@@ -736,8 +828,7 @@ def read_table(table, format=None, table_reader=None, control_attributes=None, u
             raise YtIncorrectResponse("X-YT-Response-Parameters missing (bug in proxy)", response._get_response())
         set_response_parameters(response.response_parameters)
 
-    # TODO(levysotsky): Turn retries on for skiff.
-    allow_retries = not attributes.get("dynamic") and not isinstance(format, StructuredSkiffFormat)
+    allow_retries = not attributes.get("dynamic")
 
     # For read commands response is actually ResponseStream
     response = make_read_request(
