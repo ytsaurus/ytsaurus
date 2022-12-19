@@ -7,6 +7,7 @@ import java.util.UUID;
 import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.request.CreateNode;
 import tech.ytsaurus.client.request.ReadTable;
+import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
@@ -96,7 +97,7 @@ public class Example05Decimal {
                         .setPath(path)
                         .setNeedRetries(true)
                         .setSerializationContext(
-                                new WriteTable.SerializationContext<>(rowClass))
+                                new SerializationContext<>(rowClass))
                         .build()).join();
 
         // Пишем данные в таблицу.
@@ -112,7 +113,7 @@ public class Example05Decimal {
                 ReadTable.<T>builder()
                         .setPath(path)
                         .setSerializationContext(
-                                new ReadTable.SerializationContext<>(rowClass))
+                                new SerializationContext<>(rowClass))
                         .build()).join();
 
         // Читаем всю таблицу.

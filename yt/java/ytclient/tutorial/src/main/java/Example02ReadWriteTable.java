@@ -5,6 +5,8 @@ import tech.ytsaurus.client.TableReader;
 import tech.ytsaurus.client.TableWriter;
 import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.request.ReadTable;
+import tech.ytsaurus.client.request.SerializationContext;
+import tech.ytsaurus.client.request.WriteSerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.core.cypress.YPath;
@@ -66,7 +68,7 @@ public class Example02ReadWriteTable {
                     WriteTable.<TableRow>builder()
                             .setPath(table)
                             .setSerializationContext(
-                                    new WriteTable.SerializationContext<>(
+                                    new WriteSerializationContext<>(
                                             MappedRowSerializer.forClass(
                                                     YTreeObjectSerializerFactory.forClass(TableRow.class)
                                             ))
@@ -103,7 +105,7 @@ public class Example02ReadWriteTable {
                     ReadTable.<TableRow>builder()
                             .setPath(table)
                             .setSerializationContext(
-                                    new ReadTable.SerializationContext<>(
+                                    new SerializationContext<>(
                                             YTreeObjectSerializerFactory.forClass(TableRow.class))
                             )
                             .build()).join();

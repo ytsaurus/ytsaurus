@@ -14,7 +14,9 @@ import org.junit.runners.Parameterized;
 import tech.ytsaurus.client.bus.BusConnector;
 import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.Format;
+import tech.ytsaurus.client.request.ReadSerializationContext;
 import tech.ytsaurus.client.request.ReadTable;
+import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedRowset;
@@ -148,7 +150,7 @@ public class ReadWriteFormatTest {
         writer.close().join();
 
         TableReader<YTreeNode> reader = yt.readTable(
-                new ReadTable<>(path, ReadTable.SerializationContext.ysonBinary())
+                new ReadTable<>(path, ReadSerializationContext.ysonBinary())
         ).join();
 
         List<Boolean> rowsSeen = new ArrayList<>();
@@ -232,7 +234,7 @@ public class ReadWriteFormatTest {
 
         TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(
                 path,
-                new ReadTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(YTreeMapNode.class)))
+                new SerializationContext<>(YTreeObjectSerializerFactory.forClass(YTreeMapNode.class)))
         ).join();
 
         int currentRowNumber = 0;

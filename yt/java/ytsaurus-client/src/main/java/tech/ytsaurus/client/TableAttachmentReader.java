@@ -9,6 +9,7 @@ import javax.annotation.Nullable;
 import NYT.NChunkClient.NProto.DataStatistics.TDataStatistics;
 import tech.ytsaurus.client.rows.WireRowDeserializer;
 import tech.ytsaurus.core.tables.TableSchema;
+import tech.ytsaurus.skiff.schema.SkiffSchema;
 import tech.ytsaurus.ysontree.YTreeNode;
 
 public interface TableAttachmentReader<T> {
@@ -44,6 +45,10 @@ public interface TableAttachmentReader<T> {
 
     static TableAttachmentReader<YTreeNode> ysonBinary() {
         return new TableAttachmentYsonReader();
+    }
+
+    static <T> TableAttachmentReader<T> skiff(Class<T> objectClass, SkiffSchema schema) {
+        return new TableAttachmentSkiffReader<>(objectClass, schema);
     }
 }
 

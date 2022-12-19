@@ -12,6 +12,7 @@ import java.util.function.Supplier;
 
 import org.junit.Test;
 import tech.ytsaurus.TError;
+import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.TransactionType;
 import tech.ytsaurus.client.request.WriteTable;
 import tech.ytsaurus.client.rpc.RpcError;
@@ -49,14 +50,14 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             data.add(new TableRow(Integer.toString(i)));
         }
 
-        Object[][] testCases = new Object[][] {
+        Object[][] testCases = new Object[][]{
                 /* dataSize, maxWritesInFlight, chunkSize, partsCount, existsTable */
-                { 10000, 1, 100, 100, false },
-                { 10000, 3, 100, 100, false },
-                { 10000, 1, 1000, 100, false },
-                { 1000, 1, 1000, 20, false },
-                { 1000, 5, 1000, 20, false },
-                { 1000, 1, 1000, 20, true },
+                {10000, 1, 100, 100, false},
+                {10000, 3, 100, 100, false},
+                {10000, 1, 1000, 100, false},
+                {1000, 1, 1000, 20, false},
+                {1000, 5, 1000, 20, false},
+                {1000, 1, 1000, 20, true},
         };
 
         int caseId = 0;
@@ -150,14 +151,14 @@ public class RetryingTableWriterTest extends YtClientTestBase {
             data.add(new TableRow(Integer.toString(i)));
         }
 
-        Object[][] testCases = new Object[][] {
+        Object[][] testCases = new Object[][]{
                 /* dataSize, maxWritesInFlight, chunkSize, partsCount, existsTable */
-                { 10000, 1, 100, 100, false },
-                { 10000, 3, 100, 100, false },
-                { 10000, 1, 1000, 100, false },
-                { 1000, 1, 1000, 20, false },
-                { 1000, 5, 1000, 20, false },
-                { 1000, 1, 1000, 20, true },
+                {10000, 1, 100, 100, false},
+                {10000, 3, 100, 100, false},
+                {10000, 1, 1000, 100, false},
+                {1000, 1, 1000, 20, false},
+                {1000, 5, 1000, 20, false},
+                {1000, 1, 1000, 20, true},
         };
 
         int caseId = 0;
@@ -257,18 +258,18 @@ public class RetryingTableWriterTest extends YtClientTestBase {
                 TError.newBuilder().setCode(150).build()
         );
 
-        Object[][] testCases = new Object[][] {
+        Object[][] testCases = new Object[][]{
                 /* partsCount, failsCount, error, done */
-                { 1, 1, error100, true },
-                { 1, 1, error150, false },
-                { 1, 2, error100, true },
-                { 1, 3, error100, false },
-                { 5, 1, error100, true },
-                { 5, 3, error100, false },
-                { 100, 1, error100, true },
-                { 100, 3, error100, false },
-                { 1000, 3, error100, false },
-                { 1000, 1, error100, true },
+                {1, 1, error100, true},
+                {1, 1, error150, false},
+                {1, 2, error100, true},
+                {1, 3, error100, false},
+                {5, 1, error100, true},
+                {5, 3, error100, false},
+                {100, 1, error100, true},
+                {100, 3, error100, false},
+                {1000, 3, error100, false},
+                {1000, 1, error100, true},
         };
 
 
@@ -355,18 +356,18 @@ public class RetryingTableWriterTest extends YtClientTestBase {
                 TError.newBuilder().setCode(150).build()
         );
 
-        Object[][] testCases = new Object[][] {
+        Object[][] testCases = new Object[][]{
                 /* partsCount, failsCount, error, done */
-                { 1, 1, error100, true },
-                { 1, 1, error150, false },
-                { 1, 2, error100, true },
-                { 1, 3, error100, false },
-                { 5, 1, error100, true },
-                { 5, 3, error100, false },
-                { 100, 1, error100, true },
-                { 100, 3, error100, false },
-                { 1000, 3, error100, false },
-                { 1000, 1, error100, true },
+                {1, 1, error100, true},
+                {1, 1, error150, false},
+                {1, 2, error100, true},
+                {1, 3, error100, false},
+                {5, 1, error100, true},
+                {5, 3, error100, false},
+                {100, 1, error100, true},
+                {100, 3, error100, false},
+                {1000, 3, error100, false},
+                {1000, 1, error100, true},
         };
 
 
@@ -766,25 +767,25 @@ public class RetryingTableWriterTest extends YtClientTestBase {
                 TError.newBuilder().setCode(100).build()
         );
 
-        Object[][] testCases = new Object[][] {
+        Object[][] testCases = new Object[][]{
                 /* partsCount, failsCount, error, abortParentTransaction, done */
-                { 1, 0, null, false, true },
-                { 1, 0, null, true, false },
-                { 1, 1, error100, false, true },
-                { 1, 1, error100, true, false },
-                { 1, 3, error100, false, false },
-                { 1, 3, error100, true, false },
+                {1, 0, null, false, true},
+                {1, 0, null, true, false},
+                {1, 1, error100, false, true},
+                {1, 1, error100, true, false},
+                {1, 3, error100, false, false},
+                {1, 3, error100, true, false},
 
-                { 5, 0, null, false, true },
-                { 5, 0, null, true, false },
-                { 5, 3, error100, false, false },
-                { 5, 3, error100, true, false },
+                {5, 0, null, false, true},
+                {5, 0, null, true, false},
+                {5, 3, error100, false, false},
+                {5, 3, error100, true, false},
 
-                { 100, 0, null, false, true },
-                { 100, 0, null, true, false },
+                {100, 0, null, false, true},
+                {100, 0, null, true, false},
 
-                { 1000, 0, null, false, true },
-                { 1000, 0, null, true, false }
+                {1000, 0, null, false, true},
+                {1000, 0, null, true, false}
         };
 
 
@@ -864,7 +865,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
                                              int chunkSize) throws Exception {
         return yt.writeTable(WriteTable.<TableRow>builder()
                 .setPath(tablePath)
-                .setSerializationContext(new WriteTable.SerializationContext<>(
+                .setSerializationContext(new SerializationContext<>(
                         YTreeObjectSerializerFactory.forClass(TableRow.class)))
                 .setNeedRetries(true)
                 .setMaxWritesInFlight(maxWritesInFlight)
@@ -876,7 +877,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
     private TableWriter<TableRow> writeTable(YtClient yt, YPath tablePath) throws Exception {
         return yt.writeTable(WriteTable.<TableRow>builder()
                 .setPath(tablePath)
-                .setSerializationContext(new WriteTable.SerializationContext<>(
+                .setSerializationContext(new SerializationContext<>(
                         YTreeObjectSerializerFactory.forClass(TableRow.class)))
                 .setNeedRetries(true)
                 .build()
@@ -884,12 +885,12 @@ public class RetryingTableWriterTest extends YtClientTestBase {
     }
 
     private AsyncWriter<TableRow> writeTableV2(TransactionalClient yt,
-                                             YPath tablePath,
-                                             int maxWritesInFlight,
-                                             int chunkSize) throws Exception {
+                                               YPath tablePath,
+                                               int maxWritesInFlight,
+                                               int chunkSize) throws Exception {
         return yt.writeTableV2(WriteTable.<TableRow>builder()
                 .setPath(tablePath)
-                .setSerializationContext(new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(TableRow.class)))
+                .setSerializationContext(new SerializationContext<>(YTreeObjectSerializerFactory.forClass(TableRow.class)))
                 .setNeedRetries(true)
                 .setMaxWritesInFlight(maxWritesInFlight)
                 .setChunkSize(chunkSize)
@@ -900,7 +901,7 @@ public class RetryingTableWriterTest extends YtClientTestBase {
     private AsyncWriter<TableRow> writeTableV2(YtClient yt, YPath tablePath) throws Exception {
         return yt.writeTableV2(WriteTable.<TableRow>builder()
                 .setPath(tablePath)
-                .setSerializationContext(new WriteTable.SerializationContext<>(YTreeObjectSerializerFactory.forClass(TableRow.class)))
+                .setSerializationContext(new SerializationContext<>(YTreeObjectSerializerFactory.forClass(TableRow.class)))
                 .setNeedRetries(true)
                 .build()
         ).get(defaultFutureTimeoutSeconds, TimeUnit.SECONDS);

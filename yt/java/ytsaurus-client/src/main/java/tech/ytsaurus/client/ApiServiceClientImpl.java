@@ -1019,7 +1019,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
         Optional<TableAttachmentReader<T>> attachmentReader = req.getSerializationContext().getAttachmentReader();
         if (attachmentReader.isEmpty()) {
-            Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getSerializer();
+            Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getYtreeSerializer();
             if (serializer.isPresent()) {
                 attachmentReader = Optional.of(new TableAttachmentWireProtocolReader<>(
                         serializationResolver.createWireRowDeserializer(serializer.get())));
@@ -1030,10 +1030,10 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         if (attachmentReader.isPresent()) {
             tableReader = new TableReaderImpl<>(attachmentReader.get());
         } else {
-            if (req.getSerializationContext().getObjectClazz().isEmpty()) {
+            if (req.getSerializationContext().getObjectClass().isEmpty()) {
                 throw new IllegalArgumentException("No object clazz");
             }
-            tableReader = new TableReaderImpl<>(req, req.getSerializationContext().getObjectClazz().get());
+            tableReader = new TableReaderImpl<>(req, req.getSerializationContext().getObjectClass().get());
         }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<TableReader<T>> result = streamControlFuture.thenCompose(
@@ -1052,7 +1052,7 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
 
         Optional<TableAttachmentReader<T>> attachmentReader = req.getSerializationContext().getAttachmentReader();
         if (attachmentReader.isEmpty()) {
-            Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getSerializer();
+            Optional<YTreeSerializer<T>> serializer = req.getSerializationContext().getYtreeSerializer();
             if (serializer.isPresent()) {
                 attachmentReader = Optional.of(new TableAttachmentWireProtocolReader<>(
                         serializationResolver.createWireRowDeserializer(serializer.get())));
@@ -1063,11 +1063,11 @@ public class ApiServiceClientImpl implements ApiServiceClient, Closeable {
         if (attachmentReader.isPresent()) {
             tableReader = new AsyncTableReaderImpl<>(attachmentReader.get());
         } else {
-            if (req.getSerializationContext().getObjectClazz().isEmpty()) {
+            if (req.getSerializationContext().getObjectClass().isEmpty()) {
                 throw new IllegalArgumentException("No object clazz");
             }
             tableReader = new AsyncTableReaderImpl<>(req,
-                    req.getSerializationContext().getObjectClazz().get());
+                    req.getSerializationContext().getObjectClass().get());
         }
         CompletableFuture<RpcClientStreamControl> streamControlFuture = startStream(builder, tableReader);
         CompletableFuture<AsyncReader<T>> result = streamControlFuture.thenCompose(
