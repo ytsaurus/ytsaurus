@@ -29,7 +29,7 @@ public class RangeLimit {
     @SuppressWarnings("VisibilityModifier")
     public final long offset;
 
-    private RangeLimit(List<YTreeNode> key, @Nullable KeyBound keyBound, long rowIndex, long offset) {
+    RangeLimit(List<YTreeNode> key, @Nullable KeyBound keyBound, long rowIndex, long offset) {
         this.key = key;
         this.keyBound = keyBound;
         this.rowIndex = rowIndex;

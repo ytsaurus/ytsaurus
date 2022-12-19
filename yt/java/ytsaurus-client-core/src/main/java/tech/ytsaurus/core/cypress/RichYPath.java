@@ -1,6 +1,9 @@
 package tech.ytsaurus.core.cypress;
 
+import java.io.ByteArrayOutputStream;
+import java.nio.ByteBuffer;
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Collection;
 import java.util.HashMap;
 import java.util.List;
@@ -14,18 +17,17 @@ import java.util.stream.Stream;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.GUID;
+import tech.ytsaurus.yson.YsonTokenType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
+import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
 
-/**
- * @author sankear
- */
 @NonNullFields
 public class RichYPath implements YPath {
 
@@ -98,6 +100,7 @@ public class RichYPath implements YPath {
         if (o == null || getClass() != o.getClass()) {
             return false;
         }
+
         RichYPath richYPath = (RichYPath) o;
         return Objects.equals(rootDesignator, richYPath.rootDesignator)
                 && Objects.equals(relativePath, richYPath.relativePath)
@@ -548,6 +551,10 @@ public class RichYPath implements YPath {
         }
     }
 
+    public static YPath fromString(String data) {
+        return RichYPathParser.parse(data);
+    }
+
     private static YPath getRootDesignatorAndRelativePath(String path) {
         if (path.startsWith("/")) {
             return new RichYPath("/", getRelativePath(path, 1));
@@ -588,7 +595,7 @@ public class RichYPath implements YPath {
         return List.copyOf(result);
     }
 
-    private static YPath fromAttributes(YPath simplePath, Map<String, YTreeNode> attrs) {
+    static YPath fromAttributes(YPath simplePath, Map<String, YTreeNode> attrs) {
         Map<String, YTreeNode> attributes = new HashMap<>(attrs);
 
         Optional<Boolean> append = Optional.ofNullable(attributes.remove("append")).map(YTreeNode::boolValue);
@@ -602,14 +609,15 @@ public class RichYPath implements YPath {
         Optional<YTreeNode> rangesAttribute = Optional.ofNullable(attributes.remove("ranges"));
         if (rangesAttribute.isPresent()) {
             for (YTreeNode range : rangesAttribute.get().listNode()) {
-                Optional<RangeLimit> lower = getLimit(range, "lower_limit");
-                Optional<RangeLimit> upper = getLimit(range, "upper_limit");
-                if (lower.isPresent() && upper.isPresent()) {
-                    ranges.add(new Range(lower.get(), upper.get()));
-                }
+                RangeLimit lower = getLimit(range, "lower_limit");
+                RangeLimit upper = getLimit(range, "upper_limit");
+                RangeLimit exact = getLimit(range, "exact");
 
-                Optional<RangeLimit> exact = getLimit(range, "exact");
-                exact.ifPresent(rangeLimit -> ranges.add(new Exact(rangeLimit)));
+                if (exact != null) {
+                    ranges.add(new Exact(exact));
+                } else {
+                    ranges.add(Range.builder().setLowerLimit(lower).setUpperLimit(upper).build());
+                }
             }
         }
         Set<String> columns = Optional.ofNullable(attributes.remove("columns"))
@@ -667,10 +675,11 @@ public class RichYPath implements YPath {
         return result;
     }
 
-    private static Optional<RangeLimit> getLimit(YTreeNode node, String key) {
+    @Nullable
+    private static RangeLimit getLimit(YTreeNode node, String key) {
         final YTreeMapNode parentMapNode = node.mapNode();
         if (!parentMapNode.containsKey(key)) {
-            return Optional.empty();
+            return null;
         }
         YTreeMapNode mapNode = parentMapNode.getOrThrow(key).mapNode();
         List<YTreeNode> limitKey = new ArrayList<>();
@@ -685,7 +694,171 @@ public class RichYPath implements YPath {
         if (mapNode.containsKey("offset")) {
             offset = mapNode.getOrThrow("offset").longValue();
         }
-        return Optional.of(RangeLimit.builder().setKey(limitKey).setRowIndex(rowIndex).setOffset(offset).build());
+        return RangeLimit.builder().setKey(limitKey).setRowIndex(rowIndex).setOffset(offset).build();
     }
 }
 
+enum TokenType {
+    Literal,
+    Slash,
+    Ampersand,
+    At,
+    Asterisk,
+    StartOfStream,
+    EndOfStream,
+    Range;
+
+    public static TokenType fromByte(byte sym) {
+        switch (sym) {
+            case '/': return Slash;
+            case '@': return At;
+            case '&': return Ampersand;
+            case '*': return Asterisk;
+            default: {
+                throw new RuntimeException(String.format("Impossible to convert '%s' to TokenType", sym));
+            }
+        }
+    }
+}
+
+@NonNullApi
+@NonNullFields
+class YPathTokenizer {
+    private final byte[] input;
+    private TokenType type = TokenType.StartOfStream;
+    private TokenType previousType = TokenType.StartOfStream;
+    private int tokenLength = 0;
+    private int inputShift = 0;
+    private ByteArrayOutputStream literalValue = new ByteArrayOutputStream();
+
+    YPathTokenizer(byte[] path) {
+        this.input = path;
+    }
+
+    TokenType advance() {
+        this.inputShift += tokenLength;
+        literalValue = new ByteArrayOutputStream();
+        if (inputShift == input.length) {
+            setType(TokenType.EndOfStream);
+            tokenLength = 0;
+            return type;
+        }
+
+        setType(TokenType.Literal);
+        boolean proceed = true;
+
+        int currentIndex = 0;
+        while (proceed && inputShift + currentIndex < input.length) {
+            byte currentSymbol = input[inputShift + currentIndex];
+            var currentToken = YsonTokenType.fromSymbol(currentSymbol);
+            if (currentToken == RichYPathTags.BEGIN_COLUMN_SELECTOR_TOKEN
+                    || currentToken == RichYPathTags.BEGIN_ROW_SELECTOR_TOKEN) {
+                if (currentIndex == 0) {
+                    setType(TokenType.Range);
+                    currentIndex = input.length - inputShift;
+                }
+                proceed = false;
+                continue;
+            }
+
+            switch (currentSymbol) {
+                case '/':
+                case '@':
+                case '&':
+                case '*': {
+                    if (currentIndex == 0) {
+                        this.tokenLength = 1;
+                        setType(TokenType.fromByte(currentSymbol));
+                        return type;
+                    }
+                    proceed = false;
+                    break;
+                }
+                case '\\': {
+                    currentIndex = advanceEscaped(currentIndex);
+                    break;
+                }
+                default: {
+                    literalValue.write(input[inputShift + currentIndex]);
+                    ++currentIndex;
+                    break;
+                }
+            }
+        }
+        tokenLength = currentIndex;
+        return type;
+    }
+
+    private int advanceEscaped(int currentIndex) {
+        if (input[inputShift + currentIndex] != '\\') {
+            throw new IllegalStateException("'\\' was expected in advanceEscaped");
+        }
+        ++currentIndex;
+        if (inputShift + currentIndex == input.length) {
+            throw new IllegalArgumentException("Unexpected end-of-string in YPath while parsing escape sequence");
+        }
+        if (isSpecialCharacter(input[inputShift + currentIndex])) {
+            literalValue.write(input[inputShift + currentIndex]);
+            ++currentIndex;
+        } else {
+            if (input[inputShift + currentIndex] == 'x') {
+                if (currentIndex + 2 >= input.length) {
+                    throwMalformedEscapeSequence(ByteBuffer.wrap(input, inputShift + currentIndex - 1, input.length));
+                }
+                ByteBuffer context = ByteBuffer.wrap(
+                        input, inputShift + currentIndex - 1, inputShift + currentIndex + 3);
+                int hi = parseHexDigit(input[inputShift + currentIndex + 1], context);
+                int lo = parseHexDigit(input[inputShift + currentIndex + 2], context);
+                literalValue.write((hi << 4) + lo);
+                currentIndex += 3;
+            } else {
+                throwMalformedEscapeSequence(ByteBuffer.wrap(
+                        input, inputShift + currentIndex - 1, inputShift + currentIndex + 1));
+            }
+        }
+        return currentIndex;
+    }
+
+    private void throwMalformedEscapeSequence(ByteBuffer context) {
+        throw new RuntimeException(String.format("Malformed escape sequence %s in YPath", context));
+    }
+
+    private int parseHexDigit(byte ch, ByteBuffer context) {
+        if (ch >= '0' && ch <= '9') {
+            return ch - '0';
+        }
+
+        if (ch >= 'a' && ch <= 'f') {
+            return ch - 'a' + 10;
+        }
+
+        if (ch >= 'A' && ch <= 'F') {
+            return ch - 'A' + 10;
+        }
+
+        throwMalformedEscapeSequence(context);
+        return 0;
+    }
+
+    private boolean isSpecialCharacter(byte ch) {
+        return ch == '\\' || ch == '/' || ch == '@' || ch == '*' || ch == '&' || ch == '[' || ch == '{';
+    }
+
+    void setType(TokenType type) {
+        this.previousType = this.type;
+        this.type = type;
+    }
+
+    TokenType getType() {
+        return type;
+    }
+
+    @Nullable
+    byte[] getToken() {
+        return tokenLength > 0 ? Arrays.copyOfRange(input, inputShift, inputShift + tokenLength) : null;
+    }
+
+    byte[] getPrefix() {
+        return Arrays.copyOfRange(input, 0, inputShift);
+    }
+}

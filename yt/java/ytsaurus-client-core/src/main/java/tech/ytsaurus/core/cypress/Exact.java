@@ -22,6 +22,10 @@ public class Exact extends RangeCriteria {
         this.exact = exact;
     }
 
+    public static Exact of(RangeLimit exact) {
+        return new Exact(exact);
+    }
+
     @Override
     public boolean equals(Object o) {
         if (this == o) {

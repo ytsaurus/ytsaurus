@@ -9,9 +9,6 @@ import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.ysontree.YTree;
 
-/**
- * @author sankear
- */
 public class RichYPathTest {
 
     private static final List<RangeCriteria> DEFAULT_RANGES = List.of(new Range(RangeLimit.row(1),
@@ -183,7 +180,7 @@ public class RichYPathTest {
     @Test
     public void sortedBy() {
         Assert.assertEquals(path(true, false,
-                DEFAULT_RANGES, DEFAULT_COLUMNS, "/", DEFAULT_RELATIVE_PATH, false, Arrays.asList("c12"),
+                DEFAULT_RANGES, DEFAULT_COLUMNS, "/", DEFAULT_RELATIVE_PATH, false, List.of("c12"),
                 DEFAULT_TIMESTAMP),
                 defaultPath().sortedBy("c12"));
     }
@@ -198,14 +195,14 @@ public class RichYPathTest {
     @Test
     public void toTree() {
         Assert.assertEquals(defaultPath(), YPath.fromTree(defaultPath().toTree()));
-        YPath path = path(true, false, Arrays.asList(), List.of(), "/", DEFAULT_RELATIVE_PATH, false, DEFAULT_SORTED_BY,
+        YPath path = path(true, false, List.of(), List.of(), "/", DEFAULT_RELATIVE_PATH, false, DEFAULT_SORTED_BY,
                 DEFAULT_TIMESTAMP);
         Assert.assertEquals(path, YPath.fromTree(path.toTree()));
-        path = path(true, false, Arrays.asList(), List.of("c1", "c2"), "/", DEFAULT_RELATIVE_PATH, false,
+        path = path(true, false, List.of(), List.of("c1", "c2"), "/", DEFAULT_RELATIVE_PATH, false,
                 DEFAULT_SORTED_BY,
                 DEFAULT_TIMESTAMP);
         Assert.assertEquals(path, YPath.fromTree(path.toTree()));
-        path = path(true, true, Arrays.asList(), List.of("c1", "c2"), "/", DEFAULT_RELATIVE_PATH, false,
+        path = path(true, true, List.of(), List.of("c1", "c2"), "/", DEFAULT_RELATIVE_PATH, false,
                 DEFAULT_SORTED_BY,
                 DEFAULT_TIMESTAMP);
         Assert.assertEquals(path, YPath.fromTree(path.toTree()));

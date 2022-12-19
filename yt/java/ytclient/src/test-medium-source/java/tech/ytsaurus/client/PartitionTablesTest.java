@@ -53,7 +53,9 @@ public class PartitionTablesTest {
     public void testBasic() {
         YPath tablePath = YPath.simple("//tmp/partition-test-table");
 
-        yt.createNode(tablePath.justPath().toString(), CypressNodeType.TABLE).join();
+        if (!yt.existsNode(tablePath.justPath().toString()).join()) {
+            yt.createNode(tablePath.justPath().toString(), CypressNodeType.TABLE).join();
+        }
         var schema = TableSchema.newBuilder().add(new ColumnSchema("value", TiType.string())).build();
 
         TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(tablePath, YTreeMapNode.class)).join();
@@ -84,9 +86,11 @@ public class PartitionTablesTest {
                 new PartitionTables(List.of(tablePath), PartitionTablesMode.Unordered, DataSize.fromBytes(10))
         ).join();
 
+        var resultPaths = result.stream().map(MultiTablePartition::getTableRanges).collect(Collectors.toList());
+
         Assert.assertEquals(List.of(
                 List.of(tablePath.withRange(RangeLimit.row(0), RangeLimit.row(3))),
                 List.of(tablePath.withRange(RangeLimit.row(3), RangeLimit.row(6)))
-        ), result.stream().map(MultiTablePartition::getTableRanges).collect(Collectors.toList()));
+        ), resultPaths);
     }
 }

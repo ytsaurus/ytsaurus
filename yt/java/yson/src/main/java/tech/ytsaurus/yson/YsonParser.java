@@ -18,14 +18,8 @@ public class YsonParser {
     // NB. Yson specs:
     //     https://docs.yandex-team.ru/yt/description/common/yson
     //     https://wiki.yandex-team.ru/yt/internal/yson/
-    private static final char[] NAN_LITERAL = "%nan".toCharArray();
-    private static final char[] FALSE_LITERAL = "%false".toCharArray();
-    private static final char[] TRUE_LITERAL = "%true".toCharArray();
-    private static final char[] INF_LITERAL = "%inf".toCharArray();
-    private static final char[] PLUS_INF_LITERAL = "%+inf".toCharArray();
-    private static final char[] MINUS_INF_LITERAL = "%-inf".toCharArray();
 
-    private final YsonTokenizer tokenizer;
+    private final StreamReader tokenizer;
     private final BufferReference bufferReference = new BufferReference();
     private boolean expectFragmentSeparator = false;
 
@@ -50,7 +44,7 @@ public class YsonParser {
     }
 
     private YsonParser(ZeroCopyInput input) {
-        this.tokenizer = new YsonTokenizer(input);
+        this.tokenizer = new StreamReader(input);
     }
 
     /**
@@ -65,7 +59,7 @@ public class YsonParser {
 
         while (true) {
             int maybeByte = tokenizer.tryReadByte();
-            if (maybeByte == YsonTokenizer.END_OF_STREAM) {
+            if (maybeByte == StreamReader.END_OF_STREAM) {
                 break;
             }
             byte b = (byte) maybeByte;
@@ -73,6 +67,29 @@ public class YsonParser {
                 throw new YsonError(String.format("Unexpected trailing character: %s", debugByteString(b)));
             }
         }
+    }
+
+    /**
+     * Parse only attributes and return its size in bytes.
+     */
+    public int parseAttributes(YsonConsumer consumer) {
+        byte currentByte = skipWhitespaces();
+        if (currentByte == YsonTags.BEGIN_ATTRIBUTES) {
+            consumer.onBeginAttributes();
+            parseMapLikeImpl(YsonTags.END_ATTRIBUTES, consumer);
+            consumer.onEndAttributes();
+            skipWhitespaces();
+        }
+        tokenizer.unreadByte();
+        return tokenizer.getPosition();
+    }
+
+    private byte skipWhitespaces() {
+        byte currentByte = tokenizer.readByte();
+        while (isSpace(currentByte)) {
+            currentByte = tokenizer.readByte();
+        }
+        return currentByte;
     }
 
     /**
@@ -84,7 +101,7 @@ public class YsonParser {
     public void parseListFragment(YsonConsumer consumer) {
         while (true) {
             int maybeByte = moveToNextListItem(expectFragmentSeparator);
-            if (maybeByte == YsonTokenizer.END_OF_STREAM) {
+            if (maybeByte == StreamReader.END_OF_STREAM) {
                 return;
             }
             consumer.onListItem();
@@ -103,7 +120,7 @@ public class YsonParser {
      */
     public boolean parseListFragmentItem(YsonConsumer consumer) {
         int maybeByte = moveToNextListItem(expectFragmentSeparator);
-        if (maybeByte == YsonTokenizer.END_OF_STREAM) {
+        if (maybeByte == StreamReader.END_OF_STREAM) {
             return false;
         }
         parseNodeImpl(true, (byte) maybeByte, consumer);
@@ -172,27 +189,27 @@ public class YsonParser {
                 case '%':
                     currentByte = tokenizer.readByte();
                     if (currentByte == 'n') {
-                        verifyLiteral(2, NAN_LITERAL);
+                        verifyLiteral(2, YsonLexer.NAN_LITERAL);
                         consumer.onDouble(Double.NaN);
                         return;
                     } else if (currentByte == 't') {
-                        verifyLiteral(2, TRUE_LITERAL);
+                        verifyLiteral(2, YsonLexer.TRUE_LITERAL);
                         consumer.onBoolean(true);
                         return;
                     } else if (currentByte == 'f') {
-                        verifyLiteral(2, FALSE_LITERAL);
+                        verifyLiteral(2, YsonLexer.FALSE_LITERAL);
                         consumer.onBoolean(false);
                         return;
                     } else if (currentByte == 'i') {
-                        verifyLiteral(2, INF_LITERAL);
+                        verifyLiteral(2, YsonLexer.INF_LITERAL);
                         consumer.onDouble(Double.POSITIVE_INFINITY);
                         return;
                     } else if (currentByte == '+') {
-                        verifyLiteral(2, PLUS_INF_LITERAL);
+                        verifyLiteral(2, YsonLexer.PLUS_INF_LITERAL);
                         consumer.onDouble(Double.POSITIVE_INFINITY);
                         return;
                     } else if (currentByte == '-') {
-                        verifyLiteral(2, MINUS_INF_LITERAL);
+                        verifyLiteral(2, YsonLexer.MINUS_INF_LITERAL);
                         consumer.onDouble(Double.NEGATIVE_INFINITY);
                         return;
                     }
@@ -218,7 +235,7 @@ public class YsonParser {
         boolean expectSeparator = false;
         while (true) {
             int maybeByte = moveToNextListItem(expectSeparator);
-            if (maybeByte == YsonTokenizer.END_OF_STREAM) {
+            if (maybeByte == StreamReader.END_OF_STREAM) {
                 throw new YsonError("Unexpected end of stream");
             }
             byte b = (byte) maybeByte;
@@ -234,7 +251,7 @@ public class YsonParser {
     private int moveToNextListItem(boolean expectSeparator) {
         while (true) {
             int maybeByte = tokenizer.tryReadByte();
-            if (maybeByte == YsonTokenizer.END_OF_STREAM) {
+            if (maybeByte == StreamReader.END_OF_STREAM) {
                 return maybeByte;
             }
 
@@ -257,7 +274,7 @@ public class YsonParser {
         boolean expectSeparator = false;
         while (true) {
             int maybeByte = tokenizer.tryReadByte();
-            if (maybeByte == YsonTokenizer.END_OF_STREAM) {
+            if (maybeByte == StreamReader.END_OF_STREAM) {
                 throw new YsonError("Unexpected end of stream");
             }
             byte b = (byte) maybeByte;
@@ -376,7 +393,7 @@ public class YsonParser {
     private byte[] tryReadUnquotedString(byte firstByte) {
         boolean isUnquotedString = 'a' <= firstByte && firstByte <= 'z' ||
                 'A' <= firstByte && firstByte <= 'Z' ||
-                firstByte == '_' || firstByte == '/';
+                firstByte == '_';
         if (!isUnquotedString) {
             return null;
         }
@@ -385,7 +402,7 @@ public class YsonParser {
         out.write(firstByte);
         while (true) {
             int maybeByte = tokenizer.tryReadByte();
-            if (maybeByte == YsonTokenizer.END_OF_STREAM) {
+            if (maybeByte == StreamReader.END_OF_STREAM) {
                 break;
             }
             byte b = (byte) maybeByte;
@@ -394,8 +411,7 @@ public class YsonParser {
                     '0' <= b && b <= '9' ||
                     b == '_' ||
                     b == '.' ||
-                    b == '-' ||
-                    b == '/'
+                    b == '-'
             ) {
                 out.write(b);
             } else {
@@ -424,7 +440,7 @@ public class YsonParser {
         sb.append((char) firstByte);
         while (true) {
             int maybeByte = tokenizer.tryReadByte();
-            if (maybeByte == YsonTokenizer.END_OF_STREAM) {
+            if (maybeByte == StreamReader.END_OF_STREAM) {
                 break;
             }
             byte b = (byte) maybeByte;
@@ -626,169 +642,6 @@ class BufferReference {
     byte[] buffer = EMPTY_BUFFER;
     int length = 0;
     int offset = 0;
-}
-
-class YsonTokenizer {
-    public static final int END_OF_STREAM = Integer.MAX_VALUE;
-
-    private final ZeroCopyInput underlying;
-    private final BufferReference tmp = new BufferReference();
-
-    private byte[] buffer = BufferReference.EMPTY_BUFFER;
-    private int bufferOffset = 0;
-    private int bufferLength = 0;
-    private byte[] largeStringBuffer = BufferReference.EMPTY_BUFFER;
-
-    YsonTokenizer(ZeroCopyInput underlying) {
-        this.underlying = underlying;
-    }
-
-    public int tryReadByte() {
-        if (bufferOffset >= bufferLength) {
-            if (!nextBuffer()) {
-                return END_OF_STREAM;
-            }
-        }
-        return buffer[bufferOffset++];
-    }
-
-    public byte readByte() {
-        if (bufferOffset >= bufferLength) {
-            if (!nextBuffer()) {
-                throwUnexpectedEndOfStream();
-            }
-        }
-        return buffer[bufferOffset++];
-    }
-
-    public void unreadByte() {
-        if (bufferOffset == 0) {
-            throw new IllegalStateException();
-        }
-        --bufferOffset;
-    }
-
-    public void readBytes(int length, BufferReference out) {
-        if (bufferOffset + length <= bufferLength) {
-            out.buffer = buffer;
-            out.offset = bufferOffset;
-            out.length = length;
-            bufferOffset += length;
-        } else {
-            if (largeStringBuffer.length < length) {
-                largeStringBuffer = new byte[length];
-            }
-            int pos = 0;
-            while (pos < length) {
-                int toCopy = Math.min(bufferLength - bufferOffset, length - pos);
-                System.arraycopy(buffer, bufferOffset, largeStringBuffer, pos, toCopy);
-                pos += toCopy;
-                bufferOffset += toCopy;
-                if (pos < length) {
-                    if (!nextBuffer()) {
-                        throwUnexpectedEndOfStream();
-                    }
-                } else {
-                    break;
-                }
-            }
-
-            out.buffer = largeStringBuffer;
-            out.offset = 0;
-            out.length = length;
-        }
-    }
-
-    public long readVarUint64() {
-        fastPath:
-        {
-            int pos = bufferOffset;
-
-            if (bufferLength == pos) {
-                break fastPath;
-            }
-
-            long x;
-            int y;
-            if ((y = buffer[pos++]) >= 0) {
-                bufferOffset = pos;
-                return y;
-            } else if (bufferLength - pos < 9) {
-                break fastPath;
-            } else if ((x = y ^ (buffer[pos++] << 7)) < 0L) {
-                x ^= (~0L << 7);
-            } else if ((x ^= (buffer[pos++] << 14)) >= 0L) {
-                x ^= (~0L << 7) ^ (~0L << 14);
-            } else if ((x ^= (buffer[pos++] << 21)) < 0L) {
-                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21);
-            } else if ((x ^= ((long) buffer[pos++] << 28)) >= 0L) {
-                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28);
-            } else if ((x ^= ((long) buffer[pos++] << 35)) < 0L) {
-                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35);
-            } else if ((x ^= ((long) buffer[pos++] << 42)) >= 0L) {
-                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42);
-            } else if ((x ^= ((long) buffer[pos++] << 49)) < 0L) {
-                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42)
-                        ^ (~0L << 49);
-            } else {
-                x ^= ((long) buffer[pos++] << 56);
-                x ^= (~0L << 7) ^ (~0L << 14) ^ (~0L << 21) ^ (~0L << 28) ^ (~0L << 35) ^ (~0L << 42)
-                        ^ (~0L << 49) ^ (~0L << 56);
-                if (x < 0L) {
-                    if (buffer[pos++] < 0L) {
-                        break fastPath;  // Will throw malformed varint
-                    }
-                }
-            }
-            bufferOffset = pos;
-            return x;
-        }
-
-        // Slow path:
-        long result = 0;
-        for (int shift = 0; shift < 64; shift += 7) {
-            final byte b = readByte();
-            result |= (long) (b & 0x7F) << shift;
-            if ((b & 0x80) == 0) {
-                return result;
-            }
-        }
-        throw new YsonError("Malformed varint");
-    }
-
-    private void throwUnexpectedEndOfStream() {
-        throw new YsonError("Unexpected end of stream");
-    }
-
-    @SuppressWarnings("BooleanMethodIsAlwaysInverted")
-    private boolean nextBuffer() {
-        boolean read = underlying.next(tmp);
-        if (read) {
-            buffer = tmp.buffer;
-            bufferOffset = tmp.offset;
-            bufferLength = tmp.length;
-        }
-        return read;
-    }
-
-    public long readFixed64() {
-        long bits = 0;
-        if (bufferOffset + 8 <= bufferLength) {
-            bits |= (buffer[bufferOffset++] & 0xFF);
-            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 8;
-            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 16;
-            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 24;
-            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 32;
-            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 40;
-            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 48;
-            bits |= (long) (buffer[bufferOffset++] & 0xFF) << 56;
-        } else {
-            for (int i = 0; i < 64; i += 8) {
-                bits |= (long) (readByte() & 0xFF) << i;
-            }
-        }
-        return bits;
-    }
 }
 
 interface ZeroCopyInput {
