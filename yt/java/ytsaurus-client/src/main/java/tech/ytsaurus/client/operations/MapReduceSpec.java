@@ -281,28 +281,49 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
             return new MapReduceSpec(this);
         }
 
+        /**
+         * Set a list of columns by which reduce is carried out;
+         */
         public T setReduceBy(List<String> reduceBy) {
             this.reduceBy = new ArrayList<>(reduceBy);
             return self();
         }
 
+        /**
+         * @see Builder#setReduceBy(List)
+         */
         public T setReduceBy(String... reduceBy) {
             return setReduceBy(Arrays.asList(reduceBy));
         }
 
+        /**
+         * Set a list of columns by which the input tables are to be sorted.
+         * The option enables an additional check for sorting of input tables
+         * and guarantees that rows are sorted by a given set of columns inside a user script.
+         * The reduceBy sequence of columns must be a prefix of the sortBy sequence of columns.
+         */
         public T setSortByColumns(List<SortColumn> sortBy) {
             this.sortBy = new ArrayList<>(sortBy);
             return self();
         }
 
+        /**
+         * @see Builder#setSortByColumns(List)
+         */
         public T setSortByColumns(SortColumn... sortBy) {
             return setSortByColumns(Arrays.asList(sortBy));
         }
 
+        /**
+         * @see Builder#setSortByColumns(List)
+         */
         public T setSortBy(List<String> sortBy) {
             return setSortByColumns(SortColumn.convert(sortBy));
         }
 
+        /**
+         * @see Builder#setSortByColumns(List)
+         */
         public T setSortBy(String... sortBy) {
             return setSortBy(Arrays.asList(sortBy));
         }

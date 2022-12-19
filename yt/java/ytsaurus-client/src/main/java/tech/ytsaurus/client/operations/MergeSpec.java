@@ -18,19 +18,22 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable merge spec.
+ */
 @NonNullApi
 @NonNullFields
 public class MergeSpec extends SystemOperationSpecBase implements Spec {
-    private final @Nullable
-    Integer jobCount;
+    @Nullable
+    private final Integer jobCount;
     private final MergeMode mergeMode;
     private final boolean combineChunks;
 
     private final List<String> mergeBy;
-    private final @Nullable
-    DataSize maxDataSizePerJob;
-    private final @Nullable
-    JobIo jobIo;
+    @Nullable
+    private final DataSize maxDataSizePerJob;
+    @Nullable
+    private final JobIo jobIo;
 
     public MergeSpec(List<YPath> inputTables, YPath outputTable) {
         this(builder().setInputTables(inputTables).setOutputTable(outputTable));
@@ -95,6 +98,9 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
         return Optional.ofNullable(jobIo);
     }
 
+    /**
+     * Create output table if it doesn't exist and convert spec to yson.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         yt.createNode(CreateNode.builder()
@@ -103,7 +109,8 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
                 .setAttributes(getOutputTableAttributes())
                 .setRecursive(true)
                 .setIgnoreExisting(true)
-                .build());
+                .build()).join();
+
         return builder.beginMap()
                 .when(jobCount != null, b -> b.key("job_count").value(jobCount))
                 .key("mode").value(mergeMode.value())
@@ -176,6 +183,10 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
             return self();
         }
 
+        /**
+         * Set job I/O options.
+         * @see JobIo
+         */
         public T setJobIo(JobIo jobIo) {
             this.jobIo = jobIo;
             return self();

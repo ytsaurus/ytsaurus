@@ -10,7 +10,7 @@ import tech.ytsaurus.rpcproxy.TReqAbortOperation;
  * Immutable abort operation request.
  * <p>
  *
- * @see tech.ytsaurus.ytclient.proxy.ApiServiceClient#abortOperation(AbortOperation)
+ * @see tech.ytsaurus.client.ApiServiceClient#abortOperation(AbortOperation)
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_operation">
  * abort_op documentation
  * </a>

@@ -10,7 +10,9 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
-// Base class for map and reduce operations spec
+/**
+ * Base class for map and reduce operations spec
+ */
 @NonNullApi
 @NonNullFields
 public class SimpleUserOperationSpecBase extends UserOperationSpecBase {
@@ -29,18 +31,30 @@ public class SimpleUserOperationSpecBase extends UserOperationSpecBase {
         maxDataSizePerJob = builder.maxDataSizePerJob;
     }
 
+    /**
+     * @see Builder#setJobCount(Integer)
+     */
     public Optional<Integer> getJobCount() {
         return Optional.ofNullable(jobCount);
     }
 
+    /**
+     * @see Builder#setMaxDataSizePerJob(DataSize)
+     */
     public Optional<DataSize> getMaxDataSizePerJob() {
         return Optional.ofNullable(maxDataSizePerJob);
     }
 
+    /**
+     * @see Builder#setDataSizePerJob(DataSize)
+     */
     public Optional<DataSize> getDataSizePerJob() {
         return Optional.ofNullable(dataSizePerJob);
     }
 
+    /**
+     * Convert to yson.
+     */
     protected YTreeBuilder dumpToSpec(YTreeBuilder mapBuilder, SpecPreparationContext context) {
         return mapBuilder
                 .key("started_by").apply(b -> SpecUtils.startedBy(b, context))
@@ -62,16 +76,32 @@ public class SimpleUserOperationSpecBase extends UserOperationSpecBase {
         private @Nullable
         DataSize dataSizePerJob;
 
+        /**
+         * Set how many jobs should be run. It is more prior than dataSizePerJob option.
+         * It is advisory option.
+         * There is a guarantee that if jobCount <= total input row count than job count will be exactly `jobCount`
+         * if it does not contradict the restriction on the maximum number of jobs in the operation.
+         */
         public T setJobCount(@Nullable Integer jobCount) {
             this.jobCount = jobCount;
             return self();
         }
 
+        /**
+         * Set maximum allowed size of input data for one job.
+         * This option sets a hard upper bound on the size of the job.
+         * If the scheduler fails to generate a smaller job, the operation will fail.
+         */
         public T setMaxDataSizePerJob(@Nullable DataSize maxDataSizePerJob) {
             this.maxDataSizePerJob = maxDataSizePerJob;
             return self();
         }
 
+        /**
+         * Set data size per job.
+         * It is advisory option.
+         * @see Builder#setJobCount
+         */
         public T setDataSizePerJob(@Nullable DataSize dataSizePerJob) {
             this.dataSizePerJob = dataSizePerJob;
             return self();
