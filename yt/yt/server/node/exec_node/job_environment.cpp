@@ -338,6 +338,32 @@ private:
     }
 };
 
+class TTestingJobEnvironment
+    : public TSimpleJobEnvironment
+{
+public:
+    TTestingJobEnvironment(
+        TTestingJobEnvironmentConfigPtr config,
+        IBootstrap* bootstrap)
+        : TSimpleJobEnvironment(config, bootstrap)
+        , Config_(std::move(config))
+    { }
+
+    i64 GetMajorPageFaultCount() const override
+    {
+        if (Config_->TestingJobEnvironmentScenario == ETestingJobEnvironmentScenario::IncreasingMajorPageFaultCount) {
+            MajorPageFaultCount_ += 1000;
+        }
+
+        return MajorPageFaultCount_;
+    }
+
+private:
+    const TTestingJobEnvironmentConfigPtr Config_;
+
+    mutable i64 MajorPageFaultCount_ = 0;
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 #ifdef _linux_
@@ -782,6 +808,13 @@ IJobEnvironmentPtr CreateJobEnvironment(INodePtr configNode, IBootstrap* bootstr
 #else
             THROW_ERROR_EXCEPTION("Porto is not supported for this platform");
 #endif
+        }
+
+        case EJobEnvironmentType::Testing: {
+            auto simpleConfig = ConvertTo<TTestingJobEnvironmentConfigPtr>(configNode);
+            return New<TTestingJobEnvironment>(
+                simpleConfig,
+                bootstrap);
         }
 
         default:

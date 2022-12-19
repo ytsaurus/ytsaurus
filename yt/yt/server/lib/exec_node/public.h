@@ -63,6 +63,7 @@ DEFINE_ENUM(ESandboxKind,
 DEFINE_ENUM(EJobEnvironmentType,
     (Simple)
     (Porto)
+    (Testing)
 );
 
 DEFINE_ENUM(EUserJobSensorSource,
@@ -81,6 +82,7 @@ DECLARE_REFCOUNTED_CLASS(TSlotLocationConfig)
 DECLARE_REFCOUNTED_CLASS(TNumaNodeConfig)
 DECLARE_REFCOUNTED_CLASS(TJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSimpleJobEnvironmentConfig)
+DECLARE_REFCOUNTED_CLASS(TTestingJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TPortoJobEnvironmentConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TSlotManagerTestingConfig)
