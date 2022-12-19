@@ -1935,6 +1935,10 @@ private:
                 epochContext.Get(),
                 Logger,
                 Profiler_);
+            if (ReadOnly_) {
+                epochContext->LeaderCommitter->SetReadOnly();
+            }
+
             epochContext->LeaderCommitter->SubscribeLoggingFailed(
                 BIND(&TDistributedHydraManager::OnLoggingFailed, MakeWeak(this)));
 
@@ -2509,7 +2513,6 @@ private:
 
         LeaderRecovered_ = false;
         FollowerRecovered_ = false;
-        ReadOnly_ = false;
         GraceDelayStatus_ = EGraceDelayStatus::None;
 
         SystemLockGuard_.Release();
