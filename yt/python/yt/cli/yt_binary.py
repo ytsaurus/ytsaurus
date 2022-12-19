@@ -1073,6 +1073,7 @@ def add_lookup_rows_parser(add_parser):
     add_ypath_argument(parser, "table", hybrid=True)
     add_format_argument(parser, help="input format")
     parser.add_argument("--versioned", action="store_true", help="return all versions of the requested rows")
+    parser.add_argument("--column-name", action="append", help="column name to lookup", dest="column_names")
     parser.set_defaults(input_stream=get_binary_std_stream(sys.stdin))
 
     error_message = "Use 'lookup-rows' instead of 'lookup'"
