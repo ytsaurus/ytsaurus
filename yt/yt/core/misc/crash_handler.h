@@ -14,7 +14,7 @@ namespace NYT {
 // Dumps signal, stack frame information and codicils.
 void CrashSignalHandler(int signal, siginfo_t* si, void* uc);
 #else
-void CrashSignalHandler(int signal, int subcode);
+void CrashSignalHandler(int signal);
 #endif
 
 void DumpCodicils();

@@ -523,10 +523,9 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 #endif
 
 #ifdef _win_
-void CrashSignalHandler(int signal, int subcode)
+void CrashSignalHandler(int signal)
 {
     Y_UNUSED(signal);
-    Y_UNUSED(subcode);
     return;
 }
 #endif
