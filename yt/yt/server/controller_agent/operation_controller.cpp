@@ -88,6 +88,7 @@ void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationC
     resultProto->set_suspend(result.Suspend);
     ToProto(resultProto->mutable_initial_composite_needed_resources(), result.InitialNeededResources);
     ToProto(resultProto->mutable_initial_aggregated_min_needed_resources(), result.InitialAggregatedMinNeededResources);
+    ToProto(resultProto->mutable_initial_min_needed_job_resources(), result.InitialMinNeededJobResources);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -109,6 +110,7 @@ void ToProto(NProto::TReviveOperationResult* resultProto, const TOperationContro
     }
     ToProto(resultProto->mutable_revived_banned_tree_ids(), result.RevivedBannedTreeIds);
     ToProto(resultProto->mutable_composite_needed_resources(), result.NeededResources);
+    ToProto(resultProto->mutable_min_needed_job_resources(), result.MinNeededJobResources);
     resultProto->set_controller_epoch(result.ControllerEpoch);
 }
 

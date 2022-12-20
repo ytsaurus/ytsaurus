@@ -1220,6 +1220,7 @@ TOperationControllerMaterializeResult TOperationControllerBase::SafeMaterialize(
     result.Suspend = Spec_->SuspendOperationAfterMaterialization;
     result.InitialNeededResources = GetNeededResources();
     result.InitialAggregatedMinNeededResources = GetAggregatedMinNeededJobResources();
+    result.InitialMinNeededJobResources = GetMinNeededJobResources();
 
     YT_LOG_INFO("Materialization finished");
 
@@ -1340,6 +1341,8 @@ TOperationControllerReviveResult TOperationControllerBase::Revive()
             joblet->NodeDescriptor.Address
         });
     }
+
+    result.MinNeededJobResources = GetMinNeededJobResources();
 
     // Monitoring tags are transient by design.
     // So after revive we do reset the corresponding alert.

@@ -91,6 +91,7 @@ void FromProto(TOperationControllerMaterializeResult* result, const NControllerA
     result->Suspend = resultProto.suspend();
     result->InitialNeededResources = FromProto<TCompositeNeededResources>(resultProto.initial_composite_needed_resources());
     result->InitialAggregatedMinNeededResources = FromProto<TJobResources>(resultProto.initial_aggregated_min_needed_resources());
+    result->InitialMinNeededJobResources = FromProto<TJobResourcesWithQuotaList>(resultProto.initial_min_needed_job_resources());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -126,6 +127,7 @@ void FromProto(
     }
     result->RevivedBannedTreeIds = FromProto<THashSet<TString>>(resultProto.revived_banned_tree_ids());
     result->NeededResources = FromProto<TCompositeNeededResources>(resultProto.composite_needed_resources());
+    result->MinNeededJobResources = FromProto<TJobResourcesWithQuotaList>(resultProto.min_needed_job_resources());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

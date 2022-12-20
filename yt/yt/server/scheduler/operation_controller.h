@@ -95,6 +95,7 @@ struct TOperationControllerMaterializeResult
     bool Suspend = false;
     TCompositeNeededResources InitialNeededResources;
     TJobResources InitialAggregatedMinNeededResources;
+    TJobResourcesWithQuotaList InitialMinNeededJobResources;
 };
 
 void FromProto(TOperationControllerMaterializeResult* result, const NControllerAgent::NProto::TMaterializeOperationResult& resultProto);
@@ -108,6 +109,7 @@ struct TOperationControllerReviveResult
     std::vector<TJobPtr> RevivedJobs;
     THashSet<TString> RevivedBannedTreeIds;
     TCompositeNeededResources NeededResources;
+    TJobResourcesWithQuotaList MinNeededJobResources;
 };
 
 void FromProto(
@@ -195,7 +197,7 @@ struct IOperationController
      *  \note Thread affinity: any
      */
     virtual void OnJobFinished(const TJobPtr& job) = 0;
-    
+
     //! Called to notify the controller that a job has been aborted by scheduler.
     /*!
      *  \note Thread affinity: any
@@ -205,7 +207,7 @@ struct IOperationController
         const TError& error,
         bool scheduled,
         std::optional<EAbortReason> abortReason) = 0;
-    
+
     //! Called to proxy abandon job request to the controller agent.
     /*!
      *  \note Thread affinity: any
