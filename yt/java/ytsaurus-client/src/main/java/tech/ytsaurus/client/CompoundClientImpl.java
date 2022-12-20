@@ -19,6 +19,7 @@ import tech.ytsaurus.client.request.MountTable;
 import tech.ytsaurus.client.request.StartTransaction;
 import tech.ytsaurus.client.request.UnmountTable;
 import tech.ytsaurus.client.request.WriteTable;
+import tech.ytsaurus.client.rpc.RpcClient;
 import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.GUID;
 
@@ -38,6 +39,17 @@ public abstract class CompoundClientImpl extends ApiServiceClientImpl implements
             SerializationResolver serializationResolver
     ) {
         super(null, configuration, heavyExecutor, executorService, serializationResolver);
+        this.executorService = executorService;
+    }
+
+    public CompoundClientImpl(
+            RpcClient client,
+            ScheduledExecutorService executorService,
+            YtClientConfiguration configuration,
+            Executor heavyExecutor,
+            SerializationResolver serializationResolver
+    ) {
+        super(client, configuration, heavyExecutor, executorService, serializationResolver);
         this.executorService = executorService;
     }
 
