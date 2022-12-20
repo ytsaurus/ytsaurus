@@ -190,7 +190,7 @@ public:
             return;
         }
 
-        PrepareLockedRows(transaction, persistent);
+        PrepareLockedRows(transaction);
         PrepareLocklessRows(transaction, persistent);
 
         if (!persistent) {
@@ -336,11 +336,25 @@ public:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
+        // NB: Some keys may be both prelocked and referenced in write log
+        // in different generations, so we abort all locks and then relock
+        // records in write log again. See YT-18097 for better explanation
+        // of possible problem.
         AbortPrelockedRows(transaction);
+        AbortLockedRows(transaction);
 
         // If transaction is transient, it is going to be removed, so we drop its write states.
         if (transaction->GetTransient()) {
             EraseOrCrash(TransactionIdToTransientWriteState_, transaction->GetId());
+        }
+
+        if (const auto& writeState = FindTransactionPersistentWriteState(transaction->GetId())) {
+            for (const auto& writeRecord : writeState->LockedWriteLog) {
+                LockRows(transaction, writeRecord, /*relock*/ true);
+            }
+            if (writeState->RowsPrepared) {
+                PrepareLockedRows(transaction);
+            }
         }
     }
 
@@ -501,7 +515,7 @@ public:
             }
 
             if (writeState->RowsPrepared) {
-                PrepareLockedRows(transaction, /*persistent*/ true);
+                PrepareLockedRows(transaction);
                 PrepareLocklessRows(transaction, /*persistent*/ true, /*snapshotLoading*/ true);
             }
         }
@@ -948,10 +962,13 @@ private:
         }
     }
 
-    void LockRows(TTransaction* transaction, const TTransactionWriteRecord& writeRecord)
+    void LockRows(
+        TTransaction* transaction,
+        const TTransactionWriteRecord& writeRecord,
+        bool relock = false)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(HasHydraContext());
+        YT_VERIFY(HasHydraContext() || relock);
 
         auto reader = CreateWireProtocolReader(writeRecord.Data);
         auto context = CreateWriteContext(transaction);
@@ -966,10 +983,9 @@ private:
             context.RowCount);
     }
 
-    void PrepareLockedRows(TTransaction* transaction, bool persistent)
+    void PrepareLockedRows(TTransaction* transaction)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
-        YT_VERIFY(!persistent || HasHydraContext());
 
         auto transactionId = transaction->GetId();
 
