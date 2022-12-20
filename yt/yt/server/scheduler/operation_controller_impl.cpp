@@ -580,6 +580,10 @@ void TOperationControllerImpl::OnMaterializationFinished(const TErrorOr<TOperati
 
     if (resultOrError.IsOK()) {
         auto materializeResult = resultOrError.Value();
+
+        ControllerRuntimeData_->SetNeededResources(materializeResult.InitialNeededResources);
+        ControllerRuntimeData_->MinNeededJobResources() = materializeResult.InitialMinNeededJobResources;
+
         YT_LOG_DEBUG("Successful materialization result received ("
             "Suspend: %v, InitialNeededResources: %v, InitialAggregatedMinNeededResources: %v)",
             materializeResult.Suspend,
@@ -599,8 +603,10 @@ void TOperationControllerImpl::OnRevivalFinished(const TErrorOr<TOperationContro
 
     if (resultOrError.IsOK()) {
         auto result = resultOrError.Value();
+
         // NB(eshcherbin): ControllerRuntimeData is used to pass NeededResources to MaterializeOperation().
         ControllerRuntimeData_->SetNeededResources(result.NeededResources);
+        ControllerRuntimeData_->MinNeededJobResources() = result.MinNeededJobResources;
 
         YT_LOG_DEBUG(
             "Successful revival result received "

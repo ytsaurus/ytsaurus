@@ -83,6 +83,7 @@ struct TOperationControllerMaterializeResult
     bool Suspend = false;
     NScheduler::TCompositeNeededResources InitialNeededResources;
     TJobResources InitialAggregatedMinNeededResources;
+    NScheduler::TJobResourcesWithQuotaList InitialMinNeededJobResources;
 };
 
 void ToProto(NProto::TMaterializeOperationResult* resultProto, const TOperationControllerMaterializeResult& result);
@@ -108,6 +109,7 @@ struct TOperationControllerReviveResult
     std::vector<TRevivedJob> RevivedJobs;
     THashSet<TString> RevivedBannedTreeIds;
     NScheduler::TCompositeNeededResources NeededResources;
+    NScheduler::TJobResourcesWithQuotaList MinNeededJobResources;
     NScheduler::TControllerEpoch ControllerEpoch;
 };
 

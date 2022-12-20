@@ -51,6 +51,11 @@ public:
 public:
     TJobResourcesWithQuota() = default;
     TJobResourcesWithQuota(const TJobResources& jobResources);
+    TJobResourcesWithQuota(TJobResourcesWithQuota&&) noexcept = default;
+    TJobResourcesWithQuota(const TJobResourcesWithQuota&) = default;
+
+    TJobResourcesWithQuota& operator=(TJobResourcesWithQuota&&) noexcept = default;
+    TJobResourcesWithQuota& operator=(const TJobResourcesWithQuota&) = default;
 
     static TJobResourcesWithQuota Infinite();
 
