@@ -22,6 +22,8 @@
 #include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/query_client/explain.h>
 
+#include <yt/yt/ytlib/queue_client/registration_cache.h>
+
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
@@ -34,6 +36,7 @@
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
 #include <yt/yt/ytlib/hive/cell_directory.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/ytlib/hydra/config.h>
 
@@ -2265,8 +2268,12 @@ IQueueRowsetPtr TClient::DoPullQueue(
     i64 offset,
     int partitionIndex,
     TQueueRowBatchReadOptions rowBatchReadOptions,
-    const TPullQueueOptions& options)
+    const TPullQueueOptions& options,
+    bool checkPermissions)
 {
+    // Bypassing authentication is only possible when using the native tablet node api.
+    YT_VERIFY(checkPermissions || options.UseNativeTabletNodeApi);
+
     THROW_ERROR_EXCEPTION_IF(
         offset < 0,
         "Cannot read table %v at a negative offset %v",
@@ -2283,7 +2290,8 @@ IQueueRowsetPtr TClient::DoPullQueue(
             offset,
             partitionIndex,
             rowBatchReadOptions,
-            options);
+            options,
+            checkPermissions);
     } else {
         rowset = DoPullQueueViaSelectRows(
             queuePath,
@@ -2300,6 +2308,22 @@ IQueueRowsetPtr TClient::DoPullQueue(
     }
 
     return CreateQueueRowset(rowset, startOffset);
+}
+
+IQueueRowsetPtr TClient::DoPullQueueUnauthenticated(
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    TQueueRowBatchReadOptions rowBatchReadOptions,
+    const TPullQueueOptions& options)
+{
+    return DoPullQueue(
+        queuePath,
+        offset,
+        partitionIndex,
+        rowBatchReadOptions,
+        options,
+        /*checkPermissions*/ false);
 }
 
 IUnversionedRowsetPtr TClient::DoPullQueueViaSelectRows(
@@ -2339,7 +2363,8 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     i64 offset,
     int partitionIndex,
     const TQueueRowBatchReadOptions& rowBatchReadOptions,
-    const TPullQueueOptions& options)
+    const TPullQueueOptions& options,
+    bool checkPermissions)
 {
     const auto& tableMountCache = Connection_->GetTableMountCache();
     auto tableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
@@ -2348,14 +2373,16 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     tableInfo->ValidateDynamic();
     tableInfo->ValidateOrdered();
 
-    NSecurityClient::TPermissionKey permissionKey{
-        .Object = FromObjectId(tableInfo->TableId),
-        .User = Options_.GetAuthenticatedUser(),
-        .Permission = EPermission::Read,
-    };
-    const auto& permissionCache = Connection_->GetPermissionCache();
-    WaitFor(permissionCache->Get(permissionKey))
-        .ThrowOnError();
+    if (checkPermissions) {
+        NSecurityClient::TPermissionKey permissionKey{
+            .Object = FromObjectId(tableInfo->TableId),
+            .User = Options_.GetAuthenticatedUser(),
+            .Permission = EPermission::Read,
+        };
+        const auto& permissionCache = Connection_->GetPermissionCache();
+        WaitFor(permissionCache->Get(permissionKey))
+            .ThrowOnError();
+    }
 
     auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(partitionIndex);
 
@@ -2389,6 +2416,58 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaTabletNodeApi(
     return CreateRowset(
         tableInfo->Schemas[ETableSchemaKind::Query],
         MakeSharedRange(rows, reader->GetRowBuffer()));
+}
+
+IQueueRowsetPtr TClient::DoPullConsumer(
+    const NYPath::TRichYPath& consumerPath,
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullConsumerOptions& options)
+{
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto consumerTableInfo = WaitFor(tableMountCache->GetTableInfo(consumerPath.GetPath()))
+        .ValueOrThrow();
+
+    NSecurityClient::TPermissionKey permissionKey{
+        .Object = FromObjectId(consumerTableInfo->TableId),
+        .User = Options_.GetAuthenticatedUser(),
+        .Permission = EPermission::Read,
+    };
+    const auto& permissionCache = Connection_->GetPermissionCache();
+    WaitFor(permissionCache->Get(permissionKey))
+        .ThrowOnError();
+
+    auto registration = Connection_->GetQueueConsumerRegistrationCache()->GetRegistration(queuePath, consumerPath);
+    if (!registration) {
+        THROW_ERROR_EXCEPTION(
+            NYT::NSecurityClient::EErrorCode::AuthorizationError,
+            "Consumer %Qv is not registered for queue %Qv",
+            consumerPath,
+            queuePath);
+    }
+
+    auto queueClusterClient = MakeStrong(static_cast<IInternalClient*>(this));
+    if (auto queueCluster = queuePath.GetCluster()) {
+        auto queueClusterConnection = FindRemoteConnection(Connection_, *queueCluster);
+        YT_VERIFY(queueClusterConnection);
+
+        auto queueClientOptions = TClientOptions::FromUser(Options_.GetAuthenticatedUser());
+        queueClusterClient = DynamicPointerCast<IInternalClient>(queueClusterConnection->CreateNativeClient(queueClientOptions));
+        YT_VERIFY(queueClusterClient);
+    }
+
+    TPullQueueOptions pullQueueOptions = options;
+    pullQueueOptions.UseNativeTabletNodeApi = true;
+
+    return WaitFor(queueClusterClient->PullQueueUnauthenticated(
+        queuePath,
+        offset,
+        partitionIndex,
+        rowBatchReadOptions,
+        pullQueueOptions))
+        .ValueOrThrow();
 }
 
 std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(

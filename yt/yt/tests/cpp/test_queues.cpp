@@ -9,6 +9,10 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/comparator.h>
 
+#include <yt/yt/client/security_client/acl.h>
+
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/client/queue_client/partition_reader.h>
 #include <yt/yt/client/queue_client/consumer_client.h>
 
@@ -23,6 +27,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NQueueClient;
+using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTransactionClient;
 using namespace NYPath;
@@ -46,6 +51,8 @@ class TQueueTestBase
     : public TDynamicTablesTestBase
 {
 public:
+    static constexpr auto RegistrationTablePath = "//sys/queue_agents/consumer_registrations";
+
     static void SetUpTestCase()
     {
         TDynamicTablesTestBase::SetUpTestCase();
@@ -56,6 +63,8 @@ public:
             "[" // schema
             "{name=key;type=uint64;sort_order=ascending};"
             "{name=value;type=uint64}]");
+
+        CreateTableOnce(RegistrationTablePath, GetQueueAgentRegistrationTableSchema());
     }
 
     class TDynamicTable final
@@ -147,7 +156,7 @@ public:
         });
     }
 
-    auto CreateQueueAndConsumer(const TString& testName, bool useNativeTabletNodeApi, int queueTabletCount = 1)
+    auto CreateQueueAndConsumer(const TString& testName, std::optional<bool> useNativeTabletNodeApi = {}, int queueTabletCount = 1) const
     {
         auto queueAttributes = CreateEphemeralAttributes();
         queueAttributes->Set("tablet_count", queueTabletCount);
@@ -165,16 +174,230 @@ public:
             }, /*strict*/ true, /*uniqueKeys*/ true));
         WaitFor(Client_->SetNode(consumer->GetPath() + "/@target_queue", ConvertToYsonString("primary:" + queue->GetPath())))
             .ThrowOnError();
+        WaitFor(Client_->SetNode(queue->GetPath() + "/@inherit_acl", ConvertToYsonString(false)))
+            .ThrowOnError();
+        WaitFor(Client_->SetNode(consumer->GetPath() + "/@inherit_acl", ConvertToYsonString(false)))
+            .ThrowOnError();
 
         auto queueNameTable = TNameTable::FromSchema(*queue->GetSchema());
 
         return std::tuple{queue, consumer, queueNameTable};
     }
+
+    // NB: Only creates user once per test YT instance.
+    IClientPtr CreateUser(const TString& name) const
+    {
+        if (!WaitFor(Client_->NodeExists("//sys/users/" + name)).ValueOrThrow()) {
+            TCreateObjectOptions options;
+            auto attributes = CreateEphemeralAttributes();
+            attributes->Set("name", name);
+            options.Attributes = std::move(attributes);
+            WaitFor(Client_->CreateObject(NObjectClient::EObjectType::User, options))
+                .ThrowOnError();
+        }
+
+        return CreateClient(name);
+    }
+
+    void AssertPermission(const TString& user, const TYPath& path, EPermission permission, ESecurityAction action) const
+    {
+        auto permissionResponse = WaitFor(Client_->CheckPermission(user, path, permission))
+            .ValueOrThrow();
+        ASSERT_EQ(permissionResponse.Action, action);
+    }
+
+    void AssertPermissionAllowed(const TString& user, const TYPath& path, EPermission permission) const
+    {
+        AssertPermission(user, path, permission, ESecurityAction::Allow);
+    }
+
+    void AssertPermissionDenied(const TString& user, const TYPath& path, EPermission permission) const
+    {
+        AssertPermission(user, path, permission, ESecurityAction::Deny);
+    }
+
+    static const TTableSchemaPtr& GetQueueAgentRegistrationTableSchema()
+    {
+        static const TTableSchemaPtr RegistrationTableSchema = New<TTableSchema>(std::vector<TColumnSchema>{
+            TColumnSchema("queue_cluster", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("queue_path", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("consumer_cluster", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("consumer_path", EValueType::String, ESortOrder::Ascending),
+            TColumnSchema("vital", EValueType::Boolean),
+        });
+
+        return RegistrationTableSchema;
+    }
+
+    static void CreateTableOnce(const TYPath& path, const TTableSchemaPtr& schema)
+    {
+        if (!WaitFor(Client_->NodeExists(path)).ValueOrThrow()) {
+            TCreateNodeOptions options;
+            options.Attributes = CreateEphemeralAttributes();
+            options.Attributes->Set("dynamic", true);
+            options.Attributes->Set("schema", schema);
+            options.Recursive = true;
+            WaitFor(Client_->CreateNode(path, EObjectType::Table, options))
+                .ThrowOnError();
+            SyncMountTable(path);
+        }
+    }
+
+    // TODO(achulkov2): Remove once an actual api command for this is implemented.
+    void RegisterQueueConsumer(const TYPath& queue, const TYPath& consumer, bool vital = false) const
+    {
+        auto localCluster = ConvertTo<TString>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
+
+        auto nameTable = TNameTable::FromSchema(*GetQueueAgentRegistrationTableSchema());
+
+        WriteSingleRow(
+            RegistrationTablePath,
+            nameTable,
+            MakeUnversionedOwningRow(localCluster, queue, localCluster, consumer, vital));
+    }
+
+    // TODO(achulkov2): Remove once an actual api command for this is implemented.
+    void UnregisterQueueConsumer(const TYPath& queue, const TYPath& consumer) const
+    {
+        auto localCluster = ConvertTo<TString>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
+
+        auto nameTable = TNameTable::FromSchema(*GetQueueAgentRegistrationTableSchema());
+
+        auto row = MakeUnversionedOwningRow(localCluster, queue, localCluster, consumer);
+        TUnversionedRowsBuilder rowsBuilder;
+        rowsBuilder.AddRow(TUnversionedRow{row});
+
+        auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
+            .ValueOrThrow();
+        transaction->DeleteRows(RegistrationTablePath, nameTable, rowsBuilder.Build());
+
+        WaitFor(transaction->Commit())
+            .ThrowOnError();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_W(TQueueTestBase, Simple)
+using TQueueApiPermissionsTest = TQueueTestBase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_W(TQueueApiPermissionsTest, PullQueue)
+{
+    auto testUser = "u1";
+    auto userClient = CreateUser(testUser);
+
+    for (auto useNativeTabletNodeApi : std::vector<bool>{false, true}) {
+        auto [queue, _, queueNameTable] =
+            CreateQueueAndConsumer("PullQueue", useNativeTabletNodeApi);
+
+        WriteSingleRow(queue->GetPath(), queueNameTable, {"42u", "a"});
+        WriteSingleRow(queue->GetPath(), queueNameTable, {"43u", "b"});
+        WriteSingleRow(queue->GetPath(), queueNameTable, {"44u", "c"});
+
+        UnmountAndMount(queue->GetPath());
+
+        WriteSingleRow(queue->GetPath(), queueNameTable, {"45u", "d"});
+        WriteSingleRow(queue->GetPath(), queueNameTable, {"46u", "e"});
+
+        AssertPermissionDenied(testUser, queue->GetPath(), EPermission::Read);
+
+        auto rowsetOrError = WaitFor(userClient->PullQueue(queue->GetPath(), 0, 0, {}));
+        EXPECT_FALSE(rowsetOrError.IsOK());
+        EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
+
+        WaitFor(Client_->SetNode(
+            queue->GetPath() + "/@acl/end",
+            ConvertToYsonString(TSerializableAccessControlEntry(
+                ESecurityAction::Allow,
+                {testUser},
+                EPermission::Read))))
+            .ThrowOnError();
+
+        AssertPermissionAllowed(testUser, queue->GetPath(), EPermission::Read);
+
+        auto rowset = WaitFor(userClient->PullQueue(queue->GetPath(), 0, 0, {}))
+            .ValueOrThrow();
+        EXPECT_FALSE(rowset->GetRows().empty());
+
+        WaitFor(Client_->SetNode(
+            queue->GetPath() + "/@acl/end",
+            ConvertToYsonString(TSerializableAccessControlEntry(
+                ESecurityAction::Deny,
+                {testUser},
+                EPermission::Read))))
+            .ThrowOnError();
+
+        AssertPermissionDenied(testUser, queue->GetPath(), EPermission::Read);
+
+        rowsetOrError = WaitFor(userClient->PullQueue(queue->GetPath(), 0, 0, {}));
+        EXPECT_FALSE(rowsetOrError.IsOK());
+        EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
+    }
+}
+
+TEST_W(TQueueApiPermissionsTest, PullConsumer)
+{
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(15));
+
+    auto testUser = "u1";
+    auto userClient = CreateUser(testUser);
+
+    auto [queue, consumer, queueNameTable] =
+        CreateQueueAndConsumer("PullConsumer");
+
+    WriteSingleRow(queue->GetPath(), queueNameTable, {"42u", "a"});
+    WriteSingleRow(queue->GetPath(), queueNameTable, {"43u", "b"});
+    WriteSingleRow(queue->GetPath(), queueNameTable, {"44u", "c"});
+
+    UnmountAndMount(queue->GetPath());
+
+    WriteSingleRow(queue->GetPath(), queueNameTable, {"45u", "d"});
+    WriteSingleRow(queue->GetPath(), queueNameTable, {"46u", "e"});
+
+    AssertPermissionDenied(testUser, queue->GetPath(), EPermission::Read);
+    AssertPermissionDenied(testUser, consumer->GetPath(), EPermission::Read);
+
+    auto rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
+    EXPECT_FALSE(rowsetOrError.IsOK());
+    EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
+
+    WaitFor(Client_->SetNode(
+        consumer->GetPath() + "/@acl/end",
+        ConvertToYsonString(TSerializableAccessControlEntry(
+            ESecurityAction::Allow,
+            {testUser},
+            EPermission::Read))))
+        .ThrowOnError();
+
+    rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
+    EXPECT_FALSE(rowsetOrError.IsOK());
+    EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
+
+    RegisterQueueConsumer(queue->GetPath(), consumer->GetPath());
+    // Wait for registration cache to sync.
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
+
+    auto rowset = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}))
+        .ValueOrThrow();
+    EXPECT_FALSE(rowset->GetRows().empty());
+
+    UnregisterQueueConsumer(queue->GetPath(), consumer->GetPath());
+    // Wait for registration cache to sync.
+    TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
+
+    rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
+    EXPECT_FALSE(rowsetOrError.IsOK());
+    EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TPartitionReaderTest = TQueueTestBase;
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST_W(TPartitionReaderTest, Simple)
 {
     for (auto useNativeTabletNodeApi : std::vector<bool>{false, true}) {
         auto [queue, consumer, queueNameTable] =
@@ -214,7 +437,7 @@ TEST_W(TQueueTestBase, Simple)
     }
 }
 
-TEST_W(TQueueTestBase, HintBiggerThanMaxDataWeight)
+TEST_W(TPartitionReaderTest, HintBiggerThanMaxDataWeight)
 {
     for (auto useNativeTabletNodeApi : std::vector<bool>{false, true}) {
         auto [queue, consumer, queueNameTable] =
@@ -300,7 +523,7 @@ TEST_W(TQueueTestBase, HintBiggerThanMaxDataWeight)
     }
 }
 
-TEST_W(TQueueTestBase, MultiplePartitions)
+TEST_W(TPartitionReaderTest, MultiplePartitions)
 {
     for (auto useNativeTabletNodeApi : std::vector<bool>{false, true}) {
         auto [queue, consumer, _] =
@@ -413,7 +636,7 @@ TEST_W(TQueueTestBase, MultiplePartitions)
     }
 }
 
-TEST_W(TQueueTestBase, BatchSizesAreReasonable)
+TEST_W(TPartitionReaderTest, BatchSizesAreReasonable)
 {
     for (auto useNativeTabletNodeApi : std::vector<bool>{false, true}) {
         auto [queue, consumer, queueNameTable] =
@@ -498,7 +721,7 @@ TEST_W(TQueueTestBase, BatchSizesAreReasonable)
     }
 }
 
-TEST_W(TQueueTestBase, ReaderCatchingUp)
+TEST_W(TPartitionReaderTest, ReaderCatchingUp)
 {
     for (auto useNativeTabletNodeApi : std::vector<bool>{false, true}) {
         auto [queue, consumer, queueNameTable] =
@@ -547,7 +770,7 @@ TEST_W(TQueueTestBase, ReaderCatchingUp)
     }
 }
 
-TEST_W(TQueueTestBase, EmptyQueue)
+TEST_W(TPartitionReaderTest, EmptyQueue)
 {
     for (auto useNativeTabletNodeApi : std::vector<bool>{false, true}) {
         auto [queue, consumer, queueNameTable] =

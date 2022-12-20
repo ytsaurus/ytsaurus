@@ -39,6 +39,7 @@
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/yt/ytlib/queue_client/config.h>
+#include <yt/yt/ytlib/queue_client/registration_cache.h>
 
 #include <yt/yt/ytlib/yql_client/config.h>
 
@@ -104,6 +105,7 @@ using namespace NNodeTrackerClient;
 using namespace NObjectClient;
 using namespace NProfiling;
 using namespace NQueryClient;
+using namespace NQueueClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NScheduler;
@@ -188,6 +190,12 @@ public:
             GetNetworks());
 
         InitializeQueueAgentChannels();
+        QueueConsumerRegistrationCache_ = New<TQueueConsumerRegistrationCache>(
+            Config_->QueueAgent->RegistrationTable,
+            this,
+            GetInvoker(),
+            Logger);
+
         InitializeYqlAgentChannel();
 
         PermissionCache_ = New<TPermissionCache>(
@@ -447,6 +455,11 @@ public:
         return it->second;
     }
 
+    const TQueueConsumerRegistrationCachePtr& GetQueueConsumerRegistrationCache() const override
+    {
+        return QueueConsumerRegistrationCache_;
+    }
+
     const IChannelPtr& GetYqlAgentChannelOrThrow() const override
     {
         if (!YqlAgentChannel_) {
@@ -616,6 +629,9 @@ public:
     {
         Terminated_ = true;
 
+        QueueConsumerRegistrationCache_->Clear();
+        QueueConsumerRegistrationCache_->StopSync();
+
         ClusterDirectory_->Clear();
         ClusterDirectorySynchronizer_->Stop();
 
@@ -703,6 +719,7 @@ private:
 
     IChannelPtr SchedulerChannel_;
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
+    TQueueConsumerRegistrationCachePtr QueueConsumerRegistrationCache_;
     IChannelPtr YqlAgentChannel_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;

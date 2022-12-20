@@ -635,6 +635,11 @@ std::optional<TString> TRichYPath::GetCluster() const
     return FindAttribute<TString>(*this, "cluster");
 }
 
+void TRichYPath::SetCluster(const TString& value)
+{
+    Attributes().Set("cluster", value);
+}
+
 bool TRichYPath::GetCreate() const
 {
     return GetAttribute<bool>(*this, "create", false);
@@ -704,3 +709,8 @@ void FromProto(TRichYPath* path, const TString& protoPath)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath
+
+size_t THash<NYT::NYPath::TRichYPath>::operator()(const NYT::NYPath::TRichYPath& richYPath) const
+{
+    return ComputeHash(NYT::NYPath::ToString(richYPath));
+}

@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/program/helpers.h>
 
+#include <yt/yt/ytlib/queue_client/registration_cache.h>
+
 #include <yt/yt/library/auth_server/authentication_manager.h>
 #include <yt/yt/library/auth_server/config.h>
 #include <yt/yt/library/auth_server/cypress_cookie_login.h>
@@ -124,6 +126,7 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
     Connection_->GetClusterDirectorySynchronizer()->Start();
     // Force-start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
+    Connection_->GetQueueConsumerRegistrationCache()->StartSync();
     SetupClients();
 
     Coordinator_ = New<TCoordinator>(Config_, this);
@@ -141,6 +144,10 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         orchidRoot,
         "/dynamic_config_manager",
         CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/queue_consumer_registration_cache",
+        CreateVirtualNode(Connection_->GetQueueConsumerRegistrationCache()->GetOrchidService()));
 
     Config_->BusServer->Port = Config_->RpcPort;
     RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));

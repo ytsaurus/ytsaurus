@@ -21,6 +21,8 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
 
+#include <yt/yt/ytlib/queue_client/registration_cache.h>
+
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_directory_synchronizer.h>
@@ -133,6 +135,7 @@ void TBootstrap::DoRun()
 
     NativeConnection_->GetClusterDirectorySynchronizer()->Start();
     NativeConnection_->GetNodeDirectorySynchronizer()->Start();
+    NativeConnection_->GetQueueConsumerRegistrationCache()->StartSync();
 
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
@@ -193,6 +196,10 @@ void TBootstrap::DoRun()
         orchidRoot,
         "/dynamic_config_manager",
         CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
+        "/queue_consumer_registration_cache",
+        CreateVirtualNode(NativeConnection_->GetQueueConsumerRegistrationCache()->GetOrchidService()));
     SetBuildAttributes(
         orchidRoot,
         "proxy");

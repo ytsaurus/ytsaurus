@@ -251,7 +251,24 @@ public:
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options = {}),
+        (queuePath, offset, partitionIndex, rowBatchReadOptions, options, /*checkPermissions*/ true))
+
+    IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullQueueUnauthenticated, (
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options = {}),
         (queuePath, offset, partitionIndex, rowBatchReadOptions, options))
+
+    IMPLEMENT_METHOD(NQueueClient::IQueueRowsetPtr, PullConsumer, (
+        const NYPath::TRichYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullConsumerOptions& options = {}),
+        (consumerPath, queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
     IMPLEMENT_METHOD(TStartYqlQueryResult, StartYqlQuery, (
         const TString& query,
@@ -1005,6 +1022,14 @@ private:
         i64 offset,
         int partitionIndex,
         NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions,
+        const TPullQueueOptions& options,
+        bool checkPermissions);
+
+    NQueueClient::IQueueRowsetPtr DoPullQueueUnauthenticated(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        NQueueClient::TQueueRowBatchReadOptions rowBatchReadOptions,
         const TPullQueueOptions& options);
 
     IUnversionedRowsetPtr DoPullQueueViaSelectRows(
@@ -1019,7 +1044,16 @@ private:
         i64 offset,
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
-        const TPullQueueOptions& options);
+        const TPullQueueOptions& options,
+        bool checkPermissions = true);
+
+    NQueueClient::IQueueRowsetPtr DoPullConsumer(
+        const NYPath::TRichYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullConsumerOptions& options);
 
     //
     // Chaos

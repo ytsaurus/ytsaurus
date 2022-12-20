@@ -90,6 +90,17 @@ TFuture<NQueueClient::IQueueRowsetPtr> TDelegatingClient::PullQueue(
     return Underlying_->PullQueue(queuePath, offset, partitionIndex, rowBatchReadOptions, options);
 }
 
+TFuture<NQueueClient::IQueueRowsetPtr> TDelegatingClient::PullConsumer(
+    const NYPath::TRichYPath& consumerPath,
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullConsumerOptions& options)
+{
+    return Underlying_->PullConsumer(consumerPath, queuePath, offset, partitionIndex, rowBatchReadOptions, options);
+}
+
 TFuture<NYson::TYsonString> TDelegatingClient::GetNode(
     const NYPath::TYPath& path,
     const TGetNodeOptions& options)

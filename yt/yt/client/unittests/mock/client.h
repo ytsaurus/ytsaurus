@@ -66,6 +66,14 @@ public:
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options), (override));
 
+    MOCK_METHOD(TFuture<NQueueClient::IQueueRowsetPtr>, PullConsumer, (
+        const NYPath::TRichYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullConsumerOptions& options), (override));
+
     MOCK_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (
         const TString& query,
         const TExplainQueryOptions& options), (override));

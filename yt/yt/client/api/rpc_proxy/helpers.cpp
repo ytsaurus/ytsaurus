@@ -1205,6 +1205,28 @@ void FromProto(
         protoRspPartitionTables.partitions());
 }
 
+void ToProto(
+    NProto::TRowBatchReadOptions* proto,
+    const NQueueClient::TQueueRowBatchReadOptions& result)
+{
+    proto->set_max_row_count(result.MaxRowCount);
+    proto->set_max_data_weight(result.MaxDataWeight);
+    if (result.DataWeightPerRowHint) {
+        proto->set_data_weight_per_row_hint(*result.DataWeightPerRowHint);
+    }
+}
+
+void FromProto(
+    NQueueClient::TQueueRowBatchReadOptions* result,
+    const NProto::TRowBatchReadOptions& proto)
+{
+    result->MaxRowCount = proto.max_row_count();
+    result->MaxDataWeight = proto.max_data_weight();
+    if (proto.has_data_weight_per_row_hint()) {
+        result->DataWeightPerRowHint = proto.data_weight_per_row_hint();
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 // ENUMS
 ////////////////////////////////////////////////////////////////////////////////

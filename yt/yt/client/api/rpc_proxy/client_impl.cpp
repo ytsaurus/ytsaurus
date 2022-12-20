@@ -746,17 +746,37 @@ TFuture<IQueueRowsetPtr> TClient::PullQueue(
     ToProto(req->mutable_queue_path(), queuePath);
     req->set_offset(offset);
     req->set_partition_index(partitionIndex);
-
-    auto* protoOptions = req->mutable_row_batch_read_options();
-    protoOptions->set_max_row_count(rowBatchReadOptions.MaxRowCount);
-    protoOptions->set_max_data_weight(rowBatchReadOptions.MaxDataWeight);
-    if (rowBatchReadOptions.DataWeightPerRowHint) {
-        protoOptions->set_data_weight_per_row_hint(*rowBatchReadOptions.DataWeightPerRowHint);
-    }
-
+    ToProto(req->mutable_row_batch_read_options(), rowBatchReadOptions);
     req->set_use_native_tablet_node_api(options.UseNativeTabletNodeApi);
 
     return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullQueuePtr& rsp) -> IQueueRowsetPtr {
+        auto rowset = DeserializeRowset<TUnversionedRow>(
+            rsp->rowset_descriptor(),
+            MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
+        return CreateQueueRowset(rowset, rsp->start_offset());
+    }));
+}
+
+TFuture<IQueueRowsetPtr> TClient::PullConsumer(
+    const NYPath::TRichYPath& consumerPath,
+    const NYPath::TRichYPath& queuePath,
+    i64 offset,
+    int partitionIndex,
+    const TQueueRowBatchReadOptions& rowBatchReadOptions,
+    const TPullConsumerOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.PullConsumer();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_consumer_path(), consumerPath);
+    ToProto(req->mutable_queue_path(), queuePath);
+    req->set_offset(offset);
+    req->set_partition_index(partitionIndex);
+    ToProto(req->mutable_row_batch_read_options(), rowBatchReadOptions);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspPullConsumerPtr& rsp) -> IQueueRowsetPtr {
         auto rowset = DeserializeRowset<TUnversionedRow>(
             rsp->rowset_descriptor(),
             MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));

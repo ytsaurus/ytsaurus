@@ -196,6 +196,14 @@ void FromProto(
     NApi::TMultiTablePartitions* multiTablePartitions,
     const NProto::TRspPartitionTables& protoRspPartitionTables);
 
+void ToProto(
+    NProto::TRowBatchReadOptions* proto,
+    const NQueueClient::TQueueRowBatchReadOptions& result);
+
+void FromProto(
+    NQueueClient::TQueueRowBatchReadOptions* result,
+    const NProto::TRowBatchReadOptions& proto);
+
 NProto::EOperationType ConvertOperationTypeToProto(
     NScheduler::EOperationType operationType);
 

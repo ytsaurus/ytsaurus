@@ -136,6 +136,14 @@ public:
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options = {}) override;
 
+    TFuture<NQueueClient::IQueueRowsetPtr> PullConsumer(
+        const NYPath::TRichYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullConsumerOptions& options = {}) override;
+
     // Files.
     TFuture<NApi::TGetFileFromCacheResult> GetFileFromCache(
         const TString& md5,

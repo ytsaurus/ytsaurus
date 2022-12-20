@@ -18,6 +18,8 @@
 
 #include <yt/yt/ytlib/job_prober_client/public.h>
 
+#include <yt/yt/ytlib/queue_client/public.h>
+
 #include <yt/yt/ytlib/security_client/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
@@ -87,6 +89,8 @@ struct IConnection
     virtual const NChaosClient::IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() = 0;
 
     virtual const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const = 0;
+    virtual const NQueueClient::TQueueConsumerRegistrationCachePtr& GetQueueConsumerRegistrationCache() const = 0;
+
     virtual const NRpc::IChannelPtr& GetYqlAgentChannelOrThrow() const = 0;
 
     virtual const NTabletClient::ITableMountCachePtr& GetTableMountCache() = 0;

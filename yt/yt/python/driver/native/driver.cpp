@@ -17,6 +17,8 @@
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
+#include <yt/yt/ytlib/queue_client/registration_cache.h>
+
 #include <yt/yt/library/auth_server/tvm_service.h>
 
 #include <yt/yt/client/api/transaction.h>
@@ -67,8 +69,9 @@ public:
                 std::move(tvmService));
             Connection_ = connection;
 
-            if (auto *nativeConnection = dynamic_cast<NNative::IConnection *>(connection.Get())) {
+            if (auto* nativeConnection = dynamic_cast<NNative::IConnection*>(connection.Get())) {
                 nativeConnection->GetClusterDirectorySynchronizer()->Start();
+                nativeConnection->GetQueueConsumerRegistrationCache()->StartSync();
             }
 
             driver = CreateDriver(std::move(connection), std::move(driverConfig));

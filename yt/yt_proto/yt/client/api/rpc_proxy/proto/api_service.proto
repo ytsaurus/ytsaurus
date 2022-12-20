@@ -604,6 +604,21 @@ message TRspPullQueue
     optional int64 start_offset = 2;
 }
 
+message TReqPullConsumer
+{
+    optional string consumer_path = 1;
+    optional string queue_path = 2;
+    optional int64 offset = 3;
+    optional int32 partition_index = 4;
+    optional TRowBatchReadOptions row_batch_read_options = 5;
+}
+
+message TRspPullConsumer
+{
+    optional TRowsetDescriptor rowset_descriptor = 1;
+    optional int64 start_offset = 2;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqExplainQuery

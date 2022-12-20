@@ -148,6 +148,7 @@ public:
 
     // "cluster"
     std::optional<TString> GetCluster() const;
+    void SetCluster(const TString& value);
 
     // "create"
     bool GetCreate() const;
@@ -175,3 +176,9 @@ void FromProto(TRichYPath* path, const TString& protoPath);
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYPath
+
+template <>
+struct THash<NYT::NYPath::TRichYPath>
+{
+    size_t operator()(const NYT::NYPath::TRichYPath& richYPath) const;
+};
