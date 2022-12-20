@@ -1,6 +1,8 @@
 package tech.ytsaurus.client.bus;
 
+import java.net.InetSocketAddress;
 import java.net.SocketAddress;
+import java.nio.channels.UnsupportedAddressTypeException;
 import java.time.Duration;
 import java.util.Objects;
 import java.util.concurrent.TimeUnit;
@@ -11,9 +13,11 @@ import io.netty.channel.ChannelFuture;
 import io.netty.channel.ChannelOption;
 import io.netty.channel.EventLoopGroup;
 import io.netty.channel.ServerChannel;
+import io.netty.channel.epoll.EpollDomainSocketChannel;
 import io.netty.channel.nio.NioEventLoopGroup;
 import io.netty.channel.socket.nio.NioServerSocketChannel;
 import io.netty.channel.socket.nio.NioSocketChannel;
+import io.netty.channel.unix.DomainSocketAddress;
 
 public class DefaultBusConnector implements BusConnector {
     private final EventLoopGroup group;
@@ -82,7 +86,7 @@ public class DefaultBusConnector implements BusConnector {
         return this;
     }
 
-    private Bootstrap newBootstrap(BusListener listener) {
+    private Bootstrap newInetBootstrap(BusListener listener) {
         return new Bootstrap()
                 .group(group)
                 .channel(NioSocketChannel.class)
@@ -95,9 +99,27 @@ public class DefaultBusConnector implements BusConnector {
                         .setCalculateChecksums(calculateChecksums));
     }
 
+    private Bootstrap newSocketBootstrap(BusListener listener) {
+        return new Bootstrap()
+                .group(group)
+                .channel(EpollDomainSocketChannel.class)
+                .handler(new DefaultBusInitializer(listener, metricsHolder)
+                        .setReadTimeout(readTimeout)
+                        .setWriteTimeout(writeTimeout)
+                        .setVerifyChecksums(verifyChecksums)
+                        .setCalculateChecksums(calculateChecksums));
+    }
+
     @Override
     public Bus connect(SocketAddress address, BusListener listener) {
-        ChannelFuture f = newBootstrap(listener).connect(address);
+        ChannelFuture f;
+        if (address instanceof InetSocketAddress) {
+            f = newInetBootstrap(listener).connect(address);
+        } else if (address instanceof DomainSocketAddress) {
+            f = newSocketBootstrap(listener).connect(address);
+        } else {
+            throw new UnsupportedAddressTypeException();
+        }
         try {
             DefaultBusChannel bus = DefaultBusChannel.getOrCreateInstance(f.channel(), metricsHolder);
             f.addListener((ChannelFuture ready) -> {

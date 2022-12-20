@@ -2,6 +2,7 @@ package tech.ytsaurus.client.rpc;
 
 import java.io.IOException;
 import java.net.InetSocketAddress;
+import java.net.SocketAddress;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.channels.ClosedChannelException;
@@ -46,7 +47,7 @@ public class DefaultRpcBusClient implements RpcClient {
     private static final Logger logger = LoggerFactory.getLogger(DefaultRpcBusClient.class);
 
     private final BusConnector busConnector;
-    private final InetSocketAddress address;
+    private final SocketAddress address;
     private final String addressString;
     private final Lock sessionLock = new ReentrantLock();
     private Session currentSession;
@@ -85,9 +86,18 @@ public class DefaultRpcBusClient implements RpcClient {
     }
 
     public DefaultRpcBusClient(BusConnector busConnector, InetSocketAddress address, String destinationName) {
+        this(busConnector, address, address.getHostString() + ":" + address.getPort(), destinationName);
+    }
+
+    public DefaultRpcBusClient(BusConnector busConnector, SocketAddress address, String destinationName) {
+        this(busConnector, address, address.toString(), destinationName);
+    }
+
+    public DefaultRpcBusClient(BusConnector busConnector, SocketAddress address,
+                               String addressString, String destinationName) {
         this.busConnector = Objects.requireNonNull(busConnector);
         this.address = Objects.requireNonNull(address);
-        this.addressString = address.getHostString() + ":" + address.getPort();
+        this.addressString = addressString;
         this.destinationName = destinationName;
         this.name = String.format("%s@%d", destinationName, System.identityHashCode(this));
         this.stats = new Statistics(destinationName());
