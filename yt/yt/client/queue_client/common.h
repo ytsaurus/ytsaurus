@@ -10,6 +10,7 @@ namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(achulkov2): Replace this with TRichYPath in YT-18038.
 struct TCrossClusterReference
 {
     TString Cluster;
@@ -17,6 +18,8 @@ struct TCrossClusterReference
 
     bool operator ==(const TCrossClusterReference& other) const;
     bool operator <(const TCrossClusterReference& other) const;
+
+    operator NYPath::TRichYPath() const;
 
     static TCrossClusterReference FromString(TStringBuf path);
 };

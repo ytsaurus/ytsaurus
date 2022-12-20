@@ -1,5 +1,7 @@
 #include "common.h"
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <util/string/split.h>
@@ -8,6 +10,7 @@ namespace NYT::NQueueClient {
 
 using namespace NYson;
 using namespace NYTree;
+using namespace NYPath;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -19,6 +22,13 @@ bool TCrossClusterReference::operator==(const TCrossClusterReference& other) con
 bool TCrossClusterReference::operator<(const TCrossClusterReference& other) const
 {
     return std::tie(Cluster, Path) < std::tie(other.Cluster, other.Path);
+}
+
+TCrossClusterReference::operator TRichYPath() const
+{
+    TRichYPath result = Path;
+    result.SetCluster(Cluster);
+    return result;
 }
 
 TCrossClusterReference TCrossClusterReference::FromString(TStringBuf path)

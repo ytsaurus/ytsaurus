@@ -149,6 +149,12 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+
+    const NQueueClient::TQueueConsumerRegistrationCachePtr& GetQueueConsumerRegistrationCache() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NRpc::IChannelPtr& GetYqlAgentChannelOrThrow() const override
     {
         YT_UNIMPLEMENTED();

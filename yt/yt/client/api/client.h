@@ -987,6 +987,10 @@ struct TPullQueueOptions
     bool UseNativeTabletNodeApi = false;
 };
 
+struct TPullConsumerOptions
+    : public TPullQueueOptions
+{ };
+
 struct TGetColumnarStatisticsOptions
     : public TTransactionalOptions
     , public TTimeoutOptions
@@ -1905,12 +1909,23 @@ struct IClient
         const TPartitionTablesOptions& options) = 0;
 
     // Queues
+    //! Reads a batch of rows from a given partition of a given queue, starting at (at least) the given offset.
+    //! Requires the user to have read-access to the specified queue.
     virtual TFuture<NQueueClient::IQueueRowsetPtr> PullQueue(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options = {}) = 0;
+
+    //! Same as PullQueue, but requires user to have read-access to the consumer and the consumer being registered for the given queue.
+    virtual TFuture<NQueueClient::IQueueRowsetPtr> PullConsumer(
+        const NYPath::TRichYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullConsumerOptions& options = {}) = 0;
 
     // Journals
     virtual TFuture<void> TruncateJournal(

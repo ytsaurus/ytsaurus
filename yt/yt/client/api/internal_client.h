@@ -98,6 +98,16 @@ struct IInternalClient
         NTabletClient::TStoreId storeId,
         NTabletClient::TTabletId lockerTabletId,
         const TUnlockHunkStoreOptions& options = {}) = 0;
+
+    //! Same as NApi::IClient::PullQueue, but without authentication.
+    //! This is used inside methods like NApi::IClient::PullConsumer, which perform their own authentication
+    //! and allow reading from a queue without having read permissions for the underlying dynamic table.
+    virtual TFuture<NQueueClient::IQueueRowsetPtr> PullQueueUnauthenticated(
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullQueueOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInternalClient)

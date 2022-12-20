@@ -197,7 +197,8 @@ def start(master_count=1,
         http_proxy_count=http_proxy_count,
         master_cache_count=master_cache_count,
         tablet_balancer_count=tablet_balancer_count,
-        cluster_name=id,
+        # TODO: Should we default to a fixed name, like "primary" in integration tests?
+        cluster_name=sandbox_id,
 
         delta_master_config=_load_config(master_config),
         delta_scheduler_config=_load_config(scheduler_config),

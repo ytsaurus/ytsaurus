@@ -1,6 +1,10 @@
 #include "api_test_base.h"
 #include "private.h"
 
+#include <yt/yt/ytlib/api/native/connection.h>
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/queue_client/registration_cache.h>
+
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
 
@@ -36,7 +40,14 @@ void TApiTestBase::SetUpTestCase()
         YT_VERIFY(configPath);
         TIFStream configStream(configPath);
         auto config = ConvertToNode(&configStream)->AsMap();
-        Connection_ = NApi::CreateConnection(config);
+        auto connection = NApi::CreateConnection(config);
+
+        if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
+            nativeConnection->GetClusterDirectorySynchronizer()->Start();
+            nativeConnection->GetQueueConsumerRegistrationCache()->StartSync();
+        }
+
+        Connection_ = connection;
     }
 
     {

@@ -61,12 +61,20 @@ public:
         const TTableWriterOptions& options = {}) override;
 
     // Queues
-    virtual TFuture<NQueueClient::IQueueRowsetPtr> PullQueue(
+    TFuture<NQueueClient::IQueueRowsetPtr> PullQueue(
         const NYPath::TRichYPath& queuePath,
         i64 offset,
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options = {}) override;
+
+    TFuture<NQueueClient::IQueueRowsetPtr> PullConsumer(
+        const NYPath::TRichYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        i64 offset,
+        int partitionIndex,
+        const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
+        const TPullConsumerOptions& options = {}) override;
 
     // Cypress
     TFuture<NYson::TYsonString> GetNode(
