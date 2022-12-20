@@ -7083,6 +7083,10 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
             TObjectServiceProxy proxy(channel);
 
             auto req = TMasterYPathProxy::CreateObject();
+            SetPrerequisites(req, TPrerequisiteOptions{
+                .PrerequisiteTransactionIds = {InputTransaction->GetId()},
+            });
+
             req->set_type(static_cast<int>(EObjectType::AccountResourceUsageLease));
 
             auto attributes = CreateEphemeralAttributes();
