@@ -1042,16 +1042,58 @@ bool TChunkLocation::IsLocationDiskOK() const
     return LocationDiskFailedAlert_.Load().IsOK();
 }
 
+bool TChunkLocation::IsLocationPendingDiskDecommission() const
+{
+    return IsPendingDiskDecommission_;
+}
+
 void TChunkLocation::MarkLocationDiskAsOK()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (IsLocationDiskOK()) {
+        // do nothing
+        return;
+    }
+
+    YT_LOG_WARNING("Disk with store location repaired (LocationUuid: %v, DiskName: %v)",
+        GetUuid(),
+        StaticConfig_->DeviceName);
+
+    IsPendingDiskDecommission_ = false;
     LocationDiskFailedAlert_.Store(TError());
+}
+
+void TChunkLocation::MarkLocationAsDecommissed()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    IsPendingDiskDecommission_ = true;
+
+    LocationDiskFailedAlert_.Store(
+        TError(NChunkClient::EErrorCode::LocationDiskPendingDecommission,
+            "Disk of chunk location is pending decommission")
+            << TErrorAttribute("location_uuid", GetUuid())
+            << TErrorAttribute("location_path", GetPath())
+            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
 }
 
 void TChunkLocation::MarkLocationDiskAsFailed()
 {
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    if (IsPendingDiskDecommission_) {
+        return;
+    }
+
+    if (IsLocationDiskOK()) {
+        YT_LOG_WARNING("Disk with store location failed (LocationUuid: %v, DiskName: %v)",
+            GetUuid(),
+            StaticConfig_->DeviceName);
+    }
+
     LocationDiskFailedAlert_.Store(
-        TError(
-            NChunkClient::EErrorCode::LocationDiskFailed,
+        TError(NChunkClient::EErrorCode::LocationDiskFailed,
             "Disk of chunk location is marked as failed")
             << TErrorAttribute("location_uuid", GetUuid())
             << TErrorAttribute("location_path", GetPath())

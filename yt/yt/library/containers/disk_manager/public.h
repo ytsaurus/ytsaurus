@@ -13,6 +13,16 @@ DEFINE_ENUM(EDiskState,
     ((RecoverWait) (3))
 );
 
+// 1. Remount all disk volumes to it's default state
+// 2. Recreate disk layout, all data on disk will be lost
+// 3. Replace phisical disk
+DEFINE_ENUM(ERecoverPolicy,
+    ((RecoverAuto)   (0))
+    ((RecoverMount)  (1))
+    ((RecoverLayout) (2))
+    ((RecoverDisk)   (3))
+);
+
 struct TDiskInfo
 {
     TString DiskId;

@@ -38,6 +38,18 @@ TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetFailedYtDisks()
     }));
 }
 
+TFuture<std::vector<TErrorOr<void>>> TDiskInfoProvider::RecoverDisks(const THashSet<TString>& diskIds)
+{
+    std::vector<TFuture<void>> recoverDiskFutures;
+    recoverDiskFutures.reserve(diskIds.size());
+
+    for (const auto& diskId : diskIds) {
+        recoverDiskFutures.emplace_back(DiskManagerProxy_->RecoverDiskById(diskId, ERecoverPolicy::RecoverAuto));
+    }
+
+    return AllSet(recoverDiskFutures);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NContainers
