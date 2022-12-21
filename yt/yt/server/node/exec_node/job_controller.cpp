@@ -1145,7 +1145,7 @@ private:
             for (const auto& protoOperationInfo : response->operation_infos()) {
                 auto operationId = FromProto<TOperationId>(protoOperationInfo.operation_id());
                 if (!protoOperationInfo.running()) {
-                    RemoveOperationFinishedJobs(operationId);
+                    HandleJobsOfNonRunningOperation(operationId);
                     continue;
                 }
 
@@ -1802,7 +1802,7 @@ private:
         JobProxyBuildInfoUpdated_.Fire(static_cast<TError>(buildInfo));
     }
 
-    void RemoveOperationFinishedJobs(TOperationId operationId)
+    void HandleJobsOfNonRunningOperation(TOperationId operationId)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -1818,6 +1818,8 @@ private:
         for (auto job : operationJobs) {
             if (job->IsFinished()) {
                 RemoveJob(job, TReleaseJobFlags{});
+            } else {
+                job->Abort(TError{"Operation %v is not running", operationId});
             }
         }
     }
