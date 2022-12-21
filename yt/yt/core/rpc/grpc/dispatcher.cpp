@@ -2,8 +2,6 @@
 
 #include "config.h"
 
-#include <yt/yt/core/misc/shutdown.h>
-
 #include <yt/yt/core/concurrency/count_down_latch.h>
 #include <yt/yt/core/concurrency/thread.h>
 
@@ -35,26 +33,17 @@ void* TCompletionQueueTag::GetTag(int cookie)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static std::atomic<int> GrpcLibraryRefCounter;
-static std::atomic<int> GrpcLibraryInitCounter;
-
 TGrpcLibraryLock::TGrpcLibraryLock()
 {
-    if (GrpcLibraryRefCounter.fetch_add(1) == 0) {
-        // Failure here indicates an attempt to re-initialize GRPC after shutdown.
-        YT_VERIFY(GrpcLibraryInitCounter.fetch_add(1) == 0);
-        YT_LOG_DEBUG("Initializing GRPC library");
-        grpc_init_openssl();
-        grpc_init();
-    }
+    YT_LOG_DEBUG("Initializing GRPC library");
+    grpc_init_openssl();
+    grpc_init();
 }
 
 TGrpcLibraryLock::~TGrpcLibraryLock()
 {
-    if (GrpcLibraryRefCounter.fetch_sub(1) == 1) {
-        YT_LOG_DEBUG("Shutting down GRPC library");
-        grpc_shutdown();
-    }
+    YT_LOG_DEBUG("Shutting down GRPC library");
+    grpc_shutdown();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -74,10 +63,12 @@ public:
         DoConfigure(config);
     }
 
-    TGrpcLibraryLockPtr CreateLibraryLock()
+    TGrpcLibraryLockPtr GetLibraryLock()
     {
         EnsureConfigured();
-        return New<TGrpcLibraryLock>();
+        auto grpcLock = LibraryLock_.Lock();
+        YT_VERIFY(grpcLock);
+        return grpcLock;
     }
 
     TGuardedGrpcCompletitionQueuePtr* PickRandomGuardedCompletionQueue()
@@ -91,11 +82,12 @@ private:
         : public TThread
     {
     public:
-        explicit TDispatcherThread(int index)
+        TDispatcherThread(TGrpcLibraryLockPtr libraryLock, int index)
             : TThread(
                 Format("Grpc:%v", index),
                 EThreadPriority::Normal,
                 GrpcDispatcherThreadShutdownPriority)
+            , LibraryLock_(std::move(libraryLock))
             , GuardedCompletionQueue_(TGrpcCompletionQueuePtr(grpc_completion_queue_create_for_next(nullptr)))
         {
             Start();
@@ -107,7 +99,7 @@ private:
         }
 
     private:
-        TGrpcLibraryLockPtr LibraryLock_ = New<TGrpcLibraryLock>();
+        TGrpcLibraryLockPtr LibraryLock_;
         TGuardedGrpcCompletitionQueuePtr GuardedCompletionQueue_;
 
         void StopPrologue() override
@@ -123,7 +115,7 @@ private:
 
         void ThreadMain() override
         {
-            YT_LOG_INFO("Dispatcher thread started");
+            YT_LOG_DEBUG("Dispatcher thread started");
 
             // Take raw completion queue for fetching tasks,
             // because `grpc_completion_queue_next` can be concurrent with other operations.
@@ -153,7 +145,7 @@ private:
                 }
             }
 
-            YT_LOG_INFO("Dispatcher thread stopped");
+            YT_LOG_DEBUG("Dispatcher thread stopped");
         }
     };
 
@@ -181,15 +173,19 @@ private:
 
         grpc_core::Executor::SetThreadsLimit(config->GrpcThreadCount);
 
+        // Initialize grpc only after configuration is done.
+        auto grpcLock = New<TGrpcLibraryLock>();
         for (int index = 0; index < config->DispatcherThreadCount; ++index) {
-            Threads_.push_back(New<TDispatcherThread>(index));
+            Threads_.push_back(New<TDispatcherThread>(grpcLock, index));
         }
+        LibraryLock_ = grpcLock;
         Configured_.store(true);
     }
 
 
     std::atomic<bool> Configured_ = false;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ConfigureLock_);
+    TWeakPtr<TGrpcLibraryLock> LibraryLock_;
     std::vector<TDispatcherThreadPtr> Threads_;
 };
 
@@ -211,9 +207,9 @@ void TDispatcher::Configure(const TDispatcherConfigPtr& config)
     Impl_->Configure(config);
 }
 
-TGrpcLibraryLockPtr TDispatcher::CreateLibraryLock()
+TGrpcLibraryLockPtr TDispatcher::GetLibraryLock()
 {
-    return Impl_->CreateLibraryLock();
+    return Impl_->GetLibraryLock();
 }
 
 TGuardedGrpcCompletitionQueuePtr* TDispatcher::PickRandomGuardedCompletionQueue()

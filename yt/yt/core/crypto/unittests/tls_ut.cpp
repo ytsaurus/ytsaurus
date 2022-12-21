@@ -32,7 +32,7 @@ public:
     TTlsTest()
     {
         // Piggybacking on openssl initialization in grpc.
-        GrpcLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
+        GrpcLock = NRpc::NGrpc::TDispatcher::Get()->GetLibraryLock();
         Context = New<TSslContext>();
 
         Context->AddCertificate(TestCertificate);
@@ -103,7 +103,7 @@ TEST_F(TTlsTest, SimplePingPong)
 
 TEST(TTlsTestWithoutFixture, LoadCertificateChain)
 {
-    NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
+    auto grpcLock = NRpc::NGrpc::TDispatcher::Get()->GetLibraryLock();
     auto context = New<TSslContext>();
     context->AddCertificateChain(TestCertificateChain);
 }

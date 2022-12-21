@@ -83,7 +83,7 @@ IClientPtr CreateClient(
     const IPollerPtr& poller)
 {
     // Initialize SSL.
-    auto libraryLock = NRpc::NGrpc::TDispatcher::Get()->CreateLibraryLock();
+    auto libraryLock = NRpc::NGrpc::TDispatcher::Get()->GetLibraryLock();
 
     auto sslContext =  New<TSslContext>();
     if (config->Credentials) {

@@ -33,7 +33,7 @@ public:
      */
     void Configure(const TDispatcherConfigPtr& config);
 
-    TGrpcLibraryLockPtr CreateLibraryLock();
+    TGrpcLibraryLockPtr GetLibraryLock();
     TGuardedGrpcCompletitionQueuePtr* PickRandomGuardedCompletionQueue();
 
 private:
