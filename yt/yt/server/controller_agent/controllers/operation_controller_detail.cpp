@@ -3191,14 +3191,14 @@ void TOperationControllerBase::OnJobFailed(std::unique_ptr<TFailedJobSummary> jo
 
     int maxFailedJobCount = Spec_->MaxFailedJobCount;
     if (FailedJobCount_ >= maxFailedJobCount) {
+        auto failedJobsLimitExceededError = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
+                << TErrorAttribute("max_failed_job_count", maxFailedJobCount);
         if (IsFailingByTimeout()) {
             error = GetTimeLimitError()
-                << (TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
-                    << TErrorAttribute("max_failed_job_count", maxFailedJobCount))
+                << failedJobsLimitExceededError
                 << error;
         } else {
-            error = TError(NScheduler::EErrorCode::MaxFailedJobsLimitExceeded, "Failed jobs limit exceeded")
-                << TErrorAttribute("max_failed_job_count", maxFailedJobCount)
+            error = failedJobsLimitExceededError
                 << error;
         }
 
