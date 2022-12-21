@@ -15,6 +15,12 @@ void TNativeAuthenticationManagerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("enable_submission", &TThis::EnableSubmission)
         .Default(true);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->EnableValidation && !config->EnableSubmission) {
+            THROW_ERROR_EXCEPTION("Turning off validation while submission is enabled results in non-working configuration");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,8 +1,13 @@
 #include "native_authentication_manager.h"
 
 #include "config.h"
+#include "private.h"
 
 namespace NYT::NAuth {
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = NativeAuthLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -37,6 +42,10 @@ void TNativeAuthenticationManager::Reconfigure(const TNativeAuthenticationManage
     }
     if (config->EnableSubmission) {
         EnableSubmission_.store(*config->EnableSubmission);
+    }
+    if (EnableValidation_.load() && !EnableSubmission_.load()) {
+        YT_LOG_WARNING("Disabling ticket validation automatically when submission is disabled");
+        EnableValidation_.store(false);
     }
 }
 
