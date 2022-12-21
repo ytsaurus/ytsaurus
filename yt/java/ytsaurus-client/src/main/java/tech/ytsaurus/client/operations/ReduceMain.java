@@ -7,6 +7,11 @@ import java.util.Iterator;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+
+@NonNullApi
+@NonNullFields
 public class ReduceMain {
     private ReduceMain() {
     }
@@ -32,20 +37,15 @@ public class ReduceMain {
                                            OutputStream[] output, Statistics statistics) throws Exception {
         YTableEntryType<I> inputType = reducer.inputType();
         YTableEntryType<O> outputType = reducer.outputType();
-        Yield<O> yield = outputType.yield(output);
 
-        OperationContext context = new OperationContext();
-
-        try {
+        try (statistics; Yield<O> yield = outputType.yield(output)) {
+            OperationContext context = new OperationContext();
             Iterator<I> it = inputType.iterator(in, context);
             reducer.start(yield, statistics);
             reducer.reduce(it, yield, statistics, context);
             it.forEachRemaining(tmp -> {
             });
             reducer.finish(yield, statistics);
-        } finally {
-            yield.close();
-            statistics.close();
         }
     }
 }

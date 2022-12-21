@@ -23,6 +23,15 @@ public class PutFileToCache
 
     PutFileToCache(Builder builder) {
         super(builder);
+        if (builder.filePath == null) {
+            throw new IllegalArgumentException("filePath should be not null");
+        }
+        if (builder.cachePath == null) {
+            throw new IllegalArgumentException("cachePath should be not null");
+        }
+        if (builder.md5 == null) {
+            throw new IllegalArgumentException("md5 should be not null");
+        }
         this.filePath = builder.filePath;
         this.cachePath = builder.cachePath;
         this.md5 = builder.md5;

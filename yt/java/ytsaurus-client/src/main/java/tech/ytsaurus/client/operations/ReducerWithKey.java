@@ -7,6 +7,11 @@ import javax.annotation.Nullable;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+
+@NonNullApi
+@NonNullFields
 public interface ReducerWithKey<TInput, TOutput, TKey> extends Reducer<TInput, TOutput> {
 
     TKey key(TInput entry);

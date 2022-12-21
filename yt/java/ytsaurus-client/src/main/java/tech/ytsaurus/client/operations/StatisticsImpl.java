@@ -11,13 +11,21 @@ import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 
+/**
+ * Implementation of {@link Statistics} which is used by default in {@link MapMain} and others.
+ */
+@NonNullApi
+@NonNullFields
 public class StatisticsImpl implements Statistics {
 
     private static final int STATISTICS_FILE_DESCRIPTOR_NUMBER = 5;
     @Nullable
     private Yield<YTreeMapNode> yield = null;
     private long jobStartTime = 0;
+    @Nullable
     private String jobName;
 
     @Override

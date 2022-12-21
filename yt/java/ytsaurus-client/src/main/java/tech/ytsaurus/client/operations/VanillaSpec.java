@@ -15,6 +15,9 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable vanilla spec.
+ */
 @NonNullApi
 @NonNullFields
 public class VanillaSpec implements Spec {
@@ -62,10 +65,16 @@ public class VanillaSpec implements Spec {
         return Optional.ofNullable(failOnJobRestart);
     }
 
+    /**
+     * @see Builder#setAdditionalSpecParameters(Map)
+     */
     public Map<String, YTreeNode> getAdditionalSpecParameters() {
         return additionalSpecParameters;
     }
 
+    /**
+     * Convert to yson.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         return builder.beginMap()
@@ -89,6 +98,9 @@ public class VanillaSpec implements Spec {
                 .endMap();
     }
 
+    /**
+     * Builder of {@link VanillaSpec}.
+     */
     public static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
@@ -96,6 +108,8 @@ public class VanillaSpec implements Spec {
         }
     }
 
+    // BuilderBase was taken out because there is another client
+    // which we need to support too and which use the same VanillaSpec class.
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> {
@@ -119,26 +133,50 @@ public class VanillaSpec implements Spec {
             return self();
         }
 
+        /**
+         * Set the number of failed jobs after which the operation is considered failed.
+         * The default is taken from the cluster settings, where this value is usually 10;
+         */
         public T setMaxFailedJobCount(Integer maxFailedJobCount) {
             this.maxFailedJobCount = maxFailedJobCount;
             return self();
         }
 
+        /**
+         * Set a path to an existing table can be specified, the table must be created outside of transactions.
+         * If this setting is specified, then the full data from the standard error stream (stderr) of all jobs (except
+         * aborted) will be written to the specified table. The table will have the following columns:
+         * job_id — job ID;
+         * part_index - in case of a large error message, the stderr message of one job can be divided into several
+         * parts (in different lines), this column contains the number of such a part;
+         * data - data from the standard error stream.
+         */
         public T setStderrTablePath(YPath stderrTablePath) {
             this.stderrTablePath = stderrTablePath;
             return self();
         }
 
+        /**
+         * If true, at any completion of the job, which had started its work, other than successful
+         * (that is, with abort or fail), forcibly abort the operation.
+         * Useful for operations where restarting jobs is not allowed.
+         */
         public T setFailOnJobRestart(Integer failOnJobRestart) {
             this.failOnJobRestart = failOnJobRestart;
             return self();
         }
 
+        /**
+         * Set additional spec parameters.
+         */
         public T setAdditionalSpecParameters(Map<String, YTreeNode> additionalSpecParameters) {
             this.additionalSpecParameters = additionalSpecParameters;
             return self();
         }
 
+        /**
+         * Create instance of {@link VanillaSpec}.
+         */
         public VanillaSpec build() {
             return new VanillaSpec(this);
         }

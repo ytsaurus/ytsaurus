@@ -60,6 +60,12 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Default implementation of {@link JarsProcessor}.
+ * Upload jars and files to YT if it is necessary.
+ */
+@NonNullApi
+@NonNullFields
 public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
 
     private static final Logger LOGGER = LoggerFactory.getLogger(SingleUploadFromClassPathJarsProcessor.class);
@@ -68,6 +74,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     protected static final int DEFAULT_JARS_REPLICATION_FACTOR = 10;
 
     private final YPath jarsDir;
+    @Nullable
     protected final YPath cacheDir;
     private final int fileCacheReplicationFactor;
 
@@ -75,6 +82,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     private final boolean uploadNativeLibraries;
     private final Map<String, YPath> uploadedJars = new HashMap<>();
     private final Map<String, Supplier<InputStream>> uploadMap = new HashMap<>();
+    @Nullable
     private volatile Instant lastUploadTime;
 
     private static final char[] DIGITS = {
@@ -123,7 +131,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
                 throw new RuntimeException(e);
             }
 
-            return Collections.unmodifiableSet(new HashSet<>(uploadedJars.values()));
+            return Set.copyOf(new HashSet<>(uploadedJars.values()));
         }
     }
 
@@ -146,7 +154,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
                 .build()).join();
 
         if (!isUsingFileCache() && lastUploadTime != null && Instant.now()
-                .isBefore(lastUploadTime.plus(uploadTimeout))) {
+                .isBefore(Objects.requireNonNull(lastUploadTime).plus(uploadTimeout))) {
             return;
         }
 
@@ -185,6 +193,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     private YPath onFileChecked(TransactionalClient yt, @Nullable YPath path, String originalName, String md5,
                                 Supplier<InputStream> fileContent) {
         YPath res = path;
+        Objects.requireNonNull(cacheDir);
 
         if (res == null) {
             YPath tmpPath = jarsDir.child(GUID.create().toString());
@@ -226,6 +235,7 @@ public class SingleUploadFromClassPathJarsProcessor implements JarsProcessor {
     }
 
     protected List<CacheUploadTask> checkInCache(TransactionalClient yt, Map<String, Supplier<InputStream>> uploadMap) {
+        Objects.requireNonNull(cacheDir);
         List<CacheUploadTask> tasks = new ArrayList<>();
         for (Map.Entry<String, Supplier<InputStream>> entry : uploadMap.entrySet()) {
             String md5 = calculateMd5(entry.getValue().get());

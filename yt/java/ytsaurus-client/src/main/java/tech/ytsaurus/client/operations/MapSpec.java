@@ -14,6 +14,10 @@ import ru.yandex.lang.NonNullFields;
 
 /**
  * Spec of the map operation.
+ *
+ * @see <a href="https://yt.yandex-team.ru/docs/description/mr/map">
+ * map documentation
+ * </a>
  */
 @NonNullApi
 @NonNullFields
@@ -148,6 +152,7 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
 
         /**
          * Set mapper spec.
+         *
          * @see MapperSpec
          * @see CommandSpec
          */
@@ -165,6 +170,7 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
 
         /**
          * Set job I/O options.
+         *
          * @see JobIo
          */
         public T setJobIo(@Nullable JobIo jobIo) {

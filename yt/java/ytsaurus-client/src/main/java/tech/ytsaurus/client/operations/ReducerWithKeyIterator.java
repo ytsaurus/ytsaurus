@@ -21,6 +21,8 @@ public class ReducerWithKeyIterator<TInput, TKey> implements Iterator<TInput> {
         this.keyF = keyF;
         if (!iterator.hasNext()) {
             eof = true;
+            current = null;
+            key = null;
         } else {
             current = iterator.next();
             key = keyF.apply(current);

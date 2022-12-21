@@ -17,6 +17,9 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable command spec.
+ */
 @NonNullFields
 @NonNullApi
 public class CommandSpec implements Spec, UserJobSpec {
@@ -49,6 +52,9 @@ public class CommandSpec implements Spec, UserJobSpec {
     private final @Nullable
     Integer jobCount;
 
+    /**
+     * Create command spec from command with other options set to defaults.
+     */
     public CommandSpec(String command) {
         this(builder().setCommand(command));
     }
@@ -99,22 +105,37 @@ public class CommandSpec implements Spec, UserJobSpec {
                 && Optional.ofNullable(jobCount).equals(Optional.ofNullable(spec.jobCount));
     }
 
+    /**
+     * @see Builder#setCommand(String)
+     */
     public String getCommand() {
         return command;
     }
 
+    /**
+     * @see Builder#setInputType(YTableEntryType)
+     */
     public YTableEntryType<?> getInputType() {
         return inputType;
     }
 
+    /**
+     * @see Builder#setOutputType(YTableEntryType)
+     */
     public YTableEntryType<?> getOutputType() {
         return outputType;
     }
 
+    /**
+     * @see Builder#setFiles(List)
+     */
     public List<YPath> getFiles() {
         return files;
     }
 
+    /**
+     * @see Builder#setMemoryLimit(DataSize)
+     */
     public Optional<DataSize> getMemoryLimit() {
         return Optional.ofNullable(memoryLimit);
     }
@@ -127,23 +148,38 @@ public class CommandSpec implements Spec, UserJobSpec {
         return Optional.ofNullable(tmpfsSize);
     }
 
+    /**
+     * @see Builder#setEnvironment(Map)
+     */
     public Map<String, String> getEnvironment() {
         return environment;
     }
 
+    /**
+     * @see Builder#setCpuLimit(Double)
+     */
     public Optional<Double> getCpuLimit() {
         return Optional.ofNullable(cpuLimit);
     }
 
+    /**
+     * @see Builder#setJobTimeLimit(Long)
+     */
     @SuppressWarnings("unused")
     public Optional<Long> getJobTimeLimit() {
         return Optional.ofNullable(jobTimeLimit);
     }
 
+    /**
+     * @see Builder#setJobCount(Integer)
+     */
     public Optional<Integer> getJobCount() {
         return Optional.ofNullable(jobCount);
     }
 
+    /**
+     * Convert to yson.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         return builder.beginMap()
@@ -164,16 +200,25 @@ public class CommandSpec implements Spec, UserJobSpec {
                 .endMap();
     }
 
+    /**
+     * Convert to yson.
+     */
     @Override
     public YTreeBuilder prepare(
             YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context, int outputTableCount) {
         return prepare(builder, yt, context);
     }
 
+    /**
+     * Create empty builder.
+     */
     public static BuilderBase<?> builder() {
         return new Builder();
     }
 
+    /**
+     * Builder of {@link CommandSpec}.
+     */
     protected static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
@@ -181,6 +226,8 @@ public class CommandSpec implements Spec, UserJobSpec {
         }
     }
 
+    // BuilderBase was taken out because there is another client
+    // which we need to support too and which use the same CommandSpec class.
     @NonNullFields
     @NonNullApi
     public abstract static class BuilderBase<T extends BuilderBase<T>> {
@@ -207,26 +254,41 @@ public class CommandSpec implements Spec, UserJobSpec {
             return new CommandSpec(this);
         }
 
+        /**
+         * Set command.
+         */
         public T setCommand(String command) {
             this.command = command;
             return self();
         }
 
+        /**
+         * Set input type for resolve format of input data.
+         */
         public T setInputType(YTableEntryType<?> inputType) {
             this.inputType = inputType;
             return self();
         }
 
+        /**
+         * Set output type for resolve format of output data.
+         */
         public T setOutputType(YTableEntryType<?> outputType) {
             this.outputType = outputType;
             return self();
         }
 
+        /**
+         * Set files which should be available inside job.
+         */
         public T setFiles(List<YPath> files) {
             this.files = files;
             return self();
         }
 
+        /**
+         * Set memoryLimit which specifies how much memory job process can use.
+         */
         public T setMemoryLimit(@Nullable DataSize memoryLimit) {
             this.memoryLimit = memoryLimit;
             return self();
@@ -242,26 +304,42 @@ public class CommandSpec implements Spec, UserJobSpec {
             return self();
         }
 
+        /**
+         * Set a dictionary of environment variables that will be specified during the operation.
+         */
         public T setEnvironment(Map<String, String> environment) {
             this.environment = environment;
             return self();
         }
 
+        /**
+         * Set maximum number of CPU cores for a single job to use.
+         */
         public T setCpuLimit(@Nullable Double cpuLimit) {
             this.cpuLimit = cpuLimit;
             return self();
         }
 
+        /**
+         * Set limit on job execution time.
+         * Jobs that exceed this limit will be considered failed.
+         */
         public T setJobTimeLimit(@Nullable Long jobTimeLimit) {
             this.jobTimeLimit = jobTimeLimit;
             return self();
         }
 
+        /**
+         * Set how many jobs should be run, it is advisory.
+         */
         public T setJobCount(@Nullable Integer jobCount) {
             this.jobCount = jobCount;
             return self();
         }
 
+        /**
+         * Set output table paths, only for vanilla operations.
+         */
         public T setOutputTablePaths(List<YPath> outputTablePaths) {
             this.outputTablePaths = outputTablePaths;
             return self();
