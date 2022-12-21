@@ -313,6 +313,7 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(std::optional<TIncrementalHeartbeatCounters>, IncrementalHeartbeatCounters);
 
+    DEFINE_BYVAL_RW_PROPERTY(int, NextDisposedLocationIndex);
 public:
     explicit TNode(NObjectServer::TObjectId objectId);
 
@@ -370,7 +371,6 @@ public:
 
     void Save(NCellMaster::TSaveContext& context) const;
     void Load(NCellMaster::TLoadContext& context);
-
 
     // Chunk Manager stuff.
     TChunkPtrWithReplicaInfo PickRandomReplica(int mediumIndex);

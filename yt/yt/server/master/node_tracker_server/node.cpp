@@ -542,7 +542,14 @@ void TNode::AddRealChunkLocation(NChunkServer::TRealChunkLocation* location)
 
 void TNode::RemoveRealChunkLocation(NChunkServer::TRealChunkLocation* location)
 {
-    std::erase(RealChunkLocations_, location);
+    auto it = std::find(RealChunkLocations_.begin(), RealChunkLocations_.end(), location);
+    YT_VERIFY(it != RealChunkLocations_.end());
+
+    if (std::distance(RealChunkLocations_.begin(), it) < NextDisposedLocationIndex_) {
+        --NextDisposedLocationIndex_;
+    }
+    RealChunkLocations_.erase(it);
+
     if (!UseImaginaryChunkLocations_) {
         std::erase(ChunkLocations_, location);
     }
@@ -646,6 +653,7 @@ void TNode::Save(TSaveContext& context) const
     Save(context, ExecNodeIsNotDataNode_);
     Save(context, ReplicaEndorsements_);
     Save(context, ConsistentReplicaPlacementTokenCount_);
+    Save(context, NextDisposedLocationIndex_);
 }
 
 void TNode::Load(TLoadContext& context)
@@ -786,6 +794,11 @@ void TNode::Load(TLoadContext& context)
     Load(context, ExecNodeIsNotDataNode_);
     Load(context, ReplicaEndorsements_);
     Load(context, ConsistentReplicaPlacementTokenCount_);
+
+    // COMPAT(aleksandra-zh)
+    if (context.GetVersion() >= EMasterReign::SplitNodeDisposal) {
+        Load(context, NextDisposedLocationIndex_);
+    }
 
     ComputeDefaultAddress();
     ComputeFillFactorsAndTotalSpace();

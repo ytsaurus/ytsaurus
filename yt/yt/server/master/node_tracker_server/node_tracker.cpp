@@ -10,6 +10,7 @@
 #include "node_type_handler.h"
 #include "host_type_handler.h"
 #include "rack_type_handler.h"
+#include "node_disposal_manager.h"
 #include "data_center_type_handler.h"
 
 #include <yt/yt/server/master/cell_master/automaton.h>
@@ -122,10 +123,10 @@ class TNodeTracker
 public:
     explicit TNodeTracker(TBootstrap* bootstrap)
         : TMasterAutomatonPart(bootstrap, EAutomatonThreadQueue::NodeTracker)
+        , NodeDisposalManager_(CreateNodeDisposalManager(bootstrap))
     {
         RegisterMethod(BIND(&TNodeTracker::HydraRegisterNode, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUnregisterNode, Unretained(this)));
-        RegisterMethod(BIND(&TNodeTracker::HydraDisposeNode, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraClusterNodeHeartbeat, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraSetCellNodeDescriptors, Unretained(this)));
         RegisterMethod(BIND(&TNodeTracker::HydraUpdateNodeResources, Unretained(this)));
@@ -196,6 +197,8 @@ public:
             BIND(&TNodeTracker::OnProfiling, MakeWeak(this)),
             TDynamicNodeTrackerConfig::DefaultProfilingPeriod);
         ProfilingExecutor_->Start();
+
+        NodeDisposalManager_->Initialize();
     }
 
     void ProcessRegisterNode(const TString& address, TCtxRegisterNodePtr context) override
@@ -325,7 +328,6 @@ public:
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeRegistered);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeOnline);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeUnregistered);
-    DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDisposed);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeZombified);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeBanChanged);
     DEFINE_SIGNAL_OVERRIDE(void(TNode* node), NodeDecommissionChanged);
@@ -906,6 +908,8 @@ public:
     }
 
 private:
+    const INodeDisposalManagerPtr NodeDisposalManager_;
+
     TPeriodicExecutorPtr ProfilingExecutor_;
 
     TBufferedProducerPtr BufferedProducer_;
@@ -940,7 +944,6 @@ private:
     TPeriodicExecutorPtr FullNodeStatesGossipExecutor_;
 
     const TAsyncSemaphorePtr HeartbeatSemaphore_ = New<TAsyncSemaphore>(0);
-    const TAsyncSemaphorePtr DisposeNodeSemaphore_ = New<TAsyncSemaphore>(0);
 
     TEnumIndexedVector<ENodeRole, TNodeListForRole> NodeListPerRole_;
 
@@ -1212,21 +1215,6 @@ private:
         }
 
         UnregisterNode(node, true);
-    }
-
-    void HydraDisposeNode(TReqDisposeNode* request)
-    {
-        auto nodeId = request->node_id();
-        auto* node = FindNode(nodeId);
-        if (!IsObjectAlive(node)) {
-            return;
-        }
-
-        if (node->GetLocalState() != ENodeState::Unregistered) {
-            return;
-        }
-
-        DisposeNode(node);
     }
 
     void HydraClusterNodeHeartbeat(
@@ -1628,7 +1616,7 @@ private:
                 continue;
             }
             if (node->GetLocalState() == ENodeState::Unregistered) {
-                CommitDisposeNodeWithSemaphore(node);
+                NodeDisposalManager_->DisposeNodeWithSemaphore(node);
             }
         }
     }
@@ -1819,7 +1807,7 @@ private:
 
             if (propagate) {
                 if (IsLeader()) {
-                    CommitDisposeNodeWithSemaphore(node);
+                    NodeDisposalManager_->DisposeNodeWithSemaphore(node);
                 }
 
                 const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -1834,19 +1822,6 @@ private:
         }
     }
 
-    void DisposeNode(TNode* node)
-    {
-        YT_PROFILE_TIMING("/node_tracker/node_dispose_time") {
-            node->SetLocalState(ENodeState::Offline);
-            node->ReportedHeartbeats().clear();
-            NodeDisposed_.Fire(node);
-
-            YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Node offline (NodeId: %v, Address: %v)",
-                node->GetId(),
-                node->GetDefaultAddress());
-        }
-    }
-
     void EnsureNodeDisposed(TNode* node)
     {
         if (node->GetLocalState() == ENodeState::Registered ||
@@ -1855,11 +1830,13 @@ private:
             UnregisterNode(node, false);
         }
 
-        if (node->GetLocalState() == ENodeState::Unregistered) {
-            DisposeNode(node);
+        if (node->GetLocalState() == ENodeState::Unregistered ||
+            node->GetLocalState() == ENodeState::BeingDisposed)
+        {
+            // Sequoia probably would not like that.
+            NodeDisposalManager_->DisposeNodeCompletely(node);
         }
     }
-
 
     void OnNodeStatesGossip(bool incremental)
     {
@@ -1922,24 +1899,6 @@ private:
         });
 
         semaphore->AsyncAcquire(handler, EpochAutomatonInvoker_);
-    }
-
-    void CommitDisposeNodeWithSemaphore(TNode* node)
-    {
-        TReqDisposeNode request;
-        request.set_node_id(node->GetId());
-
-        auto mutation = CreateMutation(
-            Bootstrap_->GetHydraFacade()->GetHydraManager(),
-            request,
-            &TNodeTracker::HydraDisposeNode,
-            this);
-
-        auto handler = BIND([mutation = std::move(mutation)] (TAsyncSemaphoreGuard) {
-            Y_UNUSED(WaitFor(mutation->CommitAndLog(NodeTrackerServerLogger)));
-        });
-
-        DisposeNodeSemaphore_->AsyncAcquire(handler, EpochAutomatonInvoker_);
     }
 
     void PostRegisterNodeMutation(TNode* node, const TReqRegisterNode* originalRequest)
@@ -2203,6 +2162,8 @@ private:
             profileStatistics(GetFlavoredNodeStatistics(flavor));
         }
 
+        NodeDisposalManager_->OnProfiling(&buffer);
+
         BufferedProducer_->Update(buffer);
     }
 
@@ -2289,7 +2250,6 @@ private:
     void ReconfigureNodeSemaphores()
     {
         HeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentClusterNodeHeartbeats);
-        DisposeNodeSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentNodeUnregistrations);
     }
 
     void MaybeRebuildAggregatedNodeStatistics()

@@ -40,11 +40,13 @@ using NNodeTrackerClient::TMaintenanceId;
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_STRUCT(INodeTracker)
+DECLARE_REFCOUNTED_STRUCT(INodeDisposalManager)
 
 DECLARE_REFCOUNTED_CLASS(TNodeDiscoveryManager)
 
 DECLARE_REFCOUNTED_CLASS(TNodeGroupConfig)
 DECLARE_REFCOUNTED_CLASS(TNodeTrackerConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicNodeTrackerTestingConfig)
 DECLARE_REFCOUNTED_CLASS(TDynamicNodeTrackerConfig)
 DECLARE_REFCOUNTED_CLASS(TNodeDiscoveryManagerConfig)
 

@@ -69,6 +69,21 @@ DEFINE_REFCOUNTED_TYPE(TNodeGroupConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDynamicNodeTrackerTestingConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool DisableDisposalFinishing;
+
+    REGISTER_YSON_STRUCT(TDynamicNodeTrackerTestingConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDynamicNodeTrackerTestingConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDynamicNodeTrackerConfig
     : public NYTree::TYsonStruct
 {
@@ -93,6 +108,8 @@ public:
     TNodeDiscoveryManagerConfigPtr MasterCacheManager;
     TNodeDiscoveryManagerConfigPtr TimestampProviderManager;
 
+    TDynamicNodeTrackerTestingConfigPtr Testing;
+
     bool EnableStructuredLog;
 
     // COMPAT(ignat): Drop this after hosts migration.
@@ -108,6 +125,11 @@ public:
 
     // COMPAT(kvk1920)
     bool ForbidMaintenanceAttributeWrites;
+
+    // COMPAT(aleksandra-zh)
+    bool EnablePerLocationNodeDisposal;
+
+    TDuration NodeDisposalTickPeriod;
 
     REGISTER_YSON_STRUCT(TDynamicNodeTrackerConfig);
 

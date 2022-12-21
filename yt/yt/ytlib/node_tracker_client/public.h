@@ -37,18 +37,20 @@ DEFINE_ENUM(EMemoryLimitType,
 
 DEFINE_ENUM(ENodeState,
     // Used internally.
-    ((Unknown)    (-1))
+    ((Unknown)      (-1))
     // Not registered.
-    ((Offline)     (0))
+    ((Offline)       (0))
     // Registered but did not report some of the heartbeats.
-    ((Registered)  (1))
+    ((Registered)    (1))
     // Registered and reported all the expected types of heartbeats
     // at least once.
-    ((Online)      (2))
+    ((Online)        (2))
     // Unregistered and placed into disposal queue.
-    ((Unregistered)(3))
+    ((Unregistered)  (3))
     // Indicates that state varies across cells.
-    ((Mixed)       (4))
+    ((Mixed)         (4))
+    // Unregistered and ongoing disposal.
+    ((BeingDisposed) (5))
 );
 
 DEFINE_ENUM(ENodeRole,

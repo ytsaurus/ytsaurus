@@ -18,6 +18,11 @@ message TReqDisposeNode
     required int32 node_id = 1;
 }
 
+message TReqNodeDisposalTick
+{
+    required int32 node_id = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqSetCellNodeDescriptors

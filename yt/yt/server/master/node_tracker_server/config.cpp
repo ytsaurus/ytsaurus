@@ -36,6 +36,14 @@ void TNodeGroupConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TDynamicNodeTrackerTestingConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("disable_disposal_finishing", &TThis::DisableDisposalFinishing)
+        .Default(false);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_groups", &TThis::NodeGroups)
@@ -71,6 +79,9 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
     registrar.Parameter("timestamp_provider_manager", &TThis::TimestampProviderManager)
         .DefaultNew();
 
+    registrar.Parameter("testing", &TThis::Testing)
+        .DefaultNew();
+
     registrar.Parameter("enable_structured_log", &TThis::EnableStructuredLog)
         .Default(false);
 
@@ -91,6 +102,12 @@ void TDynamicNodeTrackerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forbid_maintenance_attribute_writes", &TThis::ForbidMaintenanceAttributeWrites)
         .Default(false);
+
+    registrar.Parameter("enable_per_location_node_disposal", &TThis::EnablePerLocationNodeDisposal)
+        .Default(true);
+
+    registrar.Parameter("node_disposal_tick_period", &TThis::NodeDisposalTickPeriod)
+        .Default(TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

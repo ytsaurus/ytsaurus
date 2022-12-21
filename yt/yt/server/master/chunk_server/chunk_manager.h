@@ -322,6 +322,9 @@ struct IChunkManager
     // chunk replicators only and never returns an error.
     virtual TFuture<i64> GetCellLostVitalChunkCount() = 0;
 
+    virtual void DisposeNode(TNode* node) = 0;
+    virtual void DisposeLocation(NChunkServer::TChunkLocation* location) = 0;
+
 private:
     friend class TChunkTypeHandler;
     friend class TChunkListTypeHandler;

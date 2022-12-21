@@ -452,7 +452,6 @@ public:
         const auto& nodeTracker = Bootstrap_->GetNodeTracker();
         nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRegistered, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TChunkManager::OnNodeUnregistered, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisposed(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDisposed, MakeWeak(this)));
         nodeTracker->SubscribeNodeRackChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeRackChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDataCenterChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDataCenterChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND_NO_PROPAGATE(&TChunkManager::OnNodeDecommissionChanged, MakeWeak(this)));
@@ -2825,25 +2824,9 @@ private:
             EWriteTargetValidityChange::WriteSessionsDisabled);
     }
 
-    void OnNodeDisposed(TNode* node)
+    void DisposeNode(TNode* node) override
     {
-        for (auto* location : node->ChunkLocations()) {
-            for (auto replica : location->Replicas()) {
-                TChunkPtrWithReplicaIndex replicaWithoutState(replica);
-                bool approved = !location->HasUnapprovedReplica(replicaWithoutState);
-                RemoveChunkReplica(
-                    location,
-                    replicaWithoutState,
-                    ERemoveReplicaReason::NodeDisposed,
-                    approved);
-
-                auto* chunk = replica.GetPtr();
-                if (chunk->IsBlob()) {
-                    ScheduleEndorsement(chunk);
-                }
-            }
-            DestroyedReplicaCount_ -= std::ssize(location->DestroyedReplicas());
-        }
+        YT_VERIFY(HasMutationContext());
 
         ChunkReplicator_->OnNodeUnregistered(node);
 
@@ -2852,11 +2835,63 @@ private:
 
         DiscardEndorsements(node);
 
-        node->ClearReplicas();
+        for (auto* location : node->ChunkLocations()) {
+            // maybe all of this is normal for some reason and we should just dispose it, idk
+            if (!location->Replicas().empty()) {
+                YT_LOG_ALERT("Cleared location still has replicas (NodeId: %v, LocationMediumIndex: %v, ReplicasCount: %v)",
+                    node->GetId(),
+                    location->GetEffectiveMediumIndex(),
+                    location->Replicas().size());
+                DisposeLocation(location);
+            }
+            if (!location->UnapprovedReplicas().empty()) {
+                YT_LOG_ALERT("Cleared location still has unapproved replicas (NodeId: %v, LocationMediumIndex: %v, UnapprovedReplicasCount: %v)",
+                    node->GetId(),
+                    location->GetEffectiveMediumIndex(),
+                    location->UnapprovedReplicas().size());
+                DisposeLocation(location);
+            }
+            if (!location->DestroyedReplicas().empty()) {
+                YT_LOG_ALERT("Cleared location still has destroyed replicas (NodeId: %v, LocationMediumIndex: %v, DestroyedReplicasCount: %v)",
+                    node->GetId(),
+                    location->GetEffectiveMediumIndex(),
+                    location->DestroyedReplicas().size());
+                DisposeLocation(location);
+            }
+        }
 
         ChunkPlacement_->OnNodeDisposed(node);
 
         ChunkReplicator_->OnNodeDisposed(node);
+    }
+
+    void DisposeLocation(NChunkServer::TChunkLocation* location) override
+    {
+        YT_VERIFY(HasMutationContext());
+
+        const auto* medium = FindMediumByIndex(location->GetEffectiveMediumIndex());
+        if (!IsObjectAlive(medium)) {
+            return;
+        }
+
+        for (auto replica : location->Replicas()) {
+            TChunkPtrWithReplicaIndex replicaWithoutState(replica);
+            bool approved = !location->HasUnapprovedReplica(replicaWithoutState);
+            RemoveChunkReplica(
+                location,
+                replicaWithoutState,
+                ERemoveReplicaReason::NodeDisposed,
+                approved);
+
+            auto* chunk = replica.GetPtr();
+            if (chunk->IsBlob()) {
+                ScheduleEndorsement(chunk);
+            }
+        }
+
+        DestroyedReplicaCount_ -= std::ssize(location->DestroyedReplicas());
+
+        location->ClearReplicas();
     }
 
     void OnNodeChanged(TNode* node)
