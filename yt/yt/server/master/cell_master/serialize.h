@@ -94,6 +94,7 @@ DEFINE_ENUM(EMasterReign,
     ((SharedLockIsEnoughForMountConfig)                             (2214))  // ifsmirnov
     ((RemoveCacheMedium)                                            (2215))  // gritukan
     ((PerAccountMergerStatistics)                                   (2216))  // aleksandra-zh
+    ((SplitNodeDisposal)                                            (2217))  // aleksandra-zh
 );
 
 ////////////////////////////////////////////////////////////////////////////////

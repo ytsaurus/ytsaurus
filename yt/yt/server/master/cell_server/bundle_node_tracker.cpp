@@ -37,7 +37,6 @@ public:
         nodeTracker->SubscribeNodeRegistered(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeOnline(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeUnregistered(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
-        nodeTracker->SubscribeNodeDisposed(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeBanChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDecommissionChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));
         nodeTracker->SubscribeNodeDisableTabletCellsChanged(BIND_NO_PROPAGATE(&TBundleNodeTracker::OnNodeChanged, MakeWeak(this)));

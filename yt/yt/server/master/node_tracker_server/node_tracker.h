@@ -75,9 +75,6 @@ public:
     //! Fired when a node gets unregistered.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeUnregistered);
 
-    //! Fired when a node gets disposed (after being unregistered).
-    DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeDisposed);
-
     //! Fired when a node gets zombified.
     DECLARE_INTERFACE_SIGNAL(void(TNode* node), NodeZombified);
 

@@ -79,6 +79,7 @@ def get_dynamic_master_config():
         enable_node_cpu_statistics = %true;
         enable_real_chunk_locations = %true;
         forbid_maintenance_attribute_writes = %true;
+        node_disposal_tick_period = 100;
     };
 
     object_manager = {

@@ -2,9 +2,11 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, set, get, ls, remove, exists, wait, get_driver, raises_yt_error,
     create_medium, create, write_table, read_table,
-    ban_node, unban_node)
+    ban_node, unban_node, build_snapshot, get_active_primary_master_leader_address)
 
-from yt.environment.helpers import Restarter, NODES_SERVICE
+from yt_helpers import profiler_factory
+
+from yt.environment.helpers import Restarter, NODES_SERVICE, MASTERS_SERVICE
 
 ##################################################################
 
@@ -171,6 +173,79 @@ class TestChunkLocations(YTEnvSetup):
 
 class TestChunkLocationsMulticell(TestChunkLocations):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+##################################################################
+
+
+class TestPerLocationNodeDisposal(TestChunkLocationsMulticell):
+    NUM_SECONDARY_MASTER_CELLS = 2
+
+    DELTA_DYNAMIC_MASTER_CONFIG = {
+        "node_tracker": {
+            "enable_real_chunk_locations": True,
+            "enable_per_location_node_disposal": True,
+            "node_disposal_tick_period": 100,
+            "max_concurrent_node_unregistrations": 100
+        }
+    }
+
+    def _get_nodes_being_disposed_count(self):
+        leader_address = get_active_primary_master_leader_address(self)
+        profiler = profiler_factory().at_primary_master(leader_address)
+        return profiler.gauge("node_tracker/nodes_being_disposed").get()
+
+    def _no_nodes_being_disposed(self):
+        return self._get_nodes_being_disposed_count() == 0
+
+    @authors("aleksandra-zh")
+    def test_nodes_dispose(self):
+        with Restarter(self.Env, NODES_SERVICE):
+            pass
+
+        wait(self._no_nodes_being_disposed)
+
+    @authors("aleksandra-zh")
+    def test_nodes_enter_being_disposed_state(self):
+        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+
+        with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
+            for node in ls("//sys/cluster_nodes"):
+                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "being_disposed")
+
+            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
+
+            for node in ls("//sys/cluster_nodes"):
+                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
+
+        wait(self._no_nodes_being_disposed)
+
+    @authors("aleksandra-zh")
+    def test_nodes_dispose_after_snapshot(self):
+        set("//sys/@config/node_tracker/testing/disable_disposal_finishing", True)
+
+        node_count = len(ls("//sys/cluster_nodes"))
+        with Restarter(self.Env, NODES_SERVICE, wait_offline=False):
+            for node in ls("//sys/cluster_nodes"):
+                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "being_disposed")
+
+            wait(lambda: self._get_nodes_being_disposed_count() == node_count)
+
+            build_snapshot(cell_id=None)
+
+            with Restarter(self.Env, MASTERS_SERVICE):
+                pass
+
+            wait(lambda: self._get_nodes_being_disposed_count() == node_count)
+
+            for node in ls("//sys/cluster_nodes"):
+                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "being_disposed")
+
+            set("//sys/@config/node_tracker/testing/disable_disposal_finishing", False)
+
+            for node in ls("//sys/cluster_nodes"):
+                wait(lambda: get("//sys/cluster_nodes/{}/@state".format(node)) == "offline")
+
+        wait(self._no_nodes_being_disposed)
 
 ##################################################################
 
