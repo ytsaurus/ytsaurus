@@ -91,6 +91,10 @@ public:
     //! For testing only. If enabled, then a mock instead of a real TVM service will be used.
     bool EnableMock = false;
 
+    //! If EnableMock and RequireMockSecret is true, then ensures that ClientSelfSecret is equal to
+    //! "SecretPrefix-" + ToString(ClientSelfId).
+    bool RequireMockSecret = true;
+
     REGISTER_YSON_STRUCT(TTvmServiceConfig);
 
     static void Register(TRegistrar registrar);
