@@ -11,6 +11,8 @@ namespace NYT::NDataNode {
 struct TLocationLivenessInfo
 {
     TStoreLocationPtr Location;
+    TString DiskId;
+    bool IsLocationDiskPendingDecommission;
     bool IsDiskAlive;
 };
 
@@ -27,6 +29,10 @@ public:
 
     TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveliness();
 
+    TFuture<std::vector<TStoreLocationPtr>> MarkLocationsAsDecommissed(const THashSet<TGuid>& locationUuids);
+
+    TFuture<std::vector<TErrorOr<void>>> RecoverDisks(const THashSet<TString>& diskIds);
+
 private:
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
@@ -34,6 +40,10 @@ private:
 
     std::vector<TLocationLivenessInfo> MapLocationToLivelinessInfo(
         const std::vector<NContainers::TDiskInfo>& failedDisks);
+
+    std::vector<TStoreLocationPtr> MarkLocationsAsDecommissed(
+        const std::vector<NContainers::TDiskInfo>& disks,
+        const THashSet<TGuid>& locationUuids);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

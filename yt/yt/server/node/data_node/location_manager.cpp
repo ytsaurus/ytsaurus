@@ -56,6 +56,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivelinessInfo
     for (const auto& location : locations) {
         locationLivelinessInfos.push_back({
             .Location = location,
+            .IsLocationDiskPendingDecommission = location->IsLocationPendingDiskDecommission(),
             .IsDiskAlive = !diskNames.contains(location->GetStaticConfig()->DeviceName)});
     }
 
@@ -67,6 +68,50 @@ TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveli
     return DiskInfoProvider_->GetFailedYtDisks()
         .Apply(BIND(&TLocationManager::MapLocationToLivelinessInfo, MakeStrong(this))
             .AsyncVia(ControlInvoker_));
+}
+
+std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissed(
+    const std::vector<TDiskInfo>& disks,
+    const THashSet<TGuid>& locationUuids)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    // Fast path.
+    if (disks.empty()) {
+        return {};
+    }
+
+    THashSet<TString> failedDiskNames;
+
+    for (const auto& failedDisk : disks) {
+        failedDiskNames.insert(failedDisk.DeviceName);
+    }
+
+    std::vector<TStoreLocationPtr> locationsForDecommission;
+
+    for (const auto& location : ChunkStore_->Locations()) {
+        if (failedDiskNames.contains(location->GetStaticConfig()->DeviceName) &&
+            locationUuids.contains(location->GetUuid())) {
+            location->MarkLocationAsDecommissed();
+            locationsForDecommission.push_back(location);
+        }
+    }
+
+    return locationsForDecommission;
+}
+
+TFuture<std::vector<TStoreLocationPtr>> TLocationManager::MarkLocationsAsDecommissed(const THashSet<TGuid>& locationUuids)
+{
+    return DiskInfoProvider_->GetFailedYtDisks()
+        .Apply(BIND([&] (const std::vector<TDiskInfo>& failedDisks) {
+                return MarkLocationsAsDecommissed(failedDisks, locationUuids);
+            })
+            .AsyncVia(ControlInvoker_));
+}
+
+TFuture<std::vector<TErrorOr<void>>> TLocationManager::RecoverDisks(const THashSet<TString>& diskIds)
+{
+    return DiskInfoProvider_->RecoverDisks(diskIds);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -116,30 +161,59 @@ void TLocationHealthChecker::OnHealthCheck()
 {
     auto livelinessInfosOrError = WaitFor(LocationManager_->GetLocationsLiveliness());
 
-    if (livelinessInfosOrError.IsOK()) {
-        const auto& livelinessInfos = livelinessInfosOrError.Value();
+    // fast path
+    if (!livelinessInfosOrError.IsOK()) {
+        YT_LOG_ERROR(livelinessInfosOrError, "Failed to list location livelinesses");
+        return;
+    }
 
-        for (const auto& livelinessInfo : livelinessInfos) {
-            const auto& location = livelinessInfo.Location;
+    const auto& livelinessInfos = livelinessInfosOrError.Value();
 
-            if (livelinessInfo.IsDiskAlive && !location->IsLocationDiskOK()) {
-                YT_LOG_WARNING("Disk with store location repaired (LocationId: %v, DiskName: %v)",
-                    location->GetUuid(),
-                    location->GetStaticConfig()->DeviceName);
-            } else if (!livelinessInfo.IsDiskAlive && location->IsLocationDiskOK()) {
-                YT_LOG_WARNING("Disk with store location failed (LocationId: %v, DiskName: %v)",
-                    location->GetUuid(),
-                    location->GetStaticConfig()->DeviceName);
+    THashSet<TString> allDisks;
+    THashSet<TString> diskWithLivelisessLocations;
+    THashSet<TString> diskWithDecommissedLocations;
+
+    for (const auto& livelinessInfo : livelinessInfos) {
+        const auto& location = livelinessInfo.Location;
+        allDisks.insert(livelinessInfo.DiskId);
+
+        if (livelinessInfo.IsDiskAlive) {
+            diskWithLivelisessLocations.insert(livelinessInfo.DiskId);
+            location->MarkLocationDiskAsOK();
+        } else {
+            location->MarkLocationDiskAsFailed();
+
+            if (livelinessInfo.IsLocationDiskPendingDecommission) {
+                diskWithDecommissedLocations.insert(livelinessInfo.DiskId);
             }
+        }
+    }
 
-            if (livelinessInfo.IsDiskAlive) {
-                location->MarkLocationDiskAsOK();
-            } else {
-                location->MarkLocationDiskAsFailed();
+    THashSet<TString> disksForDecommission;
+
+    for (const auto& disk : allDisks) {
+        // all locations on disk must be decommissed
+        if (!diskWithLivelisessLocations.contains(disk) &&
+            diskWithDecommissedLocations.contains(disk)) {
+            disksForDecommission.insert(disk);
+        }
+    }
+
+    // fast path
+    if (disksForDecommission.empty()) {
+        return;
+    }
+
+    auto resultOrErrors = WaitFor(LocationManager_->RecoverDisks(disksForDecommission));
+
+    if (resultOrErrors.IsOK()) {
+        for (const auto& resultOrError : resultOrErrors.Value()) {
+            if (!resultOrError.IsOK()) {
+                YT_LOG_ERROR(resultOrError, "Failed to send request to recover disk");
             }
         }
     } else {
-        YT_LOG_ERROR(livelinessInfosOrError, "Failed to list location livelinesses");
+        YT_LOG_ERROR(resultOrErrors, "Failed to send requests to recover disks");
     }
 }
 

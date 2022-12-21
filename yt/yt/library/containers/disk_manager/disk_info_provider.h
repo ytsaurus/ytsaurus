@@ -16,6 +16,8 @@ public:
 
     TFuture<std::vector<TDiskInfo>> GetFailedYtDisks();
 
+    TFuture<std::vector<TErrorOr<void>>> RecoverDisks(const THashSet<TString>& diskIds);
+
 private:
     const TDiskManagerProxyPtr DiskManagerProxy_;
 };

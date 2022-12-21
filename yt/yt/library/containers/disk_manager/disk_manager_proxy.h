@@ -20,6 +20,9 @@ using TRspGetYTMountedDevices = diskman::GetYTMountedDevicesResponse;
 using TReqListDisks = diskman::ListDisksRequest;
 using TRspListDisks = diskman::ListDisksResponse;
 
+using TReqRecoverDisk = diskman::RecoverDiskRequest;
+using TRspRecoverDisk = diskman::RecoverDiskResponse;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiskManagerProxy
@@ -31,6 +34,7 @@ public:
 
     TFuture<THashSet<TString>> GetYtDiskDeviceNames();
     TFuture<std::vector<TDiskInfo>> GetDisks();
+    TFuture<void> RecoverDiskById(TString diskId, ERecoverPolicy recoverPolicy);
 
     void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig);
 
@@ -40,6 +44,7 @@ private:
 
     DEFINE_RPC_PROXY_METHOD(NContainers, GetYTMountedDevices);
     DEFINE_RPC_PROXY_METHOD(NContainers, ListDisks);
+    DEFINE_RPC_PROXY_METHOD(NContainers, RecoverDisk);
 
     TDuration GetRequestTimeout() const;
 };

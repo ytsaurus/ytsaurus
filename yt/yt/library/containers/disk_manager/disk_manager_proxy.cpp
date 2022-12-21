@@ -46,6 +46,20 @@ EDiskState MapDiskState(diskman::DiskStatus_State state)
     }
 }
 
+diskman::DiskSpec::RecoverPolicy MapRecoverPolicy(ERecoverPolicy recoveryPolicy)
+{
+    switch (recoveryPolicy) {
+        case ERecoverPolicy::RecoverMount:
+            return diskman::DiskSpec::RecoverPolicy::DiskSpec_RecoverPolicy_RECOVER_MOUNT;
+        case ERecoverPolicy::RecoverLayout:
+            return diskman::DiskSpec::RecoverPolicy::DiskSpec_RecoverPolicy_RECOVER_LAYOUT;
+        case ERecoverPolicy::RecoverDisk:
+            return diskman::DiskSpec::RecoverPolicy::DiskSpec_RecoverPolicy_RECOVER_DISK;
+        default:
+            return diskman::DiskSpec::RecoverPolicy::DiskSpec_RecoverPolicy_RECOVER_AUTO;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TDiskManagerProxy::TDiskManagerProxy(
@@ -111,6 +125,26 @@ TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
         }
 
         return disks;
+    }));
+}
+
+TFuture<void> TDiskManagerProxy::RecoverDiskById(TString diskId, ERecoverPolicy recoverPolicy) {
+    auto request = RecoverDisk();
+    request->set_disk_id(diskId);
+    request->set_policy(MapRecoverPolicy(recoverPolicy));
+
+    auto responseFuture = request->Invoke()
+        .WithTimeout(GetRequestTimeout());
+
+    return responseFuture.Apply(BIND([=] (const TErrorOr<TRspRecoverDiskPtr>& responseOrError) {
+        if (!responseOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to send request to recover disk")
+                << responseOrError
+                << TErrorAttribute("disk_id", diskId)
+                << TErrorAttribute("recover_policy", recoverPolicy);
+        } else {
+            return TFuture<void>();
+        }
     }));
 }
 

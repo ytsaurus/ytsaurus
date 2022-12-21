@@ -356,8 +356,14 @@ public:
     //! Location disk is OK.
     bool IsLocationDiskOK() const;
 
+    //! True, if location may not use disk.
+    bool IsLocationPendingDiskDecommission() const;
+
     //! Disable alert about location disk failing.
     void MarkLocationDiskAsOK();
+
+    //! Location has been decommissed.
+    void MarkLocationAsDecommissed();
 
     //! Enable alert about location disk failing.
     void MarkLocationDiskAsFailed();
@@ -413,6 +419,8 @@ private:
 
     TAtomicObject<TError> LocationDisabledAlert_;
     TAtomicObject<TError> LocationDiskFailedAlert_;
+
+    bool IsPendingDiskDecommission_ = false;
 
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TDynamicTagPtr MediumTag_;
