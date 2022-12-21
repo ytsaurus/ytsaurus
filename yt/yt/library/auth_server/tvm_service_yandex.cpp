@@ -423,6 +423,20 @@ public:
             DestinationIds_.insert(tvmId);
         }
 
+        if (Config_->RequireMockSecret) {
+            auto secret = Config_->ClientSelfSecret;
+            if (!secret && Config_->ClientSelfSecretPath) {
+                TFileInput input(*Config_->ClientSelfSecretPath);
+                secret = Strip(input.ReadLine());
+            }
+            if (!secret) {
+                THROW_ERROR_EXCEPTION("Secret for TVM testing stub is unspecified.");
+            }
+            if (secret != SecretPrefix + ToString(Config_->ClientSelfId)) {
+                THROW_ERROR_EXCEPTION("Secret for TVM testing stub is invalid.");
+            }
+        }
+
         YT_LOG_DEBUG("Created TVM service testing stub");
     }
 
@@ -518,6 +532,7 @@ private:
     THashMap<TString, ui32> DestinationAliases_;
 
     static const TString TicketPrefix;
+    static const TString SecretPrefix;
 
     static TString MakeServiceTicket(TTvmId src, TTvmId dst)
     {
@@ -526,6 +541,7 @@ private:
 };
 
 const TString TMockTvmService::TicketPrefix = "TestTicket-";
+const TString TMockTvmService::SecretPrefix = "TestSecret-";
 
 } // namespace
 

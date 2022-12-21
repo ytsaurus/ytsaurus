@@ -85,6 +85,8 @@ void TTvmServiceConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_mock", &TThis::EnableMock)
         .Default(false);
+    registrar.Parameter("require_mock_secret", &TThis::RequireMockSecret)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

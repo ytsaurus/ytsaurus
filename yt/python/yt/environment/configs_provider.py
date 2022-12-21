@@ -1002,7 +1002,8 @@ def _build_native_driver_configs(master_connection_configs,
                 "client_enable_service_ticket_checking": True,
                 "client_dst_map": {
                     "self": yt_config.mock_tvm_id,
-                }
+                },
+                "client_self_secret": "TestSecret-" + str(yt_config.mock_tvm_id),
             }
 
         configs[tag] = config
@@ -1462,6 +1463,7 @@ def init_singletons(config, yt_config, index):
                 "client_self_id": yt_config.mock_tvm_id,
                 "client_enable_service_ticket_fetching": True,
                 "client_enable_service_ticket_checking": True,
+                "client_self_secret": "TestSecret-" + str(yt_config.mock_tvm_id),
             },
             "enable_validation": True,
         })
