@@ -23,11 +23,21 @@ using TRspListDisks = diskman::ListDisksResponse;
 using TReqRecoverDisk = diskman::RecoverDiskRequest;
 using TRspRecoverDisk = diskman::RecoverDiskResponse;
 
+class TDiskManagerApi
+    : public NRpc::TProxyBase
+{
+public:
+    explicit TDiskManagerApi(NRpc::IChannelPtr channel, TString serviceName);
+
+    DEFINE_RPC_PROXY_METHOD(NContainers, GetYTMountedDevices);
+    DEFINE_RPC_PROXY_METHOD(NContainers, ListDisks);
+    DEFINE_RPC_PROXY_METHOD(NContainers, RecoverDisk);
+};
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TDiskManagerProxy
-    : public NRpc::TProxyBase
-    , public TRefCounted
+    : public TRefCounted
 {
 public:
     explicit TDiskManagerProxy(TDiskManagerProxyConfigPtr config);
@@ -39,13 +49,11 @@ public:
     void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig);
 
 private:
+    const NRpc::IChannelPtr Channel_;
+    const TString ServiceName_;
+
     const TDiskManagerProxyConfigPtr Config_;
     TAtomicObject<TDiskManagerProxyDynamicConfigPtr> DynamicConfig_;
-
-    DEFINE_RPC_PROXY_METHOD(NContainers, GetYTMountedDevices);
-    DEFINE_RPC_PROXY_METHOD(NContainers, ListDisks);
-    DEFINE_RPC_PROXY_METHOD(NContainers, RecoverDisk);
-
     TDuration GetRequestTimeout() const;
 };
 

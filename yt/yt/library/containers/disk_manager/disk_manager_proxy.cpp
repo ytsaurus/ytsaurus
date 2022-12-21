@@ -62,22 +62,29 @@ diskman::DiskSpec::RecoverPolicy MapRecoverPolicy(ERecoverPolicy recoveryPolicy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiskManagerProxy::TDiskManagerProxy(
-    TDiskManagerProxyConfigPtr config)
+TDiskManagerApi::TDiskManagerApi(IChannelPtr channel, TString serviceName)
     : TProxyBase(
-        CreateDiskManagerRpcChannel(config->DiskManagerAddress),
-        TServiceDescriptor(config->DiskManagerServiceName))
+        std::move(channel),
+        TServiceDescriptor(std::move(serviceName)))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
+TDiskManagerProxy::TDiskManagerProxy(TDiskManagerProxyConfigPtr config)
+    : Channel_(CreateDiskManagerRpcChannel(config->DiskManagerAddress))
+    , ServiceName_(config->DiskManagerServiceName)
     , Config_(std::move(config))
     , DynamicConfig_(New<TDiskManagerProxyDynamicConfig>())
 { }
 
 TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskDeviceNames()
 {
-    auto request = GetYTMountedDevices();
+    TDiskManagerApi api(Channel_, ServiceName_);
+    auto request = api.GetYTMountedDevices();
     auto responseFuture = request->Invoke()
         .WithTimeout(GetRequestTimeout());
 
-    return responseFuture.Apply(BIND([] (const TErrorOr<TRspGetYTMountedDevicesPtr>& responseOrError) {
+    return responseFuture.Apply(BIND([] (const TErrorOr<TDiskManagerApi::TRspGetYTMountedDevicesPtr>& responseOrError) {
         if (!responseOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to fetch disk names from disk manager")
                 << responseOrError;
@@ -98,11 +105,12 @@ TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskDeviceNames()
 
 TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
 {
-    auto request = ListDisks();
+    TDiskManagerApi api(Channel_, ServiceName_);
+    auto request = api.ListDisks();
     auto responseFuture = request->Invoke()
         .WithTimeout(GetRequestTimeout());
 
-    return responseFuture.Apply(BIND([] (const TErrorOr<TRspListDisksPtr>& responseOrError) {
+    return responseFuture.Apply(BIND([] (const TErrorOr<TDiskManagerApi::TRspListDisksPtr>& responseOrError) {
         if (!responseOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to fetch disks info from disk manager")
                 << responseOrError;
@@ -129,14 +137,15 @@ TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
 }
 
 TFuture<void> TDiskManagerProxy::RecoverDiskById(TString diskId, ERecoverPolicy recoverPolicy) {
-    auto request = RecoverDisk();
+    TDiskManagerApi api(Channel_, ServiceName_);
+    auto request = api.RecoverDisk();
     request->set_disk_id(diskId);
     request->set_policy(MapRecoverPolicy(recoverPolicy));
 
     auto responseFuture = request->Invoke()
         .WithTimeout(GetRequestTimeout());
 
-    return responseFuture.Apply(BIND([=] (const TErrorOr<TRspRecoverDiskPtr>& responseOrError) {
+    return responseFuture.Apply(BIND([=] (const TErrorOr<TDiskManagerApi::TRspRecoverDiskPtr>& responseOrError) {
         if (!responseOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to send request to recover disk")
                 << responseOrError
