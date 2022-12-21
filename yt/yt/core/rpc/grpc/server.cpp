@@ -69,7 +69,7 @@ public:
             "GrpcServer",
             BIND_NO_PROPAGATE(&TServer::Shutdown, MakeWeak(this), /*graceful*/ true),
             /*priority*/ GrpcServerShutdownPriority))
-        , LibraryLock_(TDispatcher::Get()->CreateLibraryLock())
+        , LibraryLock_(TDispatcher::Get()->GetLibraryLock())
         , CompletionQueue_(TDispatcher::Get()->PickRandomGuardedCompletionQueue()->UnwrapUnsafe())
     { }
 

@@ -139,7 +139,7 @@ private:
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     TError TerminationError_;
-    TGrpcLibraryLockPtr LibraryLock_ = TDispatcher::Get()->CreateLibraryLock();
+    TGrpcLibraryLockPtr LibraryLock_ = TDispatcher::Get()->GetLibraryLock();
     TGrpcChannelPtr Channel_;
     TGrpcChannelCredentialsPtr Credentials_;
 
