@@ -8,7 +8,6 @@ import java.util.List;
 import java.util.Map;
 import java.util.Optional;
 
-import javax.annotation.Nonnull;
 import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.cypress.YPath;
@@ -19,16 +18,19 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable base class for system operation specs like merge, remote copy and sort.
+ */
 @NonNullApi
 @NonNullFields
 public class SystemOperationSpecBase {
     private final List<YPath> inputTables;
     private final YPath outputTable;
 
-    private final @Nullable
-    String pool;
-    private final @Nullable
-    String title;
+    @Nullable
+    private final String pool;
+    @Nullable
+    private final String title;
 
     private final Map<String, YTreeNode> outputTableAttributes;
     private final Map<String, YTreeNode> additionalSpecParameters;
@@ -94,6 +96,9 @@ public class SystemOperationSpecBase {
         return additionalSpecParameters;
     }
 
+    /**
+     * Convert to yson.
+     */
     public YTreeBuilder toTree(YTreeBuilder mapBuilder, SpecPreparationContext context) {
         return mapBuilder
                 .key("started_by").apply(b -> SpecUtils.startedBy(b, context))
@@ -109,74 +114,113 @@ public class SystemOperationSpecBase {
                 });
     }
 
+    /**
+     * Builder of {@link SystemOperationSpecBase}.
+     */
     @NonNullApi
     @NonNullFields
     public abstract static class Builder<T extends Builder<T>> {
         // N.B. some clients have methods taking this class as argument therefore it must be public
         private List<YPath> inputTables = new ArrayList<>();
-        private @Nullable
-        YPath outputTable;
+        @Nullable
+        private YPath outputTable;
 
-        private @Nullable
-        String pool;
-        private @Nullable
-        String title;
+        @Nullable
+        private String pool;
+        @Nullable
+        private String title;
 
         private Map<String, YTreeNode> outputTableAttributes = new HashMap<>();
         private Map<String, YTreeNode> additionalSpecParameters = new HashMap<>();
 
+        /**
+         * Set input tables. It is required parameter.
+         */
         public T setInputTables(Collection<YPath> inputTables) {
             this.inputTables = new ArrayList<>(inputTables);
             return self();
         }
 
+        /**
+         * Set input tables. It is required parameter.
+         */
         public T setInputTables(YPath... inputTables) {
             return setInputTables(Arrays.asList(inputTables));
         }
 
+        /**
+         * Add one more input table. It is required parameter.
+         */
         public T addInputTable(YPath inputTable) {
             this.inputTables.add(inputTable);
             return self();
         }
 
+        /**
+         * Set output table. It is required parameter.
+         */
         public T setOutputTable(YPath outputTable) {
             this.outputTable = outputTable;
             return self();
         }
 
+        /**
+         * Set attributes for output table.
+         */
         public T setOutputTableAttributes(Map<String, YTreeNode> outputTableAttributes) {
             this.outputTableAttributes = new HashMap<>(outputTableAttributes);
             return self();
         }
 
+        /**
+         * Add one more attribute for output table.
+         */
         public T plusOutputTableAttribute(String key, @Nullable Object value) {
             return plusOutputTableAttribute(key, YTree.node(value));
         }
 
+        /**
+         * Add one more attribute for output table.
+         */
         public T plusOutputTableAttribute(String key, YTreeNode value) {
             this.outputTableAttributes.put(key, value);
             return self();
         }
 
+        /**
+         * Set pool in which operation should be run.
+         */
         public T setPool(@Nullable String pool) {
             this.pool = pool;
             return self();
         }
 
+        /**
+         * Set title of operation.
+         */
         public T setTitle(@Nullable String title) {
             this.title = title;
             return self();
         }
 
-        public T setAdditionalSpecParameters(@Nonnull Map<String, YTreeNode> additionalSpecParameters) {
+        /**
+         * Set additional parameters for spec
+         */
+        public T setAdditionalSpecParameters(Map<String, YTreeNode> additionalSpecParameters) {
             this.additionalSpecParameters = new HashMap<>(additionalSpecParameters);
             return self();
         }
 
+        /**
+         * Add one more spec parameter.
+         */
         public T plusAdditionalSpecParameter(String key, @Nullable Object value) {
             return plusAdditionalSpecParameter(key, YTree.node(value));
         }
 
+        /**
+         * Add one more spec parameter.
+         */
         public T plusAdditionalSpecParameter(String key, YTreeNode value) {
             this.additionalSpecParameters.put(key, value);
             return self();

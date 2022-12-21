@@ -6,11 +6,17 @@ import java.util.Set;
 import tech.ytsaurus.client.TransactionalClient;
 import tech.ytsaurus.core.cypress.YPath;
 
+import ru.yandex.lang.NonNullApi;
+
+/**
+ * Interface for uploading jars and other files.
+ */
+@NonNullApi
 public interface JarsProcessor {
     /**
      * Detects classpath and uploads it to YT.
      *
-     * @return Files that will be copied into task CWD and inclueded in classpath.
+     * @return Files that will be copied into task CWD and included in classpath.
      */
     Set<YPath> uploadJars(TransactionalClient yt, MapperOrReducer<?, ?> mapperOrReducer, boolean isLocalMode);
 

@@ -7,6 +7,15 @@ import java.io.OutputStream;
 import java.io.PrintStream;
 import java.util.Arrays;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+
+/**
+ * For internal usage only. Please, don't use it in your code.
+ * It isn't package-private only because there is another client which we need to support too and which reuse this code.
+ */
+@NonNullApi
+@NonNullFields
 public class YtMainUtils {
     protected YtMainUtils() {
     }

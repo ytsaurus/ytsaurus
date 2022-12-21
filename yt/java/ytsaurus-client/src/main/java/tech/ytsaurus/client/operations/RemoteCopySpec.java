@@ -95,6 +95,9 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
         private @Nullable
         Boolean copyAttributes;
 
+        /**
+         * Create instance of {@link RemoteCopySpec}.
+         */
         public RemoteCopySpec build() {
             return new RemoteCopySpec(this);
         }

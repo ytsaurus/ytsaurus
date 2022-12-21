@@ -5,7 +5,10 @@ import java.io.OutputStream;
 
 import tech.ytsaurus.core.operations.Yield;
 
-public class VanillaMain {
+import ru.yandex.lang.NonNullApi;
+
+@NonNullApi
+class VanillaMain {
     private VanillaMain() {
     }
 
@@ -27,12 +30,8 @@ public class VanillaMain {
     public static <TOutput> int apply(VanillaJob<TOutput> job, OutputStream[] output, Statistics statistics)
             throws java.io.IOException {
         YTableEntryType<TOutput> outputType = job.outputType();
-        Yield<TOutput> yield = outputType.yield(output);
-        try {
+        try (statistics; Yield<TOutput> yield = outputType.yield(output)) {
             return job.run(yield, statistics);
-        } finally {
-            yield.close();
-            statistics.close();
         }
     }
 }

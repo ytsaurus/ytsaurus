@@ -4,7 +4,12 @@ import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
 import java.io.OutputStream;
 
-public class YtUtils {
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+
+@NonNullApi
+@NonNullFields
+class YtUtils {
     private static final boolean IS_WINDOWS = System.getProperty("os.name").startsWith("Windows");
 
     private YtUtils() {

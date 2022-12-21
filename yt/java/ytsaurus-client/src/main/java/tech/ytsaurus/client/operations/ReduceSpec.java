@@ -17,6 +17,9 @@ import ru.yandex.lang.NonNullFields;
 
 /**
  * Spec of the reduce operation.
+ * @see <a href="https://yt.yandex-team.ru/docs/description/mr/reduce">
+ * reduce documentation
+ * </a>
  */
 @NonNullApi
 @NonNullFields
@@ -121,6 +124,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     public Optional<JobIo> getJobIo() {
         return Optional.ofNullable(jobIo);
     }
+
     /**
      * @see Builder#setReduceBy(List)
      */
@@ -203,6 +207,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
 
         /**
          * Set reducer spec.
+         *
          * @see ReducerSpec
          * @see CommandSpec
          */
@@ -245,6 +250,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
 
         /**
          * Set job I/O options.
+         *
          * @see JobIo
          */
         public T setJobIo(@Nullable JobIo jobIo) {

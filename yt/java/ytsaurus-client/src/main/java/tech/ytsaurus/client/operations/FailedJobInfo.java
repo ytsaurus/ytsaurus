@@ -12,6 +12,9 @@ import tech.ytsaurus.core.GUID;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Store all information about failed job.
+ */
 @NonNullApi
 @NonNullFields
 public class FailedJobInfo {

@@ -8,8 +8,12 @@ import java.util.Optional;
 import tech.ytsaurus.core.utils.ClassUtils;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 
-public final class YTableEntryTypeUtils {
+@NonNullApi
+@NonNullFields
+final class YTableEntryTypeUtils {
     private static final List<Class<?>> DEFAULT_CLASSES = Arrays.asList(
             MapperOrReducer.class,
             Mapper.class,

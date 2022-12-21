@@ -4,6 +4,7 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
 import java.util.List;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
 
@@ -20,24 +21,28 @@ import tech.ytsaurus.ysontree.YTreeBuilder;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable sort spec.
+ */
 @NonNullApi
 @NonNullFields
 public class SortSpec extends SystemOperationSpecBase implements Spec {
     private final List<SortColumn> sortBy;
 
-    private final @Nullable
-    Integer partitionCount;
-    private final @Nullable
-    Integer partitionJobCount;
-    private final @Nullable
-    Integer sortJobCount;
-    private final @Nullable
-    DataSize maxDataSizePerSortJob;
-    private final @Nullable
-    DataSize maxDataSizePerUnorderedMergeJob;
-    private final @Nullable
-    JobIo mergeJobIo;
+    @Nullable
+    private final Integer partitionCount;
+    @Nullable
+    private final Integer partitionJobCount;
+    @Nullable
+    private final DataSize dataSizePerSortJob;
+    @Nullable
+    private final DataSize dataSizePerSortedMergeJob;
+    @Nullable
+    private final JobIo mergeJobIo;
 
+    /**
+     * Create sort spec from input tables, output table and list of columns.
+     */
     public SortSpec(
             List<YPath> inputTables,
             YPath outputTable,
@@ -59,44 +64,63 @@ public class SortSpec extends SystemOperationSpecBase implements Spec {
 
         partitionCount = builder.partitionCount;
         partitionJobCount = builder.partitionJobCount;
-        sortJobCount = builder.sortJobCount;
-        maxDataSizePerSortJob = builder.maxDataSizePerSortJob;
-        maxDataSizePerUnorderedMergeJob = builder.maxDataSizePerUnorderedMergeJob;
+        dataSizePerSortJob = builder.dataSizePerSortJob;
+        dataSizePerSortedMergeJob = builder.dataSizePerSortedMergeJob;
         mergeJobIo = builder.mergeJobIo;
     }
 
+    /**
+     * @see Builder#setPartitionCount(Integer)
+     */
     public Optional<Integer> getPartitionCount() {
         return Optional.ofNullable(partitionCount);
     }
 
+    /**
+     * @see Builder#setPartitionJobCount(Integer)
+     */
     public Optional<Integer> getPartitionJobCount() {
         return Optional.ofNullable(partitionJobCount);
     }
 
-    public Optional<Integer> getSortJobCount() {
-        return Optional.ofNullable(sortJobCount);
+    /**
+     * @see Builder#setDataSizePerSortJob(DataSize)
+     */
+    public Optional<DataSize> getDataSizePerSortJob() {
+        return Optional.ofNullable(dataSizePerSortJob);
     }
 
-    public Optional<DataSize> getMaxDataSizePerSortJob() {
-        return Optional.ofNullable(maxDataSizePerSortJob);
+    /**
+     * @see Builder#setDataSizePerSortedMergeJob(DataSize)
+     */
+    public Optional<DataSize> getDataSizePerSortedMergeJob() {
+        return Optional.ofNullable(dataSizePerSortedMergeJob);
     }
 
-    public Optional<DataSize> getMaxDataSizePerUnorderedMergeJob() {
-        return Optional.ofNullable(maxDataSizePerUnorderedMergeJob);
-    }
-
+    /**
+     * @see Builder#setMergeJobIo(JobIo)
+     */
     public Optional<JobIo> getMergeJobIo() {
         return Optional.ofNullable(mergeJobIo);
     }
 
+    /**
+     * @see Builder#setSortBy(String...)
+     */
     public List<String> getSortBy() {
         return sortBy.stream().map(SortColumn::getName).collect(Collectors.toList());
     }
 
+    /**
+     * @see Builder#setSortByColumns(List)
+     */
     public List<SortColumn> getSortByColumns() {
         return sortBy;
     }
 
+    /**
+     * Convert to yson.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         yt.createNode(CreateNode.builder()
@@ -110,21 +134,27 @@ public class SortSpec extends SystemOperationSpecBase implements Spec {
         return builder.beginMap()
                 .when(partitionCount != null, b -> b.key("partition_count").value(partitionCount))
                 .when(partitionJobCount != null, b -> b.key("partition_job_count").value(partitionJobCount))
-                .when(sortJobCount != null, b -> b.key("sort_job_count").value(sortJobCount))
-                .when(maxDataSizePerSortJob != null, b -> b.key("max_data_size_per_sort_job")
-                        .value(maxDataSizePerSortJob.toBytes()))
-                .when(maxDataSizePerUnorderedMergeJob != null, b -> b.key("max_data_size_per_unordered_merge_job")
-                        .value(maxDataSizePerUnorderedMergeJob.toBytes()))
+                .when(dataSizePerSortJob != null, b -> b.key("data_size_per_sort_job")
+                        .value(Objects.requireNonNull(dataSizePerSortJob).toBytes()))
+                .when(dataSizePerSortedMergeJob != null, b -> b.key("data_size_per_sorted_merge_job")
+                        .value(Objects.requireNonNull(dataSizePerSortedMergeJob).toBytes()))
                 .key("sort_by").value(sortBy, (b, t) -> t.toTree(b))
-                .when(mergeJobIo != null, b -> b.key("merge_job_io").value(mergeJobIo.prepare()))
+                .when(mergeJobIo != null, b -> b.key("merge_job_io")
+                        .value(Objects.requireNonNull(mergeJobIo).prepare()))
                 .apply(b -> toTree(b, context))
                 .endMap();
     }
 
+    /**
+     * Create empty builder.
+     */
     public static BuilderBase<?> builder() {
         return new Builder();
     }
 
+    /**
+     * Builder of {@link SortSpec}.
+     */
     protected static class Builder extends BuilderBase<Builder> {
         @Override
         protected Builder self() {
@@ -137,66 +167,89 @@ public class SortSpec extends SystemOperationSpecBase implements Spec {
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SystemOperationSpecBase.Builder<T> {
-        List<SortColumn> sortBy = new ArrayList<>();
+        private List<SortColumn> sortBy = new ArrayList<>();
         @Nullable
-        Integer partitionCount;
+        private Integer partitionCount;
         @Nullable
-        Integer partitionJobCount;
+        private Integer partitionJobCount;
         @Nullable
-        Integer sortJobCount;
+        private DataSize dataSizePerSortJob;
         @Nullable
-        DataSize maxDataSizePerSortJob;
+        private DataSize dataSizePerSortedMergeJob;
         @Nullable
-        DataSize maxDataSizePerUnorderedMergeJob;
-        @Nullable
-        JobIo mergeJobIo;
+        private JobIo mergeJobIo;
 
+        /**
+         * Create instance of {@link SortSpec}.
+         */
         public SortSpec build() {
             return new SortSpec(this);
         }
 
+        /**
+         * Set list of columns to sort by. It is required parameter.
+         */
         public T setSortByColumns(List<SortColumn> sortBy) {
             this.sortBy = new ArrayList<>(sortBy);
             return self();
         }
 
+        /**
+         * Set list of columns to sort by. It is required parameter.
+         */
         public T setSortByColumns(SortColumn... sortBy) {
             return setSortByColumns(Arrays.asList(sortBy));
         }
 
+        /**
+         * Set list of columns to sort by. It is required parameter.
+         */
         public T setSortBy(Collection<String> sortBy) {
             return setSortByColumns(SortColumn.convert(sortBy));
         }
 
+        /**
+         * Set list of columns to sort by. It is required parameter.
+         */
         public T setSortBy(String... sortBy) {
             return setSortBy(Arrays.asList(sortBy));
         }
 
+        /**
+         * Set how many partitions should be made in the sort. It is advisory.
+         */
         public T setPartitionCount(@Nullable Integer partitionCount) {
             this.partitionCount = partitionCount;
             return self();
         }
 
+        /**
+         * Set how many partition jobs should be run. It is advisory.
+         */
         public T setPartitionJobCount(@Nullable Integer partitionJobCount) {
             this.partitionJobCount = partitionJobCount;
             return self();
         }
 
-        public T setSortJobCount(@Nullable Integer sortJobCount) {
-            this.sortJobCount = sortJobCount;
+        /**
+         * Set recommended amount of input data for one sort job.
+         */
+        public T setDataSizePerSortJob(@Nullable DataSize dataSizePerSortJob) {
+            this.dataSizePerSortJob = dataSizePerSortJob;
             return self();
         }
 
-        public T setMaxDataSizePerSortJob(@Nullable DataSize maxDataSizePerSortJob) {
-            this.maxDataSizePerSortJob = maxDataSizePerSortJob;
+        /**
+         * Set recommended amount of input data for one sorted merge job.
+         */
+        public T setDataSizePerSortedMergeJob(@Nullable DataSize dataSizePerSortedMergeJob) {
+            this.dataSizePerSortedMergeJob = dataSizePerSortedMergeJob;
             return self();
         }
 
-        public T setMaxDataSizePerUnorderedMergeJob(@Nullable DataSize maxDataSizePerUnorderedMergeJob) {
-            this.maxDataSizePerUnorderedMergeJob = maxDataSizePerUnorderedMergeJob;
-            return self();
-        }
-
+        /**
+         * Set job I/O options.
+         */
         public T setMergeJobIo(@Nullable JobIo mergeJobIo) {
             this.mergeJobIo = mergeJobIo;
             return self();

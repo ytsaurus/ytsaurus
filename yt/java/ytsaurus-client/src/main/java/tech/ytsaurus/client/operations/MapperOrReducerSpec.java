@@ -12,6 +12,7 @@ import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Objects;
 import java.util.Optional;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -34,7 +35,7 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
 /**
- * Base class from {@link MapperSpec} and {@link ReducerSpec}.
+ * Immutable base class of {@link MapperSpec}, {@link ReducerSpec} and {@link VanillaJob}.
  */
 @NonNullApi
 @NonNullFields
@@ -211,7 +212,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
         List<String> args = new ArrayList<>();
         args.add(String.valueOf(outputTableCount));
 
-        if (!resource.isPresent()) {
+        if (resource.isEmpty()) {
             args.add("simple");
             args.add(JavaYtRunner.normalizeClassName(mapperOrReducer.getClass().getName()));
         } else {
@@ -243,7 +244,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                 .key("memory_limit").value(memoryLimit.toBytes())
                 .when(memoryReserveFactor != null, b -> b.key("memory_reserve_factor").value(memoryReserveFactor))
                 .when(useTmpfs, b -> b.key("tmpfs_path").value(".").key("copy_files").value(true))
-                .when(tmpfsSize != null, b -> b.key("tmpfs_size").value(tmpfsSize.toBytes()))
+                .when(tmpfsSize != null, b -> b.key("tmpfs_size").value(Objects.requireNonNull(tmpfsSize).toBytes()))
                 .when(cpuLimit != null, b -> b.key("cpu_limit").value(cpuLimit))
                 .when(jobTimeLimit != null, b -> b.key("job_time_limit").value(jobTimeLimit))
                 .when(jobCount != null, b -> b.key("job_count").value(jobCount))
@@ -253,7 +254,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                         .value(customStatisticsCountLimit))
                 .when(networkProject != null, b -> b.key("network_project").value(networkProject))
                 .when(prepareTimeLimit != null, b -> b.key("prepare_time_limit")
-                        .value(prepareTimeLimit.toMillis()))
+                        .value(Objects.requireNonNull(prepareTimeLimit).toMillis()))
                 .endMap();
     }
 
@@ -292,6 +293,9 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
 
         protected abstract T self();
 
+        /**
+         * Set user job, it is required parameter.
+         */
         protected T setUserJob(MapperOrReducer<?, ?> userJob) {
             this.userJob = userJob;
             return self();

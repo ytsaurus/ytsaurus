@@ -15,7 +15,11 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.ysontree.YTreeBuilder;
 import tech.ytsaurus.ysontree.YTreeNode;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
 
+@NonNullApi
+@NonNullFields
 final class SpecUtils {
     private SpecUtils() {
     }

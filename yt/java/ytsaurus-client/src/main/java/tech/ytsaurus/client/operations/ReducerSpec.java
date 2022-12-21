@@ -60,6 +60,7 @@ public class ReducerSpec extends MapperOrReducerSpec {
 
         /**
          * Set reducer.
+         *
          * @see Reducer
          */
         public Builder setReducer(Reducer<?, ?> reducer) {

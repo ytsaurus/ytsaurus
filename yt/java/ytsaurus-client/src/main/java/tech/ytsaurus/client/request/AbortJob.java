@@ -14,7 +14,7 @@ import tech.ytsaurus.rpcproxy.TReqAbortJob;
  * Immutable abort job request.
  * <p>
  *
- * @see tech.ytsaurus.ytclient.proxy.ApiServiceClient#abortJob(AbortJob)
+ * @see tech.ytsaurus.client.ApiServiceClient#abortJob(AbortJob)
  * @see <a href="https://docs.yandex-team.ru/yt/api/commands#abort_job">
  * abort_job documentation
  * </a>

@@ -9,7 +9,12 @@ import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
+import ru.yandex.lang.NonNullApi;
 
+/**
+ * It matches to format and way of processing input and output job data.
+ */
+@NonNullApi
 public interface YTableEntryType<T> extends Serializable {
 
     YTreeStringNode format();

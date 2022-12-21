@@ -12,6 +12,16 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+
+/**
+ * For reading/writing of YTreeMapNode using binary yson format.
+ *
+ * @see YTableEntryType
+ */
+@NonNullApi
+@NonNullFields
 public class YsonTableEntryType implements YTableEntryType<YTreeMapNode> {
 
     private final boolean setTableIndex;

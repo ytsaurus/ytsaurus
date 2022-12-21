@@ -1,6 +1,5 @@
 package tech.ytsaurus.client.operations;
 
-import java.util.Arrays;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
@@ -15,6 +14,9 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
+/**
+ * Immutable vanilla job spec.
+ */
 @NonNullApi
 @NonNullFields
 public class VanillaJobSpec extends MapperOrReducerSpec implements Spec {
@@ -25,12 +27,18 @@ public class VanillaJobSpec extends MapperOrReducerSpec implements Spec {
         outputTablePaths = builder.outputTablePaths;
     }
 
+    /**
+     * Convert to yson.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context,
                                 int outputTableCount) {
         return prepare(builder, yt, context);
     }
 
+    /**
+     * Convert to yson.
+     */
     @Override
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
         if (outputTablePaths.isEmpty()) {
@@ -46,20 +54,29 @@ public class VanillaJobSpec extends MapperOrReducerSpec implements Spec {
         }
     }
 
+    /**
+     * Create spec builder from vanilla job.
+     */
     public static Builder builder(VanillaJob<?> job) {
         Builder builder = new Builder();
         builder.setJob(job);
         return builder;
     }
 
+    /**
+     * Create empty builder.
+     */
     public static Builder builder() {
         return new Builder();
     }
 
+    /**
+     * Builder of {@link VanillaJobSpec}.
+     */
     @NonNullApi
     @NonNullFields
     public static class Builder extends MapperOrReducerSpec.Builder<Builder> {
-        private List<YPath> outputTablePaths = Arrays.asList();
+        private List<YPath> outputTablePaths = List.of();
 
         Builder() {
             // Vanilla jobs require setting job count
@@ -79,6 +96,9 @@ public class VanillaJobSpec extends MapperOrReducerSpec implements Spec {
             return this;
         }
 
+        /**
+         * Set user job, it is required parameter.
+         */
         public Builder setJob(VanillaJob<?> job) {
             setUserJob(job);
             return this;
@@ -98,6 +118,9 @@ public class VanillaJobSpec extends MapperOrReducerSpec implements Spec {
             return super.setJobCount(jobCount);
         }
 
+        /**
+         * Set output tables.
+         */
         public Builder setOutputTablePaths(List<YPath> outputTablePaths) {
             this.outputTablePaths = outputTablePaths;
             return this;

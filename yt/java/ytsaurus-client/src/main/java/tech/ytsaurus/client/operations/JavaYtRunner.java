@@ -7,6 +7,14 @@ import javax.annotation.Nullable;
 
 import tech.ytsaurus.core.JavaOptions;
 
+import ru.yandex.lang.NonNullApi;
+import ru.yandex.lang.NonNullFields;
+
+/**
+ * For internal usage only, please, don't use it in your code.
+ */
+@NonNullApi
+@NonNullFields
 public class JavaYtRunner {
     protected JavaYtRunner() {
     }
