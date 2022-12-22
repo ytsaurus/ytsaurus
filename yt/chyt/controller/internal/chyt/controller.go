@@ -3,6 +3,7 @@ package chyt
 import (
 	"context"
 	"fmt"
+	"os"
 	"reflect"
 	"strings"
 
@@ -20,6 +21,30 @@ type Controller struct {
 	clusterConnection map[string]interface{}
 	root              ypath.Path
 	cluster           string
+	tvmSecret         string
+}
+
+func (c *Controller) prepareTvmSecret() {
+	clusterName := strings.ReplaceAll(strings.ToUpper(c.cluster), "-", "_")
+	envVar := "CHYT_TVM_SECRET_" + clusterName
+	secret, ok := os.LookupEnv(envVar)
+	if !ok {
+		return
+	}
+	c.tvmSecret = strings.TrimSpace(secret)
+}
+
+func (c *Controller) getTvmID() (int64, bool) {
+	rawTvmID, ok := c.clusterConnection["tvm_id"]
+	if !ok {
+		return 0, false
+	}
+	tvmID, ok := rawTvmID.(int64)
+	if !ok {
+		c.l.Warn("tvm id must have int64 type")
+		return 0, false
+	}
+	return tvmID, true
 }
 
 func (c *Controller) getClusterConnection(ctx context.Context) (
@@ -103,6 +128,13 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		"is_clique": true,
 		"expose":    true,
 	}
+
+	if c.tvmSecret != "" {
+		spec["secure_vault"] = map[string]interface{}{
+			"TVM_SECRET": c.tvmSecret,
+		}
+	}
+
 	return
 }
 
@@ -146,5 +178,6 @@ func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string,
 		panic(err)
 	}
 	c.clusterConnection = clusterConnection
+	c.prepareTvmSecret()
 	return c
 }
