@@ -90,6 +90,8 @@ message TRspHeartbeat
     optional bool scheduling_skipped = 8;
     optional int32 operation_archive_version = 11;
 
+    repeated TControllerAgentDescriptor registered_controller_agents = 18;
+
     reserved 2, 5, 7, 9, 10, 12, 13, 14;
 }
 

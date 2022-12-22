@@ -747,10 +747,10 @@ void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
     // COMPAT(pogorelov)
     if constexpr (std::is_same_v<TCtxNodeHeartbeatPtr, TScheduler::TCtxNodeHeartbeatPtr>) {
         ProcessOperationInfoHeartbeat(request, response);
+    }
 
-        if (Config_->SendRegisteredAgentsToNode) {
-            AddRegisteredControllerAgentsToResponse(response);
-        }
+    if (Config_->SendRegisteredAgentsToNode) {
+        AddRegisteredControllerAgentsToResponse(response);
     }
 
     context->SetResponseInfo(
@@ -2557,7 +2557,7 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
     }
 }
 
-void TNodeShard::AddRegisteredControllerAgentsToResponse(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response)
+void TNodeShard::AddRegisteredControllerAgentsToResponse(auto* response)
 {
     for (const auto& [agentId, agentInfo] : RegisteredAgents_) {
         auto agentDescriptorProto = response->add_registered_controller_agents();
