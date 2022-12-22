@@ -39,7 +39,8 @@ def get_clique_spec_builder(instance_count,
                             max_instance_count=None,
                             spec=None,
                             client=None,
-                            ytserver_readiness_timeout=None):
+                            ytserver_readiness_timeout=None,
+                            tvm_secret=None):
     """Returns a spec builder for the clickhouse clique consisting of a given number of instances.
 
     :param instance_count: number of instances (also the number of jobs in the underlying vanilla operation).
@@ -152,6 +153,9 @@ def get_clique_spec_builder(instance_count,
             .core_table_path(core_table_path) \
             .alias(operation_alias) \
             .spec(spec)
+
+    if tvm_secret is not None:
+        spec_builder = spec_builder.secure_vault({"TVM_SECRET": tvm_secret})
 
     if "pool" not in spec_builder.build(client=client):
         logger.warning("It is discouraged to run clique in ephemeral pool "

@@ -27,6 +27,7 @@ import errno
 import time
 import json
 import random
+import copy
 
 HOST_PATHS = get_host_paths(arcadia_interop, ["ytserver-clickhouse", "clickhouse-trampoline", "ytserver-log-tailer"])
 
@@ -74,6 +75,7 @@ class Clique(object):
     proxy_address = None
     clique_index_by_test_name = {}
     alias = None
+    tvm_secret = None
 
     def __init__(self, instance_count, max_failed_job_count=0, config_patch=None, cpu_limit=None, alias=None, **kwargs):
         discovery_patch = {
@@ -128,7 +130,9 @@ class Clique(object):
         filename = "//sys/clickhouse/config-{}.yson".format(Clique.clique_index)
         Clique.clique_index += 1
         create("file", filename)
-        write_file(filename, yson.dumps(config, yson_format="pretty"))
+        config_str = yson.dumps(config, yson_format="pretty")
+        assert config_str.find(b"TestSecret") == -1
+        write_file(filename, config_str)
 
         cypress_config_paths = {"clickhouse_server": (filename, "config.yson")}
         if "cypress_ytserver_log_tailer_config_path" in kwargs:
@@ -150,6 +154,7 @@ class Clique(object):
             trampoline_log_file=os.path.join(self.log_root, "trampoline-$YT_JOB_INDEX.debug.log"),
             stderr_file=os.path.join(self.stderr_root, "stderr.clickhouse-$YT_JOB_INDEX"),
             ytserver_readiness_timeout=15,
+            tvm_secret=Clique.tvm_secret,
             **kwargs
         )
         self.spec = simplify_structure(spec_builder.build())
@@ -574,9 +579,6 @@ class ClickHouseTestBase(YTEnvSetup):
 
     ENABLE_HTTP_PROXY = True
 
-    # TODO(gepardo): Re-enable native auth when CHYT will support it.
-    USE_NATIVE_AUTH = False
-
     DELTA_PROXY_CONFIG = {
         "clickhouse": {
             "discovery_cache": {
@@ -634,7 +636,14 @@ class ClickHouseTestBase(YTEnvSetup):
         # COMPAT(max42): see get_clickhouse_server_config() compats.
         Clique.base_config["clickhouse"] = Clique.base_config["engine"]
         del Clique.base_config["engine"]
-        Clique.base_config["cluster_connection"] = cls.Env.configs["driver"]
+        Clique.base_config["cluster_connection"] = copy.deepcopy(cls.Env.configs["driver"])
+        if "tvm_service" in Clique.base_config["cluster_connection"]:
+            Clique.base_config["native_authentication_manager"] = {
+                "tvm_service": Clique.base_config["cluster_connection"].pop("tvm_service"),
+                "enable_validation": True,
+            }
+            Clique.base_config["native_authentication_manager"]["tvm_service"].pop("client_dst_map")
+            Clique.tvm_secret = Clique.base_config["native_authentication_manager"]["tvm_service"].pop("client_self_secret")
         Clique.proxy_address = cls._get_proxy_address()
 
     def setup_method(self, method):

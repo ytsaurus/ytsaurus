@@ -6,6 +6,7 @@ from yt_commands import (authors, create_user, sync_mount_table, add_member, rem
 
 from yt.environment import arcadia_interop
 
+import copy
 import subprocess
 import os.path
 
@@ -30,12 +31,9 @@ class TestLogTailer(YTEnvSetup):
     NUM_NODES = 3
     NUM_SCHEDULERS = 1
 
-    # TODO(gepardo): Re-enable native auth when CHYT will support it.
-    USE_NATIVE_AUTH = False
-
     @authors("gritukan")
     def test_log_rotation(self):
-        log_tailer_config = get_log_tailer_config()
+        log_tailer_config = get_log_tailer_config(mock_tvm_id=self.Env.configs["driver"].get("tvm_id"), inject_secret=True)
         log_path = os.path.join(self.path_to_run, "logs", "dummy_logger", "log")
 
         log_tailer_config["log_tailer"]["log_files"] = [
@@ -47,7 +45,9 @@ class TestLogTailer(YTEnvSetup):
         log_tailer_config["logging"]["writers"]["debug"]["file_name"] = os.path.join(
             self.path_to_run, "logs", "dummy_logger", "log_tailer.debug.log"
         )
-        log_tailer_config["cluster_connection"] = self.Env.configs["driver"]
+        log_tailer_config["cluster_connection"] = copy.deepcopy(self.Env.configs["driver"])
+        if "tvm_service" in log_tailer_config["cluster_connection"]:
+            log_tailer_config["cluster_connection"].pop("tvm_service")
 
         os.mkdir(os.path.join(self.path_to_run, "logs", "dummy_logger"))
         log_tailer_config_file = os.path.join(self.path_to_run, "logs", "dummy_logger", "log_tailer_config.yson")
@@ -192,7 +192,7 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
     @authors("gritukan")
     def test_log_tailer(self):
         # Prepare log tailer config and upload it to Cypress.
-        log_tailer_config = get_log_tailer_config()
+        log_tailer_config = get_log_tailer_config(mock_tvm_id=self.Env.configs["driver"].get("tvm_id"))
         log_file_path = os.path.join(
             self.path_to_run, "logs", "clickhouse-{}-0".format(get_current_test_name()), "clickhouse-{}.debug.log".format(0)
         )
@@ -204,9 +204,15 @@ class TestClickHouseWithLogTailer(ClickHouseTestBase):
             self.path_to_run, "logs", "clickhouse-{}-0".format(get_current_test_name()), "log_tailer-{}.debug.log".format(0)
         )
         log_tailer_config["cluster_connection"] = self.Env.configs["driver"]
+        if "tvm_service" in log_tailer_config["cluster_connection"]:
+            log_tailer_config["cluster_connection"].pop("tvm_service")
         log_tailer_config_filename = "//sys/clickhouse/log_tailer_config.yson"
         create("file", log_tailer_config_filename)
-        write_file(log_tailer_config_filename, yson.dumps(log_tailer_config, yson_format="pretty"))
+
+        log_tailer_config_str = yson.dumps(log_tailer_config, yson_format="pretty")
+        assert log_tailer_config_str.find(b"TestSecret") == -1
+
+        write_file(log_tailer_config_filename, log_tailer_config_str)
 
         # Create dynamic tables for logs.
         create_tablet_cell_bundle("sys")
