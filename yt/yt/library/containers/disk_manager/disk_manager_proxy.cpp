@@ -81,6 +81,7 @@ TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskDeviceNames()
 {
     TDiskManagerApi api(Channel_, ServiceName_);
     auto request = api.GetYTMountedDevices();
+    request->SetTimeout(GetRequestTimeout());
     auto responseFuture = request->Invoke()
         .WithTimeout(GetRequestTimeout());
 
@@ -107,6 +108,7 @@ TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
 {
     TDiskManagerApi api(Channel_, ServiceName_);
     auto request = api.ListDisks();
+    request->SetTimeout(GetRequestTimeout());
     auto responseFuture = request->Invoke()
         .WithTimeout(GetRequestTimeout());
 
@@ -141,6 +143,7 @@ TFuture<void> TDiskManagerProxy::RecoverDiskById(TString diskId, ERecoverPolicy 
     auto request = api.RecoverDisk();
     request->set_disk_id(diskId);
     request->set_policy(MapRecoverPolicy(recoverPolicy));
+    request->SetTimeout(GetRequestTimeout());
 
     auto responseFuture = request->Invoke()
         .WithTimeout(GetRequestTimeout());
