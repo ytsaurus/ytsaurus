@@ -6,7 +6,7 @@
 
 #include <util/stream/file.h>
 
-namespace NYT::NHydra::NTools::NUnpackLocalSnapshot {
+namespace NYT::NTools::NUnpackLocalSnapshot {
 
 using namespace NHydra;
 using namespace NConcurrency;
@@ -63,9 +63,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra::NTools::NUnpackLocalSnapshot
+} // namespace NYT:::NTools::NUnpackLocalSnapshot
 
 int main(int argc, const char** argv)
 {
-    return NYT::NHydra::NTools::NUnpackLocalSnapshot::TProgram().Run(argc, argv);
+    return NYT::NTools::NUnpackLocalSnapshot::TProgram().Run(argc, argv);
 }
