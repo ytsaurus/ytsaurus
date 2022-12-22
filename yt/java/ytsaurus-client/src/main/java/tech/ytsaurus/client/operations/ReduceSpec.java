@@ -17,6 +17,7 @@ import ru.yandex.lang.NonNullFields;
 
 /**
  * Spec of the reduce operation.
+ *
  * @see <a href="https://yt.yandex-team.ru/docs/description/mr/reduce">
  * reduce documentation
  * </a>

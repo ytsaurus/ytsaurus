@@ -20,7 +20,11 @@ import ru.yandex.lang.NonNullApi;
 import ru.yandex.lang.NonNullFields;
 
 /**
- * Immutable merge spec.
+ * Immutable spec for merge operation.
+ *
+ * @see <a href="https://yt.yandex-team.ru/docs/description/mr/merge">
+ * merge documentation
+ * </a>
  */
 @NonNullApi
 @NonNullFields

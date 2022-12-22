@@ -17,6 +17,10 @@ import ru.yandex.lang.NonNullFields;
 
 /**
  * Immutable vanilla spec.
+ *
+ * @see <a href="https://yt.yandex-team.ru/docs/description/mr/vanilla">
+ * vanilla documentation
+ * </a>
  */
 @NonNullApi
 @NonNullFields

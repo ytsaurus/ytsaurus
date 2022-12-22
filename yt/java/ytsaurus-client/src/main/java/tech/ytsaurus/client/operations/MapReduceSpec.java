@@ -19,6 +19,7 @@ import ru.yandex.lang.NonNullFields;
 
 /**
  * Immutable map-reduce spec.
+ *
  * @see <a href="https://yt.yandex-team.ru/docs/description/mr/mapreduce">
  * map_reduce documentation
  * </a>
