@@ -59,7 +59,7 @@ TQueueConsumerRegistrationCache::TQueueConsumerRegistrationCache(
     : Config_(std::move(config))
     , Connection_(connection)
     , Invoker_(std::move(invoker))
-    , ClusterName_(Connection_->GetConfig()->ClusterName)
+    , ClusterName_(connection->GetConfig()->ClusterName)
     , RefreshExecutor_(New<TPeriodicExecutor>(
         Invoker_,
         BIND(&TQueueConsumerRegistrationCache::Refresh, MakeWeak(this)),
@@ -195,13 +195,18 @@ TConsumerRegistrationTablePtr TQueueConsumerRegistrationCache::GetOrInitRegistra
             return RegistrationTable_;
         }
 
+        auto localConnection = Connection_.Lock();
+        if (!localConnection) {
+            THROW_ERROR_EXCEPTION("Queue agent registration cache owning connection expired");
+        }
+
         IClientPtr client;
         auto clientOptions = TClientOptions::FromUser(DynamicConfig_->User);
         if (auto cluster = DynamicConfig_->Root.GetCluster()) {
-            auto remoteConnection = Connection_->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
+            auto remoteConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
             client = remoteConnection->CreateClient(clientOptions);
         } else {
-            client = Connection_->CreateClient(clientOptions);
+            client = localConnection->CreateClient(clientOptions);
         }
 
         newRegistrationTable = New<TConsumerRegistrationTable>(DynamicConfig_->Root.GetPath(), client);
@@ -224,8 +229,10 @@ TQueueAgentRegistrationTableConfigPtr TQueueConsumerRegistrationCache::RefreshDy
     TQueueAgentRegistrationTableConfigPtr config = Config_;
 
     if (ClusterName_) {
-        if (auto connection = Connection_->GetClusterDirectory()->FindConnection(*ClusterName_)) {
-            config = connection->GetConfig()->QueueAgent->RegistrationTable;
+        if (auto localConnection = Connection_.Lock()) {
+            if (auto remoteConnection = localConnection->GetClusterDirectory()->FindConnection(*ClusterName_)) {
+                config = remoteConnection->GetConfig()->QueueAgent->RegistrationTable;
+            }
         }
     }
 
