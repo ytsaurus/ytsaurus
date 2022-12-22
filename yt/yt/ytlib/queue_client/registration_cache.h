@@ -48,7 +48,7 @@ public:
 private:
     const TQueueAgentRegistrationTableConfigPtr Config_;
     // The connection holds a strong reference to this object.
-    NApi::NNative::IConnection* Connection_;
+    const TWeakPtr<NApi::NNative::IConnection> Connection_;
     const IInvokerPtr Invoker_;
     const std::optional<TString> ClusterName_;
     const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
