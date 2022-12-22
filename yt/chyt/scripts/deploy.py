@@ -55,7 +55,6 @@ def invoke(extra_args):
     print("Invoking {} to find out commit".format(invoke_args), file=sys.stderr)
     return list(map(str.strip, subprocess.check_output(invoke_args, stderr=subprocess.STDOUT).decode("ascii").strip().split()))
 
-
 def get_attributes():
     global args
 
@@ -90,7 +89,7 @@ def get_attributes():
         result.update({
             "version": version,
             "commit": commit,
-            "version_url": format_component_url(chyt_version, commit)
+            "version_url": format_component_url(version, commit)
         })
     if args.kind == "chyt":
         _1, _2, version, commit  = invoke("--version")
@@ -105,9 +104,9 @@ def get_attributes():
 
 # This version becomes part of binary name in Cypress.
 def get_cypress_version(attributes):
-    if args.kind in ("ytserver-log-tailer", "ytserver-proxy", "clickhouse-trampoline"):
+    if args.kind in ("ytserver-log-tailer", "ytserver-proxy",):
         return attributes["yt_version"]
-    elif args.kind in ("ytserver-clickhouse",):
+    elif args.kind in ("ytserver-clickhouse", "clickhouse-trampoline",):
         return attributes["version"]
     elif args.kind in ("chyt",):
         return attributes["version"] + "~" + attributes["commit"]

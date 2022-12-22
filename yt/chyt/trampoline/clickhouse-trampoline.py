@@ -260,12 +260,13 @@ def main():
                              "process will be killed with SIGABRT and core dump will (hopefully) be produced")
     args = parser.parse_args()
 
-    setup_logging(args.log_file)
-
-    logger.info("Trampoline started, args = %s", args)
     if args.version:
         print_version()
         exit(0)
+
+    setup_logging(args.log_file)
+
+    logger.info("Trampoline started, args = %s", args)
 
     if not args.ytserver_clickhouse_bin:
         parser.error("Only positional argument 'ytserver_clickhouse_bin' should be present")
