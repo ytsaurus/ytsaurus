@@ -2554,6 +2554,7 @@ private:
         }
 
         auto resourceUsageSnapshot = New<TResourceUsageSnapshot>();
+        resourceUsageSnapshot->BuildTime = GetCpuInstant();
         resourceUsageSnapshot->OperationIdToResourceUsage = std::move(operationResourceUsageMap);
         resourceUsageSnapshot->PoolToResourceUsage = std::move(poolResourceUsageMap);
         resourceUsageSnapshot->AliveOperationIds = std::move(aliveOperationIds);
