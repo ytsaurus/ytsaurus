@@ -201,6 +201,24 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return fmt.Errorf("invalid yt config: %v", err)
 	}
 
+	var nativeAuthenticatorConfig map[string]interface{}
+	if tvmID, ok := c.getTvmID(); ok {
+		if c.tvmSecret != "" {
+			nativeAuthenticatorConfig = map[string]interface{}{
+				"tvm_service": map[string]interface{}{
+					"enable_mock":                           false,
+					"enable_ticket_parse_cache":             true,
+					"client_self_id":                        tvmID,
+					"client_enable_service_ticket_fetching": true,
+					"client_enable_service_ticket_checking": true,
+				},
+				"enable_validation": true,
+			}
+		} else {
+			c.l.Warn("tvm id specified, but no tvm secret provided in env")
+		}
+	}
+
 	err = c.createArtifactDirIfNotExists(ctx, oplet.Alias())
 	if err != nil {
 		return fmt.Errorf("error creating artifact dir: %v", err)
@@ -266,6 +284,9 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 				},
 			},
 		},
+	}
+	if nativeAuthenticatorConfig != nil {
+		ytServerClickHouseConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 	}
 	ytServerClickHouseConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "config.yson", ytServerClickHouseConfig)
 	if err != nil {
@@ -340,6 +361,9 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 				},
 			},
 		},
+	}
+	if nativeAuthenticatorConfig != nil {
+		logTailerConfig["native_authentication_manager"] = nativeAuthenticatorConfig
 	}
 	logTailerConfigPath, err := c.uploadConfig(ctx, oplet.Alias(), "log_tailer_config.yson", logTailerConfig)
 	if err != nil {
