@@ -36,9 +36,11 @@ public:
             NullRealmId,
             bootstrap->GetNativeAuthenticator())
         , Bootstrap_(bootstrap)
-        , HeartbeatStatisticBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/statistic_bytes"))
+        , HeartbeatStatisticsBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/statistics_bytes"))
+        , HeartbeatDataStatisticsBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/data_statistics_bytes"))
         , HeartbeatJobResultBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/job_result_bytes"))
         , HeartbeatProtoMessageBytes_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/proto_message_bytes"))
+        , HeartbeatEnqueuedControllerEvents_(ControllerAgentProfiler.WithHot().GaugeSummary("/node_heartbeat/enqueued_controller_events"))
         , HeartbeatCount_(ControllerAgentProfiler.WithHot().Counter("/node_heartbeat/count"))
     {
         RegisterMethod(RPC_SERVICE_METHOD_DESC(Heartbeat));
@@ -46,14 +48,18 @@ public:
 
 private:
     TBootstrap* const Bootstrap_;
-    NProfiling::TCounter HeartbeatStatisticBytes_;
+    NProfiling::TCounter HeartbeatStatisticsBytes_;
+    NProfiling::TCounter HeartbeatDataStatisticsBytes_;
     NProfiling::TCounter HeartbeatJobResultBytes_;
     NProfiling::TCounter HeartbeatProtoMessageBytes_;
+    NProfiling::TGauge HeartbeatEnqueuedControllerEvents_;
+    std::atomic<i64> EnqueuedControllerEventCount_ = 0;
     NProfiling::TCounter HeartbeatCount_;
 
     void ProfileHeartbeatRequest(NProto::TReqHeartbeat* const request)
     {
         i64 totalJobStatisticsSize = 0;
+        i64 totalJobDataStatisticsSize = 0;
         i64 totalJobResultSize = 0;
         for (auto& job : *request->mutable_jobs()) {
             if (job.has_statistics()) {
@@ -62,12 +68,22 @@ private:
             if (job.has_result()) {
                 totalJobResultSize += job.result().ByteSizeLong();
             }
+            for (const auto& dataStatistics : job.output_data_statistics()) {
+                totalJobDataStatisticsSize += dataStatistics.ByteSizeLong();
+            }
+            totalJobStatisticsSize += job.total_input_data_statistics().ByteSizeLong();
         }
 
         HeartbeatProtoMessageBytes_.Increment(request->ByteSizeLong());
-        HeartbeatStatisticBytes_.Increment(totalJobStatisticsSize);
+        HeartbeatStatisticsBytes_.Increment(totalJobStatisticsSize);
         HeartbeatJobResultBytes_.Increment(totalJobResultSize);
         HeartbeatCount_.Increment();
+    }
+
+    void AccountEnqueuedControllerEvent(int delta)
+    {
+        auto newValue = EnqueuedControllerEventCount_.fetch_add(delta) + delta;
+        HeartbeatEnqueuedControllerEvents_.Update(newValue);
     }
 
     DECLARE_RPC_SERVICE_METHOD(NProto, Heartbeat)
@@ -108,9 +124,12 @@ private:
                 continue;
             }
             const auto controller = operation->GetController();
+            AccountEnqueuedControllerEvent(+1);
+            // Raw pointer is OK since the job tracker service never dies.
+            auto discountGuard = Finally(std::bind(&TJobTrackerService::AccountEnqueuedControllerEvent, this, -1));
             controller->GetCancelableInvoker(controllerAgent->GetConfig()->JobEventsControllerQueue)->Invoke(
                 BIND(
-                    [&Logger{Logger}, controller, jobSummaries{std::move(jobSummaries)}] () mutable {
+                    [&Logger{Logger}, controller, jobSummaries{std::move(jobSummaries)}, discountGuard = std::move(discountGuard)] () mutable {
                         for (auto& jobSummary : jobSummaries) {
                             const auto jobState = jobSummary->State;
                             const auto jobId = jobSummary->Id;
