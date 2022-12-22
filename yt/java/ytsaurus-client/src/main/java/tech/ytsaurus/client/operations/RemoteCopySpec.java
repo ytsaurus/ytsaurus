@@ -15,6 +15,10 @@ import ru.yandex.lang.NonNullFields;
 
 /**
  * Immutable spec for remote copy operation.
+ *
+ * @see <a href="https://yt.yandex-team.ru/docs/description/mr/remote_copy">
+ * remote_copy documentation
+ * </a>
  */
 @NonNullApi
 @NonNullFields

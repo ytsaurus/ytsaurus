@@ -6,8 +6,7 @@ import tech.ytsaurus.client.operations.MapSpec;
  * Immutable map operation request.
  *
  * @see tech.ytsaurus.client.ApiServiceClient#startMap(MapOperation)
- *
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#map">
+ * @see <a href="https://yt.yandex-team.ru/docs/description/mr/map">
  * map documentation
  * </a>
  */

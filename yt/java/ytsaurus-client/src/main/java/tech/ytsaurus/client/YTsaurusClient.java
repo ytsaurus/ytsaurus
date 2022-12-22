@@ -299,7 +299,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
                     );
                 } else if (
                         curCluster.addresses != null && !curCluster.addresses.isEmpty() && (
-                                options.getPreferableDiscoveryMethod() == DiscoveryMethod.HTTP
+                                options.getPreferableDiscoveryMethod() == DiscoveryMethod.RPC
                                         || curCluster.balancerFqdn == null || curCluster.balancerFqdn.isEmpty())
                 ) {
                     // use rpc

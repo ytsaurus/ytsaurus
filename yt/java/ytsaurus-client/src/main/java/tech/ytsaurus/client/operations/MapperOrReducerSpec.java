@@ -259,7 +259,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
     }
 
     /**
-     * Builder for {@link MapperOrReducerSpec}
+     * Builder for {@link MapperOrReducerSpec}.
      */
     @NonNullApi
     @NonNullFields

@@ -6,7 +6,7 @@ import tech.ytsaurus.client.operations.MapReduceSpec;
  * Immutable map-reduce operation request.
  *
  * @see tech.ytsaurus.client.ApiServiceClient#startMapReduce(MapReduceOperation)
- * @see <a href="https://docs.yandex-team.ru/yt/api/commands#map_reduce">
+ * @see <a href="https://yt.yandex-team.ru/docs/description/mr/mapreduce">
  * map_reduce documentation
  * </a>
  */

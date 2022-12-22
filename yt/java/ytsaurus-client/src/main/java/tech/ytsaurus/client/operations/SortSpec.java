@@ -23,6 +23,10 @@ import ru.yandex.lang.NonNullFields;
 
 /**
  * Immutable sort spec.
+ *
+ * @see <a href="https://yt.yandex-team.ru/docs/description/mr/sort">
+ * sort documentation
+ * </a>
  */
 @NonNullApi
 @NonNullFields
