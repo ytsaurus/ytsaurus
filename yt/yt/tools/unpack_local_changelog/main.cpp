@@ -14,7 +14,7 @@
 
 #include <util/stream/file.h>
 
-namespace NYT::NHydra::NTools::NUnpackLocalChangelog {
+namespace NYT::NTools::NUnpackLocalChangelog {
 
 using namespace NHydra;
 using namespace NIO;
@@ -92,9 +92,9 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NHydra::NTools::NUnpackLocalChangelog
+} // namespace NYT::NTools::NUnpackLocalChangelog
 
 int main(int argc, const char** argv)
 {
-    return NYT::NHydra::NTools::NUnpackLocalChangelog::TProgram().Run(argc, argv);
+    return NYT::NTools::NUnpackLocalChangelog::TProgram().Run(argc, argv);
 }
