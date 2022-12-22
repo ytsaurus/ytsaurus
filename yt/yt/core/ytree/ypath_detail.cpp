@@ -232,15 +232,19 @@ DEFINE_RPC_SERVICE_METHOD(TSupportsMultisetAttributes, Multiset)
 {
     context->SetRequestInfo("KeyCount: %v", request->subrequests_size());
 
-    TReqMultisetAttributes req;
+    auto ctx = New<TCtxMultisetAttributes>(
+        context->GetUnderlyingContext(),
+        context->GetOptions());
+    auto* req = &ctx->Request();
+    auto* rsp = &ctx->Response();
+
     for (const auto& subrequest : request->subrequests()) {
-        auto* subreq = req.add_subrequests();
+        auto* subreq = req->add_subrequests();
         subreq->set_attribute(subrequest.key());
         subreq->set_value(subrequest.value());
     }
 
-    TRspMultisetAttributes rsp;
-    DoSetAttributes(GetRequestTargetYPath(context->RequestHeader()), &req, &rsp);
+    DoSetAttributes(GetRequestTargetYPath(context->RequestHeader()), req, rsp, ctx);
 
     context->Reply();
 }
@@ -249,7 +253,7 @@ DEFINE_RPC_SERVICE_METHOD(TSupportsMultisetAttributes, MultisetAttributes)
 {
     context->SetRequestInfo("KeyCount: %v", request->subrequests_size());
 
-    DoSetAttributes(GetRequestTargetYPath(context->RequestHeader()), request, response);
+    DoSetAttributes(GetRequestTargetYPath(context->RequestHeader()), request, response, context);
 
     context->Reply();
 }
@@ -257,7 +261,8 @@ DEFINE_RPC_SERVICE_METHOD(TSupportsMultisetAttributes, MultisetAttributes)
 void TSupportsMultisetAttributes::DoSetAttributes(
     const TYPath& path,
     TReqMultisetAttributes* request,
-    TRspMultisetAttributes* response)
+    TRspMultisetAttributes* response,
+    const TCtxMultisetAttributesPtr& context)
 {
     NYPath::TTokenizer tokenizer(path);
 
@@ -268,17 +273,19 @@ void TSupportsMultisetAttributes::DoSetAttributes(
         tokenizer.ThrowUnexpected();
     }
 
-    SetAttributes(TYPath(tokenizer.GetSuffix()), request, response);
+    SetAttributes(TYPath(tokenizer.GetSuffix()), request, response, context);
 }
 
 void TSupportsMultisetAttributes::SetAttributes(
     const TYPath& path,
     TReqMultisetAttributes* request,
-    TRspMultisetAttributes* response)
+    TRspMultisetAttributes* response,
+    const TCtxMultisetAttributesPtr& context)
 {
     Y_UNUSED(path);
     Y_UNUSED(request);
     Y_UNUSED(response);
+    Y_UNUSED(context);
     ThrowMethodNotSupported("MultisetAttributes", TString("attributes"));
 }
 
@@ -1091,7 +1098,11 @@ void TSupportsAttributes::RemoveAttribute(
     context->Reply();
 }
 
-void TSupportsAttributes::SetAttributes(const TYPath& path, TReqMultisetAttributes* request, TRspMultisetAttributes* /* response */)
+void TSupportsAttributes::SetAttributes(
+    const TYPath& path,
+    TReqMultisetAttributes* request,
+    TRspMultisetAttributes* /*response*/,
+    const TCtxMultisetAttributesPtr& /*context*/)
 {
     for (const auto& subrequest : request->subrequests()) {
         const auto& attribute = subrequest.attribute();

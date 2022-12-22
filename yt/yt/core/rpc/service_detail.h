@@ -290,6 +290,11 @@ public:
         return UnderlyingContext_;
     }
 
+    THandlerInvocationOptions GetOptions() const
+    {
+        return Options_;
+    }
+
 protected:
     const THandlerInvocationOptions Options_;
     typename TObjectPool<TTypedRequest, TPooledTypedRequestTraits<TRequestMessage>>::TObjectPtr Request_;

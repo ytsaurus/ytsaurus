@@ -95,6 +95,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemoveCacheMedium)                                            (2215))  // gritukan
     ((PerAccountMergerStatistics)                                   (2216))  // aleksandra-zh
     ((SplitNodeDisposal)                                            (2217))  // aleksandra-zh
+    ((MultisetAttributesReplication)                                (2218))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1,10 +1,15 @@
 from yt_env_setup import YTEnvSetup
 
+from yt_type_helpers import (
+    make_schema
+)
+
 from yt_commands import (
     authors, wait, create, ls, get, set, copy, move,
     remove, link,
     exists, multiset_attributes, create_account, create_user, create_group, create_medium,
-    create_tablet_cell_bundle, remove_tablet_cell_bundle, make_ace, remove_user, make_batch_request,
+    create_tablet_cell_bundle, remove_tablet_cell_bundle, create_dynamic_table,
+    make_ace, remove_user, make_batch_request,
     execute_batch,
     start_transaction, abort_transaction,
     commit_transaction, lock, unlock, read_file, read_table,
@@ -3610,6 +3615,29 @@ class TestCypress(YTEnvSetup):
 
 class TestCypressMulticell(TestCypress):
     NUM_SECONDARY_MASTER_CELLS = 2
+
+    @authors("shakurov")
+    def test_multiset_attributes_external(self):
+        set("//sys/accounts/tmp/@resource_limits/tablet_count", 10)
+        schema = make_schema(
+            [
+                {"name": "key", "type": "int64", "sort_order": "ascending"},
+                {"name": "value", "type": "string"},
+            ]
+        )
+        table_id = create_dynamic_table("//tmp/t", schema=schema, external_cell_tag=11)
+
+        assert get("//tmp/t/@vital")
+        assert get("//tmp/t/@enable_dynamic_store_read")
+
+        multiset_attributes("//tmp/t/@", {"enable_dynamic_store_read": False, "vital": False})
+
+        assert not get("//tmp/t/@vital")
+        assert not get("//tmp/t/@enable_dynamic_store_read")
+
+        assert not get(f"#{table_id}/@vital", driver=get_driver(1))
+        # The attribute is external but let's check anyway.
+        assert not get(f"#{table_id}/@enable_dynamic_store_read", driver=get_driver(1))
 
     @authors("babenko", "shakurov")
     def test_zero_external_cell_bias(self):
