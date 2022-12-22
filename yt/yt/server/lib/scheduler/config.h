@@ -906,6 +906,8 @@ public:
 
     int MinRequiredArchiveVersion;
 
+    bool SendRegisteredAgentsToNode;
+
     REGISTER_YSON_STRUCT(TSchedulerConfig);
 
     static void Register(TRegistrar registrar);

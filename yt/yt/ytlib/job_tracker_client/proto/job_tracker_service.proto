@@ -36,6 +36,7 @@ message TControllerAgentDescriptor
 {
     required NYT.NProto.TGuid incarnation_id = 1;
     required NNodeTrackerClient.NProto.TAddressMap addresses = 2;
+    optional string agent_id = 3;
 }
 
 message TJobStartInfo

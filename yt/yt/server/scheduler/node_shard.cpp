@@ -144,10 +144,20 @@ EAllocationState GetAllocationState(NJobTrackerClient::NProto::TJobStatus* statu
     return JobStateToAllocationState(CheckedEnumCast<EJobState>(status->state()));
 }
 
+void SetControllerAgentInfo(
+    const TAgentId& agentId,
+    const TAddressMap& addresses,
+    TIncarnationId incarnationId,
+    auto proto)
+{
+    ToProto(proto->mutable_addresses(), addresses);
+    ToProto(proto->mutable_incarnation_id(), incarnationId);
+    ToProto(proto->mutable_agent_id(), agentId);
+}
+
 void SetControllerAgentInfo(const TControllerAgentPtr& agent, auto proto)
 {
-    ToProto(proto->mutable_addresses(), agent->GetAgentAddresses());
-    ToProto(proto->mutable_incarnation_id(), agent->GetIncarnationId());
+    SetControllerAgentInfo(agent->GetId(), agent->GetAgentAddresses(), agent->GetIncarnationId(), proto);
 }
 
 auto* AddJobsToInterrupt(NProto::NNode::TRspHeartbeat* response)
@@ -267,6 +277,12 @@ TNodeShard::TNodeShard(
         .Counter("/node_heartbeat/job_count");
     HeartbeatCount_ = SchedulerProfiler
         .Counter("/node_heartbeat/count");
+    HeartbeatRequestProtoMessageBytes_ = SchedulerProfiler
+        .Counter("/node_heartbeat/request/proto_message_bytes");
+    HeartbeatResponseProtoMessageBytes_ = SchedulerProfiler
+        .Counter("/node_heartbeat/response/proto_message_bytes");
+    HeartbeatRegesteredControllerAgentsBytes_ = SchedulerProfiler
+        .Counter("/node_heartbeat/response/proto_registered_controller_agents_bytes");
 }
 
 int TNodeShard::GetId() const
@@ -365,6 +381,8 @@ void TNodeShard::DoCleanup()
 
     JobIdToScheduleEntry_.clear();
     OperationIdToJobIterators_.clear();
+
+    RegisteredAgents_.clear();
 
     SubmitJobsToStrategy();
 }
@@ -550,6 +568,8 @@ void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
     auto* request = &context->Request();
     auto* response = &context->Response();
 
+    HeartbeatRequestProtoMessageBytes_.Increment(request->ByteSizeLong());
+
     int jobReporterWriteFailuresCount = 0;
     if (request->has_job_reporter_write_failures_count()) {
         jobReporterWriteFailuresCount = request->job_reporter_write_failures_count();
@@ -649,10 +669,12 @@ void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
 
         BeginNodeHeartbeatProcessing(node);
     }
-    auto finallyGuard = Finally([&, cancelableContext = CancelableContext_] {
+    auto finallyGuard = Finally([&, this, cancelableContext = CancelableContext_] {
         if (!cancelableContext->IsCanceled()) {
             EndNodeHeartbeatProcessing(node);
         }
+
+        HeartbeatResponseProtoMessageBytes_.Increment(response->ByteSizeLong());
     });
 
     if (resourceLimits.user_slots()) {
@@ -725,6 +747,10 @@ void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
     // COMPAT(pogorelov)
     if constexpr (std::is_same_v<TCtxNodeHeartbeatPtr, TScheduler::TCtxNodeHeartbeatPtr>) {
         ProcessOperationInfoHeartbeat(request, response);
+
+        if (Config_->SendRegisteredAgentsToNode) {
+            AddRegisteredControllerAgentsToResponse(response);
+        }
     }
 
     context->SetResponseInfo(
@@ -1536,6 +1562,26 @@ bool TNodeShard::AreNewJobsForbiddenForOperation(const TOperationId operationId)
 int TNodeShard::GetOnGoingHeartbeatsCount() const noexcept
 {
     return ConcurrentHeartbeatCount_;
+}
+
+void TNodeShard::RegisterAgent(
+    TAgentId id,
+    NNodeTrackerClient::TAddressMap addresses,
+    TIncarnationId incarnationId)
+{
+    YT_LOG_DEBUG("Agent registered at node shard (AgentId: %v, IncarnationId: %v)", id, incarnationId);
+
+    EmplaceOrCrash(
+        RegisteredAgents_,
+        std::move(id),
+        TControllerAgentInfo{std::move(addresses), incarnationId});
+}
+
+void TNodeShard::UnregisterAgent(TAgentId id)
+{
+    YT_LOG_DEBUG("Agent unregistered from node shard (AgentId: %v)", id);
+
+    EraseOrCrash(RegisteredAgents_, id);
 }
 
 TExecNodePtr TNodeShard::GetOrRegisterNode(TNodeId nodeId, const TNodeDescriptor& descriptor, ENodeState state)
@@ -2509,6 +2555,17 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
 
         SetControllerAgentInfo(agent, protoOperationInfo->mutable_controller_agent_descriptor());
     }
+}
+
+void TNodeShard::AddRegisteredControllerAgentsToResponse(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response)
+{
+    for (const auto& [agentId, agentInfo] : RegisteredAgents_) {
+        auto agentDescriptorProto = response->add_registered_controller_agents();
+        SetControllerAgentInfo(agentId, agentInfo.Addresses, agentInfo.IncarnationId, agentDescriptorProto);
+    }
+
+    HeartbeatRegesteredControllerAgentsBytes_.Increment(
+        response->registered_controller_agents().SpaceUsedExcludingSelfLong());
 }
 
 void TNodeShard::RegisterJob(const TJobPtr& job)

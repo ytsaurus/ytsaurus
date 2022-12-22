@@ -79,6 +79,8 @@ message TRspHeartbeat
     repeated NJobTrackerClient.NProto.TJobToConfirm jobs_to_confirm = 9;
 
     repeated TOperationInfo operation_infos = 10;
+
+    repeated NJobTrackerClient.NProto.TControllerAgentDescriptor registered_controller_agents = 11;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -167,6 +167,12 @@ public:
 
     int GetOnGoingHeartbeatsCount() const noexcept;
 
+    void RegisterAgent(
+        TAgentId id,
+        NNodeTrackerClient::TAddressMap addresses,
+        TIncarnationId incarnationId);
+    void UnregisterAgent(TAgentId id);
+
 private:
     const int Id_;
     TSchedulerConfigPtr Config_;
@@ -200,6 +206,14 @@ private:
     TAtomicPtr<TRefCountedExecNodeDescriptorMap> CachedExecNodeDescriptors_{New<TRefCountedExecNodeDescriptorMap>()};
 
     THashMap<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
+
+    struct TControllerAgentInfo
+    {
+        NNodeTrackerClient::TAddressMap Addresses;
+        TIncarnationId IncarnationId;
+    };
+    THashMap<TAgentId, TControllerAgentInfo> RegisteredAgents_;
+
     // Exec node is the node that is online and has user slots.
     std::atomic<int> ExecNodeCount_ = 0;
     std::atomic<int> TotalNodeCount_ = 0;
@@ -214,6 +228,9 @@ private:
     NProfiling::TCounter HeartbeatWithScheduleJobsCounter_;
     NProfiling::TCounter HeartbeatJobCount_;
     NProfiling::TCounter HeartbeatCount_;
+    NProfiling::TCounter HeartbeatRequestProtoMessageBytes_;
+    NProfiling::TCounter HeartbeatResponseProtoMessageBytes_;
+    NProfiling::TCounter HeartbeatRegesteredControllerAgentsBytes_;
 
     THashMap<TJobId, TJobUpdate> JobsToSubmitToStrategy_;
     std::atomic<int> SubmitToStrategyJobCount_;
@@ -404,6 +421,7 @@ private:
     void ProcessOperationInfoHeartbeat(
         const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
+    void AddRegisteredControllerAgentsToResponse(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

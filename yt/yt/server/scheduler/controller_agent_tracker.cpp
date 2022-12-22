@@ -448,7 +448,6 @@ public:
         return agent;
     }
 
-
     void ProcessAgentHandshake(const TCtxAgentHandshakePtr& context)
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
@@ -496,62 +495,30 @@ public:
                 std::move(channel),
                 Bootstrap_->GetControlInvoker(EControlQueue::AgentTracker),
                 CreateSerializedInvoker(MessageOffloadThreadPool_->GetInvoker()));
+
             agent->SetState(EControllerAgentState::Registering);
-            RegisterAgent(agent);
+            EmplaceOrCrash(IdToAgent_, agent->GetId(), agent);
 
             return agent;
         }();
 
-        YT_LOG_INFO("Starting agent incarnation transaction (AgentId: %v)",
+        YT_LOG_INFO(
+            "Starting agent incarnation transaction (AgentId: %v)",
             agentId);
 
-        NApi::TTransactionStartOptions options;
-        options.Timeout = Config_->IncarnationTransactionTimeout;
-        if (Config_->IncarnationTransactionPingPeriod) {
-            options.PingPeriod = Config_->IncarnationTransactionPingPeriod;
-        }
-        auto attributes = CreateEphemeralAttributes();
-        attributes->Set("title", Format("Controller agent incarnation for %v", agentId));
-        options.Attributes = std::move(attributes);
-        const auto& lockTransaction = Bootstrap_->GetScheduler()->GetMasterConnector()->GetLockTransaction();
-        lockTransaction->StartTransaction(NTransactionClient::ETransactionType::Master, options)
-            .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<NApi::ITransactionPtr>& transactionOrError) {
-                VERIFY_THREAD_AFFINITY(ControlThread);
+        WaitFor(
+            BIND(&TImpl::DoRegisterAgent, MakeStrong(this), agent)
+                .AsyncVia(GetCancelableControlInvoker())
+                .Run())
+            .ThrowOnError();
 
-                if (!transactionOrError.IsOK()) {
-                    Bootstrap_->GetScheduler()->Disconnect(transactionOrError);
-                    return;
-                }
-
-                if (agent->GetState() != EControllerAgentState::Registering) {
-                    return;
-                }
-
-                const auto& transaction = transactionOrError.Value();
-                agent->SetIncarnationTransaction(transaction);
-                agent->SetState(EControllerAgentState::WaitingForInitialHeartbeat);
-
-                agent->SetLease(TLeaseManager::CreateLease(
-                    Config_->HeartbeatTimeout,
-                    BIND(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), MakeWeak(agent))
-                        .Via(GetCancelableControlInvoker())));
-
-                transaction->SubscribeAborted(
-                    BIND(&TImpl::OnAgentIncarnationTransactionAborted, MakeWeak(this), MakeWeak(agent))
-                        .Via(GetCancelableControlInvoker()));
-
-                YT_LOG_INFO("Agent incarnation transaction started (AgentId: %v, IncarnationId: %v)",
-                    agentId,
-                    agent->GetIncarnationId());
-
-                context->SetResponseInfo("IncarnationId: %v",
-                    agent->GetIncarnationId());
-                ToProto(response->mutable_incarnation_id(), agent->GetIncarnationId());
-                response->set_config(ConvertToYsonString(SchedulerConfig_).ToString());
-                response->set_scheduler_version(GetVersion());
-                context->Reply();
-            })
-            .Via(GetCancelableControlInvoker()));
+        context->SetResponseInfo(
+            "IncarnationId: %v",
+            agent->GetIncarnationId());
+        ToProto(response->mutable_incarnation_id(), agent->GetIncarnationId());
+        response->set_config(ConvertToYsonString(SchedulerConfig_).ToString());
+        response->set_scheduler_version(GetVersion());
+        context->Reply();
     }
 
     void ProcessAgentHeartbeat(const TCtxAgentHeartbeatPtr& context)
@@ -587,7 +554,7 @@ public:
             return;
         }
         if (agent->GetState() == EControllerAgentState::WaitingForInitialHeartbeat) {
-            YT_LOG_INFO("Agent registration confirmed by heartbeat");
+            YT_LOG_INFO("Agent registration confirmed by heartbeat (AgentId: %v)", agentId);
             agent->SetState(EControllerAgentState::Registered);
         }
 
@@ -983,9 +950,55 @@ private:
             .Run()));
     }
 
-    void RegisterAgent(const TControllerAgentPtr& agent)
+    void DoRegisterAgent(TControllerAgentPtr agent)
     {
-        YT_VERIFY(IdToAgent_.emplace(agent->GetId(), agent).second);
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        NApi::TTransactionStartOptions options;
+        options.Timeout = Config_->IncarnationTransactionTimeout;
+        if (Config_->IncarnationTransactionPingPeriod) {
+            options.PingPeriod = Config_->IncarnationTransactionPingPeriod;
+        }
+        auto attributes = CreateEphemeralAttributes();
+        attributes->Set("title", Format("Controller agent incarnation for %v", agent->GetId()));
+        options.Attributes = std::move(attributes);
+        const auto& lockTransaction = Bootstrap_->GetScheduler()->GetMasterConnector()->GetLockTransaction();
+        auto transactionOrError = WaitFor(lockTransaction->StartTransaction(NTransactionClient::ETransactionType::Master, options));
+
+        if (!transactionOrError.IsOK()) {
+            Bootstrap_->GetScheduler()->Disconnect(transactionOrError);
+            THROW_ERROR TError{"Failed to start incarnation transaction"} << transactionOrError;
+        }
+
+        if (agent->GetState() != EControllerAgentState::Registering) {
+            THROW_ERROR_EXCEPTION("Failed to complete agent registration (AgentState: %Qlv)", agent->GetState());
+        }
+
+        auto transaction = std::move(transactionOrError.Value());
+
+        agent->SetIncarnationTransaction(transaction);
+
+        const auto& nodeManager = Bootstrap_->GetScheduler()->GetNodeManager();
+        nodeManager->RegisterAgentAtNodeShards(
+            agent->GetId(),
+            agent->GetAgentAddresses(),
+            agent->GetIncarnationId());
+
+        agent->SetLease(TLeaseManager::CreateLease(
+            Config_->HeartbeatTimeout,
+            BIND_NO_PROPAGATE(&TImpl::OnAgentHeartbeatTimeout, MakeWeak(this), MakeWeak(agent))
+                .Via(GetCancelableControlInvoker())));
+
+        transaction->SubscribeAborted(
+            BIND_NO_PROPAGATE(&TImpl::OnAgentIncarnationTransactionAborted, MakeWeak(this), MakeWeak(agent))
+                .Via(GetCancelableControlInvoker()));
+
+        YT_LOG_INFO(
+            "Agent incarnation transaction started (AgentId: %v, IncarnationId: %v)",
+            agent->GetId(),
+            agent->GetIncarnationId());
+
+        agent->SetState(EControllerAgentState::WaitingForInitialHeartbeat);
     }
 
     void UnregisterAgent(const TControllerAgentPtr& agent)
@@ -1035,6 +1048,8 @@ private:
                 EraseOrCrash(IdToAgent_, agent->GetId());
             })
             .Via(GetCancelableControlInvoker()));
+
+        scheduler->GetNodeManager()->UnregisterAgentFromNodeShards(agent->GetId());
     }
 
     void TerminateAgent(const TControllerAgentPtr& agent)

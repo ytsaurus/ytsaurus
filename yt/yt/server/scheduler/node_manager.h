@@ -107,6 +107,9 @@ public:
 
     int GetOngoingHeartbeatsCount() const;
 
+    void RegisterAgentAtNodeShards(const TAgentId& id, const NNodeTrackerClient::TAddressMap& addresses, TIncarnationId incarnationId);
+    void UnregisterAgentFromNodeShards(const TAgentId& id);
+
 private:
     TSchedulerConfigPtr Config_;
     // TODO(eshcherbin): Remove bootstrap in favor of new host methods.
