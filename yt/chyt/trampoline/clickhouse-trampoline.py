@@ -65,6 +65,20 @@ def substitute_env(content):
     return content
 
 
+def inject_tvm_secret(config):
+    if "native_authentication_manager" not in config:
+        return
+    secret_path = os.path.join(os.getcwd(), "tvm_secret")
+    if not os.path.exists(secret_path):
+        secret = os.getenv("YT_SECURE_VAULT_TVM_SECRET")
+        if secret is None:
+            logger.warning("No secret for native TVM authentication found")
+            return
+        with open(secret_path, "w") as f:
+            f.write(secret.strip())
+    config["native_authentication_manager"]["tvm_service"]["client_self_secret_path"] = secret_path
+
+
 def disable_fqdn_resolution(config):
     # In MTN there may be no reasonable fqdn;
     # hostname returns something human-readable, but barely resolvable.
@@ -84,6 +98,7 @@ def patch_ytserver_clickhouse_config(prepare_geodata, inside_mtn):
     if inside_mtn:
         logger.info("Disabling FQDN resolution in ytserver-clickhouse config")
         disable_fqdn_resolution(config)
+    inject_tvm_secret(config)
     content = yt.yson.dumps(config, yson_format="pretty")
     with open("./config_patched.yson", "w") as f:
         f.write(content)
@@ -100,6 +115,7 @@ def patch_log_tailer_config(inside_mtn):
     if inside_mtn:
         logger.info("Disabling fqdn resolution in ytserver-log-tailer config")
         disable_fqdn_resolution(config)
+    inject_tvm_secret(config)
     content = yt.yson.dumps(config, yson_format="pretty")
     with open("./log_tailer_config_patched.yson", "w") as f:
         f.write(content)

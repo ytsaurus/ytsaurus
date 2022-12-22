@@ -73,8 +73,8 @@ def get_clickhouse_server_config():
     }
 
 
-def get_log_tailer_config():
-    return {
+def get_log_tailer_config(mock_tvm_id=None, inject_secret=False):
+    config = {
         "log_tailer": {
             "log_rotation": {
                 "enable": False,
@@ -94,3 +94,16 @@ def get_log_tailer_config():
         "logging": get_logging_config(),
         "solomon_exporter": {"enable_core_profiling_compatibility": True},
     }
+    if mock_tvm_id is not None:
+        config["native_authentication_manager"] = {
+            "tvm_service": {
+                "enable_mock": True,
+                "client_self_id": mock_tvm_id,
+                "client_enable_service_ticket_fetching": True,
+                "client_enable_service_ticket_checking": True,
+            },
+            "enable_validation": True,
+        }
+        if inject_secret:
+            config["native_authentication_manager"]["tvm_service"]["client_self_secret"] = "TestSecret-" + str(mock_tvm_id)
+    return config
