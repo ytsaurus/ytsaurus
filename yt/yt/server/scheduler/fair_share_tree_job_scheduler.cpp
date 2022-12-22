@@ -560,6 +560,7 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtOperation(const TSch
         attributes.ResourceUsage = it != context->ResourceUsageSnapshot->OperationIdToResourceUsage.end()
             ? it->second
             : TJobResources();
+        attributes.ResourceUsageUpdateTime = context->ResourceUsageSnapshot->BuildTime;
         attributes.Alive = context->ResourceUsageSnapshot->AliveOperationIds.contains(operationId);
     } else {
         DoUpdateOperationResourceUsage(

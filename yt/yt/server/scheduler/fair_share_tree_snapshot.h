@@ -56,6 +56,7 @@ struct TResourceUsageSnapshot final
 {
     static constexpr bool EnableHazard = true;
 
+    NProfiling::TCpuInstant BuildTime;
     THashSet<TOperationId> AliveOperationIds;
     THashMap<TOperationId, TJobResources> OperationIdToResourceUsage;
     THashMap<TString, TJobResources> PoolToResourceUsage;
