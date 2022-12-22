@@ -9,6 +9,10 @@
 
 namespace NYT::NScheduler {
 
+static const auto& Logger = SchedulerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 using namespace NConcurrency;
 using namespace NNodeTrackerClient;
 using namespace NNodeTrackerClient::NProto;
@@ -514,6 +518,39 @@ int TNodeManager::GetOngoingHeartbeatsCount() const
     }
 
     return result;
+}
+
+void TNodeManager::RegisterAgentAtNodeShards(
+    const TAgentId& id,
+    const NNodeTrackerClient::TAddressMap& addresses,
+    TIncarnationId incarnationId)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto futures = ExecuteInNodeShards([id, addresses, incarnationId] (const TNodeShardPtr& nodeShard) mutable {
+        nodeShard->RegisterAgent(std::move(id), std::move(addresses), incarnationId);
+    });
+
+    auto error = WaitFor(AllSucceeded(std::move(futures)));
+    YT_LOG_FATAL_IF(
+        !error.IsOK(),
+        error,
+        "Failed to register agent at node shards");
+}
+
+void TNodeManager::UnregisterAgentFromNodeShards(const TAgentId& id)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto futures = ExecuteInNodeShards([id] (const TNodeShardPtr& nodeShard) mutable {
+        nodeShard->UnregisterAgent(std::move(id));
+    });
+
+    auto error = WaitFor(AllSucceeded(std::move(futures)));
+    YT_LOG_FATAL_IF(
+        !error.IsOK(),
+        error,
+        "Failed to unregister agents from node shards");
 }
 
 const TNodeShardPtr& TNodeManager::GetNodeShard(NNodeTrackerClient::TNodeId nodeId) const
