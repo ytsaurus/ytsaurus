@@ -386,6 +386,16 @@ void TObjectProxyBase::RemoveAttribute(
     ReplicateAttributeUpdate(context);
 }
 
+void TObjectProxyBase::SetAttributes(
+    const TYPath& path,
+    TReqMultisetAttributes* request,
+    TRspMultisetAttributes* response,
+    const TCtxMultisetAttributesPtr& context)
+{
+    TSupportsAttributes::SetAttributes(path, request, response, context);
+    ReplicateAttributeUpdate(context);
+}
+
 void TObjectProxyBase::ReplicateAttributeUpdate(const IServiceContextPtr& context)
 {
     // XXX(babenko): make more objects foreign and replace with IsForeign

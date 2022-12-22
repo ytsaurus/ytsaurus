@@ -101,6 +101,11 @@ protected:
         TReqRemove* request,
         TRspRemove* response,
         const TCtxRemovePtr& context) override;
+    void SetAttributes(
+        const NYTree::TYPath& path,
+        TReqMultisetAttributes* request,
+        TRspMultisetAttributes* response,
+        const TCtxMultisetAttributesPtr& context) override;
 
     void ReplicateAttributeUpdate(const NRpc::IServiceContextPtr& context);
 

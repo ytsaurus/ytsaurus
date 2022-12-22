@@ -124,14 +124,16 @@ protected:
     virtual void SetAttributes(
         const TYPath& path,
         TReqMultisetAttributes* request,
-        TRspMultisetAttributes* response);
+        TRspMultisetAttributes* response,
+        const TCtxMultisetAttributesPtr& context);
 
 private:
     // COMPAT(gritukan) Move it to MultisetAttributes.
     void DoSetAttributes(
         const TYPath& path,
         TReqMultisetAttributes* request,
-        TRspMultisetAttributes* response);
+        TRspMultisetAttributes* response,
+        const TCtxMultisetAttributesPtr& context);
 };
 
 DECLARE_SUPPORTS_METHOD(GetKey, virtual TRefCounted);
@@ -236,7 +238,8 @@ protected:
     void SetAttributes(
         const TYPath& path,
         TReqMultisetAttributes* request,
-        TRspMultisetAttributes* response) override;
+        TRspMultisetAttributes* response,
+        const TCtxMultisetAttributesPtr& context) override;
 
 private:
     class TCombinedAttributeDictionary
