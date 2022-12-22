@@ -621,7 +621,7 @@ void TClusterBackupSession::UpdateUpstreamReplicaIds()
         }
 
         auto req = TTableYPathProxy::Alter(FromObjectId(table.DestinationTableId));
-        SetTransactionId(req, GetExternalizedTransactionId(table));
+        SetTransactionId(req, Transaction_->GetId());
         ToProto(req->mutable_upstream_replica_id(), table.UpstreamReplica->ClonedReplicaId);
         batchReq->AddRequest(req);
     }
