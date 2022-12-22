@@ -634,8 +634,10 @@ private:
         const auto enableMutationBoomerangs = false;
 
         // COMPAT(kvk1920)
-        for (const auto& subrequest : request->confirm_chunk_subrequests()) {
-            YT_LOG_ALERT_UNLESS(subrequest.location_uuids_supported(), "Chunk confirmation request without location uuids is received");
+        if (!configManager->GetConfig()->ChunkManager->EnableChunkConfirmationWithoutLocationUuid) {
+            for (const auto& subrequest : request->confirm_chunk_subrequests()) {
+                YT_LOG_ALERT_UNLESS(subrequest.location_uuids_supported(), "Chunk confirmation request without location uuids is received");
+            }
         }
 
         if (!configManager->GetConfig()->SequoiaManager->Enable) {
