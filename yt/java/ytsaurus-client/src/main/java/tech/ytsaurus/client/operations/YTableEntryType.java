@@ -17,7 +17,7 @@ import ru.yandex.lang.NonNullApi;
 @NonNullApi
 public interface YTableEntryType<T> extends Serializable {
 
-    YTreeStringNode format();
+    YTreeStringNode format(FormatContext context);
 
     // either one should be implemented
     default CloseableIterator<T> iterator(InputStream input) {

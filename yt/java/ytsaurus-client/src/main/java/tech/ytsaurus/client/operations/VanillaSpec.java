@@ -80,19 +80,20 @@ public class VanillaSpec implements Spec {
      * Convert to yson.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
         return builder.beginMap()
                 .key("tasks")
                 .beginMap()
                 .apply(b -> {
-                    tasks.forEach((k, v) -> v.prepare(b.key(k), yt, context));
+                    tasks.forEach((k, v) -> v.prepare(b.key(k), yt, specPreparationContext));
                     return b;
                 })
                 .endMap()
                 .when(maxFailedJobCount != null, b -> b.key("max_failed_job_count").value(maxFailedJobCount))
                 .when(stderrTablePath != null, b -> b.key("stderr_table_path").value(stderrTablePath))
                 .when(failOnJobRestart != null, b -> b.key("fail_on_job_restart").value(failOnJobRestart))
-                .key("started_by").apply(b -> SpecUtils.startedBy(b, context))
+                .key("started_by").apply(b -> SpecUtils.startedBy(b, specPreparationContext))
                 .apply(b -> {
                     for (Map.Entry<String, YTreeNode> node : additionalSpecParameters.entrySet()) {
                         b.key(node.getKey()).value(node.getValue());

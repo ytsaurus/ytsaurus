@@ -31,20 +31,28 @@ public class VanillaJobSpec extends MapperOrReducerSpec implements Spec {
      * Convert to yson.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context,
-                                int outputTableCount) {
-        return prepare(builder, yt, context);
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext,
+                                FormatContext formatContext) {
+        return prepare(builder, yt, specPreparationContext);
     }
 
     /**
      * Convert to yson.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
         if (outputTablePaths.isEmpty()) {
-            return super.prepare(builder, yt, context, 0);
+            var formatContext = FormatContext.builder()
+                    .setOutputTableCount(0)
+                    .build();
+            return super.prepare(builder, yt, specPreparationContext, formatContext);
         } else {
-            YTreeBuilder prepare = super.prepare(YTree.builder(), yt, context, outputTablePaths.size());
+            var formatContext = FormatContext.builder()
+                    .setOutputTableCount(outputTablePaths.size())
+                    .build();
+            YTreeBuilder prepare = super.prepare(YTree.builder(), yt, specPreparationContext, formatContext);
             Map<String, YTreeNode> node = new HashMap<>(prepare.build().asMap());
 
             node.put("output_table_paths", YTree.builder()

@@ -103,8 +103,19 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
     /**
      * @return if actual row and table indexes will be available in OperationContext.
      */
-    public boolean trackIndices() {
+    private boolean trackIndices() {
         return mapperOrReducer.trackIndices();
+    }
+
+    JobIo createJobIo(@Nullable JobIo jobIo) {
+        jobIo = jobIo == null ? new JobIo() : jobIo;
+        if (!trackIndices()) {
+            return jobIo;
+        }
+        return jobIo.toBuilder()
+                .setEnableRowIndex(true)
+                .setEnableTableIndex(true)
+                .build();
     }
 
     protected static class Resource {
@@ -180,10 +191,11 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
      */
     @Override
     public YTreeBuilder prepare(
-            YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context, int outputTableCount) {
+            YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext specPreparationContext,
+            FormatContext formatContext) {
         Set<YPath> files = new HashSet<>(additionalFiles);
 
-        boolean isLocalMode = context.getConfiguration().isLocalMode();
+        boolean isLocalMode = specPreparationContext.getConfiguration().isLocalMode();
         String classPath;
         String libraryPath = null;
 
@@ -191,7 +203,7 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             classPath = canonizeJavaPath(System.getProperty("java.class.path"));
             libraryPath = canonizeJavaPath(System.getProperty("java.library.path"));
         } else {
-            Set<YPath> jars = context.getConfiguration().getJarsProcessor().uploadJars(
+            Set<YPath> jars = specPreparationContext.getConfiguration().getJarsProcessor().uploadJars(
                     yt.getRootClient(), mapperOrReducer, isLocalMode);
             files.addAll(jars);
             List<String> jarFileNames = jars.stream()
@@ -203,14 +215,15 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             classPath = String.join(":", jarFileNames);
         }
 
-        Set<YPath> autoDetectedResources = context.getConfiguration().getJarsProcessor().uploadResources(
+        Set<YPath> autoDetectedResources = specPreparationContext.getConfiguration().getJarsProcessor().uploadResources(
                 yt.getRootClient(), mapperOrReducer);
         files.addAll(autoDetectedResources);
 
-        Optional<Resource> resource = detectResources(yt, mapperOrReducer, context);
+        Optional<Resource> resource = detectResources(yt, mapperOrReducer, specPreparationContext);
 
         List<String> args = new ArrayList<>();
-        args.add(String.valueOf(outputTableCount));
+        args.add(String.valueOf(formatContext.getOutputTableCount()
+                .orElseThrow(IllegalArgumentException::new)));
 
         if (resource.isEmpty()) {
             args.add("simple");
@@ -220,10 +233,10 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
             files.add(resource.get().path);
         }
 
-        String javaBinary = context.getConfiguration().getJavaBinary();
+        String javaBinary = specPreparationContext.getConfiguration().getJavaBinary();
         JavaOptions resultJavaOptions = JavaOptions.empty();
 
-        for (String option : context.getConfiguration().getJavaOptions()) {
+        for (String option : specPreparationContext.getConfiguration().getJavaOptions()) {
             resultJavaOptions = resultJavaOptions.withOption(option);
         }
 
@@ -236,8 +249,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                         JavaYtRunner.command(javaBinary, classPath, libraryPath, resultJavaOptions,
                                 mainClazz.getName(), args)
                 )
-                .key("input_format").value(mapperOrReducer.inputType().format())
-                .key("output_format").value(mapperOrReducer.outputType().format())
+                .key("input_format").value(mapperOrReducer.inputType().format(formatContext))
+                .key("output_format").value(mapperOrReducer.outputType().format(formatContext))
                 .key("file_paths").value(files, (b, t) ->
                         b.apply(t::toTree)
                 )

@@ -50,7 +50,7 @@ public class SerializationContext<T> {
 
     private SerializationContext(EntitySkiffSerializer<T> serializer, Class<T> objectClass) {
         this.skiffSerializer = serializer;
-        this.format = Format.skiff(serializer.getSchema());
+        this.format = Format.skiff(serializer.getSchema(), 1);
         this.rowsetFormat = ERowsetFormat.RF_FORMAT;
         this.attachmentReader = TableAttachmentReader.skiff(objectClass, serializer.getSchema());
     }

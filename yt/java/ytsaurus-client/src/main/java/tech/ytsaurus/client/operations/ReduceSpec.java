@@ -107,12 +107,8 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         reduceBy = builder.reduceBy;
         joinBy = builder.joinBy;
 
-        if (reducerSpec instanceof MapperOrReducerSpec &&
-                ((MapperOrReducerSpec) reducerSpec).trackIndices()) {
-            jobIo = (builder.jobIo == null ? JobIo.builder() : builder.jobIo.toBuilder())
-                    .setEnableRowIndex(true)
-                    .setEnableTableIndex(true)
-                    .build();
+        if (reducerSpec instanceof MapperOrReducerSpec) {
+            jobIo = ((MapperOrReducerSpec) reducerSpec).createJobIo(builder.jobIo);
         } else {
             jobIo = builder.jobIo;
         }
@@ -151,16 +147,21 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
      * Create yson reduce spec to transfer to YT.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
         SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
+        var formatContext = FormatContext.builder()
+                .setInputTableCount(getInputTables().size())
+                .setOutputTableCount(getOutputTables().size())
+                .build();
         return builder.beginMap()
                 .apply(b -> SpecUtils.addMapperOrReducerTitle(b, reducerSpec))
-                .key("reducer").apply(b -> reducerSpec.prepare(b, yt, context, getOutputTables().size()))
+                .key("reducer").apply(b -> reducerSpec.prepare(b, yt, specPreparationContext, formatContext))
                 .key("reduce_by").value(reduceBy)
                 .when(!joinBy.isEmpty(), b -> b.key("join_by").value(joinBy))
                 .when(jobIo != null, b -> b.key("job_io").value(jobIo.prepare()))
                 .when(!enableKeyGuarantee, b -> b.key("enable_key_guarantee").value(false))
-                .apply(b -> dumpToSpec(b, context))
+                .apply(b -> dumpToSpec(b, specPreparationContext))
                 .endMap();
     }
 
@@ -188,10 +189,10 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SimpleUserOperationSpecBase.Builder<T> {
-        private @Nullable
-        UserJobSpec reducerSpec;
-        private @Nullable
-        JobIo jobIo;
+        @Nullable
+        private UserJobSpec reducerSpec;
+        @Nullable
+        private JobIo jobIo;
         private List<String> reduceBy = new ArrayList<>();
         private List<String> joinBy = new ArrayList<>();
         private boolean enableKeyGuarantee = true;

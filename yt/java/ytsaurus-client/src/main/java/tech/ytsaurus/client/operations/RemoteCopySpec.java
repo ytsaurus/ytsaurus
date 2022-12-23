@@ -60,7 +60,8 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
      * Create output table if it does not exist and convert remote copy spec to yson.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
         yt.createNode(CreateNode.builder()
                 .setPath(getOutputTable())
                 .setType(CypressNodeType.TABLE)
@@ -70,7 +71,7 @@ public class RemoteCopySpec extends SystemOperationSpecBase implements Spec {
                 .build()).join();
 
         return builder.beginMap()
-                .apply(b -> toTree(b, context))
+                .apply(b -> toTree(b, specPreparationContext))
                 .key("cluster_name").value(cluster)
                 .when(network != null, b -> b.key("network_name").value(network))
                 .when(copyAttributes != null, b -> b.key("copy_attributes").value(copyAttributes))

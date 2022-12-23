@@ -3,6 +3,8 @@ package tech.ytsaurus.client.operations;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.persistence.Entity;
+
 import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.client.YtClientTestBase;
@@ -16,7 +18,7 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 
 
 public class ReduceOperationTest extends YtClientTestBase {
-    public static class SimpleReducer implements ReducerWithKey<YTreeMapNode, YTreeMapNode, String> {
+    public static class SimpleReducerYTreeMapNode implements ReducerWithKey<YTreeMapNode, YTreeMapNode, String> {
         @Override
         public String key(YTreeMapNode entry) {
             return entry.getString("name");
@@ -39,8 +41,51 @@ public class ReduceOperationTest extends YtClientTestBase {
         }
     }
 
+    @Entity
+    private static class InputType {
+        String name;
+        String field;
+    }
+
+    @Entity
+    private static class OutputType {
+        String name;
+        int count;
+    }
+
+    public static class SimpleReducerEntity implements ReducerWithKey<InputType, OutputType, String> {
+        @Override
+        public String key(InputType entry) {
+            return entry.name;
+        }
+
+        @Override
+        public void reduce(String key, Iterator<InputType> input, Yield<OutputType> yield, Statistics statistics) {
+            int count = 0;
+            while (input.hasNext()) {
+                input.next();
+                ++count;
+            }
+
+            OutputType outputType = new OutputType();
+            outputType.name = key;
+            outputType.count = count;
+
+            yield.yield(outputType);
+        }
+    }
+
     @Test
-    public void testSimple() {
+    public void testSimpleReduceWithYTreeMapNode() {
+        testSimple(new SimpleReducerEntity());
+    }
+
+    @Test
+    public void testSimpleReduceWithEntity() {
+        testSimple(new SimpleReducerYTreeMapNode());
+    }
+
+    private void testSimple(Reducer<?, ?> reducer) {
         var ytFixture = createYtFixture();
         var yt = ytFixture.getYt();
         var inputTable = ytFixture.getTestDirectory().child("input-table");
@@ -84,7 +129,7 @@ public class ReduceOperationTest extends YtClientTestBase {
 
         Operation op = yt.reduce(ReduceOperation.builder()
                 .setSpec(ReduceSpec.builder()
-                        .setReducerSpec(new ReducerSpec(new SimpleReducer()))
+                        .setReducerSpec(new ReducerSpec(reducer))
                         .setInputTables(inputTable)
                         .setOutputTables(outputTable)
                         .setReduceBy("name")

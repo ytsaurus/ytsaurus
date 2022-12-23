@@ -10,5 +10,5 @@ import ru.yandex.lang.NonNullApi;
  */
 @NonNullApi
 public interface Spec {
-    YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context);
+    YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext specPreparationContext);
 }

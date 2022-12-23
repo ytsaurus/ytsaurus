@@ -64,7 +64,9 @@ public class ReducerSpecTest {
                         .setJarsProcessor(new DummyJarsProcessor())
                         .setJavaBinary("java")
                         .build()),
-                1
+                FormatContext.builder()
+                        .setOutputTableCount(1)
+                        .build()
         ).build().mapNode().asMap();
 
         Assert.assertTrue(

@@ -181,11 +181,15 @@ public class CommandSpec implements Spec, UserJobSpec {
      * Convert to yson.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
+        var formatContext = FormatContext.builder()
+                .setOutputTableCount(outputTablePaths.size())
+                .build();
         return builder.beginMap()
                 .key("command").value(command)
-                .key("input_format").value(inputType.format())
-                .key("output_format").value(outputType.format())
+                .key("input_format").value(inputType.format(formatContext))
+                .key("output_format").value(outputType.format(formatContext))
                 .when(!files.isEmpty(), b -> b.key("file_paths").value(files, (b2, t) -> t.toTree(b2)))
                 .when(memoryLimit != null, b -> b.key("memory_limit").value(memoryLimit.toBytes()))
                 .when(useTmpfs, b -> b.key("tmpfs_path").value(".").key("copy_files").value(true))
@@ -205,8 +209,9 @@ public class CommandSpec implements Spec, UserJobSpec {
      */
     @Override
     public YTreeBuilder prepare(
-            YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context, int outputTableCount) {
-        return prepare(builder, yt, context);
+            YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext specPreparationContext,
+            FormatContext formatContext) {
+        return prepare(builder, yt, specPreparationContext);
     }
 
     /**
