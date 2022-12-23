@@ -66,4 +66,9 @@ using TResourceUsageSnapshotPtr = TIntrusivePtr<TResourceUsageSnapshot>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Maybe move to helpers.cpp or somewhere else?
+TResourceUsageSnapshotPtr BuildResourceUsageSnapshot(const TFairShareTreeSnapshotPtr& treeSnapshot);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

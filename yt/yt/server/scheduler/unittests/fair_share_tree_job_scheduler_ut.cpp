@@ -1276,7 +1276,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
     for (int iter = 0; iter < 2; ++iter) {
         for (auto operationElement : operationElements) {
             auto scheduleJobResult = context.ScheduleJob(operationElement.Get(), /*ignorePacking*/ true);
-            ASSERT_TRUE(scheduleJobResult.Scheduled);
+            EXPECT_TRUE(scheduleJobResult.Scheduled);
 
             const auto& childHeapMap = context.GetChildHeapMapInTest();
             YT_VERIFY(childHeapMap.contains(rootElement->GetTreeIndex()));
@@ -1285,7 +1285,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
 
             int heapIndex = 0;
             for (auto* element : childHeap.GetHeap()) {
-                ASSERT_EQ(context.DynamicAttributesOf(element).HeapIndex, heapIndex);
+                EXPECT_EQ(context.DynamicAttributesOf(element).HeapIndex, heapIndex);
                 ++heapIndex;
             }
         }
@@ -1305,10 +1305,157 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
         const auto& childHeap = GetOrCrash(childHeapMap, rootElement->GetTreeIndex());
         int heapIndex = 0;
         for (auto* element : childHeap.GetHeap()) {
-            ASSERT_EQ(context.DynamicAttributesOf(element).HeapIndex, heapIndex);
+            EXPECT_EQ(context.DynamicAttributesOf(element).HeapIndex, heapIndex);
             ++heapIndex;
         }
     }
+}
+
+TEST_F(TFairShareTreeJobSchedulerTest, TestBuildDynamicAttributesListFromSnapshot)
+{
+    TJobResourcesWithQuota nodeResources;
+    nodeResources.SetCpu(100);
+    nodeResources.SetMemory(100);
+    nodeResources.SetDiskQuota(CreateDiskQuota(100));
+    auto execNode = CreateTestExecNode(nodeResources);
+
+    auto strategyHost = CreateTestStrategyHost(CreateTestExecNodeList(1, nodeResources));
+    auto treeSchedulerHost = CreateTestTreeJobSchedulerHost(strategyHost);
+    auto treeScheduler = CreateTestTreeScheduler(treeSchedulerHost, strategyHost.Get());
+
+    // Pools.
+    auto rootElement = CreateTestRootElement(strategyHost.Get());
+    auto pool = CreateTestPool(strategyHost.Get(), "pool", CreateSimplePoolConfig());
+
+    pool->AttachParent(rootElement.Get());
+
+    // 1/10 of all resources.
+    TJobResourcesWithQuota jobResources;
+    jobResources.SetCpu(10);
+    jobResources.SetMemory(10);
+    jobResources.SetDiskQuota(CreateDiskQuota(0));
+
+    // Operations.
+    auto operationA = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList());
+    auto operationElementA = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationA.Get(), pool.Get());
+
+    auto operationB = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(1, jobResources));
+    auto operationElementB = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operationB.Get(), pool.Get());
+
+    // Check function.
+    struct TUsageWithSatisfactions
+    {
+        TJobResources ResourceUsage;
+        double LocalSatisfactionRatio = 0.0;
+    };
+
+    auto checkDynamicAttributes = [&] (
+        const TUsageWithSatisfactions& expectedPool,
+        const TUsageWithSatisfactions& expectedOperationA,
+        const TUsageWithSatisfactions& expectedOperationB,
+        TFairShareTreeSnapshotPtr treeSnapshot = {},
+        const TResourceUsageSnapshotPtr& resourceUsageSnapshot = {})
+    {
+        if (!treeSnapshot) {
+            treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+        }
+
+        auto now = GetCpuInstant();
+        auto dynamicAttributesList = TDynamicAttributesManager::BuildDynamicAttributesListFromSnapshot(
+            treeSnapshot,
+            resourceUsageSnapshot,
+            now);
+
+        const auto& poolAttributes = dynamicAttributesList.AttributesOf(pool.Get());
+        EXPECT_EQ(expectedPool.ResourceUsage, poolAttributes.ResourceUsage);
+        EXPECT_NEAR(expectedPool.LocalSatisfactionRatio, poolAttributes.LocalSatisfactionRatio, 1e-7);
+        EXPECT_EQ(TCpuInstant(), poolAttributes.ResourceUsageUpdateTime);
+
+        auto expectedOperationUsageUpdateTime = resourceUsageSnapshot
+            ? resourceUsageSnapshot->BuildTime
+            : now;
+
+        const auto& operationAttributesA = dynamicAttributesList.AttributesOf(operationElementA.Get());
+        EXPECT_EQ(expectedOperationA.ResourceUsage, operationAttributesA.ResourceUsage);
+        EXPECT_NEAR(expectedOperationA.LocalSatisfactionRatio, operationAttributesA.LocalSatisfactionRatio, 1e-7);
+        EXPECT_EQ(expectedOperationUsageUpdateTime, operationAttributesA.ResourceUsageUpdateTime);
+
+        const auto& operationAttributesB = dynamicAttributesList.AttributesOf(operationElementB.Get());
+        EXPECT_EQ(expectedOperationB.ResourceUsage, operationAttributesB.ResourceUsage);
+        EXPECT_NEAR(expectedOperationB.LocalSatisfactionRatio, operationAttributesB.LocalSatisfactionRatio, 1e-7);
+        EXPECT_EQ(expectedOperationUsageUpdateTime, operationAttributesB.ResourceUsageUpdateTime);
+    };
+
+    // First case: no usage.
+    checkDynamicAttributes(
+        TUsageWithSatisfactions{
+            .ResourceUsage = TJobResources(),
+            .LocalSatisfactionRatio = 0.0,
+        },
+        TUsageWithSatisfactions{
+            .ResourceUsage = TJobResources(),
+            .LocalSatisfactionRatio = InfiniteSatisfactionRatio,
+        },
+        TUsageWithSatisfactions{
+            .ResourceUsage = TJobResources(),
+            .LocalSatisfactionRatio = 0.0,
+        });
+
+    // Second case: one operation has a job.
+    treeScheduler->OnJobStartedInTest(operationElementB.Get(), TJobId::Create(), jobResources);
+
+    checkDynamicAttributes(
+        TUsageWithSatisfactions{
+            .ResourceUsage = jobResources,
+            .LocalSatisfactionRatio = 0.5,
+        },
+        TUsageWithSatisfactions{
+            .ResourceUsage = TJobResources(),
+            .LocalSatisfactionRatio = InfiniteSatisfactionRatio,
+        },
+        TUsageWithSatisfactions{
+            .ResourceUsage = jobResources,
+            .LocalSatisfactionRatio = 0.5,
+        });
+
+    // Third case: with and without usage snapshot.
+    treeScheduler->OnJobStartedInTest(operationElementA.Get(), TJobId::Create(), jobResources);
+
+    auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+    auto resourceUsageSnapshot = BuildResourceUsageSnapshot(treeSnapshot);
+
+    treeScheduler->OnJobStartedInTest(operationElementA.Get(), TJobId::Create(), jobResources);
+
+    checkDynamicAttributes(
+        TUsageWithSatisfactions{
+            .ResourceUsage = jobResources * 3.0,
+            .LocalSatisfactionRatio = 1.0,
+        },
+        TUsageWithSatisfactions{
+            .ResourceUsage = jobResources * 2.0,
+            .LocalSatisfactionRatio = 2.0,
+        },
+        TUsageWithSatisfactions{
+            .ResourceUsage = jobResources,
+            .LocalSatisfactionRatio = 0.5,
+        },
+        treeSnapshot);
+
+    checkDynamicAttributes(
+        TUsageWithSatisfactions{
+            .ResourceUsage = jobResources * 2.0,
+            .LocalSatisfactionRatio = 2.0 / 3.0,
+        },
+        TUsageWithSatisfactions{
+            .ResourceUsage = jobResources,
+            .LocalSatisfactionRatio = 1.0,
+        },
+        TUsageWithSatisfactions{
+            .ResourceUsage = jobResources,
+            .LocalSatisfactionRatio = 0.5,
+        },
+        treeSnapshot,
+        resourceUsageSnapshot);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

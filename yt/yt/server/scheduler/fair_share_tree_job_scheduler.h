@@ -55,13 +55,19 @@ public:
 
 struct TDynamicAttributes
 {
-    double SatisfactionRatio = 0.0;
-    bool Active = false;
-    bool Alive = true;
-    TSchedulerOperationElement* BestLeafDescendant = nullptr;
+    //! Precomputed in dynamic attributes snapshot and updated after a job is scheduled or the usage is stale.
+    // NB(eshcherbin): Never change this field directly, use special dynamic attributes manager's methods instead.
     TJobResources ResourceUsage;
     NProfiling::TCpuInstant ResourceUsageUpdateTime;
+    bool Alive = true;
+    // Local satisfaction is based on pool's usage.
+    // Unlike regular satisfaction for a pool, we can precompute it in the dynamic attributes snapshot.
+    double LocalSatisfactionRatio = 0.0;
 
+    //! Computed in preschedule job and updated when anything about the element changes.
+    double SatisfactionRatio = 0.0;
+    bool Active = false;
+    TSchedulerOperationElement* BestLeafDescendant = nullptr;
     int HeapIndex = InvalidChildHeapIndex;
 };
 
@@ -137,6 +143,9 @@ public:
     void InitializeAttributesAtCompositeElement(TSchedulerCompositeElement* element, bool useChildHeap = true);
     void InitializeAttributesAtOperation(TSchedulerOperationElement* element, bool isActive = true);
 
+    // NB(eshcherbin): This is an ad-hoc way to initialize resource usage at a single place, where snapshot isn't ready yet.
+    void InitializeResourceUsageAtPostUpdate(const TSchedulerElement* element, const TJobResources& resourceUsage);
+
     void ActivateOperation(TSchedulerOperationElement* element);
     void DeactivateOperation(TSchedulerOperationElement* element);
 
@@ -177,6 +186,17 @@ private:
     TSchedulerElement* GetBestActiveChild(TSchedulerCompositeElement* element) const;
     TSchedulerElement* GetBestActiveChildFifo(TSchedulerCompositeElement* element) const;
     TSchedulerElement* GetBestActiveChildFairShare(TSchedulerCompositeElement* element) const;
+
+    static void SetResourceUsage(
+        const TSchedulerElement* element,
+        TDynamicAttributes* attributes,
+        const TJobResources& resourceUsage,
+        std::optional<NProfiling::TCpuInstant> updateTime = {});
+    static void IncreaseResourceUsage(
+        const TSchedulerElement* element,
+        TDynamicAttributes* attributes,
+        const TJobResources& resourceUsageDelta,
+        std::optional<NProfiling::TCpuInstant> updateTime = {});
 
     static void DoUpdateOperationResourceUsage(
         const TSchedulerOperationElement* element,

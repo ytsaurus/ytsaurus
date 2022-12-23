@@ -2531,33 +2531,7 @@ private:
     void UpdateResourceUsages() override
     {
         auto treeSnapshot = GetTreeSnapshot();
-
-        YT_VERIFY(treeSnapshot);
-
-        auto operationResourceUsageMap = THashMap<TOperationId, TJobResources>(treeSnapshot->EnabledOperationMap().size());
-        auto poolResourceUsageMap = THashMap<TString, TJobResources>(treeSnapshot->PoolMap().size());
-        auto aliveOperationIds = THashSet<TOperationId>(treeSnapshot->EnabledOperationMap().size());
-
-        for (const auto& [operationId, element] : treeSnapshot->EnabledOperationMap()) {
-            bool isAlive = element->IsAlive();
-            if (!isAlive) {
-                continue;
-            }
-            aliveOperationIds.insert(operationId);
-            auto resourceUsage = element->GetInstantResourceUsage();
-            operationResourceUsageMap[operationId] = resourceUsage;
-            const TSchedulerCompositeElement* parentPool = element->GetParent();
-            while (parentPool) {
-                poolResourceUsageMap[parentPool->GetId()] += resourceUsage;
-                parentPool = parentPool->GetParent();
-            }
-        }
-
-        auto resourceUsageSnapshot = New<TResourceUsageSnapshot>();
-        resourceUsageSnapshot->BuildTime = GetCpuInstant();
-        resourceUsageSnapshot->OperationIdToResourceUsage = std::move(operationResourceUsageMap);
-        resourceUsageSnapshot->PoolToResourceUsage = std::move(poolResourceUsageMap);
-        resourceUsageSnapshot->AliveOperationIds = std::move(aliveOperationIds);
+        auto resourceUsageSnapshot = BuildResourceUsageSnapshot(treeSnapshot);
 
         AccumulatedPoolResourceUsageForMetering_.Update(treeSnapshot, resourceUsageSnapshot);
         AccumulatedOperationsResourceUsageForProfiling_.Update(treeSnapshot, resourceUsageSnapshot);
