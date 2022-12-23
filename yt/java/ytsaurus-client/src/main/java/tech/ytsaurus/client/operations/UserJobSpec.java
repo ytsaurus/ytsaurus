@@ -13,6 +13,6 @@ public interface UserJobSpec {
     YTreeBuilder prepare(
             YTreeBuilder builder,
             TransactionalClient yt,
-            SpecPreparationContext context,
-            int outputTableCount);
+            SpecPreparationContext specPreparationContext,
+            FormatContext formatContext);
 }

@@ -75,9 +75,14 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
         dataSizePerSortJob = builder.dataSizePerSortJob;
         mapperOutputTableCount = builder.mapperOutputTableCount;
 
-        mapJobIo = builder.mapJobIo;
-        sortJobIo = builder.sortJobIo;
+        if (mapperSpec instanceof MapperOrReducerSpec) {
+            mapJobIo = ((MapperOrReducerSpec) mapperSpec).createJobIo(builder.mapJobIo);
+        } else {
+            mapJobIo = builder.mapJobIo;
+        }
+
         reduceJobIo = builder.reduceJobIo;
+        sortJobIo = builder.sortJobIo;
     }
 
     @Override
@@ -212,7 +217,8 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
      * Create output tables, upload necessary jars and files to YT, and create spec as yson.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
         SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
         @Nullable final String title;
         List<Title> titles = new ArrayList<>();
@@ -234,9 +240,18 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
             title = titles.stream().map(Title::toString).collect(Collectors.joining(", "));
         }
 
-        int mapperOutputCount = 1 + Optional.ofNullable(mapperOutputTableCount).orElse(0);
-        int reduceCombinerOutputCount = 1;
-        int reducerOutputCount = getOutputTables().size() - Optional.ofNullable(mapperOutputTableCount).orElse(0);
+        var mapperFormatContext = FormatContext.builder()
+                .setInputTableCount(getInputTables().size())
+                .setOutputTableCount(1 + Optional.ofNullable(mapperOutputTableCount).orElse(0))
+                .build();
+        var reducerFormatContext = FormatContext.builder()
+                .setInputTableCount(1)
+                .setOutputTableCount(getOutputTables().size() - Optional.ofNullable(mapperOutputTableCount).orElse(0))
+                .build();
+        var reduceCombinerFormatContext = FormatContext.builder()
+                .setInputTableCount(1)
+                .setOutputTableCount(1)
+                .build();
 
         return builder.beginMap()
                 .when(title != null, b -> b.key("title").value(title))
@@ -246,23 +261,22 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
                 .when(dataSizePerSortJob != null, b -> b.key("data_size_per_sort_job")
                         .value(Objects.requireNonNull(dataSizePerSortJob).toBytes()))
                 .when(mapperSpec != null, b -> b.key("mapper").apply(b2 ->
-                        Objects.requireNonNull(mapperSpec).prepare(b2, yt, context, mapperOutputCount)))
+                        Objects.requireNonNull(mapperSpec).prepare(b2, yt, specPreparationContext,
+                                mapperFormatContext)))
                 .key("sort_by").value(sortBy, (b, t) -> t.toTree(b))
                 .key("reduce_by").value(reduceBy)
-                .key("reducer").apply(b -> reducerSpec.prepare(b, yt, context, reducerOutputCount))
+                .key("reducer").apply(b -> reducerSpec.prepare(b, yt, specPreparationContext, reducerFormatContext))
                 .when(reduceCombinerSpec != null, b -> b.key("reduce_combiner")
-                        .apply(b2 -> Objects.requireNonNull(reduceCombinerSpec)
-                                .prepare(b2, yt, context, reduceCombinerOutputCount)))
-                .key("started_by").apply(b -> SpecUtils.startedBy(b, context))
+                        .apply(b2 -> Objects.requireNonNull(reduceCombinerSpec).prepare(b2, yt, specPreparationContext,
+                                reduceCombinerFormatContext)))
+                .key("started_by").apply(b -> SpecUtils.startedBy(b, specPreparationContext))
                 .when(mapperOutputTableCount != null,
                         b -> b.key("mapper_output_table_count").value(mapperOutputTableCount))
-                .when(mapJobIo != null, b -> b.key("map_job_io")
-                        .value(Objects.requireNonNull(mapJobIo).prepare()))
-                .when(sortJobIo != null, b -> b.key("sort_job_io")
-                        .value(Objects.requireNonNull(sortJobIo).prepare()))
-                .when(reduceJobIo != null, b -> b.key("reduce_job_io")
-                        .value(Objects.requireNonNull(reduceJobIo).prepare()))
-                .apply(b -> toTree(b, context))
+                .when(mapJobIo != null, b -> b.key("map_job_io").value(Objects.requireNonNull(mapJobIo).prepare()))
+                .when(sortJobIo != null, b -> b.key("sort_job_io").value(Objects.requireNonNull(sortJobIo).prepare()))
+                .when(reduceJobIo != null,
+                        b -> b.key("reduce_job_io").value(Objects.requireNonNull(reduceJobIo).prepare()))
+                .apply(b -> toTree(b, specPreparationContext))
                 .endMap();
     }
 
@@ -455,7 +469,8 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
 
         /**
          * Set the number of tables from outputTablePaths that will be output from the map stage.
-         * For such tables, table_index in the job is counted from one, and the zero output table is an intermediate output.
+         * For such tables, table_index in the job is counted from one, and the zero output table is an intermediate
+         * output.
          */
         public T setMapperOutputTableCount(@Nullable Integer mapperOutputTableCount) {
             this.mapperOutputTableCount = mapperOutputTableCount;

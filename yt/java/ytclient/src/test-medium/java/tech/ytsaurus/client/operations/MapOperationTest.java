@@ -2,6 +2,9 @@ package tech.ytsaurus.client.operations;
 
 import java.util.List;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+
 import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.client.YtClientTestBase;
@@ -19,7 +22,7 @@ import ru.yandex.lang.NonNullFields;
 public class MapOperationTest extends YtClientTestBase {
     @NonNullApi
     @NonNullFields
-    public static class SimpleMapper implements Mapper<YTreeMapNode, YTreeMapNode> {
+    public static class SimpleMapperYTreeMapNode implements Mapper<YTreeMapNode, YTreeMapNode> {
         @Override
         public void map(YTreeMapNode entry, Yield<YTreeMapNode> yield, Statistics statistics,
                         OperationContext context) {
@@ -35,8 +38,47 @@ public class MapOperationTest extends YtClientTestBase {
         }
     }
 
+    @Entity
+    private static class InputType {
+        String name;
+        int count;
+    }
+
+    @Entity
+    private static class OutputType {
+        String name;
+        @Column(name = "new_count")
+        int newCount;
+    }
+
+    @NonNullApi
+    @NonNullFields
+    public static class SimpleMapperEntity implements Mapper<InputType, OutputType> {
+        @Override
+        public void map(InputType entry, Yield<OutputType> yield, Statistics statistics,
+                        OperationContext context) {
+            String name = entry.name;
+            Integer count = entry.count;
+
+            OutputType outputType = new OutputType();
+            outputType.name = name;
+            outputType.newCount = count * count;
+
+            yield.yield(outputType);
+        }
+    }
+
     @Test
-    public void testSimple() {
+    public void testSimpleMapWithYTreeMapNode() {
+        testSimple(new SimpleMapperYTreeMapNode());
+    }
+
+    @Test
+    public void testSimpleMapWithEntity() {
+        testSimple(new SimpleMapperEntity());
+    }
+
+    private void testSimple(Mapper<?, ?> mapper) {
         var ytFixture = createYtFixture();
         var yt = ytFixture.getYt();
         var inputTable = ytFixture.getTestDirectory().child("input-table");
@@ -61,7 +103,7 @@ public class MapOperationTest extends YtClientTestBase {
 
         Operation op = yt.map(MapOperation.builder()
                 .setSpec(MapSpec.builder()
-                        .setMapperSpec(new MapperSpec(new SimpleMapper()))
+                        .setMapperSpec(new MapperSpec(mapper))
                         .setInputTables(inputTable)
                         .setOutputTables(outputTable)
                         .build())

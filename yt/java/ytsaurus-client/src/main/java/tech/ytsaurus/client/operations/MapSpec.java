@@ -73,13 +73,10 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
         }
         mapperSpec = builder.mapperSpec;
 
-        if (mapperSpec instanceof MapperOrReducerSpec && ((MapperOrReducerSpec) mapperSpec).trackIndices()) {
-            this.jobIo = (builder.jobIo == null ? JobIo.builder() : builder.jobIo.toBuilder())
-                    .setEnableRowIndex(true)
-                    .setEnableTableIndex(true)
-                    .build();
+        if (mapperSpec instanceof MapperOrReducerSpec) {
+            jobIo = ((MapperOrReducerSpec) mapperSpec).createJobIo(builder.jobIo);
         } else {
-            this.jobIo = builder.jobIo;
+            jobIo = builder.jobIo;
         }
     }
 
@@ -101,13 +98,18 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
      * Create yson map spec to transfer to YT.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
         SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
+        var formatContext = FormatContext.builder()
+                .setInputTableCount(getInputTables().size())
+                .setOutputTableCount(getOutputTables().size())
+                .build();
         return builder.beginMap()
                 .apply(b -> SpecUtils.addMapperOrReducerTitle(b, mapperSpec))
-                .key("mapper").apply(b -> mapperSpec.prepare(b, yt, context, getOutputTables().size()))
+                .key("mapper").apply(b -> mapperSpec.prepare(b, yt, specPreparationContext, formatContext))
                 .when(jobIo != null, b -> b.key("job_io").value(jobIo.prepare()))
-                .apply(b -> dumpToSpec(b, context))
+                .apply(b -> dumpToSpec(b, specPreparationContext))
                 .endMap();
     }
 

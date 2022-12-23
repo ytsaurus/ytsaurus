@@ -1,5 +1,6 @@
 package tech.ytsaurus.skiff.deserializer;
 
+import java.io.ByteArrayInputStream;
 import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
@@ -29,7 +30,7 @@ public class EntitySkiffDeserializer {
     public static <T> Optional<T> deserialize(byte[] objectBytes,
                                               Class<T> objectClass,
                                               SkiffSchema schema) {
-        return deserialize(new SkiffParser(objectBytes), objectClass, schema);
+        return deserialize(new SkiffParser(new ByteArrayInputStream(objectBytes)), objectClass, schema);
     }
 
     public static <T> Optional<T> deserialize(SkiffParser parser,

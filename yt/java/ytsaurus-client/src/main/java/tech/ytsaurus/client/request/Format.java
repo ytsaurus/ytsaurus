@@ -10,6 +10,7 @@ import tech.ytsaurus.ysontree.YTreeNode;
 
 
 public class Format {
+    private static final String DEFAULT_TABLE_NAME = "table";
     private final String type;
     private final Map<String, YTreeNode> attributes;
 
@@ -40,16 +41,20 @@ public class Format {
         return new Format("yson", attributes);
     }
 
-    public static Format skiff(SkiffSchema schema) {
+    public static Format skiff(SkiffSchema schema, int numberOfTables) {
         Map<String, YTreeNode> attributes = new HashMap<>();
-        String defaultTableName = "table1";
-        YTreeNode tableSkiffSchemas = YTree.listBuilder()
-                .value("$" + schema.getName().orElse(defaultTableName))
-                .endList().build();
+        String tableName = schema.getName().orElse(DEFAULT_TABLE_NAME);
+
+        YTreeBuilder tableSkiffSchemasBuilder = YTree.listBuilder();
+        for (int i = 0; i < numberOfTables; i++) {
+            tableSkiffSchemasBuilder.value("$" + tableName);
+        }
+
         YTreeNode skiffSchemaRegistry = YTree.mapBuilder()
-                .key(schema.getName().orElse(defaultTableName)).value(schema.toYTree())
+                .key(tableName).value(schema.toYTree())
                 .endMap().build();
-        attributes.put("table_skiff_schemas", tableSkiffSchemas);
+
+        attributes.put("table_skiff_schemas", tableSkiffSchemasBuilder.endList().build());
         attributes.put("skiff_schema_registry", skiffSchemaRegistry);
         return new Format("skiff", attributes);
     }

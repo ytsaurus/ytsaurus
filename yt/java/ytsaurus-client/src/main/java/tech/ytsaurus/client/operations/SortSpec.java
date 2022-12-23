@@ -126,7 +126,8 @@ public class SortSpec extends SystemOperationSpecBase implements Spec {
      * Convert to yson.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
         yt.createNode(CreateNode.builder()
                 .setPath(getOutputTable())
                 .setType(CypressNodeType.TABLE)
@@ -143,9 +144,9 @@ public class SortSpec extends SystemOperationSpecBase implements Spec {
                 .when(dataSizePerSortedMergeJob != null, b -> b.key("data_size_per_sorted_merge_job")
                         .value(Objects.requireNonNull(dataSizePerSortedMergeJob).toBytes()))
                 .key("sort_by").value(sortBy, (b, t) -> t.toTree(b))
-                .when(mergeJobIo != null, b -> b.key("merge_job_io")
-                        .value(Objects.requireNonNull(mergeJobIo).prepare()))
-                .apply(b -> toTree(b, context))
+                .when(mergeJobIo != null,
+                        b -> b.key("merge_job_io").value(Objects.requireNonNull(mergeJobIo).prepare()))
+                .apply(b -> toTree(b, specPreparationContext))
                 .endMap();
     }
 

@@ -33,7 +33,7 @@ public class YsonTableEntryType implements YTableEntryType<YTreeMapNode> {
     }
 
     @Override
-    public YTreeStringNode format() {
+    public YTreeStringNode format(FormatContext context) {
         return YtFormat.YSON_BINARY;
     }
 

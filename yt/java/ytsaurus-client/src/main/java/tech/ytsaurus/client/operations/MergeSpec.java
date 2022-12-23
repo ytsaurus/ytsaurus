@@ -139,7 +139,8 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
      * Create output table if it doesn't exist and convert spec to yson.
      */
     @Override
-    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt, SpecPreparationContext context) {
+    public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
+                                SpecPreparationContext specPreparationContext) {
         yt.createNode(CreateNode.builder()
                 .setPath(getOutputTable())
                 .setType(CypressNodeType.TABLE)
@@ -158,7 +159,7 @@ public class MergeSpec extends SystemOperationSpecBase implements Spec {
                 .when(maxDataSizePerJob != null, b -> b.key("max_data_size_per_job")
                         .value(Objects.requireNonNull(maxDataSizePerJob).toBytes()))
                 .when(jobIo != null, b -> b.key("job_io").value(Objects.requireNonNull(jobIo).prepare()))
-                .apply(b -> toTree(b, context))
+                .apply(b -> toTree(b, specPreparationContext))
                 .endMap();
     }
 

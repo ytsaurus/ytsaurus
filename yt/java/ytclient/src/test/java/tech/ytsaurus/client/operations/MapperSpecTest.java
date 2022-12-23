@@ -61,10 +61,12 @@ public class MapperSpecTest {
                 client,
                 new SpecPreparationContext(
                         YtClientConfiguration.builder()
-                            .setJarsProcessor(new DummyJarsProcessor())
-                            .setJavaBinary("java")
-                            .build()),
-                1
+                                .setJarsProcessor(new DummyJarsProcessor())
+                                .setJavaBinary("java")
+                                .build()),
+                FormatContext.builder()
+                        .setOutputTableCount(1)
+                        .build()
         ).build().mapNode().asMap();
 
         Assert.assertTrue(

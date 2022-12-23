@@ -3,6 +3,9 @@ package tech.ytsaurus.client.operations;
 import java.util.Iterator;
 import java.util.List;
 
+import javax.persistence.Column;
+import javax.persistence.Entity;
+
 import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.client.YtClientTestBase;
@@ -16,7 +19,7 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 
 
 public class MapReduceOperationTest extends YtClientTestBase {
-    public static class SimpleMapper implements Mapper<YTreeMapNode, YTreeMapNode> {
+    public static class SimpleMapperYTreeMapNode implements Mapper<YTreeMapNode, YTreeMapNode> {
         @Override
         public void map(YTreeMapNode entry, Yield<YTreeMapNode> yield, Statistics statistics,
                         OperationContext context) {
@@ -31,7 +34,7 @@ public class MapReduceOperationTest extends YtClientTestBase {
         }
     }
 
-    public static class SimpleReducer implements ReducerWithKey<YTreeMapNode, YTreeMapNode, String> {
+    public static class SimpleReducerYTreeMapNode implements ReducerWithKey<YTreeMapNode, YTreeMapNode, String> {
         @Override
         public String key(YTreeMapNode entry) {
             return entry.getString("name");
@@ -54,8 +57,73 @@ public class MapReduceOperationTest extends YtClientTestBase {
         }
     }
 
+    @Entity
+    private static class MapInputType {
+        String name;
+    }
+
+    @Entity
+    private static class MapOutputType {
+        String name;
+        @Column(name = "name_length")
+        int nameLength;
+    }
+
+    @Entity
+    private static class ReduceOutputType {
+        String name;
+        @Column(name = "sum_name_length")
+        int sumNameLength;
+    }
+
+    public static class SimpleMapperEntity implements Mapper<MapInputType, MapOutputType> {
+        @Override
+        public void map(MapInputType entry, Yield<MapOutputType> yield, Statistics statistics,
+                        OperationContext context) {
+            String name = entry.name;
+
+            MapOutputType mapOutputType = new MapOutputType();
+            mapOutputType.name = name;
+            mapOutputType.nameLength = name.length();
+
+            yield.yield(mapOutputType);
+        }
+    }
+
+    public static class SimpleReducerEntity implements ReducerWithKey<MapOutputType, ReduceOutputType, String> {
+        @Override
+        public String key(MapOutputType entry) {
+            return entry.name;
+        }
+
+        @Override
+        public void reduce(String key, Iterator<MapOutputType> input, Yield<ReduceOutputType> yield,
+                           Statistics statistics) {
+            int sumNameLength = 0;
+            while (input.hasNext()) {
+                MapOutputType row = input.next();
+                sumNameLength += row.nameLength;
+            }
+
+            ReduceOutputType reduceOutputType = new ReduceOutputType();
+            reduceOutputType.name = key;
+            reduceOutputType.sumNameLength = sumNameLength;
+
+            yield.yield(reduceOutputType);
+        }
+    }
+
     @Test
-    public void testSimple() {
+    public void testSimpleMapReduceWithYTreeMapNode() {
+        testSimple(new SimpleMapperYTreeMapNode(), new SimpleReducerYTreeMapNode());
+    }
+
+    @Test
+    public void testSimpleMapReduceWithEntity() {
+        testSimple(new SimpleMapperEntity(), new SimpleReducerEntity());
+    }
+
+    private void testSimple(Mapper<?, ?> mapper, Reducer<?, ?> reducer) {
         var ytFixture = createYtFixture();
         var yt = ytFixture.getYt();
         var inputTable = ytFixture.getTestDirectory().child("input-table");
@@ -86,8 +154,8 @@ public class MapReduceOperationTest extends YtClientTestBase {
 
         Operation op = yt.mapReduce(MapReduceOperation.builder()
                 .setSpec(MapReduceSpec.builder()
-                        .setReducerSpec(new ReducerSpec(new SimpleReducer()))
-                        .setMapperSpec(new MapperSpec(new SimpleMapper()))
+                        .setReducerSpec(new ReducerSpec(reducer))
+                        .setMapperSpec(new MapperSpec(mapper))
                         .setInputTables(inputTable)
                         .setOutputTables(outputTable)
                         .setReduceBy("name")
