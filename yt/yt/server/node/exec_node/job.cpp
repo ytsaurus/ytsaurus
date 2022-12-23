@@ -2996,7 +2996,7 @@ void FillStatus(NJobTrackerClient::NProto::TJobStatus* status, const TJobPtr& jo
 }
 
 template <class TStatus>
-void FillSchedulerJobStatus(TStatus* status, const TJobPtr& job)
+void FillJobStatus(TStatus* status, const TJobPtr& job)
 {
     FillStatus(status, job);
 
@@ -3006,9 +3006,9 @@ void FillSchedulerJobStatus(TStatus* status, const TJobPtr& job)
     status->set_status_timestamp(ToProto<ui64>(TInstant::Now()));
 }
 
-template void FillSchedulerJobStatus(NScheduler::NProto::TAllocationStatus* status, const TJobPtr& job);
-template void FillSchedulerJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job);
-template void FillSchedulerJobStatus(NJobTrackerClient::NProto::TJobStatus* status, const TJobPtr& job);
+template void FillJobStatus(NScheduler::NProto::TAllocationStatus* status, const TJobPtr& job);
+template void FillJobStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job);
+template void FillJobStatus(NJobTrackerClient::NProto::TJobStatus* status, const TJobPtr& job);
 
 ////////////////////////////////////////////////////////////////////////////////
 

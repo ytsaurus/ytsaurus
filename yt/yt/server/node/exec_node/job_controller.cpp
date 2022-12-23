@@ -951,7 +951,7 @@ private:
         i64 finishedJobsStatisticsSize = 0;
         for (const auto& job : context->SentEnqueuedJobs) {
             auto* const jobStatus = request->add_jobs();
-            FillSchedulerJobStatus(jobStatus, job);
+            FillJobStatus(jobStatus, job);
 
             *jobStatus->mutable_result() = job->GetResult();
 
@@ -978,6 +978,10 @@ private:
         int reportedRunningJobCount = 0;
         i64 runningJobsStatisticsSize = 0;
         for (const auto& job : jobs) {
+            auto* jobStatus = request->add_jobs();
+
+            FillJobStatus(jobStatus, job);
+
             if (now - job->GetStatisticsLastSendTime() < context->RunningJobInfoSendingBackoff) {
                 break;
             }
@@ -988,9 +992,6 @@ private:
                 auto statisticsString = statistics.ToString();
                 if (context->StatisticsThrottler->TryAcquire(statisticsString.size())) {
                     ++reportedRunningJobCount;
-                    auto* const jobStatus = request->add_jobs();
-
-                    FillSchedulerJobStatus(jobStatus, job);
 
                     runningJobsStatisticsSize += statisticsString.size();
                     job->ResetStatisticsLastSendTime();
@@ -1265,7 +1266,7 @@ private:
             }
 
             auto* allocationStatus = AddAllocations(request);
-            FillSchedulerJobStatus(allocationStatus, job);
+            FillJobStatus(allocationStatus, job);
             switch (job->GetState()) {
                 case EJobState::Running: {
                     auto& resourceUsage = *allocationStatus->mutable_resource_usage();
