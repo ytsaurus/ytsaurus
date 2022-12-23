@@ -285,14 +285,24 @@ private:
 
 //! A helper encapsulating Read/GetReadyEvent calls for a typical row batch reader.
 /*!
- *  Invokes Read method and checks the result for emptiness.
+ *  Invokes |Read| method and checks the result for emptiness.
  *  If empty, waits for the ready event and loops.
  *  Returns either a non-empty batch or null (indicating end-of-stream).
  *
- *  All additional parameters are forwarded to Read call.
+ *  All additional parameters are forwarded to |Read| call.
  */
 template <class TReader, class... TArgs>
-auto WaitForRowBatch(const TIntrusivePtr<TReader>& reader, TArgs&&... args);
+auto ReadRowBatch(const TIntrusivePtr<TReader>& reader, TArgs&&... args);
+
+//! A helper encapsulating Write/GetReadyEvent calls for a typical row batch writer.
+/*!
+ *  Invokes |Write| method and checks the result.
+ *  If false, waits for the ready event.
+ *
+ *  All additional parameters are forwarded to |Write| call.
+ */
+template <class TWriter, class... TArgs>
+auto WriteRowBatch(const TIntrusivePtr<TWriter>& writer, TArgs&&... args);
 
 ////////////////////////////////////////////////////////////////////////////////
 

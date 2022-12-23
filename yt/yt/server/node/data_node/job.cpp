@@ -1147,7 +1147,7 @@ private:
         {
             IUnversionedRowBatchPtr batch;
             while (!batch) {
-                batch = WaitForRowBatch(ChunkReader_);
+                batch = ReadRowBatch(ChunkReader_);
                 if (!batch) {
                     ++CurrentChunkIndex_;
                     if (CurrentChunkIndex_ == std::ssize(Contexts_)) {
@@ -1873,7 +1873,7 @@ private:
             confirmingWriter,
             /*dataSink*/ std::nullopt);
 
-        while (auto batch = WaitForRowBatch(reader)) {
+        while (auto batch = ReadRowBatch(reader)) {
             writer->Write(batch->MaterializeRows());
         }
 

@@ -4579,7 +4579,7 @@ private:
                     .MaxDataWeightPerRead = config->ReadBufferDataWeight,
                     .Columnar = IsColumnarRowsetFormat(request->desired_rowset_format())
                 };
-                auto batch = WaitForRowBatch(tableReader, options);
+                auto batch = ReadRowBatch(tableReader, options);
                 if (!batch) {
                     finished = true;
                 }

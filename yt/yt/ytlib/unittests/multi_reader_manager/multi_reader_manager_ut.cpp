@@ -108,7 +108,7 @@ TEST_P(TMultiReaderManagerTest, DataWithEmptyRows)
         values.insert(i);
     }
 
-    while (auto batch = WaitForRowBatch(multiReader)) {
+    while (auto batch = ReadRowBatch(multiReader)) {
         auto rows = batch->MaterializeRows();
         EXPECT_EQ(1u, rows.size());
 
@@ -153,13 +153,13 @@ TEST_P(TMultiReaderManagerTest, Interrupt)
     auto multiReader = CreateMultiReader(readers, GetParam());
 
     for (int i = 0; i < 15; ++i) {
-        WaitForRowBatch(multiReader);
+        ReadRowBatch(multiReader);
     }
 
     multiReader->Interrupt();
 
     int remainingRowCount = 0;
-    while (auto batch = WaitForRowBatch(multiReader)) {
+    while (auto batch = ReadRowBatch(multiReader)) {
         EXPECT_EQ(1, batch->GetRowCount());
         ++remainingRowCount;
     }

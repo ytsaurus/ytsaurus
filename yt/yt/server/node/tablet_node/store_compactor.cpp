@@ -448,7 +448,7 @@ public:
             auto peekInputRow = [&] {
                 if (currentRowIndex >= std::ssize(inputRows)) {
                     flushOutputRows();
-                    inputBatch = WaitForRowBatch(reader, readOptions);
+                    inputBatch = ReadRowBatch(reader, readOptions);
                     if (!inputBatch) {
                         return TVersionedRow();
                     }
@@ -545,7 +545,7 @@ public:
                 .MaxRowsPerRead = MaxRowsPerRead
             };
 
-            while (auto batch = WaitForRowBatch(reader, readOptions)) {
+            while (auto batch = ReadRowBatch(reader, readOptions)) {
                 rowCount += batch->GetRowCount();
                 auto rows = batch->MaterializeRows();
                 if (!writer->Write(rows)) {
