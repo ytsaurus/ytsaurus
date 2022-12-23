@@ -11,6 +11,7 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
+#include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
@@ -22,9 +23,15 @@
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/yt/ytlib/table_client/timing_statistics.h>
+
+#include <yt/yt/client/chunk_client/data_statistics.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/rpc/public.h>
+
+#include <yt/yt/core/net/connection.h>
 
 #include <yt/yt/core/misc/statistics.h>
 
@@ -130,11 +137,42 @@ struct IJob
 
     virtual std::vector<NJobAgent::TJobProfile> GetProfiles() = 0;
 
-    virtual TStatistics GetStatistics() const = 0;
-
     virtual const NCoreDump::TCoreInfos& GetCoreInfos() const = 0;
 
-    virtual NContainers::TCpuStatistics GetCpuStatistics() const = 0;
+    virtual std::optional<NContainers::TCpuStatistics> GetUserJobCpuStatistics() const = 0;
+
+    //! Schematized subset which is more or less common among different kinds of jobs.
+    //! Used to reduce boilerplate in job implementations and to explicitly specify
+    //! variadic-size statistics kind (namely, #OutputStatistics).
+    struct TStatistics
+    {
+        NYT::TStatistics Statstics;
+        NChunkClient::TChunkReaderStatisticsPtr ChunkReaderStatistics = New<NChunkClient::TChunkReaderStatistics>();
+        NTableClient::TTimingStatistics TimingStatistics;
+
+        struct TPipeStatistics
+        {
+            NNet::TConnectionStatistics ConnectionStatistics;
+            i64 Bytes = 0;
+        };
+
+        struct TStreamStatistics
+        {
+            NChunkClient::NProto::TDataStatistics DataStatistics;
+            NChunkClient::TCodecStatistics CodecStatistics;
+        };
+
+        TStreamStatistics TotalInputStatistics;
+        //! Per-output stream statistics; this field is truncated when producing final job statistics,
+        //! but the original data statistics is sent as a separate protobuf field.
+        std::vector<TStreamStatistics> OutputStatistics;
+
+        TPipeStatistics InputPipeStatistics;
+        std::vector<TPipeStatistics> OutputPipeStatistics;
+        TPipeStatistics TotalOutputPipeStatistics;
+    };
+
+    virtual TStatistics GetStatistics() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJob)

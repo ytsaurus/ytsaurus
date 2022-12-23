@@ -394,7 +394,6 @@ private:
             if (!summary.TimeStatistics.ExecDuration) {
                 return;
             }
-
             ExecDuration_ = summary.TimeStatistics.ExecDuration.value_or(TDuration());
             YT_VERIFY(summary.Statistics);
 

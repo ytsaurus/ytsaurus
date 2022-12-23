@@ -96,6 +96,10 @@ TJobSummary::TJobSummary(NProto::TJobStatus* status)
     if (status->has_total_input_data_statistics()) {
         TotalInputDataStatistics = FromProto<NChunkClient::NProto::TDataStatistics>(status->total_input_data_statistics());
         OutputDataStatistics = FromProto<std::vector<NChunkClient::NProto::TDataStatistics>>(status->output_data_statistics());
+        TotalOutputDataStatistics.emplace();
+        for (const auto& statistics : *OutputDataStatistics) {
+            *TotalOutputDataStatistics += statistics;
+        }
     } else {
         // COMPAT(max42): remove this when all nodes are 22.4+.
         FillDataStatisticsFromStatistics();

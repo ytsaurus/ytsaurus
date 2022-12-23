@@ -649,6 +649,9 @@ void TExecNodeDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("user_job_container_creation_throttler", &TThis::UserJobContainerCreationThrottler)
         .DefaultNew();
 
+    registrar.Parameter("statistics_output_table_count_limit", &TThis::StatisticsOutputTableCountLimit)
+        .Default();
+
     registrar.Preprocessor([] (TThis* config) {
         // 10 user jobs containers per second by default.
         config->UserJobContainerCreationThrottler->Limit = 10;

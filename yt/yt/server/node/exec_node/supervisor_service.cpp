@@ -37,6 +37,7 @@ using namespace NConcurrency;
 using namespace NJobProxy;
 using namespace NCoreDump;
 using namespace NObjectClient;
+using NChunkClient::NProto::TDataStatistics;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -262,6 +263,9 @@ private:
             job->SetStatistics(ysonStatistics);
             jobReport.SetStatistics(job->GetStatistics());
         }
+
+        job->SetTotalInputDataStatistics(request->total_input_data_statistics());
+        job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
         // COMPAT(ignat): migrate to new fields (node_start_time, node_finish_time)
         if (request->has_start_time()) {
             jobReport.SetStartTime(FromProto<TInstant>(request->start_time()));
@@ -319,6 +323,8 @@ private:
 
         job->SetProgress(progress);
         job->SetStatistics(statistics);
+        job->SetTotalInputDataStatistics(request->total_input_data_statistics());
+        job->SetOutputDataStatistics(FromProto<std::vector<TDataStatistics>>(request->output_data_statistics()));
         job->SetStderrSize(stderrSize);
 
         context->Reply();

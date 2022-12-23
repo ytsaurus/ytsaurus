@@ -143,7 +143,6 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-
 class TJobProxyConfig
     : public TServerConfig
 {
@@ -230,6 +229,8 @@ public:
     bool UploadDebugArtifactChunks;
 
     bool SendHeartbeatBeforeAbort;
+
+    std::optional<int> StatisticsOutputTableCountLimit;
 
     REGISTER_YSON_STRUCT(TJobProxyConfig);
 

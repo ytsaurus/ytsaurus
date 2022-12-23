@@ -271,13 +271,15 @@ public:
 
     TStatistics GetStatistics() const override
     {
-        TStatistics result;
-        result.AddSample("/data/input", DataStatistics_);
-        result.AddSample(
-            "/data/output/" + NYPath::ToYPathLiteral(0),
-            DataStatistics_);
-        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
-        return result;
+        return {
+            .ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics,
+            .TotalInputStatistics = {
+                .DataStatistics = DataStatistics_,
+            },
+            .OutputStatistics = {{
+                .DataStatistics = DataStatistics_,
+            }},
+        };
     }
 
 private:

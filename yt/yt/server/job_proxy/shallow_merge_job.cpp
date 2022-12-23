@@ -159,13 +159,19 @@ public:
         return static_cast<double>(ProcessedBlocksSize_) / TotalBlocksSize_;
     }
 
-    TStatistics GetStatistics() const override
+    virtual TStatistics GetStatistics() const override
     {
-        TStatistics result;
-        result.AddSample("/data/input", InputDataStatistics_.Load());
-        result.AddSample("/data/output/" + NYPath::ToYPathLiteral(0), OutputDataStatistics_.Load());
-        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
-        return result;
+        return {
+            .ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics,
+            .TotalInputStatistics = {
+                .DataStatistics = InputDataStatistics_.Load(),
+            },
+            .OutputStatistics = {
+                {
+                    .DataStatistics = OutputDataStatistics_.Load(),
+                },
+            },
+        };
     }
 
 private:

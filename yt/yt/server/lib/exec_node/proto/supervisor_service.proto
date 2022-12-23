@@ -6,6 +6,8 @@ import "yt/ytlib/controller_agent/proto/job.proto";
 
 import "yt_proto/yt/client/misc/proto/workload.proto";
 
+import "yt_proto/yt/client/chunk_client/proto/data_statistics.proto";
+
 import "yt_proto/yt/core/misc/proto/error.proto";
 import "yt_proto/yt/core/misc/proto/guid.proto";
 
@@ -88,6 +90,8 @@ message TReqOnJobFinished
     required NYT.NProto.TGuid job_id = 1;
     required NControllerAgent.NProto.TJobResult result = 2;
     required bytes statistics = 3; // YSON
+    required NYT.NChunkClient.NProto.TDataStatistics total_input_data_statistics = 13;
+    repeated NYT.NChunkClient.NProto.TDataStatistics output_data_statistics = 14;
     optional uint64 start_time = 4;
     optional uint64 finish_time = 5;
     optional bytes job_stderr = 6;
@@ -116,6 +120,8 @@ message TReqOnJobProgress
     required NYT.NProto.TGuid job_id = 1;
     required double progress = 2;
     required bytes statistics = 3; // YSON
+    required NYT.NChunkClient.NProto.TDataStatistics total_input_data_statistics = 5;
+    repeated NYT.NChunkClient.NProto.TDataStatistics output_data_statistics = 6;
     optional uint64 stderr_size = 4;
 }
 

@@ -30,6 +30,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_host.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/config.h>
+#include <yt/yt/ytlib/chunk_client/helpers.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
 #include <yt/yt/ytlib/chunk_client/traffic_meter.h>
 #include <yt/yt/ytlib/chunk_client/data_source.h>
@@ -81,6 +82,8 @@
 
 #include <yt/yt/core/ytree/public.h>
 
+#include <yt/yt/core/ypath/token.h>
+
 #include <util/system/fs.h>
 #include <util/system/execpath.h>
 
@@ -108,9 +111,30 @@ using namespace NControllerAgent::NProto;
 using namespace NConcurrency;
 using namespace NYTree;
 using namespace NYson;
+using namespace NYPath;
 using namespace NContainers;
 using namespace NProfiling;
 using namespace NTracing;
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+////////////////////////////////////////////////////////////////////////////////
+
+void FillStatistics(auto& req, const IJobPtr& job, const TStatistics& enrichedStatistics)
+{
+    auto extendedStatistics = job->GetStatistics();
+    req->set_statistics(ConvertToYsonString(enrichedStatistics).ToString());
+    *req->mutable_total_input_data_statistics() = std::move(extendedStatistics.TotalInputStatistics.DataStatistics);
+    for (auto& statistics : extendedStatistics.OutputStatistics) {
+        *req->add_output_data_statistics() = std::move(statistics.DataStatistics);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -227,7 +251,7 @@ void TJobProxy::SendHeartbeat()
     auto req = SupervisorProxy_->OnJobProgress();
     ToProto(req->mutable_job_id(), JobId_);
     req->set_progress(job->GetProgress());
-    req->set_statistics(ConvertToYsonString(GetStatistics()).ToString());
+    FillStatistics(req, job, GetEnrichedStatistics());
     req->set_stderr_size(job->GetStderrSize());
 
     req->Invoke().Subscribe(BIND(&TJobProxy::OnHeartbeatResponse, MakeWeak(this)));
@@ -499,10 +523,8 @@ void TJobProxy::DoRun()
 
     FillJobResult(&result);
     FillStderrResult(&result);
-    auto statistics = ConvertToYsonString(GetStatistics());
     ReportResult(
         result,
-        statistics,
         startTime,
         finishTime);
 
@@ -786,7 +808,6 @@ NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::T
 
 void TJobProxy::ReportResult(
     const TJobResult& result,
-    const TYsonString& statistics,
     TInstant startTime,
     TInstant finishTime)
 {
@@ -802,10 +823,12 @@ void TJobProxy::ReportResult(
     auto req = SupervisorProxy_->OnJobFinished();
     ToProto(req->mutable_job_id(), JobId_);
     *req->mutable_result() = result;
-    req->set_statistics(statistics.ToString());
     req->set_start_time(ToProto<i64>(startTime));
     req->set_finish_time(ToProto<i64>(finishTime));
     auto job = FindJob();
+    if (job) {
+        FillStatistics(req, job, GetEnrichedStatistics());
+    }
     if (job && GetJobSpecHelper()->GetSchedulerJobSpecExt().has_user_job_spec()) {
         ToProto(req->mutable_core_infos(), job->GetCoreInfos());
 
@@ -847,12 +870,38 @@ void TJobProxy::ReportResult(
     YT_LOG_INFO("Job result reported");
 }
 
-TStatistics TJobProxy::GetStatistics() const
+TStatistics TJobProxy::GetEnrichedStatistics() const
 {
     TStatistics statistics;
 
+    auto statisticsOutputTableCountLimit = Config_->StatisticsOutputTableCountLimit.value_or(std::numeric_limits<int>::max());
+
     if (auto job = FindJob()) {
-        statistics = job->GetStatistics();
+        auto extendedStatistics = job->GetStatistics();
+        statistics = std::move(extendedStatistics.Statstics);
+
+        statistics.AddSample("/data/input", extendedStatistics.TotalInputStatistics.DataStatistics);
+        DumpCodecStatistics(extendedStatistics.TotalInputStatistics.CodecStatistics, "/codec/cpu/decode", &statistics);
+        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.OutputStatistics.size()); ++index) {
+            auto ypathIndex = ToYPathLiteral(index);
+            statistics.AddSample("/data/output/" + ypathIndex, extendedStatistics.OutputStatistics[index].DataStatistics);
+            DumpCodecStatistics(extendedStatistics.OutputStatistics[index].CodecStatistics, "/codec/cpu/encode/" + ypathIndex, &statistics);
+        }
+
+        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", extendedStatistics.ChunkReaderStatistics);
+        DumpTimingStatistics(&statistics, "/chunk_reader_statistics", extendedStatistics.TimingStatistics);
+
+        auto dumpPipeStatistics = [&] (const TYPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
+            statistics.AddSample(path + "/idle_time", pipeStatistics.ConnectionStatistics.IdleDuration);
+            statistics.AddSample(path + "/busy_time", pipeStatistics.ConnectionStatistics.BusyDuration);
+            statistics.AddSample(path + "/bytes", pipeStatistics.Bytes);
+        };
+
+        dumpPipeStatistics("/user_job/pipes/input", extendedStatistics.InputPipeStatistics);
+        dumpPipeStatistics("/user_job/pipes/output/total", extendedStatistics.TotalOutputPipeStatistics);
+        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.OutputPipeStatistics.size()); ++index) {
+            dumpPipeStatistics("/user_job/pipes/output/" + ToYPathLiteral(index), extendedStatistics.OutputPipeStatistics[index]);
+        }
     }
 
     if (auto environment = FindJobProxyEnvironment()) {
@@ -1241,7 +1290,7 @@ void TJobProxy::FillJobResult(TJobResult* jobResult)
     auto interruptDescriptor = job->GetInterruptDescriptor();
 
     if (!interruptDescriptor.UnreadDataSliceDescriptors.empty()) {
-        auto inputStatistics = GetTotalInputDataStatistics(job->GetStatistics());
+        auto inputStatistics = job->GetStatistics().TotalInputStatistics.DataStatistics;
         if (inputStatistics.row_count() > 0) {
             // NB(psushin): although we definitely have read some of the rows, the job may have made no progress,
             // since all of these row are from foreign tables, and therefor the ReadDataSliceDescriptors is empty.
@@ -1353,15 +1402,16 @@ TDuration TJobProxy::GetSpentCpuTime() const
     auto result = TDuration::Zero();
 
     if (auto job = FindJob()) {
-        auto jobCpu = job->GetCpuStatistics();
-        result += jobCpu.SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
-            jobCpu.UserUsageTime.ValueOrDefault(TDuration::Zero());
+        if (auto userJobCpu = job->GetUserJobCpuStatistics()) {
+            result += userJobCpu->SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
+                userJobCpu->UserUsageTime.ValueOrDefault(TDuration::Zero());
+        }
     }
 
     if (auto environment = FindJobProxyEnvironment()) {
-        auto proxyCpu = environment->GetCpuStatistics();
-        result += proxyCpu.SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
-            proxyCpu.UserUsageTime.ValueOrDefault(TDuration::Zero());
+        auto jobProxyCpu = environment->GetCpuStatistics();
+        result += jobProxyCpu.SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
+            jobProxyCpu.UserUsageTime.ValueOrDefault(TDuration::Zero());
     }
 
     return result;
