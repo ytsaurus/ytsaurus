@@ -205,8 +205,12 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
             YT_VERIFY(State_.load() == EState::Closing);
 
             if (!chunkMeta->IsFinalized()) {
+                auto& mapping = chunkMeta->BlockIndexMapping();
+                mapping = std::vector<int>(BlocksExt_.blocks().size());
+                std::iota(mapping->begin(), mapping->end(), 0);
                 chunkMeta->Finalize();
             }
+
             ChunkMeta_->CopyFrom(*chunkMeta);
             SetProtoExtension(ChunkMeta_->mutable_extensions(), BlocksExt_);
 

@@ -81,7 +81,7 @@ protected:
         NTableClient::TRowBatchReadOptions options{
             .MaxRowsPerRead = 1
         };
-        auto batch = NTableClient::WaitForRowBatch(reader, options);
+        auto batch = NTableClient::ReadRowBatch(reader, options);
         EXPECT_TRUE(batch.operator bool());
 
         auto rows = batch->MaterializeRows();

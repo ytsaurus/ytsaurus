@@ -429,7 +429,7 @@ TEST_F(TColumnarReadTest, UnreadBatch)
         .MaxRowsPerRead = 10,
         .Columnar = true
     };
-    while (auto batch = WaitForRowBatch(reader, options)) {
+    while (auto batch = ReadRowBatch(reader, options)) {
     }
     auto statistics = reader->GetDataStatistics();
     EXPECT_EQ(N, statistics.row_count());
@@ -443,7 +443,7 @@ TEST_F(TColumnarReadTest, ReadJustC1)
         .MaxRowsPerRead = 10,
         .Columnar = true
     };
-    while (auto batch = WaitForRowBatch(reader, options)) {
+    while (auto batch = ReadRowBatch(reader, options)) {
         auto columnarBatch = batch->TryAsColumnar();
         ASSERT_TRUE(columnarBatch.operator bool());
         auto columns = columnarBatch->MaterializeColumns();
@@ -462,7 +462,7 @@ TEST_F(TColumnarReadTest, ReadAll)
         .MaxRowsPerRead = 10,
         .Columnar = true
     };
-    while (auto batch = WaitForRowBatch(reader, options)) {
+    while (auto batch = ReadRowBatch(reader, options)) {
         auto columnarBatch = batch->TryAsColumnar();
         ASSERT_TRUE(columnarBatch.operator bool());
         auto columns = columnarBatch->MaterializeColumns();

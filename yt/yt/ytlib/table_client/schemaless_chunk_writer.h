@@ -49,8 +49,8 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     TTableSchemaPtr schema,
     TNameTablePtr nameTable,
     NChunkClient::IChunkWriterPtr chunkWriter,
-    const std::optional<NChunkClient::TDataSink>& dataSink,
-    const TChunkTimestamps& chunkTimestamps = TChunkTimestamps(),
+    const std::optional<NChunkClient::TDataSink>& dataSink = {},
+    const TChunkTimestamps& chunkTimestamps = {},
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////

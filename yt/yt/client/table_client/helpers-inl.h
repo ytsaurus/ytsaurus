@@ -507,7 +507,7 @@ void TUnversionedRowsBuilder::AddRow(Ts&&... values)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TReader, class... TArgs>
-auto WaitForRowBatch(const TIntrusivePtr<TReader>& reader, TArgs&&... args)
+auto ReadRowBatch(const TIntrusivePtr<TReader>& reader, TArgs&&... args)
 {
     while (true) {
         auto batch = reader->Read(std::forward<TArgs>(args)...);
@@ -515,6 +515,15 @@ auto WaitForRowBatch(const TIntrusivePtr<TReader>& reader, TArgs&&... args)
             return batch;
         }
         NConcurrency::WaitFor(reader->GetReadyEvent())
+            .ThrowOnError();
+    }
+}
+
+template <class TWriter, class... TArgs>
+auto WriteRowBatch(const TIntrusivePtr<TWriter>& writer, TArgs&&... args)
+{
+    if (!writer->Write(std::forward<TArgs>(args)...)) {
+        NConcurrency::WaitFor(writer->GetReadyEvent())
             .ThrowOnError();
     }
 }
