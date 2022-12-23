@@ -315,6 +315,14 @@ void TDynamicAttributesManager::InitializeAttributesAtOperation(
     }
 }
 
+void TDynamicAttributesManager::InitializeResourceUsageAtPostUpdate(const TSchedulerElement* element, const TJobResources& resourceUsage)
+{
+    YT_VERIFY(element->GetMutable());
+
+    auto& attributes = AttributesOf(element);
+    SetResourceUsage(element, &attributes, resourceUsage);
+}
+
 void TDynamicAttributesManager::ActivateOperation(TSchedulerOperationElement* element)
 {
     AttributesOf(element).Active = true;
@@ -380,7 +388,8 @@ void TDynamicAttributesManager::UpdateAttributesHierarchically(
             YT_VERIFY(AttributesOf(ancestor).Active);
         }
 
-        AttributesOf(ancestor).ResourceUsage += resourceUsageDelta;
+        auto& ancestorAttributes = AttributesOf(ancestor);
+        IncreaseResourceUsage(ancestor, &ancestorAttributes, resourceUsageDelta);
         UpdateAttributes(ancestor);
 
         ancestor = ancestor->GetMutableParent();
@@ -424,10 +433,7 @@ void TDynamicAttributesManager::UpdateAttributesAtCompositeElement(TSchedulerCom
     // Satisfaction ratio of a composite element is the minimum of its children's satisfaction ratios.
     // NB(eshcherbin): We initialize with local satisfaction ratio in case all children have no pending jobs
     // and thus are not in the |SchedulableChildren_| list.
-    const auto& resourceUsage = element->GetMutable()
-        ? element->ResourceUsageAtUpdate()
-        : attributes.ResourceUsage;
-    attributes.SatisfactionRatio = element->ComputeLocalSatisfactionRatio(resourceUsage);
+    attributes.SatisfactionRatio = attributes.LocalSatisfactionRatio;
 
     if (const auto* bestChild = GetBestActiveChild(element)) {
         const auto& bestChildAttributes = AttributesOf(bestChild);
@@ -444,10 +450,7 @@ void TDynamicAttributesManager::UpdateAttributesAtCompositeElement(TSchedulerCom
 void TDynamicAttributesManager::UpdateAttributesAtOperation(TSchedulerOperationElement* element)
 {
     auto& attributes = AttributesOf(element);
-    const auto& resourceUsage = element->GetMutable()
-        ? element->ResourceUsageAtUpdate()
-        : attributes.ResourceUsage;
-    attributes.SatisfactionRatio = element->ComputeLocalSatisfactionRatio(resourceUsage);
+    attributes.SatisfactionRatio = attributes.LocalSatisfactionRatio;
     attributes.BestLeafDescendant = element;
 }
 
@@ -514,16 +517,44 @@ TSchedulerElement* TDynamicAttributesManager::GetBestActiveChildFairShare(TSched
     return bestChild;
 }
 
+void TDynamicAttributesManager::SetResourceUsage(
+    const TSchedulerElement* element,
+    TDynamicAttributes* attributes,
+    const TJobResources& resourceUsage,
+    std::optional<TCpuInstant> updateTime)
+{
+    attributes->ResourceUsage = resourceUsage;
+    attributes->LocalSatisfactionRatio = element->ComputeLocalSatisfactionRatio(attributes->ResourceUsage);
+    if (updateTime) {
+        attributes->ResourceUsageUpdateTime = *updateTime;
+    }
+}
+
+void TDynamicAttributesManager::IncreaseResourceUsage(
+    const TSchedulerElement* element,
+    TDynamicAttributes* attributes,
+    const TJobResources& resourceUsageDelta,
+    std::optional<TCpuInstant> updateTime)
+{
+    attributes->ResourceUsage += resourceUsageDelta;
+    attributes->LocalSatisfactionRatio = element->ComputeLocalSatisfactionRatio(attributes->ResourceUsage);
+    if (updateTime) {
+        attributes->ResourceUsageUpdateTime = *updateTime;
+    }
+}
+
 void TDynamicAttributesManager::DoUpdateOperationResourceUsage(
     const TSchedulerOperationElement* element,
     TDynamicAttributes* operationAttributes,
     const TFairShareTreeJobSchedulerOperationSharedStatePtr& operationSharedState,
     TCpuInstant now)
 {
-    operationAttributes->ResourceUsage = (element->IsAlive() && operationSharedState->IsEnabled())
+    bool alive = element->IsAlive();
+    auto resourceUsage = (alive && operationSharedState->IsEnabled())
         ? element->GetInstantResourceUsage()
         : TJobResources();
-    operationAttributes->ResourceUsageUpdateTime = now;
+    SetResourceUsage(element, operationAttributes, resourceUsage, now);
+    operationAttributes->Alive = alive;
 }
 
 TJobResources TDynamicAttributesManager::FillResourceUsage(const TSchedulerElement* element, TFillResourceUsageContext* context)
@@ -543,10 +574,11 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtCompositeElement(con
 {
     auto& attributes = context->AttributesList->AttributesOf(element);
 
-    attributes.ResourceUsage = element->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
+    auto resourceUsage = element->PostUpdateAttributes().UnschedulableOperationsResourceUsage;
     for (const auto& child : element->SchedulableChildren()) {
-        attributes.ResourceUsage += FillResourceUsage(child.Get(), context);
+        resourceUsage += FillResourceUsage(child.Get(), context);
     }
+    SetResourceUsage(element, &attributes, resourceUsage);
 
     return attributes.ResourceUsage;
 }
@@ -557,10 +589,14 @@ TJobResources TDynamicAttributesManager::FillResourceUsageAtOperation(const TSch
     if (context->ResourceUsageSnapshot) {
         auto operationId = element->GetOperationId();
         auto it = context->ResourceUsageSnapshot->OperationIdToResourceUsage.find(operationId);
-        attributes.ResourceUsage = it != context->ResourceUsageSnapshot->OperationIdToResourceUsage.end()
+        const auto& resourceUsage = it != context->ResourceUsageSnapshot->OperationIdToResourceUsage.end()
             ? it->second
             : TJobResources();
-        attributes.ResourceUsageUpdateTime = context->ResourceUsageSnapshot->BuildTime;
+        SetResourceUsage(
+            element,
+            &attributes,
+            resourceUsage,
+            context->ResourceUsageSnapshot->BuildTime);
         attributes.Alive = context->ResourceUsageSnapshot->AliveOperationIds.contains(operationId);
     } else {
         DoUpdateOperationResourceUsage(
@@ -3203,6 +3239,7 @@ void TFairShareTreeJobScheduler::ComputeDynamicAttributesAtUpdateRecursively(
     TSchedulerElement* element,
     TDynamicAttributesManager* dynamicAttributesManager) const
 {
+    dynamicAttributesManager->InitializeResourceUsageAtPostUpdate(element, element->ResourceUsageAtUpdate());
     if (element->IsOperation()) {
         dynamicAttributesManager->InitializeAttributesAtOperation(static_cast<TSchedulerOperationElement*>(element));
     } else {
