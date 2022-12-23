@@ -172,11 +172,10 @@ private:
     void RetrieveJobSpec();
     void ReportResult(
         const NControllerAgent::NProto::TJobResult& result,
-        const NYson::TYsonString& statistics,
         TInstant startTime,
         TInstant finishTime);
 
-    TStatistics GetStatistics() const;
+    TStatistics GetEnrichedStatistics() const;
 
     IJobPtr CreateBuiltinJob();
 

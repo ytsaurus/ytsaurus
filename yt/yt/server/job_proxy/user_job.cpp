@@ -597,7 +597,7 @@ private:
     TPromise<TExecutorInfo> ExecutorPreparedPromise_ = NewPromise<TExecutorInfo>();
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatisticsLock_);
-    TStatistics CustomStatistics_;
+    NYT::TStatistics CustomStatistics_;
 
     TCoreWatcherPtr CoreWatcher_;
 
@@ -1220,44 +1220,54 @@ private:
         }
     }
 
-    TStatistics GetStatistics() const override
+    std::optional<NContainers::TCpuStatistics> GetUserJobCpuStatistics() const override
     {
-        TStatistics statistics;
+        try {
+            return UserJobEnvironment_->GetCpuStatistics();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING(ex, "Unable to get CPU statistics for user job");
+            return std::nullopt;
+        }
+    }
+
+    IJob::TStatistics GetStatistics() const override
+    {
+        IJob::TStatistics result;
+
+        auto& statistics = result.Statstics;
         {
             auto guard = Guard(StatisticsLock_);
             statistics = CustomStatistics_;
         }
 
         if (const auto& dataStatistics = UserJobReadController_->GetDataStatistics()) {
-            statistics.AddSample("/data/input", *dataStatistics);
+            result.TotalInputStatistics.DataStatistics = *dataStatistics;
         }
 
         statistics.AddSample("/data/input/not_fully_consumed", NotFullyConsumed_.load() ? 1 : 0);
 
         if (const auto& codecStatistics = UserJobReadController_->GetDecompressionStatistics()) {
-            DumpCodecStatistics(*codecStatistics, "/codec/cpu/decode", &statistics);
+            result.TotalInputStatistics.CodecStatistics = *codecStatistics;
         }
 
         if (const auto& timingStatistics = UserJobReadController_->GetTimingStatistics()) {
-            DumpTimingStatistics(&statistics, "/chunk_reader_statistics", *timingStatistics);
+            result.TimingStatistics = *timingStatistics;
         }
 
-        DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
+        result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
 
         auto writers = UserJobWriteController_->GetWriters();
-        for (size_t index = 0; index < writers.size(); ++index) {
-            const auto& writer = writers[index];
-            statistics.AddSample("/data/output/" + ToYPathLiteral(index), writer->GetDataStatistics());
-            DumpCodecStatistics(writer->GetCompressionStatistics(), "/codec/cpu/encode/" + ToYPathLiteral(index), &statistics);
+        for (const auto& writer : writers) {
+            result.OutputStatistics.emplace_back() = {
+                .DataStatistics = writer->GetDataStatistics(),
+                .CodecStatistics = writer->GetCompressionStatistics(),
+            };
         }
 
         // Job environment statistics.
         if (Prepared_) {
-            try {
-                auto cpuStatistics = UserJobEnvironment_->GetCpuStatistics();
-                statistics.AddSample("/user_job/cpu", cpuStatistics);
-            } catch (const std::exception& ex) {
-                YT_LOG_WARNING(ex, "Unable to get CPU statistics for user job");
+            if (auto userJobCpuStatistics = GetUserJobCpuStatistics()) {
+                statistics.AddSample("/user_job/cpu", *userJobCpuStatistics);
             }
 
             try {
@@ -1301,52 +1311,28 @@ private:
 
         // Pipe statistics.
         if (Prepared_) {
-            auto inputStatistics = TablePipeWriters_[0]->GetWriteStatistics();
-            statistics.AddSample(
-                "/user_job/pipes/input/idle_time",
-                inputStatistics.IdleDuration);
-            statistics.AddSample(
-                "/user_job/pipes/input/busy_time",
-                inputStatistics.BusyDuration);
-            statistics.AddSample(
-                "/user_job/pipes/input/bytes",
-                TablePipeWriters_[0]->GetWriteByteCount());
+            result.InputPipeStatistics = {
+                .ConnectionStatistics = TablePipeWriters_[0]->GetWriteStatistics(),
+                .Bytes = TablePipeWriters_[0]->GetWriteByteCount(),
+            };
 
-            TDuration totalOutputIdleDuration;
-            TDuration totalOutputBusyDuration;
-            i64 totalOutputBytes = 0;
             for (int i = 0; i < std::ssize(TablePipeReaders_); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
-                auto outputStatistics = tablePipeReader->GetReadStatistics();
 
-                statistics.AddSample(
-                    Format("/user_job/pipes/output/%v/idle_time", NYPath::ToYPathLiteral(i)),
-                    outputStatistics.IdleDuration);
-                totalOutputIdleDuration += outputStatistics.IdleDuration;
+                auto& outputPipeStatistics = result.OutputPipeStatistics.emplace_back();
+                outputPipeStatistics = {
+                    .ConnectionStatistics = tablePipeReader->GetReadStatistics(),
+                    .Bytes = tablePipeReader->GetReadByteCount(),
+                };
 
-                statistics.AddSample(
-                    Format("/user_job/pipes/output/%v/busy_time", NYPath::ToYPathLiteral(i)),
-                    outputStatistics.BusyDuration);
-                totalOutputBusyDuration += outputStatistics.BusyDuration;
-
-                statistics.AddSample(
-                    Format("/user_job/pipes/output/%v/bytes", NYPath::ToYPathLiteral(i)),
-                    tablePipeReader->GetReadByteCount());
-                totalOutputBytes += tablePipeReader->GetReadByteCount();
+                result.TotalOutputPipeStatistics.ConnectionStatistics.IdleDuration += outputPipeStatistics.ConnectionStatistics.IdleDuration;
+                result.TotalOutputPipeStatistics.ConnectionStatistics.BusyDuration += outputPipeStatistics.ConnectionStatistics.BusyDuration;
+                result.TotalOutputPipeStatistics.Bytes += outputPipeStatistics.Bytes;
             }
-
-            statistics.AddSample("/user_job/pipes/output/total/idle_time", totalOutputIdleDuration);
-            statistics.AddSample("/user_job/pipes/output/total/busy_time", totalOutputBusyDuration);
-            statistics.AddSample("/user_job/pipes/output/total/bytes", totalOutputBytes);
         }
-
-        return statistics;
+        return result;
     }
 
-    NContainers::TCpuStatistics GetCpuStatistics() const override
-    {
-        return UserJobEnvironment_->GetCpuStatistics();
-    }
 
     void OnIOErrorOrFinished(const TError& error, const TString& message)
     {

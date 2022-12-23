@@ -141,12 +141,16 @@ public:
     const NJobAgent::TChunkCacheStatistics& GetChunkCacheStatistics() const;
 
     NYson::TYsonString GetStatistics() const;
+    NChunkClient::NProto::TDataStatistics GetTotalInputDataStatistics() const;
+    std::vector<NChunkClient::NProto::TDataStatistics> GetOutputDataStatistics() const;
 
     TInstant GetStatisticsLastSendTime() const;
 
     void ResetStatisticsLastSendTime();
 
     void SetStatistics(const NYson::TYsonString& statisticsYson);
+    void SetTotalInputDataStatistics(NChunkClient::NProto::TDataStatistics dataStatistics);
+    void SetOutputDataStatistics(std::vector<NChunkClient::NProto::TDataStatistics> dataStatistics);
 
     void BuildOrchid(NYTree::TFluentMap fluent) const;
 
@@ -247,6 +251,8 @@ private:
     NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
+    NChunkClient::NProto::TDataStatistics TotalInputDataStatistics_;
+    std::vector<NChunkClient::NProto::TDataStatistics> OutputDataStatistics_;
     TInstant StatisticsLastSendTime_ = TInstant::Now();
 
     NProfiling::TBufferedProducerPtr UserJobSensorProducer_;

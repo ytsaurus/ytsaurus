@@ -834,6 +834,20 @@ TYsonString TJob::GetStatistics() const
     return StatisticsYson_;
 }
 
+TDataStatistics TJob::GetTotalInputDataStatistics() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return TotalInputDataStatistics_;
+}
+
+std::vector<TDataStatistics> TJob::GetOutputDataStatistics() const
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    return OutputDataStatistics_;
+}
+
 TInstant TJob::GetStatisticsLastSendTime() const
 {
     VERIFY_THREAD_AFFINITY(JobThread);
@@ -878,6 +892,20 @@ void TJob::SetStatistics(const TYsonString& statisticsYson)
             UserJobSensorProducer_->Update(std::move(userJobSensors));
         }
     }
+}
+
+void TJob::SetTotalInputDataStatistics(TDataStatistics datastatistics)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    TotalInputDataStatistics_ = std::move(datastatistics);
+}
+
+void TJob::SetOutputDataStatistics(std::vector<TDataStatistics> dataStatistics)
+{
+    VERIFY_THREAD_AFFINITY(JobThread);
+
+    OutputDataStatistics_ = std::move(dataStatistics);
 }
 
 void TJob::BuildOrchid(NYTree::TFluentMap fluent) const
@@ -2122,6 +2150,8 @@ TJobProxyConfigPtr TJob::CreateConfig()
         SchedulerJobSpecExt_->enable_prefetching_job_throttler(),
         proxyConfig->JobThrottler->BandwidthPrefetch->Enable);
 
+    proxyConfig->StatisticsOutputTableCountLimit = DynamicConfig_->StatisticsOutputTableCountLimit;
+
     return proxyConfig;
 }
 
@@ -2981,6 +3011,9 @@ void FillStatus(NControllerAgent::NProto::TJobStatus* status, const TJobPtr& job
     status->set_job_execution_completed(job->IsJobProxyCompleted());
     status->set_interruption_reason(ToProto<int>(job->GetInterruptionReason()));
     status->set_progress(job->GetProgress());
+    *status->mutable_total_input_data_statistics() = job->GetTotalInputDataStatistics();
+    ToProto(status->mutable_output_data_statistics(), job->GetOutputDataStatistics());
+
     if (auto stderrSize = job->GetStderrSize(); stderrSize > 0) {
         status->set_stderr_size(stderrSize);
     }

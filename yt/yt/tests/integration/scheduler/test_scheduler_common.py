@@ -16,7 +16,8 @@ from yt_commands import (
     get_singular_chunk_id, PrepareTables,
     raises_yt_error, update_scheduler_config, update_pool_tree_config, update_controller_agent_config,
     assert_statistics, sorted_dicts,
-    set_banned_flag, disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node, ban_node, unban_node)
+    set_banned_flag, disable_scheduler_jobs_on_node, enable_scheduler_jobs_on_node, ban_node, unban_node,
+    update_nodes_dynamic_config)
 
 from yt_type_helpers import make_schema
 
@@ -2454,6 +2455,51 @@ class TestJobStatisticsPorto(YTEnvSetup):
 
         deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
         check_statistics(deprecated_statistics, extract_deprecated_statistic)
+
+    @authors("max42")
+    def test_statistics_truncation(self):
+        create("table", "//tmp/t")
+        write_table("//tmp/t", [{"a": 1}])
+        create("table", "//tmp/t1")
+        create("table", "//tmp/t2")
+        create("table", "//tmp/t3")
+
+        def run_op():
+            return map(
+                in_="//tmp/t",
+                out=["//tmp/t1", "//tmp/t2", "//tmp/t3"],
+                command='echo "{a=1};" >&1; echo "{a=2};{a=2};" >&4; echo "{a=3};{a=3};{a=3};" >&7',
+            )
+
+        op = run_op()
+        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
+        assert extract_statistic_v2(statistics_v2, "data.input.row_count") == 1
+        assert extract_statistic_v2(statistics_v2, "data.output.0.row_count") == 1
+        assert extract_statistic_v2(statistics_v2, "data.output.1.row_count") == 2
+        assert extract_statistic_v2(statistics_v2, "data.output.2.row_count") == 3
+
+        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
+        row_count = data_flow_graph["edges"]["map"]["sink"]["statistics"]["row_count"]
+        assert row_count == 6
+
+        update_nodes_dynamic_config({
+            "exec_agent": {
+                "statistics_output_table_count_limit": 1,
+            },
+        })
+
+        op = run_op()
+        # Statistics must be truncated.
+        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
+        assert extract_statistic_v2(statistics_v2, "data.input.row_count") == 1
+        assert extract_statistic_v2(statistics_v2, "data.output.0.row_count") == 1
+        assert extract_statistic_v2(statistics_v2, "data.output.1.row_count") is None
+        assert extract_statistic_v2(statistics_v2, "data.output.2.row_count") is None
+
+        # But data flow graph must not.
+        data_flow_graph = get(op.get_path() + "/@progress/data_flow_graph")
+        row_count = data_flow_graph["edges"]["map"]["sink"]["statistics"]["row_count"]
+        assert row_count == 6
 
 
 ##################################################################

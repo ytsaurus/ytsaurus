@@ -38,6 +38,7 @@ using namespace NExecNode;
 using namespace NJobAgent;
 using namespace NCoreDump;
 
+using NChunkClient::NProto::TDataStatistics;
 using NChunkClient::TDataSliceDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 
@@ -126,11 +127,6 @@ void TJob::Fail()
     THROW_ERROR_EXCEPTION("Failing is not supported for built-in jobs");
 }
 
-NContainers::TCpuStatistics TJob::GetCpuStatistics() const
-{
-    return NContainers::TCpuStatistics{};
-}
-
 i64 TJob::GetStderrSize() const
 {
     return 0;
@@ -139,6 +135,11 @@ i64 TJob::GetStderrSize() const
 TSharedRef TJob::DumpSensors()
 {
     YT_UNIMPLEMENTED();
+}
+
+std::optional<NContainers::TCpuStatistics> TJob::GetUserJobCpuStatistics() const
+{
+    return std::nullopt;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -245,19 +246,24 @@ std::vector<TChunkId> TSimpleJobBase::GetFailedChunkIds() const
     return Reader_ ? Reader_->GetFailedChunkIds() : std::vector<TChunkId>();
 }
 
-TStatistics TSimpleJobBase::GetStatistics() const
+IJob::TStatistics TSimpleJobBase::GetStatistics() const
 {
     TStatistics result;
+
     if (Reader_) {
-        result.AddSample("/data/input", Reader_->GetDataStatistics());
-        DumpCodecStatistics(Reader_->GetDecompressionStatistics(), "/codec/cpu/decode", &result);
-        DumpChunkReaderStatistics(&result, "/chunk_reader_statistics", ChunkReadOptions_.ChunkReaderStatistics);
-        DumpTimingStatistics(&result, "/chunk_reader_statistics", Reader_->GetTimingStatistics());
+        result.TotalInputStatistics = {
+            .DataStatistics = {Reader_->GetDataStatistics()},
+            .CodecStatistics = Reader_->GetDecompressionStatistics(),
+        },
+        result.ChunkReaderStatistics = ChunkReadOptions_.ChunkReaderStatistics;
+        result.TimingStatistics = Reader_->GetTimingStatistics();
     }
 
     if (Writer_) {
-        result.AddSample("/data/output/0", Writer_->GetDataStatistics());
-        DumpCodecStatistics(Writer_->GetCompressionStatistics(), "/codec/cpu/encode/0", &result);
+        result.OutputStatistics = {{
+            .DataStatistics = {Writer_->GetDataStatistics()},
+            .CodecStatistics = {Writer_->GetCompressionStatistics()},
+        }};
     }
 
     return result;

@@ -588,6 +588,8 @@ public:
 
     NConcurrency::TThroughputThrottlerConfigPtr UserJobContainerCreationThrottler;
 
+    std::optional<int> StatisticsOutputTableCountLimit;
+
     REGISTER_YSON_STRUCT(TExecNodeDynamicConfig);
 
     static void Register(TRegistrar registrar);
