@@ -19,7 +19,7 @@ void CheckEqual(const TUnversionedValue& expected, const TUnversionedValue& actu
     }
 
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
-    EXPECT_TRUE(AreRowValuesIdentical(expected, actual));
+    ASSERT_TRUE(AreRowValuesIdentical(expected, actual));
 }
 
 void CheckEqual(const TVersionedValue& expected, const TVersionedValue& actual)
@@ -30,7 +30,7 @@ void CheckEqual(const TVersionedValue& expected, const TVersionedValue& actual)
     }
 
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
-    EXPECT_TRUE(AreRowValuesIdentical(expected, actual));
+    ASSERT_TRUE(AreRowValuesIdentical(expected, actual));
 }
 
 void ExpectSchemafulRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
@@ -86,7 +86,7 @@ void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual,
                 break;
             }
         }
-        EXPECT_TRUE(found);
+        ASSERT_TRUE(found);
     }
 }
 
@@ -107,13 +107,13 @@ void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
     ASSERT_EQ(expected.GetWriteTimestampCount(), actual.GetWriteTimestampCount());
     for (int i = 0; i < expected.GetWriteTimestampCount(); ++i) {
         SCOPED_TRACE(Format("Write Timestamp %v", i));
-        EXPECT_EQ(expected.BeginWriteTimestamps()[i], actual.BeginWriteTimestamps()[i]);
+        ASSERT_EQ(expected.BeginWriteTimestamps()[i], actual.BeginWriteTimestamps()[i]);
     }
 
     ASSERT_EQ(expected.GetDeleteTimestampCount(), actual.GetDeleteTimestampCount());
     for (int i = 0; i < expected.GetDeleteTimestampCount(); ++i) {
         SCOPED_TRACE(Format("Delete Timestamp %v", i));
-        EXPECT_EQ(expected.BeginDeleteTimestamps()[i], actual.BeginDeleteTimestamps()[i]);
+        ASSERT_EQ(expected.BeginDeleteTimestamps()[i], actual.BeginDeleteTimestamps()[i]);
     }
 
     ASSERT_EQ(expected.GetKeyCount(), actual.GetKeyCount());
@@ -146,7 +146,7 @@ void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reade
 
     while (auto batch = reader->Read({.MaxRowsPerRead = 100})) {
         if (batch->IsEmpty()) {
-            EXPECT_TRUE(reader->GetReadyEvent().Get().IsOK());
+            ASSERT_TRUE(reader->GetReadyEvent().Get().IsOK());
             continue;
         }
 
@@ -168,7 +168,7 @@ void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reade
         it += ex.size();
     }
 
-    EXPECT_TRUE(it == expected->end());
+    ASSERT_TRUE(it == expected->end());
 }
 
 std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(
