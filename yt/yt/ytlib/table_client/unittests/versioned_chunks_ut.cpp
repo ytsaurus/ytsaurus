@@ -1533,7 +1533,11 @@ private:
                     10));
             }
 
-            rows.push_back(builder.FinishRow());
+            auto row = builder.FinishRow();
+
+            if (row.GetValueCount() > 0) {
+                rows.push_back(row);
+            }
         }
 
         return rows;
@@ -1869,13 +1873,10 @@ TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaIndexedLookup)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TODO(lukyan): Fix and enable test.
-#if 0
 TEST_F(TVersionedChunksStressTest, StressTestScan)
 {
     DoStressTest(EOptimizeFor::Scan);
 }
-#endif
 
 TEST_F(TVersionedChunksStressTest, StressTestScanNew)
 {
