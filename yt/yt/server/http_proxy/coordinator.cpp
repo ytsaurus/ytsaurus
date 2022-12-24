@@ -7,6 +7,9 @@
 
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
 #include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
@@ -120,6 +123,29 @@ TCoordinator::TCoordinator(
         : Format("%v:%v", NNet::GetLocalHostName(), config->Port);
     selfEntry->Role = "data";
     Self_ = New<TCoordinatorProxy>(std::move(selfEntry));
+
+    {
+        TCypressRegistrarOptions options;
+        options.RootPath = SysProxies + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
+        options.OrchidRemoteAddresses = GetLocalAddresses(
+            {{"default", Self_->Entry->GetHost()}},
+            Bootstrap_->GetConfig()->RpcPort);
+        options.AttributesOnCreation = BuildAttributeDictionaryFluently()
+            .Item("role").Value(Self_->Entry->Role)
+            .Item("banned").Value(false)
+            .Item("liveness").Value(Self_->Entry->Liveness)
+            .Finish();
+        options.AttributesOnStart = BuildAttributeDictionaryFluently()
+            .Item("version").Value(NYT::GetVersion())
+            .Item("start_time").Value(TInstant::Now().ToString())
+            .Item("annotations").Value(Bootstrap_->GetConfig()->CypressAnnotations)
+            .Finish();
+        CypressRegistrar_ = CreateCypressRegistrar(
+            std::move(options),
+            Config_->CypressRegistrar,
+            Client_,
+            bootstrap->GetControlInvoker());
+    }
 }
 
 void TCoordinator::Start()
@@ -210,7 +236,7 @@ std::vector<TProxyEntryPtr> TCoordinator::ListProxyEntries(std::optional<TString
     for (const auto& proxy : proxies) {
         result.push_back(proxy->Entry);
     }
-    return std::move(result);
+    return result;
 }
 
 TProxyEntryPtr TCoordinator::AllocateProxy(const TString& role)
@@ -270,6 +296,8 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
 
 void TCoordinator::UpdateState()
 {
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetControlInvoker());
+
     auto selfPath = SysProxies + "/" + ToYPathLiteral(Self_->Entry->Endpoint);
 
     auto proxyEntry = CloneYsonSerializable(Self_->Entry);
@@ -292,63 +320,6 @@ void TCoordinator::UpdateState()
     };
 
     try {
-        if (Config_->Enable && !Initialized_ && Config_->Announce) {
-            TCreateNodeOptions options;
-            options.Timeout = Config_->CypressTimeout;
-            options.SuppressTransactionCoordinatorSync = true;
-            options.SuppressUpstreamSync = true;
-            options.Recursive = true;
-            options.Attributes = ConvertToAttributes(BuildYsonStringFluently()
-                .BeginMap()
-                    .Item("role").Value(Self_->Entry->Role)
-                    .Item("banned").Value(false)
-                    .Item("liveness").Value(Self_->Entry->Liveness)
-                .EndMap());
-
-            auto error = WaitFor(Client_->CreateNode(selfPath, EObjectType::MapNode, options));
-            if (error.FindMatching(NYTree::EErrorCode::AlreadyExists)) {
-                YT_LOG_INFO("Cypress node already exists (Path: %v)", selfPath);
-            } else if (error.IsOK()) {
-                YT_LOG_INFO("Created Cypress node (Path: %v)", selfPath);
-            } else {
-                error.ValueOrThrow();
-            }
-
-            {
-                TCreateNodeOptions options;
-                options.Timeout = Config_->CypressTimeout;
-                options.SuppressTransactionCoordinatorSync = true;
-                options.SuppressUpstreamSync = true;
-                options.Recursive = true;
-                options.IgnoreExisting = true;
-                auto attributes = CreateEphemeralAttributes();
-                attributes->Set("remote_addresses",
-                    NYT::GetLocalAddresses({{"default", Self_->Entry->GetHost()}}, Bootstrap_->GetConfig()->RpcPort));
-                options.Attributes = std::move(attributes);
-                auto orchidPath = selfPath + "/orchid";
-                WaitFor(Client_->CreateNode(orchidPath, EObjectType::Orchid, options))
-                    .ThrowOnError();
-                YT_LOG_INFO("Orchid node created (Path: %v)", orchidPath);
-            }
-
-            TMultisetAttributesNodeOptions multisetOptions;
-            multisetOptions.Timeout = Config_->CypressTimeout;
-            multisetOptions.SuppressTransactionCoordinatorSync = true;
-            multisetOptions.SuppressUpstreamSync = true;
-
-            WaitFor(Client_->MultisetAttributesNode(
-                selfPath + "/@",
-                BuildYsonNodeFluently().BeginMap()
-                    .Item("version").Value(NYT::GetVersion())
-                    .Item("start_time").Value(TInstant::Now().ToString())
-                    .Item("annotations").Value(Bootstrap_->GetConfig()->CypressAnnotations)
-                .EndMap()->AsMap(),
-                multisetOptions))
-                .ThrowOnError();
-
-            Initialized_ = true;
-        }
-
         if (!Config_->Enable) {
             YT_LOG_INFO("Coordinator is disabled");
             FirstUpdateIterationFinished_.TrySet();
@@ -356,19 +327,13 @@ void TCoordinator::UpdateState()
         }
 
         if (Config_->Announce) {
-            TSetNodeOptions setOptions;
-            setOptions.Timeout = Config_->CypressTimeout;
-            setOptions.SuppressTransactionCoordinatorSync = true;
-            setOptions.SuppressUpstreamSync = true;
-
-            auto future = Client_->SetNode(
-                selfPath + "/@liveness", ConvertToYsonString(Self_->Entry->Liveness),
-                setOptions);
-            future.Apply(BIND([&] (const TError& error) {
-                if (!error.IsOK()) {
-                    YT_LOG_INFO(error, "Error updating proxy liveness");
-                }
-            }));
+            auto attributes = BuildAttributeDictionaryFluently()
+                .Item("liveness").Value(Self_->Entry->Liveness)
+                .Finish();
+            auto error = WaitFor(CypressRegistrar_->UpdateNodes(attributes));
+            if (!error.IsOK()) {
+                YT_LOG_INFO(error, "Error updating proxy liveness");
+            }
         }
 
         auto proxies = ListCypressProxies();

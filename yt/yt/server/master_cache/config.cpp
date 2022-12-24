@@ -2,6 +2,8 @@
 
 #include <yt/yt/server/lib/chaos_cache/config.h>
 
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/object_client/config.h>
@@ -27,6 +29,9 @@ void TMasterCacheConfig::Register(TRegistrar registrar)
         .DefaultNew();
 
     registrar.Parameter("chaos_cache", &TThis::ChaosCache)
+        .DefaultNew();
+
+    registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
         .DefaultNew();
 }
 

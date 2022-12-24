@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/zookeeper_proxy/config.h>
 
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
 #include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/security_client/config.h>
@@ -57,6 +59,13 @@ void TCoordinatorConfig::Register(TRegistrar registrar)
         .Default(1);
     registrar.Parameter("dampening_weight", &TThis::DampeningWeight)
         .Default(0.3);
+
+    registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
+        .DefaultNew();
+
+    registrar.Preprocessor([] (TThis* config) {
+        config->CypressRegistrar->RequestTimeout = config->CypressTimeout;
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

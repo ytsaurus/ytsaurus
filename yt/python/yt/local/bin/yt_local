@@ -102,6 +102,9 @@ def start_func(**kwargs):
                 kwargs[arg_key] = kwargs[path_arg_key]
             del kwargs[path_arg_key]
 
+    if kwargs.get("master_cache_count", 0) > 0:
+        kwargs["enable_master_cache"] = True
+
     environment = start(**kwargs)
 
     if sync:
@@ -149,6 +152,8 @@ def add_start_subparser(subparsers):
     parser.add_argument("--secondary-master-cell-count", type=int, default=0,
                         help="number of secondary cells. Do not use it if you are not sure what you are doing.")
     parser.add_argument("--tablet-balancer-count", type=int, default=0, help="number of tablet balancers")
+    parser.add_argument("--master-cache-count", type=int, default=0, help="number of master caches")
+    parser.add_argument("--queue-agent-count", type=int, default=0, help="number of queue agents")
 
     for service in SERVICE_LIST:
         config_parser = parser.add_mutually_exclusive_group(required=False)

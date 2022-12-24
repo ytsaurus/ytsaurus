@@ -11,6 +11,11 @@
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
+#include <yt/yt/server/lib/misc/address_helpers.h>
+
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -23,6 +28,8 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/http/server.h>
+
+#include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
 
@@ -37,6 +44,7 @@ using namespace NCoreDump;
 using namespace NMonitoring;
 using namespace NOrchid;
 using namespace NYTree;
+using namespace NNodeTrackerClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -120,6 +128,7 @@ private:
 
     IMapNodePtr OrchidRoot_;
     TMonitoringManagerPtr MonitoringManager_;
+    ICypressRegistrarPtr CypressRegistrar_;
 
     ICoreDumperPtr CoreDumper_;
 
@@ -149,6 +158,21 @@ private:
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
         Connection_->GetClusterDirectorySynchronizer()->Start();
 
+        {
+            TCypressRegistrarOptions options{
+                .RootPath = "//sys/master_caches/" + NNet::BuildServiceAddress(
+                    NNet::GetLocalHostName(),
+                    Config_->RpcPort),
+                .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
+                .ExpireSelf = true,
+            };
+            CypressRegistrar_ = CreateCypressRegistrar(
+                std::move(options),
+                Config_->CypressRegistrar,
+                Connection_->CreateClient({.User = NSecurityClient::RootUserName}),
+                GetControlInvoker());
+        }
+
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
         MasterCacheBootstrap_ = CreateMasterCacheBootstrap(this);
@@ -166,6 +190,11 @@ private:
             OrchidRoot_,
             "/config",
             CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+
+        RpcServer_->RegisterService(CreateOrchidService(
+            OrchidRoot_,
+            GetControlInvoker(),
+            NativeAuthenticator_));
     }
 
     void DoRun()
@@ -175,6 +204,8 @@ private:
 
         YT_LOG_INFO("Listening for RPC requests (Port: %v)", Config_->RpcPort);
         RpcServer_->Start();
+
+        CypressRegistrar_->Start({});
     }
 };
 

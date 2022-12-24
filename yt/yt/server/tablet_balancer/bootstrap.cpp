@@ -10,15 +10,15 @@
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
-
-#include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
+#include <yt/yt/ytlib/api/native/connection.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
-
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
@@ -42,9 +42,10 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NCypressClient;
 using namespace NCypressElection;
+using namespace NNodeTrackerClient;
 using namespace NYPath;
-using namespace NYson;
 using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -244,50 +245,26 @@ void TBootstrap::DoRun()
 
 void TBootstrap::RegisterInstance()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    TCypressRegistrarOptions options{
+        .RootPath = Format("%v/instances/%v", Config_->RootPath, ToYPathLiteral(LocalAddress_)),
+        .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, LocalAddress_}},
+    };
 
-    auto instancePath = Format(
-        "%v/instances/%v",
-        Config_->RootPath,
-        ToYPathLiteral(LocalAddress_));
-    auto orchidPath = instancePath + "/orchid";
+    auto registrar = CreateCypressRegistrar(
+        std::move(options),
+        New<TCypressRegistrarConfig>(),
+        Client_,
+        GetCurrentInvoker());
 
-    NObjectClient::TObjectServiceProxy proxy(Client_
-        ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
-    auto batchReq = proxy.ExecuteBatch();
+    while (true) {
+        auto error = WaitFor(registrar->CreateNodes());
 
-    {
-        auto req = TCypressYPathProxy::Create(instancePath);
-        req->set_ignore_existing(true);
-        req->set_recursive(true);
-        req->set_type(static_cast<int>(EObjectType::MapNode));
-        GenerateMutationId(req);
-        batchReq->AddRequest(req);
+        if (error.IsOK()) {
+            break;
+        } else {
+            YT_LOG_DEBUG(error, "Error updating Cypress node");
+        }
     }
-    {
-        auto req = TCypressYPathProxy::Create(orchidPath);
-        req->set_ignore_existing(true);
-        req->set_recursive(true);
-        req->set_type(static_cast<int>(EObjectType::Orchid));
-
-        auto attributes = NYTree::CreateEphemeralAttributes();
-        attributes->Set("remote_addresses", ConvertToYsonString(NNodeTrackerClient::TAddressMap{
-            {NNodeTrackerClient::DefaultNetworkName, LocalAddress_}
-        }));
-
-        ToProto(req->mutable_node_attributes(), *attributes);
-        GenerateMutationId(req);
-        batchReq->AddRequest(req);
-    }
-
-    YT_LOG_INFO("Registering instance (Path: %v, OrchidPath: %v)",
-        instancePath,
-        orchidPath);
-
-    auto batchRspOrError = WaitFor(batchReq->Invoke());
-    THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError));
-
-    YT_LOG_INFO("Orchid and instance nodes created");
 }
 
 ////////////////////////////////////////////////////////////////////////////////

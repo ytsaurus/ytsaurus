@@ -73,7 +73,6 @@ private:
 
     //! Creates instance node with proper annotations and an orchid node at the native cluster.
     void UpdateCypressNode();
-    void GuardedUpdateCypressNode();
 
     void OnDynamicConfigChanged(
         const TQueueAgentServerDynamicConfigPtr& oldConfig,
