@@ -21,12 +21,15 @@ Y_FORCE_INLINE TIter LinearSearch(TIter begin, TIter end, TPredicate pred)
 template <class TIter, class TPredicate>
 TIter BinarySearch(TIter begin, TIter end, TPredicate pred)
 {
-    while (begin != end) {
-        TIter middle = begin + (end - begin) / 2;
+    size_t count = end - begin;
+    while (count != 0) {
+        auto half = count / 2;
+        auto middle = begin + half;
         if (pred(middle)) {
             begin = ++middle;
+            count -= half + 1;
         } else {
-            end = middle;
+            count = half;
         }
     }
 
@@ -42,8 +45,8 @@ size_t BinarySearch(size_t begin, size_t end, TPredicate pred)
 template <class TIter, class TPredicate>
 Y_FORCE_INLINE TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred)
 {
-    decltype(TIter() - TIter()) step = 1;
-    TIter next = begin;
+    size_t step = 1;
+    auto next = begin;
 
     if (begin == end) {
         return begin;
@@ -52,7 +55,7 @@ Y_FORCE_INLINE TIter ExponentialSearch(TIter begin, TIter end, TPredicate pred)
     while (pred(next)) {
         begin = ++next;
 
-        if (step < end - next) {
+        if (step < static_cast<size_t>(end - next)) {
             next += step;
             step *= 3;
         } else {
