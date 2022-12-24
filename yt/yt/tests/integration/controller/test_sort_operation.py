@@ -1,7 +1,7 @@
 from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
-    authors, create, get, set, copy, remove, exists,
+    authors, create, get, set, copy, remove, exists, wait,
     create_account, create_user, assert_statistics, raises_yt_error, sorted_dicts,
     make_ace, start_transaction, commit_transaction, insert_rows, read_table, write_table, sort, erase, get_operation,
     sync_create_cells, sync_mount_table, sync_unmount_table, get_singular_chunk_id, create_dynamic_table)
@@ -2320,17 +2320,17 @@ class TestSchedulerSortCommands(YTEnvSetup):
 
         op = sort(in_="//tmp/t_in", out="//tmp/t_out", sort_by="x")
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             key="chunk_reader_statistics.wait_time",
             assertion=lambda wait_time: wait_time > 0,
-            job_type="simple_sort")
+            job_type="simple_sort"))
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             key="chunk_reader_statistics.idle_time",
             assertion=lambda idle_time: idle_time > 0,
-            job_type="simple_sort")
+            job_type="simple_sort"))
 
     @authors("max42")
     def test_column_selector_contradicting_sort_columns(self):

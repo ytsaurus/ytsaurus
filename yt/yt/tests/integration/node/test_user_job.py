@@ -244,10 +244,10 @@ class TestSandboxTmpfs(YTEnvSetup):
             },
         )
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             "user_job.tmpfs_volumes.0.max_size",
-            lambda tmpfs_size: 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024)
+            lambda tmpfs_size: 0.9 * 1024 * 1024 <= tmpfs_size <= 1.1 * 1024 * 1024))
 
         with pytest.raises(YtError):
             map(
@@ -422,7 +422,7 @@ time.sleep(10)
         op.track()
         assert get(op.get_path() + "/@progress/jobs/aborted/total") == 0
 
-        assert_statistics(op, "user_job.max_memory", lambda max_memory: max_memory > 200 * 1024 * 1024)
+        wait(lambda: assert_statistics(op, "user_job.max_memory", lambda max_memory: max_memory > 200 * 1024 * 1024))
 
         # Smaps memory tracker is disabled. Job should fail.
         with pytest.raises(YtError):
@@ -441,11 +441,11 @@ time.sleep(10)
                     "max_failed_job_count": 1,
                 },
             )
-            assert_statistics(
+            wait(lambda: assert_statistics(
                 op,
                 "user_job.max_memory",
                 lambda max_memory: max_memory > memory_limit,
-                job_state="failed")
+                job_state="failed"))
 
         # String is in memory twice: one copy is mmaped non-tmpfs file and one copy is a local variable s.
         # Both allocations should be counted.
@@ -465,11 +465,11 @@ time.sleep(10)
                     "max_failed_job_count": 1,
                 },
             )
-            assert_statistics(
+            wait(lambda: assert_statistics(
                 op,
                 "user_job.max_memory",
                 lambda max_memory: max_memory > memory_limit,
-                job_state="failed")
+                job_state="failed"))
 
     @authors("psushin")
     def test_inner_files(self):
@@ -1046,10 +1046,10 @@ class TestArtifactCacheBypass(YTEnvSetup):
             },
         )
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             "exec_agent.artifacts.cache_bypassed_artifacts_size",
-            lambda bypassed_size: bypassed_size == 18)
+            lambda bypassed_size: bypassed_size == 18))
 
         wait(lambda: sum(counter.get_delta() for counter in counters) == 18)
 
@@ -1261,11 +1261,11 @@ class TestUserJobIsolation(YTEnvSetup):
         op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
         op.track()
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             "user_job.cpu.peak_thread_count",
             lambda thread_count: 32 <= thread_count <= 42,
-            job_type="task")
+            job_type="task"))
 
 ##################################################################
 

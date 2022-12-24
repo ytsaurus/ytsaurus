@@ -179,7 +179,7 @@ class TestSchedulerUserStatistics(YTEnvSetup):
 
         op = map(in_="//tmp/t1", out="//tmp/t2", command="cat", spec={"job_count": 2})
 
-        assert_statistics(op, "data.input.unmerged_data_weight", lambda weight: weight == 2, summary_type="count")
+        wait(lambda: assert_statistics(op, "data.input.unmerged_data_weight", lambda weight: weight == 2, summary_type="count"))
 
     @authors("babenko")
     def test_job_statistics_progress(self):
