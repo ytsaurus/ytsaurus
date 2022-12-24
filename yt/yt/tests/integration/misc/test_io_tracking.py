@@ -2388,15 +2388,11 @@ class TestUserJobIOTracking(TestJobIOTrackingBase):
             out="//tmp/table_out",
             command="""
                 dd if=/dev/urandom of={0}/myfile count=400 bs=1024 oflag=direct && \
-                sleep 2 && \
                 dd if={0}/myfile of={0}/myfile2 count=400 bs=1024 iflag=direct oflag=direct && \
-                sleep 2 && \
                 dd if=/dev/urandom of={0}/myfile3 count=400 bs=1024 oflag=direct && \
                 sync && \
-                sleep 2 && \
                 cat""".format(self.default_disk_path),
         )
-        time.sleep(5.0)
 
         def check_statistic():
             statistics = get(op.get_path() + "/@progress/job_statistics")["user_job"]["block_io"]

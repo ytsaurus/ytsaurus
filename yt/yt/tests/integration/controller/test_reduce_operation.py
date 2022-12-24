@@ -1937,11 +1937,11 @@ echo {v = 2} >&7
         else:
             assert job_indexes[1] == 3
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             key="data.input.row_count",
             assertion=lambda row_count: row_count == len(result) - 2,
-            job_type="sorted_reduce")
+            job_type="sorted_reduce"))
 
     @authors("savrus")
     def test_query_filtering(self):

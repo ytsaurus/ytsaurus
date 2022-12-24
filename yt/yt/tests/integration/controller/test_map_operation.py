@@ -220,7 +220,7 @@ class TestSchedulerMapCommands(YTEnvSetup):
 
         assert get("//tmp/t2/@row_count") == 1
 
-        assert_statistics(op, "data.input.row_count", lambda row_count: row_count == 1, env=self.Env)
+        wait(lambda: assert_statistics(op, "data.input.row_count", lambda row_count: row_count == 1, env=self.Env))
 
     @authors("psushin")
     def test_multiple_output_row_count(self):
@@ -236,8 +236,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )
         assert get("//tmp/t2/@row_count") == 5
 
-        assert_statistics(op, "data.output.0.row_count", lambda row_count: row_count == 5, env=self.Env)
-        assert_statistics(op, "data.output.1.row_count", lambda row_count: row_count == 1, env=self.Env)
+        wait(lambda: assert_statistics(op, "data.output.0.row_count", lambda row_count: row_count == 5, env=self.Env))
+        wait(lambda: assert_statistics(op, "data.output.1.row_count", lambda row_count: row_count == 1, env=self.Env))
 
     @authors("renadeen")
     def test_codec_statistics(self):
@@ -252,8 +252,8 @@ class TestSchedulerMapCommands(YTEnvSetup):
         )  # so much to see non-zero decode CPU usage in release mode
 
         op = map(command="cat", in_="//tmp/t1", out="//tmp/t2")
-        assert_statistics(op, "codec.cpu.decode.lzma_9", lambda decode_time: decode_time > 0, env=self.Env)
-        assert_statistics(op, "codec.cpu.encode.0.lzma_1", lambda encode_time: encode_time > 0, env=self.Env)
+        wait(lambda: assert_statistics(op, "codec.cpu.decode.lzma_9", lambda decode_time: decode_time > 0, env=self.Env))
+        wait(lambda: assert_statistics(op, "codec.cpu.encode.0.lzma_1", lambda encode_time: encode_time > 0, env=self.Env))
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_kind", ["sorted_by", "ascending", "descending"])
@@ -666,14 +666,14 @@ print row + table_index
         if expected_output is not None:
             assert read_table("//tmp/t_out") == expected_output
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             key="data.input.not_fully_consumed",
             assertion=lambda value: value == expected_value,
             job_state="failed" if throw_on_failure else "completed",
             job_type="map",
             summary_type="max",
-            env=self.Env)
+            env=self.Env))
 
     @authors("ogorod")
     def test_check_input_fully_consumed_statistics_simple(self):
@@ -1378,12 +1378,12 @@ print row + table_index
                 row_index += 1
         assert 0 < job_indexes[1] < 99999
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             key="data.input.row_count",
             assertion=lambda row_count: row_count == len(result) - 2,
             job_type=job_type,
-            env=self.Env)
+            env=self.Env))
 
     @authors("dakovalkov", "gritukan")
     @pytest.mark.xfail(run=False, reason="YT-14467")
@@ -1780,7 +1780,7 @@ done
             command="sleep 1",
         )
 
-        assert_statistics(op, "chunk_reader_statistics.idle_time", lambda idle_time: idle_time > 1000, env=self.Env)
+        wait(lambda: assert_statistics(op, "chunk_reader_statistics.idle_time", lambda idle_time: idle_time > 1000, env=self.Env))
 
     @authors("egor-gutrov")
     def test_auto_create(self):

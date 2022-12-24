@@ -2371,13 +2371,7 @@ def assert_statistics(
 ):
     deprecated_statistics = get(operation.get_path() + "/@progress/job_statistics")
     deprecated_statistic_value = extract_deprecated_statistic(deprecated_statistics, key, job_state, job_type, summary_type)
-    assert assertion(deprecated_statistic_value)
-
-    # COMPAT(renadeen): remove this condition after release of stable/22.1.
-    if env is None or env.get_component_version("ytserver-controller-agent").abi >= (22, 1):
-        relevant_statistics = get(operation.get_path() + "/@progress/job_statistics_v2")
-        relevant_statistic_value = extract_statistic_v2(relevant_statistics, key, job_state, job_type, summary_type)
-        assert assertion(relevant_statistic_value)
+    return assertion(deprecated_statistic_value)
 
 
 ##################################################################

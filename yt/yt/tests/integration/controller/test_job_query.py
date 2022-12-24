@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup, find_ut_file
 
 from yt_commands import (
     authors, create, create_table, get, read_table, write_table, alter_table, write_local_file, map,
-    assert_statistics, raises_yt_error)
+    assert_statistics, raises_yt_error, wait)
 
 from yt_type_helpers import (
     make_column, make_schema, list_type
@@ -140,18 +140,18 @@ class TestJobQuery(YTEnvSetup):
 
         assert read_table("//tmp/t2") == [{"a": "b"}]
         attrs = get("//tmp/t1/@")
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             key="data.input.uncompressed_data_size",
-            assertion=lambda uncompressed_data_size: uncompressed_data_size < attrs["uncompressed_data_size"])
-        assert_statistics(
+            assertion=lambda uncompressed_data_size: uncompressed_data_size < attrs["uncompressed_data_size"]))
+        wait(lambda: assert_statistics(
             op,
             key="data.input.compressed_data_size",
-            assertion=lambda compressed_data_size: compressed_data_size < attrs["compressed_data_size"])
-        assert_statistics(
+            assertion=lambda compressed_data_size: compressed_data_size < attrs["compressed_data_size"]))
+        wait(lambda: assert_statistics(
             op,
             key="data.input.data_weight",
-            assertion=lambda data_weight: data_weight < attrs["data_weight"])
+            assertion=lambda data_weight: data_weight < attrs["data_weight"]))
 
     @authors("lukyan")
     @pytest.mark.parametrize("mode", ["ordered", "unordered"])
@@ -311,10 +311,10 @@ class TestJobQuery(YTEnvSetup):
             )
 
             assert_items_equal(read_table("//tmp/t_out"), rows)
-            assert_statistics(
+            wait(lambda: assert_statistics(
                 op,
                 key="data.input.chunk_count",
-                assertion=lambda actual_chunk_count: actual_chunk_count == chunk_count)
+                assertion=lambda actual_chunk_count: actual_chunk_count == chunk_count))
 
         _test("", "a where a between 5 and 15", [{"a": i} for i in range(10, 13)], 1)
         _test("[#0:]", "a where a between 5 and 15", [{"a": i} for i in range(10, 13)], 1)
@@ -365,10 +365,10 @@ class TestJobQuery(YTEnvSetup):
             )
 
             assert_items_equal(read_table("//tmp/t_out"), rows)
-            assert_statistics(
+            wait(lambda: assert_statistics(
                 op,
                 key="data.input.chunk_count",
-                assertion=lambda actual_chunk_count: actual_chunk_count == chunk_count)
+                assertion=lambda actual_chunk_count: actual_chunk_count == chunk_count))
 
         _test("a where k = 1", [{"a": i} for i in range(10, 13)], 1)
         _test(

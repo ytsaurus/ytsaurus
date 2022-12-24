@@ -851,16 +851,16 @@ class TestSchedulerAutoMerge(TestSchedulerAutoMergeBase):
 
         merge_type = "shallow_auto_merge" if self.ENABLE_SHALLOW_MERGE else "auto_merge"
         wrong_merge_type = "auto_merge" if self.ENABLE_SHALLOW_MERGE else "shallow_auto_merge"
-        assert_statistics(
+        wait(lambda: assert_statistics(
             operation=op,
             key="data.output.0.compressed_data_size",
             assertion=lambda data_transmitted: data_transmitted > 0,
-            job_type=merge_type)
-        assert_statistics(
+            job_type=merge_type))
+        wait(lambda: assert_statistics(
             operation=op,
             key="data.output.0.compressed_data_size",
             assertion=lambda data_transmitted_to_wrong_merge: data_transmitted_to_wrong_merge in [None, 0],
-            job_type=wrong_merge_type)
+            job_type=wrong_merge_type))
 
 
 class TestSchedulerShallowAutoMerge(TestSchedulerAutoMerge):

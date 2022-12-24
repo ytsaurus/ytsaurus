@@ -1282,11 +1282,11 @@ echo {v = 2} >&7
         assert row_table_count["(t_2)"] == 6
         assert job_indexes[1] == 4
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             key="data.input.row_count",
             assertion=lambda row_count: row_count == len(result) - 2,
-            job_type="join_reduce")
+            job_type="join_reduce"))
 
     @authors("psushin")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])

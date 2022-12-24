@@ -340,14 +340,14 @@ class TestSchedulerCommon(YTEnvSetup):
 
         op = map(command="cat", in_="//tmp/t_input", out="//tmp/t_output")
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             "user_job.pipes.input.bytes",
-            lambda bytes: bytes == 15)
-        assert_statistics(
+            lambda bytes: bytes == 15))
+        wait(lambda: assert_statistics(
             op,
             "user_job.pipes.output.0.bytes",
-            lambda bytes: bytes == 15)
+            lambda bytes: bytes == 15))
 
     @authors("ignat")
     def test_writer_config(self):
@@ -1761,13 +1761,13 @@ class TestSchedulerJobStatistics(YTEnvSetup):
 
         op.abort()
 
-        assert_statistics(
+        wait(lambda: assert_statistics(
             op,
             key="time.total",
             assertion=lambda count: count == 3,
             job_state="aborted",
             job_type="map",
-            summary_type="count")
+            summary_type="count"))
 
 
 ##################################################################
