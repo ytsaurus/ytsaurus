@@ -511,7 +511,7 @@ def _build_timestamp_provider_configs(yt_config,
                                           log_errors_to_stderr=True)
 
         configs.append(config)
-        addresses.append("localhost:{}".format(config["rpc_port"]))
+        addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
     return configs, addresses
 
@@ -554,7 +554,7 @@ def _build_cell_balancer_configs(yt_config,
                                           log_errors_to_stderr=True)
 
         configs.append(config)
-        addresses.append("localhost:{}".format(config["rpc_port"]))
+        addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
     return configs, addresses
 
@@ -594,7 +594,7 @@ def _build_master_cache_configs(yt_config,
                                           has_structured_logs=True)
 
         configs.append(config)
-        addresses.append("localhost:{}".format(config["rpc_port"]))
+        addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
     return configs, addresses
 
@@ -1313,7 +1313,7 @@ def _build_tablet_balancer_configs(yt_config,
                                           has_structured_logs=True)
 
         configs.append(config)
-        addresses.append("localhost:{}".format(config["rpc_port"]))
+        addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
     return configs, addresses
 

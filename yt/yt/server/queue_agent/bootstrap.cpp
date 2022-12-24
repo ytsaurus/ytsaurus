@@ -13,6 +13,9 @@
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -247,56 +250,30 @@ void TBootstrap::DoRun()
 
 void TBootstrap::UpdateCypressNode()
 {
-    while (true) {
-        try {
-            GuardedUpdateCypressNode();
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error updating cypress node");
-            continue;
-        }
-        return;
-    }
-}
-
-void TBootstrap::GuardedUpdateCypressNode()
-{
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-    auto instancePath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_));
+    TCypressRegistrarOptions options{
+        .RootPath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_)),
+        .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, AgentId_}},
+        .AttributesOnStart = BuildAttributeDictionaryFluently()
+            .Item("annotations").Value(Config_->CypressAnnotations)
+            .Finish(),
+    };
 
-    {
-        TCreateNodeOptions options;
-        options.Recursive = true;
-        options.Force = true;
-        options.Attributes = ConvertToAttributes(
-            BuildYsonStringFluently().BeginMap()
-                .Item("annotations").Value(Config_->CypressAnnotations)
-            .EndMap());
+    auto registrar = CreateCypressRegistrar(
+        std::move(options),
+        New<TCypressRegistrarConfig>(),
+        NativeClient_,
+        GetCurrentInvoker());
 
-        YT_LOG_INFO("Creating instance node (Path: %Qv)", instancePath);
+    while (true) {
+        auto error = WaitFor(registrar->CreateNodes());
 
-        WaitFor(NativeClient_->CreateNode(instancePath, EObjectType::MapNode, options))
-            .ThrowOnError();
-
-        YT_LOG_INFO("Instance node created");
-    }
-    {
-        TCreateNodeOptions options;
-        options.Attributes = ConvertToAttributes(
-            BuildYsonStringFluently().BeginMap()
-                .Item("remote_addresses").BeginMap()
-                    .Item("default").Value(AgentId_)
-                .EndMap()
-            .EndMap());
-
-        auto orchidPath = instancePath + "/orchid";
-
-        YT_LOG_INFO("Creating orchid node (Path: %Qv)", orchidPath);
-
-        WaitFor(NativeClient_->CreateNode(orchidPath, EObjectType::Orchid, options))
-            .ThrowOnError();
-
-        YT_LOG_INFO("Orchid node created");
+        if (error.IsOK()) {
+            break;
+        } else {
+            YT_LOG_DEBUG(error, "Error updating Cypress node");
+        }
     }
 }
 

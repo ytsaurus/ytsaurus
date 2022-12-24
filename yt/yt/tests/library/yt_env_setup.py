@@ -255,6 +255,7 @@ class YTEnvSetup(object):
     DELTA_RPC_PROXY_CONFIG = {}
     DELTA_CELL_BALANCER_CONFIG = {}
     DELTA_TABLET_BALANCER_CONFIG = {}
+    DELTA_MASTER_CACHE_CONFIG = {}
     DELTA_QUEUE_AGENT_CONFIG = {}
 
     USE_PORTO = False
@@ -326,6 +327,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_tablet_balancer_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_master_cache_config(cls, config):
         pass
 
     @classmethod
@@ -655,6 +660,10 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_TABLET_BALANCER_CONFIG", cluster_index))
             configs["tablet_balancer"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_tablet_balancer_config(configs["tablet_balancer"][index])
+        for index, config in enumerate(configs["master_cache"]):
+            config = update_inplace(config, cls.get_param("DELTA_MASTER_CACHE_CONFIG", cluster_index))
+            configs["master_cache"][index] = cls.update_timestamp_provider_config(cluster_index, config)
+            cls.modify_master_cache_config(configs["master_cache"][index])
         for index, config in enumerate(configs["controller_agent"]):
             delta_config = cls.get_param("DELTA_CONTROLLER_AGENT_CONFIG", cluster_index)
             config = update_inplace(

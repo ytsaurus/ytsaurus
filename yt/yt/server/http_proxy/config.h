@@ -8,6 +8,8 @@
 
 #include <yt/yt/server/lib/zookeeper_proxy/public.h>
 
+#include <yt/yt/server/lib/cypress_registrar/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
@@ -52,6 +54,8 @@ public:
     double NetworkLoadWeight;
     double RandomnessWeight;
     double DampeningWeight;
+
+    TCypressRegistrarConfigPtr CypressRegistrar;
 
     REGISTER_YSON_STRUCT(TCoordinatorConfig);
 

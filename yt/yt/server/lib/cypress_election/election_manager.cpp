@@ -359,7 +359,7 @@ private:
         if (Options_->TransactionAttributes) {
             WaitFor(LeaderTransactionAttributeCacheExecutor_->Stop())
                 .ThrowOnError();
-        }    
+        }
         WaitFor(LockAcquisitionExecutor_->Stop())
             .ThrowOnError();
 

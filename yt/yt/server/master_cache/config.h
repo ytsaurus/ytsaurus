@@ -4,6 +4,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/cypress_registrar/public.h>
+
 #include <yt/yt/ytlib/api/native/public.h>
 
 #include <yt/yt/ytlib/object_client/public.h>
@@ -27,6 +29,8 @@ public:
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 
     NChaosCache::TChaosCacheConfigPtr ChaosCache;
+
+    TCypressRegistrarConfigPtr CypressRegistrar;
 
     REGISTER_YSON_STRUCT(TMasterCacheConfig);
 

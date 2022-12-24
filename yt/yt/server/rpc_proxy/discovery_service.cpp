@@ -6,6 +6,9 @@
 
 #include <yt/yt/server/lib/rpc_proxy/proxy_coordinator.h>
 
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -60,6 +63,7 @@ using NYT::ToProto;
 static const TString ExpirationTimeAttributeName = "expiration_time";
 static const TString VersionAttributeName = "version";
 static const TString StartTimeAttributeName = "start_time";
+static const TString AnnotationsAttributeName = "annotations";
 static const TString AddressesAttributeName = "addresses";
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -105,6 +109,26 @@ public:
         , GrpcPort_(GetGrpcPort())
         , GrpcProxyPath_(BuildGrpcProxyPath())
     {
+        for (const auto& descriptor : GetProxyDescriptors()) {
+            TCypressRegistrarOptions options{
+                .RootPath = descriptor.CypressPath,
+                .OrchidRemoteAddresses = Bootstrap_->GetLocalAddresses(),
+                .CreateAliveChild = true,
+                .EnableImplicitInitialization = false,
+                .AttributesOnStart = BuildAttributeDictionaryFluently()
+                    .Item(VersionAttributeName).Value(GetVersion())
+                    .Item(StartTimeAttributeName).Value(TInstant::Now())
+                    .Item(AnnotationsAttributeName).Value(Bootstrap_->GetConfig()->CypressAnnotations)
+                    .Item(AddressesAttributeName).Value(descriptor.Addresses)
+                    .Finish()
+            };
+            CypressRegistrars_.push_back(CreateCypressRegistrar(
+                std::move(options),
+                Config_->CypressRegistrar,
+                RootClient_,
+                Bootstrap_->GetControlInvoker()));
+        }
+
         AliveUpdateExecutor_->Start();
         ProxyUpdateExecutor_->Start();
 
@@ -121,6 +145,7 @@ private:
     const TPeriodicExecutorPtr ProxyUpdateExecutor_;
     const std::optional<int> GrpcPort_;
     const std::optional<TString> GrpcProxyPath_;
+    TCompactVector<ICypressRegistrarPtr, 2> CypressRegistrars_;
 
     TInstant LastSuccessTimestamp_ = Now();
 
@@ -213,62 +238,15 @@ private:
 
     void CreateProxyNode()
     {
-        auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-
-        auto batchReq = proxy.ExecuteBatch();
-
-        const auto& config = Bootstrap_->GetConfig();
-
-        for (const auto& descriptor : GetProxyDescriptors()) {
-            {
-                auto req = TCypressYPathProxy::Create(descriptor.CypressPath);
-                req->set_type(static_cast<int>(EObjectType::MapNode));
-                req->set_recursive(true);
-                req->set_ignore_existing(true);
-                GenerateMutationId(req);
-                batchReq->AddRequest(req);
+        try {
+            for (const auto& registrar : CypressRegistrars_) {
+                WaitFor(registrar->CreateNodes())
+                    .ThrowOnError();
             }
-            {
-                auto req = TYPathProxy::Set(descriptor.CypressPath + "/@" + VersionAttributeName);
-                req->set_value(ConvertToYsonStringNestingLimited(GetVersion()).ToString());
-                GenerateMutationId(req);
-                batchReq->AddRequest(req);
-            }
-            {
-                auto req = TYPathProxy::Set(descriptor.CypressPath + "/@" + StartTimeAttributeName);
-                req->set_value(ConvertToYsonStringNestingLimited(TInstant::Now().ToString()).ToString());
-                GenerateMutationId(req);
-                batchReq->AddRequest(req);
-            }
-            {
-                auto req = TCypressYPathProxy::Set(descriptor.CypressPath + "/@annotations");
-                req->set_value(ConvertToYsonStringNestingLimited(config->CypressAnnotations).ToString());
-                GenerateMutationId(req);
-                batchReq->AddRequest(req);
-            }
-            {
-                auto req = TYPathProxy::Set(descriptor.CypressPath + "/@" + AddressesAttributeName);
-                req->set_value(ConvertToYsonStringNestingLimited(descriptor.Addresses).ToString());
-                GenerateMutationId(req);
-                batchReq->AddRequest(req);
-            }
-            {
-                auto req = TCypressYPathProxy::Create(descriptor.CypressPath + "/orchid");
-                req->set_ignore_existing(true);
-                req->set_type(static_cast<int>(EObjectType::Orchid));
-                auto attributes = CreateEphemeralAttributes();
-                attributes->SetYson("remote_addresses", ConvertToYsonStringNestingLimited(Bootstrap_->GetLocalAddresses()));
-                ToProto(req->mutable_node_attributes(), *attributes);
-                batchReq->AddRequest(req);
-            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error creating proxy node %Qv", ProxyPath_)
+                << ex;
         }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(
-            GetCumulativeError(batchRspOrError),
-            "Error creating proxy node %Qv",
-            ProxyPath_);
 
         YT_LOG_INFO("Proxy node created (Path: %v)", ProxyPath_);
     }
@@ -305,22 +283,15 @@ private:
             Initialized_ = true;
         }
 
-        auto channel = RootClient_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-        auto batchReq = proxy.ExecuteBatch();
-
-        for (const auto& path : GetCypressPaths()) {
-            auto req = TCypressYPathProxy::Create(path + "/" + AliveNodeName);
-            req->set_type(static_cast<int>(EObjectType::MapNode));
-            auto* attr = req->mutable_node_attributes()->add_attributes();
-            attr->set_key(ExpirationTimeAttributeName);
-            attr->set_value(ConvertToYsonStringNestingLimited(TInstant::Now() + Config_->AvailabilityPeriod).ToString());
-            req->set_force(true);
-            batchReq->AddRequest(req);
+        try {
+            for (const auto& registrar : CypressRegistrars_) {
+                WaitFor(registrar->UpdateNodes())
+                    .ThrowOnError();
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error updating proxy liveness")
+                << ex;
         }
-
-        auto batchRspOrError = WaitFor(batchReq->Invoke());
-        THROW_ERROR_EXCEPTION_IF_FAILED(GetCumulativeError(batchRspOrError), "Error updating proxy liveness");
 
         LastSuccessTimestamp_ = Now();
         if (Coordinator_->SetAvailableState(true)) {

@@ -9,8 +9,6 @@
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/checksum.h>
 
-#include <yt/yt/server/lib/chaos_cache/config.h>
-
 #include <util/digest/multi.h>
 
 namespace NYT::NMasterCache {

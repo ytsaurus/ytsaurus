@@ -103,6 +103,8 @@ private:
     const NApi::IClientPtr Client_;
     const NConcurrency::TPeriodicExecutorPtr UpdateStateExecutor_;
     const NConcurrency::TPeriodicExecutorPtr UpdateDynamicConfigExecutor_;
+
+    ICypressRegistrarPtr CypressRegistrar_;
     NProfiling::TGauge BannedGauge_ = HttpProxyProfiler.Gauge("/banned");
 
     TPromise<void> FirstUpdateIterationFinished_ = NewPromise<void>();

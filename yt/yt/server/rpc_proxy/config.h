@@ -6,6 +6,8 @@
 
 #include <yt/yt/server/lib/misc/config.h>
 
+#include <yt/yt/server/lib/cypress_registrar/public.h>
+
 #include <yt/yt/library/auth_server/config.h>
 
 #include <yt/yt/ytlib/api/native/config.h>
@@ -41,6 +43,8 @@ public:
     TDuration ProxyUpdatePeriod;
     TDuration AvailabilityPeriod;
     TDuration BackoffPeriod;
+
+    TCypressRegistrarConfigPtr CypressRegistrar;
 
     REGISTER_YSON_STRUCT(TDiscoveryServiceConfig);
 

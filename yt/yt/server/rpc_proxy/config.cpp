@@ -1,5 +1,7 @@
 #include "config.h"
 
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+
 namespace NYT::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -16,6 +18,8 @@ void TDiscoveryServiceConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(15));
     registrar.Parameter("backoff_period", &TThis::BackoffPeriod)
         .Default(TDuration::Seconds(60));
+    registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
+        .DefaultNew();
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->AvailabilityPeriod <= config->LivenessUpdatePeriod) {
@@ -27,6 +31,10 @@ void TDiscoveryServiceConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Backoff period must be greater than availability period")
                 << TErrorAttribute("availability_period", config->AvailabilityPeriod)
                 << TErrorAttribute("backoff_period", config->BackoffPeriod);
+        }
+
+        if (!config->CypressRegistrar->AliveChildTtl) {
+            config->CypressRegistrar->AliveChildTtl = config->AvailabilityPeriod;
         }
     });
 }
