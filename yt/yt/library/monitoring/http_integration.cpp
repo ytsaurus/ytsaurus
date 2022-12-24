@@ -167,15 +167,9 @@ public:
         }
 
         rsp->SetStatus(EStatusCode::OK);
-
-        auto syncOutput = CreateBufferedSyncAdapter(rsp);
-        auto writer = CreateJsonConsumer(syncOutput.get());
-
-        Serialize(result, writer.get());
-
-        writer->Flush();
-        syncOutput->Flush();
-
+        NHttp::ReplyJson(rsp, [&] (NYson::IYsonConsumer* writer) {
+            Serialize(result, writer);
+        });
         WaitFor(rsp->Close())
             .ThrowOnError();
     }
