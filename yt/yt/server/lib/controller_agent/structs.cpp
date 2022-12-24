@@ -122,7 +122,7 @@ void TJobSummary::Persist(const TPersistenceContext& context)
     Persist(context, State);
     Persist(context, FinishTime);
     if (context.GetVersion() < ESnapshotVersion::DoNotPersistStatistics) {
-        TStatistics dummyStatistics;
+        std::optional<TStatistics> dummyStatistics;
         Persist(context, dummyStatistics);
 
         TYsonString dummyYson;
