@@ -436,7 +436,7 @@ class TestBackups(DynamicTablesBase):
 
         response = create_table_backup(
             ["//tmp/t", "//tmp/bak", {"ordered_mode": "at_least"}],
-            checkpoint_timestamp_delay=2000,
+            checkpoint_timestamp_delay=5000,
             return_response=True)
 
         write_responses = []
