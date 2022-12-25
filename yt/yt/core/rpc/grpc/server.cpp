@@ -70,14 +70,21 @@ public:
             BIND_NO_PROPAGATE(&TServer::Shutdown, MakeWeak(this), /*graceful*/ true),
             /*priority*/ GrpcServerShutdownPriority))
         , LibraryLock_(TDispatcher::Get()->GetLibraryLock())
+        , Profiler_(GrpcServerProfiler.WithTag("name", Config_->ProfilingName))
         , CompletionQueue_(TDispatcher::Get()->PickRandomGuardedCompletionQueue()->UnwrapUnsafe())
-    { }
+    {
+        Profiler_.AddFuncGauge("/call_handler_count", MakeStrong(this), [=] {
+            return CallHandlerCount_.load();
+        });
+    }
 
 private:
     const TServerConfigPtr Config_;
     const TShutdownCookie ShutdownCookie_;
 
     const TGrpcLibraryLockPtr LibraryLock_;
+
+    NProfiling::TProfiler Profiler_;
 
     // This CompletionQueue_ does not have to be guarded in contrast to Channels completion queue,
     // because we require server to be shut down before completion queues.

@@ -52,6 +52,8 @@ void TServerAddressConfig::Register(TRegistrar registrar)
 
 void TServerConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("profiling_name", &TThis::ProfilingName)
+        .Default("none");
     registrar.Parameter("addresses", &TThis::Addresses);
     registrar.Parameter("grpc_arguments", &TThis::GrpcArguments)
         .Default();

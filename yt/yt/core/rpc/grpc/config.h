@@ -91,6 +91,8 @@ class TServerConfig
     : public NYTree::TYsonStruct
 {
 public:
+    TString ProfilingName;
+
     std::vector<TServerAddressConfigPtr> Addresses;
     THashMap<TString, NYTree::INodePtr> GrpcArguments;
 
