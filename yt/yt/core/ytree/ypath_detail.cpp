@@ -235,15 +235,10 @@ DEFINE_RPC_SERVICE_METHOD(TSupportsMultisetAttributes, Multiset)
     auto ctx = New<TCtxMultisetAttributes>(
         context->GetUnderlyingContext(),
         context->GetOptions());
+    ctx->DeserializeRequest();
+
     auto* req = &ctx->Request();
     auto* rsp = &ctx->Response();
-
-    for (const auto& subrequest : request->subrequests()) {
-        auto* subreq = req->add_subrequests();
-        subreq->set_attribute(subrequest.key());
-        subreq->set_value(subrequest.value());
-    }
-
     DoSetAttributes(GetRequestTargetYPath(context->RequestHeader()), req, rsp, ctx);
 
     context->Reply();
