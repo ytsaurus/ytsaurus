@@ -138,9 +138,6 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
         .LessThanOrEqual(0.001)
         .Default(0.0001);
 
-    registrar.Parameter("slim", &TThis::Slim)
-        .Default(false);
-
     registrar.Parameter("chunk_indexes", &TThis::ChunkIndexes)
         .DefaultNew();
 
