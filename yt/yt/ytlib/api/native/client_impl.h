@@ -270,6 +270,19 @@ public:
         const TPullConsumerOptions& options = {}),
         (consumerPath, queuePath, offset, partitionIndex, rowBatchReadOptions, options))
 
+    IMPLEMENT_METHOD(void, RegisterQueueConsumer, (
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        bool vital,
+        const TRegisterQueueConsumerOptions& options = {}),
+        (queuePath, consumerPath, vital, options))
+
+    IMPLEMENT_METHOD(void, UnregisterQueueConsumer, (
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        const TUnregisterQueueConsumerOptions& options = {}),
+        (queuePath, consumerPath, options))
+
     IMPLEMENT_METHOD(TStartYqlQueryResult, StartYqlQuery, (
         const TString& query,
         const TStartYqlQueryOptions& options = {}),
@@ -1054,6 +1067,17 @@ private:
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullConsumerOptions& options);
+
+    void DoRegisterQueueConsumer(
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        bool vital,
+        const TRegisterQueueConsumerOptions& options);
+
+    void DoUnregisterQueueConsumer(
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        const TUnregisterQueueConsumerOptions& options);
 
     //
     // Chaos

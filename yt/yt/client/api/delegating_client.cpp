@@ -101,6 +101,23 @@ TFuture<NQueueClient::IQueueRowsetPtr> TDelegatingClient::PullConsumer(
     return Underlying_->PullConsumer(consumerPath, queuePath, offset, partitionIndex, rowBatchReadOptions, options);
 }
 
+TFuture<void> TDelegatingClient::RegisterQueueConsumer(
+    const NYPath::TRichYPath& queuePath,
+    const NYPath::TRichYPath& consumerPath,
+    bool vital,
+    const TRegisterQueueConsumerOptions& options)
+{
+    return Underlying_->RegisterQueueConsumer(queuePath, consumerPath, vital, options);
+}
+
+TFuture<void> TDelegatingClient::UnregisterQueueConsumer(
+    const NYPath::TRichYPath& queuePath,
+    const NYPath::TRichYPath& consumerPath,
+    const TUnregisterQueueConsumerOptions& options)
+{
+    return Underlying_->UnregisterQueueConsumer(queuePath, consumerPath, options);
+}
+
 TFuture<NYson::TYsonString> TDelegatingClient::GetNode(
     const NYPath::TYPath& path,
     const TGetNodeOptions& options)

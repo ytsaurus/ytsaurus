@@ -27,7 +27,7 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentStageChannelConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueAgentRegistrationTableConfig
+class TQueueConsumerRegistrationManagerConfig
     : public NYTree::TYsonStruct
 {
 public:
@@ -41,12 +41,12 @@ public:
     //! User under which requests are performed to read and write registrations.
     TString User;
 
-    REGISTER_YSON_STRUCT(TQueueAgentRegistrationTableConfig);
+    REGISTER_YSON_STRUCT(TQueueConsumerRegistrationManagerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueAgentRegistrationTableConfig)
+DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -56,7 +56,7 @@ class TQueueAgentConnectionConfig
 public:
     THashMap<TString, TQueueAgentStageChannelConfigPtr> Stages;
 
-    TQueueAgentRegistrationTableConfigPtr RegistrationTable;
+    TQueueConsumerRegistrationManagerConfigPtr QueueConsumerRegistrationManager;
 
     REGISTER_YSON_STRUCT(TQueueAgentConnectionConfig);
 

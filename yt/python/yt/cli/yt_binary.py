@@ -1128,6 +1128,19 @@ def add_delete_rows_parser(add_parser):
     parser = add_parser("delete", print_error, help=error_message)
 
 
+def add_register_queue_consumer_parser(add_parser):
+    parser = add_parser("register-queue-consumer", yt.register_queue_consumer)
+    add_ypath_argument(parser, "queue_path", hybrid=True)
+    add_ypath_argument(parser, "consumer_path", hybrid=True)
+    parser.add_argument("vital", type=bool)
+
+
+def add_unregister_queue_consumer_parser(add_parser):
+    parser = add_parser("unregister-queue-consumer", yt.unregister_queue_consumer)
+    add_ypath_argument(parser, "queue_path", hybrid=True)
+    add_ypath_argument(parser, "consumer_path", hybrid=True)
+
+
 SPEC_BUILDERS = {
     "map": MapSpecBuilder,
     "reduce": ReduceSpecBuilder,
@@ -2391,6 +2404,9 @@ def main_func():
     add_lookup_rows_parser(add_parser)
     add_insert_rows_parser(add_parser)
     add_delete_rows_parser(add_parser)
+
+    add_register_queue_consumer_parser(add_parser)
+    add_unregister_queue_consumer_parser(add_parser)
 
     add_erase_parser(add_parser)
     add_merge_parser(add_parser)

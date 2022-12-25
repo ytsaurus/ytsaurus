@@ -9,6 +9,7 @@
 #include "etc_commands.h"
 #include "file_commands.h"
 #include "journal_commands.h"
+#include "queue_commands.h"
 #include "scheduler_commands.h"
 #include "table_commands.h"
 #include "transaction_commands.h"
@@ -330,6 +331,9 @@ public:
         REGISTER_ALL(TIssueTokenCommand,                   "issue_token",                     Null,       Structured, false,  false);
         REGISTER_ALL(TRevokeTokenCommand,                  "revoke_token",                    Null,       Structured, false,  false);
         REGISTER_ALL(TListUserTokensCommand,               "list_user_tokens",                Null,       Structured, false,  false);
+
+        REGISTER    (TRegisterQueueConsumerCommand,        "register_queue_consumer",         Null,       Structured, false,  false, ApiVersion4);
+        REGISTER    (TUnregisterQueueConsumerCommand,      "unregister_queue_consumer",       Null,       Structured, false,  false, ApiVersion4);
 
         if (Config_->EnableInternalCommands) {
             REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );

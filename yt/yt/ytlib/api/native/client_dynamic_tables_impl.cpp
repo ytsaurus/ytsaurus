@@ -22,7 +22,7 @@
 #include <yt/yt/ytlib/query_client/executor.h>
 #include <yt/yt/ytlib/query_client/explain.h>
 
-#include <yt/yt/ytlib/queue_client/registration_cache.h>
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
@@ -2439,7 +2439,7 @@ IQueueRowsetPtr TClient::DoPullConsumer(
     WaitFor(permissionCache->Get(permissionKey))
         .ThrowOnError();
 
-    auto registration = Connection_->GetQueueConsumerRegistrationCache()->GetRegistration(queuePath, consumerPath);
+    auto registration = Connection_->GetQueueConsumerRegistrationManager()->GetRegistration(queuePath, consumerPath);
     if (!registration) {
         THROW_ERROR_EXCEPTION(
             NYT::NSecurityClient::EErrorCode::AuthorizationError,
@@ -2468,6 +2468,68 @@ IQueueRowsetPtr TClient::DoPullConsumer(
         rowBatchReadOptions,
         pullQueueOptions))
         .ValueOrThrow();
+}
+
+void TClient::DoRegisterQueueConsumer(
+    const NYPath::TRichYPath& queuePath,
+    const NYPath::TRichYPath& consumerPath,
+    bool vital,
+    const TRegisterQueueConsumerOptions& /*options*/)
+{
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
+        .ValueOrThrow();
+
+    NSecurityClient::TPermissionKey permissionKey{
+        .Object = FromObjectId(queueTableInfo->TableId),
+        .User = Options_.GetAuthenticatedUser(),
+        .Permission = EPermission::RegisterQueueConsumer,
+        .Vital = vital,
+    };
+    const auto& permissionCache = Connection_->GetPermissionCache();
+    WaitFor(permissionCache->Get(permissionKey))
+        .ThrowOnError();
+
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    registrationCache->RegisterQueueConsumer(queuePath, consumerPath, vital);
+
+    YT_LOG_DEBUG("Registered queue consumer (Queue: %v, Consumer: %v, Vital: %v)", queuePath, consumerPath, vital);
+}
+
+void TClient::DoUnregisterQueueConsumer(
+    const NYPath::TRichYPath& queuePath,
+    const NYPath::TRichYPath& consumerPath,
+    const TUnregisterQueueConsumerOptions& /*options*/)
+{
+    const auto& tableMountCache = Connection_->GetTableMountCache();
+    auto queueTableInfo = WaitFor(tableMountCache->GetTableInfo(queuePath.GetPath()))
+        .ValueOrThrow();
+    NSecurityClient::TPermissionKey queuePermissionKey{
+        .Object = FromObjectId(queueTableInfo->TableId),
+        .User = Options_.GetAuthenticatedUser(),
+        .Permission = EPermission::Remove,
+    };
+
+    auto consumerConnection = FindRemoteConnection(Connection_, consumerPath.GetCluster());
+    auto consumerTableInfo = WaitFor(consumerConnection->GetTableMountCache()->GetTableInfo(consumerPath.GetPath()))
+        .ValueOrThrow();
+    NSecurityClient::TPermissionKey consumerPermissionKey{
+        .Object = FromObjectId(consumerTableInfo->TableId),
+        .User = Options_.GetAuthenticatedUser(),
+        .Permission = EPermission::Remove,
+    };
+
+    WaitFor(AnySucceeded(std::vector{
+        Connection_->GetPermissionCache()->Get(queuePermissionKey),
+        consumerConnection->GetPermissionCache()->Get(consumerPermissionKey)
+    }))
+        .ThrowOnError();
+
+
+    auto registrationCache = Connection_->GetQueueConsumerRegistrationManager();
+    registrationCache->UnregisterQueueConsumer(queuePath, consumerPath);
+
+    YT_LOG_DEBUG("Unregistered queue consumer (Queue: %v, Consumer: %v)", queuePath, consumerPath);
 }
 
 std::vector<TAlienCellDescriptor> TClient::DoSyncAlienCells(

@@ -621,6 +621,31 @@ message TRspPullConsumer
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqRegisterQueueConsumer
+{
+    optional string queue_path = 1;
+    optional string consumer_path = 2;
+    optional bool vital = 3;
+}
+
+message TRspRegisterQueueConsumer
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqUnregisterQueueConsumer
+{
+    optional string queue_path = 1;
+    optional string consumer_path = 2;
+}
+
+message TRspUnregisterQueueConsumer
+{
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TReqExplainQuery
 {
     required string query = 1;

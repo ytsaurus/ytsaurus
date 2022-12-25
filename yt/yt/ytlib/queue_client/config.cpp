@@ -8,9 +8,10 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueueAgentRegistrationTableConfig::Register(TRegistrar registrar)
+void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("root", &TThis::Root);
+    registrar.Parameter("root", &TThis::Root)
+        .Default("//sys/queue_agents");
     registrar.Parameter("cache_refresh_period", &TThis::CacheRefreshPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("user", &TThis::User)
@@ -27,7 +28,7 @@ void TQueueAgentConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("stages", &TThis::Stages)
         .Default();
-    registrar.Parameter("registration_table", &TThis::RegistrationTable)
+    registrar.Parameter("queue_consumer_registration_manager", &TThis::QueueConsumerRegistrationManager)
         .DefaultNew();
 }
 

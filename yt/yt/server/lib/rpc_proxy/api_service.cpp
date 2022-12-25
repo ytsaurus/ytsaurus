@@ -686,6 +686,8 @@ public:
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullQueue));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(PullConsumer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(RegisterQueueConsumer));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(UnregisterQueueConsumer));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ModifyRows));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(BatchModifyRows));
@@ -3816,6 +3818,59 @@ private:
                     "RowCount: %v, StartOffset: %v",
                     queueRowset->GetRows().size(),
                     queueRowset->GetStartOffset());
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, RegisterQueueConsumer)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+        auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
+        bool vital = request->vital();
+
+        TRegisterQueueConsumerOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo(
+            "QueuePath: %Qv, ConsumerPath: %Qv, Vital: %v",
+            queuePath,
+            consumerPath,
+            vital);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->RegisterQueueConsumer(
+                    queuePath,
+                    consumerPath,
+                    vital,
+                    options);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, UnregisterQueueConsumer)
+    {
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+        auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
+
+        TUnregisterQueueConsumerOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo(
+            "QueuePath: %Qv, ConsumerPath: %Qv",
+            queuePath,
+            consumerPath);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->UnregisterQueueConsumer(
+                    queuePath,
+                    consumerPath,
+                    options);
             });
     }
 

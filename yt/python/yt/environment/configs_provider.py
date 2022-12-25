@@ -1165,12 +1165,16 @@ def _build_cluster_connection_config(yt_config,
             "stages": {
                 "production": {"addresses": ["{}:{}".format(yt_config.fqdn, port) for port in queue_agent_rpc_ports]},
             },
-            "registration_table": {
+            "queue_consumer_registration_manager": {
                 "root": "{}//sys/queue_agents".format("{}:".format(yt_config.cluster_name) if yt_config.cluster_name is not None else ""),
                 "cache_refresh_period": 500,
             },
         },
         "permission_cache": {
+            "expire_after_successful_update_time": 0,
+            "expire_after_failed_update_time": 0,
+            "expire_after_access_time": 0,
+            "refresh_time": 0
         },
         "master_cell_directory_synchronizer": {
             "sync_period": 500,

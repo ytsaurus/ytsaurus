@@ -74,6 +74,17 @@ public:
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullConsumerOptions& options), (override));
 
+    MOCK_METHOD(TFuture<void>, RegisterQueueConsumer, (
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        bool vital,
+        const TRegisterQueueConsumerOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, UnregisterQueueConsumer, (
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        const TUnregisterQueueConsumerOptions& options), (override));
+
     MOCK_METHOD(TFuture<NYson::TYsonString>, ExplainQuery, (
         const TString& query,
         const TExplainQueryOptions& options), (override));

@@ -1350,6 +1350,21 @@ class YtClient(ClientState):
             table_reader=table_reader, unordered=unordered, response_parameters=response_parameters,
             enable_read_parallel=enable_read_parallel)
 
+    def register_queue_consumer(
+            self,
+            queue_path, consumer_path, vital):
+        """Register queue consumer.
+
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param consumer_path: path to consumer table.
+        :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param bool vital: vital.
+        """
+        return client_api.register_queue_consumer(
+            queue_path, consumer_path, vital,
+            client=self)
+
     def remount_table(
             self,
             path,
@@ -2167,6 +2182,20 @@ class YtClient(ClientState):
             client=self,
             first_tablet_index=first_tablet_index, last_tablet_index=last_tablet_index, force=force,
             sync=sync)
+
+    def unregister_queue_consumer(
+            self,
+            queue_path, consumer_path):
+        """Unregister queue consumer.
+
+        :param queue_path: path to queue table.
+        :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        :param consumer_path: path to consumer table.
+        :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+        """
+        return client_api.unregister_queue_consumer(
+            queue_path, consumer_path,
+            client=self)
 
     def update_operation_parameters(
             self,

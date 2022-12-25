@@ -156,6 +156,8 @@ class YtTestEnvironment(object):
         if not os.path.exists(local_temp_directory):
             os.mkdir(local_temp_directory)
 
+        cluster_name = "primary"
+
         yt_config = LocalYtConfig(
             master_count=1,
             node_count=3,
@@ -166,6 +168,7 @@ class YtTestEnvironment(object):
             allow_chunk_storage_in_tmpfs=True,
             enable_log_compression=True,
             log_compression_method="zstd",
+            cluster_name=cluster_name,
             **env_options
         )
 
@@ -245,7 +248,11 @@ class YtTestEnvironment(object):
             del os.environ["YT_PROXY"]
 
         self.env._create_cluster_client().set("//sys/@local_mode_fqdn", get_fqdn())
-        self.env._create_cluster_client().set("//sys/@cluster_connection", self.config["driver_config"])
+
+        cluster_connection = self.config["driver_config"]
+        self.env._create_cluster_client().set("//sys/@cluster_connection", cluster_connection)
+        self.env._create_cluster_client().set("//sys/@cluster_name", cluster_name)
+        self.env._create_cluster_client().set("//sys/clusters", {cluster_name: cluster_connection})
 
         # Resolve indeterminacy in sys.modules due to presence of lazy imported modules.
         for module in list(itervalues(sys.modules)):

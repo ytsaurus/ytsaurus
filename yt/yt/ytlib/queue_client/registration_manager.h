@@ -11,12 +11,12 @@ namespace NYT::NQueueClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueueConsumerRegistrationCache
+class TQueueConsumerRegistrationManager
     : public TRefCounted
 {
 public:
-    TQueueConsumerRegistrationCache(
-        TQueueAgentRegistrationTableConfigPtr config,
+    TQueueConsumerRegistrationManager(
+        TQueueConsumerRegistrationManagerConfigPtr config,
         NApi::NNative::IConnection* connection,
         IInvokerPtr invoker,
         const NLogging::TLogger& logger);
@@ -46,7 +46,7 @@ public:
     NYTree::IYPathServicePtr GetOrchidService() const;
 
 private:
-    const TQueueAgentRegistrationTableConfigPtr Config_;
+    const TQueueConsumerRegistrationManagerConfigPtr Config_;
     // The connection holds a strong reference to this object.
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
     const IInvokerPtr Invoker_;
@@ -56,7 +56,7 @@ private:
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigurationSpinLock_);
-    TQueueAgentRegistrationTableConfigPtr DynamicConfig_;
+    TQueueConsumerRegistrationManagerConfigPtr DynamicConfig_;
     TConsumerRegistrationTablePtr RegistrationTable_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CacheSpinLock_);
@@ -72,13 +72,13 @@ private:
     TConsumerRegistrationTablePtr GetOrInitRegistrationTableOrThrow();
 
     //! Retrieves, applies and stores a local version of the dynamic config.
-    TQueueAgentRegistrationTableConfigPtr RefreshDynamicConfig();
+    TQueueConsumerRegistrationManagerConfigPtr RefreshDynamicConfig();
 
     //! Produces information about cached registrations.
     void BuildOrchid(NYson::IYsonConsumer* consumer) const;
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationCache)
+DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManager)
 
 ////////////////////////////////////////////////////////////////////////////////
 
