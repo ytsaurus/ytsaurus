@@ -133,9 +133,10 @@ private:
         { };
 
         NProfiling::TWallTimer requestTimer;
-        return IOEngine_->Read<TChunkFileReaderBufferTag>(
+        return IOEngine_->Read(
             {{fileInfo.Handle, offset, readSize}},
-            category)
+            category,
+            GetRefCountedTypeCookie<TChunkFileReaderBufferTag>())
             .AsVoid()
             .Apply(BIND([requestTimer] {
                 return requestTimer.GetElapsedTime();

@@ -181,12 +181,6 @@ struct IIOEngine
     virtual EDirectIOPolicy UseDirectIOForReads() const = 0;
 
     // Extension methods.
-    template <class TTag = TDefaultReadTag>
-    TFuture<TReadResponse> Read(
-        std::vector<TReadRequest> requests,
-        EWorkloadCategory category = EWorkloadCategory::Idle,
-        TSessionId sessionId = {});
-
     TFuture<TSharedRef> ReadAll(
         const TString& path,
         EWorkloadCategory category = EWorkloadCategory::Idle,
@@ -194,6 +188,8 @@ struct IIOEngine
 };
 
 DEFINE_REFCOUNTED_TYPE(IIOEngine)
+
+////////////////////////////////////////////////////////////////////////////////
 
 IIOEnginePtr CreateIOEngine(
     EIOEngineType engineType,
@@ -207,7 +203,3 @@ std::vector<EIOEngineType> GetSupportedIOEngineTypes();
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
-
-#define IO_ENGINE_INL_H_
-#include "io_engine-inl.h"
-#undef IO_ENGINE_INL_H_

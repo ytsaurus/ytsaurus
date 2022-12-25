@@ -1212,8 +1212,11 @@ private:
 
                     struct TChunkFragmentBuffer
                     { };
-                    readFutures.push_back(
-                        ioEngine->Read<TChunkFragmentBuffer>(std::move(locationRequests[index])));
+                    readFutures.push_back(ioEngine->Read(
+                        std::move(locationRequests[index]),
+                        workloadDescriptor.Category,
+                        GetRefCountedTypeCookie<TChunkFragmentBuffer>(),
+                        readSessionId));
                 }
 
                 AllSucceeded(std::move(readFutures))
