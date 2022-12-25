@@ -4,6 +4,8 @@
 #include "versioned_block_reader.h"
 #endif
 
+#include "reader_helpers.h"
+
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
 namespace NYT::NTableClient {
@@ -11,13 +13,14 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TRowParser>
+template <class... TParserArgs>
 TVersionedRowReader<TRowParser>::TVersionedRowReader(
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     TTimestamp timestamp,
     bool produceAllVersions,
-    TRowParser rowParser)
-    : Parser_(std::move(rowParser))
+    TParserArgs&&... parserArgs)
+    : Parser_(std::forward<TParserArgs>(parserArgs)...)
     , Timestamp_(timestamp)
     , ProduceAllVersions_(produceAllVersions)
     , KeyColumnCount_(keyColumnCount)
@@ -34,28 +37,28 @@ TVersionedRowReader<TRowParser>::TVersionedRowReader(
 template <typename TRowParser>
 TLegacyKey TVersionedRowReader<TRowParser>::GetKey() const
 {
+    YT_VERIFY(Parser_.IsValid());
     return RowMetadata_.Key;
 }
 
 template <typename TRowParser>
 TMutableVersionedRow TVersionedRowReader<TRowParser>::GetRow(TChunkedMemoryPool* memoryPool)
 {
-    YT_VERIFY(!Parser_.Closed());
+    YT_VERIFY(Parser_.IsValid());
     return ProduceAllVersions_
-        ? ReadAllVersions(memoryPool)
-        : ReadOneVersion(memoryPool);
+        ? ReadRowAllVersions(memoryPool)
+        : ReadRowSingleVersion(memoryPool);
 }
 
 template <typename TRowParser>
-TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadAllVersions(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadRowAllVersions(TChunkedMemoryPool* memoryPool)
 {
-    int writeTimestampIndex = 0;
-    int deleteTimestampIndex = 0;
-
     const auto& writeTimestamps = RowMetadata_.WriteTimestamps;
     const auto& deleteTimestamps = RowMetadata_.DeleteTimestamps;
 
-    if (Timestamp_ < MaxTimestamp) {
+    int writeTimestampIndex = 0;
+    int deleteTimestampIndex = 0;
+    if (Timestamp_ <= MaxTimestamp) {
         writeTimestampIndex = BinarySearch(0, writeTimestamps.Size(), [&] (int index) {
             return writeTimestamps[index] > Timestamp_;
         });
@@ -85,11 +88,10 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadAllVersions(TChunkedMe
     std::copy(deleteTimestamps.Begin() + deleteTimestampIndex, deleteTimestamps.End(), row.BeginDeleteTimestamps());
 
     // Keys.
-    ::memcpy(row.BeginKeys(), RowMetadata_.Key.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+    std::copy(RowMetadata_.Key.Begin(), RowMetadata_.Key.End(), row.BeginKeys());
 
     // Values.
-    auto* beginValues = row.BeginValues();
-    auto* currentValue = beginValues;
+    auto* currentValue = row.BeginValues();
     for (const auto& columnIdMapping : SchemaIdMapping_) {
         auto columnDescriptor = Parser_.GetColumnDescriptor(columnIdMapping);
 
@@ -101,17 +103,13 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadAllVersions(TChunkedMe
         }
     }
 
-    // Shrink memory.
-    auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
-    row.SetValueCount(currentValue - beginValues);
-    auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
-    memoryPool->Free(memoryFrom, memoryTo);
+    NDetail::TrimRow(row, currentValue, memoryPool);
 
     return row;
 }
 
 template <typename TRowParser>
-TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadOneVersion(TChunkedMemoryPool* memoryPool)
+TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadRowSingleVersion(TChunkedMemoryPool* memoryPool)
 {
     int writeTimestampIndex = 0;
     int deleteTimestampIndex = 0;
@@ -131,7 +129,7 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadOneVersion(TChunkedMem
     bool hasWriteTimestamp = writeTimestampIndex < std::ssize(writeTimestamps);
     bool hasDeleteTimestamp = deleteTimestampIndex < std::ssize(deleteTimestamps);
 
-    if (!hasWriteTimestamp & !hasDeleteTimestamp) {
+    if (!hasWriteTimestamp && !hasDeleteTimestamp) {
         // Row didn't exist at given timestamp.
         return {};
     }
@@ -148,11 +146,11 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadOneVersion(TChunkedMem
         auto row = TMutableVersionedRow::Allocate(
             memoryPool,
             KeyColumnCount_,
-            0, // no values
-            0, // no write timestamps
-            1);
+            /*valueCount*/ 0,
+            /*writeTimestampCount*/ 0,
+            /*deleteTimestampCount*/ 1);
         row.BeginDeleteTimestamps()[0] = deleteTimestamp;
-        ::memcpy(row.BeginKeys(), RowMetadata_.Key.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+        std::copy(RowMetadata_.Key.Begin(), RowMetadata_.Key.End(), row.BeginKeys());
         return row;
     }
 
@@ -163,8 +161,8 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadOneVersion(TChunkedMem
         memoryPool,
         KeyColumnCount_,
         RowMetadata_.ValueCount, // shrinkable
-        1,
-        hasDeleteTimestamp ? 1 : 0);
+        /*writeTimestampCount*/ 1,
+        /*deleteTimestampCount*/ hasDeleteTimestamp ? 1 : 0);
 
     // Write, delete timestamps.
     row.BeginWriteTimestamps()[0] = writeTimestamp;
@@ -173,14 +171,13 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadOneVersion(TChunkedMem
     }
 
     // Keys.
-    ::memcpy(row.BeginKeys(), RowMetadata_.Key.Begin(), sizeof(TUnversionedValue) * KeyColumnCount_);
+    std::copy(RowMetadata_.Key.Begin(), RowMetadata_.Key.End(), row.BeginKeys());
 
-    auto* beginValues = row.BeginValues();
-    auto* currentValue = beginValues;
+    auto* currentValue = row.BeginValues();
     for (const auto& columnIdMapping : SchemaIdMapping_) {
         auto columnDescriptor = Parser_.GetColumnDescriptor(columnIdMapping);
 
-        auto isValueAlive = [&] (int index) -> bool {
+        auto isValueAlive = [&] (int index) {
             return Parser_.ReadValueTimestamp(columnDescriptor, index) > deleteTimestamp;
         };
 
@@ -209,11 +206,7 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadOneVersion(TChunkedMem
         }
     }
 
-    // Shrink memory.
-    auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
-    row.SetValueCount(currentValue - beginValues);
-    auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
-    memoryPool->Free(memoryFrom, memoryTo);
+    NDetail::TrimRow(row, currentValue, memoryPool);
 
     return row;
 }
@@ -229,23 +222,17 @@ TVersionedBlockReader<TBlockParser>::TVersionedBlockReader(
     const std::vector<TColumnIdMapping>& schemaIdMapping,
     const TKeyComparer& keyComparer,
     TTimestamp timestamp,
-    bool produceAllVersions,
-    bool initialize)
+    bool produceAllVersions)
     : TVersionedRowReader<TBlockParser>(
         keyColumnCount,
         schemaIdMapping,
         timestamp,
         produceAllVersions,
-        TBlockParser(
-            std::move(block),
-            blockMeta,
-            chunkSchema))
+        std::move(block),
+        blockMeta,
+        chunkSchema)
     , KeyComparer_(keyComparer)
-{
-    if (initialize) {
-        JumpToRowIndex(0);
-    }
-}
+{ }
 
 template <typename TBlockParser>
 bool TVersionedBlockReader<TBlockParser>::NextRow()
@@ -254,14 +241,14 @@ bool TVersionedBlockReader<TBlockParser>::NextRow()
 }
 
 template <typename TBlockParser>
-bool TVersionedBlockReader<TBlockParser>::SkipToRowIndex(i64 rowIndex)
+bool TVersionedBlockReader<TBlockParser>::SkipToRowIndex(int rowIndex)
 {
-    YT_VERIFY(rowIndex >= RowIndex_);
+    YT_VERIFY(rowIndex >= RowIndex_ && rowIndex >= 0);
     return JumpToRowIndex(rowIndex);
 }
 
 template <typename TBlockParser>
-bool TVersionedBlockReader<TBlockParser>::JumpToRowIndex(i64 rowIndex)
+bool TVersionedBlockReader<TBlockParser>::JumpToRowIndex(int rowIndex)
 {
     if (Parser_.JumpToRowIndex(rowIndex, &RowMetadata_)) {
         RowIndex_ = rowIndex;
@@ -271,13 +258,15 @@ bool TVersionedBlockReader<TBlockParser>::JumpToRowIndex(i64 rowIndex)
 }
 
 template <typename TBlockParser>
-bool TVersionedBlockReader<TBlockParser>::SkipToKey(TLegacyKey bound)
+bool TVersionedBlockReader<TBlockParser>::SkipToKey(TLegacyKey key)
 {
-    YT_VERIFY(!Parser_.Closed());
+    if (RowIndex_ < 0) {
+        YT_VERIFY(JumpToRowIndex(0));
+    }
 
-    auto inBound = [&] (TUnversionedRow key) -> bool {
+    auto inBound = [&] (TUnversionedRow pivot) {
         // Key is already widened here.
-        return CompareKeys(key, bound, KeyComparer_.Get()) >= 0;
+        return CompareKeys(pivot, key, KeyComparer_.Get()) >= 0;
     };
 
     if (inBound(GetKey())) {
@@ -287,8 +276,8 @@ bool TVersionedBlockReader<TBlockParser>::SkipToKey(TLegacyKey bound)
 
     auto rowIndex = BinarySearch(
         RowIndex_,
-        Parser_.RowCount(),
-        [&] (int rowIndex) -> bool {
+        Parser_.GetRowCount(),
+        [&] (int rowIndex) {
             // TODO(akozhikhov): Optimize?
             YT_VERIFY(JumpToRowIndex(rowIndex));
             return !inBound(GetKey());

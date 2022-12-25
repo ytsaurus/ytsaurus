@@ -190,8 +190,8 @@ private:
     TCompactVector<int, IndexedRowTypicalGroupCount> ComputeGroupAlignmentAndReordering();
 
     void DoWriteValue(
-        char** buffer,
-        char** stringBuffer,
+        char*& buffer,
+        char*& stringBuffer,
         int valueIndex,
         const TUnversionedValue& value,
         TMutableBitmap* nullFlagsBitmap,

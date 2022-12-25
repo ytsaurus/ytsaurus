@@ -822,32 +822,22 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
         config->EnableBlockReordering = false;
     }
 
-    if (options->OptimizeFor == EOptimizeFor::Scan) {
-        return New<TColumnarVersionedChunkWriter>(
+    auto createWriter = [&] <class TWriter> {
+        return New<TWriter>(
             std::move(config),
             std::move(options),
             std::move(schema),
             std::move(chunkWriter),
             std::move(blockCache),
             dataSink);
+    };
+
+    if (options->OptimizeFor == EOptimizeFor::Scan) {
+        return createWriter.operator()<TColumnarVersionedChunkWriter>();
+    } else if (ShouldBuildChunkIndex(config->ChunkIndexes)) {
+        return createWriter.operator()<TSimpleVersionedChunkWriter<TIndexedBlockFormatAdapter>>();
     } else {
-        if (ShouldBuildChunkIndex(config->ChunkIndexes)) {
-            return New<TSimpleVersionedChunkWriter<TIndexedBlockFormatAdapter>>(
-                std::move(config),
-                std::move(options),
-                std::move(schema),
-                std::move(chunkWriter),
-                std::move(blockCache),
-                dataSink);
-        } else {
-            return New<TSimpleVersionedChunkWriter<TSimpleBlockFormatAdapter>>(
-                std::move(config),
-                std::move(options),
-                std::move(schema),
-                std::move(chunkWriter),
-                std::move(blockCache),
-                dataSink);
-        }
+        return createWriter.operator()<TSimpleVersionedChunkWriter<TSimpleBlockFormatAdapter>>();
     }
 }
 

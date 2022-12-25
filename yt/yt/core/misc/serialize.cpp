@@ -23,13 +23,6 @@ void VerifySerializationAligned(i64 byteSize)
     YT_VERIFY(AlignUpSpace<i64>(byteSize, SerializationAlignment) == 0);
 }
 
-void MakeSerializationAligned(char** buffer, i64 byteSize)
-{
-    auto paddingSize = AlignUpSpace<i64>(byteSize, SerializationAlignment);
-    memset(*buffer, 0, paddingSize);
-    *buffer += paddingSize;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 TCrashOnDeserializationErrorGuard::TCrashOnDeserializationErrorGuard()

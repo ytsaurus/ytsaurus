@@ -223,14 +223,17 @@ inline ESimpleLogicalValueType GetLogicalType(EValueType type)
         case EValueType::String:
         case EValueType::Any:
             return static_cast<ESimpleLogicalValueType>(type);
+
         case EValueType::Composite:
         case EValueType::Min:
         case EValueType::Max:
         case EValueType::TheBottom:
-            THROW_ERROR_EXCEPTION("EValueType %Qlv does not have corresponding logical type",
+            THROW_ERROR_EXCEPTION("Value type %Qlv has no corresponding logical type",
                 type);
+
+        default:
+            YT_ABORT();
     }
-    YT_ABORT();
 }
 
 inline constexpr bool IsIntegralType(EValueType type)

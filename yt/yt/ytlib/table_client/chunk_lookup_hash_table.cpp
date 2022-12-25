@@ -162,9 +162,11 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
         const auto& blockMeta = chunkBlockMeta->data_blocks(blockIndex);
 
-        auto fillHashTable = [&] (auto&& blockReader) {
+        auto fillHashTableFromReader = [&] (auto& blockReader) {
             // Verify that row index fits into 32 bits.
             YT_VERIFY(sizeof(blockMeta.row_count()) <= sizeof(ui32));
+
+            YT_VERIFY(blockReader.SkipToRowIndex(0));
 
             for (int rowIndex = 0; rowIndex < blockMeta.row_count(); ++rowIndex) {
                 auto key = blockReader.GetKey();
@@ -173,35 +175,29 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
             }
         };
 
+        auto fillHashTable = [&] <class TReader> {
+            TReader blockReader(
+                uncompressedBlock.Data,
+                blockMeta,
+                chunkMeta->GetChunkSchema(),
+                tableSchema->GetKeyColumnCount(),
+                TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
+                    .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
+                keyComparer,
+                AllCommittedTimestamp,
+                /*produceAllVersions*/ true);
+            fillHashTableFromReader(blockReader);
+        };
+
         switch (chunkFormat) {
             case EChunkFormat::TableVersionedSimple: {
                 switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
                     case ETableChunkBlockFormat::Default:
-                        fillHashTable(TSimpleVersionedBlockReader(
-                            uncompressedBlock.Data,
-                            blockMeta,
-                            chunkMeta->GetChunkSchema(),
-                            tableSchema->GetKeyColumnCount(),
-                            TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
-                                .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
-                            keyComparer,
-                            AllCommittedTimestamp,
-                            true,
-                            true));
+                        fillHashTable.operator()<TSimpleVersionedBlockReader>();
                         break;
 
                     case ETableChunkBlockFormat::IndexedVersioned:
-                        fillHashTable(TIndexedVersionedBlockReader(
-                            uncompressedBlock.Data,
-                            blockMeta,
-                            chunkMeta->GetChunkSchema(),
-                            tableSchema->GetKeyColumnCount(),
-                            TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())
-                                .BuildVersionedSimpleSchemaIdMapping(TColumnFilter()),
-                            keyComparer,
-                            AllCommittedTimestamp,
-                            true,
-                            true));
+                        fillHashTable.operator()<TIndexedVersionedBlockReader>();
                         break;
 
                     default:
@@ -221,8 +217,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
                     sortOrders,
                     chunkMeta->GetChunkKeyColumnCount(),
                     chunkMeta->Misc().min_timestamp());
-
-                fillHashTable(blockReader);
+                fillHashTableFromReader(blockReader);
                 break;
             }
 

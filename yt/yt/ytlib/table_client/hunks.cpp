@@ -54,26 +54,6 @@ static const auto& Logger = TableClientLogger;
 
 namespace {
 
-template <class T>
-size_t WritePod(char* ptr, const T& pod)
-{
-    ::memcpy(ptr, &pod, sizeof(T));
-    return sizeof(T);
-}
-
-size_t WriteRef(char* ptr, TRef ref)
-{
-    ::memcpy(ptr, ref.Begin(), ref.Size());
-    return ref.Size();
-}
-
-template <class T>
-size_t ReadPod(const char* ptr, T* pod)
-{
-    ::memcpy(pod, ptr, sizeof(T));
-    return sizeof(T);
-}
-
 TRef GetValueRef(const TUnversionedValue& value)
 {
     YT_ASSERT(IsStringLikeType(value.Type));
@@ -257,7 +237,7 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TLocalRefHunkValue& value)
     char* beginPtr =  pool->AllocateUnaligned(MaxLocalHunkRefSize);
     char* endPtr =  beginPtr + MaxLocalHunkRefSize;
     auto* currentPtr = beginPtr;
-    currentPtr += WritePod(currentPtr, static_cast<char>(EHunkValueTag::LocalRef)); // tag
+    WritePod(currentPtr, static_cast<char>(EHunkValueTag::LocalRef)); // tag
     currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.ChunkIndex));  // chunkIndex
     currentPtr += WriteVarUint64(currentPtr, static_cast<ui64>(value.Length));      // length
     currentPtr += WriteVarUint32(currentPtr, static_cast<ui32>(value.BlockIndex));  // blockIndex
@@ -271,8 +251,8 @@ TRef WriteHunkValue(TChunkedMemoryPool* pool, const TGlobalRefHunkValue& value)
     char* beginPtr =  pool->AllocateUnaligned(MaxGlobalHunkRefSize);
     char* endPtr =  beginPtr + MaxGlobalHunkRefSize;
     auto* currentPtr = beginPtr;
-    currentPtr += WritePod(currentPtr, static_cast<char>(EHunkValueTag::GlobalRef));   // tag
-    currentPtr += WritePod(currentPtr, value.ChunkId);                                 // chunkId
+    WritePod(currentPtr, static_cast<char>(EHunkValueTag::GlobalRef));   // tag
+    WritePod(currentPtr, value.ChunkId);                                 // chunkId
     if (IsErasureChunkId(value.ChunkId)) {
         currentPtr += WriteVarInt32(currentPtr, static_cast<i32>(value.ErasureCodec)); // erasureCodec
     }
@@ -295,8 +275,8 @@ TRef WriteHunkValue(char* ptr, const TInlineHunkValue& value)
 {
     auto* beginPtr = ptr;
     auto* currentPtr = ptr;
-    currentPtr += WritePod(currentPtr, static_cast<char>(EHunkValueTag::Inline)); // tag
-    currentPtr += WriteRef(currentPtr, value.Payload);                            // payload
+    WritePod(currentPtr, static_cast<char>(EHunkValueTag::Inline)); // tag
+    WriteRef(currentPtr, value.Payload);                            // payload
     return TRef(beginPtr, currentPtr);
 }
 
@@ -339,7 +319,7 @@ THunkValue ReadHunkValue(TRef input)
             ui32 blockIndex;
             ui64 blockOffset;
             ui64 blockSize = 0;
-            currentPtr += ReadPod(currentPtr, &chunkId);
+            ReadPod(currentPtr, chunkId);
             bool isErasure = IsErasureChunkId(chunkId);
             if (isErasure) {
                 currentPtr += ReadVarInt32(currentPtr, &erasureCodec);

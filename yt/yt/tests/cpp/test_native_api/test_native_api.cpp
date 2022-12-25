@@ -819,7 +819,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
 
         EXPECT_THROW_THAT(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("does not have corresponding logical type"));
+            testing::HasSubstr("has no corresponding logical type"));
     }
 
     {
@@ -832,7 +832,7 @@ TEST_F(TAlterTableTest, TestUnknownType)
 
         EXPECT_THROW_THAT(
             AlterTable("//tmp/t1", schema),
-            testing::HasSubstr("does not have corresponding logical type"));
+            testing::HasSubstr("has no corresponding logical type"));
     }
 
     {

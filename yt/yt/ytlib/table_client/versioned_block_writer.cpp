@@ -12,7 +12,7 @@
 
 namespace NYT::NTableClient {
 
-using namespace NProto;
+using namespace NTableClient::NProto;
 using namespace NTransactionClient;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -575,7 +575,7 @@ char* TIndexedVersionedBlockWriter::EncodeRowMetadata(char* buffer)
     buffer = EncodeTimestampData(buffer);
 
     if (GroupCount_ > 1) {
-        AppendChecksum(&buffer, buffer - bufferStart);
+        WriteChecksum(buffer, buffer - bufferStart);
     }
 
     YT_ASSERT(buffer - bufferStart == GetRowMetadataByteSize());
@@ -598,15 +598,15 @@ char* TIndexedVersionedBlockWriter::EncodeKeyData(char* buffer) const
     for (int keyColumnIndex = 0; keyColumnIndex < KeyColumnCount_; ++keyColumnIndex) {
         const auto& value = RowData_.Row.BeginKeys()[keyColumnIndex];
         DoWriteValue(
-            &valuesBuffer,
-            &stringDataBuffer,
+            valuesBuffer,
+            stringDataBuffer,
             keyColumnIndex,
             value,
             &nullFlagsBitmap,
             &nullAggregateFlagsBitmap);
     }
 
-    MakeSerializationAligned(&stringDataBuffer, stringDataBuffer - bufferStart);
+    WritePadding(stringDataBuffer, stringDataBuffer - bufferStart);
 
     YT_ASSERT(stringDataBuffer - bufferStart == GetKeyDataByteSize());
 
@@ -622,13 +622,13 @@ char* TIndexedVersionedBlockWriter::EncodeTimestampData(char* buffer)
     int writeTimestampCount = RowData_.Row.GetWriteTimestampCount();
     int deleteTimestampCount = RowData_.Row.GetDeleteTimestampCount();
 
-    CopyPod(&buffer, writeTimestampCount);
-    CopyPod(&buffer, deleteTimestampCount);
+    WritePod(buffer, writeTimestampCount);
+    WritePod(buffer, deleteTimestampCount);
 
     auto writeTimestamps = [&] (const TTimestamp* begin, const TTimestamp* end) {
         for (const auto* it = begin; it != end; ++it) {
             TTimestamp timestamp = *it;
-            CopyPod(&buffer, timestamp);
+            WritePod(buffer, timestamp);
             MaxTimestamp_ = std::max(MaxTimestamp_, timestamp);
             MinTimestamp_ = std::min(MinTimestamp_, timestamp);
         }
@@ -652,8 +652,8 @@ char* TIndexedVersionedBlockWriter::EncodeValueData(char* buffer)
         buffer = EncodeValueGroupData(buffer, groupIndex);
 
         if (GroupCount_ > 1) {
-            PadBuffer(&buffer, RowData_.ValueData.Groups[groupIndex].SectorAlignmentSize);
-            AppendChecksum(&buffer, buffer - groupBufferStart);
+            WriteZeroes(buffer, RowData_.ValueData.Groups[groupIndex].SectorAlignmentSize);
+            WriteChecksum(buffer, buffer - groupBufferStart);
         }
 
         VerifySerializationAligned(buffer - bufferStart);
@@ -673,7 +673,7 @@ char* TIndexedVersionedBlockWriter::EncodeValueGroupData(char* buffer, int group
     auto row = RowData_.Row;
     const auto& group = RowData_.ValueData.Groups[groupIndex];
 
-    CopyPod(&buffer, group.ValueCount);
+    WritePod(buffer, group.ValueCount);
 
     char* columnOffsetsBuffer = buffer;
     buffer += sizeof(i32) * std::ssize(group.ColumnValueRanges);
@@ -687,24 +687,24 @@ char* TIndexedVersionedBlockWriter::EncodeValueGroupData(char* buffer, int group
         buffer += NBitmapDetail::GetByteSize(group.ValueCount);
     }
 
-    MakeSerializationAligned(&buffer, buffer - bufferStart);
+    WritePadding(buffer, buffer - bufferStart);
 
     auto* stringDataBuffer = buffer + 2 * sizeof(i64) * group.ValueCount;
 
     int valueIndexInGroup = 0;
     for (auto [beginIndex, endIndex] : group.ColumnValueRanges) {
-        CopyPod(&columnOffsetsBuffer, valueIndexInGroup);
+        WritePod(columnOffsetsBuffer, valueIndexInGroup);
 
         for (int index = beginIndex; index < endIndex; ++index) {
             const auto& value = row.BeginValues()[index];
             DoWriteValue(
-                &buffer,
-                &stringDataBuffer,
+                buffer,
+                stringDataBuffer,
                 valueIndexInGroup,
                 value,
                 &nullFlagsBitmap,
                 &aggregateFlagsBitmap);
-            CopyPod(&buffer, value.Timestamp);
+            WritePod(buffer, value.Timestamp);
 
             ++valueIndexInGroup;
         }
@@ -712,7 +712,7 @@ char* TIndexedVersionedBlockWriter::EncodeValueGroupData(char* buffer, int group
 
     YT_VERIFY(valueIndexInGroup == group.ValueCount);
 
-    MakeSerializationAligned(&stringDataBuffer, group.StringDataSize);
+    WritePadding(stringDataBuffer, group.StringDataSize);
 
     return stringDataBuffer;
 }
@@ -859,8 +859,8 @@ TIndexedVersionedBlockWriter::ComputeGroupAlignmentAndReordering()
 }
 
 void TIndexedVersionedBlockWriter::DoWriteValue(
-    char** buffer,
-    char** stringBuffer,
+    char*& buffer,
+    char*& stringBuffer,
     int valueIndex,
     const TUnversionedValue& value,
     TMutableBitmap* nullFlagsBitmap,
@@ -872,22 +872,22 @@ void TIndexedVersionedBlockWriter::DoWriteValue(
 
     switch (value.Type) {
         case EValueType::Int64:
-            CopyPod(buffer, value.Data.Int64);
+            WritePod(buffer, value.Data.Int64);
             nullFlagsBitmap->Set(valueIndex, false);
             break;
         case EValueType::Uint64:
-            CopyPod(buffer, value.Data.Uint64);
+            WritePod(buffer, value.Data.Uint64);
             nullFlagsBitmap->Set(valueIndex, false);
             break;
         case EValueType::Double:
-            CopyPod(buffer, value.Data.Double);
+            WritePod(buffer, value.Data.Double);
             nullFlagsBitmap->Set(valueIndex, false);
             break;
 
         case EValueType::Boolean: {
             // NB(psushin): all values in simple versioned block must be 64-bits.
             ui64 castValue = static_cast<ui64>(value.Data.Boolean);
-            CopyPod(buffer, castValue);
+            WritePod(buffer, castValue);
             nullFlagsBitmap->Set(valueIndex, false);
             break;
         }
@@ -895,20 +895,18 @@ void TIndexedVersionedBlockWriter::DoWriteValue(
         case EValueType::String:
         case EValueType::Any:
         case EValueType::Composite: {
-            ui32 offset = static_cast<ui32>(*stringBuffer - *buffer);
-            CopyPod(buffer, offset);
+            ui32 offset = static_cast<ui32>(stringBuffer - buffer);
+            WritePod(buffer, offset);
 
             if (IsInlineHunkValue(value)) {
                 auto hunkTag = static_cast<char>(EHunkValueTag::Inline);
                 ui32 lengthWithTag = value.Length + 1;
-                CopyPod(buffer, lengthWithTag);
-                CopyPod(stringBuffer, hunkTag);
-                memcpy(*stringBuffer, value.Data.String, value.Length);
-                *stringBuffer += value.Length;
+                WritePod(buffer, lengthWithTag);
+                WritePod(stringBuffer, hunkTag);
+                WriteRef(stringBuffer, TRef(value.Data.String, value.Length));
             } else {
-                CopyPod(buffer, value.Length);
-                memcpy(*stringBuffer, value.Data.String, value.Length);
-                *stringBuffer += value.Length;
+                WritePod(buffer, value.Length);
+                WriteRef(stringBuffer, TRef(value.Data.String, value.Length));
             }
 
             nullFlagsBitmap->Set(valueIndex, false);
@@ -917,7 +915,7 @@ void TIndexedVersionedBlockWriter::DoWriteValue(
         }
 
         case EValueType::Null:
-            CopyPod(buffer, NullValue);
+            WritePod(buffer, NullValue);
             nullFlagsBitmap->Set(valueIndex, true);
             break;
 

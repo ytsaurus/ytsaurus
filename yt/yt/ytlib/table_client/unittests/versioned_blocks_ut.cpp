@@ -119,8 +119,7 @@ protected:
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp,
-        bool produceAllVersions,
-        bool initialize)
+        bool produceAllVersions)
     {
         typename TMockBlockFormatAdapter::TBlockReader reader(
             Data,
@@ -130,8 +129,8 @@ protected:
             schemaIdMapping,
             KeyComparer,
             timestamp,
-            produceAllVersions,
-            initialize);
+            produceAllVersions);
+        reader.SkipToRowIndex(0);
 
         int i = 0;
         do {
@@ -145,7 +144,7 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TTableSchemaPtr SimpleSchema = New<TTableSchema>(std::vector{
+static const auto SimpleSchema = New<TTableSchema>(std::vector{
     TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
     TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
     TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
@@ -196,8 +195,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp1)
         this->Schema->GetKeyColumnCount() + 2, // Two padding key columns.
         schemaIdMapping,
         /*timestamp*/ 7,
-        /*produceAllVersions*/ false,
-        /*initialize*/ true);
+        /*produceAllVersions*/ false);
 }
 
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
@@ -218,8 +216,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadByTimestamp2)
         this->Schema->GetKeyColumnCount(),
         schemaIdMapping,
         /*timestamp*/ 9,
-        /*produceAllVersions*/ false,
-        /*initialize*/ true);
+        /*produceAllVersions*/ false);
 }
 
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
@@ -241,8 +238,7 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadLastCommitted)
         this->Schema->GetKeyColumnCount(),
         schemaIdMapping,
         SyncLastCommittedTimestamp,
-        /*produceAllVersions*/ false,
-        /*initialize*/ true);
+        /*produceAllVersions*/ false);
 }
 
 TYPED_TEST(TVersionedBlocksTestOneRow, ReadAllCommitted)
@@ -272,13 +268,12 @@ TYPED_TEST(TVersionedBlocksTestOneRow, ReadAllCommitted)
         this->Schema->GetKeyColumnCount(),
         schemaIdMapping,
         AllCommittedTimestamp,
-        /*produceAllVersions*/ true,
-        /*initialize*/ true);
+        /*produceAllVersions*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const TTableSchemaPtr SchemaWithGroups = New<TTableSchema>(std::vector{
+static const auto SchemaWithGroups = New<TTableSchema>(std::vector{
     TColumnSchema("k1", EValueType::String).SetSortOrder(ESortOrder::Ascending),
     TColumnSchema("k2", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
     TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
@@ -328,8 +323,7 @@ TEST_F(TIndexedVersionedBlocksTestOneRow, IndexedBlockWithGroups)
         this->Schema->GetKeyColumnCount() + 2, // Two padding key columns.
         schemaIdMapping,
         /*timestamp*/ 7,
-        /*produceAllVersions*/ false,
-        /*initialize*/ true);
+        /*produceAllVersions*/ false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

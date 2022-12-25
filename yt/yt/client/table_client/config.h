@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
-#include <yt/yt/core/misc/singleton.h>
-
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -48,10 +46,7 @@ public:
     std::optional<double> SamplingRate;
     std::optional<ui64> SamplingSeed;
 
-    static TChunkReaderConfigPtr GetDefault()
-    {
-        return LeakyRefCountedSingleton<TChunkReaderConfig>();
-    }
+    static TChunkReaderConfigPtr GetDefault();
 
     REGISTER_YSON_STRUCT(TChunkReaderConfig);
 
@@ -139,6 +134,9 @@ public:
     i64 MaxDataWeightBetweenBlocks;
 
     double SampleRate;
+
+    // XXX
+    bool Slim;
 
     TChunkIndexesWriterConfigPtr ChunkIndexes;
 
@@ -234,10 +232,7 @@ public:
     bool EnableTabletIndex;
     bool EnableKeyWidening;
 
-    static TChunkReaderOptionsPtr GetDefault()
-    {
-        return LeakyRefCountedSingleton<TChunkReaderOptions>();
-    }
+    static TChunkReaderOptionsPtr GetDefault();
 
     REGISTER_YSON_STRUCT(TChunkReaderOptions);
 

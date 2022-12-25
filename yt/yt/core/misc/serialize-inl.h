@@ -18,7 +18,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TInput>
-size_t ReadRef(TInput& input, TMutableRef ref)
+void ReadRef(TInput& input, TMutableRef ref)
 {
     auto bytesLoaded = input.Load(ref.Begin(), ref.Size());
     if (bytesLoaded != ref.Size()) {
@@ -27,13 +27,24 @@ size_t ReadRef(TInput& input, TMutableRef ref)
             << TErrorAttribute("bytes_loaded", bytesLoaded)
             << TErrorAttribute("bytes_expected", ref.Size());
     }
-    return bytesLoaded;
+}
+
+inline void ReadRef(const char*& ptr, TMutableRef ref)
+{
+    memcpy(ref.Begin(), ptr, ref.Size());
+    ptr += ref.Size();
 }
 
 template <class TOutput>
 void WriteRef(TOutput& output, TRef ref)
 {
     output.Write(ref.Begin(), ref.Size());
+}
+
+inline void WriteRef(char*& ptr, TRef ref)
+{
+    memcpy(ptr, ref.Begin(), ref.Size());
+    ptr += ref.Size();
 }
 
 template <class TOutput, class T>
@@ -49,8 +60,16 @@ void WritePod(TOutput& output, const T& obj)
     output.Write(&obj, sizeof(obj));
 }
 
+template <class T>
+void WritePod(char*& ptr, const T& obj)
+{
+    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+    memcpy(ptr, &obj, sizeof(obj));
+    ptr += sizeof(obj);
+}
+
 template <class TOutput>
-size_t WriteZeroes(TOutput& output, size_t count)
+void WriteZeroes(TOutput& output, size_t count)
 {
     size_t bytesWritten = 0;
     while (bytesWritten < count) {
@@ -59,30 +78,31 @@ size_t WriteZeroes(TOutput& output, size_t count)
         bytesWritten += bytesToWrite;
     }
     YT_VERIFY(bytesWritten == count);
-    return bytesWritten;
+}
+
+inline void WriteZeroes(char*& ptr, size_t count)
+{
+    memset(ptr, 0, count);
+    ptr += count;
 }
 
 template <class TOutput>
-size_t WritePadding(TOutput& output, size_t writtenSize)
+void WritePadding(TOutput& output, size_t sizeToPad)
 {
-    output.Write(ZeroBuffer.data(), AlignUpSpace(writtenSize, SerializationAlignment));
-    return AlignUp(writtenSize, SerializationAlignment);
+    output.Write(ZeroBuffer.data(), AlignUpSpace(sizeToPad, SerializationAlignment));
 }
 
-template <class TOutput>
-size_t WriteRefPadded(TOutput& output, TRef ref)
+inline void WritePadding(char*& ptr, size_t sizeToPad)
 {
-    output.Write(ref.Begin(), ref.Size());
-    output.Write(ZeroBuffer.data(), AlignUpSpace(ref.Size(), SerializationAlignment));
-    return AlignUp(ref.Size(), SerializationAlignment);
+    size_t count = AlignUpSpace(sizeToPad, SerializationAlignment);
+    memset(ptr, 0, count);
+    ptr += count;
 }
 
 template <class TInput>
-size_t ReadRefPadded(TInput& input, TMutableRef ref)
+void ReadPadding(TInput& input, size_t sizeToPad)
 {
-    ReadRef(input, ref);
-
-    auto bytesToSkip = AlignUpSpace(ref.Size(), SerializationAlignment);
+    auto bytesToSkip = AlignUpSpace(sizeToPad, SerializationAlignment);
     auto bytesSkipped = input.Skip(bytesToSkip);
     if (bytesSkipped != bytesToSkip) {
         TCrashOnDeserializationErrorGuard::OnError();
@@ -90,8 +110,11 @@ size_t ReadRefPadded(TInput& input, TMutableRef ref)
             << TErrorAttribute("bytes_skipped", bytesSkipped)
             << TErrorAttribute("bytes_expected", bytesToSkip);
     }
+}
 
-    return AlignUp(ref.Size(), SerializationAlignment);
+inline void ReadPadding(char*& ptr, size_t sizeToPad)
+{
+    ptr += AlignUpSpace(sizeToPad, SerializationAlignment);
 }
 
 template <class TInput, class T>
@@ -101,11 +124,12 @@ void ReadPod(TInput& input, T& obj)
     ReadRef(input, TMutableRef::FromPod(obj));
 }
 
-template <typename T>
-void CopyPod(char** buffer, const T& obj)
+template <class T>
+void ReadPod(char*& ptr, T& obj)
 {
-    memcpy(*buffer, &obj, sizeof(T));
-    *buffer += sizeof(T);
+    static_assert(TTypeTraits<T>::IsPod, "T must be a pod-type.");
+    memcpy(&obj, ptr, sizeof(obj));
+    ptr += sizeof(obj);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

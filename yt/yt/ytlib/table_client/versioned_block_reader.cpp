@@ -2,6 +2,7 @@
 #include "private.h"
 #include "versioned_block_writer.h"
 #include "schemaless_block_reader.h"
+#include "reader_helpers.h"
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -14,23 +15,28 @@
 namespace NYT::NTableClient {
 
 using namespace NTransactionClient;
-using namespace NProto;
+using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TVersionedRowParserBase::TVersionedRowParserBase(
-    const TTableSchemaPtr& chunkSchema)
+TVersionedRowParserBase::TVersionedRowParserBase(const TTableSchemaPtr& chunkSchema)
     : ChunkKeyColumnCount_(chunkSchema->GetKeyColumnCount())
     , ChunkColumnCount_(chunkSchema->GetColumnCount())
-    , ColumnHunkFlags_(new bool[ChunkColumnCount_])
-    , ColumnAggregateFlags_(new bool[ChunkColumnCount_])
-    , ColumnTypes_(new EValueType[ChunkColumnCount_])
+    , ColumnHunkFlagsStorage_(static_cast<size_t>(ChunkColumnCount_))
+    , ColumnHunkFlags_(ColumnHunkFlagsStorage_.data())
+    , ColumnAggregateFlagsStorage_(static_cast<size_t>(ChunkColumnCount_))
+    , ColumnAggregateFlags_(ColumnAggregateFlagsStorage_.data())
+    , PhysicalColumnTypesStorage_(static_cast<size_t>(ChunkColumnCount_), EValueType::Null)
+    , PhysicalColumnTypes_(PhysicalColumnTypesStorage_.data())
+    , LogicalColumnTypesStorage_(static_cast<size_t>(ChunkColumnCount_), ESimpleLogicalValueType::Null)
+    , LogicalColumnTypes_(LogicalColumnTypesStorage_.data())
 {
     for (int id = 0; id < chunkSchema->GetColumnCount(); ++id) {
         const auto& columnSchema = chunkSchema->Columns()[id];
         ColumnHunkFlags_[id] = columnSchema.MaxInlineHunkSize().has_value();
         ColumnAggregateFlags_[id] = columnSchema.Aggregate().has_value();
-        ColumnTypes_[id] = columnSchema.GetWireType();
+        PhysicalColumnTypes_[id] = columnSchema.GetWireType();
+        LogicalColumnTypes_[id] = columnSchema.CastToV1Type();
     }
 }
 
@@ -41,12 +47,12 @@ TSimpleVersionedBlockParser::TSimpleVersionedBlockParser(
     const NProto::TDataBlockMeta& blockMeta,
     const TTableSchemaPtr& chunkSchema)
     : TVersionedRowParserBase(chunkSchema)
-    , RowCount_(blockMeta.row_count())
     , Block_(std::move(block))
+    , RowCount_(blockMeta.row_count())
 {
     YT_VERIFY(RowCount_ > 0);
 
-   const auto& simpleVersionedBlockMetaExt = blockMeta.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext);
+    const auto& simpleVersionedBlockMetaExt = blockMeta.GetExtension(TSimpleVersionedBlockMeta::block_meta_ext);
 
     KeyData_ = TRef(
         const_cast<char*>(Block_.Begin()),
@@ -69,8 +75,8 @@ TSimpleVersionedBlockParser::TSimpleVersionedBlockParser(
     ValueNullFlags_.Reset(ptr, simpleVersionedBlockMetaExt.value_count());
     ptr += AlignUp(ValueNullFlags_.GetByteSize(), SerializationAlignment);
 
-    for (bool aggregate : MakeRange(ColumnAggregateFlags_.get(), ChunkColumnCount_)) {
-        if (aggregate) {
+    for (const auto& columnSchema : chunkSchema->Columns()) {
+        if (columnSchema.Aggregate()) {
             ValueAggregateFlags_ = TReadOnlyBitmap(ptr, simpleVersionedBlockMetaExt.value_count());
             ptr += AlignUp(ValueAggregateFlags_->GetByteSize(), SerializationAlignment);
             break;
@@ -80,12 +86,20 @@ TSimpleVersionedBlockParser::TSimpleVersionedBlockParser(
     StringData_ = TRef(const_cast<char*>(ptr), const_cast<char*>(Block_.End()));
 }
 
-bool TSimpleVersionedBlockParser::JumpToRowIndex(i64 rowIndex, TRowMetadata* rowMetadata)
+int TSimpleVersionedBlockParser::GetRowCount() const
 {
-    YT_VERIFY(!Closed_);
+    return RowCount_;
+}
 
-    if (rowIndex >= RowCount_) {
-        Closed_ = true;
+bool TSimpleVersionedBlockParser::IsValid() const
+{
+    return Valid_;
+}
+
+bool TSimpleVersionedBlockParser::JumpToRowIndex(int rowIndex, TVersionedRowMetadata* rowMetadata)
+{
+    if (rowIndex < 0 || rowIndex >= RowCount_) {
+        Valid_ = false;
         return false;
     }
 
@@ -124,6 +138,7 @@ bool TSimpleVersionedBlockParser::JumpToRowIndex(i64 rowIndex, TRowMetadata* row
     ColumnValueCounts_ = keyDataPtr;
     rowMetadata->ValueCount = GetColumnValueCount(ChunkColumnCount_ - 1);
 
+    Valid_ = true;
     return true;
 }
 
@@ -137,7 +152,7 @@ TSimpleVersionedBlockParser::TColumnDescriptor
 TSimpleVersionedBlockParser::GetColumnDescriptor(
     const TColumnIdMapping& mapping) const
 {
-    int valueId = mapping.ReaderSchemaIndex;
+    int readerSchemaId = mapping.ReaderSchemaIndex;
     int chunkSchemaId = mapping.ChunkSchemaIndex;
 
     int lowerValueIndex = chunkSchemaId == ChunkKeyColumnCount_ ? 0 : GetColumnValueCount(chunkSchemaId - 1);
@@ -146,7 +161,7 @@ TSimpleVersionedBlockParser::GetColumnDescriptor(
     upperValueIndex += ValueOffset_;
 
     return TColumnDescriptor{
-        .ValueId = valueId,
+        .ReaderSchemaId = readerSchemaId,
         .ChunkSchemaId = chunkSchemaId,
         .LowerValueIndex = lowerValueIndex,
         .UpperValueIndex = upperValueIndex,
@@ -158,7 +173,7 @@ void TSimpleVersionedBlockParser::ReadKeyValue(
     TUnversionedValue* value,
     int id,
     const char* ptr,
-    i64 rowIndex) const
+    int rowIndex) const
 {
     bool isNull = KeyNullFlags_[rowIndex * ChunkKeyColumnCount_ + id];
     if (Y_UNLIKELY(isNull)) {
@@ -166,7 +181,7 @@ void TSimpleVersionedBlockParser::ReadKeyValue(
         return;
     }
 
-    auto type = ColumnTypes_[id];
+    auto type = PhysicalColumnTypes_[id];
     value->Type = type;
 
     switch (type) {
@@ -196,14 +211,16 @@ void TSimpleVersionedBlockParser::ReadValue(
     const TColumnDescriptor& columnDescriptor,
     int valueIndex) const
 {
-    YT_ASSERT(columnDescriptor.ValueId >= ChunkKeyColumnCount_);
+    YT_ASSERT(columnDescriptor.ReaderSchemaId >= ChunkKeyColumnCount_);
 
     const char* ptr = ValueData_.Begin() + VersionedBlockValueSize * valueIndex;
     auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
+    auto type = PhysicalColumnTypes_[columnDescriptor.ChunkSchemaId];
 
     *value = {};
-    value->Id = columnDescriptor.ValueId;
+    value->Id = columnDescriptor.ReaderSchemaId;
     value->Timestamp = timestamp;
+    value->Type = type;
 
     if (ValueAggregateFlags_ && (*ValueAggregateFlags_)[valueIndex]) {
         value->Flags |= EValueFlags::Aggregate;
@@ -217,9 +234,6 @@ void TSimpleVersionedBlockParser::ReadValue(
     if (ColumnHunkFlags_[columnDescriptor.ChunkSchemaId]) {
         value->Flags |= EValueFlags::Hunk;
     }
-
-    auto type = ColumnTypes_[columnDescriptor.ChunkSchemaId];
-    value->Type = type;
 
     switch (type) {
         case EValueType::Int64:
@@ -279,7 +293,7 @@ TIndexedVersionedRowParser::TIndexedVersionedRowParser(
 TIndexedVersionedRowParser::TColumnDescriptor
 TIndexedVersionedRowParser::GetColumnDescriptor(const TColumnIdMapping& mapping)
 {
-    int valueId = mapping.ReaderSchemaIndex;
+    int readerSchemaId = mapping.ReaderSchemaIndex;
     int chunkSchemaId = mapping.ChunkSchemaIndex;
 
     auto columnInfo = BlockFormatDetail_.GetValueColumnInfo(chunkSchemaId);
@@ -293,7 +307,7 @@ TIndexedVersionedRowParser::GetColumnDescriptor(const TColumnIdMapping& mapping)
 
     return TColumnDescriptor{
         .GroupInfo = groupInfo,
-        .ValueId = valueId,
+        .ReaderSchemaId = readerSchemaId,
         .ChunkSchemaId = chunkSchemaId,
         .LowerValueIndex = lowerValueIndex,
         .UpperValueIndex = upperValueIndex,
@@ -306,13 +320,13 @@ void TIndexedVersionedRowParser::ReadValue(
     const TIndexedVersionedRowParser::TColumnDescriptor& columnDescriptor,
     int valueIndex) const
 {
-    YT_ASSERT(columnDescriptor.ValueId >= ChunkKeyColumnCount_);
+    YT_ASSERT(columnDescriptor.ReaderSchemaId >= ChunkKeyColumnCount_);
 
     const char* ptr = columnDescriptor.GroupInfo.ValuesBegin + VersionedBlockValueSize * valueIndex;
     auto timestamp = *reinterpret_cast<const TTimestamp*>(ptr + 8);
 
     *value = {};
-    value->Id = columnDescriptor.ValueId;
+    value->Id = columnDescriptor.ReaderSchemaId;
     value->Timestamp = timestamp;
 
     const auto& aggregateFlags = columnDescriptor.GroupInfo.AggregateFlags;
@@ -329,7 +343,7 @@ void TIndexedVersionedRowParser::ReadValue(
         value->Flags |= EValueFlags::Hunk;
     }
 
-    auto type = ColumnTypes_[columnDescriptor.ChunkSchemaId];
+    auto type = PhysicalColumnTypes_[columnDescriptor.ChunkSchemaId];
     value->Type = type;
 
     switch (type) {
@@ -367,7 +381,7 @@ void TIndexedVersionedRowParser::PreprocessRow(
     const int* groupOffsets,
     const int* groupIndexes,
     bool validateChecksums,
-    TRowMetadata* rowMetadata)
+    TVersionedRowMetadata* rowMetadata)
 {
     auto validateChecksum = [] (TRef data) {
         auto dataWithoutChecksum = data.Slice(0, data.Size() - sizeof(TChecksum));
@@ -460,7 +474,7 @@ void TIndexedVersionedRowParser::ReadKeyValue(
         return;
     }
 
-    auto type = ColumnTypes_[id];
+    auto type = PhysicalColumnTypes_[id];
     value->Type = type;
 
     switch (type) {
@@ -534,8 +548,8 @@ TIndexedVersionedBlockParser::TIndexedVersionedBlockParser(
     const NProto::TDataBlockMeta& blockMeta,
     const TTableSchemaPtr& chunkSchema)
     : TIndexedVersionedRowParser(chunkSchema)
-    , RowCount_(blockMeta.row_count())
     , Block_(std::move(block))
+    , RowCount_(blockMeta.row_count())
 {
     const auto& indexedVersionedBlockMetaExt = blockMeta.GetExtension(TIndexedVersionedBlockMeta::block_meta_ext);
     if (indexedVersionedBlockMetaExt.format_version() != 0) {
@@ -562,12 +576,20 @@ TIndexedVersionedBlockParser::TIndexedVersionedBlockParser(
     RowOffsets_ = reinterpret_cast<const i64*>(blockEnd);
 }
 
-bool TIndexedVersionedBlockParser::JumpToRowIndex(i64 rowIndex, TRowMetadata* rowMetadata)
+int TIndexedVersionedBlockParser::GetRowCount() const
 {
-    YT_VERIFY(!Closed_);
+    return RowCount_;
+}
 
-    if (rowIndex >= RowCount_) {
-        Closed_ = true;
+bool TIndexedVersionedBlockParser::IsValid() const
+{
+    return Valid_;
+}
+
+bool TIndexedVersionedBlockParser::JumpToRowIndex(int rowIndex, TVersionedRowMetadata* rowMetadata)
+{
+    if (rowIndex < 0 || rowIndex >= RowCount_) {
+        Valid_ = false;
         return false;
     }
 
@@ -592,6 +614,7 @@ bool TIndexedVersionedBlockParser::JumpToRowIndex(i64 rowIndex, TRowMetadata* ro
         /*validateChecksums*/ false,
         rowMetadata);
 
+    Valid_ = true;
     return true;
 }
 
