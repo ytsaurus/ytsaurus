@@ -2106,19 +2106,15 @@ class TestEventLog(YTEnvSetup):
         )
 
         def check_statistics(statistics, statistic_extractor):
-            statistic_extractor(statistics, "user_job.cpu.user") > 0
-            statistic_extractor(statistics, "user_job.block_io.bytes_read") is not None
-            statistic_extractor(statistics, "user_job.current_memory.rss") > 0
-            statistic_extractor(statistics, "user_job.max_memory") > 0
-            statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0
-            statistic_extractor(statistics, "job_proxy.cpu.user") == 1
-            statistic_extractor(statistics, "job_proxy.cpu.user") == 1
+            return statistic_extractor(statistics, "user_job.cpu.user") > 0 and \
+                statistic_extractor(statistics, "user_job.max_memory") > 0 and \
+                statistic_extractor(statistics, "user_job.block_io.bytes_read") is not None and \
+                statistic_extractor(statistics, "user_job.current_memory.rss") is not None and \
+                statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0 and \
+                statistic_extractor(statistics, "job_proxy.cpu.user") > 0
 
-        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
-        check_statistics(statistics_v2, extract_statistic_v2)
-
-        deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
-        check_statistics(deprecated_statistics, extract_deprecated_statistic)
+        wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
+        wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
 
         # wait for scheduler to dump the event log
         def check():
@@ -2438,23 +2434,22 @@ class TestJobStatisticsPorto(YTEnvSetup):
         )
 
         def check_statistics(statistics, statistic_extractor):
+            result = True
             for component in ["user_job", "job_proxy"]:
                 print_debug(component)
-                assert statistic_extractor(statistics, component + ".cpu.user") > 0
-                assert statistic_extractor(statistics, component + ".cpu.system") > 0
-                assert statistic_extractor(statistics, component + ".cpu.context_switches") is not None
-                assert statistic_extractor(statistics, component + ".cpu.peak_thread_count", summary_type="max") is not None
-                assert statistic_extractor(statistics, component + ".cpu.wait") is not None
-                assert statistic_extractor(statistics, component + ".cpu.throttled") is not None
-                assert statistic_extractor(statistics, component + ".block_io.bytes_read") is not None
-                assert statistic_extractor(statistics, component + ".max_memory") > 0
-            assert statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0
+                result = result and statistic_extractor(statistics, component + ".cpu.user") > 0
+                result = result and statistic_extractor(statistics, component + ".cpu.system") > 0
+                result = result and statistic_extractor(statistics, component + ".cpu.context_switches") is not None
+                result = result and statistic_extractor(statistics, component + ".cpu.peak_thread_count", summary_type="max") is not None
+                result = result and statistic_extractor(statistics, component + ".cpu.wait") is not None
+                result = result and statistic_extractor(statistics, component + ".cpu.throttled") is not None
+                result = result and statistic_extractor(statistics, component + ".block_io.bytes_read") is not None
+                result = result and statistic_extractor(statistics, component + ".max_memory") > 0
+            result = result and statistic_extractor(statistics, "user_job.cumulative_memory_mb_sec") > 0
+            return result
 
-        statistics_v2 = get(op.get_path() + "/@progress/job_statistics_v2")
-        check_statistics(statistics_v2, extract_statistic_v2)
-
-        deprecated_statistics = get(op.get_path() + "/@progress/job_statistics")
-        check_statistics(deprecated_statistics, extract_deprecated_statistic)
+        wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics_v2"), extract_statistic_v2))
+        wait(lambda: check_statistics(get(op.get_path() + "/@progress/job_statistics"), extract_deprecated_statistic))
 
     @authors("max42")
     def test_statistics_truncation(self):
