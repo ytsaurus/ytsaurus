@@ -6,6 +6,8 @@
 
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/core/misc/singleton.h>
+
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
@@ -39,6 +41,11 @@ void TRetentionConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TChunkReaderConfigPtr TChunkReaderConfig::GetDefault()
+{
+    return LeakyRefCountedSingleton<TChunkReaderConfig>();
+}
 
 void TChunkReaderConfig::Register(TRegistrar registrar)
 {
@@ -131,6 +138,9 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
         .LessThanOrEqual(0.001)
         .Default(0.0001);
 
+    registrar.Parameter("slim", &TThis::Slim)
+        .Default(false);
+
     registrar.Parameter("chunk_indexes", &TThis::ChunkIndexes)
         .DefaultNew();
 
@@ -190,6 +200,11 @@ void TInsertRowsFormatConfig::Register(TRegistrar registrar)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TChunkReaderOptionsPtr TChunkReaderOptions::GetDefault()
+{
+    return LeakyRefCountedSingleton<TChunkReaderOptions>();
+}
 
 void TChunkReaderOptions::Register(TRegistrar registrar)
 {

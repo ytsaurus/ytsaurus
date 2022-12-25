@@ -52,24 +52,32 @@ public:
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TInput>
-size_t ReadRef(TInput& input, TMutableRef ref);
+void ReadRef(TInput& input, TMutableRef ref);
+void ReadRef(const char*& ptr, TMutableRef ref);
 template <class TOutput>
 void WriteRef(TOutput& output, TRef ref);
+void WriteRef(char*& ptr, TRef ref);
 
 template <class TInput, class T>
 void ReadPod(TInput& input, T& obj);
+template <class TInput, class T>
+void ReadPod(const char*& ptr, T& obj);
 template <class TOutput, class T>
 void WritePod(TOutput& output, const T& obj);
+template <class T>
+void WritePod(char*& ptr, const T& obj);
 
 template <class TOutput>
-size_t WriteZeroes(TOutput& output, size_t count);
-template <class TOutput>
-size_t WritePadding(TOutput& output, size_t writtenSize);
+void WriteZeroes(TOutput& output, size_t count);
+void WriteZeroes(char*& ptr, size_t count);
 
 template <class TOutput>
-size_t WriteRefPadded(TOutput& output, TRef ref);
+void WritePadding(TOutput& output, size_t sizeToPad);
+void WritePadding(char*& ptr, size_t sizeToPad);
+
 template <class TInput>
-size_t ReadRefPadded(TInput& input, TMutableRef ref);
+void ReadPadding(TInput& input, size_t sizeToPad);
+void ReadPadding(char*& ptr, size_t sizeToPad);
 
 template <class T>
 TSharedRef PackRefs(const T& parts);
@@ -84,12 +92,8 @@ void MergeRefsToRef(const TParts& parts, TMutableRef dst);
 template <class TParts>
 TString MergeRefsToString(const TParts& parts);
 
-template <typename T>
-void CopyPod(char** buffer, const T& object);
-
 void AssertSerializationAligned(i64 byteSize);
 void VerifySerializationAligned(i64 byteSize);
-void MakeSerializationAligned(char** buffer, i64 byteSize);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -286,10 +286,14 @@ public:
             ETableChunkBlockFormat::Default);
     }
 
+protected:
+    const std::vector<TColumnIdMapping> SchemaIdMapping_;
+    const TTimestamp Timestamp_;
+    const bool ProduceAllVersions_;
+
     TSimpleVersionedBlockReader* CreateBlockReader(
         const TSharedRef& block,
-        const NProto::TDataBlockMeta& meta,
-        bool initialize = true)
+        const NProto::TDataBlockMeta& meta)
     {
         BlockReader_.emplace(
             block,
@@ -299,16 +303,9 @@ public:
             SchemaIdMapping_,
             KeyComparer_,
             Timestamp_,
-            ProduceAllVersions_,
-            initialize);
-
+            ProduceAllVersions_);
         return &BlockReader_.value();
     }
-
-protected:
-    const std::vector<TColumnIdMapping> SchemaIdMapping_;
-    const TTimestamp Timestamp_;
-    const bool ProduceAllVersions_;
 
 private:
     std::optional<TSimpleVersionedBlockReader> BlockReader_;
@@ -339,10 +336,14 @@ public:
             ETableChunkBlockFormat::IndexedVersioned);
     }
 
+protected:
+    const std::vector<TColumnIdMapping> SchemaIdMapping_;
+    const TTimestamp Timestamp_;
+    const bool ProduceAllVersions_;
+
     TIndexedVersionedBlockReader* CreateBlockReader(
         const TSharedRef& block,
-        const NProto::TDataBlockMeta& meta,
-        bool initialize = true)
+        const NProto::TDataBlockMeta& meta)
     {
         BlockReader_.emplace(
             block,
@@ -352,16 +353,9 @@ public:
             SchemaIdMapping_,
             KeyComparer_,
             Timestamp_,
-            ProduceAllVersions_,
-            initialize);
-
+            ProduceAllVersions_);
         return &BlockReader_.value();
     }
-
-protected:
-    const std::vector<TColumnIdMapping> SchemaIdMapping_;
-    const TTimestamp Timestamp_;
-    const bool ProduceAllVersions_;
 
 private:
     std::optional<TIndexedVersionedBlockReader> BlockReader_;
@@ -388,8 +382,7 @@ public:
 
     THorizontalSchemalessVersionedBlockReader* CreateBlockReader(
         const TSharedRef& block,
-        const NProto::TDataBlockMeta& meta,
-        bool /*initialize*/ = true)
+        const NProto::TDataBlockMeta& meta)
     {
         BlockReader_.emplace(
             block,
@@ -399,7 +392,6 @@ public:
             SortOrders_,
             ChunkMeta_->GetChunkKeyColumnCount(),
             Timestamp_);
-
         return &BlockReader_.value();
     }
 
@@ -489,17 +481,12 @@ private:
 
     TVersionedRow LookupWithHashTable(TLegacyKey key)
     {
-        auto indices = this->ChunkState_->LookupHashTable->Find(key);
-        for (auto index : indices) {
-            const auto& uncompressedBlock = this->GetUncompressedBlock(index.first);
-            const auto& blockMeta = this->ChunkMeta_->DataBlockMeta()->data_blocks(index.first);
+        for (auto [blockIndex, rowIndex] : this->ChunkState_->LookupHashTable->Find(key)) {
+            const auto& uncompressedBlock = this->GetUncompressedBlock(blockIndex);
+            const auto& blockMeta = this->ChunkMeta_->DataBlockMeta()->data_blocks(blockIndex);
+            auto* blockReader = this->CreateBlockReader(uncompressedBlock, blockMeta);
 
-            auto* blockReader = this->CreateBlockReader(
-                uncompressedBlock,
-                blockMeta,
-                false);
-
-            YT_VERIFY(blockReader->SkipToRowIndex(index.second));
+            YT_VERIFY(blockReader->SkipToRowIndex(rowIndex));
 
             // Key is widened here.
             if (CompareKeys(blockReader->GetKey(), key, this->KeyComparer_.Get()) == 0) {
@@ -507,7 +494,7 @@ private:
             }
         }
 
-        return TVersionedRow();
+        return {};
     }
 
     TVersionedRow LookupWithoutHashTable(TLegacyKey key)
@@ -516,22 +503,19 @@ private:
         auto blockCount = this->ChunkMeta_->DataBlockMeta()->data_blocks_size();
 
         if (blockIndex >= blockCount) {
-            return TVersionedRow();
+            return {};
         }
 
         const auto& uncompressedBlock = this->GetUncompressedBlock(blockIndex);
         const auto& blockMeta = this->ChunkMeta_->DataBlockMeta()->data_blocks(blockIndex);
-
-        auto* blockReader = this->CreateBlockReader(
-            uncompressedBlock,
-            blockMeta);
+        auto* blockReader = this->CreateBlockReader(uncompressedBlock, blockMeta);
 
         // Key is widened here.
         if (!blockReader->SkipToKey(key) ||
             CompareKeys(blockReader->GetKey(), key, this->KeyComparer_.Get()) != 0)
         {
             ++this->ChunkState_->PerformanceCounters->StaticChunkRowLookupFalsePositiveCount;
-            return TVersionedRow();
+            return {};
         }
 
         return this->CaptureRow(blockReader);
@@ -590,31 +574,30 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 produceAllVersions);
         }
 
-        case EChunkFormat::TableVersionedSimple:
-            switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+        case EChunkFormat::TableVersionedSimple: {
+            auto createReader = [&] <class TReader> {
+                return New<TReader>(
+                    chunkId,
+                    chunkState,
+                    chunkMeta,
+                    keys,
+                    columnFilter,
+                    timestamp,
+                    produceAllVersions);
+            };
+
+            auto format = CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format());
+            switch (format) {
                 case ETableChunkBlockFormat::Default:
-                    return New<TCacheBasedSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>(
-                        chunkId,
-                        chunkState,
-                        chunkMeta,
-                        keys,
-                        columnFilter,
-                        timestamp,
-                        produceAllVersions);
+                    return createReader.operator()<TCacheBasedSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>();
 
                 case ETableChunkBlockFormat::IndexedVersioned:
-                    return New<TCacheBasedSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>(
-                        chunkId,
-                        chunkState,
-                        chunkMeta,
-                        keys,
-                        columnFilter,
-                        timestamp,
-                        produceAllVersions);
+                    return createReader.operator()<TCacheBasedSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>();
 
                 default:
                     YT_ABORT();
             }
+        }
 
 
         case EChunkFormat::TableUnversionedColumnar:
@@ -622,7 +605,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             return createGenericVersionedReader();
 
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
+                chunkMeta->GetChunkFormat());
     }
 }
 
@@ -767,12 +751,10 @@ private:
         const auto& uncompressedBlock = this->GetUncompressedBlock(BlockIndex_);
         const auto& blockMeta = this->ChunkMeta_->DataBlockMeta()->data_blocks(BlockIndex_);
 
-        BlockReader_ = this->CreateBlockReader(
-            uncompressedBlock,
-            blockMeta);
+        BlockReader_ = this->CreateBlockReader(uncompressedBlock, blockMeta);
+        YT_VERIFY(BlockReader_->SkipToRowIndex(0));
 
         const auto& blockLastKeys = this->ChunkMeta_->BlockLastKeys();
-
         auto keyColumnCount = this->ChunkState_->TableSchema->GetKeyColumnCount();
         this->UpperBoundCheckNeeded_ = !TestKeyWithWidening(
             ToKeyRef(blockLastKeys[BlockIndex_], this->CommonKeyPrefix_),
@@ -833,40 +815,40 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 singletonClippingRange);
         }
 
-        case EChunkFormat::TableVersionedSimple:
-            switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+        case EChunkFormat::TableVersionedSimple: {
+            auto createReader = [&] <class TReader> {
+                return New<TReader>(
+                    chunkId,
+                    chunkState,
+                    chunkMeta,
+                    std::move(ranges),
+                    columnFilter,
+                    timestamp,
+                    produceAllVersions,
+                    singletonClippingRange);
+            };
+
+            auto format = CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format());
+            switch (format) {
                 case ETableChunkBlockFormat::Default:
-                    return New<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(
-                        chunkId,
-                        chunkState,
-                        chunkMeta,
-                        std::move(ranges),
-                        columnFilter,
-                        timestamp,
-                        produceAllVersions,
-                        singletonClippingRange);
+                    return createReader.operator()<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>();
 
                 case ETableChunkBlockFormat::IndexedVersioned:
-                    return New<TSimpleCacheBasedVersionedRangeChunkReader<TIndexedVersionedBlockReader>>(
-                        chunkId,
-                        chunkState,
-                        chunkMeta,
-                        std::move(ranges),
-                        columnFilter,
-                        timestamp,
-                        produceAllVersions,
-                        singletonClippingRange);
+                    return createReader.operator ()<TSimpleCacheBasedVersionedRangeChunkReader<TIndexedVersionedBlockReader>>();
 
                 default:
-                    YT_ABORT();
+                    THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
+                        format);
             }
+        }
 
         case EChunkFormat::TableUnversionedColumnar:
         case EChunkFormat::TableVersionedColumnar:
             return createGenericVersionedReader();
 
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
+                chunkMeta->GetChunkFormat());
     }
 }
 

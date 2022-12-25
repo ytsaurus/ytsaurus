@@ -13,15 +13,9 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 // TODO(akozhikhov): Write checksum ahead of the blob as in hunk checksums?
-void AppendChecksum(char** buffer, i64 byteSize)
+void WriteChecksum(char*& buffer, i64 byteSize)
 {
-    CopyPod(buffer, GetChecksum(TRef(*buffer - byteSize, byteSize)));
-}
-
-void PadBuffer(char** buffer, i64 byteSize)
-{
-    memset(*buffer, 0, byteSize);
-    *buffer += byteSize;
+    WritePod(buffer, GetChecksum(TRef(buffer - byteSize, byteSize)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

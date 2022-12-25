@@ -11,6 +11,7 @@
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
 #include "hunks.h"
+#include "reader_helpers.h"
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
@@ -88,8 +89,8 @@ public:
             SchemaIdMapping_,
             keyComparer,
             Timestamp_,
-            ProduceAllVersions_,
-            true);
+            ProduceAllVersions_);
+        BlockReader_->SkipToRowIndex(0);
     }
 
 protected:
@@ -781,17 +782,6 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int GetMaxReaderSchemaIndex(TRange<TColumnIdMapping> schemaIdMapping)
-{
-    int maxReaderSchemaIndex = 0;
-    for (const auto& idMapping : schemaIdMapping) {
-        maxReaderSchemaIndex = std::max(maxReaderSchemaIndex, idMapping.ReaderSchemaIndex);
-    }
-   return maxReaderSchemaIndex;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TRowBuilderBase
 {
 public:
@@ -806,7 +796,8 @@ public:
         , ValueColumnReaders_(valueColumnReaders)
         , SchemaIdMapping_(schemaIdMapping)
         , Timestamp_(timestamp)
-        , ColumnHunkFlags_(new bool[GetMaxReaderSchemaIndex(schemaIdMapping) + 1])
+        , ColumnHunkFlagsStorage_(NDetail::GetReaderSchemaColumnCount(schemaIdMapping))
+        , ColumnHunkFlags_(ColumnHunkFlagsStorage_.data())
     {
         for (const auto& idMapping : SchemaIdMapping_) {
             const auto& columnSchema = ChunkMeta_->GetChunkSchema()->Columns()[idMapping.ChunkSchemaIndex];
@@ -831,7 +822,8 @@ protected:
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
     const TTimestamp Timestamp_;
 
-    const std::unique_ptr<bool[]> ColumnHunkFlags_;
+    TCompactVector<bool, TypicalColumnCount> ColumnHunkFlagsStorage_;
+    bool* const ColumnHunkFlags_;
 
     TChunkedMemoryPool Pool_{TVersionedChunkReaderPoolTag()};
 };
@@ -1023,7 +1015,7 @@ public:
         std::vector<TVersionedRow>* rows,
         i64 rowLimit,
         i64 currentRowIndex,
-        i64 /* safeUpperRowIndex */)
+        i64 /*safeUpperRowIndex*/)
     {
         TimestampReader_->PrepareRows(rowLimit);
         i64 rangeBegin = rows->size();
@@ -1143,8 +1135,8 @@ public:
         LegacyLowerLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].first));
         LegacyUpperLimit_.SetLegacyKey(TLegacyOwningKey(ranges[0].second));
 
-        LowerLimit_ = ReadLimitFromLegacyReadLimit(LegacyLowerLimit_, /* isUpper */ false, SortOrders_.size());
-        UpperLimit_ = ReadLimitFromLegacyReadLimit(LegacyUpperLimit_, /* isUpper */ true, SortOrders_.size());
+        LowerLimit_ = ReadLimitFromLegacyReadLimit(LegacyLowerLimit_, /*isUpper*/ false, SortOrders_.size());
+        UpperLimit_ = ReadLimitFromLegacyReadLimit(LegacyUpperLimit_, /*isUpper*/ true, SortOrders_.size());
 
         int timestampReaderIndex = ChunkMeta_->ColumnMeta()->columns().size() - 1;
         Columns_.emplace_back(RowBuilder_.CreateTimestampReader(), timestampReaderIndex);
@@ -1779,88 +1771,73 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     IVersionedReaderPtr reader;
 
     switch (chunkMeta->GetChunkFormat()) {
-        case EChunkFormat::TableVersionedSimple:
-            switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+        case EChunkFormat::TableVersionedSimple: {
+            auto createReader = [&] <class TReader> {
+                reader = New<TReader>(
+                    std::move(config),
+                    chunkMeta,
+                    chunkState->TableSchema->GetKeyColumnCount(),
+                    chunkState->DataSource,
+                    std::move(chunkReader),
+                    blockCache,
+                    chunkReadOptions,
+                    std::move(ranges),
+                    schemaIdMapping,
+                    performanceCounters,
+                    timestamp,
+                    produceAllVersions,
+                    singletonClippingRange,
+                    memoryManager);
+            };
+
+            auto format = CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format());
+            switch (format) {
                 case ETableChunkBlockFormat::Default:
-                    reader = New<TSimpleVersionedRangeChunkReader<TSimpleVersionedBlockReader>>(
-                        std::move(config),
-                        chunkMeta,
-                        chunkState->TableSchema->GetKeyColumnCount(),
-                        chunkState->DataSource,
-                        std::move(chunkReader),
-                        blockCache,
-                        chunkReadOptions,
-                        std::move(ranges),
-                        schemaIdMapping,
-                        performanceCounters,
-                        timestamp,
-                        produceAllVersions,
-                        singletonClippingRange,
-                        memoryManager);
+                    createReader.operator()<TSimpleVersionedRangeChunkReader<TSimpleVersionedBlockReader>>();
                     break;
 
                 case ETableChunkBlockFormat::IndexedVersioned:
-                    reader = New<TSimpleVersionedRangeChunkReader<TIndexedVersionedBlockReader>>(
-                        std::move(config),
-                        chunkMeta,
-                        chunkState->TableSchema->GetKeyColumnCount(),
-                        chunkState->DataSource,
-                        std::move(chunkReader),
-                        blockCache,
-                        chunkReadOptions,
-                        std::move(ranges),
-                        schemaIdMapping,
-                        performanceCounters,
-                        timestamp,
-                        produceAllVersions,
-                        singletonClippingRange,
-                        memoryManager);
+                    createReader.operator()<TSimpleVersionedRangeChunkReader<TIndexedVersionedBlockReader>>();
                     break;
 
                 default:
-                    YT_ABORT();
+                    THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
+                        format);
             }
 
             break;
+        }
 
         case EChunkFormat::TableVersionedColumnar: {
             YT_VERIFY(!ranges.Empty());
-            IVersionedReaderPtr unwrappedReader;
 
             auto sortOrders = GetSortOrders(chunkState->TableSchema->GetSortColumns());
             int chunkKeyColumnCount = chunkMeta->GetChunkSchema()->GetKeyColumnCount();
 
+            IVersionedReaderPtr unwrappedReader;
+            auto createUnwrappedReader = [&] <class TReader> {
+                unwrappedReader = New<TReader>(
+                    std::move(config),
+                    chunkMeta,
+                    chunkState->DataSource,
+                    std::move(chunkReader),
+                    sortOrders,
+                    chunkKeyColumnCount,
+                    blockCache,
+                    chunkReadOptions,
+                    getCappedBounds(),
+                    schemaIdMapping,
+                    performanceCounters,
+                    timestamp,
+                    memoryManager);
+            };
+
             if (timestamp == AllCommittedTimestamp) {
-                unwrappedReader = New<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>(
-                    std::move(config),
-                    chunkMeta,
-                    chunkState->DataSource,
-                    std::move(chunkReader),
-                    sortOrders,
-                    chunkKeyColumnCount,
-                    blockCache,
-                    chunkReadOptions,
-                    getCappedBounds(),
-                    schemaIdMapping,
-                    performanceCounters,
-                    timestamp,
-                    memoryManager);
+                createUnwrappedReader.operator()<TColumnarVersionedRangeChunkReader<TCompactionColumnarRowBuilder>>();
             } else {
-                unwrappedReader  = New<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>(
-                    std::move(config),
-                    chunkMeta,
-                    chunkState->DataSource,
-                    std::move(chunkReader),
-                    sortOrders,
-                    chunkKeyColumnCount,
-                    blockCache,
-                    chunkReadOptions,
-                    getCappedBounds(),
-                    schemaIdMapping,
-                    performanceCounters,
-                    timestamp,
-                    memoryManager);
+                createUnwrappedReader.operator()<TColumnarVersionedRangeChunkReader<TScanColumnarRowBuilder>>();
             }
+
             reader = New<TFilteringReader>(unwrappedReader, ranges);
             break;
         }
@@ -1891,8 +1868,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                 auto cappedBounds = getCappedBounds();
 
                 int keyColumnCount = chunkState->TableSchema->GetKeyColumnCount();
-                auto lowerKeyBound = KeyBoundFromLegacyRow(cappedBounds.Front().first, /* isUpper */ false, keyColumnCount);
-                auto upperKeyBound = KeyBoundFromLegacyRow(cappedBounds.Front().second, /* isUpper */ true, keyColumnCount);
+                auto lowerKeyBound = KeyBoundFromLegacyRow(cappedBounds.Front().first, /*isUpper*/ false, keyColumnCount);
+                auto upperKeyBound = KeyBoundFromLegacyRow(cappedBounds.Front().second, /*isUpper*/ true, keyColumnCount);
 
                 TReadRange readRange(TReadLimit{lowerKeyBound}, TReadLimit{upperKeyBound});
 
@@ -1905,7 +1882,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     nameTable,
                     chunkReadOptions,
                     chunkState->TableSchema->GetSortColumns(),
-                    /* omittedInaccessibleColumns */ {},
+                    /*omittedInaccessibleColumns*/ {},
                     columnFilter,
                     readRange,
                     std::nullopt,
@@ -1923,8 +1900,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
             return New<TFilteringReader>(unwrappedReader, ranges);
         }
+
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
+                chunkMeta->GetChunkFormat());
     }
 
     if (chunkState->OverrideTimestamp) {
@@ -1995,42 +1974,33 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
     switch (chunkMeta->GetChunkFormat()) {
-        case EChunkFormat::TableVersionedSimple:
-            switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
+        case EChunkFormat::TableVersionedSimple: {
+            auto createReader = [&] <class TReader> {
+                reader = New<TReader>(
+                    std::move(config),
+                    chunkMeta,
+                    chunkState->TableSchema->GetKeyColumnCount(),
+                    chunkState->DataSource,
+                    std::move(chunkReader),
+                    blockCache,
+                    chunkReadOptions,
+                    keys,
+                    schemaIdMapping,
+                    performanceCounters,
+                    keyComparer,
+                    timestamp,
+                    produceAllVersions,
+                    memoryManager);
+            };
+
+            auto format = CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format());
+            switch (format) {
                 case ETableChunkBlockFormat::Default:
-                    reader = New<TSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>(
-                        std::move(config),
-                        chunkMeta,
-                        chunkState->TableSchema->GetKeyColumnCount(),
-                        chunkState->DataSource,
-                        std::move(chunkReader),
-                        blockCache,
-                        chunkReadOptions,
-                        keys,
-                        schemaIdMapping,
-                        performanceCounters,
-                        keyComparer,
-                        timestamp,
-                        produceAllVersions,
-                        memoryManager);
+                    createReader.operator()<TSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>();
                     break;
 
                 case ETableChunkBlockFormat::IndexedVersioned:
-                    reader = New<TSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>(
-                        std::move(config),
-                        chunkMeta,
-                        chunkState->TableSchema->GetKeyColumnCount(),
-                        chunkState->DataSource,
-                        std::move(chunkReader),
-                        blockCache,
-                        chunkReadOptions,
-                        keys,
-                        schemaIdMapping,
-                        performanceCounters,
-                        keyComparer,
-                        timestamp,
-                        produceAllVersions,
-                        memoryManager);
+                    createReader.operator()<TSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>();
                     break;
 
                 default:
@@ -2038,6 +2008,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             }
 
             break;
+        }
 
         case EChunkFormat::TableVersionedColumnar: {
             if (produceAllVersions) {
@@ -2047,36 +2018,27 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             auto sortOrders = GetSortOrders(chunkState->TableSchema->GetSortColumns());
             int chunkKeyColumnCount = chunkMeta->GetChunkSchema()->GetKeyColumnCount();
 
+            auto createReader = [&] <class TReader> {
+                reader = New<TReader>(
+                    std::move(config),
+                    chunkMeta,
+                    chunkState->DataSource,
+                    std::move(chunkReader),
+                    sortOrders,
+                    chunkKeyColumnCount,
+                    blockCache,
+                    chunkReadOptions,
+                    keys,
+                    schemaIdMapping,
+                    performanceCounters,
+                    timestamp,
+                    memoryManager);
+            };
+
             if (produceAllVersions) {
-                reader = New<TColumnarVersionedLookupChunkReader<TLookupAllVersionsColumnarRowBuilder>>(
-                    std::move(config),
-                    chunkMeta,
-                    chunkState->DataSource,
-                    std::move(chunkReader),
-                    sortOrders,
-                    chunkKeyColumnCount,
-                    blockCache,
-                    chunkReadOptions,
-                    keys,
-                    schemaIdMapping,
-                    performanceCounters,
-                    timestamp,
-                    memoryManager);
+                createReader.operator()<TColumnarVersionedLookupChunkReader<TLookupAllVersionsColumnarRowBuilder>>();
             } else {
-                reader = New<TColumnarVersionedLookupChunkReader<TLookupSingleVersionColumnarRowBuilder>>(
-                    std::move(config),
-                    chunkMeta,
-                    chunkState->DataSource,
-                    std::move(chunkReader),
-                    sortOrders,
-                    chunkKeyColumnCount,
-                    blockCache,
-                    chunkReadOptions,
-                    keys,
-                    schemaIdMapping,
-                    performanceCounters,
-                    timestamp,
-                    memoryManager);
+                createReader.operator()<TColumnarVersionedLookupChunkReader<TLookupSingleVersionColumnarRowBuilder>>();
             }
             break;
         }
@@ -2107,7 +2069,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     nameTable,
                     chunkReadOptions,
                     chunkState->TableSchema->GetSortColumns(),
-                    /* omittedInaccessibleColumns */ {},
+                    /*omittedInaccessibleColumns*/ {},
                     columnFilter,
                     keys,
                     nullptr,
@@ -2126,7 +2088,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }
 
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
+                chunkMeta->GetChunkFormat());
     }
 
     if (chunkState->OverrideTimestamp) {

@@ -205,9 +205,9 @@ private:
             int startSlotIndex = slotIndex;
             while (slotIndex < startSlotIndex + bestFormatDetail->GetSlotCountInSector()) {
                 if (auto entryIndex = bestSlotIndexToEntryIndex[slotIndex]) {
-                    SerializeEntry(&buffer, entries[*entryIndex], *bestFormatDetail);
+                    SerializeEntry(buffer, entries[*entryIndex], *bestFormatDetail);
                 } else {
-                    SerializeEmptyEntry(&buffer, *bestFormatDetail);
+                    SerializeEmptyEntry(buffer, *bestFormatDetail);
                 }
 
                 ++slotIndex;
@@ -219,9 +219,9 @@ private:
             auto paddingSize =
                 THashTableChunkIndexFormatDetail::SectorSize - (buffer - sectorStart) - sizeof(TChecksum);
             YT_VERIFY(paddingSize >= 0);
-            PadBuffer(&buffer, paddingSize);
+            WriteZeroes(buffer, paddingSize);
 
-            AppendChecksum(&buffer, buffer - sectorStart);
+            WriteChecksum(buffer, buffer - sectorStart);
         }
 
         YT_VERIFY(buffer - blob.Begin() == bestFormatDetail->GetChunkIndexByteSize());
@@ -247,36 +247,36 @@ private:
     }
 
     void SerializeEntry(
-        char** buffer,
+        char*& buffer,
         const THashTableChunkIndexEntry& entry,
         const THashTableChunkIndexFormatDetail& formatDetail)
     {
-        auto* bufferStart = *buffer;
+        auto* bufferStart = buffer;
 
-        CopyPod(buffer, formatDetail.GetSerializableFingerprint(entry.Fingerprint));
-        CopyPod(buffer, entry.BlockIndex);
-        CopyPod(buffer, entry.RowOffset);
-        CopyPod(buffer, entry.RowLength);
+        WritePod(buffer, formatDetail.GetSerializableFingerprint(entry.Fingerprint));
+        WritePod(buffer, entry.BlockIndex);
+        WritePod(buffer, entry.RowOffset);
+        WritePod(buffer, entry.RowLength);
         for (auto groupOffset : entry.GroupOffsets) {
-            CopyPod(buffer, groupOffset);
+            WritePod(buffer, groupOffset);
         }
         for (auto groupIndex : entry.GroupIndexes) {
-            CopyPod(buffer, groupIndex);
+            WritePod(buffer, groupIndex);
         }
 
-        YT_ASSERT(*buffer - bufferStart == formatDetail.GetEntryByteSize());
+        YT_ASSERT(buffer - bufferStart == formatDetail.GetEntryByteSize());
     }
 
     void SerializeEmptyEntry(
-        char** buffer,
+        char*& buffer,
         const THashTableChunkIndexFormatDetail& formatDetail)
     {
-        auto* bufferStart = *buffer;
-        CopyPod(buffer, formatDetail.MissingEntryFingerprint);
-        PadBuffer(
+        auto* bufferStart = buffer;
+        WritePod(buffer, formatDetail.MissingEntryFingerprint);
+        WriteZeroes(
             buffer,
             formatDetail.GetEntryByteSize() - sizeof(formatDetail.MissingEntryFingerprint));
-        YT_ASSERT(*buffer - bufferStart == formatDetail.GetEntryByteSize());
+        YT_ASSERT(buffer - bufferStart == formatDetail.GetEntryByteSize());
     }
 };
 

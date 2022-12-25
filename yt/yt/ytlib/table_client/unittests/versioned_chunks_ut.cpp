@@ -41,12 +41,10 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
 
-using NChunkClient::TChunkReaderStatistics;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-TString A("a");
-TString B("b");
+const TString A("a");
+const TString B("b");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -73,8 +71,6 @@ class TVersionedChunksLookupTestBase
 {
 protected:
     const TTableSchemaPtr Schema;
-    const EOptimizeFor OptimizeFor;
-    const bool EnableHashChunkIndex;
 
     IVersionedReaderPtr ChunkReader;
     IVersionedWriterPtr ChunkWriter;
@@ -84,9 +80,7 @@ protected:
 
     TChunkedMemoryPool MemoryPool;
 
-    explicit TVersionedChunksLookupTestBase(
-        EOptimizeFor optimizeFor,
-        bool enableHashChunkIndex)
+    TVersionedChunksLookupTestBase()
         : Schema(New<TTableSchema>(std::vector{
             TColumnSchema("k1", EValueType::String)
                 .SetSortOrder(ESortOrder::Ascending),
@@ -97,8 +91,6 @@ protected:
             TColumnSchema("v1", EValueType::Int64),
             TColumnSchema("v2", EValueType::Int64)
         }))
-        , OptimizeFor(optimizeFor)
-        , EnableHashChunkIndex(enableHashChunkIndex)
     { }
 
     void SetUp() override
@@ -106,16 +98,22 @@ protected:
         MemoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
-        config->BlockSize = 1025;
-        config->ChunkIndexes->HashTable->Enable = EnableHashChunkIndex;
         auto options = New<TChunkWriterOptions>();
-        options->OptimizeFor = OptimizeFor;
+        ConfigureWriter(config, options);
+
         ChunkWriter = CreateVersionedChunkWriter(
             config,
             options,
             Schema,
             MemoryWriter,
             /*dataSink*/ std::nullopt);
+    }
+
+    virtual void ConfigureWriter(
+        const TChunkWriterConfigPtr& config,
+        const TChunkWriterOptionsPtr& /*options*/)
+    {
+        config->BlockSize = 1025;
     }
 
     void GetRowAndResetWriter()
@@ -324,12 +322,14 @@ protected:
 class TSimpleVersionedChunksLookupTest
     : public TVersionedChunksLookupTestBase
 {
-public:
-    TSimpleVersionedChunksLookupTest()
-        : TVersionedChunksLookupTestBase(
-            EOptimizeFor::Lookup,
-            /*enableHashChunkIndex*/ false)
-    { }
+protected:
+    void ConfigureWriter(
+        const TChunkWriterConfigPtr& config,
+        const TChunkWriterOptionsPtr& options) override
+    {
+        TVersionedChunksLookupTestBase::ConfigureWriter(config, options);
+        options->OptimizeFor = EOptimizeFor::Lookup;
+    }
 };
 
 TEST_F(TSimpleVersionedChunksLookupTest, Test)
@@ -342,12 +342,15 @@ TEST_F(TSimpleVersionedChunksLookupTest, Test)
 class TIndexedVersionedChunksLookupTest
     : public TVersionedChunksLookupTestBase
 {
-public:
-    TIndexedVersionedChunksLookupTest()
-        : TVersionedChunksLookupTestBase(
-            EOptimizeFor::Lookup,
-            /*enableHashChunkIndex*/ true)
-    { }
+protected:
+    void ConfigureWriter(
+        const TChunkWriterConfigPtr& config,
+        const TChunkWriterOptionsPtr& options) override
+    {
+        TVersionedChunksLookupTestBase::ConfigureWriter(config, options);
+        options->OptimizeFor = EOptimizeFor::Lookup;
+        config->ChunkIndexes->HashTable->Enable = true;
+    }
 };
 
 TEST_F(TIndexedVersionedChunksLookupTest, Test)
@@ -387,12 +390,14 @@ TEST_F(TIndexedVersionedChunksLookupTest, TestMetadata)
 class TColumnarVersionedChunksLookupTest
     : public TVersionedChunksLookupTestBase
 {
-public:
-    TColumnarVersionedChunksLookupTest()
-        : TVersionedChunksLookupTestBase(
-            EOptimizeFor::Scan,
-            /*enableHashChunkIndex*/ false)
-    { }
+protected:
+    void ConfigureWriter(
+        const TChunkWriterConfigPtr& config,
+        const TChunkWriterOptionsPtr& options) override
+    {
+        TVersionedChunksLookupTestBase::ConfigureWriter(config, options);
+        options->OptimizeFor = EOptimizeFor::Scan;
+    }
 };
 
 TEST_F(TColumnarVersionedChunksLookupTest, Test)
@@ -812,7 +817,7 @@ protected:
             }
         } else {
             // Find delete timestamp.
-            TTimestamp deleteTimestamp = NullTimestamp;
+            auto deleteTimestamp = NullTimestamp;
             for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
                 if (*deleteIt <= timestamp) {
                     deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
@@ -822,7 +827,7 @@ protected:
                 builder->AddDeleteTimestamp(deleteTimestamp);
             }
 
-            TTimestamp writeTimestamp = NullTimestamp;
+            auto writeTimestamp = NullTimestamp;
             for (auto writeIt = row.BeginWriteTimestamps(); writeIt != row.EndWriteTimestamps(); ++writeIt) {
                 if (*writeIt <= timestamp && *writeIt > deleteTimestamp) {
                     writeTimestamp = std::max(*writeIt, writeTimestamp);

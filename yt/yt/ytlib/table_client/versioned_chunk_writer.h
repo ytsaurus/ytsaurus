@@ -35,7 +35,7 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
     TChunkWriterOptionsPtr options,
     TTableSchemaPtr schema,
     NChunkClient::IChunkWriterPtr chunkWriter,
-    const std::optional<NChunkClient::TDataSink>& dataSink,
+    const std::optional<NChunkClient::TDataSink>& dataSink = {},
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -67,7 +67,7 @@ IVersionedMultiChunkWriterPtr CreateVersionedMultiChunkWriter(
     TString localHostName,
     NObjectClient::TCellTag cellTag,
     NTransactionClient::TTransactionId transactionId,
-    const std::optional<NChunkClient::TDataSink>& dataSink,
+    const std::optional<NChunkClient::TDataSink>& dataSink = {},
     NChunkClient::TChunkListId parentChunkListId = {},
     NConcurrency::IThroughputThrottlerPtr throttler = NConcurrency::GetUnlimitedThrottler(),
     NChunkClient::IBlockCachePtr blockCache = NChunkClient::GetNullBlockCache());

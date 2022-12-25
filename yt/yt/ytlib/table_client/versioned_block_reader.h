@@ -37,33 +37,47 @@ Indexed format is compliant with either block or row readers. Row readers are us
 class TVersionedRowParserBase
 {
 public:
-    TVersionedRowParserBase(const TTableSchemaPtr& chunkSchema);
+    explicit TVersionedRowParserBase(const TTableSchemaPtr& chunkSchema);
 
-    TVersionedRowParserBase(const TVersionedRowParserBase& other) = delete;
-    TVersionedRowParserBase(TVersionedRowParserBase&& other) = default;
-    TVersionedRowParserBase& operator=(const TVersionedRowParserBase& other) = delete;
-    TVersionedRowParserBase& operator=(TVersionedRowParserBase&& other) = default;
-
-    struct TRowMetadata
-    {
-        constexpr static int DefaultKeyBufferCapacity = 128;
-        TCompactVector<char, DefaultKeyBufferCapacity> KeyBuffer;
-
-        TLegacyMutableKey Key;
-
-        TRange<TTimestamp> WriteTimestamps;
-        TRange<TTimestamp> DeleteTimestamps;
-
-        ui32 ValueCount;
-    };
+    TVersionedRowParserBase(const TVersionedRowParserBase&) = delete;
+    TVersionedRowParserBase(TVersionedRowParserBase&&) = delete;
+    TVersionedRowParserBase& operator=(const TVersionedRowParserBase&) = delete;
+    TVersionedRowParserBase& operator=(TVersionedRowParserBase&&) = delete;
 
 protected:
     const int ChunkKeyColumnCount_;
     const int ChunkColumnCount_;
 
-    std::unique_ptr<bool[]> ColumnHunkFlags_;
-    std::unique_ptr<bool[]> ColumnAggregateFlags_;
-    std::unique_ptr<EValueType[]> ColumnTypes_;
+    // Indexed by chunk schema.
+    TCompactVector<bool, TypicalColumnCount> ColumnHunkFlagsStorage_;
+    bool* const ColumnHunkFlags_;
+
+    // Indexed by chunk schema.
+    TCompactVector<bool, TypicalColumnCount> ColumnAggregateFlagsStorage_;
+    bool* const ColumnAggregateFlags_;
+
+    // Indexed by chunk schema.
+    TCompactVector<EValueType, TypicalColumnCount> PhysicalColumnTypesStorage_;
+    EValueType* const PhysicalColumnTypes_;
+
+    // Indexed by chunk schema.
+    TCompactVector<ESimpleLogicalValueType, TypicalColumnCount> LogicalColumnTypesStorage_;
+    ESimpleLogicalValueType* const LogicalColumnTypes_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TVersionedRowMetadata
+{
+    constexpr static int DefaultKeyBufferCapacity = 128;
+    TCompactVector<char, DefaultKeyBufferCapacity> KeyBuffer;
+
+    TLegacyMutableKey Key;
+
+    TRange<TTimestamp> WriteTimestamps;
+    TRange<TTimestamp> DeleteTimestamps;
+
+    int ValueCount;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -77,14 +91,14 @@ public:
         const NProto::TDataBlockMeta& blockMeta,
         const TTableSchemaPtr& chunkSchema);
 
-    DEFINE_BYREF_RO_PROPERTY(bool, Closed, false);
-    DEFINE_BYREF_RO_PROPERTY(i64, RowCount);
+    bool IsValid() const;
+    int GetRowCount() const;
 
-    bool JumpToRowIndex(i64 rowIndex, TRowMetadata* rowMetadata);
+    bool JumpToRowIndex(int rowIndex, TVersionedRowMetadata* rowMetadata);
 
     struct TColumnDescriptor
     {
-        int ValueId;
+        int ReaderSchemaId;
         int ChunkSchemaId;
 
         int LowerValueIndex;
@@ -106,6 +120,9 @@ public:
 
 private:
     const TSharedRef Block_;
+    const int RowCount_;
+
+    bool Valid_ = false;
 
     TRef KeyData_;
     TRef ValueData_;
@@ -121,7 +138,7 @@ private:
     const char* ColumnValueCounts_;
 
 
-    void ReadKeyValue(TUnversionedValue* value, int id, const char* ptr, i64 rowIndex) const;
+    void ReadKeyValue(TUnversionedValue* value, int id, const char* ptr, int rowIndex) const;
     void ReadStringLike(TUnversionedValue* value, const char* ptr) const;
     ui32 GetColumnValueCount(int chunkSchemaId) const;
 };
@@ -155,7 +172,7 @@ public:
     {
         const TGroupInfo& GroupInfo;
 
-        int ValueId;
+        int ReaderSchemaId;
         int ChunkSchemaId;
 
         int LowerValueIndex;
@@ -193,13 +210,15 @@ protected:
         const int* groupOffsets,
         const int* groupIndexes,
         bool validateChecksums,
-        TRowMetadata* rowMetadata);
+        TVersionedRowMetadata* rowMetadata);
 
     void ReadKeyValue(TUnversionedValue* value, int id, const char* ptr, const char** rowData) const;
     void ReadStringLike(TUnversionedValue* value, const char* ptr) const;
 
     const TGroupInfo& GetGroupInfo(int groupIndex, int columnCountInGroup);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TIndexedVersionedBlockParser
     : public TIndexedVersionedRowParser
@@ -210,13 +229,17 @@ public:
         const NProto::TDataBlockMeta& blockMeta,
         const TTableSchemaPtr& chunkSchema);
 
-    DEFINE_BYREF_RO_PROPERTY(bool, Closed, false);
-    DEFINE_BYREF_RO_PROPERTY(i64, RowCount);
+    bool IsValid() const;
+    int GetRowCount() const;
 
-    bool JumpToRowIndex(i64 rowIndex, TRowMetadata* rowMetadata);
+    bool JumpToRowIndex(int rowIndex, TVersionedRowMetadata* rowMetadata);
 
 private:
     const TSharedRef Block_;
+
+    const int RowCount_;
+
+    bool Valid_ = false;
 
     // NB: These are stored at the end of each block.
     const i64* RowOffsets_ = nullptr;
@@ -230,12 +253,13 @@ template <typename TRowParser>
 class TVersionedRowReader
 {
 public:
+    template <class... TParserArgs>
     TVersionedRowReader(
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TTimestamp timestamp,
         bool produceAllVersions,
-        TRowParser rowParser);
+        TParserArgs&&... parserArgs);
 
     TVersionedRowReader(const TVersionedRowReader<TRowParser>& other) = delete;
     TVersionedRowReader(TVersionedRowReader<TRowParser>&& other) = delete;
@@ -245,8 +269,7 @@ public:
     TLegacyKey GetKey() const;
 
 protected:
-    TVersionedRowParserBase::TRowMetadata RowMetadata_;
-
+    TVersionedRowMetadata RowMetadata_;
     TRowParser Parser_;
 
 
@@ -260,9 +283,11 @@ private:
     const std::vector<TColumnIdMapping>& SchemaIdMapping_;
 
 
-    TMutableVersionedRow ReadAllVersions(TChunkedMemoryPool* memoryPool);
-    TMutableVersionedRow ReadOneVersion(TChunkedMemoryPool* memoryPool);
+    TMutableVersionedRow ReadRowAllVersions(TChunkedMemoryPool* memoryPool);
+    TMutableVersionedRow ReadRowSingleVersion(TChunkedMemoryPool* memoryPool);
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename TBlockParser>
 class TVersionedBlockReader
@@ -277,14 +302,13 @@ public:
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         const TKeyComparer& keyComparer,
         TTimestamp timestamp,
-        bool produceAllVersions,
-        bool initialize);
+        bool produceAllVersions);
 
-    DEFINE_BYVAL_RO_PROPERTY(i64, RowIndex, -1);
+    DEFINE_BYVAL_RO_PROPERTY(int, RowIndex, -1);
 
     bool NextRow();
 
-    bool SkipToRowIndex(i64 rowIndex);
+    bool SkipToRowIndex(int rowIndex);
     bool SkipToKey(TLegacyKey key);
 
     using TVersionedRowReader<TBlockParser>::GetKey;
@@ -298,7 +322,7 @@ private:
     const TKeyComparer& KeyComparer_;
 
 
-    bool JumpToRowIndex(i64 rowIndex);
+    bool JumpToRowIndex(int rowIndex);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -328,7 +352,7 @@ public:
     TMutableVersionedRow GetRow(TChunkedMemoryPool* memoryPool);
 
 private:
-    TTimestamp Timestamp_;
+    const TTimestamp Timestamp_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
