@@ -25,8 +25,7 @@ ISnapshotStorePtr CreateRemoteSnapshotStore(
     TRemoteSnapshotStoreOptionsPtr storeOptions,
     const NYPath::TYPath& path,
     NApi::IClientPtr client,
-    NTransactionClient::TTransactionId prerequisiteTransactionId =
-        NTransactionClient::NullTransactionId);
+    NTransactionClient::TTransactionId prerequisiteTransactionId = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
