@@ -135,9 +135,6 @@ public:
 
     double SampleRate;
 
-    // XXX
-    bool Slim;
-
     TChunkIndexesWriterConfigPtr ChunkIndexes;
 
     TChunkWriterTestingOptionsPtr TestingOptions;

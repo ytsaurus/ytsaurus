@@ -117,7 +117,7 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadRowSingleVersion(TChun
     const auto& writeTimestamps = RowMetadata_.WriteTimestamps;
     const auto& deleteTimestamps = RowMetadata_.DeleteTimestamps;
 
-    if (Timestamp_ < MaxTimestamp) {
+    if (Timestamp_ <= MaxTimestamp) {
         writeTimestampIndex = BinarySearch(0, writeTimestamps.Size(), [&] (int index) {
             return writeTimestamps[index] > Timestamp_;
         });
