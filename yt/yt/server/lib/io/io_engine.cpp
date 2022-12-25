@@ -94,11 +94,12 @@ TFuture<TSharedRef> IIOEngine::ReadAll(
         .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TIOEngineHandlePtr& handle) {
             struct TReadAllBufferTag
             { };
-            return Read<TReadAllBufferTag>(
-                    {{handle, 0, handle->GetLength()}},
-                    category,
-                    sessionId
-                ).Apply(BIND(
+            return Read(
+                {{handle, 0, handle->GetLength()}},
+                category,
+                GetRefCountedTypeCookie<TReadAllBufferTag>(),
+                sessionId)
+                .Apply(BIND(
                     [=, this, this_ = MakeStrong(this), handle = handle]
                     (const TReadResponse& response)
                 {
