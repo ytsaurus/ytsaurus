@@ -3,7 +3,6 @@
 
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
-#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/client/api/client.h>
 #include <yt/yt/client/api/config.h>
@@ -61,8 +60,8 @@ public:
         , Path_(path)
         , Client_(client)
         , PrerequisiteTransactionId_(prerequisiteTransactionId)
+        , Logger(HydraLogger.WithTag("Path: %v", Path_))
     {
-        Logger.AddTag("Path: %v", Path_);
     }
 
     ISnapshotReaderPtr CreateReader(int snapshotId) override
@@ -81,7 +80,7 @@ public:
     TFuture<int> GetLatestSnapshotId(int maxSnapshotId) override
     {
         return BIND(&TRemoteSnapshotStore::DoGetLatestSnapshotId, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(GetInvoker())
             .Run(maxSnapshotId);
     }
 
@@ -91,8 +90,7 @@ private:
     const TYPath Path_;
     const IClientPtr Client_;
     const TTransactionId PrerequisiteTransactionId_;
-
-    NLogging::TLogger Logger = HydraLogger;
+    const NLogging::TLogger Logger;
 
 
     class TReader
@@ -103,21 +101,20 @@ private:
             : Store_(store)
             , SnapshotId_(snapshotId)
             , Path_(Store_->GetSnapshotPath(SnapshotId_))
-        {
-            Logger.AddTag("Path: %v", Path_);
-        }
+            , Logger(HydraLogger.WithTag("Path: %v", Path_))
+        { }
 
         TFuture<void> Open() override
         {
             return BIND(&TReader::DoOpen, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetInvoker())
                 .Run();
         }
 
         TFuture<TSharedRef> Read() override
         {
             return BIND(&TReader::DoRead, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetInvoker())
                 .Run();
         }
 
@@ -129,15 +126,18 @@ private:
     private:
         const TRemoteSnapshotStorePtr Store_;
         const int SnapshotId_;
-
-        TYPath Path_;
+        const TYPath Path_;
+        const NLogging::TLogger Logger;
 
         TSnapshotParams Params_;
 
         IAsyncZeroCopyInputStreamPtr UnderlyingReader_;
 
-        NLogging::TLogger Logger = HydraLogger;
 
+        IInvokerPtr GetInvoker()
+        {
+            return Store_->GetInvoker();
+        }
 
         void DoOpen()
         {
@@ -223,14 +223,13 @@ private:
             , SnapshotId_(snapshotId)
             , Meta_(meta)
             , Path_(Store_->GetSnapshotPath(SnapshotId_))
-        {
-            Logger.AddTag("Path: %v", Path_);
-        }
+            , Logger(HydraLogger.WithTag("Path: %v", Path_))
+        { }
 
         TFuture<void> Open() override
         {
             return BIND(&TWriter::DoOpen, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetInvoker())
                 .Run();
         }
 
@@ -244,7 +243,7 @@ private:
         TFuture<void> Close() override
         {
             return BIND(&TWriter::DoClose, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetInvoker())
                 .Run();
         }
 
@@ -258,8 +257,8 @@ private:
         const TRemoteSnapshotStorePtr Store_;
         const int SnapshotId_;
         const TSnapshotMeta Meta_;
-
-        TYPath Path_;
+        const TYPath Path_;
+        const NLogging::TLogger Logger;
 
         ITransactionPtr Transaction_;
 
@@ -269,8 +268,11 @@ private:
         bool Opened_ = false;
         bool Closed_ = false;
 
-        NLogging::TLogger Logger = HydraLogger;
 
+        IInvokerPtr GetInvoker()
+        {
+            return Store_->GetInvoker();
+        }
 
         void DoOpen()
         {
@@ -383,6 +385,11 @@ private:
     };
 
 
+    IInvokerPtr GetInvoker()
+    {
+        return Client_->GetConnection()->GetInvoker();
+    }
+
     int DoGetLatestSnapshotId(int maxSnapshotId)
     {
         try {
@@ -421,7 +428,6 @@ private:
     {
         return Format("%v/%09v", Path_, snapshotId);
     }
-
 };
 
 DEFINE_REFCOUNTED_TYPE(TRemoteSnapshotStore)

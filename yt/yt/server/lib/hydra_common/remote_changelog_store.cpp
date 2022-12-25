@@ -6,7 +6,6 @@
 #include <yt/yt/server/lib/hydra_common/changelog.h>
 #include <yt/yt/server/lib/hydra_common/config.h>
 #include <yt/yt/server/lib/hydra_common/lazy_changelog.h>
-#include <yt/yt/server/lib/hydra_common/private.h>
 
 #include <yt/yt/server/lib/security_server/resource_limits_manager.h>
 
@@ -123,6 +122,11 @@ protected:
             functor(item, id);
         }
     }
+
+    IInvokerPtr GetInvoker()
+    {
+        return Client_->GetConnection()->GetInvoker();
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -171,7 +175,7 @@ public:
     TFuture<void> SetTerm(int term) override
     {
         return BIND(&TRemoteChangelogStore::DoSetTerm, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(GetInvoker())
             .Run(term);
     }
 
@@ -193,21 +197,21 @@ public:
     TFuture<IChangelogPtr> CreateChangelog(int id, const NProto::TChangelogMeta& meta) override
     {
         return BIND(&TRemoteChangelogStore::DoCreateChangelog, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(GetInvoker())
             .Run(id, meta);
     }
 
     TFuture<IChangelogPtr> OpenChangelog(int id) override
     {
         return BIND(&TRemoteChangelogStore::DoOpenChangelog, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(GetInvoker())
             .Run(id);
     }
 
     TFuture<void> RemoveChangelog(int id) override
     {
         return BIND(&TRemoteChangelogStore::DoRemoveChangelog, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(GetInvoker())
             .Run(id);
     }
 
@@ -533,7 +537,7 @@ private:
             i64 /*maxBytes*/) const override
         {
             return BIND(&TRemoteChangelog::DoRead, MakeStrong(this))
-                .AsyncVia(GetHydraIOInvoker())
+                .AsyncVia(GetInvoker())
                 .Run(firstRecordId, maxRecords);
         }
 
@@ -577,7 +581,6 @@ private:
         const TChangelogMeta Meta_;
         const ITransactionPtr PrerequisiteTransaction_;
         const TRemoteChangelogStorePtr Owner_;
-
         const TLogger Logger;
 
         //! Protects #Writer_, #WriterOpened_ and #PendingRecords_.
@@ -596,6 +599,12 @@ private:
         std::atomic<i64> DataSize_;
 
         TFuture<void> FlushResult_ = VoidFuture;
+
+
+        IInvokerPtr GetInvoker() const
+        {
+            return Owner_->GetInvoker();
+        }
 
         std::vector<TSharedRef> DoRead(int firstRecordId, int maxRecords) const
         {
@@ -619,7 +628,7 @@ private:
                 Writer_ = Owner_->Client_->CreateJournalWriter(Path_, writerOptions);
                 PendingRecordsFlushed_ = Writer_->Open()
                     .Apply(BIND(&TRemoteChangelog::FlushPendingRecords, MakeStrong(this))
-                        .AsyncVia(GetHydraIOInvoker()));
+                        .AsyncVia(GetInvoker()));
             } catch (const std::exception& ex) {
                 THROW_ERROR_EXCEPTION("Failed to open remote changelog writer")
                     << TErrorAttribute("changelog_path", Path_)
@@ -675,7 +684,7 @@ public:
     TFuture<IChangelogStorePtr> Lock() override
     {
         return BIND(&TRemoteChangelogStoreFactory::DoLock, MakeStrong(this))
-            .AsyncVia(GetHydraIOInvoker())
+            .AsyncVia(GetInvoker())
             .Run();
     }
 
