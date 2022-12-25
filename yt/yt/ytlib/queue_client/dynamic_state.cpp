@@ -537,7 +537,7 @@ std::vector<TConsumerRegistrationTableRow> TConsumerRegistrationTableRow::ParseR
 
 IUnversionedRowsetPtr TConsumerRegistrationTableRow::InsertRowRange(TRange<TConsumerRegistrationTableRow> rows)
 {
-    auto nameTable = TNameTable::FromSchema(*TConsumerTableDescriptor::Schema);
+    auto nameTable = TNameTable::FromSchema(*TConsumerRegistrationTableDescriptor::Schema);
 
     TUnversionedRowsBuilder rowsBuilder;
     for (const auto& row : rows) {
@@ -553,7 +553,7 @@ IUnversionedRowsetPtr TConsumerRegistrationTableRow::InsertRowRange(TRange<TCons
         rowsBuilder.AddRow(rowBuilder.GetRow());
     }
 
-    return CreateRowset(TQueueTableDescriptor::Schema, rowsBuilder.Build());
+    return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
 }
 
 NApi::IUnversionedRowsetPtr TConsumerRegistrationTableRow::DeleteRowRange(TRange<TConsumerRegistrationTableRow> keys)
@@ -571,7 +571,7 @@ NApi::IUnversionedRowsetPtr TConsumerRegistrationTableRow::DeleteRowRange(TRange
         rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
     }
 
-    return CreateRowset(TConsumerTableDescriptor::Schema, rowsBuilder.Build());
+    return CreateRowset(TConsumerRegistrationTableDescriptor::Schema, rowsBuilder.Build());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

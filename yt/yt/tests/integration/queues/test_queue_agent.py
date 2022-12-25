@@ -3,10 +3,11 @@ from yt_env_setup import (YTEnvSetup, Restarter, QUEUE_AGENTS_SERVICE)
 from yt_commands import (authors, get, set, ls, wait, assert_yt_error, create, sync_mount_table, sync_create_cells,
                          insert_rows, delete_rows, remove, raises_yt_error, exists, start_transaction, select_rows,
                          sync_unmount_table, sync_reshard_table, trim_rows, print_debug, abort_transaction,
-                         alter_table)
+                         alter_table, register_queue_consumer, unregister_queue_consumer, create_user, check_permission)
 
 from yt.common import YtError, update_inplace, update
 
+import builtins
 import copy
 import datetime
 import time
@@ -255,26 +256,7 @@ class TestQueueAgentBase(YTEnvSetup):
 
     def _create_registered_consumer(self, consumer_path, queue_path, vital=False):
         self._create_consumer(consumer_path)
-        self._register_queue_consumer(queue_path, consumer_path, vital=vital)
-
-    # TODO(max42): replace helpers below with corresponding driver commands when they are here.
-
-    def _register_queue_consumer(self, queue_path, consumer_path, vital=False):
-        insert_rows("//sys/queue_agents/consumer_registrations", [{
-            "queue_cluster": "primary",
-            "queue_path": queue_path,
-            "consumer_cluster": "primary",
-            "consumer_path": consumer_path,
-            "vital": vital,
-        }])
-
-    def _unregister_queue_consumer(self, queue_path, consumer_path):
-        delete_rows("//sys/queue_agents/consumer_registrations", [{
-            "queue_cluster": "primary",
-            "queue_path": queue_path,
-            "consumer_cluster": "primary",
-            "consumer_path": consumer_path,
-        }])
+        register_queue_consumer(queue_path, consumer_path, vital=vital)
 
     def _advance_consumer(self, consumer_path, queue_path, partition_index, offset):
         self._advance_consumers(consumer_path, queue_path, {partition_index: offset})
@@ -1016,16 +998,16 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_row_count("//tmp/q", 0, 6)
 
         # Now we should only consider c3 and trim more rows.
-        self._unregister_queue_consumer("//tmp/q", "//tmp/c1")
-        self._register_queue_consumer("//tmp/q", "//tmp/c1", vital=False)
+        unregister_queue_consumer("//tmp/q", "//tmp/c1")
+        register_queue_consumer("//tmp/q", "//tmp/c1", vital=False)
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
         self._wait_for_row_count("//tmp/q", 0, 5)
 
         # Now c2 and c3 are vital. Nothing should be trimmed though.
-        self._unregister_queue_consumer("//tmp/q", "//tmp/c2")
-        self._register_queue_consumer("//tmp/q", "//tmp/c2", vital=True)
+        unregister_queue_consumer("//tmp/q", "//tmp/c2")
+        register_queue_consumer("//tmp/q", "//tmp/c2", vital=True)
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
@@ -1033,8 +1015,8 @@ class TestAutomaticTrimming(TestQueueAgentBase):
         self._wait_for_row_count("//tmp/q", 0, 5)
 
         # Now only c2 is vital, so we should trim more rows.
-        self._unregister_queue_consumer("//tmp/q", "//tmp/c3")
-        self._register_queue_consumer("//tmp/q", "//tmp/c3", vital=False)
+        unregister_queue_consumer("//tmp/q", "//tmp/c3")
+        register_queue_consumer("//tmp/q", "//tmp/c3", vital=False)
         cypress_synchronizer_orchid.wait_fresh_poll()
         queue_agent_orchid.wait_fresh_queue_pass("primary://tmp/q")
 
@@ -2153,3 +2135,117 @@ class TestDynamicConfig(TestQueueAgentBase):
         })
 
         orchid.wait_fresh_poll()
+
+
+class TestApiCommands(TestQueueAgentBase):
+    DELTA_QUEUE_AGENT_DYNAMIC_CONFIG = {
+        "queue_agent": {
+            "poll_period": 100,
+        },
+        "cypress_synchronizer": {
+            "poll_period": 100,
+            "controller": {
+                "pass_period": 100,
+            }
+        },
+    }
+
+    @staticmethod
+    def _registrations_are(expected_registrations):
+        def get_as_tuple(r):
+            return r["queue_cluster"], r["queue_path"], r["consumer_cluster"], r["consumer_path"], r["vital"]
+
+        registrations = {get_as_tuple(r) for r in select_rows("* from [//sys/queue_agents/consumer_registrations]")}
+        print_debug(registrations, expected_registrations)
+        if registrations != expected_registrations:
+            return False
+
+        # We don't test anything with http proxies in this suite, so there is no point in checking their orchid.
+        # In native driver tests there won't be any proxies and the check will pass.
+        for proxy in get("//sys/rpc_proxies").keys():
+            orchid_path = f"//sys/rpc_proxies/{proxy}/orchid/queue_consumer_registration_manager"
+            orchid_registrations = {
+                tuple(r["queue"].split(":") + r["consumer"].split(":") + [r["vital"]])
+                for r in get(f"{orchid_path}/registrations")
+            }
+
+            if orchid_registrations != expected_registrations:
+                return False
+
+        return True
+
+    @authors("achulkov2")
+    def test_registrations(self):
+        self._create_queue("//tmp/q")
+        self._create_consumer("//tmp/c1")
+        self._create_consumer("//tmp/c2")
+
+        set("//tmp/q/@inherit_acl", False)
+        set("//tmp/c1/@inherit_acl", False)
+        set("//tmp/c2/@inherit_acl", False)
+
+        create_user("egor")
+        create_user("bulat")
+        create_user("yura")
+
+        # Nobody is allowed to register consumers yet.
+        for consumer, user in zip(("//tmp/c1", "//tmp/c2"), ("egor", "bulat", "yura")):
+            with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+                register_queue_consumer("//tmp/q", consumer, vital=False, authenticated_user=user)
+
+        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": True,
+                                 "subjects": ["egor"]})
+        assert check_permission("egor", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "allow"
+
+        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": True,
+                                 "subjects": ["bulat"]})
+        assert check_permission("bulat", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "allow"
+
+        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["register_queue_consumer"], "vital": False,
+                                 "subjects": ["yura"]})
+        assert check_permission("yura", "register_queue_consumer", "//tmp/q", vital=False)["action"] == "allow"
+        assert check_permission("yura", "register_queue_consumer", "//tmp/q", vital=True)["action"] == "deny"
+
+        # Yura is not allowed to register vital consumers.
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+            register_queue_consumer("//tmp/q", "//tmp/c2", vital=True, authenticated_user="yura")
+
+        register_queue_consumer("//tmp/q", "//tmp/c1", vital=True, authenticated_user="bulat")
+        register_queue_consumer("//tmp/q", "//tmp/c2", vital=False, authenticated_user="yura")
+        wait(lambda: self._registrations_are({
+            ("primary", "//tmp/q", "primary", "//tmp/c1", True),
+            ("primary", "//tmp/q", "primary", "//tmp/c2", False)
+        }))
+
+        # Remove permissions on either the queue or the consumer are needed.
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+            unregister_queue_consumer("//tmp/q", "//tmp/c1", authenticated_user="bulat")
+
+        set("//tmp/c1/@acl/end", {"action": "allow", "permissions": ["remove"], "subjects": ["bulat"]})
+
+        # Bulat can unregister his own consumer.
+        unregister_queue_consumer("//tmp/q", "//tmp/c1", authenticated_user="bulat")
+
+        wait(lambda: self._registrations_are({
+            ("primary", "//tmp/q", "primary", "//tmp/c2", False)
+        }))
+
+        # Bulat cannot unregister Yura's consumer.
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+            unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="bulat")
+
+        # Remove permissions on either the queue or the consumer are needed.
+        with raises_yt_error(code=yt_error_codes.AuthorizationErrorCode):
+            unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="egor")
+
+        set("//tmp/q/@acl/end", {"action": "allow", "permissions": ["remove"], "subjects": ["egor"]})
+
+        # Now Egor can unregister any consumer to his queue.
+        unregister_queue_consumer("//tmp/q", "//tmp/c2", authenticated_user="egor")
+
+        wait(lambda: self._registrations_are(builtins.set()))
+
+
+class TestApiCommandsRpcProxy(TestApiCommands):
+    DRIVER_BACKEND = "rpc"
+    ENABLE_RPC_PROXY = True

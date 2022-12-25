@@ -56,6 +56,7 @@ using namespace NQueueClient;
 using namespace NTableClient;
 using namespace NTabletClient;
 using namespace NTransactionClient;
+using namespace NYPath;
 using namespace NYTree;
 using namespace NYson;
 
@@ -675,7 +676,7 @@ TFuture<TGetTabletErrorsResult> TClient::GetTabletErrors(
 
 TFuture<std::vector<TTabletActionId>> TClient::BalanceTabletCells(
     const TString& tabletCellBundle,
-    const std::vector<NYPath::TYPath>& movableTables,
+    const std::vector<TYPath>& movableTables,
     const TBalanceTabletCellsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -732,7 +733,7 @@ TFuture<void> TClient::AlterReplicationCard(
 }
 
 TFuture<IQueueRowsetPtr> TClient::PullQueue(
-    const NYPath::TRichYPath& queuePath,
+    const TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
     const TQueueRowBatchReadOptions& rowBatchReadOptions,
@@ -758,8 +759,8 @@ TFuture<IQueueRowsetPtr> TClient::PullQueue(
 }
 
 TFuture<IQueueRowsetPtr> TClient::PullConsumer(
-    const NYPath::TRichYPath& consumerPath,
-    const NYPath::TRichYPath& queuePath,
+    const TRichYPath& consumerPath,
+    const TRichYPath& queuePath,
     i64 offset,
     int partitionIndex,
     const TQueueRowBatchReadOptions& rowBatchReadOptions,
@@ -782,6 +783,40 @@ TFuture<IQueueRowsetPtr> TClient::PullConsumer(
             MergeRefsToRef<TRpcProxyClientBufferTag>(rsp->Attachments()));
         return CreateQueueRowset(rowset, rsp->start_offset());
     }));
+}
+
+TFuture<void> TClient::RegisterQueueConsumer(
+    const TRichYPath& queuePath,
+    const TRichYPath& consumerPath,
+    bool vital,
+    const TRegisterQueueConsumerOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.RegisterQueueConsumer();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_queue_path(), queuePath);
+    ToProto(req->mutable_consumer_path(), consumerPath);
+    req->set_vital(vital);
+
+    return req->Invoke().AsVoid();
+}
+
+TFuture<void> TClient::UnregisterQueueConsumer(
+    const TRichYPath& queuePath,
+    const TRichYPath& consumerPath,
+    const TUnregisterQueueConsumerOptions& options)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.UnregisterQueueConsumer();
+    SetTimeoutOptions(*req, options);
+
+    ToProto(req->mutable_queue_path(), queuePath);
+    ToProto(req->mutable_consumer_path(), consumerPath);
+
+    return req->Invoke().AsVoid();
 }
 
 TFuture<void> TClient::AddMember(
@@ -822,7 +857,7 @@ TFuture<void> TClient::RemoveMember(
 
 TFuture<TCheckPermissionResponse> TClient::CheckPermission(
     const TString& user,
-    const NYPath::TYPath& path,
+    const TYPath& path,
     EPermission permission,
     const TCheckPermissionOptions& options)
 {
@@ -1054,7 +1089,7 @@ TFuture<TOperation> TClient::GetOperation(
 
 TFuture<void> TClient::DumpJobContext(
     NJobTrackerClient::TJobId jobId,
-    const NYPath::TYPath& path,
+    const TYPath& path,
     const TDumpJobContextOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -1387,7 +1422,7 @@ TFuture<TGetFileFromCacheResult> TClient::GetFileFromCache(
 }
 
 TFuture<TPutFileToCacheResult> TClient::PutFileToCache(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     const TString& expectedMD5,
     const TPutFileToCacheOptions& options)
 {
@@ -1432,14 +1467,14 @@ TFuture<void> TClient::CheckClusterLiveness(
 }
 
 TFuture<TSkynetSharePartsLocationsPtr> TClient::LocateSkynetShare(
-    const NYPath::TRichYPath&,
+    const TRichYPath&,
     const TLocateSkynetShareOptions& /*options*/)
 {
     ThrowUnimplemented("LocateSkynetShare");
 }
 
 TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
-    const std::vector<NYPath::TRichYPath>& path,
+    const std::vector<TRichYPath>& path,
     const TGetColumnarStatisticsOptions& options)
 {
     auto proxy = CreateApiServiceProxy();
@@ -1467,7 +1502,7 @@ TFuture<std::vector<TColumnarStatistics>> TClient::GetColumnarStatistics(
 }
 
 TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
-    const std::vector<NYPath::TRichYPath>& paths,
+    const std::vector<TRichYPath>& paths,
     const TPartitionTablesOptions& options)
 {
     if (options.PartitionMode == NTableClient::ETablePartitionMode::Sorted) {
@@ -1508,7 +1543,7 @@ TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
 }
 
 TFuture<void> TClient::TruncateJournal(
-    const NYPath::TYPath& path,
+    const TYPath& path,
     i64 rowCount,
     const TTruncateJournalOptions& options)
 {

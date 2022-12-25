@@ -991,6 +991,14 @@ struct TPullConsumerOptions
     : public TPullQueueOptions
 { };
 
+struct TRegisterQueueConsumerOptions
+    : public TTimeoutOptions
+{ };
+
+struct TUnregisterQueueConsumerOptions
+    : public TTimeoutOptions
+{ };
+
 struct TGetColumnarStatisticsOptions
     : public TTransactionalOptions
     , public TTimeoutOptions
@@ -1926,6 +1934,17 @@ struct IClient
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullConsumerOptions& options = {}) = 0;
+
+    virtual TFuture<void> RegisterQueueConsumer(
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        bool vital,
+        const TRegisterQueueConsumerOptions& options = {}) = 0;
+
+    virtual TFuture<void> UnregisterQueueConsumer(
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        const TUnregisterQueueConsumerOptions& options = {}) = 0;
 
     // Journals
     virtual TFuture<void> TruncateJournal(

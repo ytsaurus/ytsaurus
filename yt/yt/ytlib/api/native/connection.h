@@ -89,7 +89,7 @@ struct IConnection
     virtual const NChaosClient::IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() = 0;
 
     virtual const NRpc::IChannelPtr& GetQueueAgentChannelOrThrow(TStringBuf stage) const = 0;
-    virtual const NQueueClient::TQueueConsumerRegistrationCachePtr& GetQueueConsumerRegistrationCache() const = 0;
+    virtual const NQueueClient::TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const = 0;
 
     virtual const NRpc::IChannelPtr& GetYqlAgentChannelOrThrow() const = 0;
 
@@ -192,6 +192,12 @@ IConnectionPtr CreateConnection(
 IConnectionPtr FindRemoteConnection(
     const IConnectionPtr& connection,
     const TString& clusterName);
+
+//! Returns native connection to cluster `clusterName`.
+//! Falls back to the provided connection if `clusterName` is null or the cluster is not present in the connection's cluster directory.
+IConnectionPtr FindRemoteConnection(
+    const IConnectionPtr& connection,
+    const std::optional<TString>& clusterName);
 
 IConnectionPtr GetRemoteConnectionOrThrow(
     const NApi::NNative::IConnectionPtr& connection,

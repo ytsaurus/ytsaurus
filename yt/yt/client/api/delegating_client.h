@@ -76,6 +76,17 @@ public:
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullConsumerOptions& options = {}) override;
 
+    TFuture<void> RegisterQueueConsumer(
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        bool vital,
+        const TRegisterQueueConsumerOptions& options = {}) override;
+
+    TFuture<void> UnregisterQueueConsumer(
+        const NYPath::TRichYPath& queuePath,
+        const NYPath::TRichYPath& consumerPath,
+        const TUnregisterQueueConsumerOptions& options = {}) override;
+
     // Cypress
     TFuture<NYson::TYsonString> GetNode(
         const NYPath::TYPath& path,

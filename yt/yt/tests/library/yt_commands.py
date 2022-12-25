@@ -858,6 +858,19 @@ def get_tablet_errors(path, **kwargs):
     return execute_command("get_tablet_errors", kwargs, parse_yson=True, unwrap_v4_result=False)
 
 
+def register_queue_consumer(queue_path, consumer_path, vital, **kwargs):
+    kwargs["queue_path"] = queue_path
+    kwargs["consumer_path"] = consumer_path
+    kwargs["vital"] = vital
+    return execute_command_with_output_format("register_queue_consumer", kwargs)
+
+
+def unregister_queue_consumer(queue_path, consumer_path,  **kwargs):
+    kwargs["queue_path"] = queue_path
+    kwargs["consumer_path"] = consumer_path
+    return execute_command_with_output_format("unregister_queue_consumer", kwargs)
+
+
 def start_transaction(**kwargs):
     return execute_command("start_tx", kwargs, parse_yson=True)
 

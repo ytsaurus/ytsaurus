@@ -39,7 +39,7 @@
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
 #include <yt/yt/ytlib/queue_client/config.h>
-#include <yt/yt/ytlib/queue_client/registration_cache.h>
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/ytlib/yql_client/config.h>
 
@@ -190,8 +190,8 @@ public:
             GetNetworks());
 
         InitializeQueueAgentChannels();
-        QueueConsumerRegistrationCache_ = New<TQueueConsumerRegistrationCache>(
-            Config_->QueueAgent->RegistrationTable,
+        QueueConsumerRegistrationManager_ = New<TQueueConsumerRegistrationManager>(
+            Config_->QueueAgent->QueueConsumerRegistrationManager,
             this,
             GetInvoker(),
             Logger);
@@ -455,9 +455,9 @@ public:
         return it->second;
     }
 
-    const TQueueConsumerRegistrationCachePtr& GetQueueConsumerRegistrationCache() const override
+    const TQueueConsumerRegistrationManagerPtr& GetQueueConsumerRegistrationManager() const override
     {
-        return QueueConsumerRegistrationCache_;
+        return QueueConsumerRegistrationManager_;
     }
 
     const IChannelPtr& GetYqlAgentChannelOrThrow() const override
@@ -629,8 +629,8 @@ public:
     {
         Terminated_ = true;
 
-        QueueConsumerRegistrationCache_->Clear();
-        QueueConsumerRegistrationCache_->StopSync();
+        QueueConsumerRegistrationManager_->Clear();
+        QueueConsumerRegistrationManager_->StopSync();
 
         ClusterDirectory_->Clear();
         ClusterDirectorySynchronizer_->Stop();
@@ -719,7 +719,7 @@ private:
 
     IChannelPtr SchedulerChannel_;
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
-    TQueueConsumerRegistrationCachePtr QueueConsumerRegistrationCache_;
+    TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
     IChannelPtr YqlAgentChannel_;
     IBlockCachePtr BlockCache_;
     IClientChunkMetaCachePtr ChunkMetaCache_;
@@ -974,6 +974,18 @@ IConnectionPtr FindRemoteConnection(
     const TString& clusterName)
 {
     return connection->GetClusterDirectory()->FindConnection(clusterName);
+}
+
+IConnectionPtr FindRemoteConnection(
+    const IConnectionPtr& connection,
+    const std::optional<TString>& clusterName)
+{
+    if (clusterName) {
+        if (auto remoteConnection = connection->GetClusterDirectory()->FindConnection(*clusterName)) {
+            return remoteConnection;
+        }
+    }
+    return connection;
 }
 
 IConnectionPtr GetRemoteConnectionOrThrow(

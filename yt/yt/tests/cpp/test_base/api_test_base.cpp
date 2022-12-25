@@ -3,7 +3,7 @@
 
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-#include <yt/yt/ytlib/queue_client/registration_cache.h>
+#include <yt/yt/ytlib/queue_client/registration_manager.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
@@ -44,7 +44,7 @@ void TApiTestBase::SetUpTestCase()
 
         if (auto nativeConnection = DynamicPointerCast<NNative::IConnection>(connection)) {
             nativeConnection->GetClusterDirectorySynchronizer()->Start();
-            nativeConnection->GetQueueConsumerRegistrationCache()->StartSync();
+            nativeConnection->GetQueueConsumerRegistrationManager()->StartSync();
         }
 
         Connection_ = connection;

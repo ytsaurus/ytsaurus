@@ -1,4 +1,4 @@
-#include "registration_cache.h"
+#include "registration_manager.h"
 #include "config.h"
 #include "dynamic_state.h"
 #include "private.h"
@@ -51,8 +51,8 @@ TCrossClusterReference FillCrossClusterReferencesFromRichYPath(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueueConsumerRegistrationCache::TQueueConsumerRegistrationCache(
-    TQueueAgentRegistrationTableConfigPtr config,
+TQueueConsumerRegistrationManager::TQueueConsumerRegistrationManager(
+    TQueueConsumerRegistrationManagerConfigPtr config,
     NNative::IConnection* connection,
     IInvokerPtr invoker,
     const NLogging::TLogger& logger)
@@ -62,26 +62,26 @@ TQueueConsumerRegistrationCache::TQueueConsumerRegistrationCache(
     , ClusterName_(connection->GetConfig()->ClusterName)
     , RefreshExecutor_(New<TPeriodicExecutor>(
         Invoker_,
-        BIND(&TQueueConsumerRegistrationCache::Refresh, MakeWeak(this)),
+        BIND(&TQueueConsumerRegistrationManager::Refresh, MakeWeak(this)),
         Config_->CacheRefreshPeriod))
-    , OrchidService_(IYPathService::FromProducer(BIND(&TQueueConsumerRegistrationCache::BuildOrchid, MakeWeak(this)))->Via(Invoker_))
+    , OrchidService_(IYPathService::FromProducer(BIND(&TQueueConsumerRegistrationManager::BuildOrchid, MakeWeak(this)))->Via(Invoker_))
     , Logger(logger)
     , DynamicConfig_(Config_)
 { }
 
-void TQueueConsumerRegistrationCache::StartSync() const
+void TQueueConsumerRegistrationManager::StartSync() const
 {
     YT_LOG_DEBUG("Starting queue agent registration cache sync");
     RefreshExecutor_->Start();
 }
 
-void TQueueConsumerRegistrationCache::StopSync() const
+void TQueueConsumerRegistrationManager::StopSync() const
 {
     YT_LOG_DEBUG("Stopping queue agent registration cache sync");
     RefreshExecutor_->Stop();
 }
 
-std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationCache::GetRegistration(
+std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::GetRegistration(
     const TRichYPath& queue,
     const TRichYPath& consumer) const
 {
@@ -106,7 +106,7 @@ std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationCache::Ge
     return {};
 }
 
-void TQueueConsumerRegistrationCache::RegisterQueueConsumer(
+void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
     const TRichYPath& queue,
     const TRichYPath& consumer,
     bool vital)
@@ -121,7 +121,7 @@ void TQueueConsumerRegistrationCache::RegisterQueueConsumer(
         .ValueOrThrow();
 }
 
-void TQueueConsumerRegistrationCache::UnregisterQueueConsumer(
+void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
     const TRichYPath& queue,
     const TRichYPath& consumer)
 {
@@ -134,18 +134,18 @@ void TQueueConsumerRegistrationCache::UnregisterQueueConsumer(
         .ValueOrThrow();
 }
 
-void TQueueConsumerRegistrationCache::Clear()
+void TQueueConsumerRegistrationManager::Clear()
 {
     auto guard = WriterGuard(CacheSpinLock_);
     Registrations_.clear();
 }
 
-IYPathServicePtr TQueueConsumerRegistrationCache::GetOrchidService() const
+IYPathServicePtr TQueueConsumerRegistrationManager::GetOrchidService() const
 {
     return OrchidService_;
 }
 
-void TQueueConsumerRegistrationCache::Refresh()
+void TQueueConsumerRegistrationManager::Refresh()
 {
     try {
         GuardedRefresh();
@@ -157,7 +157,7 @@ void TQueueConsumerRegistrationCache::Refresh()
     }
 }
 
-void TQueueConsumerRegistrationCache::GuardedRefresh()
+void TQueueConsumerRegistrationManager::GuardedRefresh()
 {
     auto config = RefreshDynamicConfig();
 
@@ -184,7 +184,7 @@ void TQueueConsumerRegistrationCache::GuardedRefresh()
     YT_LOG_DEBUG("Queue agent registration cache refreshed (RegistrationCount: %v)", Registrations_.size());
 }
 
-TConsumerRegistrationTablePtr TQueueConsumerRegistrationCache::GetOrInitRegistrationTableOrThrow()
+TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::GetOrInitRegistrationTableOrThrow()
 {
     TConsumerRegistrationTablePtr newRegistrationTable;
 
@@ -224,14 +224,14 @@ TConsumerRegistrationTablePtr TQueueConsumerRegistrationCache::GetOrInitRegistra
     }
 }
 
-TQueueAgentRegistrationTableConfigPtr TQueueConsumerRegistrationCache::RefreshDynamicConfig()
+TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::RefreshDynamicConfig()
 {
-    TQueueAgentRegistrationTableConfigPtr config = Config_;
+    TQueueConsumerRegistrationManagerConfigPtr config = Config_;
 
     if (ClusterName_) {
         if (auto localConnection = Connection_.Lock()) {
             if (auto remoteConnection = localConnection->GetClusterDirectory()->FindConnection(*ClusterName_)) {
-                config = remoteConnection->GetConfig()->QueueAgent->RegistrationTable;
+                config = remoteConnection->GetConfig()->QueueAgent->QueueConsumerRegistrationManager;
             }
         }
     }
@@ -253,9 +253,9 @@ TQueueAgentRegistrationTableConfigPtr TQueueConsumerRegistrationCache::RefreshDy
     return config;
 }
 
-void TQueueConsumerRegistrationCache::BuildOrchid(IYsonConsumer* consumer) const
+void TQueueConsumerRegistrationManager::BuildOrchid(IYsonConsumer* consumer) const
 {
-    TQueueAgentRegistrationTableConfigPtr config;
+    TQueueConsumerRegistrationManagerConfigPtr config;
     {
         auto guard = ReaderGuard(ConfigurationSpinLock_);
         config = DynamicConfig_;

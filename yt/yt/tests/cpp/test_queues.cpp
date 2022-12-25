@@ -242,38 +242,6 @@ public:
             SyncMountTable(path);
         }
     }
-
-    // TODO(achulkov2): Remove once an actual api command for this is implemented.
-    void RegisterQueueConsumer(const TYPath& queue, const TYPath& consumer, bool vital = false) const
-    {
-        auto localCluster = ConvertTo<TString>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
-
-        auto nameTable = TNameTable::FromSchema(*GetQueueAgentRegistrationTableSchema());
-
-        WriteSingleRow(
-            RegistrationTablePath,
-            nameTable,
-            MakeUnversionedOwningRow(localCluster, queue, localCluster, consumer, vital));
-    }
-
-    // TODO(achulkov2): Remove once an actual api command for this is implemented.
-    void UnregisterQueueConsumer(const TYPath& queue, const TYPath& consumer) const
-    {
-        auto localCluster = ConvertTo<TString>(WaitFor(Client_->GetNode("//sys/@cluster_name")).ValueOrThrow());
-
-        auto nameTable = TNameTable::FromSchema(*GetQueueAgentRegistrationTableSchema());
-
-        auto row = MakeUnversionedOwningRow(localCluster, queue, localCluster, consumer);
-        TUnversionedRowsBuilder rowsBuilder;
-        rowsBuilder.AddRow(TUnversionedRow{row});
-
-        auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
-            .ValueOrThrow();
-        transaction->DeleteRows(RegistrationTablePath, nameTable, rowsBuilder.Build());
-
-        WaitFor(transaction->Commit())
-            .ThrowOnError();
-    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -374,7 +342,7 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
     EXPECT_FALSE(rowsetOrError.IsOK());
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
 
-    RegisterQueueConsumer(queue->GetPath(), consumer->GetPath());
+    Client_->RegisterQueueConsumer(queue->GetPath(), consumer->GetPath(), /*vital*/ false);
     // Wait for registration cache to sync.
     TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
 
@@ -382,7 +350,7 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
         .ValueOrThrow();
     EXPECT_FALSE(rowset->GetRows().empty());
 
-    UnregisterQueueConsumer(queue->GetPath(), consumer->GetPath());
+    Client_->UnregisterQueueConsumer(queue->GetPath(), consumer->GetPath());
     // Wait for registration cache to sync.
     TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
 
