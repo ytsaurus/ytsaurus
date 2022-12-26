@@ -2,11 +2,15 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from helpers import get_schema_from_description
 
-from yt_commands import (write_table, authors, create, get, raises_yt_error, read_table)
+from yt_commands import (write_table, authors, create, get, raises_yt_error, read_table, concatenate)
 
-from yt_type_helpers import (decimal_type, make_schema, normalize_schema_v3)
+from yt_type_helpers import (decimal_type, optional_type, make_schema, normalize_schema_v3)
 
 from decimal_helpers import encode_decimal
+
+import yt.yson as yson
+
+import pytest
 
 
 class TestComposite(ClickHouseTestBase):
@@ -175,3 +179,22 @@ class TestComposite(ClickHouseTestBase):
             # Decimal256 is not supported in YT.
             with raises_yt_error(QueryFailedError):
                 clique.make_query('create table "//tmp/t_bad" engine YtTable() as select toDecimal256(1.0, 10) as d256')
+
+    # CHYT-896
+    @authors("dakovalkov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_optional_null(self, optimize_for):
+        schema = [{"name": "a", "type_v3": "null"}]
+        create("table", "//tmp/t1", attributes={"schema": schema, "optimize_for": optimize_for})
+        write_table("//tmp/t1", [{"a": yson.YsonEntity()}])
+
+        schema = [{"name": "a", "type_v3": optional_type("null")}]
+        create("table", "//tmp/t2", attributes={"schema": schema})
+        concatenate(["//tmp/t1"], "//tmp/t2")
+
+        assert get("//tmp/t1/@chunk_ids") == get("//tmp/t2/@chunk_ids")
+
+        write_table("<append=%true>//tmp/t2", [{"a": [yson.YsonEntity()]}])
+
+        with Clique(1) as clique:
+            assert clique.make_query('select a from "//tmp/t2"') == [{"a": yson.YsonEntity()}] * 2

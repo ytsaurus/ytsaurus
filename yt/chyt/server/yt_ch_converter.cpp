@@ -543,18 +543,17 @@ public:
     void ConsumeNulls(int count) override
     {
         if (NullColumn_) {
-            // TODO(max42): there is no efficient (in terms of virtual calls) way
-            // of inserting same value many times to the column. Introduce it.
-            for (int index = 0; index < count; ++index) {
-                NullColumn_->insert(1);
-            }
+            NullColumn_->getData().resize_fill(NullColumn_->size() + count, 1);
         }
         UnderlyingConverter_->ConsumeNulls(count);
     }
 
     void ConsumeYtColumn(const IUnversionedColumnarRowBatch::TColumn& column) override
     {
-        if constexpr (IsV1Optional) {
+        if (!column.Values) {
+            // Column of type Null or Void.
+            ConsumeNulls(column.ValueCount);
+        } else if constexpr (IsV1Optional) {
             if (NullColumn_) {
                 ReplaceColumnTypeChecked(NullColumn_, BuildNullBytemapForCHColumn(column));
             }
