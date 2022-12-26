@@ -222,6 +222,7 @@ DEFINE_ENUM(EHunkStoreLockMode,
 
 DECLARE_REFCOUNTED_CLASS(TTabletHydraManagerConfig)
 DECLARE_REFCOUNTED_CLASS(TRelativeReplicationThrottlerConfig)
+DECLARE_REFCOUNTED_CLASS(TRowDigestCompactionConfig)
 DECLARE_REFCOUNTED_CLASS(TBuiltinTableMountConfig)
 DECLARE_REFCOUNTED_CLASS(TCustomTableMountConfig)
 DECLARE_REFCOUNTED_CLASS(TTableMountConfig)

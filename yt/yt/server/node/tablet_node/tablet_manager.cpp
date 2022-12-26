@@ -3335,6 +3335,7 @@ private:
             .Item("compaction_time").Value(partition->GetCompactionTime())
             .Item("allowed_split_time").Value(partition->GetAllowedSplitTime())
             .Item("allowed_merge_time").Value(partition->GetAllowedMergeTime())
+            .Item("row_digest_request_time").Value(partition->GetRowDigestRequestTime())
             .Item("uncompressed_data_size").Value(partition->GetUncompressedDataSize())
             .Item("compressed_data_size").Value(partition->GetCompressedDataSize())
             .Item("unmerged_row_count").Value(partition->GetUnmergedRowCount())

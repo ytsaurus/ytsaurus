@@ -85,6 +85,8 @@ DECLARE_REFCOUNTED_STRUCT(TTabletSnapshot)
 
 DECLARE_REFCOUNTED_STRUCT(TVirtualValueDirectory)
 
+DECLARE_REFCOUNTED_STRUCT(IVersionedRowDigestBuilder)
+
 struct TOwningBoundaryKeys;
 
 struct TBlobTableSchema;

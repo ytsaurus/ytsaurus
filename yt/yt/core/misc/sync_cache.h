@@ -154,7 +154,10 @@ public:
 
     const TValue& Get(const TKey& key);
     TValue* Find(const TKey& key);
+    TValue* FindNoTouch(const TKey& key);
     TValue* Insert(const TKey& key, TValue value, size_t weight = 1);
+
+    void SetMaxWeight(size_t maxWeight);
 
     void Clear();
 

@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
+#include <yt/yt/library/quantile_digest/public.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -136,6 +138,8 @@ public:
     double SampleRate;
 
     TChunkIndexesWriterConfigPtr ChunkIndexes;
+
+    TVersionedRowDigestConfigPtr VersionedRowDigest;
 
     TChunkWriterTestingOptionsPtr TestingOptions;
 
@@ -275,6 +279,22 @@ public:
 DEFINE_REFCOUNTED_TYPE(TChunkWriterOptions)
 
 ////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedRowDigestConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    bool Enable;
+    TTDigestConfigPtr TDigest;
+
+    REGISTER_YSON_STRUCT(TVersionedRowDigestConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TVersionedRowDigestConfig)
+
+///////////////////////////////////////////////////////////////////////////////
 
 struct TRowBatchReadOptions
 {

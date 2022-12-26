@@ -48,6 +48,8 @@ DEFINE_ENUM(EStoreCompactionReason,
     (Periodic)
     (StoreOutOfTabletRange)
     (DiscardByTtl)
+    (TooManyTimestamps)
+    (TtlCleanupExpected)
 );
 
 DEFINE_ENUM(EStoreRotationReason,

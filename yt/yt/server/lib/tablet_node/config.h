@@ -83,6 +83,24 @@ DEFINE_REFCOUNTED_TYPE(TRelativeReplicationThrottlerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TRowDigestCompactionConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    double MaxObsoleteTimestampRatio;
+    int MaxTimestampsPerValue;
+
+    std::optional<TDuration> CheckPeriod;
+
+    REGISTER_YSON_STRUCT(TRowDigestCompactionConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TRowDigestCompactionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TBuiltinTableMountConfig
     : public virtual NYTree::TYsonStruct
 {
@@ -166,6 +184,7 @@ public:
     std::optional<TDuration> AutoCompactionPeriod;
     double AutoCompactionPeriodSplayRatio;
     EPeriodicCompactionMode PeriodicCompactionMode;
+    TRowDigestCompactionConfigPtr RowDigestCompaction;
 
     bool EnableLookupHashTable;
 
@@ -465,6 +484,10 @@ public:
     std::optional<int> ThreadPoolSize;
     std::optional<int> MaxConcurrentCompactions;
     std::optional<int> MaxConcurrentPartitionings;
+
+    NConcurrency::TThroughputThrottlerConfigPtr RowDigestRequestThrottler;
+    i64 RowDigestCacheSize;
+    bool UseRowDigests;
 
     REGISTER_YSON_STRUCT(TStoreCompactorDynamicConfig);
 

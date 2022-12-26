@@ -483,6 +483,16 @@ TValue* TSimpleLruCache<TKey, TValue, THash>::Find(const TKey& key)
 }
 
 template <class TKey, class TValue, class THash>
+TValue* TSimpleLruCache<TKey, TValue, THash>::FindNoTouch(const TKey& key)
+{
+    auto it = ItemMap_.find(key);
+    if (it == ItemMap_.end()) {
+        return nullptr;
+    }
+    return &(it->second.Value);
+}
+
+template <class TKey, class TValue, class THash>
 TValue* TSimpleLruCache<TKey, TValue, THash>::Insert(const TKey& key, TValue value, size_t weight)
 {
     {
@@ -506,6 +516,12 @@ TValue* TSimpleLruCache<TKey, TValue, THash>::Insert(const TKey& key, TValue val
     CurrentWeight_ += weight;
 
     return &mapIt->second.Value;
+}
+
+template <class TKey, class TValue, class THash>
+void TSimpleLruCache<TKey, TValue, THash>::SetMaxWeight(size_t maxWeight)
+{
+    MaxWeight_ = maxWeight;
 }
 
 template <class TKey, class TValue, class THash>

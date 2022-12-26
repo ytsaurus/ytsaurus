@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <yt/yt/ytlib/table_client/versioned_row_digest.h>
+
 #include <yt/yt/client/table_client/key.h>
 
 namespace NYT::NLsm {
@@ -43,6 +45,7 @@ public:
     // Sorted stores.
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, MinKey);
     DEFINE_BYREF_RW_PROPERTY(NTableClient::TLegacyOwningKey, UpperBoundKey);
+    DEFINE_BYREF_RW_PROPERTY(std::optional<NTableClient::TVersionedRowDigest>, RowDigest);
 
     // Ordered stores.
     // Nothing here yet.
