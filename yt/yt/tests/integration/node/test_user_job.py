@@ -1258,14 +1258,17 @@ class TestUserJobIsolation(YTEnvSetup):
     @authors("gritukan")
     def test_thread_count_statistics(self):
         cmd = "for i in $(seq 1 32); do nohup sleep 5 & done; wait"
-        op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
-        op.track()
 
-        wait(lambda: assert_statistics(
-            op,
-            "user_job.cpu.peak_thread_count",
-            lambda thread_count: 32 <= thread_count <= 42,
-            job_type="task"))
+        def check():
+            op = run_test_vanilla(cmd, spec={"max_failed_job_count": 1})
+            op.track()
+            return assert_statistics(
+                op,
+                "user_job.cpu.peak_thread_count",
+                lambda thread_count: 32 <= thread_count <= 42,
+                job_type="task")
+
+        wait(lambda: check())
 
 ##################################################################
 
