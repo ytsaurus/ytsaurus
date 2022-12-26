@@ -6,8 +6,11 @@
 #include <yt/yt/core/rpc/grpc/proto/grpc.pb.h>
 
 #include <yt/yt/core/misc/shutdown_priorities.h>
-#include <yt/yt/core/rpc/server_detail.h>
+
+#include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/message.h>
+#include <yt/yt/core/rpc/server_detail.h>
+
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/core/bus/bus.h>
@@ -437,6 +440,8 @@ private:
 
             New<TCallHandler>(Owner_);
 
+            ParseRequestId();
+
             if (!TryParsePeerAddress()) {
                 YT_LOG_DEBUG("Malformed peer address (PeerAddress: %v, RequestId: %v)",
                     PeerAddressString_,
@@ -445,14 +450,22 @@ private:
                 return;
             }
 
-            ParseRequestId();
             ParseTraceContext();
             ParseUser();
             ParseUserTag();
             ParseUserAgent();
             ParseRpcCredentials();
-            ParseSslCredentials();
             ParseTimeout();
+
+            try {
+                SslCredentialsExt_ = WaitFor(ParseSslCredentials())
+                    .ValueOrThrow();
+            } catch (const std::exception& ex) {
+                YT_LOG_DEBUG(ex, "Failed to parse ssl credentials (RequestId: %v)",
+                    RequestId_);
+                Unref();
+                return;
+            }
 
             if (!TryParseRoutingParameters()) {
                 YT_LOG_DEBUG("Malformed request routing parameters (RawMethod: %v, RequestId: %v)",
@@ -656,18 +669,29 @@ private:
             }
         }
 
-        void ParseSslCredentials()
+        TFuture<std::optional<NGrpc::NProto::TSslCredentialsExt>> ParseSslCredentials()
         {
             auto authContext = TGrpcAuthContextPtr(grpc_call_auth_context(Call_.Unwrap()));
-            if (!authContext) {
-                return;
-            }
-
-            ParsePeerIdentity(authContext);
-            ParseIssuer(authContext);
+            return BIND(&DoParseSslCredentials, Passed(std::move(authContext)))
+                .AsyncVia(NRpc::TDispatcher::Get()->GetHeavyInvoker())
+                .Run();
         }
 
-        void ParsePeerIdentity(const TGrpcAuthContextPtr& authContext)
+        static std::optional<NGrpc::NProto::TSslCredentialsExt> DoParseSslCredentials(TGrpcAuthContextPtr authContext)
+        {
+            if (!authContext) {
+                return std::nullopt;
+            }
+
+            std::optional<NGrpc::NProto::TSslCredentialsExt> sslCredentialsExtension;
+
+            ParsePeerIdentity(authContext, &sslCredentialsExtension);
+            ParseIssuer(authContext, &sslCredentialsExtension);
+
+            return sslCredentialsExtension;
+        }
+
+        static void ParsePeerIdentity(const TGrpcAuthContextPtr& authContext, std::optional<NGrpc::NProto::TSslCredentialsExt>* sslCredentialsExtension)
         {
             const char* peerIdentityPropertyName = grpc_auth_context_peer_identity_property_name(authContext.Unwrap());
             if (!peerIdentityPropertyName) {
@@ -680,13 +704,13 @@ private:
                 return;
             }
 
-            if (!SslCredentialsExt_) {
-                SslCredentialsExt_.emplace();
+            if (!sslCredentialsExtension->has_value()) {
+                sslCredentialsExtension->emplace();
             }
-            SslCredentialsExt_->set_peer_identity(TString(peerIdentityProperty->value, peerIdentityProperty->value_length));
+            (*sslCredentialsExtension)->set_peer_identity(TString(peerIdentityProperty->value, peerIdentityProperty->value_length));
         }
 
-        void ParseIssuer(const TGrpcAuthContextPtr& authContext)
+        static void ParseIssuer(const TGrpcAuthContextPtr& authContext, std::optional<NGrpc::NProto::TSslCredentialsExt>* sslCredentialsExtension)
         {
             const char* peerIdentityPropertyName = grpc_auth_context_peer_identity_property_name(authContext.Unwrap());
             if (!peerIdentityPropertyName) {
@@ -704,10 +728,10 @@ private:
                 return;
             }
 
-            if (!SslCredentialsExt_) {
-                SslCredentialsExt_.emplace();
+            if (!sslCredentialsExtension->has_value()) {
+                sslCredentialsExtension->emplace();
             }
-            SslCredentialsExt_->set_issuer(std::move(*issuer));
+            (*sslCredentialsExtension)->set_issuer(std::move(*issuer));
         }
 
         void ParseTimeout()
