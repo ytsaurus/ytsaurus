@@ -29,8 +29,6 @@ namespace NYT::NConcurrency {
 static constexpr auto PollerThreadQuantum = TDuration::MilliSeconds(100);
 static constexpr int MaxEventsPerPoll = 1024;
 
-using namespace NProfiling;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TThreadPoolPoller;
