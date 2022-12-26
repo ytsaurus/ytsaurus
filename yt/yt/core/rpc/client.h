@@ -132,7 +132,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(std::optional<TDuration>, AcknowledgementTimeout);
     //! If |true| then the request will be serialized in RPC heavy thread pool.
     DEFINE_BYVAL_RW_PROPERTY(bool, RequestHeavy);
-    //! If |true| then the reponse will be deserialized and the response handler will
+    //! If |true| then the response will be deserialized and the response handler will
     //! be invoked in RPC heavy thread pool.
     DEFINE_BYVAL_RW_PROPERTY(bool, ResponseHeavy);
     DEFINE_BYVAL_RW_PROPERTY(NCompression::ECodec, RequestCodec, NCompression::ECodec::None);

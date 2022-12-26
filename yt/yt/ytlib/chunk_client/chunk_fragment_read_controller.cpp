@@ -241,7 +241,7 @@ public:
         if (plan == &RegularPlan_) {
             HandleRegularRpcSubresponse(partIndex, fragments);
         } else if (plan == &RepairPlan_) {
-            HandleRepairRpcSubreponse(partIndex, fragments);
+            HandleRepairRpcSubresponse(partIndex, fragments);
         } else {
             YT_ABORT();
         }
@@ -518,7 +518,7 @@ private:
         }
     }
 
-    void HandleRepairRpcSubreponse(
+    void HandleRepairRpcSubresponse(
         int partIndex,
         TMutableRange<TSharedRef> fragments)
     {
