@@ -85,10 +85,10 @@ public:
         , SystemMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::SystemJobs))
         , UserMemoryUsageTracker_(NodeMemoryUsageTracker_->WithCategory(EMemoryCategory::UserJobs))
         , Profiler_("/job_controller")
-        , MajorPageFaultsGauge_(Profiler_.Gauge("major_page_faults"))
-        , FreeMemoryWatermarkMultiplierGauge_(Profiler_.Gauge("free_memory_watermark_multiplier"))
-        , FreeMemoryWatermarkAddedMemoryGauge_(Profiler_.Gauge("free_memory_watermark_added_memory"))
-        , FreeMemoryWatermarkIsIncreasedGauge_(Profiler_.Gauge("free_memory_watermark_is_increased"))
+        , MajorPageFaultsGauge_(Profiler_.Gauge("/major_page_faults"))
+        , FreeMemoryWatermarkMultiplierGauge_(Profiler_.Gauge("/free_memory_watermark_multiplier"))
+        , FreeMemoryWatermarkAddedMemoryGauge_(Profiler_.Gauge("/free_memory_watermark_added_memory"))
+        , FreeMemoryWatermarkIsIncreasedGauge_(Profiler_.Gauge("/free_memory_watermark_is_increased"))
     {
         YT_VERIFY(Config_);
         YT_VERIFY(Bootstrap_);
