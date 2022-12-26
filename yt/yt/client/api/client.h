@@ -153,7 +153,7 @@ struct TMasterReadOptions
 
     // When staleness bound is non-zero, master cache is allowed to
     // return successful expired response, with staleness not exceeding the bound.
-    // This allows non-blocking master cache reponses, with async on-demand updates.
+    // This allows non-blocking master cache responses, with async on-demand updates.
     TDuration SuccessStalenessBound;
 };
 
