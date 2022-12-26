@@ -21,8 +21,8 @@ TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetFailedYtDisks()
     auto ytDiskNamesFuture = DiskManagerProxy_->GetYtDiskDeviceNames();
 
     // Merge two futures and filter disks with failed states and placed in /yt.
-    return diskInfosFuture.Apply(BIND([&] (const std::vector<TDiskInfo>& diskInfos) {
-        return ytDiskNamesFuture.Apply(BIND([&] (const THashSet<TString>& diskNames) {
+    return diskInfosFuture.Apply(BIND([=] (const std::vector<TDiskInfo>& diskInfos) {
+        return ytDiskNamesFuture.Apply(BIND([=] (const THashSet<TString>& diskNames) {
             std::vector<TDiskInfo> failedDisks;
 
             for (const auto& diskInfo : diskInfos) {
