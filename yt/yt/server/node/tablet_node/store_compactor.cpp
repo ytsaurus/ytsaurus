@@ -1917,7 +1917,8 @@ private:
 
             YT_LOG_INFO("Partition compaction started (Slack: %v, FutureEffect: %v, Effect: %v, "
                 "RowCount: %v, CompressedDataSize: %v, ChunkCount: %v, "
-                "CurrentTimestamp: %v, MajorTimestamp: %v, RetainedTimestamp: %v, RetentionConfig: %v)",
+                "CurrentTimestamp: %v, MajorTimestamp: %v, RetainedTimestamp: %v, RetentionConfig: %v, "
+                "Reason: %v)",
                 task->Slack,
                 task->FutureEffect,
                 task->Effect,
@@ -1927,7 +1928,8 @@ private:
                 currentTimestamp,
                 majorTimestamp,
                 retainedTimestamp,
-                ConvertTo<TRetentionConfigPtr>(mountConfig));
+                ConvertTo<TRetentionConfigPtr>(mountConfig),
+                task->Reason);
 
             reader = CreateReader(
                 task,

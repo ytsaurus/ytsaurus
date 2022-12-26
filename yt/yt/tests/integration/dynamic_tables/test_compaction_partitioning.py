@@ -1,12 +1,12 @@
 from .test_sorted_dynamic_tables import TestSortedDynamicTablesBase
 
 from yt_commands import (
-    authors, wait, create, get, set, insert_rows, select_rows, lookup_rows,
+    authors, wait, create, get, set, insert_rows, delete_rows, select_rows, lookup_rows,
     alter_table, write_table,
     remount_table, get_tablet_leader_address, sync_create_cells, sync_mount_table, sync_unmount_table,
     sync_reshard_table, sync_flush_table, build_snapshot, sorted_dicts, sync_compact_table,
     sync_freeze_table, sync_unfreeze_table, get_singular_chunk_id,
-    ban_node, disable_write_sessions_on_node)
+    ban_node, disable_write_sessions_on_node, update_nodes_dynamic_config)
 
 from yt_type_helpers import make_schema
 
@@ -509,6 +509,70 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
             return len(intersection) == 0
 
         wait(check)
+
+    @authors("ifsmirnov")
+    def test_timestamp_digest_too_many_delete_timestamps(self):
+        sync_create_cells(1)
+        self._create_simple_table(
+            "//tmp/t",
+            mount_config={
+                "backing_store_retention_time": 0,
+                "dynamic_store_auto_flush_period": 1000,
+                "dynamic_store_flush_period_splay": 0,
+                "row_digest_compaction": {
+                    "period": yson.YsonEntity(),
+                },
+                "min_data_ttl": 0,
+                "compaction_data_size_base": 16 * 2**20,
+                "enable_lsm_verbose_logging": True,
+            },
+            enable_dynamic_store_read=False,
+            compression_codec="none"
+        )
+        sync_mount_table("//tmp/t")
+
+        update_nodes_dynamic_config({
+            "tablet_node": {
+                "store_compactor": {
+                    "use_row_digests": True,
+                }
+            }
+        })
+
+        # Create a large chunk that will not be compacted will smaller ones and thus will prevent
+        # purging delete tombstones by major timestamp.
+        insert_rows("//tmp/t", [{"key": 1, "value": "a" * 16 * 2**20}])
+
+        wait(lambda: get("//tmp/t/@chunk_ids"))
+        large_chunk_id = get("//tmp/t/@chunk_ids")[0]
+
+        # Insert many delete timestamps and see how chunks are compacted but to no avail.
+        start_time = time()
+        delete_ts_count = 0
+        while time() - start_time < 10:
+            delete_rows("//tmp/t", [{"key": 1}])
+            delete_ts_count += 1
+
+        lookup_result = lookup_rows("//tmp/t", [{"key": 1}], versioned=True, verbose=False, column_names=[])
+        delete_timestamps = lookup_result[0].attributes["delete_timestamps"]
+
+        assert delete_ts_count == len(delete_timestamps)
+        assert large_chunk_id in get("//tmp/t/@chunk_ids")
+        assert len(get("//tmp/t/@chunk_ids")) > 1
+
+        set("//tmp/t/@mount_config/row_digest_compaction", {
+            "check_period": 1000,
+            "max_obsolete_timestamp_ratio": 1,
+            "max_timestamps_per_value": delete_ts_count // 4,
+        })
+        remount_table("//tmp/t")
+
+        wait(lambda: large_chunk_id not in get("//tmp/t/@chunk_ids"))
+
+        lookup_result = lookup_rows("//tmp/t", [{"key": 1}], versioned=True, verbose=False, column_names=[])
+        if lookup_result:
+            delete_timestamps = lookup_result[0].attributes["delete_timestamps"]
+            assert len(delete_timestamps) < delete_ts_count
 
 ################################################################################
 

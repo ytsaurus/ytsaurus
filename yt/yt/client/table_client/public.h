@@ -39,6 +39,7 @@ class TReqLookupRows;
 class TColumnRenameDescriptor;
 class THunkChunkRef;
 class TColumnMetaExt;
+class TVersionedRowDigestExt;
 
 } // namespace NProto
 
@@ -310,6 +311,8 @@ DECLARE_REFCOUNTED_CLASS(TInsertRowsFormatConfig)
 
 DECLARE_REFCOUNTED_CLASS(TChunkReaderOptions)
 DECLARE_REFCOUNTED_CLASS(TChunkWriterOptions)
+
+DECLARE_REFCOUNTED_CLASS(TVersionedRowDigestConfig)
 
 class TSaveContext;
 class TLoadContext;

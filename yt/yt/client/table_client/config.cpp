@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/misc/singleton.h>
 
+#include <yt/yt/library/quantile_digest/config.h>
+
 namespace NYT::NTableClient {
 
 using namespace NChunkClient;
@@ -139,6 +141,9 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
         .Default(0.0001);
 
     registrar.Parameter("chunk_indexes", &TThis::ChunkIndexes)
+        .DefaultNew();
+
+    registrar.Parameter("versioned_row_digest", &TThis::VersionedRowDigest)
         .DefaultNew();
 
     registrar.Parameter("testing_options", &TThis::TestingOptions)
@@ -308,6 +313,16 @@ void TChunkWriterOptions::EnableValidationOptions(bool validateAnyIsValidYson)
     ValidateKeyWeight = true;
     ValidateColumnCount = true;
     ValidateAnyIsValidYson = validateAnyIsValidYson;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TVersionedRowDigestConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("enable", &TThis::Enable)
+        .Default(true);
+    registrar.Parameter("t_digest", &TThis::TDigest)
+        .DefaultNew();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

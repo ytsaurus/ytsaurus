@@ -7,6 +7,7 @@
 #include "private.h"
 #include "row_merger.h"
 #include "versioned_block_writer.h"
+#include "versioned_row_digest.h"
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -90,6 +91,7 @@ public:
         , RandomGenerator_(RandomNumber<ui64>())
         , SamplingThreshold_(static_cast<ui64>(MaxFloor<ui64>() * Config_->SampleRate))
         , SamplingRowMerger_(New<TRowBuffer>(TVersionedChunkWriterBaseTag()), Schema_)
+        , RowDigestBuilder_(CreateVersionedRowDigestBuilder(Config_->VersionedRowDigest))
         , TraceContext_(CreateTraceContextFromCurrent("ChunkWriter"))
         , FinishGuard_(TraceContext_)
     {
@@ -130,6 +132,12 @@ public:
                 BoundaryKeysExt_.mutable_min(),
                 TLegacyOwningKey(firstRow.BeginKeys(), firstRow.EndKeys()));
             EmitSample(firstRow);
+        }
+
+        if (RowDigestBuilder_) {
+            for (auto row : rows) {
+                RowDigestBuilder_->OnRow(row);
+            }
         }
 
         DoWriteRows(rows);
@@ -226,6 +234,8 @@ protected:
 
     NProto::TColumnarStatisticsExt ColumnarStatisticsExt_;
 
+    IVersionedRowDigestBuilderPtr RowDigestBuilder_;
+
     const TTraceContextPtr TraceContext_;
     const TTraceContextFinishGuard FinishGuard_;
 
@@ -253,6 +263,11 @@ protected:
         SetProtoExtension(meta->mutable_extensions(), SamplesExt_);
         SetProtoExtension(meta->mutable_extensions(), ColumnarStatisticsExt_);
         SetProtoExtension(meta->mutable_extensions(), SystemBlockMetaExt_);
+        if (RowDigestBuilder_) {
+            TVersionedRowDigestExt rowDigestExt;
+            ToProto(&rowDigestExt, RowDigestBuilder_->FlushDigest());
+            SetProtoExtension(meta->mutable_extensions(), rowDigestExt);
+        }
 
         meta->UpdateMemoryUsage();
 

@@ -52,6 +52,20 @@ void TRelativeReplicationThrottlerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TRowDigestCompactionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("max_obsolete_timestamp_ratio", &TThis::MaxObsoleteTimestampRatio)
+        .Default(0.5);
+    registrar.Parameter("max_timestamps_per_value", &TThis::MaxTimestampsPerValue)
+        .GreaterThanOrEqual(1)
+        .Default(8192);
+
+    registrar.Parameter("check_period", &TThis::CheckPeriod)
+        .Default(TDuration::Minutes(15));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TBuiltinTableMountConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("tablet_cell_bundle", &TThis::TabletCellBundle)
@@ -197,6 +211,8 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
         .Default(0.3);
     registrar.Parameter("periodic_compaction_mode", &TThis::PeriodicCompactionMode)
         .Default(EPeriodicCompactionMode::Store);
+    registrar.Parameter("row_digest_compaction", &TThis::RowDigestCompaction)
+        .DefaultNew();
 
     registrar.Parameter("enable_lookup_hash_table", &TThis::EnableLookupHashTable)
         .Default(false);
@@ -545,6 +561,14 @@ void TStoreCompactorDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_concurrent_partitionings", &TThis::MaxConcurrentPartitionings)
         .GreaterThan(0)
         .Optional();
+
+    registrar.Parameter("row_digest_request_throttler", &TThis::RowDigestRequestThrottler)
+        .DefaultNew();
+    registrar.Parameter("row_digest_cache_size", &TThis::RowDigestCacheSize)
+        .GreaterThan(0)
+        .Default(50_MB);
+    registrar.Parameter("use_row_digests", &TThis::UseRowDigests)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
