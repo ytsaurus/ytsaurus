@@ -92,7 +92,7 @@ TCpuStatistics TPortoResourceTracker::ExtractCpuStatistics(const TResourceUsage&
         ? std::max<ui64>(
             PeakThreadCount_.Value(),
             currentThreadCountPeak.Value())
-        : currentThreadCountPeak;
+        : currentThreadCountPeak.IsOK() ? currentThreadCountPeak : PeakThreadCount_;
 
     auto totalTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuUsage);
     auto systemTimeNs = GetFieldOrError(resourceUsage, EStatField::CpuSystemUsage);
