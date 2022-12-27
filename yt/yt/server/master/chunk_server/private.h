@@ -56,12 +56,15 @@ DEFINE_ENUM(ERemoveReplicaReason,
 // TableChunkFormat and TableChunkFormatStatistics attributes.
 // Keep in sync with NChunkClient::EChunkFormat.
 DEFINE_ENUM(ETableChunkFormat,
-    ((Old)                  (1))
-    ((VersionedSimple)      (2))
-    ((Schemaful)            (3))
-    ((SchemalessHorizontal) (4))
-    ((VersionedColumnar)    (5))
-    ((UnversionedColumnar)  (6))
+    ((Old)                             (1))
+
+    ((UnversionedSchemaful)            (3))
+    ((UnversionedSchemalessHorizontal) (4))
+    ((UnversionedColumnar)             (6))
+
+    ((VersionedSimple)                 (2))
+    ((VersionedColumnar)               (5))
+    ((VersionedIndexed)                (8))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -582,7 +582,7 @@ private:
 
     EChunkFormat GetChunkFormat() const override
     {
-        return EChunkFormat::TableSchemalessHorizontal;
+        return EChunkFormat::TableUnversionedSchemalessHorizontal;
     }
 
     bool SupportBoundaryKeys() const override
@@ -945,7 +945,7 @@ private:
 
     EChunkFormat GetChunkFormat() const override
     {
-        return EChunkFormat::TableSchemalessHorizontal;
+        return EChunkFormat::TableUnversionedSchemalessHorizontal;
     }
 
     void PrepareChunkMeta() override

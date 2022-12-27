@@ -105,19 +105,24 @@ DEFINE_ENUM(EChunkType,
 // Keep in sync with NChunkServer::ETableChunkFormat.
 DEFINE_ENUM(EChunkFormat,
     // Sentinels.
-    ((Unknown)                   (-1))
+    ((Unknown)                             (-1))
+
     // File chunks.
-    ((FileDefault)                (1))
+    ((FileDefault)                          (1))
+
     // Table chunks.
-    ((TableVersionedSimple)       (2))
-    ((TableSchemaful)             (3))
-    ((TableSchemalessHorizontal)  (4))
-    ((TableVersionedColumnar)     (5))
-    ((TableUnversionedColumnar)   (6))
+    ((TableUnversionedSchemaful)            (3))
+    ((TableUnversionedSchemalessHorizontal) (4))
+    ((TableUnversionedColumnar)             (6))
+    ((TableVersionedSimple)                 (2))
+    ((TableVersionedColumnar)               (5))
+    ((TableVersionedIndexed)                (8))
+
     // Journal chunks.
-    ((JournalDefault)             (0))
+    ((JournalDefault)                       (0))
+
     // Hunk chunks.
-    ((HunkDefault)                (7))
+    ((HunkDefault)                          (7))
 );
 
 //! Values must be contiguous.

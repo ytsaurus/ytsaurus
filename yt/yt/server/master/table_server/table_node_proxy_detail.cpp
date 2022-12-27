@@ -93,8 +93,6 @@ using namespace NTransactionServer;
 using namespace NYTree;
 using namespace NYson;
 
-using NChunkClient::TLegacyReadLimit;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTableNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* context)
@@ -972,8 +970,8 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
                     // COMPAT(gritukan): EChunkFormat::FileDefault == ETableChunkFormat::Old.
                     case EChunkFormat::FileDefault:
                     case EChunkFormat::TableVersionedSimple:
-                    case EChunkFormat::TableSchemaful:
-                    case EChunkFormat::TableSchemalessHorizontal:
+                    case EChunkFormat::TableUnversionedSchemaful:
+                    case EChunkFormat::TableUnversionedSchemalessHorizontal:
                         return NTableClient::EOptimizeFor::Lookup;
                     case EChunkFormat::TableVersionedColumnar:
                     case EChunkFormat::TableUnversionedColumnar:

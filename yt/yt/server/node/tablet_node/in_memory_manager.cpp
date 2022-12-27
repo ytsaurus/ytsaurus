@@ -433,7 +433,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     auto miscExt = GetProtoExtension<TMiscExt>(meta->extensions());
     auto format = CheckedEnumCast<EChunkFormat>(meta->format());
 
-    if (format == EChunkFormat::TableSchemalessHorizontal ||
+    if (format == EChunkFormat::TableUnversionedSchemalessHorizontal ||
         format == EChunkFormat::TableUnversionedColumnar)
     {
         // For unversioned chunks verify that block size is correct
@@ -473,7 +473,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
 
     // TODO(ifsmirnov): support columnar chunks (YT-11707).
     bool canDeduceBlockRange =
-        format == EChunkFormat::TableSchemalessHorizontal ||
+        format == EChunkFormat::TableUnversionedSchemalessHorizontal ||
         format == EChunkFormat::TableVersionedSimple;
 
     if (store->IsSorted() && canDeduceBlockRange) {

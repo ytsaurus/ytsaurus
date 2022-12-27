@@ -87,7 +87,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
 
     SortOrders_ = GetSortOrders(GetTableSchema(*ChunkMeta_)->GetSortColumns());
 
-    YT_VERIFY(FromProto<EChunkFormat>(ChunkMeta_->format()) == EChunkFormat::TableSchemalessHorizontal);
+    YT_VERIFY(FromProto<EChunkFormat>(ChunkMeta_->format()) == EChunkFormat::TableUnversionedSchemalessHorizontal);
 
     TNameTablePtr chunkNameTable;
     auto nameTableExt = GetProtoExtension<NProto::TNameTableExt>(ChunkMeta_->extensions());
@@ -95,7 +95,7 @@ TFuture<void> TPartitionChunkReader::InitializeBlockSequence()
         FromProto(&chunkNameTable, nameTableExt);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION(
-            EErrorCode::CorruptedNameTable,
+            NTableClient::EErrorCode::CorruptedNameTable,
             "Failed to deserialize name table for partition chunk reader")
             << TErrorAttribute("chunk_id", UnderlyingReader_->GetChunkId())
             << ex;
@@ -175,7 +175,7 @@ TPartitionMultiChunkReader::TPartitionMultiChunkReader(IMultiReaderManagerPtr mu
 
 void TPartitionMultiChunkReader::OnReaderSwitched()
 {
-    CurrentReader_ = dynamic_cast<TPartitionChunkReader*>(MultiReaderManager_->GetCurrentSession().Reader.Get());
+    CurrentReader_ = DynamicPointerCast<TPartitionChunkReader>(MultiReaderManager_->GetCurrentSession().Reader);
     YT_VERIFY(CurrentReader_);
 }
 

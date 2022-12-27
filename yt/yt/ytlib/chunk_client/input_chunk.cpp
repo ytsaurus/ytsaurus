@@ -61,7 +61,7 @@ TInputChunkBase::TInputChunkBase(const NProto::TChunkSpec& chunkSpec)
 
     if (IsDynamicStore()) {
         // TODO(ifsmirnov): See YT-12212 for reasonable estimates.
-        ChunkFormat_ = EChunkFormat::TableSchemalessHorizontal;
+        ChunkFormat_ = EChunkFormat::TableUnversionedSchemalessHorizontal;
         TotalDataWeight_ = 1;
         TotalRowCount_ = 1;
         CompressedDataSize_ = 1;

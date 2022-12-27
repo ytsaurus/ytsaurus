@@ -1958,7 +1958,7 @@ ISchemalessChunkReaderPtr CreateSchemalessRangeChunkReader(
     auto sortOrders = GetSortOrders(sortColumns);
 
     switch (chunkMeta->GetChunkFormat()) {
-        case EChunkFormat::TableSchemalessHorizontal:
+        case EChunkFormat::TableUnversionedSchemalessHorizontal:
             return New<THorizontalSchemalessRangeChunkReader>(
                 chunkState,
                 chunkMeta,
@@ -2040,7 +2040,7 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     }
 
     switch (chunkMeta->GetChunkFormat()) {
-        case EChunkFormat::TableSchemalessHorizontal:
+        case EChunkFormat::TableUnversionedSchemalessHorizontal:
             return New<THorizontalSchemalessLookupChunkReader>(
                 chunkState,
                 chunkMeta,

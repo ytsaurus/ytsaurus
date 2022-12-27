@@ -168,7 +168,8 @@ message TIndexedVersionedBlockMeta
 message TDataBlockMetaExt
 {
     repeated TDataBlockMeta data_blocks = 1;
-    optional int32 block_format = 2; // ETableChunkBlockFormat
+
+    reserved 2;
 }
 
 message THashTableChunkIndexBlockMeta

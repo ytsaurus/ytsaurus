@@ -343,9 +343,9 @@ protected:
         const TEncodingChunkWriterPtr& /*encodingChunkWriter*/)
     { }
 
-    ETableChunkBlockFormat GetBlockFormat() const
+    EChunkFormat GetChunkFormat() const
     {
-        return ETableChunkBlockFormat::Default;
+        return EChunkFormat::TableVersionedSimple;
     }
 
 private:
@@ -400,9 +400,9 @@ protected:
         meta->set_features(ToProto<ui64>(chunkFeatures));
     }
 
-    ETableChunkBlockFormat GetBlockFormat() const
+    EChunkFormat GetChunkFormat() const
     {
-        return ETableChunkBlockFormat::IndexedVersioned;
+        return EChunkFormat::TableVersionedIndexed;
     }
 
 private:
@@ -455,7 +455,6 @@ private:
 
     using TBlockFormatAdapter::ResetBlockWriter;
     using TBlockFormatAdapter::OnDataBlocksWritten;
-    using TBlockFormatAdapter::GetBlockFormat;
 
 
     void DoWriteRows(TRange<TVersionedRow> rows) override
@@ -544,8 +543,6 @@ private:
 
     void PrepareChunkMeta() override
     {
-        BlockMetaExt_.set_block_format(ToProto<int>(GetBlockFormat()));
-
         TVersionedChunkWriterBase::PrepareChunkMeta();
 
         auto& miscExt = EncodingChunkWriter_->MiscExt();
@@ -568,7 +565,7 @@ private:
 
     EChunkFormat GetChunkFormat() const override
     {
-        return EChunkFormat::TableVersionedSimple;
+        return TBlockFormatAdapter::GetChunkFormat();
     }
 };
 

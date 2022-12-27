@@ -768,7 +768,7 @@ void TSortedChunkStore::ValidateBlockSize(
 
     if ((workloadDescriptor.Category == EWorkloadCategory::UserInteractive ||
         workloadDescriptor.Category == EWorkloadCategory::UserRealtime) &&
-        (chunkFormat == EChunkFormat::TableSchemalessHorizontal ||
+        (chunkFormat == EChunkFormat::TableUnversionedSchemalessHorizontal ||
         chunkFormat == EChunkFormat::TableUnversionedColumnar))
     {
         // For unversioned chunks verify that block size is correct.

@@ -41,6 +41,8 @@ using namespace NChunkClient;
 using namespace NChunkClient::NProto;
 using namespace NTransactionClient;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 const TString A("a");
@@ -371,14 +373,10 @@ TEST_F(TIndexedVersionedChunksLookupTest, TestMetadata)
         /*memoryTracker*/ nullptr,
         chunkMeta);
 
-    auto features = NYT::FromProto<EChunkFeatures>(chunkMeta->features());
+    auto features = FromProto<EChunkFeatures>(chunkMeta->features());
     EXPECT_TRUE((features & EChunkFeatures::IndexedBlockFormat) == EChunkFeatures::IndexedBlockFormat);
 
     // TODO(akozhikhov): Check system blocks ext.
-
-    auto dataBlockFormat = CheckedEnumCast<ETableChunkBlockFormat>(
-        versionedChunkMeta->DataBlockMeta()->block_format());
-    EXPECT_TRUE(dataBlockFormat == ETableChunkBlockFormat::IndexedVersioned);
 
     const auto& dataBlockMeta = versionedChunkMeta->DataBlockMeta()->data_blocks(0);
     EXPECT_TRUE(dataBlockMeta.HasExtension(NProto::TIndexedVersionedBlockMeta::block_meta_ext));

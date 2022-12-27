@@ -7,8 +7,8 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 using TSchemalessReaderFactory = std::function<ISchemalessUnversionedReaderPtr(
-    TNameTablePtr,
-    const TColumnFilter&)> ;
+    TNameTablePtr nameTable,
+    const TColumnFilter& columnFilter)> ;
 
 ISchemafulUnversionedReaderPtr CreateSchemafulReaderAdapter(
     TSchemalessReaderFactory createReader,

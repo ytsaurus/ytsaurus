@@ -39,9 +39,6 @@ namespace NYT::NTableClient {
 using namespace NConcurrency;
 using namespace NChunkClient;
 
-using NChunkClient::NProto::TMiscExt;
-using NChunkClient::NProto::TChunkSpec;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
@@ -56,8 +53,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulChunkReader(
 {
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableUnversionedColumnar:
-        case EChunkFormat::TableSchemalessHorizontal: {
-            auto createSchemalessReader = [=] (TNameTablePtr nameTable, TColumnFilter columnFilter) {
+        case EChunkFormat::TableUnversionedSchemalessHorizontal: {
+            auto createSchemalessReader = [=] (TNameTablePtr nameTable, const TColumnFilter& columnFilter) {
                 return CreateSchemalessRangeChunkReader(
                     chunkState,
                     chunkMeta,

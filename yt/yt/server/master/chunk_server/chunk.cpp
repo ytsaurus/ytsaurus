@@ -37,7 +37,6 @@ using namespace NSecurityServer;
 using namespace NCellMaster;
 using namespace NJournalClient;
 
-using NYT::ToProto;
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
