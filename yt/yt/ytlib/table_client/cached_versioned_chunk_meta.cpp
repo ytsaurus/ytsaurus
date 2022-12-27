@@ -35,8 +35,9 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
 
     if (ChunkFormat_ != EChunkFormat::TableVersionedSimple &&
         ChunkFormat_ != EChunkFormat::TableVersionedColumnar &&
+        ChunkFormat_ != EChunkFormat::TableVersionedIndexed &&
         ChunkFormat_ != EChunkFormat::TableUnversionedColumnar &&
-        ChunkFormat_ != EChunkFormat::TableSchemalessHorizontal)
+        ChunkFormat_ != EChunkFormat::TableUnversionedSchemalessHorizontal)
     {
         THROW_ERROR_EXCEPTION("Incorrect chunk format %Qlv",
             ChunkFormat_);

@@ -1097,8 +1097,8 @@ private:
                 }
 
                 switch (chunk->GetChunkFormat()) {
-                    case EChunkFormat::TableSchemaful:
-                    case EChunkFormat::TableSchemalessHorizontal:
+                    case EChunkFormat::TableUnversionedSchemaful:
+                    case EChunkFormat::TableUnversionedSchemalessHorizontal:
                     case EChunkFormat::TableUnversionedColumnar:
                     // Some old table chunks can have this format. Such chunks should be reincarnated.
                     case EChunkFormat::FileDefault:

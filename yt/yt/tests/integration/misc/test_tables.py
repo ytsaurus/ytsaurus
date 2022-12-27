@@ -1747,8 +1747,8 @@ class TestTables(YTEnvSetup):
     def test_chunk_format_statistics(self, optimize_for):
         create("table", "//tmp/t", attributes={"optimize_for": optimize_for})
         write_table("//tmp/t", [{"a": "b"}])
-        table_chunk_format = "schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
-        chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
+        table_chunk_format = "unversioned_schemaless_horizontal" if optimize_for == "lookup" else "unversioned_columnar"
+        chunk_format = "table_unversioned_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         assert get("//tmp/t/@table_chunk_format_statistics/{0}/chunk_count".format(table_chunk_format)) == 1
         assert get("//tmp/t/@chunk_format_statistics/{0}/chunk_count".format(chunk_format)) == 1
         chunk = get_singular_chunk_id("//tmp/t")

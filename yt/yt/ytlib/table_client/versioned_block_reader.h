@@ -5,6 +5,8 @@
 #include "public.h"
 #include "schemaless_block_reader.h"
 
+#include <yt/yt/ytlib/chunk_client/public.h>
+
 #include <yt/yt/client/table_client/public.h>
 #include <yt/yt/client/table_client/versioned_row.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
@@ -86,6 +88,8 @@ class TSimpleVersionedBlockParser
     : public TVersionedRowParserBase
 {
 public:
+    static constexpr NChunkClient::EChunkFormat ChunkFormat = NChunkClient::EChunkFormat::TableVersionedSimple;
+
     TSimpleVersionedBlockParser(
         TSharedRef block,
         const NProto::TDataBlockMeta& blockMeta,
@@ -149,7 +153,7 @@ class TIndexedVersionedRowParser
     : public TVersionedRowParserBase
 {
 public:
-    TIndexedVersionedRowParser(
+    explicit TIndexedVersionedRowParser(
         const TTableSchemaPtr& chunkSchema,
         TCompactVector<int, IndexedRowTypicalGroupCount> groupIndexesToRead = {});
 
@@ -224,6 +228,8 @@ class TIndexedVersionedBlockParser
     : public TIndexedVersionedRowParser
 {
 public:
+    static constexpr NChunkClient::EChunkFormat ChunkFormat = NChunkClient::EChunkFormat::TableVersionedIndexed;
+
     TIndexedVersionedBlockParser(
         TSharedRef block,
         const NProto::TDataBlockMeta& blockMeta,
@@ -294,6 +300,8 @@ class TVersionedBlockReader
     : public TVersionedRowReader<TBlockParser>
 {
 public:
+    static constexpr NChunkClient::EChunkFormat ChunkFormat = TBlockParser::ChunkFormat;
+
     TVersionedBlockReader(
         TSharedRef block,
         const NProto::TDataBlockMeta& blockMeta,

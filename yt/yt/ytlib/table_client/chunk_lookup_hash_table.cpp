@@ -126,7 +126,8 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
     const auto& chunkBlockMeta = chunkMeta->DataBlockMeta();
 
     if (chunkFormat != EChunkFormat::TableVersionedSimple &&
-        chunkFormat != EChunkFormat::TableSchemalessHorizontal)
+        chunkFormat != EChunkFormat::TableVersionedIndexed &&
+        chunkFormat != EChunkFormat::TableUnversionedSchemalessHorizontal)
     {
         YT_LOG_INFO("Cannot create lookup hash table for improper chunk format (ChunkId: %v, ChunkFormat: %v)",
             chunkId,
@@ -190,24 +191,15 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
         };
 
         switch (chunkFormat) {
-            case EChunkFormat::TableVersionedSimple: {
-                switch (CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format())) {
-                    case ETableChunkBlockFormat::Default:
-                        fillHashTable.operator()<TSimpleVersionedBlockReader>();
-                        break;
-
-                    case ETableChunkBlockFormat::IndexedVersioned:
-                        fillHashTable.operator()<TIndexedVersionedBlockReader>();
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
-
+            case EChunkFormat::TableVersionedSimple:
+                fillHashTable.operator()<TSimpleVersionedBlockReader>();
                 break;
-            }
 
-            case EChunkFormat::TableSchemalessHorizontal: {
+            case EChunkFormat::TableVersionedIndexed:
+                fillHashTable.operator()<TIndexedVersionedBlockReader>();
+                break;
+
+            case EChunkFormat::TableUnversionedSchemalessHorizontal: {
                 THorizontalSchemalessVersionedBlockReader blockReader(
                     uncompressedBlock.Data,
                     blockMeta,

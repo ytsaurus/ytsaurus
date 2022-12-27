@@ -50,9 +50,6 @@ using namespace NTracing;
 
 using NChunkClient::TReadLimit;
 using NChunkClient::TReadRange;
-using NChunkClient::TDataSliceDescriptor;
-
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -176,7 +173,6 @@ TSimpleVersionedChunkReaderBase::TSimpleVersionedChunkReaderBase(
 {
     YT_VERIFY(ChunkMeta_->Misc().sorted());
     YT_VERIFY(ChunkMeta_->GetChunkType() == EChunkType::Table);
-    YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedSimple);
     YT_VERIFY(PerformanceCounters_);
 
     if (dataSource) {
@@ -224,6 +220,8 @@ public:
         , Ranges_(std::move(ranges))
         , ClippingRange_(singletonClippingRange)
     {
+        YT_VERIFY(ChunkMeta_->GetChunkFormat() == TBlockReader::ChunkFormat);
+
         SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
     }
 
@@ -1769,9 +1767,9 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
     IVersionedReaderPtr reader;
-
     switch (chunkMeta->GetChunkFormat()) {
-        case EChunkFormat::TableVersionedSimple: {
+        case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
                 reader = New<TReader>(
                     std::move(config),
@@ -1790,19 +1788,17 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     memoryManager);
             };
 
-            auto format = CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format());
-            switch (format) {
-                case ETableChunkBlockFormat::Default:
+            switch (chunkMeta->GetChunkFormat()) {
+                case EChunkFormat::TableVersionedSimple:
                     createReader.operator()<TSimpleVersionedRangeChunkReader<TSimpleVersionedBlockReader>>();
                     break;
 
-                case ETableChunkBlockFormat::IndexedVersioned:
+                case EChunkFormat::TableVersionedIndexed:
                     createReader.operator()<TSimpleVersionedRangeChunkReader<TIndexedVersionedBlockReader>>();
                     break;
 
                 default:
-                    THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
-                        format);
+                    YT_ABORT();
             }
 
             break;
@@ -1843,7 +1839,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }
 
         case EChunkFormat::TableUnversionedColumnar:
-        case EChunkFormat::TableSchemalessHorizontal: {
+        case EChunkFormat::TableUnversionedSchemalessHorizontal: {
             // COMPAT(sandello): Fix me.
             if (produceAllVersions && timestamp != AllCommittedTimestamp) {
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with a particular timestamp");
@@ -1974,7 +1970,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             .BuildVersionedSimpleSchemaIdMapping(columnFilter);
 
     switch (chunkMeta->GetChunkFormat()) {
-        case EChunkFormat::TableVersionedSimple: {
+        case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
                 reader = New<TReader>(
                     std::move(config),
@@ -1993,13 +1990,12 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     memoryManager);
             };
 
-            auto format = CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format());
-            switch (format) {
-                case ETableChunkBlockFormat::Default:
+            switch (chunkMeta->GetChunkFormat()) {
+                case EChunkFormat::TableVersionedSimple:
                     createReader.operator()<TSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>();
                     break;
 
-                case ETableChunkBlockFormat::IndexedVersioned:
+                case EChunkFormat::TableVersionedIndexed:
                     createReader.operator()<TSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>();
                     break;
 
@@ -2044,7 +2040,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         }
 
         case EChunkFormat::TableUnversionedColumnar:
-        case EChunkFormat::TableSchemalessHorizontal: {
+        case EChunkFormat::TableUnversionedSchemalessHorizontal: {
             if (produceAllVersions && !columnFilter.IsUniversal()) {
                 THROW_ERROR_EXCEPTION("Reading all value versions is not supported with non-universal column filter");
             }

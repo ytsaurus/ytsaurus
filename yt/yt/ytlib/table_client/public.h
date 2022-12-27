@@ -127,11 +127,6 @@ DEFINE_ENUM(ETableCollocationType,
     ((Replication)  (0))
 );
 
-DEFINE_ENUM(ETableChunkBlockFormat,
-    ((Default)                (0))
-    ((IndexedVersioned)       (1))
-);
-
 DECLARE_REFCOUNTED_STRUCT(IChunkIndexBuilder)
 
 constexpr int VersionedBlockValueSize = 16;

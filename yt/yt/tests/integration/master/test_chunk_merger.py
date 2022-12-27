@@ -771,7 +771,7 @@ class TestChunkMerger(YTEnvSetup):
 
         self._wait_for_merge("//tmp/t", merge_mode)
 
-        chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
+        chunk_format = "table_unversioned_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#{}/@chunk_format".format(chunk_id)) == chunk_format
 
@@ -897,7 +897,7 @@ class TestChunkMerger(YTEnvSetup):
         if merge_mode == "auto":
             wait(lambda: sum(counter.get_delta() for counter in fallback_counters) > 0)
 
-        chunk_format = "table_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
+        chunk_format = "table_unversioned_schemaless_horizontal" if optimize_for == "lookup" else "table_unversioned_columnar"
         chunk_id = get_singular_chunk_id("//tmp/t")
         assert get("#{}/@chunk_format".format(chunk_id)) == chunk_format
 

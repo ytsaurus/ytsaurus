@@ -45,8 +45,6 @@ using namespace NChunkClient;
 using namespace NTableChunkFormat;
 using namespace NTableChunkFormat::NProto;
 
-using NYT::FromProto;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = TableClientLogger;
@@ -282,8 +280,7 @@ public:
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
     {
-        YT_VERIFY(CheckedEnumCast<ETableChunkBlockFormat>(ChunkMeta_->DataBlockMeta()->block_format()) ==
-            ETableChunkBlockFormat::Default);
+        YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedSimple);
     }
 
 protected:
@@ -332,8 +329,7 @@ public:
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
     {
-        YT_VERIFY(CheckedEnumCast<ETableChunkBlockFormat>(ChunkMeta_->DataBlockMeta()->block_format()) ==
-            ETableChunkBlockFormat::IndexedVersioned);
+        YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedIndexed);
     }
 
 protected:
@@ -557,7 +553,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     }
 
     switch (chunkMeta->GetChunkFormat()) {
-        case EChunkFormat::TableSchemalessHorizontal: {
+        case EChunkFormat::TableUnversionedSchemalessHorizontal: {
             auto chunkTimestamp = chunkMeta->Misc().min_timestamp();
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader(keys.Size());
@@ -574,7 +570,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 produceAllVersions);
         }
 
-        case EChunkFormat::TableVersionedSimple: {
+        case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
                 return New<TReader>(
                     chunkId,
@@ -586,12 +583,11 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                     produceAllVersions);
             };
 
-            auto format = CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format());
-            switch (format) {
-                case ETableChunkBlockFormat::Default:
+            switch (chunkMeta->GetChunkFormat()) {
+                case EChunkFormat::TableVersionedSimple:
                     return createReader.operator()<TCacheBasedSimpleVersionedLookupChunkReader<TSimpleVersionedBlockReader>>();
 
-                case ETableChunkBlockFormat::IndexedVersioned:
+                case EChunkFormat::TableVersionedIndexed:
                     return createReader.operator()<TCacheBasedSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>();
 
                 default:
@@ -799,7 +795,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
     }
 
     switch (chunkMeta->GetChunkFormat()) {
-        case EChunkFormat::TableSchemalessHorizontal: {
+        case EChunkFormat::TableUnversionedSchemalessHorizontal: {
             auto chunkTimestamp = static_cast<TTimestamp>(chunkMeta->Misc().min_timestamp());
             if (timestamp < chunkTimestamp) {
                 return CreateEmptyVersionedReader();
@@ -815,7 +811,8 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                 singletonClippingRange);
         }
 
-        case EChunkFormat::TableVersionedSimple: {
+        case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
                 return New<TReader>(
                     chunkId,
@@ -828,17 +825,15 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
                     singletonClippingRange);
             };
 
-            auto format = CheckedEnumCast<ETableChunkBlockFormat>(chunkMeta->DataBlockMeta()->block_format());
-            switch (format) {
-                case ETableChunkBlockFormat::Default:
+            switch (chunkMeta->GetChunkFormat()) {
+                case EChunkFormat::TableVersionedSimple:
                     return createReader.operator()<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>();
 
-                case ETableChunkBlockFormat::IndexedVersioned:
+                case EChunkFormat::TableVersionedIndexed:
                     return createReader.operator ()<TSimpleCacheBasedVersionedRangeChunkReader<TIndexedVersionedBlockReader>>();
 
                 default:
-                    THROW_ERROR_EXCEPTION("Unsupported format %Qlv",
-                        format);
+                    YT_ABORT();
             }
         }
 

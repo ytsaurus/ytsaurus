@@ -55,7 +55,7 @@ public:
     {
         auto chunkFormat = CheckedEnumCast<EChunkFormat>(Meta_.format());
         switch (chunkFormat) {
-            case EChunkFormat::TableSchemalessHorizontal:
+            case EChunkFormat::TableUnversionedSchemalessHorizontal:
             case EChunkFormat::TableUnversionedColumnar:
             case EChunkFormat::TableVersionedSimple:
             case EChunkFormat::TableVersionedColumnar:
@@ -413,7 +413,7 @@ i64 GetChunkSliceDataWeight(
 
     auto chunkFormat = CheckedEnumCast<EChunkFormat>(chunkMeta.format());
     switch (chunkFormat) {
-        case EChunkFormat::TableSchemalessHorizontal:
+        case EChunkFormat::TableUnversionedSchemalessHorizontal:
         case EChunkFormat::TableUnversionedColumnar:
         case EChunkFormat::TableVersionedSimple:
         case EChunkFormat::TableVersionedColumnar:

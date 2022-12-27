@@ -161,7 +161,7 @@ void TColumnarStatisticsFetcher::ApplyColumnSelectivityFactors() const
         if (statistics.LegacyChunkDataWeight == 0) {
             // We have columnar statistics, so we can adjust input chunk data weight by setting column selectivity factor.
             i64 totalColumnDataWeight = 0;
-            if (chunk->GetChunkFormat() == EChunkFormat::TableSchemalessHorizontal ||
+            if (chunk->GetChunkFormat() == EChunkFormat::TableUnversionedSchemalessHorizontal ||
                 chunk->GetChunkFormat() == EChunkFormat::TableUnversionedColumnar)
             {
                 // NB: we should add total row count to the column data weights because otherwise for the empty column list

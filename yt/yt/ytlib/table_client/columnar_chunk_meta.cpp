@@ -29,7 +29,7 @@ TTableSchemaPtr GetTableSchema(const NChunkClient::NProto::TChunkMeta& chunkMeta
         FromProto(&schema, *tableSchemaExt);
     } else if (keyColumnsExt) {
         // COMPAT(savrus) No table schema is allowed only for old chunks.
-        YT_VERIFY(CheckedEnumCast<EChunkFormat>(chunkMeta.format()) == EChunkFormat::TableSchemalessHorizontal);
+        YT_VERIFY(FromProto<EChunkFormat>(chunkMeta.format()) == EChunkFormat::TableUnversionedSchemalessHorizontal);
         const auto keyColumns = NYT::FromProto<TKeyColumns>(*keyColumnsExt);
         schema = TTableSchema::FromKeyColumns(keyColumns);
     } else {
