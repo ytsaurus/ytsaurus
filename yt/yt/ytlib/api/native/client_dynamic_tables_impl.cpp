@@ -1199,7 +1199,12 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
             << TErrorAttribute("timestamp", options.Timestamp);
     }
 
-    auto parsedQuery = ParseSource(queryString, EParseMode::Query);
+    std::optional<NYson::TYsonStringBuf> placeholderValuesAsYson;
+    if (options.PlaceholderValues) {
+        placeholderValuesAsYson = NYson::TYsonStringBuf(*options.PlaceholderValues);
+    }
+
+    auto parsedQuery = ParseSource(queryString, EParseMode::Query, placeholderValuesAsYson);
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
     auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
     if (optionalClusterName) {

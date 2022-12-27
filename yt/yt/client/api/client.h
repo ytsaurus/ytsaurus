@@ -667,6 +667,8 @@ struct TSelectRowsOptions
     size_t MemoryLimitPerNode = std::numeric_limits<size_t>::max();
     //! Info on detailed profiling.
     TDetailedProfilingInfoPtr DetailedProfilingInfo;
+    //! Placeholder values in YSON format for parameterized queries.
+    std::optional<TString> PlaceholderValues;
 };
 
 struct TExplainQueryOptions

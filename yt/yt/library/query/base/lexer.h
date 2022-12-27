@@ -7,10 +7,10 @@ namespace NYT::NQueryClient::NAst {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TLexer
+class TBaseLexer
 {
 public:
-    TLexer(
+    TBaseLexer(
         const TString& source,
         TParser::token_type strayToken);
 
@@ -42,6 +42,40 @@ private:
 
     // Saves beginning-of-string boundary to compute locations.
     const char* s;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLexer
+{
+public:
+    TLexer(
+        const TString& source,
+        TParser::token_type strayToken,
+        const std::optional<THashMap<TString, TString>>& placeholderValues);
+
+    TParser::token_type GetNextToken(
+        TParser::semantic_type* yyval,
+        TParser::location_type* yyloc);
+
+private:
+    struct TPlaceholderLexerData {
+        TBaseLexer Lexer;
+        TParser::location_type Location;
+    };
+
+    TBaseLexer QueryLexer_;
+    std::optional<TPlaceholderLexerData> Placeholder_;
+
+    const std::optional<THashMap<TString, TString>>& PlaceholderValues_;
+
+    std::optional<TParser::token_type> GetNextTokenFromPlaceholder(
+        TParser::semantic_type* yyval,
+        TParser::location_type* yyloc);
+
+    void SetPlaceholder(
+        TParser::semantic_type* yyval,
+        TParser::location_type* yyloc);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

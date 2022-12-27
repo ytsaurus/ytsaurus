@@ -80,11 +80,12 @@ protected:
     template <class TMatcher>
     void ExpectPrepareThrowsWithDiagnostics(
         const TString& query,
-        TMatcher matcher)
+        TMatcher matcher,
+        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
     {
         EXPECT_THROW_THAT(
             BIND([&] () {
-                PreparePlanFragment(&PrepareMock_, query);
+                PreparePlanFragment(&PrepareMock_, query, DefaultFetchFunctions, placeholderValues);
             })
             .AsyncVia(ActionQueue_->GetInvoker())
             .Run()
@@ -1357,7 +1358,8 @@ protected:
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
     {
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -1368,7 +1370,8 @@ protected:
                 resultMatcher,
                 inputRowLimit,
                 outputRowLimit,
-                false)
+                false,
+                placeholderValues)
             .Get()
             .ValueOrThrow();
     }
@@ -1379,7 +1382,8 @@ protected:
         const std::vector<std::vector<TString>>& owningSources,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
     {
         return EvaluateWithQueryStatistics(
             query,
@@ -1387,7 +1391,8 @@ protected:
             owningSources,
             resultMatcher,
             inputRowLimit,
-            outputRowLimit).first;
+            outputRowLimit,
+            placeholderValues).first;
     }
 
     std::pair<TQueryPtr, TQueryStatistics> EvaluateWithQueryStatistics(
@@ -1396,7 +1401,8 @@ protected:
         const std::vector<TString>& owningSourceRows,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1411,7 +1417,8 @@ protected:
             owningSources,
             resultMatcher,
             inputRowLimit,
-            outputRowLimit);
+            outputRowLimit,
+            placeholderValues);
     }
 
     TQueryPtr Evaluate(
@@ -1420,7 +1427,8 @@ protected:
         const std::vector<TString>& owningSourceRows,
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
     {
         return EvaluateWithQueryStatistics(
             query,
@@ -1428,7 +1436,8 @@ protected:
             owningSourceRows,
             resultMatcher,
             inputRowLimit,
-            outputRowLimit).first;
+            outputRowLimit,
+            placeholderValues).first;
     }
 
     TQueryPtr EvaluateExpectingError(
@@ -1436,7 +1445,8 @@ protected:
         const TDataSplit& dataSplit,
         const std::vector<TString>& owningSourceRows,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
-        i64 outputRowLimit = std::numeric_limits<i64>::max())
+        i64 outputRowLimit = std::numeric_limits<i64>::max(),
+        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1456,13 +1466,17 @@ protected:
                 resultMatcher,
                 inputRowLimit,
                 outputRowLimit,
-                true)
+                true,
+                placeholderValues)
             .Get()
             .ValueOrThrow().first;
     }
 
 
-    TQueryPtr Prepare(const TString& query, const std::map<TString, TDataSplit>& dataSplits)
+    TQueryPtr Prepare(
+        const TString& query,
+        const std::map<TString, TDataSplit>& dataSplits,
+        const std::optional<NYson::TYsonStringBuf>& placeholderValues)
     {
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first))
@@ -1476,7 +1490,8 @@ protected:
         auto fragment = PreparePlanFragment(
             &PrepareMock_,
             query,
-            fetchFunctions);
+            fetchFunctions,
+            placeholderValues);
 
         return fragment->Query;
     }
@@ -1488,9 +1503,10 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit,
         i64 outputRowLimit,
-        bool failure)
+        bool failure,
+        const std::optional<NYson::TYsonStringBuf>& placeholderValues)
     {
-        auto primaryQuery = Prepare(query, dataSplits);
+        auto primaryQuery = Prepare(query, dataSplits, placeholderValues);
 
         TQueryBaseOptions options;
         options.InputRowLimit = inputRowLimit;
@@ -6282,8 +6298,7 @@ class TQueryEvaluateComplexTest
         const char*, // left or inner
         TJoinColumns, // join equation
         TGroupColumns, // group key
-        const char* // totals
-    >>
+        const char*>> // totals
 {
 protected:
     struct TPrimaryKey
@@ -6700,6 +6715,188 @@ TEST_F(TQueryEvaluateTest, QuotedColumnNames)
         Evaluate("`where` FROM `//t`", split, source, ResultMatcher(result));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueryEvaluatePlaceholdersTest
+    : public TQueryEvaluateTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        const char*, // placeholders
+        std::vector<TOwningRow>>> // result
+{ };
+
+TEST_P(TQueryEvaluatePlaceholdersTest, Simple)
+{
+    auto split = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}, });
+    auto source = std::vector<TString>{
+        R"(a=1;b=2)",
+        R"(a=3;b=4)",
+        R"(a=5;b=6)",
+        R"(a=7;b=8)",
+    };
+
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& placeholders = NYson::TYsonStringBuf(std::get<1>(args));
+    const auto& result = std::get<2>(args);
+
+    Evaluate(
+        query,
+        split,
+        source,
+        ResultMatcher(result),
+        std::numeric_limits<i64>::max(),
+        std::numeric_limits<i64>::max(),
+        placeholders);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    QueryEvaluatePlaceholdersTest,
+    TQueryEvaluatePlaceholdersTest,
+    ::testing::Values(
+        std::make_tuple(
+            "a from [//t] where (a, b) = {tuple}",
+            "{tuple=[3;4]}",
+            YsonToRows({"a=3"}, MakeSplit({{"a", EValueType::Int64}}))),
+        std::make_tuple(
+            "a from [//t] where (a, b) > ({a}, {b})",
+            "{a=5;b=5}",
+            YsonToRows({"a=5", "a=7"}, MakeSplit({{"a", EValueType::Int64}}))),
+        std::make_tuple(
+            "a from [//t] where a in {tuple}",
+            "{tuple=[1;7]}",
+            YsonToRows({"a=1", "a=7"}, MakeSplit({{"a", EValueType::Int64}}))),
+        std::make_tuple(
+            "concat({prefix}, numeric_to_string(a)) as c from [//t] where a = {a}",
+            "{prefix=p;a=1}",
+            YsonToRows({R"(c="p1")"}, MakeSplit({{"c", EValueType::String}}))),
+        std::make_tuple(
+            "concat({prefix}, numeric_to_string(a)) as c from [//t] where a = {a}",
+            R"({prefix="{a}";a=1})",
+            YsonToRows({R"(c="{a}1")"}, MakeSplit({{"c", EValueType::String}}))),
+        std::make_tuple(
+            "transform(b, {from}, ({first_to}, {second_to})) as c from [//t] where a = {a}",
+            "{from=[2;4];first_to=42;second_to=-5;a=1}",
+            YsonToRows({"c=42"}, MakeSplit({{"c", EValueType::Int64}})))));
+
+TEST_F(TQueryEvaluatePlaceholdersTest, Complex)
+{
+    {
+        auto split = MakeSplit({{"a", EValueType::String}, {"b", EValueType::String}, });
+        auto source = std::vector<TString>{ R"(a="1";b="2")", };
+        auto result = std::vector<TOwningRow>{};
+        Evaluate(
+            "b from [//t] where a = {a}",
+            split,
+            source,
+            ResultMatcher(result),
+            std::numeric_limits<i64>::max(),
+            std::numeric_limits<i64>::max(),
+            NYson::TYsonStringBuf{"{a=\"42\\\" or \\\"1\\\" = \\\"1\"}"sv});
+    }
+
+    {
+        auto split = MakeSplit({{"a", EValueType::Int64}, {"b", EValueType::Int64}, });
+        auto source = std::vector<TString>{
+            R"(a=1;b=2)",
+            R"(a=3;b=4)",
+            R"(a=5;b=6)",
+            R"(a=7;b=8)",
+        };
+
+        EXPECT_THROW_THAT(
+            Evaluate(
+                "b from [//t] where a = {a}",
+                split,
+                source,
+                [] (TRange<TRow> /*result*/, const TTableSchema& /*tableSchema*/) { },
+                std::numeric_limits<i64>::max(),
+                std::numeric_limits<i64>::max(),
+                NYson::TYsonStringBuf{"{a=\"42 or 1 = 1\"}"sv}),
+            HasSubstr("Type mismatch in expression"));
+    }
+
+    SUCCEED();
+}
+
+class TQueryEvaluatePlaceholdersWithIncorrectSyntaxTest
+    : public TQueryPrepareTest
+    , public ::testing::WithParamInterface<std::tuple<
+        const char*, // query
+        const char*, // placeholders
+        const char*>> // error message
+{ };
+
+TEST_P(TQueryEvaluatePlaceholdersWithIncorrectSyntaxTest, Simple)
+{
+    const auto& args = GetParam();
+    const auto& query = std::get<0>(args);
+    const auto& placeholders = NYson::TYsonStringBuf(std::get<1>(args));
+    const auto& errorMessage = std::get<2>(args);
+
+    ExpectPrepareThrowsWithDiagnostics(
+        query,
+        HasSubstr(errorMessage),
+        placeholders);
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    QueryEvaluatePlaceholdersWithIncorrectSyntaxTest,
+    TQueryEvaluatePlaceholdersWithIncorrectSyntaxTest,
+    ::testing::Values(
+        std::make_tuple(
+            "a from [//t] where a = {a}",
+            "{}",
+            "Placeholder was not found"),
+        std::make_tuple(
+            "a from [//t] where a = {a}",
+            "{a=}",
+            "Error occurred while parsing YSON"),
+        std::make_tuple(
+            "a from [//t] where a = {a}",
+            "{a=<attribute=attribute>42}",
+            "Incorrect placeholder map: values should be plain types or lists"),
+        std::make_tuple(
+            "a from [//t] where a = {a}",
+            "{a=[<attribute=attribute>42]}",
+            "Attributes inside YSON placeholder are not allowed"),
+        std::make_tuple(
+            "a from [//t] where a = {a}",
+            "{a={b=42}}",
+            "Incorrect placeholder map: values should be plain types or lists"),
+        std::make_tuple(
+            "a from [//t] where a = {a}",
+            "{a=[{b=42}]}",
+            "Maps inside YSON placeholder are not allowed"),
+        std::make_tuple(
+            "a from [//t] where a = {a}",
+            "{a={b=42}}",
+            "Incorrect placeholder map: values should be plain types or lists"),
+        std::make_tuple(
+            "a from [//t] where a = {a}",
+            "[42;]",
+            "Incorrect placeholder argument: YSON map expected"),
+        std::make_tuple(
+            "a from [//t] where a = {a} incorrect query",
+            "{a=42}",
+            "{a}  >>>>> incorrect <<<<<  query"),
+        std::make_tuple(
+            "a from [//t] where a = {}",
+            "{}",
+            "a =  >>>>> { <<<<< }"),
+        std::make_tuple(
+            "a from [//t] where a = {{a}}",
+            "{}",
+            "a =  >>>>> { <<<<< {a}}"),
+        std::make_tuple(
+            "a from {t} where a = {a}",
+            "{t=table_name;a=42}",
+            "from  >>>>> {t} <<<<<  where"),
+        std::make_tuple(
+            "a from [//T] where a = {a} {b}",
+            "{b=b;a=42}",
+            "{a}  >>>>> {b} <<<<<")));
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -695,6 +695,8 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("replica_consistency", Options.ReplicaConsistency)
         .Optional();
+    RegisterParameter("placeholder_values", Options.PlaceholderValues)
+        .Optional();
 }
 
 bool TSelectRowsCommand::HasResponseParameters() const

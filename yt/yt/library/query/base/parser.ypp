@@ -96,6 +96,7 @@
 %token <ui64> Uint64Literal "uint64 literal"
 %token <double> DoubleLiteral "double literal"
 %token <TString> StringLiteral "string literal"
+%token <TString> PlaceholderLiteral "placeholder literal"
 
 
 
