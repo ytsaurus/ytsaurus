@@ -14,7 +14,7 @@ class TDiskInfoProvider
 public:
     explicit TDiskInfoProvider(TDiskManagerProxyPtr diskManagerProxy);
 
-    TFuture<std::vector<TDiskInfo>> GetFailedYtDisks();
+    TFuture<std::vector<TDiskInfo>> GetYtDiskInfos(EDiskState state);
 
     TFuture<std::vector<TErrorOr<void>>> RecoverDisks(const THashSet<TString>& diskIds);
 

@@ -77,7 +77,7 @@ TDiskManagerProxy::TDiskManagerProxy(TDiskManagerProxyConfigPtr config)
     , DynamicConfig_(New<TDiskManagerProxyDynamicConfig>())
 { }
 
-TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskDeviceNames()
+TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskMountPaths()
 {
     TDiskManagerApi api(Channel_, ServiceName_);
     auto request = api.GetYTMountedDevices();
@@ -97,7 +97,7 @@ TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskDeviceNames()
         paths.reserve(response->mounted_devices().size());
 
         for (const auto& device : response->mounted_devices()) {
-            paths.insert(NFS::GetFileName(device.device_path()));
+            paths.insert(device.mount_path());
         }
 
         return paths;
@@ -123,12 +123,19 @@ TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
         disks.reserve(response->disks().size());
 
         for (const auto& device : response->disks()) {
+            THashSet<TString> partitionFsLabels;
+
+            for (const auto& partition : device.spec().partitions()) {
+                partitionFsLabels.insert(partition.fs_label());
+            }
+
             disks.emplace_back(
                 TDiskInfo{
                     .DiskId = device.meta().id(),
                     .DevicePath = device.spec().device_path(),
                     .DeviceName = NFS::GetFileName(device.spec().device_path()),
                     .DiskModel = device.spec().model(),
+                    .PartitionFsLabels = std::move(partitionFsLabels),
                     .State = MapDiskState(device.status().hw_state())
                 }
             );

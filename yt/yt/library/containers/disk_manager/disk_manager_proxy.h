@@ -42,7 +42,7 @@ class TDiskManagerProxy
 public:
     explicit TDiskManagerProxy(TDiskManagerProxyConfigPtr config);
 
-    TFuture<THashSet<TString>> GetYtDiskDeviceNames();
+    TFuture<THashSet<TString>> GetYtDiskMountPaths();
     TFuture<std::vector<TDiskInfo>> GetDisks();
     TFuture<void> RecoverDiskById(TString diskId, ERecoverPolicy recoverPolicy);
 
