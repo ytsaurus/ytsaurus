@@ -1064,7 +1064,7 @@ void TChunkLocation::MarkLocationDiskAsOK()
     LocationDiskFailedAlert_.Store(TError());
 }
 
-void TChunkLocation::MarkLocationAsDecommissed()
+void TChunkLocation::MarkLocationAsDecommissioned()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
