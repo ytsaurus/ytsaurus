@@ -250,7 +250,7 @@ class IntermediateDataAclBuilder(AclBuilderBase):
         self._end_acl()
 
 
-class JobIOSpecBuilder(object):
+class JobIOSpecBuilderBase(object):
     """Base builder for job_io section in operation spec.
     """
     def __init__(self, user_job_spec_builder=None, io_name=None, spec=None):
@@ -304,7 +304,18 @@ class JobIOSpecBuilder(object):
         return spec
 
 
-class PartitionJobIOSpecBuilder(JobIOSpecBuilder):
+class JobIOSpecBuilder(JobIOSpecBuilderBase):
+    """Builder for job_io section in operation spec.
+    """
+    def __init__(self, user_job_spec_builder):
+        super(JobIOSpecBuilder, self).__init__(user_job_spec_builder, "job_io")
+
+    def end_job_io(self):
+        """Ends job_io section."""
+        return self._end_job_io()
+
+
+class PartitionJobIOSpecBuilder(JobIOSpecBuilderBase):
     """Builder for partition_job_io section in operation spec.
     """
     def __init__(self, user_job_spec_builder):
@@ -315,7 +326,7 @@ class PartitionJobIOSpecBuilder(JobIOSpecBuilder):
         return self._end_job_io()
 
 
-class SortJobIOSpecBuilder(JobIOSpecBuilder):
+class SortJobIOSpecBuilder(JobIOSpecBuilderBase):
     """Builder for sort_job_io section in operation spec.
     """
     def __init__(self, user_job_spec_builder):
@@ -326,7 +337,7 @@ class SortJobIOSpecBuilder(JobIOSpecBuilder):
         return self._end_job_io()
 
 
-class MergeJobIOSpecBuilder(JobIOSpecBuilder):
+class MergeJobIOSpecBuilder(JobIOSpecBuilderBase):
     """Builder for merge_job_io section in operation spec.
     """
     def __init__(self, user_job_spec_builder):
@@ -337,7 +348,7 @@ class MergeJobIOSpecBuilder(JobIOSpecBuilder):
         return self._end_job_io()
 
 
-class ReduceJobIOSpecBuilder(JobIOSpecBuilder):
+class ReduceJobIOSpecBuilder(JobIOSpecBuilderBase):
     """Builder for reduce_job_io section in operation spec.
     """
     def __init__(self, user_job_spec_builder):
@@ -348,7 +359,7 @@ class ReduceJobIOSpecBuilder(JobIOSpecBuilder):
         return self._end_job_io()
 
 
-class MapJobIOSpecBuilder(JobIOSpecBuilder):
+class MapJobIOSpecBuilder(JobIOSpecBuilderBase):
     """Builder for map_job_io section in operation spec.
     """
     def __init__(self, user_job_spec_builder):
@@ -1091,7 +1102,7 @@ class SpecBuilder(object):
     def _build_job_io(self, spec, job_io_type, client=None):
         table_writer = None
         if job_io_type in spec:
-            if isinstance(spec.get(job_io_type), JobIOSpecBuilder):
+            if isinstance(spec.get(job_io_type), JobIOSpecBuilderBase):
                 spec[job_io_type] = spec[job_io_type].build()
             table_writer = spec[job_io_type].get("table_writer")
         table_writer = _prepare_table_writer(table_writer, client=client)
@@ -1132,15 +1143,15 @@ class SpecBuilder(object):
 
         for job_io_type in self._job_io_types:
             if job_io_type in spec_patches:
-                spec.setdefault(job_io_type, JobIOSpecBuilder())
+                spec.setdefault(job_io_type, JobIOSpecBuilderBase())
 
                 job_io_spec = None
-                if isinstance(spec_patches[job_io_type], JobIOSpecBuilder):
+                if isinstance(spec_patches[job_io_type], JobIOSpecBuilderBase):
                     job_io_spec = spec_patches[job_io_type]._spec
                 else:
                     job_io_spec = spec_patches[job_io_type]
 
-                if isinstance(spec[job_io_type], JobIOSpecBuilder):
+                if isinstance(spec[job_io_type], JobIOSpecBuilderBase):
                     spec[job_io_type]._apply_spec_patch(job_io_spec)
                 else:
                     spec[job_io_type] = update(job_io_spec, spec[job_io_type])
@@ -1328,7 +1339,7 @@ class ReduceSpecBuilder(SpecBuilder):
 
     def begin_job_io(self):
         """Start building job_io section."""
-        return JobIOSpecBuilder(self, "job_io")
+        return JobIOSpecBuilder(self)
 
     def prepare(self, client=None):
         """Prepare spec to be used in operation."""
@@ -1427,7 +1438,7 @@ class JoinReduceSpecBuilder(SpecBuilder):
 
     def begin_job_io(self):
         """Start building job_io section."""
-        return JobIOSpecBuilder(self, "job_io")
+        return JobIOSpecBuilder(self)
 
     def prepare(self, client=None):
         """Prepare spec to be used in operation."""
@@ -1503,7 +1514,7 @@ class MapSpecBuilder(SpecBuilder):
 
     def begin_job_io(self):
         """Start building job_io section."""
-        return JobIOSpecBuilder(self, "job_io")
+        return JobIOSpecBuilder(self)
 
     def prepare(self, client=None):
         """Prepare spec to be used in operation."""
@@ -1891,7 +1902,7 @@ class MergeSpecBuilder(SpecBuilder):
 
     def begin_job_io(self):
         """Start building job_io section."""
-        return JobIOSpecBuilder(self, "job_io")
+        return JobIOSpecBuilder(self)
 
     def prepare(self, client=None):
         """Prepare spec to be used in operation."""
@@ -2090,7 +2101,7 @@ class RemoteCopySpecBuilder(SpecBuilder):
 
     def begin_job_io(self):
         """Start building job_io section."""
-        return JobIOSpecBuilder(self, "job_io")
+        return JobIOSpecBuilder(self)
 
     def prepare(self, client=None):
         """Prepare spec to be used in operation."""
@@ -2127,7 +2138,7 @@ class EraseSpecBuilder(SpecBuilder):
 
     def begin_job_io(self):
         """Start building job_io section."""
-        return JobIOSpecBuilder(self, "job_io")
+        return JobIOSpecBuilder(self)
 
     def prepare(self, client=None):
         """Prepare spec to be used in operation."""
