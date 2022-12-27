@@ -44,7 +44,7 @@ TFuture<std::vector<TErrorOr<void>>> TDiskInfoProvider::RecoverDisks(const THash
     recoverDiskFutures.reserve(diskIds.size());
 
     for (const auto& diskId : diskIds) {
-        recoverDiskFutures.emplace_back(DiskManagerProxy_->RecoverDiskById(diskId, ERecoverPolicy::RecoverAuto));
+        recoverDiskFutures.push_back(DiskManagerProxy_->RecoverDiskById(diskId, ERecoverPolicy::RecoverAuto));
     }
 
     return AllSet(recoverDiskFutures);

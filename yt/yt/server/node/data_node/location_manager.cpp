@@ -70,7 +70,7 @@ TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveli
             .AsyncVia(ControlInvoker_));
 }
 
-std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissed(
+std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissioned(
     const std::vector<TDiskInfo>& disks,
     const THashSet<TGuid>& locationUuids)
 {
@@ -92,7 +92,7 @@ std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissed(
     for (const auto& location : ChunkStore_->Locations()) {
         if (failedDiskNames.contains(location->GetStaticConfig()->DeviceName) &&
             locationUuids.contains(location->GetUuid())) {
-            location->MarkLocationAsDecommissed();
+            location->MarkLocationAsDecommissioned();
             locationsForDecommission.push_back(location);
         }
     }
@@ -100,13 +100,13 @@ std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissed(
     return locationsForDecommission;
 }
 
-TFuture<std::vector<TStoreLocationPtr>> TLocationManager::MarkLocationsAsDecommissed(const THashSet<TGuid>& locationUuids)
+TFuture<std::vector<TStoreLocationPtr>> TLocationManager::MarkLocationsAsDecommissioned(const THashSet<TGuid>& locationUuids)
 {
     return DiskInfoProvider_->GetFailedYtDisks()
-        .Apply(BIND([&] (const std::vector<TDiskInfo>& failedDisks) {
-                return MarkLocationsAsDecommissed(failedDisks, locationUuids);
-            })
-            .AsyncVia(ControlInvoker_));
+        .Apply(BIND([=] (const std::vector<TDiskInfo>& failedDisks) {
+            return MarkLocationsAsDecommissioned(failedDisks, locationUuids);
+        })
+        .AsyncVia(ControlInvoker_));
 }
 
 TFuture<std::vector<TErrorOr<void>>> TLocationManager::RecoverDisks(const THashSet<TString>& diskIds)
@@ -194,7 +194,8 @@ void TLocationHealthChecker::OnHealthCheck()
     for (const auto& disk : allDisks) {
         // all locations on disk must be decommissed
         if (!diskWithLivelisessLocations.contains(disk) &&
-            diskWithDecommissedLocations.contains(disk)) {
+            diskWithDecommissedLocations.contains(disk))
+        {
             disksForDecommission.insert(disk);
         }
     }

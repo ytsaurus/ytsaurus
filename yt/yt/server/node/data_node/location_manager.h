@@ -29,7 +29,7 @@ public:
 
     TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveliness();
 
-    TFuture<std::vector<TStoreLocationPtr>> MarkLocationsAsDecommissed(const THashSet<TGuid>& locationUuids);
+    TFuture<std::vector<TStoreLocationPtr>> MarkLocationsAsDecommissioned(const THashSet<TGuid>& locationUuids);
 
     TFuture<std::vector<TErrorOr<void>>> RecoverDisks(const THashSet<TString>& diskIds);
 
@@ -41,7 +41,7 @@ private:
     std::vector<TLocationLivenessInfo> MapLocationToLivelinessInfo(
         const std::vector<NContainers::TDiskInfo>& failedDisks);
 
-    std::vector<TStoreLocationPtr> MarkLocationsAsDecommissed(
+    std::vector<TStoreLocationPtr> MarkLocationsAsDecommissioned(
         const std::vector<NContainers::TDiskInfo>& disks,
         const THashSet<TGuid>& locationUuids);
 

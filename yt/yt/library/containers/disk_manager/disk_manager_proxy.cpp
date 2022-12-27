@@ -148,7 +148,7 @@ TFuture<void> TDiskManagerProxy::RecoverDiskById(TString diskId, ERecoverPolicy 
     auto responseFuture = request->Invoke()
         .WithTimeout(GetRequestTimeout());
 
-    return responseFuture.Apply(BIND([=] (const TErrorOr<TDiskManagerApi::TRspRecoverDiskPtr>& responseOrError) {
+    return responseFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiskManagerApi::TRspRecoverDiskPtr>& responseOrError) {
         if (!responseOrError.IsOK()) {
             THROW_ERROR_EXCEPTION("Failed to send request to recover disk")
                 << responseOrError

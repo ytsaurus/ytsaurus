@@ -363,7 +363,7 @@ public:
     void MarkLocationDiskAsOK();
 
     //! Location has been decommissed.
-    void MarkLocationAsDecommissed();
+    void MarkLocationAsDecommissioned();
 
     //! Enable alert about location disk failing.
     void MarkLocationDiskAsFailed();
