@@ -24,6 +24,9 @@ type Config struct {
 
 	// PassWorkerNumber is the number of workers used to process oplets.
 	PassWorkerNumber *int `yson:"pass_worker_number"`
+
+	// DefaultNetworkProject is the default network project used for oplets.
+	DefaultNetworkProject *string `yson:"default_network_project"`
 }
 
 const (

@@ -2,7 +2,14 @@ package strawberry
 
 import "a.yandex-team.ru/yt/go/yt"
 
+// Change of these parameters leads to operation restart.
+type RestartRequiredOptions struct {
+	NetworkProject *string `yson:"network_project"`
+	PreemptionMode *string `yson:"preemption_mode"`
+}
+
 type Speclet struct {
+	RestartRequiredOptions
 	Active                 *bool   `yson:"active"`
 	Family                 *string `yson:"family"`
 	Stage                  *string `yson:"stage"`
