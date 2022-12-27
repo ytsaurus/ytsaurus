@@ -33,6 +33,12 @@ class TestSortedDynamicTablesMetadataCaching(TestSortedDynamicTablesBase):
             "expire_after_failed_update_time": 1000,
             "expire_after_access_time": 300000,
         },
+        "permission_cache": {
+            "expire_after_successful_update_time": 60000,
+            "refresh_time": 60000,
+            "expire_after_failed_update_time": 1000,
+            "expire_after_access_time": 300000,
+        },
     }
 
     DELTA_NODE_CONFIG = {"tablet_node": {"tablet_snapshot_eviction_timeout": 0}}
