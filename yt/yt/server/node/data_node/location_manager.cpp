@@ -34,18 +34,13 @@ TLocationManager::TLocationManager(
 { }
 
 std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivelinessInfo(
-    const std::vector<TDiskInfo>& disks)
+    const std::vector<TDiskInfo>& failedDisks)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // Fast path.
-    if (disks.empty()) {
-        return {};
-    }
-
     THashSet<TString> diskNames;
 
-    for (const auto& failedDisk : disks) {
+    for (const auto& failedDisk : failedDisks) {
         diskNames.insert(failedDisk.DeviceName);
     }
 
@@ -71,19 +66,19 @@ TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveli
 }
 
 std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissioned(
-    const std::vector<TDiskInfo>& disks,
+    const std::vector<TDiskInfo>& failedDisks,
     const THashSet<TGuid>& locationUuids)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
     // Fast path.
-    if (disks.empty()) {
+    if (failedDisks.empty()) {
         return {};
     }
 
     THashSet<TString> failedDiskNames;
 
-    for (const auto& failedDisk : disks) {
+    for (const auto& failedDisk : failedDisks) {
         failedDiskNames.insert(failedDisk.DeviceName);
     }
 
