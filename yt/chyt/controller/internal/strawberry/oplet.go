@@ -12,7 +12,7 @@ import (
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
-// AgentInfo contains information about the Agent which is nedeed in Oplet.
+// AgentInfo contains information about the Agent which is needed in Oplet.
 type AgentInfo struct {
 	StrawberryRoot     ypath.Path
 	Hostname           string
@@ -22,7 +22,8 @@ type AgentInfo struct {
 	// RobotUsername is needed for a temporary workaround to add the robot to the operation acl.
 	//
 	// TODO(dakovalkov): remove after YT-17557
-	RobotUsername string
+	RobotUsername         string
+	DefaultNetworkProject *string
 }
 
 type OpletOptions struct {
@@ -314,6 +315,12 @@ func (oplet *Oplet) needsRestart() (needsRestart bool, reason string) {
 			oplet.l.Debug("speclet diff", log.Any("diff", specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)))
 			return true, "speclet changed"
 		}
+		if !reflect.DeepEqual(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions) {
+			oplet.l.Debug("strawberry speclet diff",
+				log.Any("diff",
+					specletDiff(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions)))
+			return true, "strawberry speclet changed"
+		}
 	}
 	if oplet.strawberrySpeclet.MinSpecletRevision > oplet.persistentState.YTOpSpecletRevision {
 		if oplet.strawberrySpeclet.MinSpecletRevision > oplet.persistentState.SpecletRevision {
@@ -575,6 +582,15 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		oplet.setError(err)
 		return err
 	}
+	if oplet.agentInfo.DefaultNetworkProject != nil {
+		spec["network_project"] = *oplet.agentInfo.DefaultNetworkProject
+	}
+	if oplet.strawberrySpeclet.NetworkProject != nil {
+		spec["network_project"] = *oplet.strawberrySpeclet.NetworkProject
+	}
+	if oplet.strawberrySpeclet.PreemptionMode != nil {
+		spec["preemption_mode"] = *oplet.strawberrySpeclet.PreemptionMode
+	}
 	opACL := toOperationACL(oplet.acl)
 	if oplet.acl != nil {
 		spec["acl"] = opACL
@@ -773,8 +789,20 @@ func (oplet *Oplet) Status() (s OpletStatus, err error) {
 		s.OperationURL = yson.ValueOf(operationURL(oplet.agentInfo.Proxy, oplet.persistentState.YTOpID)).(string)
 		s.OperationState = oplet.persistentState.YTOpState
 
-		if oplet.strawberrySpeclet.ActiveOrDefault() && !reflect.DeepEqual(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet) {
-			s.SpecletDiff = specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)
+		if oplet.strawberrySpeclet.ActiveOrDefault() {
+			if !reflect.DeepEqual(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet) {
+				s.SpecletDiff = specletDiff(oplet.ytOpControllerSpeclet, oplet.controllerSpeclet)
+			}
+			if !reflect.DeepEqual(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions) {
+				diff := specletDiff(oplet.strawberrySpeclet.RestartRequiredOptions, oplet.ytOpStrawberrySpeclet.RestartRequiredOptions)
+				if s.SpecletDiff == nil {
+					s.SpecletDiff = diff
+				} else {
+					for key, fieldDiff := range diff {
+						s.SpecletDiff[key] = fieldDiff
+					}
+				}
+			}
 		}
 	}
 

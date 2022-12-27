@@ -294,12 +294,13 @@ loop:
 
 func (a *Agent) GetAgentInfo() strawberry.AgentInfo {
 	return strawberry.AgentInfo{
-		StrawberryRoot:     a.config.Root,
-		Hostname:           a.hostname,
-		Stage:              a.config.Stage,
-		Proxy:              a.proxy,
-		OperationNamespace: a.OperationNamespace(),
-		RobotUsername:      a.config.RobotUsername,
+		StrawberryRoot:        a.config.Root,
+		Hostname:              a.hostname,
+		Stage:                 a.config.Stage,
+		Proxy:                 a.proxy,
+		OperationNamespace:    a.OperationNamespace(),
+		RobotUsername:         a.config.RobotUsername,
+		DefaultNetworkProject: a.config.DefaultNetworkProject,
 	}
 }
 
