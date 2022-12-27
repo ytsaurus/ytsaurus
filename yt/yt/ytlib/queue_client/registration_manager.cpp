@@ -164,10 +164,10 @@ void TQueueConsumerRegistrationManager::GuardedRefresh()
     YT_VERIFY(config);
 
     YT_LOG_DEBUG(
-        "Refreshing queue agent registration cache (LocalCluster: %v, RegistrationTableCluster: %v, RegistrationTableRootPath: %Qv)",
+        "Refreshing queue agent registration cache (LocalCluster: %v, RegistrationTableCluster: %v, RegistrationTablePath: %Qv)",
         ClusterName_,
-        config->Root.GetCluster(),
-        config->Root.GetPath());
+        config->TablePath.GetCluster(),
+        config->TablePath.GetPath());
 
     auto registrationTable = GetOrInitRegistrationTableOrThrow();
     auto registrations = WaitFor(registrationTable->Select())
@@ -202,14 +202,14 @@ TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::GetOrInitRegist
 
         IClientPtr client;
         auto clientOptions = TClientOptions::FromUser(DynamicConfig_->User);
-        if (auto cluster = DynamicConfig_->Root.GetCluster()) {
+        if (auto cluster = DynamicConfig_->TablePath.GetCluster()) {
             auto remoteConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
             client = remoteConnection->CreateClient(clientOptions);
         } else {
             client = localConnection->CreateClient(clientOptions);
         }
 
-        newRegistrationTable = New<TConsumerRegistrationTable>(DynamicConfig_->Root.GetPath(), client);
+        newRegistrationTable = New<TConsumerRegistrationTable>(DynamicConfig_->TablePath.GetPath(), client);
     }
 
     {
@@ -244,7 +244,7 @@ TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::Re
         RefreshExecutor_->SetPeriod(config->CacheRefreshPeriod);
     }
 
-    if (config->Root != DynamicConfig_->Root) {
+    if (config->TablePath != DynamicConfig_->TablePath) {
         RegistrationTable_ = nullptr;
     }
 

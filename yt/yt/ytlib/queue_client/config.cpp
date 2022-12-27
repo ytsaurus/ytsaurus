@@ -8,17 +8,31 @@ using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
+void TQueueAgentDynamicStateConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("root", &TThis::Root)
         .Default("//sys/queue_agents");
+    registrar.Parameter("consumer_registration_table_path", &TThis::ConsumerRegistrationTablePath)
+        .Default("//sys/queue_agents/consumer_registrations");
+
+    registrar.Postprocessor([] (TThis* config) {
+        config->ConsumerRegistrationTablePath = config->ConsumerRegistrationTablePath.Normalize();
+    });
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("state_path", &TThis::TablePath)
+        .Default("//sys/queue_agents/consumer_registrations");
     registrar.Parameter("cache_refresh_period", &TThis::CacheRefreshPeriod)
         .Default(TDuration::Seconds(10));
     registrar.Parameter("user", &TThis::User)
         .Default(RootUserName);
 
     registrar.Postprocessor([] (TThis* config) {
-        config->Root = config->Root.Normalize();
+        config->TablePath = config->TablePath.Normalize();
     });
 }
 

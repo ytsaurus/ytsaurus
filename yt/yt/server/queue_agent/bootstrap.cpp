@@ -24,6 +24,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
 
+#include <yt/yt/ytlib/queue_client/config.h>
+
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
@@ -158,7 +160,7 @@ void TBootstrap::DoRun()
         ElectionManager_ = CreateCypressElectionManager(NativeClient_, ControlInvoker_, Config_->ElectionManager, std::move(options));
     }
 
-    DynamicState_ = New<TDynamicState>(Config_->Root, NativeClient_);
+    DynamicState_ = New<TDynamicState>(Config_->DynamicState, NativeClient_, ClientDirectory_);
 
     AlertManager_ = New<TAlertManager>(ControlInvoker_);
 
@@ -253,7 +255,7 @@ void TBootstrap::UpdateCypressNode()
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
     TCypressRegistrarOptions options{
-        .RootPath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_)),
+        .RootPath = Format("%v/instances/%v", Config_->DynamicState->Root, ToYPathLiteral(AgentId_)),
         .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, AgentId_}},
         .AttributesOnStart = BuildAttributeDictionaryFluently()
             .Item("annotations").Value(Config_->CypressAnnotations)
