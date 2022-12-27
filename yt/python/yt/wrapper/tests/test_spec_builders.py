@@ -90,7 +90,10 @@ class TestSpecBuilders(object):
         spec_builder = MergeSpecBuilder() \
             .input_table_paths(tableX) \
             .output_table_path(res_table) \
-            .mode("sorted") # noqa
+            .mode("sorted") \
+            .begin_job_io() \
+                .table_writer({"desired_chunk_size": 1024}) \
+            .end_job_io() # noqa
         yt.run_operation(spec_builder)
         assert yt.get_attribute(res_table, "sorted")
         check_rows_equality([{"x": 1}], yt.read_table(res_table))
