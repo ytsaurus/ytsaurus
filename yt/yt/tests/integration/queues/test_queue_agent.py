@@ -216,7 +216,8 @@ class TestQueueAgentBase(YTEnvSetup):
         init_queue_agent_state.create_tables(
             self.Env.create_native_client(),
             queue_table_schema=queue_table_schema,
-            consumer_table_schema=consumer_table_schema)
+            consumer_table_schema=consumer_table_schema,
+            create_registration_table=True)
         for table in tables:
             sync_mount_table(f"//sys/queue_agents/{table}")
 

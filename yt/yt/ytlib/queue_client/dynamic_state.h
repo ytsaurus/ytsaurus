@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/hive/public.h>
+
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/client/hydra/public.h>
@@ -157,7 +159,9 @@ class TConsumerRegistrationTable
     : public TTableBase<TConsumerRegistrationTableRow>
 {
 public:
-    TConsumerRegistrationTable(NYPath::TYPath root, NApi::IClientPtr client);
+    // NB: The constructor takes the full path, instead of the root path.
+    // The registration table can be located on a remote cluster, which should be handled by passing the correct client.
+    TConsumerRegistrationTable(NYPath::TYPath path, NApi::IClientPtr client);
 };
 
 DEFINE_REFCOUNTED_TYPE(TConsumerRegistrationTable)
@@ -171,7 +175,10 @@ struct TDynamicState
     TConsumerTablePtr Consumers;
     TConsumerRegistrationTablePtr Registrations;
 
-    TDynamicState(NYPath::TYPath root, NApi::IClientPtr client);
+    TDynamicState(
+        const TQueueAgentDynamicStateConfigPtr& config,
+        const NApi::IClientPtr& localClient,
+        const NHiveClient::TClientDirectoryPtr& clientDirectory);
 };
 
 DEFINE_REFCOUNTED_TYPE(TDynamicState)

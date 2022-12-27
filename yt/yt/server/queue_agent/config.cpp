@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/queue_client/config.h>
+
 #include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/library/re2/re2.h>
@@ -88,8 +90,8 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
             .BeginMap()
             .EndMap()
         ->AsMap());
-    registrar.Parameter("root", &TThis::Root)
-        .Default("//sys/queue_agents");
+    registrar.Parameter("dynamic_state", &TThis::DynamicState)
+        .DefaultNew();
     registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
@@ -99,10 +101,10 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
-            lockPath = config->Root + "/leader_lock";
+            lockPath = config->DynamicState->Root + "/leader_lock";
         }
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
-            dynamicConfigPath = config->Root + "/config";
+            dynamicConfigPath = config->DynamicState->Root + "/config";
         }
     });
 };

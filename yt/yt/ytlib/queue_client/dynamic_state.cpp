@@ -1,8 +1,13 @@
-#include "private.h"
 #include "dynamic_state.h"
+#include "private.h"
+#include "config.h"
+
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/client/api/rowset.h>
 #include <yt/yt/client/api/transaction.h>
+
+#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/helpers.h>
@@ -18,6 +23,7 @@
 namespace NYT::NQueueClient {
 
 using namespace NConcurrency;
+using namespace NHiveClient;
 using namespace NObjectClient;
 using namespace NQueueClient;
 using namespace NTableClient;
@@ -45,6 +51,22 @@ std::optional<TString> MapEnumToString(const std::optional<T>& optionalValue)
     }
     return stringValue;
 };
+
+//! Returns remote client from client directory for the given cluster.
+//! Falls back to the given local client if cluster is null or the corresponding client is not found.
+IClientPtr GetRemoteClient(
+    const IClientPtr& localClient,
+    const TClientDirectoryPtr& clientDirectory,
+    const std::optional<TString>& cluster)
+{
+    if (cluster) {
+        if (auto remoteClient = clientDirectory->FindClient(*cluster)) {
+            return remoteClient;
+        }
+    }
+
+    return localClient;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -578,16 +600,21 @@ NApi::IUnversionedRowsetPtr TConsumerRegistrationTableRow::DeleteRowRange(TRange
 
 template class TTableBase<TConsumerRegistrationTableRow>;
 
-TConsumerRegistrationTable::TConsumerRegistrationTable(TYPath root, IClientPtr client)
-    : TTableBase<TConsumerRegistrationTableRow>(root + "/" + TConsumerRegistrationTableDescriptor::Name, std::move(client))
+TConsumerRegistrationTable::TConsumerRegistrationTable(TYPath path, IClientPtr client)
+    : TTableBase<TConsumerRegistrationTableRow>(std::move(path), std::move(client))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDynamicState::TDynamicState(TYPath root, IClientPtr client)
-    : Queues(New<TQueueTable>(root, client))
-    , Consumers(New<TConsumerTable>(root, client))
-    , Registrations(New<TConsumerRegistrationTable>(root, client))
+TDynamicState::TDynamicState(
+    const TQueueAgentDynamicStateConfigPtr& config,
+    const IClientPtr& localClient,
+    const TClientDirectoryPtr& clientDirectory)
+    : Queues(New<TQueueTable>(config->Root, localClient))
+    , Consumers(New<TConsumerTable>(config->Root, localClient))
+    , Registrations(New<TConsumerRegistrationTable>(
+        config->ConsumerRegistrationTablePath.GetPath(),
+        GetRemoteClient(localClient, clientDirectory, config->ConsumerRegistrationTablePath.GetCluster())))
 { }
 
 ////////////////////////////////////////////////////////////////////////////////

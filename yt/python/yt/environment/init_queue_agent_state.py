@@ -31,8 +31,12 @@ REGISTRATION_TABLE_SCHEMA = [
     {"name": "vital", "type": "boolean"},
 ]
 
+DEFAULT_ROOT = "//sys/queue_agents"
+DEFAULT_REGISTRATION_TABLE_PATH = DEFAULT_ROOT + "/consumer_registrations"
 
-def create_tables(client, root="//sys/queue_agents", skip_queues=False, skip_consumers=False, skip_registrations=False,
+
+def create_tables(client, root=DEFAULT_ROOT, registration_table_path=DEFAULT_REGISTRATION_TABLE_PATH,
+                  skip_queues=False, skip_consumers=False, create_registration_table=False,
                   queue_table_schema=None, consumer_table_schema=None, registration_table_schema=None):
     queue_table_schema = queue_table_schema or QUEUE_TABLE_SCHEMA
     consumer_table_schema = consumer_table_schema or CONSUMER_TABLE_SCHEMA
@@ -41,6 +45,6 @@ def create_tables(client, root="//sys/queue_agents", skip_queues=False, skip_con
         client.create("table", root + "/queues", attributes={"dynamic": True, "schema": queue_table_schema})
     if not skip_consumers:
         client.create("table", root + "/consumers", attributes={"dynamic": True, "schema": consumer_table_schema})
-    if not skip_registrations:
-        client.create("table", root + "/consumer_registrations",
+    if create_registration_table:
+        client.create("table", registration_table_path,
                       attributes={"dynamic": True, "schema": registration_table_schema})

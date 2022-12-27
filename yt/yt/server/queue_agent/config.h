@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/queue_client/public.h>
+
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/library/dynamic_config/config.h>
@@ -153,8 +155,8 @@ public:
     //! User for native clients in queue agent and cypress synchronizer.
     TString User;
 
-    //! The path of directory containing queue agent state.
-    NYPath::TYPath Root;
+    //! Paths to queue agent state.
+    NQueueClient::TQueueAgentDynamicStateConfigPtr  DynamicState;
 
     NYTree::IMapNodePtr CypressAnnotations;
 

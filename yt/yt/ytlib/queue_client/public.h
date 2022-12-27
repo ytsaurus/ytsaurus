@@ -10,6 +10,7 @@ namespace NYT::NQueueClient {
 
 DECLARE_REFCOUNTED_CLASS(TQueueAgentStageChannelConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentConnectionConfig)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentDynamicStateConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueConsumerRegistrationManagerConfig)
 
 inline const TString ProductionStage = "production";
