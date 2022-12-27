@@ -266,6 +266,32 @@ class TestBatchExecution(object):
         create_result.get_result()
         assert result[0] is not None
 
+    @authors("aleexfi")
+    def test_supported_formats(self):
+        user_attrs = {
+            "int_attr": 42,
+            "string_attr": "arbitrary string",
+            "complex_attr": [1, 2]
+        }
+        supported_formats = [
+            yt.YsonFormat("text"),
+            yt.YsonFormat("binary"),
+            yt.JsonFormat()
+        ]
+
+        client = create_batch_client()
+        client.set(TEST_DIR + "/default_format", user_attrs)
+        for i, format in enumerate(supported_formats):
+            client.set(TEST_DIR + "/format_{}".format(i), format.dumps_node(user_attrs), format=format)
+        client.commit_batch()
+
+        nodes_attrs = [client.get(TEST_DIR + "/default_format")]
+        for i in range(len(supported_formats)):
+            nodes_attrs.append(client.get(TEST_DIR + "/format_{}".format(i)))
+        client.commit_batch()
+
+        assert [attrs.get_result() for attrs in nodes_attrs] == [user_attrs] * (len(supported_formats) + 1)
+
 
 @authors("levysotsky")
 @pytest.mark.usefixtures("yt_env_job_archive")

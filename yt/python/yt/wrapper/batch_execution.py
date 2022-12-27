@@ -5,10 +5,9 @@ from .config import get_config, get_option, get_client_state
 from .driver import get_api_version
 from .errors import YtError, YtResponseError
 from .etc_commands import execute_batch
+from .format import create_format
 from .http_helpers import get_retriable_errors
 from .retries import Retrier, default_chaos_monkey
-
-import yt.yson as yson
 
 try:
     from yt.packages.six.moves import zip as izip
@@ -82,7 +81,8 @@ class BatchExecutor(object):
         task = {"command": command, "parameters": parameters}
 
         if input is not None:
-            task["input"] = yson.loads(input)
+            format = create_format(parameters.get("input_format", "yson"))
+            task["input"] = format.loads_node(input)
 
         self._tasks.append(task)
         self._responses.append(BatchResponse())
