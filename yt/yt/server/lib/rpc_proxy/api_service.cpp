@@ -3499,12 +3499,16 @@ private:
         if (request->has_replica_consistency()) {
             options.ReplicaConsistency = FromProto<EReplicaConsistency>(request->replica_consistency());
         }
+        if (request->has_placeholder_values()) {
+            options.PlaceholderValues = request->placeholder_values();
+        }
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
 
-        context->SetRequestInfo("Query: %v, Timestamp: %v",
+        context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
             query,
-            options.Timestamp);
+            options.Timestamp,
+            options.PlaceholderValues);
 
         ExecuteCall(
             context,

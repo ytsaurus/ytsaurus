@@ -2346,12 +2346,157 @@ void PrepareQuery(
     }
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TYsonToQueryExpressionConvertVisitor
+    : public NYson::TYsonConsumerBase
+{
+public:
+    TYsonToQueryExpressionConvertVisitor(TStringBuilder* builder)
+        : Builder_(builder)
+    { }
+
+    void OnStringScalar(TStringBuf value) override
+    {
+        Builder_->AppendChar('"');
+        Builder_->AppendString(EscapeC(value));
+        Builder_->AppendChar('"');
+    }
+
+    void OnInt64Scalar(i64 value) override
+    {
+        Builder_->AppendFormat("%v", value);
+    }
+
+    void OnUint64Scalar(ui64 value) override
+    {
+        Builder_->AppendFormat("%vu", value);
+    }
+
+    void OnDoubleScalar(double value) override
+    {
+        Builder_->AppendFormat("%lf", value);
+    }
+
+    void OnBooleanScalar(bool value) override
+    {
+        Builder_->AppendFormat("%lv", value);
+    }
+
+    void OnEntity() override
+    {
+        Builder_->AppendString("null");
+    }
+
+    void OnBeginList() override
+    {
+        Builder_->AppendChar('(');
+        InListBeginning_ = true;
+    }
+
+    void OnListItem() override
+    {
+        if (!InListBeginning_) {
+            Builder_->AppendString(", ");
+        }
+        InListBeginning_ = false;
+    }
+
+    void OnEndList() override
+    {
+        Builder_->AppendChar(')');
+    }
+
+    void OnBeginMap() override
+    {
+        THROW_ERROR_EXCEPTION("Maps inside YSON placeholder are not allowed");
+    }
+
+    void OnKeyedItem(TStringBuf) override
+    {
+        THROW_ERROR_EXCEPTION("Maps inside YSON placeholder are not allowed");
+    }
+
+    void OnEndMap() override
+    {
+        THROW_ERROR_EXCEPTION("Maps inside YSON placeholder are not allowed");
+    }
+
+    void OnBeginAttributes() override
+    {
+        THROW_ERROR_EXCEPTION("Attributes inside YSON placeholder are not allowed");
+    }
+
+    void OnEndAttributes() override
+    {
+        THROW_ERROR_EXCEPTION("Attributes inside YSON placeholder are not allowed");
+    }
+
+private:
+    TStringBuilder* Builder_;
+    bool InListBeginning_;
+};
+
+void YsonParseError(TStringBuf message, const NYson::TYsonStringBuf* source)
+{
+    THROW_ERROR_EXCEPTION("%v", message)
+        << TErrorAttribute("context", Format("%v", source->AsStringBuf()));
+}
+
+THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(const NYson::TYsonStringBuf* placeholders)
+{
+    TMemoryInput input{placeholders->AsStringBuf()};
+    NYson::TYsonPullParser ysonParser{&input, NYson::EYsonType::Node};
+    NYson::TYsonPullParserCursor ysonCursor{&ysonParser};
+
+    if (ysonCursor->GetType() != NYson::EYsonItemType::BeginMap) {
+        YsonParseError("Incorrect placeholder argument: YSON map expected", placeholders);
+    }
+
+    ysonCursor.Next();
+
+    THashMap<TString, TString> queryLiterals;
+    while (ysonCursor->GetType() != NYson::EYsonItemType::EndMap) {
+        if (ysonCursor->GetType() != NYson::EYsonItemType::StringValue) {
+            YsonParseError("Incorrect YSON map placeholder: keys should be strings", placeholders);
+        }
+        auto key = TString(ysonCursor->UncheckedAsString());
+
+        ysonCursor.Next();
+        switch (ysonCursor->GetType()) {
+            case NYson::EYsonItemType::EntityValue:
+            case NYson::EYsonItemType::BooleanValue:
+            case NYson::EYsonItemType::Int64Value:
+            case NYson::EYsonItemType::Uint64Value:
+            case NYson::EYsonItemType::DoubleValue:
+            case NYson::EYsonItemType::StringValue:
+            case NYson::EYsonItemType::BeginList: {
+                TStringBuilder valueBuilder;
+                TYsonToQueryExpressionConvertVisitor ysonValueTransferrer{&valueBuilder};
+                ysonCursor.TransferComplexValue(&ysonValueTransferrer);
+                queryLiterals.emplace(std::move(key), valueBuilder.Flush());
+                break;
+            }
+            default:
+                YsonParseError("Incorrect placeholder map: values should be plain types or lists", placeholders);
+        }
+    }
+
+    return queryLiterals;
+}
+
 void ParseQueryString(
     NAst::TAstHead* astHead,
     const TString& source,
-    NAst::TParser::token::yytokentype strayToken)
+    NAst::TParser::token::yytokentype strayToken,
+    const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
 {
-    NAst::TLexer lexer(source, strayToken);
+    std::optional<THashMap<TString, TString>> queryLiterals;
+    if (placeholderValues) {
+        queryLiterals = ConvertYsonPlaceholdersToQueryLiterals(&placeholderValues.value());
+    }
+
+    NAst::TLexer lexer(source, strayToken, queryLiterals);
     NAst::TParser parser(lexer, astHead, source);
 
     int result = parser.parse();
@@ -2361,6 +2506,8 @@ void ParseQueryString(
             << TErrorAttribute("source", source);
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
 
 NAst::TParser::token::yytokentype GetStrayToken(EParseMode mode)
 {
@@ -2398,7 +2545,10 @@ TParsedSource::TParsedSource(const TString& source, NAst::TAstHead astHead)
     , AstHead(std::move(astHead))
 { }
 
-std::unique_ptr<TParsedSource> ParseSource(const TString& source, EParseMode mode)
+std::unique_ptr<TParsedSource> ParseSource(
+    const TString& source,
+    EParseMode mode,
+    const std::optional<NYson::TYsonStringBuf>& placeholderValues)
 {
     auto parsedSource = std::make_unique<TParsedSource>(
         source,
@@ -2406,7 +2556,8 @@ std::unique_ptr<TParsedSource> ParseSource(const TString& source, EParseMode mod
     ParseQueryString(
         &parsedSource->AstHead,
         source,
-        GetStrayToken(mode));
+        GetStrayToken(mode),
+        placeholderValues);
     return parsedSource;
 }
 
@@ -2415,11 +2566,12 @@ std::unique_ptr<TParsedSource> ParseSource(const TString& source, EParseMode mod
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
-    const TFunctionsFetcher& functionsFetcher)
+    const TFunctionsFetcher& functionsFetcher,
+    const std::optional<NYson::TYsonStringBuf>& placeholderValues)
 {
     return PreparePlanFragment(
         callbacks,
-        *ParseSource(source, EParseMode::Query),
+        *ParseSource(source, EParseMode::Query, placeholderValues),
         functionsFetcher);
 }
 

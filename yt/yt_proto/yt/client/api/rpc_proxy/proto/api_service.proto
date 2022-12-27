@@ -569,6 +569,7 @@ message TReqSelectRows
     optional uint64 memory_limit_per_node = 14;
     optional string execution_pool = 15;
     optional EReplicaConsistency replica_consistency = 17;
+    optional bytes placeholder_values = 18; // YSON
 
     optional TSuppressableAccessTrackingOptions suppressable_access_tracking_options = 104;
 }

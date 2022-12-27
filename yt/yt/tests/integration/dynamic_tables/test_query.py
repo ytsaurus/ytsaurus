@@ -1558,6 +1558,51 @@ class TestQuery(YTEnvSetup):
         with raises_yt_error("nonsimple type"):
             select_rows("* from [//tmp/t] join [//tmp/j] using b")
 
+    @authors("dtorilov")
+    def test_select_with_placeholders(self):
+        sync_create_cells(1)
+        self._create_table(
+            "//tmp/t",
+            [
+                {"name": "a", "type": "int64", "sort_order": "ascending"},
+                {"name": "b", "type": "int64"},
+                {"name": "c", "type": "int64"},
+                {"name": "d", "type": "string"},
+            ],
+            [
+                {"a": 1, "b": 0, "c": 1, "d": "a"},
+                {"a": 2, "b": 0, "c": 5, "d": "f"},
+                {"a": 3, "b": 1, "c": 3, "d": "a"},
+                {"a": 4, "b": 1, "c": 1, "d": "d"},
+                {"a": 5, "b": 1, "c": 3, "d": "d"},
+                {"a": 6, "b": 0, "c": 1, "d": "a"},
+                {"a": 7, "b": 0, "c": 1, "d": "a"},
+                {"a": 8, "b": 1, "c": 5, "d": "f"},
+            ],
+            "scan",
+        )
+
+        expected = [
+            {"a": 3, "b": 1, "c": 3, "d": "a"},
+            {"a": 5, "b": 1, "c": 3, "d": "d"},
+            {"a": 8, "b": 1, "c": 5, "d": "f"},
+        ]
+
+        requests = [
+            (
+                r"a, b, c, d from [//tmp/t] where b = {first} and (c, d) > {second} order by a limit 3",
+                "{first=1;second=[2;b]}",
+            ),
+            (
+                r"a, b, c, d from [//tmp/t] where b = {first} and (c, d) > ({second}, {third}) order by a limit 3",
+                "{first=1;second=2;third=b}",
+            ),
+        ]
+
+        for query, placeholders in requests:
+            actual = select_rows(query, placeholder_values=placeholders)
+            assert expected == actual
+
 
 class TestQueryRpcProxy(TestQuery):
     DRIVER_BACKEND = "rpc"
