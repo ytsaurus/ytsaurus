@@ -65,7 +65,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivelinessInfo
 
 TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveliness()
 {
-    return DiskInfoProvider_->GetFailedYtDisks()
+    return DiskInfoProvider_->GetYtDiskInfos(NContainers::EDiskState::Failed)
         .Apply(BIND(&TLocationManager::MapLocationToLivelinessInfo, MakeStrong(this))
             .AsyncVia(ControlInvoker_));
 }
@@ -102,7 +102,7 @@ std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissioned(
 
 TFuture<std::vector<TStoreLocationPtr>> TLocationManager::MarkLocationsAsDecommissioned(const THashSet<TGuid>& locationUuids)
 {
-    return DiskInfoProvider_->GetFailedYtDisks()
+    return DiskInfoProvider_->GetYtDiskInfos(NContainers::EDiskState::Failed)
         .Apply(BIND([=] (const std::vector<TDiskInfo>& failedDisks) {
             return MarkLocationsAsDecommissioned(failedDisks, locationUuids);
         })

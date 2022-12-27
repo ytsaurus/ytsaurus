@@ -29,6 +29,7 @@ struct TDiskInfo
     TString DevicePath;
     TString DeviceName;
     TString DiskModel;
+    THashSet<TString> PartitionFsLabels;
     EDiskState State;
 };
 
