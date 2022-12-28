@@ -63,7 +63,6 @@ public:
     NYPath::TYPath HulkDeallocationsPath;
     NYPath::TYPath HulkDeallocationsHistoryPath;
 
-    double QuotaMultiplier;
     int NodeCountPerCell;
     int ChunkCountPerCell;
     i64 JournalDiskSpacePerCell;

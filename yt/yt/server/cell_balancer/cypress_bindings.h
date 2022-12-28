@@ -266,6 +266,8 @@ struct TBundleInfo
     TResourceQuotaPtr ResourceQuota;
     TResourceLimitsPtr ResourceLimits;
 
+    double SystemAccountQuotaMultiplier;
+
     REGISTER_YSON_STRUCT(TBundleInfo);
 
     static void Register(TRegistrar registrar);

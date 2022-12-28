@@ -189,6 +189,9 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "resource_limits", &TThis::ResourceLimits)
         .DefaultNew();
+    RegisterAttribute(registrar, "system_account_quota_multiplier", &TThis::SystemAccountQuotaMultiplier)
+        .GreaterThan(0)
+        .Default(1.3);
 }
 
 void TZoneInfo::Register(TRegistrar registrar)

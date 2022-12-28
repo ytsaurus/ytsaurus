@@ -2007,7 +2007,7 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
 
     input.SystemAccounts["default-bundle-account"] = New<TSystemAccount>();
 
-    input.Config->QuotaMultiplier = 1.5;
+    bundleInfo1->SystemAccountQuotaMultiplier = 1.5;
     input.Config->ChunkCountPerCell = 2;
     input.Config->NodeCountPerCell = 3;
     input.Config->JournalDiskSpacePerCell = 5_MB;
@@ -2061,6 +2061,7 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
     // With lifted ones
     SetBundleInfo(input, "default-bundle2", 10, 20);
     auto& bundleInfo2 = input.Bundles["default-bundle2"];
+    bundleInfo2->SystemAccountQuotaMultiplier = 2;
     bundleInfo2->EnableSystemAccountManagement = true;
     bundleInfo2->Options->ChangelogAccount = "default-bundle2-account";
     bundleInfo2->Options->SnapshotAccount = "default-bundle2-account";
@@ -2084,20 +2085,20 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 900,
-            .Chunks = 600,
-            .SsdBlobs = 2100_MB,
-            .SsdJournal = 1500_MB
+            .Nodes = 1200,
+            .Chunks = 800,
+            .SsdBlobs = 2800_MB,
+            .SsdJournal = 2000_MB
         },
         mutations.LiftedSystemAccountLimit["default-bundle2-account"]);
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1927,
-            .Chunks = 2618,
-            .SsdBlobs = 2100_MB,
+            .Nodes = 2227,
+            .Chunks = 2818,
+            .SsdBlobs = 2800_MB,
             .Default = 64_MB,
-            .SsdJournal = 1545_MB
+            .SsdJournal = 2045_MB
         },
         mutations.ChangedRootSystemAccountLimit);
 
@@ -2108,10 +2109,10 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
 
     CheckLimits(
         TExpectedLimits{
-            .Nodes = 1350,
-            .Chunks = 900,
-            .SsdBlobs = 3150_MB,
-            .SsdJournal = 2250_MB
+            .Nodes = 1800,
+            .Chunks = 1200,
+            .SsdBlobs = 4200_MB,
+            .SsdJournal = 3000_MB
         },
         mutations.LiftedSystemAccountLimit["default-bundle2-account"]);
 }
