@@ -38,6 +38,8 @@
 
 #include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <library/cpp/yt/threading/spin_lock.h>
 
 namespace NYT::NScheduler {
@@ -348,15 +350,13 @@ public:
 
         YT_VERIFY(TreeSnapshotPrecommit_);
 
-        TFairShareTreeSnapshotPtr oldTreeSnapshot;
-
-        {
-            auto guard = WriterGuard(TreeSnapshotLock_);
-            oldTreeSnapshot = std::move(TreeSnapshot_);
-            TreeSnapshot_ = std::move(TreeSnapshotPrecommit_);
-        }
-
+        auto oldTreeSnapshot = std::move(TreeSnapshot_);
+        TreeSnapshot_ = std::move(TreeSnapshotPrecommit_);
         TreeSnapshotPrecommit_.Reset();
+
+        AtomicTreeSnapshot_ = TreeSnapshot_;
+
+        YT_LOG_DEBUG("Stored updated fair share tree snapshot");
 
         // Offload destroying previous tree snapshot.
         StrategyHost_->GetBackgroundInvoker()->Invoke(BIND([oldTreeSnapshot = std::move(oldTreeSnapshot)] { }));
@@ -633,7 +633,7 @@ public:
         }
 
         auto jobSchedulerError = TFairShareTreeJobScheduler::CheckOperationIsHung(
-            TreeSnapshot_,
+            GetTreeSnapshot(),
             element,
             now,
             activationTime,
@@ -1000,9 +1000,9 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        if (TreeSnapshot_) {
-            if (auto element = TreeSnapshot_->FindEnabledOperationElement(operationId)) {
-                DoBuildOperationProgress(TreeSnapshot_, element, StrategyHost_, fluent);
+        if (auto treeSnapshot = GetTreeSnapshot()) {
+            if (auto element = treeSnapshot->FindEnabledOperationElement(operationId)) {
+                DoBuildOperationProgress(treeSnapshot, element, StrategyHost_, fluent);
             }
         }
     }
@@ -1054,7 +1054,7 @@ public:
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFullFairShareInfo, MakeWeak(this), TreeSnapshot_, fluent)
+        Y_UNUSED(WaitFor(BIND(&TFairShareTree::DoBuildFullFairShareInfo, MakeWeak(this), GetTreeSnapshot(), fluent)
             .AsyncVia(StrategyHost_->GetOrchidWorkerInvoker())
             .Run()));
     }
@@ -1209,6 +1209,7 @@ private:
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
     THashMap<TOperationId, TInstant> OperationIdToFirstFoundLimitingAncestorTime_;
 
+    // TODO(eshcherbin): Change to TAtomicIntrusivePtr?
     TAtomicPtr<TResourceUsageSnapshot> ResourceUsageSnapshot_;
 
     std::vector<TOperationId> ActivatableOperationIds_;
@@ -1452,8 +1453,10 @@ private:
 
     friend class TOperationsByPoolOrchidService;
 
+    // Thread affinity: Control.
     TFairShareTreeSnapshotPtr TreeSnapshot_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, TreeSnapshotLock_);
+    // Thread affinity: any.
+    TAtomicIntrusivePtr<TFairShareTreeSnapshot> AtomicTreeSnapshot_;
 
     TFairShareTreeSnapshotPtr TreeSnapshotPrecommit_;
 
@@ -1479,14 +1482,11 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        // No need to use lock in feasible invokers.
-        auto guard = [this] () -> std::optional<decltype(ReaderGuard(TreeSnapshotLock_))> {
-            if (VerifyInvokersAffinity(FeasibleInvokers_)) {
-                return std::nullopt;
-            }
-            return ReaderGuard(TreeSnapshotLock_);
-        }();
-        return TreeSnapshot_;
+        if (VerifyInvokersAffinity(FeasibleInvokers_)) {
+            return TreeSnapshot_;
+        }
+
+        return AtomicTreeSnapshot_.Acquire();
     }
 
     TFairShareTreeSnapshotPtr GetTreeSnapshotForOrchid() const
@@ -2239,22 +2239,69 @@ private:
                 treeSnapshot));
     }
 
-    void ProcessUpdatedJob(
-        TOperationId operationId,
-        TJobId jobId,
-        const TJobResources& jobResources,
-        const std::optional<TString>& jobDataCenter,
-        const std::optional<TString>& jobInfinibandCluster,
-        bool* shouldAbortJob) override
+    void ProcessJobUpdates(
+        const std::vector<TJobUpdate>& jobUpdates,
+        THashSet<TJobId>* jobsToPostpone,
+        std::vector<TJobId>* jobsToAbort) override
     {
         auto treeSnapshot = GetTreeSnapshot();
 
         YT_VERIFY(treeSnapshot);
 
+        for (const auto& jobUpdate : jobUpdates) {
+            switch (jobUpdate.Status) {
+                case EJobUpdateStatus::Running: {
+                    bool shouldAbortJob = false;
+                    ProcessUpdatedJob(
+                        treeSnapshot,
+                        jobUpdate.OperationId,
+                        jobUpdate.JobId,
+                        jobUpdate.JobResources,
+                        jobUpdate.JobDataCenter,
+                        jobUpdate.JobInfinibandCluster,
+                        &shouldAbortJob);
+
+                    if (shouldAbortJob) {
+                        jobsToAbort->push_back(jobUpdate.JobId);
+                        // NB(eshcherbin): We want the node shard to send us a job finished update,
+                        // this is why we have to postpone the job here. This is very ad-hoc, but I hope it'll
+                        // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
+                        jobsToPostpone->insert(jobUpdate.JobId);
+                    }
+
+                    break;
+                }
+                case EJobUpdateStatus::Finished: {
+                    if (!ProcessFinishedJob(treeSnapshot, jobUpdate.OperationId, jobUpdate.JobId)) {
+                        YT_LOG_DEBUG("Postpone job update since operation is disabled or missing in snapshot (OperationId: %v, JobId: %v)",
+                            jobUpdate.OperationId,
+                            jobUpdate.JobId);
+
+                        jobsToPostpone->insert(jobUpdate.JobId);
+                    }
+                    break;
+                }
+                default:
+                    YT_ABORT();
+            }
+        }
+    }
+
+    void ProcessUpdatedJob(
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        TOperationId operationId,
+        TJobId jobId,
+        const TJobResources& jobResources,
+        const std::optional<TString>& jobDataCenter,
+        const std::optional<TString>& jobInfinibandCluster,
+        bool* shouldAbortJob)
+    {
+
         *shouldAbortJob = false;
 
         // NB: Should be filtered out on large clusters.
         YT_LOG_DEBUG("Processing updated job (OperationId: %v, JobId: %v, Resources: %v)", operationId, jobId, jobResources);
+
         if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
             TreeScheduler_->ProcessUpdatedJob(
                 treeSnapshot,
@@ -2267,18 +2314,16 @@ private:
         }
     }
 
-    bool ProcessFinishedJob(TOperationId operationId, TJobId jobId) override
+    bool ProcessFinishedJob(const TFairShareTreeSnapshotPtr& treeSnapshot, TOperationId operationId, TJobId jobId)
     {
-        auto treeSnapshot = GetTreeSnapshot();
-
-        YT_VERIFY(treeSnapshot);
-
         // NB: Should be filtered out on large clusters.
         YT_LOG_DEBUG("Processing finished job (OperationId: %v, JobId: %v)", operationId, jobId);
+
         if (auto* operationElement = treeSnapshot->FindEnabledOperationElement(operationId)) {
             TreeScheduler_->ProcessFinishedJob(treeSnapshot, operationElement, jobId);
             return true;
         }
+
         return false;
     }
 

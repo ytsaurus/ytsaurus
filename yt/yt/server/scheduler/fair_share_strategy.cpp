@@ -924,6 +924,8 @@ public:
                 tree->FinishFairShareUpdate();
             }
             SnapshottedIdToTree_.Exchange(std::move(snapshottedIdToTree));
+
+            YT_LOG_DEBUG("Stored updated fair share tree snapshots");
         }
 
         if (!errors.empty()) {
@@ -976,75 +978,47 @@ public:
 
     void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
-        std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
+        THashSet<TJobId>* jobsToPostpone,
         std::vector<TJobId>* jobsToAbort) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
-        YT_VERIFY(successfullyUpdatedJobs->empty());
+        YT_VERIFY(jobsToPostpone->empty());
         YT_VERIFY(jobsToAbort->empty());
 
         YT_LOG_DEBUG("Processing job updates in strategy (UpdateCount: %v)",
             jobUpdates.size());
 
-        auto idToTree = SnapshottedIdToTree_.Load();
-
-        THashSet<TJobId> jobsToPostpone;
-
-        for (const auto& job : jobUpdates) {
-            auto treeIt = idToTree.find(job.TreeId);
-            switch (job.Status) {
-                case EJobUpdateStatus::Running: {
-                    if (treeIt == idToTree.end()) {
-                        // Job is orphaned (does not belong to any tree), aborting it.
-                        jobsToAbort->push_back(job.JobId);
-                    } else {
-                        const auto& tree = treeIt->second;
-
-                        bool shouldAbortJob = false;
-                        tree->ProcessUpdatedJob(
-                            job.OperationId,
-                            job.JobId,
-                            job.JobResources,
-                            job.JobDataCenter,
-                            job.JobInfinibandCluster,
-                            &shouldAbortJob);
-
-                        if (shouldAbortJob) {
-                            jobsToAbort->push_back(job.JobId);
-                            // NB(eshcherbin): We want the node shard to send us a job finished update,
-                            // this is why we have to postpone the job here. This is very ad-hoc, but I hope it'll
-                            // soon be rewritten as a part of the new GPU scheduler. See: YT-15062.
-                            jobsToPostpone.insert(job.JobId);
-                        }
-                    }
-                    break;
-                }
-                case EJobUpdateStatus::Finished: {
-                    if (treeIt == idToTree.end()) {
-                        // Job is finished but tree does not exist, nothing to do.
-                        YT_LOG_DEBUG("Dropping job update since pool tree is missing (OperationId: %v, JobId: %v)",
-                            job.OperationId,
-                            job.JobId);
-                        continue;
-                    }
-                    const auto& tree = treeIt->second;
-                    if (!tree->ProcessFinishedJob(job.OperationId, job.JobId)) {
-                        YT_LOG_DEBUG("Postpone job update since operation is disabled or missing in snapshot (OperationId: %v, JobId: %v)",
-                            job.OperationId,
-                            job.JobId);
-                        jobsToPostpone.insert(job.JobId);
-                    }
-                    break;
-                }
-                default:
-                    YT_ABORT();
-            }
+        THashMap<TString, std::vector<TJobUpdate>> jobUpdatesPerTree;
+        for (const auto& jobUpdate : jobUpdates) {
+            jobUpdatesPerTree[jobUpdate.TreeId].push_back(jobUpdate);
         }
 
-        for (const auto& job : jobUpdates) {
-            if (!jobsToPostpone.contains(job.JobId)) {
-                successfullyUpdatedJobs->push_back({job.OperationId, job.JobId});
+        auto idToTree = SnapshottedIdToTree_.Load();
+        for (const auto& [treeId, treeJobUpdates] : jobUpdatesPerTree) {
+            auto it = idToTree.find(treeId);
+            if (it == idToTree.end()) {
+                for (const auto& jobUpdate : treeJobUpdates) {
+                    switch (jobUpdate.Status) {
+                        case EJobUpdateStatus::Running:
+                            // Job is orphaned (does not belong to any tree), aborting it.
+                            jobsToAbort->push_back(jobUpdate.JobId);
+                            break;
+                        case EJobUpdateStatus::Finished:
+                            // Job is finished but tree does not exist, nothing to do.
+                            YT_LOG_DEBUG("Dropping job update since pool tree is missing (OperationId: %v, JobId: %v)",
+                                jobUpdate.OperationId,
+                                jobUpdate.JobId);
+                            break;
+                        default:
+                            YT_ABORT();
+                    }
+                }
+
+                continue;
             }
+
+            const auto& tree = it->second;
+            tree->ProcessJobUpdates(treeJobUpdates, jobsToPostpone, jobsToAbort);
         }
     }
 

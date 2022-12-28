@@ -335,10 +335,10 @@ void TSharedSchedulerStrategy::PreemptJob(const TJobPtr& job)
 
 void TSharedSchedulerStrategy::ProcessJobUpdates(
     const std::vector<TJobUpdate>& jobUpdates,
-    std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
+    THashSet<TJobId>* jobsToPostpone,
     std::vector<TJobId>* jobsToAbort)
 {
-    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, successfullyUpdatedJobs, jobsToAbort);
+    SchedulerStrategy_->ProcessJobUpdates(jobUpdates, jobsToPostpone, jobsToAbort);
 }
 
 void TSharedSchedulerStrategy::UnregisterOperation(NYT::NScheduler::IOperationStrategyHost* operation)

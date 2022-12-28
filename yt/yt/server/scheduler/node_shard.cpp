@@ -2459,16 +2459,23 @@ void TNodeShard::SubmitJobsToStrategy()
 {
     YT_PROFILE_TIMING("/scheduler/strategy_job_processing_time") {
         if (!JobsToSubmitToStrategy_.empty()) {
+            THashSet<TJobId> jobsToPostpone;
             std::vector<TJobId> jobsToAbort;
-            std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;
             auto jobUpdates = GetValues(JobsToSubmitToStrategy_);
             ManagerHost_->GetStrategy()->ProcessJobUpdates(
                 jobUpdates,
-                &jobsToRemove,
+                &jobsToPostpone,
                 &jobsToAbort);
 
             for (auto jobId : jobsToAbort) {
                 AbortJob(jobId, TError("Aborting job by strategy request"));
+            }
+
+            std::vector<std::pair<TOperationId, TJobId>> jobsToRemove;
+            for (const auto& job : jobUpdates) {
+                if (!jobsToPostpone.contains(job.JobId)) {
+                    jobsToRemove.emplace_back(job.OperationId, job.JobId);
+                }
             }
 
             for (const auto& [operationId, jobId] : jobsToRemove) {

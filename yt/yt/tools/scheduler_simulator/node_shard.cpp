@@ -248,13 +248,13 @@ void TSimulatorNodeShard::OnJobFinished(const TNodeEvent& event)
     }});
 
     {
-        std::vector<std::pair<TJobId, TOperationId>> jobsToRemove;
+        THashSet<TJobId> jobsToPostpone;
         std::vector<TJobId> jobsToAbort;
         SchedulingStrategy_->ProcessJobUpdates(
             jobUpdates,
-            &jobsToRemove,
+            &jobsToPostpone,
             &jobsToAbort);
-        YT_VERIFY(jobsToRemove.size() == 1);
+        YT_VERIFY(jobsToPostpone.empty());
         YT_VERIFY(jobsToAbort.empty());
     }
 
