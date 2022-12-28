@@ -1405,7 +1405,6 @@ TEST_P(TFairShareSchedulerTest, Fairness)
 
                     if (numThreads == 1) {
                         auto minPool = TDuration::Max();
-                        auto minPoolIndex = numPools;
                         for (size_t index = 0; index < numPools; ++index) {
                             bool hasBucketsInPool = false;
                             for (size_t workerId = index; workerId < numWorkers; workerId += numPools) {
@@ -1415,7 +1414,6 @@ TEST_P(TFairShareSchedulerTest, Fairness)
                             }
                             if (hasBucketsInPool && pools[index] < minPool) {
                                 minPool = pools[index];
-                                minPoolIndex = index;
                             }
                         }
 
