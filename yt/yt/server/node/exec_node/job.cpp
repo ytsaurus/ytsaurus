@@ -1209,11 +1209,11 @@ void TJob::OnJobInterruptionTimeout()
     Abort(TError(NJobProxy::EErrorCode::InterruptionTimeout, "Interruption is timed out"));
 }
 
-const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& TJob::GetControllerAgentConnector() const noexcept
+TControllerAgentConnectorPool::TControllerAgentConnectorPtr TJob::GetControllerAgentConnector() const noexcept
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    return ControllerAgentConnector_;
+    return ControllerAgentConnector_.Lock();
 }
 
 void TJob::Interrupt(

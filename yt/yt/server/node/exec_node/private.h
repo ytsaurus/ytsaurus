@@ -25,6 +25,11 @@ struct TControllerAgentDescriptor
     explicit operator bool() const noexcept;
 };
 
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TControllerAgentDescriptor& controllerAgentDescriptor,
+    TStringBuf /*format*/);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 DECLARE_REFCOUNTED_CLASS(TJob)

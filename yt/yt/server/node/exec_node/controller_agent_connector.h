@@ -31,7 +31,7 @@ DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)
 class TControllerAgentConnectorPool
     : public TRefCounted
 {
-private:
+public:
     friend class TControllerAgentConnector;
 
     class TControllerAgentConnector
@@ -79,7 +79,6 @@ private:
         void OnAgentIncarnationOutdated() noexcept;
     };
 
-public:
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
 
     TControllerAgentConnectorPool(TControllerAgentConnectorConfigPtr config, IBootstrap* bootstrap);
@@ -88,15 +87,16 @@ public:
 
     void SendOutOfBandHeartbeatsIfNeeded();
 
-    TControllerAgentConnectorPtr GetControllerAgentConnector(const TJob* job);
+    TWeakPtr<TControllerAgentConnector> GetControllerAgentConnector(const TJob* job);
 
     void OnDynamicConfigChanged(
         const TExecNodeDynamicConfigPtr& oldConfig,
         const TExecNodeDynamicConfigPtr& newConfig);
 
+    void OnRegisteredAgentSetReceived(THashSet<TControllerAgentDescriptor> controllerAgentDescriptors);
+
 private:
-    //! TControllerAgentConnector object lifetime include lifetime of map entry, so we can use raw pointers here.
-    THashMap<TControllerAgentDescriptor, TControllerAgentConnector*> ControllerAgentConnectors_;
+    THashMap<TControllerAgentDescriptor, TControllerAgentConnectorPtr> ControllerAgentConnectors_;
 
     const TControllerAgentConnectorConfigPtr StaticConfig_;
     TControllerAgentConnectorConfigPtr CurrentConfig_;
@@ -107,12 +107,13 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    void OnControllerAgentConnectorDestroyed(
-        const TControllerAgentDescriptor& controllerAgentDescriptor) noexcept;
-
     NRpc::IChannelPtr CreateChannel(const TControllerAgentDescriptor& agentDescriptor);
 
+    TWeakPtr<TControllerAgentConnector> AddControllerAgentConnector(TControllerAgentDescriptor descriptor);
+
     void OnConfigUpdated();
+
+    void ScanOutdatedAgents();
 };
 
 DEFINE_REFCOUNTED_TYPE(TControllerAgentConnectorPool)
