@@ -1192,11 +1192,13 @@ using TQuotaChanges = THashMap<TString, TQuotaDiff>;
 
 void AddQuotaChanges(
     const TString& bundleName,
-    const TBundleSystemOptionsPtr& bundleOptions,
+    const TBundleInfoPtr& bundleInfo,
     const TSchedulerInputState& input,
     int cellCount,
     TQuotaChanges& changes)
 {
+    const auto& bundleOptions = bundleInfo->Options;
+
     if (bundleOptions->SnapshotAccount != bundleOptions->ChangelogAccount) {
         YT_LOG_DEBUG("Skip adjusting quota for bundle with different "
             "snapshot and changelog accounts (BundleName: %v, SnapshotAccount: %v, ChangelogAccount: %v)",
@@ -1221,7 +1223,7 @@ void AddQuotaChanges(
     const auto& config = input.Config;
 
     cellCount = std::max(cellCount, 1);
-    auto multiplier = config->QuotaMultiplier * cellCount;
+    auto multiplier = bundleInfo->SystemAccountQuotaMultiplier * cellCount;
 
     TQuotaDiff quotaDiff;
 
@@ -1292,7 +1294,7 @@ void ManageSystemAccountLimit(const TSchedulerInputState& input, TSchedulerMutat
         }
 
         int cellCount = std::max<int>(GetTargetCellCount(bundleInfo), std::ssize(bundleInfo->TabletCellIds));
-        AddQuotaChanges(bundleName, bundleInfo->Options, input, cellCount, quotaChanges);
+        AddQuotaChanges(bundleName, bundleInfo, input, cellCount, quotaChanges);
     }
 
     if (quotaChanges.empty()) {

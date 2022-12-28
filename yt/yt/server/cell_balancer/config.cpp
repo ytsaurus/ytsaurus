@@ -48,9 +48,6 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
     registrar.Parameter("hulk_deallocations_history_path", &TThis::HulkDeallocationsHistoryPath)
         .NonEmpty();
 
-    registrar.Parameter("quota_multiplier", &TThis::QuotaMultiplier)
-        .GreaterThan(0)
-        .Default(1.3);
     registrar.Parameter("node_count_per_cell", &TThis::NodeCountPerCell)
         .GreaterThan(0)
         .Default(25);
