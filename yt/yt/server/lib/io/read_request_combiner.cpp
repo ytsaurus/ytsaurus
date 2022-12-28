@@ -8,9 +8,15 @@ namespace NYT::NIO {
 
 namespace {
 
-i64 AlignRequest(
-    IReadRequestCombiner::TIORequest* request,
-    i64 pageSize)
+struct TIORequest
+{
+    i64 Offset = 0;
+    i64 Size = 0;
+    int Index = 0;
+};
+
+template<typename TRequest>
+i64 AlignRequest(TRequest* request, i64 pageSize)
 {
     auto originalOffset = request->Offset;
     i64 offset = AlignDown(request->Offset, pageSize);
@@ -19,9 +25,7 @@ i64 AlignRequest(
     return originalOffset - request->Offset;
 }
 
-bool TryCollapseRequest(
-    IReadRequestCombiner::TIORequest* collapsed,
-    const IReadRequestCombiner::TIORequest& current)
+bool TryCollapseRequest(TIORequest* collapsed, const TIORequest& current)
 {
     YT_VERIFY(collapsed->Offset <= current.Offset);
     if (collapsed->Offset + collapsed->Size < current.Offset) {
@@ -38,7 +42,7 @@ class TReadRequestCombiner
     : public IReadRequestCombiner
 {
 public:
-    TCombineResult Combine(
+    std::vector<IReadRequestCombiner::TCombinedRequest> Combine(
         std::vector<IIOEngine::TReadRequest> requests,
         i64 pageSize,
         TRefCountedTypeCookie tagCookie) override
@@ -96,36 +100,33 @@ public:
             ++collapsedRequestCount;
         }
 
-        std::vector<TIOEngineHandlePtr> handles;
-        handles.reserve(collapsedRequestCount);
+        std::vector<TCombinedRequest> results;
+        results.reserve(ioRequests.size());
 
         {
             auto buffer = TSharedMutableRef::AllocatePageAligned(totalSize, {.InitializeStorage = false}, tagCookie);
 
             OutputRefs_.resize(ioRequests.size());
 
-            TIORequest collapsed;
-            int outIndex = -1;
+            std::optional<TIORequest> collapsed;
             i64 globalBufferOffset = 0;
             for (const auto& current : ioRequests) {
-                if (outIndex == -1) {
+                if (!collapsed) {
                     collapsed = current;
-                    outIndex = 0;
                 } else if (
-                    requests[collapsed.Index].Handle != requests[current.Index].Handle ||
-                    !TryCollapseRequest(&collapsed, current))
+                    requests[collapsed->Index].Handle != requests[current.Index].Handle ||
+                    !TryCollapseRequest(&collapsed.value(), current))
                 {
-                    collapsed.ResultBuffer = TMutableRef(buffer).Slice(
+                    auto resultBuffer = TMutableRef(buffer).Slice(
                         globalBufferOffset,
-                        globalBufferOffset + collapsed.Size);
-                    ioRequests[outIndex] = collapsed;
-                    ++outIndex;
-                    handles.push_back(std::move(requests[collapsed.Index].Handle));
-                    globalBufferOffset += collapsed.Size;
+                        globalBufferOffset + collapsed->Size);
+
+                    PushResult(&results, resultBuffer, requests[collapsed->Index], *collapsed);
+                    globalBufferOffset += collapsed->Size;
                     collapsed = current;
                 }
 
-                i64 bufferOffset = globalBufferOffset + requests[current.Index].Offset - collapsed.Offset;
+                i64 bufferOffset = globalBufferOffset + requests[current.Index].Offset - collapsed->Offset;
                 auto outputBuffer = buffer.Slice(
                     bufferOffset,
                     bufferOffset + requests[current.Index].Size);
@@ -138,18 +139,28 @@ public:
                 OutputRefs_[current.Index] = std::move(outputBuffer);
             }
 
-            collapsed.ResultBuffer = TMutableRef(buffer).Slice(
+            auto resultBuffer = TMutableRef(buffer).Slice(
                 globalBufferOffset,
-                globalBufferOffset + collapsed.Size);
-            ioRequests[outIndex] = collapsed;
-            ioRequests.resize(outIndex + 1);
-            handles.push_back(std::move(requests[collapsed.Index].Handle));
+                globalBufferOffset + collapsed->Size);
+
+            PushResult(&results, resultBuffer, requests[collapsed->Index], *collapsed);
         }
 
-        return {
-            std::move(handles),
-            std::move(ioRequests)
-        };
+        return results;
+    }
+
+    void PushResult(
+        std::vector<TCombinedRequest>* results,
+        TMutableRef& buffer,
+        const IIOEngine::TReadRequest& original,
+        const TIORequest& combined)
+    {
+        auto& resultRequest = results->emplace_back();
+
+        resultRequest.ResultBuffer = std::move(buffer);
+        resultRequest.ReadRequest = original;
+        resultRequest.ReadRequest.Offset = combined.Offset;
+        resultRequest.ReadRequest.Size = combined.Size;
     }
 
     TError CheckEof(const TMutableRef& bufferTail) override
@@ -192,44 +203,42 @@ class TDummyReadRequestCombiner
     : public IReadRequestCombiner
 {
 public:
-    TCombineResult Combine(
+    std::vector<TCombinedRequest> Combine(
         std::vector<IIOEngine::TReadRequest> requests,
         i64 pageSize,
         TRefCountedTypeCookie tagCookie) override
     {
-        std::vector<TIORequest> ioRequests;
+        std::vector<TCombinedRequest> ioRequests;
         ioRequests.reserve(requests.size());
-
-        std::vector<TIOEngineHandlePtr> handles;
-        handles.reserve(requests.size());
 
         OutputRefs_.reserve(ioRequests.size());
 
         for (int index = 0; index < std::ssize(requests); ++index) {
             ioRequests.push_back({
-                .Offset = requests[index].Offset,
-                .Size = requests[index].Size,
-                .Index = index
+                .ReadRequest = requests[index]
             });
+
+            auto& resultRequest = ioRequests.back();
+
+            resultRequest.ReadRequest.Offset = requests[index].Offset;
+            resultRequest.ReadRequest.Size = requests[index].Size;
 
             i64 offsetDiff = 0;
 
             if (requests[index].Handle->IsOpenForDirectIO()) {
-                offsetDiff = AlignRequest(&ioRequests.back(), pageSize);
+                offsetDiff = AlignRequest(&resultRequest.ReadRequest, pageSize);
             }
 
-            handles.push_back(requests[index].Handle);
+            auto buffer = TSharedMutableRef::AllocatePageAligned(
+                resultRequest.ReadRequest.Size,
+                {.InitializeStorage = false},
+                tagCookie);
 
-            auto& ioRequest = ioRequests.back();
-            auto buffer = TSharedMutableRef::AllocatePageAligned(ioRequest.Size, {.InitializeStorage = false}, tagCookie);
-            ioRequest.ResultBuffer = buffer;
+            resultRequest.ResultBuffer = buffer;
             OutputRefs_.push_back(buffer.Slice(offsetDiff, offsetDiff + requests[index].Size));
         }
 
-        return {
-            std::move(handles),
-            std::move(ioRequests)
-        };
+        return ioRequests;
     }
 
     TError CheckEof(const TMutableRef& bufferTail) override

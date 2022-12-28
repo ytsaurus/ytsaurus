@@ -10,19 +10,13 @@ struct IReadRequestCombiner
 {
     virtual ~IReadRequestCombiner() = default;
 
-    struct TIORequest
+    struct TCombinedRequest
     {
-        i64 Offset = 0;
-        i64 Size = 0;
+        IIOEngine::TReadRequest ReadRequest;
         TMutableRef ResultBuffer;
-        int Index = 0;
     };
 
-    using TCombineResult = std::tuple<
-        std::vector<TIOEngineHandlePtr>,
-        std::vector<TIORequest>>;
-
-    virtual TCombineResult Combine(
+    virtual std::vector<TCombinedRequest> Combine(
         std::vector<IIOEngine::TReadRequest> requests,
         i64 pageSize,
         TRefCountedTypeCookie tagCookie) = 0;
