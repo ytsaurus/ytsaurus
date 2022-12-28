@@ -49,6 +49,42 @@ Y_UNIT_TEST_SUITE(ParallelUnorderedWriter)
         UNIT_ASSERT_VALUES_EQUAL(read, write);
     }
 
+    Y_UNIT_TEST(NodeBatchTest)
+    {
+        TVector<TNode> task1 = {
+            TNode()("foo", "bar_1"),
+            TNode()("foo", "baz_1"),
+            TNode()("foo", "ban_1")
+        };
+        TNode task2 = TNode()("foo", "bar_2");
+        TVector<TNode> task3 = {
+            TNode()("foo", "bar_3"),
+            TNode()("foo", "baz_3"),
+            TNode()("foo", "ban_3")
+        };
+
+        TTestFixture fixture;
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
+        const TString table = workingDir + "/parallel_writer_test1";
+        auto writer = CreateParallelUnorderedTableWriter<TNode>(client, table);
+        writer->AddRowBatch(task1);
+        writer->AddRow(task2);
+        writer->AddRowBatch(task3);
+        writer->Finish();
+        auto reader = client->CreateTableReader<TNode>(table);
+        TVector<TNode> read;
+        for (auto &cursor : *reader) {
+            read.push_back(cursor.GetRow());
+        }
+        TVector<TNode> expected = task1;
+        expected.push_back(task2);
+        std::copy(task3.begin(), task3.end(), std::back_inserter(expected));
+        Sort(expected.begin(), expected.end(), CompTNode);
+        Sort(read.begin(), read.end(), CompTNode);
+        UNIT_ASSERT_VALUES_EQUAL(read, expected);
+    }
+
     Y_UNIT_TEST(YaMRRowTest)
     {
         TVector<TYaMRRow> write = {

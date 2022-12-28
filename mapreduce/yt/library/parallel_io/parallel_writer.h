@@ -13,6 +13,11 @@ namespace NYT {
         // Number of created writer threads.
         FLUENT_FIELD_DEFAULT(size_t, ThreadCount, 5);
 
+        // ParallelWriter has a queue for writing tasks (it can be a row and a vector of rows which should be written).
+        // It is a limit of this queue.
+        // Set to 0 for unlimited size of queue.
+        FLUENT_FIELD_DEFAULT(size_t, TaskCount, 1000);
+
         // @ref NYT::TTableWriterOptions
         FLUENT_FIELD_DEFAULT(TTableWriterOptions, TableWriterOptions, TTableWriterOptions());
     };

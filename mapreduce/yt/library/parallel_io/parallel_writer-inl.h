@@ -28,6 +28,41 @@ namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <typename T>
+class TWriteTask {
+public:
+    TWriteTask(const T& row)
+        : Row_(row)
+    { }
+
+    TWriteTask(T&& row)
+        : Row_(std::move(row))
+    { }
+
+    TWriteTask(const TVector<T>& rows)
+        : Rows_(rows)
+    { }
+
+    TWriteTask(TVector<T>&& rows)
+        : Rows_(std::move(rows))
+    { }
+
+    void Process(const TTableWriterPtr<T>& writer)
+    {
+        if (Row_) {
+            writer->AddRow(std::move(Row_).value());
+        } else {
+            writer->AddRowBatch(std::move(Rows_).value());
+        }
+    }
+
+private:
+    std::optional<T> Row_;
+    std::optional<TVector<T>> Rows_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 template <class T>
 class TParallelUnorderedTableWriterBase
     : public TRowTraits<T>::IWriterImpl
@@ -37,7 +72,7 @@ public:
         const IClientBasePtr& client,
         const TRichYPath &path,
         const TParallelTableWriterOptions& options)
-        : Rows_(1000)
+        : Tasks_(options.TaskCount_)
         , Transaction_(client->StartTransaction())
         , Path_(path)
         , Options_(options.TableWriterOptions_)
@@ -62,15 +97,13 @@ public:
                     "to write to sorted table " << Path_.Path_);
         }
 
-        Args_.resize(options.ThreadCount_);
-        for (size_t i = 0; i < Args_.size(); ++i) {
-            Args_[i] = {this, Transaction_->CreateTableWriter<T>(Path_, Options_)};
-        }
+        Transaction_->Lock(Path_.Path_, LM_SHARED);
 
         for (size_t i = 0; i < options.ThreadCount_; ++i) {
             TString threadName = ::TStringBuilder() << "par_writer_" << i;
+
             Threads_.push_back(::MakeHolder<TThread>(
-                TThread::TParams(WriterThread, &Args_[i]).SetName(threadName)));
+                TThread::TParams(WriterThread, this).SetName(threadName)));
             Threads_.back()->Start();
         }
     }
@@ -86,7 +119,7 @@ public:
     void Abort() override
     {
         Transaction_->Abort();
-        Rows_.Stop();
+        Tasks_.Stop();
         WaitThreads();
         State_ = EWriterState::Finished;
     }
@@ -99,7 +132,7 @@ public:
     void FinishTable(size_t) override
     {
         if (State_ != EWriterState::Finished) {
-            Rows_.Stop();
+            Tasks_.Stop();
             WaitThreads();
         }
         if (State_ == EWriterState::Exception) {
@@ -115,24 +148,25 @@ public:
 
     static void* WriterThread(void* opaque)
     {
-        auto args = static_cast<TParallelUnorderedTableWriterBase<T>::ThreadArgs*>(opaque);
-        args->This->WriterThread(args->Writer);
+        auto self = static_cast<TParallelUnorderedTableWriterBase<T>*>(opaque);
+        self->WriterThread();
         return nullptr;
     }
 
 private:
-    void WriterThread(const TTableWriterPtr<T>& writer)
+    void WriterThread()
     {
         try {
-            while (TMaybe<T> row = Rows_.Pop()) {
-                writer->AddRow(row.GetRef());
+            auto writer = Transaction_->CreateTableWriter<T>(Path_, Options_);
+            while (TMaybe<TWriteTask<T>> task = Tasks_.Pop()) {
+                task.GetRef().Process(writer);
             }
             writer->Finish();
         } catch (const yexception&) {
             auto state = State_.exchange(EWriterState::Exception);
             if (state == EWriterState::Ok) {
                 Exception_ = std::current_exception();
-                Rows_.Stop();
+                Tasks_.Stop();
             }
         }
     }
@@ -145,7 +179,8 @@ private:
     }
 
 protected:
-    ::NThreading::TBlockingQueue<T> Rows_;
+
+    ::NThreading::TBlockingQueue<TWriteTask<T>> Tasks_;
 
 protected:
     void AddRowError() {
@@ -170,13 +205,6 @@ private:
     const TTableWriterOptions Options_;
     std::exception_ptr Exception_ = nullptr;
 
-    struct ThreadArgs
-    {
-        TParallelUnorderedTableWriterBase* This;
-        TTableWriterPtr<T> Writer;
-    };
-    TVector<ThreadArgs> Args_;
-
     std::atomic<EWriterState> State_ = EWriterState::Ok;
 };
 
@@ -190,14 +218,28 @@ public:
 
     void AddRow(T&& row, size_t) override
     {
-        if (!TBase::Rows_.Push(std::move(row))) {
+        if (!TBase::Tasks_.Push(TWriteTask<T>(std::move(row)))) {
             TBase::AddRowError();
         }
     }
 
     void AddRow(const T& row, size_t) override
     {
-        if (!TBase::Rows_.Push(row)) {
+        if (!TBase::Tasks_.Push(TWriteTask<T>(row))) {
+            TBase::AddRowError();
+        }
+    }
+
+    void AddRowBatch(TVector<T>&& rows, size_t) override
+    {
+        if (!TBase::Tasks_.Push(TWriteTask<T>(std::move(rows)))) {
+            TBase::AddRowError();
+        }
+    }
+
+    void AddRowBatch(const TVector<T>& rows, size_t) override
+    {
+        if (!TBase::Tasks_.Push(TWriteTask<T>(rows))) {
             TBase::AddRowError();
         }
     }
@@ -216,14 +258,14 @@ public:
 
     void AddRow(Message&& row, size_t) override
     {
-        if (!TBase::Rows_.Push(std::move(static_cast<T&&>(row)))) {
+        if (!TBase::Tasks_.Push(TWriteTask<T>(std::move(static_cast<T&&>(row))))) {
             TBase::AddRowError();
         }
     }
 
     void AddRow(const Message& row, size_t) override
     {
-        if (!TBase::Rows_.Push(static_cast<const T&>(row))) {
+        if (!TBase::Tasks_.Push(TWriteTask<T>(static_cast<const T&>(row)))) {
             TBase::AddRowError();
         }
     }
