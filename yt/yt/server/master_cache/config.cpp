@@ -10,6 +10,8 @@
 
 #include <yt/yt/core/bus/tcp/config.h>
 
+#include <yt/yt/library/dynamic_config/config.h>
+
 namespace NYT::NMasterCache {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -33,7 +35,15 @@ void TMasterCacheConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
         .DefaultNew();
+
+    registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
+        .DefaultNew();
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TMasterCacheDynamicConfig::Register(TRegistrar /*registrar*/)
+{ }
 
 ////////////////////////////////////////////////////////////////////////////////
 
