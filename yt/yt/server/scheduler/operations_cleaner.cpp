@@ -1188,12 +1188,14 @@ private:
 
         YT_LOG_DEBUG(
             "Started committing archivation transaction (TransactionId: %v, OperationCount: %v, SkippedOperationCount: %v, "
-            "OrderedByIdRowsDataWeight: %v, OrderedByStartTimeRowsDataWeight: %v, TotalDataWeight: %v)",
+            "OrderedByIdRowsDataWeight: %v, OrderedByStartTimeRowsDataWeight: %v, OperationAliasesRowsDataWeight: %v, "
+            "TotalDataWeight: %v)",
             transaction->GetId(),
             operationIds.size(),
             skippedOperationIds.size(),
             orderedByIdRowsDataWeight,
             orderedByStartTimeRowsDataWeight,
+            operationAliasesRowsDataWeight,
             totalDataWeight);
 
         WaitFor(transaction->Commit())
