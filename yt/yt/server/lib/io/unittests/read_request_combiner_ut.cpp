@@ -9,24 +9,27 @@ namespace NYT::NIO {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static bool operator==(const IReadRequestCombiner::TIORequest& lhs, const IReadRequestCombiner::TIORequest& rhs)
+using TCombinedRequest = IReadRequestCombiner::TCombinedRequest;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static bool operator==(const IIOEngine::TReadRequest& lhs, const IIOEngine::TReadRequest& rhs)
 {
-    return lhs.Offset == rhs.Offset && lhs.Size == rhs.Size;
+    return lhs.Offset == rhs.Offset && lhs.Size == rhs.Size &&
+        lhs.Handle == rhs.Handle;
 }
 
-static bool operator==(const IReadRequestCombiner::TCombineResult& lhs, const IReadRequestCombiner::TCombineResult& rhs)
+static bool operator==(const TCombinedRequest& lhs, const TCombinedRequest& rhs)
 {
-    YT_VERIFY(std::get<0>(lhs).size() == std::get<1>(lhs).size());
-    YT_VERIFY(std::get<0>(rhs).size() == std::get<1>(rhs).size());
-
-    return
-        std::get<0>(lhs) == std::get<0>(rhs) &&
-        std::get<1>(lhs) == std::get<1>(rhs);
+    return lhs.ReadRequest == rhs.ReadRequest;
 }
 
-static std::ostream& operator<<(std::ostream& stream, const IReadRequestCombiner::TIORequest& value)
+static std::ostream& operator<<(std::ostream& stream, const TCombinedRequest& value)
 {
-    return stream << "[request: <null> " << value.Offset << "@" << value.Size << "]";
+    return stream << "[request: "
+        << value.ReadRequest.Handle.Get()
+        << " " << value.ReadRequest.Offset
+        << "@" << value.ReadRequest.Size << "]";
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -60,7 +63,7 @@ protected:
         NFs::Remove(FileName);
     }
 
-    std::tuple<IReadRequestCombinerPtr, IReadRequestCombiner::TCombineResult>
+    std::tuple<IReadRequestCombinerPtr, std::vector<TCombinedRequest>>
     Combine(const std::vector<IIOEngine::TReadRequest>& input)
     {
         auto combiner = Dummy ? CreateDummyReadRequestCombiner() : CreateReadRequestCombiner();
@@ -77,14 +80,14 @@ protected:
 
     void RunTest(
         const std::vector<IIOEngine::TReadRequest>& input,
-        const IReadRequestCombiner::TCombineResult& output)
+        const std::vector<TCombinedRequest>& output)
     {
         auto [combiner, combineResult] = Combine(input);
 
         EXPECT_EQ(combineResult, output);
 
-        for (const auto& request : std::get<1>(combineResult)) {
-            EXPECT_EQ(std::ssize(request.ResultBuffer), request.Size);
+        for (const auto& request : combineResult) {
+            EXPECT_EQ(std::ssize(request.ResultBuffer), request.ReadRequest.Size);
         }
 
         auto outputBuffers = combiner->ReleaseOutputBuffers();
@@ -113,23 +116,18 @@ TEST_F(TReadRequestCombinerTest, CombineEmpty)
 TEST_F(TReadRequestCombinerTest, CombineOneHandleNoDirect)
 {
     RunTest(
-    {
-        { .Handle = TestHandles[0], .Offset = 9000, .Size = 512 },
-        { .Handle = TestHandles[0], .Offset = 1024, .Size = 512 },
-        { .Handle = TestHandles[0], .Offset = 3000, .Size = 150 },
-        { .Handle = TestHandles[0], .Offset = 3072, .Size = 100 },
-        { .Handle = TestHandles[0], .Offset = 2048, .Size = 1024 },
-    },
-    {
         {
-            TestHandles[0], TestHandles[0], TestHandles[0]
+            { .Handle = TestHandles[0], .Offset = 9000, .Size = 512 },
+            { .Handle = TestHandles[0], .Offset = 1024, .Size = 512 },
+            { .Handle = TestHandles[0], .Offset = 3000, .Size = 150 },
+            { .Handle = TestHandles[0], .Offset = 3072, .Size = 100 },
+            { .Handle = TestHandles[0], .Offset = 2048, .Size = 1024 },
         },
         {
-            { .Offset = 1024, .Size = 512 },
-            { .Offset = 2048, .Size = 1124 },
-            { .Offset = 9000, .Size = 512 }
-        }
-    });
+            {.ReadRequest = { .Handle = TestHandles[0], .Offset = 1024, .Size = 512 }},
+            {.ReadRequest = { .Handle = TestHandles[0], .Offset = 2048, .Size = 1124 }},
+            {.ReadRequest = { .Handle = TestHandles[0], .Offset = 9000, .Size = 512 }},
+        });
 }
 
 TEST_F(TReadRequestCombinerTest, CombineOneHandleDirect)
@@ -143,13 +141,8 @@ TEST_F(TReadRequestCombinerTest, CombineOneHandleDirect)
         { .Handle = TestHandlesDirect[0], .Offset = 2048, .Size = 1024 },
     },
     {
-        {
-            TestHandlesDirect[0], TestHandlesDirect[0]
-        },
-        {
-            { .Offset = 0, .Size = 4096 },
-            { .Offset = 12288, .Size = 8192 }
-        }
+        {.ReadRequest = { .Handle = TestHandlesDirect[0], .Offset = 0, .Size = 4096 }},
+        {.ReadRequest = { .Handle = TestHandlesDirect[0], .Offset = 12288, .Size = 8192 }}
     });
 }
 
@@ -165,16 +158,11 @@ TEST_F(TReadRequestCombinerTest, CombineMultiHandlesNoDirect)
         { .Handle = TestHandles[2], .Offset = 3072, .Size = 100 },
     },
     {
-        {
-            TestHandles[0], TestHandles[0], TestHandles[0], TestHandles[1], TestHandles[2]
-        },
-        {
-            { .Offset = 1024, .Size = 512 },
-            { .Offset = 2048, .Size = 1124 },
-            { .Offset = 9000, .Size = 512 },
-            { .Offset = 3000, .Size = 150 },
-            { .Offset = 3072, .Size = 100 },
-        }
+        {.ReadRequest = { .Handle = TestHandles[0], .Offset = 1024, .Size = 512 }},
+        {.ReadRequest = { .Handle = TestHandles[0], .Offset = 2048, .Size = 1124 }},
+        {.ReadRequest = { .Handle = TestHandles[0], .Offset = 9000, .Size = 512 }},
+        {.ReadRequest = { .Handle = TestHandles[1], .Offset = 3000, .Size = 150 }},
+        {.ReadRequest = { .Handle = TestHandles[2], .Offset = 3072, .Size = 100 }},
     });
 }
 
@@ -192,17 +180,12 @@ TEST_F(TReadRequestCombinerTest, CombineMultiHandlesDirect)
         { .Handle = TestHandlesDirect[0], .Offset = 15000, .Size = 150 },
     },
     {
-        {
-            TestHandlesDirect[0], TestHandlesDirect[1], TestHandles[0], TestHandles[0], TestHandles[0], TestHandles[1]
-        },
-        {
-            { .Offset = 12288, .Size = 8192 },
-            { .Offset = 0, .Size = 4096 },
-            { .Offset = 1024, .Size = 512 },
-            { .Offset = 2048, .Size = 1124 },
-            { .Offset = 9000, .Size = 512 },
-            { .Offset = 3072, .Size = 100 },
-        }
+        {.ReadRequest = { .Handle = TestHandlesDirect[0], .Offset = 12288, .Size = 8192 }},
+        {.ReadRequest = { .Handle = TestHandlesDirect[1], .Offset = 0, .Size = 4096 }},
+        {.ReadRequest = { .Handle = TestHandles[0], .Offset = 1024, .Size = 512 }},
+        {.ReadRequest = { .Handle = TestHandles[0], .Offset = 2048, .Size = 1124 }},
+        {.ReadRequest = { .Handle = TestHandles[0], .Offset = 9000, .Size = 512 }},
+        {.ReadRequest = { .Handle = TestHandles[1], .Offset = 3072, .Size = 100 }},
     });
 }
 
@@ -219,13 +202,11 @@ TEST_F(TReadRequestCombinerTest, CombineEOFOneHandle)
         { .Handle = TestHandlesDirect[0], .Offset = 12000, .Size = 512 },
     });
 
-    const auto& ioRequests = std::get<1>(combineResult);
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK() );
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 3872)).IsOK() );
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 2000)).IsOK() );
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 3872)).IsOK() );
-
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[0].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[0].ResultBuffer, 4000)).IsOK() );
 }
 
 TEST_F(TReadRequestCombinerTest, CombineEOFMultiHandles)
@@ -237,17 +218,15 @@ TEST_F(TReadRequestCombinerTest, CombineEOFMultiHandles)
         { .Handle = TestHandlesDirect[1], .Offset = 12000, .Size = 512 },
     });
 
-    const auto& ioRequests = std::get<1>(combineResult);
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 1)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK() );
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 1)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 2000)).IsOK() );
-
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[3].ResultBuffer, 2000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[3].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[2].ResultBuffer, 4000)).IsOK() );
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 2000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[2].ResultBuffer, 4000)).IsOK() );
 }
 
-////////////////////////////////////////////////////////////////////////////////
+// ////////////////////////////////////////////////////////////////////////////////
 
 using TDummyReadRequestCombinerTest = TReadRequestCombinerTestBase<true>;
 
@@ -262,16 +241,11 @@ TEST_F(TDummyReadRequestCombinerTest, CombineOneHandleNoDirect)
         { .Handle = TestHandles[0], .Offset = 2048, .Size = 1024 },
     },
     {
-        {
-            TestHandles[0], TestHandles[0], TestHandles[0], TestHandles[0], TestHandles[0]
-        },
-        {
-            { .Offset = 9000, .Size = 512 },
-            { .Offset = 1024, .Size = 512 },
-            { .Offset = 3000, .Size = 150 },
-            { .Offset = 3072, .Size = 100 },
-            { .Offset = 2048, .Size = 1024 }
-        }
+        { .ReadRequest = { .Handle = TestHandles[0], .Offset = 9000, .Size = 512 }},
+        { .ReadRequest = { .Handle = TestHandles[0], .Offset = 1024, .Size = 512 }},
+        { .ReadRequest = { .Handle = TestHandles[0], .Offset = 3000, .Size = 150 }},
+        { .ReadRequest = { .Handle = TestHandles[0], .Offset = 3072, .Size = 100 }},
+        { .ReadRequest = { .Handle = TestHandles[0], .Offset = 2048, .Size = 1024 }}
     });
 }
 
@@ -284,14 +258,9 @@ TEST_F(TDummyReadRequestCombinerTest, CombineOneHandleDirect)
         { .Handle = TestHandlesDirect[0], .Offset = 0, .Size = 100 },
     },
     {
-        {
-            TestHandlesDirect[0], TestHandlesDirect[0], TestHandlesDirect[0]
-        },
-        {
-            { .Offset = 12288, .Size = 8192 },
-            { .Offset = 0, .Size = 4096 },
-            { .Offset = 0, .Size = 4096 },
-        }
+        { .ReadRequest = { .Handle = TestHandlesDirect[0], .Offset = 12288, .Size = 8192 }},
+        { .ReadRequest = { .Handle = TestHandlesDirect[0], .Offset = 0, .Size = 4096 }},
+        { .ReadRequest = { .Handle = TestHandlesDirect[0], .Offset = 0, .Size = 4096 }},
     });
 }
 
@@ -302,13 +271,28 @@ TEST_F(TDummyReadRequestCombinerTest, CombineEOFOneHandle)
         { .Handle = TestHandlesDirect[0], .Offset = 12000, .Size = 512 },
     });
 
-    const auto& ioRequests = std::get<1>(combineResult);
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK() );
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 3872)).IsOK() );
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 2000)).IsOK() );
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 3872)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[0].ResultBuffer, 4000)).IsOK() );
+}
 
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[0].ResultBuffer, 4000)).IsOK() );
+TEST_F(TDummyReadRequestCombinerTest, CombineMultiHandlesDirect)
+{
+    RunTest(
+    {
+        { .Handle = TestHandles[0], .Offset = 9000, .Size = 512 },
+        { .Handle = TestHandles[0], .Offset = 1024, .Size = 512 },
+        { .Handle = TestHandlesDirect[1], .Offset = 3000, .Size = 150 },
+        { .Handle = TestHandlesDirect[0], .Offset = 16000, .Size = 500 },
+    },
+    {
+        {.ReadRequest = { .Handle = TestHandles[0], .Offset = 9000, .Size = 512 }},
+        {.ReadRequest = { .Handle = TestHandles[0], .Offset = 1024, .Size = 512 }},
+        {.ReadRequest = { .Handle = TestHandlesDirect[1], .Offset = 0, .Size = 4096 }},
+        {.ReadRequest = { .Handle = TestHandlesDirect[0], .Offset = 12288, .Size = 8192 }},
+    });
 }
 
 TEST_F(TDummyReadRequestCombinerTest, CombineEOFMultiHandles)
@@ -320,14 +304,12 @@ TEST_F(TDummyReadRequestCombinerTest, CombineEOFMultiHandles)
         { .Handle = TestHandlesDirect[1], .Offset = 12000, .Size = 512 },
     });
 
-    const auto& ioRequests = std::get<1>(combineResult);
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 1)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[1].ResultBuffer, 2000)).IsOK() );
 
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 1)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[1].ResultBuffer, 2000)).IsOK() );
-
-    EXPECT_TRUE( combiner->CheckEof(SliceTail(ioRequests[3].ResultBuffer, 2000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[3].ResultBuffer, 4000)).IsOK() );
-    EXPECT_FALSE( combiner->CheckEof(SliceTail(ioRequests[2].ResultBuffer, 4000)).IsOK() );
+    EXPECT_TRUE( combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 2000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[3].ResultBuffer, 4000)).IsOK() );
+    EXPECT_FALSE( combiner->CheckEof(SliceTail(combineResult[2].ResultBuffer, 4000)).IsOK() );
 }
 
 ////////////////////////////////////////////////////////////////////////////////

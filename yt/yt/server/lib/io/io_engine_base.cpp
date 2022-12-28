@@ -1,0 +1,473 @@
+#include "io_engine_base.h"
+
+#include <yt/yt/core/concurrency/action_queue.h>
+
+#include <yt/yt/core/misc/fs.h>
+#include <yt/yt/core/misc/proc.h>
+
+namespace NYT::NIO {
+
+using namespace NConcurrency;
+using namespace NProfiling;
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TIOEngineConfigBase::Register(TRegistrar registrar)
+{
+    registrar.Parameter("aux_thread_count", &TThis::AuxThreadCount)
+        .GreaterThanOrEqual(1)
+        .Default(1);
+    registrar.Parameter("fsync_thread_count", &TThis::FsyncThreadCount)
+        .GreaterThanOrEqual(1)
+        .Default(1);
+
+    registrar.Parameter("enable_sync", &TThis::EnableSync)
+        .Default(true);
+
+    registrar.Parameter("max_bytes_per_read", &TThis::MaxBytesPerRead)
+        .GreaterThanOrEqual(1)
+        .Default(256_MB);
+    registrar.Parameter("max_bytes_per_write", &TThis::MaxBytesPerWrite)
+        .GreaterThanOrEqual(1)
+        .Default(256_MB);
+
+    registrar.Parameter("simulated_max_bytes_per_read", &TThis::SimulatedMaxBytesPerRead)
+        .Default()
+        .GreaterThan(0);
+    registrar.Parameter("simulated_max_bytes_per_write", &TThis::SimulatedMaxBytesPerWrite)
+        .Default()
+        .GreaterThan(0);
+
+    registrar.Parameter("sick_read_time_threshold", &TThis::SickReadTimeThreshold)
+        .GreaterThanOrEqual(TDuration::Zero())
+        .Default();
+    registrar.Parameter("sick_read_time_window", &TThis::SickReadTimeWindow)
+        .GreaterThanOrEqual(TDuration::Zero())
+        .Default();
+    registrar.Parameter("sick_write_time_threshold", &TThis::SickWriteTimeThreshold)
+        .GreaterThanOrEqual(TDuration::Zero())
+        .Default();
+    registrar.Parameter("sick_write_time_window", &TThis::SickWriteTimeWindow)
+        .GreaterThanOrEqual(TDuration::Zero())
+        .Default();
+    registrar.Parameter("sickness_expiration_timeout", &TThis::SicknessExpirationTimeout)
+        .GreaterThanOrEqual(TDuration::Zero())
+        .Default();
+
+    registrar.Parameter("use_direct_io_for_reads", &TThis::UseDirectIOForReads)
+        .Default(EDirectIOPolicy::Never);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TInflightCounter::Increment()
+{
+    if (!State_) {
+        return;
+    }
+    State_->Counter.fetch_add(1, std::memory_order::relaxed);
+}
+
+void TInflightCounter::Decrement()
+{
+    if (!State_) {
+        return;
+    }
+    State_->Counter.fetch_sub(1, std::memory_order::relaxed);
+}
+
+TInflightCounter TInflightCounter::Create(TProfiler& profiler, const TString& name)
+{
+    TInflightCounter counter;
+    counter.State_ = New<TState>();
+    profiler.AddFuncGauge(name, counter.State_, [state = counter.State_.Get()](){
+        return state->Counter.load(std::memory_order::relaxed);
+    });
+    return counter;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TIOEngineSensors::RegisterWrittenBytes(i64 count)
+{
+    WrittenBytesCounter.Increment(count);
+    TotalWrittenBytesCounter.fetch_add(count, std::memory_order::relaxed);
+}
+
+void TIOEngineSensors::RegisterReadBytes(i64 count)
+{
+    ReadBytesCounter.Increment(count);
+    TotalReadBytesCounter.fetch_add(count, std::memory_order::relaxed);
+}
+
+void TIOEngineSensors::UpdateKernelStatistics()
+{
+    constexpr auto UpdatePeriod = TDuration::Seconds(1);
+
+    static thread_local std::optional<TInstant> LastUpdateInstant;
+    static thread_local TTaskDiskStatistics LastStatistics;
+
+    auto now = TInstant::Now();
+    if (!LastUpdateInstant || (now - *LastUpdateInstant) > UpdatePeriod) {
+        if (LastUpdateInstant) {
+            auto current = GetSelfThreadTaskDiskStatistics();
+
+            KernelReadBytesCounter.Increment(current.ReadBytes - LastStatistics.ReadBytes);
+            KernelWrittenBytesCounter.Increment(current.WriteBytes - LastStatistics.WriteBytes);
+
+            LastStatistics = current;
+        }
+
+        LastUpdateInstant = now;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TRequestStatsGuard::TRequestStatsGuard(TIOEngineSensors::TRequestSensors sensors)
+    : Sensors_(std::move(sensors))
+{
+    Sensors_.Counter.Increment();
+    Sensors_.InflightCounter.Increment();
+}
+
+TRequestStatsGuard::~TRequestStatsGuard()
+{
+    auto duration = Timer_.GetElapsedTime();
+    Sensors_.Timer.Record(duration);
+    Sensors_.TotalTimeCounter.Add(duration);
+    Sensors_.InflightCounter.Decrement();
+}
+
+TDuration TRequestStatsGuard::GetElapsedTime() const
+{
+    return Timer_.GetElapsedTime();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TFuture<TIOEngineHandlePtr> TIOEngineBase::Open(TOpenRequest request, EWorkloadCategory category)
+{
+    return BIND(&TIOEngineBase::DoOpen, MakeStrong(this), std::move(request))
+        .AsyncVia(NConcurrency::CreateFixedPriorityInvoker(AuxInvoker_, GetBasicPriority(category)))
+        .Run();
+}
+
+TFuture<void> TIOEngineBase::Close(TCloseRequest request, EWorkloadCategory category)
+{
+    auto invoker = (request.Flush || request.Size) ? FsyncInvoker_ : AuxInvoker_;
+    return BIND(&TIOEngineBase::DoClose, MakeStrong(this), std::move(request))
+        .AsyncVia(NConcurrency::CreateFixedPriorityInvoker(invoker, GetBasicPriority(category)))
+        .Run();
+}
+
+TFuture<void> TIOEngineBase::FlushDirectory(TFlushDirectoryRequest request, EWorkloadCategory category)
+{
+    return BIND(&TIOEngineBase::DoFlushDirectory, MakeStrong(this), std::move(request))
+        .AsyncVia(CreateFixedPriorityInvoker(FsyncInvoker_, GetBasicPriority(category)))
+        .Run();
+}
+
+TFuture<void> TIOEngineBase::Allocate(TAllocateRequest request, EWorkloadCategory category)
+{
+    return BIND(&TIOEngineBase::DoAllocate, MakeStrong(this), std::move(request))
+        .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, GetBasicPriority(category)))
+        .Run();
+}
+
+ TFuture<void> TIOEngineBase::Lock(TLockRequest request, EWorkloadCategory category)
+{
+    return BIND(&TIOEngineBase::DoLock, MakeStrong(this), std::move(request))
+        .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, GetBasicPriority(category)))
+        .Run();
+}
+
+TFuture<void> TIOEngineBase::Resize(TResizeRequest request, EWorkloadCategory category)
+{
+    return BIND(&TIOEngineBase::DoResize, MakeStrong(this), std::move(request))
+        .AsyncVia(CreateFixedPriorityInvoker(AuxInvoker_, GetBasicPriority(category)))
+        .Run();
+}
+
+bool TIOEngineBase::IsSick() const
+{
+    return Sick_;
+}
+
+const IInvokerPtr& TIOEngineBase::GetAuxPoolInvoker()
+{
+    return AuxThreadPool_->GetInvoker();
+}
+
+i64 TIOEngineBase::GetTotalReadBytes() const
+{
+    return Sensors_->TotalReadBytesCounter.load(std::memory_order::relaxed);
+}
+
+i64 TIOEngineBase::GetTotalWrittenBytes() const
+{
+    return Sensors_->TotalWrittenBytesCounter.load(std::memory_order::relaxed);
+}
+
+EDirectIOPolicy TIOEngineBase::UseDirectIOForReads() const
+{
+    return Config_.Load()->UseDirectIOForReads;
+}
+
+TIOEngineBase::TIOEngineBase(
+    TConfigPtr config,
+    TString locationId,
+    NProfiling::TProfiler profiler,
+    NLogging::TLogger logger)
+    : LocationId_(std::move(locationId))
+    , Logger(std::move(logger))
+    , Profiler(std::move(profiler))
+    , StaticConfig_(std::move(config))
+    , Config_(StaticConfig_)
+    , AuxThreadPool_(CreateThreadPool(StaticConfig_->AuxThreadCount, Format("IOA:%v", LocationId_)))
+    , FsyncThreadPool_(CreateThreadPool(StaticConfig_->FsyncThreadCount, Format("IOS:%v", LocationId_)))
+    , AuxInvoker_(CreatePrioritizedInvoker(AuxThreadPool_->GetInvoker()))
+    , FsyncInvoker_(CreatePrioritizedInvoker(FsyncThreadPool_->GetInvoker()))
+{
+    InitProfilerSensors();
+}
+
+TIOEngineHandlePtr TIOEngineBase::DoOpen(const TOpenRequest& request)
+{
+    Sensors_->UpdateKernelStatistics();
+    TIOEngineHandlePtr handle;
+    {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
+        handle = New<TIOEngineHandle>(request.Path, request.Mode);
+    }
+    if (!handle->IsOpen()) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot open %Qv with mode %v",
+            request.Path,
+            request.Mode)
+            << TError::FromSystem();
+    }
+    return handle;
+}
+
+void TIOEngineBase::DoFlushDirectory(const TFlushDirectoryRequest& request)
+{
+    Sensors_->UpdateKernelStatistics();
+    NFS::WrapIOErrors([&] {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
+        NFS::FlushDirectory(request.Path);
+    });
+}
+
+void TIOEngineBase::DoClose(const TCloseRequest& request)
+{
+    Sensors_->UpdateKernelStatistics();
+    NFS::WrapIOErrors([&] {
+        NTracing::TNullTraceContextGuard nullTraceContextGuard;
+        if (request.Size) {
+            request.Handle->Resize(*request.Size);
+        }
+        if (request.Flush && StaticConfig_->EnableSync) {
+            TRequestStatsGuard statsGuard(Sensors_->SyncSensors);
+            request.Handle->Flush();
+        }
+        request.Handle->Close();
+    });
+}
+
+void TIOEngineBase::DoAllocate(const TAllocateRequest& request)
+{
+    Sensors_->UpdateKernelStatistics();
+#ifdef _linux_
+    NTracing::TNullTraceContextGuard nullTraceContextGuard;
+    int mode = EnableFallocateConvertUnwritten_.load() ? FALLOC_FL_CONVERT_UNWRITTEN : 0;
+    int result = HandleEintr(::fallocate, *request.Handle, mode, 0, request.Size);
+    if (result != 0) {
+        if ((errno == EPERM || errno == EOPNOTSUPP) && mode == FALLOC_FL_CONVERT_UNWRITTEN) {
+            if (EnableFallocateConvertUnwritten_.exchange(false)) {
+                YT_LOG_INFO(TError::FromSystem(), "fallocate call failed; disabling FALLOC_FL_CONVERT_UNWRITTEN mode");
+            }
+        } else {
+            THROW_ERROR_EXCEPTION(NFS::EErrorCode::IOError, "fallocate call failed")
+                << TError::FromSystem();
+        }
+    }
+#else
+    Y_UNUSED(request);
+#endif
+}
+
+int TIOEngineBase::GetLockOp(ELockFileMode mode)
+{
+    switch (mode) {
+        case ELockFileMode::Shared:
+            return LOCK_SH;
+        case ELockFileMode::Exclusive:
+            return LOCK_EX;
+        case ELockFileMode::Unlock:
+            return LOCK_UN;
+        default:
+            YT_ABORT();
+    }
+}
+
+void TIOEngineBase::DoLock(const TLockRequest& request)
+{
+    Sensors_->UpdateKernelStatistics();
+    NFS::WrapIOErrors([&] {
+        auto op = GetLockOp(request.Mode) + (request.Nonblocking ? LOCK_NB : 0);
+        if (HandleEintr(::flock, *request.Handle, op) != 0) {
+            ythrow TFileError();
+        }
+    });
+}
+
+void TIOEngineBase::DoResize(const TResizeRequest& request)
+{
+    Sensors_->UpdateKernelStatistics();
+    NFS::WrapIOErrors([&] {
+        if (!request.Handle->Resize(request.Size)) {
+            ythrow TFileError();
+        }
+    });
+}
+
+void TIOEngineBase::AddWriteWaitTimeSample(TDuration duration)
+{
+    auto config = Config_.Load();
+    if (config->SickWriteTimeThreshold && config->SickWriteTimeWindow && config->SicknessExpirationTimeout && !Sick_) {
+        if (duration > *config->SickWriteTimeThreshold) {
+            auto now = GetInstant();
+            auto guard = Guard(WriteWaitLock_);
+            if (!SickWriteWaitStart_) {
+                SickWriteWaitStart_ = now;
+            } else if (now - *SickWriteWaitStart_ > *config->SickWriteTimeWindow) {
+                auto error = TError("Write is too slow")
+                    << TErrorAttribute("sick_write_wait_start", *SickWriteWaitStart_);
+                guard.Release();
+                SetSickFlag(error);
+            }
+        } else {
+            auto guard = Guard(WriteWaitLock_);
+            SickWriteWaitStart_.reset();
+        }
+    }
+}
+
+void TIOEngineBase::AddReadWaitTimeSample(TDuration duration)
+{
+    auto config = Config_.Load();
+    if (config->SickReadTimeThreshold && config->SickReadTimeWindow && config->SicknessExpirationTimeout && !Sick_) {
+        if (duration > *config->SickReadTimeThreshold) {
+            auto now = GetInstant();
+            auto guard = Guard(ReadWaitLock_);
+            if (!SickReadWaitStart_) {
+                SickReadWaitStart_ = now;
+            } else if (now - *SickReadWaitStart_ > *config->SickReadTimeWindow) {
+                auto error = TError("Read is too slow")
+                    << TErrorAttribute("sick_read_wait_start", *SickReadWaitStart_);
+                guard.Release();
+                SetSickFlag(error);
+            }
+        } else {
+            auto guard = Guard(ReadWaitLock_);
+            SickReadWaitStart_.reset();
+        }
+    }
+}
+
+void TIOEngineBase::Reconfigure(const NYTree::INodePtr& node)
+{
+    auto realConfig = NYTree::UpdateYsonStruct(StaticConfig_, node);
+
+    AuxThreadPool_->Configure(realConfig->AuxThreadCount);
+    FsyncThreadPool_->Configure(realConfig->FsyncThreadCount);
+
+    Config_.Store(realConfig);
+
+    DoReconfigure(node);
+}
+
+void TIOEngineBase::InitProfilerSensors()
+{
+    Profiler.AddFuncGauge("/sick", MakeStrong(this), [this] {
+        return Sick_.load();
+    });
+
+    Profiler.AddFuncGauge("/alive", MakeStrong(this), [] {
+        return 1;
+    });
+
+    Profiler.AddFuncCounter("/sick_events", MakeStrong(this), [this] {
+        return SicknessCounter_.load();
+    });
+
+    Sensors_->WrittenBytesCounter = Profiler.Counter("/written_bytes");
+    Sensors_->ReadBytesCounter = Profiler.Counter("/read_bytes");
+
+    Sensors_->KernelWrittenBytesCounter = Profiler.Counter("/kernel_written_bytes");
+    Sensors_->KernelReadBytesCounter = Profiler.Counter("/kernel_read_bytes");
+
+    auto makeRequestSensors = [] (TProfiler profiler) {
+        TIOEngineSensors::TRequestSensors sensors;
+        sensors.Timer = profiler.Timer("/time");
+        sensors.TotalTimeCounter = profiler.TimeCounter("/total_time");
+        sensors.Counter = profiler.Counter("/request_count");
+        sensors.InflightCounter = TInflightCounter::Create(profiler, "/inflight_count");
+        return sensors;
+    };
+
+    Sensors_->ReadSensors = makeRequestSensors(Profiler.WithPrefix("/read"));
+    Sensors_->WriteSensors = makeRequestSensors(Profiler.WithPrefix("/write"));
+    Sensors_->SyncSensors = makeRequestSensors(Profiler.WithPrefix("/sync"));
+    Sensors_->DataSyncSensors = makeRequestSensors(Profiler.WithPrefix("/datasync"));
+    Sensors_->IoSubmitSensors = makeRequestSensors(Profiler.WithPrefix("/uring_io_submit"));
+}
+
+void TIOEngineBase::SetSickFlag(const TError& error)
+{
+    auto config = Config_.Load();
+
+    if (!config->SicknessExpirationTimeout) {
+        return;
+    }
+
+    if (!Sick_.exchange(true)) {
+        ++SicknessCounter_;
+
+        TDelayedExecutor::Submit(
+            BIND(&TIOEngineBase::ResetSickFlag, MakeStrong(this)),
+            *config->SicknessExpirationTimeout);
+
+        YT_LOG_WARNING(error, "Sick flag set");
+    }
+}
+
+void TIOEngineBase::ResetSickFlag()
+{
+    {
+        auto guard = Guard(WriteWaitLock_);
+        SickWriteWaitStart_.reset();
+    }
+
+    {
+        auto guard = Guard(ReadWaitLock_);
+        SickReadWaitStart_.reset();
+    }
+
+    Sick_ = false;
+
+    YT_LOG_WARNING("Sick flag reset");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+i64 GetPaddedSize(i64 offset, i64 size, i64 alignment)
+{
+    return AlignUp(offset + size, alignment) - AlignDown(offset, alignment);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NIO
+
