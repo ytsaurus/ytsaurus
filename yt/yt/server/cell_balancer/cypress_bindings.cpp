@@ -161,6 +161,8 @@ void TBundleInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "short_name", &TThis::ShortName)
         .Optional();
+    RegisterAttribute(registrar, "rpc_proxy_role", &TThis::RpcProxyRole)
+        .Optional();
     RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);
     RegisterAttribute(registrar, "enable_tablet_cell_management", &TThis::EnableTabletCellManagement)

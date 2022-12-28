@@ -11,8 +11,11 @@ static const auto& Logger = BundleControllerLogger;
 
 ///////////////////////////////////////////////////////////////
 
+using TProxyRoleToBundle = THashMap<TString, TString>;
+
 TSpareProxiesInfo GetSpareProxiesInfo(
     const TString& zoneName,
+    const TProxyRoleToBundle& proxyRoleToBundle,
     const TSchedulerInputState& input)
 {
     auto spareBundle = GetSpareBundleName(zoneName);
@@ -28,7 +31,12 @@ TSpareProxiesInfo GetSpareProxiesInfo(
 
     for (const auto& spareProxy : spareProxies) {
         auto proxyInfo = GetOrCrash(input.RpcProxies, spareProxy);
-        const auto& bundleName = proxyInfo->Role;
+        TString bundleName;
+
+        if (auto it = proxyRoleToBundle.find(proxyInfo->Role); it != proxyRoleToBundle.end()) {
+            bundleName = it->second;
+        }
+
         if (!bundleName.empty()) {
             result.UsedByBundle[bundleName].push_back(spareProxy);
         } else {
@@ -65,6 +73,7 @@ void TryReleaseSpareProxies(
 
 void TryAssignSpareProxies(
     const TString& bundleName,
+    const TString& proxyRole,
     int proxiesCount,
     TSpareProxiesInfo& spareProxyInfo,
     TSchedulerMutations* mutations)
@@ -73,7 +82,7 @@ void TryAssignSpareProxies(
 
     while (!freeProxies.empty() && proxiesCount > 0) {
         const auto& proxyName = freeProxies.back();
-        mutations->ChangedProxyRole[proxyName] = bundleName;
+        mutations->ChangedProxyRole[proxyName] = proxyRole;
 
         YT_LOG_INFO("Assigning spare proxy for bundle (Bundle: %v, ProxyName: %v)",
             bundleName,
@@ -96,10 +105,24 @@ void SetProxyRole(
     const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
     auto aliveProxies = GetAliveProxies(bundleProxies, input);
 
+    TString proxyRole = bundleInfo->RpcProxyRole ? *bundleInfo->RpcProxyRole : bundleName;
+
+    if (proxyRole.empty()) {
+        YT_LOG_WARNING("Empty string assigned as proxy role name for bundle (Bundle: %v)",
+            bundleName);
+
+        mutations->AlertsToFire.push_back({
+            .Id = "invalid_proxy_role_value",
+            .Description = Format("Empty string assigned as proxy role name for bundle %v.",
+                bundleName),
+        });
+        return;
+    }
+
     for (const auto& proxyName : aliveProxies) {
         auto proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
-        if (proxyInfo->Role != bundleName) {
-            mutations->ChangedProxyRole[proxyName] = bundleName;
+        if (proxyInfo->Role != proxyRole) {
+            mutations->ChangedProxyRole[proxyName] = proxyRole;
         }
     }
 
@@ -116,8 +139,9 @@ void SetProxyRole(
 
     int proxyBalance = usedSpareProxyCount  + aliveBundleProxyCount - requiredProxyCount;
 
-    YT_LOG_DEBUG("Checking rpc proxies role for bundle (Bundle: %v, ProxyBalance: %v, SpareProxyCount: %v, BundleProxyCount: %v, RequiredProxyCount: %v)",
+    YT_LOG_DEBUG("Checking rpc proxies role for bundle (Bundle: %v, RpcProxyRole: %v, ProxyBalance: %v, SpareProxyCount: %v, BundleProxyCount: %v, RequiredProxyCount: %v)",
         bundleName,
+        proxyRole,
         proxyBalance,
         usedSpareProxyCount,
         aliveBundleProxyCount,
@@ -126,7 +150,7 @@ void SetProxyRole(
     if (proxyBalance > 0) {
         TryReleaseSpareProxies(bundleName, proxyBalance, spareProxies, mutations);
     } else {
-        TryAssignSpareProxies(bundleName, std::abs(proxyBalance), spareProxies, mutations);
+        TryAssignSpareProxies(bundleName, proxyRole, std::abs(proxyBalance), spareProxies, mutations);
     }
 }
 
@@ -134,8 +158,18 @@ void SetProxyRole(
 
 void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutations)
 {
+    TProxyRoleToBundle proxyRoleToBundle;
+
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (bundleInfo->RpcProxyRole && !bundleInfo->RpcProxyRole->empty()) {
+            proxyRoleToBundle[*bundleInfo->RpcProxyRole] = bundleName;
+        } else {
+            proxyRoleToBundle[bundleName] = bundleName;
+        }
+    }
+
     for (const auto& [zoneName, _] : input.Zones) {
-        input.ZoneToSpareProxies[zoneName] = GetSpareProxiesInfo(zoneName, input);
+        input.ZoneToSpareProxies[zoneName] = GetSpareProxiesInfo(zoneName, proxyRoleToBundle, input);
 
         const auto& spareInfo = input.ZoneToSpareProxies[zoneName];
 
