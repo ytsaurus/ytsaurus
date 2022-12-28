@@ -196,7 +196,7 @@ public:
 
     void OnJobInterruptionTimeout();
 
-    const TControllerAgentConnectorPool::TControllerAgentConnectorPtr& GetControllerAgentConnector() const noexcept;
+    TControllerAgentConnectorPool::TControllerAgentConnectorPtr GetControllerAgentConnector() const noexcept;
 
     void Interrupt(
         TDuration timeout,
@@ -219,7 +219,7 @@ private:
     IBootstrap* const Bootstrap_;
 
     TControllerAgentDescriptor ControllerAgentDescriptor_;
-    TControllerAgentConnectorPool::TControllerAgentConnectorPtr ControllerAgentConnector_;
+    TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector> ControllerAgentConnector_;
 
     const TExecNodeConfigPtr Config_;
     const TExecNodeDynamicConfigPtr DynamicConfig_;

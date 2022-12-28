@@ -39,7 +39,7 @@ TControllerAgentConnectorPool::TControllerAgentConnector::TControllerAgentConnec
     , Channel_(ControllerAgentConnectorPool_->CreateChannel(ControllerAgentDescriptor_))
     , HeartbeatExecutor_(New<TPeriodicExecutor>(
         ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(),
-        BIND(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
+        BIND_NO_PROPAGATE(&TControllerAgentConnector::SendHeartbeat, MakeWeak(this)),
         TPeriodicExecutorOptions{
             .Period = ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatPeriod,
             .Splay = ControllerAgentConnectorPool_->CurrentConfig_->HeartbeatSplay
@@ -97,8 +97,6 @@ TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConne
         ControllerAgentDescriptor_.Address,
         ControllerAgentDescriptor_.IncarnationId);
 
-    ControllerAgentConnectorPool_->OnControllerAgentConnectorDestroyed(
-        ControllerAgentDescriptor_);
     HeartbeatExecutor_->Stop();
 }
 
@@ -207,26 +205,30 @@ void TControllerAgentConnectorPool::SendOutOfBandHeartbeatsIfNeeded()
     }
 }
 
-TControllerAgentConnectorPool::TControllerAgentConnectorPtr TControllerAgentConnectorPool::GetControllerAgentConnector(
+TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector>
+TControllerAgentConnectorPool::GetControllerAgentConnector(
     const TJob* job)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
-    YT_VERIFY(job->GetControllerAgentDescriptor());
+    if (!job->GetControllerAgentDescriptor()) {
+        return nullptr;
+    }
 
     if (const auto it = ControllerAgentConnectors_.find(job->GetControllerAgentDescriptor());
         it != std::cend(ControllerAgentConnectors_))
     {
-        auto result = MakeStrong(it->second);
+        auto result = it->second;
         YT_VERIFY(result);
         return result;
     }
 
-    auto controllerAgentConnector = New<TControllerAgentConnector>(this, job->GetControllerAgentDescriptor());
+    YT_LOG_DEBUG(
+        "Non-registered controller agent is assigned for job (JobId: %v, ControllerAgentDescriptor: %v)",
+        job->GetId(),
+        job->GetControllerAgentDescriptor());
 
-    EmplaceOrCrash(ControllerAgentConnectors_, job->GetControllerAgentDescriptor(), controllerAgentConnector.Get());
-
-    return controllerAgentConnector;
+    return nullptr;
 }
 
 void TControllerAgentConnectorPool::OnDynamicConfigChanged(
@@ -246,7 +248,8 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
         newCurrentConfig = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
     }
 
-    Bootstrap_->GetJobInvoker()->Invoke(BIND([
+    Bootstrap_->GetJobInvoker()->Invoke(
+        BIND([
             this,
             this_{MakeStrong(this)},
             newConfig{std::move(newConfig)},
@@ -259,12 +262,45 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
         }));
 }
 
-void TControllerAgentConnectorPool::OnControllerAgentConnectorDestroyed(
-        const TControllerAgentDescriptor& controllerAgentDescriptor) noexcept
+void TControllerAgentConnectorPool::OnRegisteredAgentSetReceived(
+    THashSet<TControllerAgentDescriptor> controllerAgentDescriptors)
 {
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
 
-    EraseOrCrash(ControllerAgentConnectors_, controllerAgentDescriptor);
+    YT_LOG_DEBUG(
+        "Received registered controller agents (ControllerAgentCount: %v)",
+        std::size(controllerAgentDescriptors));
+
+    THashSet<TControllerAgentDescriptor> controllerAgentDescriptorsToRemove;
+    for (const auto& [descriptor, connector] : ControllerAgentConnectors_) {
+        if (!controllerAgentDescriptors.contains(descriptor)) {
+            YT_LOG_DEBUG(
+                "Found outdated controller agent connector, remove it (ControllerAgentDescriptor: %v)",
+                descriptor);
+
+            EmplaceOrCrash(controllerAgentDescriptorsToRemove, descriptor);
+        } else {
+            EraseOrCrash(controllerAgentDescriptors, descriptor);
+        }
+    }
+
+    {
+        TForbidContextSwitchGuard guard;
+        for (const auto& descriptor : controllerAgentDescriptorsToRemove) {
+            EraseOrCrash(ControllerAgentConnectors_, descriptor);
+        }
+
+        for (const auto& job : Bootstrap_->GetJobController()->GetJobs()) {
+            if (controllerAgentDescriptorsToRemove.contains(job->GetControllerAgentDescriptor())) {
+                job->UpdateControllerAgentDescriptor(TControllerAgentDescriptor{});
+            }
+        }
+    }
+
+    for (auto& descriptor : controllerAgentDescriptors) {
+        YT_LOG_DEBUG("Add new controller agent connector (ControllerAgentDescriptor: %v)", descriptor);
+        AddControllerAgentConnector(std::move(descriptor));
+    }
 }
 
 IChannelPtr TControllerAgentConnectorPool::CreateChannel(const TControllerAgentDescriptor& agentDescriptor)
@@ -293,6 +329,19 @@ void TControllerAgentConnectorPool::OnConfigUpdated()
     for (const auto& [agentDescriptor, controllerAgentConnector] : ControllerAgentConnectors_) {
         controllerAgentConnector->OnConfigUpdated();
     }
+}
+
+TWeakPtr<TControllerAgentConnectorPool::TControllerAgentConnector>
+TControllerAgentConnectorPool::AddControllerAgentConnector(
+    TControllerAgentDescriptor descriptor)
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetJobInvoker(), JobThread);
+
+    auto controllerAgentConnector = New<TControllerAgentConnector>(this, descriptor);
+
+    EmplaceOrCrash(ControllerAgentConnectors_, std::move(descriptor), controllerAgentConnector);
+
+    return controllerAgentConnector;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

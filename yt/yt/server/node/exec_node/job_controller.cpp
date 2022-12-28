@@ -1141,6 +1141,23 @@ private:
             JobIdsToConfirm_.insert(std::cbegin(jobIdsToConfirm), std::cend(jobIdsToConfirm));
         }
 
+        {
+            THashSet<TControllerAgentDescriptor> receivedRegisteredAgents;
+            receivedRegisteredAgents.reserve(response->registered_controller_agents_size());
+            for (const auto& protoAgentDescriptor : response->registered_controller_agents()) {
+                auto descriptorOrError = TryParseControllerAgentDescriptor(protoAgentDescriptor);
+                YT_LOG_FATAL_IF(
+                    !descriptorOrError.IsOK(),
+                    descriptorOrError,
+                    "Failed to parse registered controller agent descriptor");
+
+                EmplaceOrCrash(receivedRegisteredAgents, std::move(descriptorOrError.Value()));
+            }
+
+            const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
+            controllerAgentConnectorPool->OnRegisteredAgentSetReceived(std::move(receivedRegisteredAgents));
+        }
+
         // COMPAT(pogorelov)
         if constexpr (std::is_same_v<TRspSchedulerHeartbeatPtr, IJobController::TRspSchedulerHeartbeatPtr>) {
             for (const auto& protoOperationInfo : response->operation_infos()) {
@@ -1151,8 +1168,7 @@ private:
                 }
 
                 if (!protoOperationInfo.has_controller_agent_descriptor()) {
-                    // TODO(pogorelov): Set empty descriptor to operation jobs
-                    // to not send job info to old CA (it requires refactoring).
+                    UpdateOperationControllerAgent(operationId, TControllerAgentDescriptor{});
                     continue;
                 }
 
@@ -1249,9 +1265,9 @@ private:
                 continue;
             }
 
-            const bool sendConfirmedJobToControllerAgent = job->GetStored() &&
+            const bool sendConfirmedJobToControllerAgent = !(job->GetStored() &&
                 confirmIt == std::cend(JobIdsToConfirm_) &&
-                totalConfirmation;
+                totalConfirmation);
 
             if (job->GetStored() || confirmIt != std::cend(JobIdsToConfirm_)) {
                 YT_LOG_DEBUG("Confirming job (JobId: %v, OperationId: %v, Stored: %v, State: %v)",
@@ -1277,14 +1293,20 @@ private:
                 case EJobState::Completed:
                 case EJobState::Aborted:
                 case EJobState::Failed: {
-                    const auto& controllerAgentConnector = job->GetControllerAgentConnector();
-                    YT_VERIFY(controllerAgentConnector);
-
                     ToProto(allocationStatus->mutable_result()->mutable_error(), job->GetJobError());
 
-                    if (!sendConfirmedJobToControllerAgent) {
-                        controllerAgentConnector->EnqueueFinishedJob(job);
-                        shouldSendControllerAgentHeartbeatsOutOfBand = true;
+                    if (sendConfirmedJobToControllerAgent) {
+                        auto controllerAgentConnector = job->GetControllerAgentConnector();
+                        if (controllerAgentConnector) {
+                            controllerAgentConnector->EnqueueFinishedJob(job);
+                            shouldSendControllerAgentHeartbeatsOutOfBand = true;
+                        } else {
+                            YT_LOG_DEBUG(
+                                "Controller agent for job is not received yet; "
+                                "finished job info will be reported later (JobId: %v, JobControllerAgentDescriptor: %v)",
+                                jobId,
+                                job->GetControllerAgentDescriptor());
+                        }
                     }
                     break;
                 }
