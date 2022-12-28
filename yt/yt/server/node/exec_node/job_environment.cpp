@@ -384,12 +384,12 @@ public:
         , PortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_spawn",
-            ExecNodeProfiler.WithPrefix("/job_environement/porto")))
+            ExecNodeProfiler.WithPrefix("/job_environment/porto")))
         , DestroyPortoExecutor_(CreatePortoExecutor(
             Config_->PortoExecutor,
             "env_destroy",
-            ExecNodeProfiler.WithPrefix("/job_environement/porto_destroy")))
-        , ContainerDestroyFailureCounter(ExecNodeProfiler.WithPrefix("/job_environement").Counter("/container_destroy_failures"))
+            ExecNodeProfiler.WithPrefix("/job_environment/porto_destroy")))
+        , ContainerDestroyFailureCounter(ExecNodeProfiler.WithPrefix("/job_environment").Counter("/container_destroy_failures"))
     {  }
 
     void CleanProcesses(int slotIndex, ESlotType slotType) override
