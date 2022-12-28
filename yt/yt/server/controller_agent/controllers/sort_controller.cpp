@@ -4204,14 +4204,6 @@ private:
             }
         }
 
-        int maxPartitionFactor;
-        if (Spec->MaxPartitionFactor) {
-            maxPartitionFactor = *Spec->MaxPartitionFactor;
-        } else {
-            // Build a flat tree by default.
-            maxPartitionFactor = PartitionCount;
-        }
-
         YT_LOG_INFO("Adjusted partition count %v", PartitionCount);
 
         BuildPartitionTree(PartitionCount, MaxPartitionFactor);

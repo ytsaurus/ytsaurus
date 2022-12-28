@@ -472,14 +472,11 @@ void TGarbageCollector::SweepEphemeralGhosts()
 {
     VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-    int weightLeft = GetDynamicConfig()->MaxWeightPerGCSweep;
-
     // TODO(gritukan): Extract ghosts one by one.
     auto objectsToUnref = EphemeralGhostUnrefQueue_.DequeueAll();
     EphemeralGhostUnrefQueueSize_ -= std::ssize(objectsToUnref);
     for (auto [object, epoch] : objectsToUnref) {
         if (epoch == GetCurrentEpoch()) {
-            weightLeft -= object->GetGCWeight();
             EphemeralUnrefObject(object);
         }
     }

@@ -76,6 +76,7 @@ private:
 
         HeartbeatProtoMessageBytes_.Increment(request->ByteSizeLong());
         HeartbeatStatisticsBytes_.Increment(totalJobStatisticsSize);
+        HeartbeatDataStatisticsBytes_.Increment(totalJobDataStatisticsSize);
         HeartbeatJobResultBytes_.Increment(totalJobResultSize);
         HeartbeatCount_.Increment();
     }
