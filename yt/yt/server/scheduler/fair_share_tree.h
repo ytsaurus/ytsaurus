@@ -79,14 +79,10 @@ struct IFairShareTree
 {
     //! Methods below rely on presence of snapshot.
     virtual TFuture<void> ProcessSchedulingHeartbeat(const ISchedulingContextPtr& schedulingContext, bool skipScheduleJobs) = 0;
-    virtual void ProcessUpdatedJob(
-        TOperationId operationId,
-        TJobId jobId,
-        const TJobResources& jobResources,
-        const std::optional<TString>& jobDataCenter,
-        const std::optional<TString>& jobInfinibandCluster,
-        bool* shouldAbortJob) = 0;
-    virtual bool ProcessFinishedJob(TOperationId operationId, TJobId jobId) = 0;
+    virtual void ProcessJobUpdates(
+        const std::vector<TJobUpdate>& jobUpdates,
+        THashSet<TJobId>* jobsToPostpone,
+        std::vector<TJobId>* jobsToAbort) = 0;
 
     virtual bool IsSnapshottedOperationRunningInTree(TOperationId operationId) const = 0;
 

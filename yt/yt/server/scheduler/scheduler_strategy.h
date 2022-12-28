@@ -163,7 +163,7 @@ struct ISchedulerStrategy
     //! Notify strategy about job updates.
     virtual void ProcessJobUpdates(
         const std::vector<TJobUpdate>& jobUpdates,
-        std::vector<std::pair<TOperationId, TJobId>>* successfullyUpdatedJobs,
+        THashSet<TJobId>* jobsToPostpone,
         std::vector<TJobId>* jobsToAbort) = 0;
 
     //! Save some strategy-specific attributes from handshake result.
