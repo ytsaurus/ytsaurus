@@ -721,6 +721,18 @@ struct INodeWriterImpl
 {
     virtual void AddRow(const TNode& row, size_t tableIndex) = 0;
     virtual void AddRow(TNode&& row, size_t tableIndex) = 0;
+    virtual void AddRowBatch(const TVector<TNode>& rows, size_t tableIndex)
+    {
+        for (const auto& row : rows) {
+            AddRow(row, tableIndex);
+        }
+    }
+    virtual void AddRowBatch(TVector<TNode>&& rows, size_t tableIndex)
+    {
+        for (auto&& row : std::move(rows)) {
+            AddRow(std::move(row), tableIndex);
+        }
+    }
 };
 
 struct IYaMRWriterImpl
@@ -728,6 +740,18 @@ struct IYaMRWriterImpl
 {
     virtual void AddRow(const TYaMRRow& row, size_t tableIndex) = 0;
     virtual void AddRow(TYaMRRow&& row, size_t tableIndex) = 0;
+    virtual void AddRowBatch(const TVector<TYaMRRow>& rows, size_t tableIndex)
+    {
+        for (const auto& row : rows) {
+            AddRow(row, tableIndex);
+        }
+    }
+    virtual void AddRowBatch(TVector<TYaMRRow>&& rows, size_t tableIndex)
+    {
+        for (auto&& row : std::move(rows)) {
+            AddRow(std::move(row), tableIndex);
+        }
+    }
 };
 
 struct IProtoWriterImpl
@@ -735,6 +759,18 @@ struct IProtoWriterImpl
 {
     virtual void AddRow(const Message& row, size_t tableIndex) = 0;
     virtual void AddRow(Message&& row, size_t tableIndex) = 0;
+    virtual void AddRowBatch(const TVector<Message>& rows, size_t tableIndex)
+    {
+        for (const auto& row : rows) {
+            AddRow(row, tableIndex);
+        }
+    }
+    virtual void AddRowBatch(TVector<Message>&& rows, size_t tableIndex)
+    {
+        for (auto&& row : std::move(rows)) {
+            AddRow(std::move(row), tableIndex);
+        }
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -768,9 +804,20 @@ public:
     {
         DoAddRow<T>(row, tableIndex);
     }
+
     void AddRow(T&& row, size_t tableIndex = 0)
     {
         DoAddRow<T>(std::move(row), tableIndex);
+    }
+
+    void AddRowBatch(const TVector<T>& rows, size_t tableIndex = 0)
+    {
+        DoAddRowBatch<T>(rows, tableIndex);
+    };
+
+    void AddRowBatch(TVector<T>&& rows, size_t tableIndex = 0)
+    {
+        DoAddRowBatch<T>(std::move(rows), tableIndex);
     }
 
     void Finish()
@@ -794,6 +841,7 @@ protected:
         auto guard = Guard((*Locks_)[tableIndex]);
         Writer_->AddRow(row, tableIndex);
     }
+
     template <class U>
     void DoAddRow(U&& row, size_t tableIndex = 0)
     {
@@ -805,6 +853,32 @@ protected:
 
         auto guard = Guard((*Locks_)[tableIndex]);
         Writer_->AddRow(std::move(row), tableIndex);
+    }
+
+    template <class U>
+    void DoAddRowBatch(const TVector<U>& rows, size_t tableIndex = 0)
+    {
+        if (tableIndex >= Locks_->size()) {
+            ythrow TIOException() <<
+                "Table index " << tableIndex <<
+                " is out of range [0, " << Locks_->size() << ")";
+        }
+
+        auto guard = Guard((*Locks_)[tableIndex]);
+        Writer_->AddRowBatch(rows, tableIndex);
+    }
+
+    template <class U>
+    void DoAddRowBatch(TVector<U>&& rows, size_t tableIndex = 0)
+    {
+        if (tableIndex >= Locks_->size()) {
+            ythrow TIOException() <<
+                "Table index " << tableIndex <<
+                " is out of range [0, " << Locks_->size() << ")";
+        }
+
+        auto guard = Guard((*Locks_)[tableIndex]);
+        Writer_->AddRowBatch(std::move(rows), tableIndex);
     }
 
     ::TIntrusivePtr<IWriterImpl> GetWriterImpl()
@@ -857,6 +931,14 @@ public:
     {
         TBase::AddRow(row, tableIndex);
     }
+
+    template <class U, std::enable_if_t<std::is_base_of<Message, U>::value>* = nullptr>
+    void AddRowBatch(const TVector<U>& rows, size_t tableIndex = 0)
+    {
+        for (const auto& row : rows) {
+            AddRow(row, tableIndex);
+        }
+    }
 };
 
 template <class T>
@@ -874,6 +956,11 @@ public:
     void AddRow(const T& row, size_t tableIndex = 0)
     {
         TBase::AddRow<T>(row, tableIndex);
+    }
+
+    void AddRowBatch(const TVector<T>& rows, size_t tableIndex = 0)
+    {
+        TBase::AddRowBatch<T>(rows, tableIndex);
     }
 };
 
