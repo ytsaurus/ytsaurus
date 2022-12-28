@@ -10,7 +10,11 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
+#include <yt/yt/ytlib/program/config.h>
+
 #include <yt/yt/core/bus/tcp/public.h>
+
+#include <yt/yt/library/dynamic_config/public.h>
 
 namespace NYT::NMasterCache {
 
@@ -32,12 +36,27 @@ public:
 
     TCypressRegistrarConfigPtr CypressRegistrar;
 
+    NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
+
     REGISTER_YSON_STRUCT(TMasterCacheConfig);
 
     static void Register(TRegistrar registrar);
 };
 
 DEFINE_REFCOUNTED_TYPE(TMasterCacheConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TMasterCacheDynamicConfig
+    : public TNativeSingletonsDynamicConfig
+{
+public:
+    REGISTER_YSON_STRUCT(TMasterCacheDynamicConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMasterCacheDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 

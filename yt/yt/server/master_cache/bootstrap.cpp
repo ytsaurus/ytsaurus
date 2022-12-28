@@ -4,6 +4,7 @@
 #include "config.h"
 #include "master_cache_bootstrap.h"
 #include "private.h"
+#include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -22,6 +23,8 @@
 #include <yt/yt/ytlib/api/native/helpers.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+
+#include <yt/yt/ytlib/program/helpers.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -97,6 +100,11 @@ public:
         return Connection_;
     }
 
+    const NApi::IClientPtr& GetRootClient() const override
+    {
+        return RootClient_;
+    }
+
     const IMapNodePtr& GetOrchidRoot() const override
     {
         return OrchidRoot_;
@@ -134,10 +142,14 @@ private:
 
     IConnectionPtr Connection_;
 
+    NApi::IClientPtr RootClient_;
+
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 
     std::unique_ptr<IBootstrap> MasterCacheBootstrap_;
     std::unique_ptr<IBootstrap> ChaosCacheBootstrap_;
+
+    TDynamicConfigManagerPtr DynamicConfigManager_;
 
     void DoInitialize()
     {
@@ -158,6 +170,8 @@ private:
         Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
         Connection_->GetClusterDirectorySynchronizer()->Start();
 
+        RootClient_ = Connection_->CreateClient({.User = NSecurityClient::RootUserName});
+
         {
             TCypressRegistrarOptions options{
                 .RootPath = "//sys/master_caches/" + NNet::BuildServiceAddress(
@@ -169,11 +183,14 @@ private:
             CypressRegistrar_ = CreateCypressRegistrar(
                 std::move(options),
                 Config_->CypressRegistrar,
-                Connection_->CreateClient({.User = NSecurityClient::RootUserName}),
+                RootClient_,
                 GetControlInvoker());
         }
 
         NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
+
+        DynamicConfigManager_ = New<TDynamicConfigManager>(this);
+        DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
         MasterCacheBootstrap_ = CreateMasterCacheBootstrap(this);
         ChaosCacheBootstrap_ = CreateChaosCacheBootstrap(this);
@@ -190,6 +207,10 @@ private:
             OrchidRoot_,
             "/config",
             CreateVirtualNode(ConvertTo<INodePtr>(Config_)));
+        SetNodeByYPath(
+            OrchidRoot_,
+            "/dynamic_config_manager",
+            CreateVirtualNode(DynamicConfigManager_->GetOrchidService()));
 
         RpcServer_->RegisterService(CreateOrchidService(
             OrchidRoot_,
@@ -199,6 +220,8 @@ private:
 
     void DoRun()
     {
+        DynamicConfigManager_->Start();
+
         YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
         HttpServer_->Start();
 
@@ -206,6 +229,13 @@ private:
         RpcServer_->Start();
 
         CypressRegistrar_->Start({});
+    }
+
+    void OnDynamicConfigChanged(
+        const TMasterCacheDynamicConfigPtr& /*oldConfig*/,
+        const TMasterCacheDynamicConfigPtr& newConfig)
+    {
+        ReconfigureNativeSingletons(Config_, newConfig);
     }
 };
 
@@ -230,6 +260,11 @@ const TMasterCacheConfigPtr& TBootstrapBase::GetConfig() const
 const IConnectionPtr& TBootstrapBase::GetConnection() const
 {
     return Bootstrap_->GetConnection();
+}
+
+const NApi::IClientPtr& TBootstrapBase::GetRootClient() const
+{
+    return Bootstrap_->GetRootClient();
 }
 
 const IMapNodePtr& TBootstrapBase::GetOrchidRoot() const

@@ -23,6 +23,7 @@ struct IBootstrap
 
     virtual const TMasterCacheConfigPtr& GetConfig() const = 0;
     virtual const NApi::NNative::IConnectionPtr& GetConnection() const = 0;
+    virtual const NApi::IClientPtr& GetRootClient() const = 0;
     virtual const NYTree::IMapNodePtr& GetOrchidRoot() const = 0;
     virtual const NRpc::IServerPtr& GetRpcServer() const = 0;
     virtual const IInvokerPtr& GetControlInvoker() const = 0;
@@ -43,6 +44,7 @@ public:
 
     const TMasterCacheConfigPtr& GetConfig() const override;
     const NApi::NNative::IConnectionPtr& GetConnection() const override;
+    const NApi::IClientPtr& GetRootClient() const override;
     const NYTree::IMapNodePtr& GetOrchidRoot() const override;
     const NRpc::IServerPtr& GetRpcServer() const override;
     const IInvokerPtr& GetControlInvoker() const override;

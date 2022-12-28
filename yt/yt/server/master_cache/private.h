@@ -10,6 +10,8 @@ namespace NYT::NMasterCache {
 
 DECLARE_REFCOUNTED_CLASS(TChaosCache)
 DECLARE_REFCOUNTED_CLASS(TMasterCacheConfig)
+DECLARE_REFCOUNTED_CLASS(TMasterCacheDynamicConfig)
+DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)
 
 struct IBootstrap;
 
