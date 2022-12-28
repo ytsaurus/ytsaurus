@@ -248,6 +248,7 @@ struct TBundleInfo
     TString Zone;
     TString NodeTagFilter;
     std::optional<TString> ShortName;
+    std::optional<TString> RpcProxyRole;
 
     bool EnableBundleController;
     bool EnableTabletCellManagement;

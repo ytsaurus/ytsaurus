@@ -252,7 +252,9 @@ THashSet<TString> GenerateProxiesForBundle(
         proxyInfo->Annotations->Resource = CloneYsonSerializable(targetConfig->RpcProxyResourceGuarantee);
 
         if (setRole) {
-            proxyInfo->Role = bundleName;
+            auto& bundleInfo = GetOrCrash(inputState.Bundles, bundleName);
+            TString role = bundleInfo->RpcProxyRole ? *bundleInfo->RpcProxyRole : bundleName;
+            proxyInfo->Role = role;
         }
 
         inputState.RpcProxies[proxyName] = proxyInfo;
@@ -1750,6 +1752,35 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesAssigned)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 }
 
+TEST(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
+{
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
+    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
+    input.Bundles["default-bundle"]->RpcProxyRole = "custom-role";
+
+    GenerateProxiesForBundle(input, "default-bundle", 2);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
+
+    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        ASSERT_EQ(role, "custom-role");
+        input.RpcProxies[proxyName]->Role = role;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+}
+
 TEST(TProxyRoleManagement, TestBundleProxyBanned)
 {
     const bool SetProxyRole = true;
@@ -1838,6 +1869,68 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
 
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
         EXPECT_TRUE(usedSpare.count(proxyName) != 0);
+        input.RpcProxies[proxyName]->Role = role;
+    }
+    EXPECT_EQ(1, std::ssize(mutations.ChangedProxyRole));
+
+    // Check no more changes
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+}
+
+TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
+{
+    const bool SetProxyRole = true;
+
+    auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 3);
+    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
+    input.Bundles["default-bundle"]->RpcProxyRole = "custom-role";
+
+    GenerateProxiesForBundle(input, "default-bundle", 1, SetProxyRole);
+
+    // Generate Spare proxies
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
+    auto spareProxies = GenerateProxiesForBundle(input, SpareBundleName, 3);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
+
+    THashSet<TString> usedSpare;
+
+    for (auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        EXPECT_EQ(role, "custom-role");
+        EXPECT_TRUE(spareProxies.find(proxyName) != spareProxies.end());
+
+        usedSpare.insert(proxyName);
+        input.RpcProxies[proxyName]->Role = role;
+    }
+
+    EXPECT_EQ(2, std::ssize(usedSpare));
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
+
+    // Add new proxies to bundle
+    auto newProxies = GenerateProxiesForBundle(input, "default-bundle", 1, SetProxyRole);;
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+
+    for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
+        EXPECT_TRUE(usedSpare.count(proxyName) != 0);
+        EXPECT_EQ(role, "");
         input.RpcProxies[proxyName]->Role = role;
     }
     EXPECT_EQ(1, std::ssize(mutations.ChangedProxyRole));
