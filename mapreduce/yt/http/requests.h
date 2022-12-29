@@ -4,6 +4,7 @@
 #include "http.h"
 
 #include <mapreduce/yt/interface/common.h>
+#include <mapreduce/yt/interface/public.h>
 
 #include <util/generic/maybe.h>
 #include <util/str_stl.h>
@@ -16,6 +17,7 @@ struct TAuth
 {
     TString ServerName;
     TString Token;
+    NAuth::IServiceTicketAuthPtrWrapperPtr ServiceTicketAuth;
 };
 
 bool operator==(const TAuth& lhs, const TAuth& rhs);
@@ -40,12 +42,3 @@ void LogRequestError(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
-
-template <>
-struct THash<NYT::TAuth> {
-    size_t operator()(const NYT::TAuth& auth) const
-    {
-        return CombineHashes(THash<TString>()(auth.ServerName),
-                             THash<TString>()(auth.Token));
-    }
-};

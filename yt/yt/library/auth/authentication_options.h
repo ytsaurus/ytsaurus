@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/tvm/public.h>
+
 #include <yt/yt/core/rpc/authentication_identity.h>
 
 #include <optional>

@@ -7,6 +7,7 @@
 
 #include "common.h"
 #include "format.h"
+#include "public.h"
 #include "retry_policy.h"
 
 #include <util/datetime/base.h>
@@ -1000,6 +1001,18 @@ struct TCreateClientOptions
     ///   - File specified in `YT_TOKEN_PATH` environment variable
     ///   - `$HOME/.yt/token` file.
     FLUENT_FIELD(TString, TokenPath);
+
+    /// @brief TVM service ticket producer.
+    ///
+    /// We store a wrapper of NYT::TIntrusivePtr here (not a NYT::TIntrusivePtr),
+    /// because otherwise other projects will have build problems
+    /// because of visibility of two different `TIntrusivePtr`-s (::TInstrusivePtr and NYT::TInstrusivePtr).
+    ///
+    /// @see NYT::NAuth::TServiceTicketClientAuth
+    /// {@
+    NAuth::IServiceTicketAuthPtrWrapperPtr ServiceTicketAuth_ = nullptr;
+    TSelf& ServiceTicketAuth(const NAuth::IServiceTicketAuthPtrWrapper& wrapper);
+    /// @}
 
     ///
     /// @brief RetryConfig provider allows to fine tune request retries.

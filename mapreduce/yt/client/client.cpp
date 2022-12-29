@@ -1269,8 +1269,13 @@ TClientPtr CreateClientImpl(
         auth.Token = options.Token_;
     } else if (options.TokenPath_) {
         auth.Token = TConfig::LoadTokenFromFile(options.TokenPath_);
+    } else if (options.ServiceTicketAuth_) {
+        auth.ServiceTicketAuth = options.ServiceTicketAuth_;
     }
-    TConfig::ValidateToken(auth.Token);
+
+    if (auth.Token) {
+        TConfig::ValidateToken(auth.Token);
+    }
 
     auto retryConfigProvider = options.RetryConfigProvider_;
     if (!retryConfigProvider) {

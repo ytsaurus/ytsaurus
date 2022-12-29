@@ -28,7 +28,8 @@ namespace NYT {
 bool operator==(const TAuth& lhs, const TAuth& rhs)
 {
     return lhs.ServerName == rhs.ServerName &&
-           lhs.Token == rhs.Token;
+           lhs.Token == rhs.Token &&
+           lhs.ServiceTicketAuth == rhs.ServiceTicketAuth;
 }
 
 bool operator!=(const TAuth& lhs, const TAuth& rhs)

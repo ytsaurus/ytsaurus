@@ -6,6 +6,8 @@
 #include <mapreduce/yt/common/wait_proxy.h>
 #include <mapreduce/yt/common/retry_lib.h>
 
+#include <mapreduce/yt/interface/tvm.h>
+
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <library/cpp/yson/node/node_io.h>
@@ -47,6 +49,10 @@ TResponseInfo RequestWithoutRetry(
     const TRequestConfig& config)
 {
     header.SetToken(auth.Token);
+    if (auth.ServiceTicketAuth) {
+        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    }
+
     if (header.HasMutationId()) {
         header.RemoveParameter("retry");
         header.AddMutationId();
@@ -64,6 +70,9 @@ TResponseInfo RetryRequestWithPolicy(
     const TRequestConfig& config)
 {
     header.SetToken(auth.Token);
+    if (auth.ServiceTicketAuth) {
+        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    }
 
     bool useMutationId = header.HasMutationId();
     bool retryWithSameMutationId = false;

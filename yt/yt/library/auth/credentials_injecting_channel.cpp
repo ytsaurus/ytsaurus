@@ -1,10 +1,12 @@
 #include "credentials_injecting_channel.h"
 
 #include "authentication_options.h"
-#include "tvm.h"
 
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/rpc/channel_detail.h>
+
+#include <yt/yt/library/tvm/tvm.h>
+
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 namespace NYT::NAuth {

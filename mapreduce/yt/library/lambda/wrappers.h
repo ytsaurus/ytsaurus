@@ -145,7 +145,7 @@ bool RegisterReducerStatic() {
 }
 
 template<class Reducer, class TReduce, class TFinalize>
-TIntrusivePtr<IReducerBase> ChooseReducer(TReduce reducer, TFinalize finalizer, const TSortColumns& reduceColumns) {
+::TIntrusivePtr<IReducerBase> ChooseReducer(TReduce reducer, TFinalize finalizer, const TSortColumns& reduceColumns) {
     if (!reducer)
         return nullptr; // let main API generate an exception
 

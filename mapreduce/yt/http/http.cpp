@@ -286,6 +286,11 @@ void THttpHeader::SetToken(const TString& token)
     Token = token;
 }
 
+void THttpHeader::SetServiceTicket(const TString& ticket)
+{
+    ServiceTicket = ticket;
+}
+
 void THttpHeader::SetInputFormat(const TMaybe<TFormat>& format)
 {
     InputFormat = format;
@@ -344,6 +349,9 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
 
     if (!Token.empty()) {
         header << "Authorization: OAuth " << Token << "\r\n";
+    }
+    if (!ServiceTicket.empty()) {
+        header << "X-Ya-Service-Ticket: " << ServiceTicket << "\r\n";
     }
 
     if (Method == "PUT" || Method == "POST") {

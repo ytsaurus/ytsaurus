@@ -1,24 +1,21 @@
-//%NUM_MASTERS=1
-//%NUM_NODES=3
-//%NUM_SCHEDULERS=0
-//%DRIVER_BACKENDS=['rpc']
-//%ENABLE_RPC_PROXY=True
-//%DELTA_MASTER_CONFIG={"object_service":{"timeout_backoff_lead_time":100}}
+#include <mapreduce/yt/tests/lib/lib.h>
 
-#include <yt/yt/tests/cpp/test_base/api_test_base.h>
+#include <mapreduce/yt/tests/yt_unittest_lib/yt_unittest_lib.h>
 
-#include <yt/yt/client/api/rpc_proxy/helpers.h>
-#include <yt/yt/client/api/rpc_proxy/public.h>
+#include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/interface/errors.h>
 
-#include <yt/yt/library/tvm/tvm.h>
+#include <mapreduce/yt/interface/tvm.h>
+
+#include <library/cpp/testing/unittest/registar.h>
 
 #include <library/cpp/tvmauth/client/mocked_updater.h>
 
-namespace NYT {
-namespace NCppTests {
-namespace {
+#include <library/cpp/yt/memory/intrusive_ptr.h>
+#include <library/cpp/yt/memory/new.h>
 
-using namespace NApi;
+using namespace NYT;
+using namespace NYT::NTesting;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -39,11 +36,11 @@ NAuth::TTvmClientPtr CreateTvmClient() {
     return std::make_shared<NTvmAuth::TTvmClient>(new NTvmAuth::TMockedUpdater(settings));
 }
 
-class TServiceTicketAuthTestWrapper
+class TServiceTicketClientAuthTest
     : public NAuth::TServiceTicketClientAuth
 {
 public:
-    TServiceTicketAuthTestWrapper(const NAuth::TTvmClientPtr& tvmClient)
+    TServiceTicketClientAuthTest(const NAuth::TTvmClientPtr& tvmClient)
         : NAuth::TServiceTicketClientAuth(tvmClient)
     { }
 
@@ -63,22 +60,21 @@ private:
     std::vector<TString> IssuedServiceTickets_;
 };
 
-TEST_F(TApiTestBase, TestTvmServiceTicketAuth)
+Y_UNIT_TEST_SUITE(TvmAuth)
 {
-    auto serviceTicketAuth = New<TServiceTicketAuthTestWrapper>(CreateTvmClient());
-    auto clientOptions = TClientOptions::FromServiceTicketAuth(serviceTicketAuth);
+    Y_UNIT_TEST(TestTvmAuth)
+    {
+        auto serviceTicketAuth = New<TServiceTicketClientAuthTest>(CreateTvmClient());
 
-    auto client = Connection_->CreateClient(clientOptions);
+        TTestFixture fixture(TCreateClientOptions().ServiceTicketAuth(serviceTicketAuth));
+        auto client = fixture.GetClient();
+        auto workingDir = fixture.GetWorkingDir();
 
-    client->CreateNode("//tmp/test_node", NObjectClient::EObjectType::MapNode).Get();
-
-    auto issuedTickets = serviceTicketAuth->GetIssuedServiceTickets();
-    EXPECT_GT(issuedTickets.size(), 0U);
-    EXPECT_EQ(issuedTickets.front(), SERVICE_TICKET);
+        client->Create(workingDir + "/test_node", ENodeType::NT_MAP);
+        auto issuedTickets = serviceTicketAuth->GetIssuedServiceTickets();
+        EXPECT_GT(issuedTickets.size(), 0U);
+        EXPECT_EQ(issuedTickets.front(), SERVICE_TICKET);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-} // namespace
-} // namespace NCppTests
-} // namespace NYT
