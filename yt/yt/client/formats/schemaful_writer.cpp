@@ -85,9 +85,11 @@ bool TSchemafulWriter::Write(TRange<TUnversionedRow> rows)
                     break;
 
                 case EValueType::Composite: {
-                    auto it = ColumnConverters_.find(value.Id);
-                    YT_VERIFY(it != ColumnConverters_.end());
-                    it->second(value, Consumer_.get());
+                    if (auto it = ColumnConverters_.find(value.Id); it != ColumnConverters_.end()) {
+                        it->second(value, Consumer_.get());
+                    } else {
+                        Consumer_->OnRaw(value.AsStringBuf(), EYsonType::Node);
+                    }
                     break;
                 }
 

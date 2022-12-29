@@ -25,7 +25,7 @@ class TTableSchemaTest
 TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
 {
     std::vector<std::vector<TColumnSchema>> invalidUpdates{
-        // Changing column type is not ok.
+        // Changing column type in incompatible way is not ok.
         {
             TColumnSchema("Name", EValueType::String),
             TColumnSchema("Name", EValueType::Int64)
@@ -108,7 +108,24 @@ TEST_F(TTableSchemaTest, ColumnSchemaUpdateValidation)
                 .SetLock(TString("Lock")),
             TColumnSchema("Name", EValueType::String)
                 .SetLock(TString("OtherLock"))
-        }
+        },
+        // Changing type in a compatible way is ok.
+        {
+            TColumnSchema("Name", ESimpleLogicalValueType::Int8),
+            TColumnSchema("Name", ESimpleLogicalValueType::Int16),
+        },
+        {
+            TColumnSchema("Name", ESimpleLogicalValueType::Int64),
+            TColumnSchema("Name", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Int64))),
+        },
+        {
+            TColumnSchema("Name", ESimpleLogicalValueType::Null),
+            TColumnSchema("Name", OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Null))),
+        },
+        {
+            TColumnSchema("Name", EValueType::Int64),
+            TColumnSchema("Name", EValueType::Any),
+        },
     };
 
     for (const auto& pairOfSchemas : validUpdates) {
