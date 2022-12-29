@@ -125,10 +125,8 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     context->AgentDescriptor = ControllerAgentDescriptor_;
     context->StatisticsThrottler = StatisticsThrottler_;
     context->RunningJobInfoSendingBackoff = RunningJobInfoSendingBackoff_;
-    context->SentEnqueuedJobs.insert(
-        std::end(context->SentEnqueuedJobs),
-        std::begin(EnqueuedFinishedJobs_),
-        std::end(EnqueuedFinishedJobs_));
+    context->LastTotalConfirmationTime = LastTotalConfirmationTime_;
+    context->SentEnqueuedJobs = std::move(EnqueuedFinishedJobs_);
 
     const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
 
@@ -168,10 +166,7 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
 
     jobController->ProcessAgentHeartbeatResponse(responseOrError.Value(), context);
 
-    // This will be removed when controller agent controls job lifetime.
-    for (const auto& job : context->SentEnqueuedJobs) {
-        EnqueuedFinishedJobs_.erase(job);
-    }
+    LastTotalConfirmationTime_ = context->LastTotalConfirmationTime;
 
     YT_LOG_INFO(
         "Successfully reported heartbeat to agent (AgentAddress: %v, IncarnationId: %v)",
