@@ -264,6 +264,9 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
         .DefaultNew();
 
+    registrar.Parameter("banned_replica_tracker_cache", &TThis::BannedReplicaTrackerCache)
+        .DefaultNew();
+
     registrar.Parameter("chaos_cell_channel", &TThis::ChaosCellChannel)
         .DefaultNew();
 
@@ -301,6 +304,8 @@ void TConnectionConfig::Register(TRegistrar registrar)
 
         config->SyncReplicaCache->ExpireAfterSuccessfulUpdateTime = TDuration::Minutes(5);
         config->SyncReplicaCache->RefreshTime = TDuration::Seconds(5);
+
+        config->BannedReplicaTrackerCache->Capacity = 1000;
     });
 
     registrar.Postprocessor([] (TThis* config) {
@@ -348,6 +353,9 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
         .DefaultNew();
     registrar.Parameter("enable_reshard_with_slicing_verbose_logging", &TThis::EnableReshardWithSlicingVerboseLogging)
         .Default(false);
+    registrar.Parameter("replica_fallback_retry_count", &TThis::ReplicaFallbackRetryCount)
+        .GreaterThanOrEqual(0)
+        .Default(3);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

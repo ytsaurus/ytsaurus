@@ -106,6 +106,7 @@ struct IConnection
 
     virtual const TSyncReplicaCachePtr& GetSyncReplicaCache() = 0;
     virtual const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() = 0;
+    virtual const NChaosClient::IBannedReplicaTrackerCachePtr& GetBannedReplicaTrackerCache() = 0;
 
     virtual IClientPtr CreateNativeClient(const TClientOptions& options) = 0;
 

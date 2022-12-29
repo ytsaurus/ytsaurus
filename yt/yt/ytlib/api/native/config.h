@@ -204,6 +204,7 @@ public:
     NObjectClient::TReqExecuteBatchWithRetriesConfigPtr ChunkFetchRetries;
 
     TAsyncExpiringCacheConfigPtr SyncReplicaCache;
+    TSlruCacheConfigPtr BannedReplicaTrackerCache;
 
     NChaosClient::TReplicationCardChannelConfigPtr ChaosCellChannel;
 
@@ -247,6 +248,8 @@ public:
 
     // TODO(alexelexa): remove.
     bool EnableReshardWithSlicingVerboseLogging;
+
+    int ReplicaFallbackRetryCount;
 
     REGISTER_YSON_STRUCT(TConnectionDynamicConfig);
 

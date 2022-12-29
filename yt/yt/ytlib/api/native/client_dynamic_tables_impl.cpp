@@ -8,6 +8,7 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/chaos_master_service_proxy.h>
 #include <yt/yt/ytlib/chaos_client/chaos_node_service_proxy.h>
@@ -792,7 +793,6 @@ TRowset TClient::DoLookupRowsOnce(
             false);
     }
 
-
     auto idMapping = BuildColumnIdMapping(*schema, nameTable);
 
     auto remappedColumnFilter = RemapColumnFilter(options.ColumnFilter, idMapping, nameTable);
@@ -844,9 +844,13 @@ TRowset TClient::DoLookupRowsOnce(
         tableInfo->IsChaosReplicated() ||
         (tableInfo->ReplicationCardId && options.ReplicaConsistency == EReplicaConsistency::Sync))
     {
+        auto bannedReplicaTracker = Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId);
+
         auto pickInSyncReplicas = [&] {
             if (tableInfo->ReplicationCardId) {
                 auto replicationCard = GetSyncReplicationCard(tableInfo);
+                bannedReplicaTracker->SyncReplicas(replicationCard);
+
                 auto replicaIds = GetChaosTableInSyncReplicas(
                     tableInfo,
                     replicationCard,
@@ -883,18 +887,57 @@ TRowset TClient::DoLookupRowsOnce(
             }
         };
 
-        auto inSyncReplicas = pickInSyncReplicas();
-        if (inSyncReplicas.empty()) {
-            THROW_ERROR_EXCEPTION(
-                NTabletClient::EErrorCode::NoInSyncReplicas,
-                "No in-sync replicas found for table %v",
-                tableInfo->Path);
+        auto pickedSyncReplicas = pickInSyncReplicas();
+        TErrorOr<TRowset> resultOrError;
+
+        auto retryCountLimit = tableInfo->ReplicationCardId
+            ? Connection_->GetDynamicConfig()->ReplicaFallbackRetryCount
+            : 0;
+
+        for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
+            TTableReplicaInfoPtrList inSyncReplicas;
+            std::vector<TTableReplicaId> bannedSyncReplicaIds;
+            for (const auto& replicaInfo : pickedSyncReplicas) {
+                if (bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
+                    bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
+                } else {
+                    inSyncReplicas.push_back(replicaInfo);
+                }
+            }
+
+            if (inSyncReplicas.empty()) {
+                std::vector<TError> replicaErrors;
+                for (auto bannedReplicaId : bannedSyncReplicaIds) {
+                    if (auto error = bannedReplicaTracker->GetReplicaError(bannedReplicaId); !error.IsOK()) {
+                        replicaErrors.push_back(std::move(error));
+                    }
+                }
+
+                auto error = TError(
+                    NTabletClient::EErrorCode::NoInSyncReplicas,
+                    "No in-sync replicas found for table %v",
+                    tableInfo->Path)
+                    << TErrorAttribute("banned_replicas", bannedSyncReplicaIds);
+                *error.MutableInnerErrors() = std::move(replicaErrors);
+                THROW_ERROR error;
+            }
+
+            auto replicaFallbackInfo = GetReplicaFallbackInfo(inSyncReplicas);
+            replicaFallbackInfo.OriginalTableSchema = schema;
+
+            resultOrError = WaitFor(replicaFallbackHandler(replicaFallbackInfo));
+            if (resultOrError.IsOK()) {
+                return resultOrError.Value();
+            }
+
+            YT_LOG_DEBUG(resultOrError, "Fallback to replica failed (ReplicaId: %v)",
+                replicaFallbackInfo.ReplicaId);
+
+            bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
         }
 
-        auto replicaFallbackInfo = GetReplicaFallbackInfo(inSyncReplicas);
-        replicaFallbackInfo.OriginalTableSchema = schema;
-        return WaitFor(replicaFallbackHandler(replicaFallbackInfo))
-            .ValueOrThrow();
+        YT_VERIFY(!resultOrError.IsOK());
+        resultOrError.ThrowOnError();
     } else if (tableInfo->IsReplicationLog()) {
         THROW_ERROR_EXCEPTION("Lookup from queue replica is not supported");
     }
@@ -1206,6 +1249,7 @@ TSelectRowsResult TClient::DoSelectRowsOnce(
 
     auto parsedQuery = ParseSource(queryString, EParseMode::Query, placeholderValuesAsYson);
     auto* astQuery = &std::get<NAst::TQuery>(parsedQuery->AstHead.Ast);
+    // XXX retry fallback
     auto optionalClusterName = PickInSyncClusterAndPatchQuery(options, astQuery);
     if (optionalClusterName) {
         auto unresolveOptions = options;
@@ -1470,7 +1514,7 @@ auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(
         TTabletInfoPtr tabletInfo;
         std::tie(retryableErrorCode, tabletInfo) = tableMountCache->InvalidateOnError(
             error,
-            /* forceRetry */ false);
+            /*forceRetry*/ false);
 
         if (retryableErrorCode && ++retryCount <= config->TableMountCache->OnErrorRetryCount) {
             YT_LOG_DEBUG(error, "Got error, will retry (attempt %v of %v)",

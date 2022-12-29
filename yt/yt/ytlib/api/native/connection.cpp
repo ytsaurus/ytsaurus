@@ -11,6 +11,7 @@
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
+#include <yt/yt/ytlib/chaos_client/banned_replica_tracker.h>
 #include <yt/yt/ytlib/chaos_client/chaos_cell_directory_synchronizer.h>
 #include <yt/yt/ytlib/chaos_client/native_replication_card_cache_detail.h>
 #include <yt/yt/ytlib/chaos_client/replication_card_channel_factory.h>
@@ -148,9 +149,10 @@ public:
             Config_->ConnectionName))
         , ClusterId_(MakeConnectionClusterId(Config_))
         , StickyGroupSizeCache_(Config_->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr)
-        , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
         , Logger(ApiLogger.WithRawTag(LoggingTag_))
         , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->ConnectionName))
+        , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
+        , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(Config_->BannedReplicaTrackerCache, Logger))
     {
         ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(
@@ -372,6 +374,11 @@ public:
     const TTabletSyncReplicaCachePtr& GetTabletSyncReplicaCache() override
     {
         return TabletSyncReplicaCache_;
+    }
+
+    const NChaosClient::IBannedReplicaTrackerCachePtr& GetBannedReplicaTrackerCache() override
+    {
+        return BannedReplicaTrackerCache_;
     }
 
     IInvokerPtr GetInvoker() override
@@ -708,10 +715,11 @@ private:
     NRpc::IChannelFactoryPtr ChannelFactory_;
     const TStickyGroupSizeCachePtr StickyGroupSizeCache_;
 
-    const TTabletSyncReplicaCachePtr TabletSyncReplicaCache_;
-
     const NLogging::TLogger Logger;
     const TProfiler Profiler_;
+
+    const TTabletSyncReplicaCachePtr TabletSyncReplicaCache_;
+    const IBannedReplicaTrackerCachePtr BannedReplicaTrackerCache_;
 
     // NB: There're also CellDirectory_ and CellDirectorySynchronizer_, which are completely different from these.
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
