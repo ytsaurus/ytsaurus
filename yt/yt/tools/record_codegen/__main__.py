@@ -1,4 +1,3 @@
-from library.python import resource
 from dataclasses import dataclass, fields
 from dacite import from_dict
 from typing import Optional, List
@@ -37,7 +36,13 @@ class Manifest:
 
 
 def get_template(name):
-    content = resource.find(name)
+    try:
+        from library.python import resource
+        content = resource.find(name)
+    except ImportError:
+        template_path = os.path.join(os.path.dirname(__file__), "templates", name)
+        with open(template_path, "rb") as fin:
+            content = fin.read()
     env = jinja2.Environment(keep_trailing_newline=True, undefined=jinja2.StrictUndefined)
     return env.template_class.from_code(env, env.compile(content.decode("utf-8"), filename=name), env.globals, None)
 
