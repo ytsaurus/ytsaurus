@@ -572,6 +572,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		description[k] = v
 	}
 
+	// TODO(gudqeit): move speclet patching to a separate method.
 	spec["annotations"] = annotations
 	spec["description"] = description
 	spec["alias"] = "*" + oplet.alias
@@ -582,15 +583,33 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		oplet.setError(err)
 		return err
 	}
-	if oplet.agentInfo.DefaultNetworkProject != nil {
-		spec["network_project"] = *oplet.agentInfo.DefaultNetworkProject
-	}
-	if oplet.strawberrySpeclet.NetworkProject != nil {
-		spec["network_project"] = *oplet.strawberrySpeclet.NetworkProject
-	}
 	if oplet.strawberrySpeclet.PreemptionMode != nil {
 		spec["preemption_mode"] = *oplet.strawberrySpeclet.PreemptionMode
 	}
+
+	networkProject := oplet.agentInfo.DefaultNetworkProject
+	if oplet.strawberrySpeclet.NetworkProject != nil {
+		networkProject = oplet.strawberrySpeclet.NetworkProject
+	}
+	if _, ok := spec["tasks"]; ok && networkProject != nil {
+		tasks, ok := spec["tasks"].(map[string]any)
+		if !ok {
+			return yterrors.Err("tasks type is not 'map'",
+				yterrors.Attr("tasks", spec["tasks"]),
+				yterrors.Attr("type", reflect.TypeOf(spec["tasks"]).String()))
+		}
+		for key := range tasks {
+			task, ok := tasks[key].(map[string]any)
+			if !ok {
+				return yterrors.Err("task type is not 'map'",
+					yterrors.Attr("task_name", key),
+					yterrors.Attr("task", tasks[key]),
+					yterrors.Attr("type", reflect.TypeOf(tasks[key]).String()))
+			}
+			task["network_project"] = *networkProject
+		}
+	}
+
 	opACL := toOperationACL(oplet.acl)
 	if oplet.acl != nil {
 		spec["acl"] = opACL
