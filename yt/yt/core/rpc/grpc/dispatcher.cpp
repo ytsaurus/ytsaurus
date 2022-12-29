@@ -84,7 +84,7 @@ private:
     public:
         TDispatcherThread(TGrpcLibraryLockPtr libraryLock, int index)
             : TThread(
-                Format("Grpc:%v", index),
+                Format("Grpc/%v", index),
                 EThreadPriority::Normal,
                 GrpcDispatcherThreadShutdownPriority)
             , LibraryLock_(std::move(libraryLock))
