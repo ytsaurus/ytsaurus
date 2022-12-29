@@ -19,7 +19,7 @@ import glob
 
 
 YT_PYTHON_PACKAGE_LIST = [
-    "dill",
+    ("dill", "dill/py{}".format(sys.version_info[0])),
     "requests",
     "distro",
     ("urllib3", "urllib3/src"),
