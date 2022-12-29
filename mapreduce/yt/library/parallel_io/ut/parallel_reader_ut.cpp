@@ -507,7 +507,7 @@ private:
 
         if (!ranges.empty()) {
             for (auto& path : paths) {
-                Y_ENSURE(path.Ranges_.empty());
+                Y_ENSURE(path.GetRanges().Empty());
                 for (const auto& range : ranges) {
                     path.AddRange(TReadRange()
                         .LowerLimit(TReadLimit().RowIndex(range.first))

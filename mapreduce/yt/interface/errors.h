@@ -8,10 +8,12 @@
 #include "fwd.h"
 #include "common.h"
 
+#include <library/cpp/yson/node/node.h>
+
+#include <util/generic/bt_exception.h>
 #include <util/generic/yexception.h>
 #include <util/generic/string.h>
 #include <util/generic/vector.h>
-#include <library/cpp/yson/node/node.h>
 
 namespace NJson {
     class TJsonValue;
@@ -26,7 +28,7 @@ namespace NYT {
 ///
 /// For example trying to start operations on empty table list.
 class TApiUsageError
-    : public yexception
+    : public TWithBackTrace<yexception>
 { };
 
 ///

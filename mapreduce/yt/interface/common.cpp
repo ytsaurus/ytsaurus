@@ -565,6 +565,27 @@ EValueType NodeTypeToValueType(TNode::EType nodeType)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+const TVector<TReadRange>& GetRangesCompat(const TRichYPath& path)
+{
+    static const TVector<TReadRange> empty;
+
+    const auto& maybeRanges = path.GetRanges();
+    if (maybeRanges.Empty()) {
+        return empty;
+    } else if (maybeRanges->size() > 0) {
+        return *maybeRanges;
+    } else {
+        // If you see this exception, that means that caller of this function doesn't known what to do
+        // with RichYPath that has set range list, but the range list is empty.
+        //
+        // To avoid this exception caller must explicitly handle such case.
+        // NB. YT-17683
+        ythrow TApiUsageError() << "Unsupported RichYPath: explicitly empty range list";
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////

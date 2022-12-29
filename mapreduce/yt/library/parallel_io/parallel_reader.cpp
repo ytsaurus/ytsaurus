@@ -10,10 +10,9 @@ namespace NYT::NDetail {
 
 i64 GetRowCount(const TRichYPath& path)
 {
-    Y_ENSURE(!path.Ranges_.empty());
+    Y_ENSURE(path.GetRanges());
     i64 rowCount = 0;
-    for (size_t rangeIndex = 0; rangeIndex < path.Ranges_.size(); ++rangeIndex) {
-        const auto& range = path.Ranges_[rangeIndex];
+    for (const auto& range : *path.GetRanges()) {
         Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
         Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
         rowCount += *range.UpperLimit_.RowIndex_ - *range.LowerLimit_.RowIndex_;
@@ -37,7 +36,7 @@ void TTableSlicer::Next()
 
 bool TTableSlicer::IsValid() const
 {
-    return RangeIndex_ < static_cast<i64>(Path_.Ranges_.size());
+    return Path_.GetRanges().Defined() && RangeIndex_ < static_cast<i64>(Path_.GetRanges()->size());
 }
 
 TReadRange TTableSlicer::GetRange() const
@@ -50,12 +49,12 @@ TReadRange TTableSlicer::GetRange() const
 
 i64 TTableSlicer::GetLowerLimit() const
 {
-    return *Path_.Ranges_[RangeIndex_].LowerLimit_.RowIndex_;
+    return *Path_.GetRange(RangeIndex_).LowerLimit_.RowIndex_;
 }
 
 i64 TTableSlicer::GetUpperLimit() const
 {
-    return *Path_.Ranges_[RangeIndex_].UpperLimit_.RowIndex_;
+    return *Path_.GetRange(RangeIndex_).UpperLimit_.RowIndex_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -78,18 +77,18 @@ std::pair<IClientBasePtr, TVector<TRichYPath>> CreateRangeReaderClientAndPaths(
 
     auto getMissingRanges = [&] (const IClientBasePtr& client, TVector<TRichYPath> paths) {
         auto rowCounts = BatchTransform(client, paths, [] (const TBatchRequestPtr& batch, const TRichYPath& path) {
-            if (path.Ranges_.empty()) {
+            if (path.GetRanges().Empty()) {
                 return batch->Get(path.Path_ + "/@row_count");
             }
-            for (const auto& range : path.Ranges_) {
+            for (const auto& range : *path.GetRanges()) {
                 Y_ENSURE(range.LowerLimit_.RowIndex_.Defined(), "Lower limit must be specified as row index");
                 Y_ENSURE(range.UpperLimit_.RowIndex_.Defined(), "Upper limit must be specified as row index");
             }
             return NThreading::MakeFuture(TNode());
         });
         for (int i = 0; i < static_cast<int>(paths.size()); ++i) {
-            if (paths[i].Ranges_.empty()) {
-                paths[i].Ranges_.push_back(TReadRange::FromRowIndices(0, rowCounts[i].AsInt64()));
+            if (paths[i].GetRanges().Empty()) {
+                paths[i].AddRange(TReadRange::FromRowIndices(0, rowCounts[i].AsInt64()));
             }
         }
         return paths;
@@ -117,7 +116,7 @@ i64 EstimateTableRowWeight(const IClientBasePtr& client, const TVector<TRichYPat
     auto dataWeights = BatchTransform(client, paths, [&] (const TBatchRequestPtr& batch, const TRichYPath& path) {
         if (path.Columns_) {
             auto pathWithoutRanges = path;
-            pathWithoutRanges.Ranges_.clear();
+            pathWithoutRanges.ResetRanges();
             pathsForColumnStatistics.push_back(pathWithoutRanges);
             return NThreading::MakeFuture(TNode(0));
         } else {

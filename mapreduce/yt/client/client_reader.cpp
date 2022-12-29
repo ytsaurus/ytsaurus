@@ -100,7 +100,7 @@ size_t TClientReader::DoRead(void* buf, size_t len)
 
 void TClientReader::TransformYPath()
 {
-    for (auto& range : Path_.Ranges_) {
+    for (auto& range : Path_.MutableRangesView()) {
         auto& exact = range.Exact_;
         if (IsTrivial(exact)) {
             continue;
@@ -144,18 +144,18 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
         header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
 
         if (rowIndex.Defined()) {
-            auto& ranges = Path_.Ranges_;
-            if (ranges.empty()) {
-                ranges.push_back(TReadRange());
+            auto& ranges = Path_.MutableRanges();
+            if (ranges.Empty()) {
+                ranges.ConstructInPlace(TVector{TReadRange()});
             } else {
-                if (rangeIndex.GetOrElse(0) >= ranges.size()) {
+                if (rangeIndex.GetOrElse(0) >= ranges->size()) {
                     ythrow yexception()
                         << "range index " << rangeIndex.GetOrElse(0)
-                        << " is out of range, input range count is " << ranges.size();
+                        << " is out of range, input range count is " << ranges->size();
                 }
-                ranges.erase(ranges.begin(), ranges.begin() + rangeIndex.GetOrElse(0));
+                ranges->erase(ranges->begin(), ranges->begin() + rangeIndex.GetOrElse(0));
             }
-            ranges.begin()->LowerLimit(TReadLimit().RowIndex(*rowIndex));
+            ranges->begin()->LowerLimit(TReadLimit().RowIndex(*rowIndex));
         }
 
         header.MergeParameters(FormIORequestParameters(Path_, Options_));

@@ -637,7 +637,8 @@ Y_UNIT_TEST_SUITE(BatchRequestSuite)
         UNIT_ASSERT_VALUES_EQUAL(simpleRes.GetValue().Path_, "//foo/bar");
 
         UNIT_ASSERT_VALUES_EQUAL(rangeRes.GetValue().Path_, "//foo/baz");
-        UNIT_ASSERT_VALUES_EQUAL(rangeRes.GetValue().Ranges_.size(), 1);
+        UNIT_ASSERT_VALUES_EQUAL(rangeRes.GetValue().GetRanges().Defined(), true);
+        UNIT_ASSERT_VALUES_EQUAL(rangeRes.GetValue().GetRanges()->size(), 1);
 
         UNIT_ASSERT_VALUES_EQUAL(formatSizeRes.GetValue().Format_, "yson");
 
