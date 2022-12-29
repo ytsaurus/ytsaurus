@@ -47,6 +47,7 @@ TString GetRowClassName(Py::Object pySchema);
 
 const TString WireTypeFieldName = "_wire_type";
 const TString PyTypeFieldName = "_py_type";
+const TString PyWireTypeFieldName = "_py_wire_type";
 const TString FieldsFieldName = "_fields";
 const TString PySchemaFieldName = "_py_schema";
 const TString NameFieldName = "_name";

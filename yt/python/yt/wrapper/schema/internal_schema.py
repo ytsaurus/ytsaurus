@@ -1,12 +1,13 @@
 from .types import (is_yt_dataclass, Annotation,
                     _is_py_type_compatible_with_ti_type, _check_ti_types_compatible,
-                    _is_py_type_optional)
+                    _is_py_type_optional, _get_py_time_types)
 from . import types
 from .helpers import check_schema_module_available
 
 from ..errors import YtError
 
 import copy
+import datetime
 
 import yandex.type_info as ti
 
@@ -47,6 +48,7 @@ class PrimitiveSchema(_PySchemaSerializer):
         self._py_type = py_type
         self._ti_type = ti_type
         self._wire_type = _ti_type_to_wire_type(ti_type)
+        self._py_wire_type = _wire_type_to_py_type(self._wire_type)
         self._to_yt_type = to_yt_type
         self._from_yt_type = from_yt_type
         self._is_ti_type_optional = is_ti_type_optional
@@ -167,7 +169,7 @@ def _get_args(py_type):
 
 def _get_primitive_type_origin_and_annotation(py_type):
     origin = None
-    for type_ in (int, str, bytes, bool, float):
+    for type_ in (int, str, bytes, bool, float) + tuple(_get_py_time_types()):
         if py_type is type_ or _get_origin(py_type) is type_:
             origin = type_
             break
@@ -198,6 +200,54 @@ def _get_dict_key_value_types(py_type):
     return arg_types
 
 
+def _get_time_types_converters():
+    converters = dict()
+
+    UNIX_EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
+    UNIX_EPOCH_DATE = UNIX_EPOCH.date()
+    MICROSECONDS_IN_SECOND = 10 ** 6
+
+    def timedelta_to_yt_interval(timedelta):
+        return int(timedelta.total_seconds()) * MICROSECONDS_IN_SECOND + timedelta.microseconds
+
+    def yt_interval_to_timedelta(microseconds):
+        return datetime.timedelta(microseconds=microseconds)
+
+    converters[datetime.timedelta] = (
+        timedelta_to_yt_interval,
+        yt_interval_to_timedelta,
+    )
+
+    converters[datetime.date] = (
+        lambda date: int((date - UNIX_EPOCH_DATE).days),
+        lambda days: UNIX_EPOCH_DATE + datetime.timedelta(days=days),
+    )
+
+    def datetime_to_yt_datetime(datetime_):
+        return int(datetime_.astimezone(datetime.timezone.utc).timestamp())
+
+    def yt_datetime_to_datetime(timestamp):
+        return datetime.datetime.fromtimestamp(timestamp, tz=datetime.timezone.utc)
+
+    converters[(datetime.datetime, ti.Datetime)] = (
+        datetime_to_yt_datetime,
+        yt_datetime_to_datetime,
+    )
+
+    def datetime_to_yt_timestamp(datetime_):
+        return timedelta_to_yt_interval(datetime_.astimezone(datetime.timezone.utc) - UNIX_EPOCH)
+
+    def yt_timestamp_to_datetime(yt_timestamp):
+        return UNIX_EPOCH + yt_interval_to_timedelta(yt_timestamp)
+
+    converters[(datetime.datetime, ti.Timestamp)] = (
+        datetime_to_yt_timestamp,
+        yt_timestamp_to_datetime,
+    )
+
+    return converters
+
+
 def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False, field_name=None):
     effective_field_name = field_name if field_name is not None else "<unknown>"
     if not hasattr(_create_primitive_schema, "_default_ti_type"):
@@ -207,7 +257,15 @@ def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False, f
             bytes: ti.String,
             float: ti.Double,
             bool: ti.Bool,
+            datetime.date: ti.Date,
+            datetime.datetime: ti.Timestamp,
+            datetime.timedelta: ti.Interval,
         }
+
+    if not hasattr(_create_primitive_schema, "_default_middleware_converters"):
+        default_converters = _get_time_types_converters().copy()
+        _create_primitive_schema._default_middleware_converters = default_converters
+
     py_type_origin, annotation = _get_primitive_type_origin_and_annotation(py_type)
     assert py_type_origin is not None
 
@@ -222,13 +280,19 @@ def _create_primitive_schema(py_type, ti_type=None, is_ti_type_optional=False, f
     if ti_type is None:
         if annotation_ti_type is not None:
             ti_type = annotation_ti_type
-            assert _is_py_type_compatible_with_ti_type(py_type_origin, ti_type)
+            assert _is_py_type_compatible_with_ti_type(py_type_origin, ti_type) or (to_yt_type and from_yt_type)
         else:
             ti_type = _create_primitive_schema._default_ti_type[py_type_origin]
-    else:
-        if not _is_py_type_compatible_with_ti_type(py_type_origin, ti_type):
-            raise YtError('Python type {} is not compatible with type "{}" from table schema at field "{}"'
-                          .format(py_type, ti_type, effective_field_name))
+
+    if to_yt_type is None and from_yt_type is None:
+        to_yt_type, from_yt_type = (
+            _create_primitive_schema._default_middleware_converters.get(py_type_origin)
+            or _create_primitive_schema._default_middleware_converters.get((py_type_origin, ti_type), (None, None))
+        )
+
+    if not _is_py_type_compatible_with_ti_type(py_type_origin, ti_type) and (not to_yt_type or not from_yt_type):
+        raise YtError('Python type {} is not compatible with type "{}" from table schema at field "{}"'
+                        .format(py_type, ti_type, effective_field_name))
 
     return PrimitiveSchema(
         py_type_origin,
@@ -460,6 +524,30 @@ def _ti_type_to_wire_type(ti_type):
         }
     assert ti.is_valid_type(ti_type)
     return _ti_type_to_wire_type._dict[ti_type]
+
+
+def _wire_type_to_py_type(wire_type):
+    if not hasattr(_wire_type_to_py_type, "_dict"):
+        _wire_type_to_py_type._dict = {
+            "int8": int,
+            "int16": int,
+            "int32": int,
+            "int64": int,
+
+            "uint8": int,
+            "uint16": int,
+            "uint32": int,
+            "uint64": int,
+
+            "string32": bytes,
+            "yson32": bytes,
+
+            "double": float,
+            "boolean": bool,
+        }
+    assert wire_type in _wire_type_to_py_type._dict, \
+        "Unknown wire type. It's likely a bug, please report it to yt@"
+    return _wire_type_to_py_type._dict[wire_type]
 
 
 def _create_optional_skiff_schema(item, name=None):
