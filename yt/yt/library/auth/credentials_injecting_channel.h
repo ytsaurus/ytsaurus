@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/library/tvm/public.h>
+
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/misc/optional.h>

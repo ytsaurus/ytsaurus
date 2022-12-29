@@ -1,5 +1,7 @@
 #include "client_method_options.h"
 
+#include "tvm.h"
+
 namespace NYT {
 
 template <typename T>
@@ -21,6 +23,12 @@ void TFormatHints::Merge(const TFormatHints& patch)
     MergeMaybe(EnableIntegralToDoubleConversion_, patch.EnableIntegralToDoubleConversion_);
     MergeMaybe(EnableTypeConversion_, patch.EnableTypeConversion_);
     MergeMaybe(ComplexTypeMode_, patch.ComplexTypeMode_);
+}
+
+TCreateClientOptions& TCreateClientOptions::ServiceTicketAuth(const NAuth::IServiceTicketAuthPtrWrapper& wrapper)
+{
+    ServiceTicketAuth_ = std::make_shared<NAuth::IServiceTicketAuthPtrWrapper>(wrapper);
+    return *this;
 }
 
 } // namespace NYT

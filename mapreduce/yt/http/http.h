@@ -51,6 +51,8 @@ public:
 
     void SetToken(const TString& token);
 
+    void SetServiceTicket(const TString& ticket);
+
     void SetInputFormat(const TMaybe<TFormat>& format);
 
     void SetOutputFormat(const TMaybe<TFormat>& format);
@@ -75,6 +77,7 @@ private:
 
     TNode::TMapType Parameters;
     TString Token;
+    TString ServiceTicket;
     TNode Attributes;
 
 private:

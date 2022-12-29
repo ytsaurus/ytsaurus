@@ -3,7 +3,7 @@
 #include "helpers.h"
 #include "private.h"
 
-#include <yt/yt/library/auth/tvm.h>
+#include <yt/yt/library/tvm/tvm.h>
 
 #include <yt/yt/core/json/json_parser.h>
 

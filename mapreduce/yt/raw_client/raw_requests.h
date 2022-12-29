@@ -212,12 +212,12 @@ TListJobsResult ListJobs(
     const TOperationId& operationId,
     const TListJobsOptions& options = TListJobsOptions());
 
-TIntrusivePtr<IFileReader> GetJobInput(
+::TIntrusivePtr<IFileReader> GetJobInput(
     const TAuth& auth,
     const TJobId& jobId,
     const TGetJobInputOptions& options = TGetJobInputOptions());
 
-TIntrusivePtr<IFileReader> GetJobFailContext(
+::TIntrusivePtr<IFileReader> GetJobFailContext(
     const TAuth& auth,
     const TOperationId& operationId,
     const TJobId& jobId,
@@ -230,7 +230,7 @@ TString GetJobStderrWithRetries(
     const TJobId& jobId,
     const TGetJobStderrOptions& /* options */ = TGetJobStderrOptions());
 
-TIntrusivePtr<IFileReader> GetJobStderr(
+::TIntrusivePtr<IFileReader> GetJobStderr(
     const TAuth& auth,
     const TOperationId& operationId,
     const TJobId& jobId,

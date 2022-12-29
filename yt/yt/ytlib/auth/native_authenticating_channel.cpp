@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/auth/native_authentication_manager.h>
 
-#include <yt/yt/library/auth/tvm_base.h>
+#include <yt/yt/library/tvm/tvm_base.h>
 
 #include <yt/yt/core/rpc/channel_detail.h>
 

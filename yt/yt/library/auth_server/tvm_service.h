@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/library/auth/public.h>
+#include <yt/yt/library/tvm/public.h>
 
 #include <yt/yt/core/actions/future.h>
 
