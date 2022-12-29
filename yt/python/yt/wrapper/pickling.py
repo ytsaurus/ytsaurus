@@ -33,6 +33,7 @@ def import_framework_module(framework):
         # NB: python3.8 has changes DEFAULT_PROTOCTOL to 4.
         # We set protocol implicitly for client<->server compatibility.
         result_module.settings["protocol"] = 3
+        result_module.settings["byref"] = True
 
     if result_module is None:
         raise RuntimeError("Failed to find module for framework '{}', tried modules {}".format(framework, modules))
