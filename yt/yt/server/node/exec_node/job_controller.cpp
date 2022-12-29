@@ -906,28 +906,6 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        std::vector<TJobPtr> jobs;
-        for (const auto& [id, job] : JobMap_) {
-            if (job->GetState() != EJobState::Running) {
-                continue;
-            }
-
-            const auto& controllerAgentDescriptor = job->GetControllerAgentDescriptor();
-
-            if (!controllerAgentDescriptor) {
-                YT_LOG_DEBUG(
-                    "Skipping heartbeat for job since old agent incarnation is outdated and new incarnation is not received yet (JobId: %v)",
-                    job->GetId());
-                continue;
-            }
-
-            if (controllerAgentDescriptor != context->AgentDescriptor) {
-                continue;
-            }
-
-            jobs.push_back(std::move(job));
-        }
-
         request->set_node_id(Bootstrap_->GetNodeId());
         ToProto(request->mutable_node_descriptor(), Bootstrap_->GetLocalDescriptor());
         ToProto(request->mutable_controller_agent_incarnation_id(), context->AgentDescriptor.IncarnationId);
@@ -948,27 +926,85 @@ private:
             return statistics;
         };
 
+        std::vector<TJobPtr> runningJobs;
+        runningJobs.reserve(std::size(JobMap_));
+
         i64 finishedJobsStatisticsSize = 0;
-        for (const auto& job : context->SentEnqueuedJobs) {
-            auto* const jobStatus = request->add_jobs();
-            FillJobStatus(jobStatus, job);
 
-            *jobStatus->mutable_result() = job->GetResult();
+        bool totalConfirmation = NeedTotalConfirmation(context->LastTotalConfirmationTime);
+        YT_LOG_DEBUG_IF(
+            totalConfirmation,
+            "Send all finished jobs due to total confirmation (ControllerAgentDescriptor: %v)",
+            context->AgentDescriptor);
 
-            job->ResetStatisticsLastSendTime();
+        for (const auto& [id, job] : JobMap_) {
+            const auto& controllerAgentDescriptor = job->GetControllerAgentDescriptor();
 
-            if (auto statistics = getJobStatistics(job)) {
-                auto statisticsString = statistics.ToString();
-                finishedJobsStatisticsSize += std::ssize(statisticsString);
-                jobStatus->set_statistics(std::move(statisticsString));
+            if (!controllerAgentDescriptor) {
+                YT_LOG_DEBUG(
+                    "Skipping heartbeat for job since old agent incarnation is outdated and new incarnation is not received yet (JobId: %v)",
+                    job->GetId());
+                continue;
             }
+
+            if (controllerAgentDescriptor != context->AgentDescriptor) {
+                continue;
+            }
+
+            switch (job->GetState()) {
+                case EJobState::Running:
+                    runningJobs.push_back(job);
+                    break;
+                case EJobState::Aborted:
+                case EJobState::Failed:
+                case EJobState::Completed:
+                    if (context->SentEnqueuedJobs.contains(job) || totalConfirmation) {
+                        auto* const jobStatus = request->add_jobs();
+                        FillJobStatus(jobStatus, job);
+
+                        *jobStatus->mutable_result() = job->GetResult();
+
+                        job->ResetStatisticsLastSendTime();
+
+                        if (auto statistics = getJobStatistics(job)) {
+                            auto statisticsString = statistics.ToString();
+                            finishedJobsStatisticsSize += std::ssize(statisticsString);
+                            jobStatus->set_statistics(std::move(statisticsString));
+                        }
+
+                        context->SentEnqueuedJobs.erase(job);
+                    }
+
+                    break;
+                default:
+                    break;
+            }
+        }
+
+        if (!std::empty(context->SentEnqueuedJobs)) {
+            constexpr int maxJobCountToLog = 5;
+
+            std::vector<TJobId> nonSentJobs;
+            nonSentJobs.reserve(maxJobCountToLog);
+            for (const auto& job : context->SentEnqueuedJobs) {
+                if (std::ssize(nonSentJobs) >= maxJobCountToLog) {
+                    break;
+                }
+                nonSentJobs.push_back(job->GetId());
+            }
+
+            YT_LOG_DEBUG(
+                "Can not report some jobs because of agent missmatch (TotalUnreportedJobCount: %v, JobSample: %v, ControllerAgentDescriptor: %v)",
+                std::size(context->SentEnqueuedJobs),
+                nonSentJobs,
+                context->AgentDescriptor);
         }
 
         // In case of statistics size throttling we want to report older jobs first to ensure
         // that all jobs will sent statistics eventually.
         std::sort(
-            jobs.begin(),
-            jobs.end(),
+            runningJobs.begin(),
+            runningJobs.end(),
             [] (const auto& lhs, const auto& rhs) noexcept {
                 return lhs->GetStatisticsLastSendTime() < rhs->GetStatisticsLastSendTime();
             });
@@ -977,7 +1013,7 @@ private:
         int consideredRunnigJobCount = 0;
         int reportedRunningJobCount = 0;
         i64 runningJobsStatisticsSize = 0;
-        for (const auto& job : jobs) {
+        for (const auto& job : runningJobs) {
             auto* jobStatus = request->add_jobs();
 
             FillJobStatus(jobStatus, job);
@@ -1003,14 +1039,13 @@ private:
         YT_LOG_DEBUG(
             "Job statistics for agent prepared (RunningJobsStatisticsSize: %v, FinishedJobsStatisticsSize: %v, "
             "RunningJobCount: %v, SkippedJobCountDueToBackoff: %v, SkippedJobCountDueToStatisticsSizeThrottling: %v, "
-            "AgentAddress: %v, IncarnationId: %v)",
+            "AgentDescriptor: %v)",
             runningJobsStatisticsSize,
             finishedJobsStatisticsSize,
-            std::size(jobs),
-            std::ssize(jobs) - consideredRunnigJobCount,
+            std::size(runningJobs),
+            std::ssize(runningJobs) - consideredRunnigJobCount,
             consideredRunnigJobCount - reportedRunningJobCount,
-            context->AgentDescriptor.Address,
-            context->AgentDescriptor.IncarnationId);
+            context->AgentDescriptor);
     }
 
     void DoProcessAgentHeartbeatResponse(
@@ -1239,7 +1274,7 @@ private:
             return;
         }
 
-        const bool totalConfirmation = NeedTotalConfirmation();
+        const bool totalConfirmation = NeedSchedulerTotalConfirmation();
         YT_LOG_INFO_IF(totalConfirmation, "Including all stored jobs in heartbeat");
 
         int confirmedJobCount = 0;
@@ -1703,18 +1738,23 @@ private:
         }
     }
 
-    bool NeedTotalConfirmation() noexcept
+    bool NeedTotalConfirmation(TInstant& lastTotalConfirmationTime)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
         if (const auto now = TInstant::Now();
-            LastStoredJobsSendTime_ + GetTotalConfirmationPeriod() < now)
+            lastTotalConfirmationTime + GetTotalConfirmationPeriod() < now)
         {
-            LastStoredJobsSendTime_ = now;
+            lastTotalConfirmationTime = now;
             return true;
         }
 
         return false;
+    }
+
+    bool NeedSchedulerTotalConfirmation() noexcept
+    {
+        return NeedTotalConfirmation(LastStoredJobsSendTime_);
     }
 
     std::vector<TJobPtr> GetRunningJobsSortedByStartTime() const

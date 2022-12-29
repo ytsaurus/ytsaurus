@@ -20,8 +20,9 @@ struct TAgentHeartbeatContext
     TControllerAgentDescriptor AgentDescriptor;
     NConcurrency::IThroughputThrottlerPtr StatisticsThrottler;
     TDuration RunningJobInfoSendingBackoff;
+    TInstant LastTotalConfirmationTime;
 
-    std::vector<TJobPtr> SentEnqueuedJobs;
+    THashSet<TJobPtr> SentEnqueuedJobs;
 };
 
 DEFINE_REFCOUNTED_TYPE(TAgentHeartbeatContext)
@@ -69,6 +70,8 @@ public:
         NConcurrency::IReconfigurableThroughputThrottlerPtr StatisticsThrottler_;
 
         TDuration RunningJobInfoSendingBackoff_;
+
+        TInstant LastTotalConfirmationTime_;
 
         THashSet<TJobPtr> EnqueuedFinishedJobs_;
         bool ShouldSendOutOfBand_ = false;
