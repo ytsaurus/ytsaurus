@@ -5,6 +5,7 @@ from ..errors import YtError
 from .. import skiff
 
 import copy
+import datetime
 
 try:
     import typing
@@ -85,14 +86,10 @@ def create_annotated_type(py_type, ti_type, to_yt_type=None, from_yt_type=None):
     Create an alias of a python type `py_type` that will correspond to `ti_type`
     in table schemas.
     """
-
-    # TODO(levysotsky): Allow using conversion functions here.
-    assert to_yt_type is None and from_yt_type is None
-
     check_schema_module_available()
     if not ti.is_valid_type(ti_type):
         raise TypeError("Expected ti_type to be a type_info type")
-    if not _is_py_type_compatible_with_ti_type(py_type, ti_type):
+    if not _is_py_type_compatible_with_ti_type(py_type, ti_type) and (not to_yt_type or not from_yt_type):
         raise YtError('Python type {} is not compatible with type "{}" from annotation'
                       .format(py_type, ti_type))
     return Annotated[py_type, Annotation(ti_type, to_yt_type=to_yt_type, from_yt_type=from_yt_type)]
@@ -139,12 +136,25 @@ def _get_time_types():
     if hasattr(_get_time_types, "_info"):
         return _get_time_types._info
     check_schema_module_available()
-    return {
+    _get_time_types._info = {
         ti.Date,
         ti.Datetime,
         ti.Timestamp,
         ti.Interval,
     }
+    return _get_time_types._info
+
+
+def _get_py_time_types():
+    if hasattr(_get_py_time_types, "_info"):
+        return _get_py_time_types._info
+    check_schema_module_available()
+    _get_py_time_types._info = {
+        datetime.date,
+        datetime.datetime,
+        datetime.timedelta,
+    }
+    return _get_py_time_types._info
 
 
 def _is_py_type_compatible_with_ti_type(py_type, ti_type):
@@ -159,6 +169,12 @@ def _is_py_type_compatible_with_ti_type(py_type, ti_type):
         return ti_type == ti.Bool
     elif py_type is float:
         return ti_type in (ti.Float, ti.Double)
+    elif py_type is datetime.date:
+        return ti_type == ti.Date
+    elif py_type is datetime.datetime:
+        return ti_type in (ti.Datetime, ti.Timestamp)
+    elif py_type is datetime.timedelta:
+        return ti_type == ti.Interval
     else:
         assert False, "Unsupported python type {}".format(py_type)
 
@@ -242,3 +258,42 @@ if is_schema_module_available():
     YsonBytes = create_annotated_type(bytes, ti.Yson)
 
     OtherColumns = skiff.SkiffOtherColumns
+
+    class FormattedPyDatetime:
+        """
+        Generic type for annotating yt_dataclass fields that parses a string column with date and/or time
+        in datetime.datetime using specified pattern (generic parameter).
+
+        Example:
+        ```
+            @yt.yt_dataclass
+            class Row:
+                date: FormattedPyDatetime["%Y-%m-%d"]
+
+            yt.write_table_structured(table, Row, [Row(date=datetime.datetime(year=2010, month=10, day=29))])
+            list(yt.read_table(table))
+            > [{'date': '2010-10-29'}]
+        ```
+        """
+        def __class_getitem__(cls, format):
+            if type(format) is not str:
+                raise TypeError("The datetime format must be a string")
+
+            def to_yt_type(datetime_):
+                return datetime_.strftime(format).encode("UTF-8")
+
+            def from_yt_type(byte_string):
+                datetime_ = datetime.datetime.strptime(byte_string.decode("UTF-8"), format)
+                return datetime_
+
+            return create_annotated_type(datetime.datetime, ti.String, to_yt_type, from_yt_type)
+
+        @classmethod
+        def _name(cls):
+            return "{module}.{classname}".format(module=cls.__module__, classname=cls.__qualname__)
+
+        def __new__(cls, *args, **kwargs):
+            raise TypeError("Type {} cannot be instantiated".format(FormattedPyDatetime._name()))
+
+        def __init_subclass__(cls, *args, **kwargs):
+            raise TypeError("{} cannot be subclassed".format(FormattedPyDatetime._name()))

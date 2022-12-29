@@ -22,6 +22,7 @@ from yt.wrapper.schema import (
     RowIterator,
     Context,
     Variant,
+    FormattedPyDatetime,
 )
 
 from yt.wrapper.schema.internal_schema import _get_annotation
@@ -38,6 +39,7 @@ from dataclasses import dataclass
 import copy
 import pytest
 import typing
+import datetime
 
 
 @yt_dataclass
@@ -309,6 +311,28 @@ TWO_INPUT_REDUCER_OUTPUT_ROWS = ROW_DICTS + [
         },
     },
 ]
+
+
+def write_and_read_primitive(py_type, ti_type, value, mode):
+    @yt_dataclass
+    class Row1:
+        field: py_type
+
+    schema = TableSchema().add_column("field", ti_type)
+    path = "//tmp/table"
+    yt.create("table", path, force=True, attributes={"schema": schema})
+    if mode == "write_unstructured_read_structured":
+        yt.write_table(path, [{"field": value}])
+        rows = list(yt.read_table_structured(path, Row1))
+        assert len(rows) == 1
+        return rows[0].field
+    elif mode == "write_structured_read_unstructured":
+        yt.write_table_structured(path, Row1, [Row1(field=value)])
+        rows = list(yt.read_table(path))
+        assert len(rows) == 1
+        return rows[0]["field"]
+    else:
+        assert False, "Unsupported mode {}".format(mode)
 
 
 @pytest.mark.usefixtures("yt_env_v4")
@@ -892,27 +916,75 @@ class TestTypedApi(object):
         with pytest.raises(yt.YtError, match=r'field ".*\.Row3\.a" is optional in yt_dataclass and required'):
             yt.write_table_structured(table, Row3, [Row3(a=1)])
 
+    @authors("aleexfi")
+    def test_schema_matching_datetime(self):
+        def check_datetime(py_type, ti_type, datetime_object, raw_object, expected_object=None):
+            if not expected_object:
+                expected_object = datetime_object
+            assert expected_object == write_and_read_primitive(py_type, ti_type, raw_object, mode="write_unstructured_read_structured")
+            assert raw_object == write_and_read_primitive(py_type, ti_type, datetime_object, mode="write_structured_read_unstructured")
+
+        def microseconds_timestamp(timedelta):
+            return int(timedelta.total_seconds()) * 10 ** 6 + int(timedelta.microseconds)
+
+        MSK_TIMEZONE = datetime.timezone(datetime.timedelta(hours=+3))
+        yt_timestamp_as_datetime = datetime.datetime(year=2010, month=10, day=29, hour=17, minute=54, microsecond=42, tzinfo=MSK_TIMEZONE)
+        yt_timestamp_as_int = microseconds_timestamp(yt_timestamp_as_datetime - datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc))
+        check_datetime(datetime.datetime, ti.Timestamp, yt_timestamp_as_datetime, yt_timestamp_as_int)
+
+        yt_datetime_as_datetime = yt_timestamp_as_datetime.replace(microsecond=0)
+        yt_datetime_as_int = yt_timestamp_as_int // 10 ** 6
+        check_datetime(datetime.datetime, ti.Datetime, yt_datetime_as_datetime, yt_datetime_as_int)
+        # Microseconds lost since ti.Datetime's resolution is seconds
+        check_datetime(datetime.datetime, ti.Datetime, yt_timestamp_as_datetime, yt_datetime_as_int, expected_object=yt_datetime_as_datetime)
+
+        yt_date_as_date = yt_timestamp_as_datetime.date()
+        yt_date_as_int = int((yt_date_as_date - datetime.date.fromtimestamp(0)).days)
+        check_datetime(datetime.date, ti.Date, yt_date_as_date, yt_date_as_int)
+
+        yt_interval_as_timedelta = datetime.timedelta(days=1, hours=2, minutes=3, seconds=4, milliseconds=5, microseconds=6, weeks=7)
+        yt_interval_as_int = (((((7 * 7 + 1) * 24 + 2) * 60 + 3) * 60 + 4) * 1000 + 5) * 1000 + 6
+        assert yt_interval_as_int == microseconds_timestamp(yt_interval_as_timedelta)
+        check_datetime(datetime.timedelta, ti.Interval, yt_interval_as_timedelta, yt_interval_as_int)
+
+    @authors("aleexfi")
+    def test_datetime_representations(self):
+        @yt_dataclass
+        class Row:
+            py_datetime: datetime.datetime
+            formatted_datetime: FormattedPyDatetime["%Y-%m-%dT%H:%M%z"]  # noqa
+            no_time_zone: FormattedPyDatetime["%Y-%m-%dT%H:%M"]  # noqa
+
+        schema = (
+            TableSchema()
+            .add_column("py_datetime", ti.Datetime)
+            .add_column("formatted_datetime", ti.String)
+            .add_column("no_time_zone", ti.String)
+        )
+
+        table = "//tmp/table"
+        yt.create("table", table, attributes={"schema": schema})
+
+        datetime_ = datetime.datetime(2011, 12, 13, 14, 15, tzinfo=datetime.timezone.utc)
+        row = Row(
+            py_datetime=datetime_,
+            formatted_datetime=datetime_,
+            no_time_zone=datetime_.replace(tzinfo=None)
+        )
+        raw_row = {
+            "py_datetime": int(datetime_.timestamp()),
+            "formatted_datetime": "2011-12-13T14:15+0000",
+            "no_time_zone": "2011-12-13T14:15",
+        }
+
+        yt.write_table(table, [raw_row])
+        assert list(yt.read_table_structured(table, Row)) == [Row(datetime_, datetime_, datetime_.replace(tzinfo=None))]
+
+        yt.write_table_structured(table, Row, [row])
+        assert list(yt.read_table(table)) == [raw_row]
+
     @authors("levysotsky")
     def test_schema_matching_primitive(self):
-        def run_read_or_write(py_type, ti_type, value, for_reading):
-            @yt_dataclass
-            class Row1:
-                field: py_type
-
-            schema = TableSchema().add_column("field", ti_type)
-            path = "//tmp/table"
-            yt.create("table", path, force=True, attributes={"schema": schema})
-            if for_reading:
-                yt.write_table(path, [{"field": value}])
-                rows = list(yt.read_table_structured(path, Row1))
-                assert len(rows) == 1
-                return rows[0].field
-            else:
-                yt.write_table_structured(path, Row1, [Row1(field=value)])
-                rows = list(yt.read_table(path))
-                assert len(rows) == 1
-                return rows[0]["field"]
-
         for py_type, ti_type in [
             (Int8, ti.Int8),
             (Int16, ti.Int16),
@@ -920,8 +992,8 @@ class TestTypedApi(object):
             (Int64, ti.Int64),
             (Interval, ti.Interval),
         ]:
-            assert -10 == run_read_or_write(py_type, ti_type, -10, for_reading=True)
-            assert -10 == run_read_or_write(py_type, ti_type, -10, for_reading=False)
+            assert -10 == write_and_read_primitive(py_type, ti_type, -10, mode="write_unstructured_read_structured")
+            assert -10 == write_and_read_primitive(py_type, ti_type, -10, mode="write_structured_read_unstructured")
 
         for py_type, ti_type in [
             (Int8, ti.Int8),
@@ -938,50 +1010,43 @@ class TestTypedApi(object):
             (Datetime, ti.Datetime),
             (Timestamp, ti.Timestamp),
         ]:
-            assert 10 == run_read_or_write(py_type, ti_type, 10, for_reading=True)
-            assert 10 == run_read_or_write(py_type, ti_type, 10, for_reading=False)
+            assert 10 == write_and_read_primitive(py_type, ti_type, 10, mode="write_unstructured_read_structured")
+            assert 10 == write_and_read_primitive(py_type, ti_type, 10, mode="write_structured_read_unstructured")
 
         with pytest.raises(yt.YtError, match="signedness"):
-            run_read_or_write(Int64, ti.Uint64, 10, for_reading=True)
+            write_and_read_primitive(Int64, ti.Uint64, 10, mode="write_unstructured_read_structured")
         with pytest.raises(yt.YtError, match="signedness"):
-            run_read_or_write(Uint64, ti.Int64, 10, for_reading=True)
+            write_and_read_primitive(Uint64, ti.Int64, 10, mode="write_unstructured_read_structured")
         with pytest.raises(yt.YtError, match="signedness"):
-            run_read_or_write(Int64, ti.Uint64, 10, for_reading=False)
+            write_and_read_primitive(Int64, ti.Uint64, 10, mode="write_structured_read_unstructured")
         with pytest.raises(yt.YtError, match="signedness"):
-            run_read_or_write(Uint64, ti.Int64, 10, for_reading=False)
+            write_and_read_primitive(Uint64, ti.Int64, 10, mode="write_structured_read_unstructured")
 
-        assert -10 == run_read_or_write(Int64, ti.Int32, -10, for_reading=True)
+        assert -10 == write_and_read_primitive(Int64, ti.Int32, -10, mode="write_unstructured_read_structured")
         with pytest.raises(yt.YtError, match="larger than destination"):
-            run_read_or_write(Int64, ti.Int32, -10, for_reading=False)
+            write_and_read_primitive(Int64, ti.Int32, -10, mode="write_structured_read_unstructured")
 
-        assert -10 == run_read_or_write(Int32, ti.Int16, -10, for_reading=True)
+        assert -10 == write_and_read_primitive(Int32, ti.Int16, -10, mode="write_unstructured_read_structured")
         with pytest.raises(yt.YtError, match="larger than destination"):
-            run_read_or_write(Int32, ti.Int16, -10, for_reading=False)
+            write_and_read_primitive(Int32, ti.Int16, -10, mode="write_structured_read_unstructured")
 
-        assert 10 == run_read_or_write(Uint64, ti.Uint32, 10, for_reading=True)
+        assert 10 == write_and_read_primitive(Uint64, ti.Uint32, 10, mode="write_unstructured_read_structured")
         with pytest.raises(yt.YtError, match="larger than destination"):
-            run_read_or_write(Uint64, ti.Uint32, 10, for_reading=False)
+            write_and_read_primitive(Uint64, ti.Uint32, 10, mode="write_structured_read_unstructured")
 
-        assert 10 == run_read_or_write(Uint32, ti.Uint16, 10, for_reading=True)
+        assert 10 == write_and_read_primitive(Uint32, ti.Uint16, 10, mode="write_unstructured_read_structured")
         with pytest.raises(yt.YtError, match="larger than destination"):
-            run_read_or_write(Uint32, ti.Uint16, 10, for_reading=False)
+            write_and_read_primitive(Uint32, ti.Uint16, 10, mode="write_structured_read_unstructured")
 
-        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-            run_read_or_write(Date, ti.Uint64, 10, for_reading=False)
-        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-            run_read_or_write(Date, ti.Uint64, 10, for_reading=True)
-        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-            run_read_or_write(Datetime, ti.Uint64, 10, for_reading=False)
-        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-            run_read_or_write(Datetime, ti.Uint64, 10, for_reading=True)
-        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-            run_read_or_write(Timestamp, ti.Uint64, 10, for_reading=False)
-        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-            run_read_or_write(Timestamp, ti.Uint64, 10, for_reading=True)
-        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-            run_read_or_write(Interval, ti.Int64, 10, for_reading=False)
-        with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-            run_read_or_write(Interval, ti.Int64, 10, for_reading=True)
+        for py_type, ti_type in [
+            (Date, ti.Uint64),
+            (Datetime, ti.Uint64),
+            (Timestamp, ti.Uint64),
+            (Interval, ti.Int64),
+        ]:
+            for for_reading in [True, False]:
+                with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
+                    write_and_read_primitive(py_type, ti_type, 10, for_reading=for_reading)
 
         # Check all time types are incompatible with each other
         checks = 0
@@ -990,9 +1055,9 @@ class TestTypedApi(object):
                 if _get_annotation(py_type)._ti_type == ti_type:
                     continue
                 with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-                    run_read_or_write(Interval, ti.Int64, 10, for_reading=False)
+                    write_and_read_primitive(Interval, ti.Int64, 10, mode="write_structured_read_unstructured")
                 with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-                    run_read_or_write(Interval, ti.Int64, 10, for_reading=True)
+                    write_and_read_primitive(Interval, ti.Int64, 10, mode="write_unstructured_read_structured")
                 checks += 1
         # Double check that tests in the loop above have run
         assert checks == 12
@@ -1000,17 +1065,17 @@ class TestTypedApi(object):
         string = "Привет"
         string_utf8 = string.encode("utf-8")
 
-        assert string == run_read_or_write(str, ti.Utf8, string, for_reading=True)
-        assert string == run_read_or_write(str, ti.Utf8, string, for_reading=False)
+        assert string == write_and_read_primitive(str, ti.Utf8, string, mode="write_unstructured_read_structured")
+        assert string == write_and_read_primitive(str, ti.Utf8, string, mode="write_structured_read_unstructured")
 
-        assert string == run_read_or_write(str, ti.String, string_utf8, for_reading=True)
-        assert string == run_read_or_write(str, ti.String, string, for_reading=False)
+        assert string == write_and_read_primitive(str, ti.String, string_utf8, mode="write_unstructured_read_structured")
+        assert string == write_and_read_primitive(str, ti.String, string, mode="write_structured_read_unstructured")
 
-        assert string_utf8 == run_read_or_write(bytes, ti.String, string_utf8, for_reading=True)
-        assert string == run_read_or_write(bytes, ti.String, string_utf8, for_reading=False)
+        assert string_utf8 == write_and_read_primitive(bytes, ti.String, string_utf8, mode="write_unstructured_read_structured")
+        assert string == write_and_read_primitive(bytes, ti.String, string_utf8, mode="write_structured_read_unstructured")
 
-        assert string_utf8 == run_read_or_write(bytes, ti.Utf8, string_utf8, for_reading=True)
-        assert string == run_read_or_write(bytes, ti.Utf8, string_utf8, for_reading=False)
+        assert string_utf8 == write_and_read_primitive(bytes, ti.Utf8, string_utf8, mode="write_unstructured_read_structured")
+        assert string == write_and_read_primitive(bytes, ti.Utf8, string_utf8, mode="write_structured_read_unstructured")
 
     @authors("levysotsky")
     def test_prepare_operation(self):

@@ -194,33 +194,23 @@ private:
     }
 };
 
-template <EWireType WireType, EPythonType PythonType>
 TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverterImpl(
     TString description,
     Py::Object pySchema,
+    EPythonType pythonType,
     bool forceOptional)
 {
-    auto converter = TPrimitiveSkiffToPythonConverter<WireType, PythonType>(std::move(description));
-    return MaybeWrapSkiffToPythonConverter(std::move(pySchema), std::move(converter), forceOptional);
-}
-
-TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
-    TString description,
-    Py::Object pySchema,
-    bool forceOptional = false)
-{
     auto wireTypeStr = Py::ConvertStringObjectToString(GetAttr(pySchema, WireTypeFieldName));
-    auto pythonType = GetPythonType(GetAttr(pySchema, PyTypeFieldName));
     auto wireType = ::FromString<EWireType>(wireTypeStr);
+
     switch (pythonType) {
         case EPythonType::Int:
             switch (wireType) {
 #define CASE(WireType) \
-                case WireType: \
-                    return CreatePrimitiveSkiffToPythonConverterImpl<WireType, EPythonType::Int>( \
-                        std::move(description), \
-                        std::move(pySchema), \
-                        forceOptional);
+                case WireType: { \
+                    auto converter = TPrimitiveSkiffToPythonConverter<WireType, EPythonType::Int>(std::move(description)); \
+                    return MaybeWrapSkiffToPythonConverter(std::move(pySchema), std::move(converter), forceOptional); \
+                }
                 CASE(EWireType::Int8)
                 CASE(EWireType::Int16)
                 CASE(EWireType::Int32)
@@ -234,29 +224,55 @@ TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
                     THROW_ERROR_EXCEPTION("It's a bug, please contact yt@. Unexpected wire type %Qlv for int python type",
                         wireType);
             }
-
-        case EPythonType::Str:
-            return CreatePrimitiveSkiffToPythonConverterImpl<EWireType::String32, EPythonType::Str>(
-                std::move(description),
-                std::move(pySchema),
-                forceOptional);
-        case EPythonType::Bytes:
-            return CreatePrimitiveSkiffToPythonConverterImpl<EWireType::String32, EPythonType::Bytes>(
-                std::move(description),
-                std::move(pySchema),
-                forceOptional);
-        case EPythonType::Float:
-            return CreatePrimitiveSkiffToPythonConverterImpl<EWireType::Double, EPythonType::Float>(
-                std::move(description),
-                std::move(pySchema),
-                forceOptional);
-        case EPythonType::Bool:
-            return CreatePrimitiveSkiffToPythonConverterImpl<EWireType::Boolean, EPythonType::Bool>(
-                std::move(description),
-                std::move(pySchema),
-                forceOptional);
+#define CASE(PythonType, WireType) \
+        case PythonType: { \
+            auto converter = TPrimitiveSkiffToPythonConverter<WireType, PythonType>(std::move(description)); \
+            return MaybeWrapSkiffToPythonConverter(std::move(pySchema), std::move(converter), forceOptional); \
+        }
+        CASE(EPythonType::Str, EWireType::String32)
+        CASE(EPythonType::Bytes, EWireType::String32)
+        CASE(EPythonType::Float, EWireType::Double)
+        CASE(EPythonType::Bool, EWireType::Boolean)
+#undef CASE
     }
     Y_FAIL();
+}
+
+TSkiffToPythonConverter WrapWithMiddlewareConverter(TSkiffToPythonConverter converter, Py::Callable middlewareConverter)
+{
+    return [converter = std::move(converter), middlewareConverter = std::move(middlewareConverter)](TCheckedInDebugSkiffParser* parser) mutable {
+        Py::Tuple args(1);
+        args[0] = Py::Object(converter(parser).release(), true);
+        auto pyObject = middlewareConverter.apply(args);
+        pyObject.increment_reference_count();
+        return PyObjectPtr(pyObject.ptr());
+    };
+}
+
+TSkiffToPythonConverter CreatePrimitiveSkiffToPythonConverter(
+    TString description,
+    Py::Object pySchema,
+    bool forceOptional = false)
+{
+    auto middlewareConverter = GetAttr(pySchema, "_from_yt_type");
+    EPythonType pythonType;
+    if (middlewareConverter.isNone()) {
+        pythonType = GetPythonType(GetAttr(pySchema, PyTypeFieldName));
+    } else {
+        pythonType = GetPythonType(GetAttr(pySchema, PyWireTypeFieldName));
+    }
+
+    auto primitiveConverter = CreatePrimitiveSkiffToPythonConverterImpl(
+        description,
+        std::move(pySchema),
+        pythonType,
+        forceOptional);
+
+    if (middlewareConverter.isNone()) {
+        return primitiveConverter;
+    }
+
+    return WrapWithMiddlewareConverter(std::move(primitiveConverter), Py::Callable(std::move(middlewareConverter)));
 }
 
 class TStructSkiffToPythonConverter
