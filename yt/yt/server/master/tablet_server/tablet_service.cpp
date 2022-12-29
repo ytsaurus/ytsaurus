@@ -236,6 +236,7 @@ private:
 
         table->UnlockCurrentMountTransaction(transaction->GetId());
 
+        table->SetLastMountTransactionId(transaction->GetId());
         table->UpdateExpectedTabletState(freeze ? ETabletState::Frozen : ETabletState::Mounted);
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();

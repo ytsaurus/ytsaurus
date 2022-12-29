@@ -96,6 +96,7 @@ DEFINE_ENUM(EMasterReign,
     ((PerAccountMergerStatistics)                                   (2216))  // aleksandra-zh
     ((SplitNodeDisposal)                                            (2217))  // aleksandra-zh
     ((MultisetAttributesReplication)                                (2218))  // shakurov
+    ((SetLastMountTransactionInMount)                               (2219))  // savrus
 );
 
 ////////////////////////////////////////////////////////////////////////////////
