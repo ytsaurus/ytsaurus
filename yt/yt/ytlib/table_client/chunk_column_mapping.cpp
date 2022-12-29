@@ -1,7 +1,10 @@
 #include "chunk_column_mapping.h"
 
-#include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/complex_types/check_type_compatibility.h>
+
+#include <yt/yt/client/table_client/logical_type.h>
 #include <yt/yt/client/table_client/row_base.h>
+#include <yt/yt/client/table_client/schema.h>
 
 namespace NYT::NTableClient {
 
@@ -46,19 +49,24 @@ void ValidateSchema(const TTableSchema& chunkSchema, const TTableSchema& readerS
     }
 
     for (int readerIndex = readerSchema.GetKeyColumnCount(); readerIndex < std::ssize(readerSchema.Columns()); ++readerIndex) {
-        auto& column = readerSchema.Columns()[readerIndex];
-        auto* chunkColumn = chunkSchema.FindColumnByStableName(column.StableName());
+        auto& readerColumn = readerSchema.Columns()[readerIndex];
+        auto* chunkColumn = chunkSchema.FindColumnByStableName(readerColumn.StableName());
         if (!chunkColumn) {
             // This is a valid case, simply skip the column.
             continue;
         }
 
-        if (chunkColumn->GetWireType() != column.GetWireType()) {
+        auto compatibility = NComplexTypes::CheckTypeCompatibility(
+            chunkColumn->LogicalType(),
+            readerColumn.LogicalType());
+
+        if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
             THROW_ERROR_EXCEPTION(
                 "Incompatible type %Qlv for column %Qv in chunk schema %v",
-                column.GetWireType(),
-                column.GetDiagnosticNameString(),
-                ConvertToYsonString(chunkSchema, NYson::EYsonFormat::Text).AsStringBuf());
+                *readerColumn.LogicalType(),
+                readerColumn.GetDiagnosticNameString(),
+                ConvertToYsonString(chunkSchema, NYson::EYsonFormat::Text).AsStringBuf())
+                << compatibility.second;
         }
     }
 }

@@ -37,19 +37,11 @@ void ValidateColumnSchemaUpdate(const TColumnSchema& oldColumn, const TColumnSch
     auto compatibility = NComplexTypes::CheckTypeCompatibility(
         oldColumn.LogicalType(),
         newColumn.LogicalType());
-    try {
-        if (oldColumn.GetWireType() != newColumn.GetWireType()) {
-            THROW_ERROR_EXCEPTION("Cannot change physical type from %Qlv to %Qlv",
-                oldColumn.GetWireType(),
-                newColumn.GetWireType());
-        }
-        if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
-            THROW_ERROR compatibility.second;
-        }
-    } catch (const std::exception& ex) {
+
+    if (compatibility.first != ESchemaCompatibility::FullyCompatible) {
         THROW_ERROR_EXCEPTION(NTableClient::EErrorCode::IncompatibleSchemas, "Type mismatch for column %v",
             oldColumn.GetDiagnosticNameString())
-            << ex;
+            << compatibility.second;
     }
 
     if (newColumn.SortOrder().operator bool() && newColumn.SortOrder() != oldColumn.SortOrder()) {

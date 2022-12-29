@@ -82,6 +82,22 @@ def tx_write_table(*args, **kwargs):
     commit_transaction(tx)
 
 
+def remove_entity(obj):
+    if isinstance(obj, dict):
+        return {
+            key: remove_entity(value)
+            for key, value in obj.items()
+            if value is not None and value != yson.YsonEntity()
+        }
+    elif isinstance(obj, list):
+        return [
+            remove_entity(value) for value in obj
+            if value is not None and value != yson.YsonEntity()
+        ]
+    else:
+        return obj
+
+
 class TypeTester(object):
     class DynamicHelper(object):
         def make_schema(self, type_v3):
@@ -1807,6 +1823,8 @@ class TestAlterTable(YTEnvSetup):
                 return False
             elif type_v3 in ["string", "utf8"]:
                 return ""
+            elif type_v3 == "null":
+                return None
             raise ValueError("Type {} is not supported".format(type_v3))
         type_name = type_v3["type_name"]
         if type_name == "optional":
@@ -1855,13 +1873,27 @@ class TestAlterTable(YTEnvSetup):
         if dynamic:
             alter_table(self._TABLE_PATH, dynamic=True)
 
+    def check_table_readable(self, create_schema, dynamic):
+        expected_data = remove_entity([self.get_default_row(create_schema)])
+
+        assert remove_entity(read_table(self._TABLE_PATH)) == expected_data
+
+        if dynamic:
+            sync_mount_table(self._TABLE_PATH)
+            assert remove_entity(list(lookup_rows(self._TABLE_PATH, [{"key": 0}]))) == expected_data
+            sync_unmount_table(self._TABLE_PATH)
+
     def check_both_ways_alter_type(self, old_type_v3, new_type_v3, dynamic=False):
         old_schema = self._create_test_schema_with_type(old_type_v3)
         new_schema = self._create_test_schema_with_type(new_type_v3)
         self.prepare_table(old_schema, dynamic=dynamic)
 
         alter_table(self._TABLE_PATH, schema=new_schema)
+        # Check that table is still readable after alter.
+        self.check_table_readable(old_schema, dynamic)
+
         alter_table(self._TABLE_PATH, schema=old_schema)
+        self.check_table_readable(old_schema, dynamic)
 
     def check_one_way_alter_type(self, old_type_v3, new_type_v3, dynamic=False):
         """
@@ -1872,6 +1904,9 @@ class TestAlterTable(YTEnvSetup):
         self.prepare_table(old_schema, dynamic=dynamic)
 
         alter_table(self._TABLE_PATH, schema=new_schema)
+        # Check that table is still readable after alter.
+        self.check_table_readable(old_schema, dynamic)
+
         with raises_yt_error(yt_error_codes.IncompatibleSchemas):
             alter_table(self._TABLE_PATH, schema=old_schema)
 
@@ -1890,8 +1925,12 @@ class TestAlterTable(YTEnvSetup):
         self.check_bad_alter_type(lhs_type_v3, rhs_type_v3, dynamic)
         self.check_bad_alter_type(rhs_type_v3, lhs_type_v3, dynamic)
 
+    @authors("ermolovd", "dakovalkov")
     @pytest.mark.parametrize("dynamic", [False, True])
     def test_alter_simple_types(self, dynamic):
+        if dynamic:
+            sync_create_cells(1)
+
         self.check_one_way_alter_type("int8", "int16", dynamic=dynamic)
         self.check_one_way_alter_type("int8", "int32", dynamic=dynamic)
         self.check_one_way_alter_type("int8", "int64", dynamic=dynamic)
@@ -1904,170 +1943,227 @@ class TestAlterTable(YTEnvSetup):
 
         self.check_one_way_alter_type("int64", optional_type("int64"), dynamic=dynamic)
         self.check_one_way_alter_type("int8", optional_type("int64"), dynamic=dynamic)
+        self.check_one_way_alter_type("null", optional_type("null"), dynamic=dynamic)
 
-        self.check_bad_both_way_alter_type("int64", optional_type("yson"), dynamic=dynamic)
+        self.check_one_way_alter_type("int64", optional_type("yson"), dynamic=dynamic)
+
         self.check_bad_both_way_alter_type("uint8", "int64", dynamic=dynamic)
+        # TODO(dakovalkov): can be supported.
+        self.check_bad_both_way_alter_type("null", optional_type("int64"), dynamic=dynamic)
 
-    def test_alter_composite_types(self):
+    @authors("ermolovd", "dakovalkov")
+    @pytest.mark.parametrize("dynamic", [False, True])
+    def test_alter_composite_types(self, dynamic):
+        if dynamic:
+            sync_create_cells(1)
+
         # List
         self.check_one_way_alter_type(
             list_type("int64"),
-            optional_type(list_type("int64")))
+            optional_type(list_type("int64")),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             list_type("int64"),
-            list_type(optional_type("int64")))
+            list_type(optional_type("int64")),
+            dynamic=dynamic)
 
         self.check_bad_both_way_alter_type(
             list_type("int64"),
-            optional_type(optional_type(list_type("int64"))))
+            optional_type(optional_type(list_type("int64"))),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             list_type("int64"),
-            optional_type("yson"))
+            optional_type("yson"),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             optional_type("yson"),
-            list_type("int64"))
+            list_type("int64"),
+            dynamic=dynamic)
 
         # Tuple
         self.check_one_way_alter_type(
             tuple_type(["int32"]),
-            tuple_type(["int64"]))
+            tuple_type(["int64"]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             tuple_type(["int64"]),
-            tuple_type([optional_type("int64")]))
+            tuple_type([optional_type("int64")]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             tuple_type(["int32"]),
-            tuple_type([optional_type("int64")]))
+            tuple_type([optional_type("int64")]),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             tuple_type(["int64"]),
-            tuple_type(["int64", "int64"]))
+            tuple_type(["int64", "int64"]),
+            dynamic=dynamic)
+        # TODO(dakovalkov): can be supported.
         self.check_bad_both_way_alter_type(
             tuple_type(["int64"]),
-            optional_type("yson"))
+            optional_type("yson"),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             optional_type("yson"),
-            tuple_type(["int64"]))
+            tuple_type(["int64"]),
+            dynamic=dynamic)
 
         # Struct
         self.check_one_way_alter_type(
             struct_type([("a", "int32")]),
-            struct_type([("a", "int64")]))
+            struct_type([("a", "int64")]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             struct_type([("a", "int64")]),
-            struct_type([("a", optional_type("int64"))]))
+            struct_type([("a", optional_type("int64"))]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             struct_type([("a", "int32")]),
-            struct_type([("a", optional_type("int64"))]))
+            struct_type([("a", optional_type("int64"))]),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             struct_type([("a", "int64")]),
-            struct_type([("a", optional_type(optional_type("int64")))]))
+            struct_type([("a", optional_type(optional_type("int64")))]),
+            dynamic=dynamic)
 
         self.check_one_way_alter_type(
             struct_type([("a", "int64")]),
-            struct_type([("a", "int64"), ("b", optional_type("int64"))]))
+            struct_type([("a", "int64"), ("b", optional_type("int64"))]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             struct_type([("a", "int64")]),
-            struct_type([("a", "int64"), ("b", optional_type(optional_type("int64")))]))
+            struct_type([("a", "int64"), ("b", optional_type(optional_type("int64")))]),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             struct_type([("a", "int64")]),
-            struct_type([("a", "int64"), ("b", "int64")]))
+            struct_type([("a", "int64"), ("b", "int64")]),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             struct_type([("a", "int64")]),
-            struct_type([("b", optional_type("int64")), ("a", "int64")]))
+            struct_type([("b", optional_type("int64")), ("a", "int64")]),
+            dynamic=dynamic)
 
         self.check_bad_both_way_alter_type(
             struct_type([("a", "int64")]),
-            optional_type("yson"))
+            optional_type("yson"),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             optional_type("yson"),
-            struct_type([("a", "int64")]))
+            struct_type([("a", "int64")]),
+            dynamic=dynamic)
 
         # Variant over tuple
         self.check_one_way_alter_type(
             variant_tuple_type(["int32"]),
-            variant_tuple_type(["int64"]))
+            variant_tuple_type(["int64"]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             variant_tuple_type(["int64"]),
-            variant_tuple_type([optional_type("int64")]))
+            variant_tuple_type([optional_type("int64")]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             variant_tuple_type(["int32"]),
-            variant_tuple_type([optional_type("int64")]))
+            variant_tuple_type([optional_type("int64")]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             variant_tuple_type(["int64"]),
-            variant_tuple_type(["int64", "int64"]))
+            variant_tuple_type(["int64", "int64"]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             variant_tuple_type(["int64"]),
-            variant_tuple_type(["int64", optional_type("int64")]))
+            variant_tuple_type(["int64", optional_type("int64")]),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             variant_tuple_type(["int64"]),
-            optional_type("yson"))
+            optional_type("yson"),
+            dynamic=dynamic)
 
         # Variant over struct
         self.check_one_way_alter_type(
             variant_struct_type([("a", "int32")]),
-            variant_struct_type([("a", "int64")]))
+            variant_struct_type([("a", "int64")]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             variant_struct_type([("a", "int64")]),
-            variant_struct_type([("a", optional_type("int64"))]))
+            variant_struct_type([("a", optional_type("int64"))]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             variant_struct_type([("a", "int32")]),
-            variant_struct_type([("a", optional_type("int64"))]))
+            variant_struct_type([("a", optional_type("int64"))]),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             variant_struct_type([("a", "int64")]),
-            variant_struct_type([("a", optional_type(optional_type("int64")))]))
+            variant_struct_type([("a", optional_type(optional_type("int64")))]),
+            dynamic=dynamic)
 
         self.check_one_way_alter_type(
             variant_struct_type([("a", "int64")]),
-            variant_struct_type([("a", "int64"), ("b", optional_type("int64"))]))
+            variant_struct_type([("a", "int64"), ("b", optional_type("int64"))]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             variant_struct_type([("a", "int64")]),
-            variant_struct_type([("a", "int64"), ("b", optional_type(optional_type("int64")))]))
+            variant_struct_type([("a", "int64"), ("b", optional_type(optional_type("int64")))]),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             variant_struct_type([("a", "int64")]),
-            variant_struct_type([("a", "int64"), ("b", "int64")]))
+            variant_struct_type([("a", "int64"), ("b", "int64")]),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             variant_struct_type([("a", "int64")]),
-            variant_struct_type([("b", optional_type("int64")), ("a", "int64")]))
+            variant_struct_type([("b", optional_type("int64")), ("a", "int64")]),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             variant_struct_type([("a", "int64")]),
-            optional_type("yson"))
+            optional_type("yson"),
+            dynamic=dynamic)
 
         # Dict
         self.check_one_way_alter_type(
             dict_type("utf8", "int8"),
-            dict_type("utf8", optional_type("int8")))
+            dict_type("utf8", optional_type("int8")),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             dict_type("utf8", "int8"),
-            dict_type(optional_type("utf8"), "int8"))
+            dict_type(optional_type("utf8"), "int8"),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             dict_type("utf8", "int8"),
-            dict_type(optional_type("string"), "int8"))
+            dict_type(optional_type("string"), "int8"),
+            dynamic=dynamic)
         self.check_one_way_alter_type(
             dict_type("utf8", "int8"),
-            dict_type("string", optional_type("int64")))
+            dict_type("string", optional_type("int64")),
+            dynamic=dynamic)
 
         self.check_bad_both_way_alter_type(
             dict_type("utf8", "int8"),
-            optional_type("yson"))
+            optional_type("yson"),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             dict_type("utf8", "uint8"),
-            dict_type("utf8", "int64"))
+            dict_type("utf8", "int64"),
+            dynamic=dynamic)
         self.check_bad_both_way_alter_type(
             dict_type("utf8", "uint8"),
-            dict_type("int8", "uint8"))
+            dict_type("int8", "uint8"),
+            dynamic=dynamic)
 
         # Tagged
         self.check_both_ways_alter_type(
             optional_type("int8"),
-            tagged_type("foo", optional_type("int8")))
+            tagged_type("foo", optional_type("int8")),
+            dynamic=dynamic)
         self.check_both_ways_alter_type(
             optional_type("int8"),
-            optional_type(tagged_type("foo", "int8")))
+            optional_type(tagged_type("foo", "int8")),
+            dynamic=dynamic)
         self.check_both_ways_alter_type(
             optional_type("int8"),
-            tagged_type("bar", optional_type(tagged_type("foo", "int8"))))
+            tagged_type("bar", optional_type(tagged_type("foo", "int8"))),
+            dynamic=dynamic)
         self.check_both_ways_alter_type(
             tagged_type("qux", optional_type("int8")),
-            tagged_type("bar", optional_type(tagged_type("foo", "int8"))))
+            tagged_type("bar", optional_type(tagged_type("foo", "int8"))),
+            dynamic=dynamic)
 
 
 class TestSchemaDepthLimit(YTEnvSetup):
