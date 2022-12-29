@@ -116,11 +116,11 @@ public:
         int slotIndex,
         TTabletNodeConfigPtr config,
         IBootstrap* bootstrap)
-        : THood(Format("TabletSlot:%v", slotIndex))
+        : THood(Format("TabletSlot/%v", slotIndex))
         , Config_(config)
         , Bootstrap_(bootstrap)
         , SnapshotQueue_(New<TActionQueue>(
-            Format("TabletSnap:%v", slotIndex)))
+            Format("TabletSnap/%v", slotIndex)))
         , Logger(TabletNodeLogger)
     {
         VERIFY_INVOKER_THREAD_AFFINITY(GetAutomatonInvoker(), AutomatonThread);
