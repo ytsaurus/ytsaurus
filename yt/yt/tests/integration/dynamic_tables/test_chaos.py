@@ -2989,6 +2989,114 @@ class TestChaos(ChaosTestBase):
             return False
         wait(_check)
 
+    @authors("savrus")
+    @pytest.mark.parametrize("schemas", [
+        ("sorted_simple", "sorted_value2"),
+        ("sorted_simple", "sorted_key2"),
+        ("sorted_value2", "sorted_simple"),
+        ("sorted_key2", "sorted_simple"),
+        ("sorted_simple", "sorted_hash"),
+        ("sorted_hash", "sorted_simple"),
+        ("sorted_key2", "sorted_key2_inverted")
+    ])
+    @pytest.mark.parametrize("tablet_count", [1, 3])
+    @pytest.mark.parametrize("mode", ["sync", "async", "async_queue"])
+    def test_schema_coexistence(self, schemas, tablet_count, mode):
+        cell_id = self._sync_create_chaos_bundle_and_cell()
+
+        enabled = mode != "async_queue"
+        replica_mode = "sync" if mode == "sync" else "async"
+
+        replicas = [
+            {"cluster_name": "primary", "content_type": "data", "mode": replica_mode, "enabled": enabled, "replica_path": "//tmp/pd"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": replica_mode, "enabled": True, "replica_path": "//tmp/pqa"},
+            {"cluster_name": "primary", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/pqs"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": "sync", "enabled": True, "replica_path": "//tmp/rqs"},
+            {"cluster_name": "remote_0", "content_type": "data", "mode": replica_mode, "enabled": enabled, "replica_path": "//tmp/rd"},
+            {"cluster_name": "remote_0", "content_type": "queue", "mode": replica_mode, "enabled": True, "replica_path": "//tmp/rqa"},
+        ]
+        card_id, replica_ids = self._create_chaos_tables(cell_id, replicas[:3], create_replica_tables=False, sync_replication_era=False)
+        _, remote_driver0, remote_driver1 = self._get_drivers()
+
+        def _create_pivots(schema):
+            if schema[0]["type"] == "uint64":
+                return [[]] + [[yson.YsonUint64(i)] for i in range(1, tablet_count)]
+            else:
+                return [[]] + [[i] for i in range(1, tablet_count)]
+
+        schema1, schema2 = self._get_schemas_by_name(schemas)
+        self._create_replica_tables(replicas[:3], replica_ids[:3], schema=schema2, pivot_keys=_create_pivots(schema2))
+
+        replica_ids.append(self._create_chaos_table_replica(replicas[3], replication_card_id=card_id, catchup=False))
+        self._create_replica_tables(replicas[3:4], replica_ids[3:4], schema=schema1, pivot_keys=_create_pivots(schema1))
+        self._sync_replication_era(card_id)
+        progress = get("#{0}/@replication_progress".format(replica_ids[3]))
+
+        replica_ids.append(self._create_chaos_table_replica(replicas[4], replication_card_id=card_id))
+        replica_ids.append(self._create_chaos_table_replica(replicas[5], replication_card_id=card_id))
+        self._create_replica_tables(replicas[4:], replica_ids[4:], schema=schema1, pivot_keys=_create_pivots(schema1), replication_progress=progress)
+        self._sync_replication_era(card_id)
+
+        assert get("//tmp/pd/@tablet_count") == tablet_count
+        assert get("//tmp/pqs/@tablet_count") == tablet_count
+
+        def _create_expected_data(schema_name):
+            if schema_name in ["sorted_key2", "sorted_key2_inverted"]:
+                return [{"key": 0, "key2": None, "value": str(0)}], [{"key": 0, "key2": None}]
+            elif schema_name == "sorted_value2":
+                return [{"key": 0, "value": str(0), "value2": None}], [{"key": 0}]
+            elif schema_name == "sorted_hash":
+                return [{"hash": yson.YsonUint64(3315701238936582721), "key": 0, "value": str(0)}], [{"key": 0}]
+            else:
+                return [{"key": 0, "value": str(0)}], [{"key": 0}]
+
+        values = [{"key": 0, "value": str(0)}]
+        insert_rows("//tmp/rd", values, driver=remote_driver0, allow_missing_key_columns=True, update=True)
+        ts = generate_timestamp()
+
+        if mode == "async_queue":
+            alter_table_replica(replica_ids[1], mode="sync")
+            alter_table_replica(replica_ids[5], mode="sync")
+            self._sync_replication_era(card_id)
+            alter_table_replica(replica_ids[2], enabled=False)
+            alter_table_replica(replica_ids[3], enabled=False)
+            alter_table_replica(replica_ids[0], enabled=True)
+            alter_table_replica(replica_ids[4], enabled=True)
+            self._sync_replication_era(card_id)
+
+        def _filter(rows, schema):
+            columns = builtins.set([c["name"] for c in schema])
+            for row in rows:
+                row_columns = list(row.keys())
+                for column in row_columns:
+                    if column not in columns:
+                        assert row[column] == yson.to_yson_type(None)
+                        del row[column]
+            return rows
+
+        def _check(lookup_call):
+            if mode == "sync":
+                assert lookup_call()
+            else:
+                def _do():
+                    try:
+                        return lookup_call()
+                    except YtError as err:
+                        print_debug("Lookup failed: ", err)
+                        if err.contains_text("No in-sync replicas found for table"):
+                            return False
+                        else:
+                            raise err
+                wait(_do)
+
+        values, keys = _create_expected_data(schemas[0])
+        wait(lambda: lookup_rows("//tmp/rd", keys, driver=remote_driver0) == values)
+        _check(lambda: _filter(lookup_rows("//tmp/rd", keys, timestamp=ts, replica_consistency="sync", driver=remote_driver0), schema1) == values)
+
+        values, keys = _create_expected_data(schemas[1])
+        wait(lambda: lookup_rows("//tmp/pd", keys) == values)
+        _check(lambda: _filter(lookup_rows("//tmp/pd", keys, timestamp=ts, replica_consistency="sync"), schema2) == values)
+
 
 ##################################################################
 

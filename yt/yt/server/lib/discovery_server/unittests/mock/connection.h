@@ -200,6 +200,10 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    const NChaosClient::IBannedReplicaTrackerCachePtr& GetBannedReplicaTrackerCache() override
+    {
+        YT_UNIMPLEMENTED();
+    }
 
     NApi::NNative::IClientPtr CreateNativeClient(const NApi::TClientOptions& /*options*/) override
     {
