@@ -234,7 +234,11 @@ def collect_cores(pids, working_directory, binaries, logger=None):
             if logger is not None:
                 logger.info("Core file found: " + core_file)
             try:
-                shutil.move(core_file, cores_path)
+                core_name = os.path.basename(core_file)
+                destination_path = os.path.join(cores_path, core_name) + ".gz"
+                with open(core_file, "rb") as fin:
+                    with gzip.open(destination_path, "wb") as fout:
+                        shutil.copyfileobj(fin, fout)
             except IOError:
                 # Ignore errors (it can happen for foreign cores).
                 pass
