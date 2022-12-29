@@ -881,11 +881,79 @@ struct TRichYPath
     /// @deprecated Deprecated attribute.
     FLUENT_FIELD_OPTION(bool, PartiallySorted);
 
-    /// Specifies that path is expected to be sorted by these columns
+    /// Specifies that path is expected to be sorted by these columns.
     FLUENT_FIELD(TSortColumns, SortedBy);
 
-    /// Specifies range of the path to be read
-    FLUENT_VECTOR_FIELD(TReadRange, Range);
+    /// Add range to read.
+    TRichYPath& AddRange(TReadRange range)
+    {
+        if (!Ranges_) {
+            Ranges_.ConstructInPlace();
+        }
+        Ranges_->push_back(std::move(range));
+        return *this;
+    }
+
+    TRichYPath& ResetRanges()
+    {
+        Ranges_.Clear();
+        return *this;
+    }
+
+    ///
+    /// @{
+    ///
+    /// Return ranges to read.
+    ///
+    /// NOTE: Nothing (in TMaybe) and empty TVector are different ranges.
+    /// Nothing represents universal range (reader reads all table rows).
+    /// Empty TVector represents empty  range (reader returns empty set of rows).
+    const TMaybe<TVector<TReadRange>>& GetRanges() const
+    {
+        return Ranges_;
+    }
+
+    TMaybe<TVector<TReadRange>>& MutableRanges()
+    {
+        return Ranges_;
+    }
+
+    ///
+    /// @{
+    ///
+    /// Get range view, that is convenient way to iterate through all ranges.
+    TArrayRef<TReadRange> MutableRangesView()
+    {
+        if (Ranges_.Defined()) {
+            return TArrayRef(Ranges_->data(), Ranges_->size());
+        } else {
+            return {};
+        }
+    }
+
+    TArrayRef<const TReadRange> GetRangesView() const
+    {
+        if (Ranges_.Defined()) {
+            return TArrayRef(Ranges_->data(), Ranges_->size());
+        } else {
+            return {};
+        }
+    }
+    /// @}
+
+    /// @{
+    ///
+    /// Get range by index.
+    const TReadRange& GetRange(ssize_t i) const
+    {
+        return Ranges_.GetRef()[i];
+    }
+
+    TReadRange& MutableRange(ssize_t i)
+    {
+        return Ranges_.GetRef()[i];
+    }
+    /// @}
 
     ///
     /// @brief Specifies columns that should be read.
@@ -970,6 +1038,9 @@ struct TRichYPath
         : Path_(path)
     { }
     /// @}
+
+private:
+    TMaybe<TVector<TReadRange>> Ranges_;
 };
 
 ///
@@ -989,7 +1060,7 @@ TRichYPath WithSchema(const TRichYPath& path, const TSortColumns& sortBy = TSort
 }
 
 ///
-/// @ref Create copy of @ref NYT::TRichYPath with schema derived from TRowType if possible.
+/// @brief Create copy of @ref NYT::TRichYPath with schema derived from TRowType if possible.
 ///
 /// If TRowType is protobuf message schema is derived from it and set to returned path.
 /// Otherwise schema of original path is left unchanged (and probably unset).
@@ -1002,6 +1073,19 @@ TRichYPath MaybeWithSchema(const TRichYPath& path, const TSortColumns& sortBy = 
         return path;
     }
 }
+
+///
+/// @brief Get the list of ranges related to path in compatibility mode.
+///
+///  - If path is missing ranges, empty list is returned.
+///  - If path has associated range list and the list is not empty, function returns this list.
+///  - If path has associated range list and this list is empty, exception is thrown.
+///
+/// Before YT-17683 RichYPath didn't support empty range list and empty range actualy meant universal range.
+/// This function emulates this old behavior.
+///
+/// @see https://st.yandex-team.ru/YT-17683
+const TVector<TReadRange>& GetRangesCompat(const TRichYPath& path);
 
 ////////////////////////////////////////////////////////////////////////////////
 

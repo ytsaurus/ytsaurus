@@ -190,7 +190,7 @@ public:
             }
             entry.TableIndex = TableIndex_;
             path = TRichYPath(Paths_[TableIndex_]);
-            path.Ranges_ = {TableSlicer_.GetRange()};
+            path.MutableRanges() = {TableSlicer_.GetRange()};
             TableSlicer_.Next();
         }
         entry.Reader = Client_->CreateTableReader<TRow>(std::move(path), Options_);
@@ -264,7 +264,7 @@ private:
 
         auto path = Paths_[TableIndex_];
         // Add empty range to avoid having a path without ranges (meaning the whole table).
-        path.Ranges_ = {TReadRange::FromRowIndices(0, 0)};
+        path.MutableRanges() = {TReadRange::FromRowIndices(0, 0)};
         TVector<TRichYPath> slices(Config_.ThreadCount, path);
         i64 totalBatchCount = 0;
         auto totalRangeCount = static_cast<i64>(Config_.RangeCount) * Config_.ThreadCount;

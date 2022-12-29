@@ -376,8 +376,8 @@ void Serialize(const THashMap<TString, TString>& renameColumns, NYson::IYsonCons
 void Serialize(const TRichYPath& path, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginAttributes()
-        .DoIf(!path.Ranges_.empty(), [&] (TFluentAttributes fluent) {
-            fluent.Item("ranges").List(path.Ranges_);
+        .DoIf(path.GetRanges().Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("ranges").List(*path.GetRanges());
         })
         .DoIf(path.Columns_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("columns").Value(*path.Columns_);
@@ -445,8 +445,10 @@ void Serialize(const TRichYPath& path, NYson::IYsonConsumer* consumer)
 
 void Deserialize(TRichYPath& path, const TNode& node)
 {
+    path = {};
+
     const auto& attributesMap = node.GetAttributes().AsMap();
-    DESERIALIZE_ATTR("ranges", path.Ranges_);
+    DESERIALIZE_ATTR("ranges", path.MutableRanges());
     DESERIALIZE_ATTR("columns", path.Columns_);
     DESERIALIZE_ATTR("append", path.Append_);
     DESERIALIZE_ATTR("partially_sorted", path.PartiallySorted_);
