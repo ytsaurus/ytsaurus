@@ -664,8 +664,7 @@ void TNode::Load(TLoadContext& context)
 
     // COMPAT(kvk1920)
     if (context.GetVersion() < EMasterReign::MaintenanceRequests) {
-        using enum EMaintenanceType;
-        for (auto type : {Ban, Decommission, DisableWriteSessions, DisableSchedulerJobs, DisableTabletCells}) {
+        for (auto type : TEnumTraits<EMaintenanceType>::GetDomainValues()) {
             if (Load<bool>(context)) {
                 static_cast<void>(SetMaintenanceFlag(type, /*user*/ "", /*instant*/ TInstant::Zero()));
             }
