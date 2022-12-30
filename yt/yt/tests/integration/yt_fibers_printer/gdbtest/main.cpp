@@ -3,8 +3,8 @@
 #include <yt/yt/core/tracing/trace_context.h>
 
 void StopHere() {
-    volatile int dummy;
-    dummy = 0;
+    volatile int dummy = 0;
+    Y_UNUSED(dummy);
 }
 
 void AsyncStop(NYT::NConcurrency::IThreadPoolPtr& threadPool) {
