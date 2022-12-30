@@ -239,51 +239,32 @@ private:
 
         auto miscExt = chunk->ChunkMeta()->FindExtension<TMiscExt>();
 
-        auto serializePhysicalReplica = [&] (TFluentList fluent, TNodePtrWithReplicaInfoAndMediumIndex replica) {
-            auto* medium = chunkManager->GetMediumByIndex(replica.GetMediumIndex());
+        auto serializeReplica = [&] (
+            TFluentList fluent,
+            const TNode* node,
+            const TRealChunkLocation* location,
+            int replicaIndex,
+            EChunkReplicaState replicaState,
+            int mediumIndex)
+        {
+            auto* medium = chunkManager->GetMediumByIndex(mediumIndex);
             fluent.Item()
                 .BeginAttributes()
                     .Item("medium").Value(medium->GetName())
+                    .DoIf(location, [&] (TFluentMap fluent) {
+                        fluent
+                            .Item("location_uuid").Value(location->GetUuid());
+                    })
                     .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
                         fluent
-                            .Item("index").Value(replica.GetReplicaIndex());
+                            .Item("index").Value(replicaIndex);
                     })
                     .DoIf(chunk->IsJournal(), [&] (TFluentMap fluent) {
                         fluent
-                            .Item("state").Value(replica.GetReplicaState());
+                            .Item("state").Value(replicaState);
                     })
                 .EndAttributes()
-                .Value(replica.GetPtr()->GetDefaultAddress());
-        };
-
-        auto serializePhysicalReplicas = [&] (IYsonConsumer* consumer, TNodePtrWithReplicaInfoAndMediumIndexList& replicas) {
-            std::sort(
-                replicas.begin(),
-                replicas.end(),
-                [] (TNodePtrWithReplicaInfoAndMediumIndex lhs, TNodePtrWithReplicaInfoAndMediumIndex rhs) {
-                    if (lhs.GetReplicaIndex() != rhs.GetReplicaIndex()) {
-                        return lhs.GetReplicaIndex() < rhs.GetReplicaIndex();
-                    }
-                    return lhs.GetMediumIndex() < rhs.GetMediumIndex();
-                });
-            BuildYsonFluently(consumer)
-                .DoListFor(replicas, serializePhysicalReplica);
-        };
-
-        auto serializeLastSeenReplica = [&] (TFluentList fluent, TNodePtrWithReplicaIndex replica) {
-            fluent.Item()
-                .BeginAttributes()
-                    .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
-                        fluent
-                            .Item("index").Value(replica.GetReplicaIndex());
-                    })
-                .EndAttributes()
-                .Value(replica.GetPtr()->GetDefaultAddress());
-        };
-
-        auto serializeLastSeenReplicas = [&] (IYsonConsumer* consumer, const TNodePtrWithReplicaIndexList& replicas) {
-            BuildYsonFluently(consumer)
-                .DoListFor(replicas, serializeLastSeenReplica);
+                .Value(node->GetDefaultAddress());
         };
 
         switch (key) {
@@ -291,16 +272,22 @@ private:
                 if (isForeign) {
                     break;
                 }
-                TNodePtrWithReplicaInfoAndMediumIndexList replicas;
-                replicas.reserve(chunk->StoredReplicas().Size());
-                for (auto replica : chunk->StoredReplicas()) {
-                    replicas.emplace_back(
-                        replica.GetPtr()->GetNode(),
-                        replica.GetReplicaIndex(),
-                        replica.GetPtr()->GetEffectiveMediumIndex(),
-                        replica.GetReplicaState());
-                }
-                serializePhysicalReplicas(consumer, replicas);
+
+                TCompactVector<TChunkLocationPtrWithReplicaInfo, TypicalReplicaCount> replicas(chunk->StoredReplicas().begin(), chunk->StoredReplicas().end());
+                SortBy(replicas, [] (TChunkLocationPtrWithReplicaInfo replica) {
+                    return std::make_tuple(replica.GetReplicaIndex(), replica.GetPtr()->GetEffectiveMediumIndex());
+                });
+                BuildYsonFluently(consumer)
+                    .DoListFor(replicas, [&] (TFluentList fluent, TChunkLocationPtrWithReplicaInfo replica) {
+                        const auto* location = replica.GetPtr();
+                        serializeReplica(
+                            fluent,
+                            location->GetNode(),
+                            location->IsImaginary() ? nullptr : location->AsReal(),
+                            replica.GetReplicaIndex(),
+                            replica.GetReplicaState(),
+                            location->GetEffectiveMediumIndex());
+                    });
                 return true;
             }
 
@@ -326,9 +313,19 @@ private:
                         addReplica(nodeId, GenericChunkReplicaIndex);
                     }
                 }
-                std::sort(replicas.begin(), replicas.end());
-                replicas.erase(std::unique(replicas.begin(), replicas.end()), replicas.end());
-                serializeLastSeenReplicas(consumer, replicas);
+
+                SortUnique(replicas);
+                BuildYsonFluently(consumer)
+                    .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaIndex replica) {
+                        fluent.Item()
+                            .BeginAttributes()
+                                .DoIf(chunk->IsErasure(), [&] (TFluentMap fluent) {
+                                    fluent
+                                        .Item("index").Value(replica.GetReplicaIndex());
+                                })
+                            .EndAttributes()
+                            .Value(replica.GetPtr()->GetDefaultAddress());
+                    });
                 return true;
             }
 
@@ -914,13 +911,24 @@ private:
                 if (isForeign) {
                     break;
                 }
-
                 if (!chunk->HasConsistentReplicaPlacementHash()) {
                     break;
                 }
 
-                auto consistentReplicas = chunkManager->GetConsistentChunkReplicas(chunk);
-                serializePhysicalReplicas(consumer, consistentReplicas);
+                auto replicas = chunkManager->GetConsistentChunkReplicas(chunk);
+                SortBy(replicas, [] (TNodePtrWithReplicaInfoAndMediumIndex replica) {
+                    return std::make_tuple(replica.GetReplicaIndex(), replica.GetMediumIndex());
+                });
+                BuildYsonFluently(consumer)
+                    .DoListFor(replicas, [&] (TFluentList fluent, TNodePtrWithReplicaInfoAndMediumIndex replica) {
+                        serializeReplica(
+                            fluent,
+                            replica.GetPtr(),
+                            /*location*/ nullptr,
+                            replica.GetReplicaIndex(),
+                            replica.GetReplicaState(),
+                            replica.GetMediumIndex());
+                    });
                 return true;
             }
 

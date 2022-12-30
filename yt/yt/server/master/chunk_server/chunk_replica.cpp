@@ -48,7 +48,7 @@ void FormatValue(TStringBuilderBase* builder, TChunkLocationPtrWithReplicaIndex 
     } else {
         builder->AppendFormat("%v(%v)",
             GetChunkLocationNodeId(value),
-            static_cast<TRealChunkLocation*>(value.GetPtr())->GetUuid());
+            value.GetPtr()->AsReal()->GetUuid());
     }
     if (value.GetReplicaIndex() != GenericChunkReplicaIndex) {
         builder->AppendFormat("/%v", value.GetReplicaIndex());

@@ -17,9 +17,37 @@ size_t TChunkLocation::TReplicaHasher::operator()(const TChunkPtrWithReplicaInfo
     return TChunkPtrWithReplicaIndex(replica).GetHash();
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 bool TChunkLocation::TReplicaEqual::operator()(const TChunkPtrWithReplicaInfo& lhs, const TChunkPtrWithReplicaInfo& rhs) const
 {
     return lhs.GetPtr() == rhs.GetPtr() && lhs.GetReplicaIndex() == rhs.GetReplicaIndex();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+const TRealChunkLocation* TChunkLocation::AsReal() const
+{
+    YT_ASSERT(!IsImaginary());
+    return static_cast<const TRealChunkLocation*>(this);
+}
+
+TRealChunkLocation* TChunkLocation::AsReal()
+{
+    YT_ASSERT(!IsImaginary());
+    return static_cast<TRealChunkLocation*>(this);
+}
+
+const TImaginaryChunkLocation* TChunkLocation::AsImaginary() const
+{
+    YT_ASSERT(IsImaginary());
+    return static_cast<const TImaginaryChunkLocation*>(this);
+}
+
+TImaginaryChunkLocation* TChunkLocation::AsImaginary()
+{
+    YT_ASSERT(IsImaginary());
+    return static_cast<TImaginaryChunkLocation*>(this);
 }
 
 bool TChunkLocation::AddReplica(TChunkPtrWithReplicaInfo replica)

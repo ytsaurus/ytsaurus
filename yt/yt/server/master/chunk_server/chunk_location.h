@@ -51,6 +51,10 @@ public:
     virtual ~TChunkLocation() = default;
 
     virtual bool IsImaginary() const = 0;
+    const TRealChunkLocation* AsReal() const;
+    TRealChunkLocation* AsReal();
+    const TImaginaryChunkLocation* AsImaginary() const;
+    TImaginaryChunkLocation* AsImaginary();
 
     // TODO(kvk1920): Use TMedium* here.
     virtual int GetEffectiveMediumIndex() const = 0;
