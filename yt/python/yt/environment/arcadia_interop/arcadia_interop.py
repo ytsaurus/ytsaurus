@@ -2,6 +2,7 @@ from __future__ import print_function
 
 import yt.logger as yt_logger
 
+import gzip
 import os
 import fcntl
 import time
