@@ -3,7 +3,6 @@
     "unavailable_chunk_tactics" = "fail";
     "max_speculative_job_count_per_task" = 3;
     "output_table_path" = "//home/yabs-cs-sandbox/import/1150604018/BroadMatchBL.bs";
-    "enable_compatible_storage_mode" = %false;
     "started_by" = {
         "python_version" = "2.7.16";
         "hostname" = "linux-ubuntu-12-04-precise";

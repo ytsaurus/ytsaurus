@@ -86,7 +86,6 @@
         "check_input_fully_consumed" = %false;
     };
     "map_job_io" = {};
-    "enable_compatible_storage_mode" = %false;
     "sort_job_io" = {};
     "reduce_by" = [
         "task_index";
