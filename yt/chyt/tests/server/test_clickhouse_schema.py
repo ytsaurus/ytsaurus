@@ -2,7 +2,7 @@ from base import ClickHouseTestBase, Clique, QueryFailedError
 
 from yt_commands import (authors, create, write_table, raises_yt_error)
 
-from yt_type_helpers import make_schema
+from yt_type_helpers import make_schema, optional_type
 
 from yt.wrapper import yson
 
@@ -286,6 +286,63 @@ class TestClickHouseSchema(ClickHouseTestBase):
                 {"a": yson.dumps(10, yson_format="binary").decode(), "b": yson.dumps(20, yson_format="binary").decode()},
                 {"a": yson.dumps(40, yson_format="binary").decode(), "b": None},
             ]
+
+    @authors("dakovalkov")
+    @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
+    def test_concat_tables_optional_types(self, optimize_for):
+        # CHYT-896
+        create("table", "//tmp/t1", attributes={
+            "schema": [
+                {"name": "a", "type_v3": "int64"},
+                {"name": "b", "type_v3": "null"},
+                {"name": "c", "type_v3": "null"},
+                {"name": "d", "type_v3": optional_type("int64")},
+            ],
+            "optimize_for": optimize_for,
+        })
+        create("table", "//tmp/t2", attributes={
+            "schema": [
+                {"name": "a", "type_v3": optional_type("int32")},
+                {"name": "b", "type_v3": "null"},
+                {"name": "c", "type_v3": optional_type("null")},
+                {"name": "d", "type_v3": optional_type(optional_type("int64"))},
+            ],
+            "optimize_for": optimize_for,
+        })
+
+        write_table("//tmp/t1", [{
+            "a": 1,
+            "b": yson.YsonEntity(),
+            "c": yson.YsonEntity(),
+            "d": 2,
+        }])
+
+        write_table("//tmp/t2", [{
+            "a": yson.YsonEntity(),
+            "b": yson.YsonEntity(),
+            "c": [yson.YsonEntity()],
+            "d": [3],
+        }])
+
+        settings = {"chyt.concat_tables.type_mismatch_mode": "drop"}
+
+        with Clique(1) as clique:
+            expected_description = [
+                {"name": "a", "type": "Nullable(Int64)"},
+                {"name": "b", "type": "Nullable(Nothing)"},
+                {"name": "c", "type": "Nullable(Nothing)"},
+            ]
+
+            query = "describe concatYtTables('//tmp/t1', '//tmp/t2')"
+            assert self._strip_description(clique.make_query(query, settings=settings)) == expected_description
+
+            expected_data = [
+                {"a": 1, "b": yson.YsonEntity(), "c": yson.YsonEntity()},
+                {"a": yson.YsonEntity(), "b": yson.YsonEntity(), "c": yson.YsonEntity()},
+            ]
+
+            query = "select * from concatYtTables('//tmp/t1', '//tmp/t2') order by a"
+            assert clique.make_query(query, settings=settings) == expected_data
 
     @authors("max42")
     @pytest.mark.skipif(True, reason="temporarily broken after CH sync")

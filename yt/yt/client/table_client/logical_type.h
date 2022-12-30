@@ -426,7 +426,6 @@ TLogicalTypePtr TaggedLogicalType(TString tag, TLogicalTypePtr element);
 TLogicalTypePtr NullLogicalType();
 
 TLogicalTypePtr MakeOptionalIfNot(TLogicalTypePtr element);
-TLogicalTypePtr RemoveOptional(TLogicalTypePtr element);
 
 // Creates logical type from legacy schema fields.
 // IMPORTANT: Only used for compatibility reasons.

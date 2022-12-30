@@ -65,7 +65,7 @@ void RemoveIncompatibleSortOrder(TTablePtr& table)
                 return true;
             }
             // We convert 'any' values to yson-strings, so sort order is broken.
-            if (*RemoveOptional(column.LogicalType()) == *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
+            if (*column.LogicalType() == *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))) {
                 return true;
             }
         }
