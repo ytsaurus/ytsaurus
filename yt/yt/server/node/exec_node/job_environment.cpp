@@ -298,15 +298,17 @@ public:
         , Config_(std::move(config))
     { }
 
-    void CleanProcesses(int slotIndex, ESlotType /*slotType*/) override
+    void CleanProcesses(int slotIndex, ESlotType slotType) override
     {
         ValidateEnabled();
 
         try {
             EnsureJobProxyFinished(slotIndex, true);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to clean processes (SlotIndex: %v)",
-                slotIndex) << ex;
+            auto error = TError("Failed to clean processes")
+                << TErrorAttribute("slot_index", slotIndex)
+                << TErrorAttribute("slot_type", slotType)
+                << ex;
             Disable(error);
             THROW_ERROR error;
         }
@@ -423,9 +425,10 @@ public:
             // Drop reference to a process if there were any.
             JobProxyProcesses_.erase(slotIndex);
         } catch (const std::exception& ex) {
-            auto error = TError("Failed to clean processes (SlotType: %v, SlotIndex: %v)",
-                slotType,
-                slotIndex) << ex;
+            auto error = TError("Failed to clean processes")
+                << TErrorAttribute("slot_index", slotIndex)
+                << TErrorAttribute("slot_type", slotType)
+                << ex;
             Disable(error);
             THROW_ERROR error;
         }
