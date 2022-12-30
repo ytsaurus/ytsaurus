@@ -42,7 +42,7 @@ void TSerializerTraits<NChunkServer::TChunkLocation*, C>::TSerializer::Save(
         Save(context, location->GetNode());
         Save(context, location->GetEffectiveMediumIndex());
     } else {
-        Save(context, static_cast<const TRealChunkLocation*>(location));
+        Save(context, location->AsReal());
     }
 }
 
@@ -81,13 +81,9 @@ bool TSerializerTraits<NChunkServer::TChunkLocation*, C>::TComparer::Compare(
     }
 
     if (lhs->IsImaginary()) {
-        auto* imaginaryLhs = static_cast<const TImaginaryChunkLocation*>(lhs);
-        auto* imaginaryRhs = static_cast<const TImaginaryChunkLocation*>(rhs);
-        return *imaginaryLhs < *imaginaryRhs;
+        return *lhs->AsImaginary() < *rhs->AsImaginary();
     } else {
-        auto* realLhs = static_cast<const TRealChunkLocation*>(lhs);
-        auto* realRhs = static_cast<const TRealChunkLocation*>(rhs);
-        return *realLhs < *realRhs;
+        return *lhs->AsReal() < *rhs->AsReal();
     }
 }
 

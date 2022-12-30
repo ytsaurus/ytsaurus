@@ -634,13 +634,12 @@ class TestConsistentChunkReplicaPlacementBase(YTEnvSetup):
             # NB: media are ignored.
             return (replica.attributes.get("index", -1), str(replica))
 
-        stored_replicas = [sorted(replicas, key=by_index_then_node_address) for replicas in stored_replicas]
+        def to_addresses(replicas):
+            return [str(replica) for replica in replicas]
 
-        for replicas in stored_replicas[1:]:
-            if replicas != stored_replicas[0]:
-                return False
+        stored_replicas = [to_addresses(sorted(replicas, key=by_index_then_node_address)) for replicas in stored_replicas]
 
-        return True
+        return all(str(replicas) == str(stored_replicas[0]) for replicas in stored_replicas[1:])
 
     def _are_chunks_collocated(self, chunk_ids):
         stored_replicas = [get("#{}/@stored_replicas".format(chunk_id)) for chunk_id in chunk_ids]

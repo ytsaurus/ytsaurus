@@ -1772,7 +1772,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
                 } else if (TryScheduleRemovalJob(
                     context,
                     destroyedReplica,
-                    location->IsImaginary() ? nullptr : static_cast<TRealChunkLocation*>(location)))
+                    location->IsImaginary() ? nullptr : location->AsReal()))
                 {
                     location->SetDestroyedReplicasIterator(destroyedReplicaIterator.GetNext());
                 } else {
@@ -1846,7 +1846,7 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
             if (TryScheduleRemovalJob(
                 context,
                 chunkIdWithIndexes,
-                location->IsImaginary() ? nullptr : static_cast<TRealChunkLocation*>(location)))
+                location->IsImaginary() ? nullptr : location->AsReal()))
             {
                 queue.erase(replica);
             } else {
