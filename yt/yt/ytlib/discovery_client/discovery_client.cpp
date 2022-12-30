@@ -77,6 +77,11 @@ public:
         ClientConfig_ = std::move(config);
     }
 
+    TFuture<void> GetReadyEvent() const override
+    {
+        return AddressPool_->GetReadyEvent();
+    }
+
 private:
     const NLogging::TLogger Logger;
     const NRpc::IChannelFactoryPtr ChannelFactory_;

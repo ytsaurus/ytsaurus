@@ -82,6 +82,8 @@ private:
 
     void DoUpdateList() override
     {
+        WaitForFast(DiscoveryClient_->GetReadyEvent())
+            .ThrowOnError();
         auto list = WaitFor(DiscoveryClient_->ListMembers(Config_->GroupId, ListOptions_))
             .ValueOrThrow();
 
