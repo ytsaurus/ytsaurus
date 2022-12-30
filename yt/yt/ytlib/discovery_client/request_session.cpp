@@ -98,6 +98,7 @@ void TServerAddressPool::SetConfig(const TDiscoveryConnectionConfigPtr& config)
             config->Addresses);
 
         EndpointsUpdateExecutor_->Stop();
+        ResolvedAddressesFuture_ = VoidFuture;
 
         SetAddresses(*config->Addresses);
     } else if (config->Endpoints && (!Config_ || config->Endpoints != Config_->Endpoints)) {
@@ -112,6 +113,8 @@ void TServerAddressPool::SetConfig(const TDiscoveryConnectionConfigPtr& config)
 
         EndpointsUpdateExecutor_->SetPeriod(config->Endpoints->UpdatePeriod);
         EndpointsUpdateExecutor_->Start();
+        ResolvedAddressesFuture_ = EndpointsUpdateExecutor_->GetExecutedEvent();
+        EndpointsUpdateExecutor_->ScheduleOutOfBand();
     }
 
     Config_ = config;
@@ -187,6 +190,12 @@ void TServerAddressPool::OnBanTimeoutExpired(const TString& address)
     YT_LOG_DEBUG("Server moved to probation list (Address: %v)", address);
     DownAddresses_.erase(it);
     ProbationAddresses_.insert(address);
+}
+
+TFuture<void> TServerAddressPool::GetReadyEvent() const
+{
+    auto guard = Guard(Lock_);
+    return ResolvedAddressesFuture_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

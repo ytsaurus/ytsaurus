@@ -29,7 +29,11 @@ public:
     void UnbanAddress(const TString& address);
 
     void SetBanTimeout(TDuration banTimeout);
+    //! After each reconfiguration with SetConfig GetReadyEvent's future
+    //! should be awaited before server address pool usage.
     void SetConfig(const TDiscoveryConnectionConfigPtr& config);
+
+    TFuture<void> GetReadyEvent() const;
 
 private:
     const NLogging::TLogger Logger;
@@ -44,6 +48,7 @@ private:
 
     NServiceDiscovery::IServiceDiscoveryPtr ServiceDiscovery_;
     NConcurrency::TPeriodicExecutorPtr EndpointsUpdateExecutor_;
+    TFuture<void> ResolvedAddressesFuture_;
 
     void OnBanTimeoutExpired(const TString& address);
 

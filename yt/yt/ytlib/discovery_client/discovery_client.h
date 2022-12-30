@@ -16,6 +16,9 @@ namespace NYT::NDiscoveryClient {
 struct IDiscoveryClient
     : public virtual TRefCounted
 {
+    //! GetReadyEvent's future should be awaited before discovery client usage.
+    virtual TFuture<void> GetReadyEvent() const = 0;
+
     virtual TFuture<std::vector<TMemberInfo>> ListMembers(
         const TString& groupId,
         const TListMembersOptions& option) = 0;
