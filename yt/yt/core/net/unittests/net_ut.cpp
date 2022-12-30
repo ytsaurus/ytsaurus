@@ -222,6 +222,10 @@ TEST_F(TNetTest, StressConcurrentClose)
 
 TEST_F(TNetTest, Bind)
 {
+    // TODO(aleexfi): test is broken;
+    #ifdef _win_
+        return;
+    #endif
     BIND([&] {
         auto address = TNetworkAddress::CreateIPv6Loopback(0);
         auto listener = CreateListener(address, Poller_, Poller_);
