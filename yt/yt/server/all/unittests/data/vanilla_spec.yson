@@ -78,7 +78,6 @@
             ];
         };
     ];
-    "enable_compatible_storage_mode" = %false;
     "pool_trees" = [
         "nirvana";
     ];

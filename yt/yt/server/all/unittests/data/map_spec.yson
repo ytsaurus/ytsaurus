@@ -70,7 +70,6 @@
             ];
         };
     ];
-    "enable_compatible_storage_mode" = %false;
     "input_table_paths" = [
         <
             "columns" = [

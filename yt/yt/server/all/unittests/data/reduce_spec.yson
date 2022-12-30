@@ -1,7 +1,6 @@
 {
     "use_columnar_statistics" = %true;
     "max_failed_job_count" = 5;
-    "enable_compatible_storage_mode" = %false;
     "reduce_by" = [
         "ride_date";
         "ride_time";
