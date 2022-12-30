@@ -237,6 +237,11 @@ TStringBuf TTokenizer::GetInput() const
     return Input_;
 }
 
+TStringBuf TTokenizer::GetPath() const
+{
+    return Path_;
+}
+
 const TString& TTokenizer::GetLiteralValue() const
 {
     return LiteralValue_;

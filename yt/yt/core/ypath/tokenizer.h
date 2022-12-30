@@ -24,6 +24,7 @@ public:
     TStringBuf GetPrefixPlusToken() const;
     TStringBuf GetSuffix() const;
     TStringBuf GetInput() const;
+    TStringBuf GetPath() const;
     const TString& GetLiteralValue() const;
 
     void Expect(ETokenType expectedType);
