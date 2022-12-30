@@ -540,9 +540,10 @@ public:
         RootConverter_->InitColumn(CurrentColumn_.get());
 
         auto logicalType = RootConverter_->GetLogicalType();
-        auto notOptionalLogicalType = RemoveOptional(logicalType);
+        bool isDecimal = (logicalType->GetMetatype() == ELogicalMetatype::Decimal ||
+            (logicalType->GetMetatype() == ELogicalMetatype::Optional && logicalType->GetElement()->GetMetatype() == ELogicalMetatype::Decimal));
 
-        if (IsV1Type(logicalType) || notOptionalLogicalType->GetMetatype() == ELogicalMetatype::Decimal) {
+        if (IsV1Type(logicalType) || isDecimal) {
             RootConverter_->FillValueRange(CurrentValues_);
         } else {
             TBufferOutput output(Buffer_);

@@ -3,7 +3,9 @@
 #include "config.h"
 #include "table.h"
 
+#include <yt/yt/client/table_client/check_schema_compatibility.h>
 #include <yt/yt/client/table_client/logical_type.h>
+
 #include <yt/yt/client/complex_types/check_type_compatibility.h>
 
 namespace NYT::NClickHouseServer {
@@ -12,6 +14,13 @@ using namespace NComplexTypes;
 using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TLogicalTypePtr MakeNullableIfNot(TLogicalTypePtr element) {
+    if (element->IsNullable()) {
+        return element;
+    }
+    return OptionalLogicalType(std::move(element));
+}
 
 std::optional<TColumnSchema> InferCommonColumnSchema(
     const std::vector<int>& columnIndices,
@@ -25,15 +34,8 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
     int tableCount = tables.size();
 
     TString columnName;
-    // Sometimes types are similar, but they could not be converted from one another.
-    // E.g. types optional<i32> and i64 are not compatible directly, but we can deduce
-    // type optional<i64> if we handle isOptional and underlying type separately.
-    // For these cases we store common type and its isOptional separately.
-    // There still can be some cases where this heuristic does not work,
-    // e.g. for types list<optional<i32>> and list<i64>, but it's difficult to
-    // handle all these cases and probably no one really needs this.
+
     TLogicalTypePtr commonType;
-    bool isOptional = false;
     std::optional<ESortOrder> commonSortOrder;
 
     bool shouldDropColumn = false;
@@ -47,8 +49,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
         if (columnIndex != -1) {
             const auto& column = tables[tableIndex]->Schema->Columns()[columnIndex];
             columnName = column.Name();
-            commonType = RemoveOptional(column.LogicalType());
-            isOptional = !column.Required();
+            commonType = column.LogicalType();
             commonSortOrder = column.SortOrder();
             tableIndexWithColumn = tableIndex;
             break;
@@ -72,7 +73,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
                 break;
             }
             case EMissingColumnMode::ReadAsNull: {
-                isOptional = true;
+                commonType = MakeNullableIfNot(std::move(commonType));
                 commonSortOrder = std::nullopt;
                 break;
             }
@@ -81,14 +82,13 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
 
     // First pass.
     // Try to find 'the most common' type among all column types and process missing columns.
-    // We can not handle type mismatch on the first pass since we can find column
-    // with 'Any' type later.
+    // We can not handle type mismatch on the first pass since we do not know the common type yet.
     for (int tableIndex = 0; tableIndex < tableCount; ++tableIndex) {
         const auto& tableSchema = tables[tableIndex]->Schema;
         int columnIndex = columnIndices[tableIndex];
 
         if (columnIndex == -1) {
-            isOptional = true;
+            commonType = MakeNullableIfNot(std::move(commonType));
             commonSortOrder = std::nullopt;
             // If column is missing in non-strict schema, it may still be present in chunks.
             // We pessimistically assume that the column is present in such tables and
@@ -100,10 +100,19 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
             }
         } else {
             const auto& column = tableSchema->Columns()[columnIndex];
-            auto columnType = RemoveOptional(column.LogicalType());
+            auto columnType = column.LogicalType();
 
-            if (!column.Required()) {
-                isOptional = true;
+            // Common type should be nullable if at least one column is nullable/missing.
+            if (columnType->IsNullable()) {
+                commonType = MakeNullableIfNot(std::move(commonType));
+            }
+
+            // Making columnType Nullable helps to handle some cases when types are incompatible,
+            // but despite this they have a supertype (e.g. int64 and optional<int32>, supertype is optional<int64>).
+            // TODO(dakovalkov): This is not a silver bullet and it will not work in more complex cases (e.g. list<int64> and list<optional<32>>)
+            // For proper type handing we need a GetLeastSupertype function, but its implementations is not trivial.
+            if (commonType->IsNullable()) {
+                columnType = MakeNullableIfNot(std::move(columnType));
             }
 
             // Update commonType if current column type is more general (e.g. i32 -> i64).
@@ -131,10 +140,8 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
                 break;
             }
             case ETypeMismatchMode::ReadAsAny: {
-                commonType = SimpleLogicalType(ESimpleLogicalValueType::Any);
-                // Type 'Any' can not be required.
-                isOptional = true;
-                // Type 'Any' is not comparable.
+                commonType = OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any));
+                // We represent Any as yson-string in CH, so sort order is broken after this transform.
                 commonSortOrder = std::nullopt;
                 break;
             }
@@ -151,7 +158,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
         if (columnIndex == -1) {
             // Missed columns in non-strict schema can be read only as Any, because
             // they can actually be present in chunks with any type.
-            if (!tableSchema->GetStrict() && *commonType != *SimpleLogicalType(ESimpleLogicalValueType::Any)) {
+            if (!tableSchema->GetStrict() && *commonType != *OptionalLogicalType(SimpleLogicalType(ESimpleLogicalValueType::Any))) {
                 onTypeMismatch(
                     TError("Column %Qv is missing in input table %v with non-strict schema; "
                         "read of the column is forbidden because it may be present in data with a mismatched type; "
@@ -162,7 +169,7 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
             }
         } else {
             const auto& column = tableSchema->Columns()[columnIndex];
-            auto columnType = RemoveOptional(column.LogicalType());
+            auto columnType = column.LogicalType();
 
             // Check that all columns can be read as 'the most common' type.
             auto [compatibility, _] = CheckTypeCompatibility(columnType, commonType);
@@ -185,9 +192,6 @@ std::optional<TColumnSchema> InferCommonColumnSchema(
         return std::nullopt;
     }
 
-    if (isOptional) {
-        commonType = OptionalLogicalType(std::move(commonType));
-    }
 
     if (!keepSortOrder || !IsComparable(commonType)) {
         commonSortOrder = std::nullopt;
@@ -319,7 +323,30 @@ TTableSchemaPtr InferCommonTableSchema(
             << TErrorAttribute("docs", "https://yt.yandex-team.ru/docs/description/chyt/reference/settings");
     }
 
-    return New<TTableSchema>(std::move(commonColumns), strict);
+    auto commonSchema = New<TTableSchema>(std::move(commonColumns), strict);
+
+    // NOTE(dakovalkov): This sanity check fails because CheckTableSchemaCompatibility denies
+    // to drop composite columns. This restriction can be valid for chunk teleportation,
+    // but it is redundant for CHYT.
+
+    // // Sanity check. Validate that all tables can be read through commonSchema.
+    // for (const auto& table : uniqueTables) {
+    //     auto [compatibility, error] = CheckTableSchemaCompatibility(
+    //         *table->Schema,
+    //         *commonSchema,
+    //         /*ignoreSortOrder*/ false);
+
+    //     if (compatibility != ESchemaCompatibility::FullyCompatible) {
+    //         THROW_ERROR_EXCEPTION("Common schema validation failed; it is a bug; "
+    //             "please, contanct the developers and provide the query and full error message")
+    //             << TErrorAttribute("common_schema", commonSchema)
+    //             << TErrorAttribute("input_table", table->Path)
+    //             << TErrorAttribute("input_schema", table->Schema)
+    //             << error;
+    //     }
+    // }
+
+    return commonSchema;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
