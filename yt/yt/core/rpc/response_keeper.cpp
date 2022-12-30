@@ -19,6 +19,8 @@ namespace NYT::NRpc {
 using namespace NConcurrency;
 using namespace NThreading;
 
+using NYT::FromProto;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 static constexpr auto EvictionPeriod = TDuration::Seconds(1);
@@ -216,17 +218,25 @@ public:
         if (subscribeToResponse) {
             context->GetAsyncResponseMessage()
                 .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TSharedRefArray>& responseMessageOrError) {
-                    bool remember = context->GetError().GetCode() != NRpc::EErrorCode::Unavailable;
-                    Invoker_->Invoke(BIND([=, this, this_ = std::move(this_)] {
-                        auto responseMessage = responseMessageOrError.IsOK()
-                            ? responseMessageOrError.Value()
-                            : CreateErrorResponseMessage(responseMessageOrError);
+                    if (!responseMessageOrError.IsOK()) {
                         EndRequest(
                             mutationId,
-                            std::move(responseMessage),
-                            remember);
-                    }));
-                }));
+                            CreateErrorResponseMessage(responseMessageOrError),
+                            /*remember*/ false);
+                        return;
+                    }
+
+                    const auto& responseMessage = responseMessageOrError.Value();
+
+                    NProto::TResponseHeader header;
+                    YT_VERIFY(TryParseResponseHeader(responseMessage, &header));
+                    bool remember = FromProto<NRpc::EErrorCode>(header.error().code()) != NRpc::EErrorCode::Unavailable;
+
+                    EndRequest(
+                        mutationId,
+                        responseMessage,
+                        remember);
+                }).Via(Invoker_));
         }
 
         return false;
