@@ -6,11 +6,28 @@
 
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/serialize.h>
 #include <yt/yt/core/ytree/ypath_client.h>
+
+#include <yt/yt/core/ytree/unittests/proto/test.pb.h>
 
 #include <array>
 
 namespace NYT::NYTree {
+
+namespace NProto {
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool operator==(const TTestMessage& l, const TTestMessage& r)
+{
+    return l.int32_field() == r.int32_field() && l.string_field() == r.string_field();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NProto
+
 namespace {
 
 using namespace NYson;
@@ -34,7 +51,8 @@ T PullParserConvert(TYsonStringBuf s)
     TMemoryInput input(s.AsStringBuf());
     TYsonPullParser parser(&input, s.GetType());
     TYsonPullParserCursor cursor(&parser);
-    auto result = ExtractTo<T>(&cursor);
+    T result;
+    Deserialize(result, &cursor);
     EXPECT_EQ(cursor->GetType(), EYsonItemType::EndOfStream);
     return result;
 }
@@ -389,6 +407,29 @@ TEST(TSerializationTest, BitEnum)
     }
     TestSerializationDeserialization(ETestBitEnum::Green | ETestBitEnum::Red);
     TestSerializationDeserialization(ETestBitEnum::Green | ETestBitEnum::Red | ETestBitEnum::Yellow);
+}
+
+TEST(TYTreeSerializationTest, Protobuf)
+{
+    NProto::TTestMessage message;
+    message.set_int32_field(1);
+    message.set_string_field("test");
+    TestSerializationDeserializationNode(message);
+}
+
+TEST(TYTreeSerializationTest, ProtobufKeepUnknown)
+{
+    TYsonString canonicalYson(TStringBuf("{\"int32_field\"=1;\"string_field\"=\"test\";\"unknown_field\"=1;}"));
+    {
+        auto node = ConvertTo<NProto::TTestMessage>(canonicalYson);
+        auto deserializedYson = ConvertToYsonString(node, NYson::EYsonFormat::Text);
+        EXPECT_EQ(RemoveSpaces(canonicalYson.ToString()), deserializedYson.ToString());
+    }
+    {
+        auto node = PullParserConvert<NProto::TTestMessage>(canonicalYson);
+        auto deserializedYson = ConvertToYsonString(node, NYson::EYsonFormat::Text);
+        EXPECT_EQ(RemoveSpaces(canonicalYson.ToString()), deserializedYson.ToString());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

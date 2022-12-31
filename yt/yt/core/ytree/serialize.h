@@ -247,6 +247,12 @@ void Deserialize(
     const INodePtr& node,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type* = nullptr);
 
+template <class T>
+void Deserialize(
+    T& message,
+    NYson::TYsonPullParserCursor* cursor,
+    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type* = nullptr);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree

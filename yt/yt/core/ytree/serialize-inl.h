@@ -616,7 +616,19 @@ void Deserialize(
     const INodePtr& node,
     typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
 {
-    DeserializeProtobufMessage(message, NYson::ReflectProtobufMessageType<T>(), node);
+    NYson::TProtobufWriterOptions options;
+    options.UnknownYsonFieldModeResolver = NYson::TProtobufWriterOptions::CreateConstantUnknownYsonFieldModeResolver(
+        NYson::EUnknownYsonFieldsMode::Keep);
+    DeserializeProtobufMessage(message, NYson::ReflectProtobufMessageType<T>(), node, options);
+}
+
+template <class T>
+void Deserialize(
+    T& message,
+    NYson::TYsonPullParserCursor* cursor,
+    typename std::enable_if<std::is_convertible<T*, google::protobuf::Message*>::value, void>::type*)
+{
+    Deserialize(message, NYson::ExtractTo<NYTree::INodePtr>(cursor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
