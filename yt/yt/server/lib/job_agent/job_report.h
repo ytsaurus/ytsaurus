@@ -142,7 +142,7 @@ struct TNodeJobReport
     TNodeJobReport SpecVersion(i64 specVersion);
     TNodeJobReport Statistics(const NYson::TYsonString& statistics);
     TNodeJobReport Events(const TJobEvents& events);
-    TNodeJobReport StderrSize(ui64 stderrSize);
+    TNodeJobReport StderrSize(i64 stderrSize);
     TNodeJobReport Stderr(const TString& stderr);
     TNodeJobReport FailContext(const TString& failContext);
     TNodeJobReport Profile(const TJobProfile& profile);

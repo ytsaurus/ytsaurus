@@ -41,6 +41,7 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
 #include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
+#include <yt/yt/ytlib/scheduler/records/job_stderr.record.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -737,50 +738,39 @@ TSharedRef TClient::DoGetJobStderrFromArchive(
     TJobId jobId)
 {
     try {
-        TJobStderrTableDescriptor tableDescriptor;
-
-        auto rowBuffer = New<TRowBuffer>();
-
-        std::vector<TUnversionedRow> keys;
-        auto key = rowBuffer->AllocateUnversioned(4);
-        key[0] = MakeUnversionedUint64Value(operationId.Parts64[0], tableDescriptor.Index.OperationIdHi);
-        key[1] = MakeUnversionedUint64Value(operationId.Parts64[1], tableDescriptor.Index.OperationIdLo);
-        key[2] = MakeUnversionedUint64Value(jobId.Parts64[0], tableDescriptor.Index.JobIdHi);
-        key[3] = MakeUnversionedUint64Value(jobId.Parts64[1], tableDescriptor.Index.JobIdLo);
-        keys.push_back(key);
-
-        TLookupRowsOptions lookupOptions;
-        lookupOptions.ColumnFilter = NTableClient::TColumnFilter({tableDescriptor.Index.Stderr});
-        lookupOptions.KeepMissingRows = true;
+        NRecords::TJobStderrKey recordKey{
+            .OperationIdHi = operationId.Parts64[0],
+            .OperationIdLo = operationId.Parts64[1],
+            .JobIdHi = jobId.Parts64[0],
+            .JobIdLo = jobId.Parts64[1]
+        };
+        auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
 
         auto rowset = WaitFor(LookupRows(
             GetOperationsArchiveJobStderrsPath(),
-            tableDescriptor.NameTable,
-            MakeSharedRange(keys, rowBuffer),
-            lookupOptions))
+            NRecords::TJobStderrDescriptor::Get()->GetNameTable(),
+            keys,
+            /*options*/ {}))
             .ValueOrThrow();
 
-        auto rows = rowset->GetRows();
-        YT_VERIFY(!rows.Empty());
-
-        if (rows[0]) {
-            auto value = rows[0][0];
-
-            YT_VERIFY(value.Type == EValueType::String);
-            return TSharedRef::MakeCopy<char>(TRef(value.Data.String, value.Length));
+        auto records = ToRecords<NRecords::TJobStderr>(rowset);
+        YT_VERIFY(records.size() <= 1);
+        if (records.empty()) {
+            return {};
         }
-    } catch (const TErrorException& exception) {
-        auto matchedError = exception.Error().FindMatching(NYTree::EErrorCode::ResolveError);
 
+        const auto& record = records[0];
+        return TSharedRef::FromString(record.Stderr);
+    } catch (const TErrorException& ex) {
+        auto matchedError = ex.Error().FindMatching(NYTree::EErrorCode::ResolveError);
         if (!matchedError) {
             THROW_ERROR_EXCEPTION("Failed to get job stderr from archive")
                 << TErrorAttribute("operation_id", operationId)
                 << TErrorAttribute("job_id", jobId)
-                << exception.Error();
+                << ex;
         }
+        return {};
     }
-
-    return TSharedRef();
 }
 
 TSharedRef TClient::DoGetJobStderr(

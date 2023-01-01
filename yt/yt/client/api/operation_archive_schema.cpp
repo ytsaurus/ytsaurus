@@ -143,25 +143,4 @@ TJobSpecTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobStderrTableDescriptor::TJobStderrTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Index(NameTable)
-{ }
-
-const TJobStderrTableDescriptor& TJobStderrTableDescriptor::Get()
-{
-    static const TJobStderrTableDescriptor descriptor;
-    return descriptor;
-}
-
-TJobStderrTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
-    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
-    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
-    , JobIdHi(nameTable->RegisterName("job_id_hi"))
-    , JobIdLo(nameTable->RegisterName("job_id_lo"))
-    , Stderr(nameTable->RegisterName("stderr"))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NApi

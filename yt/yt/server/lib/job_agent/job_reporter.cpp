@@ -14,6 +14,7 @@
 #include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
 #include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_profile.record.h>
+#include <yt/yt/ytlib/scheduler/records/job_stderr.record.h>
 
 #include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/transaction.h>
@@ -266,20 +267,17 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
-        const auto& index = TJobStderrTableDescriptor::Get().Index;
-
         if (!Report_.Stderr()) {
             return {};
         }
 
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[1], index.OperationIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
-        builder.AddValue(MakeUnversionedStringValue(*Report_.Stderr(), index.Stderr));
-
-        return builder.FinishRow();
+        NRecords::TJobStderr record;
+        record.OperationIdHi = Report_.OperationId().Parts64[0];
+        record.OperationIdLo = Report_.OperationId().Parts64[1];
+        record.JobIdHi = Report_.JobId().Parts64[0];
+        record.JobIdLo = Report_.JobId().Parts64[1];
+        record.Stderr = *Report_.Stderr();
+        return FromRecord(record);
     }
 
 private:
@@ -412,7 +410,7 @@ public:
                 Version_,
                 Config_,
                 Config_->JobStderrHandler,
-                TJobStderrTableDescriptor::Get().NameTable,
+                NRecords::TJobStderrDescriptor::Get()->GetNameTable(),
                 "stderrs",
                 Client_,
                 Reporter_->GetInvoker(),
