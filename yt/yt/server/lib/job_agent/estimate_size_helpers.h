@@ -8,21 +8,25 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t EstimateSize(const TString& s);
-size_t EstimateSize(const NYson::TYsonString& s);
-size_t EstimateSize(i64);
-size_t EstimateSize(TGuid id);
-size_t EstimateSize(TInstant);
+constexpr size_t EstimatedValueSize = 16;
+
+size_t EstimateSize(const TString& value);
+size_t EstimateSize(const NYson::TYsonString& value);
+size_t EstimateSize(i64 value);
+size_t EstimateSize(TGuid value);
+size_t EstimateSize(TInstant value);
 
 template <typename T>
-size_t EstimateSize(const std::optional<T>& v);
+size_t EstimateSize(const std::optional<T>& value);
+
+template <typename E>
+requires TEnumTraits<E>::IsEnum
+size_t EstimateSize(E value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-size_t EstimateSizes();
-
-template <typename T, typename... U>
-size_t EstimateSizes(T&& t, U&& ... u);
+template <typename... Ts>
+size_t EstimateSizes(Ts&&...values);
 
 ////////////////////////////////////////////////////////////////////////////////
 
