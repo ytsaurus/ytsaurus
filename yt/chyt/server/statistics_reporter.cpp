@@ -25,11 +25,7 @@ using NJobAgent::EstimateSizes;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 static const NProfiling::TRegistry ReporterProfiler("/statistics_reporter");
-
-} // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -63,7 +59,7 @@ struct TDistributedQueriesTableDescirptor
         { }
 
         //! Queries can create secondary queries and form a tree-like structure.
-        //! The root node of this tree is the initial query and it is always a query made by a user. 
+        //! The root node of this tree is the initial query and it is always a query made by a user.
         const int InitialQueryId;
         const int QueryId;
         const int InstanceCookie;
@@ -331,7 +327,7 @@ public:
             InitialQueryId_);
     }
 
-    TUnversionedOwningRow ToRow(int /* archiveVersion */) const override
+    TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
         const auto& index = TAncestorQueryIdsTableDescriptor::Get().Index;
 
@@ -351,16 +347,16 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryStatisticsReporter::TImpl
-    : public TRefCounted
+class TQueryStatisticsReporter
+    : public IQueryStatisticsReporter
 {
 public:
-    TImpl(
+    TQueryStatisticsReporter(
         TQueryStatisticsReporterConfigPtr config,
-        const NNative::IClientPtr& client)
+        NNative::IClientPtr client)
         : Config_(std::move(config))
         , DistributedQueryHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->DistributedQueriesHandler,
@@ -370,7 +366,7 @@ public:
                 Reporter_->GetInvoker(),
                 ReporterProfiler.WithTag("reporter_type", "distributed_queries")))
         , SecondaryQueryHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->SecondaryQueriesHandler,
@@ -380,7 +376,7 @@ public:
                 Reporter_->GetInvoker(),
                 ReporterProfiler.WithTag("reporter_type", "secondary_queries")))
         , AncestorQueryIdsHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->AncestorQueryIdsHandler,
@@ -391,7 +387,7 @@ public:
                 ReporterProfiler.WithTag("reporter_type", "ancestor_query_ids")))
     { }
 
-    void ReportQueryStatistics(const TQueryContextPtr& queryContext)
+    void ReportQueryStatistics(const TQueryContextPtr& queryContext) override
     {
         // A query is 'distributed' if it has created at least 1 secondary query.
         if (!queryContext->SelectQueries.empty()) {
@@ -408,26 +404,20 @@ private:
     const TQueryStatisticsReporterConfigPtr Config_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("StatisticsReporter");
     const TArchiveVersionHolderPtr Version_ = New<TArchiveVersionHolder>();
-    TArchiveReporterPtr DistributedQueryHandler_;
-    TArchiveReporterPtr SecondaryQueryHandler_;
-    TArchiveReporterPtr AncestorQueryIdsHandler_;
+    const IArchiveReporterPtr DistributedQueryHandler_;
+    const IArchiveReporterPtr SecondaryQueryHandler_;
+    const IArchiveReporterPtr AncestorQueryIdsHandler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TQueryStatisticsReporter::TQueryStatisticsReporter(
+IQueryStatisticsReporterPtr CreateQueryStatisticsReporter(
     TQueryStatisticsReporterConfigPtr config,
-    const NNative::IClientPtr& client)
-    : Impl_(New<TImpl>(
-        std::move(config),
-        client))
-{ }
-
-TQueryStatisticsReporter::~TQueryStatisticsReporter() = default;
-
-void TQueryStatisticsReporter::ReportQueryStatistics(const TQueryContextPtr& queryContext)
+    NNative::IClientPtr client)
 {
-    Impl_->ReportQueryStatistics(queryContext);
+    return New<TQueryStatisticsReporter>(
+        std::move(config),
+        std::move(client));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

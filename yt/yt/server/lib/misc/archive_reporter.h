@@ -13,16 +13,14 @@ namespace NYT {
 
 //! A primitive for getting an archive version.
 //! It allows the uploader to update the format version on the go.
-class TArchiveVersionHolder
-    : public TRefCounted
+class TArchiveVersionHolder final
 {
 public:
+    int Get() const;
     void Set(int version);
 
-    int Get() const;
-
 private:
-    std::atomic<int> Version_ = {-1};
+    std::atomic<int> Version_ = -1;
 };
 
 DEFINE_REFCOUNTED_TYPE(TArchiveVersionHolder)
@@ -44,34 +42,26 @@ struct IArchiveRowlet
 
 //! This class batches and uploads data to a dynamic table in the background.
 //! Rows can be dropped if the specified limit is exceeded.
-class TArchiveReporter
+struct IArchiveReporter
     : public TRefCounted
 {
-public:
-    TArchiveReporter(
-        TArchiveVersionHolderPtr version,
-        TArchiveReporterConfigPtr reporterConfig,
-        TArchiveHandlerConfigPtr handlerConfig,
-        NTableClient::TNameTablePtr nameTable,
-        TString reporterName,
-        NApi::NNative::IClientPtr client,
-        IInvokerPtr invoker,
-        const NProfiling::TProfiler& profiler);
-
-    ~TArchiveReporter();
-
-    void Enqueue(std::unique_ptr<IArchiveRowlet> row);
-
-    void SetEnabled(bool enable);
-    int ExtractWriteFailuresCount();
-    bool QueueIsTooLarge() const;
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void Enqueue(std::unique_ptr<IArchiveRowlet> row) = 0;
+    virtual void SetEnabled(bool enable) = 0;
+    virtual int ExtractWriteFailuresCount() = 0;
+    virtual bool IsQueueTooLarge() const = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TArchiveReporter)
+DEFINE_REFCOUNTED_TYPE(IArchiveReporter)
+
+IArchiveReporterPtr CreateArchiveReporter(
+    TArchiveVersionHolderPtr version,
+    TArchiveReporterConfigPtr reporterConfig,
+    TArchiveHandlerConfigPtr handlerConfig,
+    NTableClient::TNameTablePtr nameTable,
+    TString reporterName,
+    NApi::NNative::IClientPtr client,
+    IInvokerPtr invoker,
+    NProfiling::TProfiler profiler);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -8,24 +8,17 @@ namespace NYT::NClickHouseServer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TQueryStatisticsReporter
+struct IQueryStatisticsReporter
     : public TRefCounted
 {
-public:
-    TQueryStatisticsReporter(
-        TQueryStatisticsReporterConfigPtr config,
-        const NApi::NNative::IClientPtr& client);
-
-    ~TQueryStatisticsReporter();
-
-    void ReportQueryStatistics(const TQueryContextPtr& queryContext);
-
-private:
-    class TImpl;
-    const TIntrusivePtr<TImpl> Impl_;
+    virtual void ReportQueryStatistics(const TQueryContextPtr& queryContext) = 0;
 };
 
-DEFINE_REFCOUNTED_TYPE(TQueryStatisticsReporter)
+DEFINE_REFCOUNTED_TYPE(IQueryStatisticsReporter)
+
+IQueryStatisticsReporterPtr CreateQueryStatisticsReporter(
+    TQueryStatisticsReporterConfigPtr config,
+    NApi::NNative::IClientPtr client);
 
 ////////////////////////////////////////////////////////////////////////////////
 

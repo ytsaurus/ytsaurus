@@ -29,11 +29,11 @@ namespace NDetail {
 class TLimiter
 {
 public:
-    explicit TLimiter(ui64 maxValue)
+    explicit TLimiter(i64 maxValue)
         : MaxValue_(maxValue)
     { }
 
-    bool TryIncrease(ui64 delta)
+    bool TryIncrease(i64 delta)
     {
         if (Value_.fetch_add(delta, std::memory_order::relaxed) + delta <= MaxValue_) {
             return true;
@@ -42,7 +42,7 @@ public:
         return false;
     }
 
-    void Decrease(ui64 delta)
+    void Decrease(i64 delta)
     {
         // TODO(dakovalkov): Is it possible?
         if (Value_.fetch_sub(delta, std::memory_order::relaxed) < delta) {
@@ -57,19 +57,19 @@ public:
         Value_.store(0, std::memory_order::relaxed);
     }
 
-    ui64 GetValue() const
+    i64 GetValue() const
     {
         return Value_.load();
     }
 
-    ui64 GetMaxValue() const
+    i64 GetMaxValue() const
     {
         return MaxValue_;
     }
 
 private:
-    const ui64 MaxValue_;
-    std::atomic<ui64> Value_ = {0};
+    const i64 MaxValue_;
+    std::atomic<i64> Value_ = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,25 +83,25 @@ static constexpr int QueueIsTooLargeMultiplier = 2;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TArchiveVersionHolder::Set(int version)
-{
-    Version_.store(version, std::memory_order::relaxed);
-}
-
 int TArchiveVersionHolder::Get() const
 {
     return Version_.load(std::memory_order::relaxed);
 }
 
+void TArchiveVersionHolder::Set(int version)
+{
+    Version_.store(version, std::memory_order::relaxed);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-class TArchiveReporter::TImpl
-    : public TRefCounted
+class TArchiveReporter
+    : public IArchiveReporter
 {
 public:
     using TBatch = std::vector<std::unique_ptr<IArchiveRowlet>>;
 
-    TImpl(
+    TArchiveReporter(
         TArchiveVersionHolderPtr version,
         TArchiveReporterConfigPtr reporterConfig,
         TArchiveHandlerConfigPtr handlerConfig,
@@ -127,20 +127,20 @@ public:
         , CommittedCounter_(profiler.Counter("/committed"))
         , CommittedDataWeightCounter_(profiler.Counter("/committed_data_weight"))
     {
-        BIND(&TImpl::Loop, MakeWeak(this))
+        BIND(&TArchiveReporter::Loop, MakeWeak(this))
             .Via(invoker)
             .Run();
         EnableSemaphore_->Acquire();
         SetEnabled(ReporterConfig_->Enabled);
     }
 
-    void Enqueue(std::unique_ptr<IArchiveRowlet> rowStub)
+    void Enqueue(std::unique_ptr<IArchiveRowlet> rowlet) override
     {
         if (!IsEnabled()) {
             return;
         }
-        if (Limiter_.TryIncrease(rowStub->EstimateSize())) {
-            Batcher_->Enqueue(std::move(rowStub));
+        if (Limiter_.TryIncrease(rowlet->EstimateSize())) {
+            Batcher_->Enqueue(std::move(rowlet));
             PendingCounter_.Update(PendingCount_++);
             EnqueuedCounter_.Increment();
             QueueIsTooLargeCounter_.Update(IsQueueTooLarge() ? 1 : 0);
@@ -150,7 +150,7 @@ public:
         }
     }
 
-    void SetEnabled(bool enable)
+    void SetEnabled(bool enable) override
     {
         bool oldEnable = Enabled_.exchange(enable);
         if (oldEnable != enable) {
@@ -158,12 +158,12 @@ public:
         }
     }
 
-    int ExtractWriteFailuresCount()
+    int ExtractWriteFailuresCount() override
     {
         return WriteFailuresCount_.exchange(0);
     }
 
-    bool IsQueueTooLarge() const
+    bool IsQueueTooLarge() const override
     {
         return NYT::NDetail::QueueIsTooLargeMultiplier * Limiter_.GetValue() > Limiter_.GetMaxValue();
     }
@@ -189,10 +189,11 @@ private:
     TCounter CommittedDataWeightCounter_;
 
     const TAsyncSemaphorePtr EnableSemaphore_ = New<TAsyncSemaphore>(1);
+
     std::atomic<bool> Enabled_ = false;
-    std::atomic<ui64> PendingCount_ = 0;
-    std::atomic<ui64> DroppedCount_ = 0;
-    std::atomic<ui64> WriteFailuresCount_ = 0;
+    std::atomic<int> PendingCount_ = 0;
+    std::atomic<int> DroppedCount_ = 0;
+    std::atomic<int> WriteFailuresCount_ = 0;
 
     void Loop()
     {
@@ -217,14 +218,14 @@ private:
         auto delay = ReporterConfig_->MinRepeatDelay;
         while (IsEnabled()) {
             auto dropped = DroppedCount_.exchange(0);
-            if (dropped) {
+            if (dropped > 0) {
                 YT_LOG_WARNING("Maximum items reached, dropping archived rows (DroppedItems: %v)", dropped);
             }
             try {
                 TryHandleBatch(batch);
-                ui64 dataSize = 0;
-                for (auto& rowStub : batch) {
-                    dataSize += rowStub->EstimateSize();
+                i64 dataSize = 0;
+                for (const auto& rowlet : batch) {
+                    dataSize += rowlet->EstimateSize();
                 }
                 Limiter_.Decrease(dataSize);
                 return;
@@ -249,11 +250,13 @@ private:
             batch.size(),
             GetPendingCount(),
             Version_->Get());
+
         TTransactionStartOptions transactionOptions;
         transactionOptions.Atomicity = EAtomicity::None;
         auto asyncTransaction = Client_->StartTransaction(ETransactionType::Tablet, transactionOptions);
         auto transactionOrError = WaitFor(asyncTransaction);
         auto transaction = transactionOrError.ValueOrThrow();
+
         YT_LOG_DEBUG("Archive table transaction started (TransactionId: %v, Items: %v)",
             transaction->GetId(),
             batch.size());
@@ -273,19 +276,19 @@ private:
             dataWeight);
     }
 
-    // Must return dataweight of written batch inside transaction.
-    size_t HandleBatchTransaction(ITransaction& transaction, const TBatch& batch)
+    //! Returns data weight of written batch inside transaction.
+    i64 HandleBatchTransaction(ITransaction& transaction, const TBatch& batch)
     {
         int archiveVersion = Version_->Get();
         std::vector<TUnversionedRow> rows;
         std::vector<TUnversionedOwningRow> owningRows;
 
-        size_t dataWeight = 0;
-        for (auto&& rowStub : batch) {
-            if (auto row = rowStub->ToRow(archiveVersion); row && !IsValueWeightViolated(row)) {
+        i64 dataWeight = 0;
+        for (const auto& rowlet : batch) {
+            if (auto row = rowlet->ToRow(archiveVersion); row && !IsValueWeightViolated(row)) {
                 dataWeight += GetDataWeight(row.Get());
-                rows.emplace_back(row.Get());
-                owningRows.emplace_back(std::move(row));
+                rows.push_back(row.Get());
+                owningRows.push_back(std::move(row));
             }
         }
 
@@ -297,7 +300,7 @@ private:
         return dataWeight;
     }
 
-    ui64 GetPendingCount() const
+    int GetPendingCount() const
     {
         return PendingCount_.load();
     }
@@ -329,9 +332,10 @@ private:
         if (IsEnabled()) {
             return;
         }
+
         YT_LOG_INFO("Waiting for archive reporter to become enabled");
-        auto event = EnableSemaphore_->GetReadyEvent();
-        WaitFor(event).ThrowOnError();
+        WaitFor(EnableSemaphore_->GetReadyEvent())
+            .ThrowOnError();
         YT_LOG_INFO("Archive reporter became enabled, resuming archive uploading");
     }
 
@@ -355,7 +359,7 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TArchiveReporter::TArchiveReporter(
+IArchiveReporterPtr CreateArchiveReporter(
     TArchiveVersionHolderPtr version,
     TArchiveReporterConfigPtr reporterConfig,
     TArchiveHandlerConfigPtr handlerConfig,
@@ -363,8 +367,9 @@ TArchiveReporter::TArchiveReporter(
     TString reporterName,
     NNative::IClientPtr client,
     IInvokerPtr invoker,
-    const TProfiler& profiler)
-    : Impl_(New<TImpl>(
+    TProfiler profiler)
+{
+    return New<TArchiveReporter>(
         std::move(version),
         std::move(reporterConfig),
         std::move(handlerConfig),
@@ -372,29 +377,7 @@ TArchiveReporter::TArchiveReporter(
         std::move(reporterName),
         std::move(client),
         std::move(invoker),
-        profiler))
-{ }
-
-TArchiveReporter::~TArchiveReporter() = default;
-
-void TArchiveReporter::Enqueue(std::unique_ptr<IArchiveRowlet> rowStub)
-{
-    Impl_->Enqueue(std::move(rowStub));
-}
-
-void TArchiveReporter::SetEnabled(bool enable)
-{
-    Impl_->SetEnabled(enable);
-}
-
-int TArchiveReporter::ExtractWriteFailuresCount()
-{
-    return Impl_->ExtractWriteFailuresCount();
-}
-
-bool TArchiveReporter::QueueIsTooLarge() const
-{
-    return Impl_->IsQueueTooLarge();
+        std::move(profiler));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

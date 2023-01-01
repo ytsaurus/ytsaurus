@@ -381,7 +381,7 @@ public:
         , Config_(std::move(reporterConfig))
         , LocalAddress_(std::move(localAddress))
         , JobHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->JobHandler,
@@ -391,7 +391,7 @@ public:
                 Reporter_->GetInvoker(),
                 ReporterProfiler.WithTag("reporter_type", "jobs")))
         , OperationIdHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->OperationIdHandler,
@@ -401,7 +401,7 @@ public:
                 Reporter_->GetInvoker(),
                 ReporterProfiler.WithTag("reporter_type", "operation_ids")))
         , JobSpecHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->JobSpecHandler,
@@ -411,7 +411,7 @@ public:
                 Reporter_->GetInvoker(),
                 ReporterProfiler.WithTag("reporter_type", "job_specs")))
         , JobStderrHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->JobStderrHandler,
@@ -421,7 +421,7 @@ public:
                 Reporter_->GetInvoker(),
                 ReporterProfiler.WithTag("reporter_type", "stderrs")))
         , JobFailContextHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->JobFailContextHandler,
@@ -431,7 +431,7 @@ public:
                 Reporter_->GetInvoker(),
                 ReporterProfiler.WithTag("reporter_type", "fail_contexts")))
         , JobProfileHandler_(
-            New<TArchiveReporter>(
+            CreateArchiveReporter(
                 Version_,
                 Config_,
                 Config_->JobProfileHandler,
@@ -486,14 +486,14 @@ public:
             JobProfileHandler_->ExtractWriteFailuresCount();
     }
 
-    bool GetQueueIsTooLarge()
+    bool IsQueueTooLarge()
     {
         return
-            JobHandler_->QueueIsTooLarge() ||
-            JobSpecHandler_->QueueIsTooLarge() ||
-            JobStderrHandler_->QueueIsTooLarge() ||
-            JobFailContextHandler_->QueueIsTooLarge() ||
-            JobProfileHandler_->QueueIsTooLarge();
+            JobHandler_->IsQueueTooLarge() ||
+            JobSpecHandler_->IsQueueTooLarge() ||
+            JobStderrHandler_->IsQueueTooLarge() ||
+            JobFailContextHandler_->IsQueueTooLarge() ||
+            JobProfileHandler_->IsQueueTooLarge();
     }
 
     void UpdateConfig(const TJobReporterConfigPtr& config)
@@ -522,12 +522,12 @@ private:
     const std::optional<TString> LocalAddress_;
     const TActionQueuePtr Reporter_ = New<TActionQueue>("JobReporter");
     const TArchiveVersionHolderPtr Version_ = New<TArchiveVersionHolder>();
-    const TArchiveReporterPtr JobHandler_;
-    const TArchiveReporterPtr OperationIdHandler_;
-    const TArchiveReporterPtr JobSpecHandler_;
-    const TArchiveReporterPtr JobStderrHandler_;
-    const TArchiveReporterPtr JobFailContextHandler_;
-    const TArchiveReporterPtr JobProfileHandler_;
+    const IArchiveReporterPtr JobHandler_;
+    const IArchiveReporterPtr OperationIdHandler_;
+    const IArchiveReporterPtr JobSpecHandler_;
+    const IArchiveReporterPtr JobStderrHandler_;
+    const IArchiveReporterPtr JobFailContextHandler_;
+    const IArchiveReporterPtr JobProfileHandler_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -569,7 +569,7 @@ int TJobReporter::ExtractWriteFailuresCount()
 bool TJobReporter::GetQueueIsTooLarge()
 {
     if (Impl_) {
-        return Impl_->GetQueueIsTooLarge();
+        return Impl_->IsQueueTooLarge();
     }
     return false;
 }

@@ -464,7 +464,7 @@ public:
         return ParallelReaderMemoryManager_;
     }
 
-    const TQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const
+    const IQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const
     {
         return QueryStatisticsReporter_;
     }
@@ -609,7 +609,7 @@ private:
 
     IMultiReaderMemoryManagerPtr ParallelReaderMemoryManager_;
 
-    TQueryStatisticsReporterPtr QueryStatisticsReporter_;
+    IQueryStatisticsReporterPtr QueryStatisticsReporter_;
 
     std::atomic<int> SigintCounter_ = {0};
 
@@ -676,7 +676,7 @@ private:
 
     void InitializeStatisticsReporter()
     {
-        QueryStatisticsReporter_ = New<TQueryStatisticsReporter>(
+        QueryStatisticsReporter_ = CreateQueryStatisticsReporter(
             Config_->QueryStatisticsReporter,
             StatisticsReporterClient_);
     }
@@ -983,7 +983,7 @@ const IMultiReaderMemoryManagerPtr& THost::GetMultiReaderMemoryManager() const
     return Impl_->GetMultiReaderMemoryManager();
 }
 
-const TQueryStatisticsReporterPtr& THost::GetQueryStatisticsReporter() const
+const IQueryStatisticsReporterPtr& THost::GetQueryStatisticsReporter() const
 {
     return Impl_->GetQueryStatisticsReporter();
 }
