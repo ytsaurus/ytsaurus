@@ -147,27 +147,6 @@ struct TJobSpecTableDescriptor
     const TIndex Index;
 };
 
-struct TJobStderrTableDescriptor
-{
-    TJobStderrTableDescriptor();
-
-    static const TJobStderrTableDescriptor& Get();
-
-    struct TIndex
-    {
-        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
-
-        const int OperationIdHi;
-        const int OperationIdLo;
-        const int JobIdHi;
-        const int JobIdLo;
-        const int Stderr;
-    };
-
-    const NTableClient::TNameTablePtr NameTable;
-    const TIndex Index;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT::NApi

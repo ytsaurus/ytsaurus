@@ -451,7 +451,7 @@ TNodeJobReport TNodeJobReport::Events(const TJobEvents& events)
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::StderrSize(ui64 stderrSize)
+TNodeJobReport TNodeJobReport::StderrSize(i64 stderrSize)
 {
     YT_VERIFY(!Stderr_.has_value());
     StderrSize_ = stderrSize;
