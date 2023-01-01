@@ -91,7 +91,7 @@ public:
 
     const NChunkClient::IMultiReaderMemoryManagerPtr& GetMultiReaderMemoryManager() const;
 
-    const TQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const;
+    const IQueryStatisticsReporterPtr& GetQueryStatisticsReporter() const;
 
     TYtConfigPtr GetConfig() const;
 

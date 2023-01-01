@@ -166,7 +166,7 @@ class TArchiveHandlerConfig
     : public NYTree::TYsonStruct
 {
 public:
-    int MaxInProgressDataSize;
+    i64 MaxInProgressDataSize;
     TString Path;
 
     REGISTER_YSON_STRUCT(TArchiveHandlerConfig);
