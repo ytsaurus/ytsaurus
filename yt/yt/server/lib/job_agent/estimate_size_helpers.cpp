@@ -7,38 +7,29 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-constexpr size_t EstimatedValueSize = 16;
-
-size_t EstimateSize(const TString& s)
+size_t EstimateSize(const TString& value)
 {
-    return EstimatedValueSize + s.size();
+    return EstimatedValueSize + value.size();
 }
 
-size_t EstimateSize(const NYson::TYsonString& s)
+size_t EstimateSize(const NYson::TYsonString& value)
 {
-    return s ? EstimatedValueSize + s.AsStringBuf().size() : 0;
+    return value ? EstimatedValueSize + value.AsStringBuf().size() : 0;
 }
 
-size_t EstimateSize(i64)
+size_t EstimateSize(i64 /*value*/)
 {
     return EstimatedValueSize;
 }
 
-size_t EstimateSize(TGuid id)
+size_t EstimateSize(TGuid value)
 {
-    return id.IsEmpty() ? 0 : EstimatedValueSize * 2;
+    return value.IsEmpty() ? 0 : EstimatedValueSize * 2;
 }
 
-size_t EstimateSize(TInstant)
+size_t EstimateSize(TInstant /*value*/)
 {
     return EstimatedValueSize;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-size_t EstimateSizes()
-{
-    return 0;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

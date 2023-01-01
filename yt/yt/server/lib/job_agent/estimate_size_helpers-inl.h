@@ -14,12 +14,19 @@ size_t EstimateSize(const std::optional<T>& v)
     return v ? EstimateSize(*v) : 0;
 }
 
+template <typename E>
+requires TEnumTraits<E>::IsEnum
+size_t EstimateSize(E /*value*/)
+{
+    return EstimatedValueSize;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename T, typename... U>
-size_t EstimateSizes(T&& t, U&& ... u)
+template <typename... Ts>
+size_t EstimateSizes(Ts&&...values)
 {
-    return EstimateSize(std::forward<T>(t)) + EstimateSizes(std::forward<U>(u)...);
+    return (EstimateSize(std::forward<Ts>(values)) + ... + 0);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
