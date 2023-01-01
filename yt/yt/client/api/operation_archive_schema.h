@@ -168,30 +168,6 @@ struct TJobStderrTableDescriptor
     const TIndex Index;
 };
 
-struct TJobProfileTableDescriptor
-{
-    TJobProfileTableDescriptor();
-
-    static const TJobProfileTableDescriptor& Get();
-
-    struct TIndex
-    {
-        explicit TIndex(const NTableClient::TNameTablePtr& nameTable);
-
-        const int OperationIdHi;
-        const int OperationIdLo;
-        const int JobIdHi;
-        const int JobIdLo;
-        const int PartIndex;
-        const int ProfileType;
-        const int ProfileBlob;
-        const int ProfilingProbability;
-    };
-
-    const NTableClient::TNameTablePtr NameTable;
-    const TIndex Index;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } //namespace NYT::NApi

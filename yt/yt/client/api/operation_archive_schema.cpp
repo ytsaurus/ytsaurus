@@ -164,28 +164,4 @@ TJobStderrTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TJobProfileTableDescriptor::TJobProfileTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Index(NameTable)
-{ }
-
-const TJobProfileTableDescriptor& TJobProfileTableDescriptor::Get()
-{
-    static const TJobProfileTableDescriptor descriptor;
-    return descriptor;
-}
-
-TJobProfileTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
-    : OperationIdHi(nameTable->RegisterName("operation_id_hi"))
-    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
-    , JobIdHi(nameTable->RegisterName("job_id_hi"))
-    , JobIdLo(nameTable->RegisterName("job_id_lo"))
-    , PartIndex(nameTable->RegisterName("part_index"))
-    , ProfileType(nameTable->RegisterName("profile_type"))
-    , ProfileBlob(nameTable->RegisterName("profile_blob"))
-    , ProfilingProbability(nameTable->RegisterName("profiling_probability"))
-{ }
-
-////////////////////////////////////////////////////////////////////////////////
-
 } // namespace NYT::NApi

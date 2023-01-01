@@ -13,6 +13,7 @@
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
 #include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
+#include <yt/yt/ytlib/scheduler/records/job_profile.record.h>
 
 #include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/transaction.h>
@@ -326,38 +327,36 @@ class TJobProfileRowlet
 {
 public:
     explicit TJobProfileRowlet(TJobReport&& report)
-        : Statistics_(std::move(report))
+        : Report_(std::move(report))
     { }
 
     size_t EstimateSize() const override
     {
-        return Statistics_.EstimateSize();
+        return Report_.EstimateSize();
     }
 
     TUnversionedOwningRow ToRow(int archiveVersion) const override
     {
-        const auto& index = TJobProfileTableDescriptor::Get().Index;
-        const auto& profile = Statistics_.Profile();
+        const auto& profile = Report_.Profile();
 
         if (archiveVersion < 27 || !profile) {
             return {};
         }
 
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.OperationId().Parts64[1], index.OperationIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Statistics_.JobId().Parts64[1], index.JobIdLo));
-        builder.AddValue(MakeUnversionedInt64Value(0, index.PartIndex));
-        builder.AddValue(MakeUnversionedStringValue(profile->Type, index.ProfileType));
-        builder.AddValue(MakeUnversionedStringValue(profile->Blob, index.ProfileBlob));
-        builder.AddValue(MakeUnversionedDoubleValue(profile->ProfilingProbability, index.ProfilingProbability));
-
-        return builder.FinishRow();
+        NRecords::TJobProfile record;
+        record.OperationIdHi = Report_.OperationId().Parts64[0];
+        record.OperationIdLo = Report_.OperationId().Parts64[1];
+        record.JobIdHi = Report_.JobId().Parts64[0];
+        record.JobIdLo = Report_.JobId().Parts64[1];
+        record.PartIndex = 0;
+        record.ProfileType = profile->Type;
+        record.ProfileBlob = profile->Blob;
+        record.ProfilingProbability = profile->ProfilingProbability;
+        return FromRecord(record);
     }
 
 private:
-    const TJobReport Statistics_;
+    const TJobReport Report_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -433,7 +432,7 @@ public:
                 Version_,
                 Config_,
                 Config_->JobProfileHandler,
-                TJobProfileTableDescriptor::Get().NameTable,
+                NRecords::TJobProfileDescriptor::Get()->GetNameTable(),
                 "profiles",
                 Client_,
                 Reporter_->GetInvoker(),
