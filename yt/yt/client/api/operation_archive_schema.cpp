@@ -122,26 +122,6 @@ TJobTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TOperationIdTableDescriptor::TOperationIdTableDescriptor()
-    : NameTable(New<TNameTable>())
-    , Index(NameTable)
-{ }
-
-const TOperationIdTableDescriptor& TOperationIdTableDescriptor::Get()
-{
-    static const TOperationIdTableDescriptor descriptor;
-    return descriptor;
-}
-
-TOperationIdTableDescriptor::TIndex::TIndex(const TNameTablePtr& nameTable)
-    : JobIdHi(nameTable->RegisterName("job_id_hi"))
-    , JobIdLo(nameTable->RegisterName("job_id_lo"))
-    , OperationIdHi(nameTable->RegisterName("operation_id_hi"))
-    , OperationIdLo(nameTable->RegisterName("operation_id_lo"))
-{}
-
-////////////////////////////////////////////////////////////////////////////////
-
 TJobSpecTableDescriptor::TJobSpecTableDescriptor()
     : NameTable(New<TNameTable>())
     , Index(NameTable)
