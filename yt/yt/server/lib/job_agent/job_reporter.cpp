@@ -12,6 +12,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
+#include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
 
 #include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/transaction.h>
@@ -196,15 +197,12 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
-        const auto& index = TOperationIdTableDescriptor::Get().Index;
-
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[0], index.OperationIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.OperationId().Parts64[1], index.OperationIdLo));
-
-        return builder.FinishRow();
+        NRecords::TOperationId record;
+        record.JobIdHi = Report_.JobId().Parts64[0];
+        record.JobIdLo = Report_.JobId().Parts64[1];
+        record.OperationIdHi = Report_.OperationId().Parts64[0];
+        record.OperationIdLo = Report_.OperationId().Parts64[1];
+        return FromRecord(record);
     }
 
 private:
@@ -395,7 +393,7 @@ public:
                 Version_,
                 Config_,
                 Config_->OperationIdHandler,
-                TOperationIdTableDescriptor::Get().NameTable,
+                NRecords::TOperationIdDescriptor::Get()->GetNameTable(),
                 "operation_ids",
                 Client_,
                 Reporter_->GetInvoker(),

@@ -40,6 +40,7 @@
 
 #include <yt/yt/ytlib/scheduler/helpers.h>
 #include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
+#include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -373,42 +374,32 @@ TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
 TOperationId TClient::TryGetOperationId(
     TJobId jobId)
 {
-    TOperationIdTableDescriptor table;
-
-    auto owningKey = CreateJobKey(jobId, table.NameTable);
-    std::vector<TUnversionedRow> keys = {owningKey};
-
-    TLookupRowsOptions lookupOptions;
-    lookupOptions.KeepMissingRows = true;
+    NRecords::TOperationIdKey recordKey{
+        .JobIdHi = jobId.Parts64[0],
+        .JobIdLo = jobId.Parts64[1]
+    };
+    auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
 
     auto rowsetOrError = WaitFor(LookupRows(
         GetOperationsArchiveOperationIdsPath(),
-        table.NameTable,
-        MakeSharedRange(std::move(keys), std::move(owningKey)),
-        lookupOptions));
+        NRecords::TOperationIdDescriptor::Get()->GetNameTable(),
+        keys,
+        /*options*/ {}));
 
-    if (!rowsetOrError.IsOK()) {
-        if (rowsetOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
-            return {};
-        }
-        rowsetOrError.ThrowOnError();
-    }
-
-    auto rowset = rowsetOrError.ValueOrThrow();
-    auto rows = rowset->GetRows();
-    YT_VERIFY(!rows.Empty());
-    if (!rows[0]) {
+    if (rowsetOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
         return {};
     }
 
-    auto row = rows[0];
-    auto operationIdHiIndex = rowset->GetSchema()->GetColumnIndexOrThrow("operation_id_hi");
-    auto operationIdLoIndex = rowset->GetSchema()->GetColumnIndexOrThrow("operation_id_lo");
-    auto operationIdHi = row[operationIdHiIndex];
-    auto operationIdLo = row[operationIdLoIndex];
-    YT_VERIFY(operationIdHi.Type == EValueType::Uint64);
-    YT_VERIFY(operationIdLo.Type == EValueType::Uint64);
-    return TOperationId(FromUnversionedValue<ui64>(operationIdHi), FromUnversionedValue<ui64>(operationIdLo));
+    auto rowset = rowsetOrError.ValueOrThrow();
+
+    auto records = ToRecords<NRecords::TOperationId>(rowset);
+    YT_VERIFY(records.size() <= 1);
+    if (records.empty()) {
+        return {};
+    }
+
+    const auto& record = records[0];
+    return TOperationId(record.OperationIdHi, record.OperationIdLo);
 }
 
 void TClient::ValidateOperationAccess(
@@ -473,7 +464,7 @@ void TClient::ValidateOperationAccess(
     }
 
     NScheduler::ValidateOperationAccess(
-        /* user */ std::nullopt,
+        /*user*/ std::nullopt,
         TOperationId(),
         jobId,
         permissions,
@@ -2001,7 +1992,7 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
         return {};
     }
 
-    auto jobs = ParseJobsFromArchiveResponse(operationId, rowset, /* needFullStatistics */ true);
+    auto jobs = ParseJobsFromArchiveResponse(operationId, rowset, /*needFullStatistics*/ true);
     YT_VERIFY(!jobs.empty());
     return std::move(jobs.front());
 }
@@ -2049,7 +2040,7 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
             ParseJobsFromControllerAgentResponse(
                 operationId,
                 {{ToString(jobId), ConvertToNode(TYsonStringBuf(rspOrError.Value()->value()))}},
-                /* filter */ [] (const INodePtr&) {
+                /*filter*/ [] (const INodePtr&) {
                     return true;
                 },
                 attributes,
