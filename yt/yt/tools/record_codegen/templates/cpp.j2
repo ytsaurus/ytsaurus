@@ -122,12 +122,15 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     const {{type.type_name}}IdMapping& idMapping) const
 {
     TUnversionedRowBuilder builder;
-{%- for field in type.fields %}
+{%- for field in type.fields if field.sort_order %}
+    builder.AddValue(ToUnversionedValue({{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))));
+{%- endfor %}
+{%- for field in type.fields if not(field.sort_order) %}
     if (idMapping.{{field.cpp_name}} && {{field.cpp_name}}) {
         builder.AddValue(ToUnversionedValue(*{{field.cpp_name}}, rowBuffer, *idMapping.{{field.cpp_name}}));
     }
 {%- endfor %}
-    return builder.GetRow();
+    return rowBuffer->CaptureRow(builder.GetRow(), /*captureValues*/ false);
 }
 
 {{type.type_name}}Partial {{type.type_name}}Partial::FromUnversionedRow(

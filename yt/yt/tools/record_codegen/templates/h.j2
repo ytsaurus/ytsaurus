@@ -87,9 +87,12 @@ struct {{type.type_name}}
 };
 
 struct {{type.type_name}}Partial
+    : public {{type.type_name}}Key
 {
-    using TRecordDescriptor = {{type.type_name}}Descriptor;
-{% for field in type.fields %}
+{% if type.record_verbatim %}
+{{type.record_verbatim}}
+{% endif %}
+{% for field in type.fields if not(field.sort_order)%}
     std::optional<{{field.cpp_type}}> {{field.cpp_name}}{};
 {%- endfor %}
 
