@@ -365,9 +365,7 @@ protected:
             config->ChunkIndexes,
             BlockFormatDetail_,
             logger))
-    {
-        YT_VERIFY(ChunkIndexBuilder_);
-    }
+    { }
 
     std::unique_ptr<TIndexedVersionedBlockWriter> BlockWriter_;
 
@@ -844,12 +842,17 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
             dataSink);
     };
 
-    if (options->OptimizeFor == EOptimizeFor::Scan) {
-        return createWriter.operator()<TColumnarVersionedChunkWriter>();
-    } else if (ShouldBuildChunkIndex(config->ChunkIndexes)) {
-        return createWriter.operator()<TSimpleVersionedChunkWriter<TIndexedBlockFormatAdapter>>();
-    } else {
-        return createWriter.operator()<TSimpleVersionedChunkWriter<TSimpleBlockFormatAdapter>>();
+    auto chunkFormat = options->GetEffectiveChunkFormat(/*versioned*/ true);
+    switch (chunkFormat) {
+        case EChunkFormat::TableVersionedColumnar:
+            return createWriter.operator()<TColumnarVersionedChunkWriter>();
+        case EChunkFormat::TableVersionedSimple:
+            return createWriter.operator()<TSimpleVersionedChunkWriter<TSimpleBlockFormatAdapter>>();
+        case EChunkFormat::TableVersionedIndexed:
+            return createWriter.operator()<TSimpleVersionedChunkWriter<TIndexedBlockFormatAdapter>>();
+        default:
+            THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv",
+                chunkFormat);
     }
 }
 

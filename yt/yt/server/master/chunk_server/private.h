@@ -51,7 +51,6 @@ DEFINE_ENUM(ERemoveReplicaReason,
     (NodeDisposed)
 );
 
-
 // This enum is used only for text representation of table chunk formats in deprecated
 // TableChunkFormat and TableChunkFormatStatistics attributes.
 // Keep in sync with NChunkClient::EChunkFormat.

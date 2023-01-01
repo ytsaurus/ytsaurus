@@ -55,6 +55,7 @@
 #include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 
@@ -215,6 +216,10 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetPresent(!isSorted)
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeFor)
+        .SetReplicated(true)
+        .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkFormat)
+        .SetPresent(table->TryGetChunkFormat().has_value())
         .SetReplicated(true)
         .SetWritable(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::OptimizeForStatistics)
@@ -560,6 +565,14 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
             BuildYsonFluently(consumer)
                 .Value(table->GetOptimizeFor());
             return true;
+
+        case EInternedAttributeKey::ChunkFormat:
+            if (auto optionalChunkFormat = table->TryGetChunkFormat()) {
+                BuildYsonFluently(consumer)
+                    .Value(*optionalChunkFormat);
+                return true;
+            }
+            break;
 
         case EInternedAttributeKey::HunkErasureCodec:
             BuildYsonFluently(consumer)
@@ -964,25 +977,12 @@ TFuture<TYsonString> TTableNodeProxy::GetBuiltinAttributeAsync(TInternedAttribut
             if (isExternal) {
                 break;
             }
-            auto optimizeForExtractor = [] (const TChunk* chunk) {
-                auto format = chunk->GetChunkFormat();
-                switch (format) {
-                    // COMPAT(gritukan): EChunkFormat::FileDefault == ETableChunkFormat::Old.
-                    case EChunkFormat::FileDefault:
-                    case EChunkFormat::TableVersionedSimple:
-                    case EChunkFormat::TableUnversionedSchemaful:
-                    case EChunkFormat::TableUnversionedSchemalessHorizontal:
-                        return NTableClient::EOptimizeFor::Lookup;
-                    case EChunkFormat::TableVersionedColumnar:
-                    case EChunkFormat::TableUnversionedColumnar:
-                        return NTableClient::EOptimizeFor::Scan;
-                    default:
-                        THROW_ERROR_EXCEPTION("Unsupported table chunk format %Qlv",
-                            format);
-                }
-            };
 
-            return ComputeChunkStatistics(Bootstrap_, chunkLists, optimizeForExtractor);
+            return ComputeChunkStatistics(
+                Bootstrap_,
+                chunkLists,
+                [] (const TChunk* chunk) { return OptimizeForFromFormat(chunk->GetChunkFormat()); },
+                [] (const TChunk* chunk) { return chunk->GetChunkType() == EChunkType::Table; });
         }
 
         case EInternedAttributeKey::HunkStatistics: {
@@ -1218,6 +1218,18 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             const auto& uninternedKey = key.Unintern();
             auto* lockedTable = LockThisImpl(TLockRequest::MakeSharedAttribute(uninternedKey));
             lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
+
+            return true;
+        }
+
+        case EInternedAttributeKey::ChunkFormat: {
+            ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+
+            const auto& uninternedKey = key.Unintern();
+            auto* lockedTable = LockThisImpl(TLockRequest::MakeSharedAttribute(uninternedKey));
+            auto chunkFormat = ConvertTo<EChunkFormat>(value);
+            ValidateTableChunkFormat(chunkFormat);
+            lockedTable->SetChunkFormat(chunkFormat);
 
             return true;
         }

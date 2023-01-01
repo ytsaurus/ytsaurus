@@ -13,6 +13,24 @@ namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsValidTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
+bool IsVersionedTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
+
+void ValidateTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
+void ValidateTableChunkFormatAndOptimizeFor(
+    NChunkClient::EChunkFormat chunkFormat,
+    EOptimizeFor optimizeFor);
+void ValidateTableChunkFormatVersioned(
+    NChunkClient::EChunkFormat chunkFormat,
+    bool versioned);
+
+EOptimizeFor OptimizeForFromFormat(NChunkClient::EChunkFormat chunkFormat);
+NChunkClient::EChunkFormat DefaultFormatFromOptimizeFor(
+    EOptimizeFor optimizeFor,
+    bool versioned);
+
+////////////////////////////////////////////////////////////////////////////////
+
 // Mostly used in unittests and for debugging purposes.
 // Quite inefficient.
 TUnversionedOwningRow YsonToSchemafulRow(

@@ -311,6 +311,9 @@ void TTableNode::EndUpload(const TEndUploadContext& context)
     if (context.OptimizeFor) {
         OptimizeFor_.Set(*context.OptimizeFor);
     }
+    if (context.ChunkFormat) {
+        ChunkFormat_.Set(*context.ChunkFormat);
+    }
 
     TTabletOwnerBase::EndUpload(context);
 }
@@ -367,6 +370,7 @@ void TTableNode::Save(NCellMaster::TSaveContext& context) const
     SaveTableSchema(context);
     Save(context, SchemaMode_);
     Save(context, OptimizeFor_);
+    Save(context, ChunkFormat_);
     Save(context, HunkErasureCodec_);
     Save(context, RetainedTimestamp_);
     Save(context, UnflushedTimestamp_);
@@ -382,6 +386,10 @@ void TTableNode::Load(NCellMaster::TLoadContext& context)
     LoadTableSchema(context);
     Load(context, SchemaMode_);
     Load(context, OptimizeFor_);
+    // COMPAT(babenko)
+    if (context.GetVersion() >= EMasterReign::ChunkFormat) {
+        Load(context, ChunkFormat_);
+    }
     Load(context, HunkErasureCodec_);
     Load(context, RetainedTimestamp_);
     Load(context, UnflushedTimestamp_);

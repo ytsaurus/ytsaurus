@@ -102,13 +102,14 @@ protected:
         auto config = New<TChunkWriterConfig>();
         auto options = New<TChunkWriterOptions>();
         ConfigureWriter(config, options);
+        config->Postprocess();
+        options->Postprocess();
 
         ChunkWriter = CreateVersionedChunkWriter(
             config,
             options,
             Schema,
-            MemoryWriter,
-            /*dataSink*/ std::nullopt);
+            MemoryWriter);
     }
 
     virtual void ConfigureWriter(
@@ -351,7 +352,7 @@ protected:
     {
         TVersionedChunksLookupTestBase::ConfigureWriter(config, options);
         options->OptimizeFor = EOptimizeFor::Lookup;
-        config->ChunkIndexes->HashTable->Enable = true;
+        options->ChunkFormat = EChunkFormat::TableVersionedIndexed;
     }
 };
 
@@ -535,18 +536,23 @@ protected:
         auto memoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
-        config->BlockSize = 4096;
+        config->BlockSize = 4_KB;
         config->MaxSegmentValueCount = 128;
         config->SampleRate = 0.0;
-        config->ChunkIndexes->HashTable->Enable = enableHashChunkIndex;
+        config->Postprocess();
+
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
+        if (enableHashChunkIndex) {
+            options->ChunkFormat = EChunkFormat::TableVersionedIndexed;
+        }
+        options->Postprocess();
+
         auto chunkWriter = CreateVersionedChunkWriter(
             config,
             options,
             writeSchema,
-            memoryWriter,
-            /*dataSink*/ std::nullopt);
+            memoryWriter);
 
         chunkWriter->Write(initialRows);
         EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
@@ -725,7 +731,7 @@ protected:
             }
             builder.AddKey(MakeUnversionedStringValue(StringData_.back(), 2)); // k2
 
-            builder.AddKey(MakeUnversionedDoubleValue((rowIndex / 2) * 3.14, 3)); // k3
+            builder.AddKey(MakeUnversionedDoubleValue((rowIndex / 2.0) * 3.14, 3)); // k3
 
             builder.AddKey(MakeUnversionedBooleanValue(rowIndex % 2 == 1, 4)); // k4
 

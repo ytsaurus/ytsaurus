@@ -282,24 +282,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShouldBuildChunkIndex(const TChunkIndexesWriterConfigPtr& config)
-{
-    return config->HashTable->Enable;
-}
-
 IChunkIndexBuilderPtr CreateChunkIndexBuilder(
     const TChunkIndexesWriterConfigPtr& config,
     const TIndexedVersionedBlockFormatDetail& blockFormatDetail,
     const NLogging::TLogger& logger)
 {
-    if (config->HashTable->Enable) {
-        return New<THashTableChunkIndexBuilder>(
-            config->HashTable,
-            blockFormatDetail,
-            logger);
-    }
-
-    return nullptr;
+    return New<THashTableChunkIndexBuilder>(
+        config->HashTable,
+        blockFormatDetail,
+        logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

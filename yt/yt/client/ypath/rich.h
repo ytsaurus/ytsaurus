@@ -113,6 +113,9 @@ public:
     // "optimize_for"
     std::optional<NTableClient::EOptimizeFor> GetOptimizeFor() const;
 
+    // "chunk_format"
+    std::optional<NChunkClient::EChunkFormat> GetChunkFormat() const;
+
     // "compression_codec"
     std::optional<NCompression::ECodec> GetCompressionCodec() const;
 

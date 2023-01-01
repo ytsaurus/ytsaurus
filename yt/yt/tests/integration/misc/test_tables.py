@@ -2713,14 +2713,44 @@ class TestTables(YTEnvSetup):
 ##################################################################
 
 
+class TestTablesChunkFormats(YTEnvSetup):
+    NUM_MASTERS = 1
+
+    @authors("babenko")
+    def test_validate_chunk_format_on_create(self):
+        with raises_yt_error("Error parsing EChunkFormat"):
+            create("table", "//tmp/t", attributes={"chunk_format": "nonexisting_format"})
+        with raises_yt_error(yt_error_codes.InvalidTableChunkFormat):
+            create("table", "//tmp/t", attributes={"chunk_format": "file_default"})
+        with raises_yt_error(yt_error_codes.InvalidTableChunkFormat):
+            create("table", "//tmp/t", attributes={"optimize_for": "lookup", "chunk_format": "table_unversioned_columnar"})
+
+    @authors("babenko")
+    def test_deduce_optmize_for_from_chunk_format_on_create(self):
+        create("map_node", "//tmp/m", attributes={"optimize_for": "lookup"})
+        create("table", "//tmp/m/t", attributes={"chunk_format": "table_unversioned_columnar"})
+        assert get("//tmp/m/t/@optimize_for") == "scan"
+        assert get("//tmp/m/t/@chunk_format") == "table_unversioned_columnar"
+
+    @authors("babenko")
+    def test_set_and_remove_chunk_format_attr(self):
+        create("table", "//tmp/t")
+        assert get("//tmp/t/@optimize_for") == "lookup"
+        assert not exists("//tmp/t/@chunk_format")
+        # Sadly this is possible.
+        set("//tmp/t/@chunk_format", "table_unversioned_columnar")
+        assert get("//tmp/t/@optimize_for") == "lookup"
+        assert get("//tmp/t/@chunk_format") == "table_unversioned_columnar"
+
+
+##################################################################
+
+
 def check_multicell_statistics(path, chunk_count_map):
     statistics = get(path + "/@multicell_statistics")
     assert len(statistics) == len(chunk_count_map)
     for cell_tag in statistics:
         assert statistics[cell_tag]["chunk_count"] == chunk_count_map[cell_tag]
-
-
-##################################################################
 
 
 class TestTablesMulticell(TestTables):

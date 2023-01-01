@@ -116,7 +116,6 @@ using namespace NTracing;
 using namespace NJournalClient;
 using namespace NYTree;
 
-using NNodeTrackerClient::TNodeDescriptor;
 using NChunkClient::TChunkReaderStatistics;
 using NYT::ToProto;
 using NYT::FromProto;
@@ -1110,6 +1109,7 @@ private:
     NCompression::ECodec CompressionCodec_;
     NErasure::ECodec ErasureCodec_;
     std::optional<EOptimizeFor> OptimizeFor_;
+    std::optional<EChunkFormat> ChunkFormat_;
     std::optional<bool> EnableSkynetSharing_;
     int MaxHeavyColumns_;
     std::optional<i64> MaxBlockCount_;
@@ -1257,6 +1257,9 @@ private:
         ErasureCodec_ = CheckedEnumCast<NErasure::ECodec>(chunkMergerWriterOptions.erasure_codec());
         if (chunkMergerWriterOptions.has_optimize_for()) {
             OptimizeFor_ = CheckedEnumCast<EOptimizeFor>(chunkMergerWriterOptions.optimize_for());
+        }
+        if (chunkMergerWriterOptions.has_chunk_format()) {
+            ChunkFormat_ = CheckedEnumCast<EChunkFormat>(chunkMergerWriterOptions.chunk_format());
         }
         if (chunkMergerWriterOptions.has_enable_skynet_sharing()) {
             EnableSkynetSharing_ = chunkMergerWriterOptions.enable_skynet_sharing();
@@ -1415,9 +1418,13 @@ private:
         if (OptimizeFor_) {
             chunkWriterOptions->OptimizeFor = *OptimizeFor_;
         }
+        if (ChunkFormat_) {
+            chunkWriterOptions->ChunkFormat = *ChunkFormat_;
+        }
         if (EnableSkynetSharing_) {
             chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
         }
+        chunkWriterOptions->Postprocess();
 
         auto minTs = NullTimestamp;
         auto maxTs = NullTimestamp;
@@ -1805,6 +1812,7 @@ private:
         }
 
         auto oldChunkFormat = CheckedEnumCast<EChunkFormat>(oldChunkMeta->format());
+        YT_VERIFY(IsValidTableChunkFormat(oldChunkFormat));
 
         auto columnarMeta = New<TColumnarChunkMeta>(*oldChunkMeta);
 
@@ -1853,17 +1861,9 @@ private:
 
         auto chunkWriterOptions = New<TChunkWriterOptions>();
         chunkWriterOptions->CompressionCodec = CompressionCodec_;
-        if (EnableSkynetSharing_) {
-            chunkWriterOptions->EnableSkynetSharing = *EnableSkynetSharing_;
-        }
-
-        switch (oldChunkFormat) {
-            case NYT::NChunkClient::EChunkFormat::TableUnversionedColumnar:
-            case NYT::NChunkClient::EChunkFormat::TableVersionedColumnar:
-                chunkWriterOptions->OptimizeFor = EOptimizeFor::Scan;
-            default:
-                break;
-        }
+        chunkWriterOptions->EnableSkynetSharing = EnableSkynetSharing_.value_or(false);
+        chunkWriterOptions->OptimizeFor = OptimizeForFromFormat(oldChunkFormat);
+        chunkWriterOptions->Postprocess();
 
         auto writer = CreateSchemalessChunkWriter(
             New<TChunkWriterConfig>(),

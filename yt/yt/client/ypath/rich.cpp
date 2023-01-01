@@ -572,6 +572,11 @@ std::optional<NTableClient::EOptimizeFor> TRichYPath::GetOptimizeFor() const
     return FindAttribute<NTableClient::EOptimizeFor>(*this, "optimize_for");
 }
 
+std::optional<NChunkClient::EChunkFormat> TRichYPath::GetChunkFormat() const
+{
+    return FindAttribute<NChunkClient::EChunkFormat>(*this, "chunk_format");
+}
+
 std::optional<NCompression::ECodec> TRichYPath::GetCompressionCodec() const
 {
     return FindAttribute<NCompression::ECodec>(*this, "compression_codec");

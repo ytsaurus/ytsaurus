@@ -979,7 +979,7 @@ void TOperationControllerBase::CreateOutputTables(
     for (auto* table : tablesToCreate) {
         auto req = TCypressYPathProxy::Create(table->Path.GetPath());
         req->set_ignore_existing(true);
-        req->set_type(static_cast<int>(EObjectType::Table));
+        req->set_type(ToProto<int>(EObjectType::Table));
 
         NCypressClient::SetTransactionId(req, table->TransactionId.value_or(defaultTransactionId));
         GenerateMutationId(req);
@@ -2750,10 +2750,13 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
                     GenerateMutationId(req);
                     *req->mutable_statistics() = table->DataStatistics;
                     ToProto(req->mutable_table_schema(), table->TableUploadOptions.TableSchema);
-                    req->set_schema_mode(static_cast<int>(table->TableUploadOptions.SchemaMode));
-                    req->set_optimize_for(static_cast<int>(table->TableUploadOptions.OptimizeFor));
-                    req->set_compression_codec(static_cast<int>(table->TableUploadOptions.CompressionCodec));
-                    req->set_erasure_codec(static_cast<int>(table->TableUploadOptions.ErasureCodec));
+                    req->set_schema_mode(ToProto<int>(table->TableUploadOptions.SchemaMode));
+                    req->set_optimize_for(ToProto<int>(table->TableUploadOptions.OptimizeFor));
+                    if (table->TableUploadOptions.ChunkFormat) {
+                        req->set_chunk_format(ToProto<int>(*table->TableUploadOptions.ChunkFormat));
+                    }
+                    req->set_compression_codec(ToProto<int>(table->TableUploadOptions.CompressionCodec));
+                    req->set_erasure_codec(ToProto<int>(table->TableUploadOptions.ErasureCodec));
                     if (table->TableUploadOptions.SecurityTags) {
                         ToProto(req->mutable_security_tags()->mutable_items(), *table->TableUploadOptions.SecurityTags);
                     }
@@ -5254,7 +5257,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
         const TTableSchemaPtr& schema)
     {
         auto req = TCypressYPathProxy::Create(path);
-        req->set_type(static_cast<int>(EObjectType::Table));
+        req->set_type(ToProto<int>(EObjectType::Table));
         req->set_ignore_existing(true);
 
         const auto nestingLevelLimit = Host
@@ -5435,7 +5438,7 @@ void TOperationControllerBase::FetchInputTables()
         },
         Logger);
 
-    for (int tableIndex = 0; tableIndex < static_cast<int>(InputTables_.size()); ++tableIndex) {
+    for (int tableIndex = 0; tableIndex < std::ssize(InputTables_); ++tableIndex) {
         yielder.TryYield();
 
         auto& table = InputTables_[tableIndex];
@@ -5574,7 +5577,7 @@ void TOperationControllerBase::LockInputTables()
     for (const auto& table : InputTables_) {
         auto req = TTableYPathProxy::Lock(table->GetPath());
         req->Tag() = table;
-        req->set_mode(static_cast<int>(ELockMode::Snapshot));
+        req->set_mode(ToProto<int>(ELockMode::Snapshot));
         SetTransactionId(req, *table->TransactionId);
         GenerateMutationId(req);
         batchReq->AddRequest(req);
@@ -5981,17 +5984,17 @@ void TOperationControllerBase::GetOutputTablesSchema()
     TObjectServiceProxy proxy(channel);
     auto batchReq = proxy.ExecuteBatch();
 
+    static const auto AttributeKeys = [] {
+        return ConcatVectors(
+            GetTableUploadOptionsAttributeKeys(),
+            std::vector<TString>{
+                "schema_id"
+            });
+    }();
+
     for (const auto& table : UpdatingTables_) {
         auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
-        ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-            "schema_mode",
-            "schema_id",
-            "optimize_for",
-            "compression_codec",
-            "erasure_codec",
-            "enable_striped_erasure",
-            "dynamic"
-        });
+        ToProto(req->mutable_attributes()->mutable_keys(), AttributeKeys);
         req->Tag() = table;
         SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
         batchReq->AddRequest(req);
@@ -6116,7 +6119,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 auto req = TTableYPathProxy::Lock(table->GetObjectIdPath());
                 SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                 GenerateMutationId(req);
-                req->set_mode(static_cast<int>(table->TableUploadOptions.LockMode));
+                req->set_mode(ToProto<int>(table->TableUploadOptions.LockMode));
                 req->Tag() = table;
                 batchReq->AddRequest(req);
             }
@@ -6287,6 +6290,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
             table->TableWriterOptions->Account = attributes->Get<TString>("account");
             table->TableWriterOptions->ChunksVital = attributes->Get<bool>("vital");
             table->TableWriterOptions->OptimizeFor = table->TableUploadOptions.OptimizeFor;
+            table->TableWriterOptions->ChunkFormat = table->TableUploadOptions.ChunkFormat;
             table->TableWriterOptions->EnableSkynetSharing = attributes->Get<bool>("enable_skynet_sharing", false);
 
             // Workaround for YT-5827.
@@ -6294,6 +6298,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
                 table->TableUploadOptions.TableSchema->GetStrict())
             {
                 table->TableWriterOptions->OptimizeFor = EOptimizeFor::Lookup;
+                table->TableWriterOptions->ChunkFormat = {};
             }
 
             table->EffectiveAcl = attributes->GetYson("effective_acl");
@@ -6333,8 +6338,8 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
                 SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
                 GenerateMutationId(req);
                 req->Tag() = table;
-                req->set_update_mode(static_cast<int>(table->TableUploadOptions.UpdateMode));
-                req->set_lock_mode(static_cast<int>(table->TableUploadOptions.LockMode));
+                req->set_update_mode(ToProto<int>(table->TableUploadOptions.UpdateMode));
+                req->set_lock_mode(ToProto<int>(table->TableUploadOptions.LockMode));
                 req->set_upload_transaction_title(Format("Upload to %v from operation %v",
                     table->GetPath(),
                     OperationId));
@@ -6626,7 +6631,7 @@ void TOperationControllerBase::LockUserFiles()
     for (auto& [userJobSpec, files] : UserJobFiles_) {
         for (auto& file : files) {
             auto req = TFileYPathProxy::Lock(file.Path.GetPath());
-            req->set_mode(static_cast<int>(ELockMode::Snapshot));
+            req->set_mode(ToProto<int>(ELockMode::Snapshot));
             GenerateMutationId(req);
             SetTransactionId(req, *file.TransactionId);
             req->Tag() = &file;
@@ -7090,7 +7095,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
                 .PrerequisiteTransactionIds = {InputTransaction->GetId()},
             });
 
-            req->set_type(static_cast<int>(EObjectType::AccountResourceUsageLease));
+            req->set_type(ToProto<int>(EObjectType::AccountResourceUsageLease));
 
             auto attributes = CreateEphemeralAttributes();
             attributes->Set("account", account);
@@ -9063,7 +9068,7 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
         }
     }
 
-    jobSpec->set_enable_porto(static_cast<int>(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
+    jobSpec->set_enable_porto(ToProto<int>(jobSpecConfig->EnablePorto.value_or(Config->DefaultEnablePorto)));
     jobSpec->set_fail_job_on_core_dump(jobSpecConfig->FailJobOnCoreDump);
     jobSpec->set_enable_cuda_gpu_core_dump(GetEnableCudaGpuCoreDump());
 

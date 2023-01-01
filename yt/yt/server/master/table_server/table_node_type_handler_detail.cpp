@@ -33,6 +33,7 @@
 #include <yt/yt/library/heavy_schema_validation/schema_validation.h>
 
 #include <yt/yt/client/table_client/schema.h>
+#include <yt/yt/client/table_client/helpers.h>
 
 #include <yt/yt/client/chaos_client/replication_card_serialization.h>
 
@@ -105,7 +106,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     auto combinedAttributes = OverlayAttributeDictionaries(context.ExplicitAttributes, context.InheritedAttributes);
     auto optionalTabletCellBundleName = combinedAttributes->FindAndRemove<TString>("tablet_cell_bundle");
+    bool optimizeForIsExplicit = context.ExplicitAttributes->Contains("optimize_for");
     auto optimizeFor = combinedAttributes->GetAndRemove<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+    auto optionalChunkFormat = combinedAttributes->FindAndRemove<EChunkFormat>("chunk_format");
     auto hunkErasureCodec = combinedAttributes->GetAndRemove<NErasure::ECodec>("hunk_erasure_codec", NErasure::ECodec::None);
     auto replicationFactor = combinedAttributes->GetAndRemove("replication_factor", cypressManagerConfig->DefaultTableReplicationFactor);
     auto compressionCodec = combinedAttributes->GetAndRemove<NCompression::ECodec>("compression_codec", NCompression::ECodec::Lz4);
@@ -114,6 +117,14 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
     auto replicationProgress = combinedAttributes->FindAndRemove<TReplicationProgress>("replication_progress");
 
     ValidateReplicationFactor(replicationFactor);
+
+    if (optionalChunkFormat) {
+        ValidateTableChunkFormat(*optionalChunkFormat);
+        if (optimizeForIsExplicit) {
+            ValidateTableChunkFormatAndOptimizeFor(*optionalChunkFormat, optimizeFor);
+        }
+        optimizeFor = OptimizeForFromFormat(*optionalChunkFormat);
+    }
 
     bool dynamic = combinedAttributes->GetAndRemove<bool>("dynamic", false);
     auto type = TypeFromId(id.ObjectId);
@@ -213,6 +224,9 @@ std::unique_ptr<TImpl> TTableNodeTypeHandlerBase<TImpl>::DoCreate(
 
     try {
         node->SetOptimizeFor(optimizeFor);
+        if (optionalChunkFormat) {
+            node->SetChunkFormat(*optionalChunkFormat);
+        }
         node->SetHunkErasureCodec(hunkErasureCodec);
 
         if (node->IsPhysicallyLog()) {
@@ -384,6 +398,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoClone(
 
     clonedTrunkNode->SetSchemaMode(sourceNode->GetSchemaMode());
     clonedTrunkNode->SetOptimizeFor(sourceNode->GetOptimizeFor());
+    if (auto optionalChunkFormat = sourceNode->TryGetChunkFormat()) {
+        clonedTrunkNode->SetChunkFormat(*optionalChunkFormat);
+    }
 
     auto* trunkSourceNode = sourceNode->GetTrunkNode();
     if (trunkSourceNode->HasCustomDynamicTableAttributes()) {
@@ -430,6 +447,7 @@ void TTableNodeTypeHandlerBase<TImpl>::DoBeginCopy(
 
     Save(*context, node->GetSchemaMode());
     Save(*context, node->GetOptimizeFor());
+    Save(*context, node->TryGetChunkFormat());
     Save(*context, node->GetHunkErasureCodec());
 
     Save(*context, trunkNode->HasCustomDynamicTableAttributes());
@@ -456,6 +474,9 @@ void TTableNodeTypeHandlerBase<TImpl>::DoEndCopy(
 
     node->SetSchemaMode(Load<ETableSchemaMode>(*context));
     node->SetOptimizeFor(Load<EOptimizeFor>(*context));
+    if (auto optionalChunkFormat = Load<std::optional<EChunkFormat>>(*context)) {
+        node->SetChunkFormat(*optionalChunkFormat);
+    }
     node->SetHunkErasureCodec(Load<NErasure::ECodec>(*context));
 
     if (Load<bool>(*context)) {

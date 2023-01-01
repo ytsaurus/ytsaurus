@@ -115,6 +115,7 @@ DEFINE_REFCOUNTED_TYPE(TExportArgumentsConfig)
     "tablet_cell_bundle", \
     "in_memory_mode", \
     "optimize_for", \
+    "chunk_format", \
     "hunk_erasure_codec",
 
 static const std::vector<TString> PresetKeysSmall = {

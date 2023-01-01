@@ -1,6 +1,8 @@
 #include "table_upload_options.h"
 #include "helpers.h"
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/ytree/helpers.h>
@@ -39,6 +41,10 @@ void TTableUploadOptions::Persist(const NPhoenix::TPersistenceContext& context)
     Persist(context, SchemaModification);
     Persist(context, SchemaMode);
     Persist(context, OptimizeFor);
+    // COMPAT(babenko): NControllerAgent::ESnapshotVersion::ChunkFormat
+    if (context.GetVersion() >= 301103) {
+        Persist(context, ChunkFormat);
+    }
     Persist(context, CompressionCodec);
     Persist(context, ErasureCodec);
     Persist(context, EnableStripedErasure);
@@ -85,6 +91,20 @@ static void ValidateAppendKeyColumns(const TSortColumns& sortColumns, const TTab
     }
 }
 
+const std::vector<TString>& GetTableUploadOptionsAttributeKeys()
+{
+    static const std::vector<TString> Result{
+        "schema_mode",
+        "optimize_for",
+        "chunk_format",
+        "compression_codec",
+        "erasure_codec",
+        "enable_striped_erasure",
+        "dynamic"
+    };
+    return Result;
+}
+
 TTableUploadOptions GetTableUploadOptions(
     const TRichYPath& path,
     const IAttributeDictionary& cypressTableAttributes,
@@ -92,11 +112,17 @@ TTableUploadOptions GetTableUploadOptions(
     i64 rowCount)
 {
     auto schemaMode = cypressTableAttributes.Get<ETableSchemaMode>("schema_mode");
-    auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for", EOptimizeFor::Lookup);
+    auto optimizeFor = cypressTableAttributes.Get<EOptimizeFor>("optimize_for");
+    auto chunkFormat = cypressTableAttributes.Find<EChunkFormat>("chunk_format");
     auto compressionCodec = cypressTableAttributes.Get<NCompression::ECodec>("compression_codec");
     auto erasureCodec = cypressTableAttributes.Get<NErasure::ECodec>("erasure_codec", NErasure::ECodec::None);
     auto enableStripedErasure = cypressTableAttributes.Get<bool>("enable_striped_erasure", false);
     auto dynamic = cypressTableAttributes.Get<bool>("dynamic");
+
+    // Validate "optimize_for" and "chunk_format" compatibility.
+    if (chunkFormat) {
+        ValidateTableChunkFormatAndOptimizeFor(*chunkFormat, optimizeFor);
+    }
 
     // Some ypath attributes are not compatible with attribute "schema".
     if (path.GetAppend() && path.GetSchema()) {
@@ -195,11 +221,8 @@ TTableUploadOptions GetTableUploadOptions(
             << TErrorAttribute("path", path);
     }
 
-    if (path.GetOptimizeFor()) {
-        result.OptimizeFor = *path.GetOptimizeFor();
-    } else {
-        result.OptimizeFor = optimizeFor;
-    }
+    result.OptimizeFor = path.GetOptimizeFor() ? *path.GetOptimizeFor() : optimizeFor;
+    result.ChunkFormat = path.GetChunkFormat() ? *path.GetChunkFormat() : chunkFormat;
 
     if (path.GetAppend() && path.GetCompressionCodec()) {
         THROW_ERROR_EXCEPTION("YPath attributes \"append\" and \"compression_codec\" are not compatible")

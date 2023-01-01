@@ -89,6 +89,7 @@ public:
         NTableServer::TMasterTableSchema* Schema;
         NTableClient::ETableSchemaMode SchemaMode = NTableClient::ETableSchemaMode::Weak;
         std::optional<NTableClient::EOptimizeFor> OptimizeFor;
+        std::optional<NChunkClient::EChunkFormat> ChunkFormat;
         std::optional<NCrypto::TMD5Hasher> MD5Hasher;
         NSecurityServer::TInternedSecurityTags SecurityTags;
 
