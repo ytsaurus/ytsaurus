@@ -36,7 +36,7 @@ std::vector<TRecord> ToRecords(
     std::vector<TRecord> records;
     records.reserve(rows.size());
     for (auto row : rows) {
-        records.push_back(ToRecord(row, idMapping));
+        records.push_back(ToRecord<TRecord>(row, idMapping));
     }
     return records;
 }
@@ -45,7 +45,7 @@ template <class TRecord>
 std::vector<TRecord> ToRecords(const NApi::IUnversionedRowsetPtr& rowset)
 {
     typename TRecord::TRecordDescriptor::TIdMapping idMapping(rowset->GetNameTable());
-    return ToRecords(rowset->GetRows(), idMapping);
+    return ToRecords<TRecord>(rowset->GetRows(), idMapping);
 }
 
 template <class TRecord>
