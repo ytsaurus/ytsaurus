@@ -419,9 +419,11 @@ void ToUnversionedValue(
     int id,
     EValueFlags flags)
 {
-    auto strValue = ToString(value);
+    std::array<char, MaxGuidStringSize> buffer;
+    auto* bufferEnd = WriteGuidToBuffer(buffer.data(), value);
+    TStringBuf bufferStr(buffer.begin(), bufferEnd);
     *unversionedValue = value
-        ? rowBuffer->CaptureValue(MakeUnversionedStringValue(strValue, id, flags))
+        ? rowBuffer->CaptureValue(MakeUnversionedStringValue(bufferStr, id, flags))
         : MakeUnversionedSentinelValue(EValueType::Null, id, flags);
 }
 
