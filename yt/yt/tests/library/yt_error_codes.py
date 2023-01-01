@@ -10,6 +10,7 @@ IncompatibleSchemas = 316
 InvalidSchemaValue = 314
 InvalidPartitionedBy = 317
 MisconfiguredPartitions = 318
+InvalidTableChunkFormat = 328
 ResolveErrorCode = 500
 InvalidInputChunk = 733
 UnsupportedChunkFeature = 734

@@ -35,8 +35,6 @@ DEFINE_REFCOUNTED_TYPE(IChunkIndexBuilder)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool ShouldBuildChunkIndex(const TChunkIndexesWriterConfigPtr& config);
-
 IChunkIndexBuilderPtr CreateChunkIndexBuilder(
     const TChunkIndexesWriterConfigPtr& config,
     const TIndexedVersionedBlockFormatDetail& blockFormatDetail,

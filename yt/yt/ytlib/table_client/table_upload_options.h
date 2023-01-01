@@ -26,6 +26,7 @@ struct TTableUploadOptions
     ETableSchemaModification SchemaModification;
     ETableSchemaMode SchemaMode;
     EOptimizeFor OptimizeFor;
+    std::optional<NChunkClient::EChunkFormat> ChunkFormat;
     NCompression::ECodec CompressionCodec;
     NErasure::ECodec ErasureCodec;
     bool EnableStripedErasure;
@@ -36,6 +37,8 @@ struct TTableUploadOptions
 
     void Persist(const NPhoenix::TPersistenceContext& context);
 };
+
+const std::vector<TString>& GetTableUploadOptionsAttributeKeys();
 
 TTableUploadOptions GetTableUploadOptions(
     const NYPath::TRichYPath& path,

@@ -103,6 +103,7 @@ public:
     DEFINE_BYVAL_RW_PROPERTY(TTableCollocation*, ReplicationCollocation);
 
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NTableClient::EOptimizeFor, OptimizeFor);
+    DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NChunkClient::EChunkFormat, ChunkFormat);
     DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE(TTableNode, NErasure::ECodec, HunkErasureCodec);
 
     DECLARE_EXTRA_PROPERTY_HOLDER(TDynamicTableAttributes, DynamicTableAttributes);

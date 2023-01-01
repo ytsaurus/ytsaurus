@@ -159,6 +159,7 @@ YT_DEFINE_ERROR_ENUM(
     ((KeyCannotBeNan)                    (325))
     ((StringLikeValueLenghtLimitExceeded)(326))
     ((NameTableUpdateFailed)             (327))
+    ((InvalidTableChunkFormat)           (328))
 );
 
 DEFINE_ENUM(EControlAttribute,

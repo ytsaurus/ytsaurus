@@ -630,19 +630,23 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         auto storeWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);
         storeWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
+        storeWriterConfig->Postprocess();
 
         auto storeWriterOptions = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterOptions);
         storeWriterOptions->ChunksEden = true;
         storeWriterOptions->ValidateResourceUsageIncrease = false;
         storeWriterOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
+        storeWriterOptions->Postprocess();
 
         auto hunkWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.HunkWriterConfig);
         hunkWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
         hunkWriterConfig->MinUploadReplicationFactor = hunkWriterConfig->UploadReplicationFactor;
+        hunkWriterConfig->Postprocess();
 
         auto hunkWriterOptions = CloneYsonSerializable(tabletSnapshot->Settings.HunkWriterOptions);
         hunkWriterOptions->ValidateResourceUsageIncrease = false;
         hunkWriterOptions->ConsistentChunkReplicaPlacementHash = tabletSnapshot->ConsistentChunkReplicaPlacementHash;
+        hunkWriterOptions->Postprocess();
 
         auto asyncBlockCache = CreateRemoteInMemoryBlockCache(
             Client_,

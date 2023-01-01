@@ -53,6 +53,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/library/erasure/impl/codec.h>
@@ -1620,6 +1622,10 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
         uploadContext.OptimizeFor = CheckedEnumCast<EOptimizeFor>(request->optimize_for());
     }
 
+    if (request->has_chunk_format()) {
+        uploadContext.ChunkFormat = CheckedEnumCast<EChunkFormat>(request->chunk_format());
+    }
+
     if (request->has_md5_hasher()) {
         uploadContext.MD5Hasher = FromProto<std::optional<TMD5Hasher>>(request->md5_hasher());
     }
@@ -1645,26 +1651,29 @@ DEFINE_YPATH_SERVICE_METHOD(TChunkOwnerNodeProxy, EndUpload)
     }
 
     context->SetRequestInfo("SchemaMode: %v, Statistics: %v, CompressionCodec: %v, ErasureCodec: %v, OptimizeFor: %v, "
-        "MD5Hasher: %v",
+        "ChunkFormat: %v, MD5Hasher: %v",
         uploadContext.SchemaMode,
         uploadContext.Statistics,
         uploadContext.CompressionCodec,
         uploadContext.ErasureCodec,
         uploadContext.OptimizeFor,
+        uploadContext.ChunkFormat,
         uploadContext.MD5Hasher.has_value());
 
     ValidateTransaction();
     ValidateInUpdate();
 
+    if (uploadContext.ChunkFormat && uploadContext.OptimizeFor) {
+        ValidateTableChunkFormatAndOptimizeFor(*uploadContext.ChunkFormat, *uploadContext.OptimizeFor);
+    }
+
     auto* node = GetThisImpl<TChunkOwnerBase>();
     YT_VERIFY(node->GetTransaction() == Transaction_);
 
     const auto& tableManager = Bootstrap_->GetTableManager();
-    if (tableSchema) {
-        uploadContext.Schema = tableManager->GetOrCreateMasterTableSchema(*tableSchema, Transaction_);
-    } else {
-        uploadContext.Schema = tableManager->GetEmptyMasterTableSchema();
-    }
+    uploadContext.Schema = tableSchema
+        ? tableManager->GetOrCreateMasterTableSchema(*tableSchema, Transaction_)
+        : tableManager->GetEmptyMasterTableSchema();
 
     if (node->IsExternal()) {
         ExternalizeToMasters(context, {node->GetExternalCellTag()});

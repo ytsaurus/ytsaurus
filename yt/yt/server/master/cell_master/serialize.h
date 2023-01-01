@@ -97,6 +97,7 @@ DEFINE_ENUM(EMasterReign,
     ((SplitNodeDisposal)                                            (2217))  // aleksandra-zh
     ((MultisetAttributesReplication)                                (2218))  // shakurov
     ((SetLastMountTransactionInMount)                               (2219))  // savrus
+    ((ChunkFormat)                                                  (2220))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

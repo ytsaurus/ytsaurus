@@ -827,8 +827,9 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
     const TChunkTimestamps& chunkTimestamps,
     IBlockCachePtr blockCache)
 {
-    switch (options->OptimizeFor) {
-        case EOptimizeFor::Lookup:
+    auto chunkFormat = options->GetEffectiveChunkFormat(/*versioned*/ false);
+    switch (chunkFormat) {
+        case EChunkFormat::TableUnversionedSchemalessHorizontal:
             return New<TSchemalessChunkWriter>(
                 std::move(config),
                 std::move(options),
@@ -838,7 +839,7 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
                 std::move(nameTable),
                 chunkTimestamps,
                 dataSink);
-        case EOptimizeFor::Scan:
+        case EChunkFormat::TableUnversionedColumnar:
             return New<TColumnUnversionedChunkWriter>(
                 std::move(config),
                 std::move(options),
@@ -849,7 +850,8 @@ ISchemalessChunkWriterPtr CreateSchemalessChunkWriter(
                 chunkTimestamps,
                 dataSink);
         default:
-            YT_ABORT();
+            THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv",
+                chunkFormat);
     }
 }
 
@@ -2179,25 +2181,25 @@ private:
             auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
             TObjectServiceProxy proxy(channel);
 
+            static const auto AttributeKeys = [] {
+                return ConcatVectors(
+                    GetTableUploadOptionsAttributeKeys(),
+                    std::vector<TString>{
+                        "account",
+                        "chunk_writer",
+                        "primary_medium",
+                        "replication_factor",
+                        "row_count",
+                        "schema",
+                        "vital",
+                        "enable_skynet_sharing"
+                    });
+            }();
+
             auto req = TCypressYPathProxy::Get(objectIdPath);
             AddCellTagToSyncWith(req, userObject.ObjectId);
             NCypressClient::SetTransactionId(req, userObject.ExternalTransactionId);
-            ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
-                "account",
-                "chunk_writer",
-                "compression_codec",
-                "dynamic",
-                "erasure_codec",
-                "enable_striped_erasure",
-                "optimize_for",
-                "primary_medium",
-                "replication_factor",
-                "row_count",
-                "schema",
-                "schema_mode",
-                "vital",
-                "enable_skynet_sharing"
-            });
+            ToProto(req->mutable_attributes()->mutable_keys(), AttributeKeys);
 
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(
@@ -2210,7 +2212,7 @@ private:
             const auto& attributes = node->Attributes();
 
             if (attributes.Get<bool>("dynamic")) {
-                THROW_ERROR_EXCEPTION("Write to dynamic table is not supported");
+                THROW_ERROR_EXCEPTION("\"write_table\" API is not supported for dynamic tables; use \"insert_rows\" instead");
             }
 
             TableUploadOptions_ = GetTableUploadOptions(
@@ -2235,6 +2237,7 @@ private:
             Options_->ValidateUniqueKeys = chunkSchema->IsUniqueKeys();
 
             Options_->OptimizeFor = TableUploadOptions_.OptimizeFor;
+            Options_->ChunkFormat = TableUploadOptions_.ChunkFormat;
             Options_->EvaluateComputedColumns = TableUploadOptions_.TableSchema->HasComputedColumns();
             Options_->TableSchema = GetSchema();
 
@@ -2382,10 +2385,13 @@ private:
             auto req = TTableYPathProxy::EndUpload(objectIdPath);
             *req->mutable_statistics() = UnderlyingWriter_->GetDataStatistics();
             ToProto(req->mutable_table_schema(), TableUploadOptions_.TableSchema);
-            req->set_schema_mode(static_cast<int>(TableUploadOptions_.SchemaMode));
-            req->set_optimize_for(static_cast<int>(TableUploadOptions_.OptimizeFor));
-            req->set_compression_codec(static_cast<int>(TableUploadOptions_.CompressionCodec));
-            req->set_erasure_codec(static_cast<int>(TableUploadOptions_.ErasureCodec));
+            req->set_schema_mode(ToProto<int>(TableUploadOptions_.SchemaMode));
+            req->set_optimize_for(ToProto<int>(TableUploadOptions_.OptimizeFor));
+            if (TableUploadOptions_.ChunkFormat) {
+                req->set_optimize_for(ToProto<int>(*TableUploadOptions_.ChunkFormat));
+            }
+            req->set_compression_codec(ToProto<int>(TableUploadOptions_.CompressionCodec));
+            req->set_erasure_codec(ToProto<int>(TableUploadOptions_.ErasureCodec));
             if (TableUploadOptions_.SecurityTags) {
                 ToProto(req->mutable_security_tags()->mutable_items(), *TableUploadOptions_.SecurityTags);
             }

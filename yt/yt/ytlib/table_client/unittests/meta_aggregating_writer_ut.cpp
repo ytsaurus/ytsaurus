@@ -87,6 +87,7 @@ protected:
     {
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = std::get<0>(GetParam());
+        options->Postprocess();
 
         std::vector<TChunkInfo> inputChunks;
         i64 key = 0;

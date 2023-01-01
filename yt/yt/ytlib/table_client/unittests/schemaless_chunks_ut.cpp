@@ -199,9 +199,12 @@ protected:
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 256;
+        config->Postprocess();
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = std::get<0>(GetParam());
+        options->Postprocess();
+
         auto chunkWriter = CreateSchemalessChunkWriter(
             config,
             options,
@@ -361,10 +364,14 @@ protected:
         auto memoryWriter = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
+        config->Postprocess();
         config->BlockSize = 256;
+        config->Postprocess();
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = EOptimizeFor::Scan;
+        options->Postprocess();
+
         auto chunkWriter = CreateSchemalessChunkWriter(
             config,
             options,
@@ -602,18 +609,20 @@ protected:
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 2 * 1024;
+        config->Postprocess();
 
         auto options = New<TChunkWriterOptions>();
         options->OptimizeFor = optimizeFor;
         options->ValidateSorted = schema->IsSorted();
         options->ValidateUniqueKeys = schema->IsUniqueKeys();
+        options->Postprocess();
+
         auto chunkWriter = CreateSchemalessChunkWriter(
             config,
             options,
             schema,
             /*nameTable*/ nullptr,
-            memoryWriter,
-            /*dataSink*/ std::nullopt);
+            memoryWriter);
 
         WriteNameTable_ = chunkWriter->GetNameTable();
         InitRows(rowCount, schema, WriteNameTable_);

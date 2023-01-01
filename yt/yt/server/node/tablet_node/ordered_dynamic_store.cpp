@@ -342,6 +342,7 @@ TCallback<void(TSaveContext&)> TOrderedDynamicStore::AsyncSave()
         tableWriterOptions->OptimizeFor = EOptimizeFor::Scan;
          // Ensure deterministic snapshots.
         tableWriterOptions->SetChunkCreationTime = false;
+        tableWriterOptions->Postprocess();
 
         auto tableWriter = CreateSchemalessChunkWriter(
             tableWriterConfig,

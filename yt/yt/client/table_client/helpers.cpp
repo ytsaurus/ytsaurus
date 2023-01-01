@@ -20,9 +20,112 @@ namespace NYT::NTableClient {
 using namespace NYTree;
 using namespace NYson;
 using namespace NNet;
+using namespace NChunkClient;
 
 using namespace google::protobuf;
 using namespace google::protobuf::io;
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool IsValidTableChunkFormat(EChunkFormat chunkFormat)
+{
+    return
+        chunkFormat == EChunkFormat::TableUnversionedSchemaful ||
+        chunkFormat == EChunkFormat::TableUnversionedSchemalessHorizontal ||
+        chunkFormat == EChunkFormat::TableUnversionedColumnar ||
+        chunkFormat == EChunkFormat::TableVersionedSimple ||
+        chunkFormat == EChunkFormat::TableVersionedIndexed ||
+        chunkFormat == EChunkFormat::TableVersionedColumnar;
+}
+
+bool IsTableChunkFormatVersioned(EChunkFormat chunkFormat)
+{
+    return
+        chunkFormat == EChunkFormat::TableVersionedSimple ||
+        chunkFormat == EChunkFormat::TableVersionedIndexed ||
+        chunkFormat == EChunkFormat::TableVersionedColumnar;
+}
+
+void ValidateTableChunkFormat(EChunkFormat chunkFormat)
+{
+    if (!IsValidTableChunkFormat(chunkFormat)) {
+        THROW_ERROR_EXCEPTION(
+            NTableClient::EErrorCode::InvalidTableChunkFormat,
+            "%Qlv is not a valid table chunk format",
+            chunkFormat);
+    }
+}
+
+void ValidateTableChunkFormatAndOptimizeFor(
+    EChunkFormat chunkFormat,
+    EOptimizeFor optimizeFor)
+{
+    ValidateTableChunkFormat(chunkFormat);
+    if (OptimizeForFromFormat(chunkFormat) != optimizeFor) {
+        THROW_ERROR_EXCEPTION(
+            NTableClient::EErrorCode::InvalidTableChunkFormat,
+            "%Qlv is not a valid %Qlv chunk format",
+            chunkFormat,
+            optimizeFor);
+    }
+}
+
+void ValidateTableChunkFormatVersioned(
+    EChunkFormat chunkFormat,
+    bool versioned)
+{
+    if (IsTableChunkFormatVersioned(chunkFormat) != versioned) {
+        THROW_ERROR_EXCEPTION(
+            NTableClient::EErrorCode::InvalidTableChunkFormat,
+            "%Qlv is not a valid %v chunk format",
+            chunkFormat,
+            versioned ? "versioned" : "unversioned");
+    }
+}
+
+EOptimizeFor OptimizeForFromFormat(EChunkFormat chunkFormat)
+{
+    ValidateTableChunkFormat(chunkFormat);
+    switch (chunkFormat) {
+        case EChunkFormat::TableUnversionedSchemaful:
+        case EChunkFormat::TableUnversionedSchemalessHorizontal:
+        case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedIndexed:
+            return EOptimizeFor::Lookup;
+
+        case EChunkFormat::TableUnversionedColumnar:
+        case EChunkFormat::TableVersionedColumnar:
+            return EOptimizeFor::Scan;
+
+        default:
+            YT_ABORT();
+    }
+}
+
+EChunkFormat DefaultFormatFromOptimizeFor(
+    EOptimizeFor optimizeFor,
+    bool versioned)
+{
+    if (versioned) {
+        switch (optimizeFor) {
+            case EOptimizeFor::Lookup:
+                return EChunkFormat::TableVersionedSimple;
+            case EOptimizeFor::Scan:
+                return EChunkFormat::TableVersionedColumnar;
+            default:
+                YT_ABORT();
+        }
+    } else {
+        switch (optimizeFor) {
+            case EOptimizeFor::Lookup:
+                return EChunkFormat::TableUnversionedSchemalessHorizontal;
+            case EOptimizeFor::Scan:
+                return EChunkFormat::TableUnversionedColumnar;
+            default:
+                YT_ABORT();
+        }
+    }
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 

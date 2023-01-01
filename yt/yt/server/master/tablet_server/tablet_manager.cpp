@@ -3753,25 +3753,41 @@ private:
         auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
         auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
 
-        // Prepare store writer options.
-        result.StoreWriterOptions = New<NTabletNode::TTabletStoreWriterOptions>();
-        result.StoreWriterOptions->ReplicationFactor = replicationFactor;
-        result.StoreWriterOptions->MediumName = primaryMedium->GetName();
-        result.StoreWriterOptions->Account = table->GetAccount()->GetName();
-        result.StoreWriterOptions->CompressionCodec = table->GetCompressionCodec();
-        result.StoreWriterOptions->ErasureCodec = table->GetErasureCodec();
-        result.StoreWriterOptions->EnableStripedErasure = table->GetEnableStripedErasure();
-        result.StoreWriterOptions->ChunksVital = chunkReplication.GetVital();
-        result.StoreWriterOptions->OptimizeFor = table->GetOptimizeFor();
+        try {
+            // Prepare store writer options.
+            result.StoreWriterOptions = New<NTabletNode::TTabletStoreWriterOptions>();
+            result.StoreWriterOptions->ReplicationFactor = replicationFactor;
+            result.StoreWriterOptions->MediumName = primaryMedium->GetName();
+            result.StoreWriterOptions->Account = table->GetAccount()->GetName();
+            result.StoreWriterOptions->CompressionCodec = table->GetCompressionCodec();
+            result.StoreWriterOptions->ErasureCodec = table->GetErasureCodec();
+            result.StoreWriterOptions->EnableStripedErasure = table->GetEnableStripedErasure();
+            result.StoreWriterOptions->ChunksVital = chunkReplication.GetVital();
+            result.StoreWriterOptions->OptimizeFor = table->GetOptimizeFor();
+            result.StoreWriterOptions->ChunkFormat = table->TryGetChunkFormat();
+            if (result.StoreWriterOptions->ChunkFormat) {
+                ValidateTableChunkFormatVersioned(*result.StoreWriterOptions->ChunkFormat, /*versioned*/ true);
+            }
+            result.StoreWriterOptions->Postprocess();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error preparing store writer options")
+                << ex;
+        }
 
-        // Prepare hunk writer options.
-        result.HunkWriterOptions = New<NTabletNode::TTabletHunkWriterOptions>();
-        result.HunkWriterOptions->ReplicationFactor = replicationFactor;
-        result.HunkWriterOptions->MediumName = primaryMedium->GetName();
-        result.HunkWriterOptions->Account = table->GetAccount()->GetName();
-        result.HunkWriterOptions->CompressionCodec = table->GetCompressionCodec();
-        result.HunkWriterOptions->ErasureCodec = table->GetHunkErasureCodec();
-        result.HunkWriterOptions->ChunksVital = chunkReplication.GetVital();
+        try {
+            // Prepare hunk writer options.
+            result.HunkWriterOptions = New<NTabletNode::TTabletHunkWriterOptions>();
+            result.HunkWriterOptions->ReplicationFactor = replicationFactor;
+            result.HunkWriterOptions->MediumName = primaryMedium->GetName();
+            result.HunkWriterOptions->Account = table->GetAccount()->GetName();
+            result.HunkWriterOptions->CompressionCodec = table->GetCompressionCodec();
+            result.HunkWriterOptions->ErasureCodec = table->GetHunkErasureCodec();
+            result.HunkWriterOptions->ChunksVital = chunkReplication.GetVital();
+            result.HunkWriterOptions->Postprocess();
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error preparing hunk writer options")
+                << ex;
+        }
 
         // Parse and prepare store writer config.
         try {
@@ -3788,7 +3804,7 @@ private:
                 // TODO(babenko): rename to store_chunk_writer
                 tableAttributes.FindYson(EInternedAttributeKey::ChunkWriter.Unintern()));
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing store writer config")
+            THROW_ERROR_EXCEPTION("Error preparing store writer config")
                 << ex;
         }
 
@@ -3802,7 +3818,7 @@ private:
                 config,
                 tableAttributes.FindYson(EInternedAttributeKey::HunkChunkWriter.Unintern()));
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing hunk writer config")
+            THROW_ERROR_EXCEPTION("Error preparing hunk writer config")
                 << ex;
         }
 

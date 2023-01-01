@@ -79,8 +79,6 @@ class THashTableChunkIndexWriterConfig
     : public NYTree::TYsonStruct
 {
 public:
-    bool Enable;
-
     //! Hash table load factor.
     double LoadFactor;
 
@@ -265,6 +263,8 @@ public:
     ETableSchemaModification SchemaModification;
 
     EOptimizeFor OptimizeFor;
+    std::optional<NChunkClient::EChunkFormat> ChunkFormat;
+    NChunkClient::EChunkFormat GetEffectiveChunkFormat(bool versioned) const;
 
     //! Maximum number of heavy columns in approximate statistics.
     int MaxHeavyColumns;

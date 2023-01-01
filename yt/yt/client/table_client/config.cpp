@@ -2,7 +2,10 @@
 
 #include <yt/yt/ytlib/table_client/chunk_index.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/client/tablet_client/config.h>
+#include <yt/yt/client/tablet_client/helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>
 
@@ -72,8 +75,6 @@ void TChunkReaderConfig::Register(TRegistrar registrar)
 
 void THashTableChunkIndexWriterConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("enable", &TThis::Enable)
-        .Default(false);
     registrar.Parameter("load_factor", &TThis::LoadFactor)
         .Default(0.5)
         .GreaterThan(0.)
@@ -136,8 +137,7 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
         .Default(2_GB);
 
     registrar.Parameter("sample_rate", &TThis::SampleRate)
-        .GreaterThan(0)
-        .LessThanOrEqual(0.001)
+        .InRange(0.0, 0.001)
         .Default(0.0001);
 
     registrar.Parameter("chunk_indexes", &TThis::ChunkIndexes)
@@ -257,6 +257,8 @@ void TChunkWriterOptions::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("optimize_for", &TThis::OptimizeFor)
         .Default(EOptimizeFor::Lookup);
+    registrar.Parameter("chunk_format", &TThis::ChunkFormat)
+        .Default();
     registrar.Parameter("evaluate_computed_columns", &TThis::EvaluateComputedColumns)
         .Default(true);
     registrar.Parameter("enable_skynet_sharing", &TThis::EnableSkynetSharing)
@@ -303,7 +305,16 @@ void TChunkWriterOptions::Register(TRegistrar registrar)
             default:
                 YT_ABORT();
         }
+
+        if (config->ChunkFormat) {
+            ValidateTableChunkFormatAndOptimizeFor(*config->ChunkFormat, config->OptimizeFor);
+        }
     });
+}
+
+EChunkFormat TChunkWriterOptions::GetEffectiveChunkFormat(bool versioned) const
+{
+    return ChunkFormat.value_or(DefaultFormatFromOptimizeFor(OptimizeFor, versioned));
 }
 
 void TChunkWriterOptions::EnableValidationOptions(bool validateAnyIsValidYson)
