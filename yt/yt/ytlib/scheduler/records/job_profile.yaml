@@ -1,0 +1,47 @@
+namespace: NYT::NScheduler::NRecords
+
+types:
+  - type_name: TJobProfile
+    fields:
+      - cpp_name: OperationIdHi
+        cpp_type: ui64
+        column_name: operation_id_hi
+        column_type: Uint64
+
+      - cpp_name: OperationIdLo
+        cpp_type: ui64
+        column_name: operation_id_lo
+        column_type: Uint64
+
+      - cpp_name: JobIdHi
+        cpp_type: ui64
+        column_name: job_id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: JobIdLo
+        cpp_type: ui64
+        column_name: job_id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: PartIndex
+        cpp_type: int
+        column_name: part_index
+        column_type: Int64
+
+      - cpp_name: ProfileType
+        cpp_type: TString
+        column_name: profile_type
+        column_type: String
+
+      - cpp_name: ProfileBlob
+        cpp_type: TString
+        column_name: profile_blob
+        column_type: String
+
+      - cpp_name: ProfilingProbability
+        cpp_type: double
+        column_name: profiling_probability
+        column_type: Double
+
