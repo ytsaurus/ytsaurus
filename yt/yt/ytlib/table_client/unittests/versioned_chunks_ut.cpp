@@ -67,12 +67,36 @@ TUnversionedValue DoMakeMaxSentinel()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTestOptions
+{
+    EOptimizeFor OptimizeFor = EOptimizeFor::Scan;
+    std::optional<EChunkFormat> ChunkFormat;
+    bool UseNewReader = false;
+};
+
+const auto TestOptionsValues = testing::Values(
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Lookup},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed});
+
+////////////////////////////////////////////////////////////////////////////////
+
 // ToDo(psushin): rewrite this legacy test.
-class TVersionedChunksLookupTestBase
+class TVersionedChunkLookupTest
     : public ::testing::Test
 {
 protected:
-    const TTableSchemaPtr Schema;
+    const TTableSchemaPtr Schema = New<TTableSchema>(std::vector{
+        TColumnSchema("k1", EValueType::String)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k2", EValueType::Int64)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k3", EValueType::Double)
+            .SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("v1", EValueType::Int64),
+        TColumnSchema("v2", EValueType::Int64)
+    });
 
     IVersionedReaderPtr ChunkReader;
     IVersionedWriterPtr ChunkWriter;
@@ -82,27 +106,22 @@ protected:
 
     TChunkedMemoryPool MemoryPool;
 
-    TVersionedChunksLookupTestBase()
-        : Schema(New<TTableSchema>(std::vector{
-            TColumnSchema("k1", EValueType::String)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k2", EValueType::Int64)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k3", EValueType::Double)
-                .SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("v1", EValueType::Int64),
-            TColumnSchema("v2", EValueType::Int64)
-        }))
-    { }
+
+    virtual TTestOptions GetTestOptions() = 0;
 
     void SetUp() override
     {
         MemoryWriter = New<TMemoryWriter>();
 
+        auto testOptions = GetTestOptions();
+
         auto config = New<TChunkWriterConfig>();
-        auto options = New<TChunkWriterOptions>();
-        ConfigureWriter(config, options);
+        config->BlockSize = 1025;
         config->Postprocess();
+
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = testOptions.OptimizeFor;
+        options->ChunkFormat = testOptions.ChunkFormat;
         options->Postprocess();
 
         ChunkWriter = CreateVersionedChunkWriter(
@@ -110,13 +129,6 @@ protected:
             options,
             Schema,
             MemoryWriter);
-    }
-
-    virtual void ConfigureWriter(
-        const TChunkWriterConfigPtr& config,
-        const TChunkWriterOptionsPtr& /*options*/)
-    {
-        config->BlockSize = 1025;
     }
 
     void GetRowAndResetWriter()
@@ -187,9 +199,7 @@ protected:
         GetRowAndResetWriter();
     }
 
-    TKeyComparer KeyComparer_;
-
-    void DoTest(bool testNewReader = false)
+    void DoTest()
     {
         std::vector<TVersionedRow> expected;
         int startIndex = 0;
@@ -275,41 +285,38 @@ protected:
             auto chunkState = New<TChunkState>(
                 GetNullBlockCache(),
                 TChunkSpec(),
-                nullptr,
-                NullTimestamp,
-                nullptr,
+                /*chunkMeta*/ nullptr,
+                /*overrideTimestamp*/ NullTimestamp,
+                /*lookupHashTable*/ nullptr,
                 New<TChunkReaderPerformanceCounters>(),
-                KeyComparer_,
-                nullptr,
+                TKeyComparer(),
+                /*virtualValueDirectory*/ nullptr,
                 Schema);
 
-            IVersionedReaderPtr chunkReader;
-            if (testNewReader) {
-                chunkReader = NNewTableClient::CreateVersionedChunkReader(
+            auto chunkReader = GetTestOptions().UseNewReader
+                ? NNewTableClient::CreateVersionedChunkReader(
                     sharedKeys,
                     MaxTimestamp,
                     chunkMeta,
                     Schema,
                     TColumnFilter(),
-                    nullptr,
+                    /*chunkColumnMapping*/ nullptr,
                     chunkState->BlockCache,
                     TChunkReaderConfig::GetDefault(),
                     MemoryReader,
                     chunkState->PerformanceCounters,
-                    /* chunkReadOptions */ {},
-                    false);
-            } else {
-                chunkReader = CreateVersionedChunkReader(
+                    /*chunkReadOptions*/ {},
+                    /*produceAll*/ false)
+                : CreateVersionedChunkReader(
                     TChunkReaderConfig::GetDefault(),
                     MemoryReader,
                     std::move(chunkState),
                     std::move(chunkMeta),
-                    /* chunkReadOptions */ {},
+                    /*chunkReadOptions*/ {},
                     sharedKeys,
                     TColumnFilter(),
                     MaxTimestamp,
-                    false);
-            }
+                    /*produceAll*/ false);
 
             EXPECT_TRUE(chunkReader->Open().Get().IsOK());
             EXPECT_TRUE(chunkReader->GetReadyEvent().Get().IsOK());
@@ -317,51 +324,48 @@ protected:
             CheckResult(&expected, chunkReader);
         }
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSimpleVersionedChunksLookupTest
-    : public TVersionedChunksLookupTestBase
+class TVersionedChunkLookupTestImpl
+    : public TVersionedChunkLookupTest
+    , public testing::WithParamInterface<TTestOptions>
 {
-protected:
-    void ConfigureWriter(
-        const TChunkWriterConfigPtr& config,
-        const TChunkWriterOptionsPtr& options) override
+private:
+    TTestOptions GetTestOptions() override
     {
-        TVersionedChunksLookupTestBase::ConfigureWriter(config, options);
-        options->OptimizeFor = EOptimizeFor::Lookup;
+        return GetParam();
     }
 };
 
-TEST_F(TSimpleVersionedChunksLookupTest, Test)
+TEST_P(TVersionedChunkLookupTestImpl, Test)
 {
     DoTest();
 }
+
+INSTANTIATE_TEST_SUITE_P(
+    TVersionedChunkLookupTestImpl,
+    TVersionedChunkLookupTestImpl,
+    TestOptionsValues);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIndexedVersionedChunksLookupTest
-    : public TVersionedChunksLookupTestBase
+class TIndexedMetadataVersionedChunkLookupTestImpl
+    : public TVersionedChunkLookupTest
+    , public testing::WithParamInterface<TTestOptions>
 {
-protected:
-    void ConfigureWriter(
-        const TChunkWriterConfigPtr& config,
-        const TChunkWriterOptionsPtr& options) override
+private:
+    TTestOptions GetTestOptions() override
     {
-        TVersionedChunksLookupTestBase::ConfigureWriter(config, options);
-        options->OptimizeFor = EOptimizeFor::Lookup;
-        options->ChunkFormat = EChunkFormat::TableVersionedIndexed;
+        return {
+            .OptimizeFor = EOptimizeFor::Lookup,
+            .ChunkFormat = EChunkFormat::TableVersionedIndexed
+        };
     }
 };
 
-TEST_F(TIndexedVersionedChunksLookupTest, Test)
-{
-    DoTest();
-}
-
-TEST_F(TIndexedVersionedChunksLookupTest, TestMetadata)
+TEST_F(TIndexedMetadataVersionedChunkLookupTestImpl, Test)
 {
     WriteManyRows();
 
@@ -382,31 +386,6 @@ TEST_F(TIndexedVersionedChunksLookupTest, TestMetadata)
     const auto& dataBlockMeta = versionedChunkMeta->DataBlockMeta()->data_blocks(0);
     EXPECT_TRUE(dataBlockMeta.HasExtension(NProto::TIndexedVersionedBlockMeta::block_meta_ext));
     EXPECT_TRUE(!dataBlockMeta.HasExtension(NProto::TSimpleVersionedBlockMeta::block_meta_ext));
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TColumnarVersionedChunksLookupTest
-    : public TVersionedChunksLookupTestBase
-{
-protected:
-    void ConfigureWriter(
-        const TChunkWriterConfigPtr& config,
-        const TChunkWriterOptionsPtr& options) override
-    {
-        TVersionedChunksLookupTestBase::ConfigureWriter(config, options);
-        options->OptimizeFor = EOptimizeFor::Scan;
-    }
-};
-
-TEST_F(TColumnarVersionedChunksLookupTest, Test)
-{
-    DoTest();
-}
-
-TEST_F(TColumnarVersionedChunksLookupTest, TestNew)
-{
-    DoTest(/*testNewReader*/ true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -494,46 +473,39 @@ struct TRandomValueGenerator
 class TVersionedChunksHeavyTest
     : public ::testing::Test
 {
-public:
-    TVersionedChunksHeavyTest()
-        : RowBuffer_(New<TRowBuffer>())
-    {
-        ColumnSchemas_ = {
-            TColumnSchema("k0", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k1", EValueType::Uint64).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k2", EValueType::String).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
-            TColumnSchema("k4", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending),
-
-            TColumnSchema("v1", EValueType::Int64).SetAggregate(TString("min")),
-            TColumnSchema("v2", EValueType::Int64),
-            TColumnSchema("v3", EValueType::Uint64),
-            TColumnSchema("v4", EValueType::String),
-            TColumnSchema("v5", EValueType::Double),
-            TColumnSchema("v6", EValueType::Boolean)
-        };
-
-        InitialRows_ = CreateRows();
-    }
-
 protected:
-    std::vector<TColumnSchema> ColumnSchemas_;
+    const TRowBufferPtr RowBuffer_ = New<TRowBuffer>();
+
+    const std::vector<TColumnSchema> ColumnSchemas_{
+        TColumnSchema("k0", EValueType::Int64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k1", EValueType::Uint64).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k2", EValueType::String).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k3", EValueType::Double).SetSortOrder(ESortOrder::Ascending),
+        TColumnSchema("k4", EValueType::Boolean).SetSortOrder(ESortOrder::Ascending),
+
+        TColumnSchema("v1", EValueType::Int64).SetAggregate(TString("min")),
+        TColumnSchema("v2", EValueType::Int64),
+        TColumnSchema("v3", EValueType::Uint64),
+        TColumnSchema("v4", EValueType::String),
+        TColumnSchema("v5", EValueType::Double),
+        TColumnSchema("v6", EValueType::Boolean)
+    };
 
     std::vector<TString> StringData_;
 
-    TRowBufferPtr RowBuffer_;
-
-    std::vector<TVersionedRow> InitialRows_;
+    const std::vector<TVersionedRow> InitialRows_ = CreateRows();
 
     TFastRng64 Rng_{42};
 
-    static IChunkReaderPtr CreateChunk(
+    virtual TTestOptions GetTestOptions() = 0;
+
+    IChunkReaderPtr CreateChunk(
         TRange<TVersionedRow> initialRows,
-        EOptimizeFor optimizeFor,
-        TTableSchemaPtr writeSchema,
-        bool enableHashChunkIndex)
+        TTableSchemaPtr writeSchema)
     {
         auto memoryWriter = New<TMemoryWriter>();
+
+        auto testOptions = GetTestOptions();
 
         auto config = New<TChunkWriterConfig>();
         config->BlockSize = 4_KB;
@@ -542,10 +514,8 @@ protected:
         config->Postprocess();
 
         auto options = New<TChunkWriterOptions>();
-        options->OptimizeFor = optimizeFor;
-        if (enableHashChunkIndex) {
-            options->ChunkFormat = EChunkFormat::TableVersionedIndexed;
-        }
+        options->OptimizeFor = testOptions.OptimizeFor;
+        options->ChunkFormat = testOptions.ChunkFormat;
         options->Postprocess();
 
         auto chunkWriter = CreateVersionedChunkWriter(
@@ -570,12 +540,11 @@ protected:
         TSharedRange<TRowRange> ranges,
         TColumnFilter columnFilter,
         TTimestamp timestamp,
-        bool produceAllVersions,
-        bool testNewReader)
+        bool produceAllVersions)
     {
         auto expected = CreateExpected(initialRows, writeSchema, readSchema, ranges, timestamp, columnFilter);
 
-        auto chunkMeta = memoryReader->GetMeta(/* chunkReadOptions */ {})
+        auto chunkMeta = memoryReader->GetMeta(/*chunkReadOptions*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
@@ -586,9 +555,8 @@ protected:
         auto chunkState = New<TChunkState>(GetNullBlockCache());
         chunkState->TableSchema = readSchema;
 
-        IVersionedReaderPtr chunkReader;
-        if (testNewReader) {
-            chunkReader = NNewTableClient::CreateVersionedChunkReader(
+        auto chunkReader = GetTestOptions().UseNewReader
+            ? NNewTableClient::CreateVersionedChunkReader(
                 ranges,
                 timestamp,
                 chunkMeta,
@@ -599,20 +567,18 @@ protected:
                 TChunkReaderConfig::GetDefault(),
                 memoryReader,
                 chunkState->PerformanceCounters,
-                /* chunkReadOptions */ {},
-                produceAllVersions);
-        } else {
-            chunkReader = CreateVersionedChunkReader(
+                /*chunkReadOptions*/ {},
+                produceAllVersions)
+            : CreateVersionedChunkReader(
                 TChunkReaderConfig::GetDefault(),
                 memoryReader,
                 std::move(chunkState),
                 std::move(chunkMeta),
-                /* chunkReadOptions */ {},
+                /*chunkReadOptions*/ {},
                 ranges,
                 columnFilter,
                 timestamp,
                 produceAllVersions);
-        }
 
         CheckResult(&expected, chunkReader);
     }
@@ -625,8 +591,7 @@ protected:
         TLegacyOwningKey lowerKey,
         TLegacyOwningKey upperKey,
         TTimestamp timestamp,
-        bool produceAllVersions,
-        bool testNewReader)
+        bool produceAllVersions)
     {
         TestRangeReader(
             initialRows,
@@ -636,8 +601,7 @@ protected:
             MakeSingletonRowRange(lowerKey, upperKey),
             TColumnFilter(),
             timestamp,
-            produceAllVersions,
-            testNewReader);
+            produceAllVersions);
     }
 
     void TestLookupReader(
@@ -648,8 +612,7 @@ protected:
         TSharedRange<TUnversionedRow> lookupKeys,
         TColumnFilter columnFilter,
         TTimestamp timestamp,
-        bool produceAllVersions,
-        bool testNewReader)
+        bool produceAllVersions)
     {
         auto expected = CreateExpected(initialRows, writeSchema, readSchema, lookupKeys, timestamp, columnFilter);
 
@@ -664,9 +627,8 @@ protected:
         auto chunkState = New<TChunkState>(GetNullBlockCache());
         chunkState->TableSchema = readSchema;
 
-        IVersionedReaderPtr chunkReader;
-        if (testNewReader) {
-            chunkReader = NNewTableClient::CreateVersionedChunkReader(
+        auto chunkReader = GetTestOptions().UseNewReader
+            ? NNewTableClient::CreateVersionedChunkReader(
                 lookupKeys,
                 timestamp,
                 chunkMeta,
@@ -678,9 +640,8 @@ protected:
                 memoryReader,
                 chunkState->PerformanceCounters,
                 /*chunkReadOptions*/ {},
-                produceAllVersions);
-        } else {
-            chunkReader = CreateVersionedChunkReader(
+                produceAllVersions)
+            : CreateVersionedChunkReader(
                 TChunkReaderConfig::GetDefault(),
                 memoryReader,
                 std::move(chunkState),
@@ -690,7 +651,6 @@ protected:
                 columnFilter,
                 timestamp,
                 produceAllVersions);
-        }
 
         CheckResult(&expected, chunkReader);
     }
@@ -997,15 +957,14 @@ protected:
         return expected;
     }
 
-    void DoFullScanCompaction(
-        EOptimizeFor optimizeFor,
-        bool testNewReader = false,
-        bool enableHashChunkIndex = false)
+    void DoFullScanCompaction()
     {
         auto writeSchema = New<TTableSchema>(ColumnSchemas_);
         auto readSchema = New<TTableSchema>(ColumnSchemas_);
 
-        auto memoryChunkReader = CreateChunk(InitialRows_, optimizeFor, writeSchema, enableHashChunkIndex);
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
 
         TestRangeReader(
             InitialRows_,
@@ -1015,19 +974,16 @@ protected:
             MinKey(),
             MaxKey(),
             AllCommittedTimestamp,
-            true,
-            testNewReader);
+            /*produceAllVersions*/ true);
     }
 
-    void DoTimestampFullScanExtraKeyColumn(
-        EOptimizeFor optimizeFor,
-        TTimestamp timestamp,
-        bool testNewReader = false,
-        bool enableHashChunkIndex = false)
+    void DoTimestampFullScanExtraKeyColumn(TTimestamp timestamp)
     {
         auto writeSchema = New<TTableSchema>(ColumnSchemas_);
 
-        auto memoryChunkReader = CreateChunk(InitialRows_, optimizeFor, writeSchema, enableHashChunkIndex);
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
 
         auto columnSchemas = ColumnSchemas_;
         columnSchemas.insert(
@@ -1044,18 +1000,16 @@ protected:
             MinKey(),
             MaxKey(),
             timestamp,
-            false,
-            testNewReader);
+            /*produceAllVersions*/ false);
     }
 
-    void DoEmptyReadWideSchema(
-        EOptimizeFor optimizeFor,
-        bool testNewReader = false,
-        bool enableHashChunkIndex = false)
+    void DoEmptyReadWideSchema()
     {
         auto writeSchema = New<TTableSchema>(ColumnSchemas_);
 
-        auto memoryChunkReader = CreateChunk(InitialRows_, optimizeFor, writeSchema, enableHashChunkIndex);
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
 
         auto columnSchemas = ColumnSchemas_;
         columnSchemas.insert(
@@ -1084,15 +1038,11 @@ protected:
             readSchema,
             lowerKey,
             upperKey,
-            25,
-            false,
-            testNewReader);
+            /*timestamp*/ 25,
+            /*produceAllVersions*/ false);
     }
 
-    void DoGroupsLimitsAndSchemaChange(
-        EOptimizeFor optimizeFor,
-        bool testNewReader = false,
-        bool enableHashChunkIndex = false)
+    void DoGroupsLimitsAndSchemaChange()
     {
         auto writeColumnSchemas = ColumnSchemas_;
         writeColumnSchemas[5].SetGroup(TString("G1"));
@@ -1116,7 +1066,9 @@ protected:
             InitialRows_[upperRowIndex].BeginKeys(),
             InitialRows_[upperRowIndex].EndKeys());
 
-        auto memoryChunkReader = CreateChunk(InitialRows_, optimizeFor, writeSchema, enableHashChunkIndex);
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
 
         TestRangeReader(
             InitialRows_,
@@ -1126,15 +1078,14 @@ protected:
             lowerKey,
             upperKey,
             SyncLastCommittedTimestamp,
-            false,
-            testNewReader);
+            /*produceAllVersions*/ false);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 // Good combination to test all types of segments.
-static const std::vector<EValueType> KeyTypes = {
+const std::vector<EValueType> KeyTypes{
     EValueType::Int64,
     EValueType::Double,
     EValueType::Uint64,
@@ -1150,7 +1101,9 @@ protected:
     TTableSchemaPtr ReadSchema_;
 
 
-    void ProduceSchemas(bool useColumnGroups)
+    virtual bool AreColumnGroupsEnabled() = 0;
+
+    void ProduceSchemas()
     {
         auto keyColumnCount = std::ssize(KeyTypes);
         std::vector<TColumnSchema> writeSchemaColumns;
@@ -1166,7 +1119,7 @@ protected:
         writeSchemaColumns.push_back(TColumnSchema("v5", EValueType::Double));
         writeSchemaColumns.push_back(TColumnSchema("v6", EValueType::Boolean));
 
-        if (useColumnGroups) {
+        if (AreColumnGroupsEnabled()) {
             writeSchemaColumns[2].SetGroup("a");
             writeSchemaColumns[4].SetGroup("a");
             writeSchemaColumns[5].SetGroup("b");
@@ -1187,13 +1140,9 @@ protected:
         ReadSchema_ = New<TTableSchema>(readSchemaColumns);
     }
 
-    void DoStressTest(
-        EOptimizeFor optimizeFor,
-        bool testNewReader = false,
-        bool enableHashChunkIndex = false,
-        bool useColumnGroups = false)
+    void DoStressTest()
     {
-        ProduceSchemas(useColumnGroups);
+        ProduceSchemas();
 
         int distinctValueCount = 10;
         for (i64 valueDomainSize : {10, 100, 100000000}) {
@@ -1202,7 +1151,9 @@ protected:
             TRadomKeyGenerator keyGenerator(&valueGenerator, distinctValueCount);
             auto rows = GenerateRandomRows(&valueGenerator, &keyGenerator);
 
-            auto memoryChunkReader = CreateChunk(rows, optimizeFor, WriteSchema_, enableHashChunkIndex);
+            auto memoryChunkReader = CreateChunk(
+                rows,
+                WriteSchema_);
 
             for (auto readSchema : {WriteSchema_, ReadSchema_}) {
                 for (auto generateColumnFilter : {false, true}) {
@@ -1217,8 +1168,7 @@ protected:
                             &keyGenerator,
                             readSchema,
                             rows,
-                            generateColumnFilter,
-                            testNewReader);
+                            generateColumnFilter);
 
                         StressTestRangesWithCommonPrefix(
                             memoryChunkReader,
@@ -1226,8 +1176,7 @@ protected:
                             &keyGenerator,
                             readSchema,
                             rows,
-                            generateColumnFilter,
-                            testNewReader);
+                            generateColumnFilter);
 
                         StressTestArbitraryRanges(
                             memoryChunkReader,
@@ -1236,8 +1185,7 @@ protected:
                             &valueGenerator,
                             readSchema,
                             rows,
-                            generateColumnFilter,
-                            testNewReader);
+                            generateColumnFilter);
                     }
                 }
             }
@@ -1569,8 +1517,7 @@ private:
         TRadomKeyGenerator* keyGenerator,
         const TTableSchemaPtr& readSchema,
         const std::vector<TVersionedRow>& rows,
-        bool generateColumnFilter,
-        bool testNewReader)
+        bool generateColumnFilter)
     {
         // Test lookup keys.
         for (size_t keyCount : {1, 2, 3, 10, 100, 200, 5000}) {
@@ -1601,8 +1548,7 @@ private:
                 MakeSharedRange(lookupKeys, RowBuffer_),
                 columnFilter,
                 timestamp,
-                timestamp == AllCommittedTimestamp,
-                testNewReader);
+                timestamp == AllCommittedTimestamp);
         }
     }
 
@@ -1612,8 +1558,7 @@ private:
         TRadomKeyGenerator* keyGenerator,
         const TTableSchemaPtr& readSchema,
         const std::vector<TVersionedRow>& rows,
-        bool generateColumnFilter,
-        bool testNewReader)
+        bool generateColumnFilter)
     {
         for (size_t keyCount : {2, 4, 7, 30, 100, 200, 5000}) {
             TUnversionedRowBuilder builder;
@@ -1662,8 +1607,7 @@ private:
                 MakeSharedRange(readRanges, RowBuffer_),
                 columnFilter,
                 timestamp,
-                timestamp == AllCommittedTimestamp,
-                testNewReader);
+                timestamp == AllCommittedTimestamp);
         }
     }
 
@@ -1674,8 +1618,7 @@ private:
         TRandomValueGenerator* valueGenerator,
         const TTableSchemaPtr& readSchema,
         const std::vector<TVersionedRow>& rows,
-        bool generateColumnFilter,
-        bool testNewReader)
+        bool generateColumnFilter)
     {
         for (i64 rangeCount : {1, 2, 3, 13, 29, 30, 36, 37, 83, 297}) {
             for (int iteration = 0; iteration < 3; ++iteration) {
@@ -1709,8 +1652,7 @@ private:
                     MakeSharedRange(readRanges, RowBuffer_),
                     columnFilter,
                     timestamp,
-                    timestamp == AllCommittedTimestamp,
-                    testNewReader);
+                    timestamp == AllCommittedTimestamp);
             }
         }
     }
@@ -1718,20 +1660,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedChunksHeavyTestWithParametrizedBounds
+class TVersionedChunksHeavyTestWithBounds
     : public TVersionedChunksHeavyTest
-    , public ::testing::WithParamInterface<std::pair<TUnversionedValue, TUnversionedValue>>
 {
 protected:
-    void DoReadWideSchemaWithSpecifiedBounds(
-        EOptimizeFor optimizeFor,
-        const std::pair<TUnversionedValue, TUnversionedValue>& bounds,
-        bool testNewReader = false,
-        bool enableHashChunkIndex = false)
+    virtual std::tuple<TUnversionedValue, TUnversionedValue> GetBounds() = 0;
+
+    void DoReadWideSchemaWithBounds()
     {
+        auto [lowerBound, upperBound] = GetBounds();
+
         auto writeSchema = New<TTableSchema>(ColumnSchemas_);
 
-        auto memoryChunkReader = CreateChunk(InitialRows_, optimizeFor, writeSchema, enableHashChunkIndex);
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
 
         auto columnSchemas = ColumnSchemas_;
         columnSchemas.insert(
@@ -1743,14 +1686,14 @@ protected:
         for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
             lowerKeyBuilder.AddValue(*it);
         }
-        lowerKeyBuilder.AddValue(bounds.first);
+        lowerKeyBuilder.AddValue(lowerBound);
         auto lowerKey = lowerKeyBuilder.FinishRow();
 
         TUnversionedOwningRowBuilder upperKeyBuilder;
         for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
             upperKeyBuilder.AddValue(*it);
         }
-        upperKeyBuilder.AddValue(bounds.second);
+        upperKeyBuilder.AddValue(upperBound);
         auto upperKey = upperKeyBuilder.FinishRow();
 
         TestRangeReader(
@@ -1760,207 +1703,135 @@ protected:
             readSchema,
             lowerKey,
             upperKey,
-            25,
-            false,
-            testNewReader);
+            /*timestamp*/ 25,
+            /*produceAllVersions*/ false);
     }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TVersionedChunksHeavyTest, FullScanCompactionScan)
+class TVersionedChunksHeavyTestImpl
+    : public TVersionedChunksHeavyTest
+    , public testing::WithParamInterface<TTestOptions>
 {
-    DoFullScanCompaction(EOptimizeFor::Scan);
+private:
+    TTestOptions GetTestOptions() override
+    {
+        return GetParam();
+    }
+};
+
+TEST_P(TVersionedChunksHeavyTestImpl, FullScanCompaction)
+{
+    DoFullScanCompaction();
 }
 
-TEST_F(TVersionedChunksHeavyTest, FullScanCompactionScanNew)
+TEST_P(TVersionedChunksHeavyTestImpl, TimestampFullScanExtraKeyColumn)
 {
-    DoFullScanCompaction(EOptimizeFor::Scan, true);
+    DoTimestampFullScanExtraKeyColumn(/*timestamp*/ 50);
 }
 
-TEST_F(TVersionedChunksHeavyTest, FullScanCompactionLookup)
+TEST_P(TVersionedChunksHeavyTestImpl, TimestampFullScanExtraKeyColumnSyncLastCommitted)
 {
-    DoFullScanCompaction(EOptimizeFor::Lookup);
+    DoTimestampFullScanExtraKeyColumn(SyncLastCommittedTimestamp);
 }
 
-TEST_F(TVersionedChunksHeavyTest, FullScanCompactionIndexedLookup)
+TEST_P(TVersionedChunksHeavyTestImpl, TimestampFullScanExtraKeyColumnScanSyncLastCommittedNew)
 {
-    DoFullScanCompaction(
-        EOptimizeFor::Lookup,
-        /*testNewReader*/ false,
-        /*enableHashChunkIndex*/ true);
+    DoTimestampFullScanExtraKeyColumn(SyncLastCommittedTimestamp);
 }
 
-TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScan)
+TEST_P(TVersionedChunksHeavyTestImpl, GroupsLimitsAndSchemaChange)
 {
-    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan, 50);
+    DoGroupsLimitsAndSchemaChange();
 }
 
-TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScanNew)
+TEST_P(TVersionedChunksHeavyTestImpl, EmptyReadWideSchemaScan)
 {
-    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan, 50, true);
+    DoEmptyReadWideSchema();
 }
 
-TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnLookup)
-{
-    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup, 50);
-}
-
-TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnIndexedLookup)
-{
-    DoTimestampFullScanExtraKeyColumn(
-        EOptimizeFor::Lookup,
-        50,
-        /*testNewReader*/ false,
-        /*enableHashChunkIndex*/ true);
-}
-
-TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScanSyncLastCommitted)
-{
-    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan, SyncLastCommittedTimestamp);
-}
-
-TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScanSyncLastCommittedNew)
-{
-    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Scan, SyncLastCommittedTimestamp, true);
-}
-
-TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnLookupSyncLastCommitted)
-{
-    DoTimestampFullScanExtraKeyColumn(EOptimizeFor::Lookup, SyncLastCommittedTimestamp);
-}
-
-TEST_F(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnIndexedLookupSyncLastCommitted)
-{
-    DoTimestampFullScanExtraKeyColumn(
-        EOptimizeFor::Lookup,
-        SyncLastCommittedTimestamp,
-        /*testNewReader*/ false,
-        /*enableHashChunkIndex*/ true);
-}
-
-TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
-{
-    DoGroupsLimitsAndSchemaChange(EOptimizeFor::Scan);
-}
-
-TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChangeNew)
-{
-    DoGroupsLimitsAndSchemaChange(EOptimizeFor::Scan, true);
-}
-
-TEST_F(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChangeIndexedLookup)
-{
-    DoGroupsLimitsAndSchemaChange(
-        EOptimizeFor::Lookup,
-        /*testNewReader*/ false,
-        /*enableHashChunkIndex*/ true);
-}
-
-TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)
-{
-    DoEmptyReadWideSchema(EOptimizeFor::Scan);
-}
-
-TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaScanNew)
-{
-    DoEmptyReadWideSchema(EOptimizeFor::Scan, true);
-}
-
-TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaLookup)
-{
-    DoEmptyReadWideSchema(EOptimizeFor::Lookup);
-}
-
-TEST_F(TVersionedChunksHeavyTest, EmptyReadWideSchemaIndexedLookup)
-{
-    DoEmptyReadWideSchema(
-        EOptimizeFor::Lookup,
-        /*testNewReader*/ false,
-        /*enableHashChunkIndex*/ true);
-}
+INSTANTIATE_TEST_SUITE_P(
+    TVersionedChunksHeavyTestImpl,
+    TVersionedChunksHeavyTestImpl,
+    TestOptionsValues);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_F(TVersionedChunksStressTest, StressTestScan)
+class TVersionedChunksStressTestImpl
+    : public TVersionedChunksStressTest
+    , public testing::WithParamInterface<std::tuple<
+        TTestOptions,
+        /*AreColumnGroupsEnabled*/ bool
+    >>
 {
-    DoStressTest(EOptimizeFor::Scan);
+protected:
+    bool AreColumnGroupsEnabled() override
+    {
+        return std::get<1>(GetParam());
+    }
+
+    TTestOptions GetTestOptions() override
+    {
+        return std::get<0>(GetParam());
+    }
+};
+
+TEST_P(TVersionedChunksStressTestImpl, Test)
+{
+    DoStressTest();
 }
 
-TEST_F(TVersionedChunksStressTest, StressTestScanNew)
-{
-    DoStressTest(EOptimizeFor::Scan, true);
-}
-
-TEST_F(TVersionedChunksStressTest, StressTestLookup)
-{
-    DoStressTest(EOptimizeFor::Lookup);
-}
-
-// TODO(akozhikhov): Speed up.
-#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
-
-TEST_F(TVersionedChunksStressTest, StressTestIndexedLookup)
-{
-    DoStressTest(
-        EOptimizeFor::Lookup,
-        /*testNewReader*/ false,
-        /*enableHashChunkIndex*/ true);
-}
-
-// TEST_F(TVersionedChunksStressTest, StressTestIndexedLookupWithGroups)
-// {
-//     DoStressTest(
-//         EOptimizeFor::Lookup,
-//         /*testNewReader*/ false,
-//         /*enableHashChunkIndex*/ true,
-//         /*useColumnGroups*/ true);
-// }
-
-#endif
+INSTANTIATE_TEST_SUITE_P(
+    TVersionedChunksStressTestImpl,
+    TVersionedChunksStressTestImpl,
+    ::testing::Combine(
+        TestOptionsValues,
+        ::testing::Bool()));
 
 // TODO(akozhikhov): More thorough test for aggregate columns.
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TEST_P(TVersionedChunksHeavyTestWithParametrizedBounds, ReadWideSchemaWithNonscalarBoundsScan)
+class TVersionedChunksHeavyWithBoundsTestImpl
+    : public TVersionedChunksHeavyTestWithBounds
+    , public testing::WithParamInterface<std::tuple<
+        TTestOptions,
+        std::tuple<
+            TUnversionedValue,
+            TUnversionedValue
+        >
+    >>
 {
-    auto bounds = GetParam();
-    DoReadWideSchemaWithSpecifiedBounds(EOptimizeFor::Scan, bounds);
-}
+private:
+    std::tuple<TUnversionedValue, TUnversionedValue> GetBounds() override
+    {
+        return std::get<1>(GetParam());
+    }
 
-TEST_P(TVersionedChunksHeavyTestWithParametrizedBounds, ReadWideSchemaWithNonscalarBoundsScanNew)
-{
-    auto bounds = GetParam();
-    DoReadWideSchemaWithSpecifiedBounds(EOptimizeFor::Scan, bounds, true);
-}
+    TTestOptions GetTestOptions() override
+    {
+        return std::get<0>(GetParam());
+    }
+};
 
-TEST_P(TVersionedChunksHeavyTestWithParametrizedBounds, ReadWideSchemaWithNonscalarBoundsLookup)
+TEST_P(TVersionedChunksHeavyWithBoundsTestImpl, ReadWideSchemaWithNonscalarBounds)
 {
-    auto bounds = GetParam();
-    DoReadWideSchemaWithSpecifiedBounds(EOptimizeFor::Lookup, bounds);
-}
-
-TEST_P(TVersionedChunksHeavyTestWithParametrizedBounds, ReadWideSchemaWithNonscalarBoundsIndexedLookup)
-{
-    auto bounds = GetParam();
-    DoReadWideSchemaWithSpecifiedBounds(
-        EOptimizeFor::Lookup,
-        bounds,
-        /*testNewReader*/ false,
-        /*enableHashChunkIndex*/ true);
+    DoReadWideSchemaWithBounds();
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    VersionedChunkWithNonscalarBoundsTest,
-    TVersionedChunksHeavyTestWithParametrizedBounds,
-    ::testing::Values(
-        std::make_pair(DoMakeMinSentinel(), DoMakeMinSentinel()),
-        std::make_pair(DoMakeMinSentinel(), DoMakeNullSentinel()),
-        std::make_pair(DoMakeMinSentinel(), DoMakeMaxSentinel()),
-        std::make_pair(DoMakeNullSentinel(), DoMakeNullSentinel()),
-        std::make_pair(DoMakeNullSentinel(), DoMakeMaxSentinel()),
-        std::make_pair(DoMakeMaxSentinel(), DoMakeMaxSentinel())));
+    TVersionedChunksHeavyWithBoundsTestImpl,
+    TVersionedChunksHeavyWithBoundsTestImpl,
+    ::testing::Combine(
+        TestOptionsValues,
+        ::testing::Values(
+            std::make_pair(DoMakeMinSentinel(), DoMakeMinSentinel()),
+            std::make_pair(DoMakeMinSentinel(), DoMakeNullSentinel()),
+            std::make_pair(DoMakeMinSentinel(), DoMakeMaxSentinel()),
+            std::make_pair(DoMakeNullSentinel(), DoMakeNullSentinel()),
+            std::make_pair(DoMakeNullSentinel(), DoMakeMaxSentinel()),
+            std::make_pair(DoMakeMaxSentinel(), DoMakeMaxSentinel()))));
 
 ////////////////////////////////////////////////////////////////////////////////
 
