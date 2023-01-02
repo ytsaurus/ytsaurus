@@ -132,13 +132,16 @@ private:
     std::optional<TVectorPiecewiseLinearFunction> FairShareBySuggestion_;
     std::optional<TScalarPiecewiseLinearFunction> MaxFitFactorBySuggestion_;
 
+    TResourceVector TotalTruncatedFairShare_;
+
     virtual void PrepareFairShareFunctions(TFairShareUpdateContext* context);
     virtual void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) = 0;
     void PrepareMaxFitFactorBySuggestion(TFairShareUpdateContext* context);
 
     virtual void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context);
     virtual void UpdateCumulativeAttributes(TFairShareUpdateContext* context);
-    virtual TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) = 0;
+    virtual void ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* context) = 0;
+    virtual void TruncateFairShareInFifoPools() = 0;
 
     void CheckFairShareFeasibility() const;
 
@@ -150,6 +153,8 @@ private:
     virtual void AdjustStrongGuarantees(const TFairShareUpdateContext* context);
     virtual void InitIntegralPoolLists(TFairShareUpdateContext* context);
     virtual void DistributeFreeVolume();
+
+    TResourceVector GetTotalTruncatedFairShare() const;
 
     friend class TCompositeElement;
     friend class TPool;
@@ -186,8 +191,6 @@ private:
 
     std::vector<TElement*> SortedChildren_;
 
-    bool HasTruncatedChildFairShare_ = false;
-
     void PrepareFairShareFunctions(TFairShareUpdateContext* context) override;
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
     void PrepareFairShareByFitFactorFifo(TFairShareUpdateContext* context);
@@ -202,7 +205,8 @@ private:
     void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
     void UpdateOverflowAndAcceptableVolumesRecursively();
     void DistributeFreeVolume() override;
-    TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) override;
+    void ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* context) override;
+    void TruncateFairShareInFifoPools() override;
 
     void PrepareFifoPool();
 
@@ -219,11 +223,7 @@ private:
         bool strictMode = true);
 
     TChildSuggestions GetChildSuggestionsFifo(double fitFactor);
-    bool ShouldTruncateChildSuggestionFifo(const TChildSuggestions& childSuggestions, int childIndex) const;
     TChildSuggestions GetChildSuggestionsNormal(double fitFactor);
-    bool ShouldTruncateChildSuggestionNormal(const TChildSuggestions& childSuggestions, int childIndex) const;
-
-    bool HasTruncatedChildFairShare() const;
 
     friend class TPool;
     friend class TRootElement;
@@ -240,7 +240,7 @@ class TPool
 {
 public:
     // NB: it is combination of options on pool and on tree.
-	virtual TResourceVector GetIntegralShareLimitForRelaxedPool() const = 0;
+    virtual TResourceVector GetIntegralShareLimitForRelaxedPool() const = 0;
 
     virtual const TIntegralResourcesState& IntegralResourcesState() const = 0;
     virtual TIntegralResourcesState& IntegralResourcesState() = 0;
@@ -269,6 +269,7 @@ public:
 private:
     void DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context) override;
     void UpdateCumulativeAttributes(TFairShareUpdateContext* context) override;
+    void TruncateFairShareInFifoPools() override;
 
     void ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context);
 
@@ -295,7 +296,8 @@ public:
 private:
     void PrepareFairShareByFitFactor(TFairShareUpdateContext* context) override;
 
-    TResourceVector DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context) override;
+    void ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* context) override;
+    void TruncateFairShareInFifoPools() override;
     TResourceVector ComputeLimitsShare(const TFairShareUpdateContext* context) const override;
 
     friend class TFairShareUpdateExecutor;
@@ -358,12 +360,12 @@ private:
 
     void ConsumeAndRefillIntegralPools();
     void UpdateBurstPoolIntegralShares();
-	void UpdateRelaxedPoolIntegralShares();
+    void UpdateRelaxedPoolIntegralShares();
     void UpdateRootFairShare();
 
-	double GetIntegralShareRatioByVolume(const TPool* pool) const;
-	TResourceVector GetHierarchicalAvailableLimitsShare(const TElement* element) const;
-	void IncreaseHierarchicalIntegralShare(TElement* element, const TResourceVector& delta);
+    double GetIntegralShareRatioByVolume(const TPool* pool) const;
+    TResourceVector GetHierarchicalAvailableLimitsShare(const TElement* element) const;
+    void IncreaseHierarchicalIntegralShare(TElement* element, const TResourceVector& delta);
 
     TFairShareUpdateContext* Context_;
 };
