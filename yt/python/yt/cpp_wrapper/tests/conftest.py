@@ -21,7 +21,7 @@ def init_environment_for_test_session(**kwargs):
 
     environment = YtTestEnvironment(
         get_tests_sandbox(),
-        "TestClickHouse",
+        "TestCppWrapper",
         config,
         **kwargs)
 

@@ -276,8 +276,9 @@ def save_sandbox(sandbox_path, output_subpath):
             sandbox_path.strip("/").endswith(output_subpath.strip("/")):
         return
 
-    os.makedirs(output_path)
-    sudo_move(sandbox_path, output_path)
+    output_path_dir = os.path.dirname(output_path)
+    os.makedirs(output_path_dir)
+    sudo_move(sandbox_path, output_path_dir)
 
 
 def get_gdb_path():
