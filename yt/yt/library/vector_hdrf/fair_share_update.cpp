@@ -285,6 +285,11 @@ TResourceVector TElement::GetVectorSuggestion(double suggestion) const
 void TElement::DistributeFreeVolume()
 { }
 
+TResourceVector TElement::GetTotalTruncatedFairShare() const
+{
+    return TotalTruncatedFairShare_;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
@@ -690,17 +695,6 @@ TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsFifo(
     return childSuggestions;
 }
 
-bool TCompositeElement::ShouldTruncateChildSuggestionFifo(const TChildSuggestions& childSuggestions, int childIndex) const
-{
-    // NB(eshcherbin, YT-15061): This truncation is only used in GPU-trees to enable preemption of jobs of gang operations
-    // which fair share is less than demand.
-    auto* childOperation = SortedChildren_[childIndex]->AsOperation();
-    return (childSuggestions[childIndex] < 1.0 - RatioComparisonPrecision) &&
-        IsFairShareTruncationInFifoPoolEnabled() &&
-        childOperation &&
-        childOperation->IsGang();
-}
-
 // Returns a vector of suggestions for children from |EnabledChildren_| based on the given fit factor.
 TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsNormal(double fitFactor)
 {
@@ -715,18 +709,13 @@ TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsNorma
     return childSuggestions;
 }
 
-bool TCompositeElement::ShouldTruncateChildSuggestionNormal(const TChildSuggestions& /*childSuggestions*/, int /*childIndex*/) const
-{
-    return false;
-}
-
-TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairShareUpdateContext* context)
+void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* context)
 {
     const auto& Logger = GetLogger();
 
     if (GetChildrenCount() == 0) {
         Attributes().SetFairShare(TResourceVector::Zero());
-        return TResourceVector::Zero();
+        return;
     }
 
     auto suggestedFairShare = FairShareBySuggestion_->ValueAt(suggestion);
@@ -748,10 +737,6 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
         ? std::bind(&TCompositeElement::GetChildSuggestionsFifo, this, std::placeholders::_1)
         : std::bind(&TCompositeElement::GetChildSuggestionsNormal, this, std::placeholders::_1);
 
-    auto shouldTruncateChildSuggestion = (GetMode() == ESchedulingMode::Fifo)
-        ? std::bind(&TCompositeElement::ShouldTruncateChildSuggestionFifo, this, std::placeholders::_1, std::placeholders::_2)
-        : std::bind(&TCompositeElement::ShouldTruncateChildSuggestionNormal, this, std::placeholders::_1, std::placeholders::_2);
-
     auto getChildrenSuggestedFairShare = [&] (double fitFactor) {
         auto childSuggestions = getEnabledChildSuggestions(fitFactor);
         YT_VERIFY(childSuggestions.size() == children.size());
@@ -760,10 +745,7 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
         for (int childIndex = 0; childIndex < std::ssize(children); ++childIndex) {
             const auto& child = children[childIndex];
             auto childSuggestion = childSuggestions[childIndex];
-
-            if (!shouldTruncateChildSuggestion(childSuggestions, childIndex)) {
-                childrenSuggestedFairShare += child->FairShareBySuggestion_->ValueAt(childSuggestion);
-            }
+            childrenSuggestedFairShare += child->FairShareBySuggestion_->ValueAt(childSuggestion);
         }
 
         return childrenSuggestedFairShare;
@@ -792,35 +774,27 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
     auto childSuggestions = getEnabledChildSuggestions(fitFactor);
     YT_VERIFY(childSuggestions.size() == children.size());
 
-    HasTruncatedChildFairShare_ = false;
-    TResourceVector usedFairShare;
+    TResourceVector childrenUsedFairShare;
     for (int childIndex = 0; childIndex < std::ssize(children); ++childIndex) {
         const auto& child = children[childIndex];
         auto childSuggestion = childSuggestions[childIndex];
-
-        if (!shouldTruncateChildSuggestion(childSuggestions, childIndex)) {
-            usedFairShare += child->DoUpdateFairShare(childSuggestion, context);
-            if (auto* poolChild = child->AsPool()) {
-                HasTruncatedChildFairShare_ |= poolChild->HasTruncatedChildFairShare();
-            }
-        } else {
-            HasTruncatedChildFairShare_ = true;
-        }
+        child->ComputeAndSetFairShare(childSuggestion, context);
+        childrenUsedFairShare += child->Attributes().FairShare.Total;
     }
 
-    // Validate and set used fair share.
-
-    bool suggestedShareNearlyDominatesUsedShare = Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), usedFairShare);
+    // Validate children total fair share.
+    bool suggestedShareNearlyDominatesChildrenUsedShare =
+        Dominates(suggestedFairShare + TResourceVector::SmallEpsilon(), childrenUsedFairShare);
     bool usedShareNearSuggestedShare =
-        TResourceVector::Near(usedFairShare, suggestedFairShare, 1e-4 * MaxComponent(usedFairShare));
-    YT_LOG_WARNING_UNLESS(
-        (usedShareNearSuggestedShare && suggestedShareNearlyDominatesUsedShare) || HasTruncatedChildFairShare_,
+        TResourceVector::Near(childrenUsedFairShare, suggestedFairShare, 1e-4 * MaxComponent(childrenUsedFairShare));
+
+    YT_LOG_WARNING_UNLESS(usedShareNearSuggestedShare && suggestedShareNearlyDominatesChildrenUsedShare,
         "Fair share significantly differs from predicted in pool ("
         "Mode: %v, "
         "Suggestion: %.20v, "
         "VectorSuggestion: %.20v, "
         "SuggestedFairShare: %.20v, "
-        "UsedFairShare: %.20v, "
+        "ChildrenUsedFairShare: %.20v, "
         "Difference: %.20v, "
         "FitFactor: %.20v, "
         "FSBFFPredicted: %.20v, "
@@ -830,18 +804,67 @@ TResourceVector TCompositeElement::DoUpdateFairShare(double suggestion, TFairSha
         suggestion,
         GetVectorSuggestion(suggestion),
         suggestedFairShare,
-        usedFairShare,
-        suggestedFairShare - usedFairShare,
+        childrenUsedFairShare,
+        suggestedFairShare - childrenUsedFairShare,
         fitFactor,
         FairShareByFitFactor_->ValueAt(fitFactor),
         getChildrenSuggestedFairShare(fitFactor),
         GetChildrenCount());
 
-    YT_VERIFY(suggestedShareNearlyDominatesUsedShare);
+    YT_VERIFY(suggestedShareNearlyDominatesChildrenUsedShare);
 
-    Attributes().SetFairShare(usedFairShare);
+    // Set fair share.
+
+    Attributes().SetFairShare(suggestedFairShare);
     CheckFairShareFeasibility();
-    return usedFairShare;
+}
+
+void TCompositeElement::TruncateFairShareInFifoPools()
+{
+    THashSet<TElement*> truncatedChildren;
+    if (GetMode() == ESchedulingMode::Fifo && IsFairShareTruncationInFifoPoolEnabled()) {
+        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+            auto *childOperation = SortedChildren_[childIndex]->AsOperation();
+
+            YT_VERIFY(childOperation);
+
+            const auto& childAttributes = childOperation->Attributes();
+            auto childFairShare = childAttributes.FairShare.Total;
+            if (childFairShare == TResourceVector::Zero()) {
+                continue;
+            }
+
+            // NB(eshcherbin, YT-15061): This truncation is only used in GPU-trees to enable preemption of jobs of gang operations
+            // which fair share is less than demand.
+            bool isChildFullySatisfied = Dominates(childFairShare + TResourceVector::Epsilon(), childAttributes.DemandShare);
+            bool shouldTruncate = !isChildFullySatisfied && childOperation->IsGang();
+            if (shouldTruncate) {
+                const auto& Logger = GetLogger();
+
+                TotalTruncatedFairShare_ += childFairShare;
+                childOperation->Attributes().SetFairShare(TResourceVector::Zero());
+                truncatedChildren.insert(childOperation);
+
+                YT_LOG_DEBUG("Truncated operation fair share in FIFO pool (OperationId: %v, TruncatedFairShare: %v)",
+                    childOperation->GetId(),
+                    childFairShare);
+            }
+        }
+    }
+
+    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        auto* child = GetChild(childIndex);
+        if (!truncatedChildren.contains(child)) {
+            child->TruncateFairShareInFifoPools();
+            TotalTruncatedFairShare_ += child->GetTotalTruncatedFairShare();
+        }
+    }
+
+    // TODO(eshcherbin): Should we use epsilon here?
+    if (TotalTruncatedFairShare_ != TResourceVector::Zero()) {
+        auto fairShare = TResourceVector::Max(Attributes().FairShare.Total - TotalTruncatedFairShare_, TResourceVector::Zero());
+        Attributes().SetFairShare(fairShare);
+    }
 }
 
 void TCompositeElement::UpdateOverflowAndAcceptableVolumesRecursively()
@@ -1036,11 +1059,6 @@ void TPool::UpdateAccumulatedResourceVolume(TFairShareUpdateContext* context)
         attributes.AcceptableVolume);
 }
 
-bool TCompositeElement::HasTruncatedChildFairShare() const
-{
-    return HasTruncatedChildFairShare_;
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 void TRootElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
@@ -1064,6 +1082,18 @@ void TRootElement::UpdateCumulativeAttributes(TFairShareUpdateContext* context)
         const auto* child = GetChild(childIndex);
         Attributes().StrongGuaranteeShare += child->Attributes().StrongGuaranteeShare;
     }
+}
+
+void TRootElement::TruncateFairShareInFifoPools()
+{
+    const auto& Logger = GetLogger();
+
+    TCompositeElement::TruncateFairShareInFifoPools();
+
+    YT_LOG_DEBUG_UNLESS(TotalTruncatedFairShare_ == TResourceVector::Zero(),
+        "Truncated fair share in FIFO pools (NewFairShare: %v, TotalTruncatedFairShare: %v)",
+        Attributes().FairShare.Total,
+        TotalTruncatedFairShare_);
 }
 
 void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext* context)
@@ -1156,10 +1186,10 @@ void TOperationElement::PrepareFairShareByFitFactor(TFairShareUpdateContext* con
     FairShareByFitFactor_ = builder.Finish();
 }
 
-TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TFairShareUpdateContext* /*context*/)
+void TOperationElement::ComputeAndSetFairShare(double suggestion, TFairShareUpdateContext* /*context*/)
 {
-    TResourceVector usedFairShare = FairShareBySuggestion_->ValueAt(suggestion);
-    Attributes().SetFairShare(usedFairShare);
+    auto fairShare = FairShareBySuggestion_->ValueAt(suggestion);
+    Attributes().SetFairShare(fairShare);
     CheckFairShareFeasibility();
 
     if (AreDetailedLogsEnabled()) {
@@ -1179,16 +1209,17 @@ TResourceVector TOperationElement::DoUpdateFairShare(double suggestion, TFairSha
             "FSBFFSegmentArguments: {%.10g, %.10g}, "
             "FSBFFSegmentValues: {%.10g, %.10g})",
             suggestion,
-            usedFairShare,
+            fairShare,
             fsbsSegment.LeftBound(), fsbsSegment.RightBound(),
             fsbsSegment.LeftValue(), fsbsSegment.RightValue(),
             fitFactor,
             fsbffSegment.LeftBound(), fsbffSegment.RightBound(),
             fsbffSegment.LeftValue(), fsbffSegment.RightValue());
     }
-
-    return usedFairShare;
 }
+
+void TOperationElement::TruncateFairShareInFifoPools()
+{ }
 
 TResourceVector TOperationElement::ComputeLimitsShare(const TFairShareUpdateContext* context) const
 {
@@ -1262,7 +1293,8 @@ void TFairShareUpdateExecutor::Run()
     UpdateRelaxedPoolIntegralShares();
 
     RootElement_->PrepareFairShareFunctions(Context_);
-    RootElement_->DoUpdateFairShare(/* suggestion */ 1.0, Context_);
+    RootElement_->ComputeAndSetFairShare(/*suggestion*/ 1.0, Context_);
+    RootElement_->TruncateFairShareInFifoPools();
 
     UpdateRootFairShare();
 
@@ -1346,19 +1378,19 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
     std::vector<double> weights;
     std::vector<TResourceVector> originalLimits;
     for (auto& relaxedPool : relaxedPools) {
-		double integralShareRatio = GetIntegralShareRatioByVolume(relaxedPool);
+        double integralShareRatio = GetIntegralShareRatioByVolume(relaxedPool);
         weights.push_back(integralShareRatio);
         originalLimits.push_back(relaxedPool->Attributes().LimitsShare);
 
-		// It is incorporated version of this method below.
+        // It is incorporated version of this method below.
         // relaxedPool->ApplyLimitsForRelaxedPool();
-		{
-			auto relaxedPoolLimit = TResourceVector::Min(
-				TResourceVector::FromDouble(integralShareRatio),
-				relaxedPool->GetIntegralShareLimitForRelaxedPool());
-			relaxedPoolLimit += relaxedPool->Attributes().StrongGuaranteeShare;
-			relaxedPool->Attributes().LimitsShare = TResourceVector::Min(relaxedPool->Attributes().LimitsShare, relaxedPoolLimit);
-		}
+        {
+            auto relaxedPoolLimit = TResourceVector::Min(
+                TResourceVector::FromDouble(integralShareRatio),
+                relaxedPool->GetIntegralShareLimitForRelaxedPool());
+            relaxedPoolLimit += relaxedPool->Attributes().StrongGuaranteeShare;
+            relaxedPool->Attributes().LimitsShare = TResourceVector::Min(relaxedPool->Attributes().LimitsShare, relaxedPoolLimit);
+        }
 
         relaxedPool->PrepareFairShareFunctions(Context_);
     }
@@ -1453,7 +1485,7 @@ double TFairShareUpdateExecutor::GetIntegralShareRatioByVolume(const TPool* pool
 {
     const auto& accumulatedVolume = pool->IntegralResourcesState().AccumulatedVolume;
     return accumulatedVolume.GetMinResourceRatio(Context_->TotalResourceLimits) /
-		Context_->IntegralSmoothPeriod.SecondsFloat();
+        Context_->IntegralSmoothPeriod.SecondsFloat();
 }
 
 TResourceVector TFairShareUpdateExecutor::GetHierarchicalAvailableLimitsShare(const TElement* element) const
