@@ -35,14 +35,14 @@ void* TCompletionQueueTag::GetTag(int cookie)
 
 TGrpcLibraryLock::TGrpcLibraryLock()
 {
-    YT_LOG_DEBUG("Initializing GRPC library");
+    YT_LOG_INFO("Initializing GRPC library");
     grpc_init_openssl();
     grpc_init();
 }
 
 TGrpcLibraryLock::~TGrpcLibraryLock()
 {
-    YT_LOG_DEBUG("Shutting down GRPC library");
+    YT_LOG_INFO("Shutting down GRPC library");
     grpc_shutdown();
 }
 
