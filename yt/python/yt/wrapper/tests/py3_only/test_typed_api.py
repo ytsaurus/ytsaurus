@@ -1044,9 +1044,9 @@ class TestTypedApi(object):
             (Timestamp, ti.Uint64),
             (Interval, ti.Int64),
         ]:
-            for for_reading in [True, False]:
+            for mode in ["write_structured_read_unstructured", "write_unstructured_read_structured"]:
                 with pytest.raises(yt.YtError, match="source type .* is incompatible with destination type"):
-                    write_and_read_primitive(py_type, ti_type, 10, for_reading=for_reading)
+                    write_and_read_primitive(py_type, ti_type, 10, mode=mode)
 
         # Check all time types are incompatible with each other
         checks = 0
