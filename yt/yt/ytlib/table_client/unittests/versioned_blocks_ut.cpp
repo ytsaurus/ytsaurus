@@ -165,7 +165,8 @@ public:
 
 using TVersionedBlockFormatAdapters = ::testing::Types<
     TMockSimpleBlockFormatAdapter,
-    TMockIndexedBlockFormatAdapter>;
+    TMockIndexedBlockFormatAdapter
+>;
 
 TYPED_TEST_SUITE(TVersionedBlocksTestOneRow, TVersionedBlockFormatAdapters);
 
