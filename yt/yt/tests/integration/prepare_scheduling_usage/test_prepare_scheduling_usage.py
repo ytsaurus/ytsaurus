@@ -1,20 +1,78 @@
 from yt_env_setup import YTEnvSetup
 
-from yt_commands import authors, create_pool, run_test_vanilla, ls
+from yt_commands import authors, create_pool, run_test_vanilla, ls, create, exists, get
 
 from yt_helpers import read_structured_log, write_log_barrier
 
+import yt.wrapper as yt
 import yt.yson as yson
 from yt.environment import arcadia_interop
+from yt.wrapper.schema import yt_dataclass, OtherColumns
+from yt.wrapper.schema import YsonBytes, TableSchema
+
+import pytest
 
 import json
 import os
 import sys
 import subprocess
 import time
-
+import typing
 
 PREPARE_SCHEDULING_USAGE_BINARY = arcadia_interop.search_binary_path("prepare_scheduling_usage")
+
+
+@yt_dataclass
+class YtStructuredSchedulerLog:
+    timestamp: int
+    cluster: str
+    accumulated_resource_usage_per_tree: typing.Optional[YsonBytes]
+    experiment_assignment_names: typing.Optional[YsonBytes]
+    runtime_params: typing.Optional[YsonBytes]
+    event_type: str
+    runtime_parameters: typing.Optional[YsonBytes]
+    operation_id: typing.Optional[str]
+    pools: typing.Optional[YsonBytes]
+    unrecognized_spec: typing.Optional[YsonBytes]
+    address: typing.Optional[str]
+    instant: str
+    operations: typing.Optional[YsonBytes]
+    start_time: typing.Optional[str]
+    finish_time: typing.Optional[str]
+    error: typing.Optional[YsonBytes]
+    tree_id: typing.Optional[str]
+    iso_eventtime: typing.Optional[str]
+    scheduling_info_per_tree: typing.Optional[YsonBytes]
+    progress: typing.Optional[YsonBytes]
+    spec: typing.Optional[YsonBytes]
+    pool: typing.Optional[str]
+    alerts: typing.Optional[YsonBytes]
+    experiment_assignments: typing.Optional[YsonBytes]
+    source_uri: typing.Optional[str]
+
+
+@yt_dataclass
+class OperationInfo:
+    timestamp: int
+    cluster: typing.Optional[str]
+    pool_tree: typing.Optional[str]
+    pool_path: typing.Optional[str]
+    operation_id: typing.Optional[str]
+    operation_type: typing.Optional[str]
+    operation_state: typing.Optional[str]
+    user: typing.Optional[str]
+    pools: typing.List[str]
+    annotations: typing.Optional[YsonBytes]
+    accumulated_resource_usage_cpu: typing.Optional[float]
+    accumulated_resource_usage_memory: typing.Optional[float]
+    accumulated_resource_usage_gpu: typing.Optional[float]
+    cumulative_max_memory: typing.Optional[float]
+    cumulative_used_cpu: typing.Optional[float]
+    cumulative_gpu_utilization: typing.Optional[float]
+    start_time: typing.Optional[int]
+    finish_time: typing.Optional[int]
+    job_statistics: typing.Optional[YsonBytes]
+    other: OtherColumns
 
 
 @authors("ignat")
@@ -171,3 +229,62 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
 
         assert cumulative_used_cpu > 0
         assert cumulative_used_cpu <= accumulated_resource_usage_cpu
+
+    def _run_script_for_link_test(self, target):
+        tmp_dir = "//tmp/yt_wrapper/file_storage"
+        prepare_scheduling_usage_dir = "//prepare_scheduling_usage"
+
+        if not os.path.exists(os.path.join(self.Env.path, "prepare_scheduling_usage")):
+            os.mkdir(os.path.join(self.Env.path, "prepare_scheduling_usage"))
+
+        input_dir = yt.ypath_join(prepare_scheduling_usage_dir, "input")
+        output_dir = yt.ypath_join(prepare_scheduling_usage_dir, "output")
+
+        create("map_node", prepare_scheduling_usage_dir, force=True)
+        create("map_node", input_dir, force=True)
+        create("map_node", output_dir, force=True)
+        create("map_node", tmp_dir, recursive=True, force=True)
+
+        input_filepath = yt.ypath_join(input_dir, target)
+        output_filepath = yt.ypath_join(output_dir, target)
+
+        create(
+            "table",
+            input_filepath,
+            attributes={
+                "schema": TableSchema.from_row_type(YtStructuredSchedulerLog),
+            },
+            force=True
+        )
+
+        for date in ["2020-01-01", "2020-01-02", "2020-01-03", "2020-01-04", "2020-01-05"]:
+            create(
+                "table",
+                yt.ypath_join(output_dir, date),
+                attributes={
+                    "schema": TableSchema.from_row_type(OperationInfo).build_schema_sorted_by([
+                        "cluster", "pool_tree", "pool_path"
+                    ]),
+                },
+                force=True
+            )
+
+        with open(os.path.join(self.Env.path, "prepare_scheduling_usage", "test_link_bin.log"), "w") as fout:
+            subprocess.check_call(
+                [
+                    PREPARE_SCHEDULING_USAGE_BINARY,
+                    "--cluster", self.Env.get_proxy_address(),
+                    "--mode", "table",
+                    "--input-path", input_filepath,
+                    "--output-path", output_filepath
+                ],
+                stderr=fout)
+
+        link_path = yt.ypath_join(output_dir, "tags", "latest")
+        assert exists(link_path)
+        assert get(link_path + "&/@target_path") == yt.ypath_join(output_dir, "tags", target)
+
+    @pytest.mark.timeout(300)
+    def test_link(self):
+        self._run_script_for_link_test("2020-01-06")
+        self._run_script_for_link_test("2020-01-07")

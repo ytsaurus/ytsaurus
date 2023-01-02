@@ -551,6 +551,7 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table):
     )
 
     tags_output_table = yt.ypath_join(dir_name, "tags", table_name)
+    tags_latest_link = yt.ypath_join(dir_name, "tags", "latest")
     client.remove(tags_output_table, force=True)
     client.create(
         "table",
@@ -574,6 +575,7 @@ def do_process_scheduler_log_on_yt(client, input_table, output_table):
             aggregate_tags_for_ancestor_pools(client.read_table_structured(temp_table, TempTagsRow)),
             table_writer={"max_row_weight": 64 * 1024 * 1024},
         )
+        client.link(tags_output_table, tags_latest_link, force=True)
 
 
 def process_scheduler_log_on_yt(client, input_table, output_table):
