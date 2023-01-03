@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <library/cpp/yt/memory/public.h>
+
 #include <atomic>
 #include <array>
 

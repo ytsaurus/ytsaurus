@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/memory/public.h>
+
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////

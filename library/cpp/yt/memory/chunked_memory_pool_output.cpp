@@ -46,7 +46,7 @@ void TChunkedMemoryPoolOutput::DoUndo(size_t size)
     YT_VERIFY(Current_ >= Begin_);
 }
 
-std::vector<TMutableRef> TChunkedMemoryPoolOutput::FinishAndGetRefs()
+std::vector<TMutableRef> TChunkedMemoryPoolOutput::Finish()
 {
     // Emplace the used part of the last chunk, if any.
     if (Begin_) {

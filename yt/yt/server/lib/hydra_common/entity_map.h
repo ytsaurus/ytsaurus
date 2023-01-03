@@ -5,7 +5,7 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <type_traits>
 

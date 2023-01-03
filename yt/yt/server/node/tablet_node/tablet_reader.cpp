@@ -25,11 +25,12 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/heap.h>
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/range.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 namespace NYT::NTabletNode {
 

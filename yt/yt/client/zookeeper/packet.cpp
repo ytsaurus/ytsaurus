@@ -1,6 +1,6 @@
 #include "packet.h"
 
-#include <yt/yt/core/misc/chunked_memory_allocator.h>
+#include <library/cpp/yt/memory/chunked_memory_allocator.h>
 
 namespace NYT::NZookeeper {
 

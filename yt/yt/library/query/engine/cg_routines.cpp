@@ -28,13 +28,14 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/chunked_memory_pool_output.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/hyperloglog.h>
 
 #include <yt/yt/core/profiling/timing.h>
 
 #include <contrib/libs/re2/re2/re2.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool_output.h>
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
 
@@ -1691,7 +1692,7 @@ void AnyToYsonString(
         TYsonPullParserCursor cursor(&parser);
         cursor.TransferComplexValue(&writer);
     }
-    auto refs = output.FinishAndGetRefs();
+    auto refs = output.Finish();
     if (refs.size() == 1) {
         *result = refs.front().Begin();
         *resultLength = refs.front().Size();

@@ -75,8 +75,6 @@ struct TValueBoundSerializer;
 template <class T, class C, class = void>
 struct TSerializerTraits;
 
-class TChunkedMemoryPool;
-
 template <class TKey, class TComparer>
 class TSkipList;
 
@@ -125,11 +123,11 @@ template <typename T>
 struct TDenseMapInfo;
 
 template <
-	typename KeyT,
-	typename ValueT,
-	unsigned InlineBuckets = 4,
-	typename KeyInfoT = TDenseMapInfo<KeyT>,
-	typename BucketT = NDetail::DenseMapPair<KeyT, ValueT>
+    typename KeyT,
+    typename ValueT,
+    unsigned InlineBuckets = 4,
+    typename KeyInfoT = TDenseMapInfo<KeyT>,
+    typename BucketT = NDetail::DenseMapPair<KeyT, ValueT>
 >
 class SmallDenseMap;
 
@@ -158,7 +156,6 @@ using TInternedObjectDataPtr = TIntrusivePtr<TInternedObjectData<T>>;
 template <class T>
 class TInternedObject;
 
-DECLARE_REFCOUNTED_STRUCT(IMemoryChunkProvider)
 DECLARE_REFCOUNTED_STRUCT(IMemoryUsageTracker)
 
 class TStatistics;

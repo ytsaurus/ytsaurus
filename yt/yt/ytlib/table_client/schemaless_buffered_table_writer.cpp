@@ -15,8 +15,9 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/property.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <queue>
 #include <array>

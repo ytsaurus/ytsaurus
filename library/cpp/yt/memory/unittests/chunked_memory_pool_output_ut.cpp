@@ -1,7 +1,7 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/chunked_memory_pool.h>
-#include <yt/yt/core/misc/chunked_memory_pool_output.h>
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
+#include <library/cpp/yt/memory/chunked_memory_pool_output.h>
 
 namespace NYT {
 namespace {
@@ -25,7 +25,7 @@ TEST(TChunkedMemoryPoolOutputTest, Basic)
     auto len = output.Next(&buf);
     output.Undo(len);
 
-    auto chunks = output.FinishAndGetRefs();
+    auto chunks = output.Finish();
     TString s;
     for (auto chunk : chunks) {
         s += TString(chunk.Begin(), chunk.End());

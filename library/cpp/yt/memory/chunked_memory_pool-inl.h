@@ -8,6 +8,8 @@
 
 #include <library/cpp/yt/malloc/malloc.h>
 
+#include <util/system/align.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -97,11 +99,12 @@ inline T* TChunkedMemoryPool::AllocateUninitialized(int n, int align)
     return reinterpret_cast<T*>(AllocateAligned(sizeof(T) * n, align));
 }
 
-inline char* TChunkedMemoryPool::Capture(TRef src, int align)
+template <class T>
+inline TMutableRange<T> TChunkedMemoryPool::Capture(TRange<T> src, int align)
 {
-    auto* dst = AllocateAligned(src.Size(), align);
-    ::memcpy(dst, src.Begin(), src.Size());
-    return dst;
+    auto* dst = AllocateUninitialized<T>(src.Size(), align);
+    ::memcpy(dst, src.Begin(), sizeof(T) * src.Size());
+    return TMutableRange<T>(dst, src.Size());
 }
 
 inline void TChunkedMemoryPool::Free(char* from, char* to)

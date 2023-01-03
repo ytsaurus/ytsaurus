@@ -124,7 +124,6 @@
 #include <yt/yt/library/erasure/impl/codec.h>
 
 #include <yt/yt/core/misc/algorithm_helpers.h>
-#include <yt/yt/core/misc/chunked_input_stream.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/crash_handler.h>
 #include <yt/yt/core/misc/error.h>
@@ -141,6 +140,8 @@
 
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
+
+#include <library/cpp/yt/memory/chunked_input_stream.h>
 
 #include <util/generic/algorithm.h>
 #include <util/generic/cast.h>

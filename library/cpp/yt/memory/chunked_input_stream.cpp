@@ -4,8 +4,8 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkedInputStream::TChunkedInputStream(const std::vector<TSharedRef>& blocks)
-    : Blocks_(blocks)
+TChunkedInputStream::TChunkedInputStream(std::vector<TSharedRef> blocks)
+    : Blocks_(std::move(blocks))
 { }
 
 size_t TChunkedInputStream::DoNext(const void** ptr, size_t len)

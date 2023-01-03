@@ -15,9 +15,10 @@
 #include <yt/yt/core/concurrency/throughput_throttler.h>
 
 #include <yt/yt/core/misc/blob_output.h>
-#include <yt/yt/core/misc/chunked_memory_pool.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <util/stream/output.h>
 

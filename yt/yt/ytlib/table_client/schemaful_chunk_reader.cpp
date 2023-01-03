@@ -29,10 +29,11 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/rpc/channel.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 namespace NYT::NTableClient {
 
