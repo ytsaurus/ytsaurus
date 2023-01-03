@@ -143,8 +143,9 @@ def prepare_python_source_tree(python_root, yt_root, arcadia_root=None,
 
         def find_package_files(contrib_path):
             files_to_copy = glob.glob(
-                "{contrib_path}/{package_name}/{package_name}*.py".format(
+                "{contrib_path}/{package_relative_path}/{package_name}*.py".format(
                     contrib_path=contrib_path,
+                    package_relative_path=package_relative_path,
                     package_name=package_name))
             files_to_copy += glob.glob(
                 "{contrib_path}/{package_relative_path}/{package_name}".format(
