@@ -2,7 +2,7 @@ from .types import (is_yt_dataclass, Annotation,
                     _is_py_type_compatible_with_ti_type, _check_ti_types_compatible,
                     _is_py_type_optional, _get_py_time_types)
 from . import types
-from .helpers import check_schema_module_available
+from .helpers import check_schema_module_available, is_schema_module_available
 
 from ..errors import YtError
 
@@ -16,13 +16,11 @@ try:
 except ImportError:
     pass
 
-try:
-    from yt.packages.typing_extensions import get_type_hints
-except ImportError:
+if is_schema_module_available():
     try:
-        from typing_extensions import get_type_hints
+        from yt.packages.typing_extensions import get_type_hints
     except ImportError:
-        pass
+        from typing_extensions import get_type_hints
 
 
 class _PySchemaSerializer:
