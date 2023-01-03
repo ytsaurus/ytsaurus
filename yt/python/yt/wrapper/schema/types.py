@@ -19,15 +19,15 @@ try:
 except ImportError:
     pass
 
-try:
-    from yt.packages.typing_extensions import Annotated, Protocol
-except ImportError:
+if is_schema_module_available():
     try:
-        from typing_extensions import Annotated, Protocol
+        from yt.packages.typing_extensions import Annotated, Protocol
     except ImportError:
-        Protocol = object
+        from typing_extensions import Annotated, Protocol
+else:
+    Protocol = object
 
-if typing.TYPE_CHECKING:
+if typing.TYPE_CHECKING and is_schema_module_available():
     try:
         from yt.packages.typing_extensions import dataclass_transform
     except ImportError:
