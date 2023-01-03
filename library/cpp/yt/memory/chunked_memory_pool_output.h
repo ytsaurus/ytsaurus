@@ -1,8 +1,9 @@
 #pragma once
 
 #include "public.h"
+#include "ref.h"
 
-#include <util/stream/fwd.h>
+#include <util/stream/zerocopy_output.h>
 
 #include <util/generic/size_literals.h>
 
@@ -20,7 +21,7 @@ public:
         TChunkedMemoryPool* pool,
         size_t chunkSize = DefaultChunkSize);
 
-    std::vector<TMutableRef> FinishAndGetRefs();
+    std::vector<TMutableRef> Finish();
 
 private:
     size_t DoNext(void** ptr) override;

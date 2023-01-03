@@ -1,8 +1,7 @@
 #pragma once
 
 #include "public.h"
-
-#include <library/cpp/yt/memory/ref.h>
+#include "ref.h"
 
 #include <util/generic/size_literals.h>
 
@@ -86,7 +85,8 @@ public:
     T* AllocateUninitialized(int n, int align = alignof(T));
 
     //! Allocates space and copies #src inside it.
-    char* Capture(TRef src, int align = 8);
+    template <class T>
+    TMutableRange<T> Capture(TRange<T> src, int align = alignof(T));
 
     //! Frees memory range if possible: namely, if the free region is a suffix of last allocated region.
     void Free(char* from, char* to);

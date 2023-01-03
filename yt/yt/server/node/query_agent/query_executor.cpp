@@ -65,9 +65,10 @@
 #include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/tls_cache.h>
-#include <yt/yt/core/misc/chunked_memory_pool.h>
 
 #include <yt/yt/core/rpc/authentication_identity.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 namespace NYT::NQueryClient {
 

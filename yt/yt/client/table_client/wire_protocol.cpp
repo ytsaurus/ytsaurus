@@ -11,7 +11,6 @@
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/misc/bitmap.h>
-#include <yt/yt/core/misc/chunked_memory_pool.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
@@ -21,6 +20,7 @@
 #include <library/cpp/yt/misc/variant.h>
 
 #include <library/cpp/yt/memory/chunked_output_stream.h>
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <util/system/sanitizers.h>
 

@@ -4,11 +4,11 @@
 #include "skip_list.h"
 #endif
 
-#include "chunked_memory_pool.h"
-
-#include <type_traits>
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <util/random/random.h>
+
+#include <type_traits>
 
 namespace NYT {
 

@@ -3,9 +3,10 @@
 #include <yt/yt/core/bus/bus.h>
 
 #include <yt/yt/core/misc/checksum.h>
-#include <yt/yt/core/misc/chunked_memory_allocator.h>
 
 #include <library/cpp/yt/string/guid.h>
+
+#include <library/cpp/yt/memory/chunked_memory_allocator.h>
 
 namespace NYT::NBus {
 

@@ -1,7 +1,5 @@
 #include "versioned_reader_adapter.h"
 
-#include <yt/yt/core/misc/chunked_memory_pool.h>
-
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 
 #include <yt/yt/client/table_client/versioned_reader.h>
@@ -10,6 +8,8 @@
 #include <yt/yt/client/table_client/row_batch.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 namespace NYT::NTableClient {
 

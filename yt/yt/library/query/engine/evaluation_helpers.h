@@ -13,7 +13,7 @@
 
 #include <yt/yt/library/codegen/function.h>
 
-#include <yt/yt/core/misc/chunked_memory_pool.h>
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <deque>
 #include <unordered_map>

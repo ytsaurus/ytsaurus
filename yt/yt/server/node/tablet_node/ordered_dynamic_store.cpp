@@ -7,8 +7,6 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/misc/chunked_memory_pool.h>
-
 #include <yt/yt/core/concurrency/scheduler.h>
 
 #include <yt/yt/ytlib/table_client/schemaless_chunk_writer.h>
@@ -31,6 +29,8 @@
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/name_table.h>
+
+#include <library/cpp/yt/memory/chunked_memory_pool.h>
 
 #include <util/generic/cast.h>
 

@@ -1,8 +1,6 @@
 #pragma once
 
-#include "public.h"
-
-#include <library/cpp/yt/memory/ref.h>
+#include "ref.h"
 
 namespace NYT {
 
