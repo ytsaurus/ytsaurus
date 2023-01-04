@@ -1,7 +1,10 @@
 package tech.ytsaurus.client;
 
+import java.time.Duration;
 import java.util.List;
 import java.util.concurrent.CompletableFuture;
+
+import javax.annotation.Nullable;
 
 import tech.ytsaurus.client.request.AbstractLookupRowsRequest;
 import tech.ytsaurus.client.request.SelectRowsRequest;
@@ -76,5 +79,13 @@ public interface ImmutableTransactionalClient {
     default CompletableFuture<SelectRowsResult> selectRowsV2(
             SelectRowsRequest.BuilderBase<?> request) {
         return selectRowsV2(request.build());
+    }
+
+    default CompletableFuture<UnversionedRowset> selectRows(String query) {
+        return selectRows(query, null);
+    }
+
+    default CompletableFuture<UnversionedRowset> selectRows(String query, @Nullable Duration requestTimeout) {
+        return selectRows(SelectRowsRequest.builder().setQuery(query).setTimeout(requestTimeout).build());
     }
 }

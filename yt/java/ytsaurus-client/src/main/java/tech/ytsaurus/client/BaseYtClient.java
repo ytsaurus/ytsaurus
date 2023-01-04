@@ -5,7 +5,7 @@ import java.util.List;
 import java.util.concurrent.ScheduledExecutorService;
 
 /**
- * Client interface with common methods for YtClient and MockYtClient.
+ * Client interface with common methods for YTsaurusClient and MockYtClient.
  */
 public interface BaseYtClient extends ApiServiceClient, Closeable {
     /**

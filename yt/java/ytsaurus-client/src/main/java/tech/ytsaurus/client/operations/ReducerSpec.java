@@ -66,14 +66,5 @@ public class ReducerSpec extends MapperOrReducerSpec {
         public Builder setReducer(Reducer<?, ?> reducer) {
             return setUserJob(reducer);
         }
-
-        /**
-         * @deprecated This method is no-op.
-         * It's going to be removed.
-         */
-        @Deprecated
-        public Builder setOutputTables(int outputTables) {
-            return this;
-        }
     }
 }

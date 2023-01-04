@@ -20,27 +20,11 @@ public class Example02ReadWriteTable {
 
     @YTreeObject
     static class TableRow {
-        private String english;
-        private String russian;
+        private final String english;
+        private final String russian;
 
         TableRow(String english, String russian) {
             this.english = english;
-            this.russian = russian;
-        }
-
-        public String getEnglish() {
-            return english;
-        }
-
-        public void setEnglish(String english) {
-            this.english = english;
-        }
-
-        public String getRussian() {
-            return russian;
-        }
-
-        public void setRussian(String russian) {
             this.russian = russian;
         }
 

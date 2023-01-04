@@ -40,14 +40,6 @@ public class ReshardTable
         this(builder().setPath(path.justPath()));
     }
 
-    /**
-     * @deprecated Use {@link #ReshardTable(YPath path)} instead.
-     */
-    @Deprecated
-    public ReshardTable(String path) {
-        this(builder().setPath(path));
-    }
-
     public static Builder builder() {
         return new Builder();
     }
