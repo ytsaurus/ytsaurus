@@ -11,6 +11,8 @@ import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
+import ru.yandex.lang.NonNullApi;
+
 
 public class Example06MapYTree {
     private Example06MapYTree() {
@@ -19,6 +21,7 @@ public class Example06MapYTree {
     // Класс маппера должен реализовывать соответствующий интерфейс.
     // В качестве аргументов дженерика указывается класс для представления входного и выходного объектов.
     // В данном случае это универсальный YTreeMapNode, который позволяет работать с произвольной таблицей.
+    @NonNullApi
     public static class SimpleMapper implements Mapper<YTreeMapNode, YTreeMapNode> {
         @Override
         public void map(YTreeMapNode entry, Yield<YTreeMapNode> yield, Statistics statistics,

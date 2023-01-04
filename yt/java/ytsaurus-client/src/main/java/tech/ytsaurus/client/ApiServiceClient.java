@@ -123,14 +123,6 @@ public interface ApiServiceClient extends TransactionalClient {
         return versionedLookupRows(request.setTimestamp(timestamp));
     }
 
-    default CompletableFuture<UnversionedRowset> selectRows(String query) {
-        return selectRows(query, null);
-    }
-
-    default CompletableFuture<UnversionedRowset> selectRows(String query, @Nullable Duration requestTimeout) {
-        return selectRows(SelectRowsRequest.of(query).setTimeout(requestTimeout));
-    }
-
     CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest<?, ?> request);
 
     default CompletableFuture<Void> modifyRows(GUID transactionId, AbstractModifyRowsRequest.Builder<?, ?> request) {

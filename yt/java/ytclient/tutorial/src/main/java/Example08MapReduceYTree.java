@@ -15,12 +15,15 @@ import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
+import ru.yandex.lang.NonNullApi;
+
 
 public class Example08MapReduceYTree {
 
     private Example08MapReduceYTree() {
     }
 
+    @NonNullApi
     public static class SimpleMapper implements Mapper<YTreeMapNode, YTreeMapNode> {
         @Override
         public void map(YTreeMapNode entry, Yield<YTreeMapNode> yield, Statistics statistics,
@@ -36,6 +39,7 @@ public class Example08MapReduceYTree {
         }
     }
 
+    @NonNullApi
     public static class SimpleReducer implements ReducerWithKey<YTreeMapNode, YTreeMapNode, String> {
         @Override
         public String key(YTreeMapNode entry) {

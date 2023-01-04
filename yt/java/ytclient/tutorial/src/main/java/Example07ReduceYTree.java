@@ -14,6 +14,8 @@ import tech.ytsaurus.core.operations.Yield;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
+import ru.yandex.lang.NonNullApi;
+
 
 public class Example07ReduceYTree {
     private Example07ReduceYTree() {
@@ -22,6 +24,7 @@ public class Example07ReduceYTree {
     // Класс редьюсера должен реализовывать соответствующий интерфейс.
     // В качестве аргументов дженерика указывается класс для представления входного и выходного объектов.
     // В данном случае это универсальный YTreeMapNode, который позволяет работать с произвольной таблицей.
+    @NonNullApi
     public static class SimpleReducer implements ReducerWithKey<YTreeMapNode, YTreeMapNode, String> {
         @Override
         public String key(YTreeMapNode entry) {

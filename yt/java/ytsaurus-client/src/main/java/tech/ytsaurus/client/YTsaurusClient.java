@@ -50,9 +50,9 @@ import ru.yandex.lang.NonNullFields;
  * Always use Async versions of these methods with blocking callbacks.
  * <p>
  * Explanation. When using non-async thenApply callback is invoked by the thread that sets the future.
- * In our case it is internal thread of YtClient.
- * When all internal threads of YtClient are blocked by such callbacks
- * YtClient becomes unable to send requests and receive responses.
+ * In our case it is internal thread of YTsaurusClient.
+ * When all internal threads of YTsaurusClient are blocked by such callbacks
+ * YTsaurusClient becomes unable to send requests and receive responses.
  */
 public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     private final BusConnector busConnector;
@@ -135,7 +135,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     }
 
     /**
-     * Create builder for YtClient.
+     * Create builder for YTsaurusClient.
      */
     public static ClientBuilder<?, ?> builder() {
         return new Builder();
@@ -525,7 +525,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          *
          * <p>
          * Similar to {@link #setCluster(String)} but allows to create connections to several clusters.
-         * YtClient will choose cluster to send requests based on cluster availability and their ping.
+         * YTsaurusClient will choose cluster to send requests based on cluster availability and their ping.
          */
         public TBuilder setClusters(String firstCluster, String... rest) {
             List<YtCluster> ytClusters = new ArrayList<>();
@@ -551,12 +551,12 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          * Set BusConnector for YT client.
          *
          * <p>
-         * Connector will be owned by YtClient.
-         * YtClient will close it when {@link YTsaurusClient#close()} is called.
+         * Connector will be owned by YTsaurusClient.
+         * YTsaurusClient will close it when {@link YTsaurusClient#close()} is called.
          *
          * <p>
          * If bus is never set default bus will be created
-         * (default bus will be owned by YtClient, so you don't need to worry about closing it).
+         * (default bus will be owned by YTsaurusClient, so you don't need to worry about closing it).
          */
         public TBuilder setOwnBusConnector(BusConnector connector) {
             this.busConnector = connector;
@@ -568,7 +568,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          * Set BusConnector for YT client.
          *
          * <p>
-         * Connector will not be owned by YtClient. It's user responsibility to close the connector.
+         * Connector will not be owned by YTsaurusClient. It's user responsibility to close the connector.
          *
          * @see #setOwnBusConnector
          */
@@ -619,7 +619,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          * it will be used for all requests unless it is unavailable.
          *
          * <p>
-         * If preferred cluster is not set or is set but unavailable YtClient chooses
+         * If preferred cluster is not set or is set but unavailable YTsaurusClient chooses
          * cluster based on network metrics.
          */
         public TBuilder setPreferredClusterName(@Nullable String preferredClusterName) {
@@ -631,7 +631,7 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
          * Set proxy role to use.
          *
          * <p>
-         * Projects that have dedicated proxies should use this option so YtClient will use them.
+         * Projects that have dedicated proxies should use this option so YTsaurusClient will use them.
          * If no proxy role is specified default proxies will be used.
          */
         public TBuilder setProxyRole(@Nullable String proxyRole) {
@@ -677,12 +677,12 @@ public class YTsaurusClient extends CompoundClientImpl implements BaseYtClient {
     }
 
     // Class is able to initialize missing fields of builder with reasonable defaults. Keep in mind that:
-    //   1. We cannot initialize this fields in YtClient constructor
+    //   1. We cannot initialize this fields in YTsaurusClient constructor
     //   because busConnector is required to initialize superclass.
     //   2. We don't want to call initialization code if user specified explicitly values
     //   (initialization code is looking at environment and can fail, and it starts threads)
     //   3. Its better not to touch and modify builder instance since it's theoretically can be used by
-    //   user to initialize another YtClient.
+    //   user to initialize another YTsaurusClient.
     @NonNullFields
     public static class BuilderWithDefaults<
             TClient extends YTsaurusClient,

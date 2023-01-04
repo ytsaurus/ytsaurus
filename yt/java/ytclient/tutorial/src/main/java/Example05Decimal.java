@@ -23,28 +23,12 @@ public class Example05Decimal {
 
     @YTreeObject
     static class TableRow {
-        private String field;
+        private final String field;
         // У таблицы обязательно должна быть схема, в который указаны precision и scale.
-        private BigDecimal value;
+        private final BigDecimal value;
 
         TableRow(String field, BigDecimal value) {
             this.field = field;
-            this.value = value;
-        }
-
-        public String getField() {
-            return field;
-        }
-
-        public void setField(String field) {
-            this.field = field;
-        }
-
-        public BigDecimal getValue() {
-            return value;
-        }
-
-        public void setValue(BigDecimal value) {
             this.value = value;
         }
 
@@ -56,31 +40,15 @@ public class Example05Decimal {
 
     @YTreeObject
     static class TableRowAnnotated {
-        private String field;
+        private final String field;
 
         // Можно использовать без схемы. Тогда для сериализации/десериализации будут использованы указанные в
         // аннотации precision и scale.
         @YtDecimal(precision = 7, scale = 3)
-        private BigDecimal value;
+        private final BigDecimal value;
 
         TableRowAnnotated(String field, BigDecimal value) {
             this.field = field;
-            this.value = value;
-        }
-
-        public String getField() {
-            return field;
-        }
-
-        public void setField(String field) {
-            this.field = field;
-        }
-
-        public BigDecimal getValue() {
-            return value;
-        }
-
-        public void setValue(BigDecimal value) {
             this.value = value;
         }
 

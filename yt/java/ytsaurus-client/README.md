@@ -1,4 +1,4 @@
-ytclient - Библиотека для работы с Yt через RPC
+ytsaurus-client - Библиотека для работы с YTsaurus через RPC
 ======
 
 
