@@ -2,8 +2,8 @@
 
 #include "public.h"
 
-#include <Extensions.hxx> // pycxx
-#include <Objects.hxx> // pycxx
+#include <CXX/Extensions.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 namespace NYT::NPython {
 

@@ -4,8 +4,8 @@
 
 #include <yt/yt/core/misc/intrusive_ptr.h>
 
-#include <Extensions.hxx> // pycxx
-#include <Objects.hxx> // pycxx
+#include <CXX/Extensions.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 #include <util/generic/string.h>
 #include <util/generic/hash.h>

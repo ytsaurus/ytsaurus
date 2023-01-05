@@ -2,7 +2,7 @@
 
 #include <yt/yt/client/driver/driver.h>
 
-#include <Extensions.hxx> // pycxx
+#include <CXX/Extensions.hxx> // pycxx
 
 namespace NYT::NPython {
 
