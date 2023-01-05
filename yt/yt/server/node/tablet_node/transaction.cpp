@@ -29,7 +29,7 @@ TTransactionWriteRecord::TTransactionWriteRecord(
     TTabletId tabletId,
     TSharedRef data,
     int rowCount,
-    size_t dataWeight,
+    i64 dataWeight,
     const TSyncReplicaIdList& syncReplicaIds)
     : TabletId(tabletId)
     , Data(std::move(data))

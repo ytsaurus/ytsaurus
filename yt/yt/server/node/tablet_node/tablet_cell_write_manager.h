@@ -50,29 +50,33 @@ DEFINE_REFCOUNTED_TYPE(ITabletCellWriteManagerHost);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletCellWriteParams
+{
+    TTransactionId TransactionId;
+    TTimestamp TransactionStartTimestamp;
+    TDuration TransactionTimeout;
+    TTransactionSignature PrepareSignature = NTransactionClient::InitialTransactionSignature;
+    TTransactionSignature CommitSignature = NTransactionClient::InitialTransactionSignature;
+    TTransactionGeneration Generation = NTransactionClient::InitialTransactionGeneration;
+    int RowCount = 0;
+    i64 DataWeight = 0;
+    bool Versioned = false;
+    TSyncReplicaIdList SyncReplicaIds;
+};
+
 //! A component containing tablet write logic: dynamic store writing,
-//! row prelocking/locking, 1pc/2pc details.
+//! row prelocking/locking, 1PC/2PC details.
 struct ITabletCellWriteManager
     : public virtual TRefCounted
 {
     virtual void Initialize() = 0;
 
-    virtual void Write(
+    virtual TFuture<void> Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TTransactionId transactionId,
-        TTimestamp transactionStartTimestamp,
-        TDuration transactionTimeout,
-        TTransactionSignature prepareSignature,
-        TTransactionSignature commitSignature,
-        TTransactionGeneration generation,
-        int rowCount,
-        size_t dataWeight,
-        bool versioned,
-        const TSyncReplicaIdList& syncReplicaIds,
         NTableClient::IWireProtocolReader* reader,
-        TFuture<void>* commitResult) = 0;
+        const TTabletCellWriteParams& params) = 0;
 
-    // Tablet lock stuff.
+    // Tablet locking stuff.
     virtual void AddTransientAffectedTablet(TTransaction* transaction, TTablet* tablet) = 0;
     virtual void AddPersistentAffectedTablet(TTransaction* transaction, TTablet* tablet) = 0;
 
