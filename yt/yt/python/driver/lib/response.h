@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/misc/blob_output.h>
 
-#include <Extensions.hxx> // pycxx
+#include <CXX/Extensions.hxx> // pycxx
 
 namespace NYT::NPython {
 

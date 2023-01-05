@@ -7,7 +7,7 @@
 #include <util/stream/str.h>
 #include <util/stream/zerocopy_output.h>
 
-#include <Objects.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 #include <deque>
 

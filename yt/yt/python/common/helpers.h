@@ -12,7 +12,7 @@
 #include <util/generic/strbuf.h>
 #include <util/generic/string.h>
 
-#include <Objects.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 namespace Py {
 

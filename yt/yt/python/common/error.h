@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <Objects.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 namespace NYT::NPython {
 

@@ -10,8 +10,8 @@
 
 #include <util/system/yassert.h>
 
-#include <Extensions.hxx> // pycxx
-#include <Objects.hxx> // pycxx
+#include <CXX/Extensions.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 #include <limits>
 #include <type_traits>

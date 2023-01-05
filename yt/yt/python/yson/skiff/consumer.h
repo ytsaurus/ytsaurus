@@ -7,8 +7,8 @@
 #include <yt/yt/python/common/helpers.h>
 #include <yt/yt/python/common/stream.h>
 
-#include <Extensions.hxx> // pycxx
-#include <Objects.hxx> // pycxx
+#include <CXX/Extensions.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 #include <Python.h>
 

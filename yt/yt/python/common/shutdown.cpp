@@ -5,8 +5,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <Objects.hxx> // pycxx
-#include <Extensions.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
+#include <CXX/Extensions.hxx> // pycxx
 
 #include <array>
 

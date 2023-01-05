@@ -6,7 +6,7 @@
 
 #include <library/cpp/skiff/public.h>
 
-#include <Objects.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 #include <functional>
 

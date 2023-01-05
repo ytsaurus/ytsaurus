@@ -7,7 +7,7 @@
 
 #include <util/system/mutex.h>
 
-#include <Extensions.hxx> // pycxx
+#include <CXX/Extensions.hxx> // pycxx
 
 namespace NYT::NPython {
 

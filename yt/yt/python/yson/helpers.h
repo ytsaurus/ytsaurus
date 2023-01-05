@@ -1,6 +1,6 @@
 #pragma once
 
-#include <Objects.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 #include "serialize.h"
 

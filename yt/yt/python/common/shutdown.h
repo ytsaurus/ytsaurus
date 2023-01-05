@@ -2,7 +2,7 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <Objects.hxx>
+#include <CXX/Objects.hxx>
 
 namespace NYT::NPython {
 

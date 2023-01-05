@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/misc/sync_cache.h>
 
-#include <Objects.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 namespace NYT::NPython {
 

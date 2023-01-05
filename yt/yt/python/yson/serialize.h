@@ -10,7 +10,7 @@
 
 #include <library/cpp/yt/memory/ref.h>
 
-#include <Objects.hxx> // pycxx
+#include <CXX/Objects.hxx> // pycxx
 
 #include <queue>
 #include <stack>
