@@ -31,13 +31,13 @@ struct TTransactionWriteRecord
         TTabletId tabletId,
         TSharedRef data,
         int rowCount,
-        size_t byteSize,
+        i64 byteSize,
         const TSyncReplicaIdList& syncReplicaIds);
 
     TTabletId TabletId;
     TSharedRef Data;
     int RowCount = 0;
-    size_t DataWeight = 0;
+    i64 DataWeight = 0;
     TSyncReplicaIdList SyncReplicaIds;
 
     void Save(TSaveContext& context) const;

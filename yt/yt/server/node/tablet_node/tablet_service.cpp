@@ -100,26 +100,28 @@ private:
 
         auto tabletId = FromProto<TTabletId>(request->tablet_id());
         auto mountRevision = request->mount_revision();
-        auto transactionId = FromProto<TTransactionId>(request->transaction_id());
-        auto transactionStartTimestamp = request->transaction_start_timestamp();
-        auto transactionTimeout = FromProto<TDuration>(request->transaction_timeout());
-        auto prepareSignature = request->prepare_signature();
-        // COMPAT(gritukan)
-        auto commitSignature = request->has_commit_signature() ? request->commit_signature() : prepareSignature;
-        auto generation = request->generation();
-        auto rowCount = request->row_count();
-        auto dataWeight = request->data_weight();
         auto requestCodecId = CheckedEnumCast<NCompression::ECodec>(request->request_codec());
-        auto versioned = request->versioned();
-        auto syncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids());
         auto upstreamReplicaId = FromProto<TTableReplicaId>(request->upstream_replica_id());
         auto replicationEra = request->has_replication_era()
             ? std::make_optional(FromProto<TReplicationEra>(request->replication_era()))
             : std::nullopt;
+        TTabletCellWriteParams params{
+            .TransactionId = FromProto<TTransactionId>(request->transaction_id()),
+            .TransactionStartTimestamp = request->transaction_start_timestamp(),
+            .TransactionTimeout = FromProto<TDuration>(request->transaction_timeout()),
+            .PrepareSignature = request->prepare_signature(),
+            // COMPAT(gritukan)
+            .CommitSignature = request->has_commit_signature() ? request->commit_signature() : request->prepare_signature(),
+            .Generation = request->generation(),
+            .RowCount = request->row_count(),
+            .DataWeight = request->data_weight(),
+            .Versioned = request->versioned(),
+            .SyncReplicaIds = FromProto<TSyncReplicaIdList>(request->sync_replica_ids())
+        };
 
-        ValidateTabletTransactionId(transactionId);
+        ValidateTabletTransactionId(params.TransactionId);
 
-        auto atomicity = AtomicityFromTransactionId(transactionId);
+        auto atomicity = AtomicityFromTransactionId(params.TransactionId);
         auto durability = CheckedEnumCast<EDurability>(request->durability());
 
         context->SetRequestInfo("TabletId: %v, TransactionId: %v, TransactionStartTimestamp: %v, "
@@ -127,19 +129,19 @@ private:
             "Generation: %x, RowCount: %v, DataWeight: %v, RequestCodec: %v, Versioned: %v, SyncReplicaIds: %v, "
             "UpstreamReplicaId: %v, ReplicationEra: %v",
             tabletId,
-            transactionId,
-            transactionStartTimestamp,
-            transactionTimeout,
+            params.TransactionId,
+            params.TransactionStartTimestamp,
+            params.TransactionTimeout,
             atomicity,
             durability,
-            prepareSignature,
-            commitSignature,
-            generation,
-            rowCount,
-            dataWeight,
+            params.PrepareSignature,
+            params.CommitSignature,
+            params.Generation,
+            params.RowCount,
+            params.DataWeight,
             requestCodecId,
-            versioned,
-            syncReplicaIds,
+            params.Versioned,
+            params.SyncReplicaIds,
             upstreamReplicaId,
             replicationEra);
 
@@ -155,12 +157,12 @@ private:
                     tabletSnapshot->Atomicity);
             }
 
-            if (versioned && context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName) {
+            if (params.Versioned && context->GetAuthenticationIdentity().User != NSecurityClient::ReplicatorUserName) {
                 THROW_ERROR_EXCEPTION("Versioned writes are only allowed for %Qv user",
                     NSecurityClient::ReplicatorUserName);
             }
 
-            auto checkUpstreamReplicaId = versioned || tabletSnapshot->UpstreamReplicaId;
+            auto checkUpstreamReplicaId = params.Versioned || tabletSnapshot->UpstreamReplicaId;
 
             if (checkUpstreamReplicaId) {
                 if (upstreamReplicaId && !tabletSnapshot->UpstreamReplicaId) {
@@ -226,7 +228,7 @@ private:
 
             auto throttlerKind = ETabletDistributedThrottlerKind::Write;
             const auto& writeThrottler = tabletSnapshot->DistributedThrottlers[throttlerKind];
-            if (writeThrottler && !writeThrottler->TryAcquire(dataWeight)) {
+            if (writeThrottler && !writeThrottler->TryAcquire(params.DataWeight)) {
                 tabletSnapshot->TableProfiler->GetThrottlerCounter(throttlerKind)
                     ->Increment();
 
@@ -247,24 +249,13 @@ private:
         struct TWriteBufferTag { };
         auto reader = CreateWireProtocolReader(requestData, New<TRowBuffer>(TWriteBufferTag()));
 
-        const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
-
         TFuture<void> commitResult;
         try {
-            tabletCellWriteManager->Write(
+            const auto& tabletCellWriteManager = Slot_->GetTabletCellWriteManager();
+            commitResult = tabletCellWriteManager->Write(
                 tabletSnapshot,
-                transactionId,
-                transactionStartTimestamp,
-                transactionTimeout,
-                prepareSignature,
-                commitSignature,
-                generation,
-                rowCount,
-                dataWeight,
-                versioned,
-                syncReplicaIds,
                 reader.get(),
-                &commitResult);
+                params);
         } catch (const std::exception&) {
             ++tabletSnapshot->PerformanceCounters->WriteErrorCount;
             throw;

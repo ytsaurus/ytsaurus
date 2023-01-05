@@ -291,21 +291,19 @@ protected:
             auto wireData = writer->Finish();
             struct TTag {};
             auto reader = CreateWireProtocolReader(MergeRefsToRef<TTag>(wireData));
-            TFuture<void> future;
-            tabletWriteManager->Write(
+            auto future = tabletWriteManager->Write(
                 tabletSnapshot,
-                transactionId,
-                TimestampFromTransactionId(transactionId),
-                TDuration::Max(),
-                prepareSignature,
-                commitSignature,
-                generation,
-                rows.size(),
-                dataWeight,
-                /*versioned*/ false,
-                TSyncReplicaIdList(),
                 reader.get(),
-                &future);
+                TTabletCellWriteParams{
+                    .TransactionId = transactionId,
+                    .TransactionStartTimestamp = TimestampFromTransactionId(transactionId),
+                    .TransactionTimeout = TDuration::Max(),
+                    .PrepareSignature = prepareSignature,
+                    .CommitSignature = commitSignature,
+                    .Generation = generation,
+                    .RowCount = static_cast<int>(std::ssize(rows)),
+                    .DataWeight = dataWeight
+                });
 
             // NB: we are not going to return future since it will be set only when
             // WriteRows mutation (or mutations) are applied; we are applying mutations
@@ -382,32 +380,30 @@ protected:
             auto wireData = writer->Finish();
             struct TTag { };
             auto reader = CreateWireProtocolReader(MergeRefsToRef<TTag>(wireData));
-            TFuture<void> asyncResult;
 
             TAuthenticationIdentity identity(ReplicatorUserName);
             TCurrentAuthenticationIdentityGuard guard(&identity);
 
-            tabletWriteManager->Write(
+            auto future = tabletWriteManager->Write(
                 tabletSnapshot,
-                transactionId,
-                TimestampFromTransactionId(transactionId),
-                TDuration::Max(),
-                /*prepareSignature*/ signature,
-                /*commitSignature*/ signature,
-                /*generation*/ 0,
-                rows.size(),
-                dataWeight,
-                /*versioned*/ true,
-                TSyncReplicaIdList(),
                 reader.get(),
-                &asyncResult);
+                TTabletCellWriteParams{
+                    .TransactionId = transactionId,
+                    .TransactionStartTimestamp = TimestampFromTransactionId(transactionId),
+                    .TransactionTimeout = TDuration::Max(),
+                    .PrepareSignature = signature,
+                    .CommitSignature = signature,
+                    .RowCount = static_cast<int>(std::ssize(rows)),
+                    .DataWeight = dataWeight,
+                    .Versioned = true
+                });
 
-            // NB: we are not going to return asyncResult since it will be set only when
+            // NB: we are not going to return the future since it will be set only when
             // WriteRows mutation (or mutations) are applied; we are applying mutations
             // manually in these unittests, so this future is meaningless.
             // Still, it is useful to check that no error is thrown in WriteRows mutation handler.
-            asyncResult
-                .Subscribe(BIND([] (TError error) {
+            future
+                .Subscribe(BIND([] (const TError& error) {
                     YT_VERIFY(error.IsOK());
                 }));
         })

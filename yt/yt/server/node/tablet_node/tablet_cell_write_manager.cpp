@@ -79,20 +79,10 @@ public:
         transactionManager->SubscribeTransactionTransientReset(BIND_NO_PROPAGATE(&TTabletCellWriteManager::OnTransactionTransientReset, MakeWeak(this)));
     }
 
-    void Write(
+    TFuture<void> Write(
         const TTabletSnapshotPtr& tabletSnapshot,
-        TTransactionId transactionId,
-        TTimestamp transactionStartTimestamp,
-        TDuration transactionTimeout,
-        TTransactionSignature prepareSignature,
-        TTransactionSignature commitSignature,
-        TTransactionGeneration generation,
-        int rowCount,
-        size_t dataWeight,
-        bool versioned,
-        const TSyncReplicaIdList& syncReplicaIds,
         IWireProtocolReader* reader,
-        TFuture<void>* commitResult) override
+        const TTabletCellWriteParams& params) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -118,13 +108,13 @@ public:
         TTablet* tablet = nullptr;
         const auto& transactionManager = Host_->GetTransactionManager();
 
-        auto atomicity = AtomicityFromTransactionId(transactionId);
+        auto atomicity = AtomicityFromTransactionId(params.TransactionId);
         if (atomicity == EAtomicity::None) {
-            ValidateClientTimestamp(transactionId);
+            ValidateClientTimestamp(params.TransactionId);
         }
 
-        if (generation > InitialTransactionGeneration) {
-            if (versioned) {
+        if (params.Generation > InitialTransactionGeneration) {
+            if (params.Versioned) {
                 THROW_ERROR_EXCEPTION(
                     NTabletClient::EErrorCode::WriteRetryIsImpossible,
                     "Retrying versioned writes is not supported");
@@ -155,11 +145,11 @@ public:
 
         if (atomicity == EAtomicity::Full) {
             const auto& lockManager = tablet->GetLockManager();
-            auto error = lockManager->ValidateTransactionConflict(transactionStartTimestamp);
+            auto error = lockManager->ValidateTransactionConflict(params.TransactionStartTimestamp);
             if (!error.IsOK()) {
                 THROW_ERROR error
                     << TErrorAttribute("tablet_id", tablet->GetId())
-                    << TErrorAttribute("transaction_id", transactionId);
+                    << TErrorAttribute("transaction_id", params.TransactionId);
             }
         }
 
@@ -168,6 +158,7 @@ public:
         // Since all these mutations are enqueued within a single epoch, only the last commit outcome is
         // actually relevant.
         // Note that we're passing signature to every such call but only the last one actually uses it.
+        TFuture<void> commitResult;
         while (!reader->IsFinished()) {
             // NB: No yielding beyond this point.
             // May access tablet and transaction.
@@ -189,19 +180,19 @@ public:
             bool updateReplicationProgress = false;
             if (atomicity == EAtomicity::Full) {
                 transaction = transactionManager->GetOrCreateTransactionOrThrow(
-                    transactionId,
-                    transactionStartTimestamp,
-                    transactionTimeout,
+                    params.TransactionId,
+                    params.TransactionStartTimestamp,
+                    params.TransactionTimeout,
                     true,
                     &transactionIsFresh);
                 ValidateTransactionActive(transaction);
 
-                if (generation > transaction->GetTransientGeneration()) {
+                if (params.Generation > transaction->GetTransientGeneration()) {
                     // Promote transaction transient generation and clear the transaction transient state.
                     // In particular, we abort all rows that were prelocked or locked by the previous batches of our generation,
                     // but that is perfectly fine.
-                    PromoteTransientGeneration(transaction, generation);
-                } else if (generation < transaction->GetTransientGeneration()) {
+                    PromoteTransientGeneration(transaction, params.Generation);
+                } else if (params.Generation < transaction->GetTransientGeneration()) {
                     // We may get here in two sitations. The first one is when Write RPC call was late to arrive,
                     // while the second one is trickier. It happens in the case when next generation arrived while our
                     // fiber was waiting on the blocked row. In both cases we are not going to enqueue any more mutations
@@ -209,17 +200,16 @@ public:
                     YT_LOG_DEBUG(
                         "Stopping obsolete generation write (TabletId: %v, TransactionId: %v, Generation: %x, TransientGeneration: %x)",
                         tabletId,
-                        transactionId,
-                        generation,
+                        params.TransactionId,
+                        params.Generation,
                         transaction->GetTransientGeneration());
                     // Client already decided to go on with the next generation of rows, so we are ok to even ignore
                     // possible commit errors. Note that the result of this particular write does not affect the outcome of the
                     // transaction any more, so we are safe to lose some of freshly enqueued mutations.
-                    *commitResult = VoidFuture;
-                    return;
+                    return VoidFuture;
                 }
 
-                updateReplicationProgress = tablet->GetReplicationCardId() && !versioned;
+                updateReplicationProgress = tablet->GetReplicationCardId() && !params.Versioned;
             } else {
                 YT_VERIFY(atomicity == EAtomicity::None);
                 if (transactionManager->GetDecommission()) {
@@ -238,17 +228,17 @@ public:
                 transaction,
                 reader,
                 atomicity,
-                versioned,
-                rowCount,
-                dataWeight);
+                params.Versioned,
+                params.RowCount,
+                params.DataWeight);
 
             // For last mutation we use signature from the request,
             // for other mutations signature is zero, see comment above.
             auto mutationPrepareSignature = InitialTransactionSignature;
             auto mutationCommitSignature = InitialTransactionSignature;
             if (reader->IsFinished()) {
-                mutationPrepareSignature = prepareSignature;
-                mutationCommitSignature = commitSignature;
+                mutationPrepareSignature = params.PrepareSignature;
+                mutationCommitSignature = params.CommitSignature;
             }
 
             auto lockless = context.Lockless;
@@ -256,11 +246,11 @@ public:
             YT_LOG_DEBUG_IF(context.RowCount > 0, "Rows written "
                 "(TransactionId: %v, TabletId: %v, RowCount: %v, Lockless: %v, "
                 "Generation: %x, PrepareSignature: %x, CommitSignature: %x)",
-                transactionId,
+                params.TransactionId,
                 tabletId,
                 context.RowCount,
                 lockless,
-                generation,
+                params.Generation,
                 mutationPrepareSignature,
                 mutationCommitSignature);
 
@@ -273,7 +263,7 @@ public:
             if (readerBefore != readerAfter) {
                 auto recordData = reader->Slice(readerBefore, readerAfter);
                 auto compressedRecordData = ChangelogCodec_->Compress(recordData);
-                TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount, context.DataWeight, syncReplicaIds);
+                TTransactionWriteRecord writeRecord(tabletId, recordData, context.RowCount, context.DataWeight, params.SyncReplicaIds);
 
                 PrelockedTablets_.push(tablet);
                 LockTablet(tablet, ETabletLockType::TransientWrite);
@@ -281,38 +271,38 @@ public:
                 IncrementTabletInFlightMutationCount(tablet, replicatorWrite, +1);
 
                 TReqWriteRows hydraRequest;
-                ToProto(hydraRequest.mutable_transaction_id(), transactionId);
-                hydraRequest.set_transaction_start_timestamp(transactionStartTimestamp);
-                hydraRequest.set_transaction_timeout(ToProto<i64>(transactionTimeout));
+                ToProto(hydraRequest.mutable_transaction_id(), params.TransactionId);
+                hydraRequest.set_transaction_start_timestamp(params.TransactionStartTimestamp);
+                hydraRequest.set_transaction_timeout(ToProto<i64>(params.TransactionTimeout));
                 ToProto(hydraRequest.mutable_tablet_id(), tabletId);
                 hydraRequest.set_mount_revision(tablet->GetMountRevision());
-                hydraRequest.set_codec(static_cast<int>(ChangelogCodec_->GetId()));
+                hydraRequest.set_codec(ToProto<int>(ChangelogCodec_->GetId()));
                 hydraRequest.set_compressed_data(ToString(compressedRecordData));
                 hydraRequest.set_prepare_signature(mutationPrepareSignature);
                 hydraRequest.set_commit_signature(mutationCommitSignature);
-                hydraRequest.set_generation(generation);
+                hydraRequest.set_generation(params.Generation);
                 hydraRequest.set_lockless(lockless);
                 hydraRequest.set_row_count(writeRecord.RowCount);
                 hydraRequest.set_data_weight(writeRecord.DataWeight);
                 hydraRequest.set_update_replication_progress(updateReplicationProgress);
-                ToProto(hydraRequest.mutable_sync_replica_ids(), syncReplicaIds);
+                ToProto(hydraRequest.mutable_sync_replica_ids(), params.SyncReplicaIds);
                 NRpc::WriteAuthenticationIdentityToProto(&hydraRequest, identity);
 
                 auto mutation = CreateMutation(HydraManager_, hydraRequest);
                 mutation->SetHandler(BIND_NO_PROPAGATE(
                     &TTabletCellWriteManager::HydraLeaderWriteRows,
                     MakeStrong(this),
-                    transactionId,
+                    params.TransactionId,
                     tablet->GetMountRevision(),
                     mutationPrepareSignature,
                     mutationCommitSignature,
-                    generation,
+                    params.Generation,
                     lockless,
                     writeRecord,
                     identity,
                     updateReplicationProgress));
                 mutation->SetCurrentTraceContext();
-                *commitResult = mutation->Commit().As<void>();
+                commitResult = mutation->Commit().As<void>();
 
                 auto counters = tablet->GetTableProfiler()->GetWriteCounters(GetCurrentProfilingUser());
                 counters->RowCount.Increment(writeRecord.RowCount);
@@ -338,6 +328,8 @@ public:
         if (failAfterExecution) {
             THROW_ERROR_EXCEPTION("Test error after write call execution");
         }
+
+        return commitResult;
     }
 
     // TTabletAutomatonPart overrides.
