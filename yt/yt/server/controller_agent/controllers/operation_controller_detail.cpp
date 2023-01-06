@@ -9141,22 +9141,21 @@ void TOperationControllerBase::InitUserJobSpec(
             ConvertToYsonString(SecureVault, EYsonFormat::Text)));
 
         for (const auto& [key, node] : SecureVault->GetChildren()) {
-            TString value;
-            if (node->GetType() == ENodeType::Int64) {
-                value = ToString(node->GetValue<i64>());
-            } else if (node->GetType() == ENodeType::Uint64) {
-                value = ToString(node->GetValue<ui64>());
-            } else if (node->GetType() == ENodeType::Boolean) {
-                value = ToString(node->GetValue<bool>());
-            } else if (node->GetType() == ENodeType::Double) {
-                value = ToString(node->GetValue<double>());
-            } else if (node->GetType() == ENodeType::String) {
-                value = node->GetValue<TString>();
-            } else {
-                // We do not export composite values as a separate environment variables.
-                continue;
+            std::optional<TString> value;
+            switch (node->GetType()) {
+                #define XX(type, cppType) \
+                case ENodeType::type: \
+                    value = ToString(node->As ## type()->GetValue()); \
+                    break;
+                ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+                #undef XX
+                default:
+                    // We do not export composite values as a separate environment variables.
+                    break;
             }
-            jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", key, value));
+            if (value) {
+                jobSpec->add_environment(Format("YT_SECURE_VAULT_%v=%v", key, *value));
+            }
         }
 
         jobSpec->set_enable_secure_vault_variables_in_job_shell(Spec_->EnableSecureVaultVariablesInJobShell);

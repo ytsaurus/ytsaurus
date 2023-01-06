@@ -69,6 +69,7 @@ using namespace NConcurrency;
 using namespace NTableClient;
 using namespace NProfiling;
 using namespace NYson;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -1628,12 +1629,11 @@ extern "C" void MakeMap(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <typename TElement, typename TValue>
-bool ListContainsImpl(const NYTree::INodePtr& node, const TValue& value)
+template <ENodeType NodeType, typename TElement, typename TValue>
+bool ListContainsImpl(const INodePtr& node, const TValue& value)
 {
-    const auto valueType = NYTree::NDetail::TScalarTypeTraits<TValue>::NodeType;
     for (const auto& element : node->AsList()->GetChildren()) {
-        if (element->GetType() == valueType && NYTree::ConvertTo<TElement>(element) == value) {
+        if (element->GetType() == NodeType && ConvertTo<TElement>(element) == value) {
             return true;
         }
     }
@@ -1646,24 +1646,24 @@ void ListContains(
     TUnversionedValue* ysonList,
     TUnversionedValue* what)
 {
-    const auto node = NYTree::ConvertToNode(FromUnversionedValue<NYson::TYsonStringBuf>(*ysonList));
+    auto node = ConvertToNode(FromUnversionedValue<TYsonStringBuf>(*ysonList));
 
     bool found;
     switch (what->Type) {
         case EValueType::String:
-            found = ListContainsImpl<TString>(node, what->AsString());
+            found = ListContainsImpl<ENodeType::String, TString>(node, what->AsString());
             break;
         case EValueType::Int64:
-            found = ListContainsImpl<i64>(node, what->Data.Int64);
+            found = ListContainsImpl<ENodeType::Int64, i64>(node, what->Data.Int64);
             break;
         case EValueType::Uint64:
-            found = ListContainsImpl<ui64>(node, what->Data.Uint64);
+            found = ListContainsImpl<ENodeType::Uint64, ui64>(node, what->Data.Uint64);
             break;
         case EValueType::Boolean:
-            found = ListContainsImpl<bool>(node, what->Data.Boolean);
+            found = ListContainsImpl<ENodeType::Boolean, bool>(node, what->Data.Boolean);
             break;
         case EValueType::Double:
-            found = ListContainsImpl<double>(node, what->Data.Double);
+            found = ListContainsImpl<ENodeType::Double, double>(node, what->Data.Double);
             break;
         default:
             THROW_ERROR_EXCEPTION("ListContains is not implemented for %Qlv values",

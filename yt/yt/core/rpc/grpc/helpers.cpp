@@ -112,7 +112,7 @@ TGrpcChannelArgs::TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& ar
 
         switch (node->GetType()) {
             case ENodeType::Int64: {
-                auto value = node->GetValue<i64>();
+                auto value = node->AsInt64()->GetValue();
                 if (value < std::numeric_limits<int>::min() || value > std::numeric_limits<int>::max()) {
                     THROW_ERROR_EXCEPTION("Value %v of GRPC argument %Qv is out of range",
                         value,
@@ -122,7 +122,7 @@ TGrpcChannelArgs::TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& ar
                 break;
             }
             case ENodeType::Uint64: {
-                auto value = node->GetValue<ui64>();
+                auto value = node->AsUint64()->GetValue();
                 if (value > static_cast<ui64>(std::numeric_limits<int>::max())) {
                     THROW_ERROR_EXCEPTION("Value %v of GRPC argument %Qv is out of range",
                         value,
@@ -132,7 +132,7 @@ TGrpcChannelArgs::TGrpcChannelArgs(const THashMap<TString, NYTree::INodePtr>& ar
                 break;
             }
             case ENodeType::String:
-                setStringValue(node->GetValue<TString>());
+                setStringValue(node->AsString()->GetValue());
                 break;
             default:
                 THROW_ERROR_EXCEPTION("Invalid type %Qlv of GRPC argument %Qv in channel configuration",

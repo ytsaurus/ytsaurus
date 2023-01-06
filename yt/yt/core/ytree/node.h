@@ -13,16 +13,6 @@ namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-template <class T>
-struct TScalarTypeTraits
-{ };
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
 //! A base DOM-like interface representing a node.
 struct INode
     : public virtual IYPathService
@@ -75,21 +65,11 @@ struct INode
      */
     virtual void SetParent(const ICompositeNodePtr& parent) = 0;
 
-    //! A helper method for retrieving a scalar value from a node.
-    //! Invokes the appropriate |AsSomething| followed by |GetValue|.
-    template <class T>
-    typename NMpl::TCallTraits<T>::TType GetValue() const
-    {
-        return NDetail::TScalarTypeTraits<T>::GetValue(this);
-    }
+    // Extension methods.
 
-    //! A helper method for assigning a scalar value to a node.
-    //! Invokes the appropriate |AsSomething| followed by |SetValue|.
+    //! Converts node value to a given type.
     template <class T>
-    void SetValue(typename NMpl::TCallTraits<T>::TType value)
-    {
-        NDetail::TScalarTypeTraits<T>::SetValue(this, value);
-    }
+    T GetValue() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(INode)
@@ -109,6 +89,13 @@ struct IScalarNode
     //! Sets the value.
     virtual void SetValue(typename NMpl::TCallTraits<TValue>::TType value) = 0;
 };
+
+#define ITERATE_SCALAR_YTREE_NODE_TYPES(XX) \
+    XX(Int64, i64) \
+    XX(Uint64, ui64) \
+    XX(Double, double) \
+    XX(Boolean, bool) \
+    XX(String, TString)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -146,77 +133,6 @@ struct IBooleanNode
 { };
 
 DEFINE_REFCOUNTED_TYPE(IBooleanNode)
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NDetail {
-
-template <>
-struct TScalarTypeTraits<TString>
-{
-    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
-    static const TString& GetGetValueSupportedTypesStringRepresentation();
-    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
-    static const TString& GetSetValueSupportedTypesStringRepresentation();
-    static constexpr ENodeType NodeType = ENodeType::String;
-    using TConsumerType = TStringBuf;
-    static const TString& GetValue(const IConstNodePtr& node);
-    static void SetValue(const INodePtr& node, const TString& value);
-};
-
-template <>
-struct TScalarTypeTraits<i64>
-{
-    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
-    static const TString& GetGetValueSupportedTypesStringRepresentation();
-    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
-    static const TString& GetSetValueSupportedTypesStringRepresentation();
-    static constexpr ENodeType NodeType = ENodeType::Int64;
-    using TConsumerType = i64;
-    static i64 GetValue(const IConstNodePtr& node);
-    static void SetValue(const INodePtr& node, i64 value);
-};
-
-template <>
-struct TScalarTypeTraits<ui64>
-{
-    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
-    static const TString& GetGetValueSupportedTypesStringRepresentation();
-    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
-    static const TString& GetSetValueSupportedTypesStringRepresentation();
-    static constexpr ENodeType NodeType = ENodeType::Uint64;
-    using TConsumerType = ui64;
-    static ui64 GetValue(const IConstNodePtr& node);
-    static void SetValue(const INodePtr& node, ui64 value);
-};
-
-template <>
-struct TScalarTypeTraits<double>
-{
-    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
-    static const TString& GetGetValueSupportedTypesStringRepresentation();
-    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
-    static const TString& GetSetValueSupportedTypesStringRepresentation();
-    static constexpr ENodeType NodeType = ENodeType::Double;
-    using TConsumerType = double;
-    static double GetValue(const IConstNodePtr& node);
-    static void SetValue(const INodePtr& node, double value);
-};
-
-template <>
-struct TScalarTypeTraits<bool>
-{
-    static const THashSet<ENodeType>& GetGetValueSupportedTypes();
-    static const TString& GetGetValueSupportedTypesStringRepresentation();
-    static const THashSet<ENodeType>& GetSetValueSupportedTypes();
-    static const TString& GetSetValueSupportedTypesStringRepresentation();
-    static constexpr ENodeType NodeType = ENodeType::Boolean;
-    using TConsumerType = bool;
-    static bool GetValue(const IConstNodePtr& node);
-    static void SetValue(const INodePtr& node, bool value);
-};
-
-} // namespace NDetail
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -302,6 +218,23 @@ struct IMapNode
      *  \return Child's key.
      */
     TString GetChildKeyOrThrow(const IConstNodePtr& child);
+
+    // Extension methods.
+
+    //! Converts the value of the child with #key to a given type.
+    //! Throws if no child with #key exists.
+    template <class T>
+    T GetChildValueOrThrow(const TString& key) const;
+
+    //! Converts the value of the child with #key to a given type.
+    //! Returns #defaultValue if no child with #key exists.
+    template <class T>
+    T GetChildValueOrDefault(const TString& key, const T& defaultValue) const;
+
+    //! Converts the value of the child with #key to a given type.
+    //! Returns null if no child with #key exists.
+    template <class T>
+    std::optional<T> FindChildValue(const TString& key) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMapNode)
@@ -462,3 +395,6 @@ void Deserialize(IEntityNodePtr& value, NYson::TYsonPullParserCursor* cursor);
 
 } // namespace NYT::NYTree
 
+#define NODE_INL_H_
+#include "node-inl.h"
+#undef NODE_INL_H_

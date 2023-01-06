@@ -308,8 +308,16 @@ INodePtr CloneNode(const INodePtr& node);
 //! Returns the resulting tree.
 INodePtr PatchNode(const INodePtr& base, const INodePtr& patch);
 
+struct TNodesEqualityOptions
+{
+    double DoubleTypePrecision = 1e-6;
+};
+
 //! Checks given nodes for deep equality.
-bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs);
+bool AreNodesEqual(
+    const INodePtr& lhs,
+    const INodePtr& rhs,
+    const TNodesEqualityOptions& options = {});
 
 /////////////////////////////////////////////////////////////////////////////
 

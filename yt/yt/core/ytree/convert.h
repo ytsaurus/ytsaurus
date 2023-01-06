@@ -42,7 +42,7 @@ template <class T>
 IAttributeDictionaryPtr ConvertToAttributes(const T& value);
 
 template <class TTo>
-TTo ConvertTo(INodePtr node);
+TTo ConvertTo(const INodePtr& node);
 
 template <class TTo, class TFrom>
 TTo ConvertTo(const TFrom& value);

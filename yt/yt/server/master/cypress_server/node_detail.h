@@ -433,42 +433,37 @@ struct TCypressScalarTypeTraits
 
 template <>
 struct TCypressScalarTypeTraits<TString>
-    : public NYTree::NDetail::TScalarTypeTraits<TString>
 {
-    static const NObjectClient::EObjectType ObjectType;
-    static const NYTree::ENodeType NodeType;
+    static constexpr NObjectClient::EObjectType ObjectType = NObjectClient::EObjectType::StringNode;
+    static constexpr NYTree::ENodeType NodeType = NYTree::ENodeType::String;
 };
 
 template <>
 struct TCypressScalarTypeTraits<i64>
-    : public NYTree::NDetail::TScalarTypeTraits<i64>
 {
-    static const NObjectClient::EObjectType ObjectType;
-    static const NYTree::ENodeType NodeType;
+    static constexpr NObjectClient::EObjectType ObjectType = NObjectClient::EObjectType::Int64Node;
+    static constexpr NYTree::ENodeType NodeType = NYTree::ENodeType::Int64;
 };
 
 template <>
 struct TCypressScalarTypeTraits<ui64>
-    : public NYTree::NDetail::TScalarTypeTraits<ui64>
 {
-    static const NObjectClient::EObjectType ObjectType;
-    static const NYTree::ENodeType NodeType;
+    static constexpr NObjectClient::EObjectType ObjectType = NObjectClient::EObjectType::Uint64Node;
+    static constexpr NYTree::ENodeType NodeType = NYTree::ENodeType::Uint64;
 };
 
 template <>
 struct TCypressScalarTypeTraits<double>
-    : public NYTree::NDetail::TScalarTypeTraits<double>
 {
-    static const NObjectClient::EObjectType ObjectType;
-    static const NYTree::ENodeType NodeType;
+    static constexpr NObjectClient::EObjectType ObjectType = NObjectClient::EObjectType::DoubleNode;
+    static constexpr NYTree::ENodeType NodeType = NYTree::ENodeType::Double;
 };
 
 template <>
 struct TCypressScalarTypeTraits<bool>
-    : public NYTree::NDetail::TScalarTypeTraits<bool>
 {
-    static const NObjectClient::EObjectType ObjectType;
-    static const NYTree::ENodeType NodeType;
+    static constexpr NObjectClient::EObjectType ObjectType = NObjectClient::EObjectType::BooleanNode;
+    static constexpr NYTree::ENodeType NodeType = NYTree::ENodeType::Boolean;
 };
 
 } // namespace NDetail

@@ -4,6 +4,7 @@
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
 
 #include <yt/yt/core/ytree/node.h>
+#include <yt/yt/core/ytree/convert.h>
 
 namespace NSkiff {
 
