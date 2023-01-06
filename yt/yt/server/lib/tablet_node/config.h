@@ -227,8 +227,6 @@ public:
     bool PrioritizeEdenForcedCompaction;
 
     bool EnableDataNodeLookup;
-    std::optional<int> MaxParallelPartitionLookups;
-    bool EnablePeerProbingInDataNodeLookup;
 
     int LookupRpcMultiplexingParallelism;
 

@@ -98,6 +98,7 @@ DEFINE_ENUM(EMasterReign,
     ((MultisetAttributesReplication)                                (2218))  // shakurov
     ((SetLastMountTransactionInMount)                               (2219))  // savrus
     ((ChunkFormat)                                                  (2220))  // babenko
+    ((DropDNLCompats)                                               (2221))  // akozhikhov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
 );

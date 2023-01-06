@@ -211,8 +211,6 @@ public:
         NCompression::ECodec codecId,
         bool produceAllVersions,
         TTimestamp overrideTimestamp,
-        bool enablePeerProbing,
-        bool enableRejectsIfThrottling,
         IInvokerPtr sessionInvoker) override;
 
     TChunkId GetChunkId() const override
@@ -2692,8 +2690,6 @@ public:
         NCompression::ECodec codecId,
         bool produceAllVersions,
         TTimestamp overrideTimestamp,
-        bool enablePeerProbing,
-        bool enableRejectsIfThrottling,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IInvokerPtr sessionInvoker = {})
@@ -2713,8 +2709,6 @@ public:
         , CodecId_(codecId)
         , ProduceAllVersions_(produceAllVersions)
         , OverrideTimestamp_(overrideTimestamp)
-        , EnablePeerProbing_(enablePeerProbing)
-        , EnableRejectsIfThrottling_(enableRejectsIfThrottling)
     {
         Logger.AddTag("TableId: %v, Revision: %x",
             TableId_,
@@ -2756,8 +2750,6 @@ private:
     const NCompression::ECodec CodecId_;
     const bool ProduceAllVersions_;
     const TTimestamp OverrideTimestamp_;
-    const bool EnablePeerProbing_;
-    const bool EnableRejectsIfThrottling_;
 
     //! Promise representing the session.
     const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
@@ -2854,30 +2846,28 @@ private:
                 return;
             }
 
-            if (EnablePeerProbing_) {
-                AsyncProbeAndSelectBestPeers(SinglePassCandidates_, SinglePassCandidates_.size(), {})
-                    .Subscribe(BIND(
-                        [
-                            =,
-                            this,
-                            this_ = MakeStrong(this),
-                            pickPeerTimer = std::move(pickPeerTimer)
-                        ] (const TErrorOr<TPeerList>& result) {
-                            VERIFY_INVOKER_AFFINITY(SessionInvoker_);
+            AsyncProbeAndSelectBestPeers(SinglePassCandidates_, SinglePassCandidates_.size(), {})
+                .Subscribe(BIND(
+                    [
+                        =,
+                        this,
+                        this_ = MakeStrong(this),
+                        pickPeerTimer = std::move(pickPeerTimer)
+                    ] (const TErrorOr<TPeerList>& result) {
+                        VERIFY_INVOKER_AFFINITY(SessionInvoker_);
 
-                            SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime.fetch_add(
-                                pickPeerTimer.GetElapsedValue(),
-                                std::memory_order::relaxed);
+                        SessionOptions_.ChunkReaderStatistics->PickPeerWaitTime.fetch_add(
+                            pickPeerTimer.GetElapsedValue(),
+                            std::memory_order::relaxed);
 
-                            SinglePassCandidates_ = result.ValueOrThrow();
-                            if (SinglePassCandidates_.empty()) {
-                                OnPassCompleted();
-                            } else {
-                                DoRequestRows();
-                            }
-                        }).Via(SessionInvoker_));
-                return;
-            }
+                        SinglePassCandidates_ = result.ValueOrThrow();
+                        if (SinglePassCandidates_.empty()) {
+                            OnPassCompleted();
+                        } else {
+                            DoRequestRows();
+                        }
+                    }).Via(SessionInvoker_));
+            return;
         }
 
         if (SinglePassIterationCount_ == ReaderConfig_->SinglePassIterationLimitForLookup) {
@@ -2981,13 +2971,8 @@ private:
         req->set_override_timestamp(OverrideTimestamp_);
         req->set_populate_cache(true);
 
-        // NB: By default if peer is throttling it will immediately fail,
-        // but if we have to request the same throttling peer again,
-        // then we should stop iterating and make it finish the request.
-        bool isPeerThrottling = PeerAddressToThrottlingRate_.contains(chosenPeer.Address);
-        req->set_reject_if_throttling(EnableRejectsIfThrottling_ && !isPeerThrottling);
-        if (isPeerThrottling) {
-            YT_LOG_DEBUG("Lookup replication reader sends request to throttling peer "
+        if (PeerAddressToThrottlingRate_.contains(chosenPeer.Address)) {
+            YT_LOG_DEBUG("Replication reader sends LookupRows request to throttling peer "
                 "(Address: %v, CandidateIndex: %v, IterationCount: %v, ThrottlingRate: %v)",
                 chosenPeer.Address,
                 CandidateIndex_ - 1,
@@ -3100,22 +3085,16 @@ private:
         }
 
         if (!response->fetched_rows()) {
-            if (response->rejected_due_to_throttling()) {
-                YT_LOG_DEBUG("Peer rejected to execute request due to throttling (Address: %v)",
-                    peerAddress);
-                YT_VERIFY(response->net_throttling() || response->disk_throttling());
-            } else {
-                // NB(akozhikhov): If data node waits for schema from other tablet node,
-                // then we switch to next data node in order to warm up as many schema caches as possible.
-                YT_LOG_DEBUG("Data node is waiting for schema from other tablet "
-                    "(Address: %v, PeerType: %v, CandidateIndex: %v, IterationCount: %v)",
-                    peerAddress,
-                    chosenPeer.Type,
-                    CandidateIndex_ - 1,
-                    SinglePassIterationCount_);
+            // NB(akozhikhov): If data node waits for schema from other tablet node,
+            // then we switch to next data node in order to warm up as many schema caches as possible.
+            YT_LOG_DEBUG("Data node is waiting for schema from other tablet "
+                "(Address: %v, PeerType: %v, CandidateIndex: %v, IterationCount: %v)",
+                peerAddress,
+                chosenPeer.Type,
+                CandidateIndex_ - 1,
+                SinglePassIterationCount_);
 
-                WaitedForSchemaForTooLong_ = true;
-            }
+            WaitedForSchemaForTooLong_ = true;
 
             RequestRows();
             return;
@@ -3194,8 +3173,6 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
     NCompression::ECodec codecId,
     bool produceAllVersions,
     TTimestamp overrideTimestamp,
-    bool enablePeerProbing,
-    bool enableRejectsIfThrottling,
     IInvokerPtr sessionInvoker)
 {
     VERIFY_THREAD_AFFINITY_ANY();
@@ -3213,8 +3190,6 @@ TFuture<TSharedRef> TReplicationReader::LookupRows(
         codecId,
         produceAllVersions,
         overrideTimestamp,
-        enablePeerProbing,
-        enableRejectsIfThrottling,
         BandwidthThrottler_,
         RpsThrottler_,
         std::move(sessionInvoker));
@@ -3307,8 +3282,6 @@ public:
         NCompression::ECodec codecId,
         bool produceAllVersions,
         TTimestamp overrideTimestamp,
-        bool enablePeerProbing,
-        bool enableRejectsIfThrottling,
         IInvokerPtr sessionInvoker = {}) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
@@ -3326,8 +3299,6 @@ public:
             codecId,
             produceAllVersions,
             overrideTimestamp,
-            enablePeerProbing,
-            enableRejectsIfThrottling,
             BandwidthThrottler_,
             RpsThrottler_,
             std::move(sessionInvoker));

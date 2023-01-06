@@ -339,9 +339,10 @@ message TReqLookupRows
 
     // COMPAT(akozhikhov): Make these fields required.
     optional bool populate_cache = 11 [default = true];
-    optional bool reject_if_throttling = 12 [default = false];
 
     // Lookup keys are passed via attachments.
+
+    reserved 12;
 }
 
 message TRspLookupRows
@@ -349,7 +350,6 @@ message TRspLookupRows
     // Found rows are returned via attachment.
     required bool fetched_rows = 1;
     optional bool request_schema = 2;
-    optional bool rejected_due_to_throttling = 8 [default = false];
 
     optional TChunkReaderStatistics chunk_reader_statistics = 3;
 
@@ -358,6 +358,8 @@ message TRspLookupRows
 
     optional int64 net_queue_size = 6 [default = 0];
     optional int64 disk_queue_size = 7 [default = 0];
+
+    reserved 8;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

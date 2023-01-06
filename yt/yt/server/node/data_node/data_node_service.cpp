@@ -1296,14 +1296,12 @@ private:
         auto readSessionId = FromProto<TReadSessionId>(request->read_session_id());
         auto workloadDescriptor = GetRequestWorkloadDescriptor(context);
         auto populateCache = request->populate_cache();
-        auto rejectIfThrottling = request->reject_if_throttling();
 
-        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, PopulateCache: %v, RejectIfThrottling: %v",
+        context->SetRequestInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v, PopulateCache: %v",
             chunkId,
             readSessionId,
             workloadDescriptor,
-            populateCache,
-            rejectIfThrottling);
+            populateCache);
 
         ValidateOnline();
 
@@ -1343,27 +1341,6 @@ private:
         bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
         response->set_net_throttling(netThrottling);
 
-        if (rejectIfThrottling && (diskThrottling || netThrottling)) {
-            YT_LOG_DEBUG("Rows lookup failed to start due to net throttling "
-                "(ChunkId: %v, ReadSessionId: %v, DiskThrottling: %v, DiskQueueSize: %v, NetThrottling: %v, NetQueueSize: %v)",
-                chunkId,
-                readSessionId,
-                diskThrottling,
-                diskQueueSize,
-                netThrottling,
-                netQueueSize);
-
-            response->set_fetched_rows(false);
-            response->set_rejected_due_to_throttling(true);
-
-            context->SetResponseInfo("ChunkId: %v, ReadSessionId: %v, Workload: %v",
-                chunkId,
-                readSessionId,
-                workloadDescriptor);
-            context->Reply();
-            return;
-        }
-
         auto timestamp = request->timestamp();
         auto columnFilter = FromProto<NTableClient::TColumnFilter>(request->column_filter());
         auto codecId = CheckedEnumCast<NCompression::ECodec>(request->compression_codec());
@@ -1396,29 +1373,6 @@ private:
                     diskQueueSize,
                     netThrottling,
                     netQueueSize);
-
-                if (rejectIfThrottling) {
-                    auto netQueueSize = GetNetOutQueueSize(context, workloadDescriptor);
-                    bool netThrottling = CheckNetOutThrottling(context, workloadDescriptor);
-                    if (netThrottling) {
-                        // NB: Flow of lookups may be dense enough, so upon start of throttling
-                        // we will come up with few throttled lookups on the data node. We would like to avoid this.
-                        // This may be even more painful when peer probing is disabled.
-                        YT_LOG_DEBUG("Rows lookup failed to finish due to net throttling "
-                            "(ChunkId: %v, ReadSessionId: %v, NetThrottling: %v, NetQueueSize: %v)",
-                            chunkId,
-                            readSessionId,
-                            netThrottling,
-                            netQueueSize);
-
-                        response->set_fetched_rows(false);
-                        response->set_rejected_due_to_throttling(true);
-                        response->set_net_throttling(netThrottling);
-                        response->set_net_queue_size(netQueueSize);
-
-                        return VoidFuture;
-                    }
-                }
 
                 response->Attachments().push_back(result);
                 response->set_fetched_rows(true);

@@ -99,7 +99,6 @@ bool IsOldStyleMountConfigAttribute(TStringBuf key)
         "enable_discarding_expired_partitions",
         "enable_data_node_lookup",
         "enable_peer_probing_in_data_node_lookup",
-        "max_parallel_partition_lookups",
         "enable_rejects_in_data_node_lookup_if_throttling",
         "lookup_rpc_multiplexing_parallelism",
         "enable_new_scan_reader_for_lookup",

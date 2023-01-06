@@ -284,9 +284,6 @@ constexpr int DynamicStoreIdPoolSize = 2;
 //! Limit on the number of dynamic stores per tablet.
 constexpr int DynamicStoreCountLimit = 10;
 
-//! Limit on `MaxParallelPartitionLookups` parameter.
-constexpr int MaxParallelPartitionLookupsLimit = 5;
-
 //! Sentinel index for Eden partition.
 constexpr int EdenIndex = -1;
 
