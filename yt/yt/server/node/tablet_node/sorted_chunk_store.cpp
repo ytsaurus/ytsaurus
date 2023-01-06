@@ -533,9 +533,7 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             columnFilter,
             timestamp,
             produceAllVersions,
-            OverrideTimestamp_,
-            mountConfig->EnablePeerProbingInDataNodeLookup,
-            /*enableRejectsInDataNodeLookupIfThrottling*/ false);
+            OverrideTimestamp_);
         return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
     }
 

@@ -33,8 +33,6 @@ struct ILookupReader
         NCompression::ECodec codecId,
         bool produceAllVersions,
         TTimestamp overrideTimestamp,
-        bool enablePeerProbing,
-        bool enableRejectsIfThrottling,
         IInvokerPtr sessionInvoker = {}) = 0;
 };
 
@@ -51,9 +49,7 @@ IVersionedReaderPtr CreateVersionedLookupReader(
     TColumnFilter columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    TTimestamp overrideTimestamp,
-    bool enablePeerProbing,
-    bool enableRejectsIfThrottling);
+    TTimestamp overrideTimestamp);
 
 ////////////////////////////////////////////////////////////////////////////////
 

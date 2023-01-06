@@ -4,7 +4,7 @@ from yt_helpers import profiler_factory
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set, copy, insert_rows,
-    lookup_rows, delete_rows, select_rows, create_dynamic_table,
+    lookup_rows, delete_rows, create_dynamic_table,
     alter_table, read_table, write_table, remount_table, generate_timestamp,
     sync_create_cells, sync_mount_table, sync_unmount_table, sync_freeze_table, sync_reshard_table,
     sync_flush_table, sync_compact_table, update_nodes_dynamic_config, set_banned_flag,
@@ -541,9 +541,9 @@ class TestLookup(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     def test_reconfigure_reader_upon_remount(self):
-        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
         self._create_simple_table("//tmp/t")
+        set("//tmp/t/@chunk_reader", {"prefer_local_replicas": False})
         sync_mount_table("//tmp/t")
 
         rows = [{"key": i, "value": str(i)} for i in range(0, 10)]
@@ -570,7 +570,11 @@ class TestLookup(TestSortedDynamicTablesBase):
         assert _check(False)
         assert _check(True)
 
-        set("//tmp/t/@chunk_reader", {"use_block_cache": False, "use_uncompressed_block_cache": False})
+        set("//tmp/t/@chunk_reader", {
+            "use_block_cache": False,
+            "use_uncompressed_block_cache": False,
+            "prefer_local_replicas": False,
+        })
         remount_table("//tmp/t")
 
         wait(lambda: _check(False))
@@ -646,6 +650,37 @@ class TestLookup(TestSortedDynamicTablesBase):
 
         assert lookup_rows("//tmp/t", keys) == rows
 
+    @authors("akozhikhov")
+    def test_lookup_from_suspicious_node(self):
+        set("//sys/@config/tablet_manager/store_chunk_reader", {"probe_peer_count": self.NUM_NODES - 1})
+
+        self._separate_tablet_and_data_nodes()
+        sync_create_cells(1)
+
+        self._create_simple_table("//tmp/t", replication_factor=self.NUM_NODES - 1)
+        set("//tmp/t/@enable_compaction_and_partitioning", False)
+        set("//tmp/t/@chunk_writer", {"upload_replication_factor": self.NUM_NODES - 1})
+        set("//tmp/t/@chunk_reader", {"use_block_cache": False, "use_uncompressed_block_cache": False})
+        sync_mount_table("//tmp/t")
+
+        row = [{"key": 1, "value": "1"}]
+        insert_rows("//tmp/t", row)
+        sync_flush_table("//tmp/t")
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+        set_banned_flag(True, self._nodes[1:2])
+
+        # Banned node is marked as suspicious and will be avoided within next lookup.
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
+        set_banned_flag(False, self._nodes[1:2])
+
+        # Node shall not be suspicious anymore.
+        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
+
 
 class TestDataNodeLookup(TestSortedDynamicTablesBase):
     NUM_TEST_PARTITIONS = 2
@@ -655,16 +690,16 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         {"name": "value", "type": "string"},
     ]
 
+    def _enable_data_node_lookup(self, path):
+        set("{}/@enable_data_node_lookup".format(path), True)
+        set("{}/@chunk_reader".format(path), {"prefer_local_replicas": False})
+
     @authors("akozhikhov")
-    @pytest.mark.parametrize("parallel_lookups", [0, 1, 2])
-    def test_data_node_lookup_simple(self, parallel_lookups):
-        self._separate_tablet_and_data_nodes()
+    def test_data_node_lookup_simple(self):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=1)
-        set("//tmp/t/@enable_data_node_lookup", True)
-        if parallel_lookups:
-            set("//tmp/t/@max_parallel_partition_lookups", parallel_lookups)
+        self._enable_data_node_lookup("//tmp/t")
         sync_mount_table("//tmp/t")
 
         keys = [{"key": i} for i in range(2)]
@@ -685,11 +720,10 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
     def test_data_node_lookup_with_alter(self, replication_factor):
-        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor)
-        set("//tmp/t/@enable_data_node_lookup", True)
+        self._enable_data_node_lookup("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
         sync_mount_table("//tmp/t")
@@ -725,11 +759,10 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
     def test_data_node_lookup_chunks_with_overlap(self, replication_factor):
-        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
-        set("//tmp/t/@enable_data_node_lookup", True)
+        self._enable_data_node_lookup("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
         sync_mount_table("//tmp/t")
@@ -788,11 +821,10 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
     def test_data_node_lookup_with_timestamp(self, replication_factor):
-        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor, schema=self.schema)
-        set("//tmp/t/@enable_data_node_lookup", True)
+        self._enable_data_node_lookup("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
         sync_mount_table("//tmp/t")
@@ -819,20 +851,12 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
 
     @authors("akozhikhov")
     @pytest.mark.parametrize("replication_factor", [1, 3])
-    @pytest.mark.parametrize("enable_peer_probing", [True, False])
-    @pytest.mark.parametrize("enable_rejects_if_throttling", [True, False])
-    def test_data_node_lookup_stress(self, replication_factor, enable_peer_probing, enable_rejects_if_throttling):
-        self._separate_tablet_and_data_nodes()
+    def test_data_node_lookup_stress(self, replication_factor):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=replication_factor)
-        set("//tmp/t/@enable_data_node_lookup", True)
+        self._enable_data_node_lookup("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
-        set("//tmp/t/@enable_peer_probing_in_data_node_lookup", enable_peer_probing)
-        set(
-            "//tmp/t/@enable_rejects_in_data_node_lookup_if_throttling",
-            enable_rejects_if_throttling,
-        )
         sync_mount_table("//tmp/t")
 
         seq_keys = list(range(50))
@@ -877,15 +901,12 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         assert lookup_rows("//tmp/t", [{"key": 1}]) == row
 
     @authors("akozhikhov")
-    @pytest.mark.parametrize("parallel_lookups", [1, 3, 5])
-    def test_parallel_lookup_stress(self, parallel_lookups):
-        self._separate_tablet_and_data_nodes()
+    def test_parallel_lookup_stress(self):
         sync_create_cells(1)
 
         self._create_simple_table("//tmp/t", replication_factor=1, lookup_cache_rows_per_tablet=5)
         self._create_partitions(partition_count=5)
-        set("//tmp/t/@enable_data_node_lookup", True)
-        set("//tmp/t/@max_parallel_partition_lookups", parallel_lookups)
+        self._enable_data_node_lookup("//tmp/t")
         set("//tmp/t/@enable_compaction_and_partitioning", False)
         sync_mount_table("//tmp/t")
 
@@ -915,128 +936,18 @@ class TestDataNodeLookup(TestSortedDynamicTablesBase):
         for use_lookup_cache in [False, True, True]:
             assert lookup_rows("//tmp/t", all_keys, use_lookup_cache=use_lookup_cache) == all_rows
 
-
-class TestLookupFromRemoteNode(TestSortedDynamicTablesBase):
-    DELTA_NODE_CONFIG = {
-        "data_node": {
-            "block_cache": {
-                "compressed_data": {
-                    "capacity": 0
-                },
-                "uncompressed_data": {
-                    "capacity": 0
-                }
-            }
-        }
-    }
-
-    @authors("akozhikhov")
-    def test_lookup_from_suspicious_node(self):
-        set("//sys/@config/tablet_manager/store_chunk_reader", {"probe_peer_count": self.NUM_NODES - 1})
-
-        self._separate_tablet_and_data_nodes()
-        sync_create_cells(1)
-
-        self._create_simple_table("//tmp/t", replication_factor=self.NUM_NODES - 1)
-        set("//tmp/t/@enable_compaction_and_partitioning", False)
-        set("//tmp/t/@chunk_writer", {"upload_replication_factor": self.NUM_NODES - 1})
-        sync_mount_table("//tmp/t")
-
-        row = [{"key": 1, "value": "1"}]
-        insert_rows("//tmp/t", row)
-        sync_flush_table("//tmp/t")
-
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
-
-        set_banned_flag(True, self._nodes[1:2])
-
-        # Banned node is marked as suspicious and will be avoided within next lookup.
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
-
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
-
-        set_banned_flag(False, self._nodes[1:2])
-
-        # Node shall not be suspicious anymore.
-        assert lookup_rows("//tmp/t", [{"key": 1}]) == row
-
-    @authors("akozhikhov")
-    def test_stealing_network_throttler(self):
-        return
-
-        self._separate_tablet_and_data_nodes()
-        sync_create_cells(1)
-
-        self._create_simple_table("//tmp/t", chunk_reader={"enable_local_throttling": True})
-        sync_mount_table("//tmp/t")
-
-        row = [{"key": 1, "value": "1"}]
-        insert_rows("//tmp/t", row)
-        sync_flush_table("//tmp/t")
-
-        def _lookup_time():
-            start_time = time.time()
-            assert lookup_rows("//tmp/t", [{"key": 1}]) == row
-            return time.time() - start_time
-
-        def _select_time():
-            start_time = time.time()
-            assert select_rows("* from [//tmp/t]") == row
-            return time.time() - start_time
-
-        def _batch_select_time():
-            start_time = time.time()
-            assert select_rows("* from [//tmp/t]", workload_descriptor={"category": "batch"}) == row
-            return time.time() - start_time
-
-        assert _lookup_time() < 0.5
-        assert _select_time() < 0.5
-        assert _batch_select_time() < 0.5
-
-        update_nodes_dynamic_config({
-            "data_node": {
-                "throttlers": {
-                    "total_in": {
-                        "limit": 50,
-                    }
-                }
-            },
-            "tablet_node": {
-                "throttlers": {
-                    "user_backend_in": {
-                        "limit": 70,
-                    }
-                }
-            }
-        })
-
-        # Check that user_in is limited for lookups.
-        assert _lookup_time() < 0.5
-        with raises_yt_error(yt_error_codes.RequestThrottled):
-            _lookup_time()
-        time.sleep(1)
-
-        # Check that total_in was affected via prioritizing throttler.
-        with raises_yt_error(yt_error_codes.RequestThrottled):
-            _batch_select_time()
-
-        # Same for selects.
-        assert _select_time() < 0.5
-        with raises_yt_error(yt_error_codes.RequestThrottled):
-            _select_time()
-        time.sleep(1)
-
-        with raises_yt_error(yt_error_codes.RequestThrottled):
-            _batch_select_time()
-
     @authors("akozhikhov")
     def test_error_upon_net_throttler_overdraft(self):
         return
 
-        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", chunk_reader={"enable_local_throttling": True})
+        self._create_simple_table("//tmp/t", chunk_reader={
+            "enable_local_throttling": True,
+            "use_block_cache": False,
+            "use_uncompressed_block_cache": False,
+            "prefer_local_replicas": False,
+        })
         sync_mount_table("//tmp/t")
 
         row = [{"key": 1, "value": "1"}]
@@ -1063,25 +974,18 @@ class TestLookupWithRelativeNetworkThrottler(TestSortedDynamicTablesBase):
 
     DELTA_NODE_CONFIG = {
         "network_bandwidth": 1000,
-
-        "data_node": {
-            "block_cache": {
-                "compressed_data": {
-                    "capacity": 0
-                },
-                "uncompressed_data": {
-                    "capacity": 0
-                }
-            }
-        }
     }
 
     @authors("akozhikhov")
     def test_lookup_with_relative_network_throttler(self):
-        self._separate_tablet_and_data_nodes()
         sync_create_cells(1)
 
-        self._create_simple_table("//tmp/t", replication_factor=1)
+        self._create_simple_table("//tmp/t", replication_factor=1, chunk_reader={
+            "use_block_cache": False,
+            "use_uncompressed_block_cache": False,
+            "prefer_local_replicas": False
+        })
+
         sync_mount_table("//tmp/t")
 
         row = [{"key": 1, "value": "1"}]

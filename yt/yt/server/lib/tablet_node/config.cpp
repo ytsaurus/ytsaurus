@@ -292,15 +292,6 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_data_node_lookup", &TThis::EnableDataNodeLookup)
         .Default(false);
 
-    registrar.Parameter("enable_peer_probing_in_data_node_lookup", &TThis::EnablePeerProbingInDataNodeLookup)
-        .Default(false);
-
-
-    registrar.Parameter("max_parallel_partition_lookups", &TThis::MaxParallelPartitionLookups)
-        .Optional()
-        .GreaterThan(0)
-        .LessThanOrEqual(MaxParallelPartitionLookupsLimit);
-
     registrar.Parameter("lookup_rpc_multiplexing_parallelism", &TThis::LookupRpcMultiplexingParallelism)
         .Default(1)
         .InRange(1, 16);

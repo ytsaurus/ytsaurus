@@ -43,9 +43,7 @@ public:
         TColumnFilter columnFilter,
         TTimestamp timestamp,
         bool produceAllVersions,
-        TTimestamp overrideTimestamp,
-        bool enablePeerProbing,
-        bool enableRejectsIfThrottling)
+        TTimestamp overrideTimestamp)
         : LookupReader_(std::move(lookupReader))
         , RowsReadOptions_(std::move(chunkReadOptions))
         , LookupKeys_(std::move(lookupKeys))
@@ -55,8 +53,6 @@ public:
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
         , OverrideTimestamp_(overrideTimestamp)
-        , EnablePeerProbing_(enablePeerProbing)
-        , EnableRejectsIfThrottling_(enableRejectsIfThrottling)
     {
         DoOpen();
     }
@@ -141,8 +137,6 @@ private:
     const bool ProduceAllVersions_;
     const TTimestamp OverrideTimestamp_;
     NCompression::ICodec* const Codec_ = NCompression::GetCodec(CompressionCodecId);
-    const bool EnablePeerProbing_;
-    const bool EnableRejectsIfThrottling_;
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TDataBufferTag());
 
@@ -175,9 +169,7 @@ private:
             CompressionCodecId,
             ProduceAllVersions_,
             OverrideTimestamp_,
-            EnablePeerProbing_,
-            EnableRejectsIfThrottling_,
-	        GetCurrentInvoker())
+            GetCurrentInvoker())
             .Apply(BIND(&TVersionedLookupReader::OnRowsLookuped, MakeStrong(this)));
     }
 
@@ -223,9 +215,7 @@ IVersionedReaderPtr CreateVersionedLookupReader(
     TColumnFilter columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    TTimestamp overrideTimestamp,
-    bool enablePeerProbing,
-    bool enableRejectsIfThrottling)
+    TTimestamp overrideTimestamp)
 {
     return New<TVersionedLookupReader>(
         std::move(lookupReader),
@@ -235,9 +225,7 @@ IVersionedReaderPtr CreateVersionedLookupReader(
         std::move(columnFilter),
         timestamp,
         produceAllVersions,
-        overrideTimestamp,
-        enablePeerProbing,
-        enableRejectsIfThrottling);
+        overrideTimestamp);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
