@@ -209,6 +209,16 @@ const T& GetOrCrash(const std::variant<TVariantArgs...>& variant)
     return *item;
 }
 
+template <class TMap, class TKey>
+typename TMap::mapped_type GetOrDefault(
+    const TMap& map,
+    const TKey& key,
+    const typename TMap::mapped_type& defaultValue)
+{
+    auto it = map.find(key);
+    return it == map.end() ? defaultValue : it->second;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <size_t Index, class... Ts>
