@@ -61,10 +61,10 @@ public class MultiYtClientIntegrationTest {
                 .addClients(
                         MultiYtClient.YtClientOptions.builder(clientOne).build(),
                         MultiYtClient.YtClientOptions.builder(clientTwo)
-                                .setInitialPenalty(Duration.ofSeconds(1)).build()
+                                .setInitialPenalty(Duration.ofSeconds(10)).build()
                 )
-                .setBanDuration(Duration.ofMillis(200))
-                .setBanPenalty(Duration.ofMillis(100))
+                .setBanDuration(Duration.ofSeconds(2))
+                .setBanPenalty(Duration.ofSeconds(1))
                 .build();
 
         List<KeyValue> res = multiClient.lookupRows(
@@ -73,7 +73,7 @@ public class MultiYtClientIntegrationTest {
 
         assertThat("Response from cluster One", res.get(0).value == 1);
 
-        outageControllerOne.addDelays("LookupRows", 3, Duration.ofSeconds(3));
+        outageControllerOne.addDelays("LookupRows", 3, Duration.ofSeconds(30));
 
         res = multiClient.lookupRows(
                 new LookupRowsRequest(tablePath, KEY_VALUE_TABLE_SCHEMA.toLookup()).addFilter("foo"), serializer
