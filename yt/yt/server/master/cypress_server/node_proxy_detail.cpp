@@ -1416,10 +1416,6 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Unlock)
 
     context->SetRequestInfo();
 
-    if (!GetDynamicCypressManagerConfig()->EnableUnlockCommand) {
-        THROW_ERROR_EXCEPTION("Unlock command is not enabled");
-    }
-
     ValidateTransaction();
     ValidatePermission(EPermissionCheckScope::This, EPermission::Read);
 

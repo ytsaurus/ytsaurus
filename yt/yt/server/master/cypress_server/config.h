@@ -71,10 +71,6 @@ public:
     //! Forbids performing set inside Cypress.
     bool ForbidSetCommand;
 
-    // COMPAT(shakurov)
-    //! Controls if unlock command is enabled.
-    bool EnableUnlockCommand;
-
     TDuration RecursiveResourceUsageCacheExpirationTimeout;
 
     double DefaultExternalCellBias;

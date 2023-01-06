@@ -101,7 +101,6 @@ def get_dynamic_master_config():
         statistics_flush_period = 200;
         expiration_check_period = 200;
         expiration_backoff_time = 200;
-        enable_unlock_command = %true;
         enable_symlink_cyclicity_check = %true;
     };
 
