@@ -404,9 +404,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
                 securityManager->SetAccount(node, account, /*transaction*/ nullptr);
             }
 
-            if (GetDynamicCypressManagerConfig()->EnableRevisionChangingForBuiltinAttributes) {
-                SetModified(EModificationType::Attributes);
-            }
+            SetModified(EModificationType::Attributes);
 
             return true;
         }
@@ -469,7 +467,7 @@ bool TNontemplateCypressNodeProxyBase::SetBuiltinAttribute(TInternedAttributeKey
             if (attributeUpdated && !node->IsBeingCreated()) {
                 LogAcdUpdate(key.Unintern(), GetPath(), value);
             }
-            if (attributeUpdated && GetDynamicCypressManagerConfig()->EnableRevisionChangingForBuiltinAttributes) {
+            if (attributeUpdated) {
                 SetModified(EModificationType::Attributes);
             }
             return attributeUpdated;
