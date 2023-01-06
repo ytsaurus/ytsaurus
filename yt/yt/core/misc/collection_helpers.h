@@ -103,6 +103,16 @@ T& GetOrCrash(std::variant<TVariantArgs...>& variant);
 template <class T, class... TVariantArgs>
 const T& GetOrCrash(const std::variant<TVariantArgs...>& variant);
 
+/*!
+ * Returns the copy of the value in #map if #key is present
+ * of the copy of #defaultValue otherwise.
+ */
+template <class TMap, class TKey>
+typename TMap::mapped_type GetOrDefault(
+    const TMap& map,
+    const TKey& key,
+    const typename TMap::mapped_type& defaultValue = {});
+
 template <class... Ts>
 auto MakeArray(
     const Ts&... values)
