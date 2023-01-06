@@ -85,12 +85,6 @@ private:
         response->set_progress(result.Progress.ToString());
         response->set_brief_progress(result.BriefProgress.ToString());
         response->set_running_jobs(result.RunningJobs.ToString());
-        // COMPAT(gritukan)
-        if (result.JobSplitter) {
-            response->set_job_splitter(result.JobSplitter.ToString());
-        } else {
-            response->set_job_splitter("{}");
-        }
         response->set_controller_memory_usage(result.MemoryUsage);
         response->set_controller_state(static_cast<i32>(result.ControllerState));
         response->set_alerts(result.Alerts.ToString());
