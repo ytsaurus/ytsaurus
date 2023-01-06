@@ -2,7 +2,7 @@
 
 #include "config.h"
 
-#include <yt/yt/library/auth_server/tvm_service.h>
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 namespace NYT::NAuth {
 

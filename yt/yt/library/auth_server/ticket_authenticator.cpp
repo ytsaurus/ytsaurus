@@ -4,9 +4,10 @@
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
-#include "tvm_service.h"
 
 #include <yt/yt/core/rpc/authenticator.h>
+
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 namespace NYT::NAuth {
 

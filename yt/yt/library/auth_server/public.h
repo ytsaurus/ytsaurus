@@ -4,6 +4,8 @@
 
 #include <yt/yt/core/net/address.h>
 
+#include <yt/yt/library/tvm/service/public.h>
+
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -14,8 +16,6 @@ extern const NProfiling::TProfiler AuthProfiler;
 
 DECLARE_REFCOUNTED_CLASS(TAuthCacheConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TTvmServiceConfig)
-DECLARE_REFCOUNTED_CLASS(TCachingDefaultTvmServiceConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxTicketAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TBlackboxTokenAuthenticatorConfig)
 DECLARE_REFCOUNTED_CLASS(TCachingBlackboxTokenAuthenticatorConfig)
@@ -42,8 +42,6 @@ DECLARE_REFCOUNTED_STRUCT(ICypressCookieManager)
 DECLARE_REFCOUNTED_STRUCT(IAuthenticationManager)
 
 DECLARE_REFCOUNTED_STRUCT(IBlackboxService)
-DECLARE_REFCOUNTED_STRUCT(ITvmService)
-DECLARE_REFCOUNTED_STRUCT(IDynamicTvmService)
 
 DECLARE_REFCOUNTED_STRUCT(ICookieAuthenticator)
 DECLARE_REFCOUNTED_STRUCT(ITokenAuthenticator)
@@ -118,19 +116,6 @@ struct TAuthenticationResult
 
     //! If set, client is advised to set this cookie.
     std::optional<TString> SetCookie;
-};
-
-struct TParsedTicket
-{
-    ui64 DefaultUid;
-    THashSet<TString> Scopes;
-};
-
-using TTvmId = ui64;
-
-struct TParsedServiceTicket
-{
-    TTvmId TvmId;
 };
 
 inline bool operator ==(

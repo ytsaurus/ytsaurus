@@ -73,7 +73,7 @@
 #include <yt/yt/client/transaction_client/noop_timestamp_provider.h>
 #include <yt/yt/client/transaction_client/remote_timestamp_provider.h>
 
-#include <yt/yt/library/auth_server/tvm_service.h>
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>

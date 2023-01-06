@@ -2,7 +2,7 @@
 
 #include "native_authentication_manager.h"
 
-#include <yt/yt/library/auth_server/tvm_service.h>
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <yt/yt/core/rpc/authenticator.h>
 
