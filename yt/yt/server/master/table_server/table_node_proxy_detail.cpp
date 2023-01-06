@@ -1427,9 +1427,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto* lockedTable = LockThisImpl();
             lockedTable->SetQueueAgentStage(ConvertTo<TString>(value));
 
-            if (GetDynamicCypressManagerConfig()->EnableRevisionChangingForBuiltinAttributes) {
-                SetModified(EModificationType::Attributes);
-            }
+            SetModified(EModificationType::Attributes);
 
             return true;
         }
@@ -1454,9 +1452,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
                 }
             }
 
-            if (GetDynamicCypressManagerConfig()->EnableRevisionChangingForBuiltinAttributes) {
-                SetModified(EModificationType::Attributes);
-            }
+            SetModified(EModificationType::Attributes);
 
             return true;
         }
@@ -1471,9 +1467,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto* lockedTable = LockThisImpl();
             lockedTable->SetIsVitalConsumer(ConvertTo<bool>(value));
 
-            if (GetDynamicCypressManagerConfig()->EnableRevisionChangingForBuiltinAttributes) {
-                SetModified(EModificationType::Attributes);
-            }
+            SetModified(EModificationType::Attributes);
 
             return true;
         }

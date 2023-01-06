@@ -1552,42 +1552,30 @@ class TestMasterIntegration(TestQueueAgentBase):
             for attribute in dynamic_table_attributes:
                 assert not exists("//tmp/" + name + "/@" + attribute)
 
-    def _set_and_assert_revision_change(self, path, attribute, value, enable_revision_changing):
+    def _set_and_assert_revision_change(self, path, attribute, value):
         old_revision = get(path + "/@attribute_revision")
         set(f"{path}/@{attribute}", value)
         assert get(f"{path}/@{attribute}") == value
-        if enable_revision_changing:
-            assert get(f"{path}/@attribute_revision") > old_revision
-        else:
-            assert get(f"{path}/@attribute_revision") == old_revision
+        assert get(f"{path}/@attribute_revision") > old_revision
 
     @authors("achulkov2")
-    # COMPAT(kvk1920): Remove @enable_revision_changing_for_builtin_attributes from config.
-    @pytest.mark.parametrize("enable_revision_changing", [False, True])
-    def test_revision_changes_on_queue_attribute_change(self, enable_revision_changing):
-        set("//sys/@config/cypress_manager/enable_revision_changing_for_builtin_attributes", enable_revision_changing)
-
+    def test_revision_changes_on_queue_attribute_change(self):
         create("table", "//tmp/q", attributes={"dynamic": True, "schema": [{"name": "data", "type": "string"}]})
         sync_mount_table("//tmp/q")
 
-        self._set_and_assert_revision_change("//tmp/q", "queue_agent_stage", "testing", enable_revision_changing)
+        self._set_and_assert_revision_change("//tmp/q", "queue_agent_stage", "testing")
 
     @authors("achulkov2")
-    # COMPAT(kvk1920): Remove @enable_revision_changing_for_builtin_attributes from config.
-    @pytest.mark.parametrize("enable_revision_changing", [False, True])
-    def test_revision_changes_on_consumer_attribute_change(self, enable_revision_changing):
-        set("//sys/@config/cypress_manager/enable_revision_changing_for_builtin_attributes", enable_revision_changing)
-
+    def test_revision_changes_on_consumer_attribute_change(self):
         self._create_queue("//tmp/q")
         sync_mount_table("//tmp/q")
         self._create_registered_consumer("//tmp/c", "//tmp/q")
 
-        self._set_and_assert_revision_change("//tmp/c", "treat_as_queue_consumer", True, enable_revision_changing)
-        self._set_and_assert_revision_change("//tmp/c", "queue_agent_stage", "testing", enable_revision_changing)
+        self._set_and_assert_revision_change("//tmp/c", "treat_as_queue_consumer", True)
+        self._set_and_assert_revision_change("//tmp/c", "queue_agent_stage", "testing")
         # TODO(max42): this attribute is deprecated.
-        self._set_and_assert_revision_change("//tmp/c", "vital_queue_consumer", True, enable_revision_changing)
-        # NB: Changing user or custom attributes is already changes revision.
-        self._set_and_assert_revision_change("//tmp/c", "target_queue", "haha:muahaha", enable_revision_changing=True)
+        self._set_and_assert_revision_change("//tmp/c", "vital_queue_consumer", True)
+        self._set_and_assert_revision_change("//tmp/c", "target_queue", "haha:muahaha")
 
 
 class CypressSynchronizerOrchid(OrchidBase):

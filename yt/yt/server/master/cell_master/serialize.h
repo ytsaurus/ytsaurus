@@ -101,6 +101,7 @@ DEFINE_ENUM(EMasterReign,
     ((DropDNLCompats)                                               (2221))  // akozhikhov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
+    ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////
