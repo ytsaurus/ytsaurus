@@ -216,6 +216,8 @@ curl 'http://vla2-8153-node-seneca-vla.vla.yp-c.yandex.net:10012/ytprof/peak' > 
 curl 'http://vla2-8153-node-seneca-vla.vla.yp-c.yandex.net:10012/ytprof/allocations?d=60' > ../allocations_node.pb.gz
 # CPU профиль мастера
 curl 'http://m002-hahn.sas.yp-c.yandex.net:10010/ytprof/profile' > ../profile.pb.gz
+# CPU профиль шедулера с повышенной частотой
+curl 'http://sas5-9718-scheduler-hahn.sas.yp-c.yandex.net:10011/ytprof/profile?freq=1000' > ../profile_1000.pb.gz
 
 # Смотрим профиль из корня аркадии. trim_path можно поправить, если исходники не находятся.
 ya tool pprof -symbolize=none -trim_path='/-S/:/-B/:/home/teamcity/source/Yt_ArcRelease'  ../heap.pb.gz
