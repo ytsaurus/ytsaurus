@@ -721,26 +721,14 @@ TSharedRange<TRow> MakeRows(const TString& yson)
 
         const auto& keyPart = keyParts[id];
         switch (keyPart->GetType()) {
-            case ENodeType::Int64:
-                keyBuilder.AddValue(MakeInt64Value<TUnversionedValue>(
-                    keyPart->GetValue<i64>(),
-                    id));
+            #define XX(type, cppType) \
+            case ENodeType::type: \
+                keyBuilder.AddValue(Make ## type ## Value<TUnversionedValue>( \
+                    keyPart->As ## type()->GetValue(), \
+                    id)); \
                 break;
-            case ENodeType::Uint64:
-                keyBuilder.AddValue(MakeUint64Value<TUnversionedValue>(
-                    keyPart->GetValue<ui64>(),
-                    id));
-                break;
-            case ENodeType::Double:
-                keyBuilder.AddValue(MakeDoubleValue<TUnversionedValue>(
-                    keyPart->GetValue<double>(),
-                    id));
-                break;
-            case ENodeType::String:
-                keyBuilder.AddValue(MakeStringValue<TUnversionedValue>(
-                    keyPart->GetValue<TString>(),
-                    id));
-                break;
+            ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+            #undef XX
             case ENodeType::Entity:
                 keyBuilder.AddValue(MakeSentinelValue<TUnversionedValue>(
                     keyPart->Attributes().Get<EValueType>("type"),
@@ -1918,11 +1906,11 @@ INSTANTIATE_TEST_SUITE_P(
             "numeric_to_string(int64)",
             MakeString("1")),
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "uint64=1",
+            "uint64=1u",
             "numeric_to_string(uint64)",
             MakeString("1u")),
         std::tuple<const char*, const char*, TUnversionedValue>(
-            "double=0",
+            "double=0.0",
             "numeric_to_string(double)",
             MakeString("0.")),
         std::tuple<const char*, const char*, TUnversionedValue>(

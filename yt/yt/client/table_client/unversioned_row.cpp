@@ -1724,25 +1724,12 @@ void Deserialize(TLegacyOwningKey& key, INodePtr node)
     for (const auto& item : node->AsList()->GetChildren()) {
         try {
             switch (item->GetType()) {
-                case ENodeType::Int64:
-                    builder.AddValue(MakeUnversionedInt64Value(item->GetValue<i64>(), id));
+                #define XX(type,  cppType) \
+                case ENodeType::type: \
+                    builder.AddValue(MakeUnversioned ## type ## Value(item->As ## type()->GetValue(), id)); \
                     break;
-
-                case ENodeType::Uint64:
-                    builder.AddValue(MakeUnversionedUint64Value(item->GetValue<ui64>(), id));
-                    break;
-
-                case ENodeType::Double:
-                    builder.AddValue(MakeUnversionedDoubleValue(item->GetValue<double>(), id));
-                    break;
-
-                case ENodeType::Boolean:
-                    builder.AddValue(MakeUnversionedBooleanValue(item->GetValue<bool>(), id));
-                    break;
-
-                case ENodeType::String:
-                    builder.AddValue(MakeUnversionedStringValue(item->GetValue<TString>(), id));
-                    break;
+                ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+                #undef XX
 
                 case ENodeType::Entity: {
                     auto valueType = item->Attributes().Get<EValueType>("type", EValueType::Null);

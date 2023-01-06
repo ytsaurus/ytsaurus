@@ -202,7 +202,7 @@ void Deserialize(TString& value, INodePtr node)
 void Deserialize(bool& value, INodePtr node)
 {
     if (node->GetType() == ENodeType::Boolean) {
-        value = node->GetValue<bool>();
+        value = node->AsBoolean()->GetValue();
     } else if (node->GetType() == ENodeType::Int64) {
         auto intValue = node->AsInt64()->GetValue();
         if (intValue != 0 && intValue != 1) {
@@ -236,7 +236,7 @@ void Deserialize(TDuration& value, INodePtr node)
 {
     switch (node->GetType()) {
         case ENodeType::Int64: {
-            auto ms = node->GetValue<i64>();
+            auto ms = node->AsInt64()->GetValue();
             if (ms < 0) {
                 THROW_ERROR_EXCEPTION("Duration cannot be negative");
             }
@@ -245,11 +245,11 @@ void Deserialize(TDuration& value, INodePtr node)
         }
 
         case ENodeType::Uint64:
-            value = TDuration::MilliSeconds(node->GetValue<ui64>());
+            value = TDuration::MilliSeconds(node->AsUint64()->GetValue());
             break;
 
         case ENodeType::Double: {
-            auto ms = node->GetValue<double>();
+            auto ms = node->AsDouble()->GetValue();
             if (ms < 0) {
                 THROW_ERROR_EXCEPTION("Duration cannot be negative");
             }
@@ -258,7 +258,7 @@ void Deserialize(TDuration& value, INodePtr node)
         }
 
         case ENodeType::String:
-            value = TDuration::Parse(node->GetValue<TString>());
+            value = TDuration::Parse(node->AsString()->GetValue());
             break;
 
         default:
@@ -272,7 +272,7 @@ void Deserialize(TInstant& value, INodePtr node)
 {
     switch (node->GetType()) {
         case ENodeType::Int64: {
-            auto ms = node->GetValue<i64>();
+            auto ms = node->AsInt64()->GetValue();
             if (ms < 0) {
                 THROW_ERROR_EXCEPTION("Instant cannot be negative");
             }
@@ -281,11 +281,11 @@ void Deserialize(TInstant& value, INodePtr node)
         }
 
         case ENodeType::Uint64:
-            value = TInstant::MilliSeconds(node->GetValue<ui64>());
+            value = TInstant::MilliSeconds(node->AsUint64()->GetValue());
             break;
 
         case ENodeType::Double: {
-            auto ms = node->GetValue<double>();
+            auto ms = node->AsDouble()->GetValue();
             if (ms < 0) {
                 THROW_ERROR_EXCEPTION("Instant cannot be negative");
             }
@@ -294,7 +294,7 @@ void Deserialize(TInstant& value, INodePtr node)
         }
 
         case ENodeType::String:
-            value = TInstant::ParseIso8601(node->GetValue<TString>());
+            value = TInstant::ParseIso8601(node->AsString()->GetValue());
             break;
 
         default:

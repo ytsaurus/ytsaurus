@@ -301,13 +301,13 @@ TEST_F(TOrderedDynamicStoreTimestampColumnTest, Write)
 
 TEST_F(TOrderedDynamicStoreTimestampColumnTest, VersionedWrite)
 {
-    auto ts = WriteRow(BuildRow("a=1;\"$timestamp\"=42"));
+    auto ts = WriteRow(BuildRow("a=1;\"$timestamp\"=42u"));
     EXPECT_NE(ts, 42u);
 
     auto rows = Store_->GetAllRows();
     EXPECT_EQ(1u, rows.size());
 
-    EXPECT_TRUE(AreRowsEqual(rows[0], Format("a=1;\"$timestamp\"=42")));
+    EXPECT_TRUE(AreRowsEqual(rows[0], Format("a=1;\"$timestamp\"=42u")));
 }
 
 TEST_F(TOrderedDynamicStoreTimestampColumnTest, Serialize)

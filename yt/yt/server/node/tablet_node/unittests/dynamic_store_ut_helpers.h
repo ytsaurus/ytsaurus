@@ -80,7 +80,7 @@ inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameT
                 if (it == expectedRowParts.end()) {
                     return false;
                 }
-                if (it->second->GetValue<i64>() != value.Data.Int64) {
+                if (it->second->AsInt64()->GetValue() != value.Data.Int64) {
                     return false;
                 }
                 break;
@@ -89,7 +89,7 @@ inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameT
                 if (it == expectedRowParts.end()) {
                     return false;
                 }
-                if (it->second->GetValue<ui64>() != value.Data.Uint64) {
+                if (it->second->AsUint64()->GetValue() != value.Data.Uint64) {
                     return false;
                 }
                 break;
@@ -98,7 +98,7 @@ inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameT
                 if (it == expectedRowParts.end()) {
                     return false;
                 }
-                if (it->second->GetValue<double>() != value.Data.Double) {
+                if (it->second->AsDouble()->GetValue() != value.Data.Double) {
                     return false;
                 }
                 break;
@@ -107,7 +107,7 @@ inline bool AreRowsEqualImpl(TUnversionedRow row, const char* yson, const TNameT
                 if (it == expectedRowParts.end()) {
                     return false;
                 }
-                if (it->second->GetValue<TString>() != value.AsString()) {
+                if (it->second->AsString()->GetValue() != value.AsString()) {
                     return false;
                 }
                 break;

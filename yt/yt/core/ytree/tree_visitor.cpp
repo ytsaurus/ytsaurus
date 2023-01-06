@@ -87,23 +87,23 @@ private:
     {
         switch (node->GetType()) {
             case ENodeType::String:
-                Consumer->OnStringScalar(node->GetValue<TString>());
+                Consumer->OnStringScalar(node->AsString()->GetValue());
                 break;
 
             case ENodeType::Int64:
-                Consumer->OnInt64Scalar(node->GetValue<i64>());
+                Consumer->OnInt64Scalar(node->AsInt64()->GetValue());
                 break;
 
             case ENodeType::Uint64:
-                Consumer->OnUint64Scalar(node->GetValue<ui64>());
+                Consumer->OnUint64Scalar(node->AsUint64()->GetValue());
                 break;
 
             case ENodeType::Double:
-                Consumer->OnDoubleScalar(node->GetValue<double>());
+                Consumer->OnDoubleScalar(node->AsDouble()->GetValue());
                 break;
 
             case ENodeType::Boolean:
-                Consumer->OnBooleanScalar(node->GetValue<bool>());
+                Consumer->OnBooleanScalar(node->AsBoolean()->GetValue());
                 break;
 
             default:

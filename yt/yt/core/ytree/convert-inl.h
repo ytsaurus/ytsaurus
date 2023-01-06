@@ -148,9 +148,9 @@ IAttributeDictionaryPtr ConvertToAttributes(const T& value)
 ////////////////////////////////////////////////////////////////////////////////
 
 template <class TTo>
-TTo ConvertTo(INodePtr node)
+TTo ConvertTo(const INodePtr& node)
 {
-    TTo result = ConstructYTreeConvertableObject<TTo>();
+    auto result = ConstructYTreeConvertableObject<TTo>();
     Deserialize(result, node);
     return result;
 }

@@ -33,10 +33,10 @@ struct TYsonParserAdapter
         bool isBool() const { return Node_->GetType() == NYTree::ENodeType::Boolean; }
         bool isNull() const { return false; /* We do not support nulls. */ }
 
-        Int64 getInt64() const { return Node_->GetValue<i64>(); }
-        UInt64 getUInt64() const { return Node_->GetValue<ui64>(); }
-        double getDouble() const { return Node_->GetValue<double>(); }
-        bool getBool() const { return Node_->GetValue<bool>(); }
+        Int64 getInt64() const { return Node_->AsInt64()->GetValue(); }
+        UInt64 getUInt64() const { return Node_->AsUint64()->GetValue(); }
+        double getDouble() const { return Node_->AsDouble()->GetValue(); }
+        bool getBool() const { return Node_->AsBoolean()->GetValue(); }
         std::string_view getString() const;
         Array getArray() const;
         Object getObject() const;

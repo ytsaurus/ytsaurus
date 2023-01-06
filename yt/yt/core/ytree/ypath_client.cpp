@@ -799,7 +799,10 @@ INodePtr PatchNode(const INodePtr& base, const INodePtr& patch)
     }
 }
 
-bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
+bool AreNodesEqual(
+    const INodePtr& lhs,
+    const INodePtr& rhs,
+    const TNodesEqualityOptions& options)
 {
     if (!lhs && !rhs) {
         return true;
@@ -845,7 +848,7 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
                 if (lhsKey != rhsKey) {
                     return false;
                 }
-                if (!AreNodesEqual(lhsMap->FindChild(lhsKey), rhsMap->FindChild(rhsKey))) {
+                if (!AreNodesEqual(lhsMap->FindChild(lhsKey), rhsMap->FindChild(rhsKey), options)) {
                     return false;
                 }
             }
@@ -865,7 +868,7 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
             }
 
             for (size_t index = 0; index < lhsChildren.size(); ++index) {
-                if (!AreNodesEqual(lhsList->FindChild(index), rhsList->FindChild(index))) {
+                if (!AreNodesEqual(lhsList->FindChild(index), rhsList->FindChild(index), options)) {
                     return false;
                 }
             }
@@ -873,20 +876,20 @@ bool AreNodesEqual(const INodePtr& lhs, const INodePtr& rhs)
             return true;
         }
 
-        case ENodeType::String:
-            return lhs->GetValue<TString>() == rhs->GetValue<TString>();
-
         case ENodeType::Int64:
-            return lhs->GetValue<i64>() == rhs->GetValue<i64>();
+            return lhs->AsInt64()->GetValue() == rhs->AsInt64()->GetValue();
 
         case ENodeType::Uint64:
-            return lhs->GetValue<ui64>() == rhs->GetValue<ui64>();
+            return lhs->AsUint64()->GetValue() == rhs->AsUint64()->GetValue();
 
         case ENodeType::Double:
-            return std::abs(lhs->GetValue<double>() - rhs->GetValue<double>()) < 1e-6;
+            return std::abs(lhs->AsDouble()->GetValue() - rhs->AsDouble()->GetValue()) <= options.DoubleTypePrecision;
 
         case ENodeType::Boolean:
-            return lhs->GetValue<bool>() == rhs->GetValue<bool>();
+            return lhs->AsBoolean()->GetValue() == rhs->AsBoolean()->GetValue();
+
+        case ENodeType::String:
+            return lhs->AsString()->GetValue() == rhs->AsString()->GetValue();
 
         case ENodeType::Entity:
             return true;

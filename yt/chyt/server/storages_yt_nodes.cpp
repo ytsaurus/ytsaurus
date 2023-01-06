@@ -87,7 +87,7 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
 
             auto nodes = listNode->AsList()->GetChildren();
             for (auto& node : nodes) {
-                node->SetValue<TString>(dirPaths[index] + "/" + node->GetValue<TString>());
+                node->AsString()->SetValue(dirPaths[index] + "/" + node->GetValue<TString>());
                 result.push_back(std::move(node));
             }
         } else {

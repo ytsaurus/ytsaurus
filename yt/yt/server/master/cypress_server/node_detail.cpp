@@ -36,23 +36,6 @@ static const auto& Logger = CypressServerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NDetail {
-
-const EObjectType TCypressScalarTypeTraits<TString>::ObjectType = EObjectType::StringNode;
-const ENodeType   TCypressScalarTypeTraits<TString>::NodeType   = ENodeType::String;
-const EObjectType TCypressScalarTypeTraits<i64>::ObjectType    = EObjectType::Int64Node;
-const ENodeType   TCypressScalarTypeTraits<i64>::NodeType      = ENodeType::Int64;
-const EObjectType TCypressScalarTypeTraits<ui64>::ObjectType   = EObjectType::Uint64Node;
-const ENodeType   TCypressScalarTypeTraits<ui64>::NodeType     = ENodeType::Uint64;
-const EObjectType TCypressScalarTypeTraits<double>::ObjectType = EObjectType::DoubleNode;
-const ENodeType   TCypressScalarTypeTraits<double>::NodeType   = ENodeType::Double;
-const EObjectType TCypressScalarTypeTraits<bool>::ObjectType   = EObjectType::BooleanNode;
-const ENodeType   TCypressScalarTypeTraits<bool>::NodeType     = ENodeType::Boolean;
-
-} // namespace NDetail
-
-////////////////////////////////////////////////////////////////////////////////
-
 TNontemplateCypressNodeTypeHandlerBase::TNontemplateCypressNodeTypeHandlerBase(
     NCellMaster::TBootstrap* bootstrap)
     : Bootstrap_(bootstrap)

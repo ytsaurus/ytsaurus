@@ -497,7 +497,7 @@ void Deserialize(
                 }
                 break;
             case ENodeType::String:
-                value = ParseEnum<T>(node->GetValue<TString>());
+                value = ParseEnum<T>(node->AsString()->GetValue());
                 break;
             default:
                 THROW_ERROR_EXCEPTION("Cannot deserialize bit enum from %Qlv node",

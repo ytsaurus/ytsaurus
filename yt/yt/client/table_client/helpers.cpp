@@ -138,20 +138,14 @@ void YTreeNodeToUnversionedValue(
     EValueFlags flags)
 {
     switch (value->GetType()) {
+        #define XX(type, cppType) \
+        case ENodeType::type: \
+            builder->AddValue(MakeUnversioned ## type ## Value(value->As ## type()->GetValue(), id, flags)); \
+            break;
+        ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+        #undef XX
         case ENodeType::Entity:
             builder->AddValue(MakeUnversionedSentinelValue(EValueType::Null, id, flags));
-            break;
-        case ENodeType::Int64:
-            builder->AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id, flags));
-            break;
-        case ENodeType::Uint64:
-            builder->AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id, flags));
-            break;
-        case ENodeType::Double:
-            builder->AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id, flags));
-            break;
-        case ENodeType::String:
-            builder->AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id, flags));
             break;
         default:
             builder->AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id, flags));
@@ -173,40 +167,35 @@ TUnversionedOwningRow YsonToSchemafulRow(
 
     TUnversionedOwningRowBuilder rowBuilder;
     auto addValue = [&] (int id, INodePtr value) {
-        if (value->GetType() == ENodeType::Entity) {
-            rowBuilder.AddValue(MakeUnversionedSentinelValue(
-                value->Attributes().Get<EValueType>("type", EValueType::Null), id));
-            return;
-        }
+        try {
+            if (value->GetType() == ENodeType::Entity) {
+                rowBuilder.AddValue(MakeUnversionedSentinelValue(
+                    value->Attributes().Get<EValueType>("type", EValueType::Null), id));
+                return;
+            }
 
-        switch (tableSchema.Columns()[id].GetWireType()) {
-            case EValueType::Boolean:
-                rowBuilder.AddValue(MakeUnversionedBooleanValue(value->GetValue<bool>(), id));
-                break;
-            case EValueType::Int64:
-                rowBuilder.AddValue(MakeUnversionedInt64Value(value->GetValue<i64>(), id));
-                break;
-            case EValueType::Uint64:
-                rowBuilder.AddValue(MakeUnversionedUint64Value(value->GetValue<ui64>(), id));
-                break;
-            case EValueType::Double:
-                rowBuilder.AddValue(MakeUnversionedDoubleValue(value->GetValue<double>(), id));
-                break;
-            case EValueType::String:
-                rowBuilder.AddValue(MakeUnversionedStringValue(value->GetValue<TString>(), id));
-                break;
-            case EValueType::Any:
-                rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
-                break;
-            case EValueType::Composite:
-                rowBuilder.AddValue(MakeUnversionedCompositeValue(ConvertToYsonString(value).AsStringBuf(), id));
-                break;
-            case EValueType::Null:
-
-            case EValueType::Min:
-            case EValueType::Max:
-            case EValueType::TheBottom:
-                YT_ABORT();
+            auto type = tableSchema.Columns()[id].GetWireType();
+            switch (type) {
+                #define XX(type, cppType) \
+                case EValueType::type: \
+                    rowBuilder.AddValue(MakeUnversioned ## type ## Value(value->As ## type()->GetValue(), id)); \
+                    break;
+                ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+                #undef XX
+                case EValueType::Any:
+                    rowBuilder.AddValue(MakeUnversionedAnyValue(ConvertToYsonString(value).AsStringBuf(), id));
+                    break;
+                case EValueType::Composite:
+                    rowBuilder.AddValue(MakeUnversionedCompositeValue(ConvertToYsonString(value).AsStringBuf(), id));
+                    break;
+                default:
+                    THROW_ERROR_EXCEPTION("Unsupported value type %Qlv",
+                        type);
+            }
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing value of column %Qv",
+                tableSchema.Columns()[id].Name())
+                << ex;
         }
     };
 
@@ -274,18 +263,12 @@ TVersionedRow YsonToVersionedRow(
     for (auto key : keys) {
         int id = key->Attributes().Get<int>("id");
         switch (key->GetType()) {
-            case ENodeType::Int64:
-                builder.AddKey(MakeUnversionedInt64Value(key->GetValue<i64>(), id));
+            #define XX(type, cppType) \
+            case ENodeType::type: \
+                builder.AddKey(MakeUnversioned ## type ## Value(key->As ## type()->GetValue(), id)); \
                 break;
-            case ENodeType::Uint64:
-                builder.AddKey(MakeUnversionedUint64Value(key->GetValue<ui64>(), id));
-                break;
-            case ENodeType::Double:
-                builder.AddKey(MakeUnversionedDoubleValue(key->GetValue<double>(), id));
-                break;
-            case ENodeType::String:
-                builder.AddKey(MakeUnversionedStringValue(key->GetValue<TString>(), id));
-                break;
+            ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+            #undef XX
             case ENodeType::Entity:
                 builder.AddKey(MakeUnversionedSentinelValue(EValueType::Null, id));
                 break;
@@ -304,20 +287,14 @@ TVersionedRow YsonToVersionedRow(
             flags |= EValueFlags::Aggregate;
         }
         switch (value->GetType()) {
+            #define XX(type, cppType) \
+            case ENodeType::type: \
+                builder.AddValue(MakeVersioned ## type ## Value(value->As ## type()->GetValue(), timestamp, id, flags)); \
+                break;
+            ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+            #undef XX
             case ENodeType::Entity:
                 builder.AddValue(MakeVersionedSentinelValue(EValueType::Null, timestamp, id, flags));
-                break;
-            case ENodeType::Int64:
-                builder.AddValue(MakeVersionedInt64Value(value->GetValue<i64>(), timestamp, id, flags));
-                break;
-            case ENodeType::Uint64:
-                builder.AddValue(MakeVersionedUint64Value(value->GetValue<ui64>(), timestamp, id, flags));
-                break;
-            case ENodeType::Double:
-                builder.AddValue(MakeVersionedDoubleValue(value->GetValue<double>(), timestamp, id, flags));
-                break;
-            case ENodeType::String:
-                builder.AddValue(MakeVersionedStringValue(value->GetValue<TString>(), timestamp, id, flags));
                 break;
             default:
                 builder.AddValue(MakeVersionedAnyValue(ConvertToYsonString(value).AsStringBuf(), timestamp, id, flags));
@@ -357,26 +334,14 @@ TUnversionedOwningRow YsonToKey(const TString& yson)
     for (int id = 0; id < std::ssize(keyParts); ++id) {
         const auto& keyPart = keyParts[id];
         switch (keyPart->GetType()) {
-            case ENodeType::Int64:
-                keyBuilder.AddValue(MakeUnversionedInt64Value(
-                    keyPart->GetValue<i64>(),
-                    id));
+            #define XX(type, cppType) \
+            case ENodeType::type: \
+                keyBuilder.AddValue( \
+                    MakeUnversioned ## type ## Value(keyPart->As ## type()->GetValue(), \
+                    id)); \
                 break;
-            case ENodeType::Uint64:
-                keyBuilder.AddValue(MakeUnversionedUint64Value(
-                    keyPart->GetValue<ui64>(),
-                    id));
-                break;
-            case ENodeType::Double:
-                keyBuilder.AddValue(MakeUnversionedDoubleValue(
-                    keyPart->GetValue<double>(),
-                    id));
-                break;
-            case ENodeType::String:
-                keyBuilder.AddValue(MakeUnversionedStringValue(
-                    keyPart->GetValue<TString>(),
-                    id));
-                break;
+            ITERATE_SCALAR_YTREE_NODE_TYPES(XX)
+            #undef XX
             case ENodeType::Entity:
                 keyBuilder.AddValue(MakeUnversionedSentinelValue(
                     keyPart->Attributes().Get<EValueType>("type", EValueType::Null),
