@@ -84,8 +84,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("forbid_set_command", &TThis::ForbidSetCommand)
         .Default(true);
-    registrar.Parameter("enable_unlock_command", &TThis::EnableUnlockCommand)
-        .Default(true);
 
     registrar.Parameter("recursive_resource_usage_cache_expiration_timeout", &TThis::RecursiveResourceUsageCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
