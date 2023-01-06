@@ -210,7 +210,7 @@ THashMap<TString, TString> GetPoolTreeToPool(const IMapNodePtr& runtimeParameter
 
     THashMap<TString, TString> poolTreeToPool;
     for (const auto& [key, value] : schedulingOptionsNode->AsMap()->GetChildren()) {
-        poolTreeToPool.emplace(key, value->AsMap()->GetChildOrThrow("pool")->GetValue<TString>());
+        poolTreeToPool.emplace(key, value->AsMap()->GetChildValueOrThrow<TString>("pool"));
     }
     return poolTreeToPool;
 }
@@ -260,7 +260,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
     for (const auto& key : {"pool", "title"}) {
         auto node = specMapNode->FindChild(key);
         if (node && node->GetType() == ENodeType::String) {
-            parts.push_back(node->GetValue<TString>());
+            parts.push_back(node->AsString()->GetValue());
         }
     }
 
@@ -269,7 +269,7 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         if (node && node->GetType() == ENodeType::List) {
             auto child = node->AsList()->FindChild(0);
             if (child && child->GetType() == ENodeType::String) {
-                auto path = getOriginalPath(child->GetValue<TString>());
+                auto path = getOriginalPath(child->AsString()->GetValue());
                 if (!path.empty()) {
                     parts.push_back(path);
                 }

@@ -65,8 +65,8 @@ void Serialize(const TCustomJobMetricDescription& customJobMetricDescription, NY
 void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree::INodePtr node)
 {
     auto mapNode = node->AsMap();
-    customJobMetricDescription.StatisticsPath = mapNode->GetChildOrThrow("statistics_path")->GetValue<TString>();
-    customJobMetricDescription.ProfilingName = mapNode->GetChildOrThrow("profiling_name")->GetValue<TString>();
+    customJobMetricDescription.StatisticsPath = mapNode->GetChildValueOrThrow<TString>("statistics_path");
+    customJobMetricDescription.ProfilingName = mapNode->GetChildValueOrThrow<TString>("profiling_name");
 
     auto summaryValueTypeNode = mapNode->FindChild("summary_value_type");
     if (!summaryValueTypeNode) {
@@ -74,12 +74,12 @@ void Deserialize(TCustomJobMetricDescription& customJobMetricDescription, NYTree
         summaryValueTypeNode = mapNode->FindChild("aggregate_type");
     }
     if (summaryValueTypeNode) {
-        customJobMetricDescription.SummaryValueType = ParseEnum<ESummaryValueType>(summaryValueTypeNode->GetValue<TString>());
+        customJobMetricDescription.SummaryValueType = summaryValueTypeNode->GetValue<ESummaryValueType>();
     }
 
     auto jobStateFilterNode = mapNode->FindChild("job_state_filter");
     if (jobStateFilterNode) {
-        customJobMetricDescription.JobStateFilter = ConvertTo<std::optional<EJobState>>(jobStateFilterNode);
+        customJobMetricDescription.JobStateFilter = jobStateFilterNode->GetValue<std::optional<EJobState>>();
     }
 }
 

@@ -300,6 +300,23 @@ struct IListNode
      *  \returns Adjusted (valid non-negative) index.
      */
     int AdjustChildIndexOrThrow(int index) const;
+
+    // Extension methods.
+
+    //! Converts the value of the child with #index to a given type.
+    //! Throws if no child with #key exists.
+    template <class T>
+    T GetChildValueOrThrow(int index) const;
+
+    //! Converts the value of the child with #index to a given type.
+    //! Returns #defaultValue if no child with #key exists.
+    template <class T>
+    T GetChildValueOrDefault(int index, const T& defaultValue) const;
+
+    //! Converts the value of the child with #index to a given type.
+    //! Returns null if no child with #key exists.
+    template <class T>
+    std::optional<T> FindChildValue(int index) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(IListNode)

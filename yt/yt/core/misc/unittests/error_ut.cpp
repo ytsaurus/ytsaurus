@@ -27,8 +27,8 @@ TEST(TErrorTest, SerializationDepthLimit)
     auto errorNode = ConvertTo<IMapNodePtr>(errorYson);
 
     for (int i = 0; i < ErrorSerializationDepthLimit - 1; ++i) {
-        ASSERT_EQ(errorNode->GetChildOrThrow("code")->GetValue<i64>(), i);
-        ASSERT_EQ(errorNode->GetChildOrThrow("message")->GetValue<TString>(), "error");
+        ASSERT_EQ(errorNode->GetChildValueOrThrow<i64>("code"), i);
+        ASSERT_EQ(errorNode->GetChildValueOrThrow<TString>("message"), "error");
         ASSERT_FALSE(errorNode->GetChildOrThrow("attributes")->AsMap()->FindChild("original_error_depth"));
         auto innerErrors = errorNode->GetChildOrThrow("inner_errors")->AsList()->GetChildren();
         ASSERT_EQ(innerErrors.size(), 1u);
@@ -39,8 +39,8 @@ TEST(TErrorTest, SerializationDepthLimit)
     ASSERT_EQ(std::ssize(children), Depth - ErrorSerializationDepthLimit + 1);
     for (int i = 0; i < std::ssize(children); ++i) {
         auto child = children[i]->AsMap();
-        ASSERT_EQ(child->GetChildOrThrow("code")->GetValue<i64>(), i + ErrorSerializationDepthLimit);
-        ASSERT_EQ(child->GetChildOrThrow("message")->GetValue<TString>(), "error");
+        ASSERT_EQ(child->GetChildValueOrThrow<i64>("code"), i + ErrorSerializationDepthLimit);
+        ASSERT_EQ(child->GetChildValueOrThrow<TString>("message"), "error");
         auto originalErrorDepth = child->GetChildOrThrow("attributes")->AsMap()->FindChild("original_error_depth");
         if (i > 0) {
             ASSERT_TRUE(originalErrorDepth);

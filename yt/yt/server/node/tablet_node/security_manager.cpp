@@ -158,14 +158,14 @@ private:
             key.Account,
             ConvertToYsonString(node, EYsonFormat::Text));
 
-        if (node->AsMap()->GetChildOrThrow("chunk_count")->GetValue<bool>()) {
+        if (node->AsMap()->GetChildValueOrThrow<bool>("chunk_count")) {
             THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AccountLimitExceeded,
                 "Account %Qv violates chunk count limit",
                 key.Account);
         }
 
         if (key.InMemoryMode != EInMemoryMode::None && validateTabletStaticMemory) {
-            if (node->AsMap()->GetChildOrThrow("tablet_static_memory")->GetValue<bool>()) {
+            if (node->AsMap()->GetChildValueOrThrow<bool>("tablet_static_memory")) {
                 THROW_ERROR_EXCEPTION(NSecurityClient::EErrorCode::AccountLimitExceeded,
                     "Account %Qv violates tablet static memory limit",
                     key.Account);
@@ -205,7 +205,7 @@ private:
             ConvertToYsonString(node, EYsonFormat::Text));
 
         if (key.InMemoryMode != EInMemoryMode::None) {
-            if (node->AsMap()->GetChildOrThrow("tablet_static_memory")->GetValue<bool>()) {
+            if (node->AsMap()->GetChildValueOrThrow<bool>("tablet_static_memory")) {
                 THROW_ERROR_EXCEPTION(NTabletClient::EErrorCode::BundleResourceLimitExceeded,
                     "Tablet cell bundle %Qv violates tablet static memory limit",
                     key.TabletCellBundle);

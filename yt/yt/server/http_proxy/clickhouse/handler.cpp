@@ -828,13 +828,13 @@ private:
             auto operationNode = ConvertTo<IMapNodePtr>(operationYson);
 
             if (OperationAlias_) {
-                OperationId_ = ConvertTo<TOperationId>(operationNode->GetChildOrThrow("id")->GetValue<TString>());
+                OperationId_ = operationNode->GetChildValueOrThrow<TOperationId>("id");
                 YT_LOG_DEBUG("Operation id resolved (OperationAlias: %v, OperationId: %v)", OperationAlias_, OperationId_);
             } else {
-                YT_ASSERT(OperationId_ == ConvertTo<TOperationId>(operationNode->GetChildOrThrow("id")->GetValue<TString>()));
+                YT_ASSERT(OperationId_ == operationNode->GetChildValueOrThrow<TOperationId>("id"));
             }
 
-            if (auto state = ConvertTo<EOperationState>(operationNode->GetChildOrThrow("state")->GetValue<TString>()); state != EOperationState::Running) {
+            if (auto state = operationNode->GetChildValueOrThrow<EOperationState>("state"); state != EOperationState::Running) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
                     TError("Clique %v is not running; actual state = %lv", OperationIdOrAlias_, state)
@@ -842,7 +842,7 @@ private:
                 return false;
             }
 
-            if (operationNode->GetChildOrThrow("suspended")->GetValue<bool>()) {
+            if (operationNode->GetChildValueOrThrow<bool>("suspended")) {
                 ReplyWithError(
                     EStatusCode::BadRequest,
                     TError("Clique %v is suspended; resume it to make queries", OperationIdOrAlias_));
@@ -1003,7 +1003,7 @@ private:
         InstanceId_ = id;
         InstanceHost_ = attributes->Get<TString>("host");
         auto port = attributes->Get<INodePtr>("http_port");
-        InstanceHttpPort_ = (port->GetType() == ENodeType::String ? port->GetValue<TString>() : ToString(port->GetValue<ui64>()));
+        InstanceHttpPort_ = (port->GetType() == ENodeType::String ? port->AsString()->GetValue() : ToString(port->GetValue<ui64>()));
 
         ProxiedRequestUrl_ = Format("http://%v:%v%v?%v",
             InstanceHost_,
@@ -1155,9 +1155,9 @@ void TClickHouseHandler::UpdateOperationIds()
             try {
                 auto strawberryPersistentState = node->Attributes()
                     .Get<IMapNodePtr>("strawberry_persistent_state");
-                auto ytOperationState = ConvertTo<EOperationState>(strawberryPersistentState->GetChildOrThrow("yt_operation_state"));
+                auto ytOperationState = strawberryPersistentState->GetChildValueOrThrow<EOperationState>("yt_operation_state");
                 if (!IsOperationFinished(ytOperationState)) {
-                    auto operationId = ConvertTo<TOperationId>(strawberryPersistentState->GetChildOrThrow("yt_operation_id"));
+                    auto operationId = strawberryPersistentState->GetChildValueOrThrow<TOperationId>("yt_operation_id");
                     aliasToOperationId[alias] = operationId;
                 }
             } catch (const std::exception& ex) {

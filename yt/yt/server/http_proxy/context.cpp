@@ -460,33 +460,33 @@ void TContext::SetContentDispositionAndMimeType()
             Descriptor_->CommandName == "read_table" ||
             Descriptor_->CommandName == "read_file"
         ) {
-            if (auto path = DriverRequest_.Parameters->FindChild("path")) {
-                filename = "yt_" + path->GetValue<TString>();
+            if (auto pathNode = DriverRequest_.Parameters->FindChild("path")) {
+                filename = "yt_" + pathNode->GetValue<TString>();
             }
         } else if (Descriptor_->CommandName == "get_job_stderr") {
-            auto operationId = DriverRequest_.Parameters->FindChild("operation_id");
-            auto jobId = DriverRequest_.Parameters->FindChild("job_id");
+            auto operationIdNode = DriverRequest_.Parameters->FindChild("operation_id");
+            auto jobIdNode = DriverRequest_.Parameters->FindChild("job_id");
 
             disposition = "inline";
-            if (operationId && jobId) {
+            if (operationIdNode && jobIdNode) {
                 filename = Format("job_stderr_%v_%v",
-                    operationId->GetValue<TString>(),
-                    jobId->GetValue<TString>());
+                    operationIdNode->GetValue<TString>(),
+                    jobIdNode->GetValue<TString>());
             }
         } else if (Descriptor_->CommandName == "get_job_fail_context") {
-            auto operationId = DriverRequest_.Parameters->FindChild("operation_id");
-            auto jobId = DriverRequest_.Parameters->FindChild("job_id");
+            auto operationIdNode = DriverRequest_.Parameters->FindChild("operation_id");
+            auto jobIdNode = DriverRequest_.Parameters->FindChild("job_id");
 
             disposition = "inline";
-            if (operationId && jobId) {
+            if (operationIdNode && jobIdNode) {
                 filename = Format("fail_context_%v_%v",
-                    operationId->GetValue<TString>(),
-                    jobId->GetValue<TString>());
+                    operationIdNode->GetValue<TString>(),
+                    jobIdNode->GetValue<TString>());
             }
         }
 
-        if (auto passedFilename = DriverRequest_.Parameters->FindChild("filename")) {
-            filename = passedFilename->GetValue<TString>();
+        if (auto passedFilenameNode = DriverRequest_.Parameters->FindChild("filename")) {
+            filename = passedFilenameNode->GetValue<TString>();
         }
 
         for (size_t i = 0; i < filename.size(); ++i) {
@@ -499,8 +499,8 @@ void TContext::SetContentDispositionAndMimeType()
             disposition = "inline";
         }
 
-        if (auto passedDisposition = DriverRequest_.Parameters->FindChild("disposition")) {
-            auto sanitizedDisposition = passedDisposition->GetValue<TString>();
+        if (auto passedDispositionNode = DriverRequest_.Parameters->FindChild("disposition")) {
+            auto sanitizedDisposition = passedDispositionNode->GetValue<TString>();
             sanitizedDisposition.to_lower();
             if (sanitizedDisposition == "inline" && sanitizedDisposition == "attachment") {
                 disposition = sanitizedDisposition;
@@ -971,12 +971,13 @@ void TContext::ReplyError(const TError& error)
 
 void TContext::OnOutputParameters()
 {
-    auto id = OutputParameters_->FindChild("id");
-    auto revision = OutputParameters_->FindChild("revision");
-    if (id && revision) {
+    auto idNode = OutputParameters_->FindChild("id");
+    auto revisionNode = OutputParameters_->FindChild("revision");
+    if (idNode && revisionNode) {
         TEtag etag{
-            TObjectId::FromString(id->GetValue<TString>()),
-            revision->GetValue<NHydra::TRevision>()};
+            idNode->GetValue<TObjectId>(),
+            revisionNode->GetValue<NHydra::TRevision>(),
+        };
         Response_->GetHeaders()->Add("ETag", ToString(etag));
         if (IfNoneMatch_ && *IfNoneMatch_ == etag) {
             Response_->SetStatus(EStatusCode::NotModified);

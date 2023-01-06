@@ -128,8 +128,8 @@ private:
 
 inline std::string_view TYsonParserAdapter::Element::getString() const
 {
-    // GetValue<TString> returns const TString&, so it's ok to provide std::string_view outside.
-    const auto& result = Node_->GetValue<TString>();
+    // GetValue() returns const TString&, so it's ok to provide std::string_view outside.
+    const auto& result = Node_->AsString()->GetValue();
     return {result.data(), result.size()};
 }
 

@@ -261,7 +261,7 @@ TErrorOr<IChannelPtr> TClient::TryCreateChannelToJobNode(
         // TODO(ignat): support structured return value in GetJob.
         auto jobYsonString = WaitFor(GetJob(operationId, jobId, options))
             .ValueOrThrow();
-        auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildOrThrow("address")->GetValue<TString>();
+        auto address = ConvertToNode(jobYsonString)->AsMap()->GetChildValueOrThrow<TString>("address");
         return ChannelFactory_->CreateChannel(address);
     } catch (const std::exception& ex) {
         auto error = TError(ex);
@@ -1389,30 +1389,30 @@ static void ParseJobsFromControllerAgentResponse(
             job.OperationId = operationId;
         }
         if (needType) {
-            job.Type = ConvertTo<EJobType>(jobMapNode->GetChildOrThrow("job_type"));
+            job.Type = jobMapNode->GetChildValueOrThrow<EJobType>("job_type");
         }
         if (needState) {
-            job.ControllerAgentState = ConvertTo<EJobState>(jobMapNode->GetChildOrThrow("state"));
+            job.ControllerAgentState = jobMapNode->GetChildValueOrThrow<EJobState>("state");
         }
         if (needStartTime) {
-            job.StartTime = ConvertTo<TInstant>(jobMapNode->GetChildOrThrow("start_time")->GetValue<TString>());
+            job.StartTime = jobMapNode->GetChildValueOrThrow<TInstant>("start_time");
         }
         if (needFinishTime) {
-            if (auto child = jobMapNode->FindChild("finish_time")) {
-                job.FinishTime = ConvertTo<TInstant>(child->GetValue<TString>());
+            if (auto childNode = jobMapNode->FindChild("finish_time")) {
+                job.FinishTime = childNode->GetValue<TInstant>();
             }
         }
         if (needAddress) {
-            job.Address = jobMapNode->GetChildOrThrow("address")->GetValue<TString>();
+            job.Address = jobMapNode->GetChildValueOrThrow<TString>("address");
         }
         if (needHasSpec) {
             job.HasSpec = true;
         }
         if (needProgress) {
-            job.Progress = jobMapNode->GetChildOrThrow("progress")->GetValue<double>();
+            job.Progress = jobMapNode->GetChildValueOrThrow<double>("progress");
         }
 
-        auto stderrSize = jobMapNode->GetChildOrThrow("stderr_size")->GetValue<i64>();
+        auto stderrSize = jobMapNode->GetChildValueOrThrow<i64>("stderr_size");
         if (stderrSize > 0 && needStderrSize) {
             job.StderrSize = stderrSize;
         }
@@ -1422,39 +1422,39 @@ static void ParseJobsFromControllerAgentResponse(
         }
         if (needJobCompetitionId) {
             //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
-            if (auto child = jobMapNode->FindChild("job_competition_id")) {
-                job.JobCompetitionId = ConvertTo<TJobId>(child);
+            if (auto childNode = jobMapNode->FindChild("job_competition_id")) {
+                job.JobCompetitionId = ConvertTo<TJobId>(childNode);
             }
         }
         if (needProbingJobCompetitionId) {
-            if (auto child = jobMapNode->FindChild("probing_job_competition_id")) {
-                job.ProbingJobCompetitionId = ConvertTo<TJobId>(child);
+            if (auto childNode = jobMapNode->FindChild("probing_job_competition_id")) {
+                job.ProbingJobCompetitionId = ConvertTo<TJobId>(childNode);
             }
         }
         if (needHasCompetitors) {
             //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
-            if (auto child = jobMapNode->FindChild("has_competitors")) {
-                job.HasCompetitors = ConvertTo<bool>(child);
+            if (auto childNode = jobMapNode->FindChild("has_competitors")) {
+                job.HasCompetitors = ConvertTo<bool>(childNode);
             }
         }
         if (needHasProbingCompetitors) {
-            if (auto child = jobMapNode->FindChild("has_probing_competitors")) {
-                job.HasProbingCompetitors = ConvertTo<bool>(child);
+            if (auto childNode = jobMapNode->FindChild("has_probing_competitors")) {
+                job.HasProbingCompetitors = ConvertTo<bool>(childNode);
             }
         }
         if (needError) {
-            if (auto child = jobMapNode->FindChild("error")) {
-                job.Error = ConvertToYsonString(ConvertTo<TError>(child));
+            if (auto childNode = jobMapNode->FindChild("error")) {
+                job.Error = ConvertToYsonString(ConvertTo<TError>(childNode));
             }
         }
         if (needTaskName) {
-            if (auto child = jobMapNode->FindChild("task_name")) {
-                job.TaskName = ConvertTo<TString>(child);
+            if (auto childNode = jobMapNode->FindChild("task_name")) {
+                job.TaskName = ConvertTo<TString>(childNode);
             }
         }
         if (needCoreInfos) {
-            if (auto child = jobMapNode->FindChild("core_infos")) {
-                job.CoreInfos = ConvertToYsonString(child);
+            if (auto childNode = jobMapNode->FindChild("core_infos")) {
+                job.CoreInfos = ConvertToYsonString(childNode);
             }
         }
     }
@@ -1490,10 +1490,10 @@ static void ParseJobsFromControllerAgentResponse(
 
     auto filter = [&] (const INodePtr& jobNode) -> bool {
         const auto& jobMap = jobNode->AsMap();
-        auto address = jobMap->GetChildOrThrow("address")->GetValue<TString>();
+        auto address = jobMap->GetChildValueOrThrow<TString>("address");
         auto type = ConvertTo<EJobType>(jobMap->GetChildOrThrow("job_type"));
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
-        auto stderrSize = jobMap->GetChildOrThrow("stderr_size")->GetValue<i64>();
+        auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
 
         auto failContextSizeNode = jobMap->FindChild("fail_context_size");
         auto failContextSize = failContextSizeNode

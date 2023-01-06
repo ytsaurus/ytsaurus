@@ -196,8 +196,8 @@ private:
                     auto encodingNode = fieldMapNode->FindChild("encoding");
                     TString encoding = encodingNode ? encodingNode->GetValue<TString>() : "";
                     subresponse.Values.emplace_back(TSecretValue{
-                        fieldMapNode->GetChildOrThrow("key")->GetValue<TString>(),
-                        fieldMapNode->GetChildOrThrow("value")->GetValue<TString>(),
+                        fieldMapNode->GetChildValueOrThrow<TString>("key"),
+                        fieldMapNode->GetChildValueOrThrow<TString>("value"),
                         encoding});
                 }
 
@@ -267,7 +267,7 @@ private:
                     GetWarningMessageFromResponse(response));
             }
 
-            return response->GetChildOrThrow("token")->GetValue<TString>();
+            return response->GetChildValueOrThrow<TString>("token");
         } catch (const std::exception& ex) {
             FailedCallCountCounter_.Increment();
             auto error = TError("Failed to get delegation token from Vault")
@@ -383,7 +383,7 @@ private:
 
     static TString GetStatusStringFromResponse(const IMapNodePtr& node)
     {
-        return node->GetChildOrThrow("status")->GetValue<TString>();
+        return node->GetChildValueOrThrow<TString>("status");
     }
 
     static ESecretVaultResponseStatus ParseStatus(const TString& statusString)
@@ -401,7 +401,7 @@ private:
 
     static TError GetErrorFromResponse(const IMapNodePtr& node, const TString& statusString)
     {
-        auto codeString = node->GetChildOrThrow("code")->GetValue<TString>();
+        auto codeString = node->GetChildValueOrThrow<TString>("code");
         auto code = ParseErrorCode(codeString);
 
         auto messageNode = node->FindChild("message");

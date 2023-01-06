@@ -78,11 +78,11 @@ void Serialize(TReplicationPolicy policy, NYson::IYsonConsumer* consumer)
 void Deserialize(TReplicationPolicy& policy, NYTree::INodePtr node)
 {
     auto map = node->AsMap();
-    auto replicationFactor = map->GetChildOrThrow("replication_factor")->GetValue<i64>();
+    auto replicationFactor = map->GetChildValueOrThrow<i64>("replication_factor");
     if (replicationFactor != 0) {
         ValidateReplicationFactor(replicationFactor);
     }
-    auto dataPartsOnly = map->GetChildOrThrow("data_parts_only")->GetValue<bool>();
+    auto dataPartsOnly = map->GetChildValueOrThrow<bool>("data_parts_only");
 
     policy.SetReplicationFactor(replicationFactor);
     policy.SetDataPartsOnly(dataPartsOnly);

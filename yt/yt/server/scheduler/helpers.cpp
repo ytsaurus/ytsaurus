@@ -149,7 +149,7 @@ TListOperationsResult ListOperations(
 
     TListOperationsResult result;
 
-    THashSet<TOperationId> operationSet;
+    THashSet<TOperationId> operationIds;
     for (int hash = 0x0; hash <= 0xFF; ++hash) {
         auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspList>(
             "list_operations_" + Format("%02x", hash));
@@ -165,11 +165,11 @@ TListOperationsResult ListOperations(
             auto hashBucketList = hashBucketListNode->AsList();
 
             for (const auto& operationNode : hashBucketList->GetChildren()) {
-                auto id = TOperationId::FromString(operationNode->GetValue<TString>());
+                auto id = operationNode->GetValue<TOperationId>();
                 YT_VERIFY((id.Parts32[0] & 0xff) == hash);
 
                 auto state = operationNode->Attributes().Get<EOperationState>("state");
-                YT_VERIFY(operationSet.insert(id).second);
+                EmplaceOrCrash(operationIds, id);
 
                 if (IsOperationInProgress(state)) {
                     result.OperationsToRevive.push_back({id, state});

@@ -1330,8 +1330,8 @@ void Deserialize(TLogicalTypePtr& logicalType, NYTree::INodePtr node)
                 NYTree::ENodeType::Map);
         }
         case ELogicalMetatype::Decimal: {
-            auto precision = mapNode->GetChildOrThrow("precision")->GetValue<i64>();
-            auto scale = mapNode->GetChildOrThrow("scale")->GetValue<i64>();
+            auto precision = mapNode->GetChildValueOrThrow<i64>("precision");
+            auto scale = mapNode->GetChildValueOrThrow<i64>("scale");
             logicalType = DecimalLogicalType(precision, scale);
             return;
         }
@@ -1691,7 +1691,7 @@ void Serialize(const TTypeV3LogicalTypeWrapper& wrapper, NYson::IYsonConsumer* c
 void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
 {
     if (node->GetType() == NYTree::ENodeType::String) {
-        auto typeNameString = node->GetValue<TString>();
+        auto typeNameString = node->AsString()->GetValue();
         auto typeName = FromTypeV3(typeNameString);
         std::visit([&](const auto& arg) {
             using T = std::decay_t<decltype(arg)>;
@@ -1713,7 +1713,7 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
     }
 
     auto mapNode = node->AsMap();
-    auto typeNameString = mapNode->GetChildOrThrow("type_name")->GetValue<TString>();
+    auto typeNameString = mapNode->GetChildValueOrThrow<TString>("type_name");
     auto typeName = FromTypeV3(typeNameString);
     std::visit([&](const auto& typeName) {
         using T = std::decay_t<decltype(typeName)>;
@@ -1741,8 +1741,8 @@ void Deserialize(TTypeV3LogicalTypeWrapper& wrapper, NYTree::INodePtr node)
                     // NB. FromTypeV3 never returns this value.
                     YT_ABORT();
                 case ELogicalMetatype::Decimal: {
-                    auto precision = mapNode->GetChildOrThrow("precision")->GetValue<i64>();
-                    auto scale = mapNode->GetChildOrThrow("scale")->GetValue<i64>();
+                    auto precision = mapNode->GetChildValueOrThrow<int>("precision");
+                    auto scale = mapNode->GetChildValueOrThrow<int>("scale");
                     wrapper.LogicalType = DecimalLogicalType(precision, scale);
                     return;
                 }
