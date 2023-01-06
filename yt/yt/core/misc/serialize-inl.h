@@ -1078,10 +1078,10 @@ struct TSorterSelector<std::vector<T>, C, TSortedTag>
     using TSorter = TCollectionSorter<std::vector<T>, TValueSorterComparer<C>>;
 };
 
-template <class T, class C, unsigned size>
-struct TSorterSelector<TCompactVector<T, size>, C, TSortedTag>
+template <class T, class C, size_t N>
+struct TSorterSelector<TCompactVector<T, N>, C, TSortedTag>
 {
-    using TSorter = TCollectionSorter<TCompactVector<T, size>, TValueSorterComparer<C>>;
+    using TSorter = TCollectionSorter<TCompactVector<T, N>, TValueSorterComparer<C>>;
 };
 
 template <class C, class... T>
@@ -1108,7 +1108,7 @@ struct TSorterSelector<THashSet<T...>, C, TSortedTag>
     using TSorter = TCollectionSorter<THashSet<T...>, TValueSorterComparer<C>>;
 };
 
-template <class C, class T, unsigned N, class Q>
+template <class C, class T, size_t N, class Q>
 struct TSorterSelector<TCompactSet<T, N, Q>, C, TSortedTag>
 {
     typedef TNoopSorter<TCompactSet<T, N, Q>, C> TSorter;
@@ -1144,7 +1144,7 @@ struct TSorterSelector<SmallDenseMap<K, V, N, Ts...>, C, TSortedTag>
     using TSorter = TCollectionSorter<SmallDenseMap<K, V, N, Ts...>, TKeySorterComparer<C>>;
 };
 
-template <class K, class V, unsigned N, class C>
+template <class K, class V, size_t N, class C>
 struct TSorterSelector<TCompactFlatMap<K, V, N>, C, TSortedTag>
 {
     using TSorter = TCollectionSorter<TCompactFlatMap<K, V, N>, TKeySorterComparer<C>>;
@@ -1834,8 +1834,8 @@ struct TSerializerTraits<std::vector<T, A>, C, void>
     using TSerializer = TVectorSerializer<>;
 };
 
-template <class T, unsigned size, class C>
-struct TSerializerTraits<TCompactVector<T, size>, C, void>
+template <class T, size_t N, class C>
+struct TSerializerTraits<TCompactVector<T, N>, C, void>
 {
     using TSerializer = TVectorSerializer<>;
 };
@@ -1875,7 +1875,7 @@ struct TSerializerTraits<THashSet<T, H, E, A>, C, void>
     using TSerializer = TSetSerializer<>;
 };
 
-template <class T, unsigned N, class Q, class C>
+template <class T, size_t N, class Q, class C>
 struct TSerializerTraits<TCompactSet<T, N, Q>, C, void>
 {
     typedef TSetSerializer<> TSerializer;
@@ -1893,7 +1893,7 @@ struct TSerializerTraits<std::unique_ptr<std::vector<T, A>>, C, void>
     using TSerializer = TOptionalVectorSerializer<>;
 };
 
-template <class T, unsigned size, class C>
+template <class T, size_t size, class C>
 struct TSerializerTraits<std::unique_ptr<TCompactVector<T, size>>, C, void>
 {
     using TSerializer = TOptionalVectorSerializer<>;
@@ -1941,13 +1941,13 @@ struct TSerializerTraits<THashMap<K, V, Q, A>, C, void>
     using TSerializer = TMapSerializer<>;
 };
 
-template <class K, class V, unsigned I, class E, class B, class C>
-struct TSerializerTraits<SmallDenseMap<K, V, I, E, B>, C, void>
+template <class K, class V, unsigned N, class E, class B, class C>
+struct TSerializerTraits<SmallDenseMap<K, V, N, E, B>, C, void>
 {
     using TSerializer = TMapSerializer<>;
 };
 
-template <class K, class V, unsigned N, class C>
+template <class K, class V, size_t N, class C>
 struct TSerializerTraits<TCompactFlatMap<K, V, N>, C, void>
 {
     using TSerializer = TMapSerializer<>;
