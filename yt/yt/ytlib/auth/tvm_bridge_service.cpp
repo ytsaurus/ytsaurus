@@ -5,7 +5,7 @@
 
 #include <yt/yt/ytlib/auth/proto/tvm_bridge_service.pb.h>
 
-#include <yt/yt/library/auth_server/tvm_service.h>
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 

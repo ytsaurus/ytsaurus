@@ -12,7 +12,7 @@
 
 #include <yt/yt/library/auth/credentials_injecting_channel.h>
 
-#include <yt/yt/library/auth_server/tvm_service.h>
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <yt/yt/core/misc/public.h>
 

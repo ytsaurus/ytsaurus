@@ -8,7 +8,6 @@
 #include <yt/yt/library/auth_server/ticket_authenticator.h>
 #include <yt/yt/library/auth_server/cookie_authenticator.h>
 #include <yt/yt/library/auth_server/helpers.h>
-#include <yt/yt/library/auth_server/tvm_service.h>
 #include <yt/yt/library/auth_server/authentication_manager.h>
 
 #include <yt/yt/core/http/http.h>

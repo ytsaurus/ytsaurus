@@ -3,7 +3,7 @@
 #include <yt/yt/library/auth_server/config.h>
 #include <yt/yt/library/auth_server/default_secret_vault_service.h>
 #include <yt/yt/library/auth_server/secret_vault_service.h>
-#include <yt/yt/library/auth_server/tvm_service.h>
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <yt/yt/core/concurrency/thread_pool_poller.h>
 #include <yt/yt/core/json/json_writer.h>

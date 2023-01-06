@@ -3,7 +3,6 @@
 
 #include "config.h"
 #include "private.h"
-#include "tvm_service.h"
 
 #include <yt/yt/core/http/client.h>
 #include <yt/yt/core/http/helpers.h>
@@ -24,6 +23,8 @@
 #include <yt/yt/core/ytree/tree_builder.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <library/cpp/uri/encode.h>
 

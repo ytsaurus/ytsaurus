@@ -5,12 +5,13 @@
 #include "cookie_authenticator.h"
 #include "cypress_cookie_manager.h"
 #include "cypress_token_authenticator.h"
-#include "tvm_service.h"
 #include "ticket_authenticator.h"
 #include "token_authenticator.h"
 #include "config.h"
 
 #include <yt/yt/core/rpc/authenticator.h>
+
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 namespace NYT::NAuth {
 

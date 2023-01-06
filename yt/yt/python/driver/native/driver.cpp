@@ -19,7 +19,7 @@
 
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
-#include <yt/yt/library/auth_server/tvm_service.h>
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 #include <yt/yt/client/api/transaction.h>
 

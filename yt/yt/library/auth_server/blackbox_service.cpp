@@ -3,7 +3,6 @@
 #include "config.h"
 #include "helpers.h"
 #include "private.h"
-#include "tvm_service.h"
 
 #include <yt/yt/core/concurrency/delayed_executor.h>
 
@@ -18,6 +17,8 @@
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/profiling/timing.h>
+
+#include <yt/yt/library/tvm/service/tvm_service.h>
 
 namespace NYT::NAuth {
 
