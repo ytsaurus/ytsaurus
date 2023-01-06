@@ -44,4 +44,26 @@ std::optional<T> IMapNode::FindChildValue(const TString& key) const
 
 ////////////////////////////////////////////////////////////////////////////////
 
+template <class T>
+T IListNode::GetChildValueOrThrow(int index) const
+{
+    return GetChildOrThrow(index)->GetValue<T>();
+}
+
+template <class T>
+T IListNode::GetChildValueOrDefault(int index, const T& defaultValue) const
+{
+    auto child = FindChild(index);
+    return child ? child->GetValue<T>() : defaultValue;
+}
+
+template <class T>
+std::optional<T> IListNode::FindChildValue(int index) const
+{
+    auto child = FindChild(index);
+    return child ? std::make_optional(child->GetValue<T>()) : std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NYTree

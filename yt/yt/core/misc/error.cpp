@@ -1103,7 +1103,7 @@ void Deserialize(TError& error, const NYTree::INodePtr& node)
     auto mapNode = node->AsMap();
 
     static const TString CodeKey("code");
-    auto code = TErrorCode(mapNode->GetChildOrThrow(CodeKey)->GetValue<i64>());
+    auto code = TErrorCode(mapNode->GetChildValueOrThrow<i64>(CodeKey));
     if (code == NYT::EErrorCode::OK) {
         return;
     }
@@ -1112,7 +1112,7 @@ void Deserialize(TError& error, const NYTree::INodePtr& node)
     result->SetCode(code);
 
     static const TString MessageKey("message");
-    result->SetMessage(mapNode->GetChildOrThrow(MessageKey)->GetValue<TString>());
+    result->SetMessage(mapNode->GetChildValueOrThrow<TString>(MessageKey));
 
     static const TString AttributesKey("attributes");
     result->SetAttributes(IAttributeDictionary::FromMap(mapNode->GetChildOrThrow(AttributesKey)->AsMap()));

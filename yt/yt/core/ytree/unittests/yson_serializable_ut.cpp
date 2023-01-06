@@ -879,7 +879,7 @@ TEST_P(TYsonSerializableParseTest, NullableWithNonNullDefault)
     {
         auto config = Load<TConfig>(TYsonStringBuf("{}"));
         EXPECT_EQ(123, *config->Value);
-        EXPECT_EQ(123, ConvertToNode(config)->AsMap()->GetChildOrThrow("value")->GetValue<i64>());
+        EXPECT_EQ(123, ConvertToNode(config)->AsMap()->GetChildValueOrThrow<i64>("value"));
     }
 
     {

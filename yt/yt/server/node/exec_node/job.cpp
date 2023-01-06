@@ -2889,7 +2889,7 @@ void TJob::CollectSensorsFromStatistics(ISensorWriter* writer)
                 node->GetType());
             continue;
         }
-        ProfileSensor(sensor, writer, node->GetValue<i64>());
+        ProfileSensor(sensor, writer, node->AsInt64()->GetValue());
     }
 }
 

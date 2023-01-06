@@ -284,7 +284,7 @@ std::vector<TCoordinatorProxyPtr> TCoordinator::ListCypressProxies()
         try {
             auto proxy = ConvertTo<TProxyEntryPtr>(proxyNode->Attributes());
             proxy->Endpoint = proxyNode->GetValue<TString>();
-            proxies.emplace_back(New<TCoordinatorProxy>(std::move(proxy)));
+            proxies.push_back(New<TCoordinatorProxy>(std::move(proxy)));
         } catch (std::exception& ex) {
             YT_LOG_WARNING(ex, "Broken proxy node found in Cypress (ProxyNode: %v)",
                 ConvertToYsonString(proxyNode));
