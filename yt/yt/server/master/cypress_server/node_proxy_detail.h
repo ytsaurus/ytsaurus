@@ -23,7 +23,7 @@ namespace NYT::NCypressServer {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNontemplateCypressNodeProxyBase
-    : public NYTree::TNodeBase
+    : public virtual NYTree::TNodeBase
     , public NObjectServer::TObjectProxyBase
     , public NObjectServer::THierarchicPermissionValidator<TCypressNode>
     , public ICypressNodeProxy
@@ -322,21 +322,15 @@ protected:
     {
         return TNontemplateCypressNodeProxyBase::LockThisImpl<TActualImpl>(request, recursive);
     }
+};
 
-    void ValidateSetCommand(const NYTree::TYPath& path, const TString& user, bool force) const
-    {
-        const auto& Logger = CypressServerLogger;
-        bool forbidden = TBase::GetDynamicCypressManagerConfig()->ForbidSetCommand && !force;
-        if (path && !force) {
-            YT_LOG_DEBUG("Validating possibly malicious \"set\" in Cypress (Path: %v, User: %v, Forbidden: %v)",
-                path,
-                user,
-                forbidden);
-        }
-        if (forbidden) {
-            THROW_ERROR_EXCEPTION("Command \"set\" is forbidden in Cypress, use \"create\" instead");
-        }
-    }
+////////////////////////////////////////////////////////////////////////////////
+
+class TSupportsForcefulSetSelfMixin
+    : public NYTree::TSupportsSetSelfMixin
+{
+protected:
+    void ValidateSetSelf(bool force) const override;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -344,6 +338,7 @@ protected:
 template <class TValue, class IBase, class TImpl>
 class TScalarNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>
+    , public NYTree::TSupportsSetSelfMixin
 {
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IBase, TImpl>;
@@ -375,35 +370,25 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(key) \
-    YTREE_NODE_TYPE_OVERRIDES_BASE(key) \
-    void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override \
+#define BEGIN_DEFINE_SCALAR_TYPE(type, cppType) \
+    class T##type##NodeProxy \
+        : public TScalarNodeProxy<cppType, NYTree::I##type##Node, T##type##Node> \
     { \
-        Y_UNUSED(response); \
-        context->SetRequestInfo(); \
-        ValidateSetCommand(GetPath(), context->GetAuthenticationIdentity().User, request->force()); \
-        DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
-        context->Reply(); \
-    }
-
-#define BEGIN_DEFINE_SCALAR_TYPE(key, type) \
-    class T##key##NodeProxy \
-        : public TScalarNodeProxy<type, NYTree::I##key##Node, T##key##Node> \
-    { \
-        YTREE_NODE_TYPE_OVERRIDES(key) \
+    public: \
+        YTREE_NODE_TYPE_OVERRIDES(type) \
     \
     public: \
         using TScalarNodeProxy::TScalarNodeProxy;
 
-#define END_DEFINE_SCALAR_TYPE(key, type) \
+#define END_DEFINE_SCALAR_TYPE(type, cppType) \
     }; \
     \
     template <> \
-    inline ICypressNodeProxyPtr TScalarNodeTypeHandler<type>::DoGetProxy( \
-        TScalarNode<type>* node, \
+    inline ICypressNodeProxyPtr TScalarNodeTypeHandler<cppType>::DoGetProxy( \
+        TScalarNode<cppType>* node, \
         NTransactionServer::TTransaction* transaction) \
     { \
-        return New<T##key##NodeProxy>( \
+        return New<T##type##NodeProxy>( \
             Bootstrap_, \
             &Metadata_, \
             transaction, \
@@ -446,15 +431,13 @@ END_DEFINE_SCALAR_TYPE(Boolean, bool)
 class TMapNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>
     , public NYTree::TMapNodeMixin
+    , public TSupportsForcefulSetSelfMixin
 {
-private:
-    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>;
+public:
+    YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
-    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Map)
-
-public:
-    using TBase::TBase;
+    using TCypressNodeProxyBase::TCypressNodeProxyBase;
 
     void Clear() override;
     int GetChildCount() const override;
@@ -468,6 +451,8 @@ public:
     std::optional<TString> FindChildKey(const NYTree::IConstNodePtr& child) override;
 
 private:
+    using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IMapNode, TMapNode>;
+
     bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
     void SetChildNode(
@@ -498,7 +483,6 @@ private:
         TMapNode* impl,
         const TString& key,
         TCypressNode* childImpl);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -506,12 +490,13 @@ private:
 class TListNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>
     , public NYTree::TListNodeMixin
+    , public TSupportsForcefulSetSelfMixin
 {
 private:
     using TBase = TCypressNodeProxyBase<TNontemplateCompositeCypressNodeProxyBase, NYTree::IListNode, TListNode>;
 
 public:
-    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(List)
+    YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
     using TBase::TBase;

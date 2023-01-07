@@ -102,6 +102,7 @@ DEFINE_ENUM(EMasterReign,
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko
+    ((RipForbidSetCommand)                                          (2302))  // babenko
 );
 
 ////////////////////////////////////////////////////////////////////////////////

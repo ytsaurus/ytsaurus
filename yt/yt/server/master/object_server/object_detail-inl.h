@@ -109,8 +109,8 @@ template <class T>
     const TCtxCheckPermissionPtr& context,
     T doCheckPermission)
 {
-    auto* const request = &context->Request();
-    auto* const response = &context->Response();
+    auto* request = &context->Request();
+    auto* response = &context->Response();
 
     const auto& userName = request->user();
     auto permission = CheckedEnumCast<NSecurityServer::EPermission>(request->permission());
@@ -141,7 +141,7 @@ template <class T>
 
     auto* user = securityManager->GetUserByNameOrThrow(userName, true /*activeLifeStageOnly*/);
 
-    // NB: this may throw, and it's ok.
+    // NB: this may throw, and it's OK.
     auto checkResponse = doCheckPermission(user, permission, std::move(checkOptions));
 
     const auto& objectManager = bootstrap->GetObjectManager();

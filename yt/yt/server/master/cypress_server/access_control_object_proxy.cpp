@@ -36,13 +36,11 @@ class TAccessControlObjectProxy
     , public virtual TMapNodeMixin
     , public THierarchicPermissionValidator<TObject>
 {
+public:
+    YTREE_NODE_TYPE_OVERRIDES(Map)
+
 private:
     using TBase = TNonversionedObjectProxyBase<TAccessControlObject>;
-
-    friend class TAccessControlObjectNamespaceProxy;
-    friend class TAccessControlPrincipalProxy;
-
-    static const TString ChildKey;
 
 public:
     TAccessControlObjectProxy(
@@ -52,8 +50,6 @@ public:
         : TBase(bootstrap, metadata, object)
         , THierarchicPermissionValidator<TObject>(CreatePermissionValidator())
     { }
-
-    YTREE_NODE_TYPE_OVERRIDES_BASE(Map)
 
     TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override
     {
@@ -82,7 +78,7 @@ public:
 
     void SetParent(const ICompositeNodePtr& /*parent*/) override
     {
-        Y_UNREACHABLE();
+        YT_ABORT();
     }
 
     bool DoInvoke(const NRpc::IServiceContextPtr& context) override
@@ -165,6 +161,12 @@ public:
 
     void Clear() override
     { }
+
+private:
+    friend class TAccessControlObjectNamespaceProxy;
+    friend class TAccessControlPrincipalProxy;
+
+    static const inline TString ChildKey{"principal"};
 
     void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
     {
@@ -297,8 +299,6 @@ public:
     }
 };
 
-/*static*/ const TString TAccessControlObjectProxy::ChildKey = "principal";
-
 ////////////////////////////////////////////////////////////////////////////////
 
 IObjectProxyPtr CreateAccessControlObjectProxy(
@@ -391,13 +391,13 @@ protected:
 
     const THashSet<TInternedAttributeKey>& GetBuiltinAttributeKeys() override
     {
-        static const THashSet<TInternedAttributeKey> builtinAttributeKeys = {
+        static const THashSet<TInternedAttributeKey> BuiltinAttributeKeys{
             EInternedAttributeKey::Acl,
             EInternedAttributeKey::EffectiveAcl,
             EInternedAttributeKey::InheritAcl,
             EInternedAttributeKey::Owner
         };
-        return builtinAttributeKeys;
+        return BuiltinAttributeKeys;
     }
 
     void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override
@@ -575,6 +575,9 @@ class TAccessControlObjectNamespaceProxy
     , public virtual TMapNodeMixin
     , public THierarchicPermissionValidator<TObject>
 {
+public:
+    YTREE_NODE_TYPE_OVERRIDES(Map)
+
 private:
     using TBase = TNonversionedObjectProxyBase<TAccessControlObjectNamespace>;
 
@@ -586,51 +589,6 @@ public:
         : TBase(bootstrap, metadata, object)
         , THierarchicPermissionValidator<TObject>(CreatePermissionValidator())
     { }
-
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
-    {
-        // Resolve ambiguity between the two base class overrides.
-        return TBase::DoInvoke(context);
-    }
-
-    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
-    {
-        TNodeBase::GetSelf(request, response, context);
-    }
-
-    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override
-    {
-        return TMapNodeMixin::ResolveRecursive(path, context);
-    }
-
-    void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
-    {
-        TNodeBase::RemoveSelf(request, response, context);
-    }
-
-    void DoRemoveSelf(bool recursive, bool /*force*/) override
-    {
-        auto* thisImpl = GetThisImpl();
-
-        if (recursive) {
-            Clear();
-        } else {
-            YT_LOG_ALERT_IF(
-                !thisImpl->Members().empty(),
-                "Non-recursive removal of a non-empty access control object namespace detected; skipped"
-                "(NamespaceId: %v, Namespace: %v, MemberCount: %v)",
-                thisImpl->GetId(),
-                thisImpl->GetName(),
-                ssize(thisImpl->Members()));
-            return;
-        }
-
-        YT_VERIFY(thisImpl->Members().empty());
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        objectManager->RemoveObject(thisImpl);
-    }
-
-    YTREE_NODE_TYPE_OVERRIDES_BASE(Map)
 
     TIntrusivePtr<const NYTree::ICompositeNode> AsComposite() const override
     {
@@ -768,6 +726,50 @@ public:
     void SetParent(const ICompositeNodePtr& /*parent*/) override
     {
         Y_UNREACHABLE();
+    }
+
+private:
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override
+    {
+        // Resolve ambiguity between the two base class overrides.
+        return TBase::DoInvoke(context);
+    }
+
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    {
+        TNodeBase::GetSelf(request, response, context);
+    }
+
+    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override
+    {
+        return TMapNodeMixin::ResolveRecursive(path, context);
+    }
+
+    void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override
+    {
+        TNodeBase::RemoveSelf(request, response, context);
+    }
+
+    void DoRemoveSelf(bool recursive, bool /*force*/) override
+    {
+        auto* thisImpl = GetThisImpl();
+
+        if (!recursive) {
+            YT_LOG_ALERT_IF(
+                !thisImpl->Members().empty(),
+                "Non-recursive removal of a non-empty access control object namespace detected; skipped "
+                "(NamespaceId: %v, Namespace: %v, MemberCount: %v)",
+                thisImpl->GetId(),
+                thisImpl->GetName(),
+                ssize(thisImpl->Members()));
+            return;
+        }
+
+        Clear();
+        YT_VERIFY(thisImpl->Members().empty());
+
+        const auto& objectManager = Bootstrap_->GetObjectManager();
+        objectManager->RemoveObject(thisImpl);
     }
 
     void ListSystemAttributes(std::vector<ISystemAttributeProvider::TAttributeDescriptor>* descriptors) override

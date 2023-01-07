@@ -102,7 +102,7 @@ void ThrowMethodNotSupported(TStringBuf method, const std::optional<TString>& re
 {
     auto error = TError(
         NRpc::EErrorCode::NoSuchMethod,
-        "Method %v is not supported",
+        "%Qv method is not supported",
         method);
     if (resolveType) {
         error.MutableAttributes()->Set("resolve_type", *resolveType);

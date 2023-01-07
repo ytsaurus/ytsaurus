@@ -30,9 +30,12 @@ class TNonversionedMapObjectProxyBase
     , public virtual NYTree::TMapNodeMixin
     , public virtual NYTree::TNodeBase
 {
-    YTREE_NODE_TYPE_OVERRIDES_BASE(Map)
+public:
+    YTREE_NODE_TYPE_OVERRIDES(Map)
 
 private:
+    friend class TNonversionedMapObjectFactoryBase<TObject>;
+
     using TBase = TNonversionedObjectProxyBase<TObject>;
     using TSelf = TNonversionedMapObjectProxyBase<TObject>;
     using TSelfPtr = TIntrusivePtr<TSelf>;
@@ -52,23 +55,6 @@ public:
 
     NYTree::ICompositeNodePtr GetParent() const override;
     void SetParent(const NYTree::ICompositeNodePtr& parent) override;
-
-    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
-    NYTree::IYPathService::TResolveResult ResolveRecursive(
-        const NYPath::TYPath& path,
-        const NRpc::IServiceContextPtr& context) override;
-
-    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
-    void RemoveSelf(
-        TReqRemove* request,
-        TRspRemove* response,
-        const TCtxRemovePtr& context) override;
-    void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override;
-    void SetRecursive(
-        const NYPath::TYPath& path,
-        TReqSet* request,
-        TRspSet* response,
-        const TCtxSetPtr& context) override;
 
     int GetChildCount() const override;
     std::vector<std::pair<TString, NYTree::INodePtr>> GetChildren() const override;
@@ -102,6 +88,30 @@ protected:
     static TIntrusivePtr<const TSelf> FromNode(const NYTree::IConstNodePtr& node);
     static TSelfPtr FromNode(const NYTree::INodePtr& node);
 
+    bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
+
+   NYTree::IYPathService::TResolveResult ResolveRecursive(
+        const NYPath::TYPath& path,
+        const NRpc::IServiceContextPtr& context) override;
+
+    void GetSelf(
+        TReqGet* request,
+        TRspGet* response,
+        const TCtxGetPtr& context) override;
+    void RemoveSelf(
+        TReqRemove* request,
+        TRspRemove* response,
+        const TCtxRemovePtr& context) override;
+    void SetSelf(
+        TReqSet* request,
+        TRspSet* response,
+        const TCtxSetPtr& context) override;
+    void SetRecursive(
+        const NYPath::TYPath& path,
+        TReqSet* request,
+        TRspSet* response,
+        const TCtxSetPtr& context) override;
+
     TTypeHandlerPtr GetTypeHandler() const;
 
     TSelfPtr GetProxy(TObject* object) const;
@@ -116,7 +126,7 @@ protected:
     void ValidatePermission(
         NYTree::EPermissionCheckScope scope,
         NYTree::EPermission permission,
-        const TString& user = "") override;
+        const TString& user = {}) override;
 
     using THierarchicPermissionValidator<TObject>::ValidatePermission;
 
@@ -165,8 +175,6 @@ protected:
 
     void RenameSelf(const TString& newName);
     virtual void DoRenameSelf(const TString& newName);
-
-    friend class TNonversionedMapObjectFactoryBase<TObject>;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -203,6 +211,10 @@ public:
     virtual void DetachChild(const TProxyPtr& parent, const TProxyPtr& child);
 
 protected:
+    NCellMaster::TBootstrap* const Bootstrap_;
+
+    std::vector<TObject*> CreatedObjects_;
+
     struct TFactoryEvent
     {
         EEventType Type;
@@ -211,8 +223,6 @@ protected:
         TProxyPtr Child;
     };
 
-    NCellMaster::TBootstrap* Bootstrap_;
-    std::vector<TObject*> CreatedObjects_;
     std::vector<TFactoryEvent> EventLog_;
 
     virtual void RemoveCreatedObjects();

@@ -145,7 +145,6 @@ protected:
         NYson::IAsyncYsonConsumer* consumer,
         const TAttributeFilter& attributeFilter,
         bool stable) = 0;
-
 };
 
 DEFINE_REFCOUNTED_TYPE(IYPathService)

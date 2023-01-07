@@ -107,7 +107,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         # See details in YT-16814
         assert get(scheduler_new_orchid_pool_tree_path("default") + "/pools/@") == {}
         assert ls(scheduler_new_orchid_pool_tree_path("default") + "/pools/@") == []
-        with raises_yt_error("Method CheckPermission is not supported"):
+        with raises_yt_error("\"CheckPermission\" method is not supported"):
             check_permission("root", "read", scheduler_new_orchid_pool_tree_path("default") + "/pools")
         with raises_yt_error("Error parsing attribute \"fields\""):
             get(scheduler_new_orchid_pool_tree_path("default") + "/pools", fields=10)
