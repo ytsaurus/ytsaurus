@@ -21,11 +21,12 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
 
 #include <yt/yt/core/ytree/convert.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <sys/stat.h>
 
@@ -80,7 +81,7 @@ public:
 
     TCpuStatistics GetCpuStatistics() const override
     {
-        if (auto resourceTracker = ResourceTracker_.Load()) {
+        if (auto resourceTracker = ResourceTracker_.Acquire()) {
             return resourceTracker->GetCpuStatistics();
         } else {
             return {};
@@ -89,7 +90,7 @@ public:
 
     TBlockIOStatistics GetBlockIOStatistics() const override
     {
-        if (auto resourceTracker = ResourceTracker_.Load()) {
+        if (auto resourceTracker = ResourceTracker_.Acquire()) {
             return resourceTracker->GetBlockIOStatistics();
         } else {
             return {};
@@ -98,7 +99,7 @@ public:
 
     std::optional<TNetworkStatistics> GetNetworkStatistics() const override
     {
-        auto resourceTracker = ResourceTracker_.Load();
+        auto resourceTracker = ResourceTracker_.Acquire();
         if (!Options_.NetworkAddresses.empty() && resourceTracker) {
             return resourceTracker->GetNetworkStatistics();
         } else {
@@ -131,7 +132,7 @@ public:
 
     std::optional<TMemoryStatistics> GetMemoryStatistics() const override
     {
-        auto resourceTracker = ResourceTracker_.Load();
+        auto resourceTracker = ResourceTracker_.Acquire();
         if (Options_.EnablePortoMemoryTracking && resourceTracker) {
             return resourceTracker->GetMemoryStatistics();
         } else {
@@ -290,7 +291,7 @@ public:
 
     IInstancePtr GetUserJobInstance() const override
     {
-        return Instance_.Load();
+        return Instance_.Acquire();
     }
 
     const std::vector<TString>& GetEnvironmentVariables() const override
@@ -330,8 +331,8 @@ private:
 
     std::vector<TString> Envirnoment_;
 
-    TAtomicObject<IInstancePtr> Instance_;
-    TAtomicObject<TPortoResourceTrackerPtr> ResourceTracker_;
+    TAtomicIntrusivePtr<IInstance> Instance_;
+    TAtomicIntrusivePtr<TPortoResourceTracker> ResourceTracker_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TPortoUserJobEnvironment)
@@ -451,7 +452,7 @@ public:
 
     void CleanProcesses() override
     {
-        if (auto process = Process_.Load()) {
+        if (auto process = Process_.Acquire()) {
             process->Kill(9);
         }
     }
@@ -480,7 +481,7 @@ public:
 
     std::optional<pid_t> GetJobRootPid() const override
     {
-        if (auto process = Process_.Load()) {
+        if (auto process = Process_.Acquire()) {
             return process->GetProcessId();
         } else {
             return std::nullopt;
@@ -489,7 +490,7 @@ public:
 
     std::vector<pid_t> GetJobPids() const override
     {
-        if (auto process = Process_.Load()) {
+        if (auto process = Process_.Acquire()) {
             auto pid = process->GetProcessId();
             return GetPidsUnderParent(pid);
         }
@@ -510,7 +511,7 @@ public:
     }
 
 private:
-    TAtomicObject<TProcessBasePtr> Process_;
+    TAtomicIntrusivePtr<TProcessBase> Process_;
 };
 
 DECLARE_REFCOUNTED_CLASS(TSimpleUserJobEnvironment)

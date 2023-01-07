@@ -102,7 +102,7 @@ const TApiConfigPtr& TApi::GetConfig() const
 
 TApiDynamicConfigPtr TApi::GetDynamicConfig() const
 {
-    return DynamicConfig_.Load();
+    return DynamicConfig_.Acquire();
 }
 
 const IPollerPtr& TApi::GetPoller() const

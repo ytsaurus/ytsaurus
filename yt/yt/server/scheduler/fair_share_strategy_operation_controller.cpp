@@ -132,7 +132,7 @@ TControllerScheduleJobResultPtr TFairShareStrategyOperationController::ScheduleJ
         .ToUncancelable()
         .WithTimeout(timeLimit);
 
-    auto config = Config_.Load();
+    auto config = Config_.Acquire();
 
     auto startTime = TInstant::Now();
     scheduleJobResultFuture.Subscribe(
@@ -240,7 +240,7 @@ void TFairShareStrategyOperationController::UpdateConfig(const TFairShareStrateg
 
 TFairShareStrategyOperationControllerConfigPtr TFairShareStrategyOperationController::GetConfig()
 {
-    return Config_.Load();
+    return Config_.Acquire();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

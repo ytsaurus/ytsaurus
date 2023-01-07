@@ -8479,7 +8479,7 @@ TYsonString TOperationControllerBase::BuildJobYson(TJobId id, bool outputStatist
 
 IYPathServicePtr TOperationControllerBase::GetOrchid() const
 {
-    return Orchid_.Load();
+    return Orchid_.Acquire();
 }
 
 void TOperationControllerBase::ZombifyOrchid()

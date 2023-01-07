@@ -7,11 +7,11 @@
 
 #include <yt/yt/core/http/http.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
-
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/library/syncmap/map.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 
@@ -90,7 +90,7 @@ public:
 
 private:
     const TApiConfigPtr Config_;
-    TAtomicObject<TApiDynamicConfigPtr> DynamicConfig_;
+    TAtomicIntrusivePtr<TApiDynamicConfig> DynamicConfig_;
 
     const NDriver::IDriverPtr DriverV3_;
     const NDriver::IDriverPtr DriverV4_;

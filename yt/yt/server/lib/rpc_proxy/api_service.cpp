@@ -85,6 +85,8 @@
 
 #include <yt/yt/core/misc/backoff_strategy.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 #include <library/cpp/yt/misc/cast.h>
 
 namespace NYT::NRpcProxy {
@@ -752,7 +754,7 @@ public:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        auto oldConfig = Config_.Load();
+        auto oldConfig = Config_.Acquire();
 
         YT_LOG_DEBUG(
             "Updating API service config (OldConfig: %v, NewConfig: %v)",
@@ -769,7 +771,7 @@ public:
 private:
     IBootstrap* const Bootstrap_;
     const TProfiler Profiler_;
-    TAtomicObject<TApiServiceDynamicConfigPtr> Config_;
+    TAtomicIntrusivePtr<TApiServiceDynamicConfig> Config_;
     const IProxyCoordinatorPtr Coordinator_;
     const IAccessCheckerPtr AccessChecker_;
 
@@ -817,7 +819,7 @@ private:
             return;
         }
 
-        const auto& config = Config_.Load();
+        const auto& config = Config_.Acquire();
 
         if (config->ForceTracing) {
             traceContext->SetSampled();
@@ -860,7 +862,7 @@ private:
             return config->Enable && !config->SuppressedMethods.contains(method);
         };
 
-        const auto& config = Config_.Load();
+        const auto& config = Config_.Acquire();
 
         // NB: we try to do heavy work only if we are actually going to omit corresponding message. Conserve priceless CPU time.
         if (shouldEmit(config->StructuredLoggingMainTopic)) {
@@ -898,7 +900,7 @@ private:
 
         Coordinator_->ValidateOperable();
 
-        const auto& config = Config_.Load();
+        const auto& config = Config_.Acquire();
 
         // Pretty-printing Protobuf requires a bunch of effort, so we make it conditional.
         if (config->VerboseLogging) {
@@ -2455,7 +2457,7 @@ private:
 
         {
             auto user = context->GetAuthenticationIdentity().User;
-            const auto& config = Config_.Load();
+            const auto& config = Config_.Acquire();
             const auto& formatConfigs = config->Formats;
             TFormatManager formatManager(formatConfigs, user);
             auto specNode = ConvertToNode(specYson);
@@ -3934,7 +3936,7 @@ private:
             options.AllowMissingKeyColumns = request.allow_missing_key_columns();
         }
 
-        if (Config_.Load()->EnableModifyRowsRequestReordering &&
+        if (Config_.Acquire()->EnableModifyRowsRequestReordering &&
             request.has_sequence_number())
         {
             options.SequenceNumber = request.sequence_number();
@@ -4624,7 +4626,7 @@ private:
 
         bool finished = false;
 
-        const auto& config = Config_.Load();
+        const auto& config = Config_.Acquire();
 
         HandleInputStreamingRequest(
             context,

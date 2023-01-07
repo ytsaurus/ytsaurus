@@ -26,7 +26,8 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/statistics.h>
-#include <yt/yt/core/misc/atomic_object.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NJobProxy {
 
@@ -87,7 +88,7 @@ private:
     const NJobTrackerClient::TJobId JobId_;
 
     //! Can be forever null if running in non-Porto environment.
-    TAtomicObject<IJobProxyEnvironmentPtr> JobProxyEnvironment_;
+    TAtomicIntrusivePtr<IJobProxyEnvironment> JobProxyEnvironment_;
 
     TCpuMonitorPtr CpuMonitor_;
 
@@ -136,7 +137,7 @@ private:
     TInstant LastRefCountedTrackerLogTime_;
     i64 LastLoggedJobProxyMaxMemoryUsage_ = 0;
 
-    TAtomicObject<IJobPtr> Job_;
+    TAtomicIntrusivePtr<IJob> Job_;
 
     IJobSpecHelperPtr JobSpecHelper_;
 
