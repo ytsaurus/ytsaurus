@@ -1458,6 +1458,9 @@ def init_singletons(config, yt_config, index):
     set_at(config, "chunk_client_dispatcher", {
         "chunk_reader_pool_size": 1,
     })
+    set_at(config, "tcp_dispatcher", {
+        "thread_pool_size": 2
+    })
     set_at(config, "address_resolver/localhost_fqdn", yt_config.fqdn)
     set_at(config, "solomon_exporter/grid_step", 1000)
     set_at(config, "cypress_annotations/yt_env_index", index)
