@@ -664,7 +664,11 @@ TYsonString TClient::DoGetJobSpec(
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TFun>
-auto RetryJobIsNotRunning(TOperationId operationId, TJobId jobId, TFun invokeRequest, NLogging::TLogger Logger)
+auto RetryJobIsNotRunning(
+    TOperationId operationId,
+    TJobId jobId,
+    TFun invokeRequest,
+    const NLogging::TLogger& Logger)
 {
     constexpr int RetryCount = 10;
     constexpr TDuration RetryBackoff = TDuration::MilliSeconds(100);
@@ -1411,36 +1415,23 @@ static void ParseJobsFromControllerAgentResponse(
         if (needProgress) {
             job.Progress = jobMapNode->GetChildValueOrThrow<double>("progress");
         }
-
-        auto stderrSize = jobMapNode->GetChildValueOrThrow<i64>("stderr_size");
-        if (stderrSize > 0 && needStderrSize) {
+        if (auto stderrSize = jobMapNode->GetChildValueOrThrow<i64>("stderr_size"); stderrSize > 0 && needStderrSize) {
             job.StderrSize = stderrSize;
         }
-
         if (needBriefStatistics) {
             job.BriefStatistics = ConvertToYsonString(jobMapNode->GetChildOrThrow("brief_statistics"));
         }
         if (needJobCompetitionId) {
-            //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
-            if (auto childNode = jobMapNode->FindChild("job_competition_id")) {
-                job.JobCompetitionId = ConvertTo<TJobId>(childNode);
-            }
+            job.JobCompetitionId = jobMapNode->GetChildValueOrThrow<TJobId>("job_competition_id");
         }
         if (needProbingJobCompetitionId) {
-            if (auto childNode = jobMapNode->FindChild("probing_job_competition_id")) {
-                job.ProbingJobCompetitionId = ConvertTo<TJobId>(childNode);
-            }
+            job.ProbingJobCompetitionId = jobMapNode->GetChildValueOrThrow<TJobId>("probing_job_competition_id");
         }
         if (needHasCompetitors) {
-            //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
-            if (auto childNode = jobMapNode->FindChild("has_competitors")) {
-                job.HasCompetitors = ConvertTo<bool>(childNode);
-            }
+            job.HasCompetitors = jobMapNode->GetChildValueOrThrow<bool>("has_competitors");
         }
         if (needHasProbingCompetitors) {
-            if (auto childNode = jobMapNode->FindChild("has_probing_competitors")) {
-                job.HasProbingCompetitors = ConvertTo<bool>(childNode);
-            }
+            job.HasProbingCompetitors = jobMapNode->GetChildValueOrThrow<bool>("has_probing_competitors");
         }
         if (needError) {
             if (auto childNode = jobMapNode->FindChild("error")) {
@@ -1448,9 +1439,7 @@ static void ParseJobsFromControllerAgentResponse(
             }
         }
         if (needTaskName) {
-            if (auto childNode = jobMapNode->FindChild("task_name")) {
-                job.TaskName = ConvertTo<TString>(childNode);
-            }
+            job.TaskName = jobMapNode->GetChildValueOrThrow<TString>("task_name");
         }
         if (needCoreInfos) {
             if (auto childNode = jobMapNode->FindChild("core_infos")) {
@@ -1468,7 +1457,7 @@ static void ParseJobsFromControllerAgentResponse(
     const TListJobsOptions& options,
     std::vector<TJob>* jobs,
     int* totalCount,
-    NLogging::TLogger Logger)
+    const NLogging::TLogger& Logger)
 {
     auto rspOrError = batchRsp->GetResponse<TYPathProxy::TRspGet>(key);
     if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
@@ -1486,7 +1475,9 @@ static void ParseJobsFromControllerAgentResponse(
     auto items = ConvertToNode(NYson::TYsonString(rsp->value()))->AsMap();
     *totalCount += items->GetChildren().size();
 
-    YT_LOG_DEBUG("Received %v jobs from controller agent (Count: %v)", key, items->GetChildren().size());
+    YT_LOG_DEBUG("Received %Qv jobs from controller agent (Count: %v)",
+        key,
+        items->GetChildren().size());
 
     auto filter = [&] (const INodePtr& jobNode) -> bool {
         const auto& jobMap = jobNode->AsMap();
@@ -1494,23 +1485,10 @@ static void ParseJobsFromControllerAgentResponse(
         auto type = ConvertTo<EJobType>(jobMap->GetChildOrThrow("job_type"));
         auto state = ConvertTo<EJobState>(jobMap->GetChildOrThrow("state"));
         auto stderrSize = jobMap->GetChildValueOrThrow<i64>("stderr_size");
-
-        auto failContextSizeNode = jobMap->FindChild("fail_context_size");
-        auto failContextSize = failContextSizeNode
-            ? failContextSizeNode->GetValue<i64>()
-            : 0;
-        auto jobCompetitionIdNode = jobMap->FindChild("job_competition_id");
-        auto jobCompetitionId = jobCompetitionIdNode  //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
-            ? ConvertTo<TJobId>(jobCompetitionIdNode)
-            : TJobId();
-        auto hasCompetitorsNode = jobMap->FindChild("has_competitors");
-        auto hasCompetitors = hasCompetitorsNode  //COMPAT(renadeen): can remove this check when 19.8 will be on all clusters
-            ? ConvertTo<bool>(hasCompetitorsNode)
-            : false;
-        auto taskNameNode = jobMap->FindChild("task_name");
-        auto taskName = taskNameNode
-            ? ConvertTo<TString>(taskNameNode)
-            : "";
+        auto failContextSize = jobMap->GetChildValueOrDefault<i64>("fail_context_size", 0);
+        auto jobCompetitionId = jobMap->GetChildValueOrThrow<TJobId>("job_competition_id");
+        auto hasCompetitors = jobMap->GetChildValueOrThrow<bool>("has_competitors");
+        auto taskName = jobMap->GetChildValueOrThrow<TString>("task_name");
         return
             (!options.Address || options.Address == address) &&
             (!options.Type || options.Type == type) &&
@@ -1739,7 +1717,7 @@ static TError TryFillJobPools(
     const IClientPtr& client,
     TOperationId operationId,
     TMutableRange<TJob> jobs,
-    NLogging::TLogger Logger)
+    const NLogging::TLogger& Logger)
 {
     TGetOperationOptions getOperationOptions;
     getOperationOptions.Attributes = {TString("runtime_parameters")};
