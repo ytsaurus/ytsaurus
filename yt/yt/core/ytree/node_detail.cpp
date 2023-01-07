@@ -18,7 +18,6 @@ using namespace NYPath;
 using namespace NYson;
 
 using NYT::FromProto;
-using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -557,6 +556,34 @@ void TListNodeMixin::SetChild(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSupportsSetSelfMixin::SetSelf(
+    TReqSet* request,
+    TRspSet* /*response*/,
+    const TCtxSetPtr &context)
+{
+    bool force = request->force();
+    context->SetRequestInfo("Force: %v", force);
+
+    ValidateSetSelf(force);
+    ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+    ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
+
+    auto factory = CreateFactory();
+    auto builder = CreateBuilderFromFactory(factory.get());
+    SetNodeFromProducer(
+        this,
+        ConvertToProducer(TYsonString(request->value())),
+        builder.get());
+    factory->Commit();
+
+    context->Reply();
+}
+
+void TSupportsSetSelfMixin::ValidateSetSelf(bool /*force*/) const
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 IYPathServicePtr TNonexistingService::Get()
 {
     return LeakyRefCountedSingleton<TNonexistingService>();
@@ -636,4 +663,3 @@ void TTransactionalNodeFactoryBase::RollbackIfNeeded()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTree
-

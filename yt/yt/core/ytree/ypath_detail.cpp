@@ -149,26 +149,18 @@ bool TYPathServiceBase::ShouldHideAttributes()
         } \
     ) \
     \
-    void TSupports##method::method##Attribute(const TYPath& path, TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context) \
+    void TSupports##method::method##Attribute(const TYPath& /*path*/, TReq##method* /*request*/, TRsp##method* /*response*/, const TCtx##method##Ptr& context) \
     { \
-        Y_UNUSED(path); \
-        Y_UNUSED(request); \
-        Y_UNUSED(response); \
         ThrowMethodNotSupported(context->GetMethod(), TString("attribute")); \
     } \
     \
-    void TSupports##method::method##Self(TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context) \
+    void TSupports##method::method##Self(TReq##method* /*request*/, TRsp##method* /*response*/, const TCtx##method##Ptr& context) \
     { \
-        Y_UNUSED(request); \
-        Y_UNUSED(response); \
         ThrowMethodNotSupported(context->GetMethod(), TString("self")); \
     } \
     \
-    void TSupports##method::method##Recursive(const TYPath& path, TReq##method* request, TRsp##method* response, const TCtx##method##Ptr& context) \
+    void TSupports##method::method##Recursive(const TYPath& /*path*/, TReq##method* /*request*/, TRsp##method* /*response*/, const TCtx##method##Ptr& context) \
     { \
-        Y_UNUSED(path); \
-        Y_UNUSED(request); \
-        Y_UNUSED(response); \
         ThrowMethodNotSupported(context->GetMethod(), TString("recursive")); \
     }
 
@@ -1252,6 +1244,232 @@ const THashSet<TString>& TOpaqueAttributeKeysCache::GetOpaqueAttributeKeys(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TNodeSetterBase
+    : public NYson::TForwardingYsonConsumer
+{
+public:
+    void Commit();
+
+protected:
+    TNodeSetterBase(INode* node, ITreeBuilder* builder);
+    ~TNodeSetterBase();
+
+    void ThrowInvalidType(ENodeType actualType);
+    virtual ENodeType GetExpectedType() = 0;
+
+    void OnMyStringScalar(TStringBuf value) override;
+    void OnMyInt64Scalar(i64 value) override;
+    void OnMyUint64Scalar(ui64 value) override;
+    void OnMyDoubleScalar(double value) override;
+    void OnMyBooleanScalar(bool value) override;
+    void OnMyEntity() override;
+
+    void OnMyBeginList() override;
+
+    void OnMyBeginMap() override;
+
+    void OnMyBeginAttributes() override;
+    void OnMyEndAttributes() override;
+
+protected:
+    class TAttributesSetter;
+
+    INode* const Node_;
+    ITreeBuilder* const TreeBuilder_;
+
+    const std::unique_ptr<ITransactionalNodeFactory> NodeFactory_;
+
+    std::unique_ptr<TAttributesSetter> AttributesSetter_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <class TValue>
+class TNodeSetter
+{ };
+
+#define BEGIN_SETTER(name, type) \
+    template <> \
+    class TNodeSetter<I##name##Node> \
+        : public TNodeSetterBase \
+    { \
+    public: \
+        TNodeSetter(I##name##Node* node, ITreeBuilder* builder) \
+            : TNodeSetterBase(node, builder) \
+            , Node_(node) \
+        { } \
+    \
+    private: \
+        I##name##Node* const Node_; \
+        \
+        virtual ENodeType GetExpectedType() override \
+        { \
+            return ENodeType::name; \
+        }
+
+#define END_SETTER() \
+    };
+
+BEGIN_SETTER(String, TString)
+    void OnMyStringScalar(TStringBuf value) override
+    {
+        Node_->SetValue(TString(value));
+    }
+END_SETTER()
+
+BEGIN_SETTER(Int64, i64)
+    void OnMyInt64Scalar(i64 value) override
+    {
+        Node_->SetValue(value);
+    }
+
+    void OnMyUint64Scalar(ui64 value) override
+    {
+        Node_->SetValue(CheckedIntegralCast<i64>(value));
+    }
+END_SETTER()
+
+BEGIN_SETTER(Uint64,  ui64)
+    void OnMyInt64Scalar(i64 value) override
+    {
+        Node_->SetValue(CheckedIntegralCast<ui64>(value));
+    }
+
+    void OnMyUint64Scalar(ui64 value) override
+    {
+        Node_->SetValue(value);
+    }
+END_SETTER()
+
+BEGIN_SETTER(Double, double)
+    void OnMyDoubleScalar(double value) override
+    {
+        Node_->SetValue(value);
+    }
+END_SETTER()
+
+BEGIN_SETTER(Boolean, bool)
+    void OnMyBooleanScalar(bool value) override
+    {
+        Node_->SetValue(value);
+    }
+END_SETTER()
+
+#undef BEGIN_SETTER
+#undef END_SETTER
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+class TNodeSetter<IMapNode>
+    : public TNodeSetterBase
+{
+public:
+    TNodeSetter(IMapNode* map, ITreeBuilder* builder)
+        : TNodeSetterBase(map, builder)
+        , Map_(map)
+    { }
+
+private:
+    IMapNode* const Map_;
+
+    TString ItemKey_;
+
+
+    ENodeType GetExpectedType() override
+    {
+        return ENodeType::Map;
+    }
+
+    void OnMyBeginMap() override
+    {
+        Map_->Clear();
+    }
+
+    void OnMyKeyedItem(TStringBuf key) override
+    {
+        ItemKey_ = key;
+        TreeBuilder_->BeginTree();
+        Forward(TreeBuilder_, std::bind(&TNodeSetter::OnForwardingFinished, this));
+    }
+
+    void OnForwardingFinished()
+    {
+        YT_VERIFY(Map_->AddChild(ItemKey_, TreeBuilder_->EndTree()));
+        ItemKey_.clear();
+    }
+
+    void OnMyEndMap() override
+    {
+        // Just do nothing.
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+class TNodeSetter<IListNode>
+    : public TNodeSetterBase
+{
+public:
+    TNodeSetter(IListNode* list, ITreeBuilder* builder)
+        : TNodeSetterBase(list, builder)
+        , List_(list)
+    { }
+
+private:
+    IListNode* const List_;
+
+
+    ENodeType GetExpectedType() override
+    {
+        return ENodeType::List;
+    }
+
+    void OnMyBeginList() override
+    {
+        List_->Clear();
+    }
+
+    void OnMyListItem() override
+    {
+        TreeBuilder_->BeginTree();
+        Forward(TreeBuilder_, [this] {
+            List_->AddChild(TreeBuilder_->EndTree());
+        });
+    }
+
+    void OnMyEndList() override
+    {
+        // Just do nothing.
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <>
+class TNodeSetter<IEntityNode>
+    : public TNodeSetterBase
+{
+public:
+    TNodeSetter(IEntityNode* entity, ITreeBuilder* builder)
+        : TNodeSetterBase(entity, builder)
+    { }
+
+private:
+    ENodeType GetExpectedType() override
+    {
+        return ENodeType::Entity;
+    }
+
+    void OnMyEntity() override
+    {
+        // Just do nothing.
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TNodeSetterBase::TAttributesSetter
     : public TForwardingYsonConsumer
 {
@@ -1356,31 +1574,46 @@ void TNodeSetterBase::Commit()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void SetNodeFromProducer(
+    const INodePtr& node,
+    const NYson::TYsonProducer& producer,
+    ITreeBuilder* builder)
+{
+    YT_VERIFY(node);
+    YT_VERIFY(builder);
+
+    switch (node->GetType()) {
+        #define XX(type) \
+            case ENodeType::type: { \
+                TNodeSetter<I##type##Node> setter(node->As##type().Get(), builder); \
+                producer.Run(&setter); \
+                setter.Commit(); \
+                break; \
+            }
+
+        XX(String)
+        XX(Int64)
+        XX(Uint64)
+        XX(Double)
+        XX(Boolean)
+        XX(Map)
+        XX(List)
+        XX(Entity)
+
+        #undef XX
+
+        default:
+            YT_ABORT();
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TYPathServiceContext
     : public TServiceContextBase
 {
 public:
-    TYPathServiceContext(
-        TSharedRefArray requestMessage,
-        NLogging::TLogger logger,
-        NLogging::ELogLevel logLevel)
-        : TServiceContextBase(
-            std::move(requestMessage),
-            std::move(logger),
-            logLevel)
-    { }
-
-    TYPathServiceContext(
-        std::unique_ptr<TRequestHeader> requestHeader,
-        TSharedRefArray requestMessage,
-        NLogging::TLogger logger,
-        NLogging::ELogLevel logLevel)
-        : TServiceContextBase(
-            std::move(requestHeader),
-            std::move(requestMessage),
-            std::move(logger),
-            logLevel)
-    { }
+    using TServiceContextBase::TServiceContextBase;
 
 protected:
     std::optional<NProfiling::TWallTimer> Timer_;

@@ -82,9 +82,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
     registrar.Parameter("tree_serialization_codec", &TThis::TreeSerializationCodec)
         .Default(NCompression::ECodec::Lz4);
 
-    registrar.Parameter("forbid_set_command", &TThis::ForbidSetCommand)
-        .Default(true);
-
     registrar.Parameter("recursive_resource_usage_cache_expiration_timeout", &TThis::RecursiveResourceUsageCacheExpirationTimeout)
         .Default(TDuration::Seconds(30));
 
@@ -110,4 +107,3 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCypressServer
-

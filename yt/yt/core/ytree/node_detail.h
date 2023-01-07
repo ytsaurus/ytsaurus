@@ -27,17 +27,15 @@ class TNodeBase
     , public virtual INode
 {
 public:
-#define IMPLEMENT_AS_METHODS(key) \
-    virtual TIntrusivePtr<I##key##Node> As##key() override \
+#define IMPLEMENT_AS_METHODS(type) \
+    TIntrusivePtr<I##type##Node> As##type() override \
     { \
-        ThrowInvalidNodeType(this, ENodeType::key, GetType()); \
-        YT_ABORT(); \
+        ThrowInvalidNodeType(this, ENodeType::type, GetType()); \
     } \
     \
-    virtual TIntrusivePtr<const I##key##Node> As##key() const override \
+    TIntrusivePtr<const I##type##Node> As##type() const override \
     { \
-        ThrowInvalidNodeType(this, ENodeType::key, GetType()); \
-        YT_ABORT(); \
+        ThrowInvalidNodeType(this, ENodeType::type, GetType()); \
     }
 
     IMPLEMENT_AS_METHODS(Entity)
@@ -51,25 +49,12 @@ public:
     IMPLEMENT_AS_METHODS(Map)
 #undef IMPLEMENT_AS_METHODS
 
-    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
-
     TYPath GetPath() const override;
 
 protected:
-    template <class TNode>
-    void DoSetSelf(TNode* node, const NYson::TYsonString& value)
-    {
-        ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
-        ValidatePermission(EPermissionCheckScope::Descendants, EPermission::Remove);
-
-        auto factory = CreateFactory();
-        auto builder = CreateBuilderFromFactory(factory.get());
-        SetNodeFromProducer(node, ConvertToProducer(value), builder.get());
-        factory->Commit();
-    }
-
     bool DoInvoke(const NRpc::IServiceContextPtr& context) override;
 
+    TResolveResult ResolveRecursive(const NYPath::TYPath& path, const NRpc::IServiceContextPtr& context) override;
     void GetKeySelf(TReqGetKey* request, TRspGetKey* response, const TCtxGetKeyPtr& context) override;
     void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override;
     void RemoveSelf(TReqRemove* request, TRspRemove* response, const TCtxRemovePtr& context) override;
@@ -161,7 +146,17 @@ protected:
         const TYPath& path,
         INodePtr child,
         bool recursive) override;
+};
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TSupportsSetSelfMixin
+    : public virtual TNodeBase
+{
+protected:
+    void SetSelf(TReqSet *request, TRspSet* /*response*/, const TCtxSetPtr &context) override;
+
+    virtual void ValidateSetSelf(bool /*force*/) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -202,32 +197,21 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define YTREE_NODE_TYPE_OVERRIDES_BASE(key) \
+#define YTREE_NODE_TYPE_OVERRIDES(type) \
 public: \
-    virtual ::NYT::NYTree::ENodeType GetType() const override \
+    ::NYT::NYTree::ENodeType GetType() const override \
     { \
-        return ::NYT::NYTree::ENodeType::key; \
+        return ::NYT::NYTree::ENodeType::type; \
     } \
     \
-    virtual TIntrusivePtr<const ::NYT::NYTree::I##key##Node> As##key() const override \
+    TIntrusivePtr<const ::NYT::NYTree::I##type##Node> As##type() const override \
     { \
         return this; \
     } \
     \
-    virtual TIntrusivePtr< ::NYT::NYTree::I##key##Node > As##key() override \
+    TIntrusivePtr<::NYT::NYTree::I##type##Node> As##type() override \
     { \
         return this; \
-    }
-
-#define YTREE_NODE_TYPE_OVERRIDES(key) \
-    YTREE_NODE_TYPE_OVERRIDES_BASE(key) \
-protected: \
-    virtual void SetSelf(TReqSet* request, TRspSet* response, const TCtxSetPtr& context) override \
-    { \
-        Y_UNUSED(response); \
-        context->SetRequestInfo(); \
-        DoSetSelf<::NYT::NYTree::I##key##Node>(this, NYson::TYsonString(request->value())); \
-        context->Reply(); \
     }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -253,7 +237,6 @@ protected:
 private:
     using EState = ENodeFactoryState;
     EState State_ = EState::Active;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

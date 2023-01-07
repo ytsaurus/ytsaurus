@@ -27,7 +27,7 @@ class TLinkNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TLinkNode>
 {
 public:
-    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Entity)
+    YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
     using TCypressNodeProxyBase::TCypressNodeProxyBase;
@@ -36,7 +36,7 @@ public:
         const TYPath& path,
         const IServiceContextPtr& context) override
     {
-        auto propagate = [&] () {
+        auto propagate = [&] {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             const auto* linkNode = GetThisImpl();
             auto combinedPath = linkNode->ComputeEffectiveTargetPath() + path;
@@ -81,7 +81,7 @@ private:
         descriptors->push_back(EInternedAttributeKey::Broken);
     }
 
-    bool GetBuiltinAttribute(TInternedAttributeKey key, NYson::IYsonConsumer* consumer) override
+    bool GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer) override
     {
         switch (key) {
             case EInternedAttributeKey::TargetPath: {
@@ -98,7 +98,7 @@ private:
         return TBase::GetBuiltinAttribute(key, consumer);
     }
 
-    TFuture<NYson::TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
+    TFuture<TYsonString> GetBuiltinAttributeAsync(TInternedAttributeKey key) override
     {
         switch (key) {
             case EInternedAttributeKey::Broken:

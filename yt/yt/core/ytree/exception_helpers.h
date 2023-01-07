@@ -2,15 +2,15 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/yson/public.h>
+
+#include <optional>
 
 namespace NYT::NYTree {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ThrowInvalidNodeType(
+[[noreturn]] void ThrowInvalidNodeType(
     const IConstNodePtr& node,
     ENodeType expectedType,
     ENodeType actualType);
@@ -18,21 +18,22 @@ void ValidateNodeType(
     const IConstNodePtr& node,
     const THashSet<ENodeType>& expectedTypes,
     const TString& expectedTypesStringRepresentation);
-void ThrowNoSuchChildKey(const IConstNodePtr& node, TStringBuf key);
-void ThrowNoSuchChildKey(TStringBuf key);
-void ThrowNoSuchChildIndex(const IConstNodePtr& node, int index);
-void ThrowNoSuchAttribute(TStringBuf key);
-void ThrowNoSuchBuiltinAttribute(TStringBuf key);
-void ThrowNoSuchCustomAttribute(TStringBuf key);
-void ThrowMethodNotSupported(
+
+[[noreturn]] void ThrowNoSuchChildKey(const IConstNodePtr& node, TStringBuf key);
+[[noreturn]] void ThrowNoSuchChildKey(TStringBuf key);
+[[noreturn]] void ThrowNoSuchChildIndex(const IConstNodePtr& node, int index);
+[[noreturn]] void ThrowNoSuchAttribute(TStringBuf key);
+[[noreturn]] void ThrowNoSuchBuiltinAttribute(TStringBuf key);
+[[noreturn]] void ThrowNoSuchCustomAttribute(TStringBuf key);
+[[noreturn]] void ThrowMethodNotSupported(
     TStringBuf method,
     const std::optional<TString>& resolveType = {});
-void ThrowCannotHaveChildren(const IConstNodePtr& node);
-void ThrowAlreadyExists(const IConstNodePtr& node);
-void ThrowCannotRemoveNode(const IConstNodePtr& node);
-void ThrowCannotReplaceNode(const IConstNodePtr& node);
-void ThrowCannotRemoveAttribute(TStringBuf key);
-void ThrowCannotSetBuiltinAttribute(TStringBuf key);
+[[noreturn]] void ThrowCannotHaveChildren(const IConstNodePtr& node);
+[[noreturn]] void ThrowAlreadyExists(const IConstNodePtr& node);
+[[noreturn]] void ThrowCannotRemoveNode(const IConstNodePtr& node);
+[[noreturn]] void ThrowCannotReplaceNode(const IConstNodePtr& node);
+[[noreturn]] void ThrowCannotRemoveAttribute(TStringBuf key);
+[[noreturn]] void ThrowCannotSetBuiltinAttribute(TStringBuf key);
 
 ////////////////////////////////////////////////////////////////////////////////
 

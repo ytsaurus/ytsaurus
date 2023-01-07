@@ -58,7 +58,7 @@ class TChaosReplicatedTableNodeProxy
     : public TCypressNodeProxyBase<TNontemplateCypressNodeProxyBase, IEntityNode, TChaosReplicatedTableNode>
 {
 public:
-    YTREE_NODE_TYPE_OVERRIDES_WITH_CHECK(Entity)
+    YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
     using TCypressNodeProxyBase::TCypressNodeProxyBase;

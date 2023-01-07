@@ -53,6 +53,7 @@ public:
     // This method is made public for orchid nodes, which obtain their manifests
     // from owning node's custom attributes.
     NYTree::IAttributeDictionary* GetCustomAttributes() override;
+
 protected:
     NCellMaster::TBootstrap* const Bootstrap_;
     TObjectTypeMetadata* const Metadata_;
@@ -239,7 +240,6 @@ protected:
 
     private:
         TNontemplateNonversionedObjectProxyBase* const Proxy_;
-
     };
 
     using TCustomAttributeDictionaryPtr = TIntrusivePtr<TCustomAttributeDictionary>;

@@ -27,22 +27,22 @@ namespace NYT::NYTree {
 ////////////////////////////////////////////////////////////////////////////////
 
 #define DECLARE_YPATH_SERVICE_METHOD(ns, method) \
-    typedef ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> TCtx##method; \
-    typedef ::NYT::TIntrusivePtr<TCtx##method> TCtx##method##Ptr; \
-    typedef TCtx##method::TTypedRequest  TReq##method; \
-    typedef TCtx##method::TTypedResponse TRsp##method; \
+    using TCtx##method = ::NYT::NRpc::TTypedServiceContext<ns::TReq##method, ns::TRsp##method> ; \
+    using TCtx##method##Ptr = ::NYT::TIntrusivePtr<TCtx##method>; \
+    using TReq##method = TCtx##method::TTypedRequest; \
+    using TRsp##method = TCtx##method::TTypedResponse; \
     \
     void method##Thunk( \
         const ::NYT::NRpc::IServiceContextPtr& context, \
         const ::NYT::NRpc::THandlerInvocationOptions& options) \
     { \
         auto typedContext = ::NYT::New<TCtx##method>(context, options); \
-        if (!typedContext->DeserializeRequest()) \
-            return; \
-        this->method( \
-            &typedContext->Request(), \
-            &typedContext->Response(), \
-            typedContext); \
+        if (typedContext->DeserializeRequest()) { \
+            this->method( \
+                &typedContext->Request(), \
+                &typedContext->Response(), \
+                typedContext); \
+        } \
     } \
     \
     void method( \
@@ -87,7 +87,6 @@ protected:
     virtual TResolveResult ResolveSelf(const TYPath& path, const NRpc::IServiceContextPtr& context);
     virtual TResolveResult ResolveAttributes(const TYPath& path, const NRpc::IServiceContextPtr& context);
     virtual TResolveResult ResolveRecursive(const TYPath& path, const NRpc::IServiceContextPtr& context);
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -107,11 +106,10 @@ class TSupportsExistsBase
     : public virtual TRefCounted
 {
 protected:
-    typedef NRpc::TTypedServiceContext<NProto::TReqExists, NProto::TRspExists> TCtxExists;
-    typedef TIntrusivePtr<TCtxExists> TCtxExistsPtr;
+    using TCtxExists = NRpc::TTypedServiceContext<NProto::TReqExists, NProto::TRspExists>;
+    using TCtxExistsPtr = TIntrusivePtr<TCtxExists>;
 
     void Reply(const TCtxExistsPtr& context, bool value);
-
 };
 
 class TSupportsMultisetAttributes
@@ -158,7 +156,7 @@ protected:
     virtual void ValidatePermission(
         EPermissionCheckScope scope,
         EPermission permission,
-        const TString& user = "");
+        const TString& user = {});
 
     class TCachingPermissionValidator
     {
@@ -167,7 +165,7 @@ protected:
             TSupportsPermissions* owner,
             EPermissionCheckScope scope);
 
-        void Validate(EPermission permission, const TString& user = "");
+        void Validate(EPermission permission, const TString& user = {});
 
     private:
         TSupportsPermissions* const Owner_;
@@ -175,7 +173,6 @@ protected:
 
         THashMap<TString, EPermissionSet> ValidatedPermissions_;
     };
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -338,246 +335,10 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TNodeSetterBase
-    : public NYson::TForwardingYsonConsumer
-{
-public:
-    void Commit();
-
-protected:
-    TNodeSetterBase(INode* node, ITreeBuilder* builder);
-    ~TNodeSetterBase();
-
-    void ThrowInvalidType(ENodeType actualType);
-    virtual ENodeType GetExpectedType() = 0;
-
-    void OnMyStringScalar(TStringBuf value) override;
-    void OnMyInt64Scalar(i64 value) override;
-    void OnMyUint64Scalar(ui64 value) override;
-    void OnMyDoubleScalar(double value) override;
-    void OnMyBooleanScalar(bool value) override;
-    void OnMyEntity() override;
-
-    void OnMyBeginList() override;
-
-    void OnMyBeginMap() override;
-
-    void OnMyBeginAttributes() override;
-    void OnMyEndAttributes() override;
-
-protected:
-    class TAttributesSetter;
-
-    INode* const Node_;
-    ITreeBuilder* const TreeBuilder_;
-
-    const std::unique_ptr<ITransactionalNodeFactory> NodeFactory_;
-
-    std::unique_ptr<TAttributesSetter> AttributesSetter_;
-
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TValue>
-class TNodeSetter
-{ };
-
-#define BEGIN_SETTER(name, type) \
-    template <> \
-    class TNodeSetter<I##name##Node> \
-        : public TNodeSetterBase \
-    { \
-    public: \
-        TNodeSetter(I##name##Node* node, ITreeBuilder* builder) \
-            : TNodeSetterBase(node, builder) \
-            , Node_(node) \
-        { } \
-    \
-    private: \
-        I##name##Node* const Node_; \
-        \
-        virtual ENodeType GetExpectedType() override \
-        { \
-            return ENodeType::name; \
-        }
-
-#define END_SETTER() \
-    };
-
-BEGIN_SETTER(String, TString)
-    void OnMyStringScalar(TStringBuf value) override
-    {
-        Node_->SetValue(TString(value));
-    }
-END_SETTER()
-
-BEGIN_SETTER(Int64, i64)
-    void OnMyInt64Scalar(i64 value) override
-    {
-        Node_->SetValue(value);
-    }
-
-    void OnMyUint64Scalar(ui64 value) override
-    {
-        Node_->SetValue(CheckedIntegralCast<i64>(value));
-    }
-END_SETTER()
-
-BEGIN_SETTER(Uint64,  ui64)
-    void OnMyInt64Scalar(i64 value) override
-    {
-        Node_->SetValue(CheckedIntegralCast<ui64>(value));
-    }
-
-    void OnMyUint64Scalar(ui64 value) override
-    {
-        Node_->SetValue(value);
-    }
-END_SETTER()
-
-BEGIN_SETTER(Double, double)
-    void OnMyDoubleScalar(double value) override
-    {
-        Node_->SetValue(value);
-    }
-END_SETTER()
-
-BEGIN_SETTER(Boolean, bool)
-    void OnMyBooleanScalar(bool value) override
-    {
-        Node_->SetValue(value);
-    }
-END_SETTER()
-
-#undef BEGIN_SETTER
-#undef END_SETTER
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-class TNodeSetter<IMapNode>
-    : public TNodeSetterBase
-{
-public:
-    TNodeSetter(IMapNode* map, ITreeBuilder* builder)
-        : TNodeSetterBase(map, builder)
-        , Map_(map)
-    { }
-
-private:
-    IMapNode* const Map_;
-
-    TString ItemKey_;
-
-
-    ENodeType GetExpectedType() override
-    {
-        return ENodeType::Map;
-    }
-
-    void OnMyBeginMap() override
-    {
-        Map_->Clear();
-    }
-
-    void OnMyKeyedItem(TStringBuf key) override
-    {
-        ItemKey_ = key;
-        TreeBuilder_->BeginTree();
-        Forward(TreeBuilder_, std::bind(&TNodeSetter::OnForwardingFinished, this));
-    }
-
-    void OnForwardingFinished()
-    {
-        YT_VERIFY(Map_->AddChild(ItemKey_, TreeBuilder_->EndTree()));
-        ItemKey_.clear();
-    }
-
-    void OnMyEndMap() override
-    {
-        // Just do nothing.
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-class TNodeSetter<IListNode>
-    : public TNodeSetterBase
-{
-public:
-    TNodeSetter(IListNode* list, ITreeBuilder* builder)
-        : TNodeSetterBase(list, builder)
-        , List_(list)
-    { }
-
-private:
-    IListNode* const List_;
-
-
-    ENodeType GetExpectedType() override
-    {
-        return ENodeType::List;
-    }
-
-    void OnMyBeginList() override
-    {
-        List_->Clear();
-    }
-
-    void OnMyListItem() override
-    {
-        TreeBuilder_->BeginTree();
-        Forward(TreeBuilder_, [this] {
-            List_->AddChild(TreeBuilder_->EndTree());
-        });
-    }
-
-    void OnMyEndList() override
-    {
-        // Just do nothing.
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <>
-class TNodeSetter<IEntityNode>
-    : public TNodeSetterBase
-{
-public:
-    TNodeSetter(IEntityNode* entity, ITreeBuilder* builder)
-        : TNodeSetterBase(entity, builder)
-    { }
-
-private:
-    ENodeType GetExpectedType() override
-    {
-        return ENodeType::Entity;
-    }
-
-    void OnMyEntity() override
-    {
-        // Just do nothing.
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-template <class TNode>
 void SetNodeFromProducer(
-    TNode* node,
-    NYson::TYsonProducer producer,
-    ITreeBuilder* builder)
-{
-    YT_VERIFY(node);
-    YT_VERIFY(builder);
-
-    TNodeSetter<TNode> setter(node, builder);
-    producer.Run(&setter);
-    setter.Commit();
-}
+    const INodePtr& node,
+    const NYson::TYsonProducer& producer,
+    ITreeBuilder* builder);
 
 ////////////////////////////////////////////////////////////////////////////////
 

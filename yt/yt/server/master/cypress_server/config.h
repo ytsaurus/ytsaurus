@@ -67,10 +67,6 @@ public:
 
     NCompression::ECodec TreeSerializationCodec;
 
-    // COMPAT(ignat)
-    //! Forbids performing set inside Cypress.
-    bool ForbidSetCommand;
-
     TDuration RecursiveResourceUsageCacheExpirationTimeout;
 
     double DefaultExternalCellBias;

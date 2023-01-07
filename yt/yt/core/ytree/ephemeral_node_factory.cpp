@@ -21,8 +21,8 @@ using namespace NYson;
 ////////////////////////////////////////////////////////////////////////////////
 
 class TEphemeralNodeBase
-    : public TNodeBase
-    , public TSupportsAttributes
+    : public TSupportsAttributes
+    , public TSupportsSetSelfMixin
     , public TEphemeralAttributeOwner
 {
 public:
@@ -109,10 +109,7 @@ class TScalarNode
     , public virtual IBase
 {
 public:
-    TScalarNode(bool shouldHideAttributes)
-        : TEphemeralNodeBase(shouldHideAttributes)
-        , Value_()
-    { }
+    using TEphemeralNodeBase::TEphemeralNodeBase;
 
     typename NMpl::TCallTraits<TValue>::TType GetValue() const override
     {
@@ -125,21 +122,20 @@ public:
     }
 
 private:
-    TValue Value_;
+    TValue Value_{};
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-#define DECLARE_SCALAR_TYPE(name, type) \
-    class T ## name ## Node \
-        : public TScalarNode<type, I ## name ## Node> \
+#define DECLARE_SCALAR_TYPE(type, cppType) \
+    class T##type##Node \
+        : public TScalarNode<cppType, I##type##Node> \
     { \
-        YTREE_NODE_TYPE_OVERRIDES(name) \
-        \
-        public: \
-            T ## name ## Node (bool shouldHideAttributes) \
-                : TScalarNode<type, I ## name ## Node> (shouldHideAttributes) \
-            { } \
+    public: \
+        YTREE_NODE_TYPE_OVERRIDES(type) \
+    \
+    public: \
+        using TScalarNode::TScalarNode; \
     };
 
 DECLARE_SCALAR_TYPE(String, TString)
@@ -158,9 +154,7 @@ class TCompositeNodeBase
     , public virtual IBase
 {
 public:
-    TCompositeNodeBase(bool shouldHideAttributes)
-        : TEphemeralNodeBase(shouldHideAttributes)
-    { }
+    using TEphemeralNodeBase::TEphemeralNodeBase;
 
     TIntrusivePtr<ICompositeNode> AsComposite() override
     {
@@ -179,12 +173,11 @@ class TMapNode
     : public TCompositeNodeBase<IMapNode>
     , public TMapNodeMixin
 {
+public:
     YTREE_NODE_TYPE_OVERRIDES(Map)
 
 public:
-    explicit TMapNode(bool shouldHideAttributes)
-        : TCompositeNodeBase<IMapNode>(shouldHideAttributes)
-    { }
+    using TCompositeNodeBase::TCompositeNodeBase;
 
     void Clear() override
     {
@@ -318,12 +311,11 @@ class TListNode
     : public TCompositeNodeBase<IListNode>
     , public TListNodeMixin
 {
+public:
     YTREE_NODE_TYPE_OVERRIDES(List)
 
 public:
-    explicit TListNode(bool shouldHideAttributes)
-        : TCompositeNodeBase<IListNode>(shouldHideAttributes)
-    { }
+    using TCompositeNodeBase::TCompositeNodeBase;
 
     void Clear() override
     {
@@ -441,12 +433,11 @@ class TEntityNode
     : public TEphemeralNodeBase
     , public virtual IEntityNode
 {
+public:
     YTREE_NODE_TYPE_OVERRIDES(Entity)
 
 public:
-    explicit TEntityNode(bool shouldHideAttributes)
-        : TEphemeralNodeBase(shouldHideAttributes)
-    { }
+    using TEphemeralNodeBase::TEphemeralNodeBase;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
