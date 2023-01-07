@@ -41,7 +41,9 @@ public:
     TShutdownModule()
         : Py::ExtensionModule<TShutdownModule>("yt_shutdown_lib")
     {
+#if PY_VERSION_HEX < 0x03090000
         PyEval_InitThreads();
+#endif
 
         add_keyword_method("shutdown", &TShutdownModule::Shutdown, "Performs python-side shutdown for yt bindings");
 

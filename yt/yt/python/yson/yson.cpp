@@ -253,7 +253,9 @@ public:
         // This name should match .so file name.
         : Py::ExtensionModule<TYsonModule>("yson_lib")
     {
+#if PY_VERSION_HEX < 0x03090000
         PyEval_InitThreads();
+#endif
 
         TSignalRegistry::Get()->PushCallback(SIGSEGV, CrashSignalHandler);
         TSignalRegistry::Get()->PushDefaultSignalHandler(SIGSEGV);

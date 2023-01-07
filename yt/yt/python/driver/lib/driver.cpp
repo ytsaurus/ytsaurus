@@ -292,7 +292,9 @@ void TDriverModuleBase::Initialize(
     std::function<Py::Dict()> getModuleDictionary,
     std::function<void(const char*, PycxxMethod, const char*)> addPycxxMethod)
 {
+#if PY_VERSION_HEX < 0x03090000
     PyEval_InitThreads();
+#endif
 
     TSignalRegistry::Get()->PushCallback(AllCrashSignals, CrashSignalHandler);
     TSignalRegistry::Get()->PushDefaultSignalHandler(AllCrashSignals);
