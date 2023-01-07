@@ -37,25 +37,21 @@ Py::Object TCommandDescriptor::IsHeavy(Py::Tuple& /*args*/, Py::Dict& /*kwargs*/
 
 void TCommandDescriptor::InitType(const TString& moduleName)
 {
-    static bool Initialized_ = false;
-    if (Initialized_) {
-        return;
-    }
+    static std::once_flag flag;
+    std::call_once(flag, [&] {
+        TypeName_ = moduleName + ".CommandDescriptor";
+        behaviors().name(TypeName_.c_str());
+        behaviors().doc("Describe command properties");
+        behaviors().supportGetattro();
+        behaviors().supportSetattro();
 
-    TypeName_ = moduleName + ".CommandDescriptor";
-    behaviors().name(TypeName_.c_str());
-    behaviors().doc("Describe command properties");
-    behaviors().supportGetattro();
-    behaviors().supportSetattro();
+        PYCXX_ADD_KEYWORDS_METHOD(input_type, InputType, "Input type of the command");
+        PYCXX_ADD_KEYWORDS_METHOD(output_type, OutputType, "Output type of the command");
+        PYCXX_ADD_KEYWORDS_METHOD(is_volatile, IsVolatile, "Check that command is volatile");
+        PYCXX_ADD_KEYWORDS_METHOD(is_heavy, IsHeavy, "Check that command is heavy");
 
-    PYCXX_ADD_KEYWORDS_METHOD(input_type, InputType, "Input type of the command");
-    PYCXX_ADD_KEYWORDS_METHOD(output_type, OutputType, "Output type of the command");
-    PYCXX_ADD_KEYWORDS_METHOD(is_volatile, IsVolatile, "Check that command is volatile");
-    PYCXX_ADD_KEYWORDS_METHOD(is_heavy, IsHeavy, "Check that command is heavy");
-
-    behaviors().readyType();
-
-    Initialized_ = true;
+        behaviors().readyType();
+    });
 }
 
 
