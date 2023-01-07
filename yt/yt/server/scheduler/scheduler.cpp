@@ -1842,6 +1842,7 @@ private:
     TIntrusivePtr<NYTree::TServiceCombiner> CombinedOrchidService_;
 
     std::vector<TOperationPtr> OperationsToDestroy_;
+    std::vector<IYPathServicePtr> OperationServicesToDestroy_;
 
     THashMap<TString, TString> UserToDefaultPoolMap_;
 
@@ -2988,7 +2989,14 @@ private:
     void UnregisterOperation(const TOperationPtr& operation)
     {
         EraseOrCrash(IdToOperation_, operation->GetId());
-        EraseOrCrash(IdToOperationService_, operation->GetId());
+
+        {
+            auto it = IdToOperationService_.find(operation->GetId());
+            YT_VERIFY(it != IdToOperationService_.end());
+            OperationServicesToDestroy_.push_back(std::move(it->second));
+            IdToOperationService_.erase(it);
+        }
+
         if (operation->Alias()) {
             auto& alias = GetOrCrash(OperationAliases_, *operation->Alias());
             YT_LOG_DEBUG("Alias now corresponds to an unregistered operation (Alias: %v, OperationId: %v)",
@@ -3977,7 +3985,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        Y_UNUSED(WaitFor(BIND(&TImpl::TryDestroyOperations, MakeStrong(this), Passed(std::move(OperationsToDestroy_)))
+        Y_UNUSED(WaitFor(
+            BIND(
+                &TImpl::TryDestroyOperations,
+                MakeStrong(this),
+                Passed(std::move(OperationsToDestroy_)),
+                Passed(std::move(OperationServicesToDestroy_))
+            )
             .AsyncVia(GetBackgroundInvoker())
             .Run()));
     }
@@ -4016,8 +4030,13 @@ private:
         return result;
     }
 
-    void TryDestroyOperations(std::vector<TOperationPtr>&& operations)
+    void TryDestroyOperations(
+        std::vector<TOperationPtr>&& operations,
+        std::vector<IYPathServicePtr>&& operationServices)
     {
+        for (auto& service : operationServices) {
+            service.Reset();
+        }
         for (auto& operation : operations) {
             if (operation->GetRefCount() == 1) {
                 YT_LOG_DEBUG("Destroying operation (OperationId: %v)", operation->GetId());
