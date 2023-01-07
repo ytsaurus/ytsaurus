@@ -70,10 +70,10 @@ TDriverResponseHolder::~TDriverResponseHolder()
     }
 
     if (!Destroyed_) {
-		auto guard = Guard(DestructionSpinLock_);
-		if (ShuttingDown_) {
-			return;
-		}
+        auto guard = Guard(DestructionSpinLock_);
+        if (ShuttingDown_) {
+            return;
+        }
 
         {
             TGilGuard gilGuard;
@@ -101,7 +101,7 @@ void TDriverResponseHolder::OnBeforePythonFinalize()
         }
     }
 
-	{
+    {
         TReleaseAcquireGilGuard guard;
         DestructionSpinLock_.Acquire();
     }
@@ -244,26 +244,22 @@ TDriverResponse::~TDriverResponse()
 
 void TDriverResponse::InitType(const TString& moduleName)
 {
-    static bool Initialized_ = false;
-    if (Initialized_) {
-        return;
-    }
+    static std::once_flag flag;
+    std::call_once(flag, [&] {
+        TypeName_ = moduleName + ".Response";
+        behaviors().name(TypeName_.c_str());
+        behaviors().doc("Command response");
+        behaviors().supportGetattro();
+        behaviors().supportSetattro();
 
-    TypeName_ = moduleName + ".Response";
-    behaviors().name(TypeName_.c_str());
-    behaviors().doc("Command response");
-    behaviors().supportGetattro();
-    behaviors().supportSetattro();
+        PYCXX_ADD_KEYWORDS_METHOD(response_parameters, ResponseParameters, "Extract response parameters");
+        PYCXX_ADD_KEYWORDS_METHOD(wait, Wait, "Synchronously wait command completion");
+        PYCXX_ADD_KEYWORDS_METHOD(is_set, IsSet, "Check that response is finished");
+        PYCXX_ADD_KEYWORDS_METHOD(is_ok, IsOk, "Check that response executed successfully (can be called only if response is set)");
+        PYCXX_ADD_KEYWORDS_METHOD(error, Error, "Return error of response (can be called only if response is set)");
 
-    PYCXX_ADD_KEYWORDS_METHOD(response_parameters, ResponseParameters, "Extract response parameters");
-    PYCXX_ADD_KEYWORDS_METHOD(wait, Wait, "Synchronously wait command completion");
-    PYCXX_ADD_KEYWORDS_METHOD(is_set, IsSet, "Check that response is finished");
-    PYCXX_ADD_KEYWORDS_METHOD(is_ok, IsOk, "Check that response executed successfully (can be called only if response is set)");
-    PYCXX_ADD_KEYWORDS_METHOD(error, Error, "Return error of response (can be called only if response is set)");
-
-    behaviors().readyType();
-
-    Initialized_ = true;
+        behaviors().readyType();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

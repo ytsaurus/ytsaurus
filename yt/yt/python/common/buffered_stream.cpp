@@ -1,6 +1,8 @@
 #include "buffered_stream.h"
 #include "helpers.h"
 
+#include <mutex>
+
 namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -220,23 +222,19 @@ TBufferedStreamWrap::~TBufferedStreamWrap()
 
 void TBufferedStreamWrap::InitType(const TString& moduleName)
 {
-    static bool Initialized_ = false;
-    if (Initialized_) {
-        return;
-    }
+    static std::once_flag flag;
+    std::call_once(flag, [&] {
+        TypeName_ = moduleName + ".BufferedStream";
+        behaviors().name(TypeName_.c_str());
+        behaviors().doc("Buffered stream to perform read and download asynchronously");
+        behaviors().supportGetattro();
+        behaviors().supportSetattro();
 
-    TypeName_ = moduleName + ".BufferedStream";
-    behaviors().name(TypeName_.c_str());
-    behaviors().doc("Buffered stream to perform read and download asynchronously");
-    behaviors().supportGetattro();
-    behaviors().supportSetattro();
+        PYCXX_ADD_KEYWORDS_METHOD(read, Read, "Synchronously read data from stream");
+        PYCXX_ADD_KEYWORDS_METHOD(empty, Empty, "Check wether the stream is empty");
 
-    PYCXX_ADD_KEYWORDS_METHOD(read, Read, "Synchronously read data from stream");
-    PYCXX_ADD_KEYWORDS_METHOD(empty, Empty, "Check wether the stream is empty");
-
-    behaviors().readyType();
-
-    Initialized_ = true;
+        behaviors().readyType();
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
