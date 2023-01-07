@@ -337,7 +337,7 @@ const TProxyConfigPtr& TBootstrap::GetConfig() const
 
 TProxyDynamicConfigPtr TBootstrap::GetDynamicConfig() const
 {
-    return DynamicConfig_.Load();
+    return DynamicConfig_.Acquire();
 }
 
 const NApi::IClientPtr& TBootstrap::GetRootClient() const

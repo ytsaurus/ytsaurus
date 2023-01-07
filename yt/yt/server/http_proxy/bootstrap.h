@@ -23,7 +23,6 @@
 
 #include <yt/yt/core/concurrency/public.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/public.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -35,6 +34,8 @@
 #include <yt/yt/core/https/public.h>
 
 #include <yt/yt/core/ytree/public.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NHttpProxy {
 
@@ -76,7 +77,7 @@ private:
     const NYTree::INodePtr ConfigNode_;
     const TInstant StartTime_ = TInstant::Now();
 
-    TAtomicObject<TProxyDynamicConfigPtr> DynamicConfig_ = New<TProxyDynamicConfig>();
+    TAtomicIntrusivePtr<TProxyDynamicConfig> DynamicConfig_ = TAtomicIntrusivePtr(New<TProxyDynamicConfig>());
 
     NConcurrency::TActionQueuePtr Control_;
     NConcurrency::IPollerPtr Poller_;

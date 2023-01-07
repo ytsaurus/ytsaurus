@@ -66,8 +66,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/atomic_object.h>
-#include <yt/yt/core/misc/atomic_ptr.h>
 #include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/histogram.h>
 #include <yt/yt/core/misc/id_generator.h>
@@ -78,6 +76,8 @@
 #include <yt/yt/core/ytree/ypath_client.h>
 
 #include <yt/yt/core/yson/string.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NControllerAgent::NControllers {
 
@@ -590,7 +590,7 @@ protected:
 
     NYTree::IMapNodePtr UnrecognizedSpec_;
 
-    TAtomicObject<NYTree::IYPathServicePtr> Orchid_;
+    TAtomicIntrusivePtr<NYTree::IYPathService> Orchid_;
 
     std::vector<std::vector<char>> TestingAllocationVector_;
 

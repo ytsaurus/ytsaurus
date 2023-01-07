@@ -597,7 +597,7 @@ void TJobProxy::SetJob(IJobPtr job)
 
 IJobPtr TJobProxy::FindJob() const
 {
-    return Job_.Load();
+    return Job_.Acquire();
 }
 
 IJobPtr TJobProxy::GetJobOrThrow()
@@ -616,7 +616,7 @@ void TJobProxy::SetJobProxyEnvironment(IJobProxyEnvironmentPtr environment)
 
 IJobProxyEnvironmentPtr TJobProxy::FindJobProxyEnvironment() const
 {
-    return JobProxyEnvironment_.Load();
+    return JobProxyEnvironment_.Acquire();
 }
 
 TJobResult TJobProxy::RunJob()

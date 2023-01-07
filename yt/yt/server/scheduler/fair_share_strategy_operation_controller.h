@@ -2,7 +2,7 @@
 
 #include "private.h"
 
-#include <yt/yt/core/misc/atomic_object.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NScheduler {
 
@@ -68,7 +68,7 @@ private:
     const NLogging::TLogger Logger;
 
     NThreading::TReaderWriterSpinLock ConfigLock_;
-    TAtomicObject<TFairShareStrategyOperationControllerConfigPtr> Config_;
+    TAtomicIntrusivePtr<TFairShareStrategyOperationControllerConfig> Config_;
 
     struct TStateShard
     {
