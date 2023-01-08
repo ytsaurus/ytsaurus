@@ -356,17 +356,17 @@ public:
     //! Location disk is OK.
     bool IsLocationDiskOK() const;
 
-    //! True, if location may not use disk.
-    bool IsLocationPendingDiskDecommission() const;
+    //! True, if location pending decommission.
+    bool IsLocationPendingDecommission() const;
 
     //! Disable alert about location disk failing.
-    void MarkLocationDiskAsOK();
+    void MarkLocationDiskHealthy();
 
-    //! Location has been decommissed.
-    void MarkLocationAsDecommissioned();
+    //! Location for decommissioning.
+    void MarkLocationForDecommissioning();
 
     //! Enable alert about location disk failing.
-    void MarkLocationDiskAsFailed();
+    void MarkLocationDiskFailed();
 
     //! Returns |true| if location is sick.
     bool IsSick() const;

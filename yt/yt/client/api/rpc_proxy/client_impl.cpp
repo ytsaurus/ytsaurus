@@ -1752,6 +1752,25 @@ TFuture<void> TClient::ResumeTabletCells(
     ThrowUnimplemented("ResumeTabletCells");
 }
 
+TFuture<TReleaseLocationsResult> TClient::ReleaseLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationGuids,
+    const TReleaseLocationsOptions& /*options*/)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ReleaseLocations();
+    ToProto(req->mutable_node_address(), nodeAddress);
+    ToProto(req->mutable_location_guids(), locationGuids);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspReleaseLocationsPtr& rsp) {
+        auto locationGuids = FromProto<std::vector<TGuid>>(rsp->location_guids());
+        return TReleaseLocationsResult{
+            .LocationGuids = locationGuids
+        };
+    }));
+}
+
 TFuture<TStartYqlQueryResult> TClient::StartYqlQuery(
     const TString& /*query*/,
     const TStartYqlQueryOptions& /*options*/)

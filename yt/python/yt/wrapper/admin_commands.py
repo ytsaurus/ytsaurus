@@ -74,3 +74,13 @@ def remove_maintenance(node_address, maintenance_id, client=None):
     }
 
     return make_request("remove_maintenance", params=params, client=client)
+
+
+def release_locations(node_address, location_guids, client=None):
+    """Mark locations for decommissioning"""
+    params = {
+        "node_address": node_address,
+        "location_guids": location_guids
+    }
+
+    return make_request("release_locations", params=params, client=client)

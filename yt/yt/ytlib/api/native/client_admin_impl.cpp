@@ -10,6 +10,7 @@
 #include <yt/yt/ytlib/chunk_client/chunk_meta_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+#include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/controller_agent_service_proxy.h>
@@ -465,6 +466,25 @@ void TClient::DoRemoveMaintenance(
 
     WaitFor(req->Invoke())
         .ThrowOnError();
+}
+
+TReleaseLocationsResult TClient::DoReleaseLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationGuids,
+    const TReleaseLocationsOptions& options)
+{
+    ValidateSuperuserPermissions();
+    TDataNodeServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
+
+    auto req = proxy.ReleaseLocations();
+    ToProto(req->mutable_location_guids(), locationGuids);
+    req->SetTimeout(options.Timeout);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return TReleaseLocationsResult{
+        .LocationGuids = FromProto<std::vector<TGuid>>(rsp->location_guids())
+    };
 }
 
 void TClient::SyncCellsIfNeeded(const std::vector<TCellId>& cellIds)

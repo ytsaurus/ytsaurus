@@ -826,6 +826,14 @@ TFuture<void> TDelegatingClient::RemoveMaintenance(
     return Underlying_->RemoveMaintenance(nodeAddress, id, options);
 }
 
+TFuture<TReleaseLocationsResult> TDelegatingClient::ReleaseLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationGuids,
+    const TReleaseLocationsOptions& options)
+{
+    return Underlying_->ReleaseLocations(nodeAddress, locationGuids, options);
+}
+
 TFuture<TStartYqlQueryResult> TDelegatingClient::StartYqlQuery(
     const TString& query,
     const TStartYqlQueryOptions& options)

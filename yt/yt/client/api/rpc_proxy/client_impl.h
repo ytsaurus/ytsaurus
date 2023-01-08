@@ -380,6 +380,11 @@ public:
         NNodeTrackerClient::TMaintenanceId id,
         const TRemoveMaintenanceOptions& options) override;
 
+    TFuture<TReleaseLocationsResult> ReleaseLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationGuids,
+        const TReleaseLocationsOptions& options) override;
+
     // YQL
 
     TFuture<TStartYqlQueryResult> StartYqlQuery(

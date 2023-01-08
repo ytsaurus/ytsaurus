@@ -519,6 +519,11 @@ public:
         NNodeTrackerClient::TMaintenanceId id,
         const TRemoveMaintenanceOptions& options = {}) override;
 
+    TFuture<TReleaseLocationsResult> ReleaseLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationGuids,
+        const TReleaseLocationsOptions& options = {}) override;
+
     TFuture<TStartYqlQueryResult> StartYqlQuery(
         const TString& query,
         const TStartYqlQueryOptions& options = {}) override;

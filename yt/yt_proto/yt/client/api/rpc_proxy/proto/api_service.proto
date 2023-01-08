@@ -1680,6 +1680,17 @@ message TRspGetColumnarStatistics
     repeated TColumnarStatistics statistics = 1;
 }
 
+message TReqReleaseLocations
+{
+    required string node_address = 1;
+    repeated NYT.NProto.TGuid location_guids = 2;
+}
+
+message TRspReleaseLocations
+{
+    repeated NYT.NProto.TGuid location_guids = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqPartitionTables

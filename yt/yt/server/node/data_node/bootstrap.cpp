@@ -267,12 +267,12 @@ public:
 
         DiskManagerProxy_ = New<TDiskManagerProxy>(
             GetConfig()->DataNode->DiskManagerProxy);
-        auto diskInfoProvider = New<TDiskInfoProvider>(DiskManagerProxy_);
+        LocationManager_ = New<TLocationManager>(
+            ChunkStore_,
+            GetControlInvoker(),
+            New<TDiskInfoProvider>(DiskManagerProxy_));
         LocationHealthChecker_ = New<TLocationHealthChecker>(
-            New<TLocationManager>(
-                ChunkStore_,
-                GetControlInvoker(),
-                diskInfoProvider),
+            LocationManager_,
             GetControlInvoker(),
             GetConfig()->DataNode->LocationHealthChecker);
     }
@@ -314,6 +314,11 @@ public:
     const IAllyReplicaManagerPtr& GetAllyReplicaManager() const override
     {
         return AllyReplicaManager_;
+    }
+
+    const TLocationManagerPtr& GetLocationManager() const override
+    {
+        return LocationManager_;
     }
 
     const TSessionManagerPtr& GetSessionManager() const override
@@ -464,7 +469,7 @@ private:
     IIOThroughputMeterPtr IOThroughputMeter_;
 
     TDiskManagerProxyPtr DiskManagerProxy_;
-
+    TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
 
     TMasterJobSensors MasterJobSensors_;

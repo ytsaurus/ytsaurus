@@ -701,6 +701,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMaintenance));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReleaseLocations));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
@@ -4170,6 +4171,31 @@ private:
         ExecuteCall(context, [=] {
             return client->RemoveMaintenance(nodeAddress, id);
         });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReleaseLocations)
+    {
+        auto nodeAddress = request->node_address();
+
+        TReleaseLocationsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("NodeAddress: %v", nodeAddress);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ReleaseLocations(
+                    nodeAddress,
+                    FromProto<std::vector<TGuid>>(request->location_guids()),
+                    options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_location_guids(), result.LocationGuids);
+            });
     }
 
     ////////////////////////////////////////////////////////////////////////////////

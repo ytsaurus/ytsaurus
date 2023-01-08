@@ -392,6 +392,12 @@ public:
         const TGetColumnarStatisticsOptions& options),
         (paths, options))
 
+    IMPLEMENT_METHOD(TReleaseLocationsResult, ReleaseLocations, (
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationGuids,
+        const TReleaseLocationsOptions& options),
+        (nodeAddress, locationGuids, options))
+
     IMPLEMENT_METHOD(TMultiTablePartitions, PartitionTables, (
         const std::vector<NYPath::TRichYPath>& paths,
         const TPartitionTablesOptions& options),
@@ -881,6 +887,11 @@ private:
     std::vector<NTableClient::TColumnarStatistics> DoGetColumnarStatistics(
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options);
+
+    TReleaseLocationsResult DoReleaseLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationGuids,
+        const TReleaseLocationsOptions& options);
 
     TMultiTablePartitions DoPartitionTables(
         const std::vector<NYPath::TRichYPath>& paths,

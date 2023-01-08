@@ -8,11 +8,34 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMockedDiskConfig
+    : public NYTree::TYsonStruct
+{
+    TString DiskId;
+    TString DevicePath;
+    TString DeviceName;
+    TString DiskModel;
+    std::vector<TString> PartitionFsLabels;
+    EDiskState State;
+
+    REGISTER_YSON_STRUCT(TMockedDiskConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMockedDiskConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TDiskManagerProxyConfig
     : public NYTree::TYsonStruct
 {
     TString DiskManagerAddress;
     TString DiskManagerServiceName;
+
+    bool IsMock;
+    std::vector<TMockedDiskConfigPtr> MockDisks;
+    std::vector<TString> MockYtPaths;
 
     TDuration RequestTimeout;
 

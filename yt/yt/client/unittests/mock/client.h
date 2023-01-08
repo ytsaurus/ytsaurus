@@ -524,6 +524,11 @@ public:
     MOCK_METHOD(TFuture<void>, CheckClusterLiveness, (
         const TCheckClusterLivenessOptions& options), (override));
 
+    MOCK_METHOD(TFuture<TReleaseLocationsResult>, ReleaseLocations, (
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationGuids,
+        const TReleaseLocationsOptions& options), (override));
+
     MOCK_METHOD(TFuture<TStartYqlQueryResult>, StartYqlQuery, (
         const TString& query, const TStartYqlQueryOptions& options), (override));
 

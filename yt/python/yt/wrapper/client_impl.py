@@ -2301,3 +2301,12 @@ class YtClient(ClientState):
         :param maintenance_id: maintenance id.
         """
         return client_api.remove_maintenance(node_address, maintenance_id, self)
+
+    def release_locations(self, node_address, location_guids):
+        """
+        Mark locations for decommissioning.
+
+        :param node_address: node address.
+        :param location_guids: location guids.
+        """
+        return client_api.release_locations(node_address, location_guids, self)

@@ -12,7 +12,7 @@ struct TLocationLivenessInfo
 {
     TStoreLocationPtr Location;
     TString DiskId;
-    bool IsLocationDiskPendingDecommission;
+    bool IsLocationPendingDecommission;
     bool IsDiskAlive;
 };
 
@@ -29,7 +29,7 @@ public:
 
     TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveliness();
 
-    TFuture<std::vector<TStoreLocationPtr>> MarkLocationsAsDecommissioned(const THashSet<TGuid>& locationUuids);
+    TFuture<std::vector<TGuid>> ReleaseLocations(const THashSet<TGuid>& locationUuids);
 
     TFuture<std::vector<TErrorOr<void>>> RecoverDisks(const THashSet<TString>& diskIds);
 
@@ -41,7 +41,7 @@ private:
     std::vector<TLocationLivenessInfo> MapLocationToLivelinessInfo(
         const std::vector<NContainers::TDiskInfo>& failedDisks);
 
-    std::vector<TStoreLocationPtr> MarkLocationsAsDecommissioned(
+    std::vector<TGuid> MarkLocationsForDecommissioning(
         const std::vector<NContainers::TDiskInfo>& disks,
         const THashSet<TGuid>& locationUuids);
 

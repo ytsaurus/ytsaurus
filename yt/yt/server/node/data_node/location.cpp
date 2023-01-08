@@ -1042,12 +1042,12 @@ bool TChunkLocation::IsLocationDiskOK() const
     return LocationDiskFailedAlert_.Load().IsOK();
 }
 
-bool TChunkLocation::IsLocationPendingDiskDecommission() const
+bool TChunkLocation::IsLocationPendingDecommission() const
 {
     return IsPendingDiskDecommission_;
 }
 
-void TChunkLocation::MarkLocationDiskAsOK()
+void TChunkLocation::MarkLocationDiskHealthy()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1064,7 +1064,7 @@ void TChunkLocation::MarkLocationDiskAsOK()
     LocationDiskFailedAlert_.Store(TError());
 }
 
-void TChunkLocation::MarkLocationAsDecommissioned()
+void TChunkLocation::MarkLocationForDecommissioning()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
@@ -1078,7 +1078,7 @@ void TChunkLocation::MarkLocationAsDecommissioned()
             << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
 }
 
-void TChunkLocation::MarkLocationDiskAsFailed()
+void TChunkLocation::MarkLocationDiskFailed()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
