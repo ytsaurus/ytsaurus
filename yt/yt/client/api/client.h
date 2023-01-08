@@ -1520,6 +1520,15 @@ struct TResumeTabletCellsOptions
     , public TMutatingOptions
 { };
 
+struct TReleaseLocationsOptions
+    : public TTimeoutOptions
+{ };
+
+struct TReleaseLocationsResult
+{
+    std::vector<TGuid> LocationGuids;
+};
+
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
 
 struct TTableBackupManifest
@@ -2160,6 +2169,11 @@ struct IClient
         const TString& nodeAddress,
         NNodeTrackerClient::TMaintenanceId id,
         const TRemoveMaintenanceOptions& options = {}) = 0;
+
+    virtual TFuture<TReleaseLocationsResult> ReleaseLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationGuids,
+        const TReleaseLocationsOptions& options = {}) = 0;
 
     // YQL
 

@@ -51,7 +51,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivelinessInfo
     for (const auto& location : locations) {
         locationLivelinessInfos.push_back({
             .Location = location,
-            .IsLocationDiskPendingDecommission = location->IsLocationPendingDiskDecommission(),
+            .IsLocationPendingDecommission = location->IsLocationPendingDecommission(),
             .IsDiskAlive = !diskNames.contains(location->GetStaticConfig()->DeviceName)});
     }
 
@@ -65,7 +65,7 @@ TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveli
             .AsyncVia(ControlInvoker_));
 }
 
-std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissioned(
+std::vector<TGuid> TLocationManager::MarkLocationsForDecommissioning(
     const std::vector<TDiskInfo>& failedDisks,
     const THashSet<TGuid>& locationUuids)
 {
@@ -82,24 +82,24 @@ std::vector<TStoreLocationPtr> TLocationManager::MarkLocationsAsDecommissioned(
         failedDiskNames.insert(failedDisk.DeviceName);
     }
 
-    std::vector<TStoreLocationPtr> locationsForDecommission;
+    std::vector<TGuid> locationsForDecommission;
 
     for (const auto& location : ChunkStore_->Locations()) {
         if (failedDiskNames.contains(location->GetStaticConfig()->DeviceName) &&
             locationUuids.contains(location->GetUuid())) {
-            location->MarkLocationAsDecommissioned();
-            locationsForDecommission.push_back(location);
+            location->MarkLocationForDecommissioning();
+            locationsForDecommission.push_back(location->GetUuid());
         }
     }
 
     return locationsForDecommission;
 }
 
-TFuture<std::vector<TStoreLocationPtr>> TLocationManager::MarkLocationsAsDecommissioned(const THashSet<TGuid>& locationUuids)
+TFuture<std::vector<TGuid>> TLocationManager::ReleaseLocations(const THashSet<TGuid>& locationUuids)
 {
     return DiskInfoProvider_->GetYtDiskInfos(NContainers::EDiskState::Failed)
         .Apply(BIND([=] (const std::vector<TDiskInfo>& failedDisks) {
-            return MarkLocationsAsDecommissioned(failedDisks, locationUuids);
+            return MarkLocationsForDecommissioning(failedDisks, locationUuids);
         })
         .AsyncVia(ControlInvoker_));
 }
@@ -174,11 +174,11 @@ void TLocationHealthChecker::OnHealthCheck()
 
         if (livelinessInfo.IsDiskAlive) {
             diskWithLivelisessLocations.insert(livelinessInfo.DiskId);
-            location->MarkLocationDiskAsOK();
+            location->MarkLocationDiskHealthy();
         } else {
-            location->MarkLocationDiskAsFailed();
+            location->MarkLocationDiskFailed();
 
-            if (livelinessInfo.IsLocationDiskPendingDecommission) {
+            if (livelinessInfo.IsLocationPendingDecommission) {
                 diskWithDecommissedLocations.insert(livelinessInfo.DiskId);
             }
         }

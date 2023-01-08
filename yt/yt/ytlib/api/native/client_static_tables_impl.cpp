@@ -4,9 +4,14 @@
 #include "partition_tables.h"
 #include "skynet.h"
 
+#include <yt/yt/ytlib/node_tracker_client/channel.h>
+#include <yt/yt/ytlib/node_tracker_client/public.h>
+
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/columnar_statistics_fetcher.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
+
+#include <yt/yt/client/node_tracker_client/node_directory.h>
 
 #include <yt/yt/client/job_tracker_client/public.h>
 
@@ -14,9 +19,15 @@
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
+#include <yt/yt/core/misc/guid.h>
+
+#include <yt/yt/core/rpc/public.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NYPath;
+using namespace NChunkClient;
 using namespace NTableClient;
 using namespace NConcurrency;
 

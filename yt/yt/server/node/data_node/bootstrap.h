@@ -17,6 +17,7 @@ struct IBootstrap
     // Chunk storage.
     virtual const TChunkStorePtr& GetChunkStore() const = 0;
     virtual const IAllyReplicaManagerPtr& GetAllyReplicaManager() const = 0;
+    virtual const TLocationManagerPtr& GetLocationManager() const = 0;
 
     // Session stuff.
     virtual const TSessionManagerPtr& GetSessionManager() const = 0;

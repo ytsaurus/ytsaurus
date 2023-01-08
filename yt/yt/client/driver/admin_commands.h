@@ -174,4 +174,19 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TReleaseLocationsCommand
+    : public TTypedCommand<NApi::TReleaseLocationsOptions>
+{
+public:
+   TReleaseLocationsCommand();
+
+private:
+    TString NodeAddress_;
+    std::vector<TGuid> LocationGuids_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

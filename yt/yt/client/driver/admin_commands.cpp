@@ -229,4 +229,29 @@ void TRemoveMaintenanceCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TReleaseLocationsCommand::TReleaseLocationsCommand()
+{
+    RegisterParameter("node_address", NodeAddress_);
+    RegisterParameter("location_guids", LocationGuids_)
+        .Default();
+}
+
+void TReleaseLocationsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->ReleaseLocations(NodeAddress_, LocationGuids_, Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("location_guids")
+                .BeginList()
+                    .DoFor(result.LocationGuids, [&] (TFluentList fluent, const auto& uuid) {
+                        fluent.Item().Value(uuid);
+                    })
+                .EndList()
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

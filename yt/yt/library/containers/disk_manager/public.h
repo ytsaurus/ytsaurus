@@ -35,6 +35,7 @@ struct TDiskInfo
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TMockedDiskConfig)
 DECLARE_REFCOUNTED_STRUCT(TDiskManagerProxyConfig)
 DECLARE_REFCOUNTED_STRUCT(TDiskManagerProxyDynamicConfig)
 

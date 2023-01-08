@@ -51,6 +51,7 @@
 #include <yt/yt/server/node/cluster_node/config.h>
 
 #include <yt/yt/server/node/data_node/local_chunk_reader.h>
+#include <yt/yt/server/node/data_node/location_manager.h>
 #include <yt/yt/server/node/data_node/lookup_session.h>
 
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
@@ -243,6 +244,8 @@ public:
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
             .SetCancelable(true));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReleaseLocations)
+            .SetInvoker(Bootstrap_->GetControlInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AnnounceChunkReplicas)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
     }
@@ -2003,6 +2006,17 @@ private:
             subresponseIndices)));
     }
 
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ReleaseLocations)
+    {
+        auto locationManager = Bootstrap_->GetLocationManager();
+        auto locationGuids = FromProto<std::vector<TGuid>>(request->location_guids());
+
+        context->ReplyFrom(locationManager->ReleaseLocations({locationGuids.begin(), locationGuids.end()})
+            .Apply(BIND([=] (const std::vector<TGuid>& locationGuids) {
+                ToProto(response->mutable_location_guids(), locationGuids);
+            })));
+    }
+
     void CombineColumnarStatisticsSubresponses(
         const TCtxGetColumnarStatisticsPtr& context,
         const std::vector<int>& subresponseIndices,
@@ -2119,7 +2133,6 @@ private:
 
         context->Reply();
     }
-
 
     bool IsCloseDemanded(const TStoreLocationPtr& location)
     {

@@ -548,6 +548,18 @@ message TRspGetColumnarStatistics
 
 ////////////////////////////////////////////////////////////////////////////////
 
+message TReqReleaseLocations
+{
+    repeated NYT.NProto.TGuid location_guids = 2;
+}
+
+message TRspReleaseLocations
+{
+    repeated NYT.NProto.TGuid location_guids = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 message TChunkReplicaAnnouncement
 {
     required NYT.NProto.TGuid chunk_id = 1;

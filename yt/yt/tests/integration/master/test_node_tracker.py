@@ -37,7 +37,7 @@ class TestNodeTracker(YTEnvSetup):
             "slot_manager": {
                 "slot_location_statistics_update_period": 100,
             },
-        },
+        }
     }
 
     @authors("babenko")

@@ -79,6 +79,17 @@ TDiskManagerProxy::TDiskManagerProxy(TDiskManagerProxyConfigPtr config)
 
 TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskMountPaths()
 {
+    // fast path for tests
+    if (Config_->IsMock) {
+        THashSet<TString> paths;
+
+        for (const auto& path : Config_->MockYtPaths) {
+            paths.insert(path);
+        }
+
+        return MakeFuture(std::move(paths));
+    }
+
     TDiskManagerApi api(Channel_, ServiceName_);
     auto request = api.GetYTMountedDevices();
     request->SetTimeout(GetRequestTimeout());
@@ -106,6 +117,30 @@ TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskMountPaths()
 
 TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
 {
+    // fast path for tests
+    if (Config_->IsMock) {
+        std::vector<TDiskInfo> disks;
+
+        for (const auto& disk : Config_->MockDisks) {
+            THashSet<TString> labels;
+
+            for (const auto& label : disk->PartitionFsLabels) {
+                labels.insert(label);
+            }
+
+            disks.emplace_back(TDiskInfo{
+                .DiskId = disk->DiskId,
+                .DevicePath = disk->DevicePath,
+                .DeviceName = disk->DeviceName,
+                .DiskModel = disk->DiskModel,
+                .PartitionFsLabels = labels,
+                .State = disk->State
+            });
+        }
+
+        return MakeFuture(disks);
+    }
+
     TDiskManagerApi api(Channel_, ServiceName_);
     auto request = api.ListDisks();
     request->SetTimeout(GetRequestTimeout());
@@ -146,6 +181,11 @@ TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
 }
 
 TFuture<void> TDiskManagerProxy::RecoverDiskById(TString diskId, ERecoverPolicy recoverPolicy) {
+    // fast path for tests
+    if (Config_->IsMock) {
+        return MakeFuture(TError());
+    }
+
     TDiskManagerApi api(Channel_, ServiceName_);
     auto request = api.RecoverDisk();
     request->set_disk_id(diskId);
