@@ -4,9 +4,9 @@
 
 #include <yt/yt/orm/library/query/public.h>
 
-#include <yt/yt/core/misc/atomic_ptr.h>
-
 #include <yt/yt/core/ytree/yson_struct.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NScheduler {
 
@@ -187,15 +187,13 @@ public:
 
     struct TPreparedExperiments final
     {
-        static constexpr bool EnableHazard = true;
-
         THashMap<TString, TPreparedExperimentPtr> Experiments;
     };
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 
 private:
-    TAtomicPtr<TPreparedExperiments> PreparedExperiments_;
+    TAtomicIntrusivePtr<TPreparedExperiments> PreparedExperiments_;
 };
 
 //! Validate experiment specification, in particular:

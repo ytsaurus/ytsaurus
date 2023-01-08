@@ -11,7 +11,7 @@
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
-#include <yt/yt/core/misc/atomic_ptr.h>
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NScheduler {
 
@@ -87,8 +87,6 @@ public:
 
 struct TDynamicAttributesListSnapshot final
 {
-    static constexpr bool EnableHazard = true;
-
     explicit TDynamicAttributesListSnapshot(TDynamicAttributesList value);
 
     const TDynamicAttributesList Value;
@@ -552,8 +550,7 @@ public:
 private:
     // NB(eshcherbin): Enabled operations' shared states are also stored in static attributes to eliminate a hashmap lookup during scheduling.
     TOperationIdToJobSchedulerSharedState OperationIdToSharedState_;
-    // TODO(eshcherbin): Change to new TAtomicIntrusivePtr.
-    TAtomicPtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
+    TAtomicIntrusivePtr<TDynamicAttributesListSnapshot> DynamicAttributesListSnapshot_;
 
     TDynamicAttributesListSnapshotPtr GetDynamicAttributesListSnapshot() const;
     void UpdateDynamicAttributesListSnapshot(

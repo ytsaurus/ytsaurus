@@ -1209,8 +1209,7 @@ private:
     THashMap<TOperationId, TInstant> OperationIdToActivationTime_;
     THashMap<TOperationId, TInstant> OperationIdToFirstFoundLimitingAncestorTime_;
 
-    // TODO(eshcherbin): Change to TAtomicIntrusivePtr?
-    TAtomicPtr<TResourceUsageSnapshot> ResourceUsageSnapshot_;
+    TAtomicIntrusivePtr<TResourceUsageSnapshot> ResourceUsageSnapshot_;
 
     std::vector<TOperationId> ActivatableOperationIds_;
 

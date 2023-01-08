@@ -648,7 +648,7 @@ void TFairShareTreeSchedulingSnapshot::UpdateDynamicAttributesListSnapshot(
     const TResourceUsageSnapshotPtr& resourceUsageSnapshot)
 {
     if (!resourceUsageSnapshot) {
-        DynamicAttributesListSnapshot_.Release();
+        DynamicAttributesListSnapshot_.Reset();
         return;
     }
 
