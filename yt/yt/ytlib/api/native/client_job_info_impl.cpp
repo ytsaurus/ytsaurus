@@ -42,6 +42,7 @@
 #include <yt/yt/ytlib/scheduler/records/job_fail_context.record.h>
 #include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_stderr.record.h>
+#include <yt/yt/ytlib/scheduler/records/job_spec.record.h>
 
 #include <yt/yt/core/compression/codec.h>
 
@@ -168,16 +169,6 @@ DECLARE_REFCOUNTED_CLASS(TJobInputReader)
 DEFINE_REFCOUNTED_TYPE(TJobInputReader)
 
 ////////////////////////////////////////////////////////////////////////////////
-
-static TUnversionedOwningRow CreateJobKey(TJobId jobId, const TNameTablePtr& nameTable)
-{
-    TOwningRowBuilder keyBuilder(2);
-
-    keyBuilder.AddValue(MakeUnversionedUint64Value(jobId.Parts64[0], nameTable->GetIdOrRegisterName("job_id_hi")));
-    keyBuilder.AddValue(MakeUnversionedUint64Value(jobId.Parts64[1], nameTable->GetIdOrRegisterName("job_id_lo")));
-
-    return keyBuilder.FinishRow();
-}
 
 static TYPath GetControllerAgentOrchidRunningJobsPath(TStringBuf controllerAgentAddress, TOperationId operationId)
 {
@@ -321,49 +312,42 @@ TErrorOr<TJobSpec> TClient::TryFetchJobSpecFromJobNode(
 
 TJobSpec TClient::FetchJobSpecFromArchive(TJobId jobId)
 {
-    auto nameTable = New<TNameTable>();
+    NRecords::TOperationIdKey recordKey{
+        .JobIdHi = jobId.Parts64[0],
+        .JobIdLo = jobId.Parts64[1]
+    };
+    auto keys = FromRecordKeys(MakeRange(std::array{recordKey}));
 
-    TLookupRowsOptions lookupOptions;
-    lookupOptions.ColumnFilter = NTableClient::TColumnFilter({nameTable->RegisterName("spec")});
-    lookupOptions.KeepMissingRows = true;
-
-    auto owningKey = CreateJobKey(jobId, nameTable);
-
-    std::vector<TUnversionedRow> keys;
-    keys.push_back(owningKey);
-
-    auto lookupResult = WaitFor(LookupRows(
+    auto rowsetOrError = WaitFor(LookupRows(
         GetOperationsArchiveJobSpecsPath(),
-        nameTable,
-        MakeSharedRange(keys, owningKey),
-        lookupOptions));
+        NRecords::TJobSpecDescriptor::Get()->GetNameTable(),
+        keys,
+        /*options*/ {}));
 
-    if (!lookupResult.IsOK()) {
-        THROW_ERROR_EXCEPTION(lookupResult)
-            .Wrap("Lookup job spec in operation archive failed")
-            << TErrorAttribute("job_id", jobId);
+    if (!rowsetOrError.IsOK()) {
+        THROW_ERROR_EXCEPTION("Failed to get job spec from operation archive")
+            << TErrorAttribute("job_id", jobId)
+            << rowsetOrError;
     }
 
-    auto rows = lookupResult.Value()->GetRows();
-    YT_VERIFY(!rows.Empty());
+    const auto& rowset = rowsetOrError.Value();
 
-    if (!rows[0]) {
+    auto records = ToRecords<NRecords::TJobSpec>(rowset);
+    YT_VERIFY(records.size() <= 1);
+
+    std::optional<TString> jobSpecStr;
+    if (!records.empty()) {
+        jobSpecStr = records[0].Spec;
+    }
+
+    if (!jobSpecStr) {
         THROW_ERROR_EXCEPTION("Missing job spec in job archive table")
             << TErrorAttribute("job_id", jobId);
     }
 
-    auto value = rows[0][0];
-
-    if (value.Type != EValueType::String) {
-        THROW_ERROR_EXCEPTION("Found job spec has unexpected value type")
-            << TErrorAttribute("job_id", jobId)
-            << TErrorAttribute("value_type", value.Type);
-    }
-
     TJobSpec jobSpec;
-    bool ok = jobSpec.ParseFromArray(value.Data.String, value.Length);
-    if (!ok) {
-        THROW_ERROR_EXCEPTION("Cannot parse job spec")
+    if (!TryDeserializeProto(&jobSpec, TRef::FromString(*jobSpecStr))) {
+        THROW_ERROR_EXCEPTION("Failed to parse job spec fetched from operation archive")
             << TErrorAttribute("job_id", jobId);
     }
 

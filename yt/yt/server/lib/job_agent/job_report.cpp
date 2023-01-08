@@ -395,7 +395,7 @@ TNodeJobReport TNodeJobReport::JobId(NJobTrackerClient::TJobId jobId)
 
 TNodeJobReport TNodeJobReport::Type(NJobTrackerClient::EJobType type)
 {
-    Type_ = FormatEnum(type);
+    Type_ = type;
     return std::move(*this);
 }
 
