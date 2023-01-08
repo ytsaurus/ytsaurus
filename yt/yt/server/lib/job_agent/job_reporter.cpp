@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/scheduler/records/operation_id.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_profile.record.h>
 #include <yt/yt/ytlib/scheduler/records/job_stderr.record.h>
+#include <yt/yt/ytlib/scheduler/records/job_spec.record.h>
 
 #include <yt/yt/client/api/connection.h>
 #include <yt/yt/client/api/transaction.h>
@@ -51,18 +52,11 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace {
-
 static const TProfiler ReporterProfiler("/job_reporter");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool IsSpecEntry(const TJobReport& stat)
-{
-    return stat.Spec().operator bool();
-}
-
-////////////////////////////////////////////////////////////////////////////////
+namespace {
 
 class TJobRowlet
     : public IArchiveRowlet
@@ -98,7 +92,7 @@ public:
         builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
         builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
         if (Report_.Type()) {
-            builder.AddValue(MakeUnversionedStringValue(*Report_.Type(), index.Type));
+            builder.AddValue(MakeUnversionedStringValue(FormatEnum(*Report_.Type()), index.Type));
         }
         if (Report_.State()) {
             builder.AddValue(MakeUnversionedStringValue(
@@ -228,22 +222,15 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
-        const auto& index = TJobSpecTableDescriptor::Get().Index;
-
-        TUnversionedOwningRowBuilder builder;
-        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[0], index.JobIdHi));
-        builder.AddValue(MakeUnversionedUint64Value(Report_.JobId().Parts64[1], index.JobIdLo));
-        if (Report_.Spec()) {
-            builder.AddValue(MakeUnversionedStringValue(*Report_.Spec(), index.Spec));
-        }
-        if (Report_.SpecVersion()) {
-            builder.AddValue(MakeUnversionedInt64Value(*Report_.SpecVersion(), index.SpecVersion));
-        }
+        NRecords::TJobSpecPartial record;
+        record.JobIdHi = Report_.JobId().Parts64[0];
+        record.JobIdLo = Report_.JobId().Parts64[1];
+        record.Spec = Report_.Spec();
+        record.SpecVersion = Report_.SpecVersion();
         if (Report_.Type()) {
-            builder.AddValue(MakeUnversionedStringValue(*Report_.Type(), index.Type));
+            record.Type = FormatEnum(*Report_.Type());
         }
-
-        return builder.FinishRow();
+        return FromRecord(record);
     }
 
 private:
@@ -400,7 +387,7 @@ public:
                 Version_,
                 Config_,
                 Config_->JobSpecHandler,
-                TJobSpecTableDescriptor::Get().NameTable,
+                NRecords::TJobSpecDescriptor::Get()->GetNameTable(),
                 "job_specs",
                 Client_,
                 Reporter_->GetInvoker(),
@@ -439,7 +426,7 @@ public:
 
     void HandleJobReport(TJobReport&& jobReport)
     {
-        if (IsSpecEntry(jobReport)) {
+        if (jobReport.Spec()) {
             JobSpecHandler_->Enqueue(std::make_unique<TJobSpecRowlet>(jobReport.ExtractSpec()));
         }
         if (jobReport.Stderr()) {
@@ -501,7 +488,7 @@ public:
     }
 
     void OnDynamicConfigChanged(
-        const TJobReporterDynamicConfigPtr& /* oldConfig */,
+        const TJobReporterDynamicConfigPtr& /*oldConfig*/,
         const TJobReporterDynamicConfigPtr& newConfig)
     {
         JobHandler_->SetEnabled(newConfig->EnableJobReporter.value_or(Config_->EnableJobReporter));

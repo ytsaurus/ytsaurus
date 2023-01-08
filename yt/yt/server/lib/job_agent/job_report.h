@@ -93,7 +93,7 @@ struct TJobReport
 
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TOperationId, OperationId)
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobId)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Type)
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NJobTrackerClient::EJobType>, Type)
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, State)
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, StartTime)
     DEFINE_BYREF_RO_PROPERTY(std::optional<i64>, FinishTime)

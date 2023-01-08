@@ -1,0 +1,31 @@
+namespace: NYT::NScheduler::NRecords
+
+types:
+  - type_name: TJobSpec
+    fields:
+      - cpp_name: JobIdHi
+        cpp_type: ui64
+        column_name: job_id_hi
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: JobIdLo
+        cpp_type: ui64
+        column_name: job_id_lo
+        column_type: Uint64
+        sort_order: Ascending
+
+      - cpp_name: Spec
+        cpp_type: TString
+        column_name: spec
+        column_type: String
+
+      - cpp_name: SpecVersion
+        cpp_type: int
+        column_name: spec_version
+        column_type: Int64
+
+      - cpp_name: Type
+        cpp_type: TString
+        column_name: type
+        column_type: String
