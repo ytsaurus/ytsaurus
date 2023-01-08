@@ -113,14 +113,6 @@ typename TMap::mapped_type GetOrDefault(
     const TKey& key,
     const typename TMap::mapped_type& defaultValue = {});
 
-template <class... Ts>
-auto MakeArray(
-    const Ts&... values)
--> std::array<std::tuple_element_t<0, std::tuple<Ts...>>, sizeof...(Ts)>;
-
-template <class T>
-std::array<T, 0> MakeArray();
-
 template <class T, class... TArgs>
 std::vector<T> ConcatVectors(std::vector<T> first, TArgs&&... rest);
 
