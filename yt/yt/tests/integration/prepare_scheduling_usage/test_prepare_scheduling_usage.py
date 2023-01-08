@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, is_asan_build
 
 from yt_commands import authors, create_pool, run_test_vanilla, ls, create, exists, get
 
@@ -125,6 +125,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
 
         return output, pools, tags
 
+    @pytest.mark.skipif(is_asan_build(), reason="Memory consumption is unpredictable under ASAN")
     def test_simple(self):
         create_pool("parent_pool", pool_tree="default", attributes={"strong_guarantee_resources": {"cpu": 1.0}})
         create_pool("test_pool", pool_tree="default", parent_name="parent_pool")
