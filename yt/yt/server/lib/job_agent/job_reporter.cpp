@@ -224,11 +224,14 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
-        NRecords::TJobSpecPartial record;
-        record.JobIdHi = Report_.JobId().Parts64[0];
-        record.JobIdLo = Report_.JobId().Parts64[1];
-        record.Spec = Report_.Spec();
-        record.SpecVersion = Report_.SpecVersion();
+        NRecords::TJobSpecPartial record{
+            .Key = {
+                .JobIdHi = Report_.JobId().Parts64[0],
+                .JobIdLo = Report_.JobId().Parts64[1],
+            },
+            .Spec = Report_.Spec(),
+            .SpecVersion = Report_.SpecVersion(),
+        };
         if (Report_.Type()) {
             record.Type = FormatEnum(*Report_.Type());
         }
