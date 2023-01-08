@@ -1,14 +1,21 @@
 #pragma once
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <util/generic/string.h>
 
-#include <set>
+#ifdef _unix_
+#include <signal.h>
+#endif
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+//! Writes the given buffer with the length to the standard error.
+void WriteToStderr(const char* buffer, int length);
+//! Writes the given zero-terminated buffer to the standard error.
+void WriteToStderr(const char* buffer);
+//! Same for TStringBuf.
+void WriteToStderr(TStringBuf buffer);
 
 #ifdef _unix_
 // Dumps signal, stack frame information and codicils.
@@ -16,8 +23,6 @@ void CrashSignalHandler(int signal, siginfo_t* si, void* uc);
 #else
 void CrashSignalHandler(int signal);
 #endif
-
-void DumpCodicils();
 
 template <class TCallback>
 void DumpStackTrace(TCallback flushCallback);
@@ -52,17 +57,7 @@ private:
     bool Active_;
 
     void Release();
-
 };
-
-//! Writes the given buffer with the length to the standard error.
-void WriteToStderr(const char* buffer, int length);
-//! Writes the given zero-terminated buffer to the standard error.
-void WriteToStderr(const char* buffer);
-//! Same for TStringBuf.
-void WriteToStderr(TStringBuf buffer);
-//! Same for TString.
-void WriteToStderr(const TString& buffer);
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -26,24 +26,23 @@ struct TUndumpableMark
 {
     // TUndumpableMark-s are never freed. All objects are linked through NextMark.
     TUndumpableMark* NextMark = nullptr;
-
     TUndumpableMark* NextFree = nullptr;
 
     void* Ptr = nullptr;
     size_t Size = 0;
 };
 
-struct TUndumpableSet
+class TUndumpableMemoryManager
 {
 public:
-    constexpr TUndumpableSet() = default;
+    constexpr TUndumpableMemoryManager() = default;
 
     TUndumpableMark* MarkUndumpable(void* ptr, size_t size)
     {
-        UndumpableBytes_.fetch_add(size, std::memory_order::relaxed);
+        UndumpableSize_.fetch_add(size, std::memory_order::relaxed);
 
-        auto guard = Guard(Lock_);
-        auto mark = GetFree();
+        auto guard = Guard(MarkListsLock_);
+        auto* mark = GetFreeMark();
         mark->Ptr = ptr;
         mark->Size = size;
         return mark;
@@ -51,148 +50,149 @@ public:
 
     void UnmarkUndumpable(TUndumpableMark* mark)
     {
-        UndumpableBytes_.fetch_sub(mark->Size, std::memory_order::relaxed);
+        UndumpableSize_.fetch_sub(mark->Size, std::memory_order::relaxed);
 
         mark->Size = 0;
         mark->Ptr = nullptr;
 
-        auto guard = Guard(Lock_);
-        Free(mark);
+        auto guard = Guard(MarkListsLock_);
+        FreeMark(mark);
     }
 
-    void MarkUndumpableOOB(void* ptr, size_t size)
+    void MarkUndumpableOob(void* ptr, size_t size)
     {
-        auto mark = MarkUndumpable(ptr, size);
+        auto* mark = MarkUndumpable(ptr, size);
+        auto guard = Guard(MarkTableLock_);
 
-        auto guard = Guard(TableLock_);
         if (!MarkTable_) {
             MarkTable_.emplace();
         }
         YT_VERIFY(MarkTable_->emplace(ptr, mark).second);
     }
 
-    void UnmarkUndumpableOOB(void* ptr)
+    void UnmarkUndumpableOob(void* ptr)
     {
-        auto guard = Guard(TableLock_);
+        auto guard = Guard(MarkTableLock_);
+
         if (!MarkTable_) {
             MarkTable_.emplace();
         }
 
         auto it = MarkTable_->find(ptr);
         YT_VERIFY(it != MarkTable_->end());
-        auto mark = it->second;
+        auto* mark = it->second;
         MarkTable_->erase(it);
         guard.Release();
 
         UnmarkUndumpable(mark);
     }
 
-    size_t GetUndumpableBytesCount() const
+    size_t GetUndumpableMemorySize() const
     {
-        return UndumpableBytes_.load();
+        return UndumpableSize_.load();
     }
 
     size_t GetUndumpableMemoryFootprint() const
     {
-        return Footprint_.load();
+        return UndumpableFootprint_.load();
     }
 
-    TCutBlocksInfo CutUndumpable()
+    TCutBlocksInfo CutUndumpableRegionsFromCoredump()
     {
         TCutBlocksInfo result;
 #if defined(_linux_)
-        auto head = All_;
-        while (head) {
-            int ret = madvise(head->Ptr, head->Size, MADV_DONTDUMP);
-
+        auto* mark = AllMarksHead_;
+        while (mark) {
+            int ret = ::madvise(mark->Ptr, mark->Size, MADV_DONTDUMP);
             if (ret == 0) {
-                ++result.MarkedMemory += head->Size;
+                ++result.MarkedSize += mark->Size;
             } else {
                 auto errorCode = LastSystemError();
                 for (auto& record : result.FailedToMarkMemory) {
                     if (record.ErrorCode == 0 || record.ErrorCode == errorCode) {
                         record.ErrorCode = errorCode;
-                        record.Memory += head->Size;
+                        record.Size += mark->Size;
                         break;
                     }
                 }
             }
-
-            head = head->NextMark;
+            mark = mark->NextMark;
         }
 #endif
         return result;
     }
 
 private:
-    std::atomic<i64> UndumpableBytes_ = 0;
-    std::atomic<i64> Footprint_ = 0;
+    std::atomic<size_t> UndumpableSize_ = 0;
+    std::atomic<size_t> UndumpableFootprint_ = 0;
 
-    NThreading::TSpinLock Lock_;
-    TUndumpableMark* All_ = nullptr;
-    TUndumpableMark* Free_ = nullptr;
+    NThreading::TSpinLock MarkListsLock_;
+    TUndumpableMark* AllMarksHead_ = nullptr;
+    TUndumpableMark* FreeMarksHead_ = nullptr;
 
-    NThreading::TSpinLock TableLock_;
+    NThreading::TSpinLock MarkTableLock_;
     std::optional<THashMap<void*, TUndumpableMark*>> MarkTable_;
 
-    TUndumpableMark* GetFree()
+    TUndumpableMark* GetFreeMark()
     {
-        if (Free_) {
-            auto mark = Free_;
-            Free_ = mark->NextFree;
+        if (FreeMarksHead_) {
+            auto mark = FreeMarksHead_;
+            FreeMarksHead_ = mark->NextFree;
             return mark;
         }
 
-        auto mark = new TUndumpableMark{};
-        Footprint_.fetch_add(sizeof(*mark), std::memory_order::relaxed);
+        auto* mark = new TUndumpableMark();
+        UndumpableFootprint_.fetch_add(sizeof(*mark), std::memory_order::relaxed);
 
-        mark->NextMark = All_;
-        All_ = mark;
+        mark->NextMark = AllMarksHead_;
+        AllMarksHead_ = mark;
         return mark;
     }
 
-    void Free(TUndumpableMark* mark)
+    void FreeMark(TUndumpableMark* mark)
     {
-        mark->NextFree = Free_;
-        Free_ = mark;
+        mark->NextFree = FreeMarksHead_;
+        FreeMarksHead_ = mark;
     }
 };
 
-static constinit TUndumpableSet UndumpableSet;
+static constinit TUndumpableMemoryManager UndumpableMemoryManager;
+
+////////////////////////////////////////////////////////////////////////////////
 
 TUndumpableMark* MarkUndumpable(void* ptr, size_t size)
 {
-    return UndumpableSet.MarkUndumpable(ptr, size);
+    return UndumpableMemoryManager.MarkUndumpable(ptr, size);
 }
 
 void UnmarkUndumpable(TUndumpableMark* mark)
 {
-    UndumpableSet.UnmarkUndumpable(mark);
+    UndumpableMemoryManager.UnmarkUndumpable(mark);
 }
 
-void MarkUndumpableOOB(void* ptr, size_t size)
+void MarkUndumpableOob(void* ptr, size_t size)
 {
-    UndumpableSet.MarkUndumpableOOB(ptr, size);
+    UndumpableMemoryManager.MarkUndumpableOob(ptr, size);
 }
 
-void UnmarkUndumpableOOB(void* ptr)
+void UnmarkUndumpableOob(void* ptr)
 {
-    UndumpableSet.UnmarkUndumpableOOB(ptr);
+    UndumpableMemoryManager.UnmarkUndumpableOob(ptr);
 }
 
-size_t GetUndumpableBytesCount()
+size_t GetUndumpableMemorySize()
 {
-    return UndumpableSet.GetUndumpableBytesCount();
+    return UndumpableMemoryManager.GetUndumpableMemorySize();
 }
 
 size_t GetUndumpableMemoryFootprint()
 {
-    return UndumpableSet.GetUndumpableMemoryFootprint();
+    return UndumpableMemoryManager.GetUndumpableMemoryFootprint();
 }
 
-TCutBlocksInfo CutUndumpableFromCoredump()
+TCutBlocksInfo CutUndumpableRegionsFromCoredump()
 {
-    return UndumpableSet.CutUndumpable();
+    return UndumpableMemoryManager.CutUndumpableRegionsFromCoredump();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -206,11 +206,11 @@ struct TUndumpableSensors
     {
         NProfiling::TProfiler profiler{"/memory"};
 
-        profiler.AddFuncGauge("/undumpable_bytes", MakeStrong(this), [] {
-            return GetUndumpableBytesCount();
+        profiler.AddFuncGauge("/undumpable_memory_size", MakeStrong(this), [] {
+            return GetUndumpableMemorySize();
         });
 
-        profiler.AddFuncGauge("/undumpable_footprint", MakeStrong(this), [] {
+        profiler.AddFuncGauge("/undumpable_memory_footprint", MakeStrong(this), [] {
             return GetUndumpableMemoryFootprint();
         });
     }
@@ -218,7 +218,7 @@ struct TUndumpableSensors
 
 DEFINE_REFCOUNTED_TYPE(TUndumpableSensors)
 
-static TUndumpableSensorsPtr dummy = New<TUndumpableSensors>();
+static const TUndumpableSensorsPtr Sensors = New<TUndumpableSensors>();
 
 ////////////////////////////////////////////////////////////////////////////////
 

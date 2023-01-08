@@ -21,9 +21,6 @@
 
 #include <yt/yt/build/config.h>
 
-#ifdef HAVE_SYS_TYPES_H
-#   include <sys/types.h>
-#endif
 #ifdef HAVE_UNISTD_H
 #   include <unistd.h>
 #endif
@@ -35,22 +32,39 @@
 #ifdef HAVE_SYS_UCONTEXT_H
 #   include <sys/ucontext.h>
 #endif
-#ifdef HAVE_DLFCN_H
-#   include <dlfcn.h>
+#ifdef _win_
+#   include <io.h>
 #endif
-#ifdef HAVE_CXXABI_H
-#   include <cxxabi.h>
-#endif
-#ifdef HAVE_PTHREAD_H
-#   include <pthread.h>
-#endif
-
-#include <cstdlib>
-#include <cstring>
 
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+void WriteToStderr(const char* buffer, int length)
+{
+    // Ignore errors.
+#ifdef _win_
+    HandleEintr(::write, 2, buffer, length);
+#else
+    HandleEintr(write, 2, buffer, length);
+#endif
+}
+
+void WriteToStderr(TStringBuf buffer)
+{
+    WriteToStderr(buffer.begin(), buffer.length());
+}
+
+void WriteToStderr(const char* buffer)
+{
+    WriteToStderr(buffer, ::strlen(buffer));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+namespace {
+
+using NYT::WriteToStderr;
 
 #ifdef _unix_
 
@@ -72,26 +86,11 @@ void* GetPC(void* uc)
     return nullptr;
 }
 
-void WriteToStderr(const char* buffer, int length)
-{
-    if (write(2, buffer, length) < 0) {
-        // Ignore errors.
-    }
-}
+using TFormatter = TRawFormatter<1024>;
 
-void WriteToStderr(TStringBuf buffer)
+void WriteToStderr(const TBaseFormatter& formatter)
 {
-    WriteToStderr(buffer.begin(), buffer.length());
-}
-
-void WriteToStderr(const char* buffer)
-{
-    WriteToStderr(buffer, strlen(buffer));
-}
-
-void WriteToStderr(const TString& string)
-{
-    WriteToStderr(string.begin(), string.length());
+    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
 }
 
 //! Dumps time information.
@@ -101,17 +100,15 @@ void WriteToStderr(const TString& string)
  */
 void DumpTimeInfo()
 {
-    auto timeSinceEpoch = time(nullptr);
+    auto timeSinceEpoch = ::time(nullptr);
 
-    TRawFormatter<256> formatter;
-
+    TFormatter formatter;
     formatter.AppendString("*** Aborted at ");
     formatter.AppendNumber(timeSinceEpoch);
     formatter.AppendString(" (Unix time); Try \"date -d @");
     formatter.AppendNumber(timeSinceEpoch, 10);
     formatter.AppendString("\" if you are using GNU date ***\n");
-
-    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter);
 }
 
 NConcurrency::TFls<std::vector<TString>> CodicilsStack;
@@ -119,33 +116,23 @@ NConcurrency::TFls<std::vector<TString>> CodicilsStack;
 //! Dump codicils.
 void DumpCodicils()
 {
-    TRawFormatter<256> formatter;
-
     // NB: Avoid constructing FLS slot to avoid allocations; these may lead to deadlocks if the
     // program crashes during an allocation itself.
     if (CodicilsStack.IsInitialized() && !CodicilsStack->empty()) {
-        formatter.Reset();
-        formatter.AppendString("*** Begin codicils ***\n");
-        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-
+        WriteToStderr("*** Begin codicils ***\n");
         for (const auto& data : *CodicilsStack) {
-            formatter.Reset();
+            TFormatter formatter;
             formatter.AppendString(data.c_str());
             formatter.AppendString("\n");
-            WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+            WriteToStderr(formatter);
         }
-
-        formatter.Reset();
-        formatter.AppendString("*** End codicils ***\n");
-        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+        WriteToStderr("*** End codicils ***\n");
     }
 }
-
 
 // We will install the failure signal handler for signals SIGSEGV, SIGILL, SIGFPE, SIGABRT, SIGBUS
 // We could use strsignal() to get signal names, but we do not use it to avoid
 // introducing yet another #ifdef complication.
-
 const char* GetSignalName(int signo)
 {
 #define XX(name, message) case name: return #name " (" message ")";
@@ -248,6 +235,7 @@ const char* GetSignalCodeName(int signo, int code)
 
 // From include/asm/traps.h
 
+[[maybe_unused]]
 const char* GetTrapName(int trapno)
 {
 #define XX(name, value, message) case value: return #name " (" message ")";
@@ -280,6 +268,7 @@ const char* GetTrapName(int trapno)
 #undef XX
 }
 
+[[maybe_unused]]
 void FormatErrorCodeName(TBaseFormatter* formatter, int codeno)
 {
     /*
@@ -322,7 +311,7 @@ void FormatErrorCodeName(TBaseFormatter* formatter, int codeno)
 //! Dumps information about the signal.
 void DumpSignalInfo(siginfo_t* si)
 {
-    TRawFormatter<256> formatter;
+    TFormatter formatter;
 
     formatter.AppendString("*** ");
     if (const char* name = GetSignalName(si->si_signo)) {
@@ -367,7 +356,7 @@ void DumpSignalInfo(siginfo_t* si)
 #endif
     formatter.AppendString("***\n");
 
-    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter);
 }
 
 void DumpSigcontext(void* uc)
@@ -375,15 +364,12 @@ void DumpSigcontext(void* uc)
 #if (defined(HAVE_UCONTEXT_H) || defined(HAVE_SYS_UCONTEXT_H)) && defined(PC_FROM_UCONTEXT) && defined(_linux_) && defined(_x86_64_)
     ucontext_t* context = reinterpret_cast<ucontext_t*>(uc);
 
-    TRawFormatter<512> formatter;
-
-    formatter.AppendString("*** Begin Context ***");
+    TFormatter formatter;
 
     formatter.AppendString("\nERR ");
     FormatErrorCodeName(&formatter, context->uc_mcontext.gregs[REG_ERR]);
 
     formatter.AppendString("\nTRAPNO ");
-
     if (const char* trapName = GetTrapName(context->uc_mcontext.gregs[REG_TRAPNO])) {
         formatter.AppendString(trapName);
     } else {
@@ -433,9 +419,8 @@ void DumpSigcontext(void* uc)
     formatter.AppendNumber(context->uc_mcontext.gregs[REG_OLDMASK], 16);
     formatter.AppendString("\nCR2 0x");
     formatter.AppendNumber(context->uc_mcontext.gregs[REG_CR2], 16);
-    formatter.AppendString("\n*** End Context ***\n");
 
-    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr(formatter);
 #else
     Y_UNUSED(uc);
 #endif
@@ -443,43 +428,49 @@ void DumpSigcontext(void* uc)
 
 void CrashTimeoutHandler(int /*signal*/)
 {
-    TRawFormatter<256> formatter;
-    formatter.AppendString("*** Process hung during crash ***\n");
-    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
-
+    WriteToStderr("*** Process hung during crash ***\n");
     _exit(1);
 }
 
-void DumpUndumpableBlocksInfo(const TCutBlocksInfo& cutInfo, TRawFormatter<1024>* formatter)
+void DumpUndumpableBlocksInfo()
 {
-    formatter->Reset();
-    formatter->AppendString("*** Marked memory regions as undumpable. Successfully marked: ");
-    formatter->AppendNumber(cutInfo.MarkedMemory / 1_MB);
-    formatter->AppendString(" mb");
+    auto cutInfo = CutUndumpableRegionsFromCoredump();
 
-    // Enforce sane limit to protect from running out formatter buffer.
-    static_assert(TCutBlocksInfo::MaxFailedRecordsCount < 10);
+    {
+        TFormatter formatter;
+        formatter.AppendString("*** Marked memory regions of total size ");
+        formatter.AppendNumber(cutInfo.MarkedSize / 1_MB);
+        formatter.AppendString(" MB as undumpable ***\n");
+        WriteToStderr(formatter);
+    }
 
     for (const auto& record : cutInfo.FailedToMarkMemory) {
         if (record.ErrorCode == 0) {
             break;
         }
-        formatter->AppendString(" (Failed Code: ");
-        formatter->AppendNumber(record.ErrorCode);
-        formatter->AppendString(", Memory: ");
-        formatter->AppendNumber(record.Memory / 1_MB);
-        formatter->AppendString(" mb)");
+
+        TFormatter formatter;
+        formatter.AppendString("*** Failed to mark ");
+        formatter.AppendNumber(record.Size / 1_MB);
+        formatter.AppendString(" MB with error code ");
+        formatter.AppendNumber(record.ErrorCode);
+        formatter.AppendString(" ***\n");
+        WriteToStderr(formatter);
     }
-    formatter->AppendString(" ***");
-    WriteToStderr(formatter->GetData(), formatter->GetBytesWritten());
 }
+
+#endif
+
+} // namespace
+
+////////////////////////////////////////////////////////////////////////////////
+
+#ifdef _unix_
 
 // Dumps signal, stack frame information and codicils.
 void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 {
     // All code here _MUST_ be async signal safe unless specified otherwise.
-
-    TRawFormatter<1024> formatter;
 
     // When did the crash happen?
     DumpTimeInfo();
@@ -489,45 +480,37 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 
     // Where did the crash happen?
     {
-        void* pc = GetPC(uc);
-        formatter.Reset();
+        TFormatter formatter;
         formatter.AppendString("PC: ");
-        NDetail::DumpStackFrameInfo(&formatter, pc);
-        WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+        NDetail::DumpStackFrameInfo(&formatter, GetPC(uc));
+        WriteToStderr(formatter);
     }
 
     DumpSignalInfo(si);
 
     DumpSigcontext(uc);
 
-    // Easiest way to choose proper overload...
+    // The easiest way to choose proper overload...
     DumpStackTrace([] (TStringBuf str) { WriteToStderr(str); });
 
-    auto cutInfo = CutUndumpableFromCoredump();
-    DumpUndumpableBlocksInfo(cutInfo, &formatter);
+    DumpUndumpableBlocksInfo();
 
-    formatter.Reset();
-    formatter.AppendString("*** Wait for logger to shut down ***\n");
-    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr("*** Waiting for logger to shut down ***\n");
 
-    // Actually, it is not okay to hung.
+    // Actually, it is not okay to hang.
     ::signal(SIGALRM, CrashTimeoutHandler);
-    alarm(5);
+    ::alarm(5);
 
     NLogging::TLogManager::Get()->Shutdown();
 
-    formatter.Reset();
-    formatter.AppendString("*** Terminate ***\n");
-    WriteToStderr(formatter.GetData(), formatter.GetBytesWritten());
+    WriteToStderr("*** Terminating ***\n");
 }
-#endif
 
-#ifdef _win_
-void CrashSignalHandler(int signal)
-{
-    Y_UNUSED(signal);
-    return;
-}
+#else
+
+void CrashSignalHandler(int /*signal*/)
+{ }
+
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
