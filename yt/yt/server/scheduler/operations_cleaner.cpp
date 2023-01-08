@@ -445,11 +445,14 @@ TUnversionedRow BuildOperationAliasesTableRow(
     const TArchiveOperationRequest& request,
     int /*version*/)
 {
-    NRecords::TOperationAlias alias;
-    alias.Alias = *request.Alias;
-    alias.OperationIdHi = request.Id.Parts64[0];
-    alias.OperationIdLo = request.Id.Parts64[1];
-    return FromRecord(alias, rowBuffer);
+    NRecords::TOperationAlias record{
+        .Key = {
+            .Alias =  *request.Alias,
+        },
+        .OperationIdHi = request.Id.Parts64[0],
+        .OperationIdLo = request.Id.Parts64[1],
+    };
+    return FromRecord(record, rowBuffer);
 }
 
 void AddEventToAlertEventsMap(TAlertEventsMap* map, const TOperationAlertEvent& event, int maxAlertEventCountPerAlertType)

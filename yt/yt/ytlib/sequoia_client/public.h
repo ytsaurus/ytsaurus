@@ -10,7 +10,12 @@ DEFINE_ENUM(ESequoiaTable,
     (ChunkMetaExtensions)
 );
 
+namespace NRecords {
+
+struct TChunkMetaExtensionsKey;
 struct TChunkMetaExtensions;
+
+} // namespace NRecords
 
 ////////////////////////////////////////////////////////////////////////////////
 

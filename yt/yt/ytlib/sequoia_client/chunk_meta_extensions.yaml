@@ -1,4 +1,4 @@
-namespace: NYT::NSequoiaClient
+namespace: NYT::NSequoiaClient::NRecords
 
 h_verbatim: |
     #include <yt/yt/ytlib/sequoia_client/public.h>
@@ -43,8 +43,5 @@ types:
         column_name: heavy_column_statistics_ext
         column_type: String
 
-    key_verbatim: |
-        static constexpr auto Table = ESequoiaTable::ChunkMetaExtensions;
-
-    descriptor_verbatim: |
+    verbatim: |
         static constexpr auto Table = ESequoiaTable::ChunkMetaExtensions;

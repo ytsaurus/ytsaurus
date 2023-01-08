@@ -21,6 +21,7 @@ class Field:
 class RecordType:
     type_name: str
     fields: List[Field]
+    verbatim: Optional[str]
     record_verbatim: Optional[str]
     key_verbatim: Optional[str]
     descriptor_verbatim: Optional[str]

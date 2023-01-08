@@ -31,7 +31,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
                 \
                 const NTableClient::IRecordDescriptor* GetRecordDescriptor() const override \
                 { \
-                    return T##type::TRecordDescriptor::Get(); \
+                    return NRecords::T##type::TRecordDescriptor::Get(); \
                 } \
                 \
                 const NQueryClient::TColumnEvaluatorPtr& GetColumnEvaluator() const override \
