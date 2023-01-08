@@ -28,9 +28,10 @@
 #include <yt/yt/core/ytree/public.h>
 
 #include <yt/yt/core/misc/sync_expiring_cache.h>
-#include <yt/yt/core/misc/atomic_ptr.h>
 
 #include <util/generic/hash_multi_map.h>
+
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
 
 namespace NYT::NScheduler {
 
@@ -203,7 +204,7 @@ private:
 
     std::atomic<int> ActiveJobCount_ = 0;
 
-    TAtomicPtr<TRefCountedExecNodeDescriptorMap> CachedExecNodeDescriptors_{New<TRefCountedExecNodeDescriptorMap>()};
+    TAtomicIntrusivePtr<TRefCountedExecNodeDescriptorMap> CachedExecNodeDescriptors_{New<TRefCountedExecNodeDescriptorMap>()};
 
     THashMap<NNodeTrackerClient::TNodeId, TExecNodePtr> IdToNode_;
 

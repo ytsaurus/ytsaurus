@@ -63,9 +63,7 @@ void FromProto(NScheduler::TExecNodeDescriptor* descriptor, const NScheduler::NP
 //! An immutable ref-counted map of TExecNodeDescriptor-s.
 struct TRefCountedExecNodeDescriptorMap final
     : public TExecNodeDescriptorMap
-{
-    static constexpr bool EnableHazard = true;
-};
+{ };
 
 DEFINE_REFCOUNTED_TYPE(TRefCountedExecNodeDescriptorMap)
 

@@ -54,8 +54,6 @@ DEFINE_REFCOUNTED_TYPE(TFairShareTreeSnapshot)
 
 struct TResourceUsageSnapshot final
 {
-    static constexpr bool EnableHazard = true;
-
     NProfiling::TCpuInstant BuildTime;
     THashSet<TOperationId> AliveOperationIds;
     THashMap<TOperationId, TJobResources> OperationIdToResourceUsage;
