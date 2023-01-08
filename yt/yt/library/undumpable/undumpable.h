@@ -10,48 +10,46 @@ namespace NYT {
 
 struct TUndumpableMark;
 
-//! Add byte range to undumpable set.
+//! Adds byte range to undumpable set.
 TUndumpableMark* MarkUndumpable(void* ptr, size_t size);
 
-//! Remove byte range from undumpable set.
-void UnmarkUndumpable(TUndumpableMark* tag);
+//! Removes byte range from undumpable set.
+void UnmarkUndumpable(TUndumpableMark* mark);
 
 //! Add byte range to undumpable set.
 /**
- *  Unlike MarkUndumpable, this method does not require user to keep pointer to TUndumpableMark*.
+ *  Unlike MarkUndumpable, this method does not require user to keep pointer to TUndumpableMark.
  */
-void MarkUndumpableOOB(void* ptr, size_t size);
+void MarkUndumpableOob(void* ptr, size_t size);
 
 //! Remove byte range from undumpable set.
-void UnmarkUndumpableOOB(void* ptr);
+void UnmarkUndumpableOob(void* ptr);
 
-//! GetUndumpableBytesCount return total size of undumpable set.
-size_t GetUndumpableBytesCount();
+//! Returns the total size of undumpable set.
+size_t GetUndumpableMemorySize();
 
-//! GetMemoryFootprint returns estimate of memory consumed by internal data structures.
+//! Returns the estimate of memory consumed by internal data structures.
 size_t GetUndumpableMemoryFootprint();
-
 
 struct TCutBlocksInfo
 {
     struct TFailedInfo
     {
         int ErrorCode = 0;
-        i64 Memory = 0;
+        size_t Size = 0;
     };
 
-    i64 MarkedMemory = 0;
+    size_t MarkedSize = 0;
 
     static constexpr int MaxFailedRecordsCount = 8;
-
-    std::array<TFailedInfo, MaxFailedRecordsCount> FailedToMarkMemory = {}; 
+    std::array<TFailedInfo, MaxFailedRecordsCount> FailedToMarkMemory{};
 };
 
 //! CutUndumpableFromCoredump call's madvice(MADV_DONTNEED) for all current undumpable objects.
 /**
  *  This function is async-signal safe. Usually, this function should be called from segfault handler.
  */
-TCutBlocksInfo CutUndumpableFromCoredump();
+TCutBlocksInfo CutUndumpableRegionsFromCoredump();
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -25,7 +25,10 @@ static const TLogger Logger("MemoryWatchdog");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMemoryWatchdog::TMemoryWatchdog(TMemoryWatchdogConfigPtr config, TCallback<void()> exitCallback, TCallback<void()> interruptCallback)
+TMemoryWatchdog::TMemoryWatchdog(
+    TMemoryWatchdogConfigPtr config,
+    TCallback<void()> exitCallback,
+    TCallback<void()> interruptCallback)
     : Config_(std::move(config))
     , ExitCallback_(std::move(exitCallback))
     , InterruptCallback_(std::move(interruptCallback))

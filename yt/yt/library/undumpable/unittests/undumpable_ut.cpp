@@ -13,14 +13,14 @@ TEST(UndumpableMemory, Mark)
     bigVector.resize(1024 * 1024);
 
     auto mark = MarkUndumpable(&bigVector[0], bigVector.size() * sizeof(bigVector[0]));
-    ASSERT_GT(GetUndumpableBytesCount(), 0u);
+    ASSERT_GT(GetUndumpableMemorySize(), 0u);
     ASSERT_GT(GetUndumpableMemoryFootprint(), 0u);
 
-    CutUndumpableFromCoredump();
+    CutUndumpableRegionsFromCoredump();
 
     UnmarkUndumpable(mark);
 
-    ASSERT_EQ(GetUndumpableBytesCount(), 0u);
+    ASSERT_EQ(GetUndumpableMemorySize(), 0u);
     ASSERT_GT(GetUndumpableMemoryFootprint(), 0u);
 }
 
@@ -29,15 +29,15 @@ TEST(UndumpableMemory, MarkOOB)
     std::vector<int> bigVector;
     bigVector.resize(1024 * 1024);
 
-    MarkUndumpableOOB(&bigVector[0], bigVector.size() * sizeof(bigVector[0]));
-    ASSERT_GT(GetUndumpableBytesCount(), 0u);
+    MarkUndumpableOob(&bigVector[0], bigVector.size() * sizeof(bigVector[0]));
+    ASSERT_GT(GetUndumpableMemorySize(), 0u);
     ASSERT_GT(GetUndumpableMemoryFootprint(), 0u);
 
-    CutUndumpableFromCoredump();
+    CutUndumpableRegionsFromCoredump();
 
-    UnmarkUndumpableOOB(&bigVector[0]);
+    UnmarkUndumpableOob(&bigVector[0]);
 
-    ASSERT_EQ(GetUndumpableBytesCount(), 0u);
+    ASSERT_EQ(GetUndumpableMemorySize(), 0u);
     ASSERT_GT(GetUndumpableMemoryFootprint(), 0u);
 }
 
@@ -47,10 +47,10 @@ TEST(UndumpableMemory, UnalignedSize)
     bigVector.resize(1024 * 1024 + 43);
 
     auto mark = MarkUndumpable(&bigVector[0], bigVector.size() * sizeof(bigVector[0]));
-    ASSERT_GT(GetUndumpableBytesCount(), 0u);
+    ASSERT_GT(GetUndumpableMemorySize(), 0u);
     ASSERT_GT(GetUndumpableMemoryFootprint(), 0u);
 
-    CutUndumpableFromCoredump();
+    CutUndumpableRegionsFromCoredump();
 
     UnmarkUndumpable(mark);
 }
