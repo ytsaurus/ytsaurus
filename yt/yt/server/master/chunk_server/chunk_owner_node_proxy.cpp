@@ -313,11 +313,10 @@ TFuture<void> FetchChunkMetasFromSequoia(
         columnFilter = GetChunkMetaExtensionsColumnFilter(extensionTags);
     }
 
-    std::vector<TChunkMetaExtensionsKey> keys;
+    std::vector<NRecords::TChunkMetaExtensionsKey> keys;
     for (const auto* chunkSpec : chunkSpecs) {
         auto chunkId = FromProto<TChunkId>(chunkSpec->chunk_id());
-        auto key = GetChunkMetaExtensionsKey(chunkId);
-        keys.push_back(key);
+        keys.push_back(GetChunkMetaExtensionsKey(chunkId));
     }
 
     auto future = transaction->LookupRows(
@@ -325,7 +324,7 @@ TFuture<void> FetchChunkMetasFromSequoia(
         NTransactionClient::SyncLastCommittedTimestamp,
         columnFilter);
     // TODO(babenko): capturing client is needed to ensure its in-flight requests get executed properly
-    return future.Apply(BIND([chunkSpecs = std::move(chunkSpecs), client] (const std::vector<std::optional<TChunkMetaExtensions>>& optionalRecords) {
+    return future.Apply(BIND([chunkSpecs = std::move(chunkSpecs), client] (const std::vector<std::optional<NRecords::TChunkMetaExtensions>>& optionalRecords) {
         YT_VERIFY(optionalRecords.size() == chunkSpecs.size());
         for (int index = 0; index < std::ssize(optionalRecords); ++index) {
             const auto& optionalRecord = optionalRecords[index];

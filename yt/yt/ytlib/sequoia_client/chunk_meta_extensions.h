@@ -14,9 +14,11 @@ namespace NYT::NSequoiaClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkMetaExtensionsKey GetChunkMetaExtensionsKey(NChunkClient::TChunkId chunkId);
+NRecords::TChunkMetaExtensionsKey GetChunkMetaExtensionsKey(NChunkClient::TChunkId chunkId);
 
 NTableClient::TColumnFilter GetChunkMetaExtensionsColumnFilter(const THashSet<int>& extensionTags);
+
+namespace NRecords {
 
 void ToProto(
     NYT::NProto::TExtensionSet* protoExtensions,
@@ -24,6 +26,8 @@ void ToProto(
 void FromProto(
     TChunkMetaExtensions* extensions,
     const NYT::NProto::TExtensionSet& protoExtensions);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

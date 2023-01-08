@@ -34,6 +34,9 @@ public:
     using TRecord = {{type.type_name}};
     using TKey = {{type.type_name}}Key;
     using TIdMapping = {{type.type_name}}IdMapping;
+{% if type.verbatim %}
+{{type.verbatim}}
+{% endif %}
 {% if type.descriptor_verbatim %}
 {{type.descriptor_verbatim}}
 {% endif %}
@@ -57,6 +60,9 @@ private:
 struct {{type.type_name}}Key
 {
     using TRecordDescriptor = {{type.type_name}}Descriptor;
+{% if type.verbatim %}
+{{type.verbatim}}
+{% endif %}
 {% if type.key_verbatim %}
 {{type.key_verbatim}}
 {% endif %}
@@ -69,11 +75,15 @@ struct {{type.type_name}}Key
 };
 
 struct {{type.type_name}}
-    : public {{type.type_name}}Key
 {
+    using TRecordDescriptor = {{type.type_name}}Descriptor;
+{% if type.verbatim %}
+{{type.verbatim}}
+{% endif %}
 {% if type.record_verbatim %}
 {{type.record_verbatim}}
 {% endif %}
+    {{type.type_name}}Key Key;
 {% for field in type.fields if not(field.sort_order)%}
     {{field.cpp_type}} {{field.cpp_name}}{};
 {%- endfor %}
@@ -87,11 +97,15 @@ struct {{type.type_name}}
 };
 
 struct {{type.type_name}}Partial
-    : public {{type.type_name}}Key
 {
+    using TRecordDescriptor = {{type.type_name}}Descriptor;
+{% if type.verbatim %}
+{{type.verbatim}}
+{% endif %}
 {% if type.record_verbatim %}
 {{type.record_verbatim}}
 {% endif %}
+    {{type.type_name}}Key Key;
 {% for field in type.fields if not(field.sort_order)%}
     std::optional<{{field.cpp_type}}> {{field.cpp_name}}{};
 {%- endfor %}

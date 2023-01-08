@@ -19,7 +19,7 @@ using NTableClient::NProto::THeavyColumnStatisticsExt;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TChunkMetaExtensionsKey GetChunkMetaExtensionsKey(NChunkClient::TChunkId chunkId)
+NRecords::TChunkMetaExtensionsKey GetChunkMetaExtensionsKey(NChunkClient::TChunkId chunkId)
 {
     return {
         .IdHash = chunkId.Parts32[0],
@@ -38,7 +38,7 @@ namespace {
 
 int GetChunkMetaExtensionColumnId(int extensionTag)
 {
-    const auto& idMapping = TChunkMetaExtensionsDescriptor::Get()->GetIdMapping();
+    const auto& idMapping = NRecords::TChunkMetaExtensionsDescriptor::Get()->GetIdMapping();
     switch (extensionTag) {
         #define XX(name) \
             case TProtoExtensionTag<T##name>::Value: \
@@ -61,6 +61,8 @@ NTableClient::TColumnFilter GetChunkMetaExtensionsColumnFilter(const THashSet<in
     }
     return NTableClient::TColumnFilter(std::move(columnIds));
 }
+
+namespace NRecords {
 
 void ToProto(
     NYT::NProto::TExtensionSet* protoExtensions,
@@ -91,6 +93,8 @@ void FromProto(
         }
     }
 }
+
+} // namespace NRecords
 
 #undef ITERATE_CHUNK_META_EXTENSIONS
 

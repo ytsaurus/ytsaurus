@@ -1155,8 +1155,9 @@ public:
             .Apply(BIND([=, request = std::move(request), this, this_ = MakeStrong(this)] {
                 const auto& chunkMeta = request.chunk_meta();
 
-                TChunkMetaExtensions chunkMetaExtensions;
-                static_cast<TChunkMetaExtensionsKey&>(chunkMetaExtensions) = GetChunkMetaExtensionsKey(chunkId);
+                NRecords::TChunkMetaExtensions chunkMetaExtensions{
+                    .Key = GetChunkMetaExtensionsKey(chunkId),
+                };
                 FromProto(&chunkMetaExtensions, chunkMeta.extensions());
                 transaction->WriteRow(chunkMetaExtensions);
 
@@ -1214,9 +1215,10 @@ public:
                 auto chunkType = CheckedEnumCast<EObjectType>(request.type());
                 auto chunkId = transaction->GenerateObjectId(chunkType, Bootstrap_->GetCellTag());
 
-                TChunkMetaExtensions chunkMetaExtensions;
-                static_cast<TChunkMetaExtensionsKey&>(chunkMetaExtensions) = GetChunkMetaExtensionsKey(chunkId);
-                chunkMetaExtensions.MiscExt = "tilted",
+                NRecords::TChunkMetaExtensions chunkMetaExtensions{
+                    .Key = GetChunkMetaExtensionsKey(chunkId),
+                    .MiscExt = "tilted",
+                };
                 transaction->WriteRow(chunkMetaExtensions);
 
                 ToProto(request.mutable_chunk_id(), chunkId);

@@ -93,7 +93,10 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     const {{type.type_name}}IdMapping& idMapping) const
 {
     std::array values{
-{%- for field in type.fields %}
+{%- for field in type.fields if field.sort_order %}
+        ToUnversionedValue(Key.{{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
+{%- endfor %}
+{%- for field in type.fields if not field.sort_order %}
         ToUnversionedValue({{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))),
 {%- endfor %}
     };
@@ -109,7 +112,11 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);
+{% if field.sort_order %}
+        FromUnversionedValue(&result.Key.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
+{% else %}
         FromUnversionedValue(&result.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
+{% endif %}
     }
 {%- endfor %}
     return result;
@@ -123,7 +130,7 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
 {
     TUnversionedRowBuilder builder;
 {%- for field in type.fields if field.sort_order %}
-    builder.AddValue(ToUnversionedValue({{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))));
+    builder.AddValue(ToUnversionedValue(Key.{{field.cpp_name}}, rowBuffer, GetColumnIdOrThrow(idMapping.{{field.cpp_name}}, TStringBuf("{{field.column_name}}"))));
 {%- endfor %}
 {%- for field in type.fields if not(field.sort_order) %}
     if (idMapping.{{field.cpp_name}} && {{field.cpp_name}}) {
@@ -142,7 +149,11 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);
+{%- if field.sort_order %}
+        FromUnversionedValue(&result.Key.{{field.cpp_name}}, row[id]);
+{% else %}
         FromUnversionedValue(&result.{{field.cpp_name}}, row[id]);
+{% endif %}
     }
 {%- endfor %}
     return result;

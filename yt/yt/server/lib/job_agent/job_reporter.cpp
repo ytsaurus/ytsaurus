@@ -193,12 +193,14 @@ public:
 
     TUnversionedOwningRow ToRow(int /*archiveVersion*/) const override
     {
-        NRecords::TOperationId record;
-        record.JobIdHi = Report_.JobId().Parts64[0];
-        record.JobIdLo = Report_.JobId().Parts64[1];
-        record.OperationIdHi = Report_.OperationId().Parts64[0];
-        record.OperationIdLo = Report_.OperationId().Parts64[1];
-        return FromRecord(record);
+        return FromRecord(NRecords::TOperationId{
+            .Key = {
+                .JobIdHi = Report_.JobId().Parts64[0],
+                .JobIdLo = Report_.JobId().Parts64[1],
+            },
+            .OperationIdHi = Report_.OperationId().Parts64[0],
+            .OperationIdLo = Report_.OperationId().Parts64[1],
+        });
     }
 
 private:
@@ -258,13 +260,15 @@ public:
             return {};
         }
 
-        NRecords::TJobStderr record;
-        record.OperationIdHi = Report_.OperationId().Parts64[0];
-        record.OperationIdLo = Report_.OperationId().Parts64[1];
-        record.JobIdHi = Report_.JobId().Parts64[0];
-        record.JobIdLo = Report_.JobId().Parts64[1];
-        record.Stderr = *Report_.Stderr();
-        return FromRecord(record);
+        return FromRecord(NRecords::TJobStderr{
+            .Key = {
+                .OperationIdHi = Report_.OperationId().Parts64[0],
+                .OperationIdLo = Report_.OperationId().Parts64[1],
+                .JobIdHi = Report_.JobId().Parts64[0],
+                .JobIdLo = Report_.JobId().Parts64[1],
+            },
+            .Stderr = *Report_.Stderr(),
+        });
     }
 
 private:
@@ -292,13 +296,15 @@ public:
             return {};
         }
 
-        NRecords::TJobFailContext record;
-        record.OperationIdHi = Report_.OperationId().Parts64[0];
-        record.OperationIdLo = Report_.OperationId().Parts64[1];
-        record.JobIdHi = Report_.JobId().Parts64[0];
-        record.JobIdLo = Report_.JobId().Parts64[1];
-        record.FailContext = *Report_.FailContext();
-        return FromRecord(record);
+        return FromRecord(NRecords::TJobFailContext{
+            .Key = {
+                .OperationIdHi = Report_.OperationId().Parts64[0],
+                .OperationIdLo = Report_.OperationId().Parts64[1],
+                .JobIdHi = Report_.JobId().Parts64[0],
+                .JobIdLo = Report_.JobId().Parts64[1],
+            },
+            .FailContext = *Report_.FailContext(),
+        });
     }
 
 private:
@@ -328,16 +334,18 @@ public:
             return {};
         }
 
-        NRecords::TJobProfile record;
-        record.OperationIdHi = Report_.OperationId().Parts64[0];
-        record.OperationIdLo = Report_.OperationId().Parts64[1];
-        record.JobIdHi = Report_.JobId().Parts64[0];
-        record.JobIdLo = Report_.JobId().Parts64[1];
-        record.PartIndex = 0;
-        record.ProfileType = profile->Type;
-        record.ProfileBlob = profile->Blob;
-        record.ProfilingProbability = profile->ProfilingProbability;
-        return FromRecord(record);
+        return FromRecord(NRecords::TJobProfile{
+            .Key = {
+                .JobIdHi = Report_.JobId().Parts64[0],
+                .JobIdLo = Report_.JobId().Parts64[1],
+            },
+            .OperationIdHi = Report_.OperationId().Parts64[0],
+            .OperationIdLo = Report_.OperationId().Parts64[1],
+            .PartIndex = 0,
+            .ProfileType = profile->Type,
+            .ProfileBlob = profile->Blob,
+            .ProfilingProbability = profile->ProfilingProbability,
+        });
     }
 
 private:
