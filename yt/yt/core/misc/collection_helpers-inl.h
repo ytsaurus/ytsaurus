@@ -221,46 +221,6 @@ typename TMap::mapped_type GetOrDefault(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-template <size_t Index, class... Ts>
-struct TMakeArrayTraits;
-
-template <size_t Index>
-struct TMakeArrayTraits<Index>
-{
-    template <class V>
-    static void Do(V*)
-    { }
-};
-
-template <size_t Index, class T, class... Ts>
-struct TMakeArrayTraits<Index, T, Ts...>
-{
-    template <class V>
-    static void Do(V* array, const T& head, const Ts&... tail)
-    {
-        (*array)[Index] = head;
-        TMakeArrayTraits<Index + 1, Ts...>::Do(array, tail...);
-    }
-};
-
-template <class... Ts>
-auto MakeArray(
-    const Ts&... values)
--> std::array<std::tuple_element_t<0, std::tuple<Ts...>>, sizeof...(Ts)>
-{
-    std::array<std::tuple_element_t<0, std::tuple<Ts...>>, sizeof...(Ts)> array;
-    TMakeArrayTraits<0, Ts...>::Do(&array, values...);
-    return array;
-}
-
-template <class T>
-std::array<T, 0> MakeArray()
-{
-    return std::array<T, 0>();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 // See https://stackoverflow.com/questions/23439221/variadic-template-function-to-concatenate-stdvector-containers.
 namespace NDetail {
 
