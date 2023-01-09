@@ -315,6 +315,35 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TString ToString(const TReaderStatistics& statistics)
+{
+    return Format(
+        "BuildReadWindows/CreateColumnBlockHolders/BuildBlockInfos/CreateBlockFetcher Times: %v / %v / %v / %v, "
+        "Decode Timestamp/Key/Value Times: %v / %v / %v, "
+        "Fetch/Ranges/DoRead/CollectCounts/AllocateRows/DoReadKeys/DoReadValues Times: %v / %v / %v / %v / %v / %v / %v, "
+        "TryUpdateWindow/SkipToBlock/FetchBlock/SetBlock/UpdateSegment/DoRead CallCounts: %v / %v / %v / %v / %v / %v",
+        statistics.BuildReadWindowsTime,
+        statistics.CreateColumnBlockHoldersTime,
+        statistics.BuildBlockInfosTime,
+        statistics.CreateBlockFetcherTime,
+        statistics.DecodeTimestampSegmentTime,
+        statistics.DecodeKeySegmentTime,
+        statistics.DecodeValueSegmentTime,
+        statistics.FetchBlockTime,
+        statistics.BuildRangesTime,
+        statistics.DoReadTime,
+        statistics.CollectCountsTime,
+        statistics.AllocateRowsTime,
+        statistics.DoReadKeysTime,
+        statistics.DoReadValuesTime,
+        statistics.TryUpdateWindowCallCount,
+        statistics.SkipToBlockCallCount,
+        statistics.FetchBlockCallCount,
+        statistics.SetBlockCallCount,
+        statistics.UpdateSegmentCallCount,
+        statistics.DoReadCallCount);
+}
+
 // TReaderWrapper implements IVersionedReader interface.
 // It calculates performance counters and provides data and decompression statistics.
 class TReaderWrapper
@@ -346,6 +375,12 @@ public:
         , ColumnHunkFlags_(std::move(columnHunkFlags))
         , Lookup_(lookup)
     { }
+
+    ~TReaderWrapper()
+    {
+        const auto& Logger = NTableClient::TableClientLogger;
+        YT_LOG_DEBUG("Reader statistics (%v)", *ReaderStatistics_);
+    }
 
     TFuture<void> Open() override
     {
