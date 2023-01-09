@@ -526,6 +526,11 @@ class TestCompactionPartitioning(TestSortedDynamicTablesBase):
                 "compaction_data_size_base": 16 * 2**20,
                 "enable_lsm_verbose_logging": True,
             },
+            chunk_writer={
+                "versioned_row_digest": {
+                    "enable": True,
+                }
+            },
             enable_dynamic_store_read=False,
             compression_codec="none"
         )
