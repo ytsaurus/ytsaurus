@@ -10,7 +10,6 @@
 #include <yt/yt/core/logging/log_manager.h>
 
 #include <yt/yt/core/misc/crash_handler.h>
-#include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/hazard_ptr.h>
 #include <yt/yt/core/misc/signal_registry.h>
 #include <yt/yt/core/misc/shutdown.h>

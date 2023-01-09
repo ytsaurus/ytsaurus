@@ -713,8 +713,6 @@ const-range-list
 
 %%
 
-#include <yt/yt/core/misc/format.h>
-
 namespace NYT {
 namespace NQueryClient {
 namespace NAst {

@@ -1,6 +1,6 @@
 #include "object_id.h"
 
-#include <yt/yt/core/misc/format.h>
+#include <library/cpp/yt/string/format.h>
 
 #include <util/system/type_name.h>
 

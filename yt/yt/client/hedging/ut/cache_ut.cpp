@@ -1,9 +1,9 @@
 #include <yt/yt/client/hedging/cache.h>
 #include <yt/yt_proto/yt/client/hedging/proto/config.pb.h>
 
-#include <yt/yt/core/misc/format.h>
-
 #include <library/cpp/testing/gtest/gtest.h>
+
+#include <library/cpp/yt/string/format.h>
 
 #include <util/generic/vector.h>
 

@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/master/cell_master/proto/multicell_manager.pb.h>
 
-#include <yt/yt/core/misc/format.h>
+#include <library/cpp/yt/string/format.h>
 
 namespace NYT::NCellMaster {
 

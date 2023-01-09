@@ -1,7 +1,8 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/fair_scheduler.h>
-#include <yt/yt/core/misc/format.h>
+
+#include <library/cpp/yt/string/format.h>
 
 namespace NYT {
 namespace {

@@ -6,7 +6,6 @@
 
 #include <yt/yt/library/erasure/public.h>
 
-#include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt_proto/yt/client/chunk_client/proto/confirm_chunk_replica_info.pb.h>

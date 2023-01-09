@@ -2,7 +2,6 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/yson/protobuf_interop.h>

@@ -20,7 +20,6 @@
 #include <yt/yt/library/erasure/public.h>
 
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 

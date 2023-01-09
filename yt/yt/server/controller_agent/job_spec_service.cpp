@@ -16,7 +16,6 @@
 #include <yt/yt/core/rpc/response_keeper.h>
 #include <yt/yt/core/rpc/service_detail.h>
 
-#include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/ytree/permission.h>
 
 namespace NYT::NControllerAgent {
