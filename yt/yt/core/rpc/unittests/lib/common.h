@@ -88,12 +88,14 @@ public:
         return TImpl::CreateServer(port);
     }
 
-    IChannelPtr CreateChannel(const std::optional<TString>& address = std::nullopt)
+    IChannelPtr CreateChannel(
+        const std::optional<TString>& address = std::nullopt,
+        THashMap<TString, NYTree::INodePtr> grpcArguments = {})
     {
         if (address) {
-            return TImpl::CreateChannel(*address, Address_);
+            return TImpl::CreateChannel(*address, Address_, std::move(grpcArguments));
         } else {
-            return TImpl::CreateChannel(Address_, Address_);
+            return TImpl::CreateChannel(Address_, Address_, std::move(grpcArguments));
         }
     }
 
@@ -144,9 +146,12 @@ public:
         return NRpc::NBus::CreateBusServer(busServer);
     }
 
-    static IChannelPtr CreateChannel(const TString& address, const TString& serverAddress)
+    static IChannelPtr CreateChannel(
+        const TString& address,
+        const TString& serverAddress,
+        THashMap<TString, NYTree::INodePtr> grpcArguments)
     {
-        return TImpl::CreateChannel(address, serverAddress);
+        return TImpl::CreateChannel(address, serverAddress, std::move(grpcArguments));
     }
 
     static NYT::NBus::IBusServerPtr MakeBusServer(ui16 port)
@@ -161,7 +166,10 @@ template <bool ForceTcp>
 class TRpcOverBusImpl
 {
 public:
-    static IChannelPtr CreateChannel(const TString& address, const TString& /*serverAddress*/)
+    static IChannelPtr CreateChannel(
+        const TString& address,
+        const TString& /*serverAddress*/,
+        THashMap<TString, NYTree::INodePtr> /*grpcArguments*/)
     {
         auto client = CreateTcpBusClient(NYT::NBus::TTcpBusClientConfig::CreateTcp(address));
         return NRpc::NBus::CreateBusChannel(client);
@@ -323,7 +331,10 @@ public:
     static constexpr bool AllowTransportErrors = true;
     static constexpr bool Secure = EnableSsl;
 
-    static IChannelPtr CreateChannel(const TString& address, const TString& /* serverAddress */)
+    static IChannelPtr CreateChannel(
+        const TString& address,
+        const TString& /*serverAddress*/,
+        THashMap<TString, NYTree::INodePtr> grpcArguments)
     {
         auto channelConfig = New<NGrpc::TChannelConfig>();
         if (EnableSsl) {
@@ -337,6 +348,7 @@ public:
             channelConfig->Credentials->PemKeyCertPair->CertChain->Value = ClientCert;
         }
         channelConfig->Address = address;
+        channelConfig->GrpcArguments = std::move(grpcArguments);
         return NGrpc::CreateGrpcChannel(channelConfig);
     }
 
@@ -375,7 +387,10 @@ public:
         return CreateTcpBusServer(busConfig);
     }
 
-    static IChannelPtr CreateChannel(const TString& address, const TString& serverAddress)
+    static IChannelPtr CreateChannel(
+        const TString& address,
+        const TString& serverAddress,
+        THashMap<TString, NYTree::INodePtr> /*grpcArguments*/)
     {
         auto clientConfig = NYT::NBus::TTcpBusClientConfig::CreateUnixDomain(
             address == serverAddress ? "./socket" : address);
@@ -411,6 +426,11 @@ using TWithoutGrpc = ::testing::Types<
     TRpcOverBus<TRpcOverBusImpl<true>>,
 #endif
     TRpcOverBus<TRpcOverBusImpl<false>>
+>;
+
+using TGrpcOnly = ::testing::Types<
+    TRpcOverGrpcImpl<false>,
+    TRpcOverGrpcImpl<true>
 >;
 
 ////////////////////////////////////////////////////////////////////////////////

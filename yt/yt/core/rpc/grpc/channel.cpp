@@ -15,6 +15,8 @@
 #include <yt/yt/core/profiling/timing.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
+#include <contrib/libs/grpc/src/core/lib/channel/call_tracer.h>
+#include <contrib/libs/grpc/src/core/lib/surface/call.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
@@ -22,12 +24,106 @@
 #include <array>
 
 namespace NYT::NRpc::NGrpc {
+namespace {
 
 using namespace NRpc;
 using namespace NYTree;
 using namespace NYson;
 using namespace NConcurrency;
 using namespace NBus;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGrpcCallTracer final
+    : public grpc_core::CallTracer
+{
+public:
+    CallAttemptTracer* StartNewAttempt(bool /*is_transparent_retry*/) override
+    {
+        return &AttemptTracer_;
+    }
+
+    TError GetError() const
+    {
+        return AttemptTracer_.GetError();
+    }
+
+private:
+    class TAttemptTracer
+        : public CallAttemptTracer
+    {
+    public:
+        TAttemptTracer()
+            : Error_(GRPC_ERROR_NONE)
+        { }
+
+        ~TAttemptTracer() override
+        {
+            GRPC_ERROR_UNREF(Error_.load());
+        }
+
+        void RecordSendInitialMetadata(
+            grpc_metadata_batch* /*send_initial_metadata*/,
+            uint32_t /*flags*/) override
+        { }
+
+        void RecordOnDoneSendInitialMetadata(gpr_atm* /*peer_string*/) override
+        { }
+
+        void RecordSendTrailingMetadata(grpc_metadata_batch* /*send_trailing_metadata*/) override
+        { }
+
+        void RecordSendMessage(const grpc_core::ByteStream& /*send_message*/) override
+        { }
+
+        void RecordReceivedInitialMetadata(
+            grpc_metadata_batch* /*recv_initial_metadata*/,
+            uint32_t /*flags*/) override
+        { }
+
+        void RecordReceivedMessage(const grpc_core::ByteStream& /*recv_message*/) override
+        { }
+
+        void RecordReceivedTrailingMetadata(
+            y_absl::Status /*status*/,
+            grpc_metadata_batch* /*recv_trailing_metadata*/,
+            const grpc_transport_stream_stats& /*transport_stream_stats*/) override
+        { }
+
+        void RecordCancel(grpc_error_handle cancelError) override
+        {
+            auto current = Error_.exchange(cancelError);
+            GRPC_ERROR_UNREF(current);
+        }
+
+        void RecordEnd(const gpr_timespec& /*latency*/) override
+        { }
+
+        TError GetError() const
+        {
+            auto error = Error_.load();
+            intptr_t statusCode;
+            if (!grpc_error_get_int(error, GRPC_ERROR_INT_GRPC_STATUS, &statusCode)) {
+                statusCode = GRPC_STATUS_UNKNOWN;
+            }
+            TString statusDetail;
+            if (!grpc_error_get_str(error, GRPC_ERROR_STR_DESCRIPTION, &statusDetail)) {
+                statusDetail = "Unknown error";
+            }
+
+            return TError(StatusCodeToErrorCode(static_cast<grpc_status_code>(statusCode)), statusDetail)
+                << TErrorAttribute("status_code", statusCode);
+        }
+
+    private:
+        std::atomic<grpc_error_handle> Error_;
+    };
+
+    TAttemptTracer AttemptTracer_;
+};
+
+DECLARE_REFCOUNTED_TYPE(TGrpcCallTracer)
+DEFINE_REFCOUNTED_TYPE(TGrpcCallTracer)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -185,6 +281,12 @@ private:
                     GetDeadline(),
                     nullptr));
                 grpc_slice_unref(methodSlice);
+
+                Tracer_ = New<TGrpcCallTracer>();
+                grpc_call_context_set(Call_.Unwrap(), GRPC_CONTEXT_CALL_TRACER, Tracer_.Get(), [] (void* ptr) {
+                    NYT::Unref(static_cast<TGrpcCallTracer*>(ptr));
+                });
+                NYT::Ref(Tracer_.Get());
             }
             InitialMetadataBuilder_.Add(RequestIdMetadataKey, ToString(Request_->GetRequestId()));
             InitialMetadataBuilder_.Add(UserMetadataKey, Request_->GetUser());
@@ -285,17 +387,19 @@ private:
         {
             const auto guard = TraceContext_.GetTraceContextGuard();
 
+            auto error = success ? TError() : Tracer_->GetError();
+
             switch (Stage_) {
                 case EClientCallStage::SendingRequest:
-                    OnRequestSent(success);
+                    OnRequestSent(error);
                     break;
 
                 case EClientCallStage::ReceivingInitialMetadata:
-                    OnInitialMetadataReceived(success);
+                    OnInitialMetadataReceived(error);
                     break;
 
                 case EClientCallStage::ReceivingResponse:
-                    OnResponseReceived(success);
+                    OnResponseReceived(error);
                     break;
 
                 default:
@@ -344,6 +448,7 @@ private:
         NYT::NTracing::TTraceContextHandler TraceContext_;
 
         TGrpcCallPtr Call_;
+        TGrpcCallTracerPtr Tracer_;
         TSharedRefArray RequestBody_;
         TGrpcByteBufferPtr RequestBodyBuffer_;
         TGrpcMetadataArray ResponseInitialMetadata_;
@@ -401,12 +506,10 @@ private:
                 : gpr_inf_future(GPR_CLOCK_REALTIME);
         }
 
-        void OnRequestSent(bool success)
+        void OnRequestSent(const TError& error)
         {
-            if (!success) {
-                NotifyError(
-                    TStringBuf("Failed to send request"),
-                    TError(NRpc::EErrorCode::TransportError, "Failed to send request"));
+            if (!error.IsOK()) {
+                NotifyError(TStringBuf("Failed to send request"), error);
                 Unref();
                 return;
             }
@@ -430,12 +533,10 @@ private:
             }
         }
 
-        void OnInitialMetadataReceived(bool success)
+        void OnInitialMetadataReceived(const TError& error)
         {
-            if (!success) {
-                NotifyError(
-                    TStringBuf("Failed to receive initial response metadata"),
-                    TError(NRpc::EErrorCode::TransportError, "Failed to receive initial response metadata"));
+            if (!error.IsOK()) {
+                NotifyError(TStringBuf("Failed to receive initial response metadata"), error);
                 Unref();
                 return;
             }
@@ -465,14 +566,12 @@ private:
             }
         }
 
-        void OnResponseReceived(bool success)
+        void OnResponseReceived(const TError& error)
         {
             auto guard = Finally([this] { Unref(); });
 
-            if (!success) {
-                NotifyError(
-                    TStringBuf("Failed to receive response"),
-                    TError(NRpc::EErrorCode::TransportError, "Failed to receive response"));
+            if (!error.IsOK()) {
+                NotifyError(TStringBuf("Failed to receive response"), error);
                 return;
             }
 
@@ -482,7 +581,7 @@ private:
                 if (serializedError) {
                     error = DeserializeError(serializedError);
                 } else {
-                    error = TError(StatusCodeToErrorCode(ResponseStatusCode_), ToString(ResponseStatusDetails_))
+                    error = TError(StatusCodeToErrorCode(ResponseStatusCode_), NGrpc::ToString(ResponseStatusDetails_))
                         << TErrorAttribute("status_code", ResponseStatusCode_);
                 }
                 NotifyError(TStringBuf("Request failed"), error);
@@ -599,11 +698,6 @@ private:
 
 DEFINE_REFCOUNTED_TYPE(TChannel)
 
-IChannelPtr CreateGrpcChannel(TChannelConfigPtr config)
-{
-    return New<TChannel>(std::move(config));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TChannelFactory
@@ -617,6 +711,15 @@ public:
         return CreateGrpcChannel(config);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace
+
+IChannelPtr CreateGrpcChannel(TChannelConfigPtr config)
+{
+    return New<TChannel>(std::move(config));
+}
 
 IChannelFactoryPtr GetGrpcChannelFactory()
 {
