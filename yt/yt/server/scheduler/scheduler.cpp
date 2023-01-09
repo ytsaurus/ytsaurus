@@ -4034,9 +4034,7 @@ private:
         std::vector<TOperationPtr>&& operations,
         std::vector<IYPathServicePtr>&& operationServices)
     {
-        for (auto& service : operationServices) {
-            service.Reset();
-        }
+        operationServices.clear();
         for (auto& operation : operations) {
             if (operation->GetRefCount() == 1) {
                 YT_LOG_DEBUG("Destroying operation (OperationId: %v)", operation->GetId());

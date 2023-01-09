@@ -231,7 +231,7 @@ void TBufferedStreamWrap::InitType(const TString& moduleName)
         behaviors().supportSetattro();
 
         PYCXX_ADD_KEYWORDS_METHOD(read, Read, "Synchronously read data from stream");
-        PYCXX_ADD_KEYWORDS_METHOD(empty, Empty, "Check wether the stream is empty");
+        PYCXX_ADD_KEYWORDS_METHOD(empty, Empty, "Check that the stream is empty");
 
         behaviors().readyType();
     });
