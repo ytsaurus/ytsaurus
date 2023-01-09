@@ -18,7 +18,6 @@
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/ypath/token.h>
 

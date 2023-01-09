@@ -6,8 +6,6 @@
 
 #include <yt/yt/server/master/node_tracker_server/node.h>
 
-#include <yt/yt/core/misc/string.h>
-
 namespace NYT::NChunkServer {
 
 using namespace NErasure;

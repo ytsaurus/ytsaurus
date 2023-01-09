@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/string.h>
-
 #include <util/generic/typetraits.h>
 
 namespace NYT::NHydra {

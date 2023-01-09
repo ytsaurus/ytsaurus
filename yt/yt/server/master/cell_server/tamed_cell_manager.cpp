@@ -81,7 +81,6 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/random_access_queue.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/ypath/token.h>
 

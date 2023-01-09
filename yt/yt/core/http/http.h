@@ -9,7 +9,6 @@
 
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/net/public.h>
 

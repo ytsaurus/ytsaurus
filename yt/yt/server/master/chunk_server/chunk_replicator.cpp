@@ -53,7 +53,6 @@
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/profiling/timing.h>
 

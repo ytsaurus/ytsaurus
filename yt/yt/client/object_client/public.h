@@ -4,11 +4,11 @@
 #include <library/cpp/yt/misc/guid.h>
 #include <library/cpp/yt/misc/hash.h>
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/client/election/public.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
+
+#include <library/cpp/yt/string/string_builder.h>
 
 namespace NYT::NObjectClient {
 

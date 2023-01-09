@@ -11,7 +11,6 @@
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/misc/guid.h>
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/serialize.h>
 

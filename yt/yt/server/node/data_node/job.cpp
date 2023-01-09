@@ -90,7 +90,6 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <util/generic/algorithm.h>
 

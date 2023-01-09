@@ -62,7 +62,6 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/tls_cache.h>
 

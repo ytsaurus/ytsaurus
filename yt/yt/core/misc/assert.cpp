@@ -6,7 +6,6 @@
 #include "proc.h"
 
 #include <yt/yt/core/misc/core_dumper.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
 

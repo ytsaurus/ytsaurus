@@ -61,7 +61,6 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <library/cpp/yt/memory/ref.h>
 

@@ -52,7 +52,6 @@
 #include <yt/yt/core/misc/atomic_object.h>
 #include <yt/yt/core/misc/hedging_manager.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/memory_reference_tracker.h>
 
 #include <yt/yt/core/net/local_address.h>

@@ -8,7 +8,6 @@
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/string.h>
 
 namespace NYT::NApi {
 

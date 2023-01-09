@@ -25,7 +25,6 @@
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/rpc/helpers.h>
 

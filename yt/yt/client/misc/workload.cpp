@@ -5,8 +5,6 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/fair_share_thread_pool.h>
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/rpc/service.h>
 #include <yt/yt/core/rpc/dispatcher.h>
 

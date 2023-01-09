@@ -2,7 +2,11 @@
 
 #include "public.h"
 
+#include <util/datetime/base.h>
+
 namespace NYT::NTransactionClient {
+
+////////////////////////////////////////////////////////////////////////////////
 
 //! Represents that only values with timestamp in range [|RetentionTimestamp|, |Timestamp|]
 //! should be read.

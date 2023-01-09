@@ -48,8 +48,6 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/rpc/helpers.h>
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>

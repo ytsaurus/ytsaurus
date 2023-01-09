@@ -1,7 +1,6 @@
 #include "tokenizer.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/yson/token.h>
 

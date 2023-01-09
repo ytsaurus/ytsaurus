@@ -13,8 +13,6 @@
 
 #include <yt/yt/ytlib/transaction_client/helpers.h>
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NTransactionServer {

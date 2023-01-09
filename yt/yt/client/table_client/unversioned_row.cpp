@@ -12,7 +12,6 @@
 
 #include <yt/yt/library/decimal/decimal.h>
 
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/range.h>
 #include <yt/yt/core/misc/format.h>
 

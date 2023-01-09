@@ -1,7 +1,6 @@
 #pragma once
 
 #include "public.h"
-#include "string.h"
 
 #include <yt/yt_proto/yt/core/misc/proto/guid.pb.h>
 

@@ -7,7 +7,6 @@
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/format.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
