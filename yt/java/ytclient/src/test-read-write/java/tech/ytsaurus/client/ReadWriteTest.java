@@ -2,106 +2,43 @@ package tech.ytsaurus.client;
 
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
-import java.io.IOException;
 import java.security.MessageDigest;
 import java.util.ArrayList;
 import java.util.Base64;
-import java.util.Collection;
 import java.util.List;
 import java.util.Random;
-import java.util.concurrent.Executors;
 import java.util.concurrent.atomic.AtomicInteger;
 
-import javax.persistence.Entity;
-
-import io.netty.channel.nio.NioEventLoopGroup;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
-import tech.ytsaurus.client.bus.BusConnector;
-import tech.ytsaurus.client.bus.DefaultBusConnector;
 import tech.ytsaurus.client.request.ReadSerializationContext;
 import tech.ytsaurus.client.request.ReadTable;
 import tech.ytsaurus.client.request.SerializationContext;
 import tech.ytsaurus.client.request.WriteSerializationContext;
 import tech.ytsaurus.client.request.WriteTable;
-import tech.ytsaurus.client.rows.MappedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedRow;
 import tech.ytsaurus.client.rows.UnversionedRowDeserializer;
 import tech.ytsaurus.client.rows.UnversionedRowSerializer;
 import tech.ytsaurus.client.rows.UnversionedRowset;
 import tech.ytsaurus.client.rows.UnversionedValue;
-import tech.ytsaurus.client.rpc.Compression;
-import tech.ytsaurus.client.rpc.RpcCompression;
-import tech.ytsaurus.client.rpc.RpcCredentials;
-import tech.ytsaurus.client.rpc.RpcOptions;
 import tech.ytsaurus.core.cypress.CypressNodeType;
 import tech.ytsaurus.core.cypress.YPath;
-import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.core.tables.ColumnValueType;
 import tech.ytsaurus.core.tables.TableSchema;
-import tech.ytsaurus.ysontree.YTree;
-import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializer;
-import ru.yandex.inside.yt.kosher.impl.ytree.object.serializers.YTreeObjectSerializerFactory;
 import ru.yandex.yt.ytclient.proxy.YandexSerializationResolver;
 import ru.yandex.yt.ytclient.proxy.request.CreateNode;
 import ru.yandex.yt.ytclient.proxy.request.ReadFile;
 import ru.yandex.yt.ytclient.proxy.request.WriteFile;
 
 @RunWith(value = Parameterized.class)
-public class ReadWriteTest {
-    YtClient yt;
-
+public class ReadWriteTest extends ReadWriteTestBase {
     private static final AtomicInteger COUNTER = new AtomicInteger(0);
 
     public ReadWriteTest(YtClient yt) {
-        this.yt = yt;
-    }
-
-    @Parameterized.Parameters
-    public static Collection<Object[]> data() throws IOException {
-        BusConnector connector = new DefaultBusConnector(new NioEventLoopGroup(0), true);
-        String localProxy = System.getenv("YT_PROXY");
-
-        YtClient yt = new YtClient(
-                connector,
-                List.of(new YtCluster(localProxy)),
-                "default",
-                null,
-                new RpcCredentials("root", ""),
-                new RpcCompression().setRequestCodecId(Compression.None),
-                new RpcOptions());
-
-        YtClient ytWithCompression = new YtClient(
-                connector,
-                List.of(new YtCluster(localProxy)),
-                "default",
-                null,
-                new RpcCredentials("root", ""),
-                new RpcCompression().setRequestCodecId(Compression.Zlib_6),
-                new RpcOptions());
-
-        yt.waitProxies().join();
-
-        ytWithCompression.waitProxies().join();
-
-        return List.of(
-                new Object[]{yt},
-                new Object[]{ytWithCompression});
-    }
-
-    private String getDigestString(MessageDigest md) {
-        byte[] digest = md.digest();
-        StringBuilder sb = new StringBuilder();
-        for (byte b : digest) {
-            sb.append(Integer.toHexString((b & 0xFF) | 0x100), 1, 3);
-        }
-
-        return sb.toString();
+        super(yt);
     }
 
     @Test
@@ -234,53 +171,6 @@ public class ReadWriteTest {
         }
     }
 
-    @Entity
-    @YTreeObject
-    static class Row {
-        final String key;
-        final String value;
-        final long intValue;
-
-        Row(String key, String value, long intValue) {
-            this.key = key;
-            this.value = value;
-            this.intValue = intValue;
-        }
-
-        Row() {
-            this.key = null;
-            this.value = null;
-            this.intValue = 0;
-        }
-    }
-
-    static class ObjectsRowsGenerator {
-        private long currentRowNumber = 0;
-
-        List<Row> nextRows() {
-            if (currentRowNumber >= 10000) {
-                return null;
-            }
-
-            List<Row> rows = new ArrayList<>();
-
-            for (int i = 0; i < 10; ++i) {
-                String key = "key-" + currentRowNumber;
-                String value = "value-" + currentRowNumber;
-
-                rows.add(new Row(key, value, currentRowNumber));
-
-                currentRowNumber += 1;
-            }
-
-            return rows;
-        }
-
-        long rowsCount() {
-            return currentRowNumber;
-        }
-    }
-
     @Test
     public void testTableReadWrite() throws Exception {
         RowsGenerator generator = new RowsGenerator();
@@ -398,376 +288,6 @@ public class ReadWriteTest {
 
                 Assert.assertEquals(row.toString(), values.get(0).stringValue(), "key-" + intValue);
                 Assert.assertEquals(row.toString(), values.get(1).stringValue(), "value-" + intValue);
-
-                Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
-                rowsSeen.set(currentRowNumber, true);
-
-                currentRowNumber += 1;
-            }
-        }
-
-        for (int i = 0; i < rowsSeen.size(); ++i) {
-            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
-        }
-    }
-
-    @Test
-    public void testTableObjectReadWrite() throws Exception {
-        ObjectsRowsGenerator generator = new ObjectsRowsGenerator();
-
-        YPath path = YPath.simple("//tmp/write-table-example-2");
-
-        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
-
-        TableWriter<Row> writer = yt.writeTable(new WriteTable<>(path,
-                new SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
-
-        List<Row> rows = generator.nextRows();
-
-        while (rows != null) {
-            while (rows != null && writer.write(rows)) {
-                rows = generator.nextRows();
-            }
-
-            writer.readyEvent().join();
-        }
-
-        writer.close().join();
-
-        TableReader<Row> reader = yt.readTable(
-                new ReadTable<>(
-                        path,
-                        new SerializationContext<>(
-                                (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class)))).join();
-
-        List<Boolean> rowsSeen = new ArrayList<>();
-
-        for (int i = 0; i < generator.rowsCount(); ++i) {
-            rowsSeen.add(false);
-        }
-
-        int currentRowNumber = 0;
-
-        while (reader.canRead()) {
-            List<Row> rowset;
-
-            while ((rowset = reader.read()) != null) {
-                for (Row row : rowset) {
-                    long intValue = row.intValue;
-
-                    Assert.assertEquals(row.toString(), row.key, "key-" + intValue);
-                    Assert.assertEquals(row.toString(), row.value, "value-" + intValue);
-
-                    Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
-                    rowsSeen.set(currentRowNumber, true);
-
-                    currentRowNumber += 1;
-                }
-            }
-            reader.readyEvent().join();
-        }
-
-        reader.close().join();
-
-        for (int i = 0; i < rowsSeen.size(); ++i) {
-            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
-        }
-    }
-
-
-    @Test
-    public void testTableObjectReadWriteV2() {
-        ObjectsRowsGenerator generator = new ObjectsRowsGenerator();
-
-        YPath path = YPath.simple("//tmp/write-table-example-2");
-
-        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
-
-        AsyncWriter<Row> writer = yt.writeTableV2(new WriteTable<>(
-                path, new SerializationContext<>(YTreeObjectSerializerFactory.forClass(Row.class)))).join();
-
-        List<Row> rows = generator.nextRows();
-
-        while (rows != null) {
-            writer.write(rows).join();
-            rows = generator.nextRows();
-        }
-
-        writer.finish().join();
-
-        AsyncReader<Row> reader = yt.readTableV2(
-                new ReadTable<>(
-                        path,
-                        new SerializationContext<>(
-                                (YTreeObjectSerializer<Row>) YTreeObjectSerializerFactory.forClass(Row.class)))).join();
-
-        List<Boolean> rowsSeen = new ArrayList<>();
-
-        for (int i = 0; i < generator.rowsCount(); ++i) {
-            rowsSeen.add(false);
-        }
-
-        int currentRowNumber = 0;
-
-        final List<Row> rowset = new ArrayList<>();
-        var executor = Executors.newSingleThreadExecutor();
-        reader.acceptAllAsync(rowset::add, executor).join();
-
-        for (Row row : rowset) {
-            long intValue = row.intValue;
-
-            Assert.assertEquals(row.toString(), row.key, "key-" + intValue);
-            Assert.assertEquals(row.toString(), row.value, "value-" + intValue);
-
-            Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
-            rowsSeen.set(currentRowNumber, true);
-
-            currentRowNumber += 1;
-        }
-
-        for (int i = 0; i < rowsSeen.size(); ++i) {
-            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
-        }
-    }
-
-    @Test
-    public void testEntityReadWriteInSkiff() throws Exception {
-        testSkiffReadWrite(false);
-    }
-
-    @Test
-    public void testEntityReadWriteInSkiffWithRetries() throws Exception {
-        testSkiffReadWrite(true);
-    }
-
-    private void testSkiffReadWrite(boolean needRetries) throws Exception {
-        ObjectsRowsGenerator generator = new ObjectsRowsGenerator();
-
-        YPath path = YPath.simple("//tmp/write-table-example-2");
-
-        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
-
-        TableWriter<Row> writer = yt.writeTable(
-                WriteTable.<Row>builder()
-                        .setPath(path)
-                        .setSerializationContext(
-                                SerializationContext.skiff(Row.class)
-                        )
-                        .setNeedRetries(needRetries)
-                        .build()).join();
-
-        List<Row> rows = generator.nextRows();
-
-        while (rows != null) {
-            while (rows != null && writer.write(rows)) {
-                rows = generator.nextRows();
-            }
-
-            writer.readyEvent().join();
-        }
-
-        writer.close().join();
-
-        TableReader<Row> reader = yt.readTable(
-                ReadTable.<Row>builder()
-                        .setPath(path)
-                        .setSerializationContext(
-                                SerializationContext.skiff(Row.class)
-                        )
-                        .build()).join();
-
-        List<Boolean> rowsSeen = new ArrayList<>();
-
-        for (int i = 0; i < generator.rowsCount(); ++i) {
-            rowsSeen.add(false);
-        }
-
-        int currentRowNumber = 0;
-
-        while (reader.canRead()) {
-            List<Row> rowset;
-
-            while ((rowset = reader.read()) != null) {
-                for (Row row : rowset) {
-                    long intValue = row.intValue;
-
-                    Assert.assertEquals(row.toString(), row.key, "key-" + intValue);
-                    Assert.assertEquals(row.toString(), row.value, "value-" + intValue);
-
-                    Assert.assertEquals(false, rowsSeen.get(currentRowNumber));
-                    rowsSeen.set(currentRowNumber, true);
-
-                    currentRowNumber += 1;
-                }
-            }
-            reader.readyEvent().join();
-        }
-
-        reader.close().join();
-
-        for (int i = 0; i < rowsSeen.size(); ++i) {
-            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
-        }
-    }
-
-    static class YTreeMapNodeRowsGenerator {
-        private long currentRowNumber = 0;
-        private final TableSchema schema = createSchema();
-
-        static TableSchema createSchema() {
-            TableSchema.Builder builder = new TableSchema.Builder();
-            builder.setUniqueKeys(false);
-            builder.addValue("key", ColumnValueType.STRING);
-            builder.addValue("value", ColumnValueType.STRING);
-            builder.addValue("intValue", ColumnValueType.INT64);
-            return builder.build().toWrite();
-        }
-
-        TableSchema getSchema() {
-            return this.schema;
-        }
-
-        List<YTreeMapNode> nextRows() {
-            if (currentRowNumber >= 10000) {
-                return null;
-            }
-
-            List<YTreeMapNode> rows = new ArrayList<>();
-
-            for (int i = 0; i < 10; ++i) {
-                String key = "key-" + currentRowNumber;
-                String value = "value-" + currentRowNumber;
-
-                rows.add(
-                        YTree.builder()
-                                .beginMap()
-                                .key("key").value(key)
-                                .key("value").value(value)
-                                .key("intValue").value(currentRowNumber)
-                                .endMap()
-                                .build().mapNode());
-
-                currentRowNumber += 1;
-            }
-
-            return rows;
-        }
-
-        long rowsCount() {
-            return currentRowNumber;
-        }
-    }
-
-    @Test
-    public void testTableYTreeMapNodeReadWrite() throws Exception {
-        YTreeMapNodeRowsGenerator generator = new YTreeMapNodeRowsGenerator();
-
-        YPath path = YPath.simple("//tmp/write-table-example-3");
-
-        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
-
-        YTreeSerializer<YTreeMapNode> serializer = YTreeObjectSerializerFactory.forClass(YTreeMapNode.class);
-
-        TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(
-                path, new SerializationContext<>(serializer))).join();
-
-        List<YTreeMapNode> rows = generator.nextRows();
-
-        while (rows != null) {
-            while (rows != null && writer.write(rows, generator.getSchema())) {
-                rows = generator.nextRows();
-            }
-
-            writer.readyEvent().join();
-        }
-
-        writer.close().join();
-
-        TableReader<YTreeMapNode> reader = yt.readTable(new ReadTable<>(
-                path, new SerializationContext<>(serializer))).join();
-
-        List<Boolean> rowsSeen = new ArrayList<>();
-
-        for (int i = 0; i < generator.rowsCount(); ++i) {
-            rowsSeen.add(false);
-        }
-
-        int currentRowNumber = 0;
-
-        while (reader.canRead()) {
-            List<YTreeMapNode> rowset;
-
-            while ((rowset = reader.read()) != null) {
-                for (YTreeMapNode row : rowset) {
-                    int intValue = row.getInt("intValue");
-                    String key = "key-" + intValue;
-                    String value = "value-" + intValue;
-
-                    Assert.assertEquals(row.toString(), row.getString("key"), key);
-                    Assert.assertEquals(row.toString(), row.getString("value"), value);
-
-                    Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
-                    rowsSeen.set(currentRowNumber, true);
-
-                    currentRowNumber += 1;
-                }
-            }
-            reader.readyEvent().join();
-        }
-
-        reader.close().join();
-
-        for (int i = 0; i < rowsSeen.size(); ++i) {
-            Assert.assertTrue("row #" + i + " wasn't seen", rowsSeen.get(i));
-        }
-    }
-
-    @Test
-    public void testTableYTreeMapNodeReadWriteV2() {
-        YTreeMapNodeRowsGenerator generator = new YTreeMapNodeRowsGenerator();
-
-        YPath path = YPath.simple("//tmp/write-table-example-3");
-
-        yt.createNode(new CreateNode(path, CypressNodeType.TABLE).setForce(true)).join();
-
-        YTreeSerializer<YTreeMapNode> serializer = YTreeObjectSerializerFactory.forClass(YTreeMapNode.class);
-
-        List<YTreeMapNode> rows = generator.nextRows();
-
-        AsyncWriter<YTreeMapNode> writer = yt.writeTableV2(new WriteTable<>(
-                path,
-                new WriteSerializationContext<>(MappedRowSerializer.forClass(serializer)),
-                generator.getSchema())
-        ).join();
-
-        while (rows != null) {
-            writer.write(rows).join();
-            rows = generator.nextRows();
-        }
-
-        writer.finish().join();
-
-        AsyncReader<YTreeMapNode> reader = yt.readTableV2(new ReadTable<>(
-                path, new SerializationContext<>(serializer))).join();
-
-        List<Boolean> rowsSeen = new ArrayList<>();
-
-        for (int i = 0; i < generator.rowsCount(); ++i) {
-            rowsSeen.add(false);
-        }
-
-        int currentRowNumber = 0;
-
-        List<YTreeMapNode> rowset;
-
-        while ((rowset = reader.next().join()) != null) {
-            for (YTreeMapNode row : rowset) {
-                int intValue = row.getInt("intValue");
-                String key = "key-" + intValue;
-                String value = "value-" + intValue;
-
-                Assert.assertEquals(row.toString(), row.getString("key"), key);
-                Assert.assertEquals(row.toString(), row.getString("value"), value);
 
                 Assert.assertEquals(rowsSeen.get(currentRowNumber), false);
                 rowsSeen.set(currentRowNumber, true);
