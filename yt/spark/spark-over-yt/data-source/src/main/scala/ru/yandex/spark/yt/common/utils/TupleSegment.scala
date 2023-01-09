@@ -13,5 +13,8 @@ case class TuplePoint(points: Seq[Point]) extends Ordered[TuplePoint] {
 object TupleSegment {
   type TupleSegment = AbstractSegment[TuplePoint]
 
+  val mInfinity: TuplePoint = TuplePoint(Seq(MInfinity()))
+  val pInfinity: TuplePoint = TuplePoint(Seq(PInfinity()))
+
   def apply(left: TuplePoint, right: TuplePoint): TupleSegment = new TupleSegment(left, right)
 }

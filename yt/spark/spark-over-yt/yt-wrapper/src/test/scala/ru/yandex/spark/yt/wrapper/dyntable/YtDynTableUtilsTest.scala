@@ -17,13 +17,13 @@ class YtDynTableUtilsTest extends AnyFlatSpec with Matchers with LocalYtClient w
 
   it should "get empty pivotKeys" in {
     prepareTestTable(tmpPath, testData, Nil)
-    YtWrapper.pivotKeys(tmpPath).map(str) should contain theSameElementsInOrderAs Seq("{}")
+    YtWrapper.pivotKeys(tmpPath).map(str) should contain theSameElementsInOrderAs Seq("[]")
   }
 
   it should "get non empty pivotKeys" in {
     prepareTestTable(tmpPath, testData, Seq(Seq(), Seq(3), Seq(6, 12)))
     YtWrapper.pivotKeys(tmpPath).map(str) should contain theSameElementsInOrderAs Seq(
-      "{}", """{"a"=3}""", """{"a"=6;"b"=12}"""
+      "[]", """[3]""", """[6;12]"""
     )
   }
 

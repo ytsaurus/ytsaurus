@@ -8,7 +8,7 @@ import org.apache.spark.sql.functions.col
 import org.apache.spark.sql.types.{StringType, StructField, StructType}
 import org.mockito.scalatest.MockitoSugar
 import org.scalatest.{FlatSpec, Matchers}
-import ru.yandex.spark.yt.common.utils.{MInfinity, PInfinity, RealValue, TuplePoint}
+import ru.yandex.spark.yt.common.utils.{MInfinity, PInfinity, RealValue, TuplePoint, TupleSegment}
 import ru.yandex.spark.yt.format.{YtInputSplit, YtPartitionedFile}
 import ru.yandex.spark.yt.format.conf.SparkYtConfiguration
 import ru.yandex.spark.yt.serializers.{PivotKeysConverter, YtLogicalType}
@@ -129,9 +129,9 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
     val data = (0 until 100).map(x => (x / 100, x / 100, -x))
     data.toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
 
-    val keys = getRawKeys(tmpPath)
+    val keys = getParsedKeys(tmpPath)
     keys should contain theSameElementsAs Seq(
-      (None, None)
+      (TupleSegment.mInfinity, TupleSegment.pInfinity)
     )
   }
 
@@ -159,8 +159,8 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
     )
   }
 
-  private def getParsedKeys(path: String): Seq[(TuplePoint, TuplePoint)] = {
-    getRawKeys(path).map {
+  private def getParsedKeys(paths: String*): Seq[(TuplePoint, TuplePoint)] = {
+    getRawKeys(paths : _*).map {
       case (a, b) => (a.get, b.get)
     }
   }
@@ -178,8 +178,7 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
   private def extractRawKeys(files: Seq[PartitionedFile]): Seq[(Option[TuplePoint], Option[TuplePoint])] = {
     files.map {
       case file: YtPartitionedFile =>
-        (PivotKeysConverter.toPoint(file.beginKey, file.keyColumns),
-          PivotKeysConverter.toPoint(file.endKey, file.keyColumns))
+        (file.beginPoint, file.endPoint)
     }
   }
 
@@ -285,10 +284,10 @@ class StaticTableKeyPartitioningTest extends FlatSpec with Matchers with LocalSp
     Seq((0, 0, 0)).toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath)
     Seq((1, 0, 0)).toDF("a", "b", "c").write.sortedBy("a", "b").yt(tmpPath + "2")
 
-    val keys = getRawKeys(tmpPath, tmpPath + "2")
+    val keys = getParsedKeys(tmpPath, tmpPath + "2")
     keys should contain theSameElementsAs Seq(
-      (None, None),
-      (None, None)
+      (TupleSegment.mInfinity, TupleSegment.pInfinity),
+      (TupleSegment.mInfinity, TupleSegment.pInfinity)
     )
   }
 

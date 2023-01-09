@@ -10,6 +10,12 @@ ENV SBT_VERSION ${SBT_VERSION:-1.5.4}
 
 # add docker for dind tests
 RUN apt-get update && apt-get -y install docker docker.io default-jdk python3.7 python3-pip
+RUN \
+    curl -SL https://github.com/docker/compose/releases/download/v2.12.2/docker-compose-linux-x86_64 -o /usr/share/docker-compose && \
+    chown -R root:root /usr/share/docker-compose && \
+    chmod -R 755 /usr/share/docker-compose && \
+    ln -s /usr/share/docker-compose /usr/local/bin/docker-compose
+
 RUN python3 -m pip install pip
 RUN python3 -m pip install tox twine "setuptools<60.0.0" click
 

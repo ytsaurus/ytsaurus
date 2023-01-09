@@ -33,7 +33,7 @@ class AutoPartitioningTest extends FlatSpec with Matchers with LocalSpark with T
 
     partitions.length shouldEqual 10
     getPartitionsFiles(partitions) should contain theSameElementsAs (0 until 10).map( i =>
-      Seq(Static(hadoopTmpPath, i, i + 1)),
+      Seq(Static(tmpPath, i, i + 1)),
     )
     res should contain theSameElementsAs data
   }
@@ -51,10 +51,10 @@ class AutoPartitioningTest extends FlatSpec with Matchers with LocalSpark with T
 
     partitions.length shouldEqual 4
     getPartitionsFiles(partitions) should contain theSameElementsAs Seq(
-      Seq(Static(hadoopTmpPath, 0, 25)),
-      Seq(Static(hadoopTmpPath, 25, 50)),
-      Seq(Static(hadoopTmpPath, 50, 75)),
-      Seq(Static(hadoopTmpPath, 75, 100))
+      Seq(Static(tmpPath, 0, 25)),
+      Seq(Static(tmpPath, 25, 50)),
+      Seq(Static(tmpPath, 50, 75)),
+      Seq(Static(tmpPath, 75, 100))
     )
     res should contain theSameElementsAs data
   }
@@ -70,7 +70,7 @@ class AutoPartitioningTest extends FlatSpec with Matchers with LocalSpark with T
 
     partitions.length shouldEqual 1
     getPartitionsFiles(partitions) should contain theSameElementsAs Seq(
-      Seq(Static(hadoopTmpPath, 0, 100))
+      Seq(Static(tmpPath, 0, 100))
     )
     res should contain theSameElementsAs data
   }
@@ -91,10 +91,10 @@ class AutoPartitioningTest extends FlatSpec with Matchers with LocalSpark with T
 
     partitions.length shouldEqual 4
     getPartitionsFiles(partitions) should contain theSameElementsAs Seq(
-      Seq(Static(s"$hadoopTmpPath/1", 0, 25)),
-      Seq(Static(s"$hadoopTmpPath/1", 25, 50)),
-      Seq(Static(s"$hadoopTmpPath/1", 50, 60), Static(s"$hadoopTmpPath/2", 0, 15)),
-      Seq(Static(s"$hadoopTmpPath/2", 15, 40))
+      Seq(Static(s"$tmpPath/1", 0, 25)),
+      Seq(Static(s"$tmpPath/1", 25, 50)),
+      Seq(Static(s"$tmpPath/1", 50, 60), Static(s"$tmpPath/2", 0, 15)),
+      Seq(Static(s"$tmpPath/2", 15, 40))
     )
     res should contain theSameElementsAs (data1 ++ data2)
   }
