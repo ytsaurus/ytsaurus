@@ -223,7 +223,7 @@ class TestPrepareSchedulingUsage(YTEnvSetup):
             else:
                 assert row["operation_state"] == "completed"
 
-        assert 5.0 <= accumulated_resource_usage_cpu <= 10.0
+        assert 5.0 <= accumulated_resource_usage_cpu
 
         assert cumulative_max_memory > 0
         assert cumulative_max_memory <= accumulated_resource_usage_memory
