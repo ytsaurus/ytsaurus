@@ -331,7 +331,7 @@ void TChunkWriterOptions::EnableValidationOptions(bool validateAnyIsValidYson)
 void TVersionedRowDigestConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable", &TThis::Enable)
-        .Default(true);
+        .Default(false);
     registrar.Parameter("t_digest", &TThis::TDigest)
         .DefaultNew();
 }
