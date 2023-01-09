@@ -222,7 +222,7 @@ TEST_F(TNetTest, StressConcurrentClose)
 
 TEST_F(TNetTest, Bind)
 {
-    // TODO(aleexfi): test is broken;
+    // TODO(aleexfi): test is broken.
     #ifdef _win_
         return;
     #endif
