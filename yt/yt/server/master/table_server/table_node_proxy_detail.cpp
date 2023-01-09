@@ -60,7 +60,6 @@
 #include <yt/yt/client/chunk_client/read_limit.h>
 
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/ypath/token.h>
 

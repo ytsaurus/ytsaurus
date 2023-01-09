@@ -109,7 +109,6 @@
 
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/numeric_helpers.h>
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
 #include <yt/yt/core/ypath/token.h>

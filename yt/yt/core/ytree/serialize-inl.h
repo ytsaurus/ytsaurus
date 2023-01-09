@@ -7,7 +7,6 @@
 #include "node.h"
 
 #include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 

@@ -6,7 +6,6 @@
 
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/proc.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/net/socket.h>
 #include <yt/yt/core/net/dialer.h>

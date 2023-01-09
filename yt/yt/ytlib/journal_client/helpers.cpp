@@ -16,8 +16,6 @@
 
 #include <yt/yt/client/rpc/helpers.h>
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>

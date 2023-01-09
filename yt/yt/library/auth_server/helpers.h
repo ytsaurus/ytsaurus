@@ -2,8 +2,6 @@
 
 #include "public.h"
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 

@@ -126,8 +126,6 @@
 
 #include <yt/yt/core/logging/log.h>
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/yson/string.h>
 
 #include <util/generic/cast.h>

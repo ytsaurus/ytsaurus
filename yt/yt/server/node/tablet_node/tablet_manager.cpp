@@ -97,7 +97,6 @@
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/ring_queue.h>
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
 #include <yt/yt/core/ytree/fluent.h>

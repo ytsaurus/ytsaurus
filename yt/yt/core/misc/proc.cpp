@@ -7,7 +7,6 @@
 #include <yt/yt/core/misc/common.h>
 #include <yt/yt/core/misc/error_code.h>
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/ytree/convert.h>
 

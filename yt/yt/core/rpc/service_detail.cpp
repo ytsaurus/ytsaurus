@@ -21,7 +21,6 @@
 
 #include <yt/yt/core/logging/log_manager.h>
 
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/net/address.h>

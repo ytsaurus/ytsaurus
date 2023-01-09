@@ -11,7 +11,6 @@
 #include <yt/yt/server/master/object_server/object.h>
 #include <yt/yt/server/master/object_server/object_manager.h>
 
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 
 #include <yt/yt/core/ytree/virtual.h>

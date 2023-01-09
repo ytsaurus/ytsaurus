@@ -14,7 +14,6 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 

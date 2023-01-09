@@ -14,8 +14,6 @@
 #include <yt/yt/core/json/json_parser.h>
 #include <yt/yt/core/json/json_writer.h>
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/rpc/dispatcher.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>

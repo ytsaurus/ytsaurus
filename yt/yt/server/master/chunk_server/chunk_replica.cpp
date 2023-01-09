@@ -5,8 +5,6 @@
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 
-#include <yt/yt/core/misc/string.h>
-
 namespace NYT::NChunkServer {
 
 using namespace NChunkClient;

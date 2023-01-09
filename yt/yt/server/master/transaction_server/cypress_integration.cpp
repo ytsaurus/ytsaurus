@@ -11,8 +11,6 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/ytree/virtual.h>
 
 namespace NYT::NTransactionServer {

@@ -5,6 +5,8 @@
 
 #include <library/cpp/yt/misc/cast.h>
 
+#include <library/cpp/yt/string/enum.h>
+
 #include <util/string/cast.h>
 #include <util/string/type.h>
 

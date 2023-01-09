@@ -59,7 +59,6 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/ytree/attributes.h>
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>

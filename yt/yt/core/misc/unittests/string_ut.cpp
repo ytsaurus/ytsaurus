@@ -1,6 +1,6 @@
 #include <yt/yt/core/test_framework/framework.h>
 
-#include <yt/yt/core/misc/string.h>
+#include <library/cpp/yt/string/enum.h>
 
 namespace NYT {
 namespace {

@@ -8,7 +8,6 @@
 
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/serialize.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/yson/public.h>
 

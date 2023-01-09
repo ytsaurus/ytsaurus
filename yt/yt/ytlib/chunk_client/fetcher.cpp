@@ -14,7 +14,6 @@
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
 #include <yt/yt/core/misc/protobuf_helpers.h>
-#include <yt/yt/core/misc/string.h>
 
 #include <yt/yt/core/rpc/retrying_channel.h>
 

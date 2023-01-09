@@ -14,7 +14,6 @@
 #include <yt/yt/core/net/socket.h>
 
 #include <yt/yt/core/misc/fs.h>
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
 #include <yt/yt/core/ytree/convert.h>

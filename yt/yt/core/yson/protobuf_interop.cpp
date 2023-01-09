@@ -15,7 +15,6 @@
 #include <yt/yt/core/ypath/token.h>
 #include <yt/yt/core/ypath/tokenizer.h>
 
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <yt/yt/core/ytree/convert.h>

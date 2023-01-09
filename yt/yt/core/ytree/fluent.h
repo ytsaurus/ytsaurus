@@ -13,10 +13,9 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/string.h>
-
-
 namespace NYT::NYTree {
+
+////////////////////////////////////////////////////////////////////////////////
 
 /*
 // WHAT IS THIS
@@ -118,8 +117,6 @@ namespace NYT::NYTree {
 //   for TAny.
 //
  */
-
-////////////////////////////////////////////////////////////////////////////////
 
 template <class T>
 struct TFluentYsonUnwrapper

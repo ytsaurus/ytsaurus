@@ -1,7 +1,5 @@
 #include "io_tags.h"
 
-#include <yt/yt/core/misc/string.h>
-
 #include <yt/yt/core/ytree/helpers.h>
 
 namespace NYT {

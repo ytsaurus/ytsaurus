@@ -6,7 +6,6 @@
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/string.h>
 #include <yt/yt/core/misc/checksum.h>
 
 #include <util/digest/multi.h>
