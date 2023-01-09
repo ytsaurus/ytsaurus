@@ -47,9 +47,12 @@ template <class TImpl>
 using TNotUnixDomainTest = TTestBase<TImpl>;
 template <class TImpl>
 using TNotGrpcTest = TTestBase<TImpl>;
+template <class TImpl>
+using TGrpcTest = TTestBase<TImpl>;
 TYPED_TEST_SUITE(TRpcTest, TAllTransports);
 TYPED_TEST_SUITE(TNotUnixDomainTest, TWithoutUnixDomain);
 TYPED_TEST_SUITE(TNotGrpcTest, TWithoutGrpc);
+TYPED_TEST_SUITE(TGrpcTest, TGrpcOnly);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -892,6 +895,20 @@ TYPED_TEST(TRpcTest, NoMoreRequestsAfterStop)
     auto req = proxy.SlowCall();
     auto reqResult = req->Invoke();
     EXPECT_FALSE(reqResult.Get().IsOK());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TYPED_TEST(TGrpcTest, SendMessageLimit)
+{
+    THashMap<TString, NYTree::INodePtr> arguments;
+    arguments["grpc.max_send_message_length"] = NYT::NYTree::ConvertToNode(1);
+    TMyProxy proxy(this->CreateChannel(std::nullopt, std::move(arguments)));
+    auto req = proxy.SomeCall();
+    req->set_a(42);
+    auto error = req->Invoke().Get();
+    EXPECT_EQ(NRpc::EErrorCode::ProtocolError, error.GetCode());
+    EXPECT_THAT(error.GetMessage(), testing::HasSubstr("Sent message larger than max"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
