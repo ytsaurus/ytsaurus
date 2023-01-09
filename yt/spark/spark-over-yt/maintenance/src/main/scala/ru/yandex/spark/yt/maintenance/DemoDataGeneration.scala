@@ -1,10 +1,11 @@
 package ru.yandex.spark.yt.maintenance
 
 import org.apache.spark.sql.SaveMode
-import org.joda.time.{LocalDateTime, Seconds}
+import org.threeten.extra.Seconds
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.wrapper.table.OptimizeMode
 
+import java.time.LocalDateTime
 import java.util.UUID
 import scala.util.Random
 
@@ -40,10 +41,10 @@ object DemoDataGeneration extends SparkApp {
     val log = (1 to 200).toDS.flatMap { i =>
       val start = LocalDateTime.parse("2022-07-01T00:00:00")
       val end = LocalDateTime.parse("2022-07-08T00:00:00")
-      val secondsBetween = Seconds.secondsBetween(start, end).getSeconds
+      val secondsBetween = Seconds.between(start, end).getAmount
       val r = Random
       (1 to 1000000).iterator.map { j =>
-        val dttm = start.plus(Seconds.seconds(r.nextInt(secondsBetween))).toString
+        val dttm = start.plus(Seconds.of(r.nextInt(secondsBetween))).toString
         val user = users(r.nextInt(users.length))
         val eventType = eventTypes(r.nextInt(eventTypes.length))
         val deviceId = userToDevice.get(user).map { case (id1, id2) => if (r.nextInt(10) > 8) id2 else id1}
@@ -90,11 +91,11 @@ object DemoDataGeneration extends SparkApp {
     val processStatus = (1 to 100).toDS().flatMap{ i =>
       val start = LocalDateTime.parse("2022-07-01T00:00:00")
       val end = LocalDateTime.parse("2022-07-08T00:00:00")
-      val secondsBetween = Seconds.secondsBetween(start, end).getSeconds
+      val secondsBetween = Seconds.between(start, end).getAmount
       val r = Random
       (1 to 1000).map { j =>
         val id = UUID.randomUUID().toString
-        val dttm = start.plus(Seconds.seconds(r.nextInt(secondsBetween))).toString
+        val dttm = start.plus(Seconds.of(r.nextInt(secondsBetween))).toString
         val status = statuses(r.nextInt(statuses.length))
         val sliceI = r.nextInt(text.length)
         val sliceJ = r.nextInt(text.length)

@@ -18,6 +18,7 @@ import ru.yandex.spark.yt.serializers.{InternalRowDeserializer, PivotKeysConvert
 import ru.yandex.spark.yt.wrapper.YtWrapper
 import ru.yandex.spark.yt.wrapper.client.YtClientProvider
 import tech.ytsaurus.client.CompoundClient
+import tech.ytsaurus.ysontree.YTreeNode
 
 import scala.collection.mutable.ArrayBuffer
 
@@ -61,8 +62,8 @@ object YtFilePartition {
                          partitionValues: InternalRow): PartitionedFile = {
     YtPath.fromPath(file.getPath) match {
       case yp: YtDynamicPath =>
-        YtPartitionedFile.dynamic(yp.toStringPath, yp.beginKey, yp.endKey, file.getLen,
-          yp.keyColumns, file.getModificationTime, partitionValues)
+        YtPartitionedFile.dynamic(yp.toStringPath, yp.ypath.toYPath, yp.beginKey, yp.endKey, file.getLen,
+          file.getModificationTime, partitionValues)
       case p =>
         PartitionedFile(partitionValues, p.toUri.toString, offset, size, Array.empty)
     }
@@ -76,6 +77,7 @@ object YtFilePartition {
                          partitionValues: InternalRow): PartitionedFile = {
     YtPartitionedFile.static(
       path.toStringPath,
+      path.ypath.toYPath,
       path.attrs.beginRow + rowOffset,
       path.attrs.beginRow + rowOffset + rowCount,
       byteSize,
@@ -335,19 +337,19 @@ object YtFilePartition {
 
   private def putPivotKeysToFile(file: YtPartitionedFile, keys: Seq[String],
                                  start: TuplePoint, end: TuplePoint): YtPartitionedFile = {
-    file.copy(getByteKey(keys, start), getByteKey(keys, end), keys)
+    file.copy(getByteKey(keys, start), getByteKey(keys, end))
   }
 
   private def getByteKey(columns: Seq[String], key: TuplePoint): Array[Byte] = {
-    PivotKeysConverter.toByteArray(columns.zip(key.points.map(YtInputSplit.prepareKey)).toMap)
+    PivotKeysConverter.toByteArray(key.points.take(columns.length).map(PivotKeysConverter.prepareKey).toList)
   }
 
   def getPivotFromHintFiles(keys: Seq[String], files: Seq[FilePartition]): Seq[TuplePoint] = {
     files.drop(1).map(file => getTuplePoint(keys, file.files(0).asInstanceOf[YtPartitionedFile].beginKey))
   }
 
-  private def getTuplePoint(columns: Seq[String], key: Array[Byte]): TuplePoint = {
-    PivotKeysConverter.toPoint(key, columns).get
+  private def getTuplePoint(columns: Seq[String], key: Seq[YTreeNode]): TuplePoint = {
+    PivotKeysConverter.toPoint(key.take(columns.length)).get
   }
 
   private[v2] def seqGroupBy[K, V](valuesWithKeys: Seq[(K, V)]): Seq[(K, Seq[V])] = {

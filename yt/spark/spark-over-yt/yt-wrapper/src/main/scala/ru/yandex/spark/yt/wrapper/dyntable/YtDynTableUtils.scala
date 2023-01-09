@@ -31,7 +31,7 @@ trait YtDynTableUtils {
   private val log = LoggerFactory.getLogger(getClass)
 
   type PivotKey = Array[Byte]
-  val emptyPivotKey: PivotKey = serialiseYson(new YTreeBuilder().beginMap().endMap().build())
+  val emptyPivotKey: PivotKey = serialiseYson(new YTreeBuilder().beginList().endList().build())
   private val executor = Executors.newSingleThreadExecutor(new ThreadFactory() {
     override def newThread(runnable: Runnable): Thread = {
       val thread: Thread = Executors.defaultThreadFactory().newThread(runnable)
@@ -53,10 +53,12 @@ trait YtDynTableUtils {
   def pivotKeysYson(path: YPath)(implicit yt: CompoundClient): Seq[YTreeNode] = {
     import scala.collection.JavaConverters._
     log.debug(s"Get pivot keys for $path")
-    yt
-      .getTablePivotKeys(new GetTablePivotKeys(path.justPath().toString))
+    val res = yt.getTablePivotKeys(
+        GetTablePivotKeys.builder().setPath(path.justPath().toString).setRepresentKeyAsList(true).build()
+      )
       .join()
       .asScala
+    res
   }
 
   def pivotKeys(path: String)(implicit yt: CompoundClient): Seq[PivotKey] = {

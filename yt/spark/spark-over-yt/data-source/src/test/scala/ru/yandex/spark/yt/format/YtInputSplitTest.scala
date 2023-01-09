@@ -11,7 +11,7 @@ import org.scalatest.{FlatSpec, Matchers}
 import ru.yandex.spark.yt._
 import ru.yandex.spark.yt.common.utils.ExpressionTransformer.expressionToSegmentSet
 import ru.yandex.spark.yt.common.utils._
-import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, getYPathWithRowNumsImpl}
+import ru.yandex.spark.yt.format.YtInputSplit.{getKeyFilterSegments, pushdownFiltersToYPath}
 import ru.yandex.spark.yt.format.conf.{FilterPushdownConfig, SparkYtConfiguration}
 import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.test._
@@ -323,22 +323,22 @@ class YtInputSplitTest extends FlatSpec with Matchers with LocalSpark with DynTa
 
   it should "get ypath" in {
     val keyColumns = List("a", "b")
-    val file = new YtPartitionedFile("//dir/path", Array(), Array(), 2,
-      5, 10, false, keyColumns, 0, YtPartitionedFile.emptyInternalRow)
-    val baseYPath = ypath(new Path(file.path)).toYPath.withColumns(keyColumns: _*)
+    val file = YtPartitionedFile.static("//dir/path", 2,
+      5, 10, 0, YtPartitionedFile.emptyInternalRow)
+    val baseYPath = file.ypath.withColumns(keyColumns: _*)
     val config = FilterPushdownConfig(enabled = true, unionEnabled = true, ytPathCountLimit = 5)
-    getYPathWithRowNumsImpl(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
+    pushdownFiltersToYPath(single = false, exampleSet1, keyColumns.map(Some(_)), config, baseYPath).toString shouldBe
       """<"ranges"=
         |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
         |"upper_limit"={"row_index"=5;"key"=[5;20;<"type"="max">#]}};
         |{"lower_limit"={"row_index"=2;"key"=[15;2]};
-        |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#;20;<"type"="max">#]}}];
+        |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#]}}];
         |"columns"=["a";"b"]>//dir/path""".stripMargin.replaceAll("\n", "")
 
-    getYPathWithRowNumsImpl(single = true, exampleSet1, keyColumns.map(Some(_)), config, baseYPath, file).toString shouldBe
+    pushdownFiltersToYPath(single = true, exampleSet1, keyColumns.map(Some(_)), config, baseYPath).toString shouldBe
       """<"ranges"=
         |[{"lower_limit"={"row_index"=2;"key"=[<"type"="min">#;2]};
-        |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#;20;<"type"="max">#]}}];
+        |"upper_limit"={"row_index"=5;"key"=[<"type"="max">#]}}];
         |"columns"=["a";"b"]>//dir/path""".stripMargin.replaceAll("\n", "")
   }
 

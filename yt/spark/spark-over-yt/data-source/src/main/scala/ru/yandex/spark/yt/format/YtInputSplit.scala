@@ -7,11 +7,13 @@ import org.apache.spark.sql.types.StructType
 import ru.yandex.spark.yt.common.utils.Segment.Segment
 import ru.yandex.spark.yt.common.utils.TupleSegment.TupleSegment
 import ru.yandex.spark.yt.common.utils._
+import ru.yandex.spark.yt.format.YPathUtils.RichRangeCriteria
 import ru.yandex.spark.yt.format.YtInputSplit._
 import ru.yandex.spark.yt.format.conf.FilterPushdownConfig
 import ru.yandex.spark.yt.fs.path.YPathEnriched.ypath
 import ru.yandex.spark.yt.logger.{YtDynTableLogger, YtDynTableLoggerConfig, YtLogger}
-import ru.yandex.spark.yt.serializers.PivotKeysConverter.{toList, toRangeLimit}
+import tech.ytsaurus.core.cypress.{Exact, Range, RangeCriteria, RangeLimit, YPath}
+import ru.yandex.spark.yt.serializers.PivotKeysConverter.{prepareKey, toList, toRangeLimit}
 import ru.yandex.spark.yt.serializers.SchemaConverter
 import ru.yandex.spark.yt.serializers.SchemaConverter.MetadataFields
 import tech.ytsaurus.core.cypress.{RangeLimit, YPath}
@@ -27,18 +29,16 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
   private implicit lazy val ytLog: YtLogger = YtDynTableLogger.pushdown(ytLoggerConfig)
   private val logMessageInfo = Map(
     "segments" -> pushedFilters.toString,
-    "keysInFile" -> file.keyColumns.mkString(", "),
     "keysInSchema" -> SchemaConverter.keys(schema).mkString(", ")
   )
 
-  override def getLength: Long = file.endRow - file.beginRow
+  override def getLength: Long = 1
 
   override def getLocations: Array[String] = Array.empty
 
   private val originalFieldNames = schema.fields.map(x => x.metadata.getString(MetadataFields.ORIGINAL_NAME))
-  private val basePath: YPath = ypath(new Path(file.path)).toYPath
-    .withAdditionalAttributes(java.util.Map.of("columns",
-      new YTreeBuilder().value(java.util.List.of(originalFieldNames: _*)).build()))
+  private val basePath: YPath = file.ypath.withAdditionalAttributes(java.util.Map.of("columns",
+    new YTreeBuilder().value(java.util.List.of(originalFieldNames: _*)).build()))
 
   lazy val ytPath: YPath = calculateYtPath(pushing = false)
   lazy val ytPathWithFiltersDetailed: YPath = calculateYtPath(pushing = true, union = false)
@@ -47,13 +47,8 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
   private def calculateYtPath(pushing: Boolean, union: Boolean = true): YPath = {
     val tableKeys = SchemaConverter.keys(schema)
     if (pushing && filterPushdownConfig.enabled && tableKeys.nonEmpty) {
-      val res = if (file.isDynamic) {
-        getYPathWithKeys(union && filterPushdownConfig.unionEnabled)
-      } else if (file.isReadByKeys) {
-        getYPathWithKeys(union && filterPushdownConfig.unionEnabled)
-      } else {
-        getYPathWithRowNums(union && filterPushdownConfig.unionEnabled)
-      }
+      val res = pushdownFiltersToYPath(
+        union, pushedFilters, SchemaConverter.keys(schema), filterPushdownConfig, basePath)
 
       if (tableKeys.length > 1 || tableKeys.contains(None)) {
         ytLog.warn("YtInputSplit pushed filters with more than one key column", logMessageInfo ++
@@ -65,52 +60,70 @@ case class YtInputSplit(file: YtPartitionedFile, schema: StructType,
       }
       res
     } else {
-      if (file.isDynamic) {
-        basePath.withRange(toRangeLimit(file.beginKey, file.keyColumns), toRangeLimit(file.endKey, file.keyColumns))
-      } else if (file.isReadByKeys) {
-        basePath.withRange(toRangeLimit(file.beginKey, file.keyColumns), toRangeLimit(file.endKey, file.keyColumns))
-      } else {
-        basePath.withRange(file.beginRow, file.endRow)
-      }
+      basePath
     }
-  }
-
-  private def getYPathWithRowNums(single: Boolean): YPath = {
-    getYPathWithRowNumsImpl(single, pushedFilters, SchemaConverter.keys(schema), filterPushdownConfig, basePath, file)
-  }
-
-  private def getYPathWithKeys(single: Boolean): YPath = {
-    getYPathWithKeysImpl(single, pushedFilters, SchemaConverter.keys(schema), filterPushdownConfig, basePath, file)
   }
 }
 
 object YtInputSplit {
-  private[format] def getYPathWithRowNumsImpl(single: Boolean, pushedFilters: SegmentSet, keys: Seq[Option[String]],
-                                              filterPushdownConfig: FilterPushdownConfig,
-                                              basePath: YPath, file: YtPartitionedFile)
-                                             (implicit ytLog: YtLogger = YtLogger.noop): YPath = {
+  private[format] def pushdownFiltersToYPath(single: Boolean, pushedFilters: SegmentSet, keys: Seq[Option[String]],
+                                             filterPushdownConfig: FilterPushdownConfig, basePath: YPath) = {
+    val pushdownCriteria = getCriteriaSeq(single && filterPushdownConfig.unionEnabled, pushedFilters,
+      keys, filterPushdownConfig)
+    applySegmentsToYPath(pushdownCriteria, basePath)
+  }
+
+  private[format] def applySegmentsToYPath(tupleSegments: Seq[TupleSegment], ypath: YPath): YPath = {
+    import scala.collection.JavaConverters._
+
+    val newRanges = ypath.getRanges.asScala.flatMap {
+      criteria =>
+        val range = criteria.toRange
+        val beginKey = range.lower.key.asScala
+        val endKey = range.upper.key.asScala
+        if (beginKey.forall(ExpressionTransformer.isSupportedNodeType) &&
+          endKey.forall(ExpressionTransformer.isSupportedNodeType)) {
+          if (tupleSegments.isEmpty) {
+            // Filters selects no data.
+            Seq(emptyRange)
+          } else {
+            val begin = TuplePoint(beginKey.map(ExpressionTransformer.nodeToPoint))
+            // Otherwise, empty end key will be recognized like -infinity.
+            val end = if (endKey.nonEmpty) {
+              TuplePoint(endKey.map(ExpressionTransformer.nodeToPoint))
+            } else {
+              TuplePoint(Seq(PInfinity()))
+            }
+            val intercept = AbstractSegment.intercept(Seq(Seq(TupleSegment(begin, end)), tupleSegments))
+            if (intercept.isEmpty) {
+              // Segment filters with chunk limits selects no data.
+              Seq(emptyRange)
+            } else {
+              intercept.map {
+                segmentList =>
+                  val newLower = range.lower.toBuilder.setKey(prepareKey(segmentList.left): _*).build()
+                  val newUpper = range.upper.toBuilder.setKey(prepareKey(segmentList.right): _*).build()
+                  new Range(newLower, newUpper)
+              }
+            }
+          }
+        } else {
+          Seq(criteria)
+        }
+    }
+
+    ypath.ranges(newRanges : _*)
+  }
+
+  private[format] def getCriteriaSeq(single: Boolean, pushedFilters: SegmentSet,
+                                     keys: Seq[Option[String]], filterPushdownConfig: FilterPushdownConfig)
+                                    (implicit ytLog: YtLogger = YtLogger.noop): Seq[TupleSegment] = {
+
     val rawYPathFilterSegments = getKeyFilterSegments(
       preparePushedFilters(single, pushedFilters), keys.toList.flatten, filterPushdownConfig.ytPathCountLimit)(ytLog)
       .map(_.toMap)
 
-    ytLog.debug("YtInputSplit got key segments for static table from filters", Map(
-      "union" -> single.toString,
-      "key segments" -> rawYPathFilterSegments.mkString(", "),
-      "segments" -> pushedFilters.toString,
-      "keysInFile" -> file.keyColumns.mkString(", "),
-      "keysInSchema" -> keys.mkString(", ")
-    ))
-
-    if (rawYPathFilterSegments.isEmpty) {
-      // no data need
-      basePath.withRange(file.beginRow, file.beginRow)
-    } else {
-      val filterRanges = getTupleSegmentRanges(rawYPathFilterSegments, keys)
-      filterRanges.foldLeft(basePath) {
-        case (ypath, segmentList) =>
-          ypath.withRange(getRangeLimit(segmentList.left, file.beginRow), getRangeLimit(segmentList.right, file.endRow))
-      }
-    }
+    getTupleSegmentRanges(rawYPathFilterSegments, keys)
   }
 
   private[format] def getTupleSegmentRanges(segments: List[Map[String, Segment]],
@@ -119,72 +132,15 @@ object YtInputSplit {
       map =>
         TupleSegment(
           TuplePoint(getLeftPoints(map, keys)),
-          // upper limit is excluded
+          // Upper limit must be excluded.
           TuplePoint(getRightPoints(map, keys) :+ PInfinity())
         )
     }
     AbstractSegment.union(ranges.map(Seq(_)))
   }
 
-  private def addEmptyRange(path: YPath): YPath = {
-    path.withRange(getRangeLimit(TuplePoint(Seq(PInfinity()))), getRangeLimit(TuplePoint(Seq(MInfinity()))))
-  }
-
-  private[format] def getYPathWithKeysImpl(single: Boolean, pushedFilters: SegmentSet, keys: Seq[Option[String]],
-                                           filterPushdownConfig: FilterPushdownConfig,
-                                           basePath: YPath, file: YtPartitionedFile)
-                                          (implicit ytLog: YtLogger = YtLogger.noop): YPath = {
-    val logInfo = Map(
-      "union" -> single.toString,
-      "segments" -> pushedFilters.toString,
-      "keysInFile" -> file.keyColumns.mkString(", "),
-      "keysInSchema" -> keys.mkString(", "),
-      "basePath" -> basePath.toString
-    )
-
-    ytLog.info("YtInputSplit tries to push filters to dynamic table read", logInfo)
-    val beginKey = toList(file.beginKey, file.keyColumns)
-    val endKey = toList(file.endKey, file.keyColumns)
-    if (beginKey.forall(ExpressionTransformer.isSupportedNodeType) &&
-      endKey.forall(ExpressionTransformer.isSupportedNodeType)) {
-      val rawYPathFilterSegments = getKeyFilterSegments(
-        preparePushedFilters(single, pushedFilters), keys.toList.flatten, filterPushdownConfig.ytPathCountLimit).map(_.toMap)
-
-      ytLog.debug("YtInputSplit got key segments for dynamic table from filters", Map(
-        "union" -> single.toString,
-        "key segments" -> rawYPathFilterSegments.mkString(", "),
-        "segments" -> pushedFilters.toString,
-        "keysInFile" -> file.keyColumns.mkString(", "),
-        "keysInSchema" -> keys.mkString(", ")
-      ))
-
-      if (rawYPathFilterSegments.isEmpty) {
-        // filters selects no data
-        addEmptyRange(basePath)
-      } else {
-        val begin = TuplePoint(beginKey.map(ExpressionTransformer.nodeToPoint))
-        // empty end key will be recognized like -infinity
-        val end = if (endKey.nonEmpty) {
-          TuplePoint(endKey.map(ExpressionTransformer.nodeToPoint))
-        } else {
-          TuplePoint(Seq(PInfinity()))
-        }
-        val filterRanges = getTupleSegmentRanges(rawYPathFilterSegments, keys)
-        val intercept = AbstractSegment.intercept(Seq(Seq(TupleSegment(begin, end)), filterRanges))
-        if (intercept.isEmpty) {
-          // segment filters with chunk limits selects no data
-          addEmptyRange(basePath)
-        } else {
-          intercept.foldLeft(basePath) {
-            case (ypath, segmentList) =>
-              ypath.withRange(getRangeLimit(segmentList.left), getRangeLimit(segmentList.right))
-          }
-        }
-      }
-    } else {
-      ytLog.info("YtInputSplit couldn't push filters to dynamic table read", logInfo)
-      basePath.withRange(toRangeLimit(file.beginKey, file.keyColumns), toRangeLimit(file.endKey, file.keyColumns))
-    }
+  private lazy val emptyRange: RangeCriteria = {
+    new Range(getRangeLimit(TuplePoint(Seq(PInfinity()))), getRangeLimit(TuplePoint(Seq(MInfinity()))))
   }
 
   private def preparePushedFilters(single: Boolean, pushedFilters: SegmentSet): SegmentSet = {
@@ -227,7 +183,11 @@ object YtInputSplit {
   }
 
   private def getRangeLimit(point: TuplePoint, rowIndex: Long = -1): RangeLimit = {
-    getRangeLimit(point.points.map(prepareKey), rowIndex)
+    getRangeLimit(prepareKey(point), rowIndex)
+  }
+
+  private def prepareKey(point: TuplePoint): Seq[YTreeNode] = {
+    point.points.map(prepareKey)
   }
 
   private def getRangeLimit(keys: Seq[YTreeNode], rowIndex: Long): RangeLimit = {

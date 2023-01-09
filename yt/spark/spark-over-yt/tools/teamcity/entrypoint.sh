@@ -33,7 +33,7 @@ cd $PROJECT_ROOT
 
 case $SBT_COMMAND in
 test)
-    command="$SBT test"
+    command="cd yt-docker && docker-compose up -d && cd .. && $SBT test"
     ;;
 e2e)
     case $SPYT_PUBLISH_MODE in
