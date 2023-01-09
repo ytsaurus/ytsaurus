@@ -307,6 +307,9 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
     def test_job_proxy_resource_overdraft_memory_multiplier(self):
         footprint = 16 * 1024 * 1024
 
+        # We assume that user job even with alive ytserver-exec process should not consume more than 400MB of RAM.
+        user_job_max_memory = 400 * 1024 * 1024
+
         update_controller_agent_config("job_proxy_resource_overdraft_memory_multiplier", 1.5)
         update_controller_agent_config("footprint_memory", footprint)
 
@@ -325,9 +328,9 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
             spec={
                 "job_count": 1,
                 "mapper": {
-                    "memory_limit": 400 * 10 ** 6,
-                    "user_job_memory_digest_default_value": 0.75,
-                    "user_job_memory_digest_lower_bound": 0.6,
+                    "memory_limit": 500 * 10 ** 6,
+                    "user_job_memory_digest_default_value": 0.9,
+                    "user_job_memory_digest_lower_bound": 0.8,
                     "job_proxy_memory_digest": {
                         "default_value": 0.1,
                         "lower_bound": 0.1,
@@ -366,6 +369,8 @@ class TestMemoryReserveMultiplier(YTEnvSetup):
                     assert last_job_id == event["predecessor_job_id"]
                     assert event["predecessor_type"] == "resource_overdraft"
                 last_job_id = event["job_id"]
+
+                assert event["statistics"]["user_job"]["max_memory"]["sum"] < user_job_max_memory
 
                 job_proxy_memory_reserves.append(int(event["statistics"]["job_proxy"]["memory_reserve"]["sum"]) - footprint)
                 user_job_memory_reserves.append(int(event["statistics"]["user_job"]["memory_reserve"]["sum"]))
