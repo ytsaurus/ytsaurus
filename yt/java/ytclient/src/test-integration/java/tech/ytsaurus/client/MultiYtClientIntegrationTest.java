@@ -26,9 +26,10 @@ import ru.yandex.yt.ytclient.proxy.request.MountTable;
 import static org.hamcrest.MatcherAssert.assertThat;
 
 public class MultiYtClientIntegrationTest {
-    static final TableSchema KEY_VALUE_TABLE_SCHEMA = TableSchema.builderWithUniqueKeys()
+    static final TableSchema KEY_VALUE_TABLE_SCHEMA = TableSchema.builder()
             .addKey("key", TiType.string())
             .addValue("value", TiType.int64())
+            .setUniqueKeys(true)
             .build();
     ExecutorService executor = Executors.newSingleThreadExecutor();
     YTreeObjectSerializer<KeyValue> serializer =

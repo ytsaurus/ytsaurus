@@ -86,12 +86,7 @@ public class TableSchema implements YTreeConvertible {
         this.isLookupSchema = localIsLookupSchema;
     }
 
-    public static Builder builderWithUniqueKeys() {
-        return new Builder(true);
-    }
-
-    // It is temporary name for a changing 'uniqueKeys' default value, it will be renamed to "builder" later.
-    public static Builder newBuilder() {
+    public static Builder builder() {
         return new Builder(false);
     }
 
@@ -359,6 +354,9 @@ public class TableSchema implements YTreeConvertible {
         private boolean strict;
         private boolean uniqueKeys;
 
+        /**
+         * Prefer to use {@link TableSchema#builder()}
+         */
         public Builder() {
             this(true);
         }

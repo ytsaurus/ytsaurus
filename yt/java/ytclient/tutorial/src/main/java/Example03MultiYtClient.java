@@ -14,7 +14,8 @@ public class Example03MultiYtClient {
 
     public static void main(String[] args) {
         // Схема динамической таблицы, которую будем читать
-        TableSchema schema = TableSchema.builderWithUniqueKeys()
+        TableSchema schema = TableSchema.builder()
+                .setUniqueKeys(true)
                 .add(
                         ColumnSchema.builder("key", TiType.int64())
                                 .setSortOrder(ColumnSortOrder.ASCENDING)

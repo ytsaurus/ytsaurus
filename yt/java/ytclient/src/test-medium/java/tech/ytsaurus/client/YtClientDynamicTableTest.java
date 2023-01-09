@@ -35,12 +35,14 @@ import static org.hamcrest.MatcherAssert.assertThat;
 import static org.hamcrest.Matchers.is;
 
 public class YtClientDynamicTableTest extends YtClientTestBase {
-    static final TableSchema keyValueTableSchema = TableSchema.builderWithUniqueKeys()
+    static final TableSchema keyValueTableSchema = TableSchema.builder()
+            .setUniqueKeys(true)
             .addKey("key", ColumnValueType.INT64)
             .addValue("value", ColumnValueType.STRING)
             .build();
 
-    static final TableSchema AGGREGATE_TABLE_SCHEMA = TableSchema.builderWithUniqueKeys()
+    static final TableSchema AGGREGATE_TABLE_SCHEMA = TableSchema.builder()
+            .setUniqueKeys(true)
             .addKey("key", ColumnValueType.STRING)
             .add(new ColumnSchema.Builder("aggregateValue", ColumnValueType.INT64).setAggregate("sum").build())
             .addValue("notAggregateValue", ColumnValueType.INT64)
