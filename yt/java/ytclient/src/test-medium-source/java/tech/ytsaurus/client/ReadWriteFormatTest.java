@@ -211,7 +211,7 @@ public class ReadWriteFormatTest {
                         .endMap().build().mapNode()
         );
 
-        writer.write(rows, TableSchema.newBuilder().build());
+        writer.write(rows, TableSchema.builder().build());
 
         writer.readyEvent().join();
 
@@ -228,7 +228,7 @@ public class ReadWriteFormatTest {
                         .endMap().build().mapNode()
         );
 
-        writer.write(rows, TableSchema.newBuilder().build());
+        writer.write(rows, TableSchema.builder().build());
 
         writer.close().join();
 

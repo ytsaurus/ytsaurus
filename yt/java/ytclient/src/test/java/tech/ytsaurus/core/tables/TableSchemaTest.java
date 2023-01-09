@@ -173,8 +173,7 @@ public class TableSchemaTest {
                         .key("type").value("string")
                         .endMap().endList().build()
                 ),
-                is(TableSchema.builderWithUniqueKeys()
-                        .setUniqueKeys(false)
+                is(TableSchema.builder()
                         .addValue("foo", TiType.optional(TiType.string()))
                         .build()
                 )
@@ -187,8 +186,7 @@ public class TableSchemaTest {
                         .key("required").value(true)
                         .endMap().endList().build()
                 ),
-                is(TableSchema.builderWithUniqueKeys()
-                        .setUniqueKeys(false)
+                is(TableSchema.builder()
                         .addValue("foo", TiType.string())
                         .build()
                 )

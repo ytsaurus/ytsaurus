@@ -1,6 +1,5 @@
 package tech.ytsaurus.client;
 
-import java.util.Arrays;
 import java.util.List;
 
 import tech.ytsaurus.client.bus.BusConnector;
@@ -74,7 +73,7 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
     }
 
     public YtClient(BusConnector connector, YtCluster cluster, RpcCredentials credentials, RpcOptions options) {
-        this(connector, Arrays.asList(cluster), cluster.getName(), credentials, options);
+        this(connector, List.of(cluster), cluster.getName(), credentials, options);
     }
 
     public YtClient(BusConnector connector, String clusterName, RpcCredentials credentials, RpcOptions options) {
@@ -91,7 +90,6 @@ public class YtClient extends tech.ytsaurus.client.YTsaurusClient {
 
     /**
      * Create builder for YtClient.
-     * @return
      */
     public static Builder builder() {
         return new Builder();

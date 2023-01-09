@@ -54,7 +54,7 @@ public class DefaultSerializationResolver implements SerializationResolver {
 
     @Override
     public <T> TableSchema asTableSchema(YTreeSerializer<T> serializer) {
-        return TableSchema.newBuilder().build();
+        return TableSchema.builder().build();
     }
 
     @Override

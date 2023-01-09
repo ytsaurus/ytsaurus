@@ -31,7 +31,7 @@ public class YTreeWireRowSerializer<T> implements WireRowSerializer<T> {
 
     protected YTreeWireRowSerializer(YTreeRowSerializer<T> objectSerializer) {
         this.objectSerializer = Objects.requireNonNull(objectSerializer);
-        this.tableSchema = TableSchema.newBuilder().build();
+        this.tableSchema = TableSchema.builder().build();
         this.delegate = new YTreeConsumerProxy(tableSchema);
     }
 

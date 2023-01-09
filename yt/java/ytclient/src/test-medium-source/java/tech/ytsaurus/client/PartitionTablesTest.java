@@ -56,7 +56,7 @@ public class PartitionTablesTest {
         if (!yt.existsNode(tablePath.justPath().toString()).join()) {
             yt.createNode(tablePath.justPath().toString(), CypressNodeType.TABLE).join();
         }
-        var schema = TableSchema.newBuilder().add(new ColumnSchema("value", TiType.string())).build();
+        var schema = TableSchema.builder().add(new ColumnSchema("value", TiType.string())).build();
 
         TableWriter<YTreeMapNode> writer = yt.writeTable(new WriteTable<>(tablePath, YTreeMapNode.class)).join();
         try {

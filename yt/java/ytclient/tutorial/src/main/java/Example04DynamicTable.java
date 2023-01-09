@@ -36,7 +36,8 @@ public class Example04DynamicTable {
         String cluster = args[0];
         String path = args[1];
 
-        TableSchema schema = TableSchema.builderWithUniqueKeys()
+        TableSchema schema = TableSchema.builder()
+                .setUniqueKeys(true)
                 .add(
                         ColumnSchema.builder("key", TiType.int64())
                                 .setSortOrder(ColumnSortOrder.ASCENDING)
