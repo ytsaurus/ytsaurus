@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/concurrency/fls.h>
 
-#include <yt/yt/core/misc/format.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 namespace NYT::NRpc {

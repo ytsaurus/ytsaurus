@@ -6,7 +6,6 @@
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/format.h>
 
 #include <yt/yt/core/yson/consumer.h>
 

@@ -1,11 +1,12 @@
 #include "ref_counted_tracker.h"
-#include "format.h"
 
 #include <util/system/type_name.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <library/cpp/ytalloc/api/ytalloc.h>
+
+#include <library/cpp/yt/string/format.h>
 
 #include <algorithm>
 

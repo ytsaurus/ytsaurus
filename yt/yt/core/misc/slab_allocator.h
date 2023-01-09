@@ -2,7 +2,6 @@
 
 #include "common.h"
 #include "free_list.h"
-#include "format.h"
 #include "error.h"
 #include "memory_usage_tracker.h"
 

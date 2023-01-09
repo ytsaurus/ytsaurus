@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/core/misc/format.h>
+#include "public.h"
 
 #include <yt/yt/core/logging/log.h>
 

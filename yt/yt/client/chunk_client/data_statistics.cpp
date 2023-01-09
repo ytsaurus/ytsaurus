@@ -1,7 +1,5 @@
 #include "data_statistics.h"
 
-#include <yt/yt/core/misc/format.h>
-
 #include <yt/yt/core/ytree/fluent.h>
 
 #include <yt/yt/client/chunk_client/data_statistics.h>

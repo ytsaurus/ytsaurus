@@ -1,13 +1,11 @@
 #include "unversioned_value.h"
 
-
 #ifndef YT_COMPILING_UDF
 
 #include "unversioned_row.h"
 #include "composite_compare.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/format.h>
 
 #include <yt/yt/core/ytree/convert.h>
 

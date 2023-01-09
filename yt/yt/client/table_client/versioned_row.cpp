@@ -4,8 +4,6 @@
 #include "row_buffer.h"
 #include "schema.h"
 
-#include <yt/yt/core/misc/format.h>
-
 #include <library/cpp/yt/coding/varint.h>
 
 #include <numeric>

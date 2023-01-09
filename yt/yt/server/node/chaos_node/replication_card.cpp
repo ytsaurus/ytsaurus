@@ -10,8 +10,6 @@
 
 #include <yt/yt/client/tablet_client/config.h>
 
-#include <yt/yt/core/misc/format.h>
-
 #include <yt/yt/core/yson/string.h>
 
 namespace NYT::NChaosNode {

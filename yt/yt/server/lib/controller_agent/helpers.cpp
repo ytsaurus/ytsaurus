@@ -14,7 +14,6 @@
 #include <yt/yt/client/misc/io_tags.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/phoenix.h>
 

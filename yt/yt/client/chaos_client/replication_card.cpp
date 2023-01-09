@@ -1,6 +1,5 @@
 #include "replication_card.h"
 
-#include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/serialize.h>
 

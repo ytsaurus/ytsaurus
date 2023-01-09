@@ -1,6 +1,5 @@
 #include "helpers.h"
 
-#include <yt/yt/core/misc/format.h>
 #include <yt/yt/core/misc/error.h>
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>

@@ -1,7 +1,6 @@
 #include "row_base.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/format.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 

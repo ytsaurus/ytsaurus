@@ -1,9 +1,8 @@
 #pragma once
 
-#include <yt/yt/core/misc/string_builder.h>
-#include <yt/yt/core/misc/format.h>
-
 #include <yt/yt/library/numeric/double_array.h>
+
+#include <library/cpp/yt/string/format.h>
 
 namespace NYT {
 
@@ -28,7 +27,7 @@ struct TValueFormatter<TDerived, std::enable_if_t<IsDoubleArray<TDerived>>>
 // template <class TDerived, class = std::enable_if_t<IsDoubleArray<TDerived>>>
 // IOutputStream& operator<<(IOutputStream& os, const TDerived& vec)
 // {
-// 	return os << Format("%v", vec);
+//     return os << Format("%v", vec);
 // }
 
 template <class TDerived, class = std::enable_if_t<IsDoubleArray<TDerived>>>

@@ -1,8 +1,10 @@
 #include "version.h"
 
-#include <yt/yt/core/misc/format.h>
+#include <library/cpp/yt/string/format.h>
 
 namespace NYT::NHydra {
+
+////////////////////////////////////////////////////////////////////////////////
 
 TReachableState::TReachableState(int segmentId, i64 sequenceNumber) noexcept
     : SegmentId(segmentId)

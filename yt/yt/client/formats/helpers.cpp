@@ -5,8 +5,6 @@
 
 #include <yt/yt/client/table_client/schema.h>
 
-#include <yt/yt/core/misc/format.h>
-
 namespace NYT::NFormats {
 
 using namespace NTableClient;

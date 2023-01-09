@@ -4,7 +4,7 @@
 #include "error.h"
 #endif
 
-#include <yt/yt/core/misc/format.h>
+#include <library/cpp/yt/string/format.h>
 
 namespace NYT {
 

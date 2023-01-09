@@ -3,7 +3,6 @@
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/format.h>
 
 #include <util/string/split.h>
 

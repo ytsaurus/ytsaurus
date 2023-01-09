@@ -1,7 +1,5 @@
 #include "functions_common.h"
 
-#include <yt/yt/core/misc/format.h>
-
 namespace NYT::NQueryClient {
 
 ////////////////////////////////////////////////////////////////////////////////

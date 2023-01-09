@@ -2,8 +2,6 @@
 
 #include <yt/yt_proto/yt/client/node_tracker_client/proto/node.pb.h>
 
-#include <yt/yt/core/misc/format.h>
-
 namespace NYT::NNodeTrackerClient::NProto {
 
 ////////////////////////////////////////////////////////////////////////////////
