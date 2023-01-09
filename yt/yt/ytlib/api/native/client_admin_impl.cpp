@@ -468,22 +468,22 @@ void TClient::DoRemoveMaintenance(
         .ThrowOnError();
 }
 
-TReleaseLocationsResult TClient::DoReleaseLocations(
+TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
     const TString& nodeAddress,
-    const std::vector<TGuid>& locationGuids,
-    const TReleaseLocationsOptions& options)
+    const std::vector<TGuid>& locationUuids,
+    const TDisableChunkLocationsOptions& options)
 {
     ValidateSuperuserPermissions();
     TDataNodeServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
 
-    auto req = proxy.ReleaseLocations();
-    ToProto(req->mutable_location_guids(), locationGuids);
+    auto req = proxy.DisableChunkLocations();
+    ToProto(req->mutable_location_uuids(), locationUuids);
     req->SetTimeout(options.Timeout);
 
     auto rsp = WaitFor(req->Invoke())
         .ValueOrThrow();
-    return TReleaseLocationsResult{
-        .LocationGuids = FromProto<std::vector<TGuid>>(rsp->location_guids())
+    return TDisableChunkLocationsResult{
+        .LocationUuids = FromProto<std::vector<TGuid>>(rsp->location_uuids())
     };
 }
 

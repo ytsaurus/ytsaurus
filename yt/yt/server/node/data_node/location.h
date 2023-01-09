@@ -356,14 +356,8 @@ public:
     //! Location disk is OK.
     bool IsLocationDiskOK() const;
 
-    //! True, if location pending decommission.
-    bool IsLocationPendingDecommission() const;
-
     //! Disable alert about location disk failing.
     void MarkLocationDiskHealthy();
-
-    //! Location for decommissioning.
-    void MarkLocationForDecommissioning();
 
     //! Enable alert about location disk failing.
     void MarkLocationDiskFailed();
@@ -420,8 +414,6 @@ private:
     TAtomicObject<TError> LocationDisabledAlert_;
     TAtomicObject<TError> LocationDiskFailedAlert_;
 
-    bool IsPendingDiskDecommission_ = false;
-
     TAtomicObject<NChunkClient::TMediumDescriptor> MediumDescriptor_;
     NProfiling::TDynamicTagPtr MediumTag_;
     NProfiling::TGauge MediumFlag_;
@@ -456,7 +448,7 @@ private:
     void UpdateMediumTag();
 
     void OnHealthCheckFailed(const TError& error);
-    void MarkAsDisabled(const TError& error);
+    void MarkUninitializedLocationDisabled(const TError& error);
 
     void PopulateAlerts(std::vector<TError>* alerts);
 

@@ -174,15 +174,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TReleaseLocationsCommand
-    : public TTypedCommand<NApi::TReleaseLocationsOptions>
+class TDisableChunkLocationsCommand
+    : public TTypedCommand<NApi::TDisableChunkLocationsOptions>
 {
 public:
-   TReleaseLocationsCommand();
+   TDisableChunkLocationsCommand();
 
 private:
     TString NodeAddress_;
-    std::vector<TGuid> LocationGuids_;
+    std::vector<TGuid> LocationUuids_;
 
     void DoExecute(ICommandContextPtr context) override;
 };

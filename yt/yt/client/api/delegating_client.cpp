@@ -826,12 +826,12 @@ TFuture<void> TDelegatingClient::RemoveMaintenance(
     return Underlying_->RemoveMaintenance(nodeAddress, id, options);
 }
 
-TFuture<TReleaseLocationsResult> TDelegatingClient::ReleaseLocations(
+TFuture<TDisableChunkLocationsResult> TDelegatingClient::DisableChunkLocations(
     const TString& nodeAddress,
-    const std::vector<TGuid>& locationGuids,
-    const TReleaseLocationsOptions& options)
+    const std::vector<TGuid>& locationUuids,
+    const TDisableChunkLocationsOptions& options)
 {
-    return Underlying_->ReleaseLocations(nodeAddress, locationGuids, options);
+    return Underlying_->DisableChunkLocations(nodeAddress, locationUuids, options);
 }
 
 TFuture<TStartYqlQueryResult> TDelegatingClient::StartYqlQuery(

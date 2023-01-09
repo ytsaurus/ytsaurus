@@ -1680,15 +1680,15 @@ message TRspGetColumnarStatistics
     repeated TColumnarStatistics statistics = 1;
 }
 
-message TReqReleaseLocations
+message TReqDisableChunkLocations
 {
     required string node_address = 1;
-    repeated NYT.NProto.TGuid location_guids = 2;
+    repeated NYT.NProto.TGuid location_uuids = 2;
 }
 
-message TRspReleaseLocations
+message TRspDisableChunkLocations
 {
-    repeated NYT.NProto.TGuid location_guids = 1;
+    repeated NYT.NProto.TGuid location_uuids = 1;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -243,7 +243,7 @@ public:
             .SetResponseCodec(NCompression::ECodec::Lz4));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetColumnarStatistics)
             .SetCancelable(true));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReleaseLocations)
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations)
             .SetInvoker(Bootstrap_->GetControlInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AnnounceChunkReplicas)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
@@ -2005,14 +2005,14 @@ private:
             subresponseIndices)));
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ReleaseLocations)
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, DisableChunkLocations)
     {
         auto locationManager = Bootstrap_->GetLocationManager();
-        auto locationGuids = FromProto<std::vector<TGuid>>(request->location_guids());
+        auto locationUuids = FromProto<std::vector<TGuid>>(request->location_uuids());
 
-        context->ReplyFrom(locationManager->ReleaseLocations({locationGuids.begin(), locationGuids.end()})
-            .Apply(BIND([=] (const std::vector<TGuid>& locationGuids) {
-                ToProto(response->mutable_location_guids(), locationGuids);
+        context->ReplyFrom(locationManager->DisableChunkLocations({locationUuids.begin(), locationUuids.end()})
+            .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
+                ToProto(response->mutable_location_uuids(), locationUuids);
             })));
     }
 

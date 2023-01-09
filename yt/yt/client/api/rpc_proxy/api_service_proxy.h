@@ -149,7 +149,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, MigrateReplicationCards);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMaintenance);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemoveMaintenance);
-    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ReleaseLocations);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DisableChunkLocations);
 
     // Security
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMember);

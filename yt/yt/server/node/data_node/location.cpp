@@ -474,7 +474,7 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
         ValidateWritable();
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(ex, "Location disabled");
-        MarkAsDisabled(ex);
+        MarkUninitializedLocationDisabled(ex);
         return {};
     }
 
@@ -1042,11 +1042,6 @@ bool TChunkLocation::IsLocationDiskOK() const
     return LocationDiskFailedAlert_.Load().IsOK();
 }
 
-bool TChunkLocation::IsLocationPendingDecommission() const
-{
-    return IsPendingDiskDecommission_;
-}
-
 void TChunkLocation::MarkLocationDiskHealthy()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -1060,37 +1055,21 @@ void TChunkLocation::MarkLocationDiskHealthy()
         GetUuid(),
         StaticConfig_->DeviceName);
 
-    IsPendingDiskDecommission_ = false;
     LocationDiskFailedAlert_.Store(TError());
-}
-
-void TChunkLocation::MarkLocationForDecommissioning()
-{
-    VERIFY_THREAD_AFFINITY(ControlThread);
-
-    IsPendingDiskDecommission_ = true;
-
-    LocationDiskFailedAlert_.Store(
-        TError(NChunkClient::EErrorCode::LocationDiskPendingDecommission,
-            "Disk of chunk location is pending decommission")
-            << TErrorAttribute("location_uuid", GetUuid())
-            << TErrorAttribute("location_path", GetPath())
-            << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
 }
 
 void TChunkLocation::MarkLocationDiskFailed()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    if (IsPendingDiskDecommission_) {
+    if (IsLocationDiskOK()) {
+        // do nothing
         return;
     }
 
-    if (IsLocationDiskOK()) {
-        YT_LOG_WARNING("Disk with store location failed (LocationUuid: %v, DiskName: %v)",
-            GetUuid(),
-            StaticConfig_->DeviceName);
-    }
+    YT_LOG_WARNING("Disk with store location failed (LocationUuid: %v, DiskName: %v)",
+        GetUuid(),
+        StaticConfig_->DeviceName);
 
     LocationDiskFailedAlert_.Store(
         TError(NChunkClient::EErrorCode::LocationDiskFailed,
@@ -1100,7 +1079,7 @@ void TChunkLocation::MarkLocationDiskFailed()
             << TErrorAttribute("location_disk", StaticConfig_->DeviceName));
 }
 
-void TChunkLocation::MarkAsDisabled(const TError& error)
+void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
 {
     LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath())
         << error);

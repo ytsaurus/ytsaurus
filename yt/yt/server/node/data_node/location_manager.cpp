@@ -51,7 +51,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivelinessInfo
     for (const auto& location : locations) {
         locationLivelinessInfos.push_back({
             .Location = location,
-            .IsLocationPendingDecommission = location->IsLocationPendingDecommission(),
+            .IsDisabled = !location->IsEnabled(),
             .IsDiskAlive = !diskNames.contains(location->GetStaticConfig()->DeviceName)});
     }
 
@@ -65,7 +65,7 @@ TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveli
             .AsyncVia(ControlInvoker_));
 }
 
-std::vector<TGuid> TLocationManager::MarkLocationsForDecommissioning(
+std::vector<TGuid> TLocationManager::DisableChunkLocations(
     const std::vector<TDiskInfo>& failedDisks,
     const THashSet<TGuid>& locationUuids)
 {
@@ -86,8 +86,14 @@ std::vector<TGuid> TLocationManager::MarkLocationsForDecommissioning(
 
     for (const auto& location : ChunkStore_->Locations()) {
         if (failedDiskNames.contains(location->GetStaticConfig()->DeviceName) &&
-            locationUuids.contains(location->GetUuid())) {
-            location->MarkLocationForDecommissioning();
+            locationUuids.contains(location->GetUuid()) &&
+            location->IsEnabled())
+        {
+            // Manual location disable if location placed on failed disk.
+            location->Disable(TError("Disk of chunk location is pending decommission")
+                << TErrorAttribute("location_uuid", location->GetUuid())
+                << TErrorAttribute("location_path", location->GetPath())
+                << TErrorAttribute("location_disk", location->GetStaticConfig()->DeviceName));
             locationsForDecommission.push_back(location->GetUuid());
         }
     }
@@ -95,11 +101,11 @@ std::vector<TGuid> TLocationManager::MarkLocationsForDecommissioning(
     return locationsForDecommission;
 }
 
-TFuture<std::vector<TGuid>> TLocationManager::ReleaseLocations(const THashSet<TGuid>& locationUuids)
+TFuture<std::vector<TGuid>> TLocationManager::DisableChunkLocations(const THashSet<TGuid>& locationUuids)
 {
     return DiskInfoProvider_->GetYtDiskInfos(NContainers::EDiskState::Failed)
         .Apply(BIND([=] (const std::vector<TDiskInfo>& failedDisks) {
-            return MarkLocationsForDecommissioning(failedDisks, locationUuids);
+            return DisableChunkLocations(failedDisks, locationUuids);
         })
         .AsyncVia(ControlInvoker_));
 }
@@ -165,21 +171,21 @@ void TLocationHealthChecker::OnHealthCheck()
     const auto& livelinessInfos = livelinessInfosOrError.Value();
 
     THashSet<TString> allDisks;
-    THashSet<TString> diskWithLivelisessLocations;
-    THashSet<TString> diskWithDecommissedLocations;
+    THashSet<TString> diskWithLivelinessLocations;
+    THashSet<TString> diskWithDisabledLocations;
 
     for (const auto& livelinessInfo : livelinessInfos) {
         const auto& location = livelinessInfo.Location;
         allDisks.insert(livelinessInfo.DiskId);
 
         if (livelinessInfo.IsDiskAlive) {
-            diskWithLivelisessLocations.insert(livelinessInfo.DiskId);
+            diskWithLivelinessLocations.insert(livelinessInfo.DiskId);
             location->MarkLocationDiskHealthy();
         } else {
             location->MarkLocationDiskFailed();
 
-            if (livelinessInfo.IsLocationPendingDecommission) {
-                diskWithDecommissedLocations.insert(livelinessInfo.DiskId);
+            if (livelinessInfo.IsDisabled) {
+                diskWithDisabledLocations.insert(livelinessInfo.DiskId);
             }
         }
     }
@@ -188,8 +194,8 @@ void TLocationHealthChecker::OnHealthCheck()
 
     for (const auto& disk : allDisks) {
         // all locations on disk must be decommissed
-        if (!diskWithLivelisessLocations.contains(disk) &&
-            diskWithDecommissedLocations.contains(disk))
+        if (!diskWithLivelinessLocations.contains(disk) &&
+            diskWithDisabledLocations.contains(disk))
         {
             disksForDecommission.insert(disk);
         }

@@ -1752,21 +1752,21 @@ TFuture<void> TClient::ResumeTabletCells(
     ThrowUnimplemented("ResumeTabletCells");
 }
 
-TFuture<TReleaseLocationsResult> TClient::ReleaseLocations(
+TFuture<TDisableChunkLocationsResult> TClient::DisableChunkLocations(
     const TString& nodeAddress,
-    const std::vector<TGuid>& locationGuids,
-    const TReleaseLocationsOptions& /*options*/)
+    const std::vector<TGuid>& locationUuids,
+    const TDisableChunkLocationsOptions& /*options*/)
 {
     auto proxy = CreateApiServiceProxy();
 
-    auto req = proxy.ReleaseLocations();
+    auto req = proxy.DisableChunkLocations();
     ToProto(req->mutable_node_address(), nodeAddress);
-    ToProto(req->mutable_location_guids(), locationGuids);
+    ToProto(req->mutable_location_uuids(), locationUuids);
 
-    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspReleaseLocationsPtr& rsp) {
-        auto locationGuids = FromProto<std::vector<TGuid>>(rsp->location_guids());
-        return TReleaseLocationsResult{
-            .LocationGuids = locationGuids
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspDisableChunkLocationsPtr& rsp) {
+        auto locationUuids = FromProto<std::vector<TGuid>>(rsp->location_uuids());
+        return TDisableChunkLocationsResult{
+            .LocationUuids = locationUuids
         };
     }));
 }

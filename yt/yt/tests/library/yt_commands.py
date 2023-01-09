@@ -1663,9 +1663,9 @@ def remove_maintenance(node_address, id, **kwargs):
     return execute_command("remove_maintenance", kwargs, parse_yson=False)
 
 
-def release_locations(node_address, guids, **kwargs):
-    kwargs.update({"node_address": node_address, "location_guids": guids})
-    return execute_command("release_locations", kwargs, parse_yson=True)
+def disable_chunk_locations(node_address, uuids, **kwargs):
+    kwargs.update({"node_address": node_address, "location_uuids": uuids})
+    return execute_command("disable_chunk_locations", kwargs, parse_yson=True)
 
 
 def set_user_password(user, new_password, current_password=None, **kwargs):

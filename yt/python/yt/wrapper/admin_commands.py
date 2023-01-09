@@ -76,11 +76,11 @@ def remove_maintenance(node_address, maintenance_id, client=None):
     return make_request("remove_maintenance", params=params, client=client)
 
 
-def release_locations(node_address, location_guids, client=None):
-    """Mark locations for decommissioning"""
+def disable_chunk_locations(node_address, location_uuids, client=None):
+    """Disable locations by uuids"""
     params = {
         "node_address": node_address,
-        "location_guids": location_guids
+        "location_uuids": location_uuids
     }
 
-    return make_request("release_locations", params=params, client=client)
+    return make_request("disable_chunk_locations", params=params, client=client)
