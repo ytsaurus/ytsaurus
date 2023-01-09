@@ -107,7 +107,6 @@ public class RetryingTableWriterTest extends YtClientTestBase {
                 assertThat(result, is(curData));
             }
 
-
             // Try to add the same data with append=true
             writer = writeTable(yt, tablePath.append(true), maxWritesInFlight, chunkSize);
 
