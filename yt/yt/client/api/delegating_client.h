@@ -519,10 +519,10 @@ public:
         NNodeTrackerClient::TMaintenanceId id,
         const TRemoveMaintenanceOptions& options = {}) override;
 
-    TFuture<TReleaseLocationsResult> ReleaseLocations(
+    TFuture<TDisableChunkLocationsResult> DisableChunkLocations(
         const TString& nodeAddress,
-        const std::vector<TGuid>& locationGuids,
-        const TReleaseLocationsOptions& options = {}) override;
+        const std::vector<TGuid>& locationUuids,
+        const TDisableChunkLocationsOptions& options = {}) override;
 
     TFuture<TStartYqlQueryResult> StartYqlQuery(
         const TString& query,

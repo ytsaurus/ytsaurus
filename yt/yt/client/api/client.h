@@ -1520,13 +1520,13 @@ struct TResumeTabletCellsOptions
     , public TMutatingOptions
 { };
 
-struct TReleaseLocationsOptions
+struct TDisableChunkLocationsOptions
     : public TTimeoutOptions
 { };
 
-struct TReleaseLocationsResult
+struct TDisableChunkLocationsResult
 {
-    std::vector<TGuid> LocationGuids;
+    std::vector<TGuid> LocationUuids;
 };
 
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
@@ -2170,10 +2170,10 @@ struct IClient
         NNodeTrackerClient::TMaintenanceId id,
         const TRemoveMaintenanceOptions& options = {}) = 0;
 
-    virtual TFuture<TReleaseLocationsResult> ReleaseLocations(
+    virtual TFuture<TDisableChunkLocationsResult> DisableChunkLocations(
         const TString& nodeAddress,
-        const std::vector<TGuid>& locationGuids,
-        const TReleaseLocationsOptions& options = {}) = 0;
+        const std::vector<TGuid>& locationUuids,
+        const TDisableChunkLocationsOptions& options = {}) = 0;
 
     // YQL
 

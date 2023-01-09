@@ -2302,11 +2302,11 @@ class YtClient(ClientState):
         """
         return client_api.remove_maintenance(node_address, maintenance_id, self)
 
-    def release_locations(self, node_address, location_guids):
+    def disable_chunk_locations(self, node_address, location_uuids):
         """
-        Mark locations for decommissioning.
+        Disable locations by uuids.
 
         :param node_address: node address.
-        :param location_guids: location guids.
+        :param location_uuids: location uuids.
         """
-        return client_api.release_locations(node_address, location_guids, self)
+        return client_api.disable_chunk_locations(node_address, location_uuids, self)

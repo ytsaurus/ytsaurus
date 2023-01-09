@@ -392,11 +392,11 @@ public:
         const TGetColumnarStatisticsOptions& options),
         (paths, options))
 
-    IMPLEMENT_METHOD(TReleaseLocationsResult, ReleaseLocations, (
+    IMPLEMENT_METHOD(TDisableChunkLocationsResult, DisableChunkLocations, (
         const TString& nodeAddress,
-        const std::vector<TGuid>& locationGuids,
-        const TReleaseLocationsOptions& options),
-        (nodeAddress, locationGuids, options))
+        const std::vector<TGuid>& locationUuids,
+        const TDisableChunkLocationsOptions& options),
+        (nodeAddress, locationUuids, options))
 
     IMPLEMENT_METHOD(TMultiTablePartitions, PartitionTables, (
         const std::vector<NYPath::TRichYPath>& paths,
@@ -888,10 +888,10 @@ private:
         const std::vector<NYPath::TRichYPath>& paths,
         const TGetColumnarStatisticsOptions& options);
 
-    TReleaseLocationsResult DoReleaseLocations(
+    TDisableChunkLocationsResult DoDisableChunkLocations(
         const TString& nodeAddress,
-        const std::vector<TGuid>& locationGuids,
-        const TReleaseLocationsOptions& options);
+        const std::vector<TGuid>& locationUuids,
+        const TDisableChunkLocationsOptions& options);
 
     TMultiTablePartitions DoPartitionTables(
         const std::vector<NYPath::TRichYPath>& paths,

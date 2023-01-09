@@ -75,7 +75,6 @@ YT_DEFINE_ERROR_ENUM(
     ((UnrecoverableRepairError)              (747))
     ((MissingJournalChunkRecord)             (748))
     ((LocationDiskFailed)                    (749))
-    ((LocationDiskPendingDecommission)       (750))
 );
 
 using TChunkId = NObjectClient::TObjectId;

@@ -3,7 +3,8 @@ from yt_env_setup import YTEnvSetup
 from yt_commands import (
     authors, wait,
     ls, get, create,
-    write_table, release_locations)
+    update_nodes_dynamic_config,
+    write_table, disable_chunk_locations)
 
 from yt.common import YtError
 
@@ -23,6 +24,7 @@ class TestHotSwap(YTEnvSetup):
             },
         },
         "data_node": {
+            "abort_on_location_disabled": False,
             "disk_manager_proxy": {
                 "is_mock": True,
                 "mock_disks": [
@@ -73,7 +75,8 @@ class TestHotSwap(YTEnvSetup):
     }
 
     @authors("don-dron")
-    def test_release_locations(self):
+    def test_disable_chunk_locations(self):
+        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 3
 
@@ -93,7 +96,7 @@ class TestHotSwap(YTEnvSetup):
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
             locations = list(node.attributes["chunk_locations"].keys())
 
-            # TODO(don-dron): Add logic for disk failing and recovering.
-            wait(lambda: len(release_locations(node, locations)) > 0)
+            # TODO(don-dron): Add logic for disk recovering.
+            wait(lambda: len(disable_chunk_locations(node, locations)) > 0)
 
-        wait(lambda: can_write())
+        wait(lambda: not can_write())

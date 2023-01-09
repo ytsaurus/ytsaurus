@@ -701,7 +701,7 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(MigrateReplicationCards));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMaintenance));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
-        RegisterMethod(RPC_SERVICE_METHOD_DESC(ReleaseLocations));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
@@ -4173,11 +4173,11 @@ private:
         });
     }
 
-    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ReleaseLocations)
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DisableChunkLocations)
     {
         auto nodeAddress = request->node_address();
 
-        TReleaseLocationsOptions options;
+        TDisableChunkLocationsOptions options;
         SetTimeoutOptions(&options, context.Get());
 
         context->SetRequestInfo("NodeAddress: %v", nodeAddress);
@@ -4187,14 +4187,14 @@ private:
         ExecuteCall(
             context,
             [=] {
-                return client->ReleaseLocations(
+                return client->DisableChunkLocations(
                     nodeAddress,
-                    FromProto<std::vector<TGuid>>(request->location_guids()),
+                    FromProto<std::vector<TGuid>>(request->location_uuids()),
                     options);
             },
             [] (const auto& context, const auto& result) {
                 auto* response = &context->Response();
-                ToProto(response->mutable_location_guids(), result.LocationGuids);
+                ToProto(response->mutable_location_uuids(), result.LocationUuids);
             });
     }
 

@@ -229,23 +229,23 @@ void TRemoveMaintenanceCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TReleaseLocationsCommand::TReleaseLocationsCommand()
+TDisableChunkLocationsCommand::TDisableChunkLocationsCommand()
 {
     RegisterParameter("node_address", NodeAddress_);
-    RegisterParameter("location_guids", LocationGuids_)
+    RegisterParameter("location_uuids", LocationUuids_)
         .Default();
 }
 
-void TReleaseLocationsCommand::DoExecute(ICommandContextPtr context)
+void TDisableChunkLocationsCommand::DoExecute(ICommandContextPtr context)
 {
-    auto result = WaitFor(context->GetClient()->ReleaseLocations(NodeAddress_, LocationGuids_, Options))
+    auto result = WaitFor(context->GetClient()->DisableChunkLocations(NodeAddress_, LocationUuids_, Options))
         .ValueOrThrow();
 
     context->ProduceOutputValue(BuildYsonStringFluently()
         .BeginMap()
-            .Item("location_guids")
+            .Item("location_uuids")
                 .BeginList()
-                    .DoFor(result.LocationGuids, [&] (TFluentList fluent, const auto& uuid) {
+                    .DoFor(result.LocationUuids, [&] (TFluentList fluent, const auto& uuid) {
                         fluent.Item().Value(uuid);
                     })
                 .EndList()
