@@ -67,6 +67,14 @@ void TSingletonsConfig::Register(TRegistrar registrar)
         .Default(true);
     registrar.Parameter("enable_porto_resource_tracker", &TThis::EnablePortoResourceTracker)
         .Default(false);
+    registrar.Parameter("resource_tracker_vcpu_factor", &TThis::ResourceTrackerVCpuFactor)
+        .Optional();
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->ResourceTrackerVCpuFactor && !config->EnableResourceTracker) {
+            THROW_ERROR_EXCEPTION("The `resource_tracker_vcpu_factor` requires resource tracker enabling.");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -87,6 +87,7 @@ public:
     bool EnableRefCountedTrackerProfiling;
     bool EnableResourceTracker;
     bool EnablePortoResourceTracker;
+    std::optional<double> ResourceTrackerVCpuFactor;
 
     REGISTER_YSON_STRUCT(TSingletonsConfig);
 
