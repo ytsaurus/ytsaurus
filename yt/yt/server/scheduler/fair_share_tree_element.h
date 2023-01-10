@@ -451,7 +451,7 @@ public:
     //! Fair share update methods that implements NVectorHdrf::TCompositeElement interface.
     TElement* GetChild(int index) final;
     const TElement* GetChild(int index) const final;
-    int GetChildrenCount() const final;
+    int GetChildCount() const final;
 
     std::vector<TSchedulerOperationElement*> GetChildOperations() const;
     int GetChildOperationCount() const noexcept;

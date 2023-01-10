@@ -295,7 +295,7 @@ TResourceVector TElement::GetTotalTruncatedFairShare() const
 void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpdateContext* context)
 {
     TJobResources totalExplicitChildrenGuaranteeResources;
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
 
         auto& childEffectiveGuaranteeResources = child->Attributes().EffectiveStrongGuaranteeResources;
@@ -318,7 +318,7 @@ void TCompositeElement::DetermineEffectiveStrongGuaranteeResources(TFairShareUpd
 
     DetermineImplicitEffectiveStrongGuaranteeResources(totalExplicitChildrenGuaranteeResources, context);
 
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         GetChild(childIndex)->DetermineEffectiveStrongGuaranteeResources(context);
     }
 }
@@ -337,12 +337,12 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
         }
 
         std::vector<std::optional<double>> implicitGuarantees;
-        implicitGuarantees.resize(GetChildrenCount());
+        implicitGuarantees.resize(GetChildCount());
 
         auto residualGuarantee = GetResource(residualGuaranteeResources, resourceType);
         auto parentResourceGuarantee = GetResource(effectiveStrongGuaranteeResources, resourceType);
         double totalImplicitGuarantee = 0.0;
-        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
             if (child->GetStrongGuaranteeResourcesConfig()->*resourceDataMember) {
                 continue;
@@ -369,7 +369,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
             }
         }
 
-        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
             if (const auto& childImplicitGuarantee = implicitGuarantees[childIndex]) {
                 SetResource(child->Attributes().EffectiveStrongGuaranteeResources, resourceType, *childImplicitGuarantee);
@@ -382,7 +382,7 @@ void TCompositeElement::DetermineImplicitEffectiveStrongGuaranteeResources(
 
 void TCompositeElement::InitIntegralPoolLists(TFairShareUpdateContext* context)
 {
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         GetChild(childIndex)->InitIntegralPoolLists(context);
     }
 }
@@ -394,7 +394,7 @@ void TCompositeElement::UpdateCumulativeAttributes(TFairShareUpdateContext* cont
     Attributes().ResourceFlowRatio = GetSpecifiedResourceFlowRatio();
     Attributes().TotalResourceFlowRatio = Attributes().ResourceFlowRatio;
 
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
         child->UpdateCumulativeAttributes(context);
 
@@ -411,12 +411,12 @@ void TCompositeElement::UpdateCumulativeAttributes(TFairShareUpdateContext* cont
 
 void TCompositeElement::PrepareFifoPool()
 {
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         YT_VERIFY(GetChild(childIndex)->IsOperation());
     }
 
     SortedChildren_.clear();
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         SortedChildren_.push_back(GetChild(childIndex));
     }
 
@@ -429,7 +429,7 @@ void TCompositeElement::PrepareFifoPool()
             std::placeholders::_1,
             std::placeholders::_2));
 
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         SortedChildren_[childIndex]->Attributes().FifoIndex = childIndex;
     }
 }
@@ -440,7 +440,7 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 
     TResourceVector totalPoolChildrenStrongGuaranteeShare;
     TResourceVector totalChildrenStrongGuaranteeShare;
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
         totalChildrenStrongGuaranteeShare += child->Attributes().StrongGuaranteeShare;
 
@@ -451,7 +451,7 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 
     if (!Dominates(Attributes().StrongGuaranteeShare, totalPoolChildrenStrongGuaranteeShare)) {
         // Drop strong guarantee shares of operations, adjust strong guarantee shares of pools.
-        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
             if (child->IsOperation()) {
                 child->Attributes().StrongGuaranteeShare = TResourceVector::Zero();
@@ -497,7 +497,7 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
 
     double weightSum = 0.0;
     auto undistributedPromisedFairShare = Attributes().PromisedFairShare;
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
         weightSum += child->GetWeight();
         // NB: Sum of total strong guarantee share and total resource flow can be greater than total resource limits. This results in a scheduler alert.
@@ -509,13 +509,13 @@ void TCompositeElement::AdjustStrongGuarantees(const TFairShareUpdateContext* co
     }
 
     for (auto resourceType : TEnumTraits<EJobResourceType>::GetDomainValues()) {
-        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto* child = GetChild(childIndex);
             child->Attributes().PromisedFairShare[resourceType] += undistributedPromisedFairShare[resourceType] * child->GetWeight() / weightSum;
         }
     }
 
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         GetChild(childIndex)->AdjustStrongGuarantees(context);
     }
 }
@@ -529,7 +529,7 @@ TValue TCompositeElement::ComputeByFitting(
 {
     auto checkSum = [&] (double fitFactor) -> bool {
         TValue sum = {};
-        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             const auto* child = GetChild(childIndex);
             sum += getter(fitFactor, child);
         }
@@ -553,7 +553,7 @@ TValue TCompositeElement::ComputeByFitting(
     TValue resultSum = {};
 
     // Compute actual values from fit factor.
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
         TValue value = getter(fitFactor, child);
         resultSum += value;
@@ -565,7 +565,7 @@ TValue TCompositeElement::ComputeByFitting(
 
 void TCompositeElement::PrepareFairShareFunctions(TFairShareUpdateContext* context)
 {
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
         child->PrepareFairShareFunctions(context);
     }
@@ -608,16 +608,16 @@ void TCompositeElement::PrepareFairShareByFitFactorFifo(TFairShareUpdateContext*
         context->PrepareFairShareByFitFactorFifoTotalTime += timer.GetElapsedCpuTime();
     });
 
-    if (GetChildrenCount() == 0) {
+    if (GetChildCount() == 0) {
         FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0.0, 1.0, TResourceVector::Zero());
         return;
     }
 
-    double rightFunctionBound = GetChildrenCount();
+    double rightFunctionBound = GetChildCount();
     FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0.0, rightFunctionBound, TResourceVector::Zero());
 
     double currentRightBound = 0.0;
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = SortedChildren_[childIndex];
         const auto& childFSBS = *child->FairShareBySuggestion_;
 
@@ -642,14 +642,14 @@ void TCompositeElement::PrepareFairShareByFitFactorNormal(TFairShareUpdateContex
         context->PrepareFairShareByFitFactorNormalTotalTime += timer.GetElapsedCpuTime();
     });
 
-    if (GetChildrenCount() == 0) {
+    if (GetChildCount() == 0) {
         FairShareByFitFactor_ = TVectorPiecewiseLinearFunction::Constant(0.0, 1.0, TResourceVector::Zero());
         return;
     }
 
     std::vector<TVectorPiecewiseLinearFunction> childrenFunctions;
     double minWeight = GetMinChildWeight();
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
         const auto& childFSBS = *child->FairShareBySuggestion_;
 
@@ -666,7 +666,7 @@ void TCompositeElement::PrepareFairShareByFitFactorNormal(TFairShareUpdateContex
 double TCompositeElement::GetMinChildWeight() const
 {
     double minWeight = std::numeric_limits<double>::max();
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
         if (child->GetWeight() > RatioComputationPrecision) {
             minWeight = std::min(minWeight, child->GetWeight());
@@ -701,7 +701,7 @@ TCompositeElement::TChildSuggestions TCompositeElement::GetChildSuggestionsNorma
     const double minWeight = GetMinChildWeight();
 
     TChildSuggestions childSuggestions;
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
         childSuggestions.push_back(std::min(1.0, fitFactor * (child->GetWeight() / minWeight)));
     }
@@ -713,7 +713,7 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
 {
     const auto& Logger = GetLogger();
 
-    if (GetChildrenCount() == 0) {
+    if (GetChildCount() == 0) {
         Attributes().SetFairShare(TResourceVector::Zero());
         return;
     }
@@ -726,7 +726,7 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
     // with |children|, i.e. i-th suggestion is meant to be given to i-th enabled child.
     // This implicit correspondence between children and suggestions is done for optimization purposes.
     std::vector<TElement*> children;
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         children.push_back(
             GetMode() == ESchedulingMode::Fifo
                 ? SortedChildren_[childIndex]
@@ -809,7 +809,7 @@ void TCompositeElement::ComputeAndSetFairShare(double suggestion, TFairShareUpda
         fitFactor,
         FairShareByFitFactor_->ValueAt(fitFactor),
         getChildrenSuggestedFairShare(fitFactor),
-        GetChildrenCount());
+        GetChildCount());
 
     YT_VERIFY(suggestedShareNearlyDominatesChildrenUsedShare);
 
@@ -823,7 +823,7 @@ void TCompositeElement::TruncateFairShareInFifoPools()
 {
     THashSet<TElement*> truncatedChildren;
     if (GetMode() == ESchedulingMode::Fifo && IsFairShareTruncationInFifoPoolEnabled()) {
-        for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+        for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
             auto *childOperation = SortedChildren_[childIndex]->AsOperation();
 
             YT_VERIFY(childOperation);
@@ -852,7 +852,7 @@ void TCompositeElement::TruncateFairShareInFifoPools()
         }
     }
 
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         auto* child = GetChild(childIndex);
         if (!truncatedChildren.contains(child)) {
             child->TruncateFairShareInFifoPools();
@@ -878,7 +878,7 @@ void TCompositeElement::UpdateOverflowAndAcceptableVolumesRecursively()
     }
 
     TResourceVolume childrenAcceptableVolume;
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         if (auto* childPool = GetChild(childIndex)->AsPool()) {
             childPool->UpdateOverflowAndAcceptableVolumesRecursively();
             attributes.ChildrenVolumeOverflow += childPool->Attributes().VolumeOverflow;
@@ -941,7 +941,7 @@ void TCompositeElement::DistributeFreeVolume()
             }
             std::vector<TChildAttributes> hungryChildren;
             auto weightSum = 0.0;
-            for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+            for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
                 auto* child = GetChild(childIndex);
                 if (child->Attributes().AcceptableVolume.*resourceDataMember > 0) {
                     // Resource flow is taken as weight.
@@ -987,7 +987,7 @@ void TCompositeElement::DistributeFreeVolume()
         });
     }
 
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         GetChild(childIndex)->DistributeFreeVolume();
     }
 }
@@ -1078,7 +1078,7 @@ void TRootElement::UpdateCumulativeAttributes(TFairShareUpdateContext* context)
     TCompositeElement::UpdateCumulativeAttributes(context);
 
     Attributes().StrongGuaranteeShare = TResourceVector::Zero();
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
         Attributes().StrongGuaranteeShare += child->Attributes().StrongGuaranteeShare;
     }
@@ -1101,7 +1101,7 @@ void TRootElement::ValidateAndAdjustSpecifiedGuarantees(TFairShareUpdateContext*
     auto totalResourceFlow = context->TotalResourceLimits * Attributes().TotalResourceFlowRatio;
     auto totalBurstResources = context->TotalResourceLimits * Attributes().TotalBurstRatio;
     TJobResources totalStrongGuaranteeResources;
-    for (int childIndex = 0; childIndex < GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < GetChildCount(); ++childIndex) {
         const auto* child = GetChild(childIndex);
         totalStrongGuaranteeResources += child->Attributes().EffectiveStrongGuaranteeResources;
     }
@@ -1368,7 +1368,7 @@ void TFairShareUpdateExecutor::UpdateRelaxedPoolIntegralShares()
     }
 
     auto availableShare = TResourceVector::Ones();
-    for (int childIndex = 0; childIndex < RootElement_->GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < RootElement_->GetChildCount(); ++childIndex) {
         const auto* child = RootElement_->GetChild(childIndex);
         auto usedShare = TResourceVector::Min(child->Attributes().GetGuaranteeShare(), child->Attributes().DemandShare);
         availableShare -= usedShare;
@@ -1463,7 +1463,7 @@ void TFairShareUpdateExecutor::UpdateRootFairShare()
     // Make fair share at root equal to sum of children.
     TResourceVector totalUsedStrongGuaranteeShare;
     TResourceVector totalFairShare;
-    for (int childIndex = 0; childIndex < RootElement_->GetChildrenCount(); ++childIndex) {
+    for (int childIndex = 0; childIndex < RootElement_->GetChildCount(); ++childIndex) {
         const auto* child = RootElement_->GetChild(childIndex);
         totalUsedStrongGuaranteeShare += child->Attributes().FairShare.StrongGuarantee;
         totalFairShare += child->Attributes().FairShare.Total;

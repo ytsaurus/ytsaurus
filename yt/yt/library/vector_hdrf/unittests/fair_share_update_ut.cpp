@@ -180,7 +180,7 @@ public:
         return Children_[index].Get();
     }
 
-    int GetChildrenCount() const override
+    int GetChildCount() const override
     {
         return Children_.size();
     }
@@ -260,7 +260,7 @@ public:
 
 private:
     std::vector<TElementMockPtr> Children_;
-    
+
     ESchedulingMode Mode_ = ESchedulingMode::FairShare;
     bool FairShareTruncationInFifoPoolEnabled_ = false;
 };
@@ -278,7 +278,7 @@ public:
         : TCompositeElementMock(std::move(id))
     { }
 
-	TResourceVector GetIntegralShareLimitForRelaxedPool() const override
+    TResourceVector GetIntegralShareLimitForRelaxedPool() const override
     {
         YT_VERIFY(GetIntegralGuaranteeType() == EIntegralGuaranteeType::Relaxed);
         auto multiplier = IntegralGuaranteesConfig_->RelaxedShareMultiplierLimit;
@@ -376,7 +376,7 @@ public:
 using TRootElementMockPtr = TIntrusivePtr<TRootElementMock>;
 
 ////////////////////////////////////////////////////////////////////////////////
-    
+
 void TElementMock::AttachParent(TCompositeElementMock* parent)
 {
     parent->AddChild(this);
@@ -511,7 +511,7 @@ protected:
     {
         ResetFairShareFunctionsRecursively(rootElement.Get());
 
-		NVectorHdrf::TFairShareUpdateContext context(
+        NVectorHdrf::TFairShareUpdateContext context(
             totalResourceLimits,
             /*mainResource*/ EJobResourceType::Cpu,
             /*integralPoolCapacitySaturationPeriod*/ TDuration::Days(1),
@@ -521,8 +521,8 @@ protected:
 
         rootElement->PreUpdate(totalResourceLimits);
 
-		NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
-		updateExecutor.Run();
+        NVectorHdrf::TFairShareUpdateExecutor updateExecutor(rootElement, &context);
+        updateExecutor.Run();
     }
 
 private:
@@ -531,7 +531,7 @@ private:
     void ResetFairShareFunctionsRecursively(TCompositeElementMock* compositeElement)
     {
         compositeElement->ResetFairShareFunctions();
-        for (int childIndex = 0; childIndex < compositeElement->GetChildrenCount(); ++childIndex) {
+        for (int childIndex = 0; childIndex < compositeElement->GetChildCount(); ++childIndex) {
             auto* child = compositeElement->GetChild(childIndex);
             if (auto* childPool = dynamic_cast<TCompositeElementMock*>(child)) {
                 ResetFairShareFunctionsRecursively(childPool);
