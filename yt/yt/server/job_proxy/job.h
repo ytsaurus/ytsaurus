@@ -167,9 +167,14 @@ struct IJob
         //! but the original data statistics is sent as a separate protobuf field.
         std::vector<TStreamStatistics> OutputStatistics;
 
-        TPipeStatistics InputPipeStatistics;
-        std::vector<TPipeStatistics> OutputPipeStatistics;
-        TPipeStatistics TotalOutputPipeStatistics;
+        struct TMultiPipeStatistics
+        {
+            TPipeStatistics InputPipeStatistics;
+            std::vector<TPipeStatistics> OutputPipeStatistics;
+            TPipeStatistics TotalOutputPipeStatistics;
+        };
+
+        std::optional<TMultiPipeStatistics> PipeStatistics;
     };
 
     virtual TStatistics GetStatistics() const = 0;

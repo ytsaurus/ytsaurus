@@ -891,16 +891,18 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
         DumpChunkReaderStatistics(&statistics, "/chunk_reader_statistics", extendedStatistics.ChunkReaderStatistics);
         DumpTimingStatistics(&statistics, "/chunk_reader_statistics", extendedStatistics.TimingStatistics);
 
-        auto dumpPipeStatistics = [&] (const TYPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
-            statistics.AddSample(path + "/idle_time", pipeStatistics.ConnectionStatistics.IdleDuration);
-            statistics.AddSample(path + "/busy_time", pipeStatistics.ConnectionStatistics.BusyDuration);
-            statistics.AddSample(path + "/bytes", pipeStatistics.Bytes);
-        };
+        if (const auto& pipeStatistics = extendedStatistics.PipeStatistics) {
+            auto dumpPipeStatistics = [&] (const TYPath& path, const IJob::TStatistics::TPipeStatistics& pipeStatistics) {
+                statistics.AddSample(path + "/idle_time", pipeStatistics.ConnectionStatistics.IdleDuration);
+                statistics.AddSample(path + "/busy_time", pipeStatistics.ConnectionStatistics.BusyDuration);
+                statistics.AddSample(path + "/bytes", pipeStatistics.Bytes);
+            };
 
-        dumpPipeStatistics("/user_job/pipes/input", extendedStatistics.InputPipeStatistics);
-        dumpPipeStatistics("/user_job/pipes/output/total", extendedStatistics.TotalOutputPipeStatistics);
-        for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, extendedStatistics.OutputPipeStatistics.size()); ++index) {
-            dumpPipeStatistics("/user_job/pipes/output/" + ToYPathLiteral(index), extendedStatistics.OutputPipeStatistics[index]);
+            dumpPipeStatistics("/user_job/pipes/input", pipeStatistics->InputPipeStatistics);
+            dumpPipeStatistics("/user_job/pipes/output/total", pipeStatistics->TotalOutputPipeStatistics);
+            for (int index = 0; index < std::min<int>(statisticsOutputTableCountLimit, pipeStatistics->OutputPipeStatistics.size()); ++index) {
+                dumpPipeStatistics("/user_job/pipes/output/" + ToYPathLiteral(index), pipeStatistics->OutputPipeStatistics[index]);
+            }
         }
     }
 

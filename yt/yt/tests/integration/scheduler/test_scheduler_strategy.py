@@ -2162,9 +2162,8 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         op1.abort()
         op2.abort()
 
-    # Broken by max42@, enable after fixing in YT-18213
     @authors("max42")
-    def DISABLED_test_true_suspicious_jobs(self):
+    def test_true_suspicious_jobs(self):
         create("table", "//tmp/t_in", attributes={"replication_factor": 1})
         create("table", "//tmp/t_out", attributes={"replication_factor": 1})
 
@@ -2211,7 +2210,7 @@ class TestSchedulerSuspiciousJobs(YTEnvSetup):
         if not suspicious:
             print_debug("Job is not considered suspicious, its brief statistics are:")
             for i in range(50):
-                if suspicious and exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
+                if exists("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)):
                     print_debug(
                         "job brief statistics:",
                         get("//sys/scheduler/orchid/scheduler/jobs/{0}/brief_statistics".format(job_id)),

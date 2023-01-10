@@ -1311,7 +1311,9 @@ private:
 
         // Pipe statistics.
         if (Prepared_) {
-            result.InputPipeStatistics = {
+            IJob::TStatistics::TMultiPipeStatistics pipeStatistics;
+
+            pipeStatistics.InputPipeStatistics = {
                 .ConnectionStatistics = TablePipeWriters_[0]->GetWriteStatistics(),
                 .Bytes = TablePipeWriters_[0]->GetWriteByteCount(),
             };
@@ -1319,16 +1321,18 @@ private:
             for (int i = 0; i < std::ssize(TablePipeReaders_); ++i) {
                 const auto& tablePipeReader = TablePipeReaders_[i];
 
-                auto& outputPipeStatistics = result.OutputPipeStatistics.emplace_back();
+                auto& outputPipeStatistics = pipeStatistics.OutputPipeStatistics.emplace_back();
                 outputPipeStatistics = {
                     .ConnectionStatistics = tablePipeReader->GetReadStatistics(),
                     .Bytes = tablePipeReader->GetReadByteCount(),
                 };
 
-                result.TotalOutputPipeStatistics.ConnectionStatistics.IdleDuration += outputPipeStatistics.ConnectionStatistics.IdleDuration;
-                result.TotalOutputPipeStatistics.ConnectionStatistics.BusyDuration += outputPipeStatistics.ConnectionStatistics.BusyDuration;
-                result.TotalOutputPipeStatistics.Bytes += outputPipeStatistics.Bytes;
+                pipeStatistics.TotalOutputPipeStatistics.ConnectionStatistics.IdleDuration += outputPipeStatistics.ConnectionStatistics.IdleDuration;
+                pipeStatistics.TotalOutputPipeStatistics.ConnectionStatistics.BusyDuration += outputPipeStatistics.ConnectionStatistics.BusyDuration;
+                pipeStatistics.TotalOutputPipeStatistics.Bytes += outputPipeStatistics.Bytes;
             }
+
+            result.PipeStatistics = pipeStatistics;
         }
         return result;
     }
