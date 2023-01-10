@@ -136,6 +136,9 @@ void ConfigureSingletonsImpl(const TConfig& config)
 
     if (config->EnableResourceTracker) {
         NProfiling::EnableResourceTracker();
+        if (config->ResourceTrackerVCpuFactor.has_value()) {
+            NProfiling::SetVCpuFactor(config->ResourceTrackerVCpuFactor.value());
+        }
     }
 
     if (config->EnablePortoResourceTracker) {
