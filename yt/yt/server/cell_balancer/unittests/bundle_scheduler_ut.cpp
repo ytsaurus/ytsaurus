@@ -56,6 +56,11 @@ TBundleInfoPtr SetBundleInfo(
     bundleInfo->EnableBundleController = true;
     bundleInfo->EnableTabletCellManagement = true;
 
+    bundleInfo->EnableNodeTagFilterManagement = false;
+    bundleInfo->EnableTabletNodeDynamicConfig = false;
+    bundleInfo->EnableRpcProxyManagement = false;
+    bundleInfo->EnableSystemAccountManagement = false;
+
     auto config = New<TBundleConfig>();
     bundleInfo->TargetConfig = config;
     config->TabletNodeCount = nodeCount;
@@ -76,7 +81,7 @@ TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCo
 {
     TSchedulerInputState input;
     input.Config = New<TBundleControllerConfig>();
-    input.Config->Cluster = "default-cluster";
+    input.Config->Cluster = "sen-tst";
 
     {
         auto zoneInfo = New<TZoneInfo>();
@@ -86,7 +91,7 @@ TSchedulerInputState GenerateSimpleInputContext(int nodeCount, int writeThreadCo
         zoneInfo->RpcProxyNannyService = "nanny-bunny-rpc-proxies";
     }
 
-    SetBundleInfo(input, "default-bundle", nodeCount, writeThreadCount, proxyCount);
+    SetBundleInfo(input, "bigd", nodeCount, writeThreadCount, proxyCount);
 
     return input;
 }
@@ -410,8 +415,8 @@ TEST(TBundleSchedulerTest, AllocationCreated)
     auto input = GenerateSimpleInputContext(5);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 1, false, 5, 2);
-    GenerateNodeAllocationsForBundle(input, "default-bundle", 1);
+    GenerateNodesForBundle(input, "bigd", 1, false, 5, 2);
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
 
     ScheduleBundles(input, &mutations);
 
@@ -419,9 +424,9 @@ TEST(TBundleSchedulerTest, AllocationCreated)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 3);
 
-    EXPECT_EQ(4, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(4, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
 
-    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
 
     THashSet<TString> templates;
     for (auto& [allocId, request] : mutations.NewAllocations) {
@@ -434,9 +439,9 @@ TEST(TBundleSchedulerTest, AllocationCreated)
     }
 
     EXPECT_EQ(templates.size(), 3u);
-    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "default-bundle", "tab", 3)));
-    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "default-bundle", "tab", 4)));
-    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "default-bundle", "tab", 5)));
+    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "bigd", "tab", 3)));
+    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "bigd", "tab", 4)));
+    EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "bigd", "tab", 5)));
 }
 
 TEST(TBundleSchedulerTest, AllocationQuotaExceeded)
@@ -444,7 +449,7 @@ TEST(TBundleSchedulerTest, AllocationQuotaExceeded)
     auto input = GenerateSimpleInputContext(5);
 
     {
-        auto& bundleInfo = input.Bundles["default-bundle"];
+        auto& bundleInfo = input.Bundles["bigd"];
         bundleInfo->ResourceQuota = New<TResourceQuota>();
         bundleInfo->ResourceQuota->Cpu = 0.1;
         bundleInfo->ResourceQuota->Memory = 10_TB;
@@ -461,7 +466,7 @@ TEST(TBundleSchedulerTest, AllocationQuotaExceeded)
     }
 
     {
-        auto& bundleInfo = input.Bundles["default-bundle"];
+        auto& bundleInfo = input.Bundles["bigd"];
         bundleInfo->ResourceQuota->Cpu = 100;
         bundleInfo->ResourceQuota->Memory = 1;
 
@@ -476,7 +481,7 @@ TEST(TBundleSchedulerTest, AllocationQuotaExceeded)
         EXPECT_EQ(mutations.AlertsToFire.front().Id, "bundle_resource_quota_exceeded");
     }
 
-    auto& bundleInfo = input.Bundles["default-bundle"];
+    auto& bundleInfo = input.Bundles["bigd"];
     bundleInfo->ResourceQuota->Cpu = 100;
     bundleInfo->ResourceQuota->Memory = 10_TB;
 
@@ -488,15 +493,15 @@ TEST(TBundleSchedulerTest, AllocationQuotaExceeded)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 5);
 
-    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 {
     auto input = GenerateSimpleInputContext(2);
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateNodeAllocationsForBundle(input, "default-bundle", 1);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
 
     const TString nodeId = input.TabletNodes.begin()->first;
     GetOrCrash(input.TabletNodes, nodeId)->Annotations = New<TInstanceAnnotations>();
@@ -518,12 +523,12 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         VerifyNodeAllocationRequests(mutations, 0);
-        EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->NodeAllocations));
+        EXPECT_EQ(1, std::ssize(input.BundleStates["bigd"]->NodeAllocations));
 
         EXPECT_EQ(1, std::ssize(mutations.ChangeNodeAnnotations));
         const auto& annotations = GetOrCrash(mutations.ChangeNodeAnnotations, nodeId);
         EXPECT_EQ(annotations->YPCluster, "pre-pre");
-        EXPECT_EQ(annotations->AllocatedForBundle, "default-bundle");
+        EXPECT_EQ(annotations->AllocatedForBundle, "bigd");
         EXPECT_EQ(annotations->DeallocationStrategy, DeallocationStrategyHulkRequest);
         EXPECT_EQ(annotations->NannyService, "nanny-bunny-tablet-nodes");
         EXPECT_EQ(annotations->Resource->Vcpu, 9999);
@@ -531,8 +536,8 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
         EXPECT_TRUE(annotations->Allocated);
         EXPECT_FALSE(annotations->DeallocatedAt);
 
-        auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
-        for (auto& [allocId, allocState] : input.BundleStates["default-bundle"]->NodeAllocations) {
+        auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+        for (auto& [allocId, allocState] : input.BundleStates["bigd"]->NodeAllocations) {
             auto orchidAllocatingInfo = GetOrCrash(orchidInfo->AllocatingTabletNodes, allocId);
             EXPECT_FALSE(orchidAllocatingInfo->HulkRequestLink.empty());
             EXPECT_EQ(orchidAllocatingInfo->HulkRequestState, "COMPLETED");
@@ -552,7 +557,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompleted)
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
     VerifyNodeAllocationRequests(mutations, 0);
     EXPECT_NO_THROW(Orchid::GetBundlesInfo(input, mutations));
@@ -564,8 +569,8 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)
     auto input = GenerateSimpleInputContext(2);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateNodeAllocationsForBundle(input, "default-bundle", 1);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
 
     {
         auto& request = input.AllocationRequests.begin()->second;
@@ -578,12 +583,12 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackFailed)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(mutations.ChangedStates.count("default-bundle"), 0u);
+    EXPECT_EQ(mutations.ChangedStates.count("bigd"), 0u);
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
 
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_allocation_failed");
     // BundleController state did not change
-    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackCompletedButNoNode)
@@ -591,8 +596,8 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompletedButNoNode)
     auto input = GenerateSimpleInputContext(2);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateNodeAllocationsForBundle(input, "default-bundle", 1);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
 
     {
         auto& request = input.AllocationRequests.begin()->second;
@@ -607,7 +612,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackCompletedButNoNode)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(1, std::ssize(input.BundleStates["bigd"]->NodeAllocations));
 }
 
 TEST(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
@@ -615,11 +620,11 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
     auto input = GenerateSimpleInputContext(2);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateNodeAllocationsForBundle(input, "default-bundle", 1);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
 
     {
-        auto& allocState = input.BundleStates["default-bundle"]->NodeAllocations.begin()->second;
+        auto& allocState = input.BundleStates["bigd"]->NodeAllocations.begin()->second;
         allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
     }
 
@@ -636,7 +641,7 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
     // BundleController state did not change
-    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
@@ -645,10 +650,10 @@ TEST(TBundleSchedulerTest, AllocationProgressTrackStaledAllocation)
 TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
 {
     auto input = GenerateSimpleInputContext(2, DefaultCellCount);
-    auto nodes = GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, DefaultCellCount);
-    GenerateNodeDeallocationsForBundle(input, "default-bundle", { *nodes.begin()});
+    auto nodes = GenerateNodesForBundle(input, "bigd", 5, SetNodeTagFilters, DefaultCellCount);
+    GenerateNodeDeallocationsForBundle(input, "bigd", { *nodes.begin()});
 
-    EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(1, std::ssize(input.BundleStates["bigd"]->NodeDeallocations));
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
@@ -657,7 +662,7 @@ TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsWhileInProgress)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
 
     // BundleController state did not change
-    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
 }
 
 TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
@@ -665,32 +670,32 @@ TEST(TBundleSchedulerTest, DoNotCreateNewDeallocationsIfNodesAreNotReady)
     constexpr int TabletSlotsCount = 10;
 
     auto input = GenerateSimpleInputContext(2, TabletSlotsCount);
-    GenerateTabletCellsForBundle(input, "default-bundle", 2 * TabletSlotsCount);
+    GenerateTabletCellsForBundle(input, "bigd", 2 * TabletSlotsCount);
 
     // Do not deallocate nodes if node tag filter is not set for all alive nodes
-    GenerateNodesForBundle(input, "default-bundle", 5, !SetNodeTagFilters, TabletSlotsCount);
+    GenerateNodesForBundle(input, "bigd", 5, !SetNodeTagFilters, TabletSlotsCount);
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
     // Do not deallocate nodes if cell cout is not actual for all the nodes
     input.TabletNodes.clear();
-    GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, TabletSlotsCount / 2);
+    GenerateNodesForBundle(input, "bigd", 5, SetNodeTagFilters, TabletSlotsCount / 2);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
     // Finally init deallocations if nodes are up to date.
     input.TabletNodes.clear();
-    GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, TabletSlotsCount);
+    GenerateNodesForBundle(input, "bigd", 5, SetNodeTagFilters, TabletSlotsCount);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 }
 
 TEST(TBundleSchedulerTest, CreateNewDeallocations)
@@ -698,8 +703,8 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
     constexpr int TabletSlotsCount = 10;
 
     auto input = GenerateSimpleInputContext(2, TabletSlotsCount);
-    GenerateTabletCellsForBundle(input, "default-bundle", 2 * TabletSlotsCount);
-    GenerateNodesForBundle(input, "default-bundle", 5, SetNodeTagFilters, TabletSlotsCount);
+    GenerateTabletCellsForBundle(input, "bigd", 2 * TabletSlotsCount);
+    GenerateNodesForBundle(input, "bigd", 5, SetNodeTagFilters, TabletSlotsCount);
 
     TSchedulerMutations mutations;
 
@@ -708,11 +713,11 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
-    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
 
-    for (auto& [nodeName, state] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+    for (auto& [nodeName, state] : mutations.ChangedStates["bigd"]->NodeDeallocations) {
         EXPECT_FALSE(state->HulkRequestCreated);
         auto orchidInstanceInfo = GetOrCrash(orchidInfo->AllocatedTabletNodes, state->InstanceName);
         EXPECT_TRUE(*orchidInstanceInfo->Removing);
@@ -751,11 +756,11 @@ TEST(TBundleSchedulerTest, CreateNewDeallocations)
     ScheduleBundles(input, &mutations);
 
     // Hulk deallocation requests are finally created.
-    auto& bundleState = mutations.ChangedStates["default-bundle"];
+    auto& bundleState = mutations.ChangedStates["bigd"];
     VerifyNodeDeallocationRequests(mutations, bundleState, 3);
     EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
 
-    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+    for (auto& [_, state] : mutations.ChangedStates["bigd"]->NodeDeallocations) {
         EXPECT_TRUE(state->HulkRequestCreated);
     }
 }
@@ -765,8 +770,8 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackFailed)
     auto input = GenerateSimpleInputContext(1);
     TSchedulerMutations mutations;
 
-    auto bundleNodes = GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateNodeDeallocationsForBundle(input, "default-bundle", { *bundleNodes.begin()});
+    auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2);
+    GenerateNodeDeallocationsForBundle(input, "bigd", { *bundleNodes.begin()});
 
     {
         auto& request = input.DeallocationRequests.begin()->second;
@@ -777,7 +782,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackFailed)
 
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyNodeAllocationRequests(mutations, 0);
-    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_deallocation_failed");
@@ -787,10 +792,10 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
 {
     auto input = GenerateSimpleInputContext(1);
 
-    auto bundleNodes = GenerateNodesForBundle(input, "default-bundle", 2);
+    auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2);
     const TString nodeId = *bundleNodes.begin();
 
-    GenerateNodeDeallocationsForBundle(input, "default-bundle", {nodeId});
+    GenerateNodeDeallocationsForBundle(input, "bigd", {nodeId});
 
     {
         auto& request = input.DeallocationRequests.begin()->second;
@@ -806,7 +811,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
         EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-        EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->NodeDeallocations));
+        EXPECT_EQ(1, std::ssize(input.BundleStates["bigd"]->NodeDeallocations));
 
         EXPECT_EQ(1, std::ssize(mutations.ChangeNodeAnnotations));
         const auto& annotations = GetOrCrash(mutations.ChangeNodeAnnotations, nodeId);
@@ -827,7 +832,7 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackCompleted)
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangeNodeAnnotations));
     VerifyNodeAllocationRequests(mutations, 0);
     EXPECT_EQ(0, std::ssize(mutations.NodesToCleanup));
@@ -838,13 +843,13 @@ TEST(TBundleSchedulerTest, DeallocationProgressTrackStaledAllocation)
     auto input = GenerateSimpleInputContext(1);
     TSchedulerMutations mutations;
 
-    auto bundleNodes = GenerateNodesForBundle(input, "default-bundle", 2);
+    auto bundleNodes = GenerateNodesForBundle(input, "bigd", 2);
     const TString nodeId = *bundleNodes.begin();
 
-    GenerateNodeDeallocationsForBundle(input, "default-bundle", {nodeId});
+    GenerateNodeDeallocationsForBundle(input, "bigd", {nodeId});
 
     {
-        auto& allocState = input.BundleStates["default-bundle"]->NodeDeallocations.begin()->second;
+        auto& allocState = input.BundleStates["bigd"]->NodeDeallocations.begin()->second;
         allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
     }
 
@@ -862,8 +867,8 @@ TEST(TBundleSchedulerTest, CreateNewCellsCreation)
     auto input = GenerateSimpleInputContext(2, 5);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateTabletCellsForBundle(input, "default-bundle", 3);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 3);
 
     ScheduleBundles(input, &mutations);
 
@@ -873,7 +878,7 @@ TEST(TBundleSchedulerTest, CreateNewCellsCreation)
     EXPECT_EQ(0, std::ssize(mutations.CellsToRemove));
     EXPECT_EQ(1, std::ssize(mutations.CellsToCreate));
 
-    EXPECT_EQ(7, mutations.CellsToCreate.at("default-bundle"));
+    EXPECT_EQ(7, mutations.CellsToCreate.at("bigd"));
 }
 
 TEST(TBundleSchedulerTest, CreateNewCellsNoRemoveNoCreate)
@@ -881,8 +886,8 @@ TEST(TBundleSchedulerTest, CreateNewCellsNoRemoveNoCreate)
     auto input = GenerateSimpleInputContext(2, 5);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateTabletCellsForBundle(input, "default-bundle", 10);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 10);
 
     ScheduleBundles(input, &mutations);
 
@@ -898,8 +903,8 @@ TEST(TBundleSchedulerTest, CreateNewCellsRemove)
     auto input = GenerateSimpleInputContext(2, 5);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateTabletCellsForBundle(input, "default-bundle", 13);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 13);
 
     ScheduleBundles(input, &mutations);
 
@@ -915,10 +920,10 @@ TEST(TBundleSchedulerTest, PeekRightCellToRemove)
     auto input = GenerateSimpleInputContext(2, 5);
     TSchedulerMutations mutations;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateTabletCellsForBundle(input, "default-bundle", 11);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 11);
 
-    auto cellId = input.Bundles["default-bundle"]->TabletCellIds[RandomNumber<ui32>(11)];
+    auto cellId = input.Bundles["bigd"]->TabletCellIds[RandomNumber<ui32>(11)];
     input.TabletCells[cellId]->TabletCount = 0;
 
     ScheduleBundles(input, &mutations);
@@ -985,11 +990,11 @@ void CheckEmptyAlerts(const TSchedulerMutations& mutations)
 TEST(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
 {
     auto input = GenerateSimpleInputContext(2, 5);
-    input.Bundles["default-bundle"]->EnableNodeTagFilterManagement = true;
-    input.Bundles["default-bundle"]->NodeTagFilter = {};
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->NodeTagFilter = {};
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateTabletCellsForBundle(input, "default-bundle", 10);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 10);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1004,10 +1009,10 @@ TEST(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
 TEST(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
 {
     auto input = GenerateSimpleInputContext(2, 5);
-    input.Bundles["default-bundle"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
-    GenerateTabletCellsForBundle(input, "default-bundle", 10);
+    GenerateNodesForBundle(input, "bigd", 2);
+    GenerateTabletCellsForBundle(input, "bigd", 10);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1036,10 +1041,10 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     const int SlotCount = 5;
 
     auto input = GenerateSimpleInputContext(2, SlotCount);
-    input.Bundles["default-bundle"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
 
-    GenerateNodesForBundle(input, "default-bundle", 1, SetNodeFilterTag, SlotCount);
-    GenerateTabletCellsForBundle(input, "default-bundle", 15);
+    GenerateNodesForBundle(input, "bigd", 1, SetNodeFilterTag, SlotCount);
+    GenerateTabletCellsForBundle(input, "bigd", 15);
 
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
@@ -1053,7 +1058,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_EQ(2, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(2, std::ssize(mutations.ChangedNodeUserTags));
 
-    const TString BundleNodeTagFilter = input.Bundles["default-bundle"]->NodeTagFilter;
+    const TString BundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
 
     THashSet<TString> usedSpare;
 
@@ -1082,7 +1087,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
 
     // Add new node to bundle
-    auto newNodes = GenerateNodesForBundle(input, "default-bundle", 1, SetNodeFilterTag, SlotCount);
+    auto newNodes = GenerateNodesForBundle(input, "bigd", 1, SetNodeFilterTag, SlotCount);
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -1139,10 +1144,10 @@ TEST(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
 
     auto input = GenerateSimpleInputContext(2, SlotCount);
     input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
-    input.Bundles["default-bundle"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
 
-    auto nodes = GenerateNodesForBundle(input, "default-bundle", 2, SetNodeFilterTag, SlotCount);
-    GenerateTabletCellsForBundle(input, "default-bundle", 10);
+    auto nodes = GenerateNodesForBundle(input, "bigd", 2, SetNodeFilterTag, SlotCount);
+    GenerateTabletCellsForBundle(input, "bigd", 10);
 
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
@@ -1169,9 +1174,9 @@ TEST(TNodeTagsFilterManager, SpareNodesExhausted)
     const int SlotCount = 5;
 
     auto input = GenerateSimpleInputContext(2, SlotCount);
-    input.Bundles["default-bundle"]->EnableNodeTagFilterManagement = true;
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
 
-    GenerateTabletCellsForBundle(input, "default-bundle", 20);
+    GenerateTabletCellsForBundle(input, "bigd", 20);
 
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
@@ -1207,7 +1212,7 @@ TEST(TBundleSchedulerTest, CheckDisruptedState)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
     GenerateNodesForBundle(input, SpareBundleName, 3);
-    GenerateNodesForBundle(input, "default-bundle", 4);
+    GenerateNodesForBundle(input, "bigd", 4);
 
     for (auto& [_, nodeInfo] : input.TabletNodes) {
         nodeInfo->State = InstanceStateOffline;
@@ -1228,7 +1233,7 @@ TEST(TBundleSchedulerTest, CheckAllocationLimit)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
     GenerateNodesForBundle(input, SpareBundleName, 3);
-    GenerateNodesForBundle(input, "default-bundle", 4);
+    GenerateNodesForBundle(input, "bigd", 4);
 
     zoneInfo->MaxTabletNodeCount = 5;
 
@@ -1243,12 +1248,12 @@ TEST(TBundleSchedulerTest, CheckAllocationLimit)
 TEST(TBundleSchedulerTest, CheckDynamicConfig)
 {
     auto input = GenerateSimpleInputContext(5, 5);
-    input.Bundles["default-bundle"]->EnableTabletNodeDynamicConfig = true;
+    input.Bundles["bigd"]->EnableTabletNodeDynamicConfig = true;
 
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
     GenerateNodesForBundle(input, SpareBundleName, 3);
-    GenerateNodesForBundle(input, "default-bundle", 5);
+    GenerateNodesForBundle(input, "bigd", 5);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1266,7 +1271,7 @@ TEST(TBundleSchedulerTest, CheckDynamicConfig)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
-    input.Bundles["default-bundle"]->TargetConfig->CpuLimits->WriteThreadPoolSize = 212;
+    input.Bundles["bigd"]->TargetConfig->CpuLimits->WriteThreadPoolSize = 212;
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
@@ -1305,8 +1310,8 @@ TEST(TBundleSchedulerTest, ProxyAllocationCreated)
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 5);
     TSchedulerMutations mutations;
 
-    GenerateProxiesForBundle(input, "default-bundle", 1);
-    GenerateProxyAllocationsForBundle(input, "default-bundle", 1);
+    GenerateProxiesForBundle(input, "bigd", 1);
+    GenerateProxyAllocationsForBundle(input, "bigd", 1);
 
     ScheduleBundles(input, &mutations);
 
@@ -1314,16 +1319,16 @@ TEST(TBundleSchedulerTest, ProxyAllocationCreated)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyProxyAllocationRequests(mutations, 3);
 
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
-    EXPECT_EQ(4, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
+    EXPECT_EQ(4, std::ssize(mutations.ChangedStates["bigd"]->ProxyAllocations));
 }
 
 TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
 
-    GenerateProxiesForBundle(input, "default-bundle", 2);
-    GenerateProxyAllocationsForBundle(input, "default-bundle", 1);
+    GenerateProxiesForBundle(input, "bigd", 2);
+    GenerateProxyAllocationsForBundle(input, "bigd", 1);
 
     const TString proxyName = input.RpcProxies.begin()->first;
     GetOrCrash(input.RpcProxies, proxyName)->Annotations = New<TInstanceAnnotations>();
@@ -1344,12 +1349,12 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
         EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-        EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->ProxyAllocations));
+        EXPECT_EQ(1, std::ssize(input.BundleStates["bigd"]->ProxyAllocations));
 
         EXPECT_EQ(1, std::ssize(mutations.ChangedProxyAnnotations));
         const auto& annotations = GetOrCrash(mutations.ChangedProxyAnnotations, proxyName);
         EXPECT_EQ(annotations->YPCluster, "pre-pre");
-        EXPECT_EQ(annotations->AllocatedForBundle, "default-bundle");
+        EXPECT_EQ(annotations->AllocatedForBundle, "bigd");
         EXPECT_EQ(annotations->DeallocationStrategy, DeallocationStrategyHulkRequest);
         EXPECT_EQ(annotations->NannyService, "nanny-bunny-rpc-proxies");
         EXPECT_EQ(annotations->Resource->Vcpu, 1111);
@@ -1357,8 +1362,8 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
         EXPECT_TRUE(annotations->Allocated);
         EXPECT_FALSE(annotations->DeallocatedAt);
 
-        auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
-        for (auto& [allocId, allocState] : input.BundleStates["default-bundle"]->ProxyAllocations) {
+        auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
+        for (auto& [allocId, allocState] : input.BundleStates["bigd"]->ProxyAllocations) {
             auto orchidAllocatingInfo = GetOrCrash(orchidInfo->AllocatingRpcProxies, allocId);
             EXPECT_FALSE(orchidAllocatingInfo->HulkRequestLink.empty());
             EXPECT_EQ(orchidAllocatingInfo->HulkRequestState, "COMPLETED");
@@ -1378,7 +1383,7 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompleted)
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->ProxyAllocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyAnnotations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 }
@@ -1388,8 +1393,8 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackFailed)
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
     TSchedulerMutations mutations;
 
-    GenerateProxiesForBundle(input, "default-bundle", 2);
-    GenerateProxyAllocationsForBundle(input, "default-bundle", 1);
+    GenerateProxiesForBundle(input, "bigd", 2);
+    GenerateProxyAllocationsForBundle(input, "bigd", 1);
 
     {
         auto& request = input.AllocationRequests.begin()->second;
@@ -1404,7 +1409,7 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackFailed)
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
 
     // BundleController state did not change
-    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_allocation_failed");
@@ -1415,8 +1420,8 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompletedButNoProxy)
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
     TSchedulerMutations mutations;
 
-    GenerateProxiesForBundle(input, "default-bundle", 2);
-    GenerateProxyAllocationsForBundle(input, "default-bundle", 1);
+    GenerateProxiesForBundle(input, "bigd", 2);
+    GenerateProxyAllocationsForBundle(input, "bigd", 1);
 
     {
         auto& request = input.AllocationRequests.begin()->second;
@@ -1431,7 +1436,7 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackCompletedButNoProxy)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->ProxyAllocations));
+    EXPECT_EQ(1, std::ssize(input.BundleStates["bigd"]->ProxyAllocations));
 }
 
 TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackStaledAllocation)
@@ -1439,11 +1444,11 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackStaledAllocation)
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
     TSchedulerMutations mutations;
 
-    GenerateProxiesForBundle(input, "default-bundle", 2);
-    GenerateProxyAllocationsForBundle(input, "default-bundle", 1);
+    GenerateProxiesForBundle(input, "bigd", 2);
+    GenerateProxyAllocationsForBundle(input, "bigd", 1);
 
     {
-        auto& allocState = input.BundleStates["default-bundle"]->ProxyAllocations.begin()->second;
+        auto& allocState = input.BundleStates["bigd"]->ProxyAllocations.begin()->second;
         allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
     }
 
@@ -1464,13 +1469,13 @@ TEST(TBundleSchedulerTest, ProxyAllocationProgressTrackStaledAllocation)
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "stuck_instance_allocation");
 
     // BundleController state did not change
-    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
 }
 
 TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    GenerateProxiesForBundle(input, "default-bundle", 5);
+    GenerateProxiesForBundle(input, "bigd", 5);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1478,11 +1483,11 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
 
-    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
 
-    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+    for (auto& [_, state] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_FALSE(state->HulkRequestCreated);
 
         auto orchidInstanceInfo = GetOrCrash(orchidInfo->AllocatedRpcProxies, state->InstanceName);
@@ -1494,11 +1499,11 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
     ScheduleBundles(input, &mutations);
 
     // Hulk deallocation requests are created.
-    auto& bundleState = mutations.ChangedStates["default-bundle"];
+    auto& bundleState = mutations.ChangedStates["bigd"];
     VerifyProxyDeallocationRequests(mutations, bundleState, 3);
-    orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+    orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
 
-    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+    for (auto& [_, state] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_TRUE(state->HulkRequestCreated);
 
         auto orchidInstanceInfo = GetOrCrash(orchidInfo->AllocatedRpcProxies, state->InstanceName);
@@ -1509,7 +1514,7 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocations)
 TEST(TBundleSchedulerTest, ProxyCreateNewDeallocationsLegacyInstancies)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    GenerateProxiesForBundle(input, "default-bundle", 5);
+    GenerateProxiesForBundle(input, "bigd", 5);
 
     for (auto& [_, proxyInfo] : input.RpcProxies) {
         proxyInfo->Annotations->DeallocationStrategy.clear();
@@ -1521,11 +1526,11 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocationsLegacyInstancies)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
 
-    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+    auto orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
 
-    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+    for (auto& [_, state] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_FALSE(state->HulkRequestCreated);
 
         auto orchidInstanceInfo = GetOrCrash(orchidInfo->AllocatedRpcProxies, state->InstanceName);
@@ -1537,11 +1542,11 @@ TEST(TBundleSchedulerTest, ProxyCreateNewDeallocationsLegacyInstancies)
     ScheduleBundles(input, &mutations);
 
     // Hulk deallocation requests are created.
-    auto& bundleState = mutations.ChangedStates["default-bundle"];
+    auto& bundleState = mutations.ChangedStates["bigd"];
     VerifyProxyDeallocationRequests(mutations, bundleState, 3);
-    orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "default-bundle");
+    orchidInfo = GetOrCrash(Orchid::GetBundlesInfo(input, mutations), "bigd");
 
-    for (auto& [_, state] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+    for (auto& [_, state] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_TRUE(state->HulkRequestCreated);
 
         auto orchidInstanceInfo = GetOrCrash(orchidInfo->AllocatedRpcProxies, state->InstanceName);
@@ -1554,8 +1559,8 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackFailed)
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 1);
     TSchedulerMutations mutations;
 
-    auto bundleProxies = GenerateProxiesForBundle(input, "default-bundle", 1);
-    GenerateProxyDeallocationsForBundle(input, "default-bundle", { *bundleProxies.begin()});
+    auto bundleProxies = GenerateProxiesForBundle(input, "bigd", 1);
+    GenerateProxyDeallocationsForBundle(input, "bigd", { *bundleProxies.begin()});
 
     {
         auto& request = input.DeallocationRequests.begin()->second;
@@ -1567,7 +1572,7 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackFailed)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     // BundleController state did not change
-    EXPECT_EQ(0u, mutations.ChangedStates.count("default-bundle"));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "instance_deallocation_failed");
 }
@@ -1576,10 +1581,10 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackCompleted)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 1);
 
-    auto bundleProxies = GenerateProxiesForBundle(input, "default-bundle", 2);
+    auto bundleProxies = GenerateProxiesForBundle(input, "bigd", 2);
     const TString proxyName = *bundleProxies.begin();
 
-    GenerateProxyDeallocationsForBundle(input, "default-bundle", {proxyName});
+    GenerateProxyDeallocationsForBundle(input, "bigd", {proxyName});
 
     {
         auto& request = input.DeallocationRequests.begin()->second;
@@ -1595,7 +1600,7 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackCompleted)
         EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
         EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
         EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-        EXPECT_EQ(1, std::ssize(input.BundleStates["default-bundle"]->ProxyDeallocations));
+        EXPECT_EQ(1, std::ssize(input.BundleStates["bigd"]->ProxyDeallocations));
 
         EXPECT_EQ(1, std::ssize(mutations.ChangedProxyAnnotations));
         const auto& annotations = GetOrCrash(mutations.ChangedProxyAnnotations, proxyName);
@@ -1616,7 +1621,7 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackCompleted)
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyAnnotations));
 }
 
@@ -1625,13 +1630,13 @@ TEST(TBundleSchedulerTest, ProxyDeallocationProgressTrackStaledAllocation)
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 1);
     TSchedulerMutations mutations;
 
-    auto bundleProxies = GenerateProxiesForBundle(input, "default-bundle", 2);
+    auto bundleProxies = GenerateProxiesForBundle(input, "bigd", 2);
     const TString proxyName = *bundleProxies.begin();
 
-    GenerateProxyDeallocationsForBundle(input, "default-bundle", {proxyName});
+    GenerateProxyDeallocationsForBundle(input, "bigd", {proxyName});
 
     {
-        auto& allocState = input.BundleStates["default-bundle"]->ProxyDeallocations.begin()->second;
+        auto& allocState = input.BundleStates["bigd"]->ProxyDeallocations.begin()->second;
         allocState->CreationTime = TInstant::Now() - TDuration::Days(1);
     }
 
@@ -1689,7 +1694,7 @@ TEST(TBundleSchedulerTest, CheckProxyZoneDisruptedState)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
     GenerateProxiesForBundle(input, SpareBundleName, 3);
-    GenerateProxiesForBundle(input, "default-bundle", 4);
+    GenerateProxiesForBundle(input, "bigd", 4);
 
     for (auto& [_, proxyInfo] : input.RpcProxies) {
         proxyInfo->Alive.Reset();
@@ -1710,7 +1715,7 @@ TEST(TBundleSchedulerTest, ProxyCheckAllocationLimit)
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->RpcProxyCount = 3;
     GenerateProxiesForBundle(input, SpareBundleName, 3);
-    GenerateProxiesForBundle(input, "default-bundle", 4);
+    GenerateProxiesForBundle(input, "bigd", 4);
 
     zoneInfo->MaxRpcProxyCount = 5;
 
@@ -1727,9 +1732,9 @@ TEST(TBundleSchedulerTest, ProxyCheckAllocationLimit)
 TEST(TProxyRoleManagement, TestBundleProxyRolesAssigned)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
-    GenerateProxiesForBundle(input, "default-bundle", 2);
+    GenerateProxiesForBundle(input, "bigd", 2);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1739,7 +1744,7 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesAssigned)
     EXPECT_EQ(2, std::ssize(mutations.ChangedProxyRole));
 
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        ASSERT_EQ(role, "default-bundle");
+        ASSERT_EQ(role, "bigd");
         input.RpcProxies[proxyName]->Role = role;
     }
 
@@ -1755,10 +1760,10 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesAssigned)
 TEST(TProxyRoleManagement, TestBundleProxyCustomRolesAssigned)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 2);
-    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
-    input.Bundles["default-bundle"]->RpcProxyRole = "custom-role";
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->RpcProxyRole = "custom-role";
 
-    GenerateProxiesForBundle(input, "default-bundle", 2);
+    GenerateProxiesForBundle(input, "bigd", 2);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -1786,9 +1791,9 @@ TEST(TProxyRoleManagement, TestBundleProxyBanned)
     const bool SetProxyRole = true;
 
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 3);
-    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
-    auto bundleProxies = GenerateProxiesForBundle(input, "default-bundle", 3, SetProxyRole);
+    auto bundleProxies = GenerateProxiesForBundle(input, "bigd", 3, SetProxyRole);
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
@@ -1816,7 +1821,7 @@ TEST(TProxyRoleManagement, TestBundleProxyBanned)
     EXPECT_EQ(1, std::ssize(mutations.NewAllocations));
 
     for (auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        EXPECT_EQ(role, "default-bundle");
+        EXPECT_EQ(role, "bigd");
         EXPECT_TRUE(spareProxies.find(proxyName) != spareProxies.end());
     }
 }
@@ -1826,9 +1831,9 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     const bool SetProxyRole = true;
 
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 3);
-    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
-    GenerateProxiesForBundle(input, "default-bundle", 1, SetProxyRole);
+    GenerateProxiesForBundle(input, "bigd", 1, SetProxyRole);
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
@@ -1844,7 +1849,7 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     THashSet<TString> usedSpare;
 
     for (auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        EXPECT_EQ(role, "default-bundle");
+        EXPECT_EQ(role, "bigd");
         EXPECT_TRUE(spareProxies.find(proxyName) != spareProxies.end());
 
         usedSpare.insert(proxyName);
@@ -1860,7 +1865,7 @@ TEST(TProxyRoleManagement, TestBundleProxyRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 
     // Add new proxies to bundle
-    auto newProxies = GenerateProxiesForBundle(input, "default-bundle", 1, SetProxyRole);;
+    auto newProxies = GenerateProxiesForBundle(input, "bigd", 1, SetProxyRole);;
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -1886,10 +1891,10 @@ TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     const bool SetProxyRole = true;
 
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 3);
-    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
-    input.Bundles["default-bundle"]->RpcProxyRole = "custom-role";
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->RpcProxyRole = "custom-role";
 
-    GenerateProxiesForBundle(input, "default-bundle", 1, SetProxyRole);
+    GenerateProxiesForBundle(input, "bigd", 1, SetProxyRole);
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
@@ -1921,7 +1926,7 @@ TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
     EXPECT_EQ(0, std::ssize(mutations.ChangedProxyRole));
 
     // Add new proxies to bundle
-    auto newProxies = GenerateProxiesForBundle(input, "default-bundle", 1, SetProxyRole);;
+    auto newProxies = GenerateProxiesForBundle(input, "bigd", 1, SetProxyRole);;
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -1946,7 +1951,7 @@ TEST(TProxyRoleManagement, TestBundleProxyCustomRolesWithSpare)
 TEST(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 4);
-    input.Bundles["default-bundle"]->EnableRpcProxyManagement = true;
+    input.Bundles["bigd"]->EnableRpcProxyManagement = true;
 
     // Generate Spare proxies
     auto zoneInfo = input.Zones["default-zone"];
@@ -1961,7 +1966,7 @@ TEST(TProxyRoleManagement, TestFreeSpareProxiesExhausted)
     EXPECT_EQ(3, std::ssize(mutations.ChangedProxyRole));
 
     for (const auto& [proxyName, role] : mutations.ChangedProxyRole) {
-        ASSERT_EQ(role, "default-bundle");
+        ASSERT_EQ(role, "bigd");
         input.RpcProxies[proxyName]->Role = role;
     }
 
@@ -1997,7 +2002,7 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
     auto input = GenerateSimpleInputContext(2, 5);
 
     input.RootSystemAccount = New<TSystemAccount>();
-    auto& bundleInfo1 = input.Bundles["default-bundle"];
+    auto& bundleInfo1 = input.Bundles["bigd"];
 
     bundleInfo1->Options->ChangelogAccount = "default-bundle-account";
     bundleInfo1->Options->SnapshotAccount = "default-bundle-account";
@@ -2015,7 +2020,7 @@ TEST(TBundleSchedulerTest, CheckSystemAccountLimit)
     input.Config->MinNodeCount = 9;
     input.Config->MinChunkCount = 7;
 
-    GenerateNodesForBundle(input, "default-bundle", 2);
+    GenerateNodesForBundle(input, "bigd", 2);
     {
         auto& limits = input.RootSystemAccount->ResourceLimits;
         limits->NodeCount = 1000;
@@ -2167,7 +2172,7 @@ TEST(TBundleSchedulerTest, ReAllocateOutdatedNodes)
 {
     auto input = GenerateSimpleInputContext(5);
     input.Config->ReallocateInstanceBudget = 2;
-    GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+    GenerateNodesForBundle(input, "bigd", 5, false, 5, 2);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -2194,7 +2199,7 @@ TEST(TBundleSchedulerTest, ReAllocateOutdatedProxies)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 5);
     input.Config->ReallocateInstanceBudget = 4;
-    GenerateProxiesForBundle(input, "default-bundle", 5);
+    GenerateProxiesForBundle(input, "bigd", 5);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -2228,7 +2233,7 @@ THashSet<TString> GetRandomElements(const auto& collection, int count)
 TEST(TBundleSchedulerTest, DeallocateOutdatedNodes)
 {
     auto input = GenerateSimpleInputContext(10, DefaultCellCount);
-    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 13, SetNodeTagFilters, DefaultCellCount);
+    auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, SetNodeTagFilters, DefaultCellCount);
 
     // Mark random nodes as outdated
     auto nodesToRemove = GetRandomElements(nodeNames, 3);
@@ -2245,10 +2250,10 @@ TEST(TBundleSchedulerTest, DeallocateOutdatedNodes)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
     // Verify that only outdated nodes are peeked
-    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+    for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->NodeDeallocations) {
         EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
         EXPECT_TRUE(!deallocation->InstanceName.empty());
     }
@@ -2257,7 +2262,7 @@ TEST(TBundleSchedulerTest, DeallocateOutdatedNodes)
 TEST(TBundleSchedulerTest, DeallocateOutdatedProxies)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
-    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 13);
+    auto proxyNames = GenerateProxiesForBundle(input, "bigd", 13);
 
     // Mark random proxies as outdated
     auto proxiesToRemove = GetRandomElements(proxyNames, 3);
@@ -2273,10 +2278,10 @@ TEST(TBundleSchedulerTest, DeallocateOutdatedProxies)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
 
     // Verify that only outdated proxies are peeked
-    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+    for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_TRUE(proxiesToRemove.count(deallocation->InstanceName));
         EXPECT_TRUE(!deallocation->InstanceName.empty());
     }
@@ -2288,7 +2293,7 @@ TEST(TBundleSchedulerTest, ReallocateNodesUnderMaintenance)
 {
     auto input = GenerateSimpleInputContext(5);
     input.Config->ReallocateInstanceBudget = 2;
-    GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+    GenerateNodesForBundle(input, "bigd", 5, false, 5, 2);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -2313,7 +2318,7 @@ TEST(TBundleSchedulerTest, ReallocateProxiesUnderMaintenance)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 5);
     input.Config->ReallocateInstanceBudget = 4;
-    GenerateProxiesForBundle(input, "default-bundle", 5);
+    GenerateProxiesForBundle(input, "bigd", 5);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -2338,7 +2343,7 @@ TEST(TBundleSchedulerTest, ReallocateNodeUnderMaintenanceAndOutdated)
 {
     auto input = GenerateSimpleInputContext(5);
     input.Config->ReallocateInstanceBudget = 2;
-    GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+    GenerateNodesForBundle(input, "bigd", 5, false, 5, 2);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -2363,7 +2368,7 @@ TEST(TBundleSchedulerTest, ReallocateNodeUnderMaintenanceAndOutdated)
 TEST(TBundleSchedulerTest, DeallocateNodesUnderMaintenance)
 {
     auto input = GenerateSimpleInputContext(10, DefaultCellCount);
-    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 13, SetNodeTagFilters, DefaultCellCount);
+    auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, SetNodeTagFilters, DefaultCellCount);
 
     auto nodesToRemove = GetRandomElements(nodeNames, 3);
     for (auto& nodeName : nodesToRemove) {
@@ -2378,10 +2383,10 @@ TEST(TBundleSchedulerTest, DeallocateNodesUnderMaintenance)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
     // Verify that only nodes under maintenance are peeked
-    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+    for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->NodeDeallocations) {
         EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
         EXPECT_TRUE(!deallocation->InstanceName.empty());
     }
@@ -2390,7 +2395,7 @@ TEST(TBundleSchedulerTest, DeallocateNodesUnderMaintenance)
 TEST(TBundleSchedulerTest, DeallocateProxiesUnderMaintenance)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
-    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 13);
+    auto proxyNames = GenerateProxiesForBundle(input, "bigd", 13);
 
     // Mark random proxies as outdated
     auto proxiesToRemove = GetRandomElements(proxyNames, 3);
@@ -2405,10 +2410,10 @@ TEST(TBundleSchedulerTest, DeallocateProxiesUnderMaintenance)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->ProxyDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->ProxyDeallocations));
 
     // Verify that only outdated proxies are peeked
-    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->ProxyDeallocations) {
+    for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->ProxyDeallocations) {
         EXPECT_TRUE(proxiesToRemove.count(deallocation->InstanceName));
     }
 }
@@ -2418,7 +2423,7 @@ TEST(TBundleSchedulerTest, DeallocateProxiesUnderMaintenance)
 TEST(TBundleSchedulerTest, RemoveProxyCypressNodes)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
-    auto proxyNames = GenerateProxiesForBundle(input, "default-bundle", 13);
+    auto proxyNames = GenerateProxiesForBundle(input, "bigd", 13);
 
     const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
 
@@ -2445,7 +2450,7 @@ TEST(TBundleSchedulerTest, RemoveProxyCypressNodes)
 TEST(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
-    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 13);
+    auto nodeNames = GenerateNodesForBundle(input, "bigd", 13);
 
     const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
 
@@ -2474,9 +2479,45 @@ TEST(TBundleSchedulerTest, RemoveTabletNodeCypressNodes)
 TEST(TBundleSchedulerTest, CheckBundleShortName)
 {
     auto input = GenerateSimpleInputContext(5);
-    auto bundleInfo = GetOrCrash(input.Bundles, "default-bundle");
-    bundleInfo->ShortName = "short-xyz";
-    input.Zones["default-zone"]->ShortName = "short-cluster";
+
+    const TString bundleName = "bigd";
+    const TString clusterShortName = "seneca";
+
+    auto bundleInfo = GetOrCrash(input.Bundles, bundleName);
+    bundleInfo->ShortName = "bigc";
+    input.Zones["default-zone"]->ShortName = "seneca";
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedBundleShortName));
+    EXPECT_EQ(5, std::ssize(mutations.NewAllocations));
+
+    EXPECT_EQ(5, std::ssize(mutations.ChangedStates[bundleName]->NodeAllocations));
+
+    THashSet<TString> templates;
+    for (auto& [_, request] : mutations.NewAllocations) {
+        templates.insert(request->Spec->PodIdTemplate);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(*bundleInfo->ShortName) != std::string::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(clusterShortName) != std::string::npos);
+
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(bundleName) == std::string::npos);
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(input.Config->Cluster) == std::string::npos);
+    }
+
+    EXPECT_EQ(templates.size(), 5u);
+}
+
+
+TEST(TBundleSchedulerTest, CheckBundleAutoShorteningName)
+{
+    const TString LongBundleName = "m_looooooong_bundle-name";
+
+    auto input = GenerateSimpleInputContext(0);
+
+    SetBundleInfo(input, LongBundleName, 5);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -2485,15 +2526,20 @@ TEST(TBundleSchedulerTest, CheckBundleShortName)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(5, std::ssize(mutations.NewAllocations));
 
-    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(5, std::ssize(mutations.ChangedStates[LongBundleName]->NodeAllocations));
+
+    EXPECT_EQ(1, std::ssize(mutations.ChangedBundleShortName));
+
+    for (auto& [bundleName, shortName] : mutations.ChangedBundleShortName) {
+        EXPECT_EQ(LongBundleName, bundleName);
+        EXPECT_EQ(shortName, "m-looooo1");
+    }
 
     THashSet<TString> templates;
     for (auto& [_, request] : mutations.NewAllocations) {
         templates.insert(request->Spec->PodIdTemplate);
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find("short-xyz") != std::string::npos);
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find("short-cluster") != std::string::npos);
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find("default-bundle") == std::string::npos);
-        EXPECT_TRUE(request->Spec->PodIdTemplate.find(input.Config->Cluster) == std::string::npos);
+
+        EXPECT_TRUE(request->Spec->PodIdTemplate.find(LongBundleName) == std::string::npos);
     }
 
     EXPECT_EQ(templates.size(), 5u);
@@ -2507,7 +2553,7 @@ TEST(TBundleSchedulerTest, OfflineInstanceGracePeriod)
 
     auto input = GenerateSimpleInputContext(5);
     input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
-    auto nodes = GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+    auto nodes = GenerateNodesForBundle(input, "bigd", 5, false, 5, 2);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
@@ -2515,7 +2561,7 @@ TEST(TBundleSchedulerTest, OfflineInstanceGracePeriod)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
 
     for (const auto& nodeName : nodes) {
         auto& tabletInfo = GetOrCrash(input.TabletNodes, nodeName);
@@ -2529,7 +2575,7 @@ TEST(TBundleSchedulerTest, OfflineInstanceGracePeriod)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
 
     for (const auto& nodeName : nodes) {
         auto& tabletInfo = GetOrCrash(input.TabletNodes, nodeName);
@@ -2543,7 +2589,7 @@ TEST(TBundleSchedulerTest, OfflineInstanceGracePeriod)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(5, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(5, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2553,7 +2599,7 @@ TEST(TBundleSchedulerTest, CheckResourceLimits)
     const auto OfflineInstanceGracePeriod = TDuration::Minutes(40);
     auto input = GenerateSimpleInputContext(5);
     input.Config->OfflineInstanceGracePeriod = OfflineInstanceGracePeriod;
-    auto nodes = GenerateNodesForBundle(input, "default-bundle", 5, false, 5, 2);
+    auto nodes = GenerateNodesForBundle(input, "bigd", 5, false, 5, 2);
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
     GenerateNodesForBundle(input, SpareBundleName, 3);
@@ -2564,16 +2610,16 @@ TEST(TBundleSchedulerTest, CheckResourceLimits)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeAllocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeAllocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangedTabletStaticMemory));
 
-    auto& bundleInfo = input.Bundles["default-bundle"];
+    auto& bundleInfo = input.Bundles["bigd"];
     bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 10_GB;
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
     EXPECT_EQ(1, std::ssize(mutations.ChangedTabletStaticMemory));
-    EXPECT_EQ(static_cast<i64>(50_GB), mutations.ChangedTabletStaticMemory["default-bundle"]);
+    EXPECT_EQ(static_cast<i64>(50_GB), mutations.ChangedTabletStaticMemory["bigd"]);
 
     bundleInfo->ResourceLimits->TabletStaticMemory = 50_GB;
     mutations = TSchedulerMutations{};
@@ -2586,7 +2632,7 @@ TEST(TBundleSchedulerTest, CheckResourceLimits)
 TEST(TBundleSchedulerTest, DeallocateAdoptedNodes)
 {
     auto input = GenerateSimpleInputContext(10, DefaultCellCount);
-    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 13, SetNodeTagFilters, DefaultCellCount);
+    auto nodeNames = GenerateNodesForBundle(input, "bigd", 13, SetNodeTagFilters, DefaultCellCount);
 
     // Mark random nodes as outdated
     auto nodesToRemove = GetRandomElements(nodeNames, 3);
@@ -2605,10 +2651,10 @@ TEST(TBundleSchedulerTest, DeallocateAdoptedNodes)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewAllocations));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
-    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 
     // Verify that only outdated nodes are peeked
-    for (const auto& [_, deallocation] : mutations.ChangedStates["default-bundle"]->NodeDeallocations) {
+    for (const auto& [_, deallocation] : mutations.ChangedStates["bigd"]->NodeDeallocations) {
         EXPECT_TRUE(nodesToRemove.count(deallocation->InstanceName));
         EXPECT_TRUE(!deallocation->InstanceName.empty());
         EXPECT_EQ(deallocation->Strategy, DeallocationStrategyReturnToBB);
@@ -2646,7 +2692,7 @@ TEST(TBundleSchedulerTest, DeallocateAdoptedNodes)
     ScheduleBundles(input, &mutations);
 
     // Hulk deallocation requests are not created for BB nodes.
-    // auto& bundleState = mutations.ChangedStates["default-bundle"];
+    // auto& bundleState = mutations.ChangedStates["bigd"];
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
@@ -2694,13 +2740,13 @@ TEST(TBundleSchedulerTest, DeallocateAdoptedNodes)
     }
 
     EXPECT_EQ(1, std::ssize(mutations.ChangedStates));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["default-bundle"]->NodeDeallocations));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->NodeDeallocations));
 }
 
 TEST(TBundleSchedulerTest, DontRemoveTabletNodeCypressNodesFromBB)
 {
     auto input = GenerateSimpleInputContext(DefaultNodeCount, DefaultCellCount, 10);
-    auto nodeNames = GenerateNodesForBundle(input, "default-bundle", 13);
+    auto nodeNames = GenerateNodesForBundle(input, "bigd", 13);
 
     const auto DateInThePast = TInstant::Now() - TDuration::Days(30);
 

@@ -91,6 +91,8 @@ struct TSchedulerInputState
     THashMap<TString, TInstanceCountBySize> AliveProxiesBySize;
 
     THashMap<TString, TZoneDisruptedState> ZonesDisrupted;
+
+    THashMap<TString, TString> BundleToShortName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +139,7 @@ struct TSchedulerMutations
     THashSet<TString> ProxiesToCleanup;
 
     THashMap<TString, i64> ChangedTabletStaticMemory;
+    THashMap<TString, TString> ChangedBundleShortName;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

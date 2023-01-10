@@ -314,6 +314,7 @@ private:
     inline static const TString  ProxyAttributeRole = "role";
     inline static const TString  AccountAttributeResourceLimits = "resource_limits";
     inline static const TString  BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
+    inline static const TString  BundleAttributeShortName = "short_name";
 
     void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations) const
     {
@@ -345,8 +346,7 @@ private:
         }
 
         SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
-
-        // TODO(capone212): Fire alarms.
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeShortName, mutations.ChangedBundleShortName);
 
         AlarmCounter_.Increment(mutations.AlertsToFire.size());
         InstanceAllocationCounter_.Increment(mutations.NewAllocations.size());
