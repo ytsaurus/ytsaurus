@@ -930,7 +930,7 @@ const NVectorHdrf::TElement* TSchedulerCompositeElement::GetChild(int index) con
     return EnabledChildren_[index].Get();
 }
 
-int TSchedulerCompositeElement::GetChildrenCount() const
+int TSchedulerCompositeElement::GetChildCount() const
 {
     return EnabledChildren_.size();
 }

@@ -174,7 +174,7 @@ class TCompositeElement
 public:
     virtual TElement* GetChild(int index) = 0;
     virtual const TElement* GetChild(int index) const = 0;
-    virtual int GetChildrenCount() const = 0;
+    virtual int GetChildCount() const = 0;
 
     virtual ESchedulingMode GetMode() const = 0;
     virtual bool HasHigherPriorityInFifoMode(const TElement* lhs, const TElement* rhs) const = 0;
