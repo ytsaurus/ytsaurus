@@ -16,7 +16,7 @@ namespace NYT::NYTree {
 namespace NPrivate {
 
 template <class T>
-concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStruct, T> || std::is_base_of_v<TYsonSerializable, T>;
+concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStructBase, T> || std::is_base_of_v<TYsonSerializableLite, T>;
 
 // TODO(shakurov): get rid of this once concept support makes it into the standard
 // library implementation. Use equality-comparability instead.
@@ -28,7 +28,6 @@ concept SupportsDontSerializeDefaultImpl =
     std::is_same_v<T, TGuid> ||
     std::is_same_v<T, std::optional<std::vector<TString>>> ||
     std::is_same_v<T, THashSet<TString>>;
-
 
 template <class T>
 concept SupportsDontSerializeDefault =
