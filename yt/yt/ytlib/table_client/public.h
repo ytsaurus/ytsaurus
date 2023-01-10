@@ -40,7 +40,8 @@ class THorizontalBlockReader;
 struct TTableReadSpec;
 struct TFetchSingleTableReadSpecOptions;
 
-DECLARE_REFCOUNTED_STRUCT(ILookupReader)
+DECLARE_REFCOUNTED_STRUCT(TOffloadingReaderOptions)
+DECLARE_REFCOUNTED_STRUCT(IOffloadingReader)
 
 DECLARE_REFCOUNTED_CLASS(TSamplesFetcher)
 

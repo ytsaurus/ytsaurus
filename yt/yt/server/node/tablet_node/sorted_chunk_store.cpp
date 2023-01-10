@@ -27,7 +27,7 @@
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
-#include <yt/yt/ytlib/table_client/lookup_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_reader_adapter.h>
 
@@ -524,17 +524,23 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
 
     auto backendReaders = GetBackendReaders(workloadCategory);
 
-    if (mountConfig->EnableDataNodeLookup && backendReaders.LookupReader) {
-        auto reader = CreateVersionedLookupReader(
-            std::move(backendReaders.LookupReader),
-            chunkReadOptions,
-            filteredKeys,
-            tabletSnapshot,
-            columnFilter,
-            timestamp,
-            produceAllVersions,
-            OverrideTimestamp_);
-        return wrapReader(std::move(reader), /*needSetTimestamp*/ true);
+    if (mountConfig->EnableDataNodeLookup && backendReaders.OffloadingReader) {
+        auto options = New<TOffloadingReaderOptions>(TOffloadingReaderOptions{
+            .ChunkReadOptions = chunkReadOptions,
+            .TableId = tabletSnapshot->TableId,
+            .MountRevision = tabletSnapshot->MountRevision,
+            .TableSchema = tabletSnapshot->TableSchema,
+            .ColumnFilter = columnFilter,
+            .Timestamp = timestamp,
+            .ProduceAllVersions = produceAllVersions,
+            .OverrideTimestamp = OverrideTimestamp_
+        });
+        return wrapReader(
+            CreateVersionedOffloadingLookupReader(
+                std::move(backendReaders.OffloadingReader),
+                std::move(options),
+                filteredKeys),
+            /*needSetTimestamp*/ true);
     }
 
     auto chunkState = PrepareChunkState(

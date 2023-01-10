@@ -1,8 +1,5 @@
-#include "lookup_reader.h"
+#include "versioned_offloading_reader.h"
 #include "tablet_snapshot.h"
-
-#include <yt/yt/ytlib/chunk_client/chunk_reader.h>
-#include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 
 #include <yt/yt/client/chunk_client/reader_base.h>
 #include <yt/yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
@@ -31,28 +28,19 @@ struct TDataBufferTag { };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedLookupReader
+class TVersionedOffloadingReader
     : public IVersionedReader
 {
 public:
-    TVersionedLookupReader(
-        ILookupReaderPtr lookupReader,
-        TClientChunkReadOptions chunkReadOptions,
-        TSharedRange<TLegacyKey> lookupKeys,
-        TTabletSnapshotPtr tabletSnapshot,
-        TColumnFilter columnFilter,
-        TTimestamp timestamp,
-        bool produceAllVersions,
-        TTimestamp overrideTimestamp)
-        : LookupReader_(std::move(lookupReader))
-        , RowsReadOptions_(std::move(chunkReadOptions))
+    TVersionedOffloadingReader(
+        IOffloadingReaderPtr offloadingReader,
+        TOffloadingReaderOptionsPtr options,
+        TSharedRange<TLegacyKey> lookupKeys)
+        : OffloadingReader_(std::move(offloadingReader))
+        , Options_(std::move(options))
         , LookupKeys_(std::move(lookupKeys))
-        , TabletSnapshot_(std::move(tabletSnapshot))
-        , ColumnFilter_(std::move(columnFilter))
-        , SchemaData_(IWireProtocolReader::GetSchemaData(*TabletSnapshot_->TableSchema))
-        , Timestamp_(timestamp)
-        , ProduceAllVersions_(produceAllVersions)
-        , OverrideTimestamp_(overrideTimestamp)
+        , WireFormatSchemaData_(
+            IWireProtocolReader::GetSchemaData(*Options_->TableSchema))
     {
         DoOpen();
     }
@@ -62,9 +50,9 @@ public:
         return GetReadyEvent();
     }
 
-    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
+    IVersionedRowBatchPtr Read(const TRowBatchReadOptions& readOptions) override
     {
-        YT_VERIFY(options.MaxRowsPerRead > 0);
+        YT_VERIFY(readOptions.MaxRowsPerRead > 0);
 
         if (!ReadyEvent_.IsSet() || !ReadyEvent_.Get().IsOK()) {
             return CreateEmptyVersionedRowBatch();
@@ -80,11 +68,11 @@ public:
         rows.reserve(
             std::min(
                 std::ssize(LookupKeys_) - RowCount_,
-                options.MaxRowsPerRead));
+                readOptions.MaxRowsPerRead));
 
         while (rows.size() < rows.capacity()) {
             ++RowCount_;
-            rows.push_back(WireReader_->ReadVersionedRow(SchemaData_, /*captureValues*/ false));
+            rows.push_back(WireReader_->ReadVersionedRow(WireFormatSchemaData_, /*captureValues*/ false));
             DataWeight_ += GetDataWeight(rows.back());
         }
 
@@ -127,15 +115,11 @@ public:
     }
 
 private:
-    const ILookupReaderPtr LookupReader_;
-    const TClientChunkReadOptions RowsReadOptions_;
+    const IOffloadingReaderPtr OffloadingReader_;
+    const TOffloadingReaderOptionsPtr Options_;
     const TSharedRange<TLegacyKey> LookupKeys_;
-    const TTabletSnapshotPtr TabletSnapshot_;
-    const TColumnFilter ColumnFilter_;
-    const TSchemaData SchemaData_;
-    const TTimestamp Timestamp_;
-    const bool ProduceAllVersions_;
-    const TTimestamp OverrideTimestamp_;
+
+    const TSchemaData WireFormatSchemaData_;
     NCompression::ICodec* const Codec_ = NCompression::GetCodec(CompressionCodecId);
 
     const TRowBufferPtr RowBuffer_ = New<TRowBuffer>(TDataBufferTag());
@@ -157,32 +141,25 @@ private:
             return;
         }
 
-        ReadyEvent_ = LookupReader_->LookupRows(
-            RowsReadOptions_,
+        ReadyEvent_ = OffloadingReader_->LookupRows(
+            Options_,
             LookupKeys_,
-            TabletSnapshot_->TableId,
-            TabletSnapshot_->MountRevision,
-            TabletSnapshot_->TableSchema,
             ComputeEstimatedSize(),
-            ColumnFilter_,
-            Timestamp_,
             CompressionCodecId,
-            ProduceAllVersions_,
-            OverrideTimestamp_,
             GetCurrentInvoker())
-            .Apply(BIND(&TVersionedLookupReader::OnRowsLookuped, MakeStrong(this)));
+            .Apply(BIND(&TVersionedOffloadingReader::OnRowsLookuped, MakeStrong(this)));
     }
 
     i64 ComputeEstimatedSize()
     {
         i64 estimatedSize = 0;
 
-        int keyCount = TabletSnapshot_->TableSchema->GetKeyColumnCount();
-        int valueCount = TabletSnapshot_->TableSchema->GetValueColumnCount();
+        int keyCount = Options_->TableSchema->GetKeyColumnCount();
+        int valueCount = Options_->TableSchema->GetValueColumnCount();
         // Lower bound on row size is one write timestamp and zero delete timestamps.
         estimatedSize = GetVersionedRowByteSize(keyCount, valueCount, 1, 0);
 
-        for (const auto& column : TabletSnapshot_->TableSchema->Columns()) {
+        for (const auto& column : Options_->TableSchema->Columns()) {
             if (IsStringLikeType(column.GetWireType())) {
                 estimatedSize += ExpectedStringSize - sizeof(TUnversionedValueData);
             }
@@ -207,25 +184,15 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IVersionedReaderPtr CreateVersionedLookupReader(
-    ILookupReaderPtr lookupReader,
-    TClientChunkReadOptions chunkReadOptions,
-    TSharedRange<TLegacyKey> lookupKeys,
-    TTabletSnapshotPtr tabletSnapshot,
-    TColumnFilter columnFilter,
-    TTimestamp timestamp,
-    bool produceAllVersions,
-    TTimestamp overrideTimestamp)
+IVersionedReaderPtr CreateVersionedOffloadingLookupReader(
+    IOffloadingReaderPtr offloadingReader,
+    TOffloadingReaderOptionsPtr options,
+    TSharedRange<TLegacyKey> lookupKeys)
 {
-    return New<TVersionedLookupReader>(
-        std::move(lookupReader),
-        std::move(chunkReadOptions),
-        std::move(lookupKeys),
-        std::move(tabletSnapshot),
-        std::move(columnFilter),
-        timestamp,
-        produceAllVersions,
-        overrideTimestamp);
+    return New<TVersionedOffloadingReader>(
+        std::move(offloadingReader),
+        std::move(options),
+        std::move(lookupKeys));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

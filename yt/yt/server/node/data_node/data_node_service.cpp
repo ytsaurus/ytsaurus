@@ -52,7 +52,7 @@
 
 #include <yt/yt/server/node/data_node/local_chunk_reader.h>
 #include <yt/yt/server/node/data_node/location_manager.h>
-#include <yt/yt/server/node/data_node/lookup_session.h>
+#include <yt/yt/server/node/data_node/offloaded_chunk_read_session.h>
 
 #include <yt/yt/server/node/tablet_node/sorted_dynamic_comparer.h>
 #include <yt/yt/server/node/tablet_node/versioned_chunk_meta_manager.h>
@@ -1312,7 +1312,7 @@ private:
 
         // NB: Heating table schema caches up is of higher priority than advisory throttling.
         const auto& schemaData = request->schema_data();
-        auto [tableSchema, schemaRequested] = TLookupSession::FindTableSchema(
+        auto [tableSchema, schemaRequested] = FindTableSchemaForOffloadedReadSession(
             chunkId,
             readSessionId,
             schemaData,
@@ -1349,7 +1349,7 @@ private:
         auto produceAllVersions = FromProto<bool>(request->produce_all_versions());
         auto overrideTimestamp = request->has_override_timestamp() ? request->override_timestamp() : NullTimestamp;
 
-        auto lookupSession = New<TLookupSession>(
+        auto chunkReadSession = CreateOffloadedChunkReadSession(
             Bootstrap_,
             std::move(chunk),
             readSessionId,
@@ -1358,12 +1358,11 @@ private:
             timestamp,
             produceAllVersions,
             std::move(tableSchema),
-            request->Attachments(),
             codecId,
             overrideTimestamp,
             populateCache);
 
-        context->ReplyFrom(lookupSession->Run()
+        context->ReplyFrom(chunkReadSession->Lookup(request->Attachments())
             .Apply(BIND([=, this, this_ = MakeStrong(this)] (const TSharedRef& result) {
                 context->SetResponseInfo(
                     "ChunkId: %v, ReadSessionId: %v, Workload: %v, "
@@ -1378,7 +1377,7 @@ private:
 
                 response->Attachments().push_back(result);
                 response->set_fetched_rows(true);
-                ToProto(response->mutable_chunk_reader_statistics(), lookupSession->GetChunkReaderStatistics());
+                ToProto(response->mutable_chunk_reader_statistics(), chunkReadSession->GetChunkReaderStatistics());
 
                 context->SetComplete();
 

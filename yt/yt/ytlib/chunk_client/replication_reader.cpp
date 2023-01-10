@@ -23,7 +23,7 @@
 
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 
-#include <yt/yt/ytlib/table_client/lookup_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 
 #include <yt/yt/ytlib/node_tracker_client/channel.h>
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
@@ -136,7 +136,7 @@ DECLARE_REFCOUNTED_CLASS(TReplicationReader)
 
 class TReplicationReader
     : public IChunkReaderAllowingRepair
-    , public ILookupReader
+    , public IOffloadingReader
 {
 public:
     TReplicationReader(
@@ -199,17 +199,10 @@ public:
         const std::optional<std::vector<int>>& extensionTags) override;
 
     TFuture<TSharedRef> LookupRows(
-        const TClientChunkReadOptions& options,
+        TOffloadingReaderOptionsPtr options,
         TSharedRange<TLegacyKey> lookupKeys,
-        TObjectId tableId,
-        TRevision revision,
-        TTableSchemaPtr tableSchema,
         std::optional<i64> estimatedSize,
-        const TColumnFilter& columnFilter,
-        TTimestamp timestamp,
         NCompression::ECodec codecId,
-        bool produceAllVersions,
-        TTimestamp overrideTimestamp,
         IInvokerPtr sessionInvoker) override;
 
     TChunkId GetChunkId() const override
@@ -2678,40 +2671,27 @@ class TLookupRowsSession
 public:
     TLookupRowsSession(
         TReplicationReader* reader,
-        const TClientChunkReadOptions& options,
+        TOffloadingReaderOptionsPtr options,
         TSharedRange<TLegacyKey> lookupKeys,
-        TObjectId tableId,
-        TRevision revision,
-        TTableSchemaPtr tableSchema,
         const std::optional<i64> estimatedSize,
-        const TColumnFilter& columnFilter,
-        TTimestamp timestamp,
         NCompression::ECodec codecId,
-        bool produceAllVersions,
-        TTimestamp overrideTimestamp,
         IThroughputThrottlerPtr bandwidthThrottler,
         IThroughputThrottlerPtr rpsThrottler,
         IInvokerPtr sessionInvoker = {})
         : TSessionBase(
             reader,
-            options,
+            options->ChunkReadOptions,
             std::move(bandwidthThrottler),
             std::move(rpsThrottler),
             std::move(sessionInvoker))
+        , Options_(std::move(options))
         , LookupKeys_(std::move(lookupKeys))
-        , TableId_(tableId)
-        , Revision_(revision)
-        , TableSchema_(std::move(tableSchema))
-        , ReadSessionId_(options.ReadSessionId)
-        , ColumnFilter_(columnFilter)
-        , Timestamp_(timestamp)
+        , ReadSessionId_(Options_->ChunkReadOptions.ReadSessionId)
         , CodecId_(codecId)
-        , ProduceAllVersions_(produceAllVersions)
-        , OverrideTimestamp_(overrideTimestamp)
     {
         Logger.AddTag("TableId: %v, Revision: %x",
-            TableId_,
-            Revision_);
+            Options_->TableId,
+            Options_->MountRevision);
         if (estimatedSize) {
             BytesToThrottle_ += std::max(0L, *estimatedSize);
         }
@@ -2739,16 +2719,10 @@ public:
 private:
     using TLookupResponse = TIntrusivePtr<NRpc::TTypedClientResponse<NChunkClient::NProto::TRspLookupRows>>;
 
+    const TOffloadingReaderOptionsPtr Options_;
     const TSharedRange<TLegacyKey> LookupKeys_;
-    const TObjectId TableId_;
-    const TRevision Revision_;
-    const TTableSchemaPtr TableSchema_;
     const TReadSessionId ReadSessionId_;
-    const TColumnFilter ColumnFilter_;
-    TTimestamp Timestamp_;
     const NCompression::ECodec CodecId_;
-    const bool ProduceAllVersions_;
-    const TTimestamp OverrideTimestamp_;
 
     //! Promise representing the session.
     const TPromise<TSharedRef> Promise_ = NewPromise<TSharedRef>();
@@ -2963,11 +2937,11 @@ private:
         SetRequestWorkloadDescriptor(req, WorkloadDescriptor_);
         ToProto(req->mutable_chunk_id(), ChunkId_);
         ToProto(req->mutable_read_session_id(), ReadSessionId_);
-        req->set_timestamp(Timestamp_);
+        req->set_timestamp(Options_->Timestamp);
         req->set_compression_codec(ToProto<int>(CodecId_));
-        ToProto(req->mutable_column_filter(), ColumnFilter_);
-        req->set_produce_all_versions(ProduceAllVersions_);
-        req->set_override_timestamp(OverrideTimestamp_);
+        ToProto(req->mutable_column_filter(), Options_->ColumnFilter);
+        req->set_produce_all_versions(Options_->ProduceAllVersions);
+        req->set_override_timestamp(Options_->OverrideTimestamp);
         req->set_populate_cache(true);
 
         if (PeerAddressToThrottlingRate_.contains(chosenPeer.Address)) {
@@ -2980,11 +2954,11 @@ private:
         }
 
         auto schemaData = req->mutable_schema_data();
-        ToProto(schemaData->mutable_table_id(), TableId_);
-        schemaData->set_revision(Revision_);
-        schemaData->set_schema_size(TableSchema_->GetMemoryUsage());
+        ToProto(schemaData->mutable_table_id(), Options_->TableId);
+        schemaData->set_revision(Options_->MountRevision);
+        schemaData->set_schema_size(Options_->TableSchema->GetMemoryUsage());
         if (sendSchema) {
-            ToProto(schemaData->mutable_schema(), *TableSchema_);
+            ToProto(schemaData->mutable_schema(), *Options_->TableSchema);
         }
 
         req->Attachments() = Keyset_;
@@ -3161,34 +3135,20 @@ private:
 };
 
 TFuture<TSharedRef> TReplicationReader::LookupRows(
-    const TClientChunkReadOptions& options,
+    TOffloadingReaderOptionsPtr options,
     TSharedRange<TLegacyKey> lookupKeys,
-    TObjectId tableId,
-    TRevision revision,
-    TTableSchemaPtr tableSchema,
     std::optional<i64> estimatedSize,
-    const TColumnFilter& columnFilter,
-    TTimestamp timestamp,
     NCompression::ECodec codecId,
-    bool produceAllVersions,
-    TTimestamp overrideTimestamp,
     IInvokerPtr sessionInvoker)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto session = New<TLookupRowsSession>(
         this,
-        options,
+        std::move(options),
         std::move(lookupKeys),
-        tableId,
-        revision,
-        std::move(tableSchema),
         estimatedSize,
-        columnFilter,
-        timestamp,
         codecId,
-        produceAllVersions,
-        overrideTimestamp,
         BandwidthThrottler_,
         RpsThrottler_,
         std::move(sessionInvoker));
@@ -3201,7 +3161,7 @@ DECLARE_REFCOUNTED_CLASS(TReplicationReaderWithOverridenThrottlers)
 
 class TReplicationReaderWithOverridenThrottlers
     : public IChunkReaderAllowingRepair
-    , public ILookupReader
+    , public IOffloadingReader
 {
 public:
     TReplicationReaderWithOverridenThrottlers(
@@ -3270,34 +3230,20 @@ public:
     }
 
     TFuture<TSharedRef> LookupRows(
-        const TClientChunkReadOptions& options,
+        TOffloadingReaderOptionsPtr options,
         TSharedRange<TLegacyKey> lookupKeys,
-        TObjectId tableId,
-        TRevision revision,
-        TTableSchemaPtr tableSchema,
         std::optional<i64> estimatedSize,
-        const TColumnFilter& columnFilter,
-        TTimestamp timestamp,
         NCompression::ECodec codecId,
-        bool produceAllVersions,
-        TTimestamp overrideTimestamp,
         IInvokerPtr sessionInvoker = {}) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto session = New<TLookupRowsSession>(
             UnderlyingReader_.Get(),
-            options,
+            std::move(options),
             std::move(lookupKeys),
-            tableId,
-            revision,
-            std::move(tableSchema),
             estimatedSize,
-            columnFilter,
-            timestamp,
             codecId,
-            produceAllVersions,
-            overrideTimestamp,
             BandwidthThrottler_,
             RpsThrottler_,
             std::move(sessionInvoker));

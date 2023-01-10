@@ -41,7 +41,7 @@
 #include <yt/yt/ytlib/table_client/chunk_column_mapping.h>
 #include <yt/yt/ytlib/table_client/chunk_lookup_hash_table.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
-#include <yt/yt/ytlib/table_client/lookup_reader.h>
+#include <yt/yt/ytlib/table_client/versioned_offloading_reader.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/connection.h>
@@ -136,7 +136,7 @@ public:
             CachedReadersLocal_ = local;
 
             ChunkReader_ = std::move(chunkReader);
-            LookupReader_ = dynamic_cast<ILookupReader*>(ChunkReader_.Get());
+            OffloadingReader_ = dynamic_cast<IOffloadingReader*>(ChunkReader_.Get());
         };
 
         auto createLocalReaders = [&] (const IChunkPtr& chunk, IBlockCachePtr blockCache) {
@@ -198,7 +198,7 @@ public:
                 ChunkReader_,
                 std::move(bandwidthThrottler),
                 /*rpsThrottler*/ GetUnlimitedThrottler());
-            backendReaders.LookupReader = dynamic_cast<ILookupReader*>(backendReaders.ChunkReader.Get());
+            backendReaders.OffloadingReader = dynamic_cast<IOffloadingReader*>(backendReaders.ChunkReader.Get());
             backendReaders.ReaderConfig = ReaderConfig_;
 
             CachedRemoteReaderAdapters_.emplace(
@@ -217,7 +217,7 @@ public:
             if (CachedReadersLocal_) {
                 CachedReadersLocal_ = false;
                 ChunkReader_.Reset();
-                LookupReader_.Reset();
+                OffloadingReader_.Reset();
                 CachedWeakChunk_.Reset();
                 YT_LOG_DEBUG("Cached local chunk reader is no longer valid");
             }
@@ -242,7 +242,7 @@ public:
             if (CachedReadersLocal_) {
                 return TBackendReaders{
                     .ChunkReader = ChunkReader_,
-                    .LookupReader = LookupReader_,
+                    .OffloadingReader = OffloadingReader_,
                     .ReaderConfig = ReaderConfig_
                 };
             } else {
@@ -324,7 +324,7 @@ public:
         auto guard = WriterGuard(ReaderLock_);
 
         ChunkReader_.Reset();
-        LookupReader_.Reset();
+        OffloadingReader_.Reset();
         CachedRemoteReaderAdapters_.clear();
         CachedReadersLocal_ = false;
         CachedWeakChunk_.Reset();
@@ -350,7 +350,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReaderLock_);
     NProfiling::TCpuInstant ChunkReaderEvictionDeadline_ = 0;
     IChunkReaderPtr ChunkReader_;
-    ILookupReaderPtr LookupReader_;
+    IOffloadingReaderPtr OffloadingReader_;
     THashMap<std::optional<EWorkloadCategory>, TBackendReaders> CachedRemoteReaderAdapters_;
     bool CachedReadersLocal_ = false;
     TWeakPtr<IChunk> CachedWeakChunk_;
