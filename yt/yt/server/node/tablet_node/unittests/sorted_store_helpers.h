@@ -110,7 +110,7 @@ public:
     {
         return TBackendReaders{
             .ChunkReader = GetOrCrash(ChunkIdToReaders_, owner->GetChunkId()),
-            .LookupReader = nullptr,
+            .OffloadingReader = nullptr,
             .ReaderConfig = ReaderConfig_
         };
     }

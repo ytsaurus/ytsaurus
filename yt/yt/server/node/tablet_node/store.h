@@ -46,7 +46,7 @@ TString ToString(const THunkChunkRef& ref);
 struct TBackendReaders
 {
     NChunkClient::IChunkReaderPtr ChunkReader;
-    NTableClient::ILookupReaderPtr LookupReader;
+    NTableClient::IOffloadingReaderPtr OffloadingReader;
     TTabletStoreReaderConfigPtr ReaderConfig;
 };
 
