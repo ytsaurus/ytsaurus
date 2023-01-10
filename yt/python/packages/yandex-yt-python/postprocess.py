@@ -52,7 +52,7 @@ def create_conductor_ticket(version):
         "ticket[comment]": truncate(changelog),
     }
 
-    requests.post(
+    response = requests.post(
         "http://c.yandex-team.ru/auth_update/ticket_add",
         params=params,
         cookies=cookies)
