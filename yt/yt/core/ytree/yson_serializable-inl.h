@@ -32,7 +32,7 @@ namespace NYT::NYTree {
 namespace NDetail {
 
 template <class T>
-concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStruct, T> || std::is_base_of_v<TYsonSerializable, T>;
+concept IsYsonStructOrYsonSerializable = std::is_base_of_v<TYsonStructBase, T> || std::is_base_of_v<TYsonSerializableLite, T>;
 
 template <class T>
 void LoadFromNode(
