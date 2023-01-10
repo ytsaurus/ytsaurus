@@ -9046,7 +9046,8 @@ void TOperationControllerBase::InitUserJobSpecTemplate(
     if (jobSpecConfig->NetworkProject) {
         const auto& client = Host->GetClient();
         const auto networkProjectPath = "//sys/network_projects/" + ToYPathLiteral(*jobSpecConfig->NetworkProject);
-        auto checkPermissionRspOrError = WaitFor(client->CheckPermission(AuthenticatedUser,
+        auto checkPermissionRspOrError = WaitFor(client->CheckPermission(
+            AuthenticatedUser,
             networkProjectPath,
             EPermission::Use));
         if (checkPermissionRspOrError.ValueOrThrow().Action == ESecurityAction::Deny) {

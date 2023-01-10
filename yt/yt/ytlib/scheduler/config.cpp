@@ -912,6 +912,7 @@ void TUserJobSpec::Register(TRegistrar registrar)
         .Default()
         .GreaterThan(TDuration::Zero());
     registrar.Parameter("network_project", &TThis::NetworkProject)
+        .NonEmpty()
         .Default();
     registrar.Parameter("enable_porto", &TThis::EnablePorto)
         .Default();
