@@ -18,8 +18,8 @@ var rootCmd = &cobra.Command{}
 func init() {
 	rootCmd.PersistentFlags().StringVar(&flagLogsDir, "log-dir", "/", "path to the log directory")
 	rootCmd.PersistentFlags().BoolVar(&flagLogToStderr, "log-to-stderr", false, "write logs to stderr")
-	rootCmd.PersistentFlags().StringVar(&flagConfigPath, "config", "", "path to the yson config")
-	err := rootCmd.MarkPersistentFlagRequired("config")
+	rootCmd.PersistentFlags().StringVar(&flagConfigPath, "config-path", "", "path to the yson config")
+	err := rootCmd.MarkPersistentFlagRequired("config-path")
 	if err != nil {
 		panic(err)
 	}

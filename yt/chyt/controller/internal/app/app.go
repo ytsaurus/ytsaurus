@@ -43,8 +43,8 @@ type Config struct {
 	// Controller contains opaque controller config.
 	Controller yson.RawValue `yson:"controller"`
 
-	HTTPAPIEndpoint        string `yson:"http_api_endpoint"`
-	HTTPMonitoringEndpoint string `yson:"http_monitoring_endpoint"`
+	HTTPAPIEndpoint        *string `yson:"http_api_endpoint"`
+	HTTPMonitoringEndpoint *string `yson:"http_monitoring_endpoint"`
 
 	// HealthStatusExpirationPeriod defines when agent health status becomes outdated.
 	HealthStatusExpirationPeriod *time.Duration `yson:"health_status_expiration_period"`
@@ -54,6 +54,8 @@ type Config struct {
 
 const (
 	DefaultHealthStatusExpirationPeriod = time.Duration(time.Minute)
+	DefaultHTTPAPIEndpoint              = ":2222"
+	DefaultHTTPMonitoringEndpoint       = ":2223"
 )
 
 func (c *Config) HealthStatusExpirationPeriodOrDefault() time.Duration {
@@ -61,6 +63,20 @@ func (c *Config) HealthStatusExpirationPeriodOrDefault() time.Duration {
 		return *c.HealthStatusExpirationPeriod
 	}
 	return DefaultHealthStatusExpirationPeriod
+}
+
+func (c *Config) HTTPAPIEndpointOrDefault() string {
+	if c.HTTPAPIEndpoint != nil {
+		return *c.HTTPAPIEndpoint
+	}
+	return DefaultHTTPAPIEndpoint
+}
+
+func (c *Config) HTTPMonitoringEndpointOrDefault() string {
+	if c.HTTPMonitoringEndpoint != nil {
+		return *c.HTTPMonitoringEndpoint
+	}
+	return DefaultHTTPMonitoringEndpoint
 }
 
 // Location defines an operating cluster.
@@ -116,9 +132,7 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 	l := newLogger("app", options.LogToStderr)
 	app.l = l
 
-	if config.Token == "" {
-		config.Token = os.Getenv("STRAWBERRY_TOKEN")
-	}
+	config.Token = getStrawberryToken(config.Token)
 
 	var err error
 
@@ -172,13 +186,13 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 		},
 		Clusters: config.LocationProxies,
 		Token:    config.Token,
-		Endpoint: config.HTTPAPIEndpoint,
+		Endpoint: config.HTTPAPIEndpointOrDefault(),
 	}
 	app.HTTPAPIServer = api.NewServer(apiConfig, l)
 
 	var monitoringConfig = monitoring.HTTPMonitoringConfig{
 		Clusters:                     config.LocationProxies,
-		Endpoint:                     config.HTTPMonitoringEndpoint,
+		Endpoint:                     config.HTTPMonitoringEndpointOrDefault(),
 		HealthStatusExpirationPeriod: config.HealthStatusExpirationPeriodOrDefault(),
 	}
 	app.HTTPMonitoringServer = monitoring.NewServer(monitoringConfig, l, &app, healthers)

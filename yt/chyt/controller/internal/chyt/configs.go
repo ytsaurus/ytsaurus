@@ -125,7 +125,7 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 		var serverAddresses []string
 		serverAddresses, err = getDiscoveryServerAddresses(ctx, ytc)
 		if err != nil {
-			return
+			serverAddresses = []string{}
 		}
 		discovery["server_addresses"] = serverAddresses
 	}
@@ -142,7 +142,7 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 		healthChecker["queries"] = [1]string{"select * from `//sys/clickhouse/sample_table`"}
 	}
 	if _, ok := healthChecker["preiod"]; !ok {
-		healthChecker["preiod"] = 60 * 1000
+		healthChecker["period"] = 60 * 1000
 	}
 
 	return
