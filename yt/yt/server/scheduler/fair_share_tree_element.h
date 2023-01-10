@@ -683,6 +683,8 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(THashSet<int>, DiskRequestMedia);
 
+    DEFINE_BYVAL_RO_PROPERTY(std::optional<EUnschedulableReason>, UnschedulableReason);
+
 protected:
     TSchedulerOperationElementFixedState(
         IOperationStrategyHost* operation,
@@ -690,9 +692,6 @@ protected:
         TSchedulingTagFilter schedulingTagFilter);
 
     const TOperationId OperationId_;
-
-    // Fixed in preupdate, used in postupdate.
-    std::optional<EUnschedulableReason> UnschedulableReason_;
 
     IOperationStrategyHost* const OperationHost_;
     TFairShareStrategyOperationControllerConfigPtr ControllerConfig_;

@@ -28,6 +28,8 @@ from yt_helpers import profiler_factory
 
 import yt_error_codes
 
+import yt.yson as yson
+
 from yt.test_helpers import are_almost_equal
 
 from yt.common import YtError
@@ -3428,30 +3430,47 @@ class TestFifoPools(YTEnvSetup):
         wait(lambda: not get(scheduler_orchid_default_pool_tree_config_path() + "/enable_fair_share_truncation_in_fifo_pool"))
         wait(lambda: are_almost_equal(get(scheduler_orchid_operation_path(blocking_op2.id) + "/detailed_fair_share/total/cpu"), 0.2))
 
-    @authors("ignat")
+    @authors("eshcherbin", "ignat")
     def test_max_schedulable_element_count_in_fifo_pool(self):
         update_pool_tree_config_option("default", "max_schedulable_element_count_in_fifo_pool", 1)
         create_pool("fifo", attributes={"mode": "fifo"})
 
-        schedulable_element_count_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "fifo"}) \
-            .gauge("scheduler/pools/schedulable_element_count")
-        schedulable_pool_count_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "fifo"}) \
-            .gauge("scheduler/pools/schedulable_pool_count")
-        schedulable_operation_count_sensor = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "fifo"}) \
-            .gauge("scheduler/pools/schedulable_operation_count")
+        profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default", "pool": "fifo"})
+        schedulable_element_count_sensor = profiler.gauge("scheduler/pools/schedulable_element_count")
+        schedulable_pool_count_sensor = profiler.gauge("scheduler/pools/schedulable_pool_count")
+        schedulable_operation_count_sensor = profiler.gauge("scheduler/pools/schedulable_operation_count")
         wait(lambda: schedulable_element_count_sensor.get() is not None)
         wait(lambda: schedulable_pool_count_sensor.get() is not None)
         wait(lambda: schedulable_operation_count_sensor.get() is not None)
 
         ops = []
-        for _ in range(5):
-            ops.append(run_test_vanilla("sleep 1", task_patch={"cpu_limit": 10.0}, spec={"pool": "fifo"}))
-            assert schedulable_element_count_sensor.get() <= 2
-            assert schedulable_pool_count_sensor.get() <= 1
-            assert schedulable_operation_count_sensor.get() <= 1
+        for i in range(4):
+            job_count = 2
+            spec = {"pool": "fifo"}
+            if i == 0:
+                job_count = 1
+                spec["suspend_operation_after_materialization"] = True
+            ops.append(run_sleeping_vanilla(job_count=job_count, task_patch={"cpu_limit": 6.0}, spec=spec))
             time.sleep(0.1)
-        for op in ops:
-            op.track()
+        wait(lambda: get(scheduler_orchid_operation_path(ops[1].id) + "/resource_usage/cpu", default=None) == 6.0)
+
+        def check_reasons(reasons):
+            for op, reason in zip(ops, reasons):
+                wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/unschedulable_reason", default=None) == reason)
+
+        fifo_reason = "fifo_schedulable_element_count_limit_reached"
+        check_reasons(["suspended", yson.YsonEntity(), fifo_reason, fifo_reason])
+
+        wait(lambda: schedulable_element_count_sensor.get() == 2)
+        wait(lambda: schedulable_pool_count_sensor.get() == 1)
+        wait(lambda: schedulable_operation_count_sensor.get() == 1)
+
+        ops[0].resume()
+        check_reasons([yson.YsonEntity(), yson.YsonEntity(), fifo_reason, fifo_reason])
+
+        wait(lambda: schedulable_element_count_sensor.get() == 3)
+        wait(lambda: schedulable_pool_count_sensor.get() == 1)
+        wait(lambda: schedulable_operation_count_sensor.get() == 2)
 
 
 ##################################################################
