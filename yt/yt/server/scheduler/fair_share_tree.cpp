@@ -2894,6 +2894,7 @@ private:
             .Item("disk_request_media").DoListFor(element->DiskRequestMedia(), [&] (TFluentList fluent, int mediumIndex) {
                 fluent.Item().Value(strategyHost->GetMediumNameByIndex(mediumIndex));
             })
+            .Item("unschedulable_reason").Value(element->GetUnschedulableReason())
             .Do(BIND(&TFairShareTreeJobScheduler::BuildOperationProgress, ConstRef(treeSnapshot), Unretained(element), strategyHost))
             .Do(BIND(&TFairShareTree::DoBuildElementYson, ConstRef(treeSnapshot), Unretained(element), TFieldsFilter{}));
     }

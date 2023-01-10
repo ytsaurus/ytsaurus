@@ -1587,7 +1587,6 @@ TSchedulerOperationElementFixedState::TSchedulerOperationElementFixedState(
     TFairShareStrategyOperationControllerConfigPtr controllerConfig,
     TSchedulingTagFilter schedulingTagFilter)
     : OperationId_(operation->GetId())
-    , UnschedulableReason_(operation->CheckUnschedulable())
     , OperationHost_(operation)
     , ControllerConfig_(std::move(controllerConfig))
     , UserName_(operation->GetAuthenticatedUser())
