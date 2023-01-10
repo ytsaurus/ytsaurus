@@ -166,15 +166,15 @@ void TBundleInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "enable_bundle_controller", &TThis::EnableBundleController)
         .Default(false);
     RegisterAttribute(registrar, "enable_tablet_cell_management", &TThis::EnableTabletCellManagement)
-        .Default(false);
+        .Default(true);
     RegisterAttribute(registrar, "enable_node_tag_filter_management", &TThis::EnableNodeTagFilterManagement)
-        .Default(false);
+        .Default(true);
     RegisterAttribute(registrar, "enable_tablet_node_dynamic_config", &TThis::EnableTabletNodeDynamicConfig)
-        .Default(false);
+        .Default(true);
     RegisterAttribute(registrar, "enable_rpc_proxy_management", &TThis::EnableRpcProxyManagement)
-        .Default(false);
+        .Default(true);
     RegisterAttribute(registrar, "enable_system_account_management", &TThis::EnableSystemAccountManagement)
-        .Default(false);
+        .Default(true);
     RegisterAttribute(registrar, "enable_resource_limits_management", &TThis::EnableResourceLimitsManagement)
         .Default(true);
     RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)

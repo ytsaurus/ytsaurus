@@ -4,6 +4,8 @@
 
 #include <library/cpp/yt/yson_string/public.h>
 
+#include <util/string/subst.h>
+
 #include <compare>
 
 namespace NYT::NCellBalancer {
@@ -251,7 +253,6 @@ private:
             *spec->ResourceRequest = *adapter->GetResourceGuarantee(bundleInfo);
             spec->PodIdTemplate = GetPodIdTemplate(
                 bundleName,
-                bundleInfo,
                 zoneInfo,
                 adapter,
                 input,
@@ -308,7 +309,6 @@ private:
 
     TString GetPodIdTemplate(
         const TString& bundleName,
-        const TBundleInfoPtr& bundleInfo,
         const TZoneInfoPtr& zoneInfo,
         TInstanceTypeAdapter* adapter,
         const TSchedulerInputState& input,
@@ -352,10 +352,7 @@ private:
             clusterShortName,
             adapter->GetInstanceType());
 
-        auto bundleShortName = bundleName;
-        if (bundleInfo->ShortName && !bundleInfo->ShortName->empty()) {
-            bundleShortName = *bundleInfo->ShortName;
-        }
+        auto bundleShortName = GetOrCrash(input.BundleToShortName, bundleName);
 
         return GetInstancePodIdTemplate(
             clusterShortName,
@@ -785,6 +782,78 @@ THashMap<TString, TString> MapPodIdToInstanceName(const TSchedulerInputState& in
     }
 
     return result;
+}
+
+TString GenerateShortNameForBundle(
+    const TString& bundleName,
+    const THashMap<TString, TString>& shortNameToBundle,
+    int maxLength)
+{
+    auto shortName = bundleName;
+
+    // pod id can not contain '_'
+    SubstGlobal(shortName, '_', '-');
+    if (std::ssize(shortName) <= maxLength && shortNameToBundle.count(shortName) == 0) {
+        return shortName;
+    }
+
+    shortName.resize(maxLength - 1);
+
+    for (int index = 1; index < 10; ++index) {
+        auto proposed = Format("%v%v", shortName, index);
+
+        if (shortNameToBundle.count(proposed) == 0) {
+            return proposed;
+        }
+    }
+
+    THROW_ERROR_EXCEPTION("Cannot generate short name for bundle")
+        << TErrorAttribute("bundle_name", bundleName);
+}
+
+THashMap<TString, TString> MapBundlesToShortNames(const TSchedulerInputState& input)
+{
+    THashMap<TString, TString> bundleToShortName;
+    THashMap<TString, TString> shortNameToBundle;
+
+    // Instance pod-id looks like sas3-4993-venus212-001-rpc-hume.
+    // Max pod id length is 35, so cluster short name and bundle short name
+    // should be under 16 characters.
+    constexpr int MaxBundlePlusClusterNamesLength = 16;
+    constexpr int MinBundleShortName = 4;
+
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (bundleInfo->ShortName) {
+            bundleToShortName[bundleName] = *bundleInfo->ShortName;
+            shortNameToBundle[*bundleInfo->ShortName] = bundleName;
+        }
+    }
+
+    for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (auto it = bundleToShortName.find(bundleName); it != bundleToShortName.end()) {
+            continue;
+        }
+
+        auto it = input.Zones.find(bundleInfo->Zone);
+        if (it == input.Zones.end()) {
+            continue;
+        }
+
+        auto clusterName = it->second->ShortName.value_or(input.Config->Cluster);
+        int maxShortNameLength = MaxBundlePlusClusterNamesLength - clusterName.size();
+
+        THROW_ERROR_EXCEPTION_UNLESS(
+            maxShortNameLength >= MinBundleShortName,
+            "Please set cluster short name, cluster name it too long");
+
+        auto shortName = GenerateShortNameForBundle(bundleName, shortNameToBundle, maxShortNameLength);
+        YT_VERIFY(std::ssize(shortName) <= maxShortNameLength);
+
+        bundleToShortName[bundleName] = shortName;
+        shortNameToBundle[shortName] = bundleName;
+    }
+
+    return bundleToShortName;
 }
 
 void CalculateResourceUsage(TSchedulerInputState& input)
@@ -1969,13 +2038,18 @@ void ManageInstancies(TSchedulerInputState& input, TSchedulerMutations* mutation
         bundleInfo->TargetConfig = zoneInfo->SpareTargetConfig;
         bundleInfo->EnableBundleController = true;
         bundleInfo->EnableTabletCellManagement = false;
+        bundleInfo->EnableNodeTagFilterManagement = false;
+        bundleInfo->EnableTabletNodeDynamicConfig = false;
+        bundleInfo->EnableRpcProxyManagement = false;
+        bundleInfo->EnableSystemAccountManagement = false;
+        bundleInfo->EnableResourceLimitsManagement = false;
         bundleInfo->Zone = zoneName;
         input.Bundles[spareVirtualBundle] = bundleInfo;
     }
-
     CalculateResourceUsage(input);
 
     input.ZonesDisrupted = GetZoneDisruptedState(input);
+    input.BundleToShortName = MapBundlesToShortNames(input);
 
     TInstanceManager<TTabletNodeAllocatorAdapter> nodeAllocator(BundleControllerLogger);
     TInstanceManager<TRpcProxyAllocatorAdapter> proxyAllocator(BundleControllerLogger);
@@ -2087,6 +2161,19 @@ TIndexedEntries<TBundleControllerState> GetActuallyChangedStates(
     return result;
 }
 
+void ManageBundleShortName(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    for (auto& [bundleName, shortName] : input.BundleToShortName) {
+        const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+
+        if (bundleName == shortName || (bundleInfo->ShortName && *bundleInfo->ShortName == shortName)) {
+            continue;
+        }
+
+        mutations->ChangedBundleShortName[bundleName] = shortName;
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations)
@@ -2104,6 +2191,7 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     ManageResourceLimits(input, mutations);
     ManageNodeTagFilters(input, mutations);
     ManageRpcProxyRoles(input, mutations);
+    ManageBundleShortName(input, mutations);
 
     mutations->ChangedStates = GetActuallyChangedStates(input, *mutations);
 }
