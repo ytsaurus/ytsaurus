@@ -14,6 +14,10 @@ namespace NYT::NVectorHdrf {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobResources ToJobResources(const TJobResourcesConfig& config, TJobResources defaultValue);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TJobResources& resources, NYson::IYsonConsumer* consumer);
 void Deserialize(TJobResources& resources, NYTree::INodePtr node);
 

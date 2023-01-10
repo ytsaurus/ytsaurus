@@ -240,6 +240,9 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
         .Alias("max_unpreemptable_running_job_count")
         .Default(10);
 
+    registrar.Parameter("non_preemptible_resource_usage_threshold", &TThis::NonPreemptibleResourceUsageThreshold)
+        .DefaultNew();
+
     registrar.Parameter("max_running_operation_count", &TThis::MaxRunningOperationCount)
         .Default(200)
         .GreaterThan(0);
@@ -470,6 +473,17 @@ void TFairShareStrategyTreeConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("Aggressive starvation timeout must be greater than starvation timeout")
                 << TErrorAttribute("aggressive_timeout", config->FairShareAggressiveStarvationTimeout)
                 << TErrorAttribute("timeout", config->FairShareStarvationTimeout);
+        }
+    });
+
+    registrar.Postprocessor([&] (TFairShareStrategyTreeConfig* config) {
+        if (!config->NonPreemptibleResourceUsageThreshold) {
+            THROW_ERROR_EXCEPTION("\"non_preemptible_resource_usage_threshold\" must not be null");
+        }
+
+        auto& nonPreemptibleUserSlotsUsage = config->NonPreemptibleResourceUsageThreshold->UserSlots;
+        if (!nonPreemptibleUserSlotsUsage) {
+            nonPreemptibleUserSlotsUsage = config->MaxUnpreemptibleRunningJobCount;
         }
     });
 }

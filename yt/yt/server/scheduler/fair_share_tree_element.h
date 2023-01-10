@@ -175,6 +175,8 @@ public:
 
     DEFINE_BYREF_RO_PROPERTY(TSchedulerElementPostUpdateAttributes, PostUpdateAttributes);
 
+    DEFINE_BYREF_RO_PROPERTY(TJobResourcesConfigPtr, EffectiveNonPreemptibleResourceUsageThresholdConfig);
+
 protected:
     TSchedulerElementFixedState(
         ISchedulerStrategyHost* strategyHost,
@@ -234,6 +236,8 @@ public:
     virtual std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const = 0;
     virtual std::optional<bool> IsAggressiveStarvationEnabled() const = 0;
 
+    virtual TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const = 0;
+
     virtual ESchedulableStatus GetStatus() const;
 
     virtual TJobResources GetSpecifiedStrongGuaranteeResources() const;
@@ -278,7 +282,6 @@ public:
     TInstant GetStartTime() const;
 
     //! Post fair share update methods.
-    virtual void UpdateStarvationAttributes();
     virtual void UpdateStarvationStatuses(TInstant now, bool enablePoolStarvation);
     virtual void MarkImmutable();
 
@@ -337,6 +340,8 @@ protected:
     TJobResources ComputeResourceLimits() const;
 
     //! Post update methods.
+    virtual void UpdateEffectiveRecursiveAttributes();
+
     virtual void SetStarvationStatus(EStarvationStatus starvationStatus);
     virtual void CheckForStarvation(TInstant now) = 0;
 
@@ -460,7 +465,6 @@ public:
     bool HasHigherPriorityInFifoMode(const NVectorHdrf::TElement* lhs, const NVectorHdrf::TElement* rhs) const final;
 
     //! Post fair share update methods.
-    void UpdateStarvationAttributes() override;
     void UpdateStarvationStatuses(TInstant now, bool enablePoolStarvation) override;
     void MarkImmutable() override;
 
@@ -498,6 +502,8 @@ protected:
     void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const override;
 
     //! Post fair share update methods.
+    void UpdateEffectiveRecursiveAttributes() override;
+
     void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
 
     int EnumerateElements(int startIndex, bool isSchedulableValueFilter) override;
@@ -622,6 +628,8 @@ public:
     std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
+
+    TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
 
     //! Other methods.
     void BuildResourceMetering(
@@ -793,6 +801,8 @@ public:
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
 
+    TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
+
     bool IsSchedulable() const override;
 
     //! Controller related methods.
@@ -848,6 +858,8 @@ protected:
     //! Post update methods.
     void SetStarvationStatus(EStarvationStatus starvationStatus) override;
     void CheckForStarvation(TInstant now) override;
+
+    void UpdateEffectiveRecursiveAttributes() override;
 
     void OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context);
     void BuildSchedulableChildrenLists(TFairSharePostUpdateContext* context) override;
@@ -940,6 +952,8 @@ public:
     std::optional<double> GetSpecifiedFairShareStarvationTolerance() const override;
     std::optional<TDuration> GetSpecifiedFairShareStarvationTimeout() const override;
     std::optional<bool> IsAggressiveStarvationEnabled() const override;
+
+    TJobResourcesConfigPtr GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const override;
 
     //! Other methods.
     THashSet<TString> GetAllowedProfilingTags() const override;

@@ -2930,6 +2930,10 @@ private:
                 filter,
                 "effective_fair_share_starvation_timeout",
                 element->GetEffectiveFairShareStarvationTimeout())
+            .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
+                filter,
+                "effective_non_preemptible_resource_usage_threshold",
+                element->EffectiveNonPreemptibleResourceUsageThresholdConfig())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(filter, "aggressive_starvation_enabled", element->IsAggressiveStarvationEnabled())
             .ITEM_VALUE_IF_SUITABLE_FOR_FILTER(
                 filter,

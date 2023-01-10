@@ -6,17 +6,16 @@
 #include <yt/yt/server/lib/scheduler/config.h>
 #include <yt/yt/server/lib/scheduler/structs.h>
 
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
 #include <yt/yt/client/node_tracker_client/helpers.h>
 
 #include <yt/yt/client/object_client/helpers.h>
-
-#include <yt/yt/library/vector_hdrf/fair_share_update.h>
 
 namespace NYT::NScheduler {
 
 using namespace NObjectClient;
 using namespace NControllerAgent;
-using NVectorHdrf::ToJobResources;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -34,7 +33,7 @@ TSchedulingContextBase::TSchedulingContextBase(
     , MediumDirectory_(mediumDirectory)
     , MinSpareJobResources_(
         Config_->MinSpareJobResourcesOnNode
-        ? ToJobResources(*(Config_->MinSpareJobResourcesOnNode).value(), TJobResources())
+        ? ToJobResources(*Config_->MinSpareJobResourcesOnNode, TJobResources())
         : TJobResources())
     , ResourceUsage_(Node_->GetResourceUsage())
     , ResourceLimits_(Node_->GetResourceLimits())
@@ -46,12 +45,12 @@ int TSchedulingContextBase::GetNodeShardId() const
 {
     return NodeShardId_;
 }
-	
+
 TJobResources& TSchedulingContextBase::UnconditionalResourceUsageDiscount()
 {
     return UnconditionalResourceUsageDiscount_;
 }
-    
+
 TJobResources TSchedulingContextBase::GetMaxConditionalUsageDiscount() const
 {
     return MaxConditionalUsageDiscount_;
@@ -71,7 +70,7 @@ const TJobResources& TSchedulingContextBase::ResourceLimits() const
 {
     return ResourceLimits_;
 }
-    
+
 const NNodeTrackerClient::NProto::TDiskResources& TSchedulingContextBase::DiskResources() const
 {
     return DiskResources_;
@@ -201,7 +200,7 @@ TJobResources TSchedulingContextBase::GetNodeFreeResourcesWithDiscountForOperati
 {
     return ResourceLimits_ - ResourceUsage_ + UnconditionalResourceUsageDiscount_ + GetConditionalDiscountForOperation(operationId);
 }
-    
+
 TScheduleJobsStatistics TSchedulingContextBase::GetSchedulingStatistics() const
 {
     return SchedulingStatistics_;

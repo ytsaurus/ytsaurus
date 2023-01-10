@@ -2,13 +2,7 @@
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
-#include <yt/yt/library/vector_hdrf/resource_helpers.h>
-
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 

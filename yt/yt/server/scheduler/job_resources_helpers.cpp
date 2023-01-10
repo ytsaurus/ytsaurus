@@ -2,16 +2,7 @@
 
 #include <yt/yt/ytlib/scheduler/config.h>
 
-#include <yt/yt/library/vector_hdrf/fair_share_update.h>
-
 namespace NYT::NScheduler {
-
-////////////////////////////////////////////////////////////////////////////////
-
-TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue)
-{
-    return NVectorHdrf::ToJobResources(*config, defaultValue);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -1107,7 +1107,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
     auto [starvingOperationElement, starvingOperation] = CreateOperationWithJobs(10, strategyHost.Get(), treeScheduler, guaranteedPool.Get());
 
     {
-        DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement, now, /*previousUpdateTime*/ std::nullopt);
+        DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement, now);
 
         TResourceVector unit = {1.0, 1.0, 0.0, 1.0, 0.0};
         EXPECT_RV_NEAR(unit / 3.0, blockingPool->Attributes().FairShare.Total);

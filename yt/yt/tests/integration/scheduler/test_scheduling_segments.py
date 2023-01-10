@@ -133,12 +133,11 @@ class TestSchedulingSegments(YTEnvSetup):
             )
             == 1000
         )
-        # Not to let preemption abort the jobs instead of segments manager.
         update_pool_tree_config("default", {
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 20,
+            "max_unpreemptible_running_job_count": 0,
         })
 
         # NB(eshcherbin): This is done to reset node segments.
@@ -1097,12 +1096,11 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
                 + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
             ) == 1000
         )
-        # Not to let preemption abort the jobs instead of segments manager.
         update_pool_tree_config("default", {
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 20,
+            "max_unpreemptible_running_job_count": 0,
         })
 
         # NB(eshcherbin): This is done to reset node segments.
@@ -1814,12 +1812,11 @@ class TestRunningJobStatistics(YTEnvSetup):
             )
                     == 1000
         )
-        # Not to let preemption abort the jobs instead of segments manager.
         update_pool_tree_config("default", {
             "preemptive_scheduling_backoff": 0,
             "fair_share_starvation_timeout": 100,
             "fair_share_starvation_tolerance": 0.95,
-            "max_unpreemptible_running_job_count": 20,
+            "max_unpreemptible_running_job_count": 0,
         })
 
         # NB(eshcherbin): This is done to reset node segments.

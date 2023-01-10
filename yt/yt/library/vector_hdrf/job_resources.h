@@ -102,6 +102,7 @@ bool operator == (const TJobResources& lhs, const TJobResources& rhs);
 bool operator != (const TJobResources& lhs, const TJobResources& rhs);
 
 bool Dominates(const TJobResources& lhs, const TJobResources& rhs);
+bool StrictlyDominates(const TJobResources& lhs, const TJobResources& rhs);
 
 TJobResources Max(const TJobResources& lhs, const TJobResources& rhs);
 TJobResources Min(const TJobResources& lhs, const TJobResources& rhs);

@@ -2012,6 +2012,9 @@ void TPoolConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("offloading_settings", &TThis::OffloadingSettings)
         .Default();
+
+    registrar.Parameter("non_preemptible_resource_usage_threshold", &TThis::NonPreemptibleResourceUsageThreshold)
+        .Default();
 }
 
 void TPoolConfig::Validate(const TString& poolName)

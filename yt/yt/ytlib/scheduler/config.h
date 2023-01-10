@@ -293,6 +293,8 @@ public:
 
     TOffloadingSettings OffloadingSettings;
 
+    TJobResourcesConfigPtr NonPreemptibleResourceUsageThreshold;
+
     void Validate(const TString& poolName);
 
     REGISTER_YSON_STRUCT(TPoolConfig);

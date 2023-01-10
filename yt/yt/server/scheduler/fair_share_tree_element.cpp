@@ -562,7 +562,7 @@ bool TSchedulerElement::AreDetailedLogsEnabled() const
     return false;
 }
 
-void TSchedulerElement::UpdateStarvationAttributes()
+void TSchedulerElement::UpdateEffectiveRecursiveAttributes()
 {
     YT_VERIFY(Mutable_);
 
@@ -575,6 +575,9 @@ void TSchedulerElement::UpdateStarvationAttributes()
 
         YT_VERIFY(IsAggressiveStarvationEnabled());
         EffectiveAggressiveStarvationEnabled_ = *IsAggressiveStarvationEnabled();
+
+        YT_VERIFY(GetSpecifiedNonPreemptibleResourceUsageThresholdConfig());
+        EffectiveNonPreemptibleResourceUsageThresholdConfig_ = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig();
     } else {
         YT_VERIFY(Parent_);
 
@@ -586,6 +589,11 @@ void TSchedulerElement::UpdateStarvationAttributes()
 
         EffectiveAggressiveStarvationEnabled_ = IsAggressiveStarvationEnabled()
             .value_or(Parent_->GetEffectiveAggressiveStarvationEnabled());
+
+        EffectiveNonPreemptibleResourceUsageThresholdConfig_ = Parent_->EffectiveNonPreemptibleResourceUsageThresholdConfig();
+        if (const auto& specifiedConfig = GetSpecifiedNonPreemptibleResourceUsageThresholdConfig()) {
+            EffectiveNonPreemptibleResourceUsageThresholdConfig_ = specifiedConfig;
+        }
     }
 }
 
@@ -1070,14 +1078,14 @@ TResourceVolume TSchedulerCompositeElement::GetIntegralPoolCapacity() const
     return TResourceVolume(TotalResourceLimits_ * Attributes_.ResourceFlowRatio, TreeConfig_->IntegralGuarantees->PoolCapacitySaturationPeriod);
 }
 
-void TSchedulerCompositeElement::UpdateStarvationAttributes()
+void TSchedulerCompositeElement::UpdateEffectiveRecursiveAttributes()
 {
     YT_VERIFY(Mutable_);
 
-    TSchedulerElement::UpdateStarvationAttributes();
+    TSchedulerElement::UpdateEffectiveRecursiveAttributes();
 
     for (const auto& child : EnabledChildren_) {
-        child->UpdateStarvationAttributes();
+        child->UpdateEffectiveRecursiveAttributes();
     }
 }
 
@@ -1221,6 +1229,11 @@ bool TSchedulerPoolElement::IsExplicit() const
 std::optional<bool> TSchedulerPoolElement::IsAggressiveStarvationEnabled() const
 {
     return Config_->EnableAggressiveStarvation;
+}
+
+TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
+{
+    return Config_->NonPreemptibleResourceUsageThreshold;
 }
 
 TString TSchedulerPoolElement::GetId() const
@@ -1684,6 +1697,25 @@ void TSchedulerOperationElement::BuildSchedulableChildrenLists(TFairSharePostUpd
     }
 }
 
+void TSchedulerOperationElement::UpdateEffectiveRecursiveAttributes()
+{
+    TSchedulerElement::UpdateEffectiveRecursiveAttributes();
+
+    // TODO(eshcherbin): Consider deleting this option from operation spec, as it is useless.
+    if (auto unpreemptibleJobCount = Spec_->MaxUnpreemptibleRunningJobCount) {
+        auto effectiveThresholdConfig = EffectiveNonPreemptibleResourceUsageThresholdConfig_->Clone();
+        if (effectiveThresholdConfig->UserSlots) {
+            effectiveThresholdConfig->UserSlots = std::min(
+                *effectiveThresholdConfig->UserSlots,
+                *unpreemptibleJobCount);
+        } else {
+            effectiveThresholdConfig->UserSlots = *unpreemptibleJobCount;
+        }
+
+        EffectiveNonPreemptibleResourceUsageThresholdConfig_ = std::move(effectiveThresholdConfig);
+    }
+}
+
 void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFairSharePostUpdateContext* context)
 {
     UnschedulableReason_ = EUnschedulableReason::FifoSchedulableElementCountLimitReached;
@@ -1736,7 +1768,13 @@ TOperationId TSchedulerOperationElement::GetOperationId() const
 
 std::optional<bool> TSchedulerOperationElement::IsAggressiveStarvationEnabled() const
 {
+    // TODO(eshcherbin): There is no way we really want to have this option in operation spec.
     return Spec_->EnableAggressiveStarvation;
+}
+
+TJobResourcesConfigPtr TSchedulerOperationElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
+{
+    return {};
 }
 
 std::optional<double> TSchedulerOperationElement::GetSpecifiedWeight() const
@@ -2195,7 +2233,7 @@ void TSchedulerRootElement::PostUpdate(TFairSharePostUpdateContext* postUpdateCo
 
     BuildElementMapping(postUpdateContext);
 
-    UpdateStarvationAttributes();
+    UpdateEffectiveRecursiveAttributes();
 }
 
 const TSchedulingTagFilter& TSchedulerRootElement::GetSchedulingTagFilter() const
@@ -2236,6 +2274,11 @@ std::optional<TDuration> TSchedulerRootElement::GetSpecifiedFairShareStarvationT
 std::optional<bool> TSchedulerRootElement::IsAggressiveStarvationEnabled() const
 {
     return TreeConfig_->EnableAggressiveStarvation;
+}
+
+TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedNonPreemptibleResourceUsageThresholdConfig() const
+{
+    return TreeConfig_->NonPreemptibleResourceUsageThreshold;
 }
 
 void TSchedulerRootElement::CheckForStarvation(TInstant /*now*/)
