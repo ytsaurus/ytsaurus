@@ -1164,17 +1164,6 @@ const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
         return element;
     }
 
-    int maxUnpreemptibleJobCount = treeConfig->MaxUnpreemptibleRunningJobCount;
-    if (spec->MaxUnpreemptibleRunningJobCount) {
-        maxUnpreemptibleJobCount = std::min(maxUnpreemptibleJobCount, *spec->MaxUnpreemptibleRunningJobCount);
-    }
-
-    int jobCount = GetOperationRunningJobCount(element);
-    if (jobCount <= maxUnpreemptibleJobCount) {
-        UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::ForbiddenSinceLowJobCount);
-        return element;
-    }
-
     const TSchedulerElement* current = element;
     while (current && !current->IsRoot()) {
         // NB(eshcherbin): A bit strange that we check for starvation here and then for satisfaction later.

@@ -16,7 +16,8 @@ from yt_commands import (
 
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_node_path, scheduler_orchid_default_pool_tree_path,
-    scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path)
+    scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
+    scheduler_orchid_pool_tree_config_path)
 
 from yt_helpers import profiler_factory
 
@@ -640,6 +641,206 @@ class TestSchedulerPreemption(YTEnvSetup):
         run_sleeping_vanilla(task_patch={"cpu_limit": 0.5}, spec={"pool": "production", "scheduling_tag_filter": nodes[2]})
         wait(lambda: len(op1.get_running_jobs()) == 5)
         wait(lambda: earlier_job in op1.get_running_jobs())
+
+
+class TestNonPreemptibleResourceUsageThreshold(YTEnvSetup):
+    NUM_MASTERS = 1
+    NUM_NODES = 1
+    NUM_SCHEDULERS = 1
+
+    DELTA_SCHEDULER_CONFIG = {
+        "scheduler": {
+            "fair_share_update_period": 100,
+        },
+    }
+
+    DELTA_NODE_CONFIG = {
+        "exec_agent": {
+            "scheduler_connector": {"heartbeat_period": 100},
+            "controller_agent_connector": {"heartbeat_period": 100},
+            "job_controller": {
+                "resource_limits": {
+                    "cpu": 10,
+                    "user_slots": 10,
+                },
+            },
+        },
+    }
+
+    def setup_method(self, method):
+        super(TestNonPreemptibleResourceUsageThreshold, self).setup_method(method)
+
+        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", force=True),
+        update_pool_tree_config_option("default", "max_unpreemptible_running_job_count", yson.YsonEntity())
+        update_pool_tree_config("default", {
+            "aggressive_preemption_satisfaction_threshold": 0.4,
+            "preemption_satisfaction_threshold": 0.9,
+            "fair_share_starvation_tolerance": 1.0,
+            "non_preemptible_resource_usage_threshold": {},
+        })
+
+    def _check_preemptible_job_count(self, op, expected_preemptible_count, expected_aggressively_preemptible_count):
+        preemptible_count = get(scheduler_orchid_operation_path(op.id) + "/preemptible_job_count")
+        aggressively_preemptible_count = get(scheduler_orchid_operation_path(op.id) + "/aggressively_preemptible_job_count")
+        return expected_preemptible_count == preemptible_count and \
+            expected_aggressively_preemptible_count == aggressively_preemptible_count
+
+    @authors("eshcherbin")
+    def test_non_preemptible_resource_usage_threshold(self):
+        op = run_sleeping_vanilla(job_count=15)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 10.0)
+
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"cpu": 1.0})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"cpu": 1.0, "user_slots": 2})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"cpu": 5.0, "user_slots": 2})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"cpu": 5.0, "user_slots": 6})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 4))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"user_slots": 7})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 2))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"cpu": 10.0})
+        wait(lambda: self._check_preemptible_job_count(op, 0, 0))
+
+    @authors("eshcherbin")
+    def test_max_unpreemptible_running_job_count(self):
+        op = run_sleeping_vanilla(job_count=15)
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 10.0)
+
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", force=True)
+        update_pool_tree_config_option(
+            "default",
+            "max_unpreemptible_running_job_count",
+            0)
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        update_pool_tree_config_option(
+            "default",
+            "max_unpreemptible_running_job_count",
+            4)
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        update_pool_tree_config_option(
+            "default",
+            "max_unpreemptible_running_job_count",
+            7)
+        wait(lambda: self._check_preemptible_job_count(op, 1, 2))
+
+        update_pool_tree_config_option(
+            "default",
+            "max_unpreemptible_running_job_count",
+            10)
+        wait(lambda: self._check_preemptible_job_count(op, 0, 0))
+
+    @authors("eshcherbin")
+    def test_config_postprocessor(self):
+        config_option_orchid_path = scheduler_orchid_pool_tree_config_path("default") + "/non_preemptible_resource_usage_threshold"
+        assert get(config_option_orchid_path) == {}
+
+        remove("//sys/pool_trees/default/@config/max_unpreemptible_running_job_count", force=True)
+        update_pool_tree_config_option(
+            "default",
+            "max_unpreemptible_running_job_count",
+            0)
+        assert get(config_option_orchid_path) == {"user_slots": 0}
+
+        update_pool_tree_config_option(
+            "default",
+            "max_unpreemptible_running_job_count",
+            7)
+        assert get(config_option_orchid_path) == {"user_slots": 7}
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"cpu": 1.0},
+            wait_for_orchid=False)
+        wait(lambda: get(config_option_orchid_path) == {"cpu": 1.0, "user_slots": 7})
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"cpu": 1.0, "user_slots": 5})
+        assert get(config_option_orchid_path) == {"cpu": 1.0, "user_slots": 5}
+
+        with pytest.raises(YtError):
+            remove("//sys/pool_trees/default/@config/non_preemptible_resource_usage_threshold", force=True)
+            update_pool_tree_config_option(
+                "default",
+                "non_preemptible_resource_usage_threshold",
+                yson.YsonEntity(),
+                wait_for_orchid=False)
+
+    @authors("eshcherbin")
+    def test_pool_config_overrides_tree_config(self):
+        create_pool("pool")
+
+        op = run_sleeping_vanilla(job_count=15, spec={"pool": "pool"})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 10.0)
+
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"user_slots": 1})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        set("//sys/pool_trees/default/pool/@non_preemptible_resource_usage_threshold", {"user_slots": 7})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 2))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"user_slots": 10})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 2))
+
+    @authors("eshcherbin")
+    def test_operation_max_unpreemptible_running_job_count(self):
+        op = run_sleeping_vanilla(job_count=15, spec={"max_unpreemptible_job_count": 7})
+        wait(lambda: get(scheduler_orchid_operation_path(op.id) + "/resource_usage/cpu", default=None) == 10.0)
+
+        wait(lambda: self._check_preemptible_job_count(op, 1, 2))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"user_slots": 1})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 5))
+
+        update_pool_tree_config_option(
+            "default",
+            "non_preemptible_resource_usage_threshold",
+            {"user_slots": 10})
+        wait(lambda: self._check_preemptible_job_count(op, 1, 2))
 
 
 class TestPreemptionPriorityScope(YTEnvSetup):

@@ -86,7 +86,6 @@ DEFINE_ENUM(EOperationPreemptionStatus,
     (AllowedConditionally)
     (ForbiddenSinceStarving)
     (ForbiddenSinceUnsatisfied)
-    (ForbiddenSinceLowJobCount)
 );
 
 DEFINE_ENUM(EJobPreemptionLevel,

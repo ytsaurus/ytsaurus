@@ -218,6 +218,15 @@ bool Dominates(const TJobResources& lhs, const TJobResources& rhs)
     true;
 }
 
+bool StrictlyDominates(const TJobResources& lhs, const TJobResources& rhs)
+{
+    return
+    #define XX(name, Name) lhs.Get##Name() > rhs.Get##Name() &&
+        ITERATE_JOB_RESOURCES(XX)
+    #undef XX
+    true;
+}
+
 TJobResources Max(const TJobResources& lhs, const TJobResources& rhs)
 {
     TJobResources result;

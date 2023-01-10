@@ -11,6 +11,28 @@ using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobResources ToJobResources(const TJobResourcesConfig& config, TJobResources defaultValue)
+{
+    if (config.UserSlots) {
+        defaultValue.SetUserSlots(*config.UserSlots);
+    }
+    if (config.Cpu) {
+        defaultValue.SetCpu(*config.Cpu);
+    }
+    if (config.Network) {
+        defaultValue.SetNetwork(*config.Network);
+    }
+    if (config.Memory) {
+        defaultValue.SetMemory(*config.Memory);
+    }
+    if (config.Gpu) {
+        defaultValue.SetGpu(*config.Gpu);
+    }
+    return defaultValue;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void Serialize(const TJobResources& resources, IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer)

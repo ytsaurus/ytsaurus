@@ -23,6 +23,10 @@ static const TString InvalidCustomProfilingTag("invalid");
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const TJobResourcesConfigPtr EmptyJobResourcesConfig = New<TJobResourcesConfig>();
+
+////////////////////////////////////////////////////////////////////////////////
+
 TFairShareTreeJobSchedulerOperationSharedState::TFairShareTreeJobSchedulerOperationSharedState(
     ISchedulerStrategyHost* strategyHost,
     int updatePreemptibleJobsListLoggingPeriod,
@@ -165,14 +169,26 @@ void TFairShareTreeJobSchedulerOperationSharedState::UpdatePreemptibleJobsList(c
 
 void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList(const TSchedulerOperationElement* element, int* moveCount)
 {
-    auto getUsageShare = [&] (const TJobResources& resourceUsage) -> TResourceVector {
-        return TResourceVector::FromJobResources(resourceUsage, element->GetTotalResourceLimits());
+    auto convertToShare = [&] (const TJobResources& jobResources) -> TResourceVector {
+        return TResourceVector::FromJobResources(jobResources, element->GetTotalResourceLimits());
+    };
+
+    // NB(eshcherbin): It's possible to incorporate |resourceUsageBound| into |fairShareBound|,
+    // but I think it's more explicit the current way.
+    auto isUsageBelowBounds = [&] (
+        const TJobResources& resourceUsage,
+        const TJobResources& resourceUsageBound,
+        const TResourceVector& fairShareBound) -> bool
+    {
+        return StrictlyDominates(resourceUsageBound, resourceUsage) ||
+            element->IsStrictlyDominatesNonBlocked(fairShareBound, convertToShare(resourceUsage));
     };
 
     auto balanceLists = [&] (
         TJobIdList* left,
         TJobIdList* right,
         TJobResources resourceUsage,
+        const TJobResources& resourceUsageBound,
         const TResourceVector& fairShareBound,
         const std::function<void(TJobProperties*)>& onMovedLeftToRight,
         const std::function<void(TJobProperties*)>& onMovedRightToLeft)
@@ -188,7 +204,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
             auto* jobProperties = GetJobProperties(jobId);
 
             auto nextUsage = resourceUsage - jobProperties->ResourceUsage;
-            if (element->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(nextUsage))) {
+            if (isUsageBelowBounds(nextUsage, resourceUsageBound, fairShareBound)) {
                 break;
             }
 
@@ -202,7 +218,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
         }
 
         // Move from right to left and increase |resourceUsage|.
-        while (!right->empty() && element->IsStrictlyDominatesNonBlocked(fairShareBound, getUsageShare(resourceUsage))) {
+        while (!right->empty() && isUsageBelowBounds(resourceUsage, resourceUsageBound, fairShareBound)) {
             auto jobId = right->front();
             auto* jobProperties = GetJobProperties(jobId);
 
@@ -240,11 +256,21 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
     auto preemptionSatisfactionThreshold = element->TreeConfig()->PreemptionSatisfactionThreshold;
     auto aggressivePreemptionSatisfactionThreshold = element->TreeConfig()->AggressivePreemptionSatisfactionThreshold;
 
+    // NB: |element->EffectiveNonPreemptibleResourceUsageThresholdConfig()| can be null during revived jobs registration.
+    // We don't care about this, because the next fair share update will bring correct config.
+    const auto& nonPreemptibleResourceUsageConfig = element->EffectiveNonPreemptibleResourceUsageThresholdConfig()
+        ? element->EffectiveNonPreemptibleResourceUsageThresholdConfig()
+        : EmptyJobResourcesConfig;
+    auto nonPreemptibleResourceUsageThreshold = nonPreemptibleResourceUsageConfig->IsNonTrivial()
+        ? ToJobResources(nonPreemptibleResourceUsageConfig, TJobResources::Infinite())
+        : TJobResources();
+
     YT_LOG_DEBUG_IF(enableLogging,
-        "Update preemptible lists inputs (FairShare: %.6g, TotalResourceLimits: %v, "
+        "Update preemptible lists inputs (FairShare: %.6g, TotalResourceLimits: %v, NonPreemptibleResourceUsageConfig: %v, "
         "PreemptionSatisfactionThreshold: %v, AggressivePreemptionSatisfactionThreshold: %v)",
         fairShare,
         FormatResources(element->GetTotalResourceLimits()),
+        FormatResourcesConfig(nonPreemptibleResourceUsageConfig),
         preemptionSatisfactionThreshold,
         aggressivePreemptionSatisfactionThreshold);
 
@@ -264,6 +290,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
                 &JobsPerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible],
                 &JobsPerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible],
                 ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible],
+                nonPreemptibleResourceUsageThreshold,
                 fairShare * aggressivePreemptionSatisfactionThreshold,
                 setAggressivelyPreemptible,
                 setNonPreemptible);
@@ -277,6 +304,7 @@ void TFairShareTreeJobSchedulerOperationSharedState::DoUpdatePreemptibleJobsList
                 &JobsPerPreemptionStatus_[EJobPreemptionStatus::Preemptible],
                 ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::NonPreemptible] +
                     ResourceUsagePerPreemptionStatus_[EJobPreemptionStatus::AggressivelyPreemptible],
+                nonPreemptibleResourceUsageThreshold,
                 Preemptible_ ? fairShare * preemptionSatisfactionThreshold : TResourceVector::Infinity(),
                 setPreemptible,
                 setAggressivelyPreemptible);

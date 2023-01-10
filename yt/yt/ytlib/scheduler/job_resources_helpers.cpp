@@ -1,12 +1,11 @@
 #include "job_resources_helpers.h"
+#include "config.h"
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-
-#include <yt/yt/library/vector_hdrf/job_resources.h>
 
 #include <functional>
 
@@ -38,6 +37,13 @@ TNodeResources ToNodeResources(const TJobResources& jobResources)
     ITERATE_JOB_RESOURCES(XX)
     #undef XX
     return result;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue)
+{
+    return NVectorHdrf::ToJobResources(*config, defaultValue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -144,6 +150,26 @@ TString FormatResources(const TJobResourcesWithQuota& resources)
         resources.GetDiskQuota()
     );
 
+}
+
+TString FormatResourcesConfig(const TJobResourcesConfigPtr& config)
+{
+    TStringBuilder builder;
+    builder.AppendChar('{');
+
+    TDelimitedStringBuilderWrapper delimitedBuilder(&builder);
+    config->ForEachResource([&] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+        if (auto value = config.Get()->*resourceDataMember) {
+            delimitedBuilder->AppendFormat(
+                "%v: %v",
+                TEnumTraits<EJobResourceType>::ToString(resourceType),
+                *value);
+        }
+    });
+
+    builder.AppendChar('}');
+
+    return builder.Flush();
 }
 
 void FormatValue(TStringBuilderBase* builder, const TDiskQuota& diskQuota, TStringBuf /* format */)

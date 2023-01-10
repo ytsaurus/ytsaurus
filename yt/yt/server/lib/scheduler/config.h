@@ -241,8 +241,12 @@ public:
 
     bool EnableAggressiveStarvation;
 
+    // TODO(eshcherbin): Remove in favor of NonPreemptibleResourceUsageThreshold.
     //! Any operation with less than this number of running jobs cannot be preempted.
-    int MaxUnpreemptibleRunningJobCount;
+    std::optional<int> MaxUnpreemptibleRunningJobCount;
+
+    //! Any operation which resource usage is not greater than this cannot be preempted.
+    TJobResourcesConfigPtr NonPreemptibleResourceUsageThreshold;
 
     //! Limit on number of operations in pool.
     int MaxOperationCountPerPool;

@@ -307,6 +307,7 @@
     XX(NodeId, node_id) \
     XX(Nodes, nodes) \
     XX(NodeTagFilter, node_tag_filter) \
+    XX(NonPreemptibleResourceUsageThreshold, non_preemptible_resource_usage_threshold) \
     XX(Offline, offline) \
     XX(OfflineNodeCount, offline_node_count) \
     XX(OffloadingSettings, offloading_settings) \

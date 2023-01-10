@@ -27,6 +27,10 @@ NNodeTrackerClient::NProto::TNodeResources ToNodeResources(const TJobResources& 
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TJobResources ToJobResources(const TJobResourcesConfigPtr& config, TJobResources defaultValue);
+
+////////////////////////////////////////////////////////////////////////////////
+
 void SerializeDiskQuota(
     const TDiskQuota& quota,
     const NChunkClient::TMediumDirectoryPtr& mediumDirectory,
@@ -52,6 +56,8 @@ TString FormatResourceUsage(
 
 TString FormatResources(const TJobResources& resources);
 TString FormatResources(const TJobResourcesWithQuota& resources);
+
+TString FormatResourcesConfig(const TJobResourcesConfigPtr& config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
