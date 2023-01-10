@@ -281,11 +281,20 @@ func (oplet *Oplet) EnsureOperationInValidState(ctx context.Context) error {
 	return nil
 }
 
-func (oplet *Oplet) EnsurePersistentStateFlushed(ctx context.Context) error {
+func (oplet *Oplet) EnsurePersistentStateFlushed(ctx context.Context) (err error) {
 	if oplet.needFlushPersistentState() {
-		return oplet.flushPersistentState(ctx)
+		for {
+			err = oplet.flushPersistentState(ctx)
+			if !yterrors.ContainsMessageRE(err, prerequisiteCheckFailedRE) {
+				break
+			}
+			err = oplet.updateFromCypressNode(ctx)
+			if err != nil {
+				return err
+			}
+		}
 	}
-	return nil
+	return err
 }
 
 func (oplet *Oplet) needFlushPersistentState() bool {

@@ -8,6 +8,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
+	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yterrors"
 	"a.yandex-team.ru/yt/internal/go/ythttputil"
@@ -373,4 +374,40 @@ func (a *API) List(ctx context.Context) ([]string, error) {
 	var aliases []string
 	err := a.ytc.ListNode(ctx, a.cfg.AgentInfo.StrawberryRoot, &aliases, nil)
 	return aliases, err
+}
+
+// TODO(gudqeit): command is not finished. Pool validation and family/stage fetching should be added.
+func (a *API) SetSpeclet(ctx context.Context, alias string, specletYson yson.RawValue) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	}
+	var speclet map[string]any
+	if err := yson.Unmarshal(specletYson, &speclet); err != nil {
+		err = yterrors.Err("error parsing yson speclet", err)
+		a.l.Error(fmt.Sprintf("%v", err))
+		return err
+	}
+	if _, ok := speclet["family"]; !ok {
+		speclet["family"] = a.ctl.Family()
+	}
+	if _, ok := speclet["stage"]; !ok {
+		speclet["stage"] = a.cfg.AgentInfo.Stage
+	}
+	return a.ytc.SetNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet"),
+		speclet,
+		nil)
+}
+
+// This method can't be used in API, it is ready only for tests.
+func (a *API) OneShotRun(ctx context.Context, alias string) error {
+	oplet, err := a.getOplet(ctx, alias)
+	if err != nil {
+		return err
+	}
+	return oplet.Pass(ctx)
 }

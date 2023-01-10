@@ -15,6 +15,24 @@ import (
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
+type Config struct {
+	// LocalBinariesDir is set if we want to execute local binaries on the clique.
+	// This directory should contain trampoline, chyt and log-tailer binaries.
+	LocalBinariesDir *string `yson:"local_binaries_dir"`
+	EnableLogTailer  *bool   `yson:"enable_log_tailer"`
+}
+
+const (
+	DefaultEnableLogTailer = true
+)
+
+func (c *Config) EnableLogTailerOrDefault() bool {
+	if c.EnableLogTailer != nil {
+		return *c.EnableLogTailer
+	}
+	return DefaultEnableLogTailer
+}
+
 type Controller struct {
 	ytc               yt.Client
 	l                 log.Logger
@@ -22,6 +40,7 @@ type Controller struct {
 	root              ypath.Path
 	cluster           string
 	tvmSecret         string
+	config            Config
 }
 
 func (c *Controller) prepareTvmSecret() {
@@ -60,6 +79,27 @@ func (c *Controller) getClusterConnection(ctx context.Context) (
 	return
 }
 
+func (c *Controller) buildCommand(speclet *Speclet) string {
+	binariesDir := "./"
+	if c.config.LocalBinariesDir != nil {
+		binariesDir = *c.config.LocalBinariesDir + "/"
+	}
+	trampolinePath := binariesDir + "clickhouse-trampoline"
+	chytPath := binariesDir + "ytserver-clickhouse"
+	logTailerPath := binariesDir + "ytserver-log-tailer"
+
+	var args []string
+	args = append(args, trampolinePath, chytPath)
+	args = append(args, "--monitoring-port", "10142", "--log-tailer-monitoring-port", "10242")
+	if speclet.EnableGeoDataOrDefault() {
+		args = append(args, "--prepare-geodata")
+	}
+	if c.config.EnableLogTailerOrDefault() {
+		args = append(args, "--log-tailer-bin", logTailerPath)
+	}
+	return strings.Join(args, " ")
+}
+
 func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	spec map[string]interface{}, description map[string]interface{}, annotations map[string]interface{}, err error) {
 	alias := oplet.Alias()
@@ -75,10 +115,12 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 		return
 	}
 
-	// Build artifacts.
-	err = c.appendArtifacts(ctx, &speclet, &filePaths, &description)
-	if err != nil {
-		return
+	// Build artifacts if there are no local binaries.
+	if c.config.LocalBinariesDir == nil {
+		err = c.appendArtifacts(ctx, &speclet, &filePaths, &description)
+		if err != nil {
+			return
+		}
 	}
 
 	// Build configs.
@@ -94,14 +136,7 @@ func (c *Controller) Prepare(ctx context.Context, oplet *strawberry.Oplet) (
 	}
 
 	// Build command.
-	var args []string
-	args = append(args, "./clickhouse-trampoline", "./ytserver-clickhouse")
-	args = append(args, "--monitoring-port", "10142", "--log-tailer-monitoring-port", "10242")
-	if speclet.EnableGeoDataOrDefault() {
-		args = append(args, "--prepare-geodata")
-	}
-	args = append(args, "--log-tailer-bin", "./ytserver-log-tailer")
-	command := strings.Join(args, " ")
+	command := c.buildCommand(&speclet)
 
 	spec = map[string]interface{}{
 		"tasks": map[string]interface{}{
@@ -166,12 +201,23 @@ func (c *Controller) TryUpdate() (bool, error) {
 	return true, nil
 }
 
-func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, config yson.RawValue) strawberry.Controller {
+func parseConfig(rawConfig yson.RawValue) Config {
+	var controllerConfig Config
+	if rawConfig != nil {
+		if err := yson.Unmarshal(rawConfig, &controllerConfig); err != nil {
+			panic(err)
+		}
+	}
+	return controllerConfig
+}
+
+func NewController(l log.Logger, ytc yt.Client, root ypath.Path, cluster string, rawConfig yson.RawValue) strawberry.Controller {
 	c := &Controller{
 		l:       l,
 		ytc:     ytc,
 		root:    root,
 		cluster: cluster,
+		config:  parseConfig(rawConfig),
 	}
 	clusterConnection, err := c.getClusterConnection(context.Background())
 	if err != nil {
