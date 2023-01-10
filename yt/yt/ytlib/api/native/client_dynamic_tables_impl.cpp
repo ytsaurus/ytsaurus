@@ -2387,7 +2387,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaSelectRows(
     auto readResult = DoSelectRows(
         Format(
             "* from [%v] where [$tablet_index] = %v and [$row_index] between %v and %v",
-            queuePath,
+            queuePath.GetPath(),
             partitionIndex,
             offset,
             offset + rowsToRead - 1),
@@ -2397,7 +2397,7 @@ IUnversionedRowsetPtr TClient::DoPullQueueViaSelectRows(
         readResult = DoSelectRows(
             Format(
                 "* from [%v] where [$tablet_index] = %v and [$row_index] >= %v limit %v",
-                queuePath,
+                queuePath.GetPath(),
                 partitionIndex,
                 offset,
                 rowsToRead),

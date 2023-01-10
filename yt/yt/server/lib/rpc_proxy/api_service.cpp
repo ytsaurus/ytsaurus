@@ -3764,6 +3764,8 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+
         TPullQueueOptions options;
         SetTimeoutOptions(&options, context.Get());
 
@@ -3776,7 +3778,7 @@ private:
             context,
             [=] {
                 return client->PullQueue(
-                    request->queue_path(),
+                    queuePath,
                     request->offset(),
                     request->partition_index(),
                     rowBatchReadOptions,
@@ -3798,6 +3800,9 @@ private:
     {
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
+        auto consumerPath = FromProto<TRichYPath>(request->consumer_path());
+        auto queuePath = FromProto<TRichYPath>(request->queue_path());
+
         TPullConsumerOptions options;
         SetTimeoutOptions(&options, context.Get());
 
@@ -3809,8 +3814,8 @@ private:
             context,
             [=] {
                 return client->PullConsumer(
-                    request->consumer_path(),
-                    request->queue_path(),
+                    consumerPath,
+                    queuePath,
                     request->offset(),
                     request->partition_index(),
                     rowBatchReadOptions,

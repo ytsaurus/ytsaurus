@@ -71,10 +71,11 @@ public:
     {
     public:
         explicit TDynamicTable(
-            TYPath path,
+            TRichYPath path,
             TTableSchemaPtr schema,
             const IAttributeDictionaryPtr& extraAttributes = CreateEphemeralAttributes())
-            : Path_(std::move(path))
+            : RichPath_(std::move(path))
+            , Path_(RichPath_.GetPath())
             , Schema_(std::move(schema))
         {
             TCreateNodeOptions options;
@@ -106,7 +107,12 @@ public:
             return Path_;
         }
 
+        const TRichYPath& GetRichPath() const {
+            return RichPath_;
+        }
+
     private:
+        TRichYPath RichPath_;
         TYPath Path_;
         TTableSchemaPtr Schema_;
     };
@@ -160,14 +166,18 @@ public:
     {
         auto queueAttributes = CreateEphemeralAttributes();
         queueAttributes->Set("tablet_count", queueTabletCount);
+        TRichYPath queuePath = Format("//tmp/queue_%v_%v", testName, useNativeTabletNodeApi);
+        queuePath.SetCluster(ClusterName_);
         auto queue = New<TDynamicTable>(
-            Format("//tmp/queue_%v_%v", testName, useNativeTabletNodeApi),
+            queuePath,
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("a", EValueType::Uint64),
                 TColumnSchema("b", EValueType::String)}),
             queueAttributes);
+        TRichYPath consumerPath = Format("//tmp/consumer_%v_%v", testName, useNativeTabletNodeApi);
+        consumerPath.SetCluster(ClusterName_);
         auto consumer = New<TDynamicTable>(
-            Format("//tmp/consumer_%v_%v", testName, useNativeTabletNodeApi),
+            consumerPath,
             New<TTableSchema>(std::vector<TColumnSchema>{
                 TColumnSchema("ShardId", EValueType::Uint64, ESortOrder::Ascending),
                 TColumnSchema("Offset", EValueType::Uint64),
@@ -284,7 +294,7 @@ TEST_W(TQueueApiPermissionsTest, PullQueue)
 
         AssertPermissionAllowed(testUser, queue->GetPath(), EPermission::Read);
 
-        auto rowset = WaitFor(userClient->PullQueue(queue->GetPath(), 0, 0, {}))
+        auto rowset = WaitFor(userClient->PullQueue(queue->GetRichPath(), 0, 0, {}))
             .ValueOrThrow();
         EXPECT_FALSE(rowset->GetRows().empty());
 
@@ -342,15 +352,15 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
     EXPECT_FALSE(rowsetOrError.IsOK());
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
 
-    Client_->RegisterQueueConsumer(queue->GetPath(), consumer->GetPath(), /*vital*/ false);
+    Client_->RegisterQueueConsumer(queue->GetPath(), consumer->GetRichPath(), /*vital*/ false);
     // Wait for registration cache to sync.
     TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
 
-    auto rowset = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}))
+    auto rowset = WaitFor(userClient->PullConsumer(consumer->GetRichPath(), queue->GetPath(), 0, 0, {}))
         .ValueOrThrow();
     EXPECT_FALSE(rowset->GetRows().empty());
 
-    Client_->UnregisterQueueConsumer(queue->GetPath(), consumer->GetPath());
+    Client_->UnregisterQueueConsumer(queue->GetRichPath(), consumer->GetPath());
     // Wait for registration cache to sync.
     TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
 
