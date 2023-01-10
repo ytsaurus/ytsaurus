@@ -9,6 +9,9 @@ import yatest.common
 import yatest.common.network
 
 
+TIMEOUT = 5000
+
+
 @pytest.fixture(scope="session")
 def running_example():
     with yatest.common.network.PortManager() as pm:
@@ -49,7 +52,7 @@ def test_smoke_tcmalloc(running_example):
 
 async def get_async(url):
     async with httpx.AsyncClient() as client:
-        return await client.get(url)
+        return await client.get(url, timeout=TIMEOUT)
 
 
 async def launch(running_example, name):
