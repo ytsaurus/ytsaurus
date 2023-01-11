@@ -17,9 +17,9 @@ namespace NYT::NRpc {
 ////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_ENUM(ERequestTracingMode,
-    (Enable)
-    (Disable)
-    (Force)
+    (Enable)  // Propagation only.
+    (Disable) // Neither creates, nor propagates trace further.
+    (Force)   // Forces trace creation.
 );
 
 ////////////////////////////////////////////////////////////////////////////////
