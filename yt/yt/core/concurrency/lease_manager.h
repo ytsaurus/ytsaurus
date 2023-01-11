@@ -4,7 +4,7 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/optional.h>
+#include <optional>
 
 namespace NYT::NConcurrency {
 

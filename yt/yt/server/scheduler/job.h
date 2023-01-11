@@ -13,13 +13,14 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/phoenix.h>
 
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/library/vector_hdrf/job_resources.h>
+
+#include <optional>
 
 namespace NYT::NScheduler {
 
@@ -28,6 +29,7 @@ namespace NYT::NScheduler {
 class TJob
     : public TRefCounted
 {
+public:
     DEFINE_BYVAL_RO_PROPERTY(TJobId, Id);
 
     //! The id of operation the job belongs to.
@@ -105,7 +107,7 @@ class TJob
 
     //! Job execution duration as reported by the node.
     DEFINE_BYVAL_RW_PROPERTY(TDuration, ExecDuration);
-    
+
     //! Logger for this job.
     DEFINE_BYREF_RO_PROPERTY(NLogging::TLogger, Logger);
 

@@ -5,7 +5,6 @@
 #include <yt/yt/core/actions/invoker_util.h>
 #include <yt/yt/core/actions/invoker_detail.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/ring_queue.h>
 
 #include <yt/yt/core/profiling/timing.h>
@@ -15,6 +14,7 @@
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
 
+#include <optional>
 #include <utility>
 
 namespace NYT::NConcurrency {

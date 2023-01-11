@@ -5,7 +5,6 @@
 
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/mpl.h>
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/yson/public.h>
@@ -14,6 +13,7 @@
 #include <util/generic/algorithm.h>
 
 #include <functional>
+#include <optional>
 
 namespace NYT::NYTree {
 

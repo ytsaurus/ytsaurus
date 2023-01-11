@@ -13,13 +13,13 @@
 
 #include <yt/yt/client/object_client/public.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/rpc/public.h>
 
 #include <yt/yt/core/logging/public.h>
+
+#include <optional>
 
 namespace NYT::NHiveClient {
 

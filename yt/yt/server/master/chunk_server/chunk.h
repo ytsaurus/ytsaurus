@@ -19,7 +19,6 @@
 
 #include <yt/yt/library/erasure/public.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 
@@ -27,6 +26,8 @@
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
 #include <library/cpp/yt/small_containers/compact_flat_map.h>
+
+#include <optional>
 
 namespace NYT::NChunkServer {
 

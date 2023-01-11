@@ -6,7 +6,6 @@
 
 #include "node.h"
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/error.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -15,6 +14,7 @@
 #include <yt/yt/core/yson/protobuf_interop.h>
 #include <yt/yt/core/yson/pull_parser_deserialize.h>
 
+#include <optional>
 #include <numeric>
 
 namespace NYT::NYTree {

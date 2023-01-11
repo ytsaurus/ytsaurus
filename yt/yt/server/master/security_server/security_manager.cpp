@@ -64,12 +64,13 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/intern_registry.h>
 
 #include <yt/yt/core/logging/fluent_log.h>
 
 #include <yt/yt/core/ypath/token.h>
+
+#include <optional>
 
 namespace NYT::NSecurityServer {
 

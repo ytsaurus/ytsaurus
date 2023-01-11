@@ -2,8 +2,6 @@
 
 #include <yt/yt/python/common/stream.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/lexer_detail.h>
 #include <yt/yt/core/yson/parser.h>

@@ -1,7 +1,5 @@
 #pragma once
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/ytree/public.h>
@@ -13,6 +11,7 @@
 #include <CXX/Objects.hxx> // pycxx
 
 #include <queue>
+#include <optional>
 #include <stack>
 
 namespace NYT {

@@ -15,7 +15,6 @@
 
 #include <yt/yt/core/misc/guid.h>
 #include <yt/yt/core/misc/hash_helpers.h>
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/misc/singleton.h>
 
@@ -31,6 +30,8 @@
 #include <util/datetime/base.h>
 
 #include <util/system/sanitizers.h>
+
+#include <optional>
 
 namespace NYT::NYTree {
 

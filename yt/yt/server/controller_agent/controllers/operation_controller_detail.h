@@ -69,7 +69,6 @@
 #include <yt/yt/core/misc/digest.h>
 #include <yt/yt/core/misc/histogram.h>
 #include <yt/yt/core/misc/id_generator.h>
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/safe_assert.h>
 
@@ -78,6 +77,8 @@
 #include <yt/yt/core/yson/string.h>
 
 #include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
+#include <optional>
 
 namespace NYT::NControllerAgent::NControllers {
 

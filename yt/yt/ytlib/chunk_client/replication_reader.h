@@ -10,11 +10,7 @@
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 
-#include <yt/yt/core/concurrency/throughput_throttler.h>
-
-#include <yt/yt/core/misc/optional.h>
-
-#include <yt/yt/core/rpc/public.h>
+#include <yt/yt/core/concurrency/public.h>
 
 namespace NYT::NChunkClient {
 

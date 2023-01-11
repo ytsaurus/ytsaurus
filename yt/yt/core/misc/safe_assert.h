@@ -3,8 +3,9 @@
 #include <yt/yt/core/concurrency/public.h>
 
 #include <yt/yt/core/misc/common.h>
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
+
+#include <optional>
 
 namespace NYT {
 

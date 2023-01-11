@@ -3,8 +3,6 @@
 #include "public.h"
 #include "detail.h"
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <library/cpp/yt/memory/ref.h>
 
 namespace NYT::NYson {

@@ -11,7 +11,6 @@
 #include <yt/yt/core/yson/consumer.h>
 
 #include <yt/yt/core/misc/guid.h>
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/serialize.h>
 
 #include <yt/yt/core/ypath/token.h>
@@ -24,6 +23,8 @@
 #include <library/cpp/yt/misc/enum.h>
 
 #include <util/datetime/base.h>
+
+#include <optional>
 
 namespace NYT::NYTree {
 

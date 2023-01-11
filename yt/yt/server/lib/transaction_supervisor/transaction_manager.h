@@ -8,8 +8,6 @@
 
 #include <yt/yt/client/api/public.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/ytree/public.h>
 
 namespace NYT::NTransactionSupervisor {

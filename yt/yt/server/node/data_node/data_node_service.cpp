@@ -71,7 +71,6 @@
 #include <yt/yt/core/concurrency/periodic_executor.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/random.h>
 #include <yt/yt/core/misc/serialize.h>
@@ -81,6 +80,7 @@
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <cmath>
+#include <optional>
 
 namespace NYT::NDataNode {
 

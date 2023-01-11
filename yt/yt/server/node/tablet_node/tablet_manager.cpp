@@ -95,7 +95,6 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/misc/finally.h>
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/ring_queue.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
@@ -106,6 +105,8 @@
 
 #include <util/generic/cast.h>
 #include <util/generic/algorithm.h>
+
+#include <optional>
 
 namespace NYT::NTabletNode {
 

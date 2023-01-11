@@ -9,7 +9,6 @@
 #include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/misc/blob_output.h>
-#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NFormats {
 

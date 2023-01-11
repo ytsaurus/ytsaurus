@@ -11,11 +11,12 @@
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/misc/intrusive_ptr.h>
-#include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/yson/string.h>
 
 #include <library/cpp/yt/memory/ref.h>
+
+#include <optional>
 
 namespace NYT::NShell {
 

@@ -9,7 +9,6 @@
 
 #include <yt/yt/core/compression/codec.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 
@@ -22,6 +21,7 @@
 #include <library/cpp/yt/threading/spin_lock.h>
 
 #include <atomic>
+#include <optional>
 
 namespace NYT::NRpc {
 

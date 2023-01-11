@@ -5,7 +5,8 @@
 #include "invoker.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/optional.h>
+
+#include <optional>
 
 namespace NYT {
 

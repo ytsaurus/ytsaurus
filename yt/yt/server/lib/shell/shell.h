@@ -6,9 +6,9 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <library/cpp/yt/memory/ref.h>
+
+#include <optional>
 
 namespace NYT::NShell {
 

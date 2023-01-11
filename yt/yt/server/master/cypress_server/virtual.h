@@ -12,8 +12,6 @@
 
 #include <yt/yt/server/master/object_server/public.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/ytree/ypath_detail.h>
 #include <yt/yt/core/ytree/system_attribute_provider.h>
 

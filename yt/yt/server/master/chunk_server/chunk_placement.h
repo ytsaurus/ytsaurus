@@ -12,9 +12,9 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <util/generic/map.h>
+
+#include <optional>
 
 namespace NYT::NChunkServer {
 

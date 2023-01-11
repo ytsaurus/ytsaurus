@@ -31,7 +31,6 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 
 #include <yt/yt/core/misc/aggregate_property.h>
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
 #include <yt/yt/core/misc/ema_counter.h>
@@ -39,6 +38,8 @@
 #include <yt/yt/core/ytree/yson_serializable.h>
 
 #include <library/cpp/yt/misc/enum.h>
+
+#include <optional>
 
 namespace NYT::NTabletServer {
 

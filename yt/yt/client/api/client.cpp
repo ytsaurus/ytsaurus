@@ -7,8 +7,6 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 namespace NYT::NApi {
 
 using namespace NYTree;
