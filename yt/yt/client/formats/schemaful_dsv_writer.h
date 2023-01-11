@@ -11,7 +11,6 @@
 
 #include <yt/yt/core/misc/blob.h>
 #include <yt/yt/core/misc/blob_output.h>
-#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NFormats {
 

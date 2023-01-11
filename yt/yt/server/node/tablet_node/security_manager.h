@@ -10,9 +10,9 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/ytree/permission.h>
+
+#include <optional>
 
 namespace NYT::NTabletNode {
 

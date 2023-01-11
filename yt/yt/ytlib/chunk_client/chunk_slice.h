@@ -9,10 +9,11 @@
 
 #include <yt/yt/client/table_client/unversioned_row.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/phoenix.h>
 
 #include <library/cpp/yt/memory/new.h>
+
+#include <optional>
 
 namespace NYT::NChunkClient {
 

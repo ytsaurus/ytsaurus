@@ -14,7 +14,6 @@
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/async_slru_cache.h>
 #include <yt/yt/core/misc/property.h>
 

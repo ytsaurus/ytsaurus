@@ -1,7 +1,6 @@
 #include <yt/yt/core/compression/codec.h>
 
 #include <yt/yt/core/misc/blob.h>
-#include <yt/yt/core/misc/optional.h>
 
 #include <library/cpp/yt/misc/cast.h>
 
@@ -12,6 +11,7 @@
 
 #include <iostream>
 #include <fstream>
+#include <optional>
 #include <string>
 #include <vector>
 

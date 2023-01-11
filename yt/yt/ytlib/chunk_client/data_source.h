@@ -7,12 +7,13 @@
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/column_rename_descriptor.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 
 #include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/yt/misc/enum.h>
+
+#include <optional>
 
 namespace NYT::NChunkClient {
 

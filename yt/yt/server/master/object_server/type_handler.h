@@ -11,11 +11,11 @@
 
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/rpc/service_detail.h>
 
 #include <yt/yt/core/ytree/public.h>
+
+#include <optional>
 
 namespace NYT::NObjectServer {
 

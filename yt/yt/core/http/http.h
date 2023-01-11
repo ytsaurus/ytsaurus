@@ -8,7 +8,6 @@
 #include <yt/yt/core/actions/callback.h>
 
 #include <yt/yt/core/misc/property.h>
-#include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/net/public.h>
 
@@ -18,6 +17,8 @@
 
 #include <util/datetime/base.h>
 #include <util/stream/zerocopy.h>
+
+#include <optional>
 
 namespace NYT::NHttp {
 

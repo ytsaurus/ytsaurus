@@ -2,8 +2,6 @@
 
 #include <yt/yt/python/common/cache.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/yson/consumer.h>
 #include <yt/yt/core/yson/pull_parser.h>
 
@@ -12,6 +10,8 @@
 #include <library/cpp/yt/memory/ref.h>
 
 #include <CXX/Objects.hxx> // pycxx
+
+#include <optional>
 
 namespace NYT::NPython {
 

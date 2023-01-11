@@ -24,9 +24,10 @@
 
 #include <yt/yt/client/table_client/row_buffer.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/property.h>
 #include <yt/yt/core/misc/ref_tracked.h>
+
+#include <optional>
 
 namespace NYT::NTransactionServer {
 

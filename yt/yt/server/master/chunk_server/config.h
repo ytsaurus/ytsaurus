@@ -3,11 +3,12 @@
 #include "public.h"
 
 #include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/optional.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
 
 #include <yt/yt/core/concurrency/public.h>
+
+#include <optional>
 
 namespace NYT::NChunkServer {
 

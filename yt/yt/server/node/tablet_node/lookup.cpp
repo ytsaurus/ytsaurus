@@ -42,11 +42,12 @@
 
 #include <yt/yt/core/profiling/timing.h>
 
-#include <yt/yt/core/misc/optional.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/tls_cache.h>
 
 #include <library/cpp/yt/small_containers/compact_vector.h>
+
+#include <optional>
 
 ////////////////////////////////////////////////////////////////////////////////
 

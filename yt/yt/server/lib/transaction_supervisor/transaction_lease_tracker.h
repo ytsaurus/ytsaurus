@@ -4,14 +4,9 @@
 
 #include <yt/yt/core/actions/callback.h>
 
-#include <yt/yt/core/misc/optional.h>
-#include <yt/yt/core/misc/mpsc_stack.h>
-
-#include <yt/yt/core/concurrency/thread_affinity.h>
-
 #include <yt/yt/core/logging/log.h>
 
-#include <variant>
+#include <optional>
 
 namespace NYT::NTransactionSupervisor {
 
@@ -99,7 +94,9 @@ DEFINE_REFCOUNTED_TYPE(ITransactionLeaseTracker)
 ////////////////////////////////////////////////////////////////////////////////
 
 //! An implementation providing the behavior described in the interface.
-ITransactionLeaseTrackerPtr CreateTransactionLeaseTracker(IInvokerPtr trackerInvoker, const NLogging::TLogger& logger);
+ITransactionLeaseTrackerPtr CreateTransactionLeaseTracker(
+    IInvokerPtr trackerInvoker,
+    const NLogging::TLogger& logger);
 
 //! An no-op implmemntation. Useful for testing.
 ITransactionLeaseTrackerPtr CreateNullTransactionLeaseTracker();

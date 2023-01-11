@@ -8,9 +8,9 @@
 #include <yt/yt/client/api/public.h>
 #include <yt/yt/client/api/operation_archive_schema.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/yson/string.h>
+
+#include <optional>
 
 namespace NYT::NJobAgent {
 

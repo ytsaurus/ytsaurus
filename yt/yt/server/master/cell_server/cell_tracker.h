@@ -6,10 +6,7 @@
 
 #include <yt/yt/server/master/node_tracker_server/public.h>
 
-#include <yt/yt/core/concurrency/public.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
-
-#include <yt/yt/core/misc/optional.h>
 
 namespace NYT::NCellServer {
 

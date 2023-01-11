@@ -6,8 +6,6 @@
 
 #include <yt/yt/core/rpc/public.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 namespace NYT::NAuth {
 
 ////////////////////////////////////////////////////////////////////////////////

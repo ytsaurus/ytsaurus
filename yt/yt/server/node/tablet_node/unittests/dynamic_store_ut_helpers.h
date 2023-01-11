@@ -42,8 +42,6 @@
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 namespace NYT::NTabletNode {
 
 using namespace NHydra;

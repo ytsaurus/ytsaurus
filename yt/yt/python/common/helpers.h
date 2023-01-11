@@ -2,8 +2,6 @@
 
 #include <yt/yt/core/concurrency/async_stream.h>
 
-#include <yt/yt/core/misc/optional.h>
-
 #include <yt/yt/core/ytree/public.h>
 
 #include <library/cpp/yt/memory/ref.h>
@@ -13,6 +11,8 @@
 #include <util/generic/string.h>
 
 #include <CXX/Objects.hxx> // pycxx
+
+#include <optional>
 
 namespace Py {
 
