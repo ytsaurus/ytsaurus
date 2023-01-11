@@ -3,8 +3,8 @@ package tech.ytsaurus.client.rpc;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Collection;
+import java.util.Random;
 
-import org.apache.commons.lang3.RandomUtils;
 import org.junit.Assert;
 import org.junit.Test;
 import org.junit.runner.RunWith;
@@ -12,6 +12,11 @@ import org.junit.runners.Parameterized;
 
 @RunWith(Parameterized.class)
 public class CodecTest {
+    @Parameterized.Parameter(0)
+    public Compression compression;
+
+    @Parameterized.Parameter(1)
+    public int blockSize;
 
     @Parameterized.Parameters(name = "{0}: {1}")
     public static Object[] parameters() {
@@ -24,15 +29,12 @@ public class CodecTest {
         return params.toArray();
     }
 
-    @Parameterized.Parameter(0)
-    public Compression compression;
-
-    @Parameterized.Parameter(1)
-    public int blockSize;
-
     @Test
     public void testIncompressible() {
-        testCompression(RandomUtils.nextBytes(blockSize));
+        Random rd = new Random();
+        byte[] arr = new byte[blockSize];
+        rd.nextBytes(arr);
+        testCompression(arr);
     }
 
     @Test

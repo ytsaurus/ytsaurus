@@ -294,11 +294,11 @@ public class MultiYtClientTest {
         }
     }
 
-    private CompletableFuture<List<MockYtClientTest.Row>> doLookup(MultiYtClient client) {
+    private CompletableFuture<List<Row>> doLookup(MultiYtClient client) {
         return client.lookupRows(
                 new LookupRowsRequest(path, schema.toLookup()),
-                (YTreeObjectSerializer<MockYtClientTest.Row>)
-                        YTreeObjectSerializerFactory.forClass(MockYtClientTest.Row.class));
+                (YTreeObjectSerializer<Row>)
+                        YTreeObjectSerializerFactory.forClass(Row.class));
     }
 
     @YTreeObject
@@ -308,8 +308,8 @@ public class MultiYtClientTest {
         Row(String key) {
             this.key = key;
         }
-        static MockYtClientTest.Row of(String value) {
-            return new MockYtClientTest.Row(value);
+        static Row of(String value) {
+            return new Row(value);
         }
     }
 }

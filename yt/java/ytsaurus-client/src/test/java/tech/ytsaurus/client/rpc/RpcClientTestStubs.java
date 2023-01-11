@@ -3,7 +3,7 @@ package tech.ytsaurus.client.rpc;
 import java.util.concurrent.ScheduledExecutorService;
 
 public class RpcClientTestStubs {
-    public static abstract class RpcClientStub implements RpcClient {
+    public abstract static class RpcClientStub implements RpcClient {
         private final String name;
 
         public RpcClientStub(String name) {
@@ -35,8 +35,8 @@ public class RpcClientTestStubs {
                 RpcClient sender,
                 RpcRequest<?> request,
                 RpcStreamConsumer consumer,
-                RpcOptions options)
-        {
+                RpcOptions options
+        ) {
             return null;
         }
 
@@ -66,8 +66,8 @@ public class RpcClientTestStubs {
                 RpcClient sender,
                 RpcRequest request,
                 RpcClientResponseHandler handler,
-                RpcOptions options)
-        {
+                RpcOptions options
+        ) {
             return null;
         }
     }

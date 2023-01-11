@@ -10,10 +10,12 @@ import io.netty.channel.embedded.EmbeddedChannel;
 import org.junit.Test;
 import tech.ytsaurus.core.GUID;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertTrue;
 
 public class BusPacketEncoderTest {
+    private static final char[] DIGITS = "0123456789ABCDEF".toCharArray();
+
     private static final GUID SAMPLE_PACKET_ID = new GUID(0x0001020304050607L, 0x08090a0b0c0d0e0fL);
 
     private static final String SAMPLE_PACKET_DATA
@@ -86,9 +88,9 @@ public class BusPacketEncoderTest {
     private void verifyEncoder(EmbeddedChannel channel, BusPacket packet, String expectedBytes) {
         ChannelFuture future = channel.write(packet);
         channel.flush();
-        assertThat("channel future should be successful", future.isSuccess(), is(true));
+        assertTrue("channel future should be successful", future.isSuccess());
         byte[] wireBytes = readAll(channel);
-        assertThat(hexString(wireBytes), is(expectedBytes));
+        assertEquals(hexString(wireBytes), expectedBytes);
     }
 
     private BusPacket makeSamplePacket(byte[]... parts) {
@@ -146,8 +148,6 @@ public class BusPacketEncoderTest {
             channel.close().sync();
         }
     }
-
-    private static final char[] DIGITS = "0123456789ABCDEF".toCharArray();
 
     private static String hexString(byte[] data) {
         StringBuilder sb = new StringBuilder(data.length * 2);

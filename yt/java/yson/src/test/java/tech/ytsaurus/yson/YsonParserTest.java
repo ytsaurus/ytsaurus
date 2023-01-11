@@ -16,11 +16,10 @@ import org.junit.Test;
 import org.junit.runner.RunWith;
 import org.junit.runners.Parameterized;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
-import static org.hamcrest.Matchers.nullValue;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertThrows;
+import static org.junit.Assert.assertTrue;
 
 @RunWith(Parameterized.class)
 public class YsonParserTest {
@@ -83,7 +82,7 @@ public class YsonParserTest {
 
     @Test
     public void testUnescapeBytes() {
-        assertThat(unescapeBytes("ab\\x5Fcd\\xf5"), is(new byte[]{'a', 'b', 0x5f, 'c', 'd', -11}));
+        assertArrayEquals(unescapeBytes("ab\\x5Fcd\\xf5"), new byte[]{'a', 'b', 0x5f, 'c', 'd', -11});
     }
 
     public YsonParser createParser(byte[] bytes) {
@@ -121,39 +120,39 @@ public class YsonParserTest {
 
     @Test
     public void testEntity() {
-        assertThat(canonizeNode("#"), is("#"));
+        assertEquals(canonizeNode("#"), "#");
     }
 
     @Test
     public void testBinaryString() {
         YsonError e;
 
-        assertThat(canonizeNode("\\x01\\x00"), is("\"\""));
-        assertThat(canonizeNode("\\x01\\x06foo"), is("\"foo\""));
+        assertEquals(canonizeNode("\\x01\\x00"), "\"\"");
+        assertEquals(canonizeNode("\\x01\\x06foo"), "\"foo\"");
 
         e = assertThrows(YsonError.class, () -> canonizeNode("\\x01\\x03foo"));
-        assertThat(e.getMessage(), containsString("Yson string length is negative"));
+        assertTrue(e.getMessage().contains("Yson string length is negative"));
 
         e = assertThrows(YsonError.class, () -> canonizeNode("\\x01\\x84\\x85\\x86\\x87\\x88\\x89\\x02foo"));
-        assertThat(e.getMessage(), containsString("Yson string length exceeds limit"));
+        assertTrue(e.getMessage().contains("Yson string length exceeds limit"));
 
         e = assertThrows(YsonError.class, () -> canonizeNode("\\x01\\x08foo"));
-        assertThat(e.getMessage(), containsString("Unexpected end of stream"));
+        assertTrue(e.getMessage().contains("Unexpected end of stream"));
 
         e = assertThrows(YsonError.class, () -> canonizeNode("\\x01\\x82"));
-        assertThat(e.getMessage(), containsString("Unexpected end of stream"));
+        assertTrue(e.getMessage().contains("Unexpected end of stream"));
     }
 
     @Test
     public void testBinaryInt64() {
-        assertThat(canonizeNode("\\x02\\x00"), is("0"));
-        assertThat(canonizeNode("\\x02\\x01"), is("-1"));
-        assertThat(canonizeNode("\\x02\\x02"), is("1"));
-        assertThat(canonizeNode("\\x02\\x06"), is("3"));
-        assertThat(canonizeNode("\\x02\\x84\\x85\\x86\\x87\\x88\\x89\\x02"), is("4553746465090"));
-        assertThat(
+        assertEquals(canonizeNode("\\x02\\x00"), "0");
+        assertEquals(canonizeNode("\\x02\\x01"), "-1");
+        assertEquals(canonizeNode("\\x02\\x02"), "1");
+        assertEquals(canonizeNode("\\x02\\x06"), "3");
+        assertEquals(canonizeNode("\\x02\\x84\\x85\\x86\\x87\\x88\\x89\\x02"), "4553746465090");
+        assertEquals(
                 canonizeNode("\\x02\\x81\\xd5\\xf4\\xd9\\xea\\xa4\\xbd\\xd3\\x95\\x01"),
-                is("-5391787952107853121"));
+                "-5391787952107853121");
 
         assertThrows(YsonError.class,
                 () -> canonizeNode("\\x02\\x84\\x85\\x86\\x87\\x88\\x89\\x90\\x91\\x92\\x93\\x72"));
@@ -164,11 +163,11 @@ public class YsonParserTest {
 
     @Test
     public void testBinaryUint64() {
-        assertThat(canonizeNode("\\x06\\x00"), is("0u"));
-        assertThat(canonizeNode("\\x06\\x01"), is("1u"));
-        assertThat(canonizeNode("\\x06\\x02"), is("2u"));
-        assertThat(canonizeNode("\\x06\\x06"), is("6u"));
-        assertThat(canonizeNode("\\x06\\x84\\x85\\x86\\x87\\x88\\x89\\x02"), is("9107492930180u"));
+        assertEquals(canonizeNode("\\x06\\x00"), "0u");
+        assertEquals(canonizeNode("\\x06\\x01"), "1u");
+        assertEquals(canonizeNode("\\x06\\x02"), "2u");
+        assertEquals(canonizeNode("\\x06\\x06"), "6u");
+        assertEquals(canonizeNode("\\x06\\x84\\x85\\x86\\x87\\x88\\x89\\x02"), "9107492930180u");
 
         assertThrows(YsonError.class,
                 () -> canonizeNode("\\x06\\x84\\x85\\x86\\x87\\x88\\x89\\x90\\x91\\x92\\x93\\x72"));
@@ -178,34 +177,34 @@ public class YsonParserTest {
 
     @Test
     public void testBinaryDouble() {
-        assertThat(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\x0A\\x40"), is("3.25"));
-        assertThat(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\xc0\\xbf"), is("-0.125"));
-        assertThat(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\xf8\\x7f"), is("%nan"));
+        assertEquals(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\x0A\\x40"), "3.25");
+        assertEquals(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\xc0\\xbf"), "-0.125");
+        assertEquals(canonizeNode("\\x03\\x00\\x00\\x00\\x00\\x00\\x00\\xf8\\x7f"), "%nan");
     }
 
     @Test
     public void testBinaryBoolean() {
-        assertThat(canonizeNode("\\x04"), is("%false"));
-        assertThat(canonizeNode("\\x05"), is("%true"));
+        assertEquals(canonizeNode("\\x04"), "%false");
+        assertEquals(canonizeNode("\\x05"), "%true");
     }
 
     @Test
     public void testUnquotedString() {
-        assertThat(canonizeNode("foo"), is("\"foo\""));
-        assertThat(canonizeNode("bar25"), is("\"bar25\""));
-        assertThat(canonizeNode("_"), is("\"_\""));
-        assertThat(canonizeNode("foo.bar"), is("\"foo.bar\""));
+        assertEquals(canonizeNode("foo"), "\"foo\"");
+        assertEquals(canonizeNode("bar25"), "\"bar25\"");
+        assertEquals(canonizeNode("_"), "\"_\"");
+        assertEquals(canonizeNode("foo.bar"), "\"foo.bar\"");
     }
 
     @Test
     public void testQuotedString() {
-        assertThat(canonizeNode("\"foo\""), is("\"foo\""));
-        assertThat(canonizeNode("\"25\""), is("\"25\""));
-        assertThat(canonizeNode("\"foo\""), is("\"foo\""));
-        assertThat(canonizeNode("\"\\\\000\""), is("\"\\x00\""));
-        assertThat(canonizeNode("\"\\\\102\""), is("\"B\""));
-        assertThat(canonizeNode("\"\\\\377\""), is("\"\\xff\""));
-        assertThat(canonizeNode("\"\\\\x42\""), is("\"B\""));
+        assertEquals(canonizeNode("\"foo\""), "\"foo\"");
+        assertEquals(canonizeNode("\"25\""), "\"25\"");
+        assertEquals(canonizeNode("\"foo\""), "\"foo\"");
+        assertEquals(canonizeNode("\"\\\\000\""), "\"\\x00\"");
+        assertEquals(canonizeNode("\"\\\\102\""), "\"B\"");
+        assertEquals(canonizeNode("\"\\\\377\""), "\"\\xff\"");
+        assertEquals(canonizeNode("\"\\\\x42\""), "\"B\"");
 
         assertThrows(YsonError.class,
                 () -> canonizeNode("\"\\\\400\""));
@@ -215,26 +214,26 @@ public class YsonParserTest {
 
     @Test
     public void testTextBoolean() {
-        assertThat(canonizeNode("%true"), is("%true"));
-        assertThat(canonizeNode("%false"), is("%false"));
+        assertEquals(canonizeNode("%true"), "%true");
+        assertEquals(canonizeNode("%false"), "%false");
     }
 
     @Test
     public void testTextInt64() {
-        assertThat(canonizeNode("-100500"), is("-100500"));
-        assertThat(canonizeNode("100500"), is("100500"));
-        assertThat(canonizeNode("+100500"), is("100500"));
-        assertThat(canonizeNode("+0"), is("0"));
-        assertThat(canonizeNode("-0"), is("0"));
+        assertEquals(canonizeNode("-100500"), "-100500");
+        assertEquals(canonizeNode("100500"), "100500");
+        assertEquals(canonizeNode("+100500"), "100500");
+        assertEquals(canonizeNode("+0"), "0");
+        assertEquals(canonizeNode("-0"), "0");
         assertThrows(YsonError.class,
                 () -> canonizeNode("10050000000000000000000000000000000000000000000000"));
     }
 
     @Test
     public void testTextUint64() {
-        assertThat(canonizeNode("100500u"), is("100500u"));
-        assertThat(canonizeNode("+100500u"), is("100500u"));
-        assertThat(canonizeNode("+0u"), is("0u"));
+        assertEquals(canonizeNode("100500u"), "100500u");
+        assertEquals(canonizeNode("+100500u"), "100500u");
+        assertEquals(canonizeNode("+0u"), "0u");
         assertThrows(YsonError.class,
                 () -> canonizeNode("-100500u"));
         assertThrows(YsonError.class,
@@ -243,12 +242,12 @@ public class YsonParserTest {
 
     @Test
     public void testTextDouble() {
-        assertThat(canonizeNode("3125e-3"), is("3.125"));
-        assertThat(canonizeNode(".125"), is("0.125"));
-        assertThat(canonizeNode(" %nan "), is("%nan"));
-        assertThat(canonizeNode("%inf"), is("%+inf"));
-        assertThat(canonizeNode("%+inf"), is("%+inf"));
-        assertThat(canonizeNode("%-inf"), is("%-inf"));
+        assertEquals(canonizeNode("3125e-3"), "3.125");
+        assertEquals(canonizeNode(".125"), "0.125");
+        assertEquals(canonizeNode(" %nan "), "%nan");
+        assertEquals(canonizeNode("%inf"), "%+inf");
+        assertEquals(canonizeNode("%+inf"), "%+inf");
+        assertEquals(canonizeNode("%-inf"), "%-inf");
 
         assertThrows(YsonError.class,
                 () -> canonizeNode("%+nan"));
@@ -267,10 +266,10 @@ public class YsonParserTest {
 
     @Test
     public void testList() {
-        assertThat(canonizeNode("[]"), is("[]"));
-        assertThat(canonizeNode("[ ]"), is("[]"));
-        assertThat(canonizeNode("[1;2;3]"), is("[1;2;3]"));
-        assertThat(canonizeNode("[ 1 ; 2 ; 3 ]"), is("[1;2;3]"));
+        assertEquals(canonizeNode("[]"), "[]");
+        assertEquals(canonizeNode("[ ]"), "[]");
+        assertEquals(canonizeNode("[1;2;3]"), "[1;2;3]");
+        assertEquals(canonizeNode("[ 1 ; 2 ; 3 ]"), "[1;2;3]");
 
         assertThrows(
                 YsonError.class,
@@ -286,12 +285,12 @@ public class YsonParserTest {
 
     @Test
     public void testMap() {
-        assertThat(canonizeNode("{}"), is("{}"));
-        assertThat(canonizeNode("{ }"), is("{}"));
-        assertThat(canonizeNode("{foo=bar}"), is("{\"foo\"=\"bar\"}"));
-        assertThat(canonizeNode("{foo=bar;}"), is("{\"foo\"=\"bar\"}"));
-        assertThat(canonizeNode("{foo=bar;bar=baz}"), is("{\"foo\"=\"bar\";\"bar\"=\"baz\"}"));
-        assertThat(canonizeNode(" { foo = bar ; bar = 42 ; } "), is("{\"foo\"=\"bar\";\"bar\"=42}"));
+        assertEquals(canonizeNode("{}"), "{}");
+        assertEquals(canonizeNode("{ }"), "{}");
+        assertEquals(canonizeNode("{foo=bar}"), "{\"foo\"=\"bar\"}");
+        assertEquals(canonizeNode("{foo=bar;}"), "{\"foo\"=\"bar\"}");
+        assertEquals(canonizeNode("{foo=bar;bar=baz}"), "{\"foo\"=\"bar\";\"bar\"=\"baz\"}");
+        assertEquals(canonizeNode(" { foo = bar ; bar = 42 ; } "), "{\"foo\"=\"bar\";\"bar\"=42}");
 
         assertThrows(
                 YsonError.class,
@@ -309,11 +308,11 @@ public class YsonParserTest {
 
     @Test
     public void testAttributes() {
-        assertThat(canonizeNode("<>42"), is("<>42"));
-        assertThat(canonizeNode("<foo=bar>42"), is("<\"foo\"=\"bar\">42"));
-        assertThat(canonizeNode("<foo=bar;>42"), is("<\"foo\"=\"bar\">42"));
-        assertThat(canonizeNode("<foo=<baz=32>bar;>42"), is("<\"foo\"=<\"baz\"=32>\"bar\">42"));
-        assertThat(canonizeNode(" < foo = < baz = 32 > bar ; > 42"), is("<\"foo\"=<\"baz\"=32>\"bar\">42"));
+        assertEquals(canonizeNode("<>42"), "<>42");
+        assertEquals(canonizeNode("<foo=bar>42"), "<\"foo\"=\"bar\">42");
+        assertEquals(canonizeNode("<foo=bar;>42"), "<\"foo\"=\"bar\">42");
+        assertEquals(canonizeNode("<foo=<baz=32>bar;>42"), "<\"foo\"=<\"baz\"=32>\"bar\">42");
+        assertEquals(canonizeNode(" < foo = < baz = 32 > bar ; > 42"), "<\"foo\"=<\"baz\"=32>\"bar\">42");
 
         assertThrows(
                 YsonError.class,
@@ -331,9 +330,9 @@ public class YsonParserTest {
 
     @Test
     public void testComplexNodes() {
-        assertThat(canonizeNode(
+        assertEquals(canonizeNode(
                 "[123;\\x02\\x82\\x06;{\\x01\\x02a=\\x02\\x84\\x34;\\x01\\x06foo=<bar=\"baz \">\\x05}]"
-        ), is("[123;385;{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true}]"));
+        ), "[123;385;{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true}]");
     }
 
     @Test
@@ -359,16 +358,16 @@ public class YsonParserTest {
             try (YsonTextWriter textWriter = new YsonTextWriter(result)) {
                 parser.parseNode(textWriter);
             }
-            assertThat(result.toString(), is(expectedCanonized));
+            assertEquals(result.toString(), expectedCanonized);
         }
     }
 
     @Test
     public void testListFragment() {
-        assertThat(canonizeListFragment(""), is(""));
-        assertThat(canonizeListFragment(" "), is(""));
-        assertThat(canonizeListFragment("1;2;3"), is("1;2;3"));
-        assertThat(canonizeListFragment("1 ; 2 ; 3"), is("1;2;3"));
+        assertEquals(canonizeListFragment(""), "");
+        assertEquals(canonizeListFragment(" "), "");
+        assertEquals(canonizeListFragment("1;2;3"), "1;2;3");
+        assertEquals(canonizeListFragment("1 ; 2 ; 3"), "1;2;3");
 
         assertThrows(
                 YsonError.class,
@@ -404,11 +403,11 @@ public class YsonParserTest {
             }
         };
 
-        assertThat(nextItem.get(), is("123"));
-        assertThat(nextItem.get(), is("385"));
-        assertThat(nextItem.get(), is("{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true}"));
-        assertThat(nextItem.get(), is("149217164168069120u"));
-        assertThat(nextItem.get(), is(nullValue()));
+        assertEquals(nextItem.get(), "123");
+        assertEquals(nextItem.get(), "385");
+        assertEquals(nextItem.get(), "{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true}");
+        assertEquals(nextItem.get(), "149217164168069120u");
+        assertEquals(nextItem.get(), null);
 
     }
 }

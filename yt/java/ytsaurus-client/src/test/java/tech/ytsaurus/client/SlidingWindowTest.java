@@ -8,8 +8,7 @@ import java.util.Random;
 
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
+import static org.junit.Assert.assertEquals;
 
 public class SlidingWindowTest {
     @Test
@@ -24,7 +23,7 @@ public class SlidingWindowTest {
             window.add(i, i);
         }
 
-        assertThat(list, contains(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+        assertEquals(list, List.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
     }
 
     @Test
@@ -36,7 +35,8 @@ public class SlidingWindowTest {
         for (int i = 0; i < 10; i++) {
             window.add(i, i);
         }
-        assertThat(list, contains(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
+
+        assertEquals(list, List.of(0, 1, 2, 3, 4, 5, 6, 7, 8, 9));
     }
 
     @Test(expected = IllegalStateException.class)

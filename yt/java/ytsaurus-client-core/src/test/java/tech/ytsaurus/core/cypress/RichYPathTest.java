@@ -49,7 +49,9 @@ public class RichYPathTest {
 
     @Test
     public void parent() {
-        Assert.assertEquals(path(true, false, DEFAULT_RANGES, DEFAULT_COLUMNS, "/", Arrays.asList("home", "sankear"), false,
+        Assert.assertEquals(path(
+                true, false, DEFAULT_RANGES, DEFAULT_COLUMNS,
+                        "/", Arrays.asList("home", "sankear"), false,
                 DEFAULT_SORTED_BY, DEFAULT_TIMESTAMP),
                 defaultPath().parent());
     }
@@ -146,8 +148,12 @@ public class RichYPathTest {
 
     @Test
     public void withRange() {
-        Assert.assertEquals(path(true, false, Stream.concat(DEFAULT_RANGES.stream(), Stream.of(new Range(RangeLimit.row(19), RangeLimit.row(100)))).collect(Collectors.toList()),
-                DEFAULT_COLUMNS, "/", DEFAULT_RELATIVE_PATH, false, DEFAULT_SORTED_BY, DEFAULT_TIMESTAMP),
+        Assert.assertEquals(path(
+                true, false,
+                Stream.concat(DEFAULT_RANGES.stream(), Stream.of(new Range(RangeLimit.row(19), RangeLimit.row(100))))
+                        .collect(Collectors.toList()),
+                DEFAULT_COLUMNS, "/", DEFAULT_RELATIVE_PATH, false,
+                        DEFAULT_SORTED_BY, DEFAULT_TIMESTAMP),
                 defaultPath().withRange(RangeLimit.row(19), RangeLimit.row(100)));
     }
 
@@ -163,7 +169,9 @@ public class RichYPathTest {
     @Test
     public void withColumns() {
         Assert.assertEquals(path(true, false,
-                DEFAULT_RANGES, Stream.concat(DEFAULT_COLUMNS.stream(), Stream.of("c12")).collect(Collectors.toList()), "/", DEFAULT_RELATIVE_PATH, false, DEFAULT_SORTED_BY,
+                DEFAULT_RANGES, Stream.concat(DEFAULT_COLUMNS.stream(), Stream.of("c12"))
+                                .collect(Collectors.toList()),
+                "/", DEFAULT_RELATIVE_PATH, false, DEFAULT_SORTED_BY,
                 DEFAULT_TIMESTAMP),
                 defaultPath().withColumns("c1", "c2", "c12"));
     }

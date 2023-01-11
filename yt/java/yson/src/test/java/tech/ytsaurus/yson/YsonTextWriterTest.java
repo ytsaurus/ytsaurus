@@ -5,120 +5,119 @@ import java.util.function.Function;
 
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 
 public class YsonTextWriterTest {
     @Test
     public void testOnEntity() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onEntity();
                     return null;
                 }),
-                is("#")
+                "#"
         );
     }
 
     @Test
     public void testOnInteger() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onInteger(42);
                     return null;
                 }),
-                is("42")
+                "42"
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onInteger(-1);
                     return null;
                 }),
-                is("-1")
+                "-1"
         );
     }
 
     @Test
     public void testOnUnsignedInteger() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onUnsignedInteger(100500);
                     return null;
                 }),
-                is("100500u")
+                "100500u"
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onUnsignedInteger(-1);
                     return null;
                 }),
-                is("18446744073709551615u")
+                "18446744073709551615u"
         );
     }
 
     @Test
     public void testOnBoolean() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBoolean(true);
                     return null;
                 }),
-                is("%true")
+                "%true"
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBoolean(false);
                     return null;
                 }),
-                is("%false")
+                "%false"
         );
     }
 
     @Test
     public void testOnDouble() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onDouble(2.125);
                     return null;
                 }),
-                is("2.125")
+                "2.125"
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onDouble(Double.NaN);
                     return null;
                 }),
-                is("%nan")
+                "%nan"
         );
     }
 
     @Test
     public void testOnString() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onString("foo");
                     return null;
                 }),
-                is("\"foo\"")
+                "\"foo\""
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     byte[] data = {0, 127, -8};
                     consumer.onString(data, 0, data.length);
                     return null;
                 }),
-                is("\"\\x00\\x7f\\xf8\"")
+                "\"\\x00\\x7f\\xf8\""
         );
     }
 
     @Test
     public void testList() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBeginList();
 
@@ -135,10 +134,10 @@ public class YsonTextWriterTest {
 
                     return null;
                 }),
-                is("[\"foo\";42;#]")
+                "[\"foo\";42;#]"
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBeginList();
 
@@ -177,10 +176,10 @@ public class YsonTextWriterTest {
 
                     return null;
                 }),
-                is("[[1;2;3];[4;[5]]]")
+                "[[1;2;3];[4;[5]]]"
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBeginList();
                     consumer.onListItem();
@@ -196,13 +195,13 @@ public class YsonTextWriterTest {
                     consumer.onEndList();
                     return null;
                 }),
-                is("[[];[]]")
+                "[[];[]]"
         );
     }
 
     @Test
     public void testMap() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBeginMap();
 
@@ -216,10 +215,10 @@ public class YsonTextWriterTest {
                     consumer.onEndMap();
                     return null;
                 }),
-                is("{\"foo\"=\"bar\";\"\\xfc>\\x0c\"=-5}")
+                "{\"foo\"=\"bar\";\"\\xfc>\\x0c\"=-5}"
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBeginMap();
 
@@ -244,13 +243,13 @@ public class YsonTextWriterTest {
                     consumer.onEndMap();
                     return null;
                 }),
-                is("{\"42\"=42;\"62\"={\"6\"=6;\"2\"=2};\"\"={}}")
+                "{\"42\"=42;\"62\"={\"6\"=6;\"2\"=2};\"\"={}}"
         );
     }
 
     @Test
     public void testAttributes() {
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBeginAttributes();
 
@@ -268,10 +267,10 @@ public class YsonTextWriterTest {
 
                     return null;
                 }),
-                is("<\"1\"=1u;\"2\"=2u;\"3\"=3u>\"skiff\"")
+                "<\"1\"=1u;\"2\"=2u;\"3\"=3u>\"skiff\""
         );
 
-        assertThat(
+         assertEquals(
                 buildTextYson((YsonConsumer consumer) -> {
                     consumer.onBeginAttributes();
 
@@ -301,7 +300,7 @@ public class YsonTextWriterTest {
 
                     return null;
                 }),
-                is("<\"1\"=<\"a\"=1;\"b\"=2>1u;\"2\"=[];\"3\"={}>\"skiff\"")
+                "<\"1\"=<\"a\"=1;\"b\"=2>1u;\"2\"=[];\"3\"={}>\"skiff\""
         );
     }
 

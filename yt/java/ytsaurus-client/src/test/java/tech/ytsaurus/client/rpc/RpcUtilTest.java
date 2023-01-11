@@ -4,15 +4,14 @@ import java.util.concurrent.CompletableFuture;
 import java.util.concurrent.ScheduledThreadPoolExecutor;
 import java.util.concurrent.TimeUnit;
 
-import org.hamcrest.core.IsSame;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.greaterThan;
-import static org.hamcrest.Matchers.is;
-import static ru.yandex.yt.testlib.FutureUtils.getError;
-import static ru.yandex.yt.testlib.FutureUtils.waitFuture;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertSame;
+import static org.junit.Assert.assertTrue;
+import static tech.ytsaurus.FutureUtils.getError;
+import static tech.ytsaurus.FutureUtils.waitFuture;
 
 public class RpcUtilTest {
     @Test
@@ -27,16 +26,16 @@ public class RpcUtilTest {
                 20, TimeUnit.MILLISECONDS,
                 executor);
 
-        assertThat(future, IsSame.sameInstance(futureWithTimeout));
-        assertThat(future.isDone(), is(false));
+        assertSame(future, futureWithTimeout);
+        assertFalse(future.isDone());
 
         Thread.sleep(5);
 
-        assertThat(future.isDone(), is(false));
+        assertFalse(future.isDone());
 
         waitFuture(future, 30);
 
-        assertThat(getError(future).getMessage(), containsString("timeout happened"));
+        assertTrue(getError(future).getMessage().contains("timeout happened"));
     }
 
     @Test
@@ -52,14 +51,14 @@ public class RpcUtilTest {
                 100, TimeUnit.MILLISECONDS,
                 executor);
 
-        assertThat(executor.getQueue().size(), greaterThan(0));
+        assertTrue(executor.getQueue().size() > 0);
         Thread.sleep(5);
         boolean completed = future.complete("ok");
-        assertThat(completed, is(true));
-        assertThat(executor.getQueue().size(), is(0));
-        assertThat(futureWithTimeout.isDone(), is(true));
+        assertTrue(completed);
+        assertEquals(executor.getQueue().size(), 0);
+        assertTrue(futureWithTimeout.isDone());
 
         Thread.sleep(150);
-        assertThat(futureWithTimeout.getNow(null), is("ok"));
+        assertEquals(futureWithTimeout.getNow(null), "ok");
     }
 }

@@ -13,20 +13,14 @@ import java.util.concurrent.atomic.AtomicInteger;
 import java.util.stream.Collectors;
 
 import org.junit.After;
+import org.junit.Assert;
 import org.junit.Before;
 import org.junit.Test;
 import tech.ytsaurus.client.rpc.RpcClient;
 
-import static org.hamcrest.CoreMatchers.containsString;
-import static org.hamcrest.CoreMatchers.hasItem;
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.CoreMatchers.not;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.oneOf;
-import static ru.yandex.yt.testlib.FutureUtils.getError;
-import static ru.yandex.yt.testlib.FutureUtils.waitFuture;
-import static ru.yandex.yt.testlib.FutureUtils.waitOkResult;
-import static ru.yandex.yt.testlib.Matchers.isCausedBy;
+import static tech.ytsaurus.FutureUtils.getError;
+import static tech.ytsaurus.FutureUtils.waitFuture;
+import static tech.ytsaurus.FutureUtils.waitOkResult;
 
 class CustomException extends Exception {
     CustomException(String message) {
@@ -43,15 +37,14 @@ public class ClientPoolTest extends ClientPoolTestBase {
         try {
 
             var clientFuture1 = clientPool.peekClient(done);
-            assertThat(clientFuture1.isDone(), is(false));
+            Assert.assertFalse(clientFuture1.isDone());
             clientPool.updateClients(List.of(HostPort.parse("localhost:1")));
 
-            waitFuture(clientFuture1, 100);
-            assertThat(clientFuture1.join().getAddressString(), is("localhost:1"));
+            Assert.assertEquals(clientFuture1.join().getAddressString(), "localhost:1");
 
             var clientFuture2 = clientPool.peekClient(done);
-            assertThat(clientFuture2.isDone(), is(true));
-            assertThat(clientFuture2.join().getAddressString(), is("localhost:1"));
+            Assert.assertTrue(clientFuture2.isDone());
+            Assert.assertEquals(clientFuture2.join().getAddressString(), "localhost:1");
         } finally {
             done.complete(null);
         }
@@ -64,11 +57,11 @@ public class ClientPoolTest extends ClientPoolTestBase {
         CompletableFuture<Void> done = new CompletableFuture<>();
         try {
             var clientFuture1 = clientPool.peekClient(done);
-            assertThat(clientFuture1.isDone(), is(false));
+            Assert.assertFalse(clientFuture1.isDone());
             clientPool.updateClients(List.of());
 
             waitFuture(clientFuture1, 1000);
-            assertThat(getError(clientFuture1).getMessage(), containsString("Cannot get rpc proxies"));
+            Assert.assertTrue(getError(clientFuture1).getMessage().contains("Cannot get rpc proxies"));
         } finally {
             done.complete(null);
         }
@@ -84,17 +77,17 @@ public class ClientPoolTest extends ClientPoolTestBase {
                     clientPool.updateClients(List.of(HostPort.parse("localhost:1"))),
                     100);
             var clientFuture1 = clientPool.peekClient(done);
-            assertThat(clientFuture1.isDone(), is(true));
-            assertThat(clientFuture1.join().getAddressString(), is("localhost:1"));
-            assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
+            Assert.assertTrue(clientFuture1.isDone());
+            Assert.assertEquals(clientFuture1.join().getAddressString(), "localhost:1");
+            Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:1"));
 
             waitFuture(clientPool.updateClients(List.of()), 100);
 
-            assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
+            Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:1"));
         } finally {
             done.complete(null);
         }
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
+        Assert.assertFalse(mockRpcClientFactory.isConnectionOpened("localhost:1"));
     }
 
     @Test
@@ -104,18 +97,18 @@ public class ClientPoolTest extends ClientPoolTestBase {
         CompletableFuture<Void> done = new CompletableFuture<>();
         try {
             var clientFuture1 = clientPool.peekClient(done);
-            assertThat(clientFuture1.isDone(), is(false));
+            Assert.assertFalse(clientFuture1.isDone());
             clientFuture1.cancel(true);
 
             waitFuture(
                     clientPool.updateClients(List.of(HostPort.parse("localhost:1"))),
                     100);
 
-            assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
+            Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:1"));
 
             waitFuture(clientPool.updateClients(List.of()), 100);
 
-            assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
+            Assert.assertFalse(mockRpcClientFactory.isConnectionOpened("localhost:1"));
         } finally {
             done.complete(null);
         }
@@ -128,11 +121,10 @@ public class ClientPoolTest extends ClientPoolTestBase {
         CompletableFuture<Void> done = new CompletableFuture<>();
         try {
             var clientFuture1 = clientPool.peekClient(done);
-            assertThat(clientFuture1.isDone(), is(false));
+            Assert.assertFalse(clientFuture1.isDone());
 
             waitFuture(clientPool.updateWithError(new CustomException("error update")), 100);
-
-            assertThat(getError(clientFuture1), isCausedBy(CustomException.class));
+            Assert.assertTrue(getError(clientFuture1).getCause().getCause() instanceof CustomException);
         } finally {
             done.complete(null);
         }
@@ -150,26 +142,26 @@ public class ClientPoolTest extends ClientPoolTestBase {
                     100);
             var clientFuture1 = clientPool.peekClient(done1);
             waitFuture(clientFuture1, 100);
-            assertThat(clientFuture1.join().getAddressString(), is("localhost:1"));
+            Assert.assertEquals(clientFuture1.join().getAddressString(), "localhost:1");
 
             var banResult = clientPool.banErrorClient(HostPort.parse("localhost:1"));
             waitFuture(banResult, 100);
 
-            assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
+            Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:1"));
 
             done1.complete(null);
 
-            assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
+            Assert.assertFalse(mockRpcClientFactory.isConnectionOpened("localhost:1"));
 
             var clientFuture2 = clientPool.peekClient(done2);
-            assertThat(clientFuture2.isDone(), is(false));
+            Assert.assertFalse(clientFuture2.isDone());
 
             waitOkResult(
                     clientPool.updateClients(List.of(HostPort.parse("localhost:1"))),
                     100);
 
             waitFuture(clientFuture2, 100);
-            assertThat(clientFuture2.join().getAddressString(), is("localhost:1"));
+            Assert.assertEquals(clientFuture2.join().getAddressString(), "localhost:1");
         } finally {
             done1.complete(null);
             done2.complete(null);
@@ -184,24 +176,24 @@ public class ClientPoolTest extends ClientPoolTestBase {
                 clientPool.updateClients(List.of(HostPort.parse("localhost:1"))),
                 100);
 
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(true));
+        Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:1"));
 
         waitOkResult(
                 clientPool.updateClients(List.of(HostPort.parse("localhost:2"), HostPort.parse("localhost:3"))),
                 100);
 
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:2"), is(true));
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:3"), is(true));
+        Assert.assertFalse(mockRpcClientFactory.isConnectionOpened("localhost:1"));
+        Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:2"));
+        Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:3"));
 
         waitOkResult(
                 clientPool.updateClients(List.of(HostPort.parse("localhost:3"), HostPort.parse("localhost:4"))),
                 100);
 
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:1"), is(false));
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:2"), is(false));
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:3"), is(true));
-        assertThat(mockRpcClientFactory.isConnectionOpened("localhost:4"), is(true));
+        Assert.assertFalse(mockRpcClientFactory.isConnectionOpened("localhost:1"));
+        Assert.assertFalse(mockRpcClientFactory.isConnectionOpened("localhost:2"));
+        Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:3"));
+        Assert.assertTrue(mockRpcClientFactory.isConnectionOpened("localhost:4"));
     }
 
     private static boolean tryWaitFuture(CompletableFuture<?> f) {
@@ -244,20 +236,20 @@ public class ClientPoolTest extends ClientPoolTestBase {
                 100);
 
         var f = onAllBannedCallback.called;
-        assertThat(onAllBannedCallback.counter.get(), is(0));
+        Assert.assertEquals(onAllBannedCallback.counter.get(), 0);
 
         clientPool.banClient("localhost:1");
-        assertThat(tryWaitFuture(f), is(false));
-        assertThat(onAllBannedCallback.counter.get(), is(0));
+        Assert.assertFalse(tryWaitFuture(f));
+        Assert.assertEquals(onAllBannedCallback.counter.get(), 0);
 
         clientPool.banClient("localhost:2");
-        assertThat(tryWaitFuture(f), is(false));
-        assertThat(onAllBannedCallback.counter.get(), is(0));
+        Assert.assertFalse(tryWaitFuture(f));
+        Assert.assertEquals(onAllBannedCallback.counter.get(), 0);
 
         clientPool.banClient("localhost:3");
         // assert no exception
         f.get(1000, TimeUnit.MILLISECONDS);
-        assertThat(onAllBannedCallback.counter.get(), is(1));
+        Assert.assertEquals(onAllBannedCallback.counter.get(), 1);
 
         waitOkResult(
                 clientPool.updateClients(
@@ -268,20 +260,20 @@ public class ClientPoolTest extends ClientPoolTestBase {
                 100);
 
         f = onAllBannedCallback.called;
-        assertThat(onAllBannedCallback.counter.get(), is(1));
+        Assert.assertEquals(onAllBannedCallback.counter.get(), 1);
 
         clientPool.banClient("localhost:1");
-        assertThat(tryWaitFuture(f), is(false));
-        assertThat(onAllBannedCallback.counter.get(), is(1));
+        Assert.assertFalse(tryWaitFuture(f));
+        Assert.assertEquals(onAllBannedCallback.counter.get(), 1);
 
         clientPool.banClient("localhost:4");
-        assertThat(tryWaitFuture(f), is(false));
-        assertThat(onAllBannedCallback.counter.get(), is(1));
+        Assert.assertFalse(tryWaitFuture(f));
+        Assert.assertEquals(onAllBannedCallback.counter.get(), 1);
 
         clientPool.banClient("localhost:5");
         // assert no exception
         f.get(1000, TimeUnit.MILLISECONDS);
-        assertThat(onAllBannedCallback.counter.get(), is(2));
+        Assert.assertEquals(onAllBannedCallback.counter.get(), 2);
     }
 
     @Test
@@ -303,16 +295,17 @@ public class ClientPoolTest extends ClientPoolTestBase {
                 releaseFuture,
                 c -> !List.of("localhost:1", "localhost:3").contains(c.getAddressString())
         );
-        assertThat(client1.isDone(), is(true));
-        assertThat(client1.join().getAddressString(), is("localhost:2"));
+        Assert.assertTrue(client1.isDone());
+        Assert.assertEquals(client1.join().getAddressString(), "localhost:2");
 
         var client2 = clientPool.peekClient(
                 releaseFuture,
                 c -> !List.of("localhost:1", "localhost:2", "localhost:3")
                         .contains(c.getAddressString())
         );
-        assertThat(client2.isDone(), is(true));
-        assertThat(client2.join().getAddressString(), is(oneOf("localhost:1", "localhost:2", "localhost:3")));
+        Assert.assertTrue(client2.isDone());
+        Assert.assertTrue(List.of("localhost:1", "localhost:2", "localhost:3")
+                .contains(client2.join().getAddressString()));
     }
 
     @Test
@@ -328,21 +321,21 @@ public class ClientPoolTest extends ClientPoolTestBase {
                         )),
                 100
         );
-        assertThat(clientPool.banClient("localhost:2").join(), is(1));
-        assertThat(clientPool.banClient("localhost:3").join(), is(1));
-        assertThat(clientPool.banClient("localhost:4").join(), is(1));
+        Assert.assertEquals(1, (int) clientPool.banClient("localhost:2").join());
+        Assert.assertEquals(1, (int) clientPool.banClient("localhost:3").join());
+        Assert.assertEquals(1, (int) clientPool.banClient("localhost:4").join());
 
         CompletableFuture<Void> releaseFuture = new CompletableFuture<>();
         var client1 = clientPool.peekClient(releaseFuture);
         tryWaitFuture(client1);
-        assertThat(client1.isDone(), is(false));
+        Assert.assertFalse(client1.isDone());
         waitOkResult(
                 clientPool.updateClients(List.of(HostPort.parse("localhost:2"))),
                 100
         );
         tryWaitFuture(client1);
-        assertThat(client1.isDone(), is(true));
-        assertThat(client1.join().getAddressString(), is("localhost:2"));
+        Assert.assertTrue(client1.isDone());
+        Assert.assertEquals(client1.join().getAddressString(), "localhost:2");
     }
 
     @Test
@@ -364,7 +357,7 @@ public class ClientPoolTest extends ClientPoolTestBase {
                 .map(RpcClient::getAddressString)
                 .collect(Collectors.toList());
 
-        assertThat(selectedClients, not(hasItem("man-host:2")));
+        Assert.assertFalse(selectedClients.contains("man-host:2"));
     }
 }
 

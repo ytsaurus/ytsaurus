@@ -4,13 +4,11 @@ import java.util.List;
 import java.util.Objects;
 import java.util.concurrent.CompletableFuture;
 
+import org.junit.Assert;
 import org.junit.Test;
 
-import static org.hamcrest.CoreMatchers.is;
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsInAnyOrder;
-import static org.hamcrest.Matchers.in;
-import static ru.yandex.yt.testlib.FutureUtils.waitOkResult;
+import static junit.framework.TestCase.assertTrue;
+import static tech.ytsaurus.FutureUtils.waitOkResult;
 
 public class NonRepeatingClientPoolTest extends ClientPoolTestBase {
     @Test
@@ -30,23 +28,23 @@ public class NonRepeatingClientPoolTest extends ClientPoolTestBase {
         var releaseFuture = new CompletableFuture<Void>();
 
         var c1 = nonRepeating.peekClient(releaseFuture);
-        assertThat(c1.isDone(), is(true));
+        assertTrue(c1.isDone());
         var c2 = nonRepeating.peekClient(releaseFuture);
-        assertThat(c2.isDone(), is(true));
+        assertTrue(c2.isDone());
         var c3 = nonRepeating.peekClient(releaseFuture);
-        assertThat(c3.isDone(), is(true));
+        assertTrue(c3.isDone());
 
-        assertThat(
-                List.of(
-                        Objects.requireNonNull(c1.join().getAddressString()),
-                        Objects.requireNonNull(c2.join().getAddressString()),
-                        Objects.requireNonNull(c3.join().getAddressString())
-                ),
-                containsInAnyOrder("localhost:1", "localhost:2", "localhost:3")
+        var data = List.of(
+                Objects.requireNonNull(c1.join().getAddressString()),
+                Objects.requireNonNull(c2.join().getAddressString()),
+                Objects.requireNonNull(c3.join().getAddressString())
         );
+        Assert.assertTrue(data.contains("localhost:1"));
+        Assert.assertTrue(data.contains("localhost:2"));
+        Assert.assertTrue(data.contains("localhost:3"));
 
         var c4 = nonRepeating.peekClient(releaseFuture);
-        assertThat(c4.isDone(), is(true));
-        assertThat(c4.join().getAddressString(), is(in(List.of("localhost:1", "localhost:2", "localhost:3"))));
+        assertTrue(c4.isDone());
+        assertTrue(List.of("localhost:1", "localhost:2", "localhost:3").contains(c4.join().getAddressString()));
     }
 }

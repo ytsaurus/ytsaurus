@@ -6,130 +6,129 @@ import java.util.function.Function;
 
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertArrayEquals;
 
 public class YsonBinaryWriterTest {
     @Test
     public void testOnEntity() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onEntity();
                     return null;
                 }),
-                is(new byte[]{'#'})
+                new byte[]{'#'}
         );
     }
 
     @Test
     public void testOnInteger() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onInteger(42);
                     return null;
                 }),
-                is(new byte[]{2, 84})
+                new byte[]{2, 84}
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onInteger(-1);
                     return null;
                 }),
-                is(new byte[]{2, 1})
+                new byte[]{2, 1}
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onInteger(100500);
                     return null;
                 }),
-                is(new byte[]{2, -88, -94, 12})
+                new byte[]{2, -88, -94, 12}
         );
     }
 
     @Test
     public void testOnUnsignedInteger() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onUnsignedInteger(100500);
                     return null;
                 }),
-                is(new byte[]{6, -108, -111, 6})
+                new byte[]{6, -108, -111, 6}
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onUnsignedInteger(-1);
                     return null;
                 }),
-                is(new byte[]{6, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1})
+                new byte[]{6, -1, -1, -1, -1, -1, -1, -1, -1, -1, 1}
         );
     }
 
     @Test
     public void testOnBoolean() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBoolean(true);
                     return null;
                 }),
-                is(new byte[]{5})
+                new byte[]{5}
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBoolean(false);
                     return null;
                 }),
-                is(new byte[]{4})
+                new byte[]{4}
         );
     }
 
     @Test
     public void testOnDouble() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onDouble(2.125);
                     return null;
                 }),
-                is(new byte[]{3, 0, 0, 0, 0, 0, 0, 1, 64})
+                new byte[]{3, 0, 0, 0, 0, 0, 0, 1, 64}
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onDouble(Double.NaN);
                     return null;
                 }),
                 // NB onDouble relies on Double.doubleToLongBits method, that
                 // coverts all nan numbers to the same bit representation
-                is(new byte[]{3, 0, 0, 0, 0, 0, 0, -8, 127})
+                new byte[]{3, 0, 0, 0, 0, 0, 0, -8, 127}
         );
     }
 
     @Test
     public void testOnString() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onString("foo");
                     return null;
                 }),
-                is(new byte[]{1, 6, 'f', 'o', 'o'})
+                new byte[]{1, 6, 'f', 'o', 'o'}
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     byte[] data = {0, 127, -8, -42};
                     consumer.onString(data, 0, data.length);
                     return null;
                 }),
-                is(new byte[]{1, 8, 0, 127, -8, -42})
+                new byte[]{1, 8, 0, 127, -8, -42}
         );
     }
 
     @Test
     public void testList() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBeginList();
 
@@ -146,10 +145,10 @@ public class YsonBinaryWriterTest {
 
                     return null;
                 }),
-                is(new byte[]{'[', 1, 6, 'f', 'o', 'o', ';', 2, 84, ';', '#', ']'})
+                new byte[]{'[', 1, 6, 'f', 'o', 'o', ';', 2, 84, ';', '#', ']'}
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBeginList();
 
@@ -187,12 +186,12 @@ public class YsonBinaryWriterTest {
 
                     return null;
                 }),
-                is(new byte[] {
+                new byte[] {
                         '[', '[', 2, 2, ';', 2, 4, ';', 2, 6, ']', ';', '[', 2, 8, ';', '[', 2, 10, ']', ']', ']'
-                })
+                }
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBeginList();
                     consumer.onListItem();
@@ -208,13 +207,13 @@ public class YsonBinaryWriterTest {
                     consumer.onEndList();
                     return null;
                 }),
-                is(new byte[]{'[', '[', ']', ';', '[', ']', ']'})
+                new byte[]{'[', '[', ']', ';', '[', ']', ']'}
         );
     }
 
     @Test
     public void testMap() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBeginMap();
 
@@ -228,12 +227,12 @@ public class YsonBinaryWriterTest {
                     consumer.onEndMap();
                     return null;
                 }),
-                is(new byte[] {
+                new byte[] {
                         '{', 1, 6, 'f', 'o', 'o', '=', 1, 6, 'b', 'a', 'r', ';', 1, 6, -4, 62, 12, '=', 2, 9, '}'
-                })
+                }
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBeginMap();
 
@@ -258,17 +257,17 @@ public class YsonBinaryWriterTest {
                     consumer.onEndMap();
                     return null;
                 }),
-                is(new byte[]{
+                new byte[]{
                         '{', 1, 4, '4', '2', '=', 2, 84, ';',
                         1, 4, '6', '2', '=', '{', 1, 2, '6', '=', 2, 12, ';', 1, 2, '2', '=', 2, 4, '}', ';',
                         1, 0, '=', '{', '}', '}'
-                })
+                }
         );
     }
 
     @Test
     public void testAttributes() {
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBeginAttributes();
 
@@ -286,14 +285,14 @@ public class YsonBinaryWriterTest {
 
                     return null;
                 }),
-                is(new byte[]{
+                new byte[]{
                         '<', 1, 2, '1', '=', 6, 1, ';', 1, 2, '2', '=', 6, 2, ';', 1, 2, '3', '=', 6, 3, '>',
                         1, 10, 's', 'k', 'i', 'f', 'f'
 
-                })
+                }
         );
 
-        assertThat(
+        assertArrayEquals(
                 buildBinaryYson((YsonConsumer consumer) -> {
                     consumer.onBeginAttributes();
 
@@ -323,10 +322,10 @@ public class YsonBinaryWriterTest {
 
                     return null;
                 }),
-                is(new byte[]{
+                new byte[]{
                         '<', 1, 2, '1', '=', '<', 1, 2, 'a', '=', 2, 2, ';', 1, 2, 'b', '=', 2, 4, '>', 6, 1, ';',
                         1, 2, '2', '=', '[', ']', ';', 1, 2, '3', '=', '{', '}', '>', 1, 10, 's', 'k', 'i', 'f', 'f'
-                })
+                }
         );
     }
 
