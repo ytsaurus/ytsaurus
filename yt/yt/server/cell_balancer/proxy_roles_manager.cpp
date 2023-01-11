@@ -122,6 +122,11 @@ void SetProxyRole(
     for (const auto& proxyName : aliveProxies) {
         auto proxyInfo = GetOrCrash(input.RpcProxies, proxyName);
         if (proxyInfo->Role != proxyRole) {
+            YT_LOG_INFO("Assigning proxy role for bundle rpc proxy (Bundle: %v, ProxyName: %v, Role: %v)",
+                bundleName,
+                proxyName,
+                proxyRole);
+
             mutations->ChangedProxyRole[proxyName] = proxyRole;
         }
     }

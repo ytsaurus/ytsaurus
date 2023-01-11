@@ -2170,6 +2170,10 @@ void ManageBundleShortName(TSchedulerInputState& input, TSchedulerMutations* mut
             continue;
         }
 
+        YT_LOG_INFO("Assigning short name for bundle (Bundle: %v, ShortName: %v)",
+            bundleName,
+            shortName);
+
         mutations->ChangedBundleShortName[bundleName] = shortName;
     }
 }

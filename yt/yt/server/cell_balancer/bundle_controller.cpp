@@ -121,6 +121,7 @@ public:
         , RemovingCellsAge_(Profiler.TimeGauge("/removing_cells_age"))
         , InflightProxyAllocationCounter_(Profiler.Gauge("/inflight_proxy_allocation_counter"))
         , InflightProxyDeallocationCounter_(Profiler.Gauge("/inflight_proxy_deallocation_counter"))
+        , ChangedBundleShortNameCounter_(Profiler.Counter("/changed_bundle_short_name_counter"))
         , ChangedProxyRoleCounter_(Profiler.Counter("/changed_proxy_role_counter"))
         , ChangedProxyAnnotationCounter_(Profiler.Counter("/changed_proxy_annotation_counter"))
         , ProxyAllocationRequestAge_(Profiler.TimeGauge("/proxy_allocation_request_age"))
@@ -179,7 +180,10 @@ private:
 
     TGauge InflightProxyAllocationCounter_;
     TGauge InflightProxyDeallocationCounter_;
+
+    TCounter ChangedBundleShortNameCounter_;
     TCounter ChangedProxyRoleCounter_;
+
     TCounter ChangedProxyAnnotationCounter_;
     TTimeGauge ProxyAllocationRequestAge_;
     TTimeGauge ProxyDeallocationRequestAge_;
@@ -363,6 +367,8 @@ private:
         ChangedProxyAnnotationCounter_.Increment(mutations.ChangedProxyAnnotations.size());
         ChangedSystemAccountLimitCounter_.Increment(mutations.LoweredSystemAccountLimit.size() + mutations.LiftedSystemAccountLimit.size());
         ChangedResourceLimitsCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
+
+        ChangedBundleShortNameCounter_.Increment(mutations.ChangedBundleShortName.size());
 
         RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
         RemoveInstanceCypressNode(transaction, RpcProxiesPath, mutations.ProxiesToCleanup);
