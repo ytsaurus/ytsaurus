@@ -50,29 +50,20 @@ const TString B("b");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TUnversionedValue DoMakeMinSentinel()
-{
-    return MakeUnversionedSentinelValue(EValueType::Min);
-}
-
-TUnversionedValue DoMakeNullSentinel()
-{
-    return MakeUnversionedSentinelValue(EValueType::Null);
-}
-
-TUnversionedValue DoMakeMaxSentinel()
-{
-    return MakeUnversionedSentinelValue(EValueType::Max);
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 struct TTestOptions
 {
     EOptimizeFor OptimizeFor = EOptimizeFor::Scan;
     std::optional<EChunkFormat> ChunkFormat;
     bool UseNewReader = false;
 };
+
+TString ToString(const TTestOptions& options)
+{
+    return Format("%v%v%v",
+        options.OptimizeFor,
+        options.ChunkFormat ? ToString(*options.ChunkFormat) : "",
+        options.UseNewReader ? "New" : "");
+}
 
 const auto TestOptionsValues = testing::Values(
     TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
@@ -85,6 +76,7 @@ const auto TestOptionsValues = testing::Values(
 // ToDo(psushin): rewrite this legacy test.
 class TVersionedChunkLookupTest
     : public ::testing::Test
+    , public testing::WithParamInterface<TTestOptions>
 {
 protected:
     const TTableSchemaPtr Schema = New<TTableSchema>(std::vector{
@@ -98,48 +90,8 @@ protected:
         TColumnSchema("v2", EValueType::Int64)
     });
 
-    IVersionedReaderPtr ChunkReader;
-    IVersionedWriterPtr ChunkWriter;
-
     IChunkReaderPtr MemoryReader;
-    TMemoryWriterPtr MemoryWriter;
-
     TChunkedMemoryPool MemoryPool;
-
-
-    virtual TTestOptions GetTestOptions() = 0;
-
-    void SetUp() override
-    {
-        MemoryWriter = New<TMemoryWriter>();
-
-        auto testOptions = GetTestOptions();
-
-        auto config = New<TChunkWriterConfig>();
-        config->BlockSize = 1025;
-        config->Postprocess();
-
-        auto options = New<TChunkWriterOptions>();
-        options->OptimizeFor = testOptions.OptimizeFor;
-        options->ChunkFormat = testOptions.ChunkFormat;
-        options->Postprocess();
-
-        ChunkWriter = CreateVersionedChunkWriter(
-            config,
-            options,
-            Schema,
-            MemoryWriter);
-    }
-
-    void GetRowAndResetWriter()
-    {
-        EXPECT_TRUE(ChunkWriter->Close().Get().IsOK());
-
-        // Initialize reader.
-        MemoryReader = CreateMemoryReader(
-            MemoryWriter->GetChunkMeta(),
-            MemoryWriter->GetBlocks());
-    }
 
     void FillKey(
         TMutableVersionedRow row,
@@ -187,19 +139,41 @@ protected:
         return startIndex + N;
     }
 
-    void WriteManyRows()
+    void WriteManyRows(const TTestOptions& testOptions)
     {
+        auto memoryWriter = New<TMemoryWriter>();
+
+        auto config = New<TChunkWriterConfig>();
+        config->BlockSize = 1025;
+        config->Postprocess();
+
+        auto options = New<TChunkWriterOptions>();
+        options->OptimizeFor = testOptions.OptimizeFor;
+        options->ChunkFormat = testOptions.ChunkFormat;
+        options->Postprocess();
+
+        auto chunkWriter = CreateVersionedChunkWriter(
+            config,
+            options,
+            Schema,
+            memoryWriter);
+
         int startIndex = 0;
         for (int i = 0; i < 3; ++i) {
             std::vector<TVersionedRow> rows;
             startIndex = CreateManyRows(&rows, startIndex);
-            ChunkWriter->Write(rows);
+            chunkWriter->Write(rows);
         }
 
-        GetRowAndResetWriter();
+        EXPECT_TRUE(chunkWriter->Close().Get().IsOK());
+
+        // Initialize reader.
+        MemoryReader = CreateMemoryReader(
+            memoryWriter->GetChunkMeta(),
+            memoryWriter->GetBlocks());
     }
 
-    void DoTest()
+    void DoTest(const TTestOptions& testOptions)
     {
         std::vector<TVersionedRow> expected;
         int startIndex = 0;
@@ -209,7 +183,7 @@ protected:
             expected.insert(expected.end(), rows.begin(), rows.end());
         }
 
-        WriteManyRows();
+        WriteManyRows(testOptions);
 
         auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
             .Apply(BIND(
@@ -293,7 +267,7 @@ protected:
                 /*virtualValueDirectory*/ nullptr,
                 Schema);
 
-            auto chunkReader = GetTestOptions().UseNewReader
+            auto chunkReader = testOptions.UseNewReader
                 ? NNewTableClient::CreateVersionedChunkReader(
                     sharedKeys,
                     MaxTimestamp,
@@ -328,46 +302,27 @@ protected:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedChunkLookupTestImpl
-    : public TVersionedChunkLookupTest
-    , public testing::WithParamInterface<TTestOptions>
+TEST_P(TVersionedChunkLookupTest, Test)
 {
-private:
-    TTestOptions GetTestOptions() override
-    {
-        return GetParam();
-    }
-};
-
-TEST_P(TVersionedChunkLookupTestImpl, Test)
-{
-    DoTest();
+    DoTest(GetParam());
 }
 
 INSTANTIATE_TEST_SUITE_P(
-    TVersionedChunkLookupTestImpl,
-    TVersionedChunkLookupTestImpl,
-    TestOptionsValues);
+    TVersionedChunkLookupTest,
+    TVersionedChunkLookupTest,
+    TestOptionsValues,
+    [] (const auto& info) {
+        return ToString(info.param);
+    });
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TIndexedMetadataVersionedChunkLookupTestImpl
-    : public TVersionedChunkLookupTest
-    , public testing::WithParamInterface<TTestOptions>
+TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
 {
-private:
-    TTestOptions GetTestOptions() override
-    {
-        return {
-            .OptimizeFor = EOptimizeFor::Lookup,
-            .ChunkFormat = EChunkFormat::TableVersionedIndexed
-        };
-    }
-};
-
-TEST_F(TIndexedMetadataVersionedChunkLookupTestImpl, Test)
-{
-    WriteManyRows();
+    WriteManyRows({
+        .OptimizeFor = EOptimizeFor::Lookup,
+        .ChunkFormat = EChunkFormat::TableVersionedIndexed
+    });
 
     auto chunkMeta = MemoryReader->GetMeta(/*chunkReadOptions*/ {})
         .Get()
@@ -470,7 +425,7 @@ struct TRandomValueGenerator
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TVersionedChunksHeavyTest
+class TVersionedChunksHeavyTestBase
     : public ::testing::Test
 {
 protected:
@@ -1093,15 +1048,169 @@ const std::vector<EValueType> KeyTypes{
     EValueType::Boolean
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedChunksHeavyTest
+    : public TVersionedChunksHeavyTestBase
+    , public testing::WithParamInterface<TTestOptions>
+{
+private:
+    TTestOptions GetTestOptions() override
+    {
+        return GetParam();
+    }
+};
+
+TEST_P(TVersionedChunksHeavyTest, FullScanCompaction)
+{
+    DoFullScanCompaction();
+}
+
+TEST_P(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumn)
+{
+    DoTimestampFullScanExtraKeyColumn(/*timestamp*/ 50);
+}
+
+TEST_P(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnSyncLastCommitted)
+{
+    DoTimestampFullScanExtraKeyColumn(SyncLastCommittedTimestamp);
+}
+
+TEST_P(TVersionedChunksHeavyTest, TimestampFullScanExtraKeyColumnScanSyncLastCommittedNew)
+{
+    DoTimestampFullScanExtraKeyColumn(SyncLastCommittedTimestamp);
+}
+
+TEST_P(TVersionedChunksHeavyTest, GroupsLimitsAndSchemaChange)
+{
+    DoGroupsLimitsAndSchemaChange();
+}
+
+TEST_P(TVersionedChunksHeavyTest, EmptyReadWideSchemaScan)
+{
+    DoEmptyReadWideSchema();
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TVersionedChunksHeavyTest,
+    TVersionedChunksHeavyTest,
+    TestOptionsValues,
+    [] (const auto& info) {
+        return ToString(info.param);
+    });
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TVersionedChunksHeavyWithBoundsTest
+    : public TVersionedChunksHeavyTestBase
+    , public testing::WithParamInterface<std::tuple<
+        TTestOptions,
+        std::tuple<
+            EValueType,
+            EValueType
+        >
+    >>
+{
+public:
+    void DoReadWideSchemaWithBounds()
+    {
+        auto [lowerBound, upperBound] = GetBounds();
+
+        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
+
+        auto memoryChunkReader = CreateChunk(
+            InitialRows_,
+            writeSchema);
+
+        auto columnSchemas = ColumnSchemas_;
+        columnSchemas.insert(
+            columnSchemas.begin() + 5,
+            TColumnSchema("extraKey", EValueType::Int64).SetSortOrder(ESortOrder::Ascending));
+        auto readSchema = New<TTableSchema>(columnSchemas);
+
+        TUnversionedOwningRowBuilder lowerKeyBuilder;
+        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
+            lowerKeyBuilder.AddValue(*it);
+        }
+        lowerKeyBuilder.AddValue(lowerBound);
+        auto lowerKey = lowerKeyBuilder.FinishRow();
+
+        TUnversionedOwningRowBuilder upperKeyBuilder;
+        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
+            upperKeyBuilder.AddValue(*it);
+        }
+        upperKeyBuilder.AddValue(upperBound);
+        auto upperKey = upperKeyBuilder.FinishRow();
+
+        TestRangeReader(
+            InitialRows_,
+            memoryChunkReader,
+            writeSchema,
+            readSchema,
+            lowerKey,
+            upperKey,
+            /*timestamp*/ 25,
+            /*produceAllVersions*/ false);
+    }
+
+private:
+    std::tuple<TUnversionedValue, TUnversionedValue> GetBounds()
+    {
+        auto [lowerSentinel, upperSentinel] = std::get<1>(GetParam());
+        return {MakeUnversionedSentinelValue(lowerSentinel), MakeUnversionedSentinelValue(upperSentinel)};
+    }
+
+    TTestOptions GetTestOptions() override
+    {
+        return std::get<0>(GetParam());
+    }
+};
+
+TEST_P(TVersionedChunksHeavyWithBoundsTest, ReadWideSchemaWithNonscalarBounds)
+{
+    DoReadWideSchemaWithBounds();
+}
+
+INSTANTIATE_TEST_SUITE_P(
+    TVersionedChunksHeavyWithBoundsTest,
+    TVersionedChunksHeavyWithBoundsTest,
+    ::testing::Combine(
+        TestOptionsValues,
+        ::testing::Values(
+            std::make_pair(EValueType::Min, EValueType::Min),
+            std::make_pair(EValueType::Min, EValueType::Null),
+            std::make_pair(EValueType::Min, EValueType::Max),
+            std::make_pair(EValueType::Null, EValueType::Null),
+            std::make_pair(EValueType::Null, EValueType::Max),
+            std::make_pair(EValueType::Max, EValueType::Max))),
+    [] (const auto& info) {
+        return Format("%v_%kv_%kv",
+            std::get<0>(info.param),
+            std::get<0>(std::get<1>(info.param)), std::get<1>(std::get<1>(info.param)));
+    });
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TVersionedChunksStressTest
-    : public TVersionedChunksHeavyTest
+    : public TVersionedChunksHeavyTestBase
+    , public testing::WithParamInterface<std::tuple<
+        TTestOptions,
+        /*AreColumnGroupsEnabled*/ bool
+    >>
 {
 protected:
     TTableSchemaPtr WriteSchema_;
     TTableSchemaPtr ReadSchema_;
 
+    bool AreColumnGroupsEnabled()
+    {
+        return std::get<1>(GetParam());
+    }
 
-    virtual bool AreColumnGroupsEnabled() = 0;
+    TTestOptions GetTestOptions() override
+    {
+        return std::get<0>(GetParam());
+    }
 
     void ProduceSchemas()
     {
@@ -1658,180 +1767,34 @@ private:
     }
 };
 
-////////////////////////////////////////////////////////////////////////////////
-
-class TVersionedChunksHeavyTestWithBounds
-    : public TVersionedChunksHeavyTest
-{
-protected:
-    virtual std::tuple<TUnversionedValue, TUnversionedValue> GetBounds() = 0;
-
-    void DoReadWideSchemaWithBounds()
-    {
-        auto [lowerBound, upperBound] = GetBounds();
-
-        auto writeSchema = New<TTableSchema>(ColumnSchemas_);
-
-        auto memoryChunkReader = CreateChunk(
-            InitialRows_,
-            writeSchema);
-
-        auto columnSchemas = ColumnSchemas_;
-        columnSchemas.insert(
-            columnSchemas.begin() + 5,
-            TColumnSchema("extraKey", EValueType::Int64).SetSortOrder(ESortOrder::Ascending));
-        auto readSchema = New<TTableSchema>(columnSchemas);
-
-        TUnversionedOwningRowBuilder lowerKeyBuilder;
-        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
-            lowerKeyBuilder.AddValue(*it);
-        }
-        lowerKeyBuilder.AddValue(lowerBound);
-        auto lowerKey = lowerKeyBuilder.FinishRow();
-
-        TUnversionedOwningRowBuilder upperKeyBuilder;
-        for (auto it = InitialRows_[1].BeginKeys(); it != InitialRows_[1].EndKeys(); ++it) {
-            upperKeyBuilder.AddValue(*it);
-        }
-        upperKeyBuilder.AddValue(upperBound);
-        auto upperKey = upperKeyBuilder.FinishRow();
-
-        TestRangeReader(
-            InitialRows_,
-            memoryChunkReader,
-            writeSchema,
-            readSchema,
-            lowerKey,
-            upperKey,
-            /*timestamp*/ 25,
-            /*produceAllVersions*/ false);
-    }
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVersionedChunksHeavyTestImpl
-    : public TVersionedChunksHeavyTest
-    , public testing::WithParamInterface<TTestOptions>
-{
-private:
-    TTestOptions GetTestOptions() override
-    {
-        return GetParam();
-    }
-};
-
-TEST_P(TVersionedChunksHeavyTestImpl, FullScanCompaction)
-{
-    DoFullScanCompaction();
-}
-
-TEST_P(TVersionedChunksHeavyTestImpl, TimestampFullScanExtraKeyColumn)
-{
-    DoTimestampFullScanExtraKeyColumn(/*timestamp*/ 50);
-}
-
-TEST_P(TVersionedChunksHeavyTestImpl, TimestampFullScanExtraKeyColumnSyncLastCommitted)
-{
-    DoTimestampFullScanExtraKeyColumn(SyncLastCommittedTimestamp);
-}
-
-TEST_P(TVersionedChunksHeavyTestImpl, TimestampFullScanExtraKeyColumnScanSyncLastCommittedNew)
-{
-    DoTimestampFullScanExtraKeyColumn(SyncLastCommittedTimestamp);
-}
-
-TEST_P(TVersionedChunksHeavyTestImpl, GroupsLimitsAndSchemaChange)
-{
-    DoGroupsLimitsAndSchemaChange();
-}
-
-TEST_P(TVersionedChunksHeavyTestImpl, EmptyReadWideSchemaScan)
-{
-    DoEmptyReadWideSchema();
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    TVersionedChunksHeavyTestImpl,
-    TVersionedChunksHeavyTestImpl,
-    TestOptionsValues);
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVersionedChunksStressTestImpl
-    : public TVersionedChunksStressTest
-    , public testing::WithParamInterface<std::tuple<
-        TTestOptions,
-        /*AreColumnGroupsEnabled*/ bool
-    >>
-{
-protected:
-    bool AreColumnGroupsEnabled() override
-    {
-        return std::get<1>(GetParam());
-    }
-
-    TTestOptions GetTestOptions() override
-    {
-        return std::get<0>(GetParam());
-    }
-};
-
-TEST_P(TVersionedChunksStressTestImpl, Test)
+TEST_P(TVersionedChunksStressTest, Test)
 {
     DoStressTest();
 }
 
+const auto StressTestOptionsValues = testing::Values(
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Scan, .UseNewReader = true},
+    TTestOptions{.OptimizeFor = EOptimizeFor::Lookup}
+#if !defined(_asan_enabled_) && !defined(_msan_enabled_)
+    ,
+    TTestOptions{.OptimizeFor = EOptimizeFor::Lookup, .ChunkFormat = EChunkFormat::TableVersionedIndexed}
+#endif
+    );
+
 INSTANTIATE_TEST_SUITE_P(
-    TVersionedChunksStressTestImpl,
-    TVersionedChunksStressTestImpl,
+    TVersionedChunksStressTest,
+    TVersionedChunksStressTest,
     ::testing::Combine(
-        TestOptionsValues,
-        ::testing::Bool()));
+        StressTestOptionsValues,
+        ::testing::Bool()),
+    [] (const auto& info) {
+        return Format("%v%v",
+            ToString(std::get<0>(info.param)),
+            std::get<1>(info.param) ? "Groups" : "");
+    });
 
 // TODO(akozhikhov): More thorough test for aggregate columns.
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TVersionedChunksHeavyWithBoundsTestImpl
-    : public TVersionedChunksHeavyTestWithBounds
-    , public testing::WithParamInterface<std::tuple<
-        TTestOptions,
-        std::tuple<
-            TUnversionedValue,
-            TUnversionedValue
-        >
-    >>
-{
-private:
-    std::tuple<TUnversionedValue, TUnversionedValue> GetBounds() override
-    {
-        return std::get<1>(GetParam());
-    }
-
-    TTestOptions GetTestOptions() override
-    {
-        return std::get<0>(GetParam());
-    }
-};
-
-TEST_P(TVersionedChunksHeavyWithBoundsTestImpl, ReadWideSchemaWithNonscalarBounds)
-{
-    DoReadWideSchemaWithBounds();
-}
-
-INSTANTIATE_TEST_SUITE_P(
-    TVersionedChunksHeavyWithBoundsTestImpl,
-    TVersionedChunksHeavyWithBoundsTestImpl,
-    ::testing::Combine(
-        TestOptionsValues,
-        ::testing::Values(
-            std::make_pair(DoMakeMinSentinel(), DoMakeMinSentinel()),
-            std::make_pair(DoMakeMinSentinel(), DoMakeNullSentinel()),
-            std::make_pair(DoMakeMinSentinel(), DoMakeMaxSentinel()),
-            std::make_pair(DoMakeNullSentinel(), DoMakeNullSentinel()),
-            std::make_pair(DoMakeNullSentinel(), DoMakeMaxSentinel()),
-            std::make_pair(DoMakeMaxSentinel(), DoMakeMaxSentinel()))));
 
 ////////////////////////////////////////////////////////////////////////////////
 
