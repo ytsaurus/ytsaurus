@@ -27,7 +27,7 @@ public class DefaultSerializationResolver implements SerializationResolver {
     @Override
     public <T> YTreeRowSerializer<T> forClass(Class<T> clazz, TableSchema schema) {
         if (clazz.equals(YTreeMapNode.class)) {
-            return (YTreeRowSerializer<T>) new YTreeMapNodeSerializer((Class<YTreeMapNode>) clazz);
+            return (YTreeRowSerializer<T>) new YTreeMapNodeSerializer();
         } else {
             throw new IllegalArgumentException("Unsupported class: " + clazz);
         }

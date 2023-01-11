@@ -6,8 +6,7 @@ import java.util.List;
 
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 
 public class TableAttachmentRowsetReaderTest {
     @Test
@@ -38,8 +37,8 @@ public class TableAttachmentRowsetReaderTest {
     }
 
     private static class TableAttachmentTestReader extends TableAttachmentRowsetReader<Boolean> {
-        private int expectedPosition;
-        private int expectedSize;
+        private final int expectedPosition;
+        private final int expectedSize;
 
         TableAttachmentTestReader(int expectedPosition, int expectedSize) {
             this.expectedPosition = expectedPosition;
@@ -48,8 +47,8 @@ public class TableAttachmentRowsetReaderTest {
 
         @Override
         protected List<Boolean> parseMergedRow(ByteBuffer bb, int size) {
-            assertThat(bb.position(), is(expectedPosition));
-            assertThat(size, is(expectedSize));
+            assertEquals(bb.position(), expectedPosition);
+            assertEquals(size, expectedSize);
             bb.position(bb.position() + size);
             return null;
         }

@@ -54,12 +54,14 @@ class MockRpcClientFactory implements RpcClientFactory, SelfCheckingClientFactor
             }
 
             @Override
-            public RpcClientRequestControl send(RpcClient sender, RpcRequest<?> request, RpcClientResponseHandler handler, RpcOptions options) {
+            public RpcClientRequestControl send(
+                    RpcClient sender, RpcRequest<?> request, RpcClientResponseHandler handler, RpcOptions options) {
                 return null;
             }
 
             @Override
-            public RpcClientStreamControl startStream(RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
+            public RpcClientStreamControl startStream(
+                    RpcClient sender, RpcRequest<?> request, RpcStreamConsumer consumer, RpcOptions options) {
                 return null;
             }
 

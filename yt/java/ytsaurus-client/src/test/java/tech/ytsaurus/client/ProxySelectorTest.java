@@ -3,10 +3,8 @@ package tech.ytsaurus.client;
 import java.util.ArrayList;
 import java.util.List;
 
+import org.junit.Assert;
 import org.junit.Test;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.collection.IsIterableContainingInAnyOrder.containsInAnyOrder;
 
 public class ProxySelectorTest {
 
@@ -27,10 +25,9 @@ public class ProxySelectorTest {
 
         selector.rank(proxyList);
 
-        assertThat(proxyList.subList(4, 6), containsInAnyOrder(
-                HostPort.parse("iva-v8y333.yandex.net:9103"),
-                HostPort.parse("iva-idgvfhe.yandex.net:9103")
-        ));
+        var subList = proxyList.subList(4, 6);
+        Assert.assertTrue(subList.contains(HostPort.parse("iva-v8y333.yandex.net:9103")));
+        Assert.assertTrue(subList.contains(HostPort.parse("iva-idgvfhe.yandex.net:9103")));
     }
 
     @Test
@@ -50,9 +47,8 @@ public class ProxySelectorTest {
 
         selector.rank(proxyList);
 
-        assertThat(proxyList.subList(0, 2), containsInAnyOrder(
-                HostPort.parse("iva-v8y333.yandex.net:9103"),
-                HostPort.parse("iva-idgvfhe.yandex.net:9103")
-        ));
+        var subList = proxyList.subList(0, 2);
+        Assert.assertTrue(subList.contains(HostPort.parse("iva-v8y333.yandex.net:9103")));
+        Assert.assertTrue(subList.contains(HostPort.parse("iva-idgvfhe.yandex.net:9103")));
     }
 }

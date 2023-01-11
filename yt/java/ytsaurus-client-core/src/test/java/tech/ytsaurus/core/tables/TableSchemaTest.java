@@ -1,13 +1,13 @@
 package tech.ytsaurus.core.tables;
 
+import java.util.List;
+
 import org.junit.Test;
 import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeNode;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.contains;
-import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 
 public class TableSchemaTest {
     private static final TableSchema KEY_VALUE_SCHEMA = new TableSchema.Builder()
@@ -122,74 +122,72 @@ public class TableSchemaTest {
 
     @Test
     public void keyValueSchemaToYTree() {
-        assertThat(KEY_VALUE_SCHEMA.toYTree(), is(KEY_VALUE_SCHEMA_YTREE));
+        assertEquals(KEY_VALUE_SCHEMA.toYTree(), KEY_VALUE_SCHEMA_YTREE);
     }
 
     @Test
     public void keyValueSchemaFromYTree() {
-        assertThat(TableSchema.fromYTree(KEY_VALUE_SCHEMA_YTREE), is(KEY_VALUE_SCHEMA));
+        assertEquals(TableSchema.fromYTree(KEY_VALUE_SCHEMA_YTREE), KEY_VALUE_SCHEMA);
     }
 
     @Test
     public void hashColumnSchemaToYTree() {
-        assertThat(HASH_COLUMN_SCHEMA.toYTree(), is(HASH_COLUMN_SCHEMA_YTREE));
+        assertEquals(HASH_COLUMN_SCHEMA.toYTree(), HASH_COLUMN_SCHEMA_YTREE);
     }
 
     @Test
     public void hashColumnSchemaFromYTree() {
-        assertThat(TableSchema.fromYTree(HASH_COLUMN_SCHEMA_YTREE), is(HASH_COLUMN_SCHEMA));
+        assertEquals(TableSchema.fromYTree(HASH_COLUMN_SCHEMA_YTREE), HASH_COLUMN_SCHEMA);
     }
 
     @Test
     public void hashColumnSchemaToWrite() {
-        assertThat(HASH_COLUMN_SCHEMA.toWrite().getColumnNames(), contains("a", "b", "c"));
+        assertEquals(HASH_COLUMN_SCHEMA.toWrite().getColumnNames(), List.of("a", "b", "c"));
     }
 
     @Test
     public void hashColumnSchemaToLookup() {
-        assertThat(HASH_COLUMN_SCHEMA.toLookup().getColumnNames(), contains("a"));
+        assertEquals(HASH_COLUMN_SCHEMA.toLookup().getColumnNames(), List.of("a"));
     }
 
     @Test
     public void hashColumnSchemaToDelete() {
-        assertThat(HASH_COLUMN_SCHEMA.toDelete().getColumnNames(), contains("a"));
+        assertEquals(HASH_COLUMN_SCHEMA.toDelete().getColumnNames(), List.of("a"));
     }
 
     @Test
     public void hashColumnSchemaToKeys() {
-        assertThat(HASH_COLUMN_SCHEMA.toKeys().getColumnNames(), contains("h", "a"));
+        assertEquals(HASH_COLUMN_SCHEMA.toKeys().getColumnNames(), List.of("h", "a"));
     }
 
     @Test
     public void hashColumnSchemaToValues() {
-        assertThat(HASH_COLUMN_SCHEMA.toValues().getColumnNames(), contains("b", "c"));
+        assertEquals(HASH_COLUMN_SCHEMA.toValues().getColumnNames(), List.of("b", "c"));
     }
 
     @Test
     public void testOldColumnDeserialization() {
-        assertThat(
+        assertEquals(
                 TableSchema.fromYTree(YTree.builder().beginList().beginMap()
                         .key("name").value("foo")
                         .key("type").value("string")
                         .endMap().endList().build()
                 ),
-                is(TableSchema.builder()
+                TableSchema.builder()
                         .addValue("foo", TiType.optional(TiType.string()))
                         .build()
-                )
         );
 
-        assertThat(
+        assertEquals(
                 TableSchema.fromYTree(YTree.builder().beginList().beginMap()
                         .key("name").value("foo")
                         .key("type").value("string")
                         .key("required").value(true)
                         .endMap().endList().build()
                 ),
-                is(TableSchema.builder()
+                TableSchema.builder()
                         .addValue("foo", TiType.string())
                         .build()
-                )
         );
     }
 
@@ -217,17 +215,17 @@ public class TableSchemaTest {
                 .addValue("a", ColumnValueType.STRING)
                 .build();
 
-        assertThat(
+        assertEquals(
                 aSortedSchema.toBuilder().sortByColumns(
                     new SortColumn("c", ColumnSortOrder.DESCENDING),
                     new SortColumn("b", ColumnSortOrder.ASCENDING)
                 ).build(),
-                is(cbSortedSchema)
+                cbSortedSchema
         );
 
-        assertThat(
+        assertEquals(
                 cbSortedSchema.toBuilder().sortBy("b", "c").build(),
-                is(bcSortedSchema)
+                bcSortedSchema
         );
     }
 }

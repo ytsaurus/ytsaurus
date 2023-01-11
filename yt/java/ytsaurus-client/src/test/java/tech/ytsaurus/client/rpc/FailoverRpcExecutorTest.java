@@ -22,14 +22,11 @@ import tech.ytsaurus.rpc.TRequestHeader;
 import tech.ytsaurus.rpc.TResponseHeader;
 import tech.ytsaurus.rpcproxy.TReqGetNode;
 
-import ru.yandex.inside.yt.kosher.impl.common.YtException;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.containsString;
-import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertTrue;
 import static org.junit.Assert.fail;
-import static ru.yandex.yt.testlib.FutureUtils.getError;
-import static ru.yandex.yt.testlib.Matchers.isCausedBy;
+import static tech.ytsaurus.FutureUtils.getError;
 
 public class FailoverRpcExecutorTest {
     ScheduledExecutorService executorService = new ScheduledThreadPoolExecutor(4);
@@ -54,8 +51,8 @@ public class FailoverRpcExecutorTest {
         c.cancel();
         waitFuture(result, 10);
 
-        assertThat(result.isDone(), is(true));
-        assertThat(result.isCancelled(), is(true));
+        assertTrue(result.isDone());
+        assertTrue(result.isCancelled());
     }
 
     @Test
@@ -68,9 +65,9 @@ public class FailoverRpcExecutorTest {
 
         waitFuture(result, 1000);
 
-        assertThat(result.isDone(), is(true));
-        assertThat(result.isCompletedExceptionally(), is(false));
-        assertThat(result.get(), is("response"));
+        assertTrue(result.isDone());
+        assertFalse(result.isCompletedExceptionally());
+        assertEquals(result.get(), "response");
     }
 
     @Test
@@ -88,9 +85,9 @@ public class FailoverRpcExecutorTest {
 
         waitFuture(result, 1000);
 
-        assertThat(result.isDone(), is(true));
-        assertThat(result.isCompletedExceptionally(), is(true));
-        assertThat(getError(result), isCausedBy(TimeoutException.class));
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertTrue(getError(result).getCause() instanceof TimeoutException);
     }
 
     @Test
@@ -106,9 +103,9 @@ public class FailoverRpcExecutorTest {
 
         waitFuture(result, 1000);
 
-        assertThat(result.isDone(), is(true));
-        assertThat(result.isCompletedExceptionally(), is(false));
-        assertThat(result.get(), is("response"));
+        assertTrue(result.isDone());
+        assertFalse(result.isCompletedExceptionally());
+        assertEquals(result.get(), "response");
     }
 
     @Test
@@ -126,9 +123,9 @@ public class FailoverRpcExecutorTest {
 
         waitFuture(result, 1000);
 
-        assertThat(result.isDone(), is(true));
-        assertThat(result.isCompletedExceptionally(), is(true));
-        assertThat(getError(result).toString(), containsString("pool is exhausted"));
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertTrue(getError(result).toString().contains("pool is exhausted"));
     }
 
     @Test
@@ -146,9 +143,9 @@ public class FailoverRpcExecutorTest {
 
         waitFuture(result, 1000);
 
-        assertThat(result.isDone(), is(true));
-        assertThat(result.isCompletedExceptionally(), is(false));
-        assertThat(result.get(), is("response"));
+        assertTrue(result.isDone());
+        assertFalse(result.isCompletedExceptionally());
+        assertEquals(result.get(), "response");
     }
 
     @Test
@@ -161,17 +158,17 @@ public class FailoverRpcExecutorTest {
         AtomicInteger attempts = new AtomicInteger(0);
         Consumer<RpcClientResponseHandler> respondWithError = (handler) -> {
             attempts.incrementAndGet();
-            handler.onError(new YtException("retriable error"));
+            handler.onError(new RuntimeException("retriable error"));
         };
 
         execute(respondWithError, defaultOptions().setRetryPolicyFactory(retryPolicyFactory), result, 2);
 
         waitFuture(result, 1000);
 
-        assertThat(result.isDone(), is(true));
-        assertThat(result.isCompletedExceptionally(), is(true));
-        assertThat(getError(result).toString(), containsString("retriable error"));
-        assertThat(attempts.get(), is(2));
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertTrue(getError(result).toString().contains("retriable error"));
+        assertEquals(2, attempts.get());
     }
 
     @Test
@@ -187,16 +184,16 @@ public class FailoverRpcExecutorTest {
                 .setRetryPolicyFactory(retryPolicyFactory);
 
         Consumer<RpcClientResponseHandler> respondWithDelay = (handler) -> executorService.schedule(
-                () -> handler.onError(new YtException("our test error")),
+                () -> handler.onError(new RuntimeException("our test error")),
                 100, TimeUnit.MILLISECONDS);
 
         execute(respondWithDelay, options, result, 1);
 
         waitFuture(result, 1000);
 
-        assertThat(result.isDone(), is(true));
-        assertThat(result.isCompletedExceptionally(), is(true));
-        assertThat(getError(result).toString(), containsString("our test error"));
+        assertTrue(result.isDone());
+        assertTrue(result.isCompletedExceptionally());
+        assertTrue(getError(result).toString().contains("our test error"));
     }
 
     private RpcClient createClient(Consumer<RpcClientResponseHandler> handlerConsumer) {
@@ -218,8 +215,8 @@ public class FailoverRpcExecutorTest {
                     RpcClient sender,
                     RpcRequest<?> request,
                     RpcClientResponseHandler handler,
-                    RpcOptions options)
-            {
+                    RpcOptions options
+            ) {
                 handlerConsumer.accept(handler);
                 return () -> false;
             }
@@ -229,8 +226,8 @@ public class FailoverRpcExecutorTest {
                     RpcClient sender,
                     RpcRequest<?> request,
                     RpcStreamConsumer consumer,
-                    RpcOptions options)
-            {
+                    RpcOptions options
+            ) {
                 return null;
             }
 
@@ -275,12 +272,13 @@ public class FailoverRpcExecutorTest {
         };
     }
 
+    @SuppressWarnings("checkstyle:AvoidNestedBlocks")
     private RpcClientRequestControl execute(
             Consumer<RpcClientResponseHandler> handlerConsumer,
             RpcOptions options,
             CompletableFuture<String> result,
-            int clientCount)
-    {
+            int clientCount
+    ) {
         RpcRequest<?> rpcRequest;
         {
             TReqGetNode reqGetNode = TReqGetNode.newBuilder().setPath("/").build();

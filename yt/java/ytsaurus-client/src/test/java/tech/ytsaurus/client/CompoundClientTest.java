@@ -4,14 +4,13 @@ import java.io.Closeable;
 
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.object.IsCompatibleType.typeCompatibleWith;
+import static org.junit.Assert.assertTrue;
 
 public class CompoundClientTest {
 
     @Test
     public void testCompoundClientIsCloseable() {
         // SPYT project uses this interface, don't remove Closeable from CompoundClient, please
-        assertThat(CompoundClient.class, typeCompatibleWith(Closeable.class));
+        assertTrue(Closeable.class.isAssignableFrom(CompoundClient.class));
     }
 }

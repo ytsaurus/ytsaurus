@@ -12,8 +12,7 @@ import org.junit.After;
 import org.junit.Before;
 import org.junit.Test;
 
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
+import static org.junit.Assert.assertEquals;
 
 public class BusTest {
     private BusConnector busConnector;
@@ -44,7 +43,7 @@ public class BusTest {
             public void onMessage(Bus bus, List<byte[]> message) {
                 try {
                     // Проверяем, что нам прислали правильное сообщение
-                    assertThat(new String(message.get(0)), is("Hello, world!"));
+                    assertEquals(new String(message.get(0)), "Hello, world!");
 
                     // Отправляем ответное сообщение и закрываем bus, оно всё-равно должно дойти
                     bus.send(Collections.singletonList("Message received".getBytes()), BusDeliveryTracking.NONE);
@@ -65,7 +64,7 @@ public class BusTest {
             public void onMessage(Bus bus, List<byte[]> message) {
                 try {
                     // Проверяем, что нам пристали правильное сообщение
-                    assertThat(new String(message.get(0)), is("Message received"));
+                    assertEquals(new String(message.get(0)), "Message received");
 
                     // Просто закрываем канал
                     bus.close();
@@ -83,7 +82,7 @@ public class BusTest {
         client.send(Collections.singletonList("Hello, world!".getBytes()), BusDeliveryTracking.FULL).join();
 
         // Проверяем, что обе стороны получили правильные сообщения
-        assertThat(serverQueue.poll(100, TimeUnit.MILLISECONDS), is("OK"));
-        assertThat(clientQueue.poll(100, TimeUnit.MILLISECONDS), is("OK"));
+        assertEquals(serverQueue.poll(100, TimeUnit.MILLISECONDS), "OK");
+        assertEquals(clientQueue.poll(100, TimeUnit.MILLISECONDS), "OK");
     }
 }

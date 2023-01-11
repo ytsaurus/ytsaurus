@@ -29,7 +29,8 @@ public class YPathTest {
 
     @Test
     public void simple() {
-        Assert.assertEquals(new RichYPath("/", Arrays.asList("home", "sankear", "@id")), YPath.simple("//home/sankear/@id"));
+        Assert.assertEquals(new RichYPath("/", Arrays.asList("home", "sankear", "@id")),
+                YPath.simple("//home/sankear/@id"));
         Assert.assertEquals(new RichYPath("#1-2-3-4", Arrays.asList("tables", "2015-11-25")),
                 YPath.simple("#1-2-3-4/tables/2015-11-25"));
     }

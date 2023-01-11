@@ -2,13 +2,11 @@ package tech.ytsaurus.client;
 
 import java.time.Duration;
 
+import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.TError;
 import tech.ytsaurus.client.rpc.RpcError;
 import tech.ytsaurus.client.rpc.RpcOptions;
-
-import static org.hamcrest.MatcherAssert.assertThat;
-import static org.hamcrest.Matchers.is;
 
 public class BackoffProviderTest {
     static final int REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED = 904;
@@ -42,24 +40,24 @@ public class BackoffProviderTest {
         options.setMinBackoffTime(Duration.ofSeconds(2));
         options.setMaxBackoffTime(Duration.ofSeconds(10));
 
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(1, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(2))
+                Duration.ofSeconds(2)
         );
 
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(2, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(4))
+                Duration.ofSeconds(4)
         );
 
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(2, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(8))
+                Duration.ofSeconds(8)
         );
 
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(2, 5, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(10))
+                Duration.ofSeconds(10)
         );
     }
 
@@ -70,28 +68,28 @@ public class BackoffProviderTest {
         options.setMinBackoffTime(Duration.ofSeconds(0));
         options.setMaxBackoffTime(Duration.ofSeconds(5));
 
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(1, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(0))
+                Duration.ofSeconds(0)
         );
 
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(2, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(1))
+                Duration.ofSeconds(1)
         );
 
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(2, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(2))
+                Duration.ofSeconds(2)
         );
 
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(2, 5, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(4))
+                Duration.ofSeconds(4)
         );
-        assertThat(
+        Assert.assertEquals(
                 backoffProvider.getBackoffTime(rpcErrorWithCodes(2, 5, REQUEST_QUEUE_SIZE_LIMIT_EXCEEDED), options),
-                is(Duration.ofSeconds(5))
+                Duration.ofSeconds(5)
         );
     }
 }

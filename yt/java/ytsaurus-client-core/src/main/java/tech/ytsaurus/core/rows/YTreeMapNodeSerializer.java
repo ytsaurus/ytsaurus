@@ -7,10 +7,8 @@ import tech.ytsaurus.ysontree.YTreeNode;
 import tech.ytsaurus.ysontree.YTreeNodeUtils;
 
 public class YTreeMapNodeSerializer implements YTreeRowSerializer<YTreeMapNode> {
-    private Class<YTreeMapNode> clazz;
 
-    public YTreeMapNodeSerializer(Class<YTreeMapNode> clazz) {
-        this.clazz = clazz;
+    public YTreeMapNodeSerializer() {
     }
 
     @Override
@@ -35,6 +33,6 @@ public class YTreeMapNodeSerializer implements YTreeRowSerializer<YTreeMapNode> 
 
     @Override
     public Class<YTreeMapNode> getClazz() {
-        return clazz;
+        return YTreeMapNode.class;
     }
 }

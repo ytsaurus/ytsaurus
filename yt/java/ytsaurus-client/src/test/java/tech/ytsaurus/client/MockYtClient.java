@@ -290,7 +290,8 @@ public class MockYtClient implements BaseYtClient {
     }
 
     @Override
-    public <T> CompletableFuture<Void> selectRows(SelectRowsRequest request, YTreeRowSerializer<T> serializer, ConsumerSource<T> consumer) {
+    public <T> CompletableFuture<Void> selectRows(
+            SelectRowsRequest request, YTreeRowSerializer<T> serializer, ConsumerSource<T> consumer) {
         return null;
     }
 
