@@ -86,21 +86,21 @@ def disable_chunk_locations(node_address, location_uuids, client=None):
     return make_request("disable_chunk_locations", params=params, client=client)
 
 
-def destroy_chunk_locations(node_address, location_guids, client=None):
+def destroy_chunk_locations(node_address, location_uuids, client=None):
     """Mark locations for destroing. Disks of these locations can be recovered."""
     params = {
         "node_address": node_address,
-        "location_guids": location_guids
+        "location_uuids": location_uuids
     }
 
     return make_request("destroy_chunk_locations", params=params, client=client)
 
 
-def resurrect_chunk_locations(node_address, location_guids, client=None):
+def resurrect_chunk_locations(node_address, location_uuids, client=None):
     """Try resurrect disabled locations."""
     params = {
         "node_address": node_address,
-        "location_guids": location_guids
+        "location_uuids": location_uuids
     }
 
     return make_request("resurrect_chunk_locations", params=params, client=client)

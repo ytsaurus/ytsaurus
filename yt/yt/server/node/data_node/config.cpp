@@ -691,6 +691,9 @@ void TDataNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("disk_health_checker", &TThis::DiskHealthChecker)
         .DefaultNew();
 
+    registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
+        .Default(false);
+
     registrar.Parameter("disk_manager_proxy", &TThis::DiskManagerProxy)
         .DefaultNew();
 
@@ -864,6 +867,9 @@ void TDataNodeDynamicConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("abort_on_location_disabled", &TThis::AbortOnLocationDisabled)
         .Default(true);
+
+    registrar.Parameter("publish_disabled_locations", &TThis::PublishDisabledLocations)
+        .Default();
 
     registrar.Parameter("p2p", &TThis::P2P)
         .Optional();

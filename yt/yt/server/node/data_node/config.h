@@ -822,6 +822,9 @@ public:
     //! Runs periodic checks against disks.
     TDiskHealthCheckerConfigPtr DiskHealthChecker;
 
+    //! Publish disabled locations to master.
+    bool PublishDisabledLocations;
+
     //! Maximum number of concurrent balancing write sessions.
     int MaxWriteSessions;
 
@@ -930,6 +933,9 @@ public:
 
     //! If |true|, node will abort when location becomes disabled.
     bool AbortOnLocationDisabled;
+
+    //! Publish disabled locations to master.
+    std::optional<bool> PublishDisabledLocations;
 
     TP2PConfigPtr P2P;
 
