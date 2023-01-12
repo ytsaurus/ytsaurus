@@ -72,7 +72,7 @@ void TSingletonsConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         if (config->ResourceTrackerVCpuFactor && !config->EnableResourceTracker) {
-            THROW_ERROR_EXCEPTION("The `resource_tracker_vcpu_factor` requires resource tracker enabling.");
+            THROW_ERROR_EXCEPTION("Option \"resource_tracker_vcpu_factor\" can be specified only if resource tracker is enabled");
         }
     });
 }
