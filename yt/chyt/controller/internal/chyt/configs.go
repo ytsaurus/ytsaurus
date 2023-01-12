@@ -9,6 +9,7 @@ import (
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
 	"a.yandex-team.ru/yt/go/yt"
+	"a.yandex-team.ru/yt/go/yterrors"
 )
 
 func cloneNode(ysonNode interface{}) (ysonNodeCopy interface{}, err error) {
@@ -80,6 +81,9 @@ func getPatchedClickHouseConfig(speclet *Speclet) (config interface{}, err error
 
 func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses []string, err error) {
 	err = ytc.ListNode(ctx, ypath.Path("//sys/discovery_servers"), &addresses, nil)
+	if yterrors.ContainsResolveError(err) {
+		err = nil
+	}
 	return
 }
 
