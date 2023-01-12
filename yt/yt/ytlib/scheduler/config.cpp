@@ -394,9 +394,11 @@ void TDiskRequestConfig::Register(TRegistrar registrar)
     registrar.Parameter("inode_count", &TThis::InodeCount)
         .Default();
     registrar.Parameter("medium_name", &TThis::MediumName)
-        .Default(std::nullopt);
+        .NonEmpty()
+        .Default();
     registrar.Parameter("account", &TThis::Account)
-        .Default(std::nullopt);
+        .NonEmpty()
+        .Default();
 
     registrar.Postprocessor([&] (TDiskRequestConfig* config) {
         if (config->Account && !config->MediumName) {
@@ -521,6 +523,7 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.UnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
 
     registrar.Parameter("intermediate_data_account", &TThis::IntermediateDataAccount)
+        .NonEmpty()
         .Default("intermediate");
     registrar.Parameter("intermediate_compression_codec", &TThis::IntermediateCompressionCodec)
         .Default(NCompression::ECodec::Lz4);
@@ -529,12 +532,14 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("intermediate_data_sync_on_close", &TThis::IntermediateDataSyncOnClose)
         .Default(false);
     registrar.Parameter("intermediate_data_medium", &TThis::IntermediateDataMediumName)
+        .NonEmpty()
         .Default(NChunkClient::DefaultStoreMediumName);
     registrar.Parameter("fast_intermediate_medium_limit", &TThis::FastIntermediateMediumLimit)
         .Default();
 
     registrar.Parameter("debug_artifacts_account", &TThis::DebugArtifactsAccount)
         .Alias("job_node_account")
+        .NonEmpty()
         .Default(NSecurityClient::TmpAccountName);
 
     registrar.Parameter("unavailable_chunk_strategy", &TThis::UnavailableChunkStrategy)
@@ -1714,11 +1719,13 @@ bool TMapReduceOperationSpec::HasSchemafulIntermediateStreams() const
 void TRemoteCopyOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("cluster_name", &TThis::ClusterName)
+        .NonEmpty()
         .Default();
     registrar.Parameter("input_table_paths", &TThis::InputTablePaths)
         .NonEmpty();
     registrar.Parameter("output_table_path", &TThis::OutputTablePath);
     registrar.Parameter("network_name", &TThis::NetworkName)
+        .NonEmpty()
         .Default();
     registrar.Parameter("networks", &TThis::Networks)
         .Alias("network_names")
@@ -1908,6 +1915,7 @@ void TSchedulableConfig::Register(TRegistrar registrar)
 void TExtendedSchedulableConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("pool", &TThis::Pool)
+        .NonEmpty()
         .Default();
 }
 
@@ -2087,6 +2095,7 @@ static constexpr int MaxSchedulingSegmentModuleCount = 8;
 void TStrategyOperationSpec::Register(TRegistrar registrar)
 {
     registrar.Parameter("pool", &TThis::Pool)
+        .NonEmpty()
         .Default();
     registrar.Parameter("scheduling_options_per_pool_tree", &TThis::SchedulingOptionsPerPoolTree)
         .Alias("fair_share_options_per_pool_tree")
@@ -2129,6 +2138,7 @@ void TStrategyOperationSpec::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("scheduling_segment_modules", &TThis::SchedulingSegmentModules)
         .Alias("scheduling_segment_data_centers")
+        .NonEmpty()
         .Default();
     registrar.Parameter("enable_limiting_ancestor_check", &TThis::EnableLimitingAncestorCheck)
         .Default(true);
@@ -2254,6 +2264,7 @@ void TOperationFairShareTreeRuntimeParametersUpdate::Register(TRegistrar registr
         .Optional()
         .InRange(MinSchedulableWeight, MaxSchedulableWeight);
     registrar.Parameter("pool", &TThis::Pool)
+        .NonEmpty()
         .Optional();
     registrar.Parameter("resource_limits", &TThis::ResourceLimits)
         .Default();
