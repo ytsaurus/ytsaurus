@@ -772,6 +772,13 @@ void TChunkStore::OnProfiling()
     }
 }
 
+bool TChunkStore::ShouldPublishDisabledLocations()
+{
+    return DynamicConfig_
+        ? DynamicConfig_->PublishDisabledLocations.value_or(Config_->PublishDisabledLocations)
+        : Config_->PublishDisabledLocations;
+}
+
 void TChunkStore::OnLocationDisabled(const TWeakPtr<TStoreLocation>& weakLocation)
 {
     VERIFY_THREAD_AFFINITY_ANY();

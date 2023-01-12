@@ -26,6 +26,9 @@ class TestHotSwap(YTEnvSetup):
         },
         "data_node": {
             "abort_on_location_disabled": False,
+            "incremental_heartbeat_period": 100,
+            "incremental_heartbeat_period_splay": 100,
+            "publish_disabled_locations": True,
             "disk_manager_proxy": {
                 "is_mock": True,
                 "mock_disks": [
@@ -77,7 +80,7 @@ class TestHotSwap(YTEnvSetup):
 
     @authors("don-dron")
     def test_resurrect_chunk_locations(self):
-        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
+        update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False, "publish_disabled_locations": True}})
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 3
 
@@ -95,15 +98,32 @@ class TestHotSwap(YTEnvSetup):
         wait(lambda: can_write())
 
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
-            locations = list(node.attributes["chunk_locations"].keys())
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: len(disable_chunk_locations(node, [location_uuid])) > 0)
 
-            wait(lambda: len(disable_chunk_locations(node, locations)) > 0)
+        # Test second try - must returns empty lists
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: len(disable_chunk_locations(node, [location_uuid])) == 0)
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: not get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
+                wait(lambda: get("//sys/chunk_locations/{}/@statistics/session_count".format(location_uuid)) == 0)
 
         wait(lambda: not can_write())
 
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
-            locations = list(node.attributes["chunk_locations"].keys())
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: len(resurrect_chunk_locations(node, [location_uuid])) > 0)
 
-            wait(lambda: len(resurrect_chunk_locations(node, locations)) > 0)
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
+
+        # Test second try - must returns empty lists
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: len(resurrect_chunk_locations(node, [location_uuid])) == 0)
 
         wait(lambda: can_write())

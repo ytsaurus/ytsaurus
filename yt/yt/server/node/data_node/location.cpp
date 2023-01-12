@@ -598,7 +598,7 @@ bool TChunkLocation::Disable(const TError& reason)
         return false;
     }
 
-    YT_LOG_ERROR(reason, "Disabling location");
+    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
 
     // Save the reason in a file and exit.
     // Location will be disabled during the scan in the restart process.

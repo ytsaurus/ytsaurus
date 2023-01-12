@@ -154,6 +154,8 @@ public:
         TSessionId sessionId,
         const TSessionOptions& options);
 
+    bool ShouldPublishDisabledLocations();
+
     //! Storage locations.
     DEFINE_BYREF_RO_PROPERTY(std::vector<TStoreLocationPtr>, Locations);
 
