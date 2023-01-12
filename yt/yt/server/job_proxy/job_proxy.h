@@ -225,6 +225,8 @@ private:
     void FillStderrResult(NControllerAgent::NProto::TJobResult* jobResult);
 
     void Abort(EJobProxyExitCode exitCode);
+
+    void LogSystemStats() const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJobProxy)
