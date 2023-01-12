@@ -750,6 +750,12 @@ private:
         }
         const auto& key = *optionalKey;
 
+        {
+            auto lockedChunkGuard = location->TryLockChunk(chunkId);
+            YT_VERIFY(lockedChunkGuard);
+            lockedChunkGuard.Release();
+        }
+
         bool inserted;
         {
             auto guard = Guard(RegisteredChunkMapLock_);
@@ -770,12 +776,6 @@ private:
             chunkId,
             location->GetId(),
             descriptor.DiskSpace);
-
-        {
-            auto lockedChunkGuard = location->TryLockChunk(chunkId);
-            YT_VERIFY(lockedChunkGuard);
-            lockedChunkGuard.Release();
-        }
     }
 
 
