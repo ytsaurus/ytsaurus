@@ -408,15 +408,6 @@ void TNodeMemoryTracker::Acquire(ECategory category, i64 size, const std::option
             size);
     }
 
-    const auto& data = Categories_[category];
-    auto currentUsed = data.Used.load();
-    if (currentUsed > data.Limit) {
-        YT_LOG_WARNING("Per-category memory overcommit detected (Debt: %v, RequestCategory: %v, RequestSize: %v)",
-            currentUsed - data.Limit,
-            category,
-            size);
-    }
-
     if (pool) {
         auto poolUsed = DoGetUsed(category, pool);
         auto poolLimit = DoGetLimit(category, pool);
