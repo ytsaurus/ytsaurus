@@ -325,6 +325,8 @@ public:
         REGISTER_ALL(TAddMaintenanceCommand,               "add_maintenance",                 Null,       Structured, true,   false);
         REGISTER_ALL(TRemoveMaintenanceCommand,            "remove_maintenance",              Null,       Null,       true,   false);
         REGISTER_ALL(TDisableChunkLocationsCommand,        "disable_chunk_locations",         Null,       Structured, false,  false);
+        REGISTER_ALL(TDestroyChunkLocationsCommand,        "destroy_chunk_locations",         Null,       Structured, false,  false);
+        REGISTER_ALL(TResurrectChunkLocationsCommand,      "resurrect_chunk_locations",       Null,       Structured, false,  false);
 
         REGISTER    (TStartYqlQueryCommand,                "start_yql_query",                 Null,       Structured, false,  false, ApiVersion4);
 

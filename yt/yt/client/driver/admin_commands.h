@@ -189,4 +189,34 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TDestroyChunkLocationsCommand
+    : public TTypedCommand<NApi::TDestroyChunkLocationsOptions>
+{
+public:
+   TDestroyChunkLocationsCommand();
+
+private:
+    TString NodeAddress_;
+    std::vector<TGuid> LocationUuids_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TResurrectChunkLocationsCommand
+    : public TTypedCommand<NApi::TResurrectChunkLocationsOptions>
+{
+public:
+   TResurrectChunkLocationsCommand();
+
+private:
+    TString NodeAddress_;
+    std::vector<TGuid> LocationUuids_;
+
+    void DoExecute(ICommandContextPtr context) override;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

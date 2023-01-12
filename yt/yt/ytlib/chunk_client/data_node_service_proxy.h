@@ -40,6 +40,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NProto, GetChunkSlices);
     DEFINE_RPC_PROXY_METHOD(NProto, GetColumnarStatistics);
     DEFINE_RPC_PROXY_METHOD(NProto, DisableChunkLocations);
+    DEFINE_RPC_PROXY_METHOD(NProto, DestroyChunkLocations);
+    DEFINE_RPC_PROXY_METHOD(NProto, ResurrectChunkLocations);
     DEFINE_RPC_PROXY_METHOD(NProto, AnnounceChunkReplicas);
 };
 

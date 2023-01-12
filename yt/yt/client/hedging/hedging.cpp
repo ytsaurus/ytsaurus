@@ -220,6 +220,8 @@ public:
     UNSUPPORTED_METHOD(TFuture<NNodeTrackerClient::TMaintenanceId>, AddMaintenance, (const TString&, NNodeTrackerClient::EMaintenanceType, const TString&, const TAddMaintenanceOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, RemoveMaintenance, (const TString&, NNodeTrackerClient::TMaintenanceId, const TRemoveMaintenanceOptions&));
     UNSUPPORTED_METHOD(TFuture<TDisableChunkLocationsResult>, DisableChunkLocations, (const TString&, const std::vector<TGuid>&, const TDisableChunkLocationsOptions&));
+    UNSUPPORTED_METHOD(TFuture<TDestroyChunkLocationsResult>, DestroyChunkLocations, (const TString&, const std::vector<TGuid>&, const TDestroyChunkLocationsOptions&));
+    UNSUPPORTED_METHOD(TFuture<TResurrectChunkLocationsResult>, ResurrectChunkLocations, (const TString&, const std::vector<TGuid>&, const TResurrectChunkLocationsOptions&));
     UNSUPPORTED_METHOD(TFuture<TPullRowsResult>, PullRows, (const NYPath::TYPath&, const TPullRowsOptions&));
     UNSUPPORTED_METHOD(TFuture<TStartYqlQueryResult>, StartYqlQuery, (const TString&, const TStartYqlQueryOptions&));
     UNSUPPORTED_METHOD(TFuture<void>, SetUserPassword, (const TString&, const TString&, const TString&, const TSetUserPasswordOptions&));

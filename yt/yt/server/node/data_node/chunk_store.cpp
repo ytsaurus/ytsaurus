@@ -784,6 +784,8 @@ void TChunkStore::OnLocationDisabled(const TWeakPtr<TStoreLocation>& weakLocatio
     WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
         auto guard = WriterGuard(ChunkMapLock_);
 
+        YT_VERIFY(location->GetState() == ELocationState::Disabling);
+
         YT_LOG_INFO("Location is disabled; unregistering all the chunks in it (LocationId: %v)",
             location->GetId());
 
@@ -794,6 +796,7 @@ void TChunkStore::OnLocationDisabled(const TWeakPtr<TStoreLocation>& weakLocatio
             const auto& chunk = chunkEntry.Chunk;
             if (chunk->GetLocation() == location) {
                 ChunkRemoved_.Fire(chunk);
+                location->UnlockChunk(chunk->GetId());
             } else {
                 newChunkMap.emplace(chunkId, chunkEntry);
             }

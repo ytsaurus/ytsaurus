@@ -1668,6 +1668,16 @@ def disable_chunk_locations(node_address, uuids, **kwargs):
     return execute_command("disable_chunk_locations", kwargs, parse_yson=True)
 
 
+def destroy_chunk_locations(node_address, uuids, **kwargs):
+    kwargs.update({"node_address": node_address, "location_uuids": uuids})
+    return execute_command("destroy_chunk_locations", kwargs, parse_yson=True)
+
+
+def resurrect_chunk_locations(node_address, uuids, **kwargs):
+    kwargs.update({"node_address": node_address, "location_uuids": uuids})
+    return execute_command("resurrect_chunk_locations", kwargs, parse_yson=True)
+
+
 def set_user_password(user, new_password, current_password=None, **kwargs):
     def encode_password(password):
         return hashlib.sha256(password.encode("utf-8")).hexdigest()

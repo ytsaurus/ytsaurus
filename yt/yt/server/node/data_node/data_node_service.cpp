@@ -245,6 +245,10 @@ public:
             .SetCancelable(true));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations)
             .SetInvoker(Bootstrap_->GetControlInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DestroyChunkLocations)
+            .SetInvoker(Bootstrap_->GetControlInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations)
+            .SetInvoker(Bootstrap_->GetControlInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AnnounceChunkReplicas)
             .SetInvoker(Bootstrap_->GetStorageLightInvoker()));
     }
@@ -2009,8 +2013,42 @@ private:
         auto locationManager = Bootstrap_->GetLocationManager();
         auto locationUuids = FromProto<std::vector<TGuid>>(request->location_uuids());
 
+        context->SetRequestInfo("LocationUuids: %v", locationUuids);
+
         context->ReplyFrom(locationManager->DisableChunkLocations({locationUuids.begin(), locationUuids.end()})
             .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
+                context->SetResponseInfo("LocationUuids: %v", locationUuids);
+
+                ToProto(response->mutable_location_uuids(), locationUuids);
+            })));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, DestroyChunkLocations)
+    {
+        auto locationManager = Bootstrap_->GetLocationManager();
+        auto locationUuids = FromProto<std::vector<TGuid>>(request->location_uuids());
+
+        context->SetRequestInfo("LocationUuids: %v", locationUuids);
+
+        context->ReplyFrom(locationManager->DestroyChunkLocations({locationUuids.begin(), locationUuids.end()})
+            .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
+                context->SetResponseInfo("LocationUuids: %v", locationUuids);
+
+                ToProto(response->mutable_location_uuids(), locationUuids);
+            })));
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NChunkClient::NProto, ResurrectChunkLocations)
+    {
+        auto locationManager = Bootstrap_->GetLocationManager();
+        auto locationUuids = FromProto<std::vector<TGuid>>(request->location_uuids());
+
+        context->SetRequestInfo("LocationUuids: %v", locationUuids);
+
+        context->ReplyFrom(locationManager->ResurrectChunkLocations({locationUuids.begin(), locationUuids.end()})
+            .Apply(BIND([=] (const std::vector<TGuid>& locationUuids) {
+                context->SetResponseInfo("LocationUuids: %v", locationUuids);
+
                 ToProto(response->mutable_location_uuids(), locationUuids);
             })));
     }

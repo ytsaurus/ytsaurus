@@ -834,6 +834,22 @@ TFuture<TDisableChunkLocationsResult> TDelegatingClient::DisableChunkLocations(
     return Underlying_->DisableChunkLocations(nodeAddress, locationUuids, options);
 }
 
+TFuture<TDestroyChunkLocationsResult> TDelegatingClient::DestroyChunkLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationUuids,
+    const TDestroyChunkLocationsOptions& options)
+{
+    return Underlying_->DestroyChunkLocations(nodeAddress, locationUuids, options);
+}
+
+TFuture<TResurrectChunkLocationsResult> TDelegatingClient::ResurrectChunkLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationUuids,
+    const TResurrectChunkLocationsOptions& options)
+{
+    return Underlying_->ResurrectChunkLocations(nodeAddress, locationUuids, options);
+}
+
 TFuture<TStartYqlQueryResult> TDelegatingClient::StartYqlQuery(
     const TString& query,
     const TStartYqlQueryOptions& options)

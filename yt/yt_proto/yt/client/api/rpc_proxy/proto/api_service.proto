@@ -1691,6 +1691,28 @@ message TRspDisableChunkLocations
     repeated NYT.NProto.TGuid location_uuids = 1;
 }
 
+message TReqDestroyChunkLocations
+{
+    required string node_address = 1;
+    repeated NYT.NProto.TGuid location_uuids = 2;
+}
+
+message TRspDestroyChunkLocations
+{
+    repeated NYT.NProto.TGuid location_uuids = 1;
+}
+
+message TReqResurrectChunkLocations
+{
+    required string node_address = 1;
+    repeated NYT.NProto.TGuid location_uuids = 2;
+}
+
+message TRspResurrectChunkLocations
+{
+    repeated NYT.NProto.TGuid location_uuids = 1;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 message TReqPartitionTables

@@ -254,4 +254,54 @@ void TDisableChunkLocationsCommand::DoExecute(ICommandContextPtr context)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TDestroyChunkLocationsCommand::TDestroyChunkLocationsCommand()
+{
+    RegisterParameter("node_address", NodeAddress_);
+    RegisterParameter("location_uuids", LocationUuids_)
+        .Default();
+}
+
+void TDestroyChunkLocationsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->DestroyChunkLocations(NodeAddress_, LocationUuids_, Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("location_uuids")
+                .BeginList()
+                    .DoFor(result.LocationUuids, [&] (TFluentList fluent, const auto& uuid) {
+                        fluent.Item().Value(uuid);
+                    })
+                .EndList()
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TResurrectChunkLocationsCommand::TResurrectChunkLocationsCommand()
+{
+    RegisterParameter("node_address", NodeAddress_);
+    RegisterParameter("location_uuids", LocationUuids_)
+        .Default();
+}
+
+void TResurrectChunkLocationsCommand::DoExecute(ICommandContextPtr context)
+{
+    auto result = WaitFor(context->GetClient()->ResurrectChunkLocations(NodeAddress_, LocationUuids_, Options))
+        .ValueOrThrow();
+
+    context->ProduceOutputValue(BuildYsonStringFluently()
+        .BeginMap()
+            .Item("location_uuids")
+                .BeginList()
+                    .DoFor(result.LocationUuids, [&] (TFluentList fluent, const auto& uuid) {
+                        fluent.Item().Value(uuid);
+                    })
+                .EndList()
+        .EndMap());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NDriver

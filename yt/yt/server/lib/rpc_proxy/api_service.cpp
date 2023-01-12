@@ -702,6 +702,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(AddMaintenance));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(RemoveMaintenance));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(DisableChunkLocations));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(DestroyChunkLocations));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(ResurrectChunkLocations));
 
         RegisterMethod(RPC_SERVICE_METHOD_DESC(CreateObject));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetTableMountInfo));
@@ -4181,11 +4183,12 @@ private:
     DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DisableChunkLocations)
     {
         auto nodeAddress = request->node_address();
+        auto locationUuids = request->location_uuids();
 
         TDisableChunkLocationsOptions options;
         SetTimeoutOptions(&options, context.Get());
 
-        context->SetRequestInfo("NodeAddress: %v", nodeAddress);
+        context->SetRequestInfo("NodeAddress: %v, LocationUuids: %v", nodeAddress, locationUuids);
 
         auto client = GetAuthenticatedClientOrThrow(context, request);
 
@@ -4193,6 +4196,58 @@ private:
             context,
             [=] {
                 return client->DisableChunkLocations(
+                    nodeAddress,
+                    FromProto<std::vector<TGuid>>(request->location_uuids()),
+                    options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_location_uuids(), result.LocationUuids);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, DestroyChunkLocations)
+    {
+        auto nodeAddress = request->node_address();
+        auto locationUuids = request->location_uuids();
+
+        TDestroyChunkLocationsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("NodeAddress: %v, LocationUuids: %v", nodeAddress, locationUuids);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->DestroyChunkLocations(
+                    nodeAddress,
+                    FromProto<std::vector<TGuid>>(request->location_uuids()),
+                    options);
+            },
+            [] (const auto& context, const auto& result) {
+                auto* response = &context->Response();
+                ToProto(response->mutable_location_uuids(), result.LocationUuids);
+            });
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NApi::NRpcProxy::NProto, ResurrectChunkLocations)
+    {
+        auto nodeAddress = request->node_address();
+        auto locationUuids = request->location_uuids();
+
+        TResurrectChunkLocationsOptions options;
+        SetTimeoutOptions(&options, context.Get());
+
+        context->SetRequestInfo("NodeAddress: %v, LocationUuids: %v", nodeAddress, locationUuids);
+
+        auto client = GetAuthenticatedClientOrThrow(context, request);
+
+        ExecuteCall(
+            context,
+            [=] {
+                return client->ResurrectChunkLocations(
                     nodeAddress,
                     FromProto<std::vector<TGuid>>(request->location_uuids()),
                     options);

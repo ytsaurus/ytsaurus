@@ -51,6 +51,7 @@ using namespace NTools;
 using namespace NYson;
 using namespace NYTree;
 using namespace NIO;
+using namespace NDataNode;
 using namespace NRpc;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -93,7 +94,7 @@ TSlotLocation::TSlotLocation(
 
 TFuture<void> TSlotLocation::Initialize()
 {
-    Enabled_ = true;
+    State_.store(ELocationState::Enabled);
 
     return BIND([=, this, this_ = MakeStrong(this)] {
         try {
@@ -150,7 +151,7 @@ void TSlotLocation::DoInitialize()
 
 void TSlotLocation::DoRepair(bool force)
 {
-    if (Enabled_ && !force) {
+    if (State_.load() == ELocationState::Enabled && !force) {
         YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
         return;
     }
@@ -182,7 +183,7 @@ void TSlotLocation::DoRepair(bool force)
         THROW_ERROR error;
     }
 
-    Enabled_ = true;
+    State_.store(ELocationState::Enabled);
 
     YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
 }
@@ -878,7 +879,7 @@ void TSlotLocation::ValidateEnabled() const
 void TSlotLocation::Disable(const TError& error)
 {
     WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
-        if (!Enabled_.exchange(false)) {
+        if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
             return;
         }
 

@@ -315,7 +315,7 @@ public:
 
     void Disable(const TError& error)
     {
-        if (!Enabled_.exchange(false)) {
+        if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
             Sleep(TDuration::Max());
         }
 
@@ -626,7 +626,7 @@ private:
                 << ex;
         }
 
-        Enabled_ = true;
+        State_.store(ELocationState::Enabled);
     }
 
 

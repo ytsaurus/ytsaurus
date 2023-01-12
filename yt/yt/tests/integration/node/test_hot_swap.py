@@ -4,7 +4,8 @@ from yt_commands import (
     authors, wait,
     ls, get, create,
     update_nodes_dynamic_config,
-    write_table, disable_chunk_locations)
+    write_table, disable_chunk_locations,
+    resurrect_chunk_locations)
 
 from yt.common import YtError
 
@@ -75,7 +76,7 @@ class TestHotSwap(YTEnvSetup):
     }
 
     @authors("don-dron")
-    def test_disable_chunk_locations(self):
+    def test_resurrect_chunk_locations(self):
         update_nodes_dynamic_config({"data_node": {"abort_on_location_disabled": False}})
         nodes = ls("//sys/cluster_nodes")
         assert len(nodes) == 3
@@ -96,7 +97,13 @@ class TestHotSwap(YTEnvSetup):
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
             locations = list(node.attributes["chunk_locations"].keys())
 
-            # TODO(don-dron): Add logic for disk recovering.
             wait(lambda: len(disable_chunk_locations(node, locations)) > 0)
 
         wait(lambda: not can_write())
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            locations = list(node.attributes["chunk_locations"].keys())
+
+            wait(lambda: len(resurrect_chunk_locations(node, locations)) > 0)
+
+        wait(lambda: can_write())

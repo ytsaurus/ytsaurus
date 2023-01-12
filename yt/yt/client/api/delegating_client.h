@@ -524,6 +524,16 @@ public:
         const std::vector<TGuid>& locationUuids,
         const TDisableChunkLocationsOptions& options = {}) override;
 
+    TFuture<TDestroyChunkLocationsResult> DestroyChunkLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TDestroyChunkLocationsOptions& options = {}) override;
+
+    TFuture<TResurrectChunkLocationsResult> ResurrectChunkLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TResurrectChunkLocationsOptions& options = {}) override;
+
     TFuture<TStartYqlQueryResult> StartYqlQuery(
         const TString& query,
         const TStartYqlQueryOptions& options = {}) override;

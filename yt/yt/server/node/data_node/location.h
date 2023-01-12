@@ -147,6 +147,9 @@ public:
     TLockedChunkGuard(TLockedChunkGuard&& other);
     ~TLockedChunkGuard();
 
+    //! This method loses pointer to location and chunk for exclude
+    //! Location::UnlockChunk call in destructor. This is necessary to preserve
+    //! eternal (while the location is alive) lock on the chunk.
     void Release();
 
     TLockedChunkGuard& operator=(TLockedChunkGuard&& other);
@@ -252,9 +255,21 @@ public:
      */
     void Start();
 
+    //! This method can be called either manually from the rpc method, or automatically when the check detects a recovered empty disk.
+    //! To resurrect, we have to scan and register existing chunks of location.
+    bool Resurrect();
+
+    //! Destroy location on disk.
+    bool StartDestroy();
+
+    //! Mark location as destroyed, called after location disk recovering.
+    bool FinishDestroy(
+        bool destroyResult,
+        const TError& reason);
+
     //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
     //! as unavailable.
-    void Disable(const TError& reason);
+    bool Disable(const TError& reason);
 
     //! Wraps a given #callback with try/catch block that intercepts all exceptions
     //! and calls #Disable when one happens.
@@ -370,6 +385,10 @@ public:
     [[nodiscard]]
     TLockedChunkGuard TryLockChunk(TChunkId chunkId);
 
+    //! While chunk is locked, it cannot be initialized twice.
+    //! To resurrect location, all chuncks are unlocked, because they need to be created anew.
+    void UnlockChunk(TChunkId chunkId);
+
     const TChunkStorePtr& GetChunkStore() const;
 
 protected:
@@ -379,8 +398,6 @@ protected:
     const IChunkStoreHostPtr ChunkStoreHost_;
 
     NProfiling::TProfiler Profiler_;
-
-    void UnlockChunk(TChunkId chunkId);
 
     static TString GetRelativeChunkPath(TChunkId chunkId);
     static void ForceHashDirectories(const TString& rootPath);

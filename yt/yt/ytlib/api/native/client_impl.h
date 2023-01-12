@@ -398,6 +398,18 @@ public:
         const TDisableChunkLocationsOptions& options),
         (nodeAddress, locationUuids, options))
 
+    IMPLEMENT_METHOD(TDestroyChunkLocationsResult, DestroyChunkLocations, (
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TDestroyChunkLocationsOptions& options),
+        (nodeAddress, locationUuids, options))
+
+    IMPLEMENT_METHOD(TResurrectChunkLocationsResult, ResurrectChunkLocations, (
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TResurrectChunkLocationsOptions& options),
+        (nodeAddress, locationUuids, options))
+
     IMPLEMENT_METHOD(TMultiTablePartitions, PartitionTables, (
         const std::vector<NYPath::TRichYPath>& paths,
         const TPartitionTablesOptions& options),
@@ -892,6 +904,16 @@ private:
         const TString& nodeAddress,
         const std::vector<TGuid>& locationUuids,
         const TDisableChunkLocationsOptions& options);
+
+    TDestroyChunkLocationsResult DoDestroyChunkLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TDestroyChunkLocationsOptions& options);
+
+    TResurrectChunkLocationsResult DoResurrectChunkLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TResurrectChunkLocationsOptions& options);
 
     TMultiTablePartitions DoPartitionTables(
         const std::vector<NYPath::TRichYPath>& paths,
