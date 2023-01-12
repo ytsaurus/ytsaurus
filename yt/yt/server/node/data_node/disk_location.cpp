@@ -53,7 +53,14 @@ bool TDiskLocation::IsEnabled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return Enabled_.load();
+    return State_.load() == ELocationState::Enabled;
+}
+
+ELocationState TDiskLocation::GetState() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    return State_.load();
 }
 
 void TDiskLocation::ValidateLockFile() const

@@ -33,7 +33,7 @@ TLocationManager::TLocationManager(
     , DiskInfoProvider_(std::move(diskInfoProvider))
 { }
 
-std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivelinessInfo(
+std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     const std::vector<TDiskInfo>& failedDisks)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -44,75 +44,111 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivelinessInfo
         diskNames.insert(failedDisk.DeviceName);
     }
 
-    std::vector<TLocationLivenessInfo> locationLivelinessInfos;
+    std::vector<TLocationLivenessInfo> locationLivenessInfos;
     const auto& locations = ChunkStore_->Locations();
-    locationLivelinessInfos.reserve(locations.size());
+    locationLivenessInfos.reserve(locations.size());
 
     for (const auto& location : locations) {
-        locationLivelinessInfos.push_back({
+        locationLivenessInfos.push_back({
             .Location = location,
-            .IsDisabled = !location->IsEnabled(),
+            .IsDestroying = location->GetState() == ELocationState::Destroying,
             .IsDiskAlive = !diskNames.contains(location->GetStaticConfig()->DeviceName)});
     }
 
-    return locationLivelinessInfos;
+    return locationLivenessInfos;
 }
 
-TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveliness()
+TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveness()
 {
     return DiskInfoProvider_->GetYtDiskInfos(NContainers::EDiskState::Failed)
-        .Apply(BIND(&TLocationManager::MapLocationToLivelinessInfo, MakeStrong(this))
-            .AsyncVia(ControlInvoker_));
+        .Apply(BIND(&TLocationManager::MapLocationToLivenessInfo, MakeStrong(this))
+        .AsyncVia(ControlInvoker_));
 }
 
-std::vector<TGuid> TLocationManager::DisableChunkLocations(
-    const std::vector<TDiskInfo>& failedDisks,
-    const THashSet<TGuid>& locationUuids)
+std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& locationUuids)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    // Fast path.
-    if (failedDisks.empty()) {
-        return {};
-    }
-
-    THashSet<TString> failedDiskNames;
-
-    for (const auto& failedDisk : failedDisks) {
-        failedDiskNames.insert(failedDisk.DeviceName);
-    }
-
-    std::vector<TGuid> locationsForDecommission;
+    std::vector<TGuid> locationsForDisable;
 
     for (const auto& location : ChunkStore_->Locations()) {
-        if (failedDiskNames.contains(location->GetStaticConfig()->DeviceName) &&
-            locationUuids.contains(location->GetUuid()) &&
-            location->IsEnabled())
-        {
-            // Manual location disable if location placed on failed disk.
-            location->Disable(TError("Disk of chunk location is pending decommission")
+        if (locationUuids.contains(location->GetUuid())) {
+            // Manual location disable.
+            auto result = location->Disable(TError("Manual location disabling")
                 << TErrorAttribute("location_uuid", location->GetUuid())
                 << TErrorAttribute("location_path", location->GetPath())
                 << TErrorAttribute("location_disk", location->GetStaticConfig()->DeviceName));
-            locationsForDecommission.push_back(location->GetUuid());
+
+            if (result) {
+                locationsForDisable.push_back(location->GetUuid());
+            }
         }
     }
 
-    return locationsForDecommission;
+    return locationsForDisable;
+}
+
+std::vector<TGuid> TLocationManager::DoDestroyLocations(const THashSet<TGuid>& locationUuids)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    std::vector<TGuid> locationsForDestroy;
+
+    for (const auto& location : ChunkStore_->Locations()) {
+        if (locationUuids.contains(location->GetUuid())) {
+            // Manual location destroy.
+            if (location->StartDestroy()) {
+                locationsForDestroy.push_back(location->GetUuid());
+            }
+        }
+    }
+
+    return locationsForDestroy;
+}
+
+std::vector<TGuid> TLocationManager::DoResurrectLocations(const THashSet<TGuid>& locationUuids)
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    std::vector<TGuid> locationsForResurrect;
+
+    for (const auto& location : ChunkStore_->Locations()) {
+        if (locationUuids.contains(location->GetUuid())) {
+            // Manual location resurrect.
+
+            if (location->Resurrect()) {
+                locationsForResurrect.push_back(location->GetUuid());
+            }
+        }
+    }
+
+    return locationsForResurrect;
+}
+
+TFuture<std::vector<TGuid>> TLocationManager::DestroyChunkLocations(const THashSet<TGuid>& locationUuids)
+{
+    return BIND(&TLocationManager::DoDestroyLocations, MakeStrong(this))
+        .AsyncVia(ControlInvoker_)
+        .Run(locationUuids);
 }
 
 TFuture<std::vector<TGuid>> TLocationManager::DisableChunkLocations(const THashSet<TGuid>& locationUuids)
 {
-    return DiskInfoProvider_->GetYtDiskInfos(NContainers::EDiskState::Failed)
-        .Apply(BIND([=] (const std::vector<TDiskInfo>& failedDisks) {
-            return DisableChunkLocations(failedDisks, locationUuids);
-        })
-        .AsyncVia(ControlInvoker_));
+    return BIND(&TLocationManager::DoDisableLocations, MakeStrong(this))
+        .AsyncVia(ControlInvoker_)
+        .Run(locationUuids);
 }
 
-TFuture<std::vector<TErrorOr<void>>> TLocationManager::RecoverDisks(const THashSet<TString>& diskIds)
+TFuture<std::vector<TGuid>> TLocationManager::ResurrectChunkLocations(const THashSet<TGuid>& locationUuids)
 {
-    return DiskInfoProvider_->RecoverDisks(diskIds);
+    return BIND(&TLocationManager::DoResurrectLocations, MakeStrong(this))
+        .AsyncVia(ControlInvoker_)
+        .Run(locationUuids);
+}
+
+TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
+{
+    return DiskInfoProvider_->RecoverDisk(diskId);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -160,62 +196,54 @@ void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthChecker
 
 void TLocationHealthChecker::OnHealthCheck()
 {
-    auto livelinessInfosOrError = WaitFor(LocationManager_->GetLocationsLiveliness());
+    auto livenessInfosOrError = WaitFor(LocationManager_->GetLocationsLiveness());
 
-    // fast path
-    if (!livelinessInfosOrError.IsOK()) {
-        YT_LOG_ERROR(livelinessInfosOrError, "Failed to list location livelinesses");
+    // Fast path.
+    if (!livenessInfosOrError.IsOK()) {
+        YT_LOG_ERROR(livenessInfosOrError, "Failed to list location livenesses");
         return;
     }
 
-    const auto& livelinessInfos = livelinessInfosOrError.Value();
+    const auto& livenessInfos = livenessInfosOrError.Value();
 
-    THashSet<TString> allDisks;
-    THashSet<TString> diskWithLivelinessLocations;
-    THashSet<TString> diskWithDisabledLocations;
+    THashSet<TString> diskWithLivenessLocations;
+    THashSet<TString> diskWithNotDestroyingLocations;
+    THashSet<TString> diskWithDestroyingLocations;
 
-    for (const auto& livelinessInfo : livelinessInfos) {
-        const auto& location = livelinessInfo.Location;
-        allDisks.insert(livelinessInfo.DiskId);
+    for (const auto& livenessInfo : livenessInfos) {
+        const auto& location = livenessInfo.Location;
 
-        if (livelinessInfo.IsDiskAlive) {
-            diskWithLivelinessLocations.insert(livelinessInfo.DiskId);
+        if (livenessInfo.IsDiskAlive) {
+            diskWithLivenessLocations.insert(livenessInfo.DiskId);
             location->MarkLocationDiskHealthy();
         } else {
             location->MarkLocationDiskFailed();
+        }
 
-            if (livelinessInfo.IsDisabled) {
-                diskWithDisabledLocations.insert(livelinessInfo.DiskId);
+        if (livenessInfo.IsDestroying) {
+            diskWithDestroyingLocations.insert(livenessInfo.DiskId);
+        } else {
+            diskWithNotDestroyingLocations.insert(livenessInfo.DiskId);
+        }
+    }
+
+    for (const auto& diskId : diskWithDestroyingLocations) {
+        TErrorOr<void> resultOrError;
+
+        if (diskWithLivenessLocations.contains(diskId)) {
+            resultOrError = TError("Disk cannot be repaired, because it contains alive locations");
+        } else if (diskWithNotDestroyingLocations.contains(diskId)) {
+            resultOrError = TError("Disk contains not destroing locations");
+        } else {
+            resultOrError = WaitFor(LocationManager_->RecoverDisk(diskId));
+        }
+
+        for (const auto& livenessInfo : livenessInfos) {
+            // If disk recover request is successfull than mark locations as destroyed.
+            if (livenessInfo.DiskId == diskId && livenessInfo.IsDestroying) {
+                livenessInfo.Location->FinishDestroy(resultOrError.IsOK(), resultOrError);
             }
         }
-    }
-
-    THashSet<TString> disksForDecommission;
-
-    for (const auto& disk : allDisks) {
-        // all locations on disk must be decommissed
-        if (!diskWithLivelinessLocations.contains(disk) &&
-            diskWithDisabledLocations.contains(disk))
-        {
-            disksForDecommission.insert(disk);
-        }
-    }
-
-    // fast path
-    if (disksForDecommission.empty()) {
-        return;
-    }
-
-    auto resultOrErrors = WaitFor(LocationManager_->RecoverDisks(disksForDecommission));
-
-    if (resultOrErrors.IsOK()) {
-        for (const auto& resultOrError : resultOrErrors.Value()) {
-            if (!resultOrError.IsOK()) {
-                YT_LOG_ERROR(resultOrError, "Failed to send request to recover disk");
-            }
-        }
-    } else {
-        YT_LOG_ERROR(resultOrErrors, "Failed to send requests to recover disks");
     }
 }
 

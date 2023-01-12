@@ -12,7 +12,7 @@ struct TLocationLivenessInfo
 {
     TStoreLocationPtr Location;
     TString DiskId;
-    bool IsDisabled;
+    bool IsDestroying;
     bool IsDiskAlive;
 };
 
@@ -27,23 +27,29 @@ public:
         IInvokerPtr controlInvoker,
         NContainers::TDiskInfoProviderPtr diskInfoProvider);
 
-    TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveliness();
+    TFuture<std::vector<TLocationLivenessInfo>> GetLocationsLiveness();
+
+    TFuture<std::vector<TGuid>> ResurrectChunkLocations(const THashSet<TGuid>& locationUuids);
 
     TFuture<std::vector<TGuid>> DisableChunkLocations(const THashSet<TGuid>& locationUuids);
 
-    TFuture<std::vector<TErrorOr<void>>> RecoverDisks(const THashSet<TString>& diskIds);
+    TFuture<std::vector<TGuid>> DestroyChunkLocations(const THashSet<TGuid>& locationUuids);
+
+    TFuture<void> RecoverDisk(const TString& diskId);
 
 private:
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
     const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
 
-    std::vector<TLocationLivenessInfo> MapLocationToLivelinessInfo(
+    std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
         const std::vector<NContainers::TDiskInfo>& failedDisks);
 
-    std::vector<TGuid> DisableChunkLocations(
-        const std::vector<NContainers::TDiskInfo>& disks,
-        const THashSet<TGuid>& locationUuids);
+    std::vector<TGuid> DoResurrectLocations(const THashSet<TGuid>& locationUuids);
+
+    std::vector<TGuid> DoDisableLocations(const THashSet<TGuid>& locationUuids);
+
+    std::vector<TGuid> DoDestroyLocations(const THashSet<TGuid>& locationUuids);
 
     DECLARE_THREAD_AFFINITY_SLOT(ControlThread);
 };

@@ -479,8 +479,8 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
     }
 
     // Be optimistic and assume everything will be OK.
-    // Also Disable requires Enabled_ to be true.
-    Enabled_.store(true);
+    // Also Disable requires State_ to be Enabled.
+    State_.store(ELocationState::Enabled);
 
     try {
         return DoScan();
@@ -503,13 +503,99 @@ void TChunkLocation::Start()
     }
 }
 
-void TChunkLocation::Disable(const TError& reason)
+bool TChunkLocation::StartDestroy()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto previousState = ELocationState::Disabled;
+
+    if (!State_.compare_exchange_weak(previousState, ELocationState::Destroying)) {
+        YT_LOG_WARNING("Location must be disabled before desctruction");
+        return false;
+    }
+
+    YT_LOG_INFO("Starting location destruction (LocationUuid: %v, DiskName: %v)",
+        GetUuid(),
+        StaticConfig_->DeviceName);
+
+    return true;
+}
+
+bool TChunkLocation::FinishDestroy(
+    bool destroyResult,
+    const TError& reason = {})
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto previousState = ELocationState::Destroying;
+
+    if (destroyResult) {
+        if (!State_.compare_exchange_weak(previousState, ELocationState::Destroyed)) {
+            YT_LOG_WARNING("Location state must be equal ELocationState::Destroying for finish destroy");
+            return false;
+        }
+
+        YT_LOG_INFO("Finish location destruction (LocationUuid: %v, DiskName: %v)",
+            GetUuid(),
+            StaticConfig_->DeviceName);
+    } else {
+        if (!State_.compare_exchange_weak(previousState, ELocationState::Disabled)) {
+            YT_LOG_WARNING("Location state must be equal ELocationState::Destroyin for finish destroy");
+            return false;
+        }
+
+        YT_LOG_ERROR(reason, "Location destroying failed");
+    }
+
+    return true;
+}
+
+bool TChunkLocation::Resurrect()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto previousState = ELocationState::Disabled;
+
+    if (!State_.compare_exchange_weak(previousState, ELocationState::Resurrecting)) {
+        YT_LOG_WARNING("Attempted to enable location, location must be disabled");
+        return false;
+    }
+
+    BIND([=] () {
+        try {
+            // Remove disabled lock file if exists.
+            auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
+
+            if (NFS::Exists(lockFilePath)) {
+                NFS::Remove(lockFilePath);
+            }
+
+            // Enabled flag must be true before initialization.
+            ChunkStore_->InitializeLocation(MakeStrong(dynamic_cast<TStoreLocation*>(this)));
+            ChunkStoreHost_->ScheduleMasterHeartbeat();
+
+            State_.store(ELocationState::Enabled);
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Error during location resurrection");
+
+            State_.store(ELocationState::Disabled);
+        }
+    })
+        .AsyncVia(GetAuxPoolInvoker())
+        .Run();
+
+    return true;
+}
+
+bool TChunkLocation::Disable(const TError& reason)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (!Enabled_.exchange(false)) {
-        YT_LOG_ERROR(reason, "Attempted to disable location, but it is already disabled");
-        return;
+    auto previousState = ELocationState::Enabled;
+
+    if (!State_.compare_exchange_weak(previousState, ELocationState::Disabling)) {
+        YT_LOG_WARNING(reason, "Attempted to disable location, location must be enabled");
+        return false;
     }
 
     YT_LOG_ERROR(reason, "Disabling location");
@@ -534,6 +620,8 @@ void TChunkLocation::Disable(const TError& reason)
     Disabled_.Fire();
 
     ChunkStoreHost_->ScheduleMasterHeartbeat();
+    State_.store(ELocationState::Disabled);
+    return true;
 }
 
 void TChunkLocation::UpdateUsedSpace(i64 size)
@@ -1081,10 +1169,15 @@ void TChunkLocation::MarkLocationDiskFailed()
 
 void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
 {
+    auto previousState = ELocationState::Enabled;
+
+    if (!State_.compare_exchange_weak(previousState, ELocationState::Disabling)) {
+        return;
+    }
+
     LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath())
         << error);
 
-    Enabled_.store(false);
     AvailableSpace_.store(0);
     UsedSpace_.store(0);
     for (auto& count : PerTypeSessionCount_) {
@@ -1095,6 +1188,8 @@ void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
     Profiler_
         .WithTag("error_code", ToString(static_cast<int>(error.GetNonTrivialCode())))
         .AddFuncGauge("/disabled", MakeStrong(this), [] { return 1.0; });
+
+    State_.store(ELocationState::Disabled);
 }
 
 i64 TChunkLocation::GetAdditionalSpace() const

@@ -2310,3 +2310,21 @@ class YtClient(ClientState):
         :param location_uuids: location uuids.
         """
         return client_api.disable_chunk_locations(node_address, location_uuids, self)
+
+    def destroy_chunk_locations(self, node_address, location_uuids):
+        """
+        Mark locations for destroing. Disks of these locations can be recovered.
+
+        :param node_address: node address.
+        :param location_uuids: location uuids.
+        """
+        return client_api.destroy_chunk_locations(node_address, location_uuids, self)
+
+    def resurrect_chunk_locations(self, node_address, location_uuids):
+        """
+        Try resurrect disabled locations.
+
+        :param node_address: node address.
+        :param location_uuids: location uuids.
+        """
+        return client_api.resurrect_chunk_locations(node_address, location_uuids, self)

@@ -1771,6 +1771,44 @@ TFuture<TDisableChunkLocationsResult> TClient::DisableChunkLocations(
     }));
 }
 
+TFuture<TDestroyChunkLocationsResult> TClient::DestroyChunkLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationUuids,
+    const TDestroyChunkLocationsOptions& /*options*/)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.DestroyChunkLocations();
+    ToProto(req->mutable_node_address(), nodeAddress);
+    ToProto(req->mutable_location_uuids(), locationUuids);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspDestroyChunkLocationsPtr& rsp) {
+        auto locationUuids = FromProto<std::vector<TGuid>>(rsp->location_uuids());
+        return TDestroyChunkLocationsResult{
+            .LocationUuids = locationUuids
+        };
+    }));
+}
+
+TFuture<TResurrectChunkLocationsResult> TClient::ResurrectChunkLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationUuids,
+    const TResurrectChunkLocationsOptions& /*options*/)
+{
+    auto proxy = CreateApiServiceProxy();
+
+    auto req = proxy.ResurrectChunkLocations();
+    ToProto(req->mutable_node_address(), nodeAddress);
+    ToProto(req->mutable_location_uuids(), locationUuids);
+
+    return req->Invoke().Apply(BIND([] (const TApiServiceProxy::TRspResurrectChunkLocationsPtr& rsp) {
+        auto locationUuids = FromProto<std::vector<TGuid>>(rsp->location_uuids());
+        return TResurrectChunkLocationsResult{
+            .LocationUuids = locationUuids
+        };
+    }));
+}
+
 TFuture<TStartYqlQueryResult> TClient::StartYqlQuery(
     const TString& /*query*/,
     const TStartYqlQueryOptions& /*options*/)

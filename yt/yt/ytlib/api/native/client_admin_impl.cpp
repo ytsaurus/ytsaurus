@@ -487,6 +487,44 @@ TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
     };
 }
 
+TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationUuids,
+    const TDestroyChunkLocationsOptions& options)
+{
+    ValidateSuperuserPermissions();
+    TDataNodeServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
+
+    auto req = proxy.DestroyChunkLocations();
+    ToProto(req->mutable_location_uuids(), locationUuids);
+    req->SetTimeout(options.Timeout);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return TDestroyChunkLocationsResult{
+        .LocationUuids = FromProto<std::vector<TGuid>>(rsp->location_uuids())
+    };
+}
+
+TResurrectChunkLocationsResult TClient::DoResurrectChunkLocations(
+    const TString& nodeAddress,
+    const std::vector<TGuid>& locationUuids,
+    const TResurrectChunkLocationsOptions& options)
+{
+    ValidateSuperuserPermissions();
+    TDataNodeServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
+
+    auto req = proxy.ResurrectChunkLocations();
+    ToProto(req->mutable_location_uuids(), locationUuids);
+    req->SetTimeout(options.Timeout);
+
+    auto rsp = WaitFor(req->Invoke())
+        .ValueOrThrow();
+    return TResurrectChunkLocationsResult{
+        .LocationUuids = FromProto<std::vector<TGuid>>(rsp->location_uuids())
+    };
+}
+
 void TClient::SyncCellsIfNeeded(const std::vector<TCellId>& cellIds)
 {
     bool needToSyncCells = false;

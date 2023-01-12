@@ -65,6 +65,8 @@ public:
      */
     void Initialize();
 
+    void InitializeLocation(const TStoreLocationPtr& location);
+
     void Shutdown();
 
     void UpdateConfig(const TDataNodeDynamicConfigPtr& config);
@@ -198,8 +200,6 @@ private:
     // copies are placed on distinct media.
     // Such copies may have different sizes, too.
     THashMultiMap<TChunkId, TChunkEntry> ChunkMap_;
-
-    void InitializeLocation(const TStoreLocationPtr& location);
 
     bool CanStartNewSession(
         const TStoreLocationPtr& location,

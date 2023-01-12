@@ -1528,6 +1528,24 @@ struct TDisableChunkLocationsResult
     std::vector<TGuid> LocationUuids;
 };
 
+struct TDestroyChunkLocationsOptions
+    : public TTimeoutOptions
+{ };
+
+struct TDestroyChunkLocationsResult
+{
+    std::vector<TGuid> LocationUuids;
+};
+
+struct TResurrectChunkLocationsOptions
+    : public TTimeoutOptions
+{ };
+
+struct TResurrectChunkLocationsResult
+{
+    std::vector<TGuid> LocationUuids;
+};
+
 using TCellIdToSnapshotIdMap = THashMap<NHydra::TCellId, int>;
 
 struct TTableBackupManifest
@@ -2173,6 +2191,16 @@ struct IClient
         const TString& nodeAddress,
         const std::vector<TGuid>& locationUuids,
         const TDisableChunkLocationsOptions& options = {}) = 0;
+
+    virtual TFuture<TDestroyChunkLocationsResult> DestroyChunkLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TDestroyChunkLocationsOptions& options = {}) = 0;
+
+    virtual TFuture<TResurrectChunkLocationsResult> ResurrectChunkLocations(
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TResurrectChunkLocationsOptions& options = {}) = 0;
 
     // YQL
 

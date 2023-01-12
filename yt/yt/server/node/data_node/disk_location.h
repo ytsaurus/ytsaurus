@@ -10,6 +10,17 @@ namespace NYT::NDataNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DEFINE_ENUM(ELocationState,
+    (Enabled)
+    (Resurrecting)
+    (Disabling)
+    (Disabled)
+    (Destroying)
+    (Destroyed)
+);
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TDiskLocation
     : public TRefCounted
 {
@@ -31,11 +42,14 @@ public:
     //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
 
+    // Returns current location state.
+    ELocationState GetState() const;
+
 protected:
     const TString Id_;
     const NLogging::TLogger Logger;
 
-    std::atomic<bool> Enabled_ = false;
+    std::atomic<ELocationState> State_ = ELocationState::Disabled;
 
     void ValidateMinimumSpace() const;
     void ValidateLockFile() const;

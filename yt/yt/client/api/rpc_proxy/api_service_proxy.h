@@ -150,6 +150,8 @@ public:
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMaintenance);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, RemoveMaintenance);
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DisableChunkLocations);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, DestroyChunkLocations);
+    DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, ResurrectChunkLocations);
 
     // Security
     DEFINE_RPC_PROXY_METHOD(NRpcProxy::NProto, AddMember);

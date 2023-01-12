@@ -41,16 +41,9 @@ TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYtDiskInfos(EDiskState sta
     }));
 }
 
-TFuture<std::vector<TErrorOr<void>>> TDiskInfoProvider::RecoverDisks(const THashSet<TString>& diskIds)
+TFuture<void> TDiskInfoProvider::RecoverDisk(const TString& diskId)
 {
-    std::vector<TFuture<void>> recoverDiskFutures;
-    recoverDiskFutures.reserve(diskIds.size());
-
-    for (const auto& diskId : diskIds) {
-        recoverDiskFutures.push_back(DiskManagerProxy_->RecoverDiskById(diskId, ERecoverPolicy::RecoverAuto));
-    }
-
-    return AllSet(recoverDiskFutures);
+    return DiskManagerProxy_->RecoverDiskById(diskId, ERecoverPolicy::RecoverAuto);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

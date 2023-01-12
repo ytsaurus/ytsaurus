@@ -16,7 +16,7 @@ public:
 
     TFuture<std::vector<TDiskInfo>> GetYtDiskInfos(EDiskState state);
 
-    TFuture<std::vector<TErrorOr<void>>> RecoverDisks(const THashSet<TString>& diskIds);
+    TFuture<void> RecoverDisk(const TString& diskId);
 
 private:
     const TDiskManagerProxyPtr DiskManagerProxy_;

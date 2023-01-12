@@ -529,6 +529,16 @@ public:
         const std::vector<TGuid>& locationUuids,
         const TDisableChunkLocationsOptions& options), (override));
 
+    MOCK_METHOD(TFuture<TDestroyChunkLocationsResult>, DestroyChunkLocations, (
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TDestroyChunkLocationsOptions& options), (override));
+
+    MOCK_METHOD(TFuture<TResurrectChunkLocationsResult>, ResurrectChunkLocations, (
+        const TString& nodeAddress,
+        const std::vector<TGuid>& locationUuids,
+        const TResurrectChunkLocationsOptions& options), (override));
+
     MOCK_METHOD(TFuture<TStartYqlQueryResult>, StartYqlQuery, (
         const TString& query, const TStartYqlQueryOptions& options), (override));
 

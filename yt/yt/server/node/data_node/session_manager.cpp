@@ -262,16 +262,29 @@ void TSessionManager::OnLocationDisabled(const TChunkLocationPtr& location)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    // This method should be called from the Location::Disabled method synchronously (using Disabled_ signal).
+    // This is necessary for the consistent and thread-safe use of chunks.
+
     THashMap<TSessionId, ISessionPtr> sessionMap;
     {
         auto guard = ReaderGuard(SessionMapLock_);
         sessionMap = SessionMap_;
     }
 
+    std::vector<TFuture<void>> activeSessions;
+
     for (const auto& [sessionId, session] : sessionMap) {
         if (location == session->GetStoreLocation()) {
             session->Cancel(TError("Target location is disabled"));
+            activeSessions.push_back(session->GetUnregisteredEvent());
         }
+    }
+
+    auto results = WaitFor(AllSet(activeSessions))
+        .ValueOrThrow();
+
+    for (const auto& result : results) {
+        YT_VERIFY(result.IsOK());
     }
 }
 
