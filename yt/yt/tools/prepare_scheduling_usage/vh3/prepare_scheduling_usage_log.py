@@ -1,5 +1,5 @@
 import vh3
-from typing import Literal
+from typing import Literal, Optional
 
 
 @vh3.decorator.operation(deterministic=True, owner='robot-yt-sch-usage')
@@ -23,7 +23,7 @@ def prepare_scheduling_usage_log(
     input_path: vh3.String = "",
     output_dir: vh3.String = "",
     yt_cluster: vh3.String = "hahn",
-    network: vh3.Enum[Literal["none"]] = None
+    network: Optional[vh3.Enum[Literal["none"]]] = None
 ) -> vh3.NoOutput:
     """
     Prepare scheduling usage log
