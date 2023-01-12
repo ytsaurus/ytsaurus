@@ -4204,7 +4204,7 @@ private:
             }
         }
 
-        YT_LOG_INFO("Adjusted partition count %v", PartitionCount);
+        YT_LOG_INFO("Adjusted partition count (PartitionCount: %v)", PartitionCount);
 
         BuildPartitionTree(PartitionCount, MaxPartitionFactor);
 
