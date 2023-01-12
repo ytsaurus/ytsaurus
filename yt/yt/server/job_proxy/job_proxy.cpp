@@ -89,6 +89,9 @@
 
 #include <util/folder/dirut.h>
 
+#include <sys/resource.h>
+#include <sys/time.h>
+
 namespace NYT::NJobProxy {
 
 using namespace NScheduler;
@@ -533,6 +536,8 @@ void TJobProxy::DoRun()
     if (auto tracer = GetGlobalTracer()) {
         tracer->Stop();
     }
+
+    LogSystemStats();
 }
 
 void TJobProxy::Run()
@@ -1427,6 +1432,21 @@ NLogging::TLogger TJobProxy::GetLogger() const
 IInvokerPtr TJobProxy::GetControlInvoker() const
 {
     return ControlThread_->GetInvoker();
+}
+
+void TJobProxy::LogSystemStats() const
+{
+    struct rusage usageSelf, usageChildren;
+
+    getrusage(RUSAGE_SELF, &usageSelf);
+    getrusage(RUSAGE_CHILDREN, &usageChildren);
+
+    YT_LOG_INFO("Get processes CPU usage (JobProxyUserCpu: %v, JobProxySystemCpu: %v, "
+        "ChildrenUserCpu: %v, ChildrenSystemCpu: %v)",
+        TDuration(usageSelf.ru_utime),
+        TDuration(usageSelf.ru_stime),
+        TDuration(usageChildren.ru_utime),
+        TDuration(usageChildren.ru_stime));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
