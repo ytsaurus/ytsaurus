@@ -6,6 +6,7 @@
 #include "private.h"
 
 #include <yt/yt/library/containers/cgroup.h>
+#include <yt/yt/library/containers/config.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -22,6 +23,8 @@
 
 #include <util/string/cast.h>
 #include <util/string/split.h>
+
+#include <util/system/env.h>
 
 #include <initializer_list>
 #include <string>
@@ -763,6 +766,24 @@ IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor)
 {
     auto self = GetSelfPortoInstance(executor);
     return TPortoInstance::GetInstance(executor, *self->GetRootName());
+}
+
+double GetSelfPortoInstanceVCpuFactor()
+{
+    auto configPtr = New<TPortoExecutorConfig>();
+    auto executorPtr = CreatePortoExecutor(configPtr, "");
+    auto currentContainer = GetSelfPortoInstance(executorPtr);
+    double cpuLimit = currentContainer->GetResourceLimits().CpuLimit;
+    if (cpuLimit <= 0) {
+        THROW_ERROR_EXCEPTION("Cpu limit must be greater than 0");
+    }
+
+    // DEPLOY_VCPU_LIMIT stores value in millicores
+    if (TString vcpuLimitStr = GetEnv("DEPLOY_VCPU_LIMIT"); !vcpuLimitStr.Empty()) {
+        double vcpuLimit = FromString<double>(vcpuLimitStr) / 1000.0;
+        return vcpuLimit / cpuLimit;
+    }
+    THROW_ERROR_EXCEPTION("Failed to get vcpu limit from env variable");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
