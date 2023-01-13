@@ -52,7 +52,7 @@ class TestUsers(YTEnvSetup):
             try:
                 get("//tmp", authenticated_user=user)
                 return False
-            except:
+            except YtError:
                 return True
 
         create_user("u")

@@ -26,7 +26,7 @@ class TestHosts(YTEnvSetup):
         for host in ls("//sys/hosts"):
             try:
                 remove_host(host)
-            except:
+            except YtError:
                 pass
         super(TestHosts, self).teardown_method(method)
 

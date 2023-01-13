@@ -650,7 +650,7 @@ class TestOrderedDynamicTables(TestOrderedDynamicTablesBase):
         def check():
             chunk_list = get("//tmp/t/@chunk_list_id")
             tablet_chunk_lists = get("#{0}/@child_ids".format(chunk_list))
-            props = [get("#{0}/@statistics".format(l)) for l in tablet_chunk_lists]
+            props = [get("#{0}/@statistics".format(item)) for item in tablet_chunk_lists]
             return all([p["row_count"] != p["logical_row_count"] for p in props])
 
         wait(check)

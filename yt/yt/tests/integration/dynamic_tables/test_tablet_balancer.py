@@ -143,8 +143,8 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
              for action in get("//sys/tablet_cell_bundles/default/@tablet_actions")))
 
         tablets = get("//tmp/t/@tablets")
-        assert(tablets[0]["cell_id"] == tablets[1]["cell_id"])
-        assert(tablets[2]["cell_id"] == tablets[3]["cell_id"])
+        assert tablets[0]["cell_id"] == tablets[1]["cell_id"]
+        assert tablets[2]["cell_id"] == tablets[3]["cell_id"]
 
     @authors("alexelexa")
     def test_parameterized_balancing_trigger(self):

@@ -1,5 +1,7 @@
 from yt_env_setup import (YTEnvSetup, Restarter, MASTERS_SERVICE)
 
+from yt.common import YtError
+
 from yt_commands import (authors, wait, get, set, ls)
 
 ##################################################################
@@ -42,7 +44,7 @@ class TestIncumbents(YTEnvSetup):
                 for master in ls("//sys/primary_masters"):
                     address = f"//sys/primary_masters/{master}/orchid"
                     get(f"{address}/monitoring/hydra/state")
-            except:
+            except YtError:
                 return False
             return True
         wait(check_up)

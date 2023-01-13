@@ -86,8 +86,8 @@ class TestSortedDynamicTablesReadTable(TestSortedDynamicTablesBase):
             def _check():
                 locks = get("#{0}/@locks".format(table_id), driver=driver)
                 if "tx" in kwargs:
-                    for l in locks:
-                        if l["transaction_id"] == kwargs["tx"]:
+                    for item in locks:
+                        if item["transaction_id"] == kwargs["tx"]:
                             return True
                     return False
                 else:

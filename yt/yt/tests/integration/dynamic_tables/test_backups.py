@@ -396,8 +396,7 @@ class TestBackups(DynamicTablesBase):
             return_response=True)
 
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
-        wait(lambda: get("//sys/tablets/{}/orchid/backup_stage".format(tablet_id))
-                == "timestamp_received")
+        wait(lambda: get("//sys/tablets/{}/orchid/backup_stage".format(tablet_id)) == "timestamp_received")
 
         # Wait for current timestamp to exceed checkpoint timestamp.
         sleep(2)

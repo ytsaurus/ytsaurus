@@ -470,12 +470,14 @@ class TestNodeDynamicConfig(YTEnvSetup):
         node_with_tag_NodeA, _ = self._init_zero_slot_nodes(config_node)
 
         def get_orchid_memory_limits(category):
-            return get("//sys/tablet_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
-                       .format(node_with_tag_NodeA, category))
+            return get(
+                "//sys/tablet_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
+                .format(node_with_tag_NodeA, category))
 
         def get_thread_pool_size(pool_name):
-            return get("//sys/tablet_nodes/{0}/orchid/tablet_node_thread_pools/{1}_thread_pool_size"
-                       .format(node_with_tag_NodeA, pool_name))
+            return get(
+                "//sys/tablet_nodes/{0}/orchid/tablet_node_thread_pools/{1}_thread_pool_size"
+                .format(node_with_tag_NodeA, pool_name))
 
         bundle_dynamic_config = {
             "nodeA": {

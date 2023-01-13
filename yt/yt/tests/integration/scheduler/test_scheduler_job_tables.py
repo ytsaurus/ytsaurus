@@ -660,7 +660,7 @@ class TestCoreTable(YTEnvSetup):
                     "cuda": False,
                 }
                 ret_dict["core_data"] = core_data
-            except:
+            except YtError:
                 logging.getLogger().exception("Failed to produce core")
                 raise
 
