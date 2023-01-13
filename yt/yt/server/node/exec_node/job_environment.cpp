@@ -697,7 +697,7 @@ private:
             TString{cpuSet}))
         .ThrowOnError();
 
-        YT_LOG_INFO("Slot's cpu_set was updated (SlotType: %v, SlotIndex: %v, CpuSet: '%Qv')",
+        YT_LOG_INFO("Slot cpu set was updated (SlotType: %v, SlotIndex: %v, CpuSet: %v)",
             slotType,
             slotIndex,
             cpuSet);
