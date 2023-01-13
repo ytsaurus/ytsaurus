@@ -36,7 +36,7 @@ public:
     //! Same join, but with implicit trace context.
     void Join(i64 queueIndex);
 
-    //! SpartSpan creates span that traces background work in the queue.
+    //! StartSpan creates span that traces background work in the queue.
     std::pair<TTraceContextPtr, bool> StartSpan(i64 startIndex, const TString& spanName);
 
     //! Notify that trace is finished.
