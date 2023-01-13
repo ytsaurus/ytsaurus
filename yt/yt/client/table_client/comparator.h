@@ -97,6 +97,11 @@ void Serialize(const TComparator& comparator, NYson::IYsonConsumer* consumer);
 
 using TPrefixComparer = int(const TUnversionedValue*, const TUnversionedValue*, int);
 
+////////////////////////////////////////////////////////////////////////////////
+
+// Comparator which returns int. abs(compare result) - 1 is equal to index of first non-equal component.
+int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, int length);
+
 int GetCompareSign(int value);
 
 int CompareKeys(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs, TPrefixComparer comparePrefix);
@@ -158,6 +163,8 @@ int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound
 int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TPrefixComparer comparePrefix);
 
 int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
+
+int TestComparisonResult(int result, TRange<ESortOrder> sortOrders, bool inclusive, bool upper);
 
 ////////////////////////////////////////////////////////////////////////////////
 

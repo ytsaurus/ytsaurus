@@ -584,6 +584,8 @@ message TReduceJobSpecExt
     optional int32 join_key_column_count = 4 [default = 0];
 
     optional NTableClient.NProto.TSortColumnsExt sort_columns = 5;
+
+    optional int64 foreign_table_lookup_keys_threshold = 6;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

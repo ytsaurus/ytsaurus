@@ -1508,6 +1508,8 @@ public:
 
     bool SliceForeignChunks;
 
+    std::optional<i64> ForeignTableLookupKeysThreshold;
+
     REGISTER_YSON_STRUCT(TReduceOperationSpec);
 
     static void Register(TRegistrar registrar);

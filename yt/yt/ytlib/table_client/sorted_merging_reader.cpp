@@ -211,8 +211,7 @@ void TSortedMergingReaderBase::DoOpen(const TRowBatchReadOptions& options)
                 if (!session.Populate(options)) {
                     break;
                 }
-
-                session.Rows = session.Batch->MaterializeRows();
+                
                 if (!session.Rows.Empty()) {
                     session.TableIndex = getTableIndex(session.Rows[0], session.Reader->GetNameTable());
                     SessionHeap_.push_back(&session);

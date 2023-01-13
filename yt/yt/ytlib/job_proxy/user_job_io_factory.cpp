@@ -23,6 +23,7 @@
 
 #include <yt/yt/client/api/public.h>
 
+#include <yt/yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
 #include <yt/yt_proto/yt/client/chunk_client/proto/chunk_spec.pb.h>
 
 #include <yt/yt/client/object_client/helpers.h>
@@ -30,8 +31,14 @@
 #include <yt/yt/client/table_client/column_sort_schema.h>
 #include <yt/yt/client/table_client/name_table.h>
 
+#include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/ytree/convert.h>
 
+#include <yt/yt/client/table_client/row_buffer.h>
+#include <yt/yt/client/table_client/row_batch.h>
+#include <yt/yt/ytlib/job_proxy/private.h>
+
+#include <limits>
 #include <vector>
 
 namespace NYT::NJobProxy {
@@ -86,6 +93,57 @@ ISchemalessMultiChunkWriterPtr CreateTableWriter(
         std::move(throttler));
 }
 
+std::vector<TUnversionedRow> FetchReaderKeyPrefixes(
+     ISchemalessMultiChunkReaderPtr reader,
+     int keyLen,
+     TRowBufferPtr buffer)
+{
+    std::vector<TUnversionedRow> keys;
+    while (true) {
+        auto batch = reader->Read();
+        if (batch == nullptr) break;
+        auto rows = batch->MaterializeRows();
+
+        for (const auto& row : rows) {
+            if (!keys.empty() && ComparePrefix(row.begin(), keys.back().begin(), keyLen) == 0) {
+                continue;
+            }
+
+            auto keyRow = buffer->CaptureRow(TRange<TUnversionedValue>(row.begin(), row.begin() + keyLen));
+            keys.push_back(keyRow);
+        }
+    }
+
+    return keys;
+}
+
+TSharedRange<TUnversionedRow> DedupRows(
+        const TSortColumns& sortColumns,
+        std::vector<std::vector<TUnversionedRow>> tableKeys)
+{
+    std::vector<TUnversionedRow> keys;
+
+    ssize_t capacity = 0;
+    for (const auto& tk : tableKeys) {
+        capacity += std::ssize(tk);
+    }
+
+    keys.reserve(capacity);
+
+    for (const auto& tk : tableKeys) {
+        std::copy(tk.begin(), tk.end(), back_inserter(keys));
+    }
+
+    auto sortComparator = GetComparator(sortColumns);
+    std::sort(keys.begin(), keys.end(), [&sortComparator](const TUnversionedRow& u, const TUnversionedRow& v) -> bool {
+        return sortComparator.CompareKeys(TKey::FromRow(u), TKey::FromRow(v)) < 0;
+    });
+
+    keys.erase(std::unique(keys.begin(), keys.end()), keys.end());
+
+    return MakeSharedRange<TUnversionedRow>(keys, MakeSharedRange(std::move(tableKeys)));
+}
+
 ISchemalessMultiChunkReaderPtr CreateRegularReader(
     const IJobSpecHelperPtr& jobSpecHelper,
     TChunkReaderHostPtr chunkReaderHost,
@@ -116,6 +174,7 @@ ISchemalessMultiChunkReaderPtr CreateRegularReader(
         std::move(chunkReaderHost),
         dataSourceDirectory,
         std::move(dataSliceDescriptors),
+        TSharedRange<TUnversionedRow>(nullptr, 0UL, nullptr),
         std::move(nameTable),
         chunkReadOptions,
         columnFilter,
@@ -264,6 +323,9 @@ public:
             std::move(localHostName),
             std::move(outBandwidthThrottler))
         , InterruptAtKeyEdge_(interruptAtKeyEdge)
+        , Logger(JobProxyClientLogger)
+        , Buffer_(New<TRowBuffer>())
+
     {
         TUserJobIOFactoryBase::Initialize();
     }
@@ -307,6 +369,62 @@ public:
             }
         }
 
+        // Ff the primary table small, read it out completely into the memory to obtain
+        // join keys.
+        i64 inputRowCount = 0;
+        for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
+            for (const auto& chunkSpec : inputSpec.chunk_specs()) {
+                if (chunkSpec.has_row_count_override()) {
+                    inputRowCount += chunkSpec.row_count_override();
+                    continue;
+                } else if (HasProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions())) {
+                    const auto& misc = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkSpec.chunk_meta().extensions());
+                    inputRowCount += misc.row_count();
+                    continue;
+                }
+                // No estimate possible.
+                inputRowCount = std::numeric_limits<i64>::max();
+                break;
+            }
+        }
+
+        std::vector<std::vector<TUnversionedRow>> primaryKeyPrefixes;
+        TSharedRange<TUnversionedRow> hintKeyPrefixes;
+
+        if (reduceJobSpecExt.has_foreign_table_lookup_keys_threshold() &&
+            inputRowCount < reduceJobSpecExt.foreign_table_lookup_keys_threshold() &&
+            schedulerJobSpecExt.foreign_input_table_specsSize() > 0)
+        {
+            primaryKeyPrefixes.resize(schedulerJobSpecExt.input_table_specs_size());
+
+            // TODO: surface it in `yt get-job` output that a preliminary pass was performed.
+            YT_LOG_INFO("Read all keys from primary table in a preliminary pass (estimated %v keys)", inputRowCount);
+
+            for (int i = 0; i < schedulerJobSpecExt.input_table_specs_size(); i++) {
+                const auto& inputSpec = schedulerJobSpecExt.input_table_specs(i);
+                auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
+                const auto& tableReaderConfig = JobSpecHelper_->GetJobIOConfig()->TableReader;
+                // TODO YT-18240: only read key columns here.
+                auto reader = CreateSchemalessSequentialMultiReader(
+                    tableReaderConfig,
+                    options,
+                    ChunkReaderHost_,
+                    dataSourceDirectory,
+                    std::move(dataSliceDescriptors),
+                    nullptr,
+                    nameTable,
+                    ChunkReadOptions_,
+                    columnFilter,
+                    /*partitionTag*/ std::nullopt,
+                    MultiReaderMemoryManager_->CreateMultiReaderMemoryManager(tableReaderConfig->MaxBufferSize),
+                    sortColumns.size());
+
+                primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), Buffer_);
+            }
+            hintKeyPrefixes = DedupRows(sortColumns, std::move(primaryKeyPrefixes));
+        }
+
+
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {
             // ToDo(psushin): validate that input chunks are sorted.
             auto dataSliceDescriptors = UnpackDataSliceDescriptors(inputSpec);
@@ -318,6 +436,7 @@ public:
                 ChunkReaderHost_,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
+                nullptr,
                 nameTable,
                 ChunkReadOptions_,
                 columnFilter,
@@ -341,6 +460,7 @@ public:
                 ChunkReaderHost_,
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
+                hintKeyPrefixes,
                 nameTable,
                 ChunkReadOptions_,
                 columnFilter,
@@ -373,6 +493,8 @@ protected:
 
 private:
     const bool InterruptAtKeyEdge_;
+    const NLogging::TLogger& Logger;
+    TRowBufferPtr Buffer_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
