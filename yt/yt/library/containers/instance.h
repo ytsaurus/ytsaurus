@@ -153,6 +153,10 @@ TString GetSelfContainerName(const IPortoExecutorPtr& executor);
 IInstancePtr GetSelfPortoInstance(IPortoExecutorPtr executor);
 IInstancePtr GetRootPortoInstance(IPortoExecutorPtr executor);
 IInstancePtr GetPortoInstance(IPortoExecutorPtr executor, const TString& name);
+
+//! Works only in Yandex.Deploy pod environment where env DEPLOY_VCPU_LIMIT is set.
+//! Throws if this env is absent.
+double GetSelfPortoInstanceVCpuFactor();
 #endif
 
 ////////////////////////////////////////////////////////////////////////////////
