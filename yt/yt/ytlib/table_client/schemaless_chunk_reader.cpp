@@ -1,3 +1,4 @@
+
 #include "schemaless_chunk_reader.h"
 #include "helpers.h"
 #include "private.h"
@@ -88,6 +89,13 @@ int GetRowIndexId(TNameTablePtr readerNameTable, TChunkReaderOptionsPtr options)
         // TODO(max42): support row index in virtual values for columnar reader.
     }
     return -1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool InsideRange(TRange<TLegacyKey> r, const TLegacyKey* item)
+{
+    return item >= r.begin() && item < r.end();
 }
 
 // TODO(lukyan): Use raw vector of names for chunk name table instead of TNameTable.
@@ -797,8 +805,68 @@ TInterruptDescriptor THorizontalSchemalessRangeChunkReader::GetInterruptDescript
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class THorizontalSchemalessLookupChunkReader
+class THorizontalSchemalessLookupChunkReaderBase
     : public THorizontalSchemalessChunkReaderBase
+{
+public:
+    THorizontalSchemalessLookupChunkReaderBase(
+        const TChunkStatePtr& chunkState,
+        const TColumnarChunkMetaPtr& chunkMeta,
+        const TChunkReaderConfigPtr& config,
+        const TNameTablePtr& nameTable,
+        NChunkClient::IChunkReaderPtr underlyingReader,
+        const std::vector<int>& chunkToReaderIdMapping,
+        int rowIndexId,
+        const TReaderVirtualValues& virtualValues,
+        const TClientChunkReadOptions& chunkReadOptions,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
+        const TKeyWideningOptions& keyWideningOptions,
+        const TSharedRange<TLegacyKey>& keys,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
+        std::optional<int> partitionTag = std::nullopt,
+        const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+
+    TInterruptDescriptor GetInterruptDescriptor(
+        TRange<TUnversionedRow> /*unreadRows*/) const override
+    {
+        // TODO YT-18241: support interrupts.
+        return TInterruptDescriptor{};
+    }
+
+protected:
+    TSharedRange<TLegacyKey> Keys_;
+
+    // Subrange of Keys_ that does not fall outside of ChunkSpec read limits.
+    TRange<TLegacyKey> PrefixRange_;
+
+    // Subrances of PrefixRange_ that contain key prefixes where each key has to be
+    // checked against limits individually.
+    TRange<TLegacyKey> LowerBoundCmpRange_;
+    TRange<TLegacyKey> UpperBoundCmpRange_;
+
+    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
+
+    TKeyWideningOptions KeyWideningOptions_;
+    bool HasMoreBlocks_ = true;
+
+    TReadLimit ChunkSpecLowerLimit_, ChunkSpecUpperLimit_;
+    std::optional<TKeyBoundRef> LowerBound_;
+    std::optional<TKeyBoundRef> UpperBound_;
+
+    void ApplyLimits();
+    void ComputeBlockIndexes(TRange<TLegacyKey> keys);
+    void InitBlocks();
+
+    void InitFirstBlock() override;
+    void InitNextBlock() override;
+
+private:
+    const TChunkStatePtr& ChunkState_;
+};
+
+class THorizontalSchemalessLookupChunkReader
+    : public THorizontalSchemalessLookupChunkReaderBase
 {
 public:
     THorizontalSchemalessLookupChunkReader(
@@ -817,77 +885,340 @@ public:
         const TSharedRange<TLegacyKey>& keys,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         std::optional<int> partitionTag = std::nullopt,
-        const TChunkReaderMemoryManagerPtr& memoryManager = nullptr)
-        : THorizontalSchemalessChunkReaderBase(
-            chunkState,
-            chunkMeta,
-            config,
-            nameTable,
-            std::move(underlyingReader),
-            chunkToReaderIdMapping,
-            rowIndexId,
-            virtualValues,
-            chunkReadOptions,
-            sortOrders,
-            commonKeyPrefix,
-            partitionTag,
-            memoryManager)
-        , Keys_(keys)
-        , PerformanceCounters_(std::move(performanceCounters))
-        , KeyFilterTest_(Keys_.Size(), true)
-        , KeyWideningOptions_(keyWideningOptions)
-    {
-        const auto& misc = ChunkMeta_->Misc();
-        if (!misc.sorted()) {
-            THROW_ERROR_EXCEPTION("Requested lookup for an unsorted chunk");
-        }
-        if (!misc.unique_keys()) {
-            THROW_ERROR_EXCEPTION("Requested lookup for a chunk without \"unique_keys\" restriction");
-        }
+        const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
-        for (const auto& key : Keys_) {
-            TReadLimit readLimit(TKeyBound::FromRowUnchecked() >= key);
+    IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
+};
 
-            int index = ApplyLowerKeyLimit(BlockLastKeys_, readLimit, SortOrders_, CommonKeyPrefix_);
-            if (index == BlockMetaExt_->data_blocks_size()) {
-                break;
-            }
-
-            if (BlockIndexes_.empty() || BlockIndexes_.back() != index) {
-                BlockIndexes_.push_back(index);
-            }
-        }
-
-        SetReadyEvent(
-            InitBlockFetcher()
-            .Apply(BIND([this, this_ = MakeStrong(this)] {
-                if (InitFirstBlockNeeded_) {
-                    InitFirstBlock();
-                    InitFirstBlockNeeded_ = false;
-                }
-            })));
-    }
+class THorizontalSchemalessKeyRangesChunkReader
+    : public THorizontalSchemalessLookupChunkReaderBase
+{
+public:
+    THorizontalSchemalessKeyRangesChunkReader(
+        const TChunkStatePtr& chunkState,
+        const TColumnarChunkMetaPtr& chunkMeta,
+        const TChunkReaderConfigPtr& config,
+        const TNameTablePtr& nameTable,
+        NChunkClient::IChunkReaderPtr underlyingReader,
+        const std::vector<int>& chunkToReaderIdMapping,
+        int rowIndexId,
+        const TReaderVirtualValues& virtualValues,
+        const TClientChunkReadOptions& chunkReadOptions,
+        TRange<ESortOrder> sortOrders,
+        int commonKeyPrefix,
+        const TKeyWideningOptions& keyWideningOptions,
+        const TSharedRange<TLegacyKey>& keyPrefixes,
+        TChunkReaderPerformanceCountersPtr performanceCounters,
+        std::optional<int> partitionTag = std::nullopt,
+        const TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
     IUnversionedRowBatchPtr Read(const TRowBatchReadOptions& options) override;
 
 private:
-    const TSharedRange<TLegacyKey> Keys_;
-    const TChunkReaderPerformanceCountersPtr PerformanceCounters_;
-
-    std::vector<bool> KeyFilterTest_;
-    TKeyWideningOptions KeyWideningOptions_;
-    bool HasMoreBlocks_ = true;
-
-    void InitFirstBlock() override;
-    void InitNextBlock() override;
+    int KeyIndex_ = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(THorizontalSchemalessLookupChunkReader)
 
 ////////////////////////////////////////////////////////////////////////////////
+THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkReaderBase(
+    const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    const TChunkReaderConfigPtr& config,
+    const TNameTablePtr& nameTable,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    const std::vector<int>& chunkToReaderIdMapping,
+    int rowIndexId,
+    const TReaderVirtualValues& virtualValues,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix,
+    const TKeyWideningOptions& keyWideningOptions,
+    const TSharedRange<TLegacyKey>& keyPrefixes,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
+    : THorizontalSchemalessChunkReaderBase(
+        chunkState,
+        chunkMeta,
+        config,
+        nameTable,
+        std::move(underlyingReader),
+        chunkToReaderIdMapping,
+        rowIndexId,
+        virtualValues,
+        chunkReadOptions,
+        sortOrders,
+        commonKeyPrefix,
+        partitionTag,
+        memoryManager)
+    , Keys_(keyPrefixes)
+    , PerformanceCounters_(std::move(performanceCounters))
+    , KeyWideningOptions_(keyWideningOptions)
+    , ChunkState_(chunkState)
+{
+    const auto& misc = ChunkMeta_->Misc();
+    if (!misc.sorted()) {
+        THROW_ERROR_EXCEPTION("Requested lookup for an unsorted chunk");
+    }
+
+    PrefixRange_ = Keys_;
+}
+
+
+void THorizontalSchemalessLookupChunkReaderBase::InitBlocks()
+{
+    SetReadyEvent(
+        InitBlockFetcher()
+        .Apply(BIND([this, this_ = MakeStrong(this)] {
+            if (InitFirstBlockNeeded_) {
+                InitFirstBlock();
+                InitFirstBlockNeeded_ = false;
+            }
+        })));
+}
+
+void THorizontalSchemalessLookupChunkReaderBase::ApplyLimits()
+{
+    // ApplyLimits() extracts lower read limit and upper read limit from the ChunkSpec,
+    // and compares these limits to the Keys_ vector.
+    //
+    // The reader will only receive rows for keys prefixes within the read limit.
+    // However, the client of this class may provide key prefixes that fall outside the range.
+    // These prefixes have to be filtered out.
+    //
+    // Every key prefix may fall into three categories:
+    //  (1) completely outside the limits.
+    //  (2) partially the limits: each key has to be checked against limits individually.
+    //  (3) completely within limits.
+    //
+    // The category (2) includes key prefixes that form either full or a partial prefix
+    // match with the boundary key of the limiting ray.
+    //
+    // ApplyLimits() computes the following subranges of Keys_
+    // PrefixRange_, the range of key prefixes partially or completely intersecting with limits.
+    // LowerBoundCmpRange_, a prefix of PrefixRange_ where each key has to be individually
+    // tested against lower limit.
+    // UpperBoundCmpRange_, a suffix of PrefixRange_ where each key has to be tested against
+    // the upper limit.
+    //
+    // This implementation defensively supports the case when read limits inside the ChunkSpec
+    // only provide key prefixes, not full keys.
+
+    const TLegacyKey* begin = Keys_.begin();
+    const TLegacyKey* end = Keys_.end();
+
+    if (ChunkState_->ChunkSpec.has_lower_limit()) {
+        FromProto(&ChunkSpecLowerLimit_, ChunkState_->ChunkSpec.lower_limit(), false, SortOrders_.size());
+        if (ChunkSpecLowerLimit_.KeyBound()) {
+            LowerBound_ = MakeKeyBoundRef(ChunkSpecLowerLimit_.KeyBound());
+
+            begin = std::lower_bound(Keys_.begin(), Keys_.end(), nullptr,
+                [&bound = *LowerBound_,
+                 &orders = SortOrders_](const TLegacyKey& key, nullptr_t) -> bool
+                {
+                    int prefixLen = std::min<int>(key.GetCount(), bound.Size());
+                    int c = ComparePrefix(key.begin(), bound.begin(), prefixLen);
+
+                    if (c == 0) {
+                        return false;
+                    }
+
+                    return !TestComparisonResult(c, orders, bound.Inclusive, false);
+                });
+        }
+    }
+
+    if (ChunkState_->ChunkSpec.has_upper_limit()) {
+        FromProto(&ChunkSpecUpperLimit_, ChunkState_->ChunkSpec.upper_limit(), true, SortOrders_.size());
+        if (ChunkSpecUpperLimit_.KeyBound()) {
+            UpperBound_ = MakeKeyBoundRef(ChunkSpecUpperLimit_.KeyBound());
+
+            end = std::lower_bound(Keys_.begin(), Keys_.end(), nullptr,
+                [&bound = *UpperBound_,
+                 &orders = SortOrders_](const TLegacyKey& key, nullptr_t) -> bool
+                {
+                    int prefixLen = std::min<int>(key.GetCount(), bound.Size());
+                    int c = ComparePrefix(key.begin(), bound.begin(), prefixLen);
+                    if (c == 0) {
+                        return true;
+                    }
+                    return TestComparisonResult(c, orders, bound.Inclusive, true);
+                });
+        }
+    }
+
+    if (end < begin) {
+        end = begin;
+    }
+
+    LowerBoundCmpRange_ = MakeRange(begin, begin);
+    UpperBoundCmpRange_ = MakeRange(end, end);
+
+    if (LowerBound_) {
+        auto* lowerBoundCmpEnd = std::lower_bound(begin, end, nullptr,
+            [&bound = *LowerBound_](const TLegacyKey& key, nullptr_t)
+            {
+                int prefixLen = std::min<int>(key.GetCount(), bound.Size());
+                int c = ComparePrefix(key.begin(), bound.begin(), prefixLen);
+                return c == 0;
+            });
+
+        LowerBoundCmpRange_ = MakeRange(begin, lowerBoundCmpEnd);
+    }
+    if (UpperBound_) {
+        auto* upperBoundCmpBegin = std::lower_bound(begin, end, nullptr,
+            [&bound = *UpperBound_](const TLegacyKey& key, nullptr_t) {
+                int prefixLen = std::min<int>(key.GetCount(), bound.Size());
+                int c = ComparePrefix(key.begin(), bound.begin(), prefixLen);
+                return c != 0;
+            });
+
+        UpperBoundCmpRange_ = MakeRange(upperBoundCmpBegin, end);
+    }
+
+    PrefixRange_ = MakeRange(begin, end);
+}
+
+void THorizontalSchemalessLookupChunkReaderBase::ComputeBlockIndexes(TRange<TLegacyKey> keys)
+{
+    for (const auto& key : keys) {
+        TReadLimit lowerLimit(TKeyBound::FromRowUnchecked() >= key);
+        TReadLimit upperLimit(TKeyBound::FromRowUnchecked() <= key);
+
+        int lowIndex = ApplyLowerKeyLimit(BlockLastKeys_, lowerLimit, SortOrders_, CommonKeyPrefix_);
+        int highIndex = ApplyUpperKeyLimit(BlockLastKeys_, upperLimit, SortOrders_, CommonKeyPrefix_);
+
+        if (lowIndex == BlockMetaExt_->data_blocks_size()) {
+            break;
+        }
+
+        if (BlockIndexes_.empty() || highIndex > BlockIndexes_.back() + 1) {
+            int startIndex = lowIndex;
+            if (!BlockIndexes_.empty() && BlockIndexes_.back() >= startIndex) {
+                startIndex = BlockIndexes_.back() + 1;
+            }
+
+            for (int index = startIndex; index < highIndex; ++index) {
+                BlockIndexes_.push_back(index);
+            }
+        }
+    }
+}
+
+void THorizontalSchemalessLookupChunkReaderBase::InitFirstBlock()
+{
+    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
+
+    BlockReader_.reset(new THorizontalBlockReader(
+        CurrentBlock_.Get().ValueOrThrow().Data,
+        blockMeta,
+        GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
+        ChunkToReaderIdMapping_,
+        SortOrders_,
+        CommonKeyPrefix_,
+        KeyWideningOptions_,
+        GetVirtualColumnCount()));
+}
+
+void THorizontalSchemalessLookupChunkReaderBase::InitNextBlock()
+{
+    ++CurrentBlockIndex_;
+    InitFirstBlock();
+}
+
+THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
+    const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    const TChunkReaderConfigPtr& config,
+    const TNameTablePtr& nameTable,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    const std::vector<int>& chunkToReaderIdMapping,
+    int rowIndexId,
+    const TReaderVirtualValues& virtualValues,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix,
+    const TKeyWideningOptions& keyWideningOptions,
+    const TSharedRange<TLegacyKey>& keys,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
+    : THorizontalSchemalessLookupChunkReaderBase(
+        chunkState,
+        chunkMeta,
+        config,
+        nameTable,
+        underlyingReader,
+        chunkToReaderIdMapping,
+        rowIndexId,
+        virtualValues,
+        chunkReadOptions,
+        sortOrders,
+        commonKeyPrefix,
+        keyWideningOptions,
+        keys,
+        performanceCounters,
+        partitionTag,
+        memoryManager)
+{
+    const auto& misc = ChunkMeta_->Misc();
+    if (!misc.unique_keys()) {
+        THROW_ERROR_EXCEPTION("Requested lookup for a chunk without \"unique_keys\" restriction");
+    }
+    ComputeBlockIndexes(Keys_);
+    InitBlocks();
+}
+
+THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkReader(
+    const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    const TChunkReaderConfigPtr& config,
+    const TNameTablePtr& nameTable,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    const std::vector<int>& chunkToReaderIdMapping,
+    int rowIndexId,
+    const TReaderVirtualValues& virtualValues,
+    const TClientChunkReadOptions& chunkReadOptions,
+    TRange<ESortOrder> sortOrders,
+    int commonKeyPrefix,
+    const TKeyWideningOptions& keyWideningOptions,
+    const TSharedRange<TLegacyKey>& keys,  // must be sorted.
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
+    : THorizontalSchemalessLookupChunkReaderBase(
+        chunkState,
+        chunkMeta,
+        config,
+        nameTable,
+        underlyingReader,
+        chunkToReaderIdMapping,
+        rowIndexId,
+        virtualValues,
+        chunkReadOptions,
+        sortOrders,
+        commonKeyPrefix,
+        keyWideningOptions,
+        keys,
+        performanceCounters,
+        partitionTag,
+        memoryManager)
+{
+    YT_LOG_DEBUG("Looking up prefix-ranges (count: %v)", std::ssize(keys));
+
+    ApplyLimits();
+    ComputeBlockIndexes(PrefixRange_);
+    InitBlocks();
+}
 
 IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowBatchReadOptions& options)
 {
+    // Note that Read() implementation does not use PrefixRange_ as computed by ApplyLimits(),
+    // i.e. does not respect read limits from the ChunkSpec.
+    // TODO YT-18250 fix this.
+
     TCurrentTraceContextGuard traceGuard(TraceContext_);
     auto readGuard = AcquireReadGuard();
 
@@ -919,7 +1250,6 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
                 rows.push_back(TUnversionedRow());
                 ++RowCount_;
             }
-
             return true;
         }
 
@@ -929,26 +1259,23 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
         {
             YT_VERIFY(RowCount_ < std::ssize(Keys_));
 
-            if (!KeyFilterTest_[RowCount_]) {
-                rows.push_back(TUnversionedRow());
+            auto key = Keys_[RowCount_];
+            if (!BlockReader_->SkipToKey(key)) {
+                HasMoreBlocks_ = OnBlockEnded();
+                return true;
+            }
+
+            if (key == BlockReader_->GetLegacyKey()) {
+                auto row = BlockReader_->GetRow(&MemoryPool_);
+
+                rows.push_back(row);
+                dataWeight += GetDataWeight(row);
+
+                int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+                const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
+                RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
             } else {
-                auto key = Keys_[RowCount_];
-                if (!BlockReader_->SkipToKey(key)) {
-                    HasMoreBlocks_ = OnBlockEnded();
-                    return true;
-                }
-
-                if (key == BlockReader_->GetLegacyKey()) {
-                    auto row = BlockReader_->GetRow(&MemoryPool_);
-                    rows.push_back(row);
-                    dataWeight += GetDataWeight(row);
-
-                    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-                    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
-                    RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
-                } else {
-                    rows.push_back(TUnversionedRow());
-                }
+                rows.push_back(TUnversionedRow());
             }
 
             ++RowCount_;
@@ -969,26 +1296,115 @@ IUnversionedRowBatchPtr THorizontalSchemalessLookupChunkReader::Read(const TRowB
         : nullptr;
 }
 
-void THorizontalSchemalessLookupChunkReader::InitFirstBlock()
-{
-    int blockIndex = BlockIndexes_[CurrentBlockIndex_];
-    const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
+IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TRowBatchReadOptions& options) {
+    TCurrentTraceContextGuard traceGuard(TraceContext_);
+    auto readGuard = AcquireReadGuard();
 
-    BlockReader_.reset(new THorizontalBlockReader(
-        CurrentBlock_.Get().ValueOrThrow().Data,
-        blockMeta,
-        GetCompositeColumnFlags(ChunkMeta_->GetChunkSchema()),
-        ChunkToReaderIdMapping_,
-        SortOrders_,
-        CommonKeyPrefix_,
-        KeyWideningOptions_,
-        GetVirtualColumnCount()));
-}
+    MemoryPool_.Clear();
 
-void THorizontalSchemalessLookupChunkReader::InitNextBlock()
-{
-    ++CurrentBlockIndex_;
-    InitFirstBlock();
+    std::vector<TUnversionedRow> rows;
+    i64 dataWeight = 0;
+
+    if (!BeginRead()) {
+        // Not ready yet, retry.
+        return CreateBatchFromUnversionedRows(MakeSharedRange(
+           std::vector<TUnversionedRow>{},
+           MakeStrong(this)));
+
+    }
+
+    if (!BlockReader_) {
+        return nullptr;
+    }
+
+    if (BlockEnded_) {
+        BlockReader_.reset();
+        OnBlockEnded();
+        return CreateBatchFromUnversionedRows(MakeSharedRange(
+               std::vector<TUnversionedRow>{},
+               MakeStrong(this)));
+    }
+
+    i64 initialRowCount = RowCount_;
+
+    while (!BlockEnded_ &&
+            KeyIndex_ < static_cast<int>(PrefixRange_.size()) &&
+            dataWeight < options.MaxDataWeightPerRead &&
+            RowCount_ - initialRowCount < options.MaxRowsPerRead)
+    {
+        const auto &key = PrefixRange_[KeyIndex_];
+
+        if (!BlockReader_->SkipToKey(key)) {
+            BlockEnded_ = true;
+            break;
+        }
+
+        const ui32 keyLength = key.GetCount();
+        bool keyMatching = true;
+
+        while (!BlockEnded_ &&
+                dataWeight < options.MaxDataWeightPerRead &&
+                RowCount_ - initialRowCount < options.MaxRowsPerRead)
+        {
+            const auto& fullKey = BlockReader_->GetLegacyKey();
+            if (fullKey.GetCount() < keyLength ||
+                CompareRows(key.begin(), key.end(),
+                   fullKey.begin(), fullKey.begin() + keyLength) != 0)
+            {
+                keyMatching = false;
+                break;
+            }
+
+            TRange<TUnversionedValue> keyValues(fullKey.begin(), fullKey.end());
+
+            int blockIndex = BlockIndexes_[CurrentBlockIndex_];
+            const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
+            RowIndex_ = blockMeta.chunk_row_count() - blockMeta.row_count() + BlockReader_->GetRowIndex();
+
+            bool skipRow = false;
+
+            if (LowerBound_ && InsideRange(LowerBoundCmpRange_, &PrefixRange_[KeyIndex_]) &&
+                !TestKeyWithWidening(keyValues, *LowerBound_, SortOrders_))
+            {
+                skipRow = true;
+            }
+            if (UpperBound_ && InsideRange(UpperBoundCmpRange_, &PrefixRange_[KeyIndex_]) &&
+                !TestKeyWithWidening(keyValues, *UpperBound_, SortOrders_))
+            {
+                skipRow = true;
+            }
+
+            if (!skipRow) {
+                auto row = BlockReader_->GetRow(&MemoryPool_);
+                AddExtraValues(row, GetTableRowIndex());
+
+                rows.push_back(row);
+                ++RowCount_;
+                dataWeight += GetDataWeight(row);
+            }
+
+            if (!BlockReader_->NextRow()) {
+                BlockEnded_ = true;
+            }
+        }
+
+        if (!keyMatching) {
+            ++KeyIndex_;
+        }
+    }
+
+    if (PrefixRange_.begin() + KeyIndex_ == PrefixRange_.end()) {
+        BlockEnded_ = true;
+    }
+
+    if (PerformanceCounters_) {
+        PerformanceCounters_->StaticChunkRowLookupCount += rows.size();
+        PerformanceCounters_->StaticChunkRowLookupDataWeightCount += dataWeight;
+    }
+
+    DataWeight_ += dataWeight;
+
+    return CreateBatchFromUnversionedRows(MakeSharedRange(std::move(rows), MakeStrong(this)));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2084,6 +2500,59 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     }
 }
 
+ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
+    const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    TChunkReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    TNameTablePtr nameTable,
+    const TClientChunkReadOptions& chunkReadOptions,
+    const TSortColumns& sortColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
+    const TColumnFilter& columnFilter,
+    const TSharedRange<TLegacyKey>& keyPrefixes,
+    TChunkReaderPerformanceCountersPtr performanceCounters,
+    std::optional<int> partitionTag,
+    const TChunkReaderMemoryManagerPtr& memoryManager)
+{
+    YT_VERIFY(chunkState && chunkState->TableSchema);
+    auto chunkSortColumns = chunkMeta->GetChunkSchema()->GetSortColumns(
+        chunkState->TableSchema->GetNameMapping());
+    ValidateSortColumns(sortColumns, chunkSortColumns, options->DynamicTable);
+
+    TReaderParams params(
+        chunkState,
+        chunkMeta,
+        underlyingReader->GetChunkId(),
+        options,
+        nameTable,
+        columnFilter,
+        omittedInaccessibleColumns,
+        GetColumnNames(sortColumns));
+
+    if (chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal) {
+        THROW_ERROR_EXCEPTION("Only horizontal tables supported in the key range reader");
+    }
+
+    return New<THorizontalSchemalessKeyRangesChunkReader>(
+        chunkState,
+        chunkMeta,
+        std::move(config),
+        nameTable,
+        std::move(underlyingReader),
+        params.ChunkToReaderIdMapping,
+        params.RowIndexId,
+        params.VirtualColumns,
+        chunkReadOptions,
+        GetSortOrders(sortColumns),
+        params.CommonKeyPrefix,
+        params.KeyWideningOptions,
+        keyPrefixes,
+        std::move(performanceCounters),
+        partitionTag,
+        memoryManager);
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

@@ -76,6 +76,22 @@ ISchemalessChunkReaderPtr CreateSchemalessLookupChunkReader(
     std::optional<int> partitionTag = std::nullopt,
     const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
 
+ISchemalessChunkReaderPtr CreateSchemalessKeyRangesChunkReader(
+    const TChunkStatePtr& chunkState,
+    const TColumnarChunkMetaPtr& chunkMeta,
+    TChunkReaderConfigPtr config,
+    TChunkReaderOptionsPtr options,
+    NChunkClient::IChunkReaderPtr underlyingReader,
+    TNameTablePtr nameTable,
+    const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
+    const TSortColumns& sortColumns,
+    const std::vector<TString>& omittedInaccessibleColumns,
+    const TColumnFilter& columnFilter,
+    const TSharedRange<TLegacyKey>& keyPrefixes,
+    TChunkReaderPerformanceCountersPtr performanceCounters = nullptr,
+    std::optional<int> partitionTag = std::nullopt,
+    const NChunkClient::TChunkReaderMemoryManagerPtr& memoryManager = nullptr);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

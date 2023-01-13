@@ -336,8 +336,6 @@ void Serialize(const TComparator& comparator, IYsonConsumer* consumer)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
-
-// Comparator which returns int. abs(compare result) - 1 is equal to index of first non-equal component.
 int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, int length)
 {
     int index = 0;

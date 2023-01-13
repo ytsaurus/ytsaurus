@@ -1333,6 +1333,7 @@ private:
             std::move(chunkReaderHost),
             dataSourceDirectory,
             std::move(dataSliceDescriptors),
+            /*hintKeys*/ nullptr,
             nameTable,
             chunkReadOptions,
             /*columnFilter*/ {},

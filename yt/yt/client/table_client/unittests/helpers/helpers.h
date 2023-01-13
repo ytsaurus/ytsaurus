@@ -2,7 +2,9 @@
 
 #include <yt/yt/core/test_framework/framework.h>
 
+
 #include <yt/yt/client/table_client/columnar.h>
+#include <yt/yt/client/table_client/config.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/row_batch.h>
 #include <yt/yt/client/table_client/versioned_row.h>
@@ -43,15 +45,23 @@ void CheckSchemalessResult(
 }
 
 template <class TRow, class TReader>
-void CheckSchemalessResult(const std::vector<TRow>& expected, TIntrusivePtr<TReader> reader, int keyColumnCount)
+void CheckSchemalessResult(const std::vector<TRow>& expected, TIntrusivePtr<TReader> reader, int keyColumnCount, TRowBatchReadOptions opts = {})
 {
     size_t offset = 0;
-    while (auto batch = reader->Read()) {
+    while (auto batch = reader->Read(opts)) {
         auto actual = batch->MaterializeRows();
         if (actual.empty()) {
             ASSERT_TRUE(reader->GetReadyEvent().Get().IsOK());
             continue;
         }
+
+        int64_t dw = 0;
+        for (int i = 0; i < std::ssize(actual) - 1; i++) {
+            dw += GetDataWeight(actual[i]);
+        }
+
+        ASSERT_LT(dw, opts.MaxDataWeightPerRead);
+        ASSERT_LE(std::ssize(actual), opts.MaxRowsPerRead);
 
         CheckSchemalessResult(
             MakeRange(expected).Slice(offset, std::min(expected.size(), offset + actual.size())),
@@ -59,6 +69,8 @@ void CheckSchemalessResult(const std::vector<TRow>& expected, TIntrusivePtr<TRea
             keyColumnCount);
         offset += actual.size();
     }
+
+    ASSERT_EQ(offset, expected.size());
 }
 
 std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(

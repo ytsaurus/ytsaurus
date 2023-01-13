@@ -1080,6 +1080,11 @@ public:
         ToProto(reduceJobSpecExt->mutable_sort_columns(), SortColumns_);
         reduceJobSpecExt->set_reduce_key_column_count(PrimarySortColumns_.size());
         reduceJobSpecExt->set_join_key_column_count(ForeignSortColumns_.size());
+
+        if (Spec_->ForeignTableLookupKeysThreshold) {
+            reduceJobSpecExt->set_foreign_table_lookup_keys_threshold(
+                *Spec_->ForeignTableLookupKeysThreshold);
+        }
     }
 
     void CustomPrepare() override

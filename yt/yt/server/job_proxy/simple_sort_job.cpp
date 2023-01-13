@@ -68,6 +68,7 @@ public:
                 Host_->GetChunkReaderHost(),
                 dataSourceDirectory,
                 std::move(dataSliceDescriptors),
+                /*hintKeys*/ nullptr,
                 nameTable,
                 ChunkReadOptions_,
                 /*columnFilter*/ {},

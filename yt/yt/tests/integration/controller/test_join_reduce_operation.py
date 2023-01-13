@@ -49,6 +49,7 @@ class TestSchedulerJoinReduceCommands(YTEnvSetup):
                 },
                 "spec_template": {
                     "use_new_sorted_pool": False,
+                    "foreign_table_lookup_keys_threshold": 1000,
                 },
             },
         }
@@ -1565,6 +1566,7 @@ class TestSchedulerJoinReduceCommandsNewSortedPool(TestSchedulerJoinReduceComman
                 },
                 "spec_template": {
                     "use_new_sorted_pool": True,
+                    "foreign_table_lookup_keys_threshold": 1000,
                 },
             },
         }

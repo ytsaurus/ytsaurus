@@ -432,6 +432,7 @@ std::shared_ptr<TBlockInputStream> CreateBlockInputStream(
             std::move(chunkReaderHost),
             subquerySpec.DataSourceDirectory,
             dataSliceDescriptors,
+            nullptr,
             TNameTable::FromSchema(*readSchemaWithVirtualColumns),
             chunkReadOptions,
             TColumnFilter(readSchemaWithVirtualColumns->GetColumnCount()),
