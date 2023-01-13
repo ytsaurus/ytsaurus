@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
 
 from yt_commands import (
     authors, wait,
@@ -127,3 +127,14 @@ class TestHotSwap(YTEnvSetup):
                 wait(lambda: len(resurrect_chunk_locations(node, [location_uuid])) == 0)
 
         wait(lambda: can_write())
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: len(disable_chunk_locations(node, [location_uuid])) > 0)
+
+        for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
+            for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
+                wait(lambda: not get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
+                wait(lambda: get("//sys/chunk_locations/{}/@statistics/session_count".format(location_uuid)) == 0)
+
+        wait(lambda: not can_write())
