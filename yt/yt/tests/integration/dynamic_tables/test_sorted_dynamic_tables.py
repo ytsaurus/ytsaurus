@@ -782,8 +782,8 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
             ranges_count = randint(1, 5)
             keys = sorted(sample(list(range(1, key_range + 1)), ranges_count * 2))
             query = "* from [{}] where " + " or ".join(
-                    "({} <= key and key < {})".format(l, r)
-                    for l, r
+                    "({} <= key and key < {})".format(lower, upper)
+                    for lower, upper
                     in zip(keys[::2], keys[1::2]))
             expected = list(select_rows(query.format("//tmp/correct")))
             actual = list(select_rows(query.format("//tmp/t")))
@@ -942,8 +942,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
                 statistics["uncompressed_data_size"] == get("//tmp/t/@uncompressed_data_size") and
                 statistics["compressed_data_size"] == get("//tmp/t/@compressed_data_size") and
                 statistics["disk_space"] == get("//tmp/t/@resource_usage/disk_space") and
-                statistics["disk_space_per_medium"]["default"] ==
-                    get("//tmp/t/@resource_usage/disk_space_per_medium/default")
+                statistics["disk_space_per_medium"]["default"] == get("//tmp/t/@resource_usage/disk_space_per_medium/default")
             )
 
         tablet_statistics = get("//tmp/t/@tablet_statistics")
@@ -1472,7 +1471,7 @@ class TestSortedDynamicTables(TestSortedDynamicTablesBase):
         self._create_simple_table("//tmp/t", tablet_cell_bundle="b")
         sync_mount_table("//tmp/t")
 
-        assert(get("//sys/tablet_cell_bundles/b/@health") == "good")
+        assert get("//sys/tablet_cell_bundles/b/@health") == "good"
         set("//sys/tablet_cell_bundles/b/@node_tag_filter", "invalid")
         wait(lambda: get("//sys/tablet_cell_bundles/b/@health") == "failed")
 
@@ -1572,7 +1571,7 @@ class TestSortedDynamicTablesRpcProxy(TestSortedDynamicTables):
             try:
                 insert_rows("//tmp/t", rows, aggregate=True)
                 committed = True
-            except:
+            except YtError:
                 pass
 
             if committed:
@@ -2200,7 +2199,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
                 enable_slicing=True,
                 first_tablet_index=first_tablet_index,
                 last_tablet_index=last_tablet_index)
-            assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
+            assert get("//tmp/t/@tablet_count") == tablet_count_expected
 
         sync_mount_table("//tmp/t")
 
@@ -2229,7 +2228,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
         expected_size = total_size // (last_tablet_index - first_tablet_index + 1)
         for index in range(first_tablet_index, last_tablet_index+1):
-            assert(abs(tablets_info[index]["statistics"]["uncompressed_data_size"] - expected_size) <= max(0.1 * expected_size, 100))
+            assert abs(tablets_info[index]["statistics"]["uncompressed_data_size"] - expected_size) <= max(0.1 * expected_size, 100)
 
     @authors("alexelexa")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2249,7 +2248,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
                 first_tablet_index=first_tablet_index,
                 last_tablet_index=last_tablet_index)
             sync_compact_table("//tmp/t")
-            assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
+            assert get("//tmp/t/@tablet_count") == tablet_count_expected
 
         sync_mount_table("//tmp/t")
 
@@ -2282,16 +2281,17 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
                 last_tablet_index=last_tablet_index)
             if with_compaction:
                 sync_compact_table("//tmp/t")
-            assert(get("//tmp/t/@tablet_count") == tablet_count_expected)
+            assert get("//tmp/t/@tablet_count") == tablet_count_expected
 
         def check_tablets_sizes(first_tablet_index, last_tablet_index):
             tablets_info = get("//tmp/t/@tablets")
-            total_size = sum(info["statistics"]["uncompressed_data_size"]
-                             for info in tablets_info[first_tablet_index : last_tablet_index+1])
+            total_size = sum(
+                info["statistics"]["uncompressed_data_size"]
+                for info in tablets_info[first_tablet_index : last_tablet_index+1])
 
             expected_size = total_size // (last_tablet_index - first_tablet_index + 1)
             for index in range(first_tablet_index, last_tablet_index+1):
-                assert(abs(tablets_info[index]["statistics"]["uncompressed_data_size"] - expected_size) <= 0.1 * expected_size)
+                assert abs(tablets_info[index]["statistics"]["uncompressed_data_size"] - expected_size) <= 0.1 * expected_size
 
         sync_mount_table("//tmp/t")
 
@@ -2360,8 +2360,8 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
                 expected[-1] = expected[-1] + [yson.YsonEntity()]
 
         sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
-        assert(get("//tmp/t/@tablet_count") == tablet_count)
-        assert(self._get_pivot_keys("//tmp/t") == expected)
+        assert get("//tmp/t/@tablet_count") == tablet_count
+        assert self._get_pivot_keys("//tmp/t") == expected
 
     @authors("alexelexa")
     @pytest.mark.parametrize("optimize_for", ["scan", "lookup"])
@@ -2376,7 +2376,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
         def reshard_and_check(tablet_count):
             sync_unmount_table("//tmp/t")
             sync_reshard_table("//tmp/t", tablet_count, enable_slicing=True)
-            assert(get("//tmp/t/@tablet_count") == tablet_count)
+            assert get("//tmp/t/@tablet_count") == tablet_count
 
         sync_mount_table("//tmp/t")
 
@@ -2418,7 +2418,7 @@ class TestReshardWithSlicing(TestSortedDynamicTablesBase):
 
         sync_unmount_table("//tmp/t")
         sync_reshard_table("//tmp/t", [[]] + [[x] for x in range(1, 50)])
-        assert(get("//tmp/t/@tablet_count") == 50)
+        assert get("//tmp/t/@tablet_count") == 50
 
         sync_mount_table("//tmp/t")
 

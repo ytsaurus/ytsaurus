@@ -92,9 +92,11 @@ def create_type_name_to_type_info():
 
     def create_simple_type_info(type_name, reader_postprocessor=None):
         if reader_postprocessor is None:
-            reader_function = lambda reader: reader.read_value(type_name)
+            def reader_function(reader):
+                return reader.read_value(type_name)
         else:
-            reader_function = lambda reader: reader_postprocessor(reader.read_value(type_name))
+            def reader_function(reader):
+                return reader_postprocessor(reader.read_value(type_name))
         return TypeInfo(
             name=type_name,
             writer_function=lambda writer, value: writer.write_value(type_name, value),

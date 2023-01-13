@@ -478,7 +478,7 @@ class TestJobShellInSubcontainer(TestJobProber):
         )
         try:
             job_id = wait_breakpoint()[0]
-        except:
+        except YtError:
             op.track()
             assert False
 
@@ -604,7 +604,7 @@ class TestJobShellInSubcontainer(TestJobProber):
         )
         try:
             job_id = wait_breakpoint()[0]
-        except:
+        except YtError:
             op.track()
             assert False
 

@@ -214,7 +214,7 @@ class ChaosTestBase(DynamicTablesBase):
     def _sync_alter_replica(self, card_id, replicas, replica_ids, replica_index, **kwargs):
         replica_id = replica_ids[replica_index]
         replica = replicas[replica_index]
-        replica_driver=get_driver(cluster=replica["cluster_name"])
+        replica_driver = get_driver(cluster=replica["cluster_name"])
         alter_table_replica(replica_id, **kwargs)
 
         enabled = kwargs.get("enabled", None)
@@ -315,8 +315,7 @@ class ChaosTestBase(DynamicTablesBase):
                 "expire_after_failed_update_time": 100,
                 "expire_after_access_time": 100,
                 "refresh_time": 50,
-            },
-            driver=driver)
+            }, driver=driver)
 
     def setup_method(self, method):
         super(ChaosTestBase, self).setup_method(method)
@@ -724,7 +723,7 @@ class TestChaos(ChaosTestBase):
                 response_parameters=response_parameters)
         wait(lambda: len(_pull_rows()) == 1)
 
-        response_parameters={}
+        response_parameters = {}
         rows = _pull_rows(response_parameters)
         print_debug(response_parameters)
 
@@ -766,7 +765,7 @@ class TestChaos(ChaosTestBase):
         wait(lambda: len(_pull_rows()) == 1)
 
         def _check(timestamp, expected_row_count, expected_end_index, expected_progress):
-            response_parameters={}
+            response_parameters = {}
             rows = _pull_rows(timestamp, response_parameters)
             print_debug(response_parameters)
             end_indexes = list(response_parameters["end_replication_row_indexes"].values())
@@ -1642,7 +1641,7 @@ class TestChaos(ChaosTestBase):
         insert_rows("//tmp/t", values1)
 
         wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
-        assert(select_rows("* from [//tmp/r]", driver=get_driver(cluster="remote_0")) == values1)
+        assert select_rows("* from [//tmp/r]", driver=get_driver(cluster="remote_0")) == values1
 
     @authors("savrus")
     @pytest.mark.parametrize("mode", ["sync", "async"])
@@ -1778,7 +1777,7 @@ class TestChaos(ChaosTestBase):
         wait(lambda: select_rows("* from [//tmp/t]") == values0 + values1)
 
         if mode == "sync":
-            assert(select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
+            assert select_rows("* from [//tmp/r]", driver=drivers[2]) == values1
         else:
             wait(lambda: select_rows("* from [//tmp/r]", driver=drivers[2]) == values1)
 
@@ -2616,7 +2615,9 @@ class TestChaos(ChaosTestBase):
 
         def _get_sync_replica_clusters(crt, content_type):
             replicas = get("{0}/@replicas".format(crt))
-            valid = lambda replica: replica["mode"] == "sync" and replica["content_type"] == content_type
+
+            def valid(replica):
+                return replica["mode"] == "sync" and replica["content_type"] == content_type
             return list(builtins.set(replica["cluster_name"] for replica in replicas.values() if valid(replica)))
 
         def _check(content_type):

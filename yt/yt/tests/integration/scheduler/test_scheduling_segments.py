@@ -1054,8 +1054,12 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
         node_count_per_ibc = defaultdict(int)
         for node in ls("//sys/cluster_nodes"):
-            wait(lambda: get(scheduler_orchid_node_path(node) + "/infiniband_cluster", default=None)
-                         in BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS)
+            def is_infiniband_cluster():
+                return (
+                    get(scheduler_orchid_node_path(node) + "/infiniband_cluster", default=None)
+                    in BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS)
+
+            wait(is_infiniband_cluster)
             ibc = get(scheduler_orchid_node_path(node) + "/infiniband_cluster")
             set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "infiniband_cluster_tag:{}".format(ibc))
             node_count_per_ibc[ibc] += 1
@@ -1809,8 +1813,7 @@ class TestRunningJobStatistics(YTEnvSetup):
             lambda: get(
                 scheduler_orchid_default_pool_tree_config_path()
                 + "/scheduling_segments/unsatisfied_segments_rebalancing_timeout"
-            )
-                    == 1000
+            ) == 1000
         )
         update_pool_tree_config("default", {
             "preemptive_scheduling_backoff": 0,

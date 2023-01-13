@@ -491,7 +491,7 @@ class TestHunkStoragePortal(YTEnvSetup):
     def test_cross_shard_hunk_storage_node_link(self):
         self._create_ordered_table("//tmp/t1")
         self._create_hunk_storage("//portals/h1")
-        assert("//portals/h1/@native_cell_tag" != "//tmp/t1/@native_cell_tag")
+        assert "//portals/h1/@native_cell_tag" != "//tmp/t1/@native_cell_tag"
 
         with pytest.raises(YtError):
             set("//tmp/t1/@hunk_storage_node", "//portals/h1")
@@ -499,7 +499,7 @@ class TestHunkStoragePortal(YTEnvSetup):
         self._create_ordered_table("//portals/t2")
 
         self._create_hunk_storage("//tmp/h2")
-        assert("//tmp/h2/@native_cell_tag" != "//portals/t2/@native_cell_tag")
+        assert "//tmp/h2/@native_cell_tag" != "//portals/t2/@native_cell_tag"
 
         with pytest.raises(YtError):
             set("//portals/t2/@hunk_storage_node", "//tmp/h2")

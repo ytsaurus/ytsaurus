@@ -325,9 +325,10 @@ class DynamicTablesSingleCellBase(DynamicTablesBase):
 
         create_tablet_cell_bundle("b", attributes={"options": {"peer_count": 1}})
         sync_create_cells(1, tablet_cell_bundle="b")
-        self._create_sorted_table("//tmp/t",
-                                    tablet_cell_bundle="b",
-                                    in_memory_mode="uncompressed")
+        self._create_sorted_table(
+            "//tmp/t",
+            tablet_cell_bundle="b",
+            in_memory_mode="uncompressed")
 
         set("//tmp/t/@mount_config/simulated_tablet_snapshot_delay", 1000)
         set("//tmp/t/@mount_config/simulated_store_preload_delay", 3000)
@@ -1423,7 +1424,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         def _get_peer(cell):
             try:
                 return get("#{0}/@peers/0/address".format(cell))
-            except:
+            except YtError:
                 return None
 
         default_cell = sync_create_cells(1)[0]
@@ -2459,11 +2460,11 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
                 assert len(read_ranges) == 16
 
                 for k in range(3):
-                    for l in range(3):
-                        assert read_table(read_ranges[k * 4 + l]) == all_rows[i:j]
+                    for m in range(3):
+                        assert read_table(read_ranges[k * 4 + m]) == all_rows[i:j]
                     assert read_table(read_ranges[k * 4 + 3]) == all_rows[i:j + 1]
-                for l in range(3):
-                    assert read_table(read_ranges[12 + l]) == all_rows[i + 1:j]
+                for m in range(3):
+                    assert read_table(read_ranges[12 + m]) == all_rows[i + 1:j]
                 assert read_table(read_ranges[15]) == all_rows[i + 1:j + 1]
 
     @authors("babenko")

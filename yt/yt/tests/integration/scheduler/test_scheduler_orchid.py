@@ -11,6 +11,8 @@ from yt_scheduler_helpers import (
 from yt.wrapper.client import create_client_with_command_params
 from yt.wrapper import YtClient
 
+from yt.common import YtError
+
 import builtins
 import time
 
@@ -57,7 +59,7 @@ class TestSchedulerOperationsByPoolOrchid(YTEnvSetup):
         pool_path = scheduler_orchid_operations_by_pool_path("pool")
         wait(lambda: len(ls(pool_path)) == 2)
 
-        assert(builtins.set([op1.id, op2.id]) == builtins.set(ls(pool_path)))
+        assert builtins.set([op1.id, op2.id]) == builtins.set(ls(pool_path))
 
         wait(lambda: exists(scheduler_orchid_operation_path(op1.id)))
 
@@ -197,7 +199,7 @@ class TestOrchidOnSchedulerRestart(YTEnvSetup):
                     get(scheduler_new_orchid_pool_tree_path("default") + "/config", verbose=False)
                     get(scheduler_new_orchid_pool_tree_path("default") + "/operations", verbose=False)
                     get(scheduler_new_orchid_pool_tree_path("default") + "/operations_by_pool", verbose=False)
-                except:
+                except YtError:
                     pass
                 time.sleep(0.1)
         finally:

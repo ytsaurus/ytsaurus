@@ -253,7 +253,8 @@ class TestSchedulerPreemption(YTEnvSetup):
     def test_min_share_ratio(self):
         create_pool("test_min_share_ratio_pool", attributes={"min_share_resources": {"cpu": 3}})
 
-        get_operation_min_share_ratio = lambda op: op.get_runtime_progress("scheduling_info_per_pool_tree/default/min_share_ratio", 0.0)
+        def get_operation_min_share_ratio(op):
+            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/min_share_ratio", 0.0)
 
         min_share_settings = [{"cpu": 3}, {"cpu": 1, "user_slots": 6}]
 
@@ -1354,10 +1355,11 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_allow_aggressive_starvation_preemption_operation(self):
-        get_fair_share_ratio = lambda op_id: get(
-            scheduler_orchid_operation_path(op_id) + "/fair_share_ratio", default=0.0
-        )
-        get_usage_ratio = lambda op_id: get(scheduler_orchid_operation_path(op_id) + "/usage_ratio", default=0.0)
+        def get_fair_share_ratio(op_id):
+            return get(scheduler_orchid_operation_path(op_id) + "/fair_share_ratio", default=0.0)
+
+        def get_usage_ratio(op_id):
+            return get(scheduler_orchid_operation_path(op_id) + "/usage_ratio", default=0.0)
 
         create_pool("honest_pool", attributes={"min_share_resources": {"cpu": 15}})
         create_pool(
@@ -1404,10 +1406,11 @@ class TestSchedulerAggressivePreemption2(YTEnvSetup):
     @pytest.mark.skip("This test is almost the same as the previous one. Should we delete it?")
     @authors("eshcherbin")
     def test_allow_aggressive_starvation_preemption_ancestor(self):
-        get_fair_share_ratio = lambda op_id: get(
-            scheduler_orchid_operation_path(op_id) + "/fair_share_ratio", default=0.0
-        )
-        get_usage_ratio = lambda op_id: get(scheduler_orchid_operation_path(op_id) + "/usage_ratio", default=0.0)
+        def get_fair_share_ratio(op_id):
+            return get(scheduler_orchid_operation_path(op_id) + "/fair_share_ratio", default=0.0)
+
+        def get_usage_ratio(op_id):
+            return get(scheduler_orchid_operation_path(op_id) + "/usage_ratio", default=0.0)
 
         create_pool(
             "honest_pool",

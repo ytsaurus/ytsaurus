@@ -1013,7 +1013,7 @@ class TestBulkInsert(DynamicTablesBase):
                 try:
                     _run_op()
                     return True
-                except:
+                except YtError:
                     return False
             wait(check)
         finally:
@@ -1189,13 +1189,16 @@ class TestBulkInsert(DynamicTablesBase):
 
         if dynamic:
             input_query = "0u as [$change_type], key, value as [$value:value]"
-            run_op = lambda input: merge(
-                in_=input,
-                out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
-                spec={"input_query": input_query},
-                mode="ordered")
+
+            def run_op(input):
+                merge(
+                    in_=input,
+                    out="<append=%true;schema_modification=unversioned_update>//tmp/t_output",
+                    spec={"input_query": input_query},
+                    mode="ordered")
         else:
-            run_op = lambda input: merge(in_=input, out="<append=%true>//tmp/t_output", mode="ordered")
+            def run_op(input):
+                merge(in_=input, out="<append=%true>//tmp/t_output", mode="ordered")
 
         run_op("//tmp/t_input1")
         ts_between = generate_timestamp()
@@ -1349,15 +1352,15 @@ class TestBulkInsert(DynamicTablesBase):
             expected = []
             ranges = []
             for i in range(20):
-                l = random.randint(-5, 55)
-                r = random.randint(-5, 55)
-                if l > r:
-                    l, r = r, l
-                if r < 0 or l >= 50:
+                lower = random.randint(-5, 55)
+                upper = random.randint(-5, 55)
+                if lower > upper:
+                    lower, upper = upper, lower
+                if upper < 0 or lower >= 50:
                     expected.append([])
                 else:
-                    expected.append(rows[max(0, l):min(r, 50)])
-                read_range = f"{{lower_limit={{key=[{l}]}};upper_limit={{key=[{r}]}}}}"
+                    expected.append(rows[max(0, lower):min(upper, 50)])
+                read_range = f"{{lower_limit={{key=[{lower}]}};upper_limit={{key=[{upper}]}}}}"
                 ranges.append(read_range)
                 streams.append(BytesIO())
                 responses.append(read_table(

@@ -126,13 +126,11 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         # Wait for fair share update.
         time.sleep(1)
 
-        get_pool_promised_fair_share_resources = lambda pool: get(
-            scheduler_orchid_pool_path(pool) + "/promised_fair_share_resources"
-        )
+        def get_pool_promised_fair_share_resources(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/promised_fair_share_resources")
 
-        get_pool_promised_dominant_fair_share = lambda pool: get(
-            scheduler_orchid_pool_path(pool) + "/promised_dominant_fair_share"
-        )
+        def get_pool_promised_dominant_fair_share(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/promised_dominant_fair_share")
 
         assert are_almost_equal(get_pool_promised_dominant_fair_share("big_pool"), 1.0)
         assert get_pool_promised_fair_share_resources("big_pool") == total_resource_limits
@@ -146,8 +144,8 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
 
         self._prepare_tables()
 
-        get_operation_promised_dominant_fair_share = lambda op: \
-            op.get_runtime_progress("scheduling_info_per_pool_tree/default/promised_dominant_fair_share", 0.0)
+        def get_operation_promised_dominant_fair_share(op):
+            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/promised_dominant_fair_share", 0.0)
 
         op = map(
             track=False,
@@ -362,7 +360,9 @@ class TestResourceUsage(YTEnvSetup, PrepareTables):
         )
         wait_breakpoint()
 
-        get_resource_usage = lambda op: op.get_runtime_progress("scheduling_info_per_pool_tree/default/resource_usage")
+        def get_resource_usage(op):
+            return op.get_runtime_progress("scheduling_info_per_pool_tree/default/resource_usage")
+
         wait(lambda: are_almost_equal(get_resource_usage(op)["cpu"], 3 * 0.87))
 
         release_breakpoint()
@@ -1153,7 +1153,8 @@ class TestInferWeightFromGuarantees(YTEnvSetup):
             attributes={"strong_guarantee_resources": {"cpu": 0.4 * 0.4 * total_cpu_limit}},
         )
 
-        get_pool_weight = lambda pool: get(scheduler_orchid_pool_path(pool) + "/weight")
+        def get_pool_weight(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/weight")
 
         wait(lambda: are_almost_equal(get_pool_weight("test_pool1"), 3.0 / 7.0 * 10.0))
         wait(lambda: are_almost_equal(get_pool_weight("test_pool2"), 4.0 / 7.0 * 10.0))
@@ -1203,7 +1204,8 @@ class TestInferWeightFromGuarantees(YTEnvSetup):
         )
         create_pool("test_pool3", pool_tree="default")
 
-        get_pool_weight = lambda pool: get(scheduler_orchid_pool_path(pool) + "/weight")
+        def get_pool_weight(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/weight")
 
         wait(lambda: are_almost_equal(get_pool_weight("test_pool1"), 3.0 / 7.0 * 10.0))
         wait(lambda: are_almost_equal(get_pool_weight("test_pool2"), 4.0 / 7.0 * 10.0))
@@ -1232,7 +1234,8 @@ class TestInferWeightFromGuarantees(YTEnvSetup):
         )
         create_pool("test_pool3", pool_tree="default")
 
-        get_pool_weight = lambda pool: get(scheduler_orchid_pool_path(pool) + "/weight")
+        def get_pool_weight(pool):
+            return get(scheduler_orchid_pool_path(pool) + "/weight")
 
         wait(lambda: are_almost_equal(get_pool_weight("test_pool1"), 0.4 * 10.0))
         wait(lambda: are_almost_equal(get_pool_weight("test_pool2"), 0.6 * 10.0))

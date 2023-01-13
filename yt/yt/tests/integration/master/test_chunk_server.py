@@ -1122,7 +1122,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
         assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user)) == new_limit
         assert self._measure_write_time(non_root_user) >= usual_time * 2.5
 
-        yield()
+        yield
 
         assert get("//sys/users/{}/@chunk_service_request_bytes_throttler/limit".format(non_root_user)) == new_limit
 
@@ -1160,7 +1160,7 @@ class TestChunkCreationThrottler(YTEnvSetup):
 
     @authors("h0pless")
     def test_per_user_bytes_throttler_profiling(self):
-        userName="GregorzBrzeczyszczykiewicz"
+        userName = "GregorzBrzeczyszczykiewicz"
         create_user(userName)
 
         create("table", "//tmp/t")

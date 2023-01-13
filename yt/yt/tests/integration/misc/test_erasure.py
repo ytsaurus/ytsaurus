@@ -152,6 +152,7 @@ class TestErasure(TestErasureBase):
                 {"a": "1", "b": "2"},
                 {"a": "30", "x": "10", "y": "20"},
             ]
+
         assert get("//tmp/table/@row_count") == 3
         assert get("//tmp/table/@chunk_count") == 2
 
