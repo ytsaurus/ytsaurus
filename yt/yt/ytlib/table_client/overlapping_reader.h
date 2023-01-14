@@ -12,11 +12,7 @@ namespace NYT::NTableClient {
 
 constexpr int DefaultMinConcurrency = 5;
 
-using TOverlappingReaderKeyComparer = std::function<int(
-    const TUnversionedValue*,
-    const TUnversionedValue*,
-    const TUnversionedValue*,
-    const TUnversionedValue*)>;
+using TOverlappingReaderKeyComparer = std::function<int(TUnversionedValueRange, TUnversionedValueRange)>;
 
 ISchemafulUnversionedReaderPtr CreateSchemafulOverlappingLookupReader(
     std::unique_ptr<TSchemafulRowMerger> rowMerger,

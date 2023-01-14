@@ -144,7 +144,7 @@ void TChunkReaderBase::CheckBlockUpperKeyLimit(
 {
     CheckKeyLimit_ = !TestKeyWithWidening(
         ToKeyRef(blockLastKey, commonKeyPrefix),
-        MakeKeyBoundRef(upperLimit, true, keyColumnCount));
+        ToKeyBoundRef(upperLimit, true, keyColumnCount));
 }
 
 void TChunkReaderBase::CheckBlockUpperLimits(
@@ -161,7 +161,7 @@ void TChunkReaderBase::CheckBlockUpperLimits(
     if (upperLimit.KeyBound() && blockLastKey) {
         CheckKeyLimit_ = !TestKeyWithWidening(
             ToKeyRef(blockLastKey, commonKeyPrefix),
-            MakeKeyBoundRef(upperLimit.KeyBound()),
+            ToKeyBoundRef(upperLimit.KeyBound()),
             sortOrders);
     }
 }
@@ -221,7 +221,7 @@ int TChunkReaderBase::ApplyLowerKeyLimit(
         [&] (const TUnversionedRow* blockLastKey) {
             return !TestKeyWithWidening(
                 ToKeyRef(*blockLastKey, commonKeyPrefix),
-                MakeKeyBoundRef(lowerBound),
+                ToKeyBoundRef(lowerBound),
                 sortOrders);
         });
 
@@ -277,7 +277,7 @@ int TChunkReaderBase::ApplyUpperKeyLimit(
         [&] (const TUnversionedRow* blockLastKey) {
             return TestKeyWithWidening(
                 ToKeyRef(*blockLastKey, commonKeyPrefix),
-                MakeKeyBoundRef(upperBound),
+                ToKeyBoundRef(upperBound),
                 sortOrders);
         });
 

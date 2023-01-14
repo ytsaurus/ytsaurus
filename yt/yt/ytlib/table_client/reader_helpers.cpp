@@ -10,9 +10,9 @@ void TrimRow(
     TChunkedMemoryPool* memoryPool)
 {
     if (endValues != row.EndValues()) {
-        auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
+        auto* memoryTo = const_cast<char*>(row.BeginMemory());
         row.SetValueCount(endValues - row.BeginValues());
-        auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
+        auto* memoryFrom = const_cast<char*>(row.EndMemory());
         memoryPool->Free(memoryFrom, memoryTo);
     }
 }

@@ -239,8 +239,8 @@ private:
             int keyColumnCount = Comparator_.GetLength();
             i64 lhsStartIndex = lhs * keyColumnCount;
             i64 rhsStartIndex = rhs * keyColumnCount;
-            TKey lhsKey(KeyBuffer_.data() + lhsStartIndex, keyColumnCount);
-            TKey rhsKey(KeyBuffer_.data() + rhsStartIndex, keyColumnCount);
+            TKey lhsKey(MakeRange(KeyBuffer_.data() + lhsStartIndex, keyColumnCount));
+            TKey rhsKey(MakeRange(KeyBuffer_.data() + rhsStartIndex, keyColumnCount));
             return Comparator_.CompareKeys(lhsKey, rhsKey) < 0;
         }
     };

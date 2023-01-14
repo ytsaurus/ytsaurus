@@ -711,7 +711,7 @@ void THorizontalSchemalessRangeChunkReader::InitFirstBlock()
 
     if (lowerLimit.KeyBound()) {
         auto blockRowIndex = BlockReader_->GetRowIndex();
-        YT_VERIFY(BlockReader_->SkipToKeyBound(MakeKeyBoundRef(lowerLimit.KeyBound())));
+        YT_VERIFY(BlockReader_->SkipToKeyBound(ToKeyBoundRef(lowerLimit.KeyBound())));
         RowIndex_ += BlockReader_->GetRowIndex() - blockRowIndex;
     }
 }
@@ -761,7 +761,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessRangeChunkReader::Read(const TRowBa
         if (CheckKeyLimit_ &&
             !TestKey(
                 ToKeyRef(BlockReader_->GetLegacyKey()),
-                MakeKeyBoundRef(upperLimit.KeyBound()),
+                ToKeyBoundRef(upperLimit.KeyBound()),
                 SortOrders_))
         {
             BlockEnded_ = true;
@@ -1010,7 +1010,7 @@ void THorizontalSchemalessLookupChunkReaderBase::ApplyLimits()
     if (ChunkState_->ChunkSpec.has_lower_limit()) {
         FromProto(&ChunkSpecLowerLimit_, ChunkState_->ChunkSpec.lower_limit(), /*isUpper*/ false, SortOrders_.size());
         if (ChunkSpecLowerLimit_.KeyBound()) {
-            LowerBound_ = MakeKeyBoundRef(ChunkSpecLowerLimit_.KeyBound());
+            LowerBound_ = ToKeyBoundRef(ChunkSpecLowerLimit_.KeyBound());
 
             begin = std::lower_bound(Keys_.begin(), Keys_.end(), nullptr,
                 [&] (TLegacyKey key, nullptr_t) -> bool
@@ -1028,7 +1028,7 @@ void THorizontalSchemalessLookupChunkReaderBase::ApplyLimits()
     if (ChunkState_->ChunkSpec.has_upper_limit()) {
         FromProto(&ChunkSpecUpperLimit_, ChunkState_->ChunkSpec.upper_limit(), /*isUpper*/ true, SortOrders_.size());
         if (ChunkSpecUpperLimit_.KeyBound()) {
-            UpperBound_ = MakeKeyBoundRef(ChunkSpecUpperLimit_.KeyBound());
+            UpperBound_ = ToKeyBoundRef(ChunkSpecUpperLimit_.KeyBound());
 
             end = std::lower_bound(Keys_.begin(), Keys_.end(), nullptr,
                 [&] (TLegacyKey key, nullptr_t) -> bool
@@ -1343,8 +1343,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
         {
             auto fullKey = BlockReader_->GetLegacyKey();
             if (fullKey.GetCount() < keyLength ||
-                CompareRows(key.begin(), key.end(),
-                   fullKey.begin(), fullKey.begin() + keyLength) != 0)
+                CompareValueRanges(key.Elements(), fullKey.FirstNElements(keyLength)) != 0)
             {
                 keyMatching = false;
                 break;
@@ -1781,7 +1780,7 @@ private:
         auto adjustRowLimit = [&] (TRange<TUnversionedRow> keys){
             // Keys are already widened here.
             while (rowLimit > 0 &&
-                !TestKey(ToKeyRef(keys[rowLimit - 1]), MakeKeyBoundRef(UpperLimit_.KeyBound()), SortOrders_))
+                !TestKey(ToKeyRef(keys[rowLimit - 1]), ToKeyBoundRef(UpperLimit_.KeyBound()), SortOrders_))
             {
                 --rowLimit;
                 Completed_ = true;
@@ -1795,7 +1794,7 @@ private:
             if (LowerLimit_.KeyBound()) {
                 // Keys are already widened here.
                 while (deltaIndex < rowLimit &&
-                    !TestKey(ToKeyRef(keys[deltaIndex]), MakeKeyBoundRef(LowerLimit_.KeyBound()), SortOrders_))
+                    !TestKey(ToKeyRef(keys[deltaIndex]), ToKeyBoundRef(LowerLimit_.KeyBound()), SortOrders_))
                 {
                     ++deltaIndex;
                 }

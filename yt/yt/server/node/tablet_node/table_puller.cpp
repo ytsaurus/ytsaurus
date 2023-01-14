@@ -51,7 +51,6 @@ using namespace NTracing;
 using namespace NTransactionClient;
 using namespace NYPath;
 
-using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -547,10 +546,7 @@ private:
                 auto rowTimestamp = row.GetWriteTimestampCount() > 0
                     ? row.BeginWriteTimestamps()[0]
                     : row.BeginDeleteTimestamps()[0];
-                auto progressTimestamp = FindReplicationProgressTimestampForKey(
-                    *replicationProgress,
-                    row.BeginKeys(),
-                    row.EndKeys());
+                auto progressTimestamp = FindReplicationProgressTimestampForKey(*replicationProgress, row.Keys());
                 if (!progressTimestamp || progressTimestamp >= rowTimestamp) {
                     YT_LOG_ALERT("Received inaproppriate row timestamp in pull rows response (RowTimestamp: %v, ProgressTimestamp: %v, Row: %v, Progress: %v)",
                         rowTimestamp,

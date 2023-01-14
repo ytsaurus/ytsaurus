@@ -90,7 +90,6 @@ private:
     i64 TimestampCount_ = 0;
     i64 ValueCount_ = 0;
 
-
     void WriteValue(
         TChunkedOutputStream& stream,
         TBitmapOutput& nullFlags,

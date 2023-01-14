@@ -64,7 +64,7 @@ public:
 
     TMutableUnversionedRow CaptureRow(TUnversionedRow row, bool captureValues = true);
     void CaptureValues(TMutableUnversionedRow row);
-    TMutableUnversionedRow CaptureRow(TRange<TUnversionedValue> values, bool captureValues = true);
+    TMutableUnversionedRow CaptureRow(TUnversionedValueRange values, bool captureValues = true);
     std::vector<TMutableUnversionedRow> CaptureRows(TRange<TUnversionedRow> rows, bool captureValues = true);
 
     TMutableVersionedRow CaptureRow(TVersionedRow row, bool captureValues = true);

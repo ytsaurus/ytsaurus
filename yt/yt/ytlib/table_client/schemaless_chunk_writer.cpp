@@ -286,8 +286,7 @@ protected:
         if (IsSorted()) {
             ToProto(
                 block.Meta.mutable_last_key(),
-                lastRow.Begin(),
-                lastRow.Begin() + Schema_->GetKeyColumnCount());
+                lastRow.FirstNElements(Schema_->GetKeyColumnCount()));
         }
 
         YT_VERIFY(block.Meta.uncompressed_size() > 0);
@@ -474,8 +473,7 @@ private:
         }
 
         if (SamplesExtSize_ == 0 && !Sample_) {
-            const auto& sample = rows.Front();
-            Sample_ = TUnversionedOwningRow(sample.begin(), sample.end());
+            Sample_ = TUnversionedOwningRow(rows.Front());
         }
         if (SamplesExtSize_ > 0 && Sample_) {
             Sample_ = TUnversionedOwningRow();
@@ -488,12 +486,11 @@ private:
             auto firstRow = rows.Front();
             ToProto(
                 BoundaryKeysExt_.mutable_min(),
-                firstRow.Begin(),
-                firstRow.Begin() + Schema_->GetKeyColumnCount());
+                firstRow.FirstNElements(Schema_->GetKeyColumnCount()));
         }
 
         auto lastRow = rows.Back();
-        LastKey_ = TLegacyOwningKey(lastRow.Begin(), lastRow.Begin() + Schema_->GetKeyColumnCount());
+        LastKey_ = TLegacyOwningKey(lastRow.FirstNElements(Schema_->GetKeyColumnCount()));
     }
 
     void EmitSample(TUnversionedRow row)
@@ -513,7 +510,7 @@ private:
             }
         }
 
-        auto entry = SerializeToString(sampleValues.begin(), sampleValues.end());
+        auto entry = SerializeToString(MakeRange(sampleValues));
         SamplesExt_.add_entries(entry);
         SamplesExt_.add_weights(weight);
         SamplesExtSize_ += entry.length();
@@ -2318,12 +2315,8 @@ private:
 
             const auto& rsp = rspOrError.Value();
             chunkListId = FromProto<TChunkListId>(rsp->chunk_list_id());
-            auto lastKey = FromProto<TLegacyOwningKey>(rsp->last_key());
-            if (lastKey) {
-                YT_VERIFY(lastKey.GetCount() >= TableUploadOptions_.TableSchema->GetKeyColumnCount());
-                writerLastKey = TLegacyOwningKey(
-                    lastKey.Begin(),
-                    lastKey.Begin() + TableUploadOptions_.TableSchema->GetKeyColumnCount());
+            if (auto lastKey = FromProto<TLegacyOwningKey>(rsp->last_key())) {
+                writerLastKey = TLegacyOwningKey(lastKey.FirstNElements(TableUploadOptions_.TableSchema->GetKeyColumnCount()));
             }
 
             Options_->MaxHeavyColumns = rsp->max_heavy_columns();

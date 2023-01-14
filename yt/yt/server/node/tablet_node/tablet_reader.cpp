@@ -347,12 +347,8 @@ ISchemafulUnversionedReaderPtr CreateSchemafulSortedTabletReader(
                 chunkReadOptions,
                 workloadCategory);
         },
-        [keyComparer = tabletSnapshot->RowKeyComparer] (
-            const TUnversionedValue* lhsBegin,
-            const TUnversionedValue* lhsEnd,
-            const TUnversionedValue* rhsBegin,
-            const TUnversionedValue* rhsEnd) {
-            return keyComparer(MakeRange(lhsBegin, lhsEnd), MakeRange(rhsBegin, rhsEnd));
+        [keyComparer = tabletSnapshot->RowKeyComparer] (TUnversionedValueRange lhs, TUnversionedValueRange rhs) {
+            return keyComparer(lhs, rhs);
         });
 
     return WrapSchemafulTabletReader(
@@ -773,13 +769,8 @@ IVersionedReaderPtr CreateCompactionTabletReader(
                 chunkReadOptions,
                 workloadCategory);
         },
-        [keyComparer = tabletSnapshot->RowKeyComparer] (
-            const TUnversionedValue* lhsBegin,
-            const TUnversionedValue* lhsEnd,
-            const TUnversionedValue* rhsBegin,
-            const TUnversionedValue* rhsEnd)
-        {
-            return keyComparer(MakeRange(lhsBegin, lhsEnd), MakeRange(rhsBegin, rhsEnd));
+        [keyComparer = tabletSnapshot->RowKeyComparer] (TUnversionedValueRange lhs, TUnversionedValueRange rhs) {
+            return keyComparer(lhs, rhs);
         },
         minConcurrency);
 

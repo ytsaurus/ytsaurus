@@ -193,10 +193,10 @@ private:
         TBoundaryKeysExt boundaryKeysExt;
         ToProto(
             boundaryKeysExt.mutable_min(),
-            TLegacyOwningKey(rows.begin()->BeginKeys(), rows.begin()->EndKeys()));
+            TLegacyOwningKey(rows.begin()->Keys()));
         ToProto(
             boundaryKeysExt.mutable_max(),
-            TLegacyOwningKey(rows.back().BeginKeys(), rows.back().EndKeys()));
+            TLegacyOwningKey(rows.back().Keys()));
         SetProtoExtension(chunkMeta.mutable_extensions(), boundaryKeysExt);
 
         SetProtoExtension(chunkMeta.mutable_extensions(), ToProto<TTableSchemaExt>(chunkSchema));
@@ -211,7 +211,7 @@ private:
 
         block.Meta.set_chunk_row_count(rows.size());
         block.Meta.set_block_index(0);
-        ToProto(block.Meta.mutable_last_key(), rows.back().BeginKeys(), rows.back().EndKeys());
+        ToProto(block.Meta.mutable_last_key(), rows.back().Keys());
 
         dataBlockMetaExt.add_data_blocks()->Swap(&block.Meta);
 

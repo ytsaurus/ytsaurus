@@ -77,7 +77,7 @@ bool THorizontalBlockReader::SkipToRowIndex(i64 rowIndex)
 
 bool THorizontalBlockReader::SkipToKeyBound(const TKeyBoundRef& lowerBound)
 {
-    auto inBound = [&] (TUnversionedRow row) -> bool {
+    auto inBound = [&] (TUnversionedRow row) {
         // Key is already widened here.
         return TestKey(ToKeyRef(row), lowerBound, SortOrders_);
     };
@@ -101,10 +101,10 @@ bool THorizontalBlockReader::SkipToKeyBound(const TKeyBoundRef& lowerBound)
 
 bool THorizontalBlockReader::SkipToKey(TUnversionedRow lowerBound)
 {
-    return SkipToKeyBound(MakeKeyBoundRef(lowerBound, /* upper */ false, GetKeyColumnCount()));
+    return SkipToKeyBound(ToKeyBoundRef(lowerBound, /*upper*/ false, GetKeyColumnCount()));
 }
 
-// TODO(lukyan): Keep one versiond of get key.
+// TODO(lukyan): Keep one version of get key.
 TLegacyKey THorizontalBlockReader::GetLegacyKey() const
 {
     return Key_;

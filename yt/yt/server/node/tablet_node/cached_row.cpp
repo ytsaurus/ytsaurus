@@ -7,7 +7,7 @@ namespace NYT::NTabletNode {
 
 char* CaptureStringLikeValues(NTableClient::TMutableVersionedRow versionedRow)
 {
-    char* blobDataDest = const_cast<char*>(versionedRow.GetMemoryEnd());
+    char* blobDataDest = const_cast<char*>(versionedRow.EndMemory());
     for (auto it = versionedRow.BeginKeys(); it != versionedRow.EndKeys(); ++it) {
         if (IsStringLikeType(it->Type)) {
             memcpy(blobDataDest, it->Data.String, it->Length);

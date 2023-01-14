@@ -1099,7 +1099,7 @@ private:
 
         auto lastKey = batch->MaterializeRows().Back();
         YT_VERIFY(lastKey);
-        LastKey_ = TLegacyOwningKey(lastKey.BeginKeys(), lastKey.EndKeys());
+        LastKey_ = TLegacyOwningKey(lastKey.Keys());
     }
 
     void PatchChunkSpecWithContinuationToken() override

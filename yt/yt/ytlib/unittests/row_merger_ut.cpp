@@ -42,7 +42,7 @@ struct TIdentityComparableVersionedRow
 
 bool operator == (TIdentityComparableVersionedRow lhs, TIdentityComparableVersionedRow rhs)
 {
-    return AreRowsIdentical(lhs.Row, rhs.Row);
+    return TBitwiseVersionedRowEqual()(lhs.Row, rhs.Row);
 }
 
 void PrintTo(TVersionedRow row, ::std::ostream* os)
@@ -904,7 +904,7 @@ TEST_F(TVersionedRowMergerTest, Aggregate1)
     EXPECT_EQ(
         TIdentityComparableVersionedRow{BuildVersionedRow(
             "<id=0> 0",
-            "<id=3;ts=100> 1")},
+            "<id=1;ts=100> 1")},
         TIdentityComparableVersionedRow{merger->BuildMergedRow()});
 }
 
@@ -1710,14 +1710,7 @@ TEST_F(TSchemafulMergingReaderTest, Merge1)
         [readers] (int index) {
             return readers[index];
         },
-        [] (
-            const TUnversionedValue* lhsBegin,
-            const TUnversionedValue* lhsEnd,
-            const TUnversionedValue* rhsBegin,
-            const TUnversionedValue* rhsEnd)
-        {
-            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
-        },
+        CompareValueRanges,
         1);
 
     std::vector<TUnversionedRow> result;
@@ -1755,14 +1748,7 @@ TEST_F(TSchemafulMergingReaderTest, Merge2)
         [readers] (int index) {
             return readers[index];
         },
-        [] (
-            const TUnversionedValue* lhsBegin,
-            const TUnversionedValue* lhsEnd,
-            const TUnversionedValue* rhsBegin,
-            const TUnversionedValue* rhsEnd)
-        {
-            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
-        },
+        CompareValueRanges,
         1);
 
     std::vector<TUnversionedRow> result;
@@ -1869,14 +1855,7 @@ TEST_F(TVersionedMergingReaderTest, Merge1)
         [readers] (int index) {
             return readers[index];
         },
-        [] (
-            const TUnversionedValue* lhsBegin,
-            const TUnversionedValue* lhsEnd,
-            const TUnversionedValue* rhsBegin,
-            const TUnversionedValue* rhsEnd)
-        {
-            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
-        },
+        CompareValueRanges,
         1);
 
     std::vector<TVersionedRow> result;

@@ -43,7 +43,7 @@ public:
     //! Consume a range of values represented by YT unversioned values.
     //! Each unversioned value may be Any/Composite as well as of non-YSON kind or even Null.
     //! This method intentionally deals with value batches to reduce overhead from virtual calls.
-    void ConsumeUnversionedValues(TRange<NTableClient::TUnversionedValue> value);
+    void ConsumeUnversionedValues(NTableClient::TUnversionedValueRange value);
 
     //! Consume single value represented by YSON string. Similar to previous
     //! in case when YSON value appears not from unversioned value.

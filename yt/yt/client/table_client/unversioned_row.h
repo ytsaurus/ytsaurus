@@ -235,20 +235,13 @@ bool operator <  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >= (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 bool operator >  (const TUnversionedValue& lhs, const TUnversionedValue& rhs);
 
-//! Similar to operator == but takes flags into account.
-//! Also handles any-typed values (which are generally not comparable).
-bool AreRowValuesIdentical(const TUnversionedValue& lhs, const TUnversionedValue& rhs);
-bool AreRowValuesIdentical(const TVersionedValue& lhs, const TVersionedValue& rhs);
-
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Ternary comparison predicate for ranges of TUnversionedValue-s.
+//! Ternary comparison predicate for value ranges.
 //! Note that this ignores aggregate flags.
-int CompareRows(
-    const TUnversionedValue* lhsBegin,
-    const TUnversionedValue* lhsEnd,
-    const TUnversionedValue* rhsBegin,
-    const TUnversionedValue* rhsEnd);
+int CompareValueRanges(
+    TUnversionedValueRange lhs,
+    TUnversionedValueRange rhs);
 
 //! Ternary comparison predicate for TUnversionedRow-s stripped to a given number of
 //! (leading) values.
@@ -267,14 +260,11 @@ bool operator <  (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs);
 bool operator >  (TUnversionedRow lhs, TUnversionedRow rhs);
 
-//! See #AreRowValuesIdentical.
-bool AreRowsIdentical(TUnversionedRow lhs, TUnversionedRow rhs);
+//! Computes FarmHash forever-fixed fingerprint for a range of values.
+TFingerprint GetFarmFingerprint(TUnversionedValueRange range);
 
-//! Computes hash for a given TUnversionedRow.
-ui64 GetHash(TUnversionedRow row, ui32 keyColumnCount = std::numeric_limits<ui32>::max());
-
-//! Computes FarmHash forever-fixed fingerprint for a given TUnversionedRow.
-TFingerprint GetFarmFingerprint(TUnversionedRow row, ui32 keyColumnCount = std::numeric_limits<ui32>::max());
+//! Computes FarmHash forever-fixed fingerprint for an unversioned row.
+TFingerprint GetFarmFingerprint(TUnversionedRow row);
 
 //! Returns the number of bytes needed to store an unversioned row (not including string data).
 size_t GetUnversionedRowByteSize(ui32 valueCount);
@@ -335,6 +325,17 @@ public:
         return Begin() + GetCount();
     }
 
+    TUnversionedValueRange Elements() const
+    {
+        return {Begin(), End()};
+    }
+
+    TUnversionedValueRange FirstNElements(int count) const
+    {
+        YT_ASSERT(count <= static_cast<int>(GetCount()));
+        return {Begin(), Begin() + count};
+    }
+
     const TUnversionedValue& operator[] (int index) const
     {
         YT_ASSERT(index >= 0 && static_cast<ui32>(index) < GetCount());
@@ -363,12 +364,6 @@ public:
 private:
     const TUnversionedRowHeader* Header_ = nullptr;
 };
-
-// For TKeyComparer.
-inline ui32 GetKeyComparerValueCount(TUnversionedRow row, ui32 prefixLength)
-{
-    return std::min(row.GetCount(), prefixLength);
-}
 
 static_assert(
     sizeof(TUnversionedRow) == sizeof(intptr_t),
@@ -528,11 +523,11 @@ const TLegacyOwningKey& ChooseMinKey(const TLegacyOwningKey& a, const TLegacyOwn
 const TLegacyOwningKey& ChooseMaxKey(const TLegacyOwningKey& a, const TLegacyOwningKey& b);
 
 TString SerializeToString(TUnversionedRow row);
-TString SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end);
+TString SerializeToString(TUnversionedValueRange range);
 
 void ToProto(TProtoStringType* protoRow, TUnversionedRow row);
 void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row);
-void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end);
+void ToProto(TProtoStringType* protoRow, TUnversionedValueRange range);
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std::optional<int> nullPaddingWidth = {});
 void FromProto(TUnversionedRow* row, const TProtoStringType& protoRow, const TRowBufferPtr& rowBuffer);
@@ -630,6 +625,17 @@ public:
         return Begin() + GetCount();
     }
 
+    TMutableUnversionedValueRange Elements()
+    {
+        return {Begin(), End()};
+    }
+
+    TMutableUnversionedValueRange FirstNElements(int count)
+    {
+        YT_ASSERT(count <= static_cast<int>(GetCount()));
+        return {Begin(), Begin() + count};
+    }
+
     void SetCount(ui32 count)
     {
         YT_ASSERT(count <= GetHeader()->Capacity);
@@ -677,17 +683,16 @@ class TUnversionedOwningRow
 public:
     TUnversionedOwningRow() = default;
 
-    TUnversionedOwningRow(const TUnversionedValue* begin, const TUnversionedValue* end)
+    TUnversionedOwningRow(TUnversionedValueRange range)
     {
-        Init(begin, end);
+        Init(range);
     }
 
     explicit TUnversionedOwningRow(TUnversionedRow other)
     {
-        if (!other)
-            return;
-
-        Init(other.Begin(), other.End());
+        if (other) {
+            Init(other.Elements());
+        }
     }
 
     TUnversionedOwningRow(const TUnversionedOwningRow& other)
@@ -724,6 +729,17 @@ public:
     const TUnversionedValue* End() const
     {
         return Begin() + GetCount();
+    }
+
+    TUnversionedValueRange Elements() const
+    {
+        return {Begin(), End()};
+    }
+
+    TUnversionedValueRange FirstNElements(int count) const
+    {
+        YT_ASSERT(count <= static_cast<int>(GetCount()));
+        return {Begin(), Begin() + count};
     }
 
     const TUnversionedValue& operator[] (int index) const
@@ -797,7 +813,7 @@ private:
         , StringData_(std::move(stringData))
     { }
 
-    void Init(const TUnversionedValue* begin, const TUnversionedValue* end);
+    void Init(TUnversionedValueRange range);
 
     TUnversionedRowHeader* GetHeader()
     {
@@ -809,12 +825,6 @@ private:
         return RowData_ ? reinterpret_cast<const TUnversionedRowHeader*>(RowData_.Begin()) : nullptr;
     }
 };
-
-// For TKeyComparer.
-inline int GetKeyComparerValueCount(const TUnversionedOwningRow& row, int prefixLength)
-{
-    return std::min(row.GetCount(), prefixLength);
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -877,8 +887,8 @@ private:
 
 TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey upperBound);
 
-TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row);
-TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row, int prefix);
+TKeyRef ToKeyRef(TUnversionedRow row);
+TKeyRef ToKeyRef(TUnversionedRow row, int prefixLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -892,24 +902,64 @@ TString ToString(const TUnversionedOwningRow& row, bool valuesOnly = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NTableClient
-
-//! A hasher for TUnversionedValue.
-template <>
-struct THash<NYT::NTableClient::TUnversionedValue>
+// NB: Hash function may change in future. Use fingerprints for stability.
+struct TDefaultUnversionedValueRangeHash
 {
-    inline size_t operator()(const NYT::NTableClient::TUnversionedValue& value) const
-    {
-        return GetHash(value);
-    }
+    size_t operator()(TUnversionedValueRange range) const;
 };
+
+struct TDefaultUnversionedValueRangeEqual
+{
+    bool operator()(TUnversionedValueRange lhs, TUnversionedValueRange rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Hash function may change in future. Use fingerprints for stability.
+struct TDefaultUnversionedRowHash
+{
+    size_t operator()(TUnversionedRow row) const;
+};
+
+struct TDefaultUnversionedRowEqual
+{
+    bool operator()(TUnversionedRow lhs, TUnversionedRow rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBitwiseUnversionedValueRangeHash
+{
+    size_t operator()(TUnversionedValueRange range) const;
+};
+
+struct TBitwiseUnversionedValueRangeEqual
+{
+    bool operator()(TUnversionedValueRange lhs, TUnversionedValueRange rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBitwiseUnversionedRowHash
+{
+    size_t operator()(TUnversionedRow row) const;
+};
+
+struct TBitwiseUnversionedRowEqual
+{
+    bool operator()(TUnversionedRow lhs, TUnversionedRow rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NTableClient
 
 //! A hasher for TUnversionedRow.
 template <>
 struct THash<NYT::NTableClient::TUnversionedRow>
 {
-    inline size_t operator()(const NYT::NTableClient::TUnversionedRow& row) const
+    inline size_t operator()(NYT::NTableClient::TUnversionedRow row) const
     {
-        return GetHash(row);
+        return NYT::NTableClient::TDefaultUnversionedRowHash()(row);
     }
 };

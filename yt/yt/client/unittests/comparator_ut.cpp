@@ -116,7 +116,7 @@ TEST_F(TComparatorTest, StressNewAndLegacyTestEquivalence)
     // Generate all possible keys of length 3.
     auto allKeys = GenerateKeys(NoSentinelValues, KeyLength);
 
-    auto validateTestPreservation = [&] (const TKeyBound& keyBound, const TUnversionedRow& legacyRow) {
+    auto validateTestPreservation = [&] (const TKeyBound& keyBound, TUnversionedRow legacyRow) {
         bool isUpper = keyBound.IsUpper;
         for (const auto& key : allKeys) {
             auto legacyTest = isUpper ? key.AsOwningRow() < legacyRow : key.AsOwningRow() >= legacyRow;

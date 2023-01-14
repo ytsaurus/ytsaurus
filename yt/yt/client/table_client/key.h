@@ -13,19 +13,18 @@ class TKey
 public:
     //! A special null key, use it instead of enclosing TKey in std::optional.
     TKey() = default;
-
-    TKey(const TUnversionedValue* begin, int length);
+    explicit TKey(TUnversionedValueRange range);
 
     //! Returns true if key is non-null and false otherwise.
     explicit operator bool() const;
 
     //! Construct from a given row and possibly key length and validate that row does not contain
     //! setntinels of types Min, Max and Bottom. If key length is not specified, row length will be used instead.
-    static TKey FromRow(const TUnversionedRow& row, std::optional<int> length = std::nullopt);
+    static TKey FromRow(TUnversionedRow row, std::optional<int> length = {});
 
     //! Same as above, but does not check that row does not contain sentinels.
     //! NB: in debug mode value type check is still performed, but results in YT_ABORT().
-    static TKey FromRowUnchecked(const TUnversionedRow& row, std::optional<int> length = std::nullopt);
+    static TKey FromRowUnchecked(TUnversionedRow row, std::optional<int> length = {});
 
     //! Performs a deep copy of underlying values into owning row.
     TUnversionedOwningRow AsOwningRow() const;
@@ -37,17 +36,14 @@ public:
     //! Helpers for printing and hashing.
     const TUnversionedValue* Begin() const;
     const TUnversionedValue* End() const;
+    TUnversionedValueRange Elements() const;
 
     void Persist(const TPersistenceContext& context);
 
 private:
-    const TUnversionedValue* Begin_ = nullptr;
+    TUnversionedValueRange Elements_;
 
-    int Length_ = 0;
-
-    static void ValidateValueTypes(
-        const TUnversionedValue* begin,
-        const TUnversionedValue* end);
+    static void ValidateValueTypes(TUnversionedValueRange range);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -83,6 +79,6 @@ struct THash<NYT::NTableClient::TKey>
 {
     inline size_t operator()(const NYT::NTableClient::TKey& key) const
     {
-        return GetHash(key.Begin(), key.End());
+        return NYT::NTableClient::TDefaultUnversionedValueRangeHash()(key.Elements());
     }
 };

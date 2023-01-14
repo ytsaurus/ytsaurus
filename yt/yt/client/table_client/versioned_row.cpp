@@ -95,72 +95,6 @@ size_t GetDataWeight(TVersionedRow row)
     return result;
 }
 
-size_t GetHash(TVersionedRow row)
-{
-    size_t result = 0xdeadc0de;
-    int partCount = row.GetKeyCount() + row.GetValueCount();
-    for (int i = 0; i < row.GetKeyCount(); ++i) {
-        result = (result * 1000003) ^ GetHash(row.BeginKeys()[i]);
-    }
-    for (int i = 0; i < row.GetValueCount(); ++i) {
-        result = (result * 1000003) ^ GetHash(row.BeginValues()[i]);
-    }
-    return result ^ partCount;
-}
-
-bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs)
-{
-    if (!lhs && !rhs) {
-        return true;
-    }
-
-    if (!lhs || !rhs) {
-        return false;
-    }
-
-    if (lhs.GetKeyCount() != rhs.GetKeyCount()) {
-        return false;
-    }
-
-    for (int i = 0; i < lhs.GetKeyCount(); ++i) {
-        if (!AreRowValuesIdentical(lhs.BeginKeys()[i], lhs.BeginKeys()[i])) {
-            return false;
-        }
-    }
-
-    if (lhs.GetValueCount() != rhs.GetValueCount()) {
-        return false;
-    }
-
-    for (int i = 0; i < lhs.GetValueCount(); ++i) {
-        if (!AreRowValuesIdentical(lhs.BeginValues()[i], rhs.BeginValues()[i])) {
-            return false;
-        }
-    }
-
-    if (lhs.GetWriteTimestampCount() != rhs.GetWriteTimestampCount()) {
-        return false;
-    }
-
-    for (int i = 0; i < lhs.GetWriteTimestampCount(); ++i) {
-        if (lhs.BeginWriteTimestamps()[i] != rhs.BeginWriteTimestamps()[i]) {
-            return false;
-        }
-    }
-
-    if (lhs.GetDeleteTimestampCount() != rhs.GetDeleteTimestampCount()) {
-        return false;
-    }
-
-    for (int i = 0; i < lhs.GetDeleteTimestampCount(); ++i) {
-        if (lhs.BeginDeleteTimestamps()[i] != rhs.BeginDeleteTimestamps()[i]) {
-            return false;
-        }
-    }
-
-    return true;
-}
-
 void ValidateClientDataRow(
     TVersionedRow row,
     const TTableSchema& schema,
@@ -352,13 +286,18 @@ void ValidateDuplicateAndRequiredValueColumns(
     }
 }
 
-TLegacyOwningKey RowToKey(TVersionedRow row)
+TLegacyOwningKey ToOwningKey(TVersionedRow row)
 {
     TUnversionedOwningRowBuilder builder;
     for (int index = 0; index < row.GetKeyCount(); ++index) {
         builder.AddValue(row.BeginKeys()[index]);
     }
     return builder.FinishRow();
+}
+
+TKeyRef ToKeyRef(TVersionedRow row)
+{
+    return row.Keys();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -448,8 +387,9 @@ TMutableVersionedRow TVersionedRowBuilder::FinishRow()
 
 TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
 {
-    if (!other)
+    if (!other) {
         return;
+    }
 
     size_t fixedSize = GetVersionedRowByteSize(
         other.GetKeyCount(),
@@ -492,34 +432,6 @@ TVersionedOwningRow::TVersionedOwningRow(TVersionedRow other)
             captureValue(BeginMutableValues() + index);
         }
     }
-}
-
-TTimestamp GetMinTimestamp(TVersionedRow row)
-{
-    auto result = MaxTimestamp;
-    if (row) {
-        for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
-            result = std::min(it->Timestamp, result);
-        }
-        for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-            result = std::min(*it, result);
-        }
-    }
-    return result;
-}
-
-TTimestamp GetMaxTimestamp(TVersionedRow row)
-{
-    auto result = MinTimestamp;
-    if (row) {
-        for (auto it = row.BeginValues(); it != row.EndValues(); ++it) {
-            result = std::max(it->Timestamp, result);
-        }
-        for (auto it = row.BeginDeleteTimestamps(); it != row.EndDeleteTimestamps(); ++it) {
-            result = std::max(*it, result);
-        }
-    }
-    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -597,6 +509,92 @@ TString ToString(TMutableVersionedRow row)
 TString ToString(const TVersionedOwningRow& row)
 {
     return ToString(row.Get());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TBitwiseVersionedValueHash::operator()(const TVersionedValue& value) const
+{
+    size_t result = 0;
+    HashCombine(result, value.Timestamp);
+    HashCombine(result, TBitwiseUnversionedValueHash()(value));
+    return result;
+}
+
+bool TBitwiseVersionedValueEqual::operator()(const TVersionedValue& lhs, const TVersionedValue& rhs) const
+{
+    return lhs.Timestamp == rhs.Timestamp && TBitwiseUnversionedValueEqual()(lhs, rhs);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TBitwiseVersionedRowHash::operator()(TVersionedRow row) const
+{
+    size_t result = 0;
+    for (const auto& value : row.Keys()) {
+        HashCombine(result, TBitwiseUnversionedValueHash()(value));
+    }
+    for (const auto& value : row.Values()) {
+        HashCombine(result, TBitwiseVersionedValueHash()(value));
+    }
+    // Write timestamps are omitted since these are inferred from values.
+    for (auto timestamp : row.DeleteTimestamps()) {
+        HashCombine(result, timestamp);
+    }
+    return result;
+}
+
+bool TBitwiseVersionedRowEqual::operator()(TVersionedRow lhs, TVersionedRow rhs) const
+{
+    if (!lhs && !rhs) {
+        return true;
+    }
+
+    if (!lhs || !rhs) {
+        return false;
+    }
+
+    if (lhs.GetKeyCount() != rhs.GetKeyCount()) {
+        return false;
+    }
+
+    for (int index = 0; index < lhs.GetKeyCount(); ++index) {
+        if (!TBitwiseUnversionedValueEqual()(lhs.BeginKeys()[index], lhs.BeginKeys()[index])) {
+            return false;
+        }
+    }
+
+    if (lhs.GetValueCount() != rhs.GetValueCount()) {
+        return false;
+    }
+
+    for (int i = 0; i < lhs.GetValueCount(); ++i) {
+        if (!TBitwiseVersionedValueEqual()(lhs.BeginValues()[i], rhs.BeginValues()[i])) {
+            return false;
+        }
+    }
+
+    if (lhs.GetWriteTimestampCount() != rhs.GetWriteTimestampCount()) {
+        return false;
+    }
+
+    for (int i = 0; i < lhs.GetWriteTimestampCount(); ++i) {
+        if (lhs.BeginWriteTimestamps()[i] != rhs.BeginWriteTimestamps()[i]) {
+            return false;
+        }
+    }
+
+    if (lhs.GetDeleteTimestampCount() != rhs.GetDeleteTimestampCount()) {
+        return false;
+    }
+
+    for (int i = 0; i < lhs.GetDeleteTimestampCount(); ++i) {
+        if (lhs.BeginDeleteTimestamps()[i] != rhs.BeginDeleteTimestamps()[i]) {
+            return false;
+        }
+    }
+
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

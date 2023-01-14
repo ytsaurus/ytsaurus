@@ -26,7 +26,6 @@ public:
 
 public:
     TComparator() = default;
-
     explicit TComparator(std::vector<ESortOrder> sortOrders);
 
     void Persist(const TPersistenceContext& context);
@@ -99,14 +98,13 @@ using TPrefixComparer = int(const TUnversionedValue*, const TUnversionedValue*, 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Comparator which returns int. abs(compare result) - 1 is equal to index of first non-equal component.
-int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, int length);
-
 int GetCompareSign(int value);
 
-int CompareKeys(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs, TPrefixComparer comparePrefix);
-
-int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer comparePrefix);
+//! Obeys the usual rule: the result's sign incidates the comparion outcome.
+//! Also |abs(result) - 1| is equal to index of first non-equal component.
+int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, int length);
+int CompareKeys(TUnversionedValueRange lhs, TUnversionedValueRange rhs, TPrefixComparer prefixComparer);
+int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer prefixComparer);
 
 class TKeyComparer
     : public NCodegen::TCGFunction<TPrefixComparer>
@@ -121,48 +119,43 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row);
-
-TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row, int prefix);
-
-TRange<TUnversionedValue> ToKeyRef(TKey key);
+TKeyRef ToKeyRef(TUnversionedRow row);
+TKeyRef ToKeyRef(TUnversionedRow row, int prefixLength);
+TKeyRef ToKeyRef(TKey key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 class TKeyBoundRef
-    : public TRange<TUnversionedValue>
+    : public TKeyRef
 {
 public:
     bool Inclusive;
     bool Upper;
 
-    TKeyBoundRef(TRange<TUnversionedValue> base, bool inclusive = false, bool upper = false);
+    TKeyBoundRef(
+        TKeyRef base,
+        bool inclusive = false,
+        bool upper = false);
 };
 
-TKeyBoundRef MakeKeyBoundRef(const TKeyBound& bound);
-
-TKeyBoundRef MakeKeyBoundRef(const TOwningKeyBound& bound);
-
-TKeyBoundRef MakeKeyBoundRef(TUnversionedRow row, bool upper, int keyLength);
+TKeyBoundRef ToKeyBoundRef(const TKeyBound& bound);
+TKeyBoundRef ToKeyBoundRef(const TOwningKeyBound& bound);
+TKeyBoundRef ToKeyBoundRef(TUnversionedRow row, bool upper, int keyLength);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 int CompareWithWidening(
-    TRange<TUnversionedValue> keyPrefix,
-    TRange<TUnversionedValue> boundKey,
-    TPrefixComparer comparePrefix);
-
+    TUnversionedValueRange keyPrefix,
+    TUnversionedValueRange boundKey,
+    TPrefixComparer prefixComparer);
 int CompareWithWidening(
-    TRange<TUnversionedValue> keyPrefix,
-    TRange<TUnversionedValue> boundKey);
+    TUnversionedValueRange keyPrefix,
+    TUnversionedValueRange boundKey);
 
-int TestKey(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
-
-int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound);
-
-int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TPrefixComparer comparePrefix);
-
-int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
+int TestKey(TUnversionedValueRange key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
+int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound);
+int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, TPrefixComparer prefixComparer);
+int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders);
 
 int TestComparisonResult(int result, TRange<ESortOrder> sortOrders, bool inclusive, bool upper);
 

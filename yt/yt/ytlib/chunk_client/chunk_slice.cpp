@@ -107,13 +107,11 @@ public:
             YT_VERIFY(block.block_index() == blockIndex);
 
             auto blockLastKey = FromProto<TUnversionedOwningRow>(block.last_key());
-            TUnversionedOwningRow trimmedBlockLastKey(
-                blockLastKey.begin(),
-                blockLastKey.begin() + SliceComparator_.GetLength());
+            TUnversionedOwningRow trimmedBlockLastKey(blockLastKey.FirstNElements(SliceComparator_.GetLength()));
             auto blockUpperBound = TOwningKeyBound::FromRow(
-                /* row */std::move(trimmedBlockLastKey),
-                /* isInclusive */true,
-                /* isUpper */true);
+                /*row*/ std::move(trimmedBlockLastKey),
+                /*isInclusive*/ true,
+                /*isUpper*/ true);
 
             i64 chunkRowCount = block.chunk_row_count();
             i64 rowCount = BlockDescriptors_.empty()
@@ -128,8 +126,8 @@ public:
             BlockDescriptors_.push_back(std::move(blockDescriptor));
         }
 
-        TReadLimit sliceLowerLimit(SliceReq_.lower_limit(), /* isUpper */false, SliceReq_.key_column_count());
-        TReadLimit sliceUpperLimit(SliceReq_.upper_limit(), /* isUpper */true, SliceReq_.key_column_count());
+        TReadLimit sliceLowerLimit(SliceReq_.lower_limit(), /*isUpper*/ false, SliceReq_.key_column_count());
+        TReadLimit sliceUpperLimit(SliceReq_.upper_limit(), /*isUpper*/ true, SliceReq_.key_column_count());
         sliceLowerLimit.KeyBound() = ShortenKeyBound(sliceLowerLimit.KeyBound(), keyColumnCount);
         sliceUpperLimit.KeyBound() = ShortenKeyBound(sliceUpperLimit.KeyBound(), keyColumnCount);
 

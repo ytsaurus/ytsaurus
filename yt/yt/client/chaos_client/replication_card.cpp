@@ -446,11 +446,10 @@ TTimestamp GetReplicationProgressMaxTimestamp(const TReplicationProgress& progre
 
 std::optional<TTimestamp> FindReplicationProgressTimestampForKey(
     const TReplicationProgress& progress,
-    const TUnversionedValue* begin,
-    const TUnversionedValue* end)
+    TUnversionedValueRange key)
 {
-    if (CompareRows(progress.UpperKey.Begin(), progress.UpperKey.End(), begin, end) <= 0 ||
-        CompareRows(progress.Segments[0].LowerKey.Begin(), progress.Segments[0].LowerKey.End(), begin, end) > 0)
+    if (CompareValueRanges(progress.UpperKey.Elements(), key) <= 0 ||
+        CompareValueRanges(progress.Segments[0].LowerKey.Elements(), key) > 0)
     {
         return {};
     }
@@ -458,9 +457,9 @@ std::optional<TTimestamp> FindReplicationProgressTimestampForKey(
     auto it = std::upper_bound(
         progress.Segments.begin(),
         progress.Segments.end(),
-        begin,
-        [&] (const auto& /*begin*/, const auto& segment) {
-           return CompareRows(begin, end, segment.LowerKey.Begin(), segment.LowerKey.End()) < 0;
+        key,
+        [&] (const auto& /*key*/, const auto& segment) {
+           return CompareValueRanges(key, segment.LowerKey.Elements()) < 0;
         });
     YT_VERIFY(it > progress.Segments.begin());
 
@@ -471,7 +470,7 @@ TTimestamp GetReplicationProgressTimestampForKeyOrThrow(
     const TReplicationProgress& progress,
     TUnversionedRow key)
 {
-    auto timestamp = FindReplicationProgressTimestampForKey(progress, key.Begin(), key.End());
+    auto timestamp = FindReplicationProgressTimestampForKey(progress, key.Elements());
     if (!timestamp) {
         THROW_ERROR_EXCEPTION("Key %v is out or replication progress range", key);
     }

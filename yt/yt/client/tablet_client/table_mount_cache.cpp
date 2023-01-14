@@ -64,19 +64,15 @@ TTabletInfoPtr TTableMountInfo::GetTabletByIndexOrThrow(int tabletIndex) const
     return Tablets[tabletIndex];
 }
 
-int TTableMountInfo::GetTabletIndexForKey(TRange<TUnversionedValue> key) const
+int TTableMountInfo::GetTabletIndexForKey(TUnversionedValueRange key) const
 {
     ValidateDynamic();
     auto it = std::upper_bound(
         Tablets.begin(),
         Tablets.end(),
         key,
-        [&] (TRange<TUnversionedValue> key, const TTabletInfoPtr& rhs) {
-            return CompareRows(
-                key.Begin(),
-                key.End(),
-                rhs->PivotKey.Begin(),
-                rhs->PivotKey.End()) < 0;
+        [&] (TUnversionedValueRange key, const TTabletInfoPtr& rhs) {
+            return CompareValueRanges(key, rhs->PivotKey.Elements()) < 0;
         });
     YT_VERIFY(it != Tablets.begin());
     return std::distance(Tablets.begin(), it - 1);
@@ -84,32 +80,12 @@ int TTableMountInfo::GetTabletIndexForKey(TRange<TUnversionedValue> key) const
 
 int TTableMountInfo::GetTabletIndexForKey(TUnversionedRow key) const
 {
-    return GetTabletIndexForKey(MakeRange(key.Begin(), key.End()));
+    return GetTabletIndexForKey(key.Elements());
 }
 
-int TTableMountInfo::GetTabletIndexForRow(TRange<TUnversionedValue> row) const
+TTabletInfoPtr TTableMountInfo::GetTabletForKey(TUnversionedValueRange key) const
 {
-    int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
-    YT_VERIFY(std::ssize(row) >= keyColumnCount);
-    ValidateDynamic();
-    auto it = std::upper_bound(
-        Tablets.begin(),
-        Tablets.end(),
-        row,
-        [&] (TRange<TUnversionedValue> key, const TTabletInfoPtr& rhs) {
-            return CompareRows(
-                key.Begin(),
-                key.Begin() + keyColumnCount,
-                rhs->PivotKey.Begin(),
-                rhs->PivotKey.End()) < 0;
-        });
-    YT_VERIFY(it != Tablets.begin());
-    return std::distance(Tablets.begin(), it - 1);
-}
-
-TTabletInfoPtr TTableMountInfo::GetTabletForRow(TRange<TUnversionedValue> row) const
-{
-    auto index = GetTabletIndexForRow(row);
+    auto index = GetTabletIndexForKey(key);
     return Tablets[index];
 }
 
@@ -117,14 +93,14 @@ TTabletInfoPtr TTableMountInfo::GetTabletForRow(TUnversionedRow row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     YT_VERIFY(static_cast<int>(row.GetCount()) >= keyColumnCount);
-    return GetTabletForRow(MakeRange(row.Begin(), row.Begin() + keyColumnCount));
+    return GetTabletForKey(row.FirstNElements(keyColumnCount));
 }
 
 TTabletInfoPtr TTableMountInfo::GetTabletForRow(TVersionedRow row) const
 {
     int keyColumnCount = Schemas[ETableSchemaKind::Primary]->GetKeyColumnCount();
     YT_VERIFY(row.GetKeyCount() == keyColumnCount);
-    return GetTabletForRow(MakeRange(row.BeginKeys(), row.EndKeys()));
+    return GetTabletForKey(row.Keys());
 }
 
 int TTableMountInfo::GetRandomMountedTabletIndex() const

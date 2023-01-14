@@ -207,7 +207,7 @@ i64 TColumnarChunkReaderBase::GetLowerKeyBoundIndex(TKeyBound lowerBound) const
         [&] (const TUnversionedRow* blockLastKey) {
             return !TestKeyWithWidening(
                 ToKeyRef(*blockLastKey, CommonKeyPrefix_),
-                MakeKeyBoundRef(lowerBound),
+                ToKeyBoundRef(lowerBound),
                 SortOrders_);
         });
 
@@ -262,7 +262,7 @@ void TColumnarRangeChunkReaderBase::InitUpperRowIndex()
             [&] (const TUnversionedRow* blockLastKey) {
                 return TestKeyWithWidening(
                     ToKeyRef(*blockLastKey, CommonKeyPrefix_),
-                    MakeKeyBoundRef(UpperLimit_.KeyBound()),
+                    ToKeyBoundRef(UpperLimit_.KeyBound()),
                     SortOrders_);
             });
 

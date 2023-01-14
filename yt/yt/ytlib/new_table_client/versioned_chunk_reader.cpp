@@ -167,14 +167,14 @@ std::vector<TSpanMatching> BuildReadWindows(
         {
             return !TestKeyWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
-                MakeKeyBoundRef(itemIt->second, true, KeyColumnCount));
+                ToKeyBoundRef(itemIt->second, true, KeyColumnCount));
         }
 
         bool operator() (const TLegacyKey* shardIt, const TRowRange* itemIt) const
         {
             return !TestKeyWithWidening(
                 ToKeyRef(*shardIt, CommonKeyPrefix),
-                MakeKeyBoundRef(itemIt->first, false, KeyColumnCount));
+                ToKeyBoundRef(itemIt->first, false, KeyColumnCount));
         }
     };
 

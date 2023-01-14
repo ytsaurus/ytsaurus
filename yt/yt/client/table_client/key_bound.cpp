@@ -418,7 +418,7 @@ TOwningKeyBound KeyBoundFromLegacyRow(TUnversionedRow row, bool isUpper, int key
 
     auto [prefixLength, isInclusive] = GetBoundPrefixAndInclusiveness(row, isUpper, keyLength);
     return TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(row.Begin(), row.Begin() + prefixLength),
+        TUnversionedOwningRow(row.FirstNElements(prefixLength)),
         isInclusive,
         isUpper);
 }
@@ -508,7 +508,7 @@ TOwningKeyBound ShortenKeyBound(TOwningKeyBound keyBound, int length)
     // If we do perform shortening, resulting key bound is going to be inclusive despite the original inclusiveness.
 
     return TOwningKeyBound::FromRowUnchecked(
-        TUnversionedOwningRow(keyBound.Prefix.Begin(), keyBound.Prefix.Begin() + length),
+        TUnversionedOwningRow(keyBound.Prefix.FirstNElements(length)),
         /* isInclusive */ true,
         keyBound.IsUpper);
 }
@@ -516,3 +516,15 @@ TOwningKeyBound ShortenKeyBound(TOwningKeyBound keyBound, int length)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient
+
+size_t THash<NYT::NTableClient::TKeyBound>::operator()(const NYT::NTableClient::TKeyBound& keyBound) const
+{
+    using NYT::HashCombine;
+
+    size_t result = 0;
+    HashCombine(result, keyBound.Prefix);
+    HashCombine(result, keyBound.IsInclusive);
+    HashCombine(result, keyBound.IsUpper);
+
+    return result;
+}

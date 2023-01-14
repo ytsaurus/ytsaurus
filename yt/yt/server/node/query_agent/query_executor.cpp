@@ -711,7 +711,7 @@ private:
                     keySize == static_cast<int>(lowerBound.GetCount()) &&
                     keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
                     upperBound[keySize].Type == EValueType::Max &&
-                    CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
+                    CompareValueRanges(lowerBound.Elements(), upperBound.FirstNElements(keySize)) == 0)
                 {
                     continue;
                 }
@@ -763,7 +763,7 @@ private:
                     keySize == static_cast<int>(lowerBound.GetCount()) &&
                     keySize + 1 == static_cast<int>(upperBound.GetCount()) &&
                     upperBound[keySize].Type == EValueType::Max &&
-                    CompareRows(lowerBound.Begin(), lowerBound.End(), upperBound.Begin(), upperBound.Begin() + keySize) == 0)
+                    CompareValueRanges(lowerBound.Elements(), upperBound.FirstNElements(keySize)) == 0)
                 {
                     pushRanges();
                     keys.push_back(lowerBound);
@@ -790,7 +790,9 @@ private:
             pushKeys();
         }
 
-        YT_LOG_DEBUG("Splitting ranges (RangesCount: %v, KeyCount: %v)", rangesCount, keysCount);
+        YT_LOG_DEBUG("Splitting ranges (RangesCount: %v, KeyCount: %v)",
+            rangesCount,
+            keysCount);
 
         auto splits = Split(std::move(dataSourcesByTablet), rowBuffer);
 

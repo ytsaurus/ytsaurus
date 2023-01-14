@@ -398,7 +398,7 @@ private:
             return Compare(lhs, rhs);
         }
 
-        int operator()(TSortedDynamicRow lhs, TRange<TUnversionedValue> rhs) const
+        int operator()(TSortedDynamicRow lhs, TUnversionedValueRange rhs) const
         {
             YT_ASSERT(static_cast<int>(rhs.Size()) >= KeyColumnCount_);
             return Compare(lhs, rhs.Begin(), KeyColumnCount_);

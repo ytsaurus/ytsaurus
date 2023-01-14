@@ -3,17 +3,13 @@
 #include <yt/yt/client/table_client/unversioned_row.h>
 #include <yt/yt/client/table_client/unversioned_value.h>
 
-
 namespace NYT::NTableClient {
 namespace {
 
-/* NB: This test intention is to provide a sanity check for stability
- * of FarmHash and FarmFingerprint functions
- * for TUnversionedRow and TUnversionedValue.
- */
-
 /////////////////////////////////////////////////////////////////////////////
 
+// The goal is to provide a sanity check for stability of FarmHash and FarmFingerprint functions
+// for TUnversionedRow and TUnversionedValue.
 class TFarmHashTest
     : public ::testing::Test
     , public ::testing::WithParamInterface<
@@ -24,21 +20,23 @@ TEST_P(TFarmHashTest, TFarmHashUnversionedValueTest)
 {
     const auto& params = GetParam();
 
-    TUnversionedValue values[2] = {std::get<0>(params), std::get<1>(params)};
+    std::array<TUnversionedValue, 2> values{std::get<0>(params), std::get<1>(params)};
+    auto valueRange = MakeRange(values);
+
     auto expected1 = std::get<2>(params);
     auto expected2 = std::get<3>(params);
     auto expected3 = std::get<4>(params);
 
-    static_assert(std::is_same<ui64, decltype(GetHash(values[0]))>::value);
-    EXPECT_EQ(expected1, GetHash(values[0]));
-    EXPECT_EQ(expected2, GetHash(values[1]));
+    static_assert(std::is_same_v<ui64, decltype(TDefaultUnversionedValueHash()(values[0]))>);
+    EXPECT_EQ(expected1, TDefaultUnversionedValueHash()(values[0]));
+    EXPECT_EQ(expected2, TDefaultUnversionedValueHash()(values[1]));
 
-    static_assert(std::is_same<ui64, decltype(GetFarmFingerprint(values[0]))>::value);
+    static_assert(std::is_same_v<ui64, decltype(GetFarmFingerprint(values[0]))>);
     EXPECT_EQ(expected1, GetFarmFingerprint(values[0]));
     EXPECT_EQ(expected2, GetFarmFingerprint(values[1]));
 
-    static_assert(std::is_same<ui64, decltype(GetFarmFingerprint(values, values + 2))>::value);
-    EXPECT_EQ(expected3, GetFarmFingerprint(values, values + 2));
+    static_assert(std::is_same_v<ui64, decltype(GetFarmFingerprint(valueRange))>);
+    EXPECT_EQ(expected3, GetFarmFingerprint(valueRange));
 }
 
 TEST_P(TFarmHashTest, TFarmHashUnversionedRowTest)
@@ -53,10 +51,10 @@ TEST_P(TFarmHashTest, TFarmHashUnversionedRowTest)
 
     auto expected = std::get<4>(params);
 
-    static_assert(std::is_same<ui64, decltype(GetHash(row))>::value);
-    EXPECT_EQ(expected, GetHash(row));
+    static_assert(std::is_same_v<ui64, decltype(TDefaultUnversionedRowHash()(row))>);
+    EXPECT_EQ(expected, TDefaultUnversionedRowHash()(row));
 
-    static_assert(std::is_same<ui64, decltype(GetFarmFingerprint(row))>::value);
+    static_assert(std::is_same_v<ui64, decltype(GetFarmFingerprint(row))>);
     EXPECT_EQ(expected, GetFarmFingerprint(row));
 }
 

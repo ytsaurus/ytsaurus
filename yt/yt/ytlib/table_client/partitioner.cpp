@@ -35,9 +35,9 @@ public:
         for (const auto& key : KeySetReader_->GetKeys()) {
             PartitionLowerBounds_.push_back(
                 KeyBoundFromLegacyRow(
-                    /* key */key,
-                    /* isUpper */false,
-                    /* keyLength */Comparator_.GetLength()));
+                    /*key*/ key,
+                    /*isUpper*/ false,
+                    /*keyLength*/ Comparator_.GetLength()));
         }
 
         ValidateKeyBounds();
@@ -111,7 +111,7 @@ class THashPartitioner
     : public IPartitioner
 {
 public:
-    THashPartitioner(int partitionCount, int keyColumnCount, int salt)
+    THashPartitioner(int partitionCount, int keyColumnCount, TFingerprint salt)
         : PartitionCount_(partitionCount)
         , KeyColumnCount_(keyColumnCount)
         , Salt_(FarmHash(salt))
@@ -124,7 +124,8 @@ public:
 
     int GetPartitionIndex(TUnversionedRow row) override
     {
-        auto rowHash = GetHash(row, KeyColumnCount_);
+        int count = std::min(KeyColumnCount_, static_cast<int>(row.GetCount()));
+        auto rowHash = GetFarmFingerprint(row.FirstNElements(count));
         if (Salt_ != 0) {
             rowHash = FarmHash(rowHash ^ Salt_);
         }
@@ -137,7 +138,7 @@ private:
     const TFingerprint Salt_;
 };
 
-IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, int salt)
+IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, TFingerprint salt)
 {
     return New<THashPartitioner>(partitionCount, keyColumnCount, salt);
 }

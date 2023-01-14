@@ -330,9 +330,9 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
             return static_cast<int>(lhs.Type) - static_cast<int>(rhs.Type);
         }
-        auto lhsData = lhs.AsStringBuf();
-        auto rhsData = rhs.AsStringBuf();
         try {
+            auto lhsData = TYsonStringBuf(lhs.AsStringBuf());
+            auto rhsData = TYsonStringBuf(rhs.AsStringBuf());
             return CompareCompositeValues(lhsData, rhsData);
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION(
@@ -423,14 +423,9 @@ int CompareRowValues(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
             }
         }
 
-        // NB: All sentinel types are equal.
-        case EValueType::Null:
-        case EValueType::Min:
-        case EValueType::Max:
-            return 0;
-
+        // All sentinel types are equal.
         default:
-            YT_ABORT();
+            return 0;
     }
 }
 
@@ -464,54 +459,19 @@ bool operator > (const TUnversionedValue& lhs, const TUnversionedValue& rhs)
     return CompareRowValues(lhs, rhs) > 0;
 }
 
-bool AreRowValuesIdentical(const TUnversionedValue& lhs, const TUnversionedValue& rhs)
-{
-    if (lhs.Flags != rhs.Flags) {
-        return false;
-    }
-
-    if (lhs.Type != rhs.Type) {
-        return false;
-    }
-
-    // Handle "any" and "composite" values specially since these are not comparable.
-    if (lhs.Type == EValueType::Any || lhs.Type == EValueType::Composite) {
-        return
-            lhs.Length == rhs.Length &&
-            ::memcmp(lhs.Data.String, rhs.Data.String, lhs.Length) == 0;
-    }
-
-    return lhs == rhs;
-}
-
-bool AreRowValuesIdentical(const TVersionedValue& lhs, const TVersionedValue& rhs)
-{
-    if (lhs.Timestamp != rhs.Timestamp) {
-        return false;
-    }
-
-    return AreRowValuesIdentical(
-        static_cast<const TUnversionedValue&>(lhs),
-        static_cast<const TUnversionedValue&>(rhs));
-}
-
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareRows(
-    const TUnversionedValue* lhsBegin,
-    const TUnversionedValue* lhsEnd,
-    const TUnversionedValue* rhsBegin,
-    const TUnversionedValue* rhsEnd)
+int CompareValueRanges(TUnversionedValueRange lhs, TUnversionedValueRange rhs)
 {
-    auto* lhsCurrent = lhsBegin;
-    auto* rhsCurrent = rhsBegin;
-    while (lhsCurrent != lhsEnd && rhsCurrent != rhsEnd) {
+    auto* lhsCurrent = lhs.begin();
+    auto* rhsCurrent = rhs.begin();
+    while (lhsCurrent != lhs.end() && rhsCurrent != rhs.end()) {
         int result = CompareRowValues(*lhsCurrent++, *rhsCurrent++);
         if (result != 0) {
             return result;
         }
     }
-    return static_cast<int>(lhsEnd - lhsBegin) - static_cast<int>(rhsEnd - rhsBegin);
+    return std::ssize(lhs) - std::ssize(rhs);
 }
 
 int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, ui32 prefixLength)
@@ -528,11 +488,9 @@ int CompareRows(TUnversionedRow lhs, TUnversionedRow rhs, ui32 prefixLength)
         return -1;
     }
 
-    return CompareRows(
-        lhs.Begin(),
-        lhs.Begin() + std::min(lhs.GetCount(), prefixLength),
-        rhs.Begin(),
-        rhs.Begin() + std::min(rhs.GetCount(), prefixLength));
+    return CompareValueRanges(
+        lhs.FirstNElements(std::min(lhs.GetCount(), prefixLength)),
+        rhs.FirstNElements(std::min(rhs.GetCount(), prefixLength)));
 }
 
 bool operator == (TUnversionedRow lhs, TUnversionedRow rhs)
@@ -563,28 +521,6 @@ bool operator >= (TUnversionedRow lhs, TUnversionedRow rhs)
 bool operator > (TUnversionedRow lhs, TUnversionedRow rhs)
 {
     return CompareRows(lhs, rhs) > 0;
-}
-
-bool AreRowsIdentical(TUnversionedRow lhs, TUnversionedRow rhs)
-{
-    if (!lhs && !rhs) {
-        return true;
-    }
-
-    if (!lhs || !rhs) {
-        return false;
-    }
-
-    if (lhs.GetCount() != rhs.GetCount()) {
-        return false;
-    }
-
-    for (int index = 0; index < static_cast<int>(lhs.GetCount()); ++index) {
-        if (!AreRowValuesIdentical(lhs[index], rhs[index])) {
-            return false;
-        }
-    }
-    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -621,18 +557,21 @@ bool operator > (TUnversionedRow lhs, const TUnversionedOwningRow& rhs)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ui64 GetHash(TUnversionedRow row, ui32 keyColumnCount)
+// Needed by NYT::FarmFingerprint below.
+// TODO(babenko): consider refactoring.
+TFingerprint FarmFingerprint(const TUnversionedValue& value)
 {
-    auto partCount = std::min(row.GetCount(), keyColumnCount);
-    const auto* begin = row.Begin();
-    return GetHash(begin, begin + partCount);
+    return GetFarmFingerprint(value);
 }
 
-TFingerprint GetFarmFingerprint(TUnversionedRow row, ui32 keyColumnCount)
+TFingerprint GetFarmFingerprint(TUnversionedValueRange range)
 {
-    auto partCount = std::min(row.GetCount(), keyColumnCount);
-    const auto* begin = row.Begin();
-    return GetFarmFingerprint(begin, begin + partCount);
+    return NYT::FarmFingerprint<TUnversionedValue>(range.begin(), range.end());
+}
+
+TFingerprint GetFarmFingerprint(TUnversionedRow row)
+{
+    return GetFarmFingerprint(row.Elements());
 }
 
 size_t GetUnversionedRowByteSize(ui32 valueCount)
@@ -646,24 +585,20 @@ size_t GetDataWeight(TUnversionedRow row)
         return 0;
     }
 
-    return 1 + std::accumulate(
-        row.Begin(),
-        row.End(),
-        0ULL,
-        [] (size_t x, const TUnversionedValue& value) {
-            return GetDataWeight(value) + x;
-        });
+    size_t result = 1;
+    for (const auto& value : row) {
+        result += GetDataWeight(value);
+    }
+    return result;
 }
 
 size_t GetDataWeight(TRange<TUnversionedRow> rows)
 {
-    return std::accumulate(
-        rows.begin(),
-        rows.end(),
-        0ULL,
-        [] (size_t x, const TUnversionedRow& row) {
-            return GetDataWeight(row) + x;
-        });
+    size_t result = 0;
+    for (auto row : rows) {
+        result += GetDataWeight(row);
+    }
+    return result;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -890,15 +825,15 @@ void ValidateClientRow(
 TString SerializeToString(TUnversionedRow row)
 {
     return row
-        ? SerializeToString(row.Begin(), row.End())
+        ? SerializeToString(row.Elements())
         : SerializedNullRow;
 }
 
-TString SerializeToString(const TUnversionedValue* begin, const TUnversionedValue* end)
+TString SerializeToString(TUnversionedValueRange range)
 {
     int size = 2 * MaxVarUint32Size; // header size
-    for (auto* it = begin; it != end; ++it) {
-        size += GetByteSize(*it);
+    for (const auto& value : range) {
+        size += GetByteSize(value);
     }
 
     TString buffer;
@@ -906,10 +841,10 @@ TString SerializeToString(const TUnversionedValue* begin, const TUnversionedValu
 
     char* current = const_cast<char*>(buffer.data());
     current += WriteVarUint32(current, 0); // format version
-    current += WriteVarUint32(current, static_cast<ui32>(std::distance(begin, end)));
+    current += WriteVarUint32(current, range.size());
 
-    for (auto* it = begin; it != end; ++it) {
-        current += WriteRowValue(current, *it);
+    for (const auto& value : range) {
+        current += WriteRowValue(current, value);
     }
 
     buffer.resize(current - buffer.data());
@@ -1406,16 +1341,12 @@ TLegacyKey GetKeyPrefixSuccessor(TLegacyKey key, ui32 prefixLength, const TRowBu
 
 TLegacyOwningKey GetKeyPrefix(TLegacyKey key, ui32 prefixLength)
 {
-    return TLegacyOwningKey(
-        key.Begin(),
-        key.Begin() + std::min(key.GetCount(), prefixLength));
+    return TLegacyOwningKey(key.FirstNElements(std::min(key.GetCount(), prefixLength)));
 }
 
 TLegacyKey GetKeyPrefix(TLegacyKey key, ui32 prefixLength, const TRowBufferPtr& rowBuffer)
 {
-    return rowBuffer->CaptureRow(MakeRange(
-        key.Begin(),
-        std::min(key.GetCount(), prefixLength)));
+    return rowBuffer->CaptureRow(key.FirstNElements(std::min(key.GetCount(), prefixLength)));
 }
 
 TLegacyKey GetStrictKey(TLegacyKey key, ui32 keyColumnCount, const TRowBufferPtr& rowBuffer, EValueType sentinelType)
@@ -1493,9 +1424,9 @@ void ToProto(TProtoStringType* protoRow, const TUnversionedOwningRow& row)
     ToProto(protoRow, row.Get());
 }
 
-void ToProto(TProtoStringType* protoRow, const TUnversionedValue* begin, const TUnversionedValue* end)
+void ToProto(TProtoStringType* protoRow, TUnversionedValueRange range)
 {
-    *protoRow = SerializeToString(begin, end);
+    *protoRow = SerializeToString(range);
 }
 
 void FromProto(TUnversionedOwningRow* row, const TProtoStringType& protoRow, std::optional<int> nullPaddingWidth)
@@ -1894,9 +1825,9 @@ TUnversionedValue* TUnversionedOwningRowBuilder::GetValue(ui32 index)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversionedValue* end)
+void TUnversionedOwningRow::Init(TUnversionedValueRange range)
 {
-    int count = std::distance(begin, end);
+    int count = std::ssize(range);
 
     size_t fixedSize = GetUnversionedRowByteSize(count);
     RowData_ = TSharedMutableRef::Allocate<TOwningRowTag>(fixedSize, {.InitializeStorage = false});
@@ -1904,11 +1835,10 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
 
     header->Count = count;
     header->Capacity = count;
-    ::memcpy(header + 1, begin, reinterpret_cast<const char*>(end) - reinterpret_cast<const char*>(begin));
+    ::memcpy(header + 1, range.begin(), sizeof(TUnversionedValue) * range.size());
 
     size_t variableSize = 0;
-    for (auto it = begin; it != end; ++it) {
-        const auto& otherValue = *it;
+    for (const auto& otherValue : range) {
         if (IsStringLikeType(otherValue.Type)) {
             variableSize += otherValue.Length;
         }
@@ -1919,7 +1849,7 @@ void TUnversionedOwningRow::Init(const TUnversionedValue* begin, const TUnversio
         char* current = const_cast<char*>(StringData_.data());
 
         for (int index = 0; index < count; ++index) {
-            const auto& otherValue = begin[index];
+            const auto& otherValue = range[index];
             auto& value = reinterpret_cast<TUnversionedValue*>(header + 1)[index];
             if (IsStringLikeType(otherValue.Type)) {
                 ::memcpy(current, otherValue.Data.String, otherValue.Length);
@@ -2035,15 +1965,14 @@ TSharedRange<TRowRange> MakeSingletonRowRange(TLegacyKey lowerBound, TLegacyKey 
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row)
+TKeyRef ToKeyRef(TUnversionedRow row)
 {
-    return MakeRange(row.Begin(), row.End());
+    return row.Elements();
 }
 
-TRange<TUnversionedValue> ToKeyRef(TUnversionedRow row, int prefix)
+TUnversionedValueRange ToKeyRef(TUnversionedRow row, int prefixLength)
 {
-    YT_VERIFY(prefix <= static_cast<int>(row.GetCount()));
-    return MakeRange(row.Begin(), prefix);
+    return row.FirstNElements(prefixLength);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2088,6 +2017,74 @@ TString ToString(TMutableUnversionedRow row, bool valuesOnly)
 TString ToString(const TUnversionedOwningRow& row, bool valuesOnly)
 {
     return ToString(row.Get(), valuesOnly);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TDefaultUnversionedValueRangeHash::operator()(TUnversionedValueRange range) const
+{
+    return GetFarmFingerprint(range);
+}
+
+bool TDefaultUnversionedValueRangeEqual::operator()(TUnversionedValueRange lhs, TUnversionedValueRange rhs) const
+{
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    for (size_t index = 0; index < lhs.size(); ++index) {
+        if (!TDefaultUnversionedValueEqual()(lhs[index], rhs[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TDefaultUnversionedRowHash::operator()(TUnversionedRow row) const
+{
+    return TDefaultUnversionedValueRangeHash()(row.Elements());
+}
+
+bool TDefaultUnversionedRowEqual::operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
+{
+    return lhs == rhs;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TBitwiseUnversionedValueRangeHash::operator()(TUnversionedValueRange range) const
+{
+    size_t result = 0;
+    for (const auto& value : range) {
+        HashCombine(result, TBitwiseUnversionedValueHash()(value));
+    }
+    return result;
+}
+
+bool TBitwiseUnversionedValueRangeEqual::operator()(TUnversionedValueRange lhs, TUnversionedValueRange rhs) const
+{
+    if (lhs.size() != rhs.size()) {
+        return false;
+    }
+    for (size_t index = 0; index < lhs.size(); ++index) {
+        if (!TBitwiseUnversionedValueEqual()(lhs[index], rhs[index])) {
+            return false;
+        }
+    }
+    return true;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TBitwiseUnversionedRowHash::operator()(TUnversionedRow row) const
+{
+    return TBitwiseUnversionedValueRangeHash()(row.Elements());
+}
+
+bool TBitwiseUnversionedRowEqual::operator()(TUnversionedRow lhs, TUnversionedRow rhs) const
+{
+    return TBitwiseUnversionedValueRangeEqual()(lhs.Elements(), rhs.Elements());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

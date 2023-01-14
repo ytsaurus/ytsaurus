@@ -283,9 +283,7 @@ public:
                 YT_ASSERT(
                     rows.empty() ||
                     !rows.back() ||
-                    CompareRows(
-                        rows.back().BeginKeys(), rows.back().EndKeys(),
-                        row.BeginKeys(), row.EndKeys()) < 0);
+                    CompareValueRanges(rows.back().Keys(), row.Keys()) < 0);
 
                 ++rowCount;
                 if (hasHunkColumns) {
@@ -362,8 +360,8 @@ private:
         auto blocksIt = blockLastKeys.begin();
 
         while (rangeIndex != std::ssize(Ranges_)) {
-            auto lowerBound = MakeKeyBoundRef(GetRangeLowerKey(rangeIndex), false, KeyColumnCount_);
-            auto upperBound = MakeKeyBoundRef(GetRangeUpperKey(rangeIndex), true, KeyColumnCount_);
+            auto lowerBound = ToKeyBoundRef(GetRangeLowerKey(rangeIndex), false, KeyColumnCount_);
+            auto upperBound = ToKeyBoundRef(GetRangeUpperKey(rangeIndex), true, KeyColumnCount_);
 
             blocksIt = BinarySearch(
                 blocksIt,
@@ -387,7 +385,7 @@ private:
                     [&] (int index) {
                         return !TestKeyWithWidening(
                             ToKeyRef(*blockKeysEnd, CommonKeyPrefix_),
-                            MakeKeyBoundRef(GetRangeUpperKey(index), true, KeyColumnCount_));
+                            ToKeyBoundRef(GetRangeUpperKey(index), true, KeyColumnCount_));
                     });
 
                 ++blockKeysEnd;
@@ -1207,12 +1205,7 @@ public:
             if (RowIndex_ + rowLimit > SafeUpperRowIndex_ && LegacyUpperLimit_.HasLegacyKey()) {
                 i64 index = std::max(SafeUpperRowIndex_ - RowIndex_, i64(0));
                 for (; index < rowLimit; ++index) {
-                    if (CompareRows(
-                        range[index].BeginKeys(),
-                        range[index].EndKeys(),
-                        LegacyUpperLimit_.GetLegacyKey().Begin(),
-                        LegacyUpperLimit_.GetLegacyKey().End()) >= 0)
-                    {
+                    if (CompareValueRanges(range[index].Keys(), LegacyUpperLimit_.GetLegacyKey().Elements()) >= 0) {
                         Completed_ = true;
                         range = range.Slice(range.Begin(), range.Begin() + index);
                         rows.resize(rows.size() - rowLimit + index);
@@ -1427,7 +1420,7 @@ public:
 
         // Read non-key values.
         auto writeTimestampIndexRange = TimestampReader_->GetWriteTimestampIndexRange();
-        auto* memoryTo = const_cast<char*>(row.GetMemoryEnd());
+        auto* memoryTo = const_cast<char*>(row.EndMemory());
         for (auto* valueColumnReader : ValueColumnReaders_) {
             valueColumnReader->ReadValues(
                 TMutableRange<TMutableVersionedRow>(&row, 1),
@@ -1440,7 +1433,7 @@ public:
                 static_cast<i32>(row.BeginValues()[i].Timestamp) - writeTimestampIndexRange.first);
         }
 
-        auto* memoryFrom = const_cast<char*>(row.GetMemoryEnd());
+        auto* memoryFrom = const_cast<char*>(row.EndMemory());
         Pool_.Free(memoryFrom, memoryTo);
 
         return row;
@@ -1638,8 +1631,8 @@ public:
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
     {
-        auto comparator = [] (const TVersionedRow& lhs, const TUnversionedRow& rhs) {
-            return CompareRows(lhs.BeginKeys(), lhs.EndKeys(), rhs.Begin(), rhs.End()) < 0;
+        auto comparator = [] (TVersionedRow lhs, TUnversionedRow rhs) {
+            return CompareValueRanges(lhs.Keys(), rhs.Elements()) < 0;
         };
 
         std::vector<TVersionedRow> rows;

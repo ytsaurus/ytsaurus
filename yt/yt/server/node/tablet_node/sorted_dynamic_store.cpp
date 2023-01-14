@@ -121,7 +121,7 @@ public:
 
     void Insert(const TUnversionedValue* keyBegin, TSortedDynamicRow dynamicRow)
     {
-        auto fingerprint = GetFarmFingerprint(keyBegin, keyBegin + KeyColumnCount_);
+        auto fingerprint = GetFarmFingerprint(MakeRange(keyBegin, KeyColumnCount_));
         auto value = reinterpret_cast<ui64>(dynamicRow.GetHeader());
         YT_VERIFY(HashTable_.Insert(fingerprint, value));
     }

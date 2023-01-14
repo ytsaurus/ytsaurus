@@ -1768,7 +1768,7 @@ private:
                     rowDataWeight = GetDataWeight(row);
 
                     // Check that row fits into replication progress key range and has greater timestamp than progress.
-                    if (auto progressTimestamp = FindReplicationProgressTimestampForKey(progress, row.BeginKeys(), row.EndKeys());
+                    if (auto progressTimestamp = FindReplicationProgressTimestampForKey(progress, row.Keys());
                         !progressTimestamp || timestamp <= *progressTimestamp)
                     {
                         ++*currentRowIndex;

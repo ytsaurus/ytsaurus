@@ -35,8 +35,7 @@
 
 ////////////////////////////////////////////////////////////////////////////////
 
-namespace NYT {
-namespace NCppTests {
+namespace NYT::NCppTests {
 namespace {
 
 using namespace NApi;
@@ -410,8 +409,9 @@ TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedAnyValue("");
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedAnyValue("");
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -436,8 +436,9 @@ TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedAnyValue("{foo");
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedAnyValue("{foo");
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -461,8 +462,9 @@ TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedCompositeValue("{foo");
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedCompositeValue("{foo");
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -486,8 +488,9 @@ TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedInt64Value(42);
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedInt64Value(42);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -495,7 +498,7 @@ TEST_F(TClearTmpTestBase, TestAnyYsonValidation)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 }
@@ -519,8 +522,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedNullValue();
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedNullValue();
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -528,7 +532,7 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
             .ThrowOnError();
 
         auto rowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(tablePath.GetPath() + "/@row_count"))
-                                           .ValueOrThrow());
+            .ValueOrThrow());
         EXPECT_EQ(rowCount, 1);
     }
 
@@ -543,8 +547,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedInt64Value(1);
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedInt64Value(1);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -567,8 +572,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedUint64Value(1);
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedUint64Value(1);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -591,8 +597,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedBooleanValue(false);
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedBooleanValue(false);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -615,8 +622,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedDoubleValue(4.2);
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedDoubleValue(4.2);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -639,8 +647,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedStringValue("hello world!");
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedStringValue("hello world!");
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -664,8 +673,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
         auto ysonString = ConvertToYsonString(42);
-        TUnversionedValue value = MakeUnversionedAnyValue(ysonString.AsStringBuf());
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedAnyValue(ysonString.AsStringBuf());
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -688,8 +698,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedCompositeValue("[1; {a=1; b=2}]");
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedCompositeValue("[1; {a=1; b=2}]");
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -712,8 +723,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedSentinelValue(EValueType::Min);
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedSentinelValue(EValueType::Min);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -737,8 +749,9 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 
         YT_VERIFY(writer->GetNameTable()->GetIdOrRegisterName("a") == 0);
 
-        TUnversionedValue value = MakeUnversionedSentinelValue(EValueType::Max);
-        TUnversionedOwningRow owningRow(&value, &value + 1);
+        auto value = MakeUnversionedSentinelValue(EValueType::Max);
+        TUnversionedOwningRow owningRow(MakeRange(&value, 1));
+
         std::vector<TUnversionedRow> rows;
         rows.push_back(owningRow);
         YT_VERIFY(writer->Write(rows));
@@ -755,5 +768,4 @@ TEST_F(TClearTmpTestBase, TestAnyCompatibleTypes)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
-} // namespace NCppTests
-} // namespace NYT
+} // namespace NYT::NCppTests

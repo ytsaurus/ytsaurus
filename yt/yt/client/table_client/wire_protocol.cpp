@@ -149,7 +149,7 @@ public:
         }
 
         UnsafeWriteUint64(row.GetCount());
-        UnsafeWriteSchemafulValueRange(TRange<TUnversionedValue>(row.Begin(), row.End()), idMapping);
+        UnsafeWriteSchemafulValueRange(row.Elements(), idMapping);
         return bytes;
     }
 
@@ -166,7 +166,7 @@ public:
         }
 
         UnsafeWriteUint64(row.GetCount());
-        UnsafeWriteUnversionedValueRange(TRange<TUnversionedValue>(row.Begin(), row.End()), idMapping);
+        UnsafeWriteUnversionedValueRange(row.Elements(), idMapping);
         return bytes;
     }
 
@@ -184,13 +184,13 @@ public:
         UnsafeWriteRaw(row.BeginWriteTimestamps(), sizeof(TTimestamp) * row.GetWriteTimestampCount());
         UnsafeWriteRaw(row.BeginDeleteTimestamps(), sizeof(TTimestamp) * row.GetDeleteTimestampCount());
 
-        UnsafeWriteSchemafulValueRange(TRange<TUnversionedValue>(row.BeginKeys(), row.EndKeys()), nullptr);
-        UnsafeWriteVersionedValueRange(TRange<TVersionedValue>(row.BeginValues(), row.EndValues()));
+        UnsafeWriteSchemafulValueRange(row.Keys(), nullptr);
+        UnsafeWriteVersionedValueRange(row.Values());
         return bytes;
     }
 
     void WriteUnversionedValueRange(
-        TRange<TUnversionedValue> valueRange,
+        TUnversionedValueRange valueRange,
         const TNameTableToSchemaIdMapping* idMapping) override
     {
         size_t bytes = AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
@@ -366,8 +366,8 @@ private:
         UnsafeWritePod<ui64>(value.Timestamp);
     }
 
-    TRange<TUnversionedValue> RemapValues(
-        TRange<TUnversionedValue> values,
+    TUnversionedValueRange RemapValues(
+        TUnversionedValueRange values,
         const TNameTableToSchemaIdMapping* idMapping)
     {
         auto valueCount = values.Size();
@@ -389,7 +389,7 @@ private:
         return MakeRange(PooledValues_);
     }
 
-    void UnsafeWriteNullBitmap(TRange<TUnversionedValue> values)
+    void UnsafeWriteNullBitmap(TUnversionedValueRange values)
     {
         // TODO(lukyan): Allocate space and write directly.
         auto nullBitmap = TBitmapOutput(values.Size());
@@ -400,7 +400,7 @@ private:
     }
 
     void UnsafeWriteSchemafulValueRange(
-        TRange<TUnversionedValue> values,
+        TUnversionedValueRange values,
         const TNameTableToSchemaIdMapping* idMapping)
     {
         if (idMapping) {
@@ -413,7 +413,7 @@ private:
     }
 
     void UnsafeWriteUnversionedValueRange(
-        TRange<TUnversionedValue> values,
+        TUnversionedValueRange values,
         const TNameTableToSchemaIdMapping* idMapping)
     {
         if (idMapping) {
@@ -432,7 +432,7 @@ private:
         }
     }
 
-    size_t EstimateSchemafulValueRangeByteSize(TRange<TUnversionedValue> values)
+    size_t EstimateSchemafulValueRangeByteSize(TUnversionedValueRange values)
     {
         size_t bytes = 0;
         bytes += AlignUp<size_t>(NBitmapDetail::GetByteSize(values.Size()), SerializationAlignment); // null bitmap
@@ -446,7 +446,7 @@ private:
         return bytes;
     }
 
-    size_t EstimateUnversionedValueRangeByteSize(TRange<TUnversionedValue> values)
+    size_t EstimateUnversionedValueRangeByteSize(TUnversionedValueRange values)
     {
         size_t bytes = 0;
         for (const auto& value : values) {
@@ -478,8 +478,7 @@ private:
     {
         size_t bytes = AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
         if (row) {
-            bytes += EstimateSchemafulValueRangeByteSize(
-                TRange<TUnversionedValue>(row.Begin(), row.GetCount()));
+            bytes += EstimateSchemafulValueRangeByteSize(row.Elements());
         }
         return bytes;
     }
@@ -488,8 +487,7 @@ private:
     {
         size_t bytes = AlignUp<size_t>(8, SerializationAlignment); // -1 or value count
         if (row) {
-            bytes += EstimateUnversionedValueRangeByteSize(
-                TRange<TUnversionedValue>(row.Begin(), row.GetCount()));
+            bytes += EstimateUnversionedValueRangeByteSize(row.Elements());
         }
         return bytes;
     }
@@ -503,10 +501,8 @@ private:
                 row.GetWriteTimestampCount() +
                 row.GetDeleteTimestampCount()), // timestamps
                 SerializationAlignment);
-            bytes += EstimateSchemafulValueRangeByteSize(
-                TRange<TUnversionedValue>(row.BeginKeys(), row.EndKeys()));
-            bytes += EstimateVersionedValueRangeByteSize(
-                TRange<TVersionedValue>(row.BeginValues(), row.EndValues()));
+            bytes += EstimateSchemafulValueRangeByteSize(row.Keys());
+            bytes += EstimateVersionedValueRangeByteSize(row.Values());
         }
         return bytes;
     }
@@ -996,7 +992,7 @@ private:
             THROW_ERROR_EXCEPTION("Versioned row data weight is too large: %v > %v",
                 dataWeight,
                 MaxServerVersionedRowDataWeight)
-                << TErrorAttribute("key", RowToKey(row));
+                << TErrorAttribute("key", ToOwningKey(row));
         }
     }
 };

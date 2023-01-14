@@ -8,13 +8,13 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int TKeySetWriter::WriteKey(const TLegacyKey& key)
+int TKeySetWriter::WriteKey(TLegacyKey key)
 {
     WireProtocolWriter_->WriteUnversionedRow(key);
     return Index_++;
 }
 
-int TKeySetWriter::WriteValueRange(TRange<TUnversionedValue> key)
+int TKeySetWriter::WriteValueRange(TUnversionedValueRange key)
 {
     WireProtocolWriter_->WriteUnversionedValueRange(key);
     return Index_++;

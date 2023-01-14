@@ -74,7 +74,7 @@ bool TReplicatedStoreManager::ExecuteWrites(
     YT_ASSERT(context->Phase == EWritePhase::Commit);
     while (!reader->IsFinished()) {
         auto modifyRow = [&] (
-            const TUnversionedRow& row,
+            TUnversionedRow row,
             ERowModificationType modificationType)
         {
             LogStoreManager_->WriteRow(

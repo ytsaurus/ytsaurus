@@ -30,8 +30,8 @@ TEST(TKeyTest, Simple)
         EXPECT_EQ(4, key.GetLength());
     }
     {
-        TUnversionedOwningRow shortenedRow(row.Begin(), row.Begin() + 2);
-        auto key = TKey::FromRow(row, /* length */2);
+        TUnversionedOwningRow shortenedRow(row.FirstNElements(2));
+        auto key = TKey::FromRow(row, /*length*/2);
         EXPECT_EQ(shortenedRow, key.AsOwningRow());
         EXPECT_EQ(row.Begin(), key.Begin());
         EXPECT_EQ(2, key.GetLength());

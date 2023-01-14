@@ -139,8 +139,7 @@ NTransactionClient::TTimestamp GetReplicationProgressMinTimestamp(
 
 std::optional<NTransactionClient::TTimestamp> FindReplicationProgressTimestampForKey(
     const TReplicationProgress& progress,
-    const NTableClient::TUnversionedValue* begin,
-    const NTableClient::TUnversionedValue* end);
+    NTableClient::TUnversionedValueRange key);
 NTransactionClient::TTimestamp GetReplicationProgressTimestampForKeyOrThrow(
     const TReplicationProgress& progress,
     NTableClient::TUnversionedRow key);

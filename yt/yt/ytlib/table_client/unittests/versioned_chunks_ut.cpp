@@ -821,23 +821,14 @@ protected:
                 key[i] = row.BeginKeys()[i];
             }
 
-            while (CompareRows(
-                key.data(),
-                key.data() + key.size(),
-                currentRange->second.Begin(),
-                currentRange->second.End()) >= 0)
-            {
+            while (CompareValueRanges(MakeRange(key), currentRange->second.Elements()) >= 0) {
                 ++currentRange;
                 if (currentRange == ranges.end()) {
                     return expected;
                 }
             }
 
-            if (CompareRows(
-                key.data(),
-                key.data() + key.size(),
-                currentRange->first.Begin(), currentRange->first.End()) < 0)
-            {
+            if (CompareValueRanges(MakeRange(key), currentRange->first.Elements()) < 0) {
                 continue;
             }
 
@@ -879,7 +870,7 @@ protected:
 
         for (auto key : keys) {
             rowsIt = ExponentialSearch(rowsIt, rows.end(), [&] (auto rowsIt) {
-                return CompareRows(rowsIt->BeginKeys(), rowsIt->EndKeys(), key.Begin(), key.Begin() + keyColumnCount) < 0;
+                return CompareValueRanges(rowsIt->Keys(), key.FirstNElements(keyColumnCount)) < 0;
             });
 
             bool nullPadding = true;
@@ -891,7 +882,7 @@ protected:
 
             if (rowsIt != rows.end() &&
                 nullPadding &&
-                CompareRows(rowsIt->BeginKeys(), rowsIt->EndKeys(), key.Begin(), key.Begin() + keyColumnCount) == 0)
+                CompareValueRanges(rowsIt->Keys(), key.FirstNElements(keyColumnCount)) == 0)
             {
                 for (const auto& value : key) {
                     builder.AddKey(value);
@@ -1013,13 +1004,11 @@ protected:
         readColumnSchemas.insert(readColumnSchemas.end(), TColumnSchema("extraValue", EValueType::Boolean));
         auto readSchema = New<TTableSchema>(readColumnSchemas);
 
-        int lowerIndex = InitialRows_.size() / 3;
+        auto lowerRowIndex = InitialRows_.size() / 3;
+        auto lowerKey = ToOwningKey(InitialRows_[lowerRowIndex]);
 
-        auto lowerKey = TLegacyOwningKey(InitialRows_[lowerIndex].BeginKeys(), InitialRows_[lowerIndex].EndKeys());
         auto upperRowIndex = InitialRows_.size() - 1;
-        auto upperKey = TLegacyOwningKey(
-            InitialRows_[upperRowIndex].BeginKeys(),
-            InitialRows_[upperRowIndex].EndKeys());
+        auto upperKey = ToOwningKey(InitialRows_[upperRowIndex]);
 
         auto memoryChunkReader = CreateChunk(
             InitialRows_,
