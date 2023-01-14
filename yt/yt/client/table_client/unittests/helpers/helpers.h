@@ -45,23 +45,27 @@ void CheckSchemalessResult(
 }
 
 template <class TRow, class TReader>
-void CheckSchemalessResult(const std::vector<TRow>& expected, TIntrusivePtr<TReader> reader, int keyColumnCount, TRowBatchReadOptions opts = {})
+void CheckSchemalessResult(
+    const std::vector<TRow>& expected,
+    TIntrusivePtr<TReader> reader,
+    int keyColumnCount,
+    TRowBatchReadOptions options = {})
 {
     size_t offset = 0;
-    while (auto batch = reader->Read(opts)) {
+    while (auto batch = reader->Read(options)) {
         auto actual = batch->MaterializeRows();
         if (actual.empty()) {
             ASSERT_TRUE(reader->GetReadyEvent().Get().IsOK());
             continue;
         }
 
-        int64_t dw = 0;
+        i64 dataWeight = 0;
         for (int i = 0; i < std::ssize(actual) - 1; i++) {
-            dw += GetDataWeight(actual[i]);
+            dataWeight += GetDataWeight(actual[i]);
         }
 
-        ASSERT_LT(dw, opts.MaxDataWeightPerRead);
-        ASSERT_LE(std::ssize(actual), opts.MaxRowsPerRead);
+        ASSERT_LT(dataWeight, options.MaxDataWeightPerRead);
+        ASSERT_LE(std::ssize(actual), options.MaxRowsPerRead);
 
         CheckSchemalessResult(
             MakeRange(expected).Slice(offset, std::min(expected.size(), offset + actual.size())),

@@ -490,7 +490,7 @@ TEST_F(TColumnarReadTest, ReadAll)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessChunksLookupBaseTest
-    : public ::testing::TestWithParam<std::tuple<EOptimizeFor, int /*blockSize*/, TTableSchema, int /*MaxDataWeightPerRead*/, int /*MaxRowsPerRead*/>>
+    : public ::testing::TestWithParam<std::tuple<EOptimizeFor, int /*BlockSize*/, TTableSchema, int /*MaxDataWeightPerRead*/, int /*MaxRowsPerRead*/>>
 {
 protected:
     TRowBatchReadOptions ReadOptions() {
@@ -631,6 +631,9 @@ protected:
                 case EValueType::Max:
                 case EValueType::Any:
                     result[i] = RowBuffer_->CaptureValue(value);
+                    break;
+                default:
+                    YT_ABORT();
             }
         }
         return result;
@@ -703,19 +706,21 @@ protected:
     }
 
 
-    TUnversionedRow ExtractKeyPrefix(const TUnversionedRow& row, int prefix) {
-        auto key = TMutableUnversionedRow::Allocate(&Pool_, prefix);
-        for (int valueIndex = 0; valueIndex < prefix; ++valueIndex) {
+    TUnversionedRow ExtractKeyPrefix(const TUnversionedRow& row, int prefixLength)
+    {
+        auto key = TMutableUnversionedRow::Allocate(&Pool_, prefixLength);
+        for (int valueIndex = 0; valueIndex < prefixLength; ++valueIndex) {
             key[valueIndex] = row[valueIndex];
         }
         return key;
     }
 
-    TUnversionedRow ExtractKey(const TUnversionedRow& row) {
+    TUnversionedRow ExtractKey(TUnversionedRow row)
+    {
         return ExtractKeyPrefix(row, Schema_->GetKeyColumnCount());
     }
 
-    TReadLimit CreateReadLimit(const TUnversionedRow& row, bool upper)
+    TReadLimit CreateReadLimit(TUnversionedRow row, bool upper)
     {
         auto bound = TOwningKeyBound::FromRow(TUnversionedOwningRow(row), !upper, upper);
         return TReadLimit(bound);
@@ -770,7 +775,10 @@ protected:
     TUnversionedRow sentinelRow_;
 };
 
-class TSchemalessChunksLookupTest : public TSchemalessChunksLookupBaseTest {
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessChunksLookupTest
+    : public TSchemalessChunksLookupBaseTest {
 public:
     ISchemalessChunkReaderPtr LookupRows(
         TSharedRange<TLegacyKey> keys,
@@ -807,107 +815,15 @@ public:
             keys);
     }
 
-    void SetUp() override {
-        auto optimizeFor = std::get<0>(GetParam());
-        int blockSize = std::get<1>(GetParam());
-        Schema_ = New<TTableSchema>(std::get<2>(GetParam()));
-        InitChunkWriter(optimizeFor, Schema_, blockSize);
-        InitRows(1000, Schema_, WriteNameTable_);
-        InitChunk();
-    }
-};
-
-class TSchemalessChunksKeyRangesTest : public TSchemalessChunksLookupBaseTest {
-public:
-    void SetUp() override {
-        auto optimizeFor = std::get<0>(GetParam());
-        int blockSize = std::get<1>(GetParam());
-        Schema_ = New<TTableSchema>(std::get<2>(GetParam()));
-        InitChunkWriter(optimizeFor, Schema_, blockSize);
-        InitRows(1000, Schema_, WriteNameTable_);
-        InitChunk();
-    }
-};
-
-class TSchemalessChunksKeyRangesLargeRowsTest : public TSchemalessChunksLookupBaseTest
-{
-protected:
     void SetUp() override
     {
-        Buf_ = New<TRowBuffer>();
         auto optimizeFor = std::get<0>(GetParam());
         int blockSize = std::get<1>(GetParam());
         Schema_ = New<TTableSchema>(std::get<2>(GetParam()));
         InitChunkWriter(optimizeFor, Schema_, blockSize);
-        Rows_ = CreateRows();
+        InitRows(1000, Schema_, WriteNameTable_);
         InitChunk();
     }
-
-    static const int NumRows = 1024;
-    static const int NumKeys = 16;
-
-    static const int KeysPerKey0 = 4;
-    static const int RowsPerKey = NumRows / NumKeys;
-
-    std::vector<TUnversionedRow> CreateRows()
-    {
-        std::vector<TUnversionedRow> rows;
-
-        rows.reserve(NumRows);
-        for (int i = 0; i < NumRows; i++) {
-            auto row = TMutableUnversionedRow::Allocate(&Pool_, 3);
-            row[0] = MakeKey(0, i / RowsPerKey);
-            row[1] = MakeKey(1, i / RowsPerKey);
-            row[2] = MakeValue(i);
-
-            rows.push_back(row);
-        }
-        return rows;
-    }
-
-    TUnversionedValue MakeString(char prefixChar, int index)
-    {
-        char buf[32];
-        snprintf(buf, 32, "%08x", index);
-        std::string fullVal = std::string(10, prefixChar) + std::string(buf);
-        auto val = MakeUnversionedStringValue(fullVal.c_str());
-        return Buf_->CaptureValue(val);
-    }
-
-    TUnversionedValue MakeKey(int position, int index)
-    {
-        if (position == 0) {
-            return MakeString('k', index / KeysPerKey0);
-        } else {
-            return MakeString('k', index % KeysPerKey0);
-        }
-    }
-
-    TUnversionedValue MakeValue(int index)
-    {
-        return MakeString('v', index);
-    }
-
-    void FillKey(int keyIndex, TMutableUnversionedRow* row)
-    {
-        (*row)[0] = MakeKey(0, keyIndex);
-        (*row)[1] = MakeKey(1, keyIndex);
-    }
-
-    void AddRows(int keyIndex, std::vector<TUnversionedRow>* out)
-    {
-        auto keyRow = TMutableUnversionedRow::Allocate(&Pool_, 2);
-        FillKey(keyIndex, &keyRow);
-        for (int i = 0; i < RowsPerKey; i++) {
-            auto row = TMutableUnversionedRow::Allocate(&Pool_, 3);
-            row[0] = keyRow[0];
-            row[1] = keyRow[1];
-            row[2] = MakeValue(keyIndex * RowsPerKey + i);
-            out->push_back(row);
-        }
-    }
-
-    TRowBufferPtr Buf_;
 };
 
 TEST_P(TSchemalessChunksLookupTest, Simple)
@@ -933,6 +849,100 @@ TEST_P(TSchemalessChunksLookupTest, Simple)
     auto reader = LookupRows(MakeSharedRange(keys), Schema_->GetSortColumns());
     CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount(), ReadOptions());
 }
+
+TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
+{
+    std::vector<TUnversionedRow> expected;
+    std::vector<TUnversionedRow> keys;
+
+    auto sortColumns = Schema_->GetSortColumns();
+    sortColumns.push_back({"w1", ESortOrder::Ascending});
+    sortColumns.push_back({"w2", ESortOrder::Ascending});
+
+    for (int index = 0; index < std::ssize(Rows_); ++index) {
+        if (index % 10 != 0) {
+            continue;
+        }
+
+        auto row = Rows_[index];
+        expected.push_back(row);
+
+        auto key = TMutableUnversionedRow::Allocate(&Pool_, sortColumns.size());
+        for (int valueIndex = 0; valueIndex < Schema_->GetKeyColumnCount(); ++valueIndex) {
+            key[valueIndex] = row[valueIndex];
+        }
+        for (int valueIndex = Schema_->GetKeyColumnCount(); valueIndex < static_cast<int>(key.GetCount()); ++valueIndex) {
+            key[valueIndex] = MakeUnversionedSentinelValue(EValueType::Null, valueIndex);
+        }
+        keys.push_back(key);
+    }
+
+    auto reader = LookupRows(MakeSharedRange(keys), sortColumns);
+    CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount(), ReadOptions());
+}
+
+INSTANTIATE_TEST_SUITE_P(Sorted,
+    TSchemalessChunksLookupTest,
+    ::testing::Combine(
+        ::testing::Values(
+            EOptimizeFor::Scan,
+            EOptimizeFor::Lookup),
+        ::testing::Values(32, 2048),  // block size.
+        ::testing::Values(
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
+                "{name = c1; type = boolean; sort_order = ascending};"
+                "{name = c2; type = uint64; sort_order = ascending};"
+                "{name = c3; type = int64; sort_order = ascending};"
+                "{name = c4; type = double};]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
+                "{name = c1; type = int64; sort_order = ascending};"
+                "{name = c2; type = uint64; sort_order = ascending};"
+                "{name = c3; type = string; sort_order = ascending};"
+                "{name = c4; type = boolean; sort_order = ascending};"
+                "{name = c5; type = any};]")))),
+        ::testing::Values(16_MB, 256),  // max data weight per read
+        ::testing::Values(10000, 4)  // max rows per read
+));
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessChunksKeyRangesTest
+    : public TSchemalessChunksLookupBaseTest
+{
+public:
+    void SetUp() override {
+        auto optimizeFor = std::get<0>(GetParam());
+        int blockSize = std::get<1>(GetParam());
+        Schema_ = New<TTableSchema>(std::get<2>(GetParam()));
+        InitChunkWriter(optimizeFor, Schema_, blockSize);
+        InitRows(1000, Schema_, WriteNameTable_);
+        InitChunk();
+    }
+};
+
+INSTANTIATE_TEST_SUITE_P(Sorted,
+    TSchemalessChunksKeyRangesTest,
+    ::testing::Combine(
+        ::testing::Values(EOptimizeFor::Lookup),
+        ::testing::Values(32, 2048),  // block size.
+        ::testing::Values(
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
+                "{name = c1; type = boolean; sort_order = ascending};"
+                "{name = c2; type = uint64; sort_order = ascending};"
+                "{name = c3; type = int64; sort_order = ascending};"
+                "{name = c4; type = double};]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
+                "{name = c1; type = int64; sort_order = ascending};"
+                "{name = c2; type = uint64; sort_order = ascending};"
+                "{name = c3; type = string; sort_order = ascending};"
+                "{name = c4; type = boolean; sort_order = ascending};"
+                "{name = c5; type = any};]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
+                "{name = c1; type = int64; sort_order = ascending};"
+                "{name = c2; type = string; sort_order = ascending }; ]")))),
+            ::testing::Values(16_MB, 256),  // max data weight per read
+            ::testing::Values(10000, 4)  // max rows per read
+));
 
 TEST_P(TSchemalessChunksKeyRangesTest, Simple)
 {
@@ -971,14 +981,14 @@ TEST_P(TSchemalessChunksKeyRangesTest, MissingRows)
 
 TEST_P(TSchemalessChunksKeyRangesTest, KeyPrefix)
 {
-    const int prefixLen = 1;
-    const auto& selectedKey = ExtractKeyPrefix(Rows_[Rows_.size() / 2], prefixLen);
+    const int prefixLength = 1;
+    const auto& selectedKey = ExtractKeyPrefix(Rows_[Rows_.size() / 2], prefixLength);
 
     std::vector<TUnversionedRow> expected;
     std::vector<TUnversionedRow> keys;
 
     for (int index = 0; index < std::ssize(Rows_); ++index) {
-        if (ExtractKeyPrefix(Rows_[index], prefixLen) == selectedKey) {
+        if (ExtractKeyPrefix(Rows_[index], prefixLength) == selectedKey) {
             expected.push_back(Rows_[index]);
         }
     }
@@ -991,16 +1001,16 @@ TEST_P(TSchemalessChunksKeyRangesTest, KeyPrefix)
 
 TEST_P(TSchemalessChunksKeyRangesTest, MultipleKeyPrefixes)
 {
-    const int prefixLen = 2;
-    const auto& key1 = ExtractKeyPrefix(Rows_[Rows_.size() / 4], prefixLen);
-    const auto& key2 = ExtractKeyPrefix(Rows_[3 * Rows_.size() / 4], prefixLen);
+    const int prefixLength = 2;
+    const auto& key1 = ExtractKeyPrefix(Rows_[Rows_.size() / 4], prefixLength);
+    const auto& key2 = ExtractKeyPrefix(Rows_[3 * Rows_.size() / 4], prefixLength);
 
     std::vector<TUnversionedRow> expected;
     std::vector<TUnversionedRow> keys;
 
     for (int index = 0; index < std::ssize(Rows_); ++index) {
-        if (ExtractKeyPrefix(Rows_[index], prefixLen) == key1 ||
-            ExtractKeyPrefix(Rows_[index], prefixLen) == key2) {
+        if (ExtractKeyPrefix(Rows_[index], prefixLength) == key1 ||
+            ExtractKeyPrefix(Rows_[index], prefixLength) == key2) {
             expected.push_back(Rows_[index]);
         }
     }
@@ -1015,11 +1025,11 @@ TEST_P(TSchemalessChunksKeyRangesTest, MultipleKeyPrefixes)
 
 TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecRange)
 {
-    int l = Rows_.size() / 10;
-    int h = 2 * Rows_.size() / 10;
+    int lo = Rows_.size() / 10;
+    int hi = 2 * Rows_.size() / 10;
 
     std::vector<TUnversionedRow> expected;
-    for (int i = l; i < h; i++) {
+    for (int i = lo; i < hi; i++) {
         expected.push_back(Rows_[i]);
     }
 
@@ -1030,8 +1040,8 @@ TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecRange)
         }
     }
 
-    TReadLimit chunkSpecLowerLimit = CreateReadLimit(ExtractKey(Rows_[l]), false);
-    TReadLimit chunkSpecUpperLimit = CreateReadLimit(ExtractKey(Rows_[h]), true);
+    TReadLimit chunkSpecLowerLimit = CreateReadLimit(ExtractKey(Rows_[lo]), false);
+    TReadLimit chunkSpecUpperLimit = CreateReadLimit(ExtractKey(Rows_[hi]), true);
 
     ToProto(ChunkSpec_.mutable_lower_limit(), chunkSpecLowerLimit);
     ToProto(ChunkSpec_.mutable_upper_limit(), chunkSpecUpperLimit);
@@ -1043,26 +1053,26 @@ TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecRange)
 
 TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecRangeWithKeyPrefix)
 {
-    const int prefixLen = 2;
+    const int prefixLength = 2;
 
-    int l = Rows_.size() / 10;
-    int h = 2 * Rows_.size() / 10;
+    int lo = Rows_.size() / 10;
+    int hi = 2 * Rows_.size() / 10;
 
     std::vector<TUnversionedRow> expected;
-    for (int i = l; i < h; i++) {
+    for (int i = lo; i < hi; i++) {
         expected.push_back(Rows_[i]);
     }
 
     std::vector<TUnversionedRow> keys;
     for (int i = 0; i < std::ssize(Rows_); i++) {
-        const auto prefix = ExtractKeyPrefix(Rows_[i], prefixLen);
+        const auto prefix = ExtractKeyPrefix(Rows_[i], prefixLength);
         if (keys.empty() || prefix != keys.back()) {
             keys.push_back(prefix);
         }
     }
 
-    TReadLimit chunkSpecLowerLimit = CreateReadLimit(ExtractKey(Rows_[l]), false);
-    TReadLimit chunkSpecUpperLimit = CreateReadLimit(ExtractKey(Rows_[h]), true);
+    TReadLimit chunkSpecLowerLimit = CreateReadLimit(ExtractKey(Rows_[lo]), false);
+    TReadLimit chunkSpecUpperLimit = CreateReadLimit(ExtractKey(Rows_[hi]), true);
     ToProto(ChunkSpec_.mutable_lower_limit(), chunkSpecLowerLimit);
     ToProto(ChunkSpec_.mutable_upper_limit(), chunkSpecUpperLimit);
 
@@ -1072,26 +1082,26 @@ TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecRangeWithKeyPrefix)
 
 TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecRangeMultipleKeyPrefies)
 {
-    const int prefixLen = 1;
+    const int prefixLength = 1;
 
-    int l = Rows_.size() / 10;
-    int h = 9 * Rows_.size() / 10;
+    int lo = Rows_.size() / 10;
+    int hi = 9 * Rows_.size() / 10;
 
     std::vector<TUnversionedRow> keys;
 
-    keys.push_back(ExtractKeyPrefix(Rows_[0], prefixLen));
-    keys.push_back(ExtractKeyPrefix(Rows_.back(), prefixLen));
+    keys.push_back(ExtractKeyPrefix(Rows_[0], prefixLength));
+    keys.push_back(ExtractKeyPrefix(Rows_.back(), prefixLength));
 
     std::vector<TUnversionedRow> expected;
-    for (int i = l; i < h; i++) {
-        if (ExtractKeyPrefix(Rows_[i], prefixLen) == keys[0] ||
-            ExtractKeyPrefix(Rows_[i], prefixLen) == keys[1]) {
+    for (int i = lo; i < hi; i++) {
+        if (ExtractKeyPrefix(Rows_[i], prefixLength) == keys[0] ||
+            ExtractKeyPrefix(Rows_[i], prefixLength) == keys[1]) {
             expected.push_back(Rows_[i]);
         }
     }
 
-    TReadLimit chunkSpecLowerLimit = CreateReadLimit(ExtractKey(Rows_[l]), false);
-    TReadLimit chunkSpecUpperLimit = CreateReadLimit(ExtractKey(Rows_[h]), true);
+    TReadLimit chunkSpecLowerLimit = CreateReadLimit(ExtractKey(Rows_[lo]), false);
+    TReadLimit chunkSpecUpperLimit = CreateReadLimit(ExtractKey(Rows_[hi]), true);
     ToProto(ChunkSpec_.mutable_lower_limit(), chunkSpecLowerLimit);
     ToProto(ChunkSpec_.mutable_upper_limit(), chunkSpecUpperLimit);
 
@@ -1101,12 +1111,12 @@ TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecRangeMultipleKeyPrefies)
 
 TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecTrivialRange)
 {
-    const int prefixLen = 2;
+    const int prefixLength = 2;
     std::vector<TUnversionedRow> expected;
 
     std::vector<TUnversionedRow> keys;
     for (int i = 100; i < 200; i++) {
-        auto prefix = ExtractKeyPrefix(Rows_[i], prefixLen);
+        auto prefix = ExtractKeyPrefix(Rows_[i], prefixLength);
         if (keys.empty() || prefix != keys.back()) {
             keys.push_back(prefix);
         }
@@ -1125,8 +1135,6 @@ TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecTrivialRange)
 
 TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecEmptyRange)
 {
-    int p = Rows_.size() / 4;
-
     std::vector<TUnversionedRow> keys;
     for (int i = 0; i < std::ssize(Rows_); i++) {
         if (keys.empty() || ExtractKey(Rows_[i]) != keys.back()) {
@@ -1134,8 +1142,9 @@ TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecEmptyRange)
         }
     }
 
-    TReadLimit chunkSpecLowerLimit = CreateReadLimit(ExtractKey(Rows_[p]), false);
-    TReadLimit chunkSpecUpperLimit = CreateReadLimit(ExtractKey(Rows_[p]), true);
+    const int rowIndex = Rows_.size() / 4;
+    TReadLimit chunkSpecLowerLimit = CreateReadLimit(ExtractKey(Rows_[rowIndex]), false);
+    TReadLimit chunkSpecUpperLimit = CreateReadLimit(ExtractKey(Rows_[rowIndex]), true);
 
     ToProto(ChunkSpec_.mutable_lower_limit(), chunkSpecLowerLimit);
     ToProto(ChunkSpec_.mutable_upper_limit(), chunkSpecUpperLimit);
@@ -1146,90 +1155,131 @@ TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecEmptyRange)
                           reader, Schema_->GetColumnCount(), ReadOptions());
 }
 
-TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessChunksKeyRangesLargeRowsTest
+    : public TSchemalessChunksLookupBaseTest
 {
-    std::vector<TUnversionedRow> expected;
-    std::vector<TUnversionedRow> keys;
+protected:
+    TRowBufferPtr Buffer_;
 
-    auto sortColumns = Schema_->GetSortColumns();
-    sortColumns.push_back({"w1", ESortOrder::Ascending});
-    sortColumns.push_back({"w2", ESortOrder::Ascending});
-
-    for (int index = 0; index < std::ssize(Rows_); ++index) {
-        if (index % 10 != 0) {
-            continue;
-        }
-
-        auto row = Rows_[index];
-        expected.push_back(row);
-
-        auto key = TMutableUnversionedRow::Allocate(&Pool_, sortColumns.size());
-        for (int valueIndex = 0; valueIndex < Schema_->GetKeyColumnCount(); ++valueIndex) {
-            key[valueIndex] = row[valueIndex];
-        }
-        for (int valueIndex = Schema_->GetKeyColumnCount(); valueIndex < static_cast<int>(key.GetCount()); ++valueIndex) {
-            key[valueIndex] = MakeUnversionedSentinelValue(EValueType::Null, valueIndex);
-        }
-        keys.push_back(key);
+    void SetUp() override
+    {
+        Buffer_ = New<TRowBuffer>();
+        auto optimizeFor = std::get<0>(GetParam());
+        int blockSize = std::get<1>(GetParam());
+        Schema_ = New<TTableSchema>(std::get<2>(GetParam()));
+        InitChunkWriter(optimizeFor, Schema_, blockSize);
+        Rows_ = CreateRows();
+        InitChunk();
     }
 
-    auto reader = LookupRows(MakeSharedRange(keys), sortColumns);
-    CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount(), ReadOptions());
-}
+    static constexpr int NumRows = 1024;
+    static constexpr int NumKeys = 16;
+
+    static constexpr int KeysPerKey0 = 4;
+    static constexpr int RowsPerKey = NumRows / NumKeys;
+
+    std::vector<TUnversionedRow> CreateRows()
+    {
+        std::vector<TUnversionedRow> rows;
+
+        rows.reserve(NumRows);
+        for (int i = 0; i < NumRows; i++) {
+            auto row = TMutableUnversionedRow::Allocate(&Pool_, 3);
+            row[0] = MakeKey(0, i / RowsPerKey);
+            row[1] = MakeKey(1, i / RowsPerKey);
+            row[2] = MakeValue(i);
+
+            rows.push_back(row);
+        }
+        return rows;
+    }
+
+    TUnversionedValue MakeString(char prefixChar, int index)
+    {
+        char buf[32];
+        snprintf(buf, 32, "%08x", index);
+        std::string fullVal = std::string(10, prefixChar) + std::string(buf);
+        auto val = MakeUnversionedStringValue(fullVal.c_str());
+        return Buffer_->CaptureValue(val);
+    }
+
+    TUnversionedValue MakeKey(int position, int index)
+    {
+        if (position == 0) {
+            return MakeString('k', index / KeysPerKey0);
+        } else {
+            return MakeString('k', index % KeysPerKey0);
+        }
+    }
+
+    TUnversionedValue MakeValue(int index)
+    {
+        return MakeString('v', index);
+    }
+
+    void FillKey(int keyIndex, TMutableUnversionedRow* row)
+    {
+        (*row)[0] = MakeKey(0, keyIndex);
+        (*row)[1] = MakeKey(1, keyIndex);
+    }
+
+    void AddRows(int keyIndex, std::vector<TUnversionedRow>* out)
+    {
+        auto keyRow = TMutableUnversionedRow::Allocate(&Pool_, 2);
+        FillKey(keyIndex, &keyRow);
+        for (int i = 0; i < RowsPerKey; i++) {
+            auto row = TMutableUnversionedRow::Allocate(&Pool_, 3);
+            row[0] = keyRow[0];
+            row[1] = keyRow[1];
+            row[2] = MakeValue(keyIndex * RowsPerKey + i);
+            out->push_back(row);
+        }
+    }
+};
 
 TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, MultipleIntervals)
 {
-    const int nKeys = 4;
-    const int KeyIndex[nKeys] = {0, 3, 7, 15};
+    const int keyCount = 4;
+    const std::array<int, keyCount> keyIndices{0, 3, 7, 15};
 
     std::vector<TUnversionedRow> keyRows;
-    std::vector<TUnversionedRow> expectedRows;
+    std::vector<TUnversionedRow> expected;
 
-    for (int i = 0; i < nKeys; i++) {
+    for (int keyIndex : keyIndices) {
         auto keyRow = TMutableUnversionedRow::Allocate(&Pool_, 2);
-        keyRow[0] = MakeKey(0, KeyIndex[i]);
-        keyRow[1] = MakeKey(1, KeyIndex[i]);
+        keyRow[0] = MakeKey(0, keyIndex);
+        keyRow[1] = MakeKey(1, keyIndex);
 
-       keyRows.push_back(keyRow);
+        keyRows.push_back(keyRow);
 
         for (int j = 0; j < RowsPerKey; j++) {
             auto row = TMutableUnversionedRow::Allocate(&Pool_, 3);
             row[0] = keyRow[0];
             row[1] = keyRow[1];
-            row[2] = MakeValue(KeyIndex[i] * RowsPerKey + j);
-            expectedRows.push_back(row);
+            row[2] = MakeValue(keyIndex * RowsPerKey + j);
+            expected.push_back(row);
         }
     }
 
     auto keys = MakeSharedRange<TUnversionedRow>(keyRows);
     auto reader = LookupRanges(keys, Schema_->GetSortColumns());
-    auto opts = ReadOptions();
-
-    int n = 0;
-    while (auto batch = reader->Read(opts)) {
-        auto rows = batch->MaterializeRows();
-
-        for (const auto& row : rows) {
-            EXPECT_EQ(row, expectedRows[n]);
-            ++n;
-        }
-    }
-
-    EXPECT_EQ(n, std::ssize(expectedRows));
+    CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount(), ReadOptions());
 }
 
 TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecRange)
 {
-    auto lKey = TMutableUnversionedRow::Allocate(&Pool_, 2);
-    lKey[0] = MakeKey(0, 3  /* key index */);
-    lKey[1] = MakeKey(1, 3);
+    auto loKey = TMutableUnversionedRow::Allocate(&Pool_, 2);
+    loKey[0] = MakeKey(0, /*keyIndex*/ 3);
+    loKey[1] = MakeKey(1, /*keyIndex*/ 3);
 
-    auto hKey = TMutableUnversionedRow::Allocate(&Pool_, 2);
-    hKey[0] = MakeKey(0, 14);
-    hKey[1] = MakeKey(1, 14 /* key index */);
+    auto hiKey = TMutableUnversionedRow::Allocate(&Pool_, 2);
+    hiKey[0] = MakeKey(0, /*keyIndex*/ 14);
+    hiKey[1] = MakeKey(1, /*keyIndex*/ 14);
 
-    ToProto(ChunkSpec_.mutable_lower_limit(), CreateReadLimit(lKey, false));
-    ToProto(ChunkSpec_.mutable_upper_limit(), CreateReadLimit(hKey, true));
+    ToProto(ChunkSpec_.mutable_lower_limit(), CreateReadLimit(loKey, false));
+    ToProto(ChunkSpec_.mutable_upper_limit(), CreateReadLimit(hiKey, true));
 
     std::vector<TUnversionedRow> keyRows;
     for (int key0 : {0, 1, 3}) {
@@ -1249,19 +1299,19 @@ TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecRange)
 
 TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecInvertedInclusivenessRange)
 {
-    auto lKey = TMutableUnversionedRow::Allocate(&Pool_, 2);
-    lKey[0] = MakeKey(0, 3  /* key index */);
-    lKey[1] = MakeKey(1, 3);
+    auto loKey = TMutableUnversionedRow::Allocate(&Pool_, 2);
+    loKey[0] = MakeKey(0, /*keyIndex*/ 3);
+    loKey[1] = MakeKey(1, /*keyIndex*/ 3);
 
-    auto hKey = TMutableUnversionedRow::Allocate(&Pool_, 2);
-    hKey[0] = MakeKey(0, 14);
-    hKey[1] = MakeKey(1, 14 /* key index */);
+    auto hiKey = TMutableUnversionedRow::Allocate(&Pool_, 2);
+    hiKey[0] = MakeKey(0, /*keyIndex*/ 14);
+    hiKey[1] = MakeKey(1, /*keyIndex*/ 14);
 
     ToProto(ChunkSpec_.mutable_lower_limit(), TReadLimit(
-        TOwningKeyBound::FromRow(TUnversionedOwningRow(lKey), false, false)));
+        TOwningKeyBound::FromRow(TUnversionedOwningRow(loKey), false, false)));
 
     ToProto(ChunkSpec_.mutable_upper_limit(), TReadLimit(
-        TOwningKeyBound::FromRow(TUnversionedOwningRow(hKey), true, true)));
+        TOwningKeyBound::FromRow(TUnversionedOwningRow(hiKey), true, true)));
 
     std::vector<TUnversionedRow> keyRows;
     for (int key0 : {0, 1, 3}) {
@@ -1285,14 +1335,14 @@ TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecRangePrefixes)
     // It is not expected to happen. However, KeyRangesReader should defensively support
     // this case.
 
-    auto lKey = TMutableUnversionedRow::Allocate(&Pool_, 1);
-    lKey[0] = MakeKey(0, 4  /* key index */);
+    auto loKey = TMutableUnversionedRow::Allocate(&Pool_, 1);
+    loKey[0] = MakeKey(0, /*keyIndex*/ 4);
 
-    auto hKey = TMutableUnversionedRow::Allocate(&Pool_, 1);
-    hKey[0] = MakeKey(0, 12  /* key index */);
+    auto hiKey = TMutableUnversionedRow::Allocate(&Pool_, 1);
+    hiKey[0] = MakeKey(0, /*keyIndex*/ 12);
 
-    ToProto(ChunkSpec_.mutable_lower_limit(), CreateReadLimit(lKey, false));
-    ToProto(ChunkSpec_.mutable_upper_limit(), CreateReadLimit(hKey, true));
+    ToProto(ChunkSpec_.mutable_lower_limit(), CreateReadLimit(loKey, false));
+    ToProto(ChunkSpec_.mutable_upper_limit(), CreateReadLimit(hiKey, true));
 
     std::vector<TUnversionedRow> keyRows;
     for (int keyIndex : {3, 5, 9, 11, 12}) {
@@ -1314,10 +1364,10 @@ TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecDegenerateFullRange)
 {
     // Construct a [[], []] range.
     ToProto(ChunkSpec_.mutable_lower_limit(), TReadLimit(TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(nullptr, nullptr), true /*inclusive*/, false /*upper*/)));
+        TUnversionedOwningRow(nullptr, nullptr), /*inclusive*/ true, /*upper*/ false)));
 
     ToProto(ChunkSpec_.mutable_upper_limit(), TReadLimit(TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(nullptr, nullptr), true /*inclusive*/, true /*upper*/)));
+        TUnversionedOwningRow(nullptr, nullptr), /*inclusive*/ true, /*upper*/ true)));
 
     const std::vector<int> indexes{0, 3, 5, 11, 12, 15};
 
@@ -1341,10 +1391,10 @@ TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecDegenerateEmptyRange)
 {
     // Construct a [[], []) range.
     ToProto(ChunkSpec_.mutable_lower_limit(), TReadLimit(TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(nullptr, nullptr), true /*inclusive*/, false /*upper*/)));
+        TUnversionedOwningRow(nullptr, nullptr), /*inclusive*/ true, /*upper*/ false)));
 
     ToProto(ChunkSpec_.mutable_upper_limit(), TReadLimit(TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(nullptr, nullptr), false /*inclusive*/, true /*upper*/)));
+        TUnversionedOwningRow(nullptr, nullptr), /*inclusive*/ false, /*upper*/ true)));
 
     const std::vector<int> indexes{0, 3, 5, 11, 12, 15};
 
@@ -1362,55 +1412,6 @@ TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecDegenerateEmptyRange)
 }
 
 INSTANTIATE_TEST_SUITE_P(Sorted,
-    TSchemalessChunksLookupTest,
-    ::testing::Combine(
-        ::testing::Values(
-            EOptimizeFor::Scan,
-            EOptimizeFor::Lookup),
-        ::testing::Values(32, 2048),  // block size.
-        ::testing::Values(
-            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
-                "{name = c1; type = boolean; sort_order = ascending};"
-                "{name = c2; type = uint64; sort_order = ascending};"
-                "{name = c3; type = int64; sort_order = ascending};"
-                "{name = c4; type = double};]"))),
-            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
-                "{name = c1; type = int64; sort_order = ascending};"
-                "{name = c2; type = uint64; sort_order = ascending};"
-                "{name = c3; type = string; sort_order = ascending};"
-                "{name = c4; type = boolean; sort_order = ascending};"
-                "{name = c5; type = any};]")))),
-        ::testing::Values(16_MB, 256),  // max data weight per read
-        ::testing::Values(10000, 4)  // max rows per read
-    ));
-
-
-INSTANTIATE_TEST_SUITE_P(Sorted,
-    TSchemalessChunksKeyRangesTest,
-    ::testing::Combine(
-        ::testing::Values(EOptimizeFor::Lookup),
-        ::testing::Values(32, 2048),  // block size.
-        ::testing::Values(
-            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
-                "{name = c1; type = boolean; sort_order = ascending};"
-                "{name = c2; type = uint64; sort_order = ascending};"
-                "{name = c3; type = int64; sort_order = ascending};"
-                "{name = c4; type = double};]"))),
-            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
-                "{name = c1; type = int64; sort_order = ascending};"
-                "{name = c2; type = uint64; sort_order = ascending};"
-                "{name = c3; type = string; sort_order = ascending};"
-                "{name = c4; type = boolean; sort_order = ascending};"
-                "{name = c5; type = any};]"))),
-            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
-                "{name = c1; type = int64; sort_order = ascending};"
-                "{name = c2; type = string; sort_order = ascending }; ]")))),
-            ::testing::Values(16_MB, 256),  // max data weight per read
-            ::testing::Values(10000, 4)  // max rows per read
-     ));
-
-////////////////////////////////////////////////////////////////////////////////
-INSTANTIATE_TEST_SUITE_P(Sorted,
     TSchemalessChunksKeyRangesLargeRowsTest,
     ::testing::Combine(
         ::testing::Values(EOptimizeFor::Lookup),
@@ -1423,6 +1424,7 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
         ),
         ::testing::Values(16_MB, 256),  // max data weight per read
         ::testing::Values(10000, 4)  // max rows per read
-    ));
+));
+
 } // namespace
 } // namespace NYT::NTableClient
