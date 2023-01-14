@@ -93,9 +93,9 @@ int GetRowIndexId(TNameTablePtr readerNameTable, TChunkReaderOptionsPtr options)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-bool InsideRange(TRange<TLegacyKey> r, const TLegacyKey* item)
+bool IsInsideRange(TRange<TLegacyKey> range, const TLegacyKey* item)
 {
-    return item >= r.begin() && item < r.end();
+    return item >= range.begin() && item < range.end();
 }
 
 // TODO(lukyan): Use raw vector of names for chunk name table instead of TNameTable.
@@ -830,7 +830,7 @@ public:
     TInterruptDescriptor GetInterruptDescriptor(
         TRange<TUnversionedRow> /*unreadRows*/) const override
     {
-        // TODO YT-18241: support interrupts.
+        // TODO(orlovorlov) YT-18241: support interrupts.
         return TInterruptDescriptor{};
     }
 
@@ -965,7 +965,6 @@ THorizontalSchemalessLookupChunkReaderBase::THorizontalSchemalessLookupChunkRead
     PrefixRange_ = Keys_;
 }
 
-
 void THorizontalSchemalessLookupChunkReaderBase::InitBlocks()
 {
     SetReadyEvent(
@@ -1009,41 +1008,37 @@ void THorizontalSchemalessLookupChunkReaderBase::ApplyLimits()
     const TLegacyKey* end = Keys_.end();
 
     if (ChunkState_->ChunkSpec.has_lower_limit()) {
-        FromProto(&ChunkSpecLowerLimit_, ChunkState_->ChunkSpec.lower_limit(), false, SortOrders_.size());
+        FromProto(&ChunkSpecLowerLimit_, ChunkState_->ChunkSpec.lower_limit(), /*isUpper*/ false, SortOrders_.size());
         if (ChunkSpecLowerLimit_.KeyBound()) {
             LowerBound_ = MakeKeyBoundRef(ChunkSpecLowerLimit_.KeyBound());
 
             begin = std::lower_bound(Keys_.begin(), Keys_.end(), nullptr,
-                [&bound = *LowerBound_,
-                 &orders = SortOrders_](const TLegacyKey& key, nullptr_t) -> bool
+                [&] (TLegacyKey key, nullptr_t) -> bool
                 {
-                    int prefixLen = std::min<int>(key.GetCount(), bound.Size());
-                    int c = ComparePrefix(key.begin(), bound.begin(), prefixLen);
-
-                    if (c == 0) {
+                    int prefixLength = std::min<int>(key.GetCount(), LowerBound_->Size());
+                    int result = ComparePrefix(key.begin(), LowerBound_->begin(), prefixLength);
+                    if (result == 0) {
                         return false;
                     }
-
-                    return !TestComparisonResult(c, orders, bound.Inclusive, false);
+                    return !TestComparisonResult(result, SortOrders_, LowerBound_->Inclusive, /*upper*/ false);
                 });
         }
     }
 
     if (ChunkState_->ChunkSpec.has_upper_limit()) {
-        FromProto(&ChunkSpecUpperLimit_, ChunkState_->ChunkSpec.upper_limit(), true, SortOrders_.size());
+        FromProto(&ChunkSpecUpperLimit_, ChunkState_->ChunkSpec.upper_limit(), /*isUpper*/ true, SortOrders_.size());
         if (ChunkSpecUpperLimit_.KeyBound()) {
             UpperBound_ = MakeKeyBoundRef(ChunkSpecUpperLimit_.KeyBound());
 
             end = std::lower_bound(Keys_.begin(), Keys_.end(), nullptr,
-                [&bound = *UpperBound_,
-                 &orders = SortOrders_](const TLegacyKey& key, nullptr_t) -> bool
+                [&] (TLegacyKey key, nullptr_t) -> bool
                 {
-                    int prefixLen = std::min<int>(key.GetCount(), bound.Size());
-                    int c = ComparePrefix(key.begin(), bound.begin(), prefixLen);
-                    if (c == 0) {
+                    int prefixLength = std::min<int>(key.GetCount(), UpperBound_->Size());
+                    int result = ComparePrefix(key.begin(), UpperBound_->begin(), prefixLength);
+                    if (result == 0) {
                         return true;
                     }
-                    return TestComparisonResult(c, orders, bound.Inclusive, true);
+                    return TestComparisonResult(result, SortOrders_, UpperBound_->Inclusive, /*upper*/ true);
                 });
         }
     }
@@ -1057,21 +1052,21 @@ void THorizontalSchemalessLookupChunkReaderBase::ApplyLimits()
 
     if (LowerBound_) {
         auto* lowerBoundCmpEnd = std::lower_bound(begin, end, nullptr,
-            [&bound = *LowerBound_](const TLegacyKey& key, nullptr_t)
+            [&] (TLegacyKey key, nullptr_t)
             {
-                int prefixLen = std::min<int>(key.GetCount(), bound.Size());
-                int c = ComparePrefix(key.begin(), bound.begin(), prefixLen);
-                return c == 0;
+                int prefixLength = std::min<int>(key.GetCount(), LowerBound_->size());
+                int result = ComparePrefix(key.begin(), LowerBound_->begin(), prefixLength);
+                return result == 0;
             });
 
         LowerBoundCmpRange_ = MakeRange(begin, lowerBoundCmpEnd);
     }
     if (UpperBound_) {
         auto* upperBoundCmpBegin = std::lower_bound(begin, end, nullptr,
-            [&bound = *UpperBound_](const TLegacyKey& key, nullptr_t) {
-                int prefixLen = std::min<int>(key.GetCount(), bound.Size());
-                int c = ComparePrefix(key.begin(), bound.begin(), prefixLen);
-                return c != 0;
+            [&] (TLegacyKey key, nullptr_t) {
+                int prefixLength = std::min<int>(key.GetCount(), UpperBound_->Size());
+                int result = ComparePrefix(key.begin(), UpperBound_->begin(), prefixLength);
+                return result != 0;
             });
 
         UpperBoundCmpRange_ = MakeRange(upperBoundCmpBegin, end);
@@ -1206,7 +1201,7 @@ THorizontalSchemalessKeyRangesChunkReader::THorizontalSchemalessKeyRangesChunkRe
         partitionTag,
         memoryManager)
 {
-    YT_LOG_DEBUG("Looking up prefix-ranges (count: %v)", std::ssize(keys));
+    YT_LOG_DEBUG("Looking up prefix-ranges (Count: %v)", std::ssize(keys));
 
     ApplyLimits();
     ComputeBlockIndexes(PrefixRange_);
@@ -1328,11 +1323,11 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
     i64 initialRowCount = RowCount_;
 
     while (!BlockEnded_ &&
-            KeyIndex_ < static_cast<int>(PrefixRange_.size()) &&
+            KeyIndex_ < std::ssize(PrefixRange_) &&
             dataWeight < options.MaxDataWeightPerRead &&
             RowCount_ - initialRowCount < options.MaxRowsPerRead)
     {
-        const auto &key = PrefixRange_[KeyIndex_];
+        auto key = PrefixRange_[KeyIndex_];
 
         if (!BlockReader_->SkipToKey(key)) {
             BlockEnded_ = true;
@@ -1346,7 +1341,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
                 dataWeight < options.MaxDataWeightPerRead &&
                 RowCount_ - initialRowCount < options.MaxRowsPerRead)
         {
-            const auto& fullKey = BlockReader_->GetLegacyKey();
+            auto fullKey = BlockReader_->GetLegacyKey();
             if (fullKey.GetCount() < keyLength ||
                 CompareRows(key.begin(), key.end(),
                    fullKey.begin(), fullKey.begin() + keyLength) != 0)
@@ -1355,7 +1350,7 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
                 break;
             }
 
-            TRange<TUnversionedValue> keyValues(fullKey.begin(), fullKey.end());
+            const TRange<TUnversionedValue> keyValues(fullKey.begin(), fullKey.end());
 
             int blockIndex = BlockIndexes_[CurrentBlockIndex_];
             const auto& blockMeta = BlockMetaExt_->data_blocks(blockIndex);
@@ -1363,12 +1358,12 @@ IUnversionedRowBatchPtr THorizontalSchemalessKeyRangesChunkReader::Read(const TR
 
             bool skipRow = false;
 
-            if (LowerBound_ && InsideRange(LowerBoundCmpRange_, &PrefixRange_[KeyIndex_]) &&
+            if (LowerBound_ && IsInsideRange(LowerBoundCmpRange_, &PrefixRange_[KeyIndex_]) &&
                 !TestKeyWithWidening(keyValues, *LowerBound_, SortOrders_))
             {
                 skipRow = true;
             }
-            if (UpperBound_ && InsideRange(UpperBoundCmpRange_, &PrefixRange_[KeyIndex_]) &&
+            if (UpperBound_ && IsInsideRange(UpperBoundCmpRange_, &PrefixRange_[KeyIndex_]) &&
                 !TestKeyWithWidening(keyValues, *UpperBound_, SortOrders_))
             {
                 skipRow = true;

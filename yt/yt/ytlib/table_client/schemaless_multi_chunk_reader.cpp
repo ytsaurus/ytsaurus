@@ -235,7 +235,7 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                                 dataSliceDescriptor.VirtualRowIndex,
                                 interruptDescriptorKeyLength);
                          } else {
-                            YT_LOG_DEBUG("Only reading %v hint prefixes", hintKeyPrefixes.size());
+                            YT_LOG_DEBUG("Only reading hint prefixes (Count: %v)", hintKeyPrefixes.size());
                             return CreateSchemalessKeyRangesChunkReader(
                                 std::move(chunkState),
                                 std::move(chunkMeta),
