@@ -74,6 +74,7 @@ using NTableClient::EValueType;
 using NTableClient::TLegacyKey;
 using NTableClient::TLegacyOwningKey;
 using NTableClient::TUnversionedValue;
+using NTableClient::TUnversionedValueRange;
 using NTableClient::TVersionedValue;
 using NTableClient::TUnversionedRow;
 using NTableClient::TUnversionedOwningRow;

@@ -150,7 +150,7 @@ void TVersionedColumnTestBase::Validate(
 
 void TVersionedColumnTestBase::ValidateValues(const TVersionedValue& expected, const TVersionedValue& actual, i64 rowIndex)
 {
-    ASSERT_TRUE(AreRowValuesIdentical(expected, actual)) << Format("Row index - %v", rowIndex);
+    ASSERT_TRUE(TBitwiseVersionedValueEqual()(expected, actual)) << Format("Row index - %v", rowIndex);
 }
 
 std::vector<TMutableVersionedRow> TVersionedColumnTestBase::AllocateRows(int count)

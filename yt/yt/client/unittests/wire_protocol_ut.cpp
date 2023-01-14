@@ -98,7 +98,7 @@ public:
             const auto& lhsValue = lhs[i];
             const auto& rhsValue = rhs[i];
             SCOPED_TRACE(Format("#%v: LHS = %v ; RHS = %v", i, lhsValue, rhsValue));
-            EXPECT_TRUE(AreRowValuesIdentical(lhsValue, rhsValue));
+            EXPECT_TRUE(TBitwiseUnversionedValueEqual()(lhsValue, rhsValue));
         }
     }
 

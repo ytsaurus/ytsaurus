@@ -1213,14 +1213,7 @@ ISchemalessMultiChunkReaderPtr TSchemalessMergingMultiChunkReader::Create(
         std::move(boundaries),
         std::move(rowMerger),
         createVersionedReader,
-        [] (
-            const TUnversionedValue* lhsBegin,
-            const TUnversionedValue* lhsEnd,
-            const TUnversionedValue* rhsBegin,
-            const TUnversionedValue* rhsEnd)
-        {
-            return CompareRows(lhsBegin, lhsEnd, rhsBegin, rhsEnd);
-        });
+        CompareValueRanges);
 
     i64 rowCount = NChunkClient::GetCumulativeRowCount(chunkSpecs);
 

@@ -159,7 +159,7 @@ TCachedRowPtr BuildCachedRow(TAlloc* allocator, TRange<NTableClient::TVersionedR
             return lhs.Id == rhs.Id ? lhs.Timestamp > rhs.Timestamp : lhs.Id < rhs.Id;
         });
 
-    cachedRow->Hash = GetFarmFingerprint(versionedRow.BeginKeys(), versionedRow.EndKeys());
+    cachedRow->Hash = NTableClient::GetFarmFingerprint(versionedRow.Keys());
     cachedRow->RetainedTimestamp = retainedTimestamp;
 
     return cachedRow;
@@ -202,16 +202,15 @@ struct THash<NYT::NTabletNode::TCachedRow>
         return value->Hash;
     }
 
-    inline size_t operator()(const NYT::NTableClient::TUnversionedRow& key) const
+    inline size_t operator()(NYT::NTableClient::TLegacyKey key) const
     {
-        return GetFarmFingerprint(key.Begin(), key.End());
+        return GetFarmFingerprint(key.Elements());
     }
 
-    inline size_t operator()(const NYT::NTableClient::TVersionedRow& key) const
+    inline size_t operator()(NYT::NTableClient::TVersionedRow row) const
     {
-        return GetFarmFingerprint(key.BeginKeys(), key.EndKeys());
+        return NYT::NTableClient::GetFarmFingerprint(row.Keys());
     }
-
 };
 
 template <>
@@ -223,11 +222,7 @@ struct TEqualTo<NYT::NTabletNode::TCachedRow>
         auto rhsRow = rhs->GetVersionedRow();
 
         // Hashes are equal if Compare is called.
-        return CompareRows(
-            lhsRow.BeginKeys(),
-            lhsRow.EndKeys(),
-            rhsRow.BeginKeys(),
-            rhsRow.EndKeys()) == 0;
+        return NYT::NTableClient::CompareValueRanges(lhsRow.Keys(), rhsRow.Keys()) == 0;
     }
 
     inline bool operator()(const NYT::NTabletNode::TCachedRow* lhs, const NYT::NTableClient::TUnversionedRow& rhs) const
@@ -235,11 +230,7 @@ struct TEqualTo<NYT::NTabletNode::TCachedRow>
         auto lhsRow = lhs->GetVersionedRow();
 
         // Hashes are equal if Compare is called.
-        return CompareRows(
-            lhsRow.BeginKeys(),
-            lhsRow.EndKeys(),
-            rhs.Begin(),
-            rhs.End()) == 0;
+        return CompareValueRanges(lhsRow.Keys(), rhs.Elements()) == 0;
     }
 
     inline bool operator()(const NYT::NTabletNode::TCachedRow* lhs, const NYT::NTableClient::TVersionedRow& rhs) const
@@ -247,10 +238,6 @@ struct TEqualTo<NYT::NTabletNode::TCachedRow>
         auto lhsRow = lhs->GetVersionedRow();
 
         // Hashes are equal if Compare is called.
-        return CompareRows(
-            lhsRow.BeginKeys(),
-            lhsRow.EndKeys(),
-            rhs.BeginKeys(),
-            rhs.EndKeys()) == 0;
+        return NYT::NTableClient::CompareValueRanges(lhsRow.Keys(), rhs.Keys()) == 0;
     }
 };

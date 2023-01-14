@@ -12,8 +12,6 @@ namespace NYT::NTabletNode {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRange<TUnversionedValue> ToKeyRef(TVersionedRow row);
-
 //! Provides a comparer functor for dynamic row keys.
 class TSortedDynamicRowKeyComparer
     : public NTabletClient::TCGKeyComparers
@@ -24,9 +22,9 @@ public:
     TSortedDynamicRowKeyComparer(NTabletClient::TCGKeyComparers comparers);
 
     int operator()(TSortedDynamicRow lhs, TSortedDynamicRow rhs) const;
-    int operator()(TSortedDynamicRow lhs, TRange<TUnversionedValue> rhs) const;
-    int operator()(TRange<TUnversionedValue> lhs, TSortedDynamicRow rhs) const;
-    int operator()(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs) const;
+    int operator()(TSortedDynamicRow lhs, TUnversionedValueRange rhs) const;
+    int operator()(TUnversionedValueRange lhs, TSortedDynamicRow rhs) const;
+    int operator()(TUnversionedValueRange lhs, TUnversionedValueRange rhs) const;
     int operator()(TUnversionedRow lhs, TUnversionedRow rhs) const;
 };
 

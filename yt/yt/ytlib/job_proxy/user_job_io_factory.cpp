@@ -112,8 +112,8 @@ std::vector<TUnversionedRow> FetchReaderKeyPrefixes(
                 continue;
             }
 
-            auto keyRow = buffer->CaptureRow(TRange<TUnversionedValue>(row.begin(), row.begin() + keyLength));
-            keys.push_back(keyRow);
+            auto key = buffer->CaptureRow(row.FirstNElements(keyLength));
+            keys.push_back(key);
         }
     }
 

@@ -85,7 +85,7 @@ public:
             chunkWriter,
             std::move(blockCache),
             Logger))
-        , LastKey_(static_cast<TUnversionedValue*>(nullptr), static_cast<TUnversionedValue*>(nullptr))
+        , LastKey_(TUnversionedValueRange(nullptr, nullptr))
         , MinTimestamp_(MaxTimestamp)
         , MaxTimestamp_(MinTimestamp)
         , RandomGenerator_(RandomNumber<ui64>())
@@ -130,7 +130,7 @@ public:
             auto firstRow = rows.Front();
             ToProto(
                 BoundaryKeysExt_.mutable_min(),
-                TLegacyOwningKey(firstRow.BeginKeys(), firstRow.EndKeys()));
+                TLegacyOwningKey(firstRow.Keys()));
             EmitSample(firstRow);
         }
 
@@ -142,8 +142,7 @@ public:
 
         DoWriteRows(rows);
 
-        auto lastRow = rows.Back();
-        LastKey_ = TLegacyOwningKey(lastRow.BeginKeys(), lastRow.EndKeys());
+        LastKey_ = TLegacyOwningKey(rows.Back().Keys());
 
         return EncodingChunkWriter_->IsReady();
     }
@@ -293,21 +292,18 @@ protected:
         SamplesMemoryUsageGuard_.IncrementSize(rowSize);
     }
 
-    static void ValidateRowsOrder(
-        TVersionedRow row,
-        const TUnversionedValue* beginPrevKey,
-        const TUnversionedValue* endPrevKey)
+    static void ValidateRowsOrder(TVersionedRow row, TUnversionedValueRange prevKey)
     {
         YT_VERIFY(
-            !beginPrevKey && !endPrevKey ||
-            CompareRows(beginPrevKey, endPrevKey, row.BeginKeys(), row.EndKeys()) < 0);
+            !prevKey ||
+            CompareValueRanges(prevKey, row.Keys()) < 0);
     }
 
     static void ValidateRowDataWeight(TVersionedRow row, i64 dataWeight)
     {
         if (dataWeight > MaxServerVersionedRowDataWeight) {
             THROW_ERROR_EXCEPTION("Versioned row data weight is too large")
-                << TErrorAttribute("key", RowToKey(row))
+                << TErrorAttribute("key", ToOwningKey(row))
                 << TErrorAttribute("actual_data_weight", dataWeight)
                 << TErrorAttribute("max_data_weight", MaxServerVersionedRowDataWeight);
         }
@@ -463,13 +459,12 @@ private:
 
         auto firstRow = rows.Front();
 
-        WriteRow(firstRow, LastKey_.Begin(), LastKey_.End());
+        WriteRow(firstRow, LastKey_.Elements());
         FinishBlockIfLarge(firstRow);
 
         int rowCount = static_cast<int>(rows.Size());
         for (int index = 1; index < rowCount; ++index) {
-            //KeyFilter_.Insert(GetFarmFingerprint(rows[i].BeginKeys(), rows[i].EndKeys()));
-            WriteRow(rows[index], rows[index - 1].BeginKeys(), rows[index - 1].EndKeys());
+            WriteRow(rows[index], rows[index - 1].Keys());
             FinishBlockIfLarge(rows[index]);
         }
     }
@@ -477,31 +472,29 @@ private:
     static void ValidateRow(
         TVersionedRow row,
         i64 dataWeight,
-        const TUnversionedValue* beginPrevKey,
-        const TUnversionedValue* endPrevKey)
+        TUnversionedValueRange prevKey)
     {
-        ValidateRowsOrder(row, beginPrevKey, endPrevKey);
+        ValidateRowsOrder(row, prevKey);
         ValidateRowDataWeight(row, dataWeight);
 
         if (row.GetWriteTimestampCount() > MaxTimestampCountPerRow) {
             THROW_ERROR_EXCEPTION("Too many write timestamps in a versioned row")
-                << TErrorAttribute("key", RowToKey(row));
+                << TErrorAttribute("key", ToOwningKey(row));
         }
         if (row.GetDeleteTimestampCount() > MaxTimestampCountPerRow) {
             THROW_ERROR_EXCEPTION("Too many delete timestamps in a versioned row")
-                << TErrorAttribute("key", RowToKey(row));
+                << TErrorAttribute("key", ToOwningKey(row));
         }
     }
 
     void WriteRow(
         TVersionedRow row,
-        const TUnversionedValue* beginPreviousKey,
-        const TUnversionedValue* endPreviousKey)
+        TUnversionedValueRange prevKey)
     {
         EmitSampleRandomly(row);
         auto rowWeight = NTableClient::GetDataWeight(row);
 
-        ValidateRow(row, rowWeight, beginPreviousKey, endPreviousKey);
+        ValidateRow(row, rowWeight, prevKey);
 
         ++RowCount_;
         DataWeight_ += rowWeight;
@@ -517,16 +510,16 @@ private:
             return;
         }
 
-        FinishBlock(row.BeginKeys(), row.EndKeys());
+        FinishBlock(row.Keys());
         ResetBlockWriter(Options_->MemoryTracker);
     }
 
-    void FinishBlock(const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
+    void FinishBlock(TUnversionedValueRange keyRange)
     {
         auto block = BlockWriter_->FlushBlock();
         block.Meta.set_chunk_row_count(RowCount_);
         block.Meta.set_block_index(BlockMetaExt_.data_blocks_size());
-        ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
+        ToProto(block.Meta.mutable_last_key(), keyRange);
 
         YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
@@ -551,7 +544,7 @@ private:
     void DoClose() override
     {
         if (BlockWriter_->GetRowCount() > 0) {
-            FinishBlock(LastKey_.Begin(), LastKey_.End());
+            FinishBlock(LastKey_.Elements());
         }
 
         OnDataBlocksWritten(&SystemBlockMetaExt_, EncodingChunkWriter_);
@@ -692,13 +685,9 @@ private:
                 auto row = rows[rowIndex];
                 auto rowWeight = NTableClient::GetDataWeight(row);
                 if (rowIndex == 0) {
-                    ValidateRow(row, rowWeight, LastKey_.Begin(), LastKey_.End());
+                    ValidateRow(row, rowWeight, LastKey_.Elements());
                 } else {
-                    ValidateRow(
-                        row,
-                        rowWeight,
-                        rows[rowIndex - 1].BeginKeys(),
-                        rows[rowIndex - 1].EndKeys());
+                    ValidateRow(row, rowWeight, rows[rowIndex - 1].Keys());
                 }
 
                 UpdateColumnarStatistics(ColumnarStatisticsExt_, row);
@@ -728,10 +717,9 @@ private:
     static void ValidateRow(
         TVersionedRow row,
         i64 dataWeight,
-        const TUnversionedValue* beginPrevKey,
-        const TUnversionedValue* endPrevKey)
+        TUnversionedValueRange prevKey)
     {
-        ValidateRowsOrder(row, beginPrevKey, endPrevKey);
+        ValidateRowsOrder(row, prevKey);
         ValidateRowDataWeight(row, dataWeight);
     }
 
@@ -754,7 +742,7 @@ private:
             YT_VERIFY(maxWriterIndex >= 0);
 
             if (totalSize > Config_->MaxBufferSize || maxWriterSize > Config_->BlockSize) {
-                FinishBlock(maxWriterIndex, lastRow.BeginKeys(), lastRow.EndKeys());
+                FinishBlock(maxWriterIndex, lastRow.Keys());
             } else {
                 DataToBlockFlush_ = std::min(Config_->MaxBufferSize - totalSize, Config_->BlockSize - maxWriterSize);
                 DataToBlockFlush_ = std::max(MinRowRangeDataWeight, DataToBlockFlush_);
@@ -763,13 +751,13 @@ private:
         }
     }
 
-    void FinishBlock(int blockWriterIndex, const TUnversionedValue* beginKey, const TUnversionedValue* endKey)
+    void FinishBlock(int blockWriterIndex, TUnversionedValueRange keyRange)
     {
         auto block = BlockWriters_[blockWriterIndex]->DumpBlock(BlockMetaExt_.data_blocks_size(), RowCount_);
         YT_VERIFY(block.Meta.uncompressed_size() > 0);
 
         block.Meta.set_block_index(BlockMetaExt_.data_blocks_size());
-        ToProto(block.Meta.mutable_last_key(), beginKey, endKey);
+        ToProto(block.Meta.mutable_last_key(), keyRange);
 
         BlockMetaExtSize_ += block.Meta.ByteSizeLong();
 
@@ -799,7 +787,7 @@ private:
     {
         for (int i = 0; i < std::ssize(BlockWriters_); ++i) {
             if (BlockWriters_[i]->GetCurrentSize() > 0) {
-                FinishBlock(i, LastKey_.Begin(), LastKey_.End());
+                FinishBlock(i, LastKey_.Elements());
             }
         }
 

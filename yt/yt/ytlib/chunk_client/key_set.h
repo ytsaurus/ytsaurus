@@ -16,13 +16,13 @@ class TKeySetWriter
     : public TRefCounted
 {
 public:
-    int WriteKey(const NTableClient::TLegacyKey& key);
-    int WriteValueRange(TRange<NTableClient::TUnversionedValue> key);
+    int WriteKey(NTableClient::TLegacyKey key);
+    int WriteValueRange(NTableClient::TUnversionedValueRange key);
 
     TSharedRef Finish();
 
 private:
-    std::unique_ptr<NTableClient::IWireProtocolWriter> WireProtocolWriter_ = NTableClient::CreateWireProtocolWriter();
+    const std::unique_ptr<NTableClient::IWireProtocolWriter> WireProtocolWriter_ = NTableClient::CreateWireProtocolWriter();
     int Index_ = 0;
 };
 

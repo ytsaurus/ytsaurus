@@ -172,6 +172,11 @@ public:
         return BeginWriteTimestamps() + GetWriteTimestampCount();
     }
 
+    TTimestampRange WriteTimestamps() const
+    {
+        return {BeginWriteTimestamps(), EndWriteTimestamps()};
+    }
+
     const TTimestamp* BeginDeleteTimestamps() const
     {
         return EndWriteTimestamps();
@@ -180,6 +185,11 @@ public:
     const TTimestamp* EndDeleteTimestamps() const
     {
         return BeginDeleteTimestamps() + GetDeleteTimestampCount();
+    }
+
+    TTimestampRange DeleteTimestamps() const
+    {
+        return {BeginDeleteTimestamps(), EndDeleteTimestamps()};
     }
 
     const TUnversionedValue* BeginKeys() const
@@ -192,6 +202,11 @@ public:
         return BeginKeys() + GetKeyCount();
     }
 
+    TUnversionedValueRange Keys() const
+    {
+        return {BeginKeys(), EndKeys()};
+    }
+
     const TVersionedValue* BeginValues() const
     {
         return reinterpret_cast<const TVersionedValue*>(EndKeys());
@@ -200,6 +215,11 @@ public:
     const TVersionedValue* EndValues() const
     {
         return BeginValues() + GetValueCount();
+    }
+
+    TVersionedValueRange Values() const
+    {
+        return {BeginValues(), EndValues()};
     }
 
     int GetKeyCount() const
@@ -222,14 +242,14 @@ public:
         return Header_->DeleteTimestampCount;
     }
 
-    const char* GetMemoryBegin() const
+    const char* BeginMemory() const
     {
         return reinterpret_cast<const char*>(Header_);
     }
 
-    const char* GetMemoryEnd() const
+    const char* EndMemory() const
     {
-        return GetMemoryBegin() + GetVersionedRowByteSize(
+        return BeginMemory() + GetVersionedRowByteSize(
             GetKeyCount(),
             GetValueCount(),
             GetWriteTimestampCount(),
@@ -245,11 +265,6 @@ static_assert(
     "TVersionedRow size must match that of a pointer.");
 
 size_t GetDataWeight(TVersionedRow row);
-size_t GetHash(TVersionedRow row);
-
-//! Compares versioned rows for equality taking aggregate flags into account.
-//! Row values must be canonically sorted.
-bool AreRowsIdentical(TVersionedRow lhs, TVersionedRow rhs);
 
 //! Checks that #row is a valid client-side versioned data row. Throws on failure.
 /*!
@@ -283,7 +298,8 @@ void ValidateDuplicateAndRequiredValueColumns(
     const TTimestamp* writeTimestamps,
     int writeTimestampCount);
 
-TLegacyOwningKey RowToKey(TVersionedRow row);
+TLegacyOwningKey ToOwningKey(TVersionedRow row);
+TKeyRef ToKeyRef(TVersionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -337,6 +353,11 @@ public:
         return BeginWriteTimestamps() + GetWriteTimestampCount();
     }
 
+    TMutableTimestampRange WriteTimestamps()
+    {
+        return {BeginWriteTimestamps(), EndWriteTimestamps()};
+    }
+
     TTimestamp* BeginDeleteTimestamps()
     {
         return EndWriteTimestamps();
@@ -345,6 +366,11 @@ public:
     TTimestamp* EndDeleteTimestamps()
     {
         return BeginDeleteTimestamps() + GetDeleteTimestampCount();
+    }
+
+    TMutableTimestampRange DeleteTimestamps()
+    {
+        return {BeginDeleteTimestamps(), EndDeleteTimestamps()};
     }
 
     TUnversionedValue* BeginKeys()
@@ -357,6 +383,11 @@ public:
         return BeginKeys() + GetKeyCount();
     }
 
+    TMutableUnversionedValueRange Keys()
+    {
+        return {BeginKeys(), EndKeys()};
+    }
+
     TVersionedValue* BeginValues()
     {
         return reinterpret_cast<TVersionedValue*>(EndKeys());
@@ -365,6 +396,11 @@ public:
     TVersionedValue* EndValues()
     {
         return BeginValues() + GetValueCount();
+    }
+
+    TMutableVersionedValueRange Values()
+    {
+        return {BeginValues(), EndValues()};
     }
 
     void SetKeyCount(int count)
@@ -421,7 +457,6 @@ private:
     std::vector<TVersionedValue> Values_;
     std::vector<TTimestamp> WriteTimestamps_;
     std::vector<TTimestamp> DeleteTimestamps_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -434,8 +469,7 @@ private:
 class TVersionedOwningRow
 {
 public:
-    TVersionedOwningRow()
-    { }
+    TVersionedOwningRow() = default;
 
     explicit TVersionedOwningRow(TVersionedRow other);
 
@@ -472,6 +506,11 @@ public:
         return BeginWriteTimestamps() + GetWriteTimestampCount();
     }
 
+    TTimestampRange WriteTimestamps() const
+    {
+        return {BeginWriteTimestamps(), EndWriteTimestamps()};
+    }
+
     const TTimestamp* BeginDeleteTimestamps() const
     {
         return EndWriteTimestamps();
@@ -480,6 +519,11 @@ public:
     const TTimestamp* EndDeleteTimestamps() const
     {
         return BeginDeleteTimestamps() + GetDeleteTimestampCount();
+    }
+
+    TTimestampRange DeleteTimestamps() const
+    {
+        return {BeginDeleteTimestamps(), EndDeleteTimestamps()};
     }
 
     const TUnversionedValue* BeginKeys() const
@@ -492,6 +536,11 @@ public:
         return BeginKeys() + GetKeyCount();
     }
 
+    TUnversionedValueRange Keys() const
+    {
+        return {BeginKeys(), EndKeys()};
+    }
+
     const TVersionedValue* BeginValues() const
     {
         return reinterpret_cast<const TVersionedValue*>(EndKeys());
@@ -500,6 +549,11 @@ public:
     const TVersionedValue* EndValues() const
     {
         return BeginValues() + GetValueCount();
+    }
+
+    TVersionedValueRange Values() const
+    {
+        return {BeginValues(), EndValues()};
     }
 
     int GetKeyCount() const
@@ -569,12 +623,7 @@ private:
     {
         return const_cast<TVersionedValue*>(BeginValues());
     }
-
 };
-
-
-TTimestamp GetMinTimestamp(TVersionedRow row);
-TTimestamp GetMaxTimestamp(TVersionedRow row);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -587,6 +636,30 @@ TString ToString(const TVersionedValue& value);
 TString ToString(TVersionedRow row);
 TString ToString(TMutableVersionedRow row);
 TString ToString(const TVersionedOwningRow& row);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBitwiseVersionedValueHash
+{
+    size_t operator()(const TVersionedValue& value) const;
+};
+
+struct TBitwiseVersionedValueEqual
+{
+    bool operator()(const TVersionedValue& lhs, const TVersionedValue& rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBitwiseVersionedRowHash
+{
+    size_t operator()(TVersionedRow row) const;
+};
+
+struct TBitwiseVersionedRowEqual
+{
+    bool operator()(TVersionedRow lhs, TVersionedRow rhs) const;
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

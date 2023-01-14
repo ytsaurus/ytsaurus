@@ -181,7 +181,7 @@ TEST_P(TGatherReplicationProgressTest, Simple)
     const auto& params = GetParam();
     const auto& serializedProgresses = std::get<0>(params);
     const auto& expected = ConvertTo<TReplicationProgress>(TYsonStringBuf(std::get<1>(params)));
-    
+
     std::vector<TReplicationProgress> progresses;
     std::vector<TUnversionedRow> pivotKeys;
     for (const auto& serialized : serializedProgresses) {
@@ -361,7 +361,7 @@ TEST_P(TReplicationProgressTimestampForKeyTest, Simple)
     const auto& key = ConvertTo<TUnversionedOwningRow>(TYsonStringBuf(std::get<1>(params)));
     const auto& expected = std::get<2>(params);
 
-    auto result = FindReplicationProgressTimestampForKey(progress, key.Begin(), key.End());
+    auto result = FindReplicationProgressTimestampForKey(progress, key.Elements());
 
     EXPECT_EQ(result, expected)
         << "progresses: " << std::get<0>(params) << std::endl

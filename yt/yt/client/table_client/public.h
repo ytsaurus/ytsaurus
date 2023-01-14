@@ -6,7 +6,7 @@
 
 #include <yt/yt/client/transaction_client/public.h>
 
-#include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/range.h>
 
 #include <library/cpp/yt/misc/enum.h>
 
@@ -33,6 +33,7 @@ class TSystemBlockMetaExt;
 class TColumnarStatisticsExt;
 class TDataBlockMeta;
 class TSimpleVersionedBlockMeta;
+class TSlimVersionedBlockMeta;
 class TSchemaDictionary;
 class TColumnFilter;
 class TReqLookupRows;
@@ -223,7 +224,15 @@ using TKeyColumnTypes = TCompactVector<EValueType, 16>;
 class TColumnFilter;
 
 struct TUnversionedValue;
+using TUnversionedValueRange = TRange<TUnversionedValue>;
+using TMutableUnversionedValueRange = TMutableRange<TUnversionedValue>;
+
 struct TVersionedValue;
+using TVersionedValueRange = TRange<TVersionedValue>;
+using TMutableVersionedValueRange = TMutableRange<TVersionedValue>;
+
+using TTimestampRange = TRange<TTimestamp>;
+using TMutableTimestampRange = TMutableRange<TTimestamp>;
 
 class TUnversionedOwningValue;
 
@@ -239,10 +248,13 @@ class TMutableVersionedRow;
 class TVersionedOwningRow;
 
 class TKey;
+using TKeyRef = TUnversionedValueRange;
 
 using TLegacyKey = TUnversionedRow;
 using TLegacyMutableKey = TMutableUnversionedRow;
 using TLegacyOwningKey = TUnversionedOwningRow;
+
+// TODO(babenko): replace with TRange<TUnversionedRow>.
 using TRowRange = std::pair<TUnversionedRow, TUnversionedRow>;
 
 class TUnversionedRowBuilder;

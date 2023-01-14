@@ -82,7 +82,7 @@ struct IConverter
     //! Consume single value expressed by YSON stream.
     virtual void ConsumeYson(TYsonPullParserCursor* cursor) = 0;
     //! Consume a batch of values represented by unversioned values.
-    virtual void ConsumeUnversionedValues(TRange<TUnversionedValue> values) = 0;
+    virtual void ConsumeUnversionedValues(TUnversionedValueRange values) = 0;
     //! Consume given number of nulls.
     virtual void ConsumeNulls(int count) = 0;
     //! Consume native YT column.
@@ -107,7 +107,7 @@ class TYsonExtractingConverterBase
     : public IConverter
 {
 public:
-    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TUnversionedValueRange values) override
     {
         // NB: ConsumeYson leads to at least one virtual call per-value, so iterating
         // over all unversioned values is justified here.
@@ -182,7 +182,7 @@ public:
         Column_->insertManyDefaults(count);
     }
 
-    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TUnversionedValueRange values) override
     {
         for (const auto& value : values) {
             UnversionedValueToYson(value, &YsonWriter_);
@@ -334,7 +334,7 @@ public:
         cursor->Next();
     }
 
-    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TUnversionedValueRange values) override
     {
         for (const auto& value : values) {
             if (value.Type == EValueType::Null) {
@@ -523,7 +523,7 @@ public:
         }
     }
 
-    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TUnversionedValueRange values) override
     {
         if constexpr (IsV1Optional) {
             // V1 optional converter always faces either Null or underlying type.
@@ -907,7 +907,7 @@ public:
         cursor->Next();
     }
 
-    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TUnversionedValueRange values) override
     {
         Column_->reserve(values.size());
 
@@ -997,7 +997,7 @@ public:
         Column_->insertDefault();
     }
 
-    void ConsumeUnversionedValues(TRange<TUnversionedValue> values) override
+    void ConsumeUnversionedValues(TUnversionedValueRange values) override
     {
         Column_->insertManyDefaults(values.size());
     }
@@ -1043,7 +1043,7 @@ public:
         , RootConverter_(CreateConverter(Descriptor_, /* isOutermost */ true))
     { }
 
-    void ConsumeUnversionedValues(TRange<TUnversionedValue> values)
+    void ConsumeUnversionedValues(TUnversionedValueRange values)
     {
         RootConverter_->ConsumeUnversionedValues(values);
     }
@@ -1311,7 +1311,7 @@ TYTCHConverter::TYTCHConverter(
     : Impl_(std::make_unique<TImpl>(std::move(descriptor), std::move(settings), enableReadOnlyConversions))
 { }
 
-void TYTCHConverter::ConsumeUnversionedValues(TRange<TUnversionedValue> values)
+void TYTCHConverter::ConsumeUnversionedValues(TUnversionedValueRange values)
 {
     return Impl_->ConsumeUnversionedValues(values);
 }

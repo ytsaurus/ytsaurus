@@ -237,8 +237,7 @@ private:
         hashTableChunkIndexMetaExt->set_seed(bestFormatDetail->GetSeed());
         ToProto(
             hashTableChunkIndexMetaExt->mutable_last_key(),
-            entries.Back().Row.BeginKeys(),
-            entries.Back().Row.EndKeys());
+            entries.Back().Row.Keys());
 
         return {
             .Data = std::move(blob),

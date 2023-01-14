@@ -8,11 +8,6 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRange<TUnversionedValue> ToKeyRef(TVersionedRow row)
-{
-    return MakeRange(row.BeginKeys(), row.EndKeys());
-}
-
 TSortedDynamicRowKeyComparer::TSortedDynamicRowKeyComparer(NTabletClient::TCGKeyComparers comparers)
     : NTabletClient::TCGKeyComparers(std::move(comparers))
 { }
@@ -23,19 +18,19 @@ int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TSortedDynam
         DDComparer(lhs.GetNullKeyMask(), lhs.BeginKeys(), rhs.GetNullKeyMask(), rhs.BeginKeys()));
 }
 
-int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TRange<TUnversionedValue> rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TSortedDynamicRow lhs, TUnversionedValueRange rhs) const
 {
     return GetCompareSign(
         DUComparer(lhs.GetNullKeyMask(), lhs.BeginKeys(), rhs.Begin(), rhs.Size()));
 }
 
-int TSortedDynamicRowKeyComparer::operator()(TRange<TUnversionedValue> lhs, TSortedDynamicRow rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TUnversionedValueRange lhs, TSortedDynamicRow rhs) const
 {
     return -GetCompareSign(
         DUComparer(rhs.GetNullKeyMask(), rhs.BeginKeys(), lhs.Begin(), lhs.Size()));
 }
 
-int TSortedDynamicRowKeyComparer::operator()(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs) const
+int TSortedDynamicRowKeyComparer::operator()(TUnversionedValueRange lhs, TUnversionedValueRange rhs) const
 {
     return CompareKeys(lhs, rhs, UUComparer.Get());
 }

@@ -121,10 +121,9 @@ struct TTableMountInfo
     bool IsChaosReplica() const;
 
     TTabletInfoPtr GetTabletByIndexOrThrow(int tabletIndex) const;
-    int GetTabletIndexForKey(TRange<NTableClient::TUnversionedValue> key) const;
-    int GetTabletIndexForKey(NTableClient::TUnversionedRow key) const;
-    int GetTabletIndexForRow(TRange<NTableClient::TUnversionedValue> row) const;
-    TTabletInfoPtr GetTabletForRow(TRange<NTableClient::TUnversionedValue> row) const;
+    int GetTabletIndexForKey(NTableClient::TUnversionedValueRange key) const;
+    int GetTabletIndexForKey(NTableClient::TLegacyKey key) const;
+    TTabletInfoPtr GetTabletForKey(NTableClient::TUnversionedValueRange key) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TUnversionedRow row) const;
     TTabletInfoPtr GetTabletForRow(NTableClient::TVersionedRow row) const;
     int GetRandomMountedTabletIndex() const;

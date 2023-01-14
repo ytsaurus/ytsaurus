@@ -25,19 +25,7 @@ TString TUnversionedValue::AsString() const
     return TString(Data.String, Length);
 }
 
-ui64 GetHash(const TUnversionedValue& value)
-{
-    if (value.Type == EValueType::Composite) {
-        // NB: Composite types doesn't support FarmHash yet.
-        return CompositeHash(value.AsStringBuf());
-    } else {
-        // NB: hash function may change in future. Use fingerprints for persistent hashing.
-        return GetFarmFingerprint(value);
-    }
-}
-
-// Forever-fixed Google FarmHash fingerprint.
-TFingerprint FarmFingerprint(const TUnversionedValue& value)
+TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
 {
     auto type = value.Type;
     switch (type) {
@@ -45,19 +33,24 @@ TFingerprint FarmFingerprint(const TUnversionedValue& value)
             return NYT::FarmFingerprint(value.Data.String, value.Length);
 
         case EValueType::Int64:
+            return NYT::FarmFingerprint(std::bit_cast<ui64>(value.Data.Int64));
+
         case EValueType::Uint64:
+            return NYT::FarmFingerprint(value.Data.Uint64);
+
         case EValueType::Double:
-            // These types are aliased.
-            return NYT::FarmFingerprint(value.Data.Int64);
+            return NYT::FarmFingerprint(std::bit_cast<ui64>(value.Data.Double));
 
         case EValueType::Boolean:
-            return NYT::FarmFingerprint(value.Data.Boolean);
+            return NYT::FarmFingerprint(static_cast<ui64>(value.Data.Boolean));
 
         case EValueType::Null:
             return NYT::FarmFingerprint(0);
 
-        default:
+        case EValueType::Composite:
+            return CompositeFarmHash(NYson::TYsonStringBuf(value.AsStringBuf()));
 
+        default:
 #ifdef YT_COMPILING_UDF
             YT_ABORT();
 #else
@@ -67,27 +60,7 @@ TFingerprint FarmFingerprint(const TUnversionedValue& value)
                 type)
                 << TErrorAttribute("value", value);
 #endif
-
     }
-}
-
-TFingerprint GetFarmFingerprint(const TUnversionedValue& value)
-{
-    return FarmFingerprint(value);
-}
-
-TFingerprint GetHash(const TUnversionedValue* begin, const TUnversionedValue* end)
-{
-    ui64 result = 0xdeadc0de;
-    for (const auto* value = begin; value < end; ++value) {
-        result = NYT::FarmFingerprint(result, GetHash(*value));
-    }
-    return result ^ (end - begin);
-}
-
-TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
-{
-    return NYT::FarmFingerprint<TUnversionedValue>(begin, end);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,6 +71,8 @@ void PrintTo(const TUnversionedValue& value, ::std::ostream* os)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+namespace {
 
 void AppendWithCut(TStringBuilderBase* builder, TStringBuf string)
 {
@@ -110,6 +85,8 @@ void AppendWithCut(TStringBuilderBase* builder, TStringBuf string)
         builder->AppendString(string.substr(string.size() - Cutoff, Cutoff));
     }
 }
+
+} // namespace
 
 void FormatValue(TStringBuilderBase* builder, const TUnversionedValue& value, TStringBuf format)
 {
@@ -181,6 +158,80 @@ void FormatValue(TStringBuilderBase* builder, const TUnversionedValue& value, TS
 TString ToString(const TUnversionedValue& value, bool valueOnly)
 {
     return ToStringViaBuilder(value, valueOnly ? "k" : "");
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+size_t TDefaultUnversionedValueHash::operator()(const TUnversionedValue& value) const
+{
+    return GetFarmFingerprint(value);
+}
+
+bool TDefaultUnversionedValueEqual::operator()(const TUnversionedValue& lhs, const TUnversionedValue& rhs) const
+{
+    return lhs == rhs;
+}
+
+size_t TBitwiseUnversionedValueHash::operator()(const TUnversionedValue& value) const
+{
+    size_t result = 0;
+    HashCombine(result, value.Id);
+    HashCombine(result, value.Flags);
+    HashCombine(result, value.Type);
+    switch (value.Type) {
+        case EValueType::Int64:
+            HashCombine(result, value.Data.Int64);
+            break;
+        case EValueType::Uint64:
+            HashCombine(result, value.Data.Uint64);
+            break;
+        case EValueType::Double:
+            HashCombine(result, value.Data.Double);
+            break;
+        case EValueType::Boolean:
+            HashCombine(result, value.Data.Boolean);
+            break;
+        case EValueType::String:
+        case EValueType::Any:
+        case EValueType::Composite:
+            HashCombine(result, value.AsStringBuf());
+            break;
+        default:
+            break;
+    }
+    return result;
+}
+
+bool TBitwiseUnversionedValueEqual::operator()(const TUnversionedValue& lhs, const TUnversionedValue& rhs) const
+{
+    if (lhs.Id != rhs.Id) {
+        return false;
+    }
+    if (lhs.Flags != rhs.Flags) {
+        return false;
+    }
+    if (lhs.Type != rhs.Type) {
+        return false;
+    }
+    switch (lhs.Type) {
+        case EValueType::Int64:
+            return lhs.Data.Int64 == rhs.Data.Int64;
+        case EValueType::Uint64:
+            return lhs.Data.Uint64 == rhs.Data.Uint64;
+        case EValueType::Double:
+            return lhs.Data.Double == rhs.Data.Double;
+        case EValueType::Boolean:
+            return lhs.Data.Boolean == rhs.Data.Boolean;
+        case EValueType::String:
+        case EValueType::Any:
+        case EValueType::Composite:
+            if (lhs.Length != rhs.Length) {
+                return false;
+            }
+            return ::memcmp(lhs.Data.String, rhs.Data.String, lhs.Length) == 0;
+        default:
+            return true;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

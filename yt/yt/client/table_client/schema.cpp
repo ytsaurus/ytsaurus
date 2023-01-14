@@ -1835,7 +1835,11 @@ void ValidateColumnUniqueness(const TTableSchema& schema)
     }
 }
 
-void ValidatePivotKey(const TUnversionedRow& pivotKey, const TTableSchema& schema, const TStringBuf& keyType, bool validateRequired)
+void ValidatePivotKey(
+    TUnversionedRow pivotKey,
+    const TTableSchema& schema,
+    TStringBuf keyType,
+    bool validateRequired)
 {
     if (static_cast<int>(pivotKey.GetCount()) > schema.GetKeyColumnCount()) {
         auto titleKeyType = TString(keyType);

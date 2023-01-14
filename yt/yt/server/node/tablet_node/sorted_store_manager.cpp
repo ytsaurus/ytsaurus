@@ -252,7 +252,7 @@ bool TSortedStoreManager::CommitRow(
     const TSortedDynamicRowRef& rowRef)
 {
     bool keyDiffers = false;
-    auto validateWireKey = [&] (const TUnversionedRow& row) {
+    auto validateWireKey = [&] (TUnversionedRow row) {
         const auto& comparer = ActiveStore_->GetRowKeyComparer();
         if (comparer(rowRef.Row, ToKeyRef(row, KeyColumnCount_)) != 0) {
             keyDiffers = true;

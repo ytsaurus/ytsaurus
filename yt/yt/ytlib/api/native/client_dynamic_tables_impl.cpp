@@ -251,7 +251,7 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
         THROW_ERROR_EXCEPTION("Unexpected timestamps in pulled rows")
             << TErrorAttribute("write_timestamp_count", writeTimestampCount)
             << TErrorAttribute("delete_timestamp_count", deleteTimestampCount)
-            << TErrorAttribute("key", TUnversionedOwningRow(row.BeginKeys(), row.EndKeys()));
+            << TErrorAttribute("key", ToOwningKey(row));
     }
 
     if (writeTimestampCount > 0 && deleteTimestampCount > 0) {
@@ -261,7 +261,7 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
             THROW_ERROR_EXCEPTION("Timestamps mismatch in pulled row")
                 << TErrorAttribute("write_timestamp", writeTimestamp)
                 << TErrorAttribute("delete_timestamp", deleteTimestamp)
-                << TErrorAttribute("key", TUnversionedOwningRow(row.BeginKeys(), row.EndKeys()));
+                << TErrorAttribute("key", ToOwningKey(row));
         }
 
         return writeTimestamp;
@@ -275,7 +275,7 @@ TTimestamp ExtractTimestampFromPulledRow(TVersionedRow row)
     }
 
     THROW_ERROR_EXCEPTION("Pulled a row without timestamps")
-        << TErrorAttribute("key", TUnversionedOwningRow(row.BeginKeys(), row.EndKeys()));
+        << TErrorAttribute("key", ToOwningKey(row));
 }
 
 } // namespace

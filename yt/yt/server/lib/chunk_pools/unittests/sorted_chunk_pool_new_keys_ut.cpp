@@ -243,12 +243,8 @@ protected:
         TLegacyOwningKey owningMinBoundaryKey;
         TLegacyOwningKey owningMaxBoundaryKey;
 
-        owningMinBoundaryKey = TLegacyOwningKey(
-            minBoundaryKey.Begin(),
-            minBoundaryKey.Begin() + prefixLength);
-        owningMaxBoundaryKey = TLegacyOwningKey(
-            maxBoundaryKey.Begin(),
-            maxBoundaryKey.Begin() + prefixLength);
+        owningMinBoundaryKey = TLegacyOwningKey(minBoundaryKey.FirstNElements(prefixLength));
+        owningMaxBoundaryKey = TLegacyOwningKey(maxBoundaryKey.FirstNElements(prefixLength));
 
         inputChunk->BoundaryKeys() = std::make_unique<TOwningBoundaryKeys>(TOwningBoundaryKeys {
             std::move(owningMinBoundaryKey),

@@ -336,6 +336,12 @@ void Serialize(const TComparator& comparator, IYsonConsumer* consumer)
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+int GetCompareSign(int value)
+{
+    return value != 0 ? value > 0 ? 1 : -1 : 0;
+}
+
 int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, int length)
 {
     int index = 0;
@@ -350,15 +356,10 @@ int ComparePrefix(const TUnversionedValue* lhs, const TUnversionedValue* rhs, in
     return 0;
 }
 
-int GetCompareSign(int value)
-{
-    return value != 0 ? value > 0 ? 1 : -1 : 0;
-}
-
-int CompareKeys(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs, TPrefixComparer comparePrefix)
+int CompareKeys(TUnversionedValueRange lhs, TUnversionedValueRange rhs, TPrefixComparer prefixComparer)
 {
     auto minCount = std::min(lhs.Size(), rhs.Size());
-    auto result = comparePrefix(lhs.Begin(), rhs.Begin(), minCount);
+    auto result = prefixComparer(lhs.Begin(), rhs.Begin(), minCount);
     if (result == 0) {
         if (lhs.Size() < rhs.Size()) {
             result = -(minCount + 1);
@@ -370,9 +371,9 @@ int CompareKeys(TRange<TUnversionedValue> lhs, TRange<TUnversionedValue> rhs, TP
     return GetCompareSign(result);
 }
 
-int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer comparePrefix)
+int CompareKeys(TLegacyKey lhs, TLegacyKey rhs, TPrefixComparer prefixComparer)
 {
-    return CompareKeys(ToKeyRef(lhs), ToKeyRef(rhs), comparePrefix);
+    return CompareKeys(ToKeyRef(lhs), ToKeyRef(rhs), prefixComparer);
 }
 
 TKeyComparer::TKeyComparer(const TBase& base)
@@ -385,32 +386,35 @@ TKeyComparer::TKeyComparer()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TRange<TUnversionedValue> ToKeyRef(TKey key)
+TKeyRef ToKeyRef(TKey key)
 {
-    return MakeRange(key.Begin(), key.End());
+    return key.Elements();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TKeyBoundRef::TKeyBoundRef(TRange<TUnversionedValue> base, bool inclusive, bool upper)
-    : TRange<TUnversionedValue>(base)
+TKeyBoundRef::TKeyBoundRef(
+    TKeyRef base,
+    bool inclusive,
+    bool upper)
+    : TKeyRef(base)
     , Inclusive(inclusive)
     , Upper(upper)
 { }
 
-TKeyBoundRef MakeKeyBoundRef(const TKeyBound& bound)
+TKeyBoundRef ToKeyBoundRef(const TKeyBound& bound)
 {
     return TKeyBoundRef(ToKeyRef(bound.Prefix), bound.IsInclusive, bound.IsUpper);
 }
 
-TKeyBoundRef MakeKeyBoundRef(const TOwningKeyBound& bound)
+TKeyBoundRef ToKeyBoundRef(const TOwningKeyBound& bound)
 {
     return TKeyBoundRef(ToKeyRef(bound.Prefix), bound.IsInclusive, bound.IsUpper);
 }
 
 std::pair<int, bool> GetBoundPrefixAndInclusiveness(TUnversionedRow row, bool isUpper, int keyLength);
 
-TKeyBoundRef MakeKeyBoundRef(TUnversionedRow row, bool upper, int keyLength)
+TKeyBoundRef ToKeyBoundRef(TUnversionedRow row, bool upper, int keyLength)
 {
     if (!row) {
         return TKeyBoundRef({}, /*inclusive*/ true, upper);
@@ -453,13 +457,13 @@ int TestComparisonResult(int result, bool inclusive, bool upper)
 ////////////////////////////////////////////////////////////////////////////////
 
 int CompareWithWidening(
-    TRange<TUnversionedValue> keyPrefix,
-    TRange<TUnversionedValue> boundKey,
-    TPrefixComparer comparePrefix)
+    TUnversionedValueRange keyPrefix,
+    TUnversionedValueRange boundKey,
+    TPrefixComparer prefixComparer)
 {
     int result;
     if (keyPrefix.size() < boundKey.size()) {
-        result = comparePrefix(keyPrefix.begin(), boundKey.begin(), keyPrefix.size());
+        result = prefixComparer(keyPrefix.begin(), boundKey.begin(), keyPrefix.size());
 
         if (result == 0) {
             // Key is widened with nulls. Compare them with bound.
@@ -474,20 +478,20 @@ int CompareWithWidening(
             }
         }
     } else {
-        result = comparePrefix(keyPrefix.begin(), boundKey.begin(), boundKey.size());
+        result = prefixComparer(keyPrefix.begin(), boundKey.begin(), boundKey.size());
     }
 
     return result;
 }
 
 int CompareWithWidening(
-    TRange<TUnversionedValue> keyPrefix,
-    TRange<TUnversionedValue> boundKey)
+    TUnversionedValueRange keyPrefix,
+    TUnversionedValueRange boundKey)
 {
     return CompareWithWidening(keyPrefix, boundKey, ComparePrefix);
 }
 
-int TestKey(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders)
+int TestKey(TUnversionedValueRange key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders)
 {
     YT_VERIFY(bound.size() <= key.size());
     int result = ComparePrefix(key.begin(), bound.begin(), bound.size());
@@ -495,25 +499,25 @@ int TestKey(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESo
     return TestComparisonResult(result, sortOrders, bound.Inclusive, bound.Upper);
 }
 
-int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders)
+int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, TRange<ESortOrder> sortOrders)
 {
     int result = CompareWithWidening(key, bound);
     return TestComparisonResult(result, sortOrders, bound.Inclusive, bound.Upper);
 }
 
-int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound)
+int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound)
 {
     int result = CompareWithWidening(key, bound);
     return TestComparisonResult(result, bound.Inclusive, bound.Upper);
 }
 
-int TestKeyWithWidening(TRange<TUnversionedValue> key, const TKeyBoundRef& bound, TPrefixComparer comparePrefix)
+int TestKeyWithWidening(TUnversionedValueRange key, const TKeyBoundRef& bound, TPrefixComparer prefixComparer)
 {
-    int result = CompareWithWidening(key, bound, comparePrefix);
+    int result = CompareWithWidening(key, bound, prefixComparer);
     return TestComparisonResult(result, bound.Inclusive, bound.Upper);
 }
 
-int TestKeyWithWidening(TPrefixComparer prefixComparer, TRange<TUnversionedValue> key, const TKeyBoundRef& bound)
+int TestKeyWithWidening(TPrefixComparer prefixComparer, TUnversionedValueRange key, const TKeyBoundRef& bound)
 {
     int result = CompareWithWidening(key, bound, prefixComparer);
     return TestComparisonResult(result, bound.Inclusive, bound.Upper);

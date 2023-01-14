@@ -127,7 +127,7 @@ public:
             .ThrowOnError();
     }
 
-    static void WriteSingleRow(const TYPath& path, const TNameTablePtr& nameTable, const TUnversionedRow& row)
+    static void WriteSingleRow(const TYPath& path, const TNameTablePtr& nameTable, TUnversionedRow row)
     {
         auto transaction = WaitFor(Client_->StartTransaction(ETransactionType::Tablet))
             .ValueOrThrow();

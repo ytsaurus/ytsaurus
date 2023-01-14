@@ -59,34 +59,59 @@ static_assert(
     sizeof(TUnversionedValue) == 16,
     "TUnversionedValue has to be exactly 16 bytes.");
 static_assert(
-    std::is_pod<TUnversionedValue>::value,
+    std::is_pod_v<TUnversionedValue>,
     "TUnversionedValue must be a POD type.");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! Computes hash for a given TUnversionedValue.
-ui64 GetHash(const TUnversionedValue& value);
-
-//! Computes hash for a given set of values.
-ui64 GetHash(const TUnversionedValue* begin, const TUnversionedValue* end);
-
 //! Computes FarmHash forever-fixed fingerprint for a given TUnversionedValue.
 TFingerprint GetFarmFingerprint(const TUnversionedValue& value);
-
-//! Computes FarmHash forever-fixed fingerprint for a given set of values.
-TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Debug printer for Gtest unittests.
 void PrintTo(const TUnversionedValue& value, ::std::ostream* os);
 
-////////////////////////////////////////////////////////////////////////////////
-
 void FormatValue(TStringBuilderBase* builder, const TUnversionedValue& value, TStringBuf format);
-
 TString ToString(const TUnversionedValue& value, bool valueOnly = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: Hash function may change in future. Use fingerprints for stability.
+struct TDefaultUnversionedValueHash
+{
+    size_t operator()(const TUnversionedValue& value) const;
+};
+
+struct TDefaultUnversionedValueEqual
+{
+    bool operator()(const TUnversionedValue& lhs, const TUnversionedValue& rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TBitwiseUnversionedValueHash
+{
+    size_t operator()(const TUnversionedValue& value) const;
+};
+
+struct TBitwiseUnversionedValueEqual
+{
+    bool operator()(const TUnversionedValue& lhs, const TUnversionedValue& rhs) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NTableClient
+
+Y_DECLARE_PODTYPE(NYT::NTableClient::TUnversionedValue);
+
+//! A hasher for TUnversionedValue.
+template <>
+struct THash<NYT::NTableClient::TUnversionedValue>
+{
+    inline size_t operator()(const NYT::NTableClient::TUnversionedValue& value) const
+    {
+        return NYT::NTableClient::TDefaultUnversionedValueHash()(value);
+    }
+};

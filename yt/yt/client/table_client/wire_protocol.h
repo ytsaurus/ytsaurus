@@ -168,7 +168,7 @@ public:
     virtual size_t WriteVersionedRow(NTableClient::TVersionedRow row) = 0;
 
     virtual void WriteUnversionedValueRange(
-        TRange<NTableClient::TUnversionedValue> valueRange,
+        NTableClient::TUnversionedValueRange valueRange,
         const NTableClient::TNameTableToSchemaIdMapping* idMapping = nullptr) = 0;
 
     virtual void WriteUnversionedRowset(

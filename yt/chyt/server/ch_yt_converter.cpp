@@ -527,7 +527,7 @@ public:
         return RootConverter_->GetLogicalType();
     }
 
-    TRange<TUnversionedValue> ConvertColumnToUnversionedValues(const DB::ColumnPtr& column)
+    TUnversionedValueRange ConvertColumnToUnversionedValues(const DB::ColumnPtr& column)
     {
         // Note that this assignment sets all value ids to zero.
         CurrentValues_.assign(column->size(), MakeUnversionedSentinelValue(EValueType::TheBottom));
@@ -751,7 +751,7 @@ TLogicalTypePtr TCHYTConverter::GetLogicalType() const
     return Impl_->GetLogicalType();
 }
 
-TRange<TUnversionedValue> TCHYTConverter::ConvertColumnToUnversionedValues(
+TUnversionedValueRange TCHYTConverter::ConvertColumnToUnversionedValues(
     const DB::ColumnPtr& column)
 {
     return Impl_->ConvertColumnToUnversionedValues(column);

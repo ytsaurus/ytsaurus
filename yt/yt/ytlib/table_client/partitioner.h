@@ -31,7 +31,7 @@ IPartitionerPtr CreateOrderedPartitioner(std::vector<TOwningKeyBound> partitionL
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, int salt);
+IPartitionerPtr CreateHashPartitioner(int partitionCount, int keyColumnCount, TFingerprint salt);
 
 ////////////////////////////////////////////////////////////////////////////////
 

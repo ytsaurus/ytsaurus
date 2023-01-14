@@ -167,8 +167,8 @@ protected:
         // In lookup reader key has length equal to table key column count
         // and no sentinel types (Min/Max) in values.
         // In range reader key can have Min/Max values and aribtrary length.
-        // So we have to create lower bound via MakeKeyBoundRef.
-        auto lowerBound = MakeKeyBoundRef(key, false, ChunkState_->TableSchema->GetKeyColumnCount());
+        // So we have to create lower bound via ToKeyBoundRef.
+        auto lowerBound = ToKeyBoundRef(key, false, ChunkState_->TableSchema->GetKeyColumnCount());
 
         return BinarySearch(
             blockLastKeys.begin(),
@@ -392,7 +392,6 @@ public:
     }
 
 protected:
-
     const std::vector<int> ChunkToReaderIdMapping_;
     const TTimestamp Timestamp_;
     const std::vector<ESortOrder> SortOrders_;
@@ -754,7 +753,7 @@ private:
         auto keyColumnCount = this->ChunkState_->TableSchema->GetKeyColumnCount();
         this->UpperBoundCheckNeeded_ = !TestKeyWithWidening(
             ToKeyRef(blockLastKeys[BlockIndex_], this->CommonKeyPrefix_),
-            MakeKeyBoundRef(this->UpperBound_, true, keyColumnCount));
+            ToKeyBoundRef(this->UpperBound_, true, keyColumnCount));
     }
 };
 

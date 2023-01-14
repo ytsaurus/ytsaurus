@@ -1,16 +1,17 @@
 #pragma once
 
-#include <yt/yt/core/misc/public.h>
+#include "public.h"
 
 #include <library/cpp/yt/farmhash/farm_hash.h>
+
+#include <library/cpp/yt/yson_string/string.h>
 
 namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-int CompareCompositeValues(TStringBuf lhs, TStringBuf rhs);
-
-TFingerprint CompositeHash(TStringBuf compositeValue);
+int CompareCompositeValues(NYson::TYsonStringBuf lhs, NYson::TYsonStringBuf rhs);
+TFingerprint CompositeFarmHash(NYson::TYsonStringBuf compositeValue);
 
 ////////////////////////////////////////////////////////////////////////////////
 

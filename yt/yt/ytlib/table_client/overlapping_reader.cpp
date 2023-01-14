@@ -352,11 +352,7 @@ private:
         {
             YT_ASSERT(lhs->CurrentRow >= lhs->Rows.begin() && lhs->CurrentRow < lhs->Rows.end());
             YT_ASSERT(rhs->CurrentRow >= rhs->Rows.begin() && rhs->CurrentRow < rhs->Rows.end());
-            return KeyComparer_(
-                lhs->CurrentRow->BeginKeys(),
-                lhs->CurrentRow->EndKeys(),
-                rhs->CurrentRow->BeginKeys(),
-                rhs->CurrentRow->EndKeys()) <= 0;
+            return KeyComparer_(lhs->CurrentRow->Keys(), rhs->CurrentRow->Keys()) <= 0;
         }
 
     private:
@@ -508,12 +504,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
             YT_ASSERT(session->CurrentRow >= session->Rows.begin() && session->CurrentRow < session->Rows.end());
 
             if (!CurrentKey_.empty()) {
-                if (KeyComparer_(
-                        partialRow.BeginKeys(),
-                        partialRow.EndKeys(),
-                        CurrentKey_.data(),
-                        CurrentKey_.data() + CurrentKey_.size()) != 0)
-                {
+                if (KeyComparer_(partialRow.Keys(), MakeRange(CurrentKey_)) != 0) {
                     break;
                 }
             } else {
@@ -523,11 +514,7 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
                 int index = NextSession_;
 
                 while (index < std::ssize(Sessions_) &&
-                    KeyComparer_(
-                        partialRow.BeginKeys(),
-                        partialRow.EndKeys(),
-                        Sessions_[index].Key.Begin(),
-                        Sessions_[index].Key.End()) >= 0)
+                    KeyComparer_(partialRow.Keys(), Sessions_[index].Key.Elements()) >= 0)
                 {
                     OpenSession(index);
                     ++index;
@@ -546,15 +533,12 @@ bool TSchemafulOverlappingRangeReaderBase<TRowMerger>::DoRead(
                 ExtractHeap(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
                 ActiveSessions_.pop_back();
             } else {
-                YT_ASSERT(KeyComparer_(
-                    partialRow.BeginKeys(), partialRow.EndKeys(),
-                    session->CurrentRow->BeginKeys(), session->CurrentRow->EndKeys()) < 0);
+                YT_ASSERT(KeyComparer_(partialRow.Keys(), session->CurrentRow->Keys()) < 0);
                 AdjustHeapFront(ActiveSessions_.begin(), ActiveSessions_.end(), SessionComparer_);
             }
         }
 
-        auto row = RowMerger_->BuildMergedRow();
-        if (row) {
+        if (auto row = RowMerger_->BuildMergedRow()) {
             rows->push_back(row);
             dataWeight += GetDataWeight(row);
         }

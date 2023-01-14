@@ -477,9 +477,9 @@ public:
                     }
 
                     // NB: pivot keys can be of arbitrary schema and length.
-                    YT_VERIFY(CompareRows(currentPivotKey.Begin(), currentPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0);
+                    YT_VERIFY(CompareValueRanges(currentPivotKey.Elements(), row.Keys()) <= 0);
 
-                    if (CompareRows(nextPivotKey.Begin(), nextPivotKey.End(), row.BeginKeys(), row.EndKeys()) <= 0) {
+                    if (CompareValueRanges(nextPivotKey.Elements(), row.Keys()) <= 0) {
                         break;
                     }
 

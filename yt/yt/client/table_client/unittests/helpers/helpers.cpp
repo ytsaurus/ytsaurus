@@ -14,29 +14,29 @@ using namespace NChunkClient;
 void CheckEqual(const TUnversionedValue& expected, const TUnversionedValue& actual)
 {
     // Fast path.
-    if (AreRowValuesIdentical(expected, actual)) {
+    if (TBitwiseUnversionedValueEqual()(expected, actual)) {
         return;
     }
 
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
-    ASSERT_TRUE(AreRowValuesIdentical(expected, actual));
+    ASSERT_TRUE(TBitwiseUnversionedValueEqual()(expected, actual));
 }
 
 void CheckEqual(const TVersionedValue& expected, const TVersionedValue& actual)
 {
     // Fast path.
-    if (AreRowValuesIdentical(expected, actual)) {
+    if (TBitwiseVersionedValueEqual()(expected, actual)) {
         return;
     }
 
     SCOPED_TRACE(Format("Expected: %v; Actual: %v", expected, actual));
-    ASSERT_TRUE(AreRowValuesIdentical(expected, actual));
+    ASSERT_TRUE(TBitwiseVersionedValueEqual()(expected, actual));
 }
 
 void ExpectSchemafulRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
 {
     // Fast path.
-    if (AreRowsIdentical(expected, actual)) {
+    if (TBitwiseUnversionedRowEqual()(expected, actual)) {
         return;
     }
 
@@ -57,7 +57,7 @@ void ExpectSchemafulRowsEqual(TUnversionedRow expected, TUnversionedRow actual)
 void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual, int keyColumnCount)
 {
     // Fast path.
-    if (AreRowsIdentical(expected, actual)) {
+    if (TBitwiseUnversionedRowEqual()(expected, actual)) {
         return;
     }
 
@@ -93,7 +93,7 @@ void ExpectSchemalessRowsEqual(TUnversionedRow expected, TUnversionedRow actual,
 void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
 {
     // Fast path.
-    if (AreRowsIdentical(expected, actual)) {
+    if (TBitwiseVersionedRowEqual()(expected, actual)) {
         return;
     }
 
@@ -178,7 +178,7 @@ std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(
     std::vector<std::pair<ui32, ui32>> indexRanges;
     for (auto row : rows) {
         // Find delete timestamp.
-        NTableClient::TTimestamp deleteTimestamp = NTableClient::NullTimestamp;
+        auto deleteTimestamp = NTableClient::NullTimestamp;
         for (auto deleteIt = row.BeginDeleteTimestamps(); deleteIt != row.EndDeleteTimestamps(); ++deleteIt) {
             if (*deleteIt <= timestamp) {
                 deleteTimestamp = std::max(*deleteIt, deleteTimestamp);
@@ -227,20 +227,16 @@ std::vector<TUnversionedRow> CreateFilteredRangedRows(
 
     auto fulfillLowerKeyLimit = [&] (TUnversionedRow row) {
         return !readRange.LowerLimit().HasLegacyKey() ||
-            CompareRows(
-                row.Begin(),
-                row.Begin() + keyColumnCount,
-                readRange.LowerLimit().GetLegacyKey().Begin(),
-                readRange.LowerLimit().GetLegacyKey().End()) >= 0;
+            CompareValueRanges(
+                row.FirstNElements(keyColumnCount),
+                readRange.LowerLimit().GetLegacyKey().Elements()) >= 0;
     };
 
     auto fulfillUpperKeyLimit = [&] (TUnversionedRow row) {
         return !readRange.UpperLimit().HasLegacyKey() ||
-        CompareRows(
-            row.Begin(),
-            row.Begin() + keyColumnCount,
-            readRange.UpperLimit().GetLegacyKey().Begin(),
-            readRange.UpperLimit().GetLegacyKey().End()) < 0;
+        CompareValueRanges(
+            row.FirstNElements(keyColumnCount),
+            readRange.UpperLimit().GetLegacyKey().Elements()) < 0;
     };
 
     for (int rowIndex = lowerRowIndex; rowIndex < upperRowIndex; ++rowIndex) {

@@ -78,7 +78,7 @@ TBlock TVersionedBlockWriterBase::FlushBlock(
 
 bool TVersionedBlockWriterBase::IsInlineHunkValue(const TUnversionedValue& value) const
 {
-    return ColumnHunkFlags_[value.Id] && !Any(value.Flags & EValueFlags::Hunk);
+    return ColumnHunkFlags_[value.Id] && None(value.Flags & EValueFlags::Hunk);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

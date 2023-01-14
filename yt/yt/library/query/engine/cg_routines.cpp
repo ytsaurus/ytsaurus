@@ -982,22 +982,21 @@ char IsRowInRanges(
     TValue* values,
     TSharedRange<TRowRange>* ranges)
 {
-    auto found = std::lower_bound(ranges->Begin(), ranges->End(), values, [&] (TRowRange range, TValue* values) {
-        ui32 length = std::min(range.second.GetCount(), valuesCount);
-        return CompareRows(range.second.Begin(), range.second.Begin() + length, values, values + length) < 0;
-    });
+    auto it = std::lower_bound(
+        ranges->Begin(),
+        ranges->End(),
+        values,
+        [&] (TRowRange range, TValue* values) {
+            ui32 length = std::min(range.second.GetCount(), valuesCount);
+            return CompareValueRanges(range.second.FirstNElements(length), MakeRange(values, length)) < 0;
+        });
 
-    if (found != ranges->End()) {
-        ui32 length = std::min(found->first.GetCount(), valuesCount);
-
-        return CompareRows(
-            found->first.Begin(),
-            found->first.Begin() + length,
-            values,
-            values + length) <= 0;
-    } else {
+    if (it == ranges->End()) {
         return false;
     }
+
+    ui32 length = std::min(it->first.GetCount(), valuesCount);
+    return CompareValueRanges(it->first.FirstNElements(length), MakeRange(values, length)) <= 0;
 }
 
 const TValue* TransformTuple(
@@ -1558,7 +1557,7 @@ void ToLowerUTF8(TExpressionContext* context, char** result, int* resultLength, 
 
 TFingerprint GetFarmFingerprint(const TUnversionedValue* begin, const TUnversionedValue* end)
 {
-    return NYT::NTableClient::GetFarmFingerprint(begin, end);
+    return NYT::NTableClient::GetFarmFingerprint({begin, end});
 }
 
 extern "C" void MakeMap(
@@ -1591,36 +1590,30 @@ extern "C" void MakeMap(
         switch (valueArg.Type) {
             case EValueType::Int64:
                 writer.OnInt64Scalar(valueArg.Data.Int64);
-                continue;
+                break;
             case EValueType::Uint64:
                 writer.OnUint64Scalar(valueArg.Data.Uint64);
-                continue;
+                break;
             case EValueType::Double:
                 writer.OnDoubleScalar(valueArg.Data.Double);
-                continue;
+                break;
             case EValueType::Boolean:
                 writer.OnBooleanScalar(valueArg.Data.Boolean);
-                continue;
+                break;
             case EValueType::String:
                 writer.OnStringScalar(valueArg.AsStringBuf());
-                continue;
+                break;
             case EValueType::Any:
                 writer.OnRaw(valueArg.AsStringBuf());
-                continue;
+                break;
             case EValueType::Null:
                 writer.OnEntity();
-                continue;
-
-            case EValueType::Composite:
-
-            case EValueType::Min:
-            case EValueType::Max:
-            case EValueType::TheBottom:
                 break;
+            default:
+                THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value in key-value pair #%v",
+                    valueArg.Type,
+                    index);
         }
-        THROW_ERROR_EXCEPTION("Unexpected type %Qlv of value in key-value pair #%v",
-            valueArg.Type,
-            index);
     }
     writer.OnEndMap();
 

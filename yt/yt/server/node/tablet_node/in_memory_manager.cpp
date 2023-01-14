@@ -488,14 +488,14 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
         startBlockIndex = BinarySearch(0, blockCount, [&] (int index) {
             return !TestKeyWithWidening(
                 ToKeyRef(blockLastKeys[index], commonKeyPrefix),
-                MakeKeyBoundRef(lowerBound, /*upper*/ false, sortOrders.size()),
+                ToKeyBoundRef(lowerBound, /*upper*/ false, sortOrders.size()),
                 sortOrders);
         });
 
         endBlockIndex = BinarySearch(0, blockCount, [&] (int index) {
             return TestKeyWithWidening(
                 ToKeyRef(blockLastKeys[index], commonKeyPrefix),
-                MakeKeyBoundRef(upperBound, /*upper*/ true, sortOrders.size()),
+                ToKeyBoundRef(upperBound, /*upper*/ true, sortOrders.size()),
                 sortOrders);
         });
         if (endBlockIndex < blockCount) {

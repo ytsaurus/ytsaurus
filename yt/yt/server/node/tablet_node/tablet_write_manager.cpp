@@ -1090,7 +1090,7 @@ private:
             using TCommandList =
                 std::vector<
                     std::pair<
-                        TRange<TUnversionedValue>,
+                        TUnversionedValueRange,
                         TWireProtocolWriteCommand
                     >
                 >;
@@ -1099,7 +1099,7 @@ private:
             auto rowBuffer = New<TRowBuffer>();
             for (const auto& writeRecord : writeLog) {
                 auto keyColumnCount = Tablet_->GetPhysicalSchema()->GetKeyColumnCount();
-                auto getKey = [&] (const TUnversionedRow& row) {
+                auto getKey = [&] (TUnversionedRow row) {
                     YT_VERIFY(static_cast<int>(row.GetCount()) >= keyColumnCount);
                     return ToKeyRef(row, keyColumnCount);
                 };
@@ -1110,7 +1110,7 @@ private:
                         Tablet_->TableSchemaData(),
                         /*captureValues*/ true);
 
-                    TRange<TUnversionedValue> key;
+                    TUnversionedValueRange key;
                     Visit(command,
                         [&] (const TWriteRowCommand& command) { key = getKey(command.Row); },
                         [&] (const TDeleteRowCommand& command) { key = getKey(command.Row); },

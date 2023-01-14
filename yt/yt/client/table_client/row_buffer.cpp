@@ -61,7 +61,7 @@ TMutableUnversionedRow TRowBuffer::CaptureRow(TUnversionedRow row, bool captureV
         return TMutableUnversionedRow();
     }
 
-    return CaptureRow(MakeRange(row.Begin(), row.GetCount()), captureValues);
+    return CaptureRow(row.Elements(), captureValues);
 }
 
 void TRowBuffer::CaptureValues(TMutableUnversionedRow row)
@@ -75,9 +75,9 @@ void TRowBuffer::CaptureValues(TMutableUnversionedRow row)
     }
 }
 
-TMutableUnversionedRow TRowBuffer::CaptureRow(TRange<TUnversionedValue> values, bool captureValues)
+TMutableUnversionedRow TRowBuffer::CaptureRow(TUnversionedValueRange values, bool captureValues)
 {
-    int count = static_cast<int>(values.Size());
+    int count = std::ssize(values);
     auto capturedRow = TMutableUnversionedRow::Allocate(&Pool_, count);
     auto* capturedBegin = capturedRow.Begin();
 

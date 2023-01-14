@@ -35,7 +35,7 @@ public:
 
     //! Convert CH column to range of unversioned values. All values will have
     //! id = 0. Values are valid until next call of this method.
-    TRange<NTableClient::TUnversionedValue> ConvertColumnToUnversionedValues(
+    NTableClient::TUnversionedValueRange ConvertColumnToUnversionedValues(
         const DB::ColumnPtr& column);
 
     NTableClient::TLogicalTypePtr GetLogicalType() const;

@@ -650,13 +650,15 @@ protected:
 
         std::sort(
             rows.begin(),
-            rows.end(), [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
+            rows.end(),
+            [&] (TUnversionedRow lhs, TUnversionedRow rhs) {
                 return CompareRows(lhs, rhs, schema->GetKeyColumnCount()) < 0;
             });
         rows.erase(
             std::unique(
                 rows.begin(),
-                rows.end(), [&] (const TUnversionedRow& lhs, const TUnversionedRow& rhs) {
+                rows.end(),
+                [&] (TUnversionedRow lhs, TUnversionedRow& rhs) {
                     return CompareRows(lhs, rhs, schema->GetKeyColumnCount()) == 0;
                 }),
             rows.end());
@@ -1364,10 +1366,10 @@ TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecDegenerateFullRange)
 {
     // Construct a [[], []] range.
     ToProto(ChunkSpec_.mutable_lower_limit(), TReadLimit(TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(nullptr, nullptr), /*inclusive*/ true, /*upper*/ false)));
+        TUnversionedOwningRow(TUnversionedValueRange()), /*inclusive*/ true, /*upper*/ false)));
 
     ToProto(ChunkSpec_.mutable_upper_limit(), TReadLimit(TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(nullptr, nullptr), /*inclusive*/ true, /*upper*/ true)));
+        TUnversionedOwningRow(TUnversionedValueRange()), /*inclusive*/ true, /*upper*/ true)));
 
     const std::vector<int> indexes{0, 3, 5, 11, 12, 15};
 
@@ -1391,10 +1393,10 @@ TEST_P(TSchemalessChunksKeyRangesLargeRowsTest, ChunkSpecDegenerateEmptyRange)
 {
     // Construct a [[], []) range.
     ToProto(ChunkSpec_.mutable_lower_limit(), TReadLimit(TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(nullptr, nullptr), /*inclusive*/ true, /*upper*/ false)));
+        TUnversionedOwningRow(TUnversionedValueRange()), /*inclusive*/ true, /*upper*/ false)));
 
     ToProto(ChunkSpec_.mutable_upper_limit(), TReadLimit(TOwningKeyBound::FromRow(
-        TUnversionedOwningRow(nullptr, nullptr), /*inclusive*/ false, /*upper*/ true)));
+        TUnversionedOwningRow(TUnversionedValueRange()), /*inclusive*/ false, /*upper*/ true)));
 
     const std::vector<int> indexes{0, 3, 5, 11, 12, 15};
 
