@@ -8,7 +8,6 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_allowing_repair.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
-#include <yt/yt/ytlib/chunk_client/memory_writer.h>//xxx
 
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_writer.h>
@@ -121,6 +120,8 @@ private:
             InputFile_,
             true /*validateBlocksChecksums*/));
 
+        Cout << "Chunk id: " << ToString(ChunkReader_->GetChunkId()) << Endl;
+
         InputChunkMeta_ = WaitFor(ChunkReader_->GetMeta(/*chunkReadOptions*/ {}))
             .ValueOrThrow();
 
@@ -134,7 +135,7 @@ private:
 
         ChunkWriter_ = New<TChunkFileWriter>(
             ioEngine,
-            TChunkId(),
+            ChunkReader_->GetChunkId(),
             OutputFile_);
 
         TableWriterOptions_ = WriterOptions_
