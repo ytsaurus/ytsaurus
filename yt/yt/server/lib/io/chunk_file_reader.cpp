@@ -451,6 +451,7 @@ TRefCountedChunkMetaPtr TChunkFileReader::OnMetaRead(
             ChunkId_,
             metaHeader.ChunkId);
     }
+    ChunkId_ = metaHeader.ChunkId;
 
     TChunkMeta meta;
     if (!TryDeserializeProtoWithEnvelope(&meta, metaBlob)) {

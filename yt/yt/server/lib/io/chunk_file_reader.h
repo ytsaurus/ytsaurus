@@ -105,7 +105,7 @@ public:
 
 private:
     const IIOEnginePtr IOEngine_;
-    const NChunkClient::TChunkId ChunkId_;
+    NChunkClient::TChunkId ChunkId_;
     const TString FileName_;
     const bool ValidateBlockChecksums_;
     IBlocksExtCache* const BlocksExtCache_;
