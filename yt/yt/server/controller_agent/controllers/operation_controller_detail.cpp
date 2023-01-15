@@ -7086,30 +7086,36 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
     if (EnableMasterResourceUsageAccounting_) {
         // TODO(ignat): use batching here.
         for (const auto& account : accounts) {
-            ValidateAccountPermission(account, EPermission::Use);
+            try {
+                ValidateAccountPermission(account, EPermission::Use);
 
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-            TObjectServiceProxy proxy(channel);
+                auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
+                TObjectServiceProxy proxy(channel);
 
-            auto req = TMasterYPathProxy::CreateObject();
-            SetPrerequisites(req, TPrerequisiteOptions{
-                .PrerequisiteTransactionIds = {InputTransaction->GetId()},
-            });
+                auto req = TMasterYPathProxy::CreateObject();
+                SetPrerequisites(req, TPrerequisiteOptions{
+                    .PrerequisiteTransactionIds = {InputTransaction->GetId()},
+                });
 
-            req->set_type(ToProto<int>(EObjectType::AccountResourceUsageLease));
+                req->set_type(ToProto<int>(EObjectType::AccountResourceUsageLease));
 
-            auto attributes = CreateEphemeralAttributes();
-            attributes->Set("account", account);
-            attributes->Set("transaction_id", InputTransaction->GetId());
-            ToProto(req->mutable_object_attributes(), *attributes);
+                auto attributes = CreateEphemeralAttributes();
+                attributes->Set("account", account);
+                attributes->Set("transaction_id", InputTransaction->GetId());
+                ToProto(req->mutable_object_attributes(), *attributes);
 
-            auto rsp = WaitFor(proxy.Execute(req))
-                .ValueOrThrow();
+                auto rsp = WaitFor(proxy.Execute(req))
+                    .ValueOrThrow();
 
-            AccountResourceUsageLeaseMap_[account] = {
-                .LeaseId = FromProto<TAccountResourceUsageLeaseId>(rsp->object_id()),
-                .DiskQuota = TDiskQuota(),
-            };
+                AccountResourceUsageLeaseMap_[account] = {
+                    .LeaseId = FromProto<TAccountResourceUsageLeaseId>(rsp->object_id()),
+                    .DiskQuota = TDiskQuota(),
+                };
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Failed to create account resource usage lease")
+                    << TErrorAttribute("account", account)
+                    << ex;
+            }
         }
     }
 }
