@@ -179,7 +179,6 @@ YT_DEFINE_ERROR_ENUM(
     ((Timeout)               (3))
     ((FutureCombinerFailure) (4))
     ((FutureCombinerShortcut)(5))
-    ((EarlyTimeout)          (6))
 );
 
 DEFINE_ENUM(EProcessErrorCode,
