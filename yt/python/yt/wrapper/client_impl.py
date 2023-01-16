@@ -165,6 +165,23 @@ class YtClient(ClientState):
             transaction,
             client=self)
 
+    def add_maintenance(
+            self,
+            node_address, maintenance_type, comment):
+        """
+        Adds maintenance request for given node
+
+        :param node_address: node address.
+        :param maintenance_type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
+        disable_write_sessions, disable_tablet_cells.
+        :param comment: any string with length not larger than 512 characters.
+        :return: unique (per node) maintenance id.
+
+        """
+        return client_api.add_maintenance(
+            node_address, maintenance_type, comment,
+            client=self)
+
     def add_member(
             self,
             member, group):
@@ -476,6 +493,34 @@ class YtClient(ClientState):
             client=self,
             atomicity=atomicity, durability=durability, format=format, raw=raw, require_sync_replica=require_sync_replica)
 
+    def destroy_chunk_locations(
+            self,
+            node_address, location_uuids):
+        """
+        Mark locations for destroing. Disks of these locations can be recovered.
+
+        :param node_address: node address.
+        :param location_uuids: location uuids.
+
+        """
+        return client_api.destroy_chunk_locations(
+            node_address, location_uuids,
+            client=self)
+
+    def disable_chunk_locations(
+            self,
+            node_address, location_uuids):
+        """
+        Disable locations by uuids.
+
+        :param node_address: node address.
+        :param location_uuids: location uuids.
+
+        """
+        return client_api.disable_chunk_locations(
+            node_address, location_uuids,
+            client=self)
+
     def download_core_dump(
             self,
             output_directory,
@@ -672,15 +717,6 @@ class YtClient(ClientState):
             client=self,
             default=default)
 
-    def get_table_schema(self, table_path):
-        """
-        Gets schema of table.
-
-        :param table_path: path to table.
-        :type table_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
-        """
-        return client_api.get_table_schema(table_path, client=self)
-
     def get_current_transaction_id(self):
         """
 
@@ -847,6 +883,20 @@ class YtClient(ClientState):
         """
         return client_api.get_table_columnar_statistics(
             paths,
+            client=self)
+
+    def get_table_schema(
+            self,
+            table_path):
+        """
+        Gets schema of table.
+
+        :param table_path: path to table.
+        :type table_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+
+        """
+        return client_api.get_table_schema(
+            table_path,
             client=self)
 
     def get_tablet_errors(
@@ -1353,13 +1403,15 @@ class YtClient(ClientState):
     def register_queue_consumer(
             self,
             queue_path, consumer_path, vital):
-        """Register queue consumer.
+        """
+        Register queue consumer.
 
         :param queue_path: path to queue table.
         :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param consumer_path: path to consumer table.
         :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param bool vital: vital.
+
         """
         return client_api.register_queue_consumer(
             queue_path, consumer_path, vital,
@@ -1412,6 +1464,20 @@ class YtClient(ClientState):
         """
         return client_api.remove_attribute(
             path, attribute,
+            client=self)
+
+    def remove_maintenance(
+            self,
+            node_address, maintenance_id):
+        """
+        Removes maintenance request from given node
+
+        :param node_address: node address.
+        :param maintenance_id: maintenance id.
+
+        """
+        return client_api.remove_maintenance(
+            node_address, maintenance_id,
             client=self)
 
     def remove_member(
@@ -1497,6 +1563,20 @@ class YtClient(ClientState):
         """
         return client_api.resume_operation(
             operation,
+            client=self)
+
+    def resurrect_chunk_locations(
+            self,
+            node_address, location_uuids):
+        """
+        Try resurrect disabled locations.
+
+        :param node_address: node address.
+        :param location_uuids: location uuids.
+
+        """
+        return client_api.resurrect_chunk_locations(
+            node_address, location_uuids,
             client=self)
 
     def row_count(
@@ -1858,8 +1938,7 @@ class YtClient(ClientState):
             timestamp=None, input_row_limit=None, output_row_limit=None, range_expansion_limit=None,
             fail_on_incomplete_result=None, verbose_logging=None, enable_code_cache=None, max_subqueries=None,
             workload_descriptor=None, allow_full_scan=None, allow_join_without_index=None, format=None,
-            raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None,
-            placeholder_values=None):
+            raw=None, execution_pool=None, response_parameters=None, retention_timestamp=None, placeholder_values=None):
         """
         Executes a SQL-like query on dynamic table.
 
@@ -2187,12 +2266,14 @@ class YtClient(ClientState):
     def unregister_queue_consumer(
             self,
             queue_path, consumer_path):
-        """Unregister queue consumer.
+        """
+        Unregister queue consumer.
 
         :param queue_path: path to queue table.
         :type queue_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
         :param consumer_path: path to consumer table.
         :type consumer_path: str or :class:`TablePath <yt.wrapper.ypath.TablePath>`
+
         """
         return client_api.unregister_queue_consumer(
             queue_path, consumer_path,
@@ -2280,51 +2361,3 @@ class YtClient(ClientState):
             table, row_type, input_stream,
             client=self,
             table_writer=table_writer, max_row_buffer_size=max_row_buffer_size, force_create=force_create)
-
-    def add_maintenance(self, node_address, maintenance_type, comment):
-        """
-        Adds maintenance request for given node
-
-        :param node_address: node address.
-        :param maintenance_type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
-        disable_write_sessions, disable_tablet_cells.
-        :param comment: any string with length not larger than 512 characters.
-        :return: unique (per node) maintenance id.
-        """
-        return client_api.add_maintenance(node_address, maintenance_type, comment, self)
-
-    def remove_maintenance(self, node_address, maintenance_id):
-        """
-        Removes maintenance request from given node
-
-        :param node_address: node address.
-        :param maintenance_id: maintenance id.
-        """
-        return client_api.remove_maintenance(node_address, maintenance_id, self)
-
-    def disable_chunk_locations(self, node_address, location_uuids):
-        """
-        Disable locations by uuids.
-
-        :param node_address: node address.
-        :param location_uuids: location uuids.
-        """
-        return client_api.disable_chunk_locations(node_address, location_uuids, self)
-
-    def destroy_chunk_locations(self, node_address, location_uuids):
-        """
-        Mark locations for destroing. Disks of these locations can be recovered.
-
-        :param node_address: node address.
-        :param location_uuids: location uuids.
-        """
-        return client_api.destroy_chunk_locations(node_address, location_uuids, self)
-
-    def resurrect_chunk_locations(self, node_address, location_uuids):
-        """
-        Try resurrect disabled locations.
-
-        :param node_address: node address.
-        :param location_uuids: location uuids.
-        """
-        return client_api.resurrect_chunk_locations(node_address, location_uuids, self)

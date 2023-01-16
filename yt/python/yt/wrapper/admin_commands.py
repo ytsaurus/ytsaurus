@@ -49,7 +49,14 @@ def resume_tablet_cells(cell_ids, client=None):
 
 
 def add_maintenance(node_address, maintenance_type, comment, client=None):
-    """Add maintenance request for given node"""
+    """Adds maintenance request for given node
+
+    :param node_address: node address.
+    :param maintenance_type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
+    disable_write_sessions, disable_tablet_cells.
+    :param comment: any string with length not larger than 512 characters.
+    :return: unique (per node) maintenance id.
+    """
     params = {
         "node_address": node_address,
         "type": maintenance_type,
@@ -67,7 +74,11 @@ def add_maintenance(node_address, maintenance_type, comment, client=None):
 
 
 def remove_maintenance(node_address, maintenance_id, client=None):
-    """Remove maintenance request from given node"""
+    """Removes maintenance request from given node
+
+    :param node_address: node address.
+    :param maintenance_id: maintenance id.
+    """
     params = {
         "node_address": node_address,
         "id": maintenance_id,
@@ -77,7 +88,11 @@ def remove_maintenance(node_address, maintenance_id, client=None):
 
 
 def disable_chunk_locations(node_address, location_uuids, client=None):
-    """Disable locations by uuids"""
+    """Disable locations by uuids.
+
+    :param node_address: node address.
+    :param location_uuids: location uuids.
+    """
     params = {
         "node_address": node_address,
         "location_uuids": location_uuids
@@ -87,7 +102,11 @@ def disable_chunk_locations(node_address, location_uuids, client=None):
 
 
 def destroy_chunk_locations(node_address, location_uuids, client=None):
-    """Mark locations for destroing. Disks of these locations can be recovered."""
+    """Mark locations for destroing. Disks of these locations can be recovered.
+
+    :param node_address: node address.
+    :param location_uuids: location uuids.
+    """
     params = {
         "node_address": node_address,
         "location_uuids": location_uuids
@@ -97,7 +116,11 @@ def destroy_chunk_locations(node_address, location_uuids, client=None):
 
 
 def resurrect_chunk_locations(node_address, location_uuids, client=None):
-    """Try resurrect disabled locations."""
+    """Try resurrect disabled locations.
+
+    :param node_address: node address.
+    :param location_uuids: location uuids.
+    """
     params = {
         "node_address": node_address,
         "location_uuids": location_uuids
