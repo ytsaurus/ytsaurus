@@ -422,6 +422,7 @@ void TNodeResourceManager::BuildOrchid(IYsonConsumer* consumer) const
             .Item("jobs_cpu_limit").Value(JobsCpuLimit_)
             .Item("tablet_slot_cpu").Value(GetTabletSlotCpu())
             .Item("node_dedicated_cpu").Value(GetNodeDedicatedCpu())
+            .Item("memory_demand").Value(GetMemoryDemand())
             .Item("memory_limit_per_category").DoMapFor(TEnumTraits<EMemoryCategory>::GetDomainValues(),
                 [&] (TFluentMap fluent, EMemoryCategory category) {
                     fluent.Item(FormatEnum<EMemoryCategory>(category)).Value(memoryLimits[category]->Value);
