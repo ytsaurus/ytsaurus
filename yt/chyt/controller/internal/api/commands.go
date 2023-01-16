@@ -201,6 +201,54 @@ func (a HTTPAPI) HandleRemoveOption(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, nil)
 }
 
+var GetSpecletCmdDescriptor = CmdDescriptor{
+	Name:        "get_speclet",
+	Parameters:  []CmdParameter{AliasParameter},
+	Description: "get strawberry operation speclet",
+}
+
+func (a HTTPAPI) HandleGetSpeclet(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, GetSpecletCmdDescriptor)
+	if params == nil {
+		return
+	}
+	alias := params["alias"].(string)
+	speclet, err := a.api.GetSpeclet(r.Context(), alias)
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+	a.replyOK(w, speclet)
+}
+
+var SpecletParameter = CmdParameter{
+	Name:        "speclet",
+	Type:        TypeAny,
+	Required:    true,
+	Description: "speclet in yson format",
+	Validator:   ValidateSpeclet,
+}
+
+var SetSpecletCmdDescriptor = CmdDescriptor{
+	Name:        "set_speclet",
+	Parameters:  []CmdParameter{AliasParameter, SpecletParameter},
+	Description: "set strawberry operation speclet",
+}
+
+func (a HTTPAPI) HandleSetSpeclet(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, SetSpecletCmdDescriptor)
+	if params == nil {
+		return
+	}
+	alias := params["alias"].(string)
+	speclet := params["speclet"].(map[string]any)
+	if err := a.api.SetSpeclet(r.Context(), alias, speclet); err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+	a.replyOK(w, nil)
+}
+
 func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 	var bb blackbox.Client
 
@@ -246,6 +294,8 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 			r.Post("/"+StatusCmdDescriptor.Name, api.HandleStatus)
 			r.Post("/"+SetOptionCmdDescriptor.Name, api.HandleSetOption)
 			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
+			r.Post("/"+GetSpecletCmdDescriptor.Name, api.HandleGetSpeclet)
+			r.Post("/"+SetSpecletCmdDescriptor.Name, api.HandleSetSpeclet)
 		})
 	}
 	return r
