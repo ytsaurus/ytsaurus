@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <library/cpp/testing/hook/hook.h>
+
 namespace NYT::NRpc {
 namespace {
 
@@ -10,11 +12,17 @@ using TRpcShutdownTest = TTestBase<TImpl>;
 
 TYPED_TEST_SUITE(TRpcShutdownTest, TAllTransports);
 
+Y_TEST_HOOK_BEFORE_RUN(GTEST_YT_RPC_SHUTDOWN)
+{
+    GTEST_FLAG_SET(death_test_style, "threadsafe");
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPED_TEST(TRpcShutdownTest, Shutdown)
+template <class TMyProxy>
+void TestShutdown(const IChannelPtr& channel)
 {
-    TMyProxy proxy(this->CreateChannel());
+    TMyProxy proxy(channel);
 
     std::vector<NYT::TFuture<typename TTypedClientResponse<NMyRpc::TRspSomeCall>::TResult>> futures;
     futures.reserve(100000);
@@ -24,10 +32,19 @@ TYPED_TEST(TRpcShutdownTest, Shutdown)
         req->set_a(42);
         futures.push_back(req->Invoke());
     }
+
     NYT::Shutdown();
+
     for (auto& future : futures) {
         future.Cancel(TError{});
     }
+
+    _exit(0);
+}
+
+TYPED_TEST(TRpcShutdownTest, Shutdown)
+{
+    EXPECT_EXIT(TestShutdown<TMyProxy>(this->CreateChannel()), testing::ExitedWithCode(0), "");
 }
 
 ////////////////////////////////////////////////////////////////////////////////
