@@ -146,7 +146,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 						yterrors.Attr("param_type", reflect.TypeOf(value).String())))
 					return nil
 				}
-				// Try to parse anything expect the TypeString as a yson-string.
+				// Try to parse anything except the TypeString as a yson-string.
 				if param.Type != TypeString {
 					var parsedValue any
 					err := yson.Unmarshal([]byte(unparsedValue), &parsedValue)
@@ -217,6 +217,8 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 			StatusCmdDescriptor,
 			SetOptionCmdDescriptor,
 			RemoveOptionCmdDescriptor,
+			GetSpecletCmdDescriptor,
+			SetSpecletCmdDescriptor,
 		}})
 	if err != nil {
 		panic(err)

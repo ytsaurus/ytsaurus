@@ -158,6 +158,21 @@ func (a *API) CheckPermissionToPool(ctx context.Context, pool string, permission
 	return nil
 }
 
+func (a *API) validatePoolOption(ctx context.Context, value any) error {
+	pool, ok := value.(string)
+	if !ok {
+		typeName := reflect.TypeOf(value).String()
+		return yterrors.Err(
+			fmt.Sprintf("pool option has unexpected value type %v", typeName),
+			yterrors.Attr("type", typeName))
+	}
+	if a.cfg.ValidatePoolAccessOrDefault() {
+		return a.CheckPermissionToPool(ctx, pool, yt.PermissionUse)
+	}
+	return nil
+
+}
+
 func (a *API) getOplet(ctx context.Context, alias string) (*strawberry.Oplet, error) {
 	options := strawberry.OpletOptions{
 		AgentInfo:  a.cfg.AgentInfo,
@@ -343,14 +358,7 @@ func (a *API) SetOption(ctx context.Context, alias, key string, value any) error
 		return err
 	}
 	if key == "pool" {
-		pool, ok := value.(string)
-		if !ok {
-			typeName := reflect.TypeOf(value).String()
-			return yterrors.Err(
-				fmt.Sprintf("pool option has unexpected value type %v", typeName),
-				yterrors.Attr("type", typeName))
-		}
-		if err := a.CheckPermissionToPool(ctx, pool, yt.PermissionUse); err != nil {
+		if err := a.validatePoolOption(ctx, value); err != nil {
 			return err
 		}
 	}
@@ -376,31 +384,73 @@ func (a *API) List(ctx context.Context) ([]string, error) {
 	return aliases, err
 }
 
-// TODO(gudqeit): command is not finished. Pool validation and family/stage fetching should be added.
-func (a *API) SetSpeclet(ctx context.Context, alias string, specletYson yson.RawValue) error {
+func (a *API) GetSpeclet(ctx context.Context, alias string) (speclet yson.RawValue, err error) {
+	if err = a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return
+	}
+	if err = a.CheckPermissionToOp(ctx, alias, yt.PermissionRead); err != nil {
+		return
+	}
+	err = a.ytc.GetNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet"),
+		&speclet,
+		nil)
+	return
+}
+
+func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]any) error {
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
 	}
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
-	var speclet map[string]any
-	if err := yson.Unmarshal(specletYson, &speclet); err != nil {
-		err = yterrors.Err("error parsing yson speclet", err)
-		a.l.Error(fmt.Sprintf("%v", err))
+
+	if pool, ok := speclet["pool"]; ok {
+		if err := a.validatePoolOption(ctx, pool); err != nil {
+			return err
+		}
+	}
+
+	var node struct {
+		Speclet struct {
+			Family string `yson:"family"`
+			Stage  string `yson:"stage"`
+		} `yson:"value"`
+		Revision yt.Revision `yson:"revision"`
+	}
+	specletPath := a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet")
+	err := a.ytc.GetNode(ctx, specletPath.Attrs(), &node, &yt.GetNodeOptions{Attributes: []string{"revision", "value"}})
+	if err != nil {
 		return err
 	}
+
 	if _, ok := speclet["family"]; !ok {
-		speclet["family"] = a.ctl.Family()
+		speclet["family"] = node.Speclet.Family
 	}
 	if _, ok := speclet["stage"]; !ok {
-		speclet["stage"] = a.cfg.AgentInfo.Stage
+		speclet["stage"] = node.Speclet.Stage
 	}
-	return a.ytc.SetNode(
+
+	err = a.ytc.SetNode(
 		ctx,
-		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet"),
+		specletPath,
 		speclet,
-		nil)
+		&yt.SetNodeOptions{
+			PrerequisiteOptions: &yt.PrerequisiteOptions{
+				Revisions: []yt.PrerequisiteRevision{
+					{
+						Path:     specletPath,
+						Revision: node.Revision,
+					},
+				},
+			},
+		})
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // This method can't be used in API, it is ready only for tests.

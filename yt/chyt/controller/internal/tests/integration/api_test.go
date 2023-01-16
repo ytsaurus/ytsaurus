@@ -415,3 +415,84 @@ func TestHTTPAPIStatus(t *testing.T) {
 	require.NoError(t, err)
 	require.True(t, strings.HasPrefix(result["result"].Status, "Waiting for restart"))
 }
+
+func TestHTTPAPIGetSpeclet(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("get_speclet", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var result map[string]any
+
+	err := yson.Unmarshal(r.Body, &result)
+	require.NoError(t, err)
+	require.Equal(t,
+		map[string]any{
+			"family": "sleep",
+			"stage":  "test_stage",
+		},
+		result["result"])
+}
+
+func TestHTTPAPISetSpeclet(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	pool := guid.New().String()
+	_, err := env.YT.CreateObject(env.Ctx, yt.NodeSchedulerPool, &yt.CreateObjectOptions{
+		Attributes: map[string]any{
+			"name":      pool,
+			"pool_tree": "default",
+		},
+	})
+	require.NoError(t, err)
+
+	r = c.MakePostRequest("set_speclet", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"speclet": map[string]any{
+				"pool": pool,
+			},
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var speclet map[string]any
+	err = env.YT.GetNode(env.Ctx, helpers.StrawberryRoot.JoinChild(alias, "speclet"), &speclet, nil)
+	require.NoError(t, err)
+	require.Equal(t,
+		map[string]any{
+			"family": "sleep",
+			"stage":  "test_stage",
+			"pool":   pool,
+		},
+		speclet)
+
+	nonExistentPool := guid.New().String()
+	r = c.MakePostRequest("set_speclet", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"speclet": map[string]any{
+				"pool": nonExistentPool,
+			},
+		},
+	})
+	require.Equal(t, http.StatusBadRequest, r.StatusCode)
+}
