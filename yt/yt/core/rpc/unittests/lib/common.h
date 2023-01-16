@@ -49,6 +49,7 @@
 #include <yt/yt/core/ytree/convert.h>
 #include <yt/yt/core/ytree/helpers.h>
 
+#include <library/cpp/testing/common/env.h>
 #include <library/cpp/testing/common/network.h>
 
 #include <random>
@@ -381,9 +382,10 @@ public:
 class TRpcOverUnixDomainImpl
 {
 public:
-    static NYT::NBus::IBusServerPtr MakeBusServer(ui16 /*port*/)
+    static NYT::NBus::IBusServerPtr MakeBusServer(ui16 port)
     {
-        auto busConfig = NYT::NBus::TTcpBusServerConfig::CreateUnixDomain("./socket");
+        SocketPath_ = GetWorkPath() + "/socket_" + ToString(port);
+        auto busConfig = NYT::NBus::TTcpBusServerConfig::CreateUnixDomain(SocketPath_);
         return CreateTcpBusServer(busConfig);
     }
 
@@ -393,11 +395,16 @@ public:
         THashMap<TString, NYTree::INodePtr> /*grpcArguments*/)
     {
         auto clientConfig = NYT::NBus::TTcpBusClientConfig::CreateUnixDomain(
-            address == serverAddress ? "./socket" : address);
+            address == serverAddress ? SocketPath_ : address);
         auto client = CreateTcpBusClient(clientConfig);
         return NRpc::NBus::CreateBusChannel(client);
     }
+
+private:
+    static TString SocketPath_;
 };
+
+TString TRpcOverUnixDomainImpl::SocketPath_ = "";
 
 ////////////////////////////////////////////////////////////////////////////////
 
