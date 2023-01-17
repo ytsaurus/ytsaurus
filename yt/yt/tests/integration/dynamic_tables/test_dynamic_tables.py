@@ -2952,8 +2952,8 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         tablet_id = get("//tmp/t/@tablets/0/tablet_id")
 
         effective = get(f"//sys/tablets/{tablet_id}/orchid/config")
-        provided = get(f"//sys/tablets/{tablet_id}/orchid/provided_config")
-        provided_extra = get(f"//sys/tablets/{tablet_id}/orchid/provided_extra_config")
+        provided = get(f"//sys/tablets/{tablet_id}/orchid/raw_settings/provided_config")
+        provided_extra = get(f"//sys/tablets/{tablet_id}/orchid/raw_settings/provided_extra_config")
 
         assert effective["min_data_ttl"] == 1
         assert "unrecognized" not in effective

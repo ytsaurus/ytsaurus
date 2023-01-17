@@ -3,6 +3,7 @@
 #include "public.h"
 
 #include <yt/yt/server/lib/tablet_node/public.h>
+#include <yt/yt/server/lib/tablet_node/table_settings.h>
 
 #include <yt/yt/server/lib/tablet_server/config.h>
 
@@ -163,6 +164,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicTabletNodeTrackerConfig)
 
 class TDynamicTabletManagerConfig
     : public NHydra::THydraJanitorConfig
+    , public NTabletNode::TClusterTableConfigPatchSet
 {
 public:
     static constexpr auto DefaultTamedCellManagerProfilingPeriod = TDuration::Seconds(10);

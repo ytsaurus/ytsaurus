@@ -85,6 +85,8 @@ message TTableSettings
     required bytes hunk_writer_config = 6; // YSON-serialized
     required bytes hunk_writer_options = 7; // YSON-serialized
     optional bytes extra_mount_config_attributes = 8; // YSON-serialized
+    optional bytes global_patch = 9; // YSON-serialized
+    optional bytes experiments = 10; // YSON-serialized
 }
 
 message TReqMountTablet
@@ -128,6 +130,14 @@ message TReqRemountTablet
     required TTableSettings table_settings = 11;
 
     reserved 7, 8, 9, 10;
+}
+
+message TReqUpdateTabletSettings
+{
+    required NYT.NProto.TGuid tablet_id = 1;
+    required uint64 mount_revision = 2;
+    required bytes global_patch = 3; // YSON-serialized
+    required bytes experiments = 4; // YSON-serialized
 }
 
 message TReqFreezeTablet

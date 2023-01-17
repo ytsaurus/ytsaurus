@@ -44,6 +44,7 @@ DEFINE_REFCOUNTED_TYPE(TMountConfigStorage)
 
 void Serialize(const TMountConfigStorage& storage, NYson::IYsonConsumer* consumer);
 void Deserialize(TMountConfigStorage& storage, NYTree::INodePtr node);
+void Deserialize(TMountConfigStorage& storage, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

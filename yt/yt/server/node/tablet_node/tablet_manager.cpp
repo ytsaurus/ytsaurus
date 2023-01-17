@@ -20,6 +20,7 @@
 #include "tablet_cell_write_manager.h"
 #include "transaction.h"
 #include "transaction_manager.h"
+#include "table_config_manager.h"
 #include "table_replicator.h"
 #include "tablet_profiling.h"
 #include "tablet_snapshot_store.h"
@@ -208,6 +209,7 @@ public:
         RegisterMethod(BIND(&TImpl::HydraMountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnmountTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraRemountTablet, Unretained(this)));
+        RegisterMethod(BIND(&TImpl::HydraUpdateTabletSettings, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraFreezeTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraUnfreezeTablet, Unretained(this)));
         RegisterMethod(BIND(&TImpl::HydraSetTabletState, Unretained(this)));
@@ -255,10 +257,24 @@ public:
             MakeTransactionActionHandlerDescriptor(BIND(&TImpl::HydraAbortUpdateTabletStores, Unretained(this))));
 
         BackupManager_->Initialize();
+
+        const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
+        tableConfigManager->SubscribeConfigChanged(TableDynamicConfigChangedCallback_);
     }
 
     void Finalize()
-    { }
+    {
+        const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
+        tableConfigManager->UnsubscribeConfigChanged(TableDynamicConfigChangedCallback_);
+    }
+
+    void OnStartLeading() override
+    {
+        const auto& tableConfigManager = Bootstrap_->GetTableDynamicConfigManager();
+        if (tableConfigManager->IsConfigLoaded()) {
+            OnTableDynamicConfigChanged(nullptr, tableConfigManager->GetConfig());
+        }
+    }
 
     void UpdateTabletSnapshot(TTablet* tablet, std::optional<TLockManagerEpoch> epoch = std::nullopt)
     {
@@ -326,7 +342,8 @@ public:
                 }
             }
 
-            auto error = tablet->RuntimeData()->Errors[ETabletBackgroundActivity::Preload].Load();
+            auto error = tablet->RuntimeData()->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Preload].Load();
             if (!error.IsOK()) {
                 statistics.PreloadErrors.push_back(error);
             }
@@ -728,6 +745,9 @@ private:
 
     IBackupManagerPtr BackupManager_;
 
+    const TCallback<void(TClusterTableConfigPatchSetPtr, TClusterTableConfigPatchSetPtr)> TableDynamicConfigChangedCallback_ =
+        BIND(&TImpl::OnTableDynamicConfigChanged, MakeWeak(this));
+
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
 
@@ -919,7 +939,7 @@ private:
         auto schema = FromProto<TTableSchemaPtr>(request->schema());
         auto pivotKey = request->has_pivot_key() ? FromProto<TLegacyOwningKey>(request->pivot_key()) : TLegacyOwningKey();
         auto nextPivotKey = request->has_next_pivot_key() ? FromProto<TLegacyOwningKey>(request->next_pivot_key()) : TLegacyOwningKey();
-        auto settings = DeserializeTableSettings(request, tabletId);
+        auto rawSettings = DeserializeTableSettings(request, tabletId);
         auto atomicity = FromProto<EAtomicity>(request->atomicity());
         auto commitOrdering = FromProto<ECommitOrdering>(request->commit_ordering());
         bool freeze = request->freeze();
@@ -930,6 +950,20 @@ private:
             : MinTimestamp;
         const auto& mountHint = request->mount_hint();
         auto cumulativeDataWeight = request->cumulative_data_weight();
+
+        {
+            TTableConfigExperiment::TTableDescriptor descriptor{
+                .TableId = tableId,
+                .TablePath = path,
+                .TabletCellBundle = Slot_->GetTabletCellBundleName(),
+                .Sorted = schema->IsSorted(),
+                .Replicated = TypeFromId(tableId) == EObjectType::ReplicatedTable,
+            };
+            rawSettings.DropIrrelevantExperiments(descriptor);
+        }
+
+        std::vector<TError> configErrors;
+        auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
 
         auto tabletHolder = std::make_unique<TTablet>(
             tabletId,
@@ -947,12 +981,15 @@ private:
             upstreamReplicaId,
             retainedTimestamp,
             cumulativeDataWeight);
+        tabletHolder->RawSettings() = rawSettings;
 
         InitializeTablet(tabletHolder.get());
 
         tabletHolder->Reconfigure(Slot_);
 
         auto* tablet = TabletMap_.Insert(tabletId, std::move(tabletHolder));
+
+        SetTableConfigErrors(tablet, configErrors);
 
         if (tablet->IsPhysicallyOrdered()) {
             tablet->SetTrimmedRowCount(request->trimmed_row_count());
@@ -1079,20 +1116,19 @@ private:
         }
     }
 
-    void HydraRemountTablet(TReqRemountTablet* request)
+    void ReconfigureTablet(TTablet* tablet, TRawTableSettings rawSettings)
     {
-        auto tabletId = FromProto<TTabletId>(request->tablet_id());
-        auto* tablet = FindTablet(tabletId);
-        if (!tablet) {
-            return;
-        }
+        std::vector<TError> configErrors;
+        auto settings = rawSettings.BuildEffectiveSettings(&configErrors, nullptr);
 
-        auto settings = DeserializeTableSettings(request, tabletId);
         const auto& storeManager = tablet->GetStoreManager();
         storeManager->Remount(settings);
 
-        tablet->Reconfigure(Slot_);
+        SetTableConfigErrors(tablet, configErrors);
 
+        tablet->RawSettings() = std::move(rawSettings);
+
+        tablet->Reconfigure(Slot_);
         UpdateTabletSnapshot(tablet);
 
         if (!IsRecovery()) {
@@ -1101,9 +1137,79 @@ private:
                 StartTableReplicaEpoch(tablet, &replicaInfo);
             }
         }
+    }
+
+    void HydraRemountTablet(TReqRemountTablet* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        auto rawSettings = DeserializeTableSettings(request, tabletId);
+
+        auto descriptor = GetTableConfigExperimentDescriptor(tablet);
+        rawSettings.DropIrrelevantExperiments(descriptor);
+
+        ReconfigureTablet(tablet, std::move(rawSettings));
 
         YT_LOG_INFO_IF(IsMutationLoggingEnabled(), "Tablet remounted (%v)",
             tablet->GetLoggingTag());
+    }
+
+    void HydraUpdateTabletSettings(TReqUpdateTabletSettings* request)
+    {
+        auto tabletId = FromProto<TTabletId>(request->tablet_id());
+        auto mountRevision = request->mount_revision();
+
+        auto* tablet = FindTablet(tabletId);
+        if (!tablet) {
+            return;
+        }
+
+        if (tablet->GetMountRevision() != mountRevision) {
+            return;
+        }
+
+        TRawTableSettings newRawSettings(tablet->RawSettings());
+
+        newRawSettings.Experiments = ConvertTo<std::map<TString, TTableConfigExperimentPtr>>(
+            TYsonString(request->experiments()));
+        newRawSettings.GlobalPatch = ConvertTo<TTableConfigPatchPtr>(TYsonString(request->global_patch()));
+
+        auto descriptor = GetTableConfigExperimentDescriptor(tablet);
+        newRawSettings.DropIrrelevantExperiments(descriptor);
+
+        auto& oldExperiments = tablet->RawSettings().Experiments;
+        auto& newExperiments = newRawSettings.Experiments;
+
+        // Revert experiments that should not be auto-applied.
+        for (auto newIt = newExperiments.begin(); newIt != newExperiments.end(); ) {
+            auto& [name, experiment] = *newIt;
+
+            if (!experiment->AutoApply) {
+                auto oldIt = oldExperiments.find(name);
+
+                if (oldIt == oldExperiments.end()) {
+                    newExperiments.erase(newIt++);
+                    continue;
+                }
+
+                experiment = oldIt->second;
+            }
+            ++newIt;
+        }
+
+        ReconfigureTablet(tablet, std::move(newRawSettings));
+
+        YT_LOG_DEBUG("Tablet settings updated (%v, AppliedExperiments: %v)",
+            tablet->GetLoggingTag(),
+            MakeFormattableView(
+                tablet->RawSettings().Experiments,
+                [] (auto* builder, const auto& experiment) {
+                    FormatValue(builder, experiment.first, /*format*/ TStringBuf{});
+                }));
     }
 
     void HydraFreezeTablet(TReqFreezeTablet* request)
@@ -3238,6 +3344,12 @@ private:
                 .Do([tablet] (auto fluent) {
                     BuildTableSettingsOrchidYson(tablet->GetSettings(), fluent);
                 })
+                .Item("raw_settings").BeginMap()
+                    .Item("global_patch").Value(tablet->RawSettings().GlobalPatch)
+                    .Item("experiments").Value(tablet->RawSettings().Experiments)
+                    .Item("provided_config").Value(tablet->RawSettings().Provided.MountConfigNode)
+                    .Item("provided_extra_config").Value(tablet->RawSettings().Provided.ExtraMountConfig)
+                .EndMap()
                 .DoIf(tablet->IsPhysicallySorted(), [&] (auto fluent) {
                     fluent
                         .Item("pivot_key").Value(tablet->GetPivotKey())
@@ -3285,15 +3397,13 @@ private:
                         .Item("dynamic_table_locks").DoMap(
                             BIND(&TLockManager::BuildOrchidYson, tablet->GetLockManager()));
                 })
-                .Item("errors").DoListFor(
-                    TEnumTraits<ETabletBackgroundActivity>::GetDomainValues(),
-                    [&] (auto fluent, auto activity) {
-                        auto error = tablet->RuntimeData()->Errors[activity].Load();
+                .Item("errors").DoList([&] (auto fluentList) {
+                    tablet->RuntimeData()->Errors.ForEachError([&] (const TError& error) {
                         if (!error.IsOK()) {
-                            fluent
-                                .Item().Value(error);
+                            fluentList.Item().Value(error);
                         }
-                    })
+                    });
+                })
                 .Item("replication_errors").DoMapFor(
                     tablet->Replicas(),
                     [&] (auto fluent, const auto& replica) {
@@ -3416,27 +3526,43 @@ private:
 
 
     template <class TRequest>
-    NTabletNode::TTableSettings DeserializeTableSettings(TRequest* request, TTabletId tabletId)
+    TRawTableSettings DeserializeTableSettings(TRequest* request, TTabletId tabletId)
     {
         const auto& tableSettings = request->table_settings();
         auto extraMountConfigAttributes = tableSettings.has_extra_mount_config_attributes()
             ? ConvertTo<IMapNodePtr>(TYsonString(tableSettings.extra_mount_config_attributes()))
             : nullptr;
 
-        return {
-            .MountConfig = DeserializeTableMountConfig(
-                TYsonString(tableSettings.mount_config()),
-                extraMountConfigAttributes,
-                tabletId),
-            .ProvidedMountConfig = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
-            .ProvidedExtraMountConfig = extraMountConfigAttributes,
-            .StoreReaderConfig = DeserializeTabletStoreReaderConfig(TYsonString(tableSettings.store_reader_config()), tabletId),
-            .HunkReaderConfig = DeserializeTabletHunkReaderConfig(TYsonString(tableSettings.hunk_reader_config()), tabletId),
-            .StoreWriterConfig = DeserializeTabletStoreWriterConfig(TYsonString(tableSettings.store_writer_config()), tabletId),
-            .StoreWriterOptions = DeserializeTabletStoreWriterOptions(TYsonString(tableSettings.store_writer_options()), tabletId),
-            .HunkWriterConfig = DeserializeTabletHunkWriterConfig(TYsonString(tableSettings.hunk_writer_config()), tabletId),
-            .HunkWriterOptions = DeserializeTabletHunkWriterOptions(TYsonString(tableSettings.hunk_writer_options()), tabletId)
+        TRawTableSettings settings{
+            .Provided = {
+                .MountConfigNode = ConvertTo<IMapNodePtr>(TYsonString(tableSettings.mount_config())),
+                .ExtraMountConfig = extraMountConfigAttributes,
+                .StoreReaderConfig = DeserializeTabletStoreReaderConfig(
+                    TYsonString(tableSettings.store_reader_config()), tabletId),
+                .HunkReaderConfig = DeserializeTabletHunkReaderConfig(
+                    TYsonString(tableSettings.hunk_reader_config()), tabletId),
+                .StoreWriterConfig = DeserializeTabletStoreWriterConfig(
+                    TYsonString(tableSettings.store_writer_config()), tabletId),
+                .StoreWriterOptions = DeserializeTabletStoreWriterOptions(
+                    TYsonString(tableSettings.store_writer_options()), tabletId),
+                .HunkWriterConfig = DeserializeTabletHunkWriterConfig(
+                    TYsonString(tableSettings.hunk_writer_config()), tabletId),
+                .HunkWriterOptions = DeserializeTabletHunkWriterOptions(
+                    TYsonString(tableSettings.hunk_writer_options()), tabletId)
+            },
+            // COMPAT(ifsmirnov)
+            .GlobalPatch = tableSettings.has_global_patch()
+                ? ConvertTo<TTableConfigPatchPtr>(TYsonString(tableSettings.global_patch()))
+                : New<TTableConfigPatch>(),
         };
+
+        // COMPAT(ifsmirnov)
+        if (tableSettings.has_experiments()) {
+            settings.Experiments = ConvertTo<std::map<TString, TTableConfigExperimentPtr>>(
+                TYsonString(tableSettings.experiments()));
+        }
+
+        return settings;
     }
 
     TTableMountConfigPtr DeserializeTableMountConfig(
@@ -3950,6 +4076,152 @@ private:
     {
         const auto& dynamicConfigManager = Bootstrap_->GetDynamicConfigManager();
         return dynamicConfigManager->GetConfig()->TabletNode;
+    }
+
+    void OnTableDynamicConfigChanged(
+        TClusterTableConfigPatchSetPtr /*oldConfig*/,
+        TClusterTableConfigPatchSetPtr newConfig)
+    {
+        BIND(&TImpl::DoTableDynamicConfigChanged, MakeWeak(this), Passed(std::move(newConfig)))
+            .AsyncVia(Slot_->GetEpochAutomatonInvoker())
+            .Run();
+    }
+
+    void DoTableDynamicConfigChanged(TClusterTableConfigPatchSetPtr patch)
+    {
+        if (!IsLeader()) {
+            return;
+        }
+
+        auto globalPatch = static_cast<TTableConfigPatchPtr>(patch);
+
+        YT_LOG_DEBUG("Observing new table dynamic config (ExperimentNames: %v)",
+            MakeFormattableView(
+                patch->TableConfigExperiments,
+                [] (auto* builder, const auto& experiment) {
+                    FormatValue(builder, experiment.first, /*format*/ TStringBuf{});
+                })
+        );
+
+        auto globalPatchYson = ConvertToYsonString(globalPatch).ToString();
+        auto experimentsYson = ConvertToYsonString(patch->TableConfigExperiments).ToString();
+
+        for (const auto& [id, tablet] : Tablets()) {
+            ScheduleTabletConfigUpdate(tablet, patch, globalPatchYson, experimentsYson);
+        }
+    }
+
+    void ScheduleTabletConfigUpdate(
+        TTablet* tablet,
+        const TClusterTableConfigPatchSetPtr& patch,
+        const TString& globalPatchYson,
+        const TString& experimentsYson)
+    {
+        // Applying new settings is a rather expensive operation: it is a mutation to say the least.
+        // Even more, this mutation restarts replication pipelines and other background processes,
+        // so we'd like to avoid unnecessary reconfigurations. It is necessary if:
+        //   - global config has changed;
+        //   - the set of matching experiments has changed;
+        //   - a patch of a matching auto-applied experiment has changed.
+
+        auto scheduleUpdate = [&] {
+            TReqUpdateTabletSettings req;
+            ToProto(req.mutable_tablet_id(), tablet->GetId());
+            req.set_mount_revision(tablet->GetMountRevision());
+            req.set_global_patch(globalPatchYson);
+            req.set_experiments(experimentsYson);
+            Slot_->CommitTabletMutation(req);
+        };
+
+        const auto& currentSettings = tablet->RawSettings();
+
+        // Check for global config changes.
+        if (!static_cast<TTableConfigPatchPtr>(patch)->IsEqual(currentSettings.GlobalPatch)) {
+            return scheduleUpdate();
+        }
+
+        // Check for changes in experiments.
+
+        // NB: Fixed-order container is crucial for simultaneous traversal.
+        static_assert(std::is_same_v<
+            decltype(currentSettings.Experiments),
+            std::map<TString, TTableConfigExperimentPtr>>);
+
+        auto it = currentSettings.Experiments.begin();
+        auto jt = patch->TableConfigExperiments.begin();
+        auto itEnd = currentSettings.Experiments.end();
+        auto jtEnd = patch->TableConfigExperiments.end();
+
+        // Fast path.
+        if (it == itEnd && jt == jtEnd) {
+            return;
+        }
+
+        auto descriptor = GetTableConfigExperimentDescriptor(tablet);
+
+        while (it != itEnd || jt != jtEnd) {
+            if (it != itEnd && jt != jtEnd && it->first == jt->first) {
+                // Same experiment.
+                const auto& currentExperiment = it->second;
+                const auto& newExperiment = jt->second;
+
+                if (!newExperiment->AutoApply) {
+                    ++it;
+                    ++jt;
+                    continue;
+                }
+
+                YT_ASSERT(currentExperiment->Matches(descriptor));
+                if (!newExperiment->Matches(descriptor)) {
+                    // Experiment is not applied anymore.
+                    return scheduleUpdate();
+                }
+
+                if (!newExperiment->Patch->IsEqual(currentExperiment->Patch)) {
+                    // Experiment patch has changed.
+                    return scheduleUpdate();
+                }
+
+                ++it;
+                ++jt;
+            } else if (jt == jtEnd || it->first < jt->first) {
+                // Previously matching experiment is now gone.
+                return scheduleUpdate();
+            } else {
+                // There is a new experiment that possibly can be applied.
+                const auto& newExperiment = jt->second;
+                if (newExperiment->Matches(descriptor) && newExperiment->AutoApply) {
+                    // New experiment can be applied.
+                    return scheduleUpdate();
+                }
+                ++jt;
+            }
+
+        }
+    }
+
+    TTableConfigExperiment::TTableDescriptor GetTableConfigExperimentDescriptor(TTablet* tablet) const
+    {
+        return {
+            .TableId = tablet->GetTableId(),
+            .TablePath = tablet->GetTablePath(),
+            .TabletCellBundle = Slot_->GetTabletCellBundleName(),
+            .Sorted = tablet->GetTableSchema()->IsSorted(),
+            .Replicated = tablet->IsReplicated(),
+        };
+    }
+
+    static void SetTableConfigErrors(TTablet* tablet, const std::vector<TError>& configErrors)
+    {
+        if (configErrors.empty()) {
+            tablet->RuntimeData()->Errors.ConfigError.Store(TError{});
+            return;
+        }
+
+        auto error = TError("Errors occured while deserializing tablet config")
+            << TErrorAttribute("tablet_id", tablet->GetId())
+            << configErrors;
+        tablet->RuntimeData()->Errors.ConfigError.Store(error);
     }
 };
 

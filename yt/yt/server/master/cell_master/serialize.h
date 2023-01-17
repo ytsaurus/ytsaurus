@@ -99,6 +99,7 @@ DEFINE_ENUM(EMasterReign,
     ((SetLastMountTransactionInMount)                               (2219))  // savrus
     ((ChunkFormat)                                                  (2220))  // babenko
     ((DropDNLCompats)                                               (2221))  // akozhikhov
+    ((MountConfigExperiments)                                       (2222))  // ifsmirnov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko

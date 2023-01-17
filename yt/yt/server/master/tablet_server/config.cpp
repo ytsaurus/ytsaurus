@@ -1,8 +1,10 @@
 #include "config.h"
+#include "mount_config_storage.h"
 
 #include <yt/yt/server/lib/hive/config.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/table_settings.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
 
@@ -215,6 +217,12 @@ void TDynamicTabletManagerConfig::Register(TRegistrar registrar)
 
     registrar.Postprocessor([] (TThis* config) {
         config->MaxSnapshotCountToKeep = 2;
+
+        for (const auto& [name, experiment] : config->TableConfigExperiments) {
+            if (experiment->Salt.empty()) {
+                experiment->Salt = name;
+            }
+        }
     });
 }
 

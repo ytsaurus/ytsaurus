@@ -29,6 +29,8 @@ struct IBootstrap
 
     virtual const IHedgingManagerRegistryPtr& GetHedgingManagerRegistry() const = 0;
 
+    virtual const TTableDynamicConfigManagerPtr& GetTableDynamicConfigManager() const = 0;
+
     // Tablet cell stuff.
     virtual const ISlotManagerPtr& GetSlotManager() const = 0;
 

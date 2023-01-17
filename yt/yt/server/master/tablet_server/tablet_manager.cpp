@@ -161,7 +161,9 @@ using NTabletNode::EStoreType;
 using NTabletNode::TBuiltinTableMountConfigPtr;
 using NTabletNode::TCustomTableMountConfigPtr;
 using NTabletNode::TTableMountConfigPtr;
+using NTabletNode::TTableConfigPatchPtr;
 using NTabletNode::DynamicStoreIdPoolSize;
+
 using NTransactionServer::TTransaction;
 
 using NSecurityServer::ConvertToTabletResources;
@@ -972,7 +974,7 @@ public:
     void PrepareMountTable(TTableNode* table)
     {
         auto tableSettings = GetTableSettings(table);
-        ValidateTableMountConfig(table, tableSettings.MountConfig);
+        ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig);
 
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
@@ -1152,7 +1154,7 @@ public:
         }
 
         auto tableSettings = GetTableSettings(table);
-        ValidateTableMountConfig(table, tableSettings.MountConfig);
+        ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig);
     }
 
     void Remount(
@@ -3669,18 +3671,10 @@ private:
         }
     }
 
-
     struct TTableSettings
+        : public NTabletNode::TRawTableSettings
     {
-        TTableMountConfigPtr MountConfig;
-        IMapNodePtr MountConfigNode;
-        IMapNodePtr ExtraMountConfigAttributes;
-        NTabletNode::TTabletStoreReaderConfigPtr StoreReaderConfig;
-        NTabletNode::TTabletHunkReaderConfigPtr HunkReaderConfig;
-        NTabletNode::TTabletStoreWriterConfigPtr StoreWriterConfig;
-        NTabletNode::TTabletStoreWriterOptionsPtr StoreWriterOptions;
-        NTabletNode::TTabletHunkWriterConfigPtr HunkWriterConfig;
-        NTabletNode::TTabletHunkWriterOptionsPtr HunkWriterOptions;
+        TTableMountConfigPtr EffectiveMountConfig;
     };
 
     TTableSettings GetTableSettings(TTableNode* table)
@@ -3710,16 +3704,16 @@ private:
                 auto [customConfigNode, unrecognizedCustomConfigNode] = storage->GetRecognizedConfig();
 
                 if (unrecognizedCustomConfigNode->GetChildCount() > 0) {
-                    result.ExtraMountConfigAttributes = unrecognizedCustomConfigNode;
+                    result.Provided.ExtraMountConfig = unrecognizedCustomConfigNode;
                 }
 
                 combinedConfigNode = PatchNode(combinedConfigNode, customConfigNode)->AsMap();
             }
 
             // The next line is important for validation.
-            result.MountConfig = ConvertTo<TTableMountConfigPtr>(combinedConfigNode);
+            result.EffectiveMountConfig = ConvertTo<TTableMountConfigPtr>(combinedConfigNode);
 
-            result.MountConfigNode = combinedConfigNode;
+            result.Provided.MountConfigNode = combinedConfigNode;
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
                 << ex;
@@ -3727,7 +3721,7 @@ private:
 
         // Parse and prepare store reader config.
         try {
-            result.StoreReaderConfig = UpdateYsonStruct(
+            result.Provided.StoreReaderConfig = UpdateYsonStruct(
                 GetDynamicConfig()->StoreChunkReader,
                 // TODO(babenko): rename to store_chunk_reader
                 tableAttributes.FindYson(EInternedAttributeKey::ChunkReader.Unintern()));
@@ -3738,7 +3732,7 @@ private:
 
         // Parse and prepare hunk reader config.
         try {
-            result.HunkReaderConfig = UpdateYsonStruct(
+            result.Provided.HunkReaderConfig = UpdateYsonStruct(
                 GetDynamicConfig()->HunkChunkReader,
                 tableAttributes.FindYson(EInternedAttributeKey::HunkChunkReader.Unintern()));
         } catch (const std::exception& ex) {
@@ -3754,20 +3748,20 @@ private:
 
         try {
             // Prepare store writer options.
-            result.StoreWriterOptions = New<NTabletNode::TTabletStoreWriterOptions>();
-            result.StoreWriterOptions->ReplicationFactor = replicationFactor;
-            result.StoreWriterOptions->MediumName = primaryMedium->GetName();
-            result.StoreWriterOptions->Account = table->GetAccount()->GetName();
-            result.StoreWriterOptions->CompressionCodec = table->GetCompressionCodec();
-            result.StoreWriterOptions->ErasureCodec = table->GetErasureCodec();
-            result.StoreWriterOptions->EnableStripedErasure = table->GetEnableStripedErasure();
-            result.StoreWriterOptions->ChunksVital = chunkReplication.GetVital();
-            result.StoreWriterOptions->OptimizeFor = table->GetOptimizeFor();
-            result.StoreWriterOptions->ChunkFormat = table->TryGetChunkFormat();
-            if (result.StoreWriterOptions->ChunkFormat) {
-                ValidateTableChunkFormatVersioned(*result.StoreWriterOptions->ChunkFormat, /*versioned*/ true);
+            result.Provided.StoreWriterOptions = New<NTabletNode::TTabletStoreWriterOptions>();
+            result.Provided.StoreWriterOptions->ReplicationFactor = replicationFactor;
+            result.Provided.StoreWriterOptions->MediumName = primaryMedium->GetName();
+            result.Provided.StoreWriterOptions->Account = table->GetAccount()->GetName();
+            result.Provided.StoreWriterOptions->CompressionCodec = table->GetCompressionCodec();
+            result.Provided.StoreWriterOptions->ErasureCodec = table->GetErasureCodec();
+            result.Provided.StoreWriterOptions->EnableStripedErasure = table->GetEnableStripedErasure();
+            result.Provided.StoreWriterOptions->ChunksVital = chunkReplication.GetVital();
+            result.Provided.StoreWriterOptions->OptimizeFor = table->GetOptimizeFor();
+            result.Provided.StoreWriterOptions->ChunkFormat = table->TryGetChunkFormat();
+            if (result.Provided.StoreWriterOptions->ChunkFormat) {
+                ValidateTableChunkFormatVersioned(*result.Provided.StoreWriterOptions->ChunkFormat, /*versioned*/ true);
             }
-            result.StoreWriterOptions->Postprocess();
+            result.Provided.StoreWriterOptions->Postprocess();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error preparing store writer options")
                 << ex;
@@ -3775,14 +3769,14 @@ private:
 
         try {
             // Prepare hunk writer options.
-            result.HunkWriterOptions = New<NTabletNode::TTabletHunkWriterOptions>();
-            result.HunkWriterOptions->ReplicationFactor = replicationFactor;
-            result.HunkWriterOptions->MediumName = primaryMedium->GetName();
-            result.HunkWriterOptions->Account = table->GetAccount()->GetName();
-            result.HunkWriterOptions->CompressionCodec = table->GetCompressionCodec();
-            result.HunkWriterOptions->ErasureCodec = table->GetHunkErasureCodec();
-            result.HunkWriterOptions->ChunksVital = chunkReplication.GetVital();
-            result.HunkWriterOptions->Postprocess();
+            result.Provided.HunkWriterOptions = New<NTabletNode::TTabletHunkWriterOptions>();
+            result.Provided.HunkWriterOptions->ReplicationFactor = replicationFactor;
+            result.Provided.HunkWriterOptions->MediumName = primaryMedium->GetName();
+            result.Provided.HunkWriterOptions->Account = table->GetAccount()->GetName();
+            result.Provided.HunkWriterOptions->CompressionCodec = table->GetCompressionCodec();
+            result.Provided.HunkWriterOptions->ErasureCodec = table->GetHunkErasureCodec();
+            result.Provided.HunkWriterOptions->ChunksVital = chunkReplication.GetVital();
+            result.Provided.HunkWriterOptions->Postprocess();
         } catch (const std::exception& ex) {
             THROW_ERROR_EXCEPTION("Error preparing hunk writer options")
                 << ex;
@@ -3798,7 +3792,7 @@ private:
                 config->UploadReplicationFactor = replicationFactor;
             }
 
-            result.StoreWriterConfig = UpdateYsonStruct(
+            result.Provided.StoreWriterConfig = UpdateYsonStruct(
                 config,
                 // TODO(babenko): rename to store_chunk_writer
                 tableAttributes.FindYson(EInternedAttributeKey::ChunkWriter.Unintern()));
@@ -3813,7 +3807,7 @@ private:
             config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
             config->UploadReplicationFactor = replicationFactor;
 
-            result.HunkWriterConfig = UpdateYsonStruct(
+            result.Provided.HunkWriterConfig = UpdateYsonStruct(
                 config,
                 tableAttributes.FindYson(EInternedAttributeKey::HunkChunkWriter.Unintern()));
         } catch (const std::exception& ex) {
@@ -3821,34 +3815,43 @@ private:
                 << ex;
         }
 
+        // Set global patch and experiments.
+        result.GlobalPatch = CloneYsonSerializable(
+            ConvertTo<TTableConfigPatchPtr>(dynamicConfig));
+        result.Experiments = dynamicConfig->TableConfigExperiments;
+
         return result;
     }
 
     struct TSerializedTableSettings
     {
         TYsonString MountConfig;
-        TYsonString ExtraMountConfigAttributes;
+        TYsonString ExtraMountConfig;
         TYsonString StoreReaderConfig;
         TYsonString HunkReaderConfig;
         TYsonString StoreWriterConfig;
         TYsonString StoreWriterOptions;
         TYsonString HunkWriterConfig;
         TYsonString HunkWriterOptions;
+        TYsonString GlobalPatch;
+        TYsonString Experiments;
     };
 
     static TSerializedTableSettings SerializeTableSettings(const TTableSettings& tableSettings)
     {
         return {
-            .MountConfig = ConvertToYsonString(tableSettings.MountConfigNode),
-            .ExtraMountConfigAttributes = tableSettings.ExtraMountConfigAttributes
-                ? ConvertToYsonString(tableSettings.ExtraMountConfigAttributes)
+            .MountConfig = ConvertToYsonString(tableSettings.Provided.MountConfigNode),
+            .ExtraMountConfig = tableSettings.Provided.ExtraMountConfig
+                ? ConvertToYsonString(tableSettings.Provided.ExtraMountConfig)
                 : TYsonString{},
-            .StoreReaderConfig = ConvertToYsonString(tableSettings.StoreReaderConfig),
-            .HunkReaderConfig = ConvertToYsonString(tableSettings.HunkReaderConfig),
-            .StoreWriterConfig = ConvertToYsonString(tableSettings.StoreWriterConfig),
-            .StoreWriterOptions = ConvertToYsonString(tableSettings.StoreWriterOptions),
-            .HunkWriterConfig = ConvertToYsonString(tableSettings.HunkWriterConfig),
-            .HunkWriterOptions = ConvertToYsonString(tableSettings.HunkWriterOptions)
+            .StoreReaderConfig = ConvertToYsonString(tableSettings.Provided.StoreReaderConfig),
+            .HunkReaderConfig = ConvertToYsonString(tableSettings.Provided.HunkReaderConfig),
+            .StoreWriterConfig = ConvertToYsonString(tableSettings.Provided.StoreWriterConfig),
+            .StoreWriterOptions = ConvertToYsonString(tableSettings.Provided.StoreWriterOptions),
+            .HunkWriterConfig = ConvertToYsonString(tableSettings.Provided.HunkWriterConfig),
+            .HunkWriterOptions = ConvertToYsonString(tableSettings.Provided.HunkWriterOptions),
+            .GlobalPatch = ConvertToYsonString(tableSettings.GlobalPatch),
+            .Experiments = ConvertToYsonString(tableSettings.Experiments),
         };
     }
 
@@ -3857,9 +3860,9 @@ private:
     {
         auto* tableSettings = request->mutable_table_settings();
         tableSettings->set_mount_config(serializedTableSettings.MountConfig.ToString());
-        if (serializedTableSettings.ExtraMountConfigAttributes) {
+        if (serializedTableSettings.ExtraMountConfig) {
             tableSettings->set_extra_mount_config_attributes(
-                serializedTableSettings.ExtraMountConfigAttributes.ToString());
+                serializedTableSettings.ExtraMountConfig.ToString());
         }
         tableSettings->set_store_reader_config(serializedTableSettings.StoreReaderConfig.ToString());
         tableSettings->set_hunk_reader_config(serializedTableSettings.HunkReaderConfig.ToString());
@@ -3867,6 +3870,8 @@ private:
         tableSettings->set_store_writer_options(serializedTableSettings.StoreWriterOptions.ToString());
         tableSettings->set_hunk_writer_config(serializedTableSettings.HunkWriterConfig.ToString());
         tableSettings->set_hunk_writer_options(serializedTableSettings.HunkWriterOptions.ToString());
+        tableSettings->set_global_patch(serializedTableSettings.GlobalPatch.ToString());
+        tableSettings->set_experiments(serializedTableSettings.Experiments.ToString());
     }
 
     struct THunkStorageSettings
@@ -4664,7 +4669,7 @@ private:
                     tablet->GetId(),
                     cell->GetId());
 
-                YT_VERIFY(tablet->GetInMemoryMode() == tableSettings.MountConfig->InMemoryMode);
+                YT_VERIFY(tablet->GetInMemoryMode() == tableSettings.EffectiveMountConfig->InMemoryMode);
 
                 const auto& hiveManager = Bootstrap_->GetHiveManager();
 

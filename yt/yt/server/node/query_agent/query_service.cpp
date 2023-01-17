@@ -884,14 +884,14 @@ private:
             protoTabletInfo->set_last_write_timestamp(tabletSnapshot->TabletRuntimeData->LastWriteTimestamp.load());
 
             if (request->request_errors()) {
-                for (auto activity : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-                    if (auto error = tabletSnapshot->TabletRuntimeData->Errors[activity].Load(); !error.IsOK()) {
+                tabletSnapshot->TabletRuntimeData->Errors.ForEachError([&] (const TError& error) {
+                    if (!error.IsOK()) {
                         auto* protoError = protoTabletInfo->add_tablet_errors();
                         ToProto(protoError, error);
                         TabletErrorCountCounter_.Increment(1);
                         TabletErrorSizeCounter_.Increment(protoError->ByteSize());
                     }
-                }
+                });
             }
 
             for (const auto& [replicaId, replicaSnapshot] : tabletSnapshot->Replicas) {

@@ -158,22 +158,6 @@ TRefCountedReplicationProgress& TRefCountedReplicationProgress::operator=(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TTableSettings TTableSettings::CreateNew()
-{
-    return {
-        .MountConfig = New<TTableMountConfig>(),
-        .ProvidedMountConfig = GetEphemeralNodeFactory()->CreateMap(),
-        .StoreReaderConfig = New<TTabletStoreReaderConfig>(),
-        .HunkReaderConfig = New<TTabletHunkReaderConfig>(),
-        .StoreWriterConfig = New<TTabletStoreWriterConfig>(),
-        .StoreWriterOptions = New<TTabletStoreWriterOptions>(),
-        .HunkWriterConfig = New<TTabletHunkWriterConfig>(),
-        .HunkWriterOptions = New<TTabletHunkWriterOptions>()
-    };
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 std::pair<TTabletSnapshot::TPartitionListIterator, TTabletSnapshot::TPartitionListIterator>
 TTabletSnapshot::GetIntersectingPartitions(
     const TLegacyKey& lowerBound,
@@ -862,20 +846,37 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
         ] (TSaveContext& context) mutable {
             using NYT::Save;
 
+            // Save effective settings.
             Save(context, *snapshot->Settings.MountConfig);
-            Save(context, ConvertToYsonString(snapshot->Settings.ProvidedMountConfig));
-            if (snapshot->Settings.ProvidedExtraMountConfig) {
-                Save(context, true);
-                Save(context, ConvertToYsonString(snapshot->Settings.ProvidedExtraMountConfig));
-            } else {
-                Save(context, false);
-            }
             Save(context, *snapshot->Settings.StoreReaderConfig);
             Save(context, *snapshot->Settings.HunkReaderConfig);
             Save(context, *snapshot->Settings.StoreWriterConfig);
             Save(context, *snapshot->Settings.StoreWriterOptions);
             Save(context, *snapshot->Settings.HunkWriterConfig);
             Save(context, *snapshot->Settings.HunkWriterOptions);
+
+            // Save raw settings.
+            {
+                const auto& providedSettings = snapshot->RawSettings.Provided;
+
+                Save(context, ConvertToYsonString(providedSettings.MountConfigNode));
+                if (providedSettings.ExtraMountConfig) {
+                    Save(context, true);
+                    Save(context, ConvertToYsonString(providedSettings.ExtraMountConfig));
+                } else {
+                    Save(context, false);
+                }
+                Save(context, *providedSettings.StoreReaderConfig);
+                Save(context, *providedSettings.HunkReaderConfig);
+                Save(context, *providedSettings.StoreWriterConfig);
+                Save(context, *providedSettings.StoreWriterOptions);
+                Save(context, *providedSettings.HunkWriterConfig);
+                Save(context, *providedSettings.HunkWriterOptions);
+
+                Save(context, *snapshot->RawSettings.GlobalPatch);
+                Save(context, ConvertToYsonString(snapshot->RawSettings.Experiments));
+            }
+
             Save(context, snapshot->PivotKey);
             Save(context, snapshot->NextPivotKey);
 
@@ -900,9 +901,12 @@ void TTablet::AsyncLoad(TLoadContext& context)
     using NYT::Load;
 
     Load(context, *Settings_.MountConfig);
-    Settings_.ProvidedMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
-    if (Load<bool>(context)) {
-        Settings_.ProvidedExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() < ETabletReign::MountConfigExperiments) {
+        RawSettings_.Provided.MountConfigNode = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        if (Load<bool>(context)) {
+            RawSettings_.Provided.ExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        }
     }
     Load(context, *Settings_.StoreReaderConfig);
     Load(context, *Settings_.HunkReaderConfig);
@@ -910,6 +914,43 @@ void TTablet::AsyncLoad(TLoadContext& context)
     Load(context, *Settings_.StoreWriterOptions);
     Load(context, *Settings_.HunkWriterConfig);
     Load(context, *Settings_.HunkWriterOptions);
+
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= ETabletReign::MountConfigExperiments) {
+        auto& providedSettings = RawSettings_.Provided;
+
+        providedSettings.MountConfigNode = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        if (Load<bool>(context)) {
+            providedSettings.ExtraMountConfig = ConvertTo<IMapNodePtr>(Load<TYsonString>(context));
+        }
+
+        RawSettings_.CreateNewProvidedConfigs();
+        Load(context, *providedSettings.StoreReaderConfig);
+        Load(context, *providedSettings.HunkReaderConfig);
+        Load(context, *providedSettings.StoreWriterConfig);
+        Load(context, *providedSettings.StoreWriterOptions);
+        Load(context, *providedSettings.HunkWriterConfig);
+        Load(context, *providedSettings.HunkWriterOptions);
+
+        RawSettings_.GlobalPatch = New<TTableConfigPatch>();
+        Load(context, *RawSettings_.GlobalPatch);
+        RawSettings_.Experiments = ConvertTo<decltype(RawSettings_.Experiments)>(
+            Load<TYsonString>(context));
+    } else {
+        auto& providedSettings = RawSettings_.Provided;
+
+        // MountConfigNode and ExtraMountConfig should be already filled above.
+
+        providedSettings.StoreReaderConfig = Settings_.StoreReaderConfig;
+        providedSettings.HunkReaderConfig = Settings_.HunkReaderConfig;
+        providedSettings.StoreWriterConfig = Settings_.StoreWriterConfig;
+        providedSettings.StoreWriterOptions = Settings_.StoreWriterOptions;
+        providedSettings.HunkWriterConfig = Settings_.HunkWriterConfig;
+        providedSettings.HunkWriterOptions = Settings_.HunkWriterOptions;
+
+        RawSettings_.GlobalPatch = New<TTableConfigPatch>();
+    }
+
     Load(context, PivotKey_);
     Load(context, NextPivotKey_);
 
@@ -1528,6 +1569,7 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
     snapshot->TablePath = TablePath_;
     snapshot->TableId = TableId_;
     snapshot->Settings = Settings_;
+    snapshot->RawSettings = RawSettings_;
     snapshot->PivotKey = PivotKey_;
     snapshot->NextPivotKey = NextPivotKey_;
     snapshot->TableSchema = TableSchema_;
@@ -2303,20 +2345,7 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
             .BeginAttributes()
                 .Item("opaque").Value(true)
             .EndAttributes()
-            .Value(options.HunkReaderConfig)
-        .Item("provided_config")
-            .BeginAttributes()
-                .Item("opaque").Value(true)
-            .EndAttributes()
-            .Value(options.ProvidedMountConfig)
-        .DoIf(static_cast<bool>(options.ProvidedExtraMountConfig), [&] (TFluentMap fluent) {
-            fluent
-                .Item("provided_extra_config")
-                    .BeginAttributes()
-                        .Item("opaque").Value(true)
-                    .EndAttributes()
-                    .Value(options.ProvidedExtraMountConfig);
-        });
+            .Value(options.HunkReaderConfig);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

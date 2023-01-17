@@ -1640,13 +1640,15 @@ private:
                 storeManager->EndStoreCompaction(store);
             }
 
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Partitioning);
 
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Partitioning].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Partitioning].Store(error);
             YT_LOG_ERROR(error, "Error partitioning Eden, backing off");
 
             structuredLogger->LogEvent("backoff_partitioning")
@@ -1739,13 +1741,15 @@ private:
                 storeManager->EndStoreCompaction(store);
             }
 
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
 
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_LOG_ERROR(error, "Error discarding expired partition stores, backing off");
 
             structuredLogger->LogEvent("backoff_discard_stores")
@@ -2009,13 +2013,15 @@ private:
                 storeManager->EndStoreCompaction(store);
             }
 
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", tabletSnapshot->TabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Compaction);
 
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Compaction].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Compaction].Store(error);
             YT_LOG_ERROR(error, "Error compacting partition, backing off");
 
             structuredLogger->LogEvent("backoff_compaction")
