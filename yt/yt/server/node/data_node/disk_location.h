@@ -15,6 +15,7 @@ DEFINE_ENUM(ELocationState,
     (Resurrecting)
     (Disabling)
     (Disabled)
+    (Repairing)
     (Destroying)
     (Destroyed)
 );

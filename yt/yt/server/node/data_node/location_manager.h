@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include "disk_location.h"
+
 #include <yt/yt/library/containers/disk_manager/public.h>
 
 namespace NYT::NDataNode {
@@ -12,7 +14,7 @@ struct TLocationLivenessInfo
 {
     TStoreLocationPtr Location;
     TString DiskId;
-    bool IsDestroying;
+    ELocationState LocationState;
     bool IsDiskAlive;
 };
 

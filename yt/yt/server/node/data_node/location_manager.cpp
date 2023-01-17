@@ -51,7 +51,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
     for (const auto& location : locations) {
         locationLivenessInfos.push_back({
             .Location = location,
-            .IsDestroying = location->GetState() == ELocationState::Destroying,
+            .LocationState = location->GetState(),
             .IsDiskAlive = !diskNames.contains(location->GetStaticConfig()->DeviceName)});
     }
 
@@ -220,7 +220,7 @@ void TLocationHealthChecker::OnHealthCheck()
             location->MarkLocationDiskFailed();
         }
 
-        if (livenessInfo.IsDestroying) {
+        if (livenessInfo.LocationState == ELocationState::Destroying) {
             diskWithDestroyingLocations.insert(livenessInfo.DiskId);
         } else {
             diskWithNotDestroyingLocations.insert(livenessInfo.DiskId);
@@ -240,9 +240,19 @@ void TLocationHealthChecker::OnHealthCheck()
 
         for (const auto& livenessInfo : livenessInfos) {
             // If disk recover request is successfull than mark locations as destroyed.
-            if (livenessInfo.DiskId == diskId && livenessInfo.IsDestroying) {
+            if (livenessInfo.DiskId == diskId &&
+                livenessInfo.LocationState == ELocationState::Destroying)
+            {
                 livenessInfo.Location->FinishDestroy(resultOrError.IsOK(), resultOrError);
             }
+        }
+    }
+
+    for (const auto& livenessInfo : livenessInfos) {
+        if (livenessInfo.IsDiskAlive &&
+            livenessInfo.LocationState == ELocationState::Destroyed)
+        {
+            livenessInfo.Location->OnDiskRepaired();
         }
     }
 }
