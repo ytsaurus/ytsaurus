@@ -255,6 +255,9 @@ public:
      */
     void Start();
 
+    //! Try changing location status to disabled. For this location disk must be active and test can run without I/O errors.
+    bool OnDiskRepaired();
+
     //! This method can be called either manually from the rpc method, or automatically when the check detects a recovered empty disk.
     //! To resurrect, we have to scan and register existing chunks of location.
     bool Resurrect();

@@ -550,6 +550,21 @@ bool TChunkLocation::FinishDestroy(
     return true;
 }
 
+bool TChunkLocation::OnDiskRepaired()
+{
+    VERIFY_THREAD_AFFINITY(ControlThread);
+
+    auto previousState = ELocationState::Destroyed;
+
+    if (!State_.compare_exchange_weak(previousState, ELocationState::Repairing)) {
+        YT_LOG_WARNING("Attempted to change location status from destroyed to disabled, location must be destroyed");
+        return false;
+    }
+
+    State_.store(ELocationState::Disabled);
+    return true;
+}
+
 bool TChunkLocation::Resurrect()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
@@ -570,11 +585,9 @@ bool TChunkLocation::Resurrect()
                 NFS::Remove(lockFilePath);
             }
 
-            // Enabled flag must be true before initialization.
             ChunkStore_->InitializeLocation(MakeStrong(dynamic_cast<TStoreLocation*>(this)));
             ChunkStoreHost_->ScheduleMasterHeartbeat();
-
-            State_.store(ELocationState::Enabled);
+            LocationDisabledAlert_.Store(TError());
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error during location resurrection");
 
@@ -619,7 +632,17 @@ bool TChunkLocation::Disable(const TError& reason)
 
     Disabled_.Fire();
 
+    LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath()));
+
+    AvailableSpace_.store(0);
+    UsedSpace_.store(0);
+    for (auto& count : PerTypeSessionCount_) {
+        count.store(0);
+    }
+    ChunkCount_.store(0);
+
     ChunkStoreHost_->ScheduleMasterHeartbeat();
+
     State_.store(ELocationState::Disabled);
     return true;
 }
