@@ -25,6 +25,7 @@ def parse_arguments():
     parser.add_argument("--work-dir", help="Directory to use. If not specified, temp dir will be created")
     parser.add_argument("--already-prepared", action="store_true", default=False, help="If set, then no source tree preparation will be performed")
     parser.add_argument("--python-binary", default=sys.executable, help="Path to python binary")
+    parser.add_argument("--debian-dist-user", default=os.getlogin(), help="Username to access 'dupload.dist.yandex.ru' (dist-dmove role required)")
     parser.add_argument("--verbose", "-v", action="count", default=2)
     return parser.parse_args()
 

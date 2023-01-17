@@ -38,6 +38,24 @@ def get_version():
     return version.strip()
 
 
+def get_version_branch(version):
+    version = version.split("-")[0]
+
+    branch = "stable"
+    if os.path.exists("stable_versions"):
+        with open("stable_versions") as fin:
+            stable_versions = fin.readlines()
+
+        if version in stable_versions:
+            branch = "stable"
+        elif version + "~testing" in stable_versions:
+            branch = "testing"
+        else:
+            branch = "unstable"
+
+    return branch
+
+
 def prepare_files(files, add_major_version_suffix=False):
     scripts = []
     data_files = []
