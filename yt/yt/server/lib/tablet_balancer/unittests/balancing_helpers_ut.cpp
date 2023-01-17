@@ -462,7 +462,6 @@ TEST_P(TTestMergeSplitTabletsOfTable, Simple)
     const auto& params = GetParam();
     auto bundle = CreateTabletCellBundle(std::get<0>(params));
 
-    TTabletBalancerContext context;
     auto expected = ConvertTo<std::vector<TTestReshardDescriptorPtr>>(TYsonStringBuf(std::get<1>(params)));
     auto expectedDescriptorsIt = expected.begin();
 
@@ -470,8 +469,7 @@ TEST_P(TTestMergeSplitTabletsOfTable, Simple)
         const auto& table = bundle.Bundle->Tables[bundle.TableIds[tableIndex]];
 
         auto descriptors = MergeSplitTabletsOfTable(
-            MakeRange(table->Tablets),
-            &context);
+            table->Tablets);
 
         for (const auto& descriptor : descriptors) {
             EXPECT_NE(expectedDescriptorsIt, expected.end());

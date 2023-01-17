@@ -34,10 +34,15 @@ struct TTabletSizeConfig
     std::optional<int> MinTabletCount;
 };
 
-bool TTabletBalancerContext::IsTabletUntouched(TTabletId tabletId) const
+struct TTabletBalancerContext
 {
-    return !TouchedTablets.contains(tabletId);
-}
+    THashSet<TTabletId> TouchedTablets;
+
+    bool IsTabletUntouched(TTabletId tabletId) const
+    {
+        return !TouchedTablets.contains(tabletId);
+    }
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -285,15 +290,12 @@ std::optional<TReshardDescriptor> MergeSplitTablet(
 }
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
-    TRange<TTabletPtr> tabletRange,
-    TTabletBalancerContext* context,
+    std::vector<TTabletPtr> tablets,
     const TLogger& Logger)
 {
-    YT_VERIFY(!tabletRange.empty());
+    YT_VERIFY(!tablets.empty());
+    TTabletBalancerContext context;
 
-    std::vector<TTabletPtr> tablets(
-        tabletRange.Begin(),
-        tabletRange.End());
     std::sort(
         tablets.begin(),
         tablets.end(),
@@ -301,7 +303,7 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
             return lhs->Index < rhs->Index;
         });
 
-    const auto& table = tabletRange.Front()->Table;
+    const auto& table = tablets.front()->Table;
     auto config = GetTabletSizeConfig(table, Logger);
 
     // If MinTabletCount is set then the number of merges is limited. We want
@@ -370,18 +372,12 @@ std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
     for (const auto& tablet : tablets) {
         auto descriptor = MergeSplitTablet(
             tablet,
-            context,
+            &context,
             config,
             config.MinTabletCount ? &mergeBudgetByIndex : nullptr,
             Logger);
         if (descriptor) {
             descriptors.push_back(*descriptor);
-
-            // TODO(alexelex): remove it.
-            YT_LOG_FATAL_IF(
-                context->IsTabletUntouched(tablet->Id),
-                "Planning to create an action while the tablet is not touched (TabletId: %v)",
-                tablet->Id);
         }
     }
     return descriptors;
