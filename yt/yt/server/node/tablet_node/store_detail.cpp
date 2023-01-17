@@ -585,12 +585,12 @@ i64 TDynamicStoreBase::Unlock()
 
 TTimestamp TDynamicStoreBase::GetMinTimestamp() const
 {
-    return MinTimestamp_;
+    return MinTimestamp_.load();
 }
 
 TTimestamp TDynamicStoreBase::GetMaxTimestamp() const
 {
-    return MaxTimestamp_;
+    return MaxTimestamp_.load();
 }
 
 void TDynamicStoreBase::SetStoreState(EStoreState state)
@@ -677,8 +677,8 @@ void TDynamicStoreBase::UpdateTimestampRange(TTimestamp commitTimestamp)
     // others are relying on these values to remain constant.
     // See, e.g., TSortedStoreManager::MaxTimestampToStore_.
     if (StoreState_ == EStoreState::ActiveDynamic) {
-        MinTimestamp_ = std::min(MinTimestamp_, commitTimestamp);
-        MaxTimestamp_ = std::max(MaxTimestamp_, commitTimestamp);
+        MinTimestamp_.store(std::min(MinTimestamp_.load(), commitTimestamp));
+        MaxTimestamp_.store(std::max(MaxTimestamp_.load(), commitTimestamp));
     }
 }
 

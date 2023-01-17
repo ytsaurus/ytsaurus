@@ -46,6 +46,8 @@
 
 #include <yt/yt/ytlib/misc/memory_usage_tracker.h>
 
+#include <yt/yt/client/api/internal_client.h>
+
 #include <yt/yt/client/query_client/query_statistics.h>
 
 #include <yt/yt/client/table_client/helpers.h>
@@ -414,6 +416,8 @@ public:
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTabletStores)
             .SetInvoker(Bootstrap_->GetTabletFetchPoolInvoker()));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(FetchTableRows)
+            .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
+        RegisterMethod(RPC_SERVICE_METHOD_DESC(GetOrderedTabletSafeTrimRowCount)
             .SetInvoker(Bootstrap_->GetTableRowFetchPoolInvoker()));
 
         Bootstrap_->GetDynamicConfigManager()->SubscribeConfigChanged(BIND(
@@ -1662,6 +1666,123 @@ private:
             .RowCount = readRows,
             .DataWeight = readDataWeight,
         };
+    }
+
+    DECLARE_RPC_SERVICE_METHOD(NQueryClient::NProto, GetOrderedTabletSafeTrimRowCount)
+    {
+        context->SetRequestInfo("Subrequests: %v", request->subrequests_size());
+
+        std::vector<TFuture<i64>> asyncSubrequests;
+        asyncSubrequests.reserve(request->subrequests_size());
+
+        for (const auto& subrequest : request->subrequests()) {
+            asyncSubrequests.push_back(BIND(
+                &TQueryService::GetOrderedTabletSafeTrimRowCountImpl,
+                MakeStrong(this),
+                FromProto<TTabletId>(subrequest.tablet_id()),
+                FromProto<TCellId>(subrequest.cell_id()),
+                YT_PROTO_OPTIONAL(subrequest, mount_revision),
+                subrequest.timestamp())
+                .AsyncVia(GetCurrentInvoker())
+                .Run());
+        }
+
+        auto subresponseOrErrors = WaitFor(AllSet(std::move(asyncSubrequests)))
+            .ValueOrThrow();
+
+        for (const auto& subresponseOrError : subresponseOrErrors) {
+            auto* protoSubresponse = response->add_subresponses();
+
+            if (subresponseOrError.IsOK()) {
+                protoSubresponse->set_safe_trim_row_count(subresponseOrError.Value());
+            } else {
+                ToProto(protoSubresponse->mutable_error(), subresponseOrError);
+            }
+        }
+
+        context->Reply();
+    }
+
+    i64 GetOrderedTabletSafeTrimRowCountImpl(
+        TTabletId tabletId,
+        TCellId cellId,
+        std::optional<TRevision> mountRevision,
+        TTimestamp timestamp)
+    {
+        const auto& snapshotStore = Bootstrap_->GetTabletSnapshotStore();
+
+        auto tabletSnapshot = mountRevision
+            ? snapshotStore->GetTabletSnapshotOrThrow(tabletId, cellId, *mountRevision)
+            : snapshotStore->GetLatestTabletSnapshotOrThrow(tabletId, cellId);
+        snapshotStore->ValidateTabletAccess(tabletSnapshot, SyncLastCommittedTimestamp);
+
+        if (tabletSnapshot->PhysicalSchema->IsSorted()) {
+            THROW_ERROR_EXCEPTION("Finding stores for sorted tablets is not implemented");
+        }
+
+        const auto& orderedStores = tabletSnapshot->OrderedStores;
+
+        // In practice, this should rarely happen, since there is almost always at least one active store.
+        if (orderedStores.empty()) {
+            return tabletSnapshot->TotalRowCount;
+        }
+
+        struct TStoreSnapshot
+        {
+            TStoreId Id;
+            i64 StartRowIndex = 0;
+            i64 FinishRowIndex = 0;
+            TTimestamp MinTimestamp = NullTimestamp;
+            TTimestamp MaxTimestamp = NullTimestamp;
+        };
+        std::vector<TStoreSnapshot> storeSnapshots;
+        storeSnapshots.reserve(orderedStores.size());
+        for (const auto& store : orderedStores) {
+            // NB: Row count must be older than timestamps, so that we don't return row indexes past the saved timestamps.
+            auto rowCount = store->GetRowCount();
+            storeSnapshots.push_back({
+                .Id = store->GetId(),
+                // NB: StartingRowIndex shouldn't change in flight.
+                .StartRowIndex = store->GetStartingRowIndex(),
+                .FinishRowIndex = store->GetStartingRowIndex() + rowCount,
+                .MinTimestamp = store->GetMinTimestamp(),
+                .MaxTimestamp = store->GetMaxTimestamp(),
+            });
+            // NB: FinishRowIndex, MinTimestamp and MaxTimestamp might be inconsistent with each other.
+        }
+
+        const auto& lastStore = storeSnapshots.back();
+
+        // We want to find the first store containing timestamps >= T.
+        //
+        // For this we look for the first store S, such that T <= S->GetMaxTimestamp().
+        // Ex:
+        //    0         1        2         3
+        // [3....10][11...20][23....27][30...37] (numbers are timestamps of rows)
+        // For T <= 10 we want to return information about store 0.
+        // For 10 < T <= 20 we want to return information about store 1.
+        // For 20 < T <= 27 we want to return information about store 2.
+        // For 27 < T <= 37 we want to return information about store 3.
+        // For T > 37 we want to return indexes [38, +inf) and no store information.
+        //
+        // Since timestamps are not guaranteed to be monotonous, we have to use a linear search.
+        auto desiredStoreIt = std::find_if(
+            storeSnapshots.begin(),
+            storeSnapshots.end(),
+            [&timestamp] (const TStoreSnapshot& store) {
+                return store.MaxTimestamp >= timestamp;
+            });
+
+        // Empty stores do not satisfy the predicate used in the std::find_if call above, since their
+        // max timestamp is -inf.
+        // The list of ordered stores is produced from a mapping of the form [startingRowIndex -> store],
+        // so only the last store can potentially be empty. This is perfectly fine for us.
+
+        if (desiredStoreIt != storeSnapshots.end()) {
+            return desiredStoreIt->StartRowIndex;
+        } else {
+            return lastStore.FinishRowIndex;
+        }
     }
 
     void ReadReplicationBatch(

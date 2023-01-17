@@ -1,9 +1,12 @@
 #include "client_impl.h"
 
+#include <yt/yt/ytlib/api/native/tablet_helpers.h>
 #include <yt/yt/ytlib/api/native/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_fragment_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
+
+#include <yt/yt/ytlib/hive/cell_directory.h>
 
 #include <yt/yt/ytlib/node_tracker_client/node_status_directory.h>
 
@@ -15,14 +18,19 @@
 
 #include <yt/yt/client/tablet_client/table_mount_cache.h>
 
+#include <library/cpp/iterator/enumerate.h>
+#include <library/cpp/iterator/zip.h>
+
 namespace NYT::NApi::NNative {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NQueryClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -172,6 +180,100 @@ void TClient::DoToggleHunkStoreLock(
     };
     WaitFor(transaction->Commit(commitOptions))
         .ThrowOnError();
+}
+
+std::vector<TErrorOr<i64>> TClient::DoGetOrderedTabletSafeTrimRowCount(
+    const std::vector<TGetOrderedTabletSafeTrimRowCountRequest>& requests,
+    const TGetOrderedTabletSafeTrimRowCountOptions& options)
+{
+    const auto& tableMountCache = GetTableMountCache();
+    const auto& cellDirectory = Connection_->GetCellDirectory();
+
+    using TSubrequest = NQueryClient::NProto::TReqGetOrderedTabletSafeTrimRowCount::TSubrequest;
+    THashMap<TString, std::vector<std::pair<TSubrequest, int>>> addressToSubrequests;
+
+    std::vector<TFuture<TTableMountInfoPtr>> asyncTableInfos;
+    asyncTableInfos.reserve(requests.size());
+
+    for (const auto& request : requests) {
+        asyncTableInfos.push_back(tableMountCache->GetTableInfo(request.Path));
+    }
+
+    auto tableInfos = WaitForFast(AllSet(asyncTableInfos))
+        .ValueOrThrow();
+
+    std::vector<TErrorOr<i64>> results;
+    results.resize(requests.size());
+
+    for (const auto& [requestIndex, request] : Enumerate(requests)) {
+        if (!tableInfos[requestIndex].IsOK()) {
+            results[requestIndex] = TError(tableInfos[requestIndex]);
+            continue;
+        }
+
+        auto tableInfo = tableInfos[requestIndex].Value();
+        auto tabletInfo = tableInfo->GetTabletByIndexOrThrow(request.TabletIndex);
+
+        TSubrequest subrequest;
+        ToProto(subrequest.mutable_tablet_id(), tabletInfo->TabletId);
+        ToProto(subrequest.mutable_cell_id(), tabletInfo->CellId);
+        subrequest.set_mount_revision(tabletInfo->MountRevision);
+        subrequest.set_timestamp(request.Timestamp);
+
+        auto cellDescriptor = cellDirectory->GetDescriptorOrThrow(tabletInfo->CellId);
+        const auto& primaryPeerDescriptor = GetPrimaryTabletPeerDescriptor(*cellDescriptor, NHydra::EPeerKind::Leader);
+        auto cellAddress = primaryPeerDescriptor.GetAddressOrThrow(Connection_->GetNetworks());
+
+        addressToSubrequests[cellAddress].emplace_back(std::move(subrequest), requestIndex);
+    }
+
+    std::vector<TFuture<TQueryServiceProxy::TRspGetOrderedTabletSafeTrimRowCountPtr>> asyncNodeResponses;
+
+    for (const auto& [address, subrequests] : addressToSubrequests) {
+        auto channel = Connection_->GetChannelFactory()->CreateChannel(address);
+        TQueryServiceProxy proxy(channel);
+        auto req = proxy.GetOrderedTabletSafeTrimRowCount();
+        req->SetTimeout(options.Timeout);
+        for (const auto& [subrequest, index] : subrequests) {
+            *req->add_subrequests() = subrequest;
+        }
+        asyncNodeResponses.push_back(req->Invoke());
+    }
+
+    auto nodeResponses = WaitFor(AllSet(asyncNodeResponses))
+        .ValueOrThrow();
+    YT_VERIFY(nodeResponses.size() == addressToSubrequests.size());
+
+    for (const auto& [nodeRequest, nodeResponseOrError] : Zip(addressToSubrequests, nodeResponses)) {
+        const auto& subrequests = nodeRequest.second;
+        if (!nodeResponseOrError.IsOK()) {
+            for (const auto& [subrequest, requestIndex] : subrequests) {
+                results[requestIndex] = TError(nodeResponseOrError);
+            }
+
+            continue;
+        }
+
+        const auto& nodeResponse = nodeResponseOrError.Value();
+
+        if (std::ssize(subrequests) != nodeResponse->subresponses_size()) {
+            THROW_ERROR_EXCEPTION(
+                "Invalid number of subresponses: expected %v, actual %v",
+                subrequests.size(),
+                nodeResponse->subresponses_size());
+        }
+
+        for (const auto& [subresponseIndex, subresponse] : Enumerate(nodeResponse->subresponses())) {
+            auto requestIndex = subrequests[subresponseIndex].second;
+            if (subresponse.has_error()) {
+                results[requestIndex] = FromProto<TError>(subresponse.error());
+            } else {
+                results[requestIndex] = subresponse.safe_trim_row_count();
+            }
+        }
+    }
+
+    return results;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

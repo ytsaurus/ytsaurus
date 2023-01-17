@@ -145,6 +145,25 @@ void TDynamicTablesTestBase::SyncMountTable(const TYPath& path)
     WaitUntilEqual(path + "/@tablet_state", "mounted");
 }
 
+void TDynamicTablesTestBase::SyncFreezeTable(const TYPath& path)
+{
+    WaitFor(Client_->FreezeTable(path))
+        .ThrowOnError();
+    WaitUntilEqual(path + "/@tablet_state", "frozen");
+}
+
+void TDynamicTablesTestBase::SyncUnfreezeTable(const TYPath& path)
+{
+    auto currentTabletStateYson = WaitFor(Client_->GetNode(path + "/@tablet_state"))
+        .ValueOrThrow();
+    auto currentTabletState = ConvertTo<TString>(currentTabletStateYson);
+    YT_VERIFY(currentTabletState == "frozen");
+
+    WaitFor(Client_->UnfreezeTable(path))
+        .ThrowOnError();
+    WaitUntilEqual(path + "/@tablet_state", "mounted");
+}
+
 void TDynamicTablesTestBase::SyncUnmountTable(const TYPath& path)
 {
     WaitFor(Client_->UnmountTable(path))

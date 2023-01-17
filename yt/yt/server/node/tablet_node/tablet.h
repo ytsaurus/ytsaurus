@@ -221,6 +221,7 @@ struct TTabletSnapshot
     TPartitionList PartitionList;
 
     std::vector<IOrderedStorePtr> OrderedStores;
+    i64 TotalRowCount = 0;
 
     std::vector<TWeakPtr<ISortedStore>> LockedStores;
 

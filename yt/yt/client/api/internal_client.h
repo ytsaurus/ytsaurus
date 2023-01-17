@@ -69,6 +69,19 @@ struct TUnlockHunkStoreOptions
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TGetOrderedTabletSafeTrimRowCountOptions
+    : public TTimeoutOptions
+{ };
+
+struct TGetOrderedTabletSafeTrimRowCountRequest
+{
+    NYTree::TYPath Path;
+    int TabletIndex;
+    NTransactionClient::TTimestamp Timestamp;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Provides a set of private APIs.
 /*!
  *  Only native clients are expected to implement this.
@@ -108,6 +121,12 @@ struct IInternalClient
         int partitionIndex,
         const NQueueClient::TQueueRowBatchReadOptions& rowBatchReadOptions,
         const TPullQueueOptions& options = {}) = 0;
+
+    //! For each request, finds and returns some index bounds in the given ordered tablet based on the given timestamp.
+    //! See response definition for details.
+    virtual TFuture<std::vector<TErrorOr<i64>>> GetOrderedTabletSafeTrimRowCount(
+        const std::vector<TGetOrderedTabletSafeTrimRowCountRequest>& requests,
+        const TGetOrderedTabletSafeTrimRowCountOptions& options = {}) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IInternalClient)

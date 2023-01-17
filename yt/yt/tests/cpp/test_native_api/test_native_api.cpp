@@ -23,9 +23,14 @@
 
 #include <yt/yt/ytlib/table_client/table_ypath_proxy.h>
 
+#include <yt/yt/client/api/internal_client.h>
+
 #include <yt/yt/client/table_client/helpers.h>
 #include <yt/yt/client/table_client/row_buffer.h>
 #include <yt/yt/client/table_client/unversioned_row.h>
+
+#include <yt/yt/client/transaction_client/helpers.h>
+#include <yt/yt/client/transaction_client/timestamp_provider.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -56,6 +61,7 @@ using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYson;
 using namespace NYTree;
 
@@ -918,6 +924,160 @@ TEST_F(TAlterTableTest, TestUnknownType)
             testing::HasSubstr("Cannot parse unknown logical type from proto"));
     }
 }
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TGetOrderedTabletSafeTrimRowCountTest
+    : public TDynamicTablesTestBase
+{
+public:
+    static TTimestamp GenerateTimestamp()
+    {
+        return WaitFor(Client_->GetTimestampProvider()->GenerateTimestamps()).ValueOrThrow();
+    }
+};
+
+TEST_F(TGetOrderedTabletSafeTrimRowCountTest, Basic)
+{
+    CreateTable(
+        "//tmp/test_find_ordered_tablet_store", // tablePath
+        "[" // schema
+        "{name=v1;type=string}]");
+
+    auto writeRow = [] (int count = 1) {
+        for (int i = 0; i < count; ++i) {
+            WriteUnversionedRow({"v1"}, "<id=0> GroundControlToMajorTom;");
+        }
+        return GenerateTimestamp();
+    };
+
+    auto flush = [] {
+        SyncUnmountTable(Table_);
+        SyncMountTable(Table_);
+        return GenerateTimestamp();
+    };
+
+    auto sleep = [] (i64 ms) {
+        TDelayedExecutor::WaitForDuration(TDuration::MilliSeconds(ms));
+        return GenerateTimestamp();
+    };
+
+    auto t0 = GenerateTimestamp();
+
+    sleep(1200);
+
+    auto t1 = writeRow(2);
+    auto t2 = writeRow(3);
+
+    auto t3 = sleep(1200);
+
+    auto t4 = flush();
+
+    sleep(1200);
+
+    auto t5 = writeRow(2);
+
+    sleep(1200);
+
+    auto t6 = writeRow();
+
+    auto t7 = sleep(1200);
+
+    auto internalClient = DynamicPointerCast<IInternalClient>(Client_);
+    YT_VERIFY(internalClient);
+
+    auto orderedStores = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount({
+        {Table_, 0, t0},
+        {Table_, 0, t1},
+        {Table_, 0, t2},
+        {Table_, 0, t3},
+        {Table_, 0, t4},
+        {Table_, 0, t5},
+        {Table_, 0, t6},
+        {Table_, 0, t7},
+    }))
+        .ValueOrThrow();
+
+    ASSERT_EQ(orderedStores[0].ValueOrThrow(), 0);
+    ASSERT_EQ(orderedStores[1].ValueOrThrow(), 0);
+    ASSERT_EQ(orderedStores[2].ValueOrThrow(), 5);
+    ASSERT_EQ(orderedStores[3].ValueOrThrow(), 5);
+    ASSERT_EQ(orderedStores[4].ValueOrThrow(), 5);
+    ASSERT_EQ(orderedStores[5].ValueOrThrow(), 5);
+    ASSERT_EQ(orderedStores[6].ValueOrThrow(), 8);
+    ASSERT_EQ(orderedStores[7].ValueOrThrow(), 8);
+
+    auto t8 = flush();
+
+    auto t9 = sleep(1200);
+
+    orderedStores = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount({
+        {Table_, 0, t0},
+        {Table_, 0, t1},
+        {Table_, 0, t2},
+        {Table_, 0, t3},
+        {Table_, 0, t4},
+        {Table_, 0, t5},
+        {Table_, 0, t6},
+        {Table_, 0, t7},
+        {Table_, 0, t8},
+        {Table_, 0, t9},
+    }))
+        .ValueOrThrow();
+
+    ASSERT_EQ(orderedStores[0].ValueOrThrow(), 0);
+    ASSERT_EQ(orderedStores[1].ValueOrThrow(), 0);
+    ASSERT_EQ(orderedStores[2].ValueOrThrow(), 5);
+    ASSERT_EQ(orderedStores[3].ValueOrThrow(), 5);
+    ASSERT_EQ(orderedStores[4].ValueOrThrow(), 5);
+    ASSERT_EQ(orderedStores[5].ValueOrThrow(), 5);
+    ASSERT_EQ(orderedStores[6].ValueOrThrow(), 8);
+    ASSERT_EQ(orderedStores[7].ValueOrThrow(), 8);
+    ASSERT_EQ(orderedStores[8].ValueOrThrow(), 8);
+    ASSERT_EQ(orderedStores[9].ValueOrThrow(), 8);
+
+    auto tabletId = ConvertTo<TString>(WaitFor(Client_->GetNode(Table_ + "/@tablets/0/tablet_id")).ValueOrThrow());
+
+    WaitFor(Client_->TrimTable(Table_, 0, 8))
+        .ThrowOnError();
+
+    SyncFreezeTable(Table_);
+    SyncUnfreezeTable(Table_);
+
+    WaitUntil([&] {
+        auto trimmedRowCount = ConvertTo<i64>(WaitFor(Client_->GetNode(Format("#%v/orchid/trimmed_row_count", tabletId))).ValueOrThrow());
+        return trimmedRowCount = 8;
+    }, "Trimmed row count is outdated");
+
+    WaitUntil([&] {
+        auto allRowsResult = WaitFor(Client_->SelectRows(Format("* from [%v]", Table_)))
+            .ValueOrThrow();
+        return allRowsResult.Rowset->GetRows().empty();
+    }, "Table is not empty");
+
+    SyncFreezeTable(Table_);
+
+    WaitUntil([&] {
+        auto stores = ConvertTo<std::vector<TStoreId>>(WaitFor(Client_->ListNode(Format("#%v/orchid/stores", tabletId))).ValueOrThrow());
+        return stores.empty();
+    }, "Stores exist");
+
+    orderedStores = WaitFor(internalClient->GetOrderedTabletSafeTrimRowCount({
+        {Table_, 0, t1},
+        {Table_, 0, t5},
+        {Table_, 0, t9},
+        {"//tmp/nonexistent/path", 0, t5},
+    }))
+        .ValueOrThrow();
+
+    ASSERT_EQ(orderedStores[0].ValueOrThrow(), 8);
+    ASSERT_EQ(orderedStores[1].ValueOrThrow(), 8);
+    ASSERT_EQ(orderedStores[2].ValueOrThrow(), 8);
+    ASSERT_FALSE(orderedStores[3].IsOK());
+
+    SyncUnfreezeTable(Table_);
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

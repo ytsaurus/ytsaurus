@@ -46,6 +46,8 @@ protected:
         const TString& schema);
 
     static void SyncMountTable(const NYPath::TYPath& path);
+    static void SyncFreezeTable(const NYPath::TYPath& path);
+    static void SyncUnfreezeTable(const NYPath::TYPath& path);
 
     static void SyncUnmountTable(const NYPath::TYPath& path);
 

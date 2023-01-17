@@ -1599,6 +1599,8 @@ TTabletSnapshotPtr TTablet::BuildSnapshot(
             snapshot->OrderedStores.push_back(store);
             addStoreStatistics(store);
         }
+
+        snapshot->TotalRowCount = GetTotalRowCount();
     }
 
     if (IsPhysicallySorted() && StoreManager_) {

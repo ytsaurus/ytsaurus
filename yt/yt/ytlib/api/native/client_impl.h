@@ -660,6 +660,10 @@ public:
         NTabletClient::TTabletId lockerTabletId,
         const TUnlockHunkStoreOptions& options),
         (path, tabletIndex, storeId, lockerTabletId, options))
+    IMPLEMENT_METHOD(std::vector<TErrorOr<i64>>, GetOrderedTabletSafeTrimRowCount, (
+        const std::vector<TGetOrderedTabletSafeTrimRowCountRequest>& requests,
+        const TGetOrderedTabletSafeTrimRowCountOptions& options),
+        (requests, options))
 
     IMPLEMENT_METHOD(void, SetUserPassword, (
         const TString& user,
@@ -1637,6 +1641,9 @@ private:
         NTabletClient::TTabletId lockerTabletId,
         bool lock,
         const TTimeoutOptions& options);
+    std::vector<TErrorOr<i64>> DoGetOrderedTabletSafeTrimRowCount(
+        const std::vector<TGetOrderedTabletSafeTrimRowCountRequest>& requests,
+        const TGetOrderedTabletSafeTrimRowCountOptions& options);
 
     //
     // YQL
