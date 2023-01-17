@@ -1,9 +1,8 @@
 #!/usr/bin/env python
 
-import os
 import sys
 
-from helpers import get_version, import_file
+from helpers import get_version, get_version_branch, import_file
 
 
 def find_pypi_package(package_name):
@@ -18,18 +17,16 @@ def find_pypi_package(package_name):
     else:
         build_number = "0"
 
-    is_stable = True
-    if os.path.exists("stable_versions"):
-        stable_versions = []
-        with open("stable_versions") as fin:
-            stable_versions = fin.read().split("\n")
-        if version not in stable_versions:
-            is_stable = False
+    version_branch = get_version_branch(version)
 
-    if is_stable:
+    if version_branch == "stable":
         version = version + "-" + build_number
-    else:
+    elif version_branch == "testing":
+        version = version + "rc1"
+    elif version_branch == "unstable":
         version = version + "a1"
+    else:
+        assert False, "Unknown version branch {}".format(version_branch)
 
     part_count = len(version.replace("-", ".").split("."))
     return version in pypi_helpers.get_package_versions(package_name, version_part_count=part_count)

@@ -1,7 +1,7 @@
 PACKAGE_NAME = "yandex-yt"
 
 def main():
-    from helpers import get_version, recursive, is_debian
+    from helpers import get_version, get_version_branch, recursive, is_debian
 
     from setuptools import setup, find_packages
 
@@ -10,17 +10,19 @@ def main():
 
     version = get_version()
     version = version.split("-")[0]
-    stable_versions = []
-    if os.path.exists("stable_versions"):
-        with open("stable_versions") as fin:
-            stable_versions = fin.read().split("\n")
 
     # NB: version in package should be without alpha suffix.
     with open("yt/wrapper/version.py", "w") as version_output:
         version_output.write("VERSION='{0}'".format(version))
 
-    if not is_debian and version not in stable_versions:
-        version = version + "a1"
+    if not is_debian:
+        version_branch = get_version_branch(version)
+        if version_branch == "unstable":
+            version = version + "a1"
+        elif version_branch == "testing":
+            version = version + "rc1"
+        else:
+            assert version_branch == "stable", "Unknown version branch {}".format(version_branch)
 
     data_files = []
     scripts = [

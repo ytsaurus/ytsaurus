@@ -8,8 +8,8 @@ import shutil
 import sys
 from copy import deepcopy
 
-from helpers import get_version, copy_tree, import_file, execute_command
-from find_debian_package import find_debian_package
+from helpers import get_version, get_version_branch, copy_tree, import_file, execute_command
+from find_debian_package import find_debian_package, fetch_package_versions
 from find_pypi_package import find_pypi_package
 
 
@@ -22,6 +22,7 @@ def parse_arguments():
     parser.add_argument("--repos", nargs="+", default=None, help="Repositories to upload a debian package")
     parser.add_argument("--keep-going", action="store_true", default=False, help="Continue build other packages when some builds failed")
     parser.add_argument("--python-binary", default=sys.executable, help="Path to python binary")
+    parser.add_argument("--debian-dist-user", default=os.getlogin(), help="Username to access 'dupload.dist.yandex.ru' (dist-dmove role required)")
     return parser.parse_args()
 
 
@@ -84,7 +85,7 @@ def build_package(package, package_type, python_binary, skip_pypi=False):
     return build_ok
 
 
-def deploy_debian_package(package, version, repos=None):
+def deploy_debian_package(package, version, version_branch, debian_dist_user=None, repos=None):
     if not repos:
         repos = [repo for repo, pkgs in DEBIAN_REPO_TO_PACKAGES.items() if package in pkgs]
 
@@ -98,15 +99,60 @@ def deploy_debian_package(package, version, repos=None):
     try:
         for repo in repos:
             if find_debian_package(repo, package, version):
-                logging.warning("Package {} already uploaded to the repository {}, skipping uploaded".format(package, repo))
+                logging.warning("Package {} already uploaded to the repository {}, skipping upload".format(package, repo))
                 continue
 
-            if repo == "common":
-                # used in postprocess.sh in some packages
-                os.environ["CREATE_CONDUCTOR_TICKET"] = "true"
             pkg_path = "../{}_{}_amd64.changes".format(package, version)
             logging.info("Uploading to {}...".format(repo))
             execute_command(["dupload", pkg_path, "--force", "--to", repo])
+
+        if version_branch != "unstable":
+            if not debian_dist_user:
+                raise RuntimeError("debian_dist_user is required to move package between branches, but it wasn't specified")
+
+            for repo in repos:
+                package_versions = [entry for entry in fetch_package_versions(repo, package) if entry[0] == version]
+                if len(package_versions) != 1:
+                    raise RuntimeError(
+                        "Expected to find package {package} (v{version}) in exactly one branch inside repo {repo}, "
+                        "but found in {entries}".format(
+                            package=package,
+                            version=version,
+                            repo=repo,
+                            entries=package_versions,
+                        )
+                    )
+
+                current_branch = package_versions[0][1]
+
+                logging.info(
+                    "Package {package} found in repository {repo} on branch {current_branch}, "
+                    "target branch is {target_branch}".format(
+                        package=package,
+                        repo=repo,
+                        current_branch=current_branch,
+                        target_branch=version_branch,
+                    )
+                )
+
+                if current_branch == version_branch:
+                    continue
+
+                dmove_command = "sudo dmove {repo} {version_branch} {package} {version} {current_branch}".format(
+                    repo=repo,
+                    version_branch=version_branch,
+                    package=package,
+                    version=version,
+                    current_branch=current_branch,
+                )
+
+                remote_cmd = ["ssh", "-l", debian_dist_user, "dupload.dist.yandex.ru", dmove_command]
+                _, stdout, _ = execute_command(remote_cmd, capture_output=True)
+                if "Dmove successfully complete" not in stdout:
+                    logging.error("Dmove failed with stdout: {}".format(stdout))
+                    raise RuntimeError("Dmove failed")
+
+                logging.info("Successfully moved {package} to {repo}~{branch}".format(package=package, repo=repo, branch=version_branch))
         return True
     except RuntimeError:
         logging.exception("Failed to deploy debian package")
@@ -133,9 +179,10 @@ def deploy_pypi_package(package, python_binary):
         return False
 
 
-def deploy_package(package, package_type, python_binary, repos=None):
+def deploy_package(package, package_type, python_binary, debian_dist_user=None, repos=None):
     version = get_version()
-    logging.info("Deploying {} package for {} (version {})".format(package_type, package, version))
+    version_branch = get_version_branch(version)
+    logging.info("Deploying {} package for {} (version {} branch {})".format(package_type, package, version, version_branch))
 
     if version.endswith("local"):
         logging.info("Package version marked as local, deployment skipped")
@@ -143,7 +190,7 @@ def deploy_package(package, package_type, python_binary, repos=None):
 
     if package_type in ("debian", "all"):
         logging.info("Deploying {}:debian...".format(package))
-        ok = deploy_debian_package(package, version, repos=repos)
+        ok = deploy_debian_package(package, version, version_branch, repos=repos)
         logging.info("Deployment of {}:debian {}".format(package, "OK" if ok else "FAILED"))
 
     if package_type in ("pypi", "all"):
@@ -159,8 +206,6 @@ def clean(python_binary, final=False):
                 shutil.rmtree(path)
             else:
                 os.unlink(path)
-
-    os.environ["CREATE_CONDUCTOR_TICKET"] = ""
 
     for path in [".pybuild", "*.egg-info"]:
         remove_path(path)
@@ -202,11 +247,16 @@ def main(args=None):
             raise SystemExit(exit_code)
 
         if args.deploy:
-            deploy_package(package, args.package_type, args.python_binary, repos=args.repos)
+            deploy_package(
+                package,
+                args.package_type,
+                args.python_binary,
+                debian_dist_user=args.debian_dist_user,
+                repos=args.repos,
+            )
 
             if os.path.exists("./postprocess.py"):
                 postprocess_args = deepcopy(args)
-                postprocess_args.create_conductor_ticket = bool(os.environ["CREATE_CONDUCTOR_TICKET"])
                 import_file("postprocess", "./postprocess.py").main(postprocess_args)
 
         clean(args.python_binary, final=args.deploy)
