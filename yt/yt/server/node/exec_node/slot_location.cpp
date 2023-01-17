@@ -929,6 +929,8 @@ void TSlotLocation::UpdateDiskResources()
         }
 
         i64 diskUsage = 0;
+        i64 reservedAvailableSpace = 0;
+
         THashMap<int, TUserSandboxOptions> sandboxOptionsPerSlot;
 
         {
@@ -987,6 +989,7 @@ void TSlotLocation::UpdateDiskResources()
             if (sandboxOptions.DiskSpaceLimit) {
                 i64 slotDiskLimit = *sandboxOptions.DiskSpaceLimit;
                 diskUsage += slotDiskLimit;
+                reservedAvailableSpace += slotDiskLimit - slotDiskUsage;
                 if (dynamicConfig->CheckDiskSpaceLimit && slotDiskUsage > slotDiskLimit) {
                     auto error = TError("Disk usage overdrafted: %v > %v",
                         slotDiskUsage,
@@ -1016,7 +1019,7 @@ void TSlotLocation::UpdateDiskResources()
                 }
             }
 
-            auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace, diskLimit - diskUsage));
+            auto availableSpace = Max<i64>(0, Min(locationStatistics.AvailableSpace - reservedAvailableSpace, diskLimit - diskUsage));
             diskLimit = Min(diskLimit, diskUsage + availableSpace);
             diskLimit -= Config_->DiskUsageWatermark;
 
