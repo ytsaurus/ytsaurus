@@ -210,14 +210,11 @@ private:
                 protoTabletStatistics->set_access_time(ToProto<ui64>(tabletSnapshot->TabletRuntimeData->AccessTime));
 
                 int tabletErrorCount = 0;
-
-                for (auto key : TEnumTraits<ETabletBackgroundActivity>::GetDomainValues()) {
-                    auto error = tabletSnapshot->TabletRuntimeData->Errors[key].Load();
+                tabletSnapshot->TabletRuntimeData->Errors.ForEachError([&tabletErrorCount] (const TError& error) {
                     if (!error.IsOK()) {
                         ++tabletErrorCount;
                     }
-                }
-
+                });
                 protoTabletInfo->set_error_count(tabletErrorCount);
 
                 for (const auto& [replicaId, replicaSnapshot] : tabletSnapshot->Replicas) {

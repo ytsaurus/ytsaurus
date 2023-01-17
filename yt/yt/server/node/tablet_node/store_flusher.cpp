@@ -178,11 +178,13 @@ private:
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Rotation)
                 << TErrorAttribute("limit", DynamicStoreCountLimit);
             YT_LOG_DEBUG(error);
-            tablet->RuntimeData()->Errors[ETabletBackgroundActivity::Rotation].Store(error);
+            tablet->RuntimeData()->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Rotation].Store(error);
             return;
         }
 
-        tablet->RuntimeData()->Errors[ETabletBackgroundActivity::Rotation].Store(TError());
+        tablet->RuntimeData()->Errors
+            .BackgroundErrors[ETabletBackgroundActivity::Rotation].Store(TError());
     }
 
     void ScanTabletForFlush(const ITabletSlotPtr& slot, TTablet* tablet)
@@ -434,7 +436,8 @@ private:
                 .ThrowOnError();
 
             storeManager->EndStoreFlush(store);
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Flush].Store(TError());
 
             YT_LOG_INFO("Store flush completed (WallTime: %v)",
                 timer.GetElapsedTime());
@@ -443,7 +446,8 @@ private:
                 << TErrorAttribute("tablet_id", tabletId)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Flush);
 
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Flush].Store(error);
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Flush].Store(error);
             YT_LOG_ERROR(error, "Error flushing tablet store, backing off");
 
             storeManager->BackoffStoreFlush(store);

@@ -17,6 +17,7 @@
 #include "store_rotator.h"
 #include "store_trimmer.h"
 #include "structured_logger.h"
+#include "table_config_manager.h"
 #include "tablet_cell_service.h"
 #include "tablet_snapshot_store.h"
 
@@ -99,6 +100,8 @@ public:
 
         HedgingManagerRegistry_ = CreateHedgingManagerRegistry(
             NChunkClient::TDispatcher::Get()->GetReaderInvoker());
+
+        TableDynamicConfigManager_ = New<TTableDynamicConfigManager>(this);
 
         QueryThreadPool_ = CreateTwoLevelFairShareThreadPool(
             GetConfig()->QueryAgent->QueryThreadPoolSize,
@@ -227,6 +230,7 @@ public:
         LsmInterop_->Start();
         HintManager_->Start();
         InMemoryManager_->Start();
+        TableDynamicConfigManager_->Start();
     }
 
     NYTree::IYPathServicePtr CreateThreadPoolsOrchidService()
@@ -279,6 +283,11 @@ public:
     const IHedgingManagerRegistryPtr& GetHedgingManagerRegistry() const override
     {
         return HedgingManagerRegistry_;
+    }
+
+    const TTableDynamicConfigManagerPtr& GetTableDynamicConfigManager() const override
+    {
+        return TableDynamicConfigManager_;
     }
 
     const ISlotManagerPtr& GetSlotManager() const override
@@ -402,6 +411,7 @@ private:
     IStructuredLoggerPtr StructuredLogger_;
     IHintManagerPtr HintManager_;
     IHedgingManagerRegistryPtr HedgingManagerRegistry_;
+    TTableDynamicConfigManagerPtr TableDynamicConfigManager_;
     ISlotManagerPtr SlotManager_;
 
     IThreadPoolPtr TableReplicatorThreadPool_;

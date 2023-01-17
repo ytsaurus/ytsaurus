@@ -357,7 +357,7 @@ void TCustomTableMountConfig::Register(TRegistrar registrar)
             THROW_ERROR_EXCEPTION("\"max_partitioning_data_size\" must be greater than or equal to \"min_partitioning_data_size\"");
         }
         if (config->MaxCompactionStoreCount < config->MinCompactionStoreCount) {
-            THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_chunk_count\"");
+            THROW_ERROR_EXCEPTION("\"max_compaction_store_count\" must be greater than or equal to \"min_compaction_store_count\"");
         }
         if (config->MaxHunkCompactionChunkCount < config->MinHunkCompactionChunkCount) {
             THROW_ERROR_EXCEPTION("\"max_hunk_compaction_chunk_count\" must be greater than or equal to \"min_hunk_compaction_chunk_count\"");
@@ -829,6 +829,8 @@ void TTabletNodeConfig::Register(TRegistrar registrar)
     registrar.Parameter("security_manager", &TThis::SecurityManager)
         .DefaultNew();
     registrar.Parameter("hint_manager", &TThis::HintManager)
+        .DefaultNew();
+    registrar.Parameter("table_config_manager", &TThis::TableConfigManager)
         .DefaultNew();
 
     registrar.Parameter("versioned_chunk_meta_cache", &TThis::VersionedChunkMetaCache)

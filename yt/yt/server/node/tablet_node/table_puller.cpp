@@ -269,7 +269,8 @@ private:
             if (auto writeMode = tabletSnapshot->TabletRuntimeData->WriteMode.load(); writeMode != ETabletWriteMode::Pull) {
                 YT_LOG_DEBUG("Will not pull rows since tablet write mode does not imply pulling (WriteMode: %v)",
                     writeMode);
-                tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
+                tabletSnapshot->TabletRuntimeData->Errors
+                    .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(TError());
                 return;
             }
 
@@ -312,14 +313,16 @@ private:
                     replicationProgress);
             }
 
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(TError());
         } catch (const std::exception& ex) {
             auto error = TError(ex)
                 << TErrorAttribute("tablet_id", TabletId_)
                 << TErrorAttribute("background_activity", ETabletBackgroundActivity::Pull);
             YT_LOG_ERROR(error, "Error pulling rows, backing off");
             if (tabletSnapshot) {
-                tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(error);
+                tabletSnapshot->TabletRuntimeData->Errors
+                    .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(error);
             }
             if (error.Attributes().Get<bool>("hard", false)) {
                 DoHardBackoff(error);
@@ -595,7 +598,8 @@ private:
         // Update progress even if no rows pulled.
         if (IsReplicationProgressGreaterOrEqual(*replicationProgress, progress)) {
             YT_VERIFY(resultRows.empty());
-            tabletSnapshot->TabletRuntimeData->Errors[ETabletBackgroundActivity::Pull].Store(TError());
+            tabletSnapshot->TabletRuntimeData->Errors
+                .BackgroundErrors[ETabletBackgroundActivity::Pull].Store(TError());
             return;
         }
 

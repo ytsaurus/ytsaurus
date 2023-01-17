@@ -86,6 +86,13 @@ void TSimpleTabletManager::InitializeTablet(TTabletOptions options)
         /*retainedTimestamp*/ NullTimestamp,
         /*cumulativeDataWeight*/ 0);
 
+    TRawTableSettings rawSettings;
+    rawSettings.CreateNewProvidedConfigs();
+    rawSettings.Provided.MountConfigNode = CreateEphemeralNodeFactory()
+        ->CreateMap();
+    rawSettings.GlobalPatch = New<TTableConfigPatch>();
+    tablet->RawSettings() = std::move(rawSettings);
+
     tablet->SetStructuredLogger(CreateMockPerTabletStructuredLogger(tablet.get()));
     WaitFor(BIND([&, tablet = std::move(tablet)] () mutable {
         TabletMap_.Insert(NullTabletId, std::move(tablet));

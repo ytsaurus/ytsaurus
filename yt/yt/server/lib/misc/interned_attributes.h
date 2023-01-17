@@ -38,6 +38,7 @@
     XX(Areas, areas) \
     XX(AreaId, area_id) \
     XX(AreaNodes, area_nodes) \
+    XX(AssignedMountConfigExperiments, assigned_mount_config_experiments) \
     XX(Atomicity, atomicity) \
     XX(AttributeKey, attribute_key) \
     XX(AttributeRevision, attribute_revision) \

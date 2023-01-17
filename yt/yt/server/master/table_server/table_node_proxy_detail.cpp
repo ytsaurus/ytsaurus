@@ -37,6 +37,7 @@
 #include <yt/yt/server/lib/misc/interned_attributes.h>
 
 #include <yt/yt/server/lib/tablet_node/config.h>
+#include <yt/yt/server/lib/tablet_node/table_settings.h>
 
 #include <yt/yt/server/lib/tablet_balancer/config.h>
 
@@ -385,6 +386,9 @@ void TTableNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor>* de
         .SetReplicated(true)
         .SetRemovable(true)
         .SetPresent(table->GetHunkStorageNode()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AssignedMountConfigExperiments)
+        .SetPresent(isDynamic)
+        .SetOpaque(true));
 }
 
 bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsumer* consumer)
@@ -943,6 +947,32 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
 
             BuildYsonFluently(consumer)
                 .Value(hunkStorageNode->GetId());
+            return true;
+        }
+
+        case EInternedAttributeKey::AssignedMountConfigExperiments: {
+            if (!table->IsDynamic()) {
+                return false;
+            }
+
+            const auto& configManager = Bootstrap_->GetConfigManager();
+            const auto& experiments = configManager->GetConfig()->TabletManager->TableConfigExperiments;
+            NTabletNode::TTableConfigExperiment::TTableDescriptor descriptor{
+                .TableId = table->GetId(),
+                .TablePath = GetPath(),
+                .TabletCellBundle = table->TabletCellBundle()->GetName(),
+                .Sorted = table->IsSorted(),
+                .Replicated = table->IsReplicated(),
+            };
+
+            BuildYsonFluently(consumer)
+                .DoMapFor(experiments, [&] (auto fluent, const auto& pair) {
+                    if (pair.second->Matches(descriptor)) {
+                        fluent
+                            .Item(pair.first).Value(pair.second);
+                    }
+                });
+
             return true;
         }
 

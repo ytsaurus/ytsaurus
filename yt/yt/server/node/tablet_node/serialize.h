@@ -28,6 +28,7 @@ DEFINE_ENUM(ETabletReign,
     ((HunkTablets)                        (100601)) // gritukan
     ((AdvanceReplicationRound)            (100602)) // savrus
     ((ReworkTabletLocks)                  (100603)) // gritukan
+    ((MountConfigExperiments)             (100604)) // ifsmirnov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

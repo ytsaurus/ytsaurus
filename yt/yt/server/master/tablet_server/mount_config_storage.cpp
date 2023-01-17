@@ -114,6 +114,11 @@ void Deserialize(TMountConfigStorage& storage, NYTree::INodePtr node)
     }
 }
 
+void Deserialize(TMountConfigStorage& storage, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(storage, ExtractTo<INodePtr>(cursor));
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletServer

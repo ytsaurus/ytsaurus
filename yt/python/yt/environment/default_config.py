@@ -566,6 +566,10 @@ def get_node_config():
         hydra_manager = {
             use_new_hydra = %true;
         };
+
+        table_config_manager = {
+            update_period = 100;
+        };
     };
 
     query_agent = {

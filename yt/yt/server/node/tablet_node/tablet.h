@@ -12,6 +12,8 @@
 
 #include <yt/yt/server/node/cluster_node/public.h>
 
+#include <yt/yt/server/lib/tablet_node/table_settings.h>
+
 #include <yt/yt/ytlib/chunk_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -136,6 +138,17 @@ DEFINE_REFCOUNTED_TYPE(TRefCountedReplicationProgress)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTabletErrors
+{
+    TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> BackgroundErrors;
+    TAtomicObject<TError> ConfigError;
+
+    template <class TCallback>
+    void ForEachError(TCallback&& callback) const;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! All fields must be atomic since they're being accessed both
 //! from the writer and from readers concurrently.
 struct TRuntimeTabletData
@@ -155,27 +168,10 @@ struct TRuntimeTabletData
     TAtomicObject<TRefCountedReplicationProgressPtr> ReplicationProgress;
     TAtomicObject<NChaosClient::TReplicationCardPtr> ReplicationCard;
     TEnumIndexedVector<ETabletDynamicMemoryType, std::atomic<i64>> DynamicMemoryUsagePerType;
-    TEnumIndexedVector<NTabletClient::ETabletBackgroundActivity, TAtomicObject<TError>> Errors;
+    TTabletErrors Errors;
 };
 
 DEFINE_REFCOUNTED_TYPE(TRuntimeTabletData)
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TTableSettings
-{
-    TTableMountConfigPtr MountConfig;
-    NYTree::IMapNodePtr ProvidedMountConfig;
-    NYTree::IMapNodePtr ProvidedExtraMountConfig;
-    TTabletStoreReaderConfigPtr StoreReaderConfig;
-    TTabletHunkReaderConfigPtr HunkReaderConfig;
-    TTabletStoreWriterConfigPtr StoreWriterConfig;
-    TTabletStoreWriterOptionsPtr StoreWriterOptions;
-    TTabletHunkWriterConfigPtr HunkWriterConfig;
-    TTabletHunkWriterOptionsPtr HunkWriterOptions;
-
-    static TTableSettings CreateNew();
-};
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -199,6 +195,7 @@ struct TTabletSnapshot
     TString LoggingTag;
     NYPath::TYPath TablePath;
     TTableSettings Settings;
+    TRawTableSettings RawSettings;
     TLegacyOwningKey PivotKey;
     TLegacyOwningKey NextPivotKey;
     NTableClient::TTableSchemaPtr PhysicalSchema;
@@ -549,6 +546,8 @@ public:
 
     DEFINE_BYREF_RW_PROPERTY(ITabletHedgingManagerRegistryPtr, HedgingManagerRegistry);
 
+    DEFINE_BYREF_RW_PROPERTY(TRawTableSettings, RawSettings);
+
 public:
     TTablet(
         TTabletId tabletId,
@@ -803,3 +802,7 @@ void BuildTableSettingsOrchidYson(const TTableSettings& options, NYTree::TFluent
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTabletNode
+
+#define TABLET_INL_H_
+#include "tablet-inl.h"
+#undef TABLET_INL_H_

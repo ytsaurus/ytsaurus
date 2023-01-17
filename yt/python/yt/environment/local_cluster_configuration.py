@@ -148,6 +148,9 @@ NODE_CONFIG_PATCHES = [
             "versioned_chunk_meta_cache": {
                 "capacity": 1000000,
             },
+            "table_config_manager": {
+                "update_period": 300,
+            },
         },
         "exec_agent": {
             "job_proxy_heartbeat_period": 100,

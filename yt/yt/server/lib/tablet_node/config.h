@@ -825,6 +825,7 @@ public:
     TPartitionBalancerConfigPtr PartitionBalancer;
     TSecurityManagerConfigPtr SecurityManager;
     THintManagerConfigPtr HintManager;
+    NDynamicConfig::TDynamicConfigManagerConfigPtr TableConfigManager;
 
     //! Cache for versioned chunk metas.
     TSlruCacheConfigPtr VersionedChunkMetaCache;
