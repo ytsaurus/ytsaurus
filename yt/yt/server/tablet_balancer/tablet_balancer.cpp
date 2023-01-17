@@ -382,11 +382,16 @@ void TTabletBalancer::BalanceViaMoveInMemory(const TBundleStatePtr& bundleState)
         return;
     }
 
-    auto descriptors = ReassignInMemoryTablets(
-        bundleState->GetBundle(),
-        /*movableTables*/ std::nullopt,
-        /*ignoreTableWiseConfig*/ false,
-        Logger);
+    auto descriptors = WaitFor(
+        BIND(
+            ReassignInMemoryTablets,
+            bundleState->GetBundle(),
+            /*movableTables*/ std::nullopt,
+            /*ignoreTableWiseConfig*/ false,
+            Logger)
+        .AsyncVia(WorkerPool_->GetInvoker())
+        .Run())
+        .ValueOrThrow();
 
     int actionCount = 0;
 
@@ -421,13 +426,17 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
         return;
     }
 
-    auto descriptors = ReassignOrdinaryTablets(
-        bundleState->GetBundle(),
-        /*movableTables*/ std::nullopt,
-        Logger);
+    auto descriptors = WaitFor(
+        BIND(
+            ReassignOrdinaryTablets,
+            bundleState->GetBundle(),
+            /*movableTables*/ std::nullopt,
+            Logger)
+        .AsyncVia(WorkerPool_->GetInvoker())
+        .Run())
+        .ValueOrThrow();
 
     int actionCount = 0;
-
     if (!descriptors.empty()) {
         for (auto descriptor : descriptors) {
             YT_LOG_DEBUG("Move action created (TabletId: %v, CellId: %v)",
@@ -459,13 +468,18 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         return;
     }
 
-    auto descriptors = ReassignTabletsParameterized(
-        bundleState->GetBundle(),
-        bundleState->DefaultPerformanceCountersKeys_,
-        /*ignoreTableWiseConfig*/ false,
-        MaxParameterizedMoveActionCount_.load(),
-        ParameterizedDeviationThreshold_.load(),
-        Logger);
+    auto descriptors = WaitFor(
+        BIND(
+            ReassignTabletsParameterized,
+            bundleState->GetBundle(),
+            bundleState->DefaultPerformanceCountersKeys_,
+            /*ignoreTableWiseConfig*/ false,
+            MaxParameterizedMoveActionCount_.load(),
+            ParameterizedDeviationThreshold_.load(),
+            Logger)
+        .AsyncVia(WorkerPool_->GetInvoker())
+        .Run())
+        .ValueOrThrow();
 
     int actionCount = 0;
 
@@ -522,7 +536,6 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState) cons
         });
 
     int actionCount = 0;
-    TTabletBalancerContext context;
 
     auto beginIt = tablets.begin();
     while (beginIt != tablets.end()) {
@@ -537,15 +550,19 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState) cons
         }
 
         auto& profilingCounters = GetOrCrash(bundleState->ProfilingCounters(), (*beginIt)->Table->Id);
-        auto tabletRange = MakeRange(beginIt, endIt);
+        auto tableTablets = std::vector<TTabletPtr>(beginIt, endIt);
         beginIt = endIt;
 
         // TODO(alexelex): Check if the table has actions.
 
-        auto descriptors = MergeSplitTabletsOfTable(
-            tabletRange,
-            &context,
-            Logger);
+        auto descriptors = WaitFor(
+            BIND(
+                MergeSplitTabletsOfTable,
+                std::move(tableTablets),
+                Logger)
+            .AsyncVia(WorkerPool_->GetInvoker())
+            .Run())
+            .ValueOrThrow();
 
         for (auto descriptor : descriptors) {
             YT_LOG_DEBUG("Reshard action created (TabletIds: %v, TabletCount: %v, DataSize: %v)",

@@ -31,6 +31,8 @@ static const std::vector<TString> ParameterizedBalancingAttributes = {
     "/performance_counters"
 };
 
+constexpr int MaxVerboseLogMessagesPerIteration = 1000;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 namespace {
@@ -81,6 +83,7 @@ private:
 
     double CurrentMetric_;
     TBestAction BestAction_;
+    int LogMessageCount_;
 
     NOrm::NQuery::IExpressionEvaluatorPtr Evaluator_;
 
@@ -114,6 +117,7 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
     , IgnoreTableWiseConfig_(ignoreTableWiseConfig)
     , PerformanceCountersKeys_(std::move(performanceCountersKeys))
     , DeviationThreshold_(deviationThreshold)
+    , LogMessageCount_(0)
 { }
 
 void TParameterizedReassignSolver::Initialize()
@@ -147,6 +151,8 @@ void TParameterizedReassignSolver::Initialize()
                     << TErrorAttribute("tablet_metric_value", tabletMetric)
                     << TErrorAttribute("tablet_id", tablet->Id)
                     << TErrorAttribute("metric_formula", Bundle_->Config->ParameterizedBalancingMetric);
+            } else if (tabletMetric == 0.0) {
+                continue;
             }
 
             EmplaceOrCrash(TabletToMetric_, tablet.Get(), tabletMetric);
@@ -218,7 +224,7 @@ double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
     return std::accumulate(
         CellToMetric_.begin(),
         CellToMetric_.end(),
-        0,
+        0.0,
         [] (double x, auto item) {
             return x + Sqr(item.second);
         });
@@ -243,7 +249,7 @@ void TParameterizedReassignSolver::TryMoveTablet(
     newMetric += Sqr(destinationCell + tabletMetric) - Sqr(destinationCell);
 
     YT_LOG_DEBUG_IF(
-        Bundle_->Config->EnableVerboseLogging,
+        Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
         "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %v, CurrentBestMetric: %v, "
         "NewMetric: %v, TabletMetric: %v, SourceCellMetric: %v, DestinationCellMetric: %v)",
         tablet->Id,
@@ -302,7 +308,7 @@ void TParameterizedReassignSolver::TrySwapTablets(
     newMetric += Sqr(rhsCellMetric + lhsTabletMetric - rhsTabletMetric);
 
     YT_LOG_DEBUG_IF(
-        Bundle_->Config->EnableVerboseLogging,
+        Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
         "Trying to swap tablets (LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v, "
         "CurrentMetric: %v, CurrentBestMetric: %v, NewMetric: %v, LhsTabletMetric: %v, "
         "RhsTabletMetric: %v, LhsCellMetric: %v, RhsCellMetric: %v)",
@@ -377,6 +383,7 @@ std::vector<TMoveDescriptor> TParameterizedReassignSolver::BuildActionDescriptor
 
     int availiableActionCount = MaxMoveActionCount_;
     while (availiableActionCount > 0) {
+        LogMessageCount_ = 0;
         if (TryFindBestAction(/*canMakeSwap*/ availiableActionCount >= 2)) {
             YT_VERIFY(BestAction_.Callback);
             BestAction_.Callback(&availiableActionCount);

@@ -24,13 +24,6 @@ struct TMoveDescriptor
     TTabletCellId TabletCellId;
 };
 
-struct TTabletBalancerContext
-{
-    THashSet<TTabletId> TouchedTablets;
-
-    bool IsTabletUntouched(TTabletId tabletId) const;
-};
-
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsTabletReshardable(const TTabletPtr& tablet, bool ignoreConfig);
@@ -40,8 +33,7 @@ i64 GetTabletBalancingSize(const TTabletPtr& tablet);
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TReshardDescriptor> MergeSplitTabletsOfTable(
-    TRange<TTabletPtr> tabletRange,
-    TTabletBalancerContext* context,
+    std::vector<TTabletPtr> tablets,
     const NLogging::TLogger& logger = {});
 
 std::vector<TMoveDescriptor> ReassignInMemoryTablets(

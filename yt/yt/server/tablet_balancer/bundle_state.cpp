@@ -51,7 +51,6 @@ TTabletStatistics BuildTabletStatistics(
     const std::vector<TString>& keys,
     bool saveOriginalNode = false)
 {
-    // TODO(alexelex): save node to OriginNode. Needs only for parameterized balancing.
     auto node = BuildYsonNodeFluently()
         .DoMap([&] (TFluentMap fluent) {
             auto iter = keys.begin();
