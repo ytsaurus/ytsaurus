@@ -193,7 +193,7 @@ void ChunkedCopy(
 //! releasing thread between chunks.
 void Splice(
     const TFile& source,
-    const TFile& destintation,
+    const TFile& destination,
     i64 chunkSize);
 
 TError AttachLsofOutput(TError error, const TString& path);
