@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup, Restarter, NODES_SERVICE
+from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait,
