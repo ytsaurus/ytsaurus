@@ -243,3 +243,32 @@ message TRspFetchTableRows
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TReqGetOrderedTabletSafeTrimRowCount
+{
+    message TSubrequest
+    {
+        required NYT.NProto.TGuid tablet_id = 1;
+        required NYT.NProto.TGuid cell_id = 2;
+        optional uint64 mount_revision = 3;
+
+        required uint64 timestamp = 4;
+    }
+
+    repeated TSubrequest subrequests = 1;
+}
+
+message TRspGetOrderedTabletSafeTrimRowCount
+{
+    message TSubresponse
+    {
+        optional int64 safe_trim_row_count = 1;
+
+        optional NYT.NProto.TError error = 2;
+    }
+
+    // |subresponses| contain exactly one subresponse for each subrequest from |subrequests| in the same order.
+    repeated TSubresponse subresponses = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

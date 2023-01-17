@@ -150,8 +150,8 @@ protected:
     const NTransactionClient::EAtomicity Atomicity_;
     const NTableClient::TRowBufferPtr RowBuffer_;
 
-    TTimestamp MinTimestamp_ = NTransactionClient::MaxTimestamp;
-    TTimestamp MaxTimestamp_ = NTransactionClient::MinTimestamp;
+    std::atomic<TTimestamp> MinTimestamp_ = NTransactionClient::MaxTimestamp;
+    std::atomic<TTimestamp> MaxTimestamp_ = NTransactionClient::MinTimestamp;
 
     EStoreFlushState FlushState_ = EStoreFlushState::None;
     TInstant LastFlushAttemptTimestamp_;
