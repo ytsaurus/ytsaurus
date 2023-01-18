@@ -2,6 +2,8 @@
 
 #include "channel.h"
 
+#include <yt/yt/core/profiling/timing.h>
+
 namespace NYT::NRpc {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -69,6 +71,32 @@ private:
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientRequestControlThunk)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClientRequestPerformanceProfiler
+    : public IClientRequestControl
+{
+public:
+    TClientRequestPerformanceProfiler(const TString& service, const TString& method);
+
+    void ProfileRequest(const TSharedRefArray& requestMessage);
+    void ProfileAcknowledgement();
+    void ProfileReply(const TSharedRefArray& responseMessage);
+    void ProfileCancel();
+    void ProfileTimeout();
+    void ProfileError(const TError& error);
+
+    TDuration ProfileComplete();
+
+private:
+    struct TPerformanceCounters;
+
+    const TPerformanceCounters* const MethodCounters_;
+    NProfiling::TWallTimer Timer_;
+
+    static const TPerformanceCounters* GetPerformanceCounters(const TString& service, const TString& method);
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

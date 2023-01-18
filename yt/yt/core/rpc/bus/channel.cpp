@@ -2,6 +2,7 @@
 
 #include <yt/yt/core/actions/future.h>
 
+#include <yt/yt/core/rpc/channel_detail.h>
 #include <yt/yt/core/rpc/client.h>
 #include <yt/yt/core/rpc/dispatcher.h>
 #include <yt/yt/core/rpc/message.h>
@@ -17,16 +18,10 @@
 #include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
-#include <yt/yt/core/misc/singleton.h>
-#include <yt/yt/core/misc/tls_cache.h>
 #include <yt/yt/core/misc/finally.h>
 #include <yt/yt/core/misc/atomic_object.h>
 
-#include <yt/yt/core/profiling/timing.h>
-
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
-
-#include <yt/yt/library/profiling/sensor.h>
 
 #include <library/cpp/yt/threading/rw_spin_lock.h>
 #include <library/cpp/yt/threading/spin_lock.h>
@@ -610,67 +605,6 @@ private:
             }
         }
 
-        //! Cached method metadata.
-        struct TMethodMetadata
-        {
-            NProfiling::TEventTimer AckTimeCounter;
-            NProfiling::TEventTimer ReplyTimeCounter;
-            NProfiling::TEventTimer TimeoutTimeCounter;
-            NProfiling::TEventTimer CancelTimeCounter;
-            NProfiling::TEventTimer TotalTimeCounter;
-
-            NProfiling::TCounter RequestCounter;
-            NProfiling::TCounter FailedRequestCounter;
-            NProfiling::TCounter TimedOutRequestCounter;
-            NProfiling::TCounter CancelledRequestCounter;
-            NProfiling::TCounter RequestMessageBodySizeCounter;
-            NProfiling::TCounter RequestMessageAttachmentSizeCounter;
-            NProfiling::TCounter ResponseMessageBodySizeCounter;
-            NProfiling::TCounter ResponseMessageAttachmentSizeCounter;
-        };
-
-        struct TMethodMetadataProfilingTrait
-        {
-            using TKey = std::pair<TString, TString>;
-            using TValue = TMethodMetadata;
-
-            static TKey ToKey(const TString& service, const TString& method)
-            {
-                return std::make_pair(service, method);
-            }
-
-            static TValue ToValue(const TString& service, const TString& method)
-            {
-                TMethodMetadata metadata;
-
-                auto profiler = RpcClientProfiler
-                    .WithHot()
-                    .WithTag("yt_service", service)
-                    .WithTag("method", method, -1);
-
-                metadata.AckTimeCounter = profiler.Timer("/request_time/ack");
-                metadata.ReplyTimeCounter = profiler.Timer("/request_time/reply");
-                metadata.TimeoutTimeCounter = profiler.Timer("/request_time/timeout");
-                metadata.CancelTimeCounter = profiler.Timer("/request_time/cancel");
-                metadata.TotalTimeCounter = profiler.Timer("/request_time/total");
-                metadata.RequestCounter = profiler.Counter("/request_count");
-                metadata.FailedRequestCounter = profiler.Counter("/failed_request_count");
-                metadata.TimedOutRequestCounter = profiler.Counter("/timed_out_request_count");
-                metadata.CancelledRequestCounter = profiler.Counter("/cancelled_request_count");
-                metadata.RequestMessageBodySizeCounter = profiler.Counter("/request_message_body_bytes");
-                metadata.RequestMessageAttachmentSizeCounter = profiler.Counter("/request_message_attachment_bytes");
-                metadata.ResponseMessageBodySizeCounter = profiler.Counter("/response_message_body_bytes");
-                metadata.ResponseMessageAttachmentSizeCounter = profiler.Counter("/response_message_attachment_bytes");
-
-                return metadata;
-            }
-        };
-
-        TMethodMetadata* GetMethodMetadata(const TString& service, const TString& method)
-        {
-            return &GetLocallyGloballyCachedValue<TMethodMetadataProfilingTrait>(service, method);
-        }
-
     private:
         const TTosLevel TosLevel_;
 
@@ -1131,7 +1065,7 @@ private:
 
     //! Controls a sent request.
     class TClientRequestControl
-        : public IClientRequestControl
+        : public TClientRequestPerformanceProfiler
     {
     public:
         TClientRequestControl(
@@ -1139,13 +1073,13 @@ private:
             IClientRequestPtr request,
             const TSendOptions& options,
             IClientResponseHandlerPtr responseHandler)
-            : Session_(std::move(session))
+            : TClientRequestPerformanceProfiler(request->GetService(), request->GetMethod())
+            , Session_(std::move(session))
             , RealmId_(request->GetRealmId())
             , Service_(request->GetService())
             , Method_(request->GetMethod())
             , RequestId_(request->GetRequestId())
             , Options_(options)
-            , MethodMetadata_(Session_->GetMethodMetadata(Service_, Method_))
             , ResponseHandler_(std::move(responseHandler))
             , TraceContext_()
         { }
@@ -1220,51 +1154,10 @@ private:
 
         IClientResponseHandlerPtr Finalize(const TGuard<NThreading::TSpinLock>&)
         {
-            TotalTime_ = DoProfile(MethodMetadata_->TotalTimeCounter);
+            TotalTime_ = ProfileComplete();
             TDelayedExecutor::CancelAndClear(TimeoutCookie_);
             TDelayedExecutor::CancelAndClear(AcknowledgementTimeoutCookie_);
             return std::move(ResponseHandler_);
-        }
-
-        void ProfileRequest(const TSharedRefArray& requestMessage)
-        {
-            MethodMetadata_->RequestCounter.Increment();
-            MethodMetadata_->RequestMessageBodySizeCounter.Increment(
-                GetMessageBodySize(requestMessage));
-            MethodMetadata_->RequestMessageAttachmentSizeCounter.Increment(
-                GetTotalMessageAttachmentSize(requestMessage));
-        }
-
-        void ProfileReply(const TSharedRefArray& responseMessage)
-        {
-            DoProfile(MethodMetadata_->ReplyTimeCounter);
-
-            MethodMetadata_->ResponseMessageBodySizeCounter.Increment(
-                GetMessageBodySize(responseMessage));
-            MethodMetadata_->ResponseMessageAttachmentSizeCounter.Increment(
-                GetTotalMessageAttachmentSize(responseMessage));
-        }
-
-        void ProfileAcknowledgement()
-        {
-            DoProfile(MethodMetadata_->AckTimeCounter);
-        }
-
-        void ProfileCancel()
-        {
-            DoProfile(MethodMetadata_->CancelTimeCounter);
-            MethodMetadata_->CancelledRequestCounter.Increment();
-        }
-
-        void ProfileTimeout()
-        {
-            DoProfile(MethodMetadata_->TimeoutTimeCounter);
-            MethodMetadata_->TimedOutRequestCounter.Increment();
-        }
-
-        void ProfileError(const TError& /* error */)
-        {
-            MethodMetadata_->FailedRequestCounter.Increment();
         }
 
         // IClientRequestControl overrides
@@ -1290,23 +1183,14 @@ private:
         const TString Method_;
         const TRequestId RequestId_;
         const TSendOptions Options_;
-        TSession::TMethodMetadata* const MethodMetadata_;
 
         TDelayedExecutorCookie TimeoutCookie_;
         TDelayedExecutorCookie AcknowledgementTimeoutCookie_;
         IClientResponseHandlerPtr ResponseHandler_;
 
-        NProfiling::TWallTimer Timer_;
         TDuration TotalTime_;
 
         NYT::NTracing::TTraceContextHandler TraceContext_;
-
-        TDuration DoProfile(NProfiling::TEventTimer& counter)
-        {
-            auto elapsed = Timer_.GetElapsedTime();
-            counter.Record(elapsed);
-            return elapsed;
-        }
     };
 };
 

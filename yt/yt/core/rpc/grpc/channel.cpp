@@ -7,12 +7,11 @@
 #include <yt/yt/core/misc/finally.h>
 
 #include <yt/yt/core/rpc/channel.h>
+#include <yt/yt/core/rpc/channel_detail.h>
 #include <yt/yt/core/rpc/message.h>
 #include <yt/yt_proto/yt/core/rpc/proto/rpc.pb.h>
 
 #include <yt/yt/core/ytree/fluent.h>
-
-#include <yt/yt/core/profiling/timing.h>
 
 #include <contrib/libs/grpc/include/grpc/grpc.h>
 #include <contrib/libs/grpc/src/core/lib/channel/call_tracer.h>
@@ -242,7 +241,7 @@ private:
 
     class TCallHandler
         : public TCompletionQueueTag
-        , public IClientRequestControl
+        , public TClientRequestPerformanceProfiler
     {
     public:
         TCallHandler(
@@ -250,7 +249,8 @@ private:
             const TSendOptions& options,
             IClientRequestPtr request,
             IClientResponseHandlerPtr responseHandler)
-            : Owner_(std::move(owner))
+            : TClientRequestPerformanceProfiler(request->GetService(), request->GetMethod())
+            , Owner_(std::move(owner))
             , Options_(options)
             , Request_(std::move(request))
             , ResponseHandler_(std::move(responseHandler))
@@ -443,8 +443,6 @@ private:
         TGuardedGrpcCompletitionQueuePtr* GuardedCompletionQueue_;
         const NLogging::TLogger& Logger;
 
-        NProfiling::TWallTimer Timer_;
-
         NYT::NTracing::TTraceContextHandler TraceContext_;
 
         TGrpcCallPtr Call_;
@@ -519,6 +517,8 @@ private:
                 Request_->GetService(),
                 Request_->GetMethod());
 
+            ProfileRequest(RequestBody_);
+
             Stage_ = EClientCallStage::ReceivingInitialMetadata;
 
             std::array<grpc_op, 1> ops;
@@ -541,6 +541,7 @@ private:
                 return;
             }
 
+            ProfileAcknowledgement();
             YT_LOG_DEBUG("Initial response metadata received (RequestId: %v)",
                 Request_->GetRequestId());
 
@@ -627,9 +628,9 @@ private:
                 messageWithAttachments.Message,
                 messageWithAttachments.Attachments);
 
+            ProfileReply(responseMessage);
             NotifyResponse(std::move(responseMessage));
         }
-
 
         template <class TOps>
         bool TryStartBatch(const TOps& ops)
@@ -669,6 +670,7 @@ private:
                     << TErrorAttribute("timeout", Options_.Timeout);
             }
 
+            ProfileError(error);
             YT_LOG_DEBUG(detailedError, "%v (RequestId: %v)",
                 reason,
                 Request_->GetRequestId());
@@ -683,11 +685,12 @@ private:
                 return;
             }
 
+            auto elapsed = ProfileComplete();
             YT_LOG_DEBUG("Response received (RequestId: %v, Method: %v.%v, TotalTime: %v)",
                 Request_->GetRequestId(),
                 Request_->GetService(),
                 Request_->GetMethod(),
-                Timer_.GetElapsedTime());
+                elapsed);
 
             responseHandler->HandleResponse(
                 std::move(message),
