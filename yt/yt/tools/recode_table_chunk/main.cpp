@@ -85,13 +85,6 @@ private:
     TChunkFileWriterPtr ChunkWriter_;
 
 
-    static bool IsVersionedFormat(EChunkFormat format)
-    {
-        return
-            format == EChunkFormat::TableVersionedSimple ||
-            format == EChunkFormat::TableVersionedColumnar;
-    }
-
     void DumpStatistics(const TRefCountedChunkMetaPtr& chunkMeta)
     {
         auto chunkType = CheckedEnumCast<EChunkType>(chunkMeta->type());
@@ -146,7 +139,8 @@ private:
             ? ConvertTo<TChunkWriterConfigPtr>(TYsonString(WriterConfig_))
             : New<TChunkWriterConfig>();
 
-        if (IsVersionedFormat(CheckedEnumCast<EChunkFormat>(InputChunkMeta_->format()))) {
+        auto format = CheckedEnumCast<EChunkFormat>(InputChunkMeta_->format());
+        if (IsTableChunkFormatVersioned(format)) {
             DoRunVersioned();
         } else {
             DoRunUnversioned();

@@ -2,7 +2,8 @@
 #include "private.h"
 #include "versioned_block_writer.h"
 #include "schemaless_block_reader.h"
-#include "reader_helpers.h"
+
+#include <yt/yt/ytlib/table_chunk_format/reader_helpers.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
@@ -15,6 +16,7 @@
 namespace NYT::NTableClient {
 
 using namespace NTransactionClient;
+using namespace NTableChunkFormat;
 using namespace NTableClient::NProto;
 
 ////////////////////////////////////////////////////////////////////////////////

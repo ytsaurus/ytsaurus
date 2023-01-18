@@ -77,7 +77,7 @@ void WritePadding(char*& ptr, size_t sizeToPad);
 
 template <class TInput>
 void ReadPadding(TInput& input, size_t sizeToPad);
-void ReadPadding(char*& ptr, size_t sizeToPad);
+void ReadPadding(const char*& ptr, size_t sizeToPad);
 
 template <class T>
 TSharedRef PackRefs(const T& parts);

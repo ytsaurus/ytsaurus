@@ -242,7 +242,6 @@ public:
 
 private:
     const TSharedRef Block_;
-
     const int RowCount_;
 
     bool Valid_ = false;
@@ -336,10 +335,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 using TSimpleVersionedBlockReader = TVersionedBlockReader<TSimpleVersionedBlockParser>;
-
 using TIndexedVersionedBlockReader = TVersionedBlockReader<TIndexedVersionedBlockParser>;
-
-using TIndexedVersionedRowReader = TVersionedRowReader<TIndexedVersionedRowParser>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -125,13 +125,9 @@ std::unique_ptr<IValueColumnWriter> CreateVersionedColumnWriter(
                 blockWriter,
                 maxValueCount);
 
-        case EValueType::Null:
-        case EValueType::Min:
-        case EValueType::Max:
-        case EValueType::TheBottom:
-            break;
+        default:
+            ThrowUnexpectedValueType(columnSchema.GetWireType());
     }
-    ThrowUnexpectedValueType(columnSchema.GetWireType());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

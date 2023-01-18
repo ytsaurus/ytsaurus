@@ -1,0 +1,20 @@
+package NYT.NTableChunkFormat.NProto;
+
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TSlimVersionedBlockHeader
+{
+    required int32 row_offsets_size = 1;
+    required int32 row_data_size = 2;
+    required int32 timestamp_data_size = 3;
+    required int32 key_dictionary_offsets_size = 4;
+    required int32 key_dictionary_data_size = 5;
+    required int32 value_dictionary_offsets_size = 6;
+    required int32 value_dictionary_data_size = 7;
+    required int32 row_count = 8;
+    required int32 value_count = 9;
+    required int32 timestamp_count = 10;
+}
+
+////////////////////////////////////////////////////////////////////////////////

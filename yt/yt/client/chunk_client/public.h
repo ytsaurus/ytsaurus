@@ -184,6 +184,7 @@ DEFINE_ENUM(EChunkFormat,
     ((TableVersionedSimple)                 (2))
     ((TableVersionedColumnar)               (5))
     ((TableVersionedIndexed)                (8))
+    ((TableVersionedSlim)                   (9))
 
     // Journal chunks.
     ((JournalDefault)                       (0))

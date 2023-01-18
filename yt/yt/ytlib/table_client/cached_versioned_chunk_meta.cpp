@@ -34,6 +34,7 @@ TCachedVersionedChunkMeta::TCachedVersionedChunkMeta(
     }
 
     if (ChunkFormat_ != EChunkFormat::TableVersionedSimple &&
+        ChunkFormat_ != EChunkFormat::TableVersionedSlim &&
         ChunkFormat_ != EChunkFormat::TableVersionedColumnar &&
         ChunkFormat_ != EChunkFormat::TableVersionedIndexed &&
         ChunkFormat_ != EChunkFormat::TableUnversionedColumnar &&

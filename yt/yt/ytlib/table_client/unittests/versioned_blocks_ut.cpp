@@ -2,6 +2,9 @@
 #include <yt/yt/ytlib/table_client/versioned_block_reader.h>
 #include <yt/yt/ytlib/table_client/versioned_block_writer.h>
 
+#include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_writer.h>
+
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -15,6 +18,7 @@
 namespace NYT::NTableClient {
 namespace {
 
+using namespace NTableChunkFormat;
 using namespace NTransactionClient;
 using namespace NCompression;
 
@@ -24,9 +28,9 @@ struct TMockSimpleBlockFormatAdapter
 {
     using TBlockReader = TSimpleVersionedBlockReader;
 
-    static TSimpleVersionedBlockWriter CreateBlockWriter(const TTableSchemaPtr& schema)
+    static std::unique_ptr<TSimpleVersionedBlockWriter> CreateBlockWriter(const TTableSchemaPtr& schema)
     {
-        return TSimpleVersionedBlockWriter(schema);
+        return std::make_unique<TSimpleVersionedBlockWriter>(schema);
     }
 };
 
@@ -49,16 +53,28 @@ struct TMockIndexedBlockFormatAdapter
 {
     using TBlockReader = TIndexedVersionedBlockReader;
 
-    static TIndexedVersionedBlockWriter CreateBlockWriter(const TTableSchemaPtr& schema)
+    static std::unique_ptr<TIndexedVersionedBlockWriter> CreateBlockWriter(const TTableSchemaPtr& schema)
     {
         static std::optional<TIndexedVersionedBlockFormatDetail> blockFormatDetail;
         blockFormatDetail.emplace(schema);
 
-        return TIndexedVersionedBlockWriter(
+        return std::make_unique<TIndexedVersionedBlockWriter>(
             schema,
             /*blockIndex*/ 0,
             *blockFormatDetail,
             New<TMockChunkIndexBuilder>());
+    }
+};
+
+struct TMockSlimBlockFormatAdapter
+{
+    using TBlockReader = TSlimVersionedBlockReader;
+
+    static std::unique_ptr<TSlimVersionedBlockWriter> CreateBlockWriter(const TTableSchemaPtr& schema)
+    {
+        return std::make_unique<TSlimVersionedBlockWriter>(
+            New<TSlimVersionedWriterConfig>(),
+            schema);
     }
 };
 
@@ -107,10 +123,10 @@ protected:
 
         row.BeginDeleteTimestamps()[0] = 9;
 
-        blockWriter.WriteRow(row);
+        blockWriter->WriteRow(row);
 
-        auto block = blockWriter.FlushBlock();
-        Data = GetCodec(ECodec::None)->Compress(block.Data);
+        auto block = blockWriter->FlushBlock();
+        Data = MergeRefsToRef<TDefaultBlobTag>(block.Data);
         Meta = block.Meta;
     }
 
@@ -165,7 +181,8 @@ public:
 
 using TVersionedBlockFormatAdapters = ::testing::Types<
     TMockSimpleBlockFormatAdapter,
-    TMockIndexedBlockFormatAdapter
+    TMockIndexedBlockFormatAdapter,
+    TMockSlimBlockFormatAdapter
 >;
 
 TYPED_TEST_SUITE(TVersionedBlocksTestOneRow, TVersionedBlockFormatAdapters);

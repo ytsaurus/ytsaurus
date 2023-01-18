@@ -35,7 +35,8 @@ bool IsValidTableChunkFormat(EChunkFormat chunkFormat)
         chunkFormat == EChunkFormat::TableUnversionedColumnar ||
         chunkFormat == EChunkFormat::TableVersionedSimple ||
         chunkFormat == EChunkFormat::TableVersionedIndexed ||
-        chunkFormat == EChunkFormat::TableVersionedColumnar;
+        chunkFormat == EChunkFormat::TableVersionedColumnar ||
+        chunkFormat == EChunkFormat::TableVersionedSlim;
 }
 
 bool IsTableChunkFormatVersioned(EChunkFormat chunkFormat)
@@ -43,7 +44,8 @@ bool IsTableChunkFormatVersioned(EChunkFormat chunkFormat)
     return
         chunkFormat == EChunkFormat::TableVersionedSimple ||
         chunkFormat == EChunkFormat::TableVersionedIndexed ||
-        chunkFormat == EChunkFormat::TableVersionedColumnar;
+        chunkFormat == EChunkFormat::TableVersionedColumnar ||
+        chunkFormat == EChunkFormat::TableVersionedSlim;
 }
 
 void ValidateTableChunkFormat(EChunkFormat chunkFormat)
@@ -91,6 +93,7 @@ EOptimizeFor OptimizeForFromFormat(EChunkFormat chunkFormat)
         case EChunkFormat::TableUnversionedSchemalessHorizontal:
         case EChunkFormat::TableVersionedSimple:
         case EChunkFormat::TableVersionedIndexed:
+        case EChunkFormat::TableVersionedSlim:
             return EOptimizeFor::Lookup;
 
         case EChunkFormat::TableUnversionedColumnar:

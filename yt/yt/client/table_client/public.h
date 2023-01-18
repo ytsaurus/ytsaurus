@@ -308,6 +308,7 @@ DECLARE_REFCOUNTED_STRUCT(IVersionedWriter)
 
 DECLARE_REFCOUNTED_CLASS(THashTableChunkIndexWriterConfig)
 DECLARE_REFCOUNTED_CLASS(TChunkIndexesWriterConfig)
+DECLARE_REFCOUNTED_CLASS(TSlimVersionedWriterConfig)
 
 DECLARE_REFCOUNTED_CLASS(TChunkWriterTestingOptions)
 
