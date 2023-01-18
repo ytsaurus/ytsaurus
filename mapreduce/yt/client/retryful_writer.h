@@ -1,7 +1,6 @@
 #pragma once
 
 #include "transaction.h"
-#include "transaction_pinger.h"
 
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/http/http.h>
@@ -31,7 +30,6 @@ public:
     template <class TWriterOptions>
     TRetryfulWriter(
         IClientRetryPolicyPtr clientRetryPolicy,
-        ITransactionPingerPtr transactionPinger,
         const TAuth& auth,
         const TTransactionId& parentId,
         const TString& command,
@@ -39,7 +37,6 @@ public:
         const TRichYPath& path,
         const TWriterOptions& options)
         : ClientRetryPolicy_(std::move(clientRetryPolicy))
-        , TransactionPinger_(std::move(transactionPinger))
         , Auth_(auth)
         , Command_(command)
         , Format_(format)
@@ -62,7 +59,7 @@ public:
         SecondaryParameters_ = FormIORequestParameters(secondaryPath, options);
 
         if (options.CreateTransaction_) {
-            WriteTransaction_.ConstructInPlace(ClientRetryPolicy_, auth, parentId, TransactionPinger_->GetChildTxPinger(), TStartTransactionOptions());
+            WriteTransaction_.ConstructInPlace(ClientRetryPolicy_, auth, parentId, TStartTransactionOptions());
             auto append = path.Append_.GetOrElse(false);
             auto lockMode = (append  ? LM_SHARED : LM_EXCLUSIVE);
             NDetail::NRawClient::Lock(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, WriteTransaction_->GetId(), path.Path_, lockMode);
@@ -89,7 +86,6 @@ private:
 
 private:
     const IClientRetryPolicyPtr ClientRetryPolicy_;
-    const ITransactionPingerPtr TransactionPinger_;
     const TAuth Auth_;
     TString Command_;
     TMaybe<TFormat> Format_;
@@ -101,8 +97,8 @@ private:
     TTransactionId ParentTransactionId_;
     TMaybe<TPingableTransaction> WriteTransaction_;
 
-    ::NThreading::TBlockingQueue<TBuffer> FilledBuffers_;
-    ::NThreading::TBlockingQueue<TBuffer> EmptyBuffers_;
+    NThreading::TBlockingQueue<TBuffer> FilledBuffers_;
+    NThreading::TBlockingQueue<TBuffer> EmptyBuffers_;
 
     TBuffer Buffer_;
 

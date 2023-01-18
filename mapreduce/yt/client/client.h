@@ -2,7 +2,6 @@
 
 #include "client_reader.h"
 #include "client_writer.h"
-#include "transaction_pinger.h"
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/http/requests.h>
@@ -221,8 +220,6 @@ public:
 
     const IClientRetryPolicyPtr& GetRetryPolicy() const;
 
-    virtual ITransactionPingerPtr GetTransactionPinger() = 0;
-
 protected:
     virtual TClientPtr GetParentClientImpl() = 0;
 
@@ -314,12 +311,9 @@ public:
 
     void Detach() override;
 
-    ITransactionPingerPtr GetTransactionPinger() override;
-
     TClientPtr GetParentClientImpl() override;
 
 private:
-    ITransactionPingerPtr TransactionPinger_;
     THolder<TPingableTransaction> PingableTx_;
     TClientPtr ParentClient_;
 };
@@ -464,8 +458,6 @@ public:
 
     void Shutdown() override;
 
-    ITransactionPingerPtr GetTransactionPinger() override;
-
     // Helper methods
     TYtPoller& GetYtPoller();
 
@@ -480,8 +472,6 @@ private:
         const TOptions& options);
 
     void CheckShutdown() const;
-
-    ITransactionPingerPtr TransactionPinger_;
 
     std::atomic<bool> Shutdown_ = false;
     TMutex YtPollerLock_;

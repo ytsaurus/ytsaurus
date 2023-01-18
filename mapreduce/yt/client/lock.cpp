@@ -21,7 +21,7 @@ class TLockPollerItem
     : public IYtPollerItem
 {
 public:
-    TLockPollerItem(const TLockId& lockId, ::NThreading::TPromise<void> acquired)
+    TLockPollerItem(const TLockId& lockId, NThreading::TPromise<void> acquired)
         : LockStateYPath_("#" + GetGuidAsString(lockId) + "/@state")
         , Acquired_(acquired)
     { }
@@ -60,9 +60,9 @@ public:
 
 private:
     const TString LockStateYPath_;
-    ::NThreading::TPromise<void> Acquired_;
+    NThreading::TPromise<void> Acquired_;
 
-    ::NThreading::TFuture<TNode> LockState_;
+    NThreading::TFuture<TNode> LockState_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -72,7 +72,7 @@ TLock::TLock(const TLockId& lockId, TClientPtr client, bool waitable)
     , Client_(std::move(client))
 {
     if (!waitable) {
-        Acquired_ = ::NThreading::MakeFuture();
+        Acquired_ = NThreading::MakeFuture();
     }
 }
 
@@ -89,10 +89,10 @@ TNodeId TLock::GetLockedNodeId() const
     return GetGuid(nodeIdNode.AsString());
 }
 
-const ::NThreading::TFuture<void>& TLock::GetAcquiredFuture() const
+const NThreading::TFuture<void>& TLock::GetAcquiredFuture() const
 {
     if (!Acquired_) {
-        auto promise = ::NThreading::NewPromise<void>();
+        auto promise = NThreading::NewPromise<void>();
         Client_->GetYtPoller().Watch(::MakeIntrusive<TLockPollerItem>(LockId_, promise));
         Acquired_ = promise.GetFuture();
     }

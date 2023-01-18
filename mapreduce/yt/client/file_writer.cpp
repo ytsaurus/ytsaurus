@@ -11,14 +11,12 @@ namespace NYT {
 
 TFileWriter::TFileWriter(
     const TRichYPath& path,
-    IClientRetryPolicyPtr clientRetryPolicy,
-    ITransactionPingerPtr transactionPinger,
+    const IClientRetryPolicyPtr clientRetryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TFileWriterOptions& options)
     : RetryfulWriter_(
         std::move(clientRetryPolicy),
-        std::move(transactionPinger),
         auth,
         transactionId,
         GetWriteFileCommand(),

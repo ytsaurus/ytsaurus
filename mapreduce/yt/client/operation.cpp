@@ -2067,14 +2067,14 @@ public:
         : ClientRetryPolicy_(clientRetryPolicy)
         , Auth_(std::move(auth))
         , Id_(operationId)
-        , PreparedPromise_(::NThreading::NewPromise<void>())
-        , StartedPromise_(::NThreading::NewPromise<void>())
+        , PreparedPromise_(NThreading::NewPromise<void>())
+        , StartedPromise_(NThreading::NewPromise<void>())
     {
         if (Id_) {
             PreparedPromise_.SetValue();
             StartedPromise_.SetValue();
         } else {
-            PreparedPromise_.GetFuture().Subscribe([this_=::TIntrusivePtr(this)] (const ::NThreading::TFuture<void>& preparedResult) {
+            PreparedPromise_.GetFuture().Subscribe([this_=::TIntrusivePtr(this)] (const NThreading::TFuture<void>& preparedResult) {
                 try {
                     preparedResult.GetValue();
                 } catch (...) {
@@ -2097,9 +2097,9 @@ public:
     TString GetStatus();
     void OnStatusUpdated(const TString& newStatus);
 
-    ::NThreading::TFuture<void> GetPreparedFuture();
-    ::NThreading::TFuture<void> GetStartedFuture();
-    ::NThreading::TFuture<void> Watch(TClientPtr client);
+    NThreading::TFuture<void> GetPreparedFuture();
+    NThreading::TFuture<void> GetStartedFuture();
+    NThreading::TFuture<void> Watch(TClientPtr client);
 
     EOperationBriefState GetBriefState();
     TMaybe<TYtError> GetError();
@@ -2135,9 +2135,9 @@ private:
     TMaybe<TOperationId> Id_;
     TMutex Lock_;
 
-    ::NThreading::TPromise<void> PreparedPromise_;
-    ::NThreading::TPromise<void> StartedPromise_;
-    TMaybe<::NThreading::TPromise<void>> CompletePromise_;
+    NThreading::TPromise<void> PreparedPromise_;
+    NThreading::TPromise<void> StartedPromise_;
+    TMaybe<NThreading::TPromise<void>> CompletePromise_;
 
     std::function<TOperationId()> DelayedStartFunction_;
     TString Status_;
@@ -2201,7 +2201,7 @@ public:
 
 private:
     ::TIntrusivePtr<TOperation::TOperationImpl> OperationImpl_;
-    ::NThreading::TFuture<TOperationAttributes> OperationState_;
+    NThreading::TFuture<TOperationAttributes> OperationState_;
     bool UnrecognizedSpecAnalyzed_ = false;
 };
 
@@ -2293,29 +2293,29 @@ void TOperation::TOperationImpl::OnStatusUpdated(const TString& newStatus)
     Status_ = newStatus;
 }
 
-::NThreading::TFuture<void> TOperation::TOperationImpl::GetPreparedFuture()
+NThreading::TFuture<void> TOperation::TOperationImpl::GetPreparedFuture()
 {
     return PreparedPromise_.GetFuture();
 }
 
-::NThreading::TFuture<void> TOperation::TOperationImpl::GetStartedFuture()
+NThreading::TFuture<void> TOperation::TOperationImpl::GetStartedFuture()
 {
     return StartedPromise_.GetFuture();
 }
 
-::NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TClientPtr client)
+NThreading::TFuture<void> TOperation::TOperationImpl::Watch(TClientPtr client)
 {
     {
         auto guard = Guard(Lock_);
         if (CompletePromise_) {
             return *CompletePromise_;
         }
-        CompletePromise_ = ::NThreading::NewPromise<void>();
+        CompletePromise_ = NThreading::NewPromise<void>();
     }
     GetStartedFuture().Subscribe([
         this_=::TIntrusivePtr(this),
         client=std::move(client)
-    ] (const ::NThreading::TFuture<void>& startedResult) {
+    ] (const NThreading::TFuture<void>& startedResult) {
         try {
             startedResult.GetValue();
         } catch (...) {
@@ -2329,7 +2329,7 @@ void TOperation::TOperationImpl::OnStatusUpdated(const TString& newStatus)
             operationId,
             ::MakeIntrusive<TOperationAbortable>(this_->ClientRetryPolicy_, this_->Auth_, operationId));
         // We have to own an IntrusivePtr to registry to prevent use-after-free
-        auto removeOperation = [registry, operationId] (const ::NThreading::TFuture<void>&) {
+        auto removeOperation = [registry, operationId] (const NThreading::TFuture<void>&) {
             registry->Remove(operationId);
         };
         this_->CompletePromise_->GetFuture().Subscribe(removeOperation);
@@ -2683,17 +2683,17 @@ void TOperation::OnStatusUpdated(const TString& newStatus)
     Impl_->OnStatusUpdated(newStatus);
 }
 
-::NThreading::TFuture<void> TOperation::GetPreparedFuture()
+NThreading::TFuture<void> TOperation::GetPreparedFuture()
 {
     return Impl_->GetPreparedFuture();
 }
 
-::NThreading::TFuture<void> TOperation::GetStartedFuture()
+NThreading::TFuture<void> TOperation::GetStartedFuture()
 {
     return Impl_->GetStartedFuture();
 }
 
-::NThreading::TFuture<void> TOperation::Watch()
+NThreading::TFuture<void> TOperation::Watch()
 {
     return Impl_->Watch(Client_);
 }

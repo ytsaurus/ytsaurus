@@ -15,7 +15,6 @@ public:
     TFileWriter(
         const TRichYPath& path,
         IClientRetryPolicyPtr clientRetryPolicy,
-        ITransactionPingerPtr transactionPinger,
         const TAuth& auth,
         const TTransactionId& transactionId,
         const TFileWriterOptions& options = TFileWriterOptions());

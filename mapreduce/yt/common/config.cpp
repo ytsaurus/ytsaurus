@@ -190,10 +190,6 @@ void TConfig::Reset()
 
     GlobalTxId = GetEnv("YT_TRANSACTION", "");
 
-    UseAsyncTxPinger = true;
-    AsyncHttpClientThreads = 1;
-    AsyncTxPingerPoolThreads = 1;
-
     ForceIpV4 = GetBool("YT_FORCE_IPV4");
     ForceIpV6 = GetBool("YT_FORCE_IPV6");
     UseHosts = GetBool("YT_USE_HOSTS", true);
@@ -299,3 +295,4 @@ TProcessState* TProcessState::Get()
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+

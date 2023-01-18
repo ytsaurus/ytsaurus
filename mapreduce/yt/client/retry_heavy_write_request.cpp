@@ -1,7 +1,6 @@
 #include "retry_heavy_write_request.h"
 
 #include "transaction.h"
-#include "transaction_pinger.h"
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/retry_lib.h>
@@ -20,7 +19,6 @@ using ::ToString;
 
 void RetryHeavyWriteRequest(
     const IClientRetryPolicyPtr& clientRetryPolicy,
-    const ITransactionPingerPtr& transactionPinger,
     const TAuth& auth,
     const TTransactionId& parentId,
     THttpHeader& header,
@@ -30,7 +28,7 @@ void RetryHeavyWriteRequest(
     header.SetToken(auth.Token);
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
-        TPingableTransaction attemptTx(clientRetryPolicy, auth, parentId, transactionPinger->GetChildTxPinger(), TStartTransactionOptions());
+        TPingableTransaction attemptTx(clientRetryPolicy, auth, parentId, TStartTransactionOptions());
 
         auto input = streamMaker();
         TString requestId;

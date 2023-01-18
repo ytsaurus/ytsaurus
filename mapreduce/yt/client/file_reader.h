@@ -19,7 +19,6 @@ class TStreamReaderBase
 public:
     TStreamReaderBase(
         IClientRetryPolicyPtr clientRetryPolicy,
-        ITransactionPingerPtr transactionPinger,
         const TAuth& auth,
         const TTransactionId& transactionId);
 
@@ -55,7 +54,6 @@ public:
     TFileReader(
         const TRichYPath& path,
         IClientRetryPolicyPtr clientRetryPolicy,
-        ITransactionPingerPtr transactionPinger,
         const TAuth& auth,
         const TTransactionId& transactionId,
         const TFileReaderOptions& options = TFileReaderOptions());
@@ -81,7 +79,6 @@ public:
         const TYPath& path,
         const TKey& key,
         IClientRetryPolicyPtr clientRetryPolicy,
-        ITransactionPingerPtr transactionPinger,
         const TAuth& auth,
         const TTransactionId& transactionId,
         const TBlobTableReaderOptions& options);
