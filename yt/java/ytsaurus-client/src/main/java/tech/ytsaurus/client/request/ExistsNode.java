@@ -3,6 +3,7 @@ package tech.ytsaurus.client.request;
 import java.util.Objects;
 
 import tech.ytsaurus.client.rpc.RpcClientRequestBuilder;
+import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.rpcproxy.TMasterReadOptions;
 import tech.ytsaurus.rpcproxy.TPrerequisiteOptions;
 import tech.ytsaurus.rpcproxy.TReqExistsNode;
@@ -14,6 +15,10 @@ public class ExistsNode
         implements HighLevelRequest<TReqExistsNode.Builder> {
     public ExistsNode(BuilderBase<?> builder) {
         super(builder);
+    }
+
+    public ExistsNode(YPath path) {
+        this(builder().setPath(path));
     }
 
     public static Builder builder() {
