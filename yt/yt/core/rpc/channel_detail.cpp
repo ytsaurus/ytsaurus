@@ -1,8 +1,15 @@
 #include "channel_detail.h"
 
+#include "message.h"
+#include "private.h"
+
+#include <library/cpp/yt/memory/leaky_singleton.h>
+
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/concurrency/thread_affinity.h>
+
+#include <yt/yt/library/syncmap/map.h>
 
 namespace NYT::NRpc {
 
@@ -141,6 +148,112 @@ TFuture<void> TClientRequestControlThunk::SendStreamingFeedback(const TStreaming
     };
 
     return promise;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TClientRequestPerformanceProfiler::TPerformanceCounters
+{
+    TPerformanceCounters(const NProfiling::TProfiler& profiler)
+        : AckTimeCounter(profiler.Timer("/request_time/ack"))
+        , ReplyTimeCounter(profiler.Timer("/request_time/reply"))
+        , TimeoutTimeCounter(profiler.Timer("/request_time/timeout"))
+        , CancelTimeCounter(profiler.Timer("/request_time/cancel"))
+        , TotalTimeCounter(profiler.Timer("/request_time/total"))
+        , RequestCounter(profiler.Counter("/request_count"))
+        , FailedRequestCounter(profiler.Counter("/failed_request_count"))
+        , TimedOutRequestCounter(profiler.Counter("/timed_out_request_count"))
+        , CancelledRequestCounter(profiler.Counter("/cancelled_request_count"))
+        , RequestMessageBodySizeCounter(profiler.Counter("/request_message_body_bytes"))
+        , RequestMessageAttachmentSizeCounter(profiler.Counter("/request_message_attachment_bytes"))
+        , ResponseMessageBodySizeCounter(profiler.Counter("/response_message_body_bytes"))
+        , ResponseMessageAttachmentSizeCounter(profiler.Counter("/response_message_attachment_bytes"))
+    { }
+
+    NProfiling::TEventTimer AckTimeCounter;
+    NProfiling::TEventTimer ReplyTimeCounter;
+    NProfiling::TEventTimer TimeoutTimeCounter;
+    NProfiling::TEventTimer CancelTimeCounter;
+    NProfiling::TEventTimer TotalTimeCounter;
+
+    NProfiling::TCounter RequestCounter;
+    NProfiling::TCounter FailedRequestCounter;
+    NProfiling::TCounter TimedOutRequestCounter;
+    NProfiling::TCounter CancelledRequestCounter;
+    NProfiling::TCounter RequestMessageBodySizeCounter;
+    NProfiling::TCounter RequestMessageAttachmentSizeCounter;
+    NProfiling::TCounter ResponseMessageBodySizeCounter;
+    NProfiling::TCounter ResponseMessageAttachmentSizeCounter;
+};
+
+auto TClientRequestPerformanceProfiler::GetPerformanceCounters(
+    const TString& service,
+    const TString& method) -> const TPerformanceCounters*
+{
+    using TCountersMap = NConcurrency::TSyncMap<std::pair<TString, TString>, TPerformanceCounters>;
+
+    auto [counter, _] = LeakySingleton<TCountersMap>()->FindOrInsert(std::pair(service, method), [&] {
+        auto profiler = RpcClientProfiler
+            .WithHot()
+            .WithTag("yt_service", service)
+            .WithTag("method", method, -1);
+        return TPerformanceCounters(profiler);
+    });
+    return counter;
+}
+
+TClientRequestPerformanceProfiler::TClientRequestPerformanceProfiler(const TString& service, const TString& method)
+    : MethodCounters_(GetPerformanceCounters(service, method))
+{ }
+
+void TClientRequestPerformanceProfiler::ProfileRequest(const TSharedRefArray& requestMessage)
+{
+    MethodCounters_->RequestCounter.Increment();
+    MethodCounters_->RequestMessageBodySizeCounter.Increment(GetMessageBodySize(requestMessage));
+    MethodCounters_->RequestMessageAttachmentSizeCounter.Increment(GetTotalMessageAttachmentSize(requestMessage));
+}
+
+void TClientRequestPerformanceProfiler::ProfileReply(const TSharedRefArray& responseMessage)
+{
+    MethodCounters_->ReplyTimeCounter.Record(Timer_.GetElapsedTime());
+    MethodCounters_->ResponseMessageBodySizeCounter.Increment(GetMessageBodySize(responseMessage));
+    MethodCounters_->ResponseMessageAttachmentSizeCounter.Increment(GetTotalMessageAttachmentSize(responseMessage));
+}
+
+void TClientRequestPerformanceProfiler::ProfileAcknowledgement()
+{
+    MethodCounters_->AckTimeCounter.Record(Timer_.GetElapsedTime());
+}
+
+void TClientRequestPerformanceProfiler::ProfileCancel()
+{
+    MethodCounters_->CancelTimeCounter.Record(Timer_.GetElapsedTime());
+    MethodCounters_->CancelledRequestCounter.Increment();
+}
+
+void TClientRequestPerformanceProfiler::ProfileTimeout()
+{
+    MethodCounters_->TimeoutTimeCounter.Record(Timer_.GetElapsedTime());
+    MethodCounters_->TimedOutRequestCounter.Increment();
+}
+
+void TClientRequestPerformanceProfiler::ProfileError(const TError& error)
+{
+    const auto errorCode = error.GetCode();
+    if (errorCode == NYT::EErrorCode::Canceled) {
+        ProfileCancel();
+    } else if (errorCode == NYT::EErrorCode::Timeout) {
+        ProfileTimeout();
+    } else {
+        MethodCounters_->FailedRequestCounter.Increment();
+    }
+}
+
+TDuration TClientRequestPerformanceProfiler::ProfileComplete()
+{
+    auto elapsed = Timer_.GetElapsedTime();
+    MethodCounters_->TotalTimeCounter.Record(elapsed);
+    return elapsed;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
