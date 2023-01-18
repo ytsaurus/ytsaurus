@@ -104,6 +104,7 @@ public:
     i64 MaxRowCount;
     i64 MaxDataWeight;
     i64 MaxUncompressedDataSize;
+    i64 MaxCompressedDataSize;
     i64 MaxInputChunkDataWeight;
 
     i64 MaxBlockCount;
