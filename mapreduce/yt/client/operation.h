@@ -38,9 +38,9 @@ public:
     virtual TString GetStatus() const override;
     void OnStatusUpdated(const TString& newStatus);
 
-    virtual ::NThreading::TFuture<void> GetPreparedFuture() override;
-    virtual ::NThreading::TFuture<void> GetStartedFuture() override;
-    virtual ::NThreading::TFuture<void> Watch() override;
+    virtual NThreading::TFuture<void> GetPreparedFuture() override;
+    virtual NThreading::TFuture<void> GetStartedFuture() override;
+    virtual NThreading::TFuture<void> Watch() override;
 
     virtual TVector<TFailedJobInfo> GetFailedJobInfo(const TGetFailedJobInfoOptions& options = TGetFailedJobInfoOptions()) override;
     virtual EOperationBriefState GetBriefState() override;

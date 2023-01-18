@@ -27,9 +27,9 @@ namespace NDetail {
 
 using namespace NRawClient;
 
-using ::NThreading::TFuture;
-using ::NThreading::TPromise;
-using ::NThreading::NewPromise;
+using NThreading::TFuture;
+using NThreading::TPromise;
+using NThreading::NewPromise;
 
 ////////////////////////////////////////////////////////////////////
 
@@ -88,7 +88,7 @@ TFuture<ILockPtr> TBatchRequest::Lock(
     return Impl_->Lock(DefaultTransaction_, path, mode, options).Apply(convert);
 }
 
-::NThreading::TFuture<void> TBatchRequest::Unlock(
+NThreading::TFuture<void> TBatchRequest::Unlock(
     const TYPath& path,
     const TUnlockOptions& options = TUnlockOptions())
 {

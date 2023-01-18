@@ -24,7 +24,6 @@ public:
         const IClientRetryPolicyPtr& retryPolicy,
         const TAuth& auth,
         const TTransactionId& parentId,
-        ITransactionPingerPtr transactionPinger,
         const TStartTransactionOptions& options);
 
     //
@@ -33,20 +32,15 @@ public:
         const IClientRetryPolicyPtr& retryPolicy,
         const TAuth& auth,
         const TTransactionId& transactionId,
-        ITransactionPingerPtr transactionPinger,
         const TAttachTransactionOptions& options);
 
     ~TPingableTransaction();
 
     const TTransactionId GetId() const;
 
-    const std::pair<TDuration, TDuration> GetPingInterval() const;
-    const TAuth GetAuth() const;
-
     void Commit();
     void Abort();
     void Detach();
-
 
 private:
     enum class EStopAction
@@ -68,7 +62,8 @@ private:
 
     bool AbortOnTermination_;
 
-    ITransactionPingerPtr Pinger_;
+    std::atomic<bool> Running_{false};
+    THolder<TThread> Thread_;
 
 private:
     void Init(
@@ -78,6 +73,9 @@ private:
         bool autoPingable);
 
     void Stop(EStopAction action);
+
+    void Pinger();
+    static void* Pinger(void* opaque);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

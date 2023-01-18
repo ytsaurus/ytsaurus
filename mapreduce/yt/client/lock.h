@@ -17,11 +17,11 @@ public:
 
     virtual const TLockId& GetId() const override;
     virtual TNodeId GetLockedNodeId() const override;
-    virtual const ::NThreading::TFuture<void>& GetAcquiredFuture() const override;
+    virtual const NThreading::TFuture<void>& GetAcquiredFuture() const override;
 
 private:
     const TLockId LockId_;
-    mutable TMaybe<::NThreading::TFuture<void>> Acquired_;
+    mutable TMaybe<NThreading::TFuture<void>> Acquired_;
     TClientPtr Client_;
 };
 

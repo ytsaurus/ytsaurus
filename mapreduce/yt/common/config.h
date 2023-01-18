@@ -71,10 +71,6 @@ struct TConfig
     TDuration PingTimeout;
     TDuration PingInterval;
 
-    bool UseAsyncTxPinger;
-    int AsyncHttpClientThreads;
-    int AsyncTxPingerPoolThreads;
-
     // How often should we poll for lock state
     TDuration WaitLockPollInterval;
 
@@ -190,3 +186,4 @@ struct TProcessState
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT
+

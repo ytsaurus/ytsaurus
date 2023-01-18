@@ -19,7 +19,6 @@ public:
 
     const TAuth& GetAuth() const;
     TTransactionId GetTransactionId() const;
-    ITransactionPingerPtr GetTransactionPinger() const;
 
     const TString& GetPreparationId() const;
 

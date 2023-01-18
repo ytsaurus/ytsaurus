@@ -1,7 +1,6 @@
 #include "client_reader.h"
 
 #include "transaction.h"
-#include "transaction_pinger.h"
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -35,7 +34,6 @@ using ::ToString;
 TClientReader::TClientReader(
     const TRichYPath& path,
     IClientRetryPolicyPtr clientRetryPolicy,
-    ITransactionPingerPtr transactionPinger,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TFormat& format,
@@ -50,17 +48,8 @@ TClientReader::TClientReader(
     , ReadTransaction_(nullptr)
 {
     if (options.CreateTransaction_) {
-      ReadTransaction_ = MakeHolder<TPingableTransaction>(
-          ClientRetryPolicy_,
-          Auth_,
-          transactionId,
-          transactionPinger->GetChildTxPinger(),
-          TStartTransactionOptions());
-      Path_.Path(Snapshot(
-        ClientRetryPolicy_,
-        Auth_,
-        ReadTransaction_->GetId(),
-        path.Path_));
+        ReadTransaction_ = MakeHolder<TPingableTransaction>(ClientRetryPolicy_, Auth_, transactionId, TStartTransactionOptions());
+        Path_.Path(Snapshot(ClientRetryPolicy_, Auth_, ReadTransaction_->GetId(), path.Path_));
     }
 
     if (useFormatFromTableAttributes) {

@@ -1,7 +1,6 @@
 #include "file_reader.h"
 
 #include "transaction.h"
-#include "transaction_pinger.h"
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -36,18 +35,13 @@ static TMaybe<ui64> GetEndOffset(const TFileReaderOptions& options) {
 
 TStreamReaderBase::TStreamReaderBase(
     IClientRetryPolicyPtr clientRetryPolicy,
-    ITransactionPingerPtr transactionPinger,
-    const TAuth &auth,
-    const TTransactionId &transactionId)
+    const TAuth& auth,
+    const TTransactionId& transactionId)
     : ClientRetryPolicy_(std::move(clientRetryPolicy))
     , Auth_(auth)
-    , ReadTransaction_(MakeHolder<TPingableTransaction>(
-        ClientRetryPolicy_,
-        auth,
-        transactionId,
-        transactionPinger->GetChildTxPinger(),
-        TStartTransactionOptions()))
-{ }
+    , ReadTransaction_(MakeHolder<TPingableTransaction>(ClientRetryPolicy_, auth, transactionId, TStartTransactionOptions()))
+{
+}
 
 TStreamReaderBase::~TStreamReaderBase() = default;
 
@@ -116,11 +110,10 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
 TFileReader::TFileReader(
     const TRichYPath& path,
     IClientRetryPolicyPtr clientRetryPolicy,
-    ITransactionPingerPtr transactionPinger,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TFileReaderOptions& options)
-    : TStreamReaderBase(std::move(clientRetryPolicy), std::move(transactionPinger), auth, transactionId)
+    : TStreamReaderBase(std::move(clientRetryPolicy), auth, transactionId)
     , FileReaderOptions_(options)
     , Path_(path)
     , StartOffset_(FileReaderOptions_.Offset_.GetOrElse(0))
@@ -170,11 +163,10 @@ TBlobTableReader::TBlobTableReader(
     const TYPath& path,
     const TKey& key,
     IClientRetryPolicyPtr retryPolicy,
-    ITransactionPingerPtr transactionPinger,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TBlobTableReaderOptions& options)
-    : TStreamReaderBase(std::move(retryPolicy), std::move(transactionPinger), auth, transactionId)
+    : TStreamReaderBase(std::move(retryPolicy), auth, transactionId)
     , Key_(key)
     , Options_(options)
 {

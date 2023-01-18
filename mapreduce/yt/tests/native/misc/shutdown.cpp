@@ -47,7 +47,7 @@ Y_UNIT_TEST_SUITE(Shutdown)
         std::atomic<int> discardCounter = 0;
 
         client->GetYtPoller().Watch(new TPollableItem(discardCounter));
-
+        
         client->Shutdown();
         UNIT_ASSERT(discardCounter == 1);
 
@@ -75,7 +75,7 @@ Y_UNIT_TEST_SUITE(Shutdown)
         auto tx1 = client1->StartTransaction();
         tx1->Lock(path, ELockMode::LM_EXCLUSIVE);
 
-        ::NThreading::TFuture<void> applied;
+        NThreading::TFuture<void> applied;
         {
             auto client2 = fixture.CreateClient();
 
