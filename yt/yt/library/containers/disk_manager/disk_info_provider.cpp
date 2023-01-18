@@ -15,28 +15,26 @@ TDiskInfoProvider::TDiskInfoProvider(TDiskManagerProxyPtr diskManagerProxy)
     : DiskManagerProxy_(std::move(diskManagerProxy))
 { }
 
-TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYtDiskInfos(EDiskState state)
+TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYtDiskInfos()
 {
     auto diskInfosFuture = DiskManagerProxy_->GetDisks();
     auto ytDiskPathsFuture = DiskManagerProxy_->GetYtDiskMountPaths();
 
-    // Merge two futures and filter disks with failed states and placed in /yt.
+    // Merge two futures and filter disks placed in /yt.
     return diskInfosFuture.Apply(BIND([=] (const std::vector<TDiskInfo>& diskInfos) {
         return ytDiskPathsFuture.Apply(BIND([=] (const THashSet<TString>& diskPaths) {
-            std::vector<TDiskInfo> failedDisks;
+            std::vector<TDiskInfo> disks;
 
             for (const auto& diskInfo : diskInfos) {
-                if (diskInfo.State == state) {
-                    for (const auto& partitionFsLabel : diskInfo.PartitionFsLabels) {
-                        if (diskPaths.contains(partitionFsLabel)) {
-                            failedDisks.push_back(diskInfo);
-                            break;
-                        }
+                for (const auto& partitionFsLabel : diskInfo.PartitionFsLabels) {
+                    if (diskPaths.contains(partitionFsLabel)) {
+                        disks.push_back(diskInfo);
+                        break;
                     }
                 }
             }
 
-            return failedDisks;
+            return disks;
         }));
     }));
 }
@@ -44,6 +42,13 @@ TFuture<std::vector<TDiskInfo>> TDiskInfoProvider::GetYtDiskInfos(EDiskState sta
 TFuture<void> TDiskInfoProvider::RecoverDisk(const TString& diskId)
 {
     return DiskManagerProxy_->RecoverDiskById(diskId, ERecoverPolicy::RecoverAuto);
+}
+
+TFuture<void> TDiskInfoProvider::FailDisk(
+    const TString& diskId,
+    const TString& reason)
+{
+    return DiskManagerProxy_->FailDiskById(diskId, reason);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

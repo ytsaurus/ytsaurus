@@ -522,7 +522,7 @@ void TLocationHealthCheckerConfig::Register(TRegistrar registrar)
         .Default(false);
 
     registrar.Parameter("health_check_period", &TThis::HealthCheckPeriod)
-        .Default(TDuration::Seconds(10));
+        .Default(TDuration::Seconds(60));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

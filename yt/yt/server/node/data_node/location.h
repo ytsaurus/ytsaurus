@@ -255,6 +255,9 @@ public:
      */
     void Start();
 
+    //! Does the node need to tell the master about this location.
+    bool ShouldPublish() const;
+
     //! Try changing location status to disabled. For this location disk must be active and test can run without I/O errors.
     bool OnDiskRepaired();
 
@@ -270,9 +273,15 @@ public:
         bool destroyResult,
         const TError& reason);
 
+    //! Marks location as crashed during initialization. Master must not find out about this location.
+    void Crash(const TError& reason);
+
     //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
     //! as unavailable.
     bool Disable(const TError& reason);
+
+    //! Subscribe callback on disk health check.
+    void SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback);
 
     //! Wraps a given #callback with try/catch block that intercepts all exceptions
     //! and calls #Disable when one happens.

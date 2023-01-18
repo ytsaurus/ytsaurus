@@ -93,8 +93,7 @@ TFuture<THashSet<TString>> TDiskManagerProxy::GetYtDiskMountPaths()
     TDiskManagerApi api(Channel_, ServiceName_);
     auto request = api.GetYTMountedDevices();
     request->SetTimeout(GetRequestTimeout());
-    auto responseFuture = request->Invoke()
-        .WithTimeout(GetRequestTimeout());
+    auto responseFuture = request->Invoke();
 
     return responseFuture.Apply(BIND([] (const TErrorOr<TDiskManagerApi::TRspGetYTMountedDevicesPtr>& responseOrError) {
         if (!responseOrError.IsOK()) {
@@ -144,8 +143,7 @@ TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
     TDiskManagerApi api(Channel_, ServiceName_);
     auto request = api.ListDisks();
     request->SetTimeout(GetRequestTimeout());
-    auto responseFuture = request->Invoke()
-        .WithTimeout(GetRequestTimeout());
+    auto responseFuture = request->Invoke();
 
     return responseFuture.Apply(BIND([] (const TErrorOr<TDiskManagerApi::TRspListDisksPtr>& responseOrError) {
         if (!responseOrError.IsOK()) {
@@ -180,7 +178,10 @@ TFuture<std::vector<TDiskInfo>> TDiskManagerProxy::GetDisks()
     }));
 }
 
-TFuture<void> TDiskManagerProxy::RecoverDiskById(TString diskId, ERecoverPolicy recoverPolicy) {
+TFuture<void> TDiskManagerProxy::RecoverDiskById(
+    const TString& diskId,
+    ERecoverPolicy recoverPolicy)
+{
     // fast path for tests
     if (Config_->IsMock) {
         return MakeFuture(TError());
@@ -192,8 +193,7 @@ TFuture<void> TDiskManagerProxy::RecoverDiskById(TString diskId, ERecoverPolicy 
     request->set_policy(MapRecoverPolicy(recoverPolicy));
     request->SetTimeout(GetRequestTimeout());
 
-    auto responseFuture = request->Invoke()
-        .WithTimeout(GetRequestTimeout());
+    auto responseFuture = request->Invoke();
 
     return responseFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiskManagerApi::TRspRecoverDiskPtr>& responseOrError) {
         if (!responseOrError.IsOK()) {
@@ -201,8 +201,33 @@ TFuture<void> TDiskManagerProxy::RecoverDiskById(TString diskId, ERecoverPolicy 
                 << responseOrError
                 << TErrorAttribute("disk_id", diskId)
                 << TErrorAttribute("recover_policy", recoverPolicy);
-        } else {
-            return TFuture<void>();
+        }
+    }));
+}
+
+TFuture<void> TDiskManagerProxy::FailDiskById(
+    const TString& diskId,
+    const TString& reason)
+{
+    // fast path for tests
+    if (Config_->IsMock) {
+        return MakeFuture(TError());
+    }
+
+    TDiskManagerApi api(Channel_, ServiceName_);
+    auto request = api.FailDisk();
+    request->set_disk_id(diskId);
+    request->set_reason(reason);
+    request->SetTimeout(GetRequestTimeout());
+
+    auto responseFuture = request->Invoke();
+
+    return responseFuture.Apply(BIND([=, this_ = MakeStrong(this)] (const TErrorOr<TDiskManagerApi::TRspFailDiskPtr>& responseOrError) {
+        if (!responseOrError.IsOK()) {
+            THROW_ERROR_EXCEPTION("Failed to send request to fail disk")
+                << responseOrError
+                << TErrorAttribute("disk_id", diskId)
+                << TErrorAttribute("reason", reason);
         }
     }));
 }

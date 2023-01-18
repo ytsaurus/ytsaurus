@@ -37,12 +37,17 @@ public:
 
     TFuture<std::vector<TGuid>> DestroyChunkLocations(const THashSet<TGuid>& locationUuids);
 
+    TFuture<void> FailDiskByName(
+        const TString& diskName,
+        const TError& error);
+
     TFuture<void> RecoverDisk(const TString& diskId);
 
 private:
+    const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
+
     const TChunkStorePtr ChunkStore_;
     const IInvokerPtr ControlInvoker_;
-    const NContainers::TDiskInfoProviderPtr DiskInfoProvider_;
 
     std::vector<TLocationLivenessInfo> MapLocationToLivenessInfo(
         const std::vector<NContainers::TDiskInfo>& failedDisks);
@@ -65,13 +70,14 @@ class TLocationHealthChecker
 {
 public:
     TLocationHealthChecker(
+        TChunkStorePtr chunkStore,
         TLocationManagerPtr locationManager,
         IInvokerPtr invoker,
         TLocationHealthCheckerConfigPtr config);
 
-    void Start();
+    void Initialize();
 
-    void OnHealthCheck();
+    void Start();
 
     void OnDynamicConfigChanged(const TLocationHealthCheckerDynamicConfigPtr& newConfig);
 
@@ -81,8 +87,15 @@ private:
 
     const IInvokerPtr Invoker_;
 
+    const TChunkStorePtr ChunkStore_;
     const TLocationManagerPtr LocationManager_;
     NConcurrency::TPeriodicExecutorPtr HealthCheckerExecutor_;
+
+    void OnLocationsHealthCheck();
+
+    void OnDiskHealthCheckFailed(
+        const TStoreLocationPtr& location,
+        const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TLocationHealthChecker)

@@ -272,9 +272,11 @@ public:
             GetControlInvoker(),
             New<TDiskInfoProvider>(DiskManagerProxy_));
         LocationHealthChecker_ = New<TLocationHealthChecker>(
+            ChunkStore_,
             LocationManager_,
             GetControlInvoker(),
             GetConfig()->DataNode->LocationHealthChecker);
+        LocationHealthChecker_->Initialize();
     }
 
     void Run() override
