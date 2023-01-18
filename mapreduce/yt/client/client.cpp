@@ -49,6 +49,7 @@
 #include <util/system/env.h>
 
 #include <exception>
+#include <format>
 
 using namespace NYT::NDetail::NRawClient;
 
@@ -1254,6 +1255,8 @@ TClientPtr CreateClientImpl(
     const TString& serverName,
     const TCreateClientOptions& options)
 {
+    static constexpr int TvmOnlyHttpProxyPort = 9026;
+
     auto globalTxId = GetGuid(TConfig::Get()->GlobalTxId);
 
     TAuth auth;
@@ -1262,6 +1265,10 @@ TClientPtr CreateClientImpl(
         serverName.find(':') == TString::npos)
     {
         auth.ServerName += ".yt.yandex.net";
+    }
+
+    if (options.TvmOnly_ && serverName.find(':') == TString::npos) {
+        auth.ServerName = std::format("tvm.{}:{}", std::string_view(auth.ServerName), TvmOnlyHttpProxyPort);
     }
 
     auth.Token = TConfig::Get()->Token;
