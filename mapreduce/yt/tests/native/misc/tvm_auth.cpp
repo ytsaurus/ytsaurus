@@ -4,7 +4,6 @@
 
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/errors.h>
-
 #include <mapreduce/yt/interface/tvm.h>
 
 #include <library/cpp/testing/unittest/registar.h>
@@ -74,6 +73,30 @@ Y_UNIT_TEST_SUITE(TvmAuth)
         auto issuedTickets = serviceTicketAuth->GetIssuedServiceTickets();
         EXPECT_GT(issuedTickets.size(), 0U);
         EXPECT_EQ(issuedTickets.front(), SERVICE_TICKET);
+    }
+
+    Y_UNIT_TEST(TestTvmOnly)
+    {
+        auto serviceTicketAuth = New<TServiceTicketClientAuthTest>(CreateTvmClient());
+
+        UNIT_ASSERT_EXCEPTION_SATISFIES(
+            CreateTestClient("somecluster", TCreateClientOptions()
+                .ServiceTicketAuth(serviceTicketAuth)
+                .TvmOnly(true)),
+            yexception,
+            [] (const yexception& ex) {
+                return ex.AsStrBuf().Contains("tvm.somecluster.yt.yandex.net:9026");
+            }
+        );
+
+        UNIT_ASSERT_EXCEPTION_SATISFIES(
+            CreateTestClient("somecluster", TCreateClientOptions()
+                .ServiceTicketAuth(serviceTicketAuth)),
+            yexception,
+            [] (const yexception& ex) {
+                return ex.AsStrBuf().Contains("somecluster.yt.yandex.net:80");
+            }
+        );
     }
 }
 

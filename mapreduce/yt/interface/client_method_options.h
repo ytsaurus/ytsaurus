@@ -1014,6 +1014,8 @@ struct TCreateClientOptions
     TSelf& ServiceTicketAuth(const NAuth::IServiceTicketAuthPtrWrapper& wrapper);
     /// @}
 
+    FLUENT_FIELD_DEFAULT(bool, TvmOnly, false);
+
     ///
     /// @brief RetryConfig provider allows to fine tune request retries.
     ///
