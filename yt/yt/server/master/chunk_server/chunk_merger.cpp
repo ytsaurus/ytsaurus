@@ -309,6 +309,7 @@ private:
     i64 CurrentRowCount_ = 0;
     i64 CurrentDataWeight_ = 0;
     i64 CurrentUncompressedDataSize_ = 0;
+    i64 CurrentCompressedDataSize_ = 0;
 
     TChunkListId LastChunkListId_;
     int JobsForLastChunkList_ = 0;
@@ -388,6 +389,7 @@ private:
         CurrentRowCount_ = 0;
         CurrentDataWeight_ = 0;
         CurrentUncompressedDataSize_ = 0;
+        CurrentCompressedDataSize_ = 0;
         CurrentJobMode_ = Mode_;
         ParentChunkListId_ = NullObjectId;
     }
@@ -449,6 +451,7 @@ private:
 
         if (CurrentRowCount_ + chunk->GetRowCount() < config->MaxRowCount &&
             CurrentDataWeight_ + chunk->GetDataWeight() < config->MaxDataWeight &&
+            CurrentCompressedDataSize_ + chunk->GetCompressedDataSize() < config->MaxCompressedDataSize &&
             CurrentUncompressedDataSize_ + chunk->GetUncompressedDataSize() < config->MaxUncompressedDataSize &&
             std::ssize(ChunkIds_) < config->MaxChunkCount &&
             chunk->GetDataWeight() < config->MaxInputChunkDataWeight &&
@@ -456,6 +459,7 @@ private:
         {
             CurrentRowCount_ += chunk->GetRowCount();
             CurrentDataWeight_ += chunk->GetDataWeight();
+            CurrentCompressedDataSize_ += chunk->GetCompressedDataSize();
             CurrentUncompressedDataSize_ += chunk->GetUncompressedDataSize();
             ParentChunkListId_ = parent->GetId();
             ChunkIds_.push_back(chunk->GetId());

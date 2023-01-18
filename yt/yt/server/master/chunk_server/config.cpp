@@ -87,6 +87,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_uncompressed_data_size", &TThis::MaxUncompressedDataSize)
         .GreaterThan(0)
         .Default(2_GB);
+    registrar.Parameter("max_compressed_data_size", &TThis::MaxCompressedDataSize)
+        .GreaterThan(0)
+        .Default(512_MB)
+        .DontSerializeDefault();
     registrar.Parameter("max_input_chunk_data_weight", &TThis::MaxInputChunkDataWeight)
         .GreaterThan(0)
         .Default(512_MB);
