@@ -1219,6 +1219,19 @@ private:
                         // ignore
                     });
             }
+
+            if (CurrentChunkSession_) {
+                ScheduleChunkSessionSeal(CurrentChunkSession_);
+            }
+            if (AllocatedChunkSessionPromise_) {
+                AllocatedChunkSessionPromise_.ToFuture()
+                    .Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TChunkSessionPtr>& sessionOrError) {
+                        if (sessionOrError.IsOK()) {
+                            const auto& session = sessionOrError.Value();
+                            ScheduleChunkSessionSeal(session);
+                        }
+                    }).Via(Invoker_));
+            }
         }
 
 
