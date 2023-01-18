@@ -18,6 +18,7 @@ DEFINE_ENUM(ELocationState,
     (Repairing)
     (Destroying)
     (Destroyed)
+    (Crashed)
 );
 
 ////////////////////////////////////////////////////////////////////////////////

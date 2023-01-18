@@ -23,6 +23,9 @@ using TRspListDisks = diskman::ListDisksResponse;
 using TReqRecoverDisk = diskman::RecoverDiskRequest;
 using TRspRecoverDisk = diskman::RecoverDiskResponse;
 
+using TReqFailDisk = diskman::FailDiskRequest;
+using TRspFailDisk = diskman::FailDiskResponse;
+
 class TDiskManagerApi
     : public NRpc::TProxyBase
 {
@@ -32,6 +35,7 @@ public:
     DEFINE_RPC_PROXY_METHOD(NContainers, GetYTMountedDevices);
     DEFINE_RPC_PROXY_METHOD(NContainers, ListDisks);
     DEFINE_RPC_PROXY_METHOD(NContainers, RecoverDisk);
+    DEFINE_RPC_PROXY_METHOD(NContainers, FailDisk);
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -43,8 +47,12 @@ public:
     explicit TDiskManagerProxy(TDiskManagerProxyConfigPtr config);
 
     TFuture<THashSet<TString>> GetYtDiskMountPaths();
+
     TFuture<std::vector<TDiskInfo>> GetDisks();
-    TFuture<void> RecoverDiskById(TString diskId, ERecoverPolicy recoverPolicy);
+
+    TFuture<void> RecoverDiskById(const TString& diskId, ERecoverPolicy recoverPolicy);
+
+    TFuture<void> FailDiskById(const TString& diskId, const TString& reason);
 
     void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig);
 

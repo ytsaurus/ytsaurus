@@ -883,7 +883,7 @@ private:
         bool full = !chunkStore->Locations().empty();
 
         for (const auto& location : chunkStore->Locations()) {
-            if (!(chunkStore->ShouldPublishDisabledLocations() || location->IsEnabled())) {
+            if (!location->ShouldPublish()) {
                 continue;
             }
 

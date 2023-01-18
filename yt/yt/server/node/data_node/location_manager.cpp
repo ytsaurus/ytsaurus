@@ -12,11 +12,13 @@
 #include <yt/yt/core/concurrency/thread_affinity.h>
 
 #include <yt/yt/core/misc/atomic_object.h>
+#include <yt/yt/core/misc/fs.h>
 
 namespace NYT::NDataNode {
 
 using namespace NConcurrency;
 using namespace NContainers;
+using namespace NFS;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -28,20 +30,50 @@ TLocationManager::TLocationManager(
     TChunkStorePtr chunkStore,
     IInvokerPtr controlInvoker,
     TDiskInfoProviderPtr diskInfoProvider)
-    : ChunkStore_(std::move(chunkStore))
+    : DiskInfoProvider_(std::move(diskInfoProvider))
+    , ChunkStore_(std::move(chunkStore))
     , ControlInvoker_(std::move(controlInvoker))
-    , DiskInfoProvider_(std::move(diskInfoProvider))
 { }
 
+TFuture<void> TLocationManager::FailDiskByName(
+    const TString& diskName,
+    const TError& error)
+{
+    return DiskInfoProvider_->GetYtDiskInfos()
+        .Apply(BIND([=, this, this_ = MakeStrong(this)] (const std::vector<TDiskInfo>& diskInfos) {
+            for (const auto& diskInfo : diskInfos) {
+                if (diskInfo.DeviceName == diskName &&
+                    diskInfo.State == NContainers::EDiskState::Ok)
+                {
+                    // Try to fail not accessable disk.
+                    return DiskInfoProvider_->FailDisk(
+                        diskInfo.DiskId,
+                        error.GetMessage())
+                        .Apply(BIND([=] (const TError& result) {
+                            if (!result.IsOK()) {
+                                YT_LOG_ERROR(result,
+                                    "Error marking the disk as failed (DiskName: %v)",
+                                    diskInfo.DeviceName);
+                            }
+                        }));
+                }
+            }
+
+            return VoidFuture;
+        }));
+}
+
 std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
-    const std::vector<TDiskInfo>& failedDisks)
+    const std::vector<TDiskInfo>& disks)
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    THashSet<TString> diskNames;
+    THashSet<TString> failedDisks;
 
-    for (const auto& failedDisk : failedDisks) {
-        diskNames.insert(failedDisk.DeviceName);
+    for (const auto& disk : disks) {
+        if (disk.State == NContainers::EDiskState::Failed) {
+            failedDisks.insert(disk.DeviceName);
+        }
     }
 
     std::vector<TLocationLivenessInfo> locationLivenessInfos;
@@ -52,7 +84,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
         locationLivenessInfos.push_back({
             .Location = location,
             .LocationState = location->GetState(),
-            .IsDiskAlive = !diskNames.contains(location->GetStaticConfig()->DeviceName)});
+            .IsDiskAlive = !failedDisks.contains(location->GetStaticConfig()->DeviceName)});
     }
 
     return locationLivenessInfos;
@@ -60,7 +92,7 @@ std::vector<TLocationLivenessInfo> TLocationManager::MapLocationToLivenessInfo(
 
 TFuture<std::vector<TLocationLivenessInfo>> TLocationManager::GetLocationsLiveness()
 {
-    return DiskInfoProvider_->GetYtDiskInfos(NContainers::EDiskState::Failed)
+    return DiskInfoProvider_->GetYtDiskInfos()
         .Apply(BIND(&TLocationManager::MapLocationToLivenessInfo, MakeStrong(this))
         .AsyncVia(ControlInvoker_));
 }
@@ -154,18 +186,30 @@ TFuture<void> TLocationManager::RecoverDisk(const TString& diskId)
 ////////////////////////////////////////////////////////////////////////////////
 
 TLocationHealthChecker::TLocationHealthChecker(
+    TChunkStorePtr chunkStore,
     TLocationManagerPtr locationManager,
     IInvokerPtr invoker,
     TLocationHealthCheckerConfigPtr config)
     : Config_(std::move(config))
     , Enabled_(Config_->Enabled)
     , Invoker_(std::move(invoker))
+    , ChunkStore_(std::move(chunkStore))
     , LocationManager_(std::move(locationManager))
     , HealthCheckerExecutor_(New<TPeriodicExecutor>(
         Invoker_,
-        BIND(&TLocationHealthChecker::OnHealthCheck, MakeWeak(this)),
+        BIND(&TLocationHealthChecker::OnLocationsHealthCheck, MakeWeak(this)),
         Config_->HealthCheckPeriod))
 { }
+
+void TLocationHealthChecker::Initialize()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    for (const auto& location : ChunkStore_->Locations()) {
+        location->SubscribeDiskCheckFailed(
+            BIND(&TLocationHealthChecker::OnDiskHealthCheckFailed, MakeStrong(this), location));
+    }
+}
 
 void TLocationHealthChecker::Start()
 {
@@ -194,7 +238,18 @@ void TLocationHealthChecker::OnDynamicConfigChanged(const TLocationHealthChecker
     Enabled_ = newEnabled;
 }
 
-void TLocationHealthChecker::OnHealthCheck()
+void TLocationHealthChecker::OnDiskHealthCheckFailed(
+    const TStoreLocationPtr& location,
+    const TError& error)
+{
+    if (!Enabled_) {
+        return;
+    }
+
+    LocationManager_->FailDiskByName(location->GetStaticConfig()->DeviceName, error);
+}
+
+void TLocationHealthChecker::OnLocationsHealthCheck()
 {
     auto livenessInfosOrError = WaitFor(LocationManager_->GetLocationsLiveness());
 

@@ -544,7 +544,7 @@ private:
                 ->GetChunkStore()
                 ->Locations();
             for (const auto& location : storeLocations) {
-                if (Bootstrap_->GetConfig()->DataNode->PublishDisabledLocations || location->IsEnabled()) {
+                if (location->ShouldPublish()) {
                     ToProto(req->add_chunk_location_uuids(), location->GetUuid());
                 }
             }

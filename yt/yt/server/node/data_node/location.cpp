@@ -492,6 +492,14 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
 
 void TChunkLocation::Start()
 {
+    try {
+        InitializeCellId();
+        InitializeUuid();
+    } catch (const std::exception& ex) {
+        Crash(TError("Location initialize failed") << ex);
+        return;
+    }
+
     if (!IsEnabled()) {
         return;
     }
@@ -501,6 +509,19 @@ void TChunkLocation::Start()
     } catch (const std::exception& ex) {
         Disable(TError("Location start failed") << ex);
     }
+}
+
+bool TChunkLocation::ShouldPublish() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto state = State_.load();
+
+    return state == ELocationState::Enabled ||
+        (ChunkStore_->ShouldPublishDisabledLocations() &&
+            state != ELocationState::Crashed &&
+            GetUuid() != InvalidChunkLocationUuid &&
+            GetUuid() != EmptyChunkLocationUuid);
 }
 
 bool TChunkLocation::StartDestroy()
@@ -598,6 +619,20 @@ bool TChunkLocation::Resurrect()
         .Run();
 
     return true;
+}
+
+void TChunkLocation::Crash(const TError& reason)
+{
+    YT_LOG_ERROR(reason, "Error during location initialization");
+
+    LocationDisabledAlert_.Store(
+        TError(NChunkClient::EErrorCode::LocationCrashed,
+            "Error during location initialization")
+            << TErrorAttribute("location_path", GetPath())
+            << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
+            << reason);
+
+    State_.store(ELocationState::Crashed);
 }
 
 bool TChunkLocation::Disable(const TError& reason)
@@ -1275,11 +1310,13 @@ std::vector<TChunkDescriptor> TChunkLocation::DoScan()
 
 void TChunkLocation::DoStart()
 {
-    InitializeCellId();
-    InitializeUuid();
-
     HealthChecker_->SubscribeFailed(BIND(&TChunkLocation::OnHealthCheckFailed, Unretained(this)));
     HealthChecker_->Start();
+}
+
+void TChunkLocation::SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback)
+{
+    HealthChecker_->SubscribeFailed(callback);
 }
 
 void TChunkLocation::UpdateMediumTag()
