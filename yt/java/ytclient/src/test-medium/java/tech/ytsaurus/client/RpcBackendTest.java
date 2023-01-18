@@ -101,9 +101,9 @@ public class RpcBackendTest {
         UnversionedRowset rows = yt.selectRows(String.format("* from [%s]", path)).join();
 
         Assert.assertTrue(
-                rows.getYTreeRows().toString().equals("[{\"value\"=\"value1\";\"key\"=\"key1\"}, " +
-                        "{\"value\"=\"value2\";\"key\"=\"key2\"}]") ||
-                        rows.getYTreeRows().toString().equals("[{\"value\"=\"value2\";\"key\"=\"key2\"}, " +
-                                "{\"value\"=\"value1\";\"key\"=\"key1\"}]"));
+                rows.getYTreeRows().toString().equals("[{\"value\"=\"value1\";\"key\"=\"key1\";}, " +
+                        "{\"value\"=\"value2\";\"key\"=\"key2\";}]") ||
+                        rows.getYTreeRows().toString().equals("[{\"value\"=\"value2\";\"key\"=\"key2\";}, " +
+                                "{\"value\"=\"value1\";\"key\"=\"key1\";}]"));
     }
 }

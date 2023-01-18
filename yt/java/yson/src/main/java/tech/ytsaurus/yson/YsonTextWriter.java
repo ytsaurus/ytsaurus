@@ -15,7 +15,7 @@ import java.util.Arrays;
 public class YsonTextWriter implements ClosableYsonConsumer {
     private final Writer writer;
     private boolean firstItem = false;
-
+    private int depth = 0;
     public YsonTextWriter(StringBuilder builder) {
         this(new StringBuilderWriterAdapter(builder));
     }
@@ -40,20 +40,29 @@ public class YsonTextWriter implements ClosableYsonConsumer {
         }
     }
 
+    private void endNode() {
+        if (depth > 0) {
+            write(YsonTags.ITEM_SEPARATOR);
+        }
+    }
+
     @Override
     public void onInteger(long value) {
         write(Long.toString(value));
+        endNode();
     }
 
     @Override
     public void onUnsignedInteger(long value) {
         write(Long.toUnsignedString(value));
         write("u");
+        endNode();
     }
 
     @Override
     public void onBoolean(boolean value) {
         write(value ? "%true" : "%false");
+        endNode();
     }
 
     @Override
@@ -70,73 +79,81 @@ public class YsonTextWriter implements ClosableYsonConsumer {
             // Actually we must never go to this case
             throw new IllegalStateException("Unexpected double: " + value);
         }
+
+        endNode();
     }
 
-    @Override
-    public void onString(byte[] bytes, int offset, int length) {
+    private void writeStringScalar(byte[] bytes, int offset, int length) {
         write('"');
         appendQuotedBytes(Arrays.copyOfRange(bytes, offset, offset + length));
         write('"');
     }
 
     @Override
+    public void onString(byte[] bytes, int offset, int length) {
+        writeStringScalar(bytes, offset, length);
+        endNode();
+    }
+
+    @Override
     public void onEntity() {
         write(YsonTags.ENTITY);
+        endNode();
     }
 
     @Override
     public void onListItem() {
-        if (firstItem) {
-            firstItem = false;
-        } else {
-            write(YsonTags.ITEM_SEPARATOR);
-        }
+        firstItem = false;
     }
 
     @Override
     public void onBeginList() {
+        ++depth;
         firstItem = true;
         write(YsonTags.BEGIN_LIST);
     }
 
     @Override
     public void onEndList() {
+        --depth;
         firstItem = false;
         write(YsonTags.END_LIST);
+        endNode();
     }
 
     @Override
     public void onBeginAttributes() {
+        ++depth;
         firstItem = true;
         write(YsonTags.BEGIN_ATTRIBUTES);
     }
 
     @Override
     public void onEndAttributes() {
+        --depth;
         firstItem = false;
         write(YsonTags.END_ATTRIBUTES);
     }
 
     @Override
     public void onBeginMap() {
+        ++depth;
         firstItem = true;
         write(YsonTags.BEGIN_MAP);
     }
 
     @Override
     public void onEndMap() {
+        --depth;
         firstItem = false;
         write(YsonTags.END_MAP);
+        endNode();
     }
 
     @Override
     public void onKeyedItem(byte[] key, int offset, int length) {
-        if (firstItem) {
-            firstItem = false;
-        } else {
-            write(YsonTags.ITEM_SEPARATOR);
-        }
-        onString(key, offset, length);
+        firstItem = false;
+        writeStringScalar(key, offset, length);
         write(YsonTags.KEY_VALUE_SEPARATOR);
     }
 

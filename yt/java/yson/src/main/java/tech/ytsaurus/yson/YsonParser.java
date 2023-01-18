@@ -78,7 +78,7 @@ public class YsonParser {
             consumer.onBeginAttributes();
             parseMapLikeImpl(YsonTags.END_ATTRIBUTES, consumer);
             consumer.onEndAttributes();
-            skipWhitespaces();
+            skipSpaces();
         }
         tokenizer.unreadByte();
         return tokenizer.getPosition();
@@ -90,6 +90,13 @@ public class YsonParser {
             currentByte = tokenizer.readByte();
         }
         return currentByte;
+    }
+
+    private void skipSpaces() {
+        byte currentByte = tokenizer.readByte();
+        while (currentByte == ' ') {
+            currentByte = tokenizer.readByte();
+        }
     }
 
     /**

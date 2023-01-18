@@ -10,17 +10,15 @@ import java.util.Objects;
 import org.junit.Assert;
 import org.junit.Test;
 import tech.ytsaurus.ysontree.YTree;
-import tech.ytsaurus.ysontree.YTreeTextSerializer;
 
 public class RichYPathParserTest {
-
     @Test
-    public void testYTreeNodeRepresentation() throws Exception {
+    public void testYsonStringRepresentation() throws Exception {
         var reader = new BufferedReader(new InputStreamReader(
                 Objects.requireNonNull(getClass().getClassLoader().getResourceAsStream("good-rich-ypath.txt")),
                 StandardCharsets.UTF_8));
 
-        // Check YTreeNode representation of parsed RichYPath
+        // Compare yson string representation of parsed RichYPath
         while (true) {
             var line = reader.readLine();
             if (line == null) {
@@ -32,13 +30,29 @@ public class RichYPathParserTest {
             if (line.isEmpty()) {
                 continue;
             }
+            if (line.startsWith("===")) {
+                StringBuilder binaryYPathSb = new StringBuilder();
+                line = reader.readLine();
+                while (!line.startsWith("---")) {
+                    binaryYPathSb.append(line);
+                    binaryYPathSb.append("\n");
+                    line = reader.readLine();
+                }
 
-            var values = line.split(" -::- ");
+                StringBuilder textYsonSb = new StringBuilder();
+                line = reader.readLine();
+                while (!line.startsWith("===")) {
+                    textYsonSb.append(line);
+                    textYsonSb.append("\n");
+                    line = reader.readLine();
+                }
 
-            var binaryYPath = values[0];
-            var textYson = values[1];
+                var binaryYPath = binaryYPathSb.toString().strip();
+                var textYson = textYsonSb.toString().strip();
 
-            Assert.assertEquals(RichYPathParser.parse(binaryYPath).toTree(), YTreeTextSerializer.deserialize(textYson));
+                Assert.assertEquals(
+                        RichYPathParser.parse(binaryYPath).toStableString(), textYson);
+            }
         }
     }
 
@@ -60,15 +74,22 @@ public class RichYPathParserTest {
                 continue;
             }
 
-            var values = line.split(" -::- ");
+            if (line.startsWith("===")) {
+                StringBuilder binaryYPathSb = new StringBuilder();
+                line = reader.readLine();
+                while (!line.startsWith("===")) {
+                    binaryYPathSb.append(line);
+                    binaryYPathSb.append("\n");
+                    line = reader.readLine();
+                }
+                var binaryYPath = binaryYPathSb.toString().strip();
 
-            var binaryYPath = values[0];
-
-            Assert.assertThrows(
-                    "Path '" + binaryYPath + "' shouldn't parse correctly",
-                    Exception.class, () -> {
-                        RichYPathParser.parse(binaryYPath);
-                    });
+                Assert.assertThrows(
+                        "Path '" + binaryYPath + "' shouldn't parse correctly",
+                        Exception.class, () -> {
+                            RichYPathParser.parse(binaryYPath);
+                        });
+            }
         }
     }
 
