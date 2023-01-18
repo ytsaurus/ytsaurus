@@ -72,6 +72,9 @@ namespace NYT {
     class ITransaction;
     using ITransactionPtr = ::TIntrusivePtr<ITransaction>;
 
+    class ITransactionPinger;
+    using ITransactionPingerPtr = ::TIntrusivePtr<ITransactionPinger>;
+
     struct IOperation;
     using IOperationPtr = ::TIntrusivePtr<IOperation>;
 

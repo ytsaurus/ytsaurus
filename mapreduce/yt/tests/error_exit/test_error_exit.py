@@ -5,6 +5,8 @@ import subprocess
 import sys
 import time
 
+import pytest
+
 from mapreduce.yt.python.yt_stuff import yt_stuff
 
 import yatest.common
@@ -133,7 +135,8 @@ def test_abort_operations_and_transactions_on_signal(yt_stuff):
     check_transaction_will_die(yt_client, "test-signal", 5)
 
 @skip_if_common_wrapper
-def test_finish_with_deadlocked_logger(yt_stuff):
+@pytest.mark.parametrize("call_shutdown_handlers", [False, True])
+def test_finish_with_deadlocked_logger(yt_stuff, call_shutdown_handlers):
     yt_client = yt_stuff.get_yt_client()
 
     process = yatest.common.execute(
@@ -153,6 +156,7 @@ def test_finish_with_deadlocked_logger(yt_stuff):
             "OUTPUT_TABLE": "//tmp/test-deadlocked-logger-output",
             "FAIL_AND_DEADLOCK_LOGGER": "1",
             "EXIT_CODE_FOR_TERMINATE": "78",
+            "CALL_SHUTDOWN_HANDLERS": str(int(call_shutdown_handlers))
         },
         timeout=20,
     )

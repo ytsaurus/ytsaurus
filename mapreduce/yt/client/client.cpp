@@ -9,6 +9,8 @@
 #include "lock.h"
 #include "operation.h"
 #include "retryful_writer.h"
+#include "transaction.h"
+#include "transaction_pinger.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/client/retry_transaction.h>
@@ -221,6 +223,7 @@ IFileReaderPtr TClientBase::CreateBlobTableReader(
         path,
         key,
         ClientRetryPolicy_,
+        GetTransactionPinger(),
         Auth_,
         TransactionId_,
         options);
@@ -233,6 +236,7 @@ IFileReaderPtr TClientBase::CreateFileReader(
     return new TFileReader(
         CanonizeYPath(path),
         ClientRetryPolicy_,
+        GetTransactionPinger(),
         Auth_,
         TransactionId_,
         options);
@@ -247,7 +251,7 @@ IFileWriterPtr TClientBase::CreateFileWriter(
         NRawClient::Create(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, TransactionId_, realPath.Path_, NT_FILE,
             TCreateOptions().IgnoreExisting(true));
     }
-    return new TFileWriter(realPath, ClientRetryPolicy_, Auth_, TransactionId_, options);
+    return new TFileWriter(realPath, ClientRetryPolicy_, GetTransactionPinger(), Auth_, TransactionId_, options);
 }
 
 TTableWriterPtr<::google::protobuf::Message> TClientBase::CreateTableWriter(
@@ -272,6 +276,7 @@ TRawTableWriterPtr TClientBase::CreateRawWriter(
 {
     return ::MakeIntrusive<TRetryfulWriter>(
         ClientRetryPolicy_,
+        GetTransactionPinger(),
         Auth_,
         TransactionId_,
         GetWriteTableCommand(),
@@ -619,6 +624,7 @@ void TClientBase::AlterTable(
     return ::MakeIntrusive<TClientReader>(
         CanonizeYPath(path),
         ClientRetryPolicy_,
+        GetTransactionPinger(),
         Auth_,
         TransactionId_,
         format,
@@ -639,6 +645,7 @@ THolder<TClientWriter> TClientBase::CreateClientWriter(
     return MakeHolder<TClientWriter>(
         realPath,
         ClientRetryPolicy_,
+        GetTransactionPinger(),
         Auth_,
         TransactionId_,
         format,
@@ -776,11 +783,13 @@ TTransaction::TTransaction(
     const TTransactionId& parentTransactionId,
     const TStartTransactionOptions& options)
     : TClientBase(auth, parentTransactionId, parentClient->GetRetryPolicy())
+    , TransactionPinger_(parentClient->GetTransactionPinger())
     , PingableTx_(
         MakeHolder<TPingableTransaction>(
             parentClient->GetRetryPolicy(),
             auth,
             parentTransactionId,
+            TransactionPinger_->GetChildTxPinger(),
             options))
     , ParentClient_(parentClient)
 {
@@ -793,11 +802,13 @@ TTransaction::TTransaction(
     const TTransactionId& transactionId,
     const TAttachTransactionOptions& options)
     : TClientBase(auth, transactionId, parentClient->GetRetryPolicy())
+    , TransactionPinger_(parentClient->GetTransactionPinger())
     , PingableTx_(
         new TPingableTransaction(
             parentClient->GetRetryPolicy(),
             auth,
             transactionId,
+            parentClient->GetTransactionPinger()->GetChildTxPinger(),
             options))
     , ParentClient_(parentClient)
 { }
@@ -843,6 +854,11 @@ void TTransaction::Detach()
     PingableTx_->Detach();
 }
 
+ITransactionPingerPtr TTransaction::GetTransactionPinger()
+{
+    return TransactionPinger_;
+}
+
 TClientPtr TTransaction::GetParentClientImpl()
 {
     return ParentClient_;
@@ -855,6 +871,7 @@ TClient::TClient(
     const TTransactionId& globalId,
     IClientRetryPolicyPtr retryPolicy)
     : TClientBase(auth, globalId, retryPolicy)
+    , TransactionPinger_(nullptr)
 { }
 
 TClient::~TClient() = default;
@@ -1221,6 +1238,14 @@ void TClient::Shutdown()
     if (!Shutdown_.exchange(true) && YtPoller_) {
         YtPoller_->Stop();
     }
+}
+
+ITransactionPingerPtr TClient::GetTransactionPinger()
+{
+    if (!TransactionPinger_) {
+        TransactionPinger_ = CreateTransactionPinger();
+    }
+    return TransactionPinger_;
 }
 
 TClientPtr TClient::GetParentClientImpl()
