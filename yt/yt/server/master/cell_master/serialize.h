@@ -100,6 +100,7 @@ DEFINE_ENUM(EMasterReign,
     ((ChunkFormat)                                                  (2220))  // babenko
     ((DropDNLCompats)                                               (2221))  // akozhikhov
     ((MountConfigExperiments)                                       (2222))  // ifsmirnov
+    ((RemountNeededNotification)                                    (2223))  // ifsmirnov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko

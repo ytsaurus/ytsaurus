@@ -4054,6 +4054,7 @@ private:
 
             const auto* context = GetCurrentMutationContext();
             tablet->SetMountRevision(context->GetVersion().ToRevision());
+            tablet->SetSettingsRevision(context->GetVersion().ToRevision());
             tablet->SetWasForcefullyUnmounted(false);
 
             switch (tablet->GetType()) {
@@ -4640,6 +4641,25 @@ private:
         int firstTabletIndex,
         int lastTabletIndex)
     {
+        auto currentRevision = GetCurrentMutationContext()->GetVersion().ToRevision();
+
+        for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
+            auto* tablet = table->Tablets()[index];
+
+            if (tablet->GetState() == ETabletState::Unmounted) {
+                continue;
+            }
+            if (tablet->GetSettingsRevision() >= table->GetSettingsUpdateRevision()) {
+                continue;
+            }
+
+            int newCount = table->GetRemountNeededTabletCount() - 1;
+            YT_ASSERT(newCount >= 0);
+            table->SetRemountNeededTabletCount(newCount);
+
+            tablet->SetSettingsRevision(currentRevision);
+        }
+
         if (IsTableType(table->GetType())) {
             return DoRemountTable(
                 table->As<TTableNode>(),
@@ -6428,11 +6448,19 @@ private:
         auto resourceUsageDelta = TTabletResources()
             .SetTabletStaticMemory(tablet->GetTabletStaticMemorySize());
 
+        if (tablet->GetSettingsRevision() < table->GetSettingsUpdateRevision()) {
+            int newCount = table->GetRemountNeededTabletCount() - 1;
+            YT_ASSERT(newCount >= 0);
+            table->SetRemountNeededTabletCount(newCount);
+
+        }
+
         tablet->SetInMemoryMode(EInMemoryMode::None);
         tablet->SetState(ETabletState::Unmounted);
         tablet->SetCell(nullptr);
         tablet->SetStoresUpdatePreparedTransaction(nullptr);
         tablet->SetMountRevision(NullRevision);
+        tablet->SetSettingsRevision(NullRevision);
         tablet->SetWasForcefullyUnmounted(force);
 
         UpdateResourceUsage(table, -resourceUsageDelta);

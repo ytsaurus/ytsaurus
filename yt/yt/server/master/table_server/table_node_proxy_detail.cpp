@@ -1247,6 +1247,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             const auto& uninternedKey = key.Unintern();
             auto* lockedTable = LockThisImpl(TLockRequest::MakeSharedAttribute(uninternedKey));
             lockedTable->SetOptimizeFor(ConvertTo<EOptimizeFor>(value));
+            lockedTable->OnRemountNeeded();
 
             return true;
         }
@@ -1278,6 +1279,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             const auto& uninternedKey = key.Unintern();
             auto* lockedTable = LockThisImpl(TLockRequest::MakeSharedAttribute(uninternedKey));
             lockedTable->SetHunkErasureCodec(codecId);
+            lockedTable->OnRemountNeeded();
 
             return true;
         }
@@ -1335,6 +1337,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedCompactionRevision(revision);
+            lockedTable->OnRemountNeeded();
             return true;
         }
 
@@ -1343,6 +1346,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedStoreCompactionRevision(revision);
+            lockedTable->OnRemountNeeded();
             return true;
         }
 
@@ -1351,6 +1355,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedHunkCompactionRevision(revision);
+            lockedTable->OnRemountNeeded();
             return true;
         }
 
@@ -1359,6 +1364,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetForcedChunkViewCompactionRevision(revision);
+            lockedTable->OnRemountNeeded();
             return true;
         }
 
@@ -1395,6 +1401,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetProfilingMode(ConvertTo<EDynamicTableProfilingMode>(value));
+            lockedTable->OnRemountNeeded();
             return true;
         }
 
@@ -1402,6 +1409,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetProfilingTag(ConvertTo<TString>(value));
+            lockedTable->OnRemountNeeded();
             return true;
         }
 
@@ -1413,6 +1421,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto lockRequest = TLockRequest::MakeSharedAttribute(key.Unintern());
             auto* lockedTable = LockThisImpl(lockRequest);
             lockedTable->SetEnableDetailedProfiling(ConvertTo<bool>(value));
+            lockedTable->OnRemountNeeded();
             return true;
         }
 
@@ -1443,6 +1452,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
             auto* lockedTable = LockThisImpl();
             lockedTable->SetEnableConsistentChunkReplicaPlacement(ConvertTo<bool>(value));
+            lockedTable->OnRemountNeeded();
             return true;
         }
 
@@ -1508,6 +1518,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
             auto* lockedTable = LockThisImpl(lockRequest);
             auto* storage = lockedTable->GetMutableMountConfigStorage();
             storage->SetSelf(value);
+            lockedTable->OnRemountNeeded();
 
             return true;
         }

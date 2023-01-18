@@ -1781,7 +1781,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
     def test_tablet_error_attributes(self):
         sync_create_cells(1)
         self._create_sorted_table("//tmp/t")
-        reshard_table("//tmp/t", [[], [33], [66]])
+        sync_reshard_table("//tmp/t", [[], [33], [66]])
         sync_mount_table("//tmp/t")
 
         # Decommission all unused nodes to make flush fail due to
@@ -2399,7 +2399,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
 
         set("//tmp/t/@enable_compaction_and_partitioning", False)
 
-        reshard_table("//tmp/t", [[], [4]])
+        sync_reshard_table("//tmp/t", [[], [4]])
         sync_mount_table("//tmp/t")
 
         all_rows = []
@@ -3196,6 +3196,34 @@ class TestDynamicTablesMulticell(TestDynamicTablesSingleCell):
         assert get("//tmp/p/t/@mount_config") == {"min_data_ttl": 123}
         set("//tmp/t/@mount_config/max_data_ttl", 456)
         assert get("//tmp/p/t/@mount_config") == {"min_data_ttl": 123}
+
+    @authors("ifsmirnov")
+    def test_remount_needed_tablet_count(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+        sync_reshard_table("//tmp/t", 10, uniform=True)
+        sync_mount_table("//tmp/t", first_tablet_index=0, last_tablet_index=4)
+
+        assert get("//tmp/t/@remount_needed_tablet_count") == 0
+
+        set("//tmp/t/@mount_config/min_data_ttl", 0)
+        assert get("//tmp/t/@remount_needed_tablet_count") == 5
+        remount_table("//tmp/t")
+        assert get("//tmp/t/@remount_needed_tablet_count") == 0
+
+        set("//tmp/t/@max_data_ttl", 1)
+        assert get("//tmp/t/@remount_needed_tablet_count") == 5
+        remount_table("//tmp/t", first_tablet_index=0, last_tablet_index=1)
+        assert get("//tmp/t/@remount_needed_tablet_count") == 3
+        remount_table("//tmp/t", first_tablet_index=1, last_tablet_index=2)
+        assert get("//tmp/t/@remount_needed_tablet_count") == 2
+
+        sync_mount_table("//tmp/t")
+        assert get("//tmp/t/@remount_needed_tablet_count") == 2
+        remount_table("//tmp/t", first_tablet_index=3, last_tablet_index=3)
+        assert get("//tmp/t/@remount_needed_tablet_count") == 1
+        sync_unmount_table("//tmp/t")
+        assert get("//tmp/t/@remount_needed_tablet_count") == 0
 
 
 class TestDynamicTablesDecommissionStall(DynamicTablesBase):

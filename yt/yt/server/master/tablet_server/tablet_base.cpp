@@ -30,6 +30,7 @@ void TTabletBase::Save(TSaveContext& context) const
     Save(context, InMemoryMode_);
     Save(context, Cell_);
     Save(context, MountRevision_);
+    Save(context, SettingsRevision_);
     Save(context, WasForcefullyUnmounted_);
     Save(context, Action_);
     Save(context, StoresUpdatePreparedTransaction_);
@@ -53,6 +54,10 @@ void TTabletBase::Load(TLoadContext& context)
     Load(context, InMemoryMode_);
     Load(context, Cell_);
     Load(context, MountRevision_);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
+        Load(context, SettingsRevision_);
+    }
     Load(context, WasForcefullyUnmounted_);
     Load(context, Action_);
     Load(context, StoresUpdatePreparedTransaction_);
