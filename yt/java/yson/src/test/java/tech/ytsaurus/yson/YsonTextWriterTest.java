@@ -134,7 +134,7 @@ public class YsonTextWriterTest {
 
                     return null;
                 }),
-                "[\"foo\";42;#]"
+                "[\"foo\";42;#;]"
         );
 
          assertEquals(
@@ -176,7 +176,7 @@ public class YsonTextWriterTest {
 
                     return null;
                 }),
-                "[[1;2;3];[4;[5]]]"
+                "[[1;2;3;];[4;[5;];];]"
         );
 
          assertEquals(
@@ -195,7 +195,7 @@ public class YsonTextWriterTest {
                     consumer.onEndList();
                     return null;
                 }),
-                "[[];[]]"
+                "[[];[];]"
         );
     }
 
@@ -215,7 +215,7 @@ public class YsonTextWriterTest {
                     consumer.onEndMap();
                     return null;
                 }),
-                "{\"foo\"=\"bar\";\"\\xfc>\\x0c\"=-5}"
+                "{\"foo\"=\"bar\";\"\\xfc>\\x0c\"=-5;}"
         );
 
          assertEquals(
@@ -243,7 +243,7 @@ public class YsonTextWriterTest {
                     consumer.onEndMap();
                     return null;
                 }),
-                "{\"42\"=42;\"62\"={\"6\"=6;\"2\"=2};\"\"={}}"
+                "{\"42\"=42;\"62\"={\"6\"=6;\"2\"=2;};\"\"={};}"
         );
     }
 
@@ -267,7 +267,7 @@ public class YsonTextWriterTest {
 
                     return null;
                 }),
-                "<\"1\"=1u;\"2\"=2u;\"3\"=3u>\"skiff\""
+                "<\"1\"=1u;\"2\"=2u;\"3\"=3u;>\"skiff\""
         );
 
          assertEquals(
@@ -300,7 +300,7 @@ public class YsonTextWriterTest {
 
                     return null;
                 }),
-                "<\"1\"=<\"a\"=1;\"b\"=2>1u;\"2\"=[];\"3\"={}>\"skiff\""
+                "<\"1\"=<\"a\"=1;\"b\"=2;>1u;\"2\"=[];\"3\"={};>\"skiff\""
         );
     }
 

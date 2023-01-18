@@ -77,7 +77,7 @@ class RichYPath(object):
 
         str_without_attributes = stream.read()
         path_start = 0
-        while path_start != len(str_without_attributes) and str_without_attributes[path_start:path_start + 1].isspace():
+        while path_start != len(str_without_attributes) and (str_without_attributes[path_start:path_start + 1] == b' '):
             path_start += 1
         return str_without_attributes[path_start:]
 

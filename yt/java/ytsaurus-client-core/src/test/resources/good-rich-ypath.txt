@@ -1,27 +1,84 @@
-<a=b>//home/ignat{a,b}[100:200] -::- <"a"="b";"ranges"=[{"lower_limit"={"key"=[100]};"upper_limit"={"key"=[200]}}];"columns"=["a";"b"]>"//home/ignat"
+===
+<a=b>//home/ignat{a,b}[100:200]
+---
+<"a"="b";"columns"=["a";"b";];"ranges"=[{"lower_limit"={"key"=[100;];};"upper_limit"={"key"=[200;];};};];>//home/ignat
+===
 
-<a=b>//home -::- <"a"="b">"//home"
+===
+<a=b>//home
+---
+<"a"="b";>//home
+===
 
-//home[:] -::- <"ranges"=[{}]>"//home"
+===
+//home[:]
+---
+<"ranges"=[{};];>//home
+===
 
-//home[(x, y):(a, b)] -::- <"ranges"=[{"lower_limit"={"key"=["x";"y"]};"upper_limit"={"key"=["a";"b"]}}]>"//home"
+===
+//home[(x, y):(a, b)]
+---
+<"ranges"=[{"lower_limit"={"key"=["x";"y";];};"upper_limit"={"key"=["a";"b";];};};];>//home
+===
 
-//home[#1:#2,x:y] -::- <"ranges"=[{"lower_limit"={"row_index"=1};"upper_limit"={"row_index"=2}};{"lower_limit"={"key"=["x"]};"upper_limit"={"key"=["y"]}}]>"//home"
+===
+//home[#1:#2,x:y]
+---
+<"ranges"=[{"lower_limit"={"row_index"=1;};"upper_limit"={"row_index"=2;};};{"lower_limit"={"key"=["x";];};"upper_limit"={"key"=["y";];};};];>//home
+===
 
-//home[x:#1000] -::- <"ranges"=[{"lower_limit"={"key"=["x"]};"upper_limit"={"row_index"=1000}}]>"//home"
+===
+//home[x:#1000]
+---
+<"ranges"=[{"lower_limit"={"key"=["x";];};"upper_limit"={"row_index"=1000;};};];>//home
+===
 
- <a=b> //home -::- <"a"="b">"//home"
+===
+ <a=b> //home
+---
+<"a"="b";>//home
+===
 
-//t[#1, #3:] -::- <"ranges"=[{"exact"={"row_index"=1}};{"lower_limit"={"row_index"=3}}]>"//t"
+===
+//t[#1, #3:]
+---
+<"ranges"=[{"exact"={"row_index"=1;};};{"lower_limit"={"row_index"=3;};};];>//t
+===
 
-//t[foo] -::- <"ranges"=[{"exact"={"key"=["foo"]}}]>"//t"
+===
+//t[foo]
+---
+<"ranges"=[{"exact"={"key"=["foo";];};};];>//t
+===
 
-//t[(123,456):789, (424,242)] -::- <"ranges"=[{"lower_limit"={"key"=[123;456]};"upper_limit"={"key"=[789]}};{"exact"={"key"=[424;242]}}]>"//t"
 
-//t[(123):456, (789)] -::- <"ranges"=[{"lower_limit"={"key"=[123]};"upper_limit"={"key"=[456]}};{"exact"={"key"=[789]}}]>"//t"
+===
+//t[(123,456):789, (424,242)]
+---
+<"ranges"=[{"lower_limit"={"key"=[123;456;];};"upper_limit"={"key"=[789;];};};{"exact"={"key"=[424;242;];};};];>//t
+===
 
-#2464bed5-8a682b23-53c20a5d-af802075 -::- "#2464bed5-8a682b23-53c20a5d-af802075"
+===
+//t[(123):456, (789)]
+---
+<"ranges"=[{"lower_limit"={"key"=[123;];};"upper_limit"={"key"=[456;];};};{"exact"={"key"=[789;];};};];>//t
+===
 
-#2464bed5-8a682b23-53c20a5d-af802075[1:2] -::- <"ranges"=[{"lower_limit"={"key"=[1]};"upper_limit"={"key"=[2]}};]>"#2464bed5-8a682b23-53c20a5d-af802075"
+===
+#2464bed5-8a682b23-53c20a5d-af802075
+---
+#2464bed5-8a682b23-53c20a5d-af802075
+===
 
-<a=b>#2464bed5-8a682b23-53c20a5d-af802075{a,b}[100:200] -::- <"a"="b";"ranges"=[{"lower_limit"={"key"=[100]};"upper_limit"={"key"=[200]}}];"columns"=["a";"b"]>"#2464bed5-8a682b23-53c20a5d-af802075"
+===
+#2464bed5-8a682b23-53c20a5d-af802075[1:2]
+---
+<"ranges"=[{"lower_limit"={"key"=[1;];};"upper_limit"={"key"=[2;];};};];>#2464bed5-8a682b23-53c20a5d-af802075
+===
+
+===
+<a=b>#2464bed5-8a682b23-53c20a5d-af802075{a,b}[100:200]
+---
+<"a"="b";"columns"=["a";"b";];"ranges"=[{"lower_limit"={"key"=[100;];};"upper_limit"={"key"=[200;];};};];>#2464bed5-8a682b23-53c20a5d-af802075
+===

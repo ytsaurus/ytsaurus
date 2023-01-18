@@ -179,10 +179,10 @@ public class RichYPathTest {
     @Test
     public void testToString() {
         Assert.assertEquals(defaultPath().toString(),
-                "<\"ranges\"=[{\"lower_limit\"={\"row_index\"=1};\"upper_limit\"={\"offset\"=43;\"row_index\"=123;" +
-                        "\"key\"=[\"k1\";\"k2\"]}}];\"columns\"=[\"c1\";\"c2\"];\"append\"=%true;" +
-                        "\"sorted_by\"=[\"c3\";\"c4\"];\"primary\"=%false;\"foreign\"=%false;" +
-                        "\"timestamp\"=123>//home/sankear/table");
+                "<\"ranges\"=[{\"lower_limit\"={\"row_index\"=1;};\"upper_limit\"={\"offset\"=43;\"row_index\"=123;" +
+                        "\"key\"=[\"k1\";\"k2\";];};};];\"columns\"=[\"c1\";\"c2\";];\"append\"=%true;" +
+                        "\"sorted_by\"=[\"c3\";\"c4\";];\"primary\"=%false;\"foreign\"=%false;" +
+                        "\"timestamp\"=123;>//home/sankear/table");
     }
 
     @Test

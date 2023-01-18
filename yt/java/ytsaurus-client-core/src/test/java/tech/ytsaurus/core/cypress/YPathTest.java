@@ -437,7 +437,7 @@ public class YPathTest {
     @Test
     public void formatTest() {
         Assert.assertEquals(
-                "<\"format\"=\"yson\">//some/table",
+                "<\"format\"=\"yson\";>//some/table",
                 YPath.simple("//some/table").withFormat("yson").toString()
         );
     }
@@ -449,8 +449,8 @@ public class YPathTest {
                         "k1", YTree.stringNode("v1"),
                         "k2", YTree.stringNode("v2")
                 ));
-        Assert.assertTrue(path.toString().equals("<\"k1\"=\"v1\";\"k2\"=\"v2\">//some/table")
-                || path.toString().equals("<\"k2\"=\"v2\";\"k1\"=\"v1\">//some/table"));
+        Assert.assertTrue(path.toString().equals("<\"k1\"=\"v1\";\"k2\"=\"v2\";>//some/table")
+                || path.toString().equals("<\"k2\"=\"v2\";\"k1\"=\"v1\";>//some/table"));
         Assert.assertTrue(path.getAdditionalAttributes().toString().equals("{k1=\"v1\", k2=\"v2\"}")
                 || path.getAdditionalAttributes().toString().equals("{k2=\"v2\", k1=\"v1\"}"));
     }
@@ -461,10 +461,11 @@ public class YPathTest {
                 .withAdditionalAttributes(Map.of("k1", YTree.stringNode("v1")))
                 .plusAdditionalAttribute("k2", YTree.stringNode("v2"));
 
-        Assert.assertEquals("<\"k1\"=\"v1\";\"k2\"=\"v2\">//some/table", path.toString());
-        Assert.assertEquals("{k1=\"v1\", k2=\"v2\"}", path.getAdditionalAttributes().toString());
-        Assert.assertTrue(path.toString().equals("<\"k1\"=\"v1\";\"k2\"=\"v2\">//some/table")
-                || path.toString().equals("<\"k2\"=\"v2\";\"k1\"=\"v1\">//some/table"));
+        Assert.assertEquals("<\"k1\"=\"v1\";\"k2\"=\"v2\";>//some/table", path.toString());
+        Assert.assertEquals(
+                Map.of("k1", YTree.stringNode("v1"), "k2", YTree.stringNode("v2")),
+                path.getAdditionalAttributes());
+        Assert.assertEquals(path.toStableString(), "<\"k1\"=\"v1\";\"k2\"=\"v2\";>//some/table");
         Assert.assertTrue(path.getAdditionalAttributes().toString().equals("{k1=\"v1\", k2=\"v2\"}")
                 || path.getAdditionalAttributes().toString().equals("{k2=\"v2\", k1=\"v1\"}"));
     }
@@ -474,31 +475,31 @@ public class YPathTest {
         // string
         YPath path = YPath.simple("//some/table")
                 .plusAdditionalAttribute("k1", "v1");
-        Assert.assertEquals("<\"k1\"=\"v1\">//some/table", path.toString());
+        Assert.assertEquals("<\"k1\"=\"v1\";>//some/table", path.toString());
         Assert.assertEquals("{k1=\"v1\"}", path.getAdditionalAttributes().toString());
 
         // double
         path = YPath.simple("//some/table")
                 .plusAdditionalAttribute("k1", 1.01);
-        Assert.assertEquals("<\"k1\"=1.01>//some/table", path.toString());
+        Assert.assertEquals("<\"k1\"=1.01;>//some/table", path.toString());
         Assert.assertEquals("{k1=1.01}", path.getAdditionalAttributes().toString());
 
         // list
         path = YPath.simple("//some/table")
                 .plusAdditionalAttribute("k1", Arrays.asList("v1", "v2"));
-        Assert.assertEquals("<\"k1\"=[\"v1\";\"v2\"]>//some/table", path.toString());
-        Assert.assertEquals("{k1=[\"v1\";\"v2\"]}", path.getAdditionalAttributes().toString());
+        Assert.assertEquals("<\"k1\"=[\"v1\";\"v2\";];>//some/table", path.toString());
+        Assert.assertEquals("{k1=[\"v1\";\"v2\";]}", path.getAdditionalAttributes().toString());
 
         // map
         path = YPath.simple("//some/table")
                 .plusAdditionalAttribute("k1", Map.of("kk1", 1.01, "kk2", 2.02));
-        Assert.assertEquals("<\"k1\"={\"kk1\"=1.01;\"kk2\"=2.02}>//some/table", path.toString());
-        Assert.assertEquals("{k1={\"kk1\"=1.01;\"kk2\"=2.02}}", path.getAdditionalAttributes().toString());
+        Assert.assertEquals("<\"k1\"={\"kk1\"=1.01;\"kk2\"=2.02;};>//some/table", path.toString());
+        Assert.assertEquals("{k1={\"kk1\"=1.01;\"kk2\"=2.02;}}", path.getAdditionalAttributes().toString());
 
         // list inside map (complex one)
         path = YPath.simple("//some/table")
                 .plusAdditionalAttribute("k1", Map.of("list", Arrays.asList("v1", "v2")));
-        Assert.assertEquals("<\"k1\"={\"list\"=[\"v1\";\"v2\"]}>//some/table", path.toString());
-        Assert.assertEquals("{k1={\"list\"=[\"v1\";\"v2\"]}}", path.getAdditionalAttributes().toString());
+        Assert.assertEquals("<\"k1\"={\"list\"=[\"v1\";\"v2\";];};>//some/table", path.toString());
+        Assert.assertEquals("{k1={\"list\"=[\"v1\";\"v2\";];}}", path.getAdditionalAttributes().toString());
     }
 }

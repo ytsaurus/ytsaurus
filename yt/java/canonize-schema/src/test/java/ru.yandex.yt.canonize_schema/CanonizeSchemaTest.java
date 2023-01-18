@@ -71,10 +71,10 @@ class CanonizeSchemaTest {
 
         String canonizedText = YTreeTextSerializer.stableSerialize(canonized);
         Assertions.assertEquals(
-                "<\"strict\"=%true;\"unique_keys\"=%false>[{\"name\"=\"Name\";" +
-                        "\"type_v3\"={\"item\"=\"string\";\"type_name\"=\"optional\"}};{\"name\"=\"Points\";" +
-                        "\"type_v3\"={\"item\"={\"members\"=[{\"name\"=\"X\";\"type\"=\"int64\"};{\"name\"=\"Y\";" +
-                        "\"type\"=\"int64\"}];\"type_name\"=\"struct\"};\"type_name\"=\"list\"}}]",
+                "<\"strict\"=%true;\"unique_keys\"=%false;>[{\"name\"=\"Name\";" +
+                        "\"type_v3\"={\"item\"=\"string\";\"type_name\"=\"optional\";};};{\"name\"=\"Points\";" +
+                        "\"type_v3\"={\"item\"={\"members\"=[{\"name\"=\"X\";\"type\"=\"int64\";};{\"name\"=\"Y\";" +
+                        "\"type\"=\"int64\";};];\"type_name\"=\"struct\";};\"type_name\"=\"list\";};};]",
                 canonizedText);
     }
 }

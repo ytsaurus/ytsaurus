@@ -10,6 +10,8 @@ from yt.yson import loads, YsonString, YsonUnicode, YsonError, to_yson_type
 from yt.wrapper import YtError, YsonFormat, YPath
 from yt.ypath import YPathError, parse_ypath
 
+from library.python import resource
+
 try:
     from yt.packages.six.moves import xrange
 except ImportError:
@@ -68,6 +70,7 @@ TEST_PATHS = ["//tmp/table[#1:#2]",
               "//test/[\x01\x06abc, a]",
               "//table/[\x03\x00\x00\x00\x00\x00\x00\x03\x3F:test]",
               " <a=b> //home",
+              " \n <a=b>\n//home",
               "         <append=true;custom=123>     //home/vasya/t",
               "      //home",
               '//test/&[abc:"abc\x00"]',
@@ -111,6 +114,50 @@ def make_parse_ypath_request(path, client=None):
     result.attributes = update(attributes, result.attributes)
 
     return result
+
+
+def _load_and_parse_tests(path, fields_count):
+    testdata = resource.find(path)
+    lines = str(testdata).split("\n")
+    line_idx = -1
+
+    tests = []
+
+    while True:
+        line_idx += 1
+        if line_idx >= len(lines):
+            break
+        line = lines[line_idx]
+        if line.startswith("##"):
+            continue
+        if line == "":
+            continue
+        if line.startswith("==="):
+            fields = []
+            for field_id in range(fields_count):
+                field_lines = []
+                line_idx += 1
+                line = lines[line_idx]
+                separator = "---" if (field_id + 1 < fields_count) else "==="
+                while not line.startswith(separator):
+                    field_lines.append(line)
+                    line_idx += 1
+                    line = lines[line_idx]
+                fields.append('\n'.join(field_lines))
+
+            tests.append(fields)
+
+    return tests
+
+
+def _load_good_paths():
+    path = "/good-rich-ypath.txt"
+    return _load_and_parse_tests(path, 2)
+
+
+def _load_bad_paths():
+    path = "/bad-rich-ypath.txt"
+    return _load_and_parse_tests(path, 1)
 
 
 @pytest.mark.usefixtures("yt_env")
@@ -162,3 +209,12 @@ class TestParseYpath(object):
         with set_config_option("prefix", YPath("//home/levysotsky/")):
             path = YPath("me")
             assert str(path) == "//home/levysotsky/me"
+
+    @authors("nadya73")
+    def test_parse_yson_ypath(self):
+        for ypath, expected_yson in _load_good_paths():
+            assert YPath(ypath).to_yson_string(sort_keys=True) == expected_yson
+
+        for ypath, in _load_bad_paths():
+            with pytest.raises((YtError, TypeError, YsonError, YPathError)):
+                YPath(ypath)

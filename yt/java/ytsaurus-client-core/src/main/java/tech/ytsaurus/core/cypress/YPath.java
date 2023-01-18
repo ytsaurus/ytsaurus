@@ -165,6 +165,8 @@ public interface YPath {
 
     YTreeBuilder toTree(YTreeBuilder builder);
 
+    String toStableString();
+
     static YPath cypressRoot() {
         return RichYPath.cypressRoot();
     }

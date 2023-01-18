@@ -389,6 +389,22 @@ TEST_F(TYPathTest, ParseRichYPath9)
     EXPECT_EQ(path.GetPath(), "@home");
 }
 
+TEST_F(TYPathTest, ParseRichYPath10)
+{
+    auto path = TRichYPath::Parse(" \n <a=b>\n//home");
+    EXPECT_EQ(path.GetPath(), TString("\n//home"));
+    EXPECT_TRUE(
+        AreNodesEqual(
+            ConvertToNode(path.Attributes()),
+            ConvertToNode(TYsonString(TStringBuf("{a=b}")))));
+}
+
+TEST_F(TYPathTest, ParseRichYPath11)
+{
+    auto path = TRichYPath::Parse(" \n//home");
+    EXPECT_EQ(path.GetPath(), TString(" \n//home"));
+}
+
 TEST_F(TYPathTest, IgnoreAmpersand1)
 {
     Set("&/a", "b");

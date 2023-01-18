@@ -469,11 +469,25 @@ public class RichYPath implements YPath {
 
     @Override
     public String toString() {
+        return toStringImpl(false);
+    }
+
+    @Override
+    public String toStableString() {
+        return toStringImpl(true);
+    }
+
+    private String toStringImpl(boolean stable) {
         String simpleString = Stream.concat(Stream.of(rootDesignator), relativePath.stream())
                 .collect(Collectors.joining("/"));
         YTreeNode node = toTree();
         if (node.containsAttributes()) {
-            String tmp = YTreeTextSerializer.serialize(buildAttributes(YTree.builder()).value(31337).build());
+            String tmp;
+            if (stable) {
+                tmp = YTreeTextSerializer.stableSerialize(buildAttributes(YTree.builder()).value(31337).build());
+            } else {
+                tmp = YTreeTextSerializer.serialize(buildAttributes(YTree.builder()).value(31337).build());
+            }
             return tmp.substring(0, tmp.length() - 5) + simpleString;
         } else {
             return simpleString;

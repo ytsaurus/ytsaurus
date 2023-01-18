@@ -18,6 +18,7 @@ import org.junit.runners.Parameterized;
 
 import static org.junit.Assert.assertArrayEquals;
 import static org.junit.Assert.assertEquals;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertThrows;
 import static org.junit.Assert.assertTrue;
 
@@ -268,8 +269,8 @@ public class YsonParserTest {
     public void testList() {
         assertEquals(canonizeNode("[]"), "[]");
         assertEquals(canonizeNode("[ ]"), "[]");
-        assertEquals(canonizeNode("[1;2;3]"), "[1;2;3]");
-        assertEquals(canonizeNode("[ 1 ; 2 ; 3 ]"), "[1;2;3]");
+        assertEquals(canonizeNode("[1;2;3]"), "[1;2;3;]");
+        assertEquals(canonizeNode("[ 1 ; 2 ; 3 ;]"), "[1;2;3;]");
 
         assertThrows(
                 YsonError.class,
@@ -287,10 +288,10 @@ public class YsonParserTest {
     public void testMap() {
         assertEquals(canonizeNode("{}"), "{}");
         assertEquals(canonizeNode("{ }"), "{}");
-        assertEquals(canonizeNode("{foo=bar}"), "{\"foo\"=\"bar\"}");
-        assertEquals(canonizeNode("{foo=bar;}"), "{\"foo\"=\"bar\"}");
-        assertEquals(canonizeNode("{foo=bar;bar=baz}"), "{\"foo\"=\"bar\";\"bar\"=\"baz\"}");
-        assertEquals(canonizeNode(" { foo = bar ; bar = 42 ; } "), "{\"foo\"=\"bar\";\"bar\"=42}");
+        assertEquals(canonizeNode("{foo=bar}"), "{\"foo\"=\"bar\";}");
+        assertEquals(canonizeNode("{foo=bar;}"), "{\"foo\"=\"bar\";}");
+        assertEquals(canonizeNode("{foo=bar;bar=baz}"), "{\"foo\"=\"bar\";\"bar\"=\"baz\";}");
+        assertEquals(canonizeNode(" { foo = bar ; bar = 42 ; } "), "{\"foo\"=\"bar\";\"bar\"=42;}");
 
         assertThrows(
                 YsonError.class,
@@ -309,10 +310,10 @@ public class YsonParserTest {
     @Test
     public void testAttributes() {
         assertEquals(canonizeNode("<>42"), "<>42");
-        assertEquals(canonizeNode("<foo=bar>42"), "<\"foo\"=\"bar\">42");
-        assertEquals(canonizeNode("<foo=bar;>42"), "<\"foo\"=\"bar\">42");
-        assertEquals(canonizeNode("<foo=<baz=32>bar;>42"), "<\"foo\"=<\"baz\"=32>\"bar\">42");
-        assertEquals(canonizeNode(" < foo = < baz = 32 > bar ; > 42"), "<\"foo\"=<\"baz\"=32>\"bar\">42");
+        assertEquals(canonizeNode("<foo=bar>42"), "<\"foo\"=\"bar\";>42");
+        assertEquals(canonizeNode("<foo=bar;>42"), "<\"foo\"=\"bar\";>42");
+        assertEquals(canonizeNode("<foo=<baz=32>bar;>42"), "<\"foo\"=<\"baz\"=32;>\"bar\";>42");
+        assertEquals(canonizeNode(" < foo = < baz = 32 > bar ; > 42"), "<\"foo\"=<\"baz\"=32;>\"bar\";>42");
 
         assertThrows(
                 YsonError.class,
@@ -332,7 +333,7 @@ public class YsonParserTest {
     public void testComplexNodes() {
         assertEquals(canonizeNode(
                 "[123;\\x02\\x82\\x06;{\\x01\\x02a=\\x02\\x84\\x34;\\x01\\x06foo=<bar=\"baz \">\\x05}]"
-        ), "[123;385;{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true}]");
+        ), "[123;385;{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \";>%true;};]");
     }
 
     @Test
@@ -347,9 +348,9 @@ public class YsonParserTest {
         final String expectedCanonized = "[" +
                 "123;" +
                 "385;" +
-                "{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true};" +
+                "{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \";>%true;};" +
                 "149217164168069120u;" +
-                "-0.125" +
+                "-0.125;" +
                 "]";
         byte[] binaryData = unescapeBytes(textData);
         for (int bufferSize = 1; bufferSize != binaryData.length; ++bufferSize) {
@@ -405,9 +406,9 @@ public class YsonParserTest {
 
         assertEquals(nextItem.get(), "123");
         assertEquals(nextItem.get(), "385");
-        assertEquals(nextItem.get(), "{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \">%true}");
+        assertEquals(nextItem.get(), "{\"a\"=3330;\"foo\"=<\"bar\"=\"baz \";>%true;}");
         assertEquals(nextItem.get(), "149217164168069120u");
-        assertEquals(nextItem.get(), null);
+        assertNull(nextItem.get());
 
     }
 }
