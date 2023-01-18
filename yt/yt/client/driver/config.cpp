@@ -55,9 +55,6 @@ void TDriverConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_internal_commands", &TThis::EnableInternalCommands)
         .Default(false);
 
-    registrar.Parameter("use_ws_hack_for_get_columnar_statistics", &TThis::UseWsHackForGetColumnarStatistics)
-        .Default(false);
-
     registrar.Preprocessor([] (TThis* config) {
         config->ClientCache->Capacity = 1024_KB;
         config->ProxyDiscoveryCache->RefreshTime = TDuration::Seconds(15);

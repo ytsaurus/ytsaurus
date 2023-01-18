@@ -616,8 +616,6 @@ void TContext::SetupInputStream()
 
 void TContext::SetupOutputStream()
 {
-    // NB(psushin): This is an ugly hack for a long-running command with structured output - YT-9713.
-    // Remove once framing is implemented - YT-9838.
     if (!IsFramingEnabled_ && (
         Descriptor_->OutputType == EDataType::Null ||
         Descriptor_->OutputType == EDataType::Structured))

@@ -43,9 +43,6 @@ public:
 
     bool EnableInternalCommands;
 
-    // TODO(levysotsky): Remove
-    bool UseWsHackForGetColumnarStatistics;
-
     REGISTER_YSON_STRUCT(TDriverConfig);
 
     static void Register(TRegistrar registrar);
