@@ -12,6 +12,8 @@ using namespace NSecurityServer;
 using namespace NYTree;
 using namespace NYson;
 
+using NHydra::GetCurrentMutationContext;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TTabletOwnerBase::TTabletOwnerAttributes::Save(TSaveContext& context) const
@@ -32,6 +34,8 @@ void TTabletOwnerBase::TTabletOwnerAttributes::Save(TSaveContext& context) const
     Save(context, CurrentMountTransactionId);
     Save(context, TabletStatistics);
     Save(context, InMemoryMode);
+    Save(context, SettingsUpdateRevision);
+    Save(context, RemountNeededTabletCount);
 }
 
 void TTabletOwnerBase::TTabletOwnerAttributes::Load(TLoadContext& context)
@@ -57,6 +61,11 @@ void TTabletOwnerBase::TTabletOwnerAttributes::Load(TLoadContext& context)
     Load(context, CurrentMountTransactionId);
     Load(context, TabletStatistics);
     Load(context, InMemoryMode);
+    // COMPAT(ifsmirnov)
+    if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
+        Load(context, SettingsUpdateRevision);
+        Load(context, RemountNeededTabletCount);
+    }
 }
 
 void TTabletOwnerBase::TTabletOwnerAttributes::CopyFrom(const TTabletOwnerAttributes* other)
@@ -298,6 +307,18 @@ void TTabletOwnerBase::UnlockCurrentMountTransaction(TTransactionId transactionI
     if (GetCurrentMountTransactionId() == transactionId) {
         SetCurrentMountTransactionId(TTransactionId());
     }
+}
+
+void TTabletOwnerBase::OnRemountNeeded()
+{
+    if (IsExternal()) {
+        return;
+    }
+
+    auto revision = GetCurrentMutationContext()->GetVersion().ToRevision();
+    SetSettingsUpdateRevision(revision);
+
+    SetRemountNeededTabletCount(ssize(Tablets()) - TabletCountByState()[ETabletState::Unmounted]);
 }
 
 DEFINE_EXTRA_PROPERTY_HOLDER(TTabletOwnerBase, TTabletOwnerBase::TTabletOwnerAttributes, TabletOwnerAttributes);

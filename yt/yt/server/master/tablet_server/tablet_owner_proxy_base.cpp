@@ -67,6 +67,8 @@ void TTabletOwnerProxyBase::DoListSystemAttributes(
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::InMemoryMode)
         .SetReplicated(true)
         .SetWritable(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::RemountNeededTabletCount)
+        .SetExternal(isExternal));
 }
 
 bool TTabletOwnerProxyBase::DoGetBuiltinAttribute(
@@ -205,6 +207,15 @@ bool TTabletOwnerProxyBase::DoGetBuiltinAttribute(
         case EInternedAttributeKey::InMemoryMode:
             BuildYsonFluently(consumer)
                 .Value(trunkTable->GetInMemoryMode());
+            return true;
+
+        case EInternedAttributeKey::RemountNeededTabletCount:
+            if (isExternal) {
+                break;
+            }
+
+            BuildYsonFluently(consumer)
+                .Value(trunkTable->GetRemountNeededTabletCount());
             return true;
 
         default:

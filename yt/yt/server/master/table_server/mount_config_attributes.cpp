@@ -185,6 +185,7 @@ void TMountConfigAttributeDictionary::SetYson(const TString& key, const NYson::T
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         ValidateNoTransaction();
+        Owner_->OnRemountNeeded();
         return Owner_->GetMutableMountConfigStorage()->Set(key, value);
     }
     return BaseAttributes_->SetYson(key, value);
@@ -194,7 +195,7 @@ bool TMountConfigAttributeDictionary::Remove(const TString& key)
 {
     if (NDetail::IsOldStyleMountConfigAttribute(key)) {
         ValidateNoTransaction();
-
+        Owner_->OnRemountNeeded();
         return Owner_->GetMutableMountConfigStorage()->Remove(key);
     }
     return BaseAttributes_->Remove(key);

@@ -379,6 +379,7 @@
     XX(Registered, registered) \
     XX(RegisteredMasterCellTags, registered_master_cell_tags) \
     XX(RemovalStarted, removal_started) \
+    XX(RemountNeededTabletCount, remount_needed_tablet_count) \
     XX(ReplicaLagLimit, replica_lag_limit) \
     XX(ReplicaPath, replica_path) \
     XX(Replicas, replicas) \

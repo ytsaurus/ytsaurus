@@ -45,6 +45,9 @@ private:
 
         NTabletClient::EInMemoryMode InMemoryMode = NTabletClient::EInMemoryMode::None;
 
+        NHydra::TRevision SettingsUpdateRevision = NHydra::NullRevision;
+        int RemountNeededTabletCount = 0;
+
         void Save(NCellMaster::TSaveContext& context) const;
         void Load(NCellMaster::TLoadContext& context);
 
@@ -79,6 +82,9 @@ public:
     DEFINE_BYVAL_EXTRA_AGGREGATE_PROPERTY(TabletOwnerAttributes, TabletStatistics);
     // COMPAT(gritukan)
     void LoadTabletStatisticsCompat(NCellMaster::TLoadContext& context);
+
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(TabletOwnerAttributes, SettingsUpdateRevision);
+    DEFINE_BYVAL_RW_EXTRA_PROPERTY(TabletOwnerAttributes, RemountNeededTabletCount);
 
     using TChunkOwnerBase::TChunkOwnerBase;
 
@@ -121,6 +127,8 @@ public:
 
     void LockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
     void UnlockCurrentMountTransaction(NTransactionClient::TTransactionId transactionId);
+
+    void OnRemountNeeded();
 
 private:
     void ValidateExpectedTabletState(TStringBuf message, bool allowFrozen) const;

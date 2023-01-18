@@ -25,6 +25,7 @@ public:
 
     DEFINE_BYVAL_RW_PROPERTY(TTabletCell*, Cell);
     DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, MountRevision);
+    DEFINE_BYVAL_RW_PROPERTY(NHydra::TRevision, SettingsRevision);
     //! Only makes sense for unmounted tablets.
     DEFINE_BYVAL_RW_PROPERTY(bool, WasForcefullyUnmounted);
 
