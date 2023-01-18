@@ -656,6 +656,7 @@ private:
 
             if (subrequest.YPathExt->mutating()) {
                 subrequest.ProfilingCounters->TotalWriteRequestCounter.Increment();
+            } else {
                 subrequest.ProfilingCounters->TotalReadRequestCounter.Increment();
             }
         }
