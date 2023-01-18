@@ -2786,12 +2786,16 @@ void TFairShareTreeJobScheduler::BuildElementLoggingStringAttributes(
         const auto& operationSharedState = treeSnapshot->IsElementEnabled(operationElement)
             ? treeSnapshot->SchedulingSnapshot()->GetEnabledOperationSharedState(operationElement)
             : treeSnapshot->SchedulingSnapshot()->GetOperationSharedState(operationElement);
+        const auto& attributes = treeSnapshot->IsElementEnabled(element)
+            ? treeSnapshot->SchedulingSnapshot()->StaticAttributesList().AttributesOf(element)
+            : TStaticAttributes{};
         delimitedBuilder->AppendFormat(
             "PreemptibleRunningJobs: %v, AggressivelyPreemptibleRunningJobs: %v, PreemptionStatusStatistics: %v, "
-            "DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v",
+            "SchedulingIndex: %v, DeactivationReasons: %v, MinNeededResourcesUnsatisfiedCount: %v",
             operationSharedState->GetPreemptibleJobCount(),
             operationSharedState->GetAggressivelyPreemptibleJobCount(),
             operationSharedState->GetPreemptionStatusStatistics(),
+            attributes.SchedulingIndex,
             operationSharedState->GetDeactivationReasons(),
             operationSharedState->GetMinNeededResourcesUnsatisfiedCount());
     }
