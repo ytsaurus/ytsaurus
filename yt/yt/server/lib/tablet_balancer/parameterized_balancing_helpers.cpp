@@ -37,7 +37,8 @@ constexpr int MaxVerboseLogMessagesPerIteration = 1000;
 
 namespace {
 
-double Sqr(double x) {
+double Sqr(double x)
+{
     return x * x;
 }
 
@@ -83,7 +84,7 @@ private:
 
     double CurrentMetric_;
     TBestAction BestAction_;
-    int LogMessageCount_;
+    int LogMessageCount_ = 0;
 
     NOrm::NQuery::IExpressionEvaluatorPtr Evaluator_;
 
@@ -117,7 +118,6 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
     , IgnoreTableWiseConfig_(ignoreTableWiseConfig)
     , PerformanceCountersKeys_(std::move(performanceCountersKeys))
     , DeviationThreshold_(deviationThreshold)
-    , LogMessageCount_(0)
 { }
 
 void TParameterizedReassignSolver::Initialize()
