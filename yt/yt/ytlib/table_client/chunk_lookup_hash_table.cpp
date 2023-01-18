@@ -6,10 +6,13 @@
 #include "versioned_chunk_reader.h"
 #include "chunk_column_mapping.h"
 
+#include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
+
 namespace NYT::NTableClient {
 
 using namespace NConcurrency;
 using namespace NChunkClient;
+using namespace NTableChunkFormat;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -197,6 +200,10 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
 
             case EChunkFormat::TableVersionedIndexed:
                 fillHashTable.operator()<TIndexedVersionedBlockReader>();
+                break;
+
+            case EChunkFormat::TableVersionedSlim:
+                fillHashTable.operator()<TSlimVersionedBlockReader>();
                 break;
 
             case EChunkFormat::TableUnversionedSchemalessHorizontal: {

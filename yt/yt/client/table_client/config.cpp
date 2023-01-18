@@ -99,6 +99,17 @@ void TChunkIndexesWriterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TSlimVersionedWriterConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("top_value_quantile", &TThis::TopValueQuantile)
+        .Default(0.1)
+        .InRange(0.0, 1.0);
+    registrar.Parameter("enable_per_value_dictionary_encoding", &TThis::EnablePerValueDictionaryEncoding)
+        .Default(true);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TChunkWriterTestingOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("add_unsupported_feature", &TThis::AddUnsupportedFeature)
@@ -141,6 +152,9 @@ void TChunkWriterConfig::Register(TRegistrar registrar)
         .Default(0.0001);
 
     registrar.Parameter("chunk_indexes", &TThis::ChunkIndexes)
+        .DefaultNew();
+
+    registrar.Parameter("slim", &TThis::Slim)
         .DefaultNew();
 
     registrar.Parameter("versioned_row_digest", &TThis::VersionedRowDigest)

@@ -231,7 +231,6 @@ TMutableVersionedRow THorizontalBlockReader::GetVersionedRow(
     return versionedRow;
 }
 
-
 i64 THorizontalBlockReader::GetRowIndex() const
 {
     return RowIndex_;

@@ -14,7 +14,7 @@ namespace NYT::NTableClient {
 ////////////////////////////////////////////////////////////////////////////////
 
 bool IsValidTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
-bool IsVersionedTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
+bool IsTableChunkFormatVersioned(NChunkClient::EChunkFormat chunkFormat);
 
 void ValidateTableChunkFormat(NChunkClient::EChunkFormat chunkFormat);
 void ValidateTableChunkFormatAndOptimizeFor(

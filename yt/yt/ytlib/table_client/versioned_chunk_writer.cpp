@@ -15,6 +15,7 @@
 #include <yt/yt/ytlib/table_chunk_format/column_writer.h>
 #include <yt/yt/ytlib/table_chunk_format/data_block_writer.h>
 #include <yt/yt/ytlib/table_chunk_format/timestamp_writer.h>
+#include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_writer.h>
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
@@ -315,15 +316,14 @@ protected:
 class TSimpleBlockFormatAdapter
 {
 protected:
+    std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
+
     TSimpleBlockFormatAdapter(
         const TChunkWriterConfigPtr& /*config*/,
         TTableSchemaPtr schema,
         const NLogging::TLogger& /*logger*/)
         : Schema_(std::move(schema))
     { }
-
-    std::unique_ptr<TSimpleVersionedBlockWriter> BlockWriter_;
-
 
     void ResetBlockWriter(IMemoryUsageTrackerPtr memoryTracker)
     {
@@ -345,6 +345,49 @@ protected:
     }
 
 private:
+    const TTableSchemaPtr Schema_;
+};
+
+class TSlimBlockFormatAdapter
+{
+protected:
+    std::unique_ptr<TSlimVersionedBlockWriter> BlockWriter_;
+
+    TSlimBlockFormatAdapter(
+        TChunkWriterConfigPtr config,
+        TTableSchemaPtr schema,
+        const NLogging::TLogger& /*logger*/)
+        : Config_(std::move(config))
+        , Schema_(std::move(schema))
+    { }
+
+    void ResetBlockWriter(IMemoryUsageTrackerPtr memoryTracker)
+    {
+        BlockWriter_ = std::make_unique<TSlimVersionedBlockWriter>(
+            Config_->Slim,
+            Schema_,
+            TMemoryUsageTrackerGuard::Acquire(
+                std::move(memoryTracker),
+                /*size*/ 0));
+    }
+
+    void OnDataBlocksWritten(
+        TSystemBlockMetaExt* /*systemBlockMetaExt*/,
+        const TEncodingChunkWriterPtr& encodingChunkWriter)
+    {
+        const auto& meta = encodingChunkWriter->GetMeta();
+        auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
+        chunkFeatures |= EChunkFeatures::SlimBlockFormat;
+        meta->set_features(ToProto<ui64>(chunkFeatures));
+    }
+
+    EChunkFormat GetChunkFormat() const
+    {
+        return EChunkFormat::TableVersionedSlim;
+    }
+
+private:
+    const TChunkWriterConfigPtr Config_;
     const TTableSchemaPtr Schema_;
 };
 
@@ -838,6 +881,8 @@ IVersionedChunkWriterPtr CreateVersionedChunkWriter(
             return createWriter.operator()<TSimpleVersionedChunkWriter<TSimpleBlockFormatAdapter>>();
         case EChunkFormat::TableVersionedIndexed:
             return createWriter.operator()<TSimpleVersionedChunkWriter<TIndexedBlockFormatAdapter>>();
+        case EChunkFormat::TableVersionedSlim:
+            return createWriter.operator()<TSimpleVersionedChunkWriter<TSlimBlockFormatAdapter>>();
         default:
             THROW_ERROR_EXCEPTION("Unsupported chunk format %Qlv",
                 chunkFormat);

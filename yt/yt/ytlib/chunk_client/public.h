@@ -120,6 +120,7 @@ DEFINE_BIT_ENUM(EChunkFeatures,
     ((DescendingSortOrder)      (0x0001))
     ((StripedErasure)           (0x0002))
     ((IndexedBlockFormat)       (0x0004))
+    ((SlimBlockFormat)          (0x0008))
 );
 
 DEFINE_ENUM(EChunkClientFeature,

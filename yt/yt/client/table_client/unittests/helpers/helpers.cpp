@@ -129,18 +129,18 @@ void ExpectSchemafulRowsEqual(TVersionedRow expected, TVersionedRow actual)
     }
 }
 
-void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reader)
+void CheckResult(std::vector<TVersionedRow> expected, IVersionedReaderPtr reader)
 {
-    expected->erase(
+    expected.erase(
         std::remove_if(
-            expected->begin(),
-            expected->end(),
+            expected.begin(),
+            expected.end(),
             [] (TVersionedRow row) {
                 return !row;
             }),
-        expected->end());
+        expected.end());
 
-    auto it = expected->begin();
+    auto it = expected.begin();
     std::vector<TVersionedRow> actual;
     actual.reserve(100);
 
@@ -162,13 +162,13 @@ void CheckResult(std::vector<TVersionedRow>* expected, IVersionedReaderPtr reade
                 }),
             actual.end());
 
-        std::vector<TVersionedRow> ex(it, std::min(it + actual.size(), expected->end()));
+        std::vector<TVersionedRow> ex(it, std::min(it + actual.size(), expected.end()));
 
         CheckSchemafulResult(ex, actual);
         it += ex.size();
     }
 
-    ASSERT_TRUE(it == expected->end());
+    ASSERT_TRUE(it == expected.end());
 }
 
 std::vector<std::pair<ui32, ui32>> GetTimestampIndexRanges(

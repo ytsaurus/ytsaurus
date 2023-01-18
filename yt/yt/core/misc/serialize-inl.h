@@ -112,7 +112,7 @@ void ReadPadding(TInput& input, size_t sizeToPad)
     }
 }
 
-inline void ReadPadding(char*& ptr, size_t sizeToPad)
+inline void ReadPadding(const char*& ptr, size_t sizeToPad)
 {
     ptr += AlignUpSpace(sizeToPad, SerializationAlignment);
 }

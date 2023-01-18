@@ -11,7 +11,6 @@
 #include "versioned_chunk_reader.h"
 #include "versioned_reader_adapter.h"
 #include "hunks.h"
-#include "reader_helpers.h"
 
 #include <yt/yt/ytlib/chunk_client/block_cache.h>
 #include <yt/yt/ytlib/chunk_client/block_id.h>
@@ -34,6 +33,8 @@
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/timestamp_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/reader_helpers.h>
+#include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
 
 #include <yt/yt/client/node_tracker_client/node_directory.h>
 
@@ -792,7 +793,7 @@ public:
         , ValueColumnReaders_(valueColumnReaders)
         , SchemaIdMapping_(schemaIdMapping)
         , Timestamp_(timestamp)
-        , ColumnHunkFlagsStorage_(NDetail::GetReaderSchemaColumnCount(schemaIdMapping))
+        , ColumnHunkFlagsStorage_(GetReaderSchemaColumnCount(schemaIdMapping))
         , ColumnHunkFlags_(ColumnHunkFlagsStorage_.data())
     {
         for (const auto& idMapping : SchemaIdMapping_) {
@@ -1762,6 +1763,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     IVersionedReaderPtr reader;
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
                 reader = New<TReader>(
@@ -1788,6 +1790,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
                 case EChunkFormat::TableVersionedIndexed:
                     createReader.operator()<TSimpleVersionedRangeChunkReader<TIndexedVersionedBlockReader>>();
+                    break;
+
+                case EChunkFormat::TableVersionedSlim:
+                    createReader.operator()<TSimpleVersionedRangeChunkReader<TSlimVersionedBlockReader>>();
                     break;
 
                 default:
@@ -1964,6 +1970,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
     switch (chunkMeta->GetChunkFormat()) {
         case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
                 reader = New<TReader>(
@@ -1990,6 +1997,10 @@ IVersionedReaderPtr CreateVersionedChunkReader(
 
                 case EChunkFormat::TableVersionedIndexed:
                     createReader.operator()<TSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>();
+                    break;
+
+                case EChunkFormat::TableVersionedSlim:
+                    createReader.operator()<TSimpleVersionedLookupChunkReader<TSlimVersionedBlockReader>>();
                     break;
 
                 default:

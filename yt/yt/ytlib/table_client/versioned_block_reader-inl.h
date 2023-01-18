@@ -4,7 +4,7 @@
 #include "versioned_block_reader.h"
 #endif
 
-#include "reader_helpers.h"
+#include <yt/yt/ytlib/table_chunk_format/reader_helpers.h>
 
 #include <yt/yt/library/numeric/algorithm_helpers.h>
 
@@ -103,7 +103,7 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadRowAllVersions(TChunke
         }
     }
 
-    NDetail::TrimRow(row, currentValue, memoryPool);
+    NTableChunkFormat::TrimRow(row, currentValue, memoryPool);
 
     return row;
 }
@@ -206,7 +206,7 @@ TMutableVersionedRow TVersionedRowReader<TRowParser>::ReadRowSingleVersion(TChun
         }
     }
 
-    NDetail::TrimRow(row, currentValue, memoryPool);
+    NTableChunkFormat::TrimRow(row, currentValue, memoryPool);
 
     return row;
 }

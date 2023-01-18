@@ -26,6 +26,7 @@
 #include <yt/yt/ytlib/table_chunk_format/column_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/timestamp_reader.h>
 #include <yt/yt/ytlib/table_chunk_format/null_column_reader.h>
+#include <yt/yt/ytlib/table_chunk_format/slim_versioned_block_reader.h>
 
 #include <yt_proto/yt/client/chunk_client/proto/data_statistics.pb.h>
 #include <yt_proto/yt/client/chunk_client/proto/chunk_meta.pb.h>
@@ -259,8 +260,12 @@ private:
 template <class TBlockReader>
 class TBlockReaderFactory;
 
-template <>
-class TBlockReaderFactory<TSimpleVersionedBlockReader>
+template <class TBlockReader>
+requires
+    std::is_same_v<TBlockReader, TSimpleVersionedBlockReader> ||
+    std::is_same_v<TBlockReader, TIndexedVersionedBlockReader> ||
+    std::is_same_v<TBlockReader, TSlimVersionedBlockReader>
+class TBlockReaderFactory<TBlockReader>
     : public TCacheBasedVersionedChunkReaderBase
 {
 public:
@@ -279,16 +284,14 @@ public:
             ChunkState_->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter))
         , Timestamp_(timestamp)
         , ProduceAllVersions_(produceAllVersions)
-    {
-        YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedSimple);
-    }
+    { }
 
 protected:
     const std::vector<TColumnIdMapping> SchemaIdMapping_;
     const TTimestamp Timestamp_;
     const bool ProduceAllVersions_;
 
-    TSimpleVersionedBlockReader* CreateBlockReader(
+    TBlockReader* CreateBlockReader(
         const TSharedRef& block,
         const NProto::TDataBlockMeta& meta)
     {
@@ -305,56 +308,7 @@ protected:
     }
 
 private:
-    std::optional<TSimpleVersionedBlockReader> BlockReader_;
-};
-
-template <>
-class TBlockReaderFactory<TIndexedVersionedBlockReader>
-    : public TCacheBasedVersionedChunkReaderBase
-{
-public:
-    TBlockReaderFactory(
-        TChunkId chunkId,
-        TChunkStatePtr state,
-        const TCachedVersionedChunkMetaPtr& chunkMeta,
-        const TColumnFilter& columnFilter,
-        TTimestamp timestamp,
-        bool produceAllVersions)
-        : TCacheBasedVersionedChunkReaderBase(
-            chunkId,
-            std::move(state),
-            chunkMeta)
-        , SchemaIdMapping_(
-            ChunkState_->ChunkColumnMapping->BuildVersionedSimpleSchemaIdMapping(columnFilter))
-        , Timestamp_(timestamp)
-        , ProduceAllVersions_(produceAllVersions)
-    {
-        YT_VERIFY(ChunkMeta_->GetChunkFormat() == EChunkFormat::TableVersionedIndexed);
-    }
-
-protected:
-    const std::vector<TColumnIdMapping> SchemaIdMapping_;
-    const TTimestamp Timestamp_;
-    const bool ProduceAllVersions_;
-
-    TIndexedVersionedBlockReader* CreateBlockReader(
-        const TSharedRef& block,
-        const NProto::TDataBlockMeta& meta)
-    {
-        BlockReader_.emplace(
-            block,
-            meta,
-            ChunkMeta_->GetChunkSchema(),
-            ChunkState_->TableSchema->GetKeyColumnCount(),
-            SchemaIdMapping_,
-            KeyComparer_,
-            Timestamp_,
-            ProduceAllVersions_);
-        return &BlockReader_.value();
-    }
-
-private:
-    std::optional<TIndexedVersionedBlockReader> BlockReader_;
+    std::optional<TBlockReader> BlockReader_;
 };
 
 template <>
@@ -570,6 +524,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         }
 
         case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
                 return New<TReader>(
@@ -588,6 +543,9 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
 
                 case EChunkFormat::TableVersionedIndexed:
                     return createReader.operator()<TCacheBasedSimpleVersionedLookupChunkReader<TIndexedVersionedBlockReader>>();
+
+                case EChunkFormat::TableVersionedSlim:
+                    return createReader.operator()<TCacheBasedSimpleVersionedLookupChunkReader<TSlimVersionedBlockReader>>();
 
                 default:
                     YT_ABORT();

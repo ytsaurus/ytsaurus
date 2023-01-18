@@ -116,6 +116,22 @@ DEFINE_REFCOUNTED_TYPE(TChunkIndexesWriterConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TSlimVersionedWriterConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    double TopValueQuantile;
+    bool EnablePerValueDictionaryEncoding;
+
+    REGISTER_YSON_STRUCT(TSlimVersionedWriterConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TSlimVersionedWriterConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TChunkWriterConfig
     : public NChunkClient::TEncodingWriterConfig
 {
@@ -136,6 +152,8 @@ public:
     double SampleRate;
 
     TChunkIndexesWriterConfigPtr ChunkIndexes;
+
+    TSlimVersionedWriterConfigPtr Slim;
 
     TVersionedRowDigestConfigPtr VersionedRowDigest;
 
