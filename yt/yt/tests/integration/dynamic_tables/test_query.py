@@ -1591,11 +1591,11 @@ class TestQuery(YTEnvSetup):
         requests = [
             (
                 r"a, b, c, d from [//tmp/t] where b = {first} and (c, d) > {second} order by a limit 3",
-                "{first=1;second=[2;b]}",
+                {"first": 1, "second": [2, "b"]},
             ),
             (
                 r"a, b, c, d from [//tmp/t] where b = {first} and (c, d) > ({second}, {third}) order by a limit 3",
-                "{first=1;second=2;third=b}",
+                {"first": 1, "second": 2, "third": "b"},
             ),
         ]
 

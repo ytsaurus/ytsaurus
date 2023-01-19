@@ -932,7 +932,7 @@ TFuture<TSelectRowsResult> TClientBase::SelectRows(
         req->set_execution_pool(*options.ExecutionPool);
     }
     if (options.PlaceholderValues) {
-        req->set_placeholder_values(*options.PlaceholderValues);
+        req->set_placeholder_values(options.PlaceholderValues.ToString());
     }
     req->set_fail_on_incomplete_result(options.FailOnIncompleteResult);
     req->set_verbose_logging(options.VerboseLogging);

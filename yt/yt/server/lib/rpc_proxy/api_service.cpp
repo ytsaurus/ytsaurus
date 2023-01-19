@@ -3505,15 +3505,21 @@ private:
             options.ReplicaConsistency = FromProto<EReplicaConsistency>(request->replica_consistency());
         }
         if (request->has_placeholder_values()) {
-            options.PlaceholderValues = request->placeholder_values();
+            options.PlaceholderValues = NYson::TYsonString(request->placeholder_values());
         }
         auto detailedProfilingInfo = New<TDetailedProfilingInfo>();
         options.DetailedProfilingInfo = detailedProfilingInfo;
 
-        context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
-            query,
-            options.Timestamp,
-            options.PlaceholderValues);
+        if (options.PlaceholderValues) {
+            context->SetRequestInfo("Query: %v, Timestamp: %v, PlaceholderValues: %v",
+                query,
+                options.Timestamp,
+                options.PlaceholderValues);
+        } else {
+            context->SetRequestInfo("Query: %v, Timestamp: %v",
+                query,
+                options.Timestamp);
+        }
 
         ExecuteCall(
             context,

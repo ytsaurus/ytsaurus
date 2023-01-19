@@ -23,6 +23,7 @@ namespace NYT::NQueryClient {
 
 using namespace NConcurrency;
 using namespace NTableClient;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -2349,10 +2350,10 @@ void PrepareQuery(
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYsonToQueryExpressionConvertVisitor
-    : public NYson::TYsonConsumerBase
+    : public TYsonConsumerBase
 {
 public:
-    TYsonToQueryExpressionConvertVisitor(TStringBuilder* builder)
+    explicit TYsonToQueryExpressionConvertVisitor(TStringBuilder* builder)
         : Builder_(builder)
     { }
 
@@ -2437,40 +2438,40 @@ private:
     bool InListBeginning_;
 };
 
-void YsonParseError(TStringBuf message, const NYson::TYsonStringBuf* source)
+void YsonParseError(TStringBuf message, TYsonStringBuf source)
 {
     THROW_ERROR_EXCEPTION("%v", message)
-        << TErrorAttribute("context", Format("%v", source->AsStringBuf()));
+        << TErrorAttribute("context", Format("%v", source.AsStringBuf()));
 }
 
-THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(const NYson::TYsonStringBuf* placeholders)
+THashMap<TString, TString> ConvertYsonPlaceholdersToQueryLiterals(TYsonStringBuf placeholders)
 {
-    TMemoryInput input{placeholders->AsStringBuf()};
-    NYson::TYsonPullParser ysonParser{&input, NYson::EYsonType::Node};
-    NYson::TYsonPullParserCursor ysonCursor{&ysonParser};
+    TMemoryInput input{placeholders.AsStringBuf()};
+    TYsonPullParser ysonParser{&input, EYsonType::Node};
+    TYsonPullParserCursor ysonCursor{&ysonParser};
 
-    if (ysonCursor->GetType() != NYson::EYsonItemType::BeginMap) {
+    if (ysonCursor->GetType() != EYsonItemType::BeginMap) {
         YsonParseError("Incorrect placeholder argument: YSON map expected", placeholders);
     }
 
     ysonCursor.Next();
 
     THashMap<TString, TString> queryLiterals;
-    while (ysonCursor->GetType() != NYson::EYsonItemType::EndMap) {
-        if (ysonCursor->GetType() != NYson::EYsonItemType::StringValue) {
+    while (ysonCursor->GetType() != EYsonItemType::EndMap) {
+        if (ysonCursor->GetType() != EYsonItemType::StringValue) {
             YsonParseError("Incorrect YSON map placeholder: keys should be strings", placeholders);
         }
         auto key = TString(ysonCursor->UncheckedAsString());
 
         ysonCursor.Next();
         switch (ysonCursor->GetType()) {
-            case NYson::EYsonItemType::EntityValue:
-            case NYson::EYsonItemType::BooleanValue:
-            case NYson::EYsonItemType::Int64Value:
-            case NYson::EYsonItemType::Uint64Value:
-            case NYson::EYsonItemType::DoubleValue:
-            case NYson::EYsonItemType::StringValue:
-            case NYson::EYsonItemType::BeginList: {
+            case EYsonItemType::EntityValue:
+            case EYsonItemType::BooleanValue:
+            case EYsonItemType::Int64Value:
+            case EYsonItemType::Uint64Value:
+            case EYsonItemType::DoubleValue:
+            case EYsonItemType::StringValue:
+            case EYsonItemType::BeginList: {
                 TStringBuilder valueBuilder;
                 TYsonToQueryExpressionConvertVisitor ysonValueTransferrer{&valueBuilder};
                 ysonCursor.TransferComplexValue(&ysonValueTransferrer);
@@ -2489,14 +2490,14 @@ void ParseQueryString(
     NAst::TAstHead* astHead,
     const TString& source,
     NAst::TParser::token::yytokentype strayToken,
-    const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
+    TYsonStringBuf placeholderValues = {})
 {
-    std::optional<THashMap<TString, TString>> queryLiterals;
+    THashMap<TString, TString> queryLiterals;
     if (placeholderValues) {
-        queryLiterals = ConvertYsonPlaceholdersToQueryLiterals(&placeholderValues.value());
+        queryLiterals = ConvertYsonPlaceholdersToQueryLiterals(placeholderValues);
     }
 
-    NAst::TLexer lexer(source, strayToken, queryLiterals);
+    NAst::TLexer lexer(source, strayToken, std::move(queryLiterals));
     NAst::TParser parser(lexer, astHead, source);
 
     int result = parser.parse();
@@ -2548,7 +2549,7 @@ TParsedSource::TParsedSource(const TString& source, NAst::TAstHead astHead)
 std::unique_ptr<TParsedSource> ParseSource(
     const TString& source,
     EParseMode mode,
-    const std::optional<NYson::TYsonStringBuf>& placeholderValues)
+    TYsonStringBuf placeholderValues)
 {
     auto parsedSource = std::make_unique<TParsedSource>(
         source,
@@ -2567,7 +2568,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
     const TFunctionsFetcher& functionsFetcher,
-    const std::optional<NYson::TYsonStringBuf>& placeholderValues)
+    TYsonStringBuf placeholderValues)
 {
     return PreparePlanFragment(
         callbacks,

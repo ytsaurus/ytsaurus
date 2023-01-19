@@ -81,7 +81,7 @@ protected:
     void ExpectPrepareThrowsWithDiagnostics(
         const TString& query,
         TMatcher matcher,
-        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
+        NYson::TYsonStringBuf placeholderValues = {})
     {
         EXPECT_THROW_THAT(
             BIND([&] () {
@@ -1359,7 +1359,7 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
+        NYson::TYsonStringBuf placeholderValues = {})
     {
         return BIND(&TQueryEvaluateTest::DoEvaluate, this)
             .AsyncVia(ActionQueue_->GetInvoker())
@@ -1383,7 +1383,7 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
+        NYson::TYsonStringBuf placeholderValues = {})
     {
         return EvaluateWithQueryStatistics(
             query,
@@ -1402,7 +1402,7 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
+        NYson::TYsonStringBuf placeholderValues = {})
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1428,7 +1428,7 @@ protected:
         const TResultMatcher& resultMatcher,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
+        NYson::TYsonStringBuf placeholderValues = {})
     {
         return EvaluateWithQueryStatistics(
             query,
@@ -1446,7 +1446,7 @@ protected:
         const std::vector<TString>& owningSourceRows,
         i64 inputRowLimit = std::numeric_limits<i64>::max(),
         i64 outputRowLimit = std::numeric_limits<i64>::max(),
-        const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt)
+        NYson::TYsonStringBuf placeholderValues = {})
     {
         std::vector<std::vector<TString>> owningSources = {
             owningSourceRows
@@ -1476,7 +1476,7 @@ protected:
     TQueryPtr Prepare(
         const TString& query,
         const std::map<TString, TDataSplit>& dataSplits,
-        const std::optional<NYson::TYsonStringBuf>& placeholderValues)
+        NYson::TYsonStringBuf placeholderValues)
     {
         for (const auto& dataSplit : dataSplits) {
             EXPECT_CALL(PrepareMock_, GetInitialSplit(dataSplit.first))
@@ -1504,7 +1504,7 @@ protected:
         i64 inputRowLimit,
         i64 outputRowLimit,
         bool failure,
-        const std::optional<NYson::TYsonStringBuf>& placeholderValues)
+        NYson::TYsonStringBuf placeholderValues)
     {
         auto primaryQuery = Prepare(query, dataSplits, placeholderValues);
 
