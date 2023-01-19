@@ -844,22 +844,25 @@ private:
                                 {NNodeTrackerClient::DefaultNetworkName, address}
                             })
                         .EndMap());
-
-                ScheduleCreateNode(
-                    "//sys/cluster_masters/" + ToYPathLiteral(address),
-                    transactionId,
-                    EObjectType::Link,
-                    BuildYsonStringFluently()
-                        .BeginMap()
-                            .Item("target_path").Value(addressPath)
-                        .EndMap());
             };
 
-            auto createMasters = [&] (const TYPath& rootPath, NElection::TCellConfigPtr cellConfig) {
+            auto createMasters = [&] (
+                const TYPath& rootPath,
+                const NElection::TCellConfigPtr& cellConfig)
+            {
                 for (const auto& peer : cellConfig->Peers) {
                     const auto& address = *peer.Address;
                     auto addressPath = rootPath + "/" + ToYPathLiteral(address);
                     createOrchidNode(addressPath, address);
+
+                    ScheduleCreateNode(
+                        "//sys/cluster_masters/" + ToYPathLiteral(address),
+                        transactionId,
+                        EObjectType::Link,
+                        BuildYsonStringFluently()
+                            .BeginMap()
+                                .Item("target_path").Value(addressPath)
+                            .EndMap());
                 }
             };
 

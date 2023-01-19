@@ -2675,6 +2675,7 @@ private:
                         .Item("requisition_registry").Value(TSerializableChunkRequisitionRegistry(Bootstrap_->GetChunkManager()));
                 })
                 .Item("endorsement_count").Value(EndorsementCount_)
+                .Item("chunk_replicator_enabled").Value(ChunkReplicator_->IsReplicatorEnabled())
             .EndMap();
     }
 

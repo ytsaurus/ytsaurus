@@ -2,7 +2,7 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, ls, get, set, exists, remove, create_data_center, create_rack,
-    remove_data_center, write_file, wait,
+    remove_data_center, write_file, wait, sync_control_chunk_replicator,
     read_journal, write_journal, write_table, wait_until_sealed,
     get_nodes, get_racks, get_data_centers, get_singular_chunk_id)
 
@@ -446,8 +446,7 @@ class TestDataCenters(YTEnvSetup):
             chunk_id = self._create_chunk(replication_factor=6)
         replicas = builtins.set(self._get_replica_nodes(chunk_id))
 
-        set("//sys/@config/chunk_manager/enable_chunk_replicator", False)
-        wait(lambda: not get("//sys/@chunk_replicator_enabled"))
+        sync_control_chunk_replicator(False)
 
         set("//sys/media/default/@config/max_replicas_per_rack", 1)
 
@@ -472,7 +471,7 @@ class TestDataCenters(YTEnvSetup):
 
         wait(lambda: get("#{}/@replication_status/default/unsafely_placed".format(chunk_id)))
 
-        set("//sys/@config/chunk_manager/enable_chunk_replicator", True)
+        sync_control_chunk_replicator(True)
 
         wait(lambda: not get("#{}/@replication_status/default/unsafely_placed".format(chunk_id)))
 
