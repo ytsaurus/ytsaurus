@@ -72,6 +72,13 @@ func (c *httpClient) schema() string {
 	return schema
 }
 
+func getTVMOnlyPort(config *yt.Config) int {
+	if config.UseTLS {
+		return yt.TVMOnlyHTTPSProxyPort
+	}
+	return yt.TVMOnlyHTTPProxyPort
+}
+
 func (c *httpClient) listHeavyProxies() ([]string, error) {
 	if !c.stop.TryAdd() {
 		return nil, fmt.Errorf("client is stopped")
@@ -115,8 +122,9 @@ func (c *httpClient) listHeavyProxies() ([]string, error) {
 	}
 
 	if c.config.UseTVMOnlyEndpoint {
+		port := getTVMOnlyPort(c.config)
 		for i, proxy := range proxies {
-			proxies[i] = net.JoinHostPort(proxy, fmt.Sprint(yt.TVMOnlyHTTPProxyPort))
+			proxies[i] = net.JoinHostPort(proxy, fmt.Sprint(port))
 		}
 	}
 
@@ -656,7 +664,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 	}
 
 	client.config = c
-	client.clusterURL = yt.NormalizeProxyURL(proxy, c.UseTVMOnlyEndpoint, yt.TVMOnlyHTTPProxyPort)
+	client.clusterURL = yt.NormalizeProxyURL(proxy, c.UseTVMOnlyEndpoint, getTVMOnlyPort(c))
 	client.netDialer = &net.Dialer{
 		Timeout:   30 * time.Second,
 		KeepAlive: 30 * time.Second,
