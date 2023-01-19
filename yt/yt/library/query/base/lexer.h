@@ -52,14 +52,15 @@ public:
     TLexer(
         const TString& source,
         TParser::token_type strayToken,
-        const std::optional<THashMap<TString, TString>>& placeholderValues);
+        THashMap<TString, TString> placeholderValues);
 
     TParser::token_type GetNextToken(
         TParser::semantic_type* yyval,
         TParser::location_type* yyloc);
 
 private:
-    struct TPlaceholderLexerData {
+    struct TPlaceholderLexerData
+    {
         TBaseLexer Lexer;
         TParser::location_type Location;
     };
@@ -67,7 +68,7 @@ private:
     TBaseLexer QueryLexer_;
     std::optional<TPlaceholderLexerData> Placeholder_;
 
-    const std::optional<THashMap<TString, TString>>& PlaceholderValues_;
+    THashMap<TString, TString> PlaceholderValues_;
 
     std::optional<TParser::token_type> GetNextTokenFromPlaceholder(
         TParser::semantic_type* yyval,

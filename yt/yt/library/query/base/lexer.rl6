@@ -241,9 +241,9 @@ TParser::token_type TBaseLexer::GetNextToken(
 TLexer::TLexer(
     const TString& source,
     TParser::token_type strayToken,
-    const std::optional<THashMap<TString, TString>>& placeholderValues)
+    THashMap<TString, TString> placeholderValues)
     : QueryLexer_(source, strayToken)
-    , PlaceholderValues_(placeholderValues)
+    , PlaceholderValues_(std::move(placeholderValues))
 { }
 
 std::optional<TParser::token_type> TLexer::GetNextTokenFromPlaceholder(
@@ -276,8 +276,8 @@ void TLexer::SetPlaceholder(
 
         const auto& placeholderName = value->as<TString>();
 
-        const auto it = PlaceholderValues_->find(placeholderName);
-        if (it == PlaceholderValues_->end()) {
+        const auto it = PlaceholderValues_.find(placeholderName);
+        if (it == PlaceholderValues_.end()) {
             THROW_ERROR_EXCEPTION("Placeholder was not found")
                 << TErrorAttribute("name", placeholderName);
         }

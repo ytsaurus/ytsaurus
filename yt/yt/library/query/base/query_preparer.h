@@ -37,7 +37,7 @@ struct TParsedSource
 std::unique_ptr<TParsedSource> ParseSource(
     const TString& source,
     EParseMode mode,
-    const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt);
+    NYson::TYsonStringBuf placeholderValues = {});
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -51,7 +51,7 @@ std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,
     const TString& source,
     const TFunctionsFetcher& functionsFetcher = DefaultFetchFunctions,
-    const std::optional<NYson::TYsonStringBuf>& placeholderValues = std::nullopt);
+    NYson::TYsonStringBuf placeholderValues = {});
 
 std::unique_ptr<TPlanFragment> PreparePlanFragment(
     IPrepareCallbacks* callbacks,

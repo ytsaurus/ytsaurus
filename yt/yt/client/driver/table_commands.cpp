@@ -651,7 +651,7 @@ TSelectRowsCommand::TSelectRowsCommand()
         .Optional();
     RegisterParameter("replica_consistency", Options.ReplicaConsistency)
         .Optional();
-    RegisterParameter("placeholder_values", Options.PlaceholderValues)
+    RegisterParameter("placeholder_values", PlaceholderValues)
         .Optional();
 }
 
@@ -663,6 +663,11 @@ bool TSelectRowsCommand::HasResponseParameters() const
 void TSelectRowsCommand::DoExecute(ICommandContextPtr context)
 {
     auto clientBase = GetClientBase(context);
+
+    if (PlaceholderValues) {
+        Options.PlaceholderValues = ConvertToYsonString(PlaceholderValues);
+    }
+
     auto result = WaitFor(clientBase->SelectRows(Query, Options))
         .ValueOrThrow();
 

@@ -243,6 +243,7 @@ public:
 
 private:
     TString Query;
+    NYTree::IMapNodePtr PlaceholderValues;
     bool EnableStatistics = false;
 
     void DoExecute(ICommandContextPtr context) override;

@@ -27,7 +27,6 @@ except ImportError:
     from six import iteritems
 
 import yt.logger as logger
-from yt.wrapper import yson
 
 from copy import deepcopy
 import time
@@ -124,14 +123,6 @@ def _check_transaction_type(client):
             lambda: YtError("Dynamic table commands can not be performed under master transaction"))
 
 
-def _prepare_placeholders(placeholder_values):
-    if placeholder_values is None:
-        return None
-    if isinstance(placeholder_values, str):
-        return placeholder_values
-    return yson.dumps(placeholder_values, yson_format="text").decode()
-
-
 def get_dynamic_table_retriable_errors():
     return tuple(
         list(get_retriable_errors()) + [
@@ -223,7 +214,7 @@ def select_rows(query, timestamp=None, input_row_limit=None, output_row_limit=No
     set_param(params, "execution_pool", execution_pool)
     set_param(params, "timeout", get_config(client)["proxy"]["heavy_request_timeout"])
     set_param(params, "enable_statistics", response_parameters is not None)
-    set_param(params, "placeholder_values", placeholder_values, _prepare_placeholders)
+    set_param(params, "placeholder_values", placeholder_values)
 
     _check_transaction_type(client)
 
