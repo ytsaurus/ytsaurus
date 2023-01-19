@@ -476,9 +476,10 @@ public:
         auto* replica = TableReplicaMap_.Insert(id, std::move(replicaHolder));
         objectManager->RefObject(replica);
 
-        YT_VERIFY(table->Replicas().insert(replica).second);
+        InsertOrCrash(table->Replicas(), replica);
 
-        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %v)",
+        YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+            "Table replica created (TableId: %v, ReplicaId: %v, Mode: %v, StartReplicationTimestamp: %v)",
             table->GetId(),
             replica->GetId(),
             mode,
@@ -524,17 +525,16 @@ public:
         return replica;
     }
 
-    void DestroyTableReplica(TTableReplica* replica)
+    void ZombifyTableReplica(TTableReplica* replica)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        auto* table = replica->GetTable();
-        if (table) {
-            YT_VERIFY(table->Replicas().erase(replica) == 1);
+        if (auto* table = replica->GetTable()) {
+            EraseOrCrash(table->Replicas(), replica);
 
             const auto& hiveManager = Bootstrap_->GetHiveManager();
             for (auto* tablet : table->Tablets()) {
-                YT_VERIFY(tablet->As<TTablet>()->Replicas().erase(replica) == 1);
+                EraseOrCrash(tablet->As<TTablet>()->Replicas(), replica);
 
                 if (!tablet->IsActive()) {
                     continue;
@@ -547,7 +547,11 @@ public:
                 ToProto(req.mutable_replica_id(), replica->GetId());
                 hiveManager->PostMessage(mailbox, req);
             }
+
+            replica->SetTable(nullptr);
         }
+
+        replica->TransitioningTablets().clear();
 
         ReplicaDestroyed_.Fire(replica->GetId());
     }
@@ -1427,11 +1431,9 @@ public:
         if (table->GetType() == EObjectType::ReplicatedTable) {
             auto* replicatedTable = table->As<TReplicatedTableNode>();
             for (auto* replica : GetValuesSortedByKey(replicatedTable->Replicas())) {
-                replica->SetTable(nullptr);
-                replica->TransitioningTablets().clear();
                 objectManager->UnrefObject(replica);
             }
-            replicatedTable->Replicas().clear();
+            YT_VERIFY(replicatedTable->Replicas().empty());
 
             if (!table->IsExternal()) {
                 ReplicatedTableDestroyed_.Fire(table->GetId());
@@ -8925,9 +8927,9 @@ TTableReplica* TTabletManager::CreateTableReplica(
         startReplicationRowIndexes);
 }
 
-void TTabletManager::DestroyTableReplica(TTableReplica* replica)
+void TTabletManager::ZombifyTableReplica(TTableReplica* replica)
 {
-    Impl_->DestroyTableReplica(replica);
+    Impl_->ZombifyTableReplica(replica);
 }
 
 void TTabletManager::AlterTableReplica(

@@ -1215,18 +1215,20 @@ public:
         return accountResourceUsageLease;
     }
 
-    void DestroyAccountResourceUsageLease(TAccountResourceUsageLease* accountResourceUsageLease)
+    void ZombifyAccountResourceUsageLease(TAccountResourceUsageLease* accountResourceUsageLease)
     {
         auto accountResourceUsageLeaseId = accountResourceUsageLease->GetId();
 
         DoUpdateAccountResourceUsageLease(accountResourceUsageLease, TClusterResources());
 
         auto* transaction = accountResourceUsageLease->GetTransaction();
-        YT_VERIFY(transaction->AccountResourceUsageLeases().erase(accountResourceUsageLease) == 1);
+        EraseOrCrash(transaction->AccountResourceUsageLeases(), accountResourceUsageLease);
+
+        accountResourceUsageLease->SetTransaction(nullptr);
 
         YT_LOG_DEBUG_IF(
             IsMutationLoggingEnabled(),
-            "Account usage lease destroyed (Id: %v)",
+            "Account resource usage lease zombified (LeaseId: %v)",
             accountResourceUsageLeaseId);
     }
 
@@ -3864,7 +3866,7 @@ private:
         for (auto* accountResourceUsageLease : accountResourceUsageLeases) {
             const auto& objectManager = Bootstrap_->GetObjectManager();
             // NB: Unref of account usage lease removes it from transacation that lease belongs to.
-            objectManager->UnrefObject(accountResourceUsageLease);
+            YT_VERIFY(objectManager->UnrefObject(accountResourceUsageLease) == 0);
         }
 
         YT_VERIFY(transaction->AccountResourceUsageLeases().empty());
@@ -4453,7 +4455,7 @@ TObject* TAccountResourceUsageLeaseTypeHandler::CreateObject(
 void TAccountResourceUsageLeaseTypeHandler::DoZombifyObject(TAccountResourceUsageLease* accountResourceUsageLease)
 {
     TObjectTypeHandlerWithMapBase<TAccountResourceUsageLease>::DoZombifyObject(accountResourceUsageLease);
-    Owner_->DestroyAccountResourceUsageLease(accountResourceUsageLease);
+    Owner_->ZombifyAccountResourceUsageLease(accountResourceUsageLease);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

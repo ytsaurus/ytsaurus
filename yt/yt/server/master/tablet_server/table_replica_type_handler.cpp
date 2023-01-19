@@ -106,9 +106,11 @@ private:
         TObjectTypeHandlerWithMapBase::DoZombifyObject(replica);
 
         const auto& tabletManager = Bootstrap_->GetTabletManager();
-        tabletManager->DestroyTableReplica(replica);
+        tabletManager->ZombifyTableReplica(replica);
     }
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 IObjectTypeHandlerPtr CreateTableReplicaTypeHandler(
     TBootstrap* bootstrap,
