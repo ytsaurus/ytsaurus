@@ -241,8 +241,9 @@ func (c *Config) GetClientCompressionCodec() ClientCompressionCodec {
 }
 
 const (
-	TVMOnlyHTTPProxyPort = 9026
-	TVMOnlyRPCProxyPort  = 9027
+	TVMOnlyHTTPProxyPort  = 9026
+	TVMOnlyHTTPSProxyPort = 9443
+	TVMOnlyRPCProxyPort   = 9027
 )
 
 type ClusterURL struct {
