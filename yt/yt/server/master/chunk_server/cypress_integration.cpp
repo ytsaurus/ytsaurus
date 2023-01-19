@@ -315,7 +315,7 @@ private:
             std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
             responseFutures.reserve(channels.size());
             for (const auto& channel : channels) {
-                TObjectServiceProxy proxy(channel);
+                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
                 auto batchReq = proxy.ExecuteBatch();
                 auto req = TCypressYPathProxy::Enumerate(GetWellKnownPath(GetLocalChunkMapType()));
                 req->set_limit(sizeLimit);
@@ -379,7 +379,7 @@ private:
             std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
             responseFutures.reserve(channels.size());
             for (const auto& channel : channels) {
-                TObjectServiceProxy proxy(channel);
+                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
                 auto req = TYPathProxy::Get(GetWellKnownPath(GetLocalChunkMapType()) + "/@count");
                 responseFutures.push_back(proxy.Execute(req));
             }

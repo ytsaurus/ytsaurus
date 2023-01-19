@@ -338,13 +338,11 @@ TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromLocal()
 
 TFuture<std::pair<TCellTag, i64>> TVirtualMulticellMapBase::FetchSizeFromRemote(TCellTag cellTag)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Leader);
-    if (!channel) {
-        return TFuture<std::pair<TCellTag, i64>>();
-    }
-
-    TObjectServiceProxy proxy(channel);
+    TObjectServiceProxy proxy(
+        Bootstrap_->GetClusterConnection(),
+        NApi::EMasterChannelKind::Follower,
+        cellTag,
+        /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetSuppressUpstreamSync(true);
 
@@ -435,18 +433,18 @@ TFuture<void> TVirtualMulticellMapBase::FetchItemsFromLocal(const TFetchItemsSes
         }).AsyncVia(GetCurrentInvoker()));
 }
 
-TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(const TFetchItemsSessionPtr& session, TCellTag cellTag)
+TFuture<void> TVirtualMulticellMapBase::FetchItemsFromRemote(
+    const TFetchItemsSessionPtr& session,
+    TCellTag cellTag)
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
-    if (!channel) {
-        return VoidFuture;
-    }
-
     const auto& securityManager = Bootstrap_->GetSecurityManager();
     const auto* user = securityManager->GetAuthenticatedUser();
 
-    TObjectServiceProxy proxy(channel);
+    TObjectServiceProxy proxy(
+        Bootstrap_->GetClusterConnection(),
+        NApi::EMasterChannelKind::Follower,
+        cellTag,
+        /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(user->GetName());
 

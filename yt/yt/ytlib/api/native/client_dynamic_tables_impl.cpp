@@ -475,7 +475,7 @@ TGetTabletErrorsResult TClient::DoGetTabletErrors(
         .ReadFrom = EMasterChannelKind::Cache
     };
 
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(masterReadOptions);
+    auto proxy = CreateObjectServiceReadProxy(masterReadOptions);
     auto req = TTableYPathProxy::Get(path + "/@tablets");
     SetCachingHeader(req, masterReadOptions);
 
@@ -1459,7 +1459,7 @@ IAttributeDictionaryPtr TClient::ResolveExternalTable(
     TCellTag* externalCellTag,
     const std::vector<TString>& extraAttributeKeys)
 {
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+    auto proxy = CreateObjectServiceReadProxy(TMasterReadOptions());
 
     {
         auto req = TObjectYPathProxy::GetBasicAttributes(path);
@@ -1715,7 +1715,7 @@ std::vector<TLegacyOwningKey> TClient::PickUniformPivotKeys(
             MaxTabletCount);
     }
 
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+    auto proxy = CreateObjectServiceReadProxy(TMasterReadOptions());
     auto req = TTableYPathProxy::Get(path + "/@schema");
     auto rspOrError = WaitFor(proxy->Execute(req));
     THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error fetching table schema");
@@ -2094,7 +2094,7 @@ std::vector<TTabletActionId> TClient::DoReshardTableAutomatic(
     auto req = TTableYPathProxy::ReshardAutomatic(FromObjectId(tableId));
     SetMutationId(req, options);
     req->set_keep_actions(options.KeepActions);
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>(externalCellTag);
+    auto proxy = CreateObjectServiceWriteProxy(externalCellTag);
     auto protoRsp = WaitFor(proxy->Execute(req))
         .ValueOrThrow();
     return FromProto<std::vector<TTabletActionId>>(protoRsp->tablet_actions());
@@ -2124,7 +2124,7 @@ void TClient::DoAlterTable(
         ToProto(req->mutable_replication_progress(), *options.ReplicationProgress);
     }
 
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
     WaitFor(proxy->Execute(req))
         .ThrowOnError();
 }
@@ -2247,7 +2247,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
         SetMutationId(req, options);
         req->set_keep_actions(options.KeepActions);
         for (const auto& cellTag : cellTags) {
-            auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+            auto proxy = CreateObjectServiceWriteProxy(cellTag);
             cellResponses.emplace_back(proxy->Execute(req));
         }
     } else {
@@ -2287,7 +2287,7 @@ std::vector<TTabletActionId> TClient::DoBalanceTabletCells(
             req->set_keep_actions(options.KeepActions);
             SetMutationId(req, options);
             ToProto(req->mutable_movable_tables(), tableIds);
-            auto proxy = CreateWriteProxy<TObjectServiceProxy>(cellTag);
+            auto proxy = CreateObjectServiceWriteProxy(cellTag);
             cellResponses.emplace_back(proxy->Execute(req));
         }
     }

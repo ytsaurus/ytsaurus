@@ -237,8 +237,7 @@ protected:
             ResolvedSrcNodePath_ = srcPath;
         }
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(std::move(channel));
+        auto proxy = CreateObjectServiceWriteProxy(Client_);
 
         std::queue<TYPath> subtreeSerializationQueue;
         subtreeSerializationQueue.push(ResolvedSrcNodePath_);
@@ -306,8 +305,7 @@ protected:
 
     void ResolveSourceNode(const TYPath& srcPath)
     {
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-        TObjectServiceProxy proxy(std::move(channel));
+        auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
 
         YT_LOG_DEBUG("Resolving source node (SourceNodePath: %v)", srcPath);
 
@@ -339,8 +337,7 @@ protected:
     {
         YT_LOG_DEBUG("Materializing serialized subtrees");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(std::move(channel));
+        auto proxy = CreateObjectServiceWriteProxy(Client_);
 
         for (auto& subtree : SerializedSubtrees_) {
             auto batchReq = proxy.ExecuteBatch();
@@ -560,8 +557,8 @@ private:
     {
         YT_LOG_DEBUG("Requesting root @acl, @inherit_acl and @annotation");
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-        TObjectServiceProxy proxy(std::move(channel));
+        auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
+
         auto batchReq = proxy.ExecuteBatch();
 
         auto getAttribute = [&] (TString name, TYsonString* result) {
@@ -743,7 +740,7 @@ TNodeId TClient::CreateNodeImpl(
     const IAttributeDictionary& attributes,
     const TCreateNodeOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
@@ -786,7 +783,7 @@ void TClient::DoSetNode(
 {
     MaybeValidateExternalObjectPermission(path, EPermission::Write);
 
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
@@ -820,7 +817,7 @@ void TClient::DoMultisetAttributesNode(
 {
     MaybeValidateExternalObjectPermission(path, EPermission::Write);
 
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
     SetPrerequisites(batchReq, options);
@@ -900,7 +897,7 @@ TLockNodeResult TClient::DoLockNode(
     ELockMode mode,
     const TLockNodeOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
 
     auto batchReqConfig = New<TReqExecuteBatchWithRetriesConfig>();
 
@@ -940,7 +937,7 @@ void TClient::DoUnlockNode(
     const TYPath& path,
     const TUnlockNodeOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
 
     auto batchReq = proxy->ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
@@ -979,7 +976,7 @@ TNodeId TClient::DoCloneNode(
     const TYPath& dstPath,
     const TOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
 
     auto batchReq = proxy->ExecuteBatch();
     SetSuppressUpstreamSyncs(batchReq, options);
@@ -1024,7 +1021,7 @@ TNodeId TClient::DoLinkNode(
     const TYPath& dstPath,
     const TLinkNodeOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
 
     if (!options.Force) {
         auto batchReq = proxy->ExecuteBatch();
@@ -1212,7 +1209,7 @@ private:
 
     void GetObjectAttributes()
     {
-        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+        auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
 
         for (auto& srcObject : SrcObjects_) {
@@ -1325,7 +1322,7 @@ private:
 
     void FetchSourceObjectTypes()
     {
-        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+        auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
 
         for (auto& srcObject : SrcObjects_) {
@@ -1354,7 +1351,7 @@ private:
 
     void GetSrcObjectChunkCounts()
     {
-        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+        auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
 
         for (auto& srcObject : SrcObjects_) {
@@ -1393,7 +1390,7 @@ private:
             return req;
         };
 
-        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+        auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
         auto batchReq = proxy->ExecuteBatch();
 
         for (const auto& srcObject : SrcObjects_) {
@@ -1704,7 +1701,7 @@ private:
 
     void ValidateBoundaryKeys()
     {
-        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(TMasterReadOptions());
+        auto proxy = Client_->CreateObjectServiceReadProxy(TMasterReadOptions());
 
         auto request = TTableYPathProxy::Get(DstObject_.GetObjectIdPath() + "/@boundary_keys");
         AddCellTagToSyncWith(request, DstObject_.ObjectId);
@@ -1770,7 +1767,7 @@ private:
     void BeginUpload()
     {
         auto dstObjectCellTag = CellTagFromId(DstObject_.ObjectId);
-        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>(dstObjectCellTag);
+        auto proxy = Client_->CreateObjectServiceWriteProxy(dstObjectCellTag);
 
         auto req = TChunkOwnerYPathProxy::BeginUpload(DstObject_.GetObjectIdPath());
         req->set_update_mode(static_cast<int>(Append_ ? EUpdateMode::Append : EUpdateMode::Overwrite));
@@ -1840,7 +1837,7 @@ private:
 
     void GetUploadParams()
     {
-        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>(DstObject_.ExternalCellTag);
+        auto proxy = Client_->CreateObjectServiceWriteProxy(DstObject_.ExternalCellTag);
 
         auto req = TChunkOwnerYPathProxy::GetUploadParams(DstObject_.GetObjectIdPath());
         NCypressClient::SetTransactionId(req, UploadTransaction_->GetId());
@@ -1881,7 +1878,7 @@ private:
 
     void EndUpload()
     {
-        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>(CellTagFromId(DstObject_.ObjectId));
+        auto proxy = Client_->CreateObjectServiceWriteProxy(CellTagFromId(DstObject_.ObjectId));
 
         auto req = TChunkOwnerYPathProxy::EndUpload(DstObject_.GetObjectIdPath());
         *req->mutable_statistics() = DataStatistics_;

@@ -356,10 +356,10 @@ std::tuple<std::vector<NChunkClient::TInputChunkPtr>, TTableSchemaPtr, bool> Col
     bool dynamic;
     TTableSchemaPtr schema;
     {
-        auto channel = client->GetMasterChannelOrThrow(
+        auto proxy = CreateObjectServiceReadProxy(
+            client,
             EMasterChannelKind::Follower,
             userObject.ExternalCellTag);
-        TObjectServiceProxy proxy(channel);
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
         AddCellTagToSyncWith(req, userObject.ObjectId);

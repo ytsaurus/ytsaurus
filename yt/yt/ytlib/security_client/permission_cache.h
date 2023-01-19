@@ -58,6 +58,7 @@ public:
 private:
     const TPermissionCacheConfigPtr Config_;
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
+    NApi::NNative::IClientPtr Client_;
 
     TFuture<void> DoGet(
         const TPermissionKey& key,

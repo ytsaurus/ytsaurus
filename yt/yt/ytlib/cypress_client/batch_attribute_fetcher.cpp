@@ -148,7 +148,7 @@ void TBatchAttributeFetcher::FetchBatchCounts()
 
     YT_LOG_DEBUG("Collecting node counts (DirectoryCount: %v)", ListEntries_.size());
 
-    TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(MasterReadOptions_.ReadFrom));
+    auto proxy = CreateObjectServiceReadProxy(Client_, MasterReadOptions_.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
     SetupBatchRequest(batchReq);
 
@@ -192,7 +192,7 @@ void TBatchAttributeFetcher::FetchBatchCounts()
 
 void TBatchAttributeFetcher::FetchAttributes()
 {
-    TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(MasterReadOptions_.ReadFrom));
+    auto proxy = CreateObjectServiceReadProxy(Client_, MasterReadOptions_.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
     SetupBatchRequest(batchReq);
 
@@ -281,7 +281,7 @@ void TBatchAttributeFetcher::FetchSymlinks()
     // When such situation occurs, we have to perform second pass
     // manually resolving symlinks via get requests.
 
-    TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(MasterReadOptions_.ReadFrom));
+    auto proxy = CreateObjectServiceReadProxy(Client_, MasterReadOptions_.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
     SetupBatchRequest(batchReq);
 

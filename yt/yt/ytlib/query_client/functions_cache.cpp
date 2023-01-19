@@ -171,7 +171,7 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
 
     YT_LOG_DEBUG("Looking for UDFs in Cypress");
 
-    TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& item : functionNames) {
@@ -230,9 +230,10 @@ std::vector<TExternalFunctionSpec> LookupAllUdfDescriptors(
     }
 
     for (const auto& [externalCellTag, infos] : externalCellTagToInfo) {
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
-        TObjectServiceProxy proxy(channel);
-
+        auto proxy = CreateObjectServiceReadProxy(
+            client,
+            EMasterChannelKind::Follower,
+            externalCellTag);
         auto fetchBatchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
         for (auto [objectId, index] : infos) {

@@ -357,12 +357,10 @@ TFuture<TYsonString> TNontemplateCypressNodeProxyBase::GetExternalBuiltinAttribu
     AddCellTagToSyncWith(req, GetId());
     SetTransactionId(req, transactionId);
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->GetMasterChannelOrThrow(
-        externalCellTag,
-        NHydra::EPeerKind::Follower);
-
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceReadProxy(
+        Bootstrap_->GetRootClient(),
+        NApi::EMasterChannelKind::Follower,
+        externalCellTag);
     return proxy.Execute(req).Apply(BIND([=, this, this_ = MakeStrong(this)] (const TYPathProxy::TErrorOrRspGetPtr& rspOrError) {
         if (!rspOrError.IsOK()) {
             auto code = rspOrError.GetCode();

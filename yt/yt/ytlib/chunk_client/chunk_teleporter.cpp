@@ -73,8 +73,7 @@ void TChunkTeleporter::DoRun()
 
 int TChunkTeleporter::GetExportedObjectCount(TCellTag cellTag)
 {
-    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceWriteProxy(Client_, cellTag);
 
     // COMPAT(shakurov)
     // Replace this with a newer syntax "&#OBJECT_ID" for redirect suppression.
@@ -150,8 +149,7 @@ void TChunkTeleporter::Export()
 
 int TChunkTeleporter::GetImportedObjectCount(TCellTag cellTag)
 {
-    auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellTag);
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceWriteProxy(Client_, cellTag);
 
     // COMPAT(shakurov)
     // Replace this with a newer syntax "&#OBJECT_ID" for redirect suppression.

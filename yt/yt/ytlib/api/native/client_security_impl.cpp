@@ -44,7 +44,7 @@ TCheckPermissionByAclResult TClient::DoCheckPermissionByAcl(
     const INodePtr& acl,
     const TCheckPermissionByAclOptions& options)
 {
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+    auto proxy = CreateObjectServiceReadProxy(options);
     auto batchReq = proxy->ExecuteBatch();
     SetBalancingHeader(batchReq, options);
     batchReq->SetSuppressTransactionCoordinatorSync(true);
@@ -78,7 +78,7 @@ void TClient::DoAddMember(
     const TString& member,
     const TAddMemberOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
     SetPrerequisites(batchReq, options);
 
@@ -99,7 +99,7 @@ void TClient::DoRemoveMember(
     const TString& member,
     const TRemoveMemberOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
     SetPrerequisites(batchReq, options);
 
@@ -121,7 +121,7 @@ TCheckPermissionResponse TClient::DoCheckPermission(
     EPermission permission,
     const TCheckPermissionOptions& options)
 {
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+    auto proxy = CreateObjectServiceReadProxy(options);
     auto batchReq = proxy->ExecuteBatch();
     batchReq->SetSuppressTransactionCoordinatorSync(options.SuppressTransactionCoordinatorSync);
     SetBalancingHeader(batchReq, options);
@@ -212,7 +212,7 @@ void TClient::MaybeValidateExternalObjectPermission(
 TYPath TClient::GetReplicaTablePath(TTableReplicaId replicaId)
 {
     auto cellTag = CellTagFromId(replicaId);
-    auto proxy = CreateReadProxy<TObjectServiceProxy>({}, cellTag);
+    auto proxy = CreateObjectServiceReadProxy({}, cellTag);
     auto batchReq = proxy->ExecuteBatch();
 
     auto req = TYPathProxy::Get(FromObjectId(replicaId) + "/@table_path");
@@ -244,7 +244,7 @@ void TClient::DoTransferAccountResources(
     NYTree::INodePtr resourceDelta,
     const TTransferAccountResourcesOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
 
     auto req = TAccountYPathProxy::TransferAccountResources(GetAccountPath(dstAccount));

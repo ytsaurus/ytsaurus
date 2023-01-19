@@ -77,7 +77,7 @@ private:
             auto asyncResponseMessage = objectManager->ForwardObjectRequest(
                 updatedMessage,
                 cellTag,
-                EPeerKind::Follower);
+                NApi::EMasterChannelKind::Follower);
             context->ReplyFrom(std::move(asyncResponseMessage));
         }
 

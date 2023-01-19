@@ -57,7 +57,7 @@ public:
         const TYPath& path,
         const TGetNodeOptions& options) override
     {
-        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(options);
+        auto proxy = Client_->CreateObjectServiceReadProxy(options);
         auto batchReq = proxy->ExecuteBatch();
         SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
@@ -90,7 +90,7 @@ public:
         const TYPath& path,
         const TListNodeOptions& options) override
     {
-        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(options);
+        auto proxy = Client_->CreateObjectServiceReadProxy(options);
         auto batchReq = proxy->ExecuteBatch();
         SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
@@ -120,7 +120,7 @@ public:
         const NYPath::TYPath& path,
         const TNodeExistsOptions& options) override
     {
-        auto proxy = Client_->CreateReadProxy<TObjectServiceProxy>(options);
+        auto proxy = Client_->CreateObjectServiceReadProxy(options);
         auto batchReq = proxy->ExecuteBatch();
         SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);
@@ -144,7 +144,7 @@ public:
         const TYPath& path,
         const TRemoveNodeOptions& options) override
     {
-        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
+        auto proxy = Client_->CreateObjectServiceWriteProxy();
         auto batchReq = proxy->ExecuteBatch();
         SetSuppressUpstreamSyncs(batchReq, options);
         SetPrerequisites(batchReq, options);

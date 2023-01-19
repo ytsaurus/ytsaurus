@@ -779,10 +779,9 @@ TYsonString DoGetMulticellOwningNodes(
 
     // Request node paths from the primary cell.
     {
-        auto channel = multicellManager->GetMasterChannelOrThrow(
-            multicellManager->GetPrimaryCellTag(),
-            NHydra::EPeerKind::Follower);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceReadProxy(
+            bootstrap->GetRootClient(),
+            NApi::EMasterChannelKind::Follower);
 
         // TODO(babenko): improve
         auto batchReq = proxy.ExecuteBatch();

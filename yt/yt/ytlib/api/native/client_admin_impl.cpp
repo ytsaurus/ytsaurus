@@ -224,8 +224,7 @@ void TClient::DoGCCollect(const TGCCollectOptions& options)
 
     auto cellId = options.CellId ? options.CellId : Connection_->GetPrimaryMasterCellId();
     auto channel = Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, cellId);
-
-    TObjectServiceProxy proxy(channel);
+    auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(channel));
     auto req = proxy.GCCollect();
     req->SetTimeout(options.Timeout);
 
@@ -288,7 +287,7 @@ TString TClient::DoWriteOperationControllerCoreDump(
 
     auto address = FindControllerAgentAddressFromCypress(
         operationId,
-        Connection_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        MakeStrong(this));
     if (!address) {
         THROW_ERROR_EXCEPTION("Cannot find address of the controller agent for operation %v",
             operationId);

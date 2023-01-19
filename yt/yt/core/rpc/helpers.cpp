@@ -165,7 +165,6 @@ public:
 
 private:
     const TAuthenticationIdentity AuthenticationIdentity_;
-
 };
 
 IChannelPtr CreateAuthenticatedChannel(

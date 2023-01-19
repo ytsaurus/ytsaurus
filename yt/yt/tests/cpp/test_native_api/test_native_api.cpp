@@ -92,10 +92,8 @@ protected:
     void TestBatchRequest(
         const std::vector<TSubrequestType>& subrequestTypes)
     {
-        auto channel = static_cast<NApi::NNative::IClient*>(Client_.Get())->
-            GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-        TObjectServiceProxy proxy(channel);
-
+        auto client = StaticPointerCast<NApi::NNative::IClient>(Client_);
+        auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();
         batchReq->SetTimeout(TDuration::MilliSeconds(200));
         MaybeSetMutationId(batchReq, subrequestTypes);
@@ -373,10 +371,8 @@ protected:
             return false;
         };
 
-        auto channel = dynamic_cast<NApi::NNative::IClient*>(Client_.Get())->
-            GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-        TObjectServiceProxy proxy(channel);
-
+        auto client = StaticPointerCast<NApi::NNative::IClient>(Client_);
+        auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
         auto batchRequest = proxy.ExecuteBatchWithRetries(config, BIND(needRetry));
         batchRequest->AddRequest(std::move(request));
 
@@ -438,10 +434,8 @@ protected:
             return false;
         };
 
-        auto channel = dynamic_cast<NApi::NNative::IClient*>(Client_.Get())->
-            GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-        TObjectServiceProxy proxy(channel);
-
+        auto client = StaticPointerCast<NApi::NNative::IClient>(Client_);
+        auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
         auto batchRequest = proxy.ExecuteBatchWithRetriesInParallel(config, BIND(needRetry), subbatchSize, maxParallelSubbatchCount);
 
         for (int i = 0; i < requestCount; ++i) {
@@ -801,10 +795,8 @@ protected:
 
         req->mutable_schema()->CopyFrom(schema);
 
-        auto channel = static_cast<NApi::NNative::IClient*>(Client_.Get())->
-            GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
-
+        auto client = StaticPointerCast<NApi::NNative::IClient>(Client_);
+        auto proxy = CreateObjectServiceWriteProxy(client);
         WaitFor(proxy.Execute(req))
             .ThrowOnError();
     }

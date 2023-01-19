@@ -1502,9 +1502,12 @@ TFuture<TClient::TListJobsFromControllerAgentResult> TClient::DoListJobsFromCont
         return MakeFuture(TListJobsFromControllerAgentResult{});
     }
 
-    TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-    proxy.SetDefaultTimeout(deadline - Now());
-    auto batchReq = proxy.ExecuteBatch();
+    TMasterReadOptions readOptions{
+        .ReadFrom = EMasterChannelKind::Follower,
+    };
+    auto proxy = CreateObjectServiceReadProxy(readOptions);
+    proxy->SetDefaultTimeout(deadline - Now());
+    auto batchReq = proxy->ExecuteBatch();
 
     batchReq->AddRequest(
         TYPathProxy::Get(GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/state"),
@@ -1777,7 +1780,7 @@ TListJobsResult TClient::DoListJobs(
 
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
-        GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        MakeStrong(this));
     auto controllerAgentResultFuture = DoListJobsFromControllerAgentAsync(
         operationId,
         controllerAgentAddress,
@@ -1957,14 +1960,17 @@ std::optional<TJob> TClient::DoGetJobFromControllerAgent(
 {
     auto controllerAgentAddress = FindControllerAgentAddressFromCypress(
         operationId,
-        GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+        MakeStrong(this));
     if (!controllerAgentAddress) {
         return {};
     }
 
-    TObjectServiceProxy proxy(GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-    proxy.SetDefaultTimeout(deadline - Now());
-    auto batchReq = proxy.ExecuteBatch();
+    TMasterReadOptions readOptions{
+        .ReadFrom = EMasterChannelKind::Follower,
+    };
+    auto proxy = CreateObjectServiceReadProxy(readOptions);
+    proxy->SetDefaultTimeout(deadline - Now());
+    auto batchReq = proxy->ExecuteBatch();
 
     auto operationStatePath =
         GetControllerAgentOrchidOperationPath(*controllerAgentAddress, operationId) + "/state";

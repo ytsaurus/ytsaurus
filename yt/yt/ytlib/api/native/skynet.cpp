@@ -77,11 +77,14 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         YT_LOG_INFO("Requesting chunk count");
 
         auto connection = client->GetNativeConnection();
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);
-        TObjectServiceProxy proxy(channel, connection->GetStickyGroupSizeCache());
+        auto proxy = CreateObjectServiceReadProxy(
+            client,
+            EMasterChannelKind::Cache,
+            userObject.ExternalCellTag,
+            connection->GetStickyGroupSizeCache());
 
         auto masterReadOptions = TMasterReadOptions{
-            .ReadFrom = EMasterChannelKind::Cache
+            .ReadFrom = EMasterChannelKind::Cache,
         };
 
         auto batchReq = proxy.ExecuteBatch();

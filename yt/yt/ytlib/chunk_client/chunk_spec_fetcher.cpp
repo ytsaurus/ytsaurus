@@ -155,8 +155,10 @@ TMasterChunkSpecFetcher::TCellState& TMasterChunkSpecFetcher::GetCellState(TCell
     auto it = CellTagToState_.find(cellTag);
     if (it == CellTagToState_.end()) {
         it = CellTagToState_.insert({cellTag, TCellState()}).first;
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceReadProxy(
+            Client_,
+            EMasterChannelKind::Follower,
+            cellTag);
         it->second.BatchReq = proxy.ExecuteBatchWithRetries(
             Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
     }

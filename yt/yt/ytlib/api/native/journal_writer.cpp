@@ -479,9 +479,7 @@ private:
 
                 YT_LOG_DEBUG("Starting journal upload");
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
-                TObjectServiceProxy proxy(channel);
-
+                auto proxy = CreateObjectServiceWriteProxy(Client_, NativeCellTag_);
                 auto batchReq = proxy.ExecuteBatch();
 
                 {
@@ -530,9 +528,10 @@ private:
 
                 YT_LOG_DEBUG("Requesting extended journal attributes");
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, NativeCellTag_);
-                TObjectServiceProxy proxy(channel);
-
+                auto proxy = CreateObjectServiceReadProxy(
+                    Client_,
+                    EMasterChannelKind::Follower,
+                    NativeCellTag_);
                 auto req = TYPathProxy::Get(objectIdPath + "/@");
                 AddCellTagToSyncWith(req, ObjectId_);
                 SetTransactionId(req, UploadTransaction_);
@@ -580,9 +579,10 @@ private:
 
                 YT_LOG_DEBUG("Requesting journal upload parameters");
 
-                auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, ExternalCellTag_);
-                TObjectServiceProxy proxy(channel);
-
+                auto proxy = CreateObjectServiceReadProxy(
+                    Client_,
+                    EMasterChannelKind::Follower,
+                    ExternalCellTag_);
                 auto req = TJournalYPathProxy::GetUploadParams(objectIdPath);
                 SetTransactionId(req, UploadTransaction_);
 
@@ -617,9 +617,7 @@ private:
 
             auto objectIdPath = FromObjectId(ObjectId_);
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceWriteProxy(Client_, NativeCellTag_);
             auto batchReq = proxy.ExecuteBatch();
 
             {

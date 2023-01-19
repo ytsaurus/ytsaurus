@@ -767,11 +767,12 @@ public:
             std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
             for (auto cellTag : multicellManager->GetRoleMasterCells(EMasterCellRole::CypressNodeHost)) {
                 if (multicellManager->GetCellTag() != cellTag) {
-                    YT_LOG_DEBUG("Requesting queue agent objects from secondary cell (CellTag: %v)", cellTag);
-                    auto channel = multicellManager->GetMasterChannelOrThrow(
-                        cellTag,
-                        EPeerKind::Follower);
-                    TObjectServiceProxy proxy(channel);
+                    YT_LOG_DEBUG("Requesting queue agent objects from secondary cell (CellTag: %v)",
+                        cellTag);
+                    auto proxy = CreateObjectServiceReadProxy(
+                        Bootstrap_->GetRootClient(),
+                        NApi::EMasterChannelKind::Follower,
+                        cellTag);
                     auto req = TYPathProxy::Get("//sys/@queue_agent_object_revisions");
                     asyncResults.push_back(proxy.Execute(req));
                 }

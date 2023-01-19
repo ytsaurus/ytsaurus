@@ -67,7 +67,8 @@ public:
             }
         }
 
-        TObjectServiceProxy proxy(MasterChannel_);
+        // TODO(gritukan): Pass Cypress Proxy here?
+        auto proxy = TObjectServiceProxy::FromDirectMasterChannel(MasterChannel_);
         auto batchReq = proxy.ExecuteBatch();
         batchReq->AddRequest(TYPathProxy::Get("//sys/scheduler/@addresses"));
         return batchReq->Invoke()

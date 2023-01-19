@@ -576,9 +576,9 @@ public:
             jobShellName,
             jobShellOwners);
 
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTagSentinel));
+        auto proxy = CreateObjectServiceReadProxy(
+            Bootstrap_->GetClient(),
+            EMasterChannelKind::Cache);
         auto connectionConfig = Bootstrap_
             ->GetClient()
             ->GetNativeConnection()

@@ -26,10 +26,11 @@ TFuture<NYson::TYsonString> TNonversionedObjectProxyBase<TObject>::FetchFromShep
     const auto multicellManager = Bootstrap_->GetMulticellManager();
     YT_ASSERT(multicellManager->IsSecondaryMaster());
 
-    auto primaryCellTag = multicellManager->GetPrimaryCellTag();
-    auto channel = multicellManager->FindMasterChannel(primaryCellTag, NHydra::EPeerKind::Follower);
-
-    NObjectClient::TObjectServiceProxy proxy(channel);
+    NObjectClient::TObjectServiceProxy proxy(
+        Bootstrap_->GetClusterConnection(),
+        NApi::EMasterChannelKind::Follower,
+        NObjectClient::PrimaryMasterCellTagSentinel,
+        /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatch();
 
     const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -69,8 +70,11 @@ TFuture<std::vector<T>> TNonversionedObjectProxyBase<TObject>::FetchFromSwarm(NY
     std::vector<TFuture<T>> asyncResults;
 
     for (auto cellTag : multicellManager->GetRegisteredMasterCellTags()) {
-        auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
-        NObjectClient::TObjectServiceProxy proxy(channel);
+        NObjectClient::TObjectServiceProxy proxy(
+            Bootstrap_->GetClusterConnection(),
+            NApi::EMasterChannelKind::Follower,
+            cellTag,
+            /*stickyGroupSizeCache*/ nullptr);
         auto batchReq = proxy.ExecuteBatch();
         batchReq->SetUser(user->GetName());
 

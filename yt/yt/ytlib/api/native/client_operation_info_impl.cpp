@@ -189,7 +189,7 @@ TClient::TGetOperationFromCypressResult TClient::DoGetOperationFromCypress(
         cypressAttributes->push_back("modification_time");
     }
 
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+    auto proxy = CreateObjectServiceReadProxy(options);
     auto batchReq = proxy->ExecuteBatch();
     SetBalancingHeader(batchReq, options);
 
@@ -401,7 +401,7 @@ TOperationId TClient::ResolveOperationAlias(
     const TMasterReadOptions& options,
     TInstant deadline)
 {
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+    auto proxy = CreateObjectServiceReadProxy(options);
     auto req = TYPathProxy::Get(GetSchedulerOrchidAliasPath(alias) + "/operation_id");
     auto rspOrError = WaitFor(proxy->Execute(req));
     if (rspOrError.IsOK()) {
@@ -769,9 +769,13 @@ void TClient::DoListOperationsFromCypress(
     auto filteringAttributes = LightAttributes;
     auto filteringCypressAttributes = CreateCypressOperationAttributes(
         filteringAttributes,
-        /* needHeavyRuntimeParameters */ options.SubstrFilter.has_value());
+        /*needHeavyRuntimeParameters*/ options.SubstrFilter.has_value());
 
-    TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom), Connection_->GetStickyGroupSizeCache());
+    auto proxy = NObjectClient::CreateObjectServiceReadProxy(
+        GetOperationArchiveClient(),
+        options.ReadFrom,
+        PrimaryMasterCellTagSentinel,
+        Connection_->GetStickyGroupSizeCache());
     auto requestOperations = [&] (int hashBegin, int hashEnd) {
         auto listBatchReq = proxy.ExecuteBatch();
         SetBalancingHeader(listBatchReq, options);
@@ -1299,7 +1303,11 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
     }
 
     if (options.AccessFilter) {
-        TObjectServiceProxy proxy(GetOperationArchiveChannel(options.ReadFrom), Connection_->GetStickyGroupSizeCache());
+        auto proxy = NObjectClient::CreateObjectServiceReadProxy(
+            GetOperationArchiveClient(),
+            options.ReadFrom,
+            PrimaryMasterCellTagSentinel,
+            Connection_->GetStickyGroupSizeCache());
         options.AccessFilter->SubjectTransitiveClosure = GetSubjectClosure(
             options.AccessFilter->Subject,
             proxy,

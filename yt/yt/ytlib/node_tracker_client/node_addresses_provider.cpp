@@ -209,8 +209,7 @@ private:
             YT_LOG_DEBUG("Started updating node list");
 
             auto channel = cellDirectory->GetMasterChannelOrThrow(GetChannelKind(NodeRole_), cellDirectory->GetPrimaryMasterCellId());
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(channel));
             auto req = TMasterYPathProxy::GetClusterMeta();
             switch (NodeRole_) {
                 case ENodeRole::MasterCache: {

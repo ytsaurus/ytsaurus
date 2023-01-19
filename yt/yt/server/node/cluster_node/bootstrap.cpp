@@ -942,12 +942,7 @@ private:
             return CreateCachingObjectService(
                 Config_->CachingObjectService,
                 MasterCacheQueue_->GetInvoker(),
-                CreateDefaultTimeoutChannel(
-                    CreatePeerChannel(
-                        masterConfig,
-                        Connection_->GetChannelFactory(),
-                        EPeerKind::Follower),
-                    masterConfig->RpcTimeout),
+                GetConnection(),
                 ObjectServiceCache_,
                 masterConfig->CellId,
                 Logger,
