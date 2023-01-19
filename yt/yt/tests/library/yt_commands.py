@@ -2997,15 +2997,13 @@ def unlock_hunk_store(path, tablet_index, store_id, locker_tablet_id="1-1-1-1", 
 def sync_control_chunk_replicator(enabled):
     print_debug("Setting chunk replicator state to", enabled)
     set("//sys/@config/chunk_manager/enable_chunk_replicator", enabled, recursive=True)
-    wait(
-        lambda: all(
-            get(
-                "//sys/@chunk_replicator_enabled",
-                driver=drivers_by_cell_tag[default_api_version],
-            ) == enabled
-            for drivers_by_cell_tag in _clusters_drivers["primary"]
-        )
-    )
+
+    def check():
+        for master in get("//sys/cluster_masters"):
+            if get(f"//sys/cluster_masters/{master}/orchid/chunk_manager/chunk_replicator_enabled") != enabled:
+                return False
+        return True
+    wait(check)
 
 
 def get_singular_chunk_id(path, **kwargs):
