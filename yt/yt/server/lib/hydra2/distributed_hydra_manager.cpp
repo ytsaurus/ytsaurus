@@ -190,7 +190,7 @@ public:
         , StateHashChecker_(New<TStateHashChecker>(Config_->Get()->MaxStateHashCheckerEntryCount, HydraLogger))
         , DynamicOptions_(dynamicOptions)
         , ElectionCallbacks_(New<TElectionCallbacks>(this))
-        , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)))
+        , Profiler_(HydraProfiler.WithTag("cell_id", ToString(cellId)).WithSparse())
         , Logger(HydraLogger.WithTag("CellId: %v", cellId))
         , LeaderSyncTimer_(Profiler_.Timer("/leader_sync_time"))
         , DecoratedAutomaton_(New<TDecoratedAutomaton>(
