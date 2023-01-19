@@ -241,7 +241,7 @@ private:
         bool enabled,
         NTransactionClient::TTimestamp startReplicationTimestamp,
         const std::optional<std::vector<i64>>& startReplicationRowIndexes);
-    void DestroyTableReplica(TTableReplica* replica);
+    void ZombifyTableReplica(TTableReplica* replica);
 
     TTabletAction* CreateTabletAction(
         NObjectClient::TObjectId hintId,
