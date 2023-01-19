@@ -8,6 +8,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/client/chunk_client/chunk_replica.h>
 

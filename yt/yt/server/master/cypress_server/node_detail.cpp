@@ -1,7 +1,9 @@
 #include "node_detail.h"
+
 #include "helpers.h"
 #include "node_proxy_detail.h"
 #include "portal_exit_node.h"
+#include "scion_node.h"
 #include "shard.h"
 #include "resolve_cache.h"
 
@@ -1170,6 +1172,7 @@ void TMapNodeTypeHandlerImpl<TImpl>::DoEndCopy(
 // Explicit instantiations.
 template class TMapNodeTypeHandlerImpl<TMapNode>;
 template class TMapNodeTypeHandlerImpl<TPortalExitNode>;
+template class TMapNodeTypeHandlerImpl<TScionNode>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

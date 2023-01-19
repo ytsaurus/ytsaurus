@@ -1047,10 +1047,11 @@ void TNontemplateCypressNodeProxyBase::DoRemoveSelf(bool recursive, bool force)
 {
     auto* node = GetThisImpl();
 
-    if (node->GetType() == EObjectType::PortalExit) {
+    if (node->GetType() == EObjectType::PortalExit || node->GetType() == EObjectType::Scion) {
         // XXX(babenko)
         if (Transaction_) {
-            THROW_ERROR_EXCEPTION("Removing portal in transaction is not supported");
+            THROW_ERROR_EXCEPTION("Removing %v in transaction is not supported",
+                node->GetLowercaseObjectName());
         }
         YT_VERIFY(node->IsTrunk());
 
@@ -1431,14 +1432,18 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     auto force = request->force();
     auto ignoreTypeMismatch = request->ignore_type_mismatch();
     const auto& path = GetRequestTargetYPath(context->RequestHeader());
+    auto hintId = FromProto<TNodeId>(request->hint_id());
 
-    context->SetRequestInfo("Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, Force: %v, IgnoreTypeMismatch: %v",
+    context->SetRequestInfo(
+        "Type: %v, IgnoreExisting: %v, LockExisting: %v, Recursive: %v, "
+        "Force: %v, IgnoreTypeMismatch: %v, HintId: %v",
         type,
         ignoreExisting,
         lockExisting,
         recursive,
         force,
-        ignoreTypeMismatch);
+        ignoreTypeMismatch,
+        hintId);
 
     if (ignoreExisting && force) {
         THROW_ERROR_EXCEPTION("Cannot specify both \"ignore_existing\" and \"force\" options simultaneously");
@@ -1534,7 +1539,11 @@ DEFINE_YPATH_SERVICE_METHOD(TNontemplateCypressNodeProxyBase, Create)
     }
 
     auto factory = CreateCypressFactory(account, TNodeFactoryOptions(), path);
-    auto newProxy = factory->CreateNode(type, inheritedAttributes.Get(), explicitAttributes.Get());
+    auto newProxy = factory->CreateNode(
+        type,
+        hintId,
+        inheritedAttributes.Get(),
+        explicitAttributes.Get());
 
     // The path may be invalidated below; save it.
     auto thisNodePath = YT_EVALUATE_FOR_ACCESS_LOG_IF(IsAccessLoggedType(type), GetPath());

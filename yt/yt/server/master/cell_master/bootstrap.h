@@ -121,6 +121,7 @@ public:
     const NTransactionSupervisor::ITransactionSupervisorPtr& GetTransactionSupervisor() const;
     const NCypressServer::ICypressManagerPtr& GetCypressManager() const;
     const NCypressServer::IPortalManagerPtr& GetPortalManager() const;
+    const NCypressServer::IGraftingManagerPtr& GetGraftingManager() const;
     const IHydraFacadePtr& GetHydraFacade() const;
     const IEpochHistoryManagerPtr& GetEpochHistoryManager() const;
     const IWorldInitializerPtr& GetWorldInitializer() const;
@@ -199,6 +200,7 @@ protected:
     NTransactionSupervisor::ITransactionSupervisorPtr TransactionSupervisor_;
     NCypressServer::ICypressManagerPtr CypressManager_;
     NCypressServer::IPortalManagerPtr PortalManager_;
+    NCypressServer::IGraftingManagerPtr GraftingManager_;
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
     IWorldInitializerPtr WorldInitializer_;

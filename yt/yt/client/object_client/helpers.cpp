@@ -101,7 +101,11 @@ bool IsVersionedType(EObjectType type)
         type == EObjectType::ChaosReplicatedTable ||
         type == EObjectType::AccessControlObjectNamespaceMap ||
         type == EObjectType::HunkStorage ||
-        type == EObjectType::ZookeeperShardMap;
+        type == EObjectType::ZookeeperShardMap ||
+        type == EObjectType::Rootstock ||
+        type == EObjectType::RootstockMap ||
+        type == EObjectType::Scion ||
+        type == EObjectType::ScionMap;
 }
 
 bool IsUserType(EObjectType type)

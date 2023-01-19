@@ -18,9 +18,9 @@
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_detail.h>
 
-#include <yt/yt/server/lib/sequoia_client/write_set.h>
-
 #include <yt/yt/ytlib/cypress_client/public.h>
+
+#include <yt/yt/ytlib/sequoia_client/write_set.h>
 
 #include <yt/yt/client/table_client/row_buffer.h>
 

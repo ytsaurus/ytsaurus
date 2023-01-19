@@ -1,0 +1,46 @@
+package NYT.NCypressServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+import "yt_proto/yt/core/ytree/proto/attributes.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateScion
+{
+    required NYT.NProto.TGuid scion_node_id = 1;
+    required NYT.NProto.TGuid rootstock_node_id = 2;
+
+    required NYT.NProto.TGuid account_id = 3;
+
+    required NYT.NYTree.NProto.TAttributeDictionary explicit_node_attributes = 4;
+    required NYT.NYTree.NProto.TAttributeDictionary inherited_node_attributes = 5;
+
+    required string path = 6;
+
+    required NYT.NProto.TGuid parent_id = 7;
+    optional string key = 8;
+
+    required bytes effective_acl = 9;
+    optional bytes direct_acl = 10;
+    optional bool inherit_acl = 11;
+
+    optional string effective_annotation = 12;
+    optional string effective_annotation_path = 13;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveRootstock
+{
+    required NYT.NProto.TGuid rootstock_node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqRemoveScion
+{
+    required NYT.NProto.TGuid scion_node_id = 1;
+}
+
+////////////////////////////////////////////////////////////////////////////////

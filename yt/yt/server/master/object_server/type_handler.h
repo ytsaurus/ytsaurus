@@ -7,9 +7,9 @@
 
 #include <yt/yt/server/master/transaction_server/public.h>
 
-#include <yt/yt/server/lib/sequoia_client/transaction.h>
-
 #include <yt/yt/ytlib/object_client/proto/master_ypath.pb.h>
+
+#include <yt/yt/ytlib/sequoia_client/public.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 

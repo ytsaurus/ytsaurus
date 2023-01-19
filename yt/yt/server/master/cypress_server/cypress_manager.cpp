@@ -1,4 +1,5 @@
 #include "cypress_manager.h"
+
 #include "private.h"
 #include "access_control_object_type_handler.h"
 #include "access_control_object_namespace_type_handler.h"
@@ -22,6 +23,12 @@
 #include "link_node_type_handler.h"
 #include "document_node_type_handler.h"
 #include "helpers.h"
+#include "grafting_manager.h"
+#include "rootstock_node.h"
+#include "rootstock_type_handler.h"
+#include "scion_type_handler.h"
+#include "rootstock_map_type_handler.h"
+#include "scion_map_type_handler.h"
 
 // COMPAT(babenko)
 #include <yt/yt/server/master/journal_server/journal_node.h>
@@ -82,6 +89,8 @@ using namespace NObjectServer;
 using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NSecurityServer;
+using namespace NSequoiaClient;
+using namespace NSequoiaServer;
 using namespace NTableServer;
 using namespace NTransactionServer;
 using namespace NYTree;
@@ -147,6 +156,14 @@ public:
                 entrance.Node,
                 *entrance.InheritedAttributes,
                 *entrance.ExplicitAttributes);
+        }
+
+        const auto& graftingManager = Bootstrap_->GetGraftingManager();
+        for (const auto& rootstock : CreatedRootstocks_) {
+            graftingManager->OnRootstockCreated(
+                rootstock.Node,
+                *rootstock.InheritedAttributes,
+                *rootstock.ExplicitAttributes);
         }
 
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
@@ -306,6 +323,7 @@ public:
 
     ICypressNodeProxyPtr CreateNode(
         EObjectType type,
+        TNodeId hintId = NullObjectId,
         IAttributeDictionary* inheritedAttributes = nullptr,
         IAttributeDictionary* explicitAttributes = nullptr) override
     {
@@ -403,7 +421,7 @@ public:
 
         auto* trunkNode = cypressManager->CreateNode(
             handler,
-            NullObjectId,
+            hintId,
             TCreateNodeContext{
                 .ExternalCellTag = externalCellTag,
                 .Transaction = Transaction_,
@@ -462,6 +480,12 @@ public:
                 StageNode(node->As<TPortalEntranceNode>()),
                 inheritedAttributes->Clone(),
                 explicitAttributes->Clone()
+            });
+        } else if (type == EObjectType::Rootstock) {
+            CreatedRootstocks_.push_back(TCreatedRootstock{
+                .Node = StageNode(node->As<TRootstockNode>()),
+                .InheritedAttributes = inheritedAttributes->Clone(),
+                .ExplicitAttributes = explicitAttributes->Clone(),
             });
         }
 
@@ -605,6 +629,14 @@ private:
         IAttributeDictionaryPtr ExplicitAttributes;
     };
     std::vector<TCreatedPortalEntrance> CreatedPortalEntrances_;
+
+    struct TCreatedRootstock
+    {
+        TRootstockNode* Node;
+        IAttributeDictionaryPtr InheritedAttributes;
+        IAttributeDictionaryPtr ExplicitAttributes;
+    };
+    std::vector<TCreatedRootstock> CreatedRootstocks_;
 
     struct TClonedExternalNode
     {
@@ -768,6 +800,15 @@ private:
     TObject* DoGetParent(TCypressNode* node) override
     {
         return node->GetParent();
+    }
+
+    void DoDestroySequoiaObject(
+        TCypressNode* node,
+        const ISequoiaTransactionPtr& transaction) noexcept override
+    {
+        return UnderlyingHandler_->DestroySequoiaObject(
+            node,
+            transaction);
     }
 
     void CheckInvariants(TBootstrap* bootstrap) override
@@ -935,6 +976,10 @@ public:
         RegisterHandler(CreatePortalExitTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalEntranceMapTypeHandler(Bootstrap_));
         RegisterHandler(CreatePortalExitMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateRootstockTypeHandler(Bootstrap_));
+        RegisterHandler(CreateScionTypeHandler(Bootstrap_));
+        RegisterHandler(CreateRootstockMapTypeHandler(Bootstrap_));
+        RegisterHandler(CreateScionMapTypeHandler(Bootstrap_));
 
         RegisterLoader(
             "CypressManager.Keys",
@@ -1264,6 +1309,13 @@ public:
         Bootstrap_->VerifyPersistentStateRead();
 
         return RootNode_;
+    }
+
+    TCypressShard* GetRootCypressShard() const override
+    {
+        Bootstrap_->VerifyPersistentStateRead();
+
+        return RootShard_;
     }
 
     TCypressNode* GetNodeOrThrow(TVersionedNodeId id) override
@@ -2596,6 +2648,10 @@ private:
         auto currentRevision = hydraContext->GetVersion().ToRevision();
         node->SetAttributeRevision(currentRevision);
         node->SetContentRevision(currentRevision);
+
+        if (node->IsSequoia()) {
+            node->SetAevum(GetCurrentAevum());
+        }
 
         if (node->IsExternal()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",

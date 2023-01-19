@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/sequoia_client/proto/transaction_client.pb.h>
+#include <yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h>
 
 #include <yt/yt/client/table_client/schema.h>
 #include <yt/yt/client/table_client/unversioned_row.h>

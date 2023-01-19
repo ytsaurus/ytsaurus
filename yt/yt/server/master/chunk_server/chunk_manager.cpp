@@ -53,8 +53,6 @@
 #include <yt/yt/server/lib/hydra_common/composite_automaton.h>
 #include <yt/yt/server/lib/hydra_common/entity_map.h>
 
-#include <yt/yt/server/lib/sequoia_client/transaction.h>
-
 #include <yt/yt/server/lib/transaction_supervisor/helpers.h>
 
 #include <yt/yt/server/master/node_tracker_server/config.h>
@@ -103,6 +101,7 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 

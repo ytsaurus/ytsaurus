@@ -3,8 +3,6 @@
 #include "transaction_service_proxy.h"
 #include "write_set.h"
 
-#include <yt/yt/server/lib/sequoia_client/proto/transaction_client.pb.h>
-
 #include <yt/yt/ytlib/api/native/cell_commit_session.h>
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
@@ -15,6 +13,7 @@
 
 #include <yt/yt/ytlib/sequoia_client/table_descriptor.h>
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h>
 
 #include <yt/yt/ytlib/tablet_client/tablet_service_proxy.h>
 

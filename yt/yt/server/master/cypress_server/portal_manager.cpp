@@ -20,6 +20,7 @@
 #include <yt/yt/server/master/object_server/object_manager.h>
 
 #include <yt/yt/server/master/security_server/acl.h>
+#include <yt/yt/server/master/security_server/helpers.h>
 #include <yt/yt/server/master/security_server/security_manager.h>
 
 #include <yt/yt/server/lib/misc/interned_attributes.h>
@@ -333,24 +334,6 @@ private:
         TMasterAutomatonPart::OnBeforeSnapshotLoaded();
     }
 
-    TAccessControlList DeserializeAcl(const TYsonString& serializedAcl)
-    {
-        TAccessControlList acl;
-        std::vector<TString> missingSubjects;
-        Deserialize(
-            acl,
-            ConvertToNode(serializedAcl),
-            Bootstrap_->GetSecurityManager(),
-            &missingSubjects);
-
-        if (!missingSubjects.empty()) {
-            YT_LOG_ALERT("Some subjects mentioned in ACL are missing (MissingSubjects: %v)",
-                missingSubjects);
-        }
-
-        return acl;
-    }
-
     TSubject* DeserializeOwner(const TString& ownerName)
     {
         const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -423,8 +406,13 @@ private:
                 auto attributesDict = FromProto(portalExitInfo.effective_inheritable_attributes());
                 inheritableAttributes->MergeFrom(*attributesDict);
 
-                auto effectiveAcl = DeserializeAcl(TYsonString(portalExitInfo.effective_acl()));
-                auto directAcl = DeserializeAcl(TYsonString(portalExitInfo.direct_acl()));
+                const auto& securityManager = Bootstrap_->GetSecurityManager();
+                auto effectiveAcl = DeserializeAcl(
+                    TYsonString(portalExitInfo.effective_acl()),
+                    securityManager);
+                auto directAcl = DeserializeAcl(
+                    TYsonString(portalExitInfo.direct_acl()),
+                    securityManager);
                 auto* owner = DeserializeOwner(portalExitInfo.owner());
 
                 struct TAnnotationInfo {
@@ -495,9 +483,13 @@ private:
         const auto& securityManager = Bootstrap_->GetSecurityManager();
         auto* account = securityManager->GetAccountOrThrow(accountId);
 
-        auto effectiveAcl = DeserializeAcl(TYsonString(request->effective_acl()));
+        auto effectiveAcl = DeserializeAcl(
+            TYsonString(request->effective_acl()),
+            securityManager);
         auto directAcl = request->has_direct_acl()
-            ? std::optional(DeserializeAcl(TYsonString(request->direct_acl())))
+            ? std::optional(DeserializeAcl(
+                TYsonString(request->direct_acl()),
+                securityManager))
             : std::nullopt;
 
         auto explicitAttributes = FromProto(request->explicit_node_attributes());

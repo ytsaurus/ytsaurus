@@ -23,6 +23,7 @@
 
 #include <yt/yt/server/master/cypress_server/cypress_integration.h>
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
+#include <yt/yt/server/master/cypress_server/grafting_manager.h>
 #include <yt/yt/server/master/cypress_server/portal_manager.h>
 
 #include <yt/yt/server/master/file_server/file_node_type_handler.h>
@@ -410,6 +411,11 @@ const ICypressManagerPtr& TBootstrap::GetCypressManager() const
 const IPortalManagerPtr& TBootstrap::GetPortalManager() const
 {
     return PortalManager_;
+}
+
+const IGraftingManagerPtr& TBootstrap::GetGraftingManager() const
+{
+    return GraftingManager_;
 }
 
 const IHydraFacadePtr& TBootstrap::GetHydraFacade() const
@@ -831,6 +837,8 @@ void TBootstrap::DoInitialize()
 
     PortalManager_ =  CreatePortalManager(this);
 
+    GraftingManager_ = CreateGraftingManager(this);
+
     ChunkManager_ = CreateChunkManager(this);
 
     JournalManager_ = CreateJournalManager(this);
@@ -916,6 +924,7 @@ void TBootstrap::DoInitialize()
     SchedulerPoolManager_->Initialize();
     ZookeeperBootstrap_->Initialize();
     ZookeeperManager_->Initialize();
+    GraftingManager_->Initialize();
 
     // NB: Keep Config Manager initialization last and prevent
     // new automaton parts registration after its initialization.

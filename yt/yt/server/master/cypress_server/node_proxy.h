@@ -45,6 +45,7 @@ struct ICypressNodeFactory
 
     virtual ICypressNodeProxyPtr CreateNode(
         NObjectClient::EObjectType type,
+        TNodeId hintId,
         NYTree::IAttributeDictionary* inheritedAttributes,
         NYTree::IAttributeDictionary* explicitAttributes) = 0;
     virtual TCypressNode* InstantiateNode(

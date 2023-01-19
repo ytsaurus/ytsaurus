@@ -603,6 +603,20 @@ class YTEnvSetup(object):
                 })
             yt_commands.sync_mount_table("//sys/sequoia/chunk_meta_extensions")
 
+            yt_commands.create(
+                "table",
+                "//sys/sequoia/resolve_node",
+                attributes={
+                    "dynamic": True,
+                    "schema": [
+                        {"name": "path", "type": "string", "sort_order": "ascending"},
+                        {"name": "node_id", "type": "string"},
+                    ],
+                    "tablet_cell_bundle": "sequoia",
+                    "account": "sequoia",
+                })
+            yt_commands.sync_mount_table("//sys/sequoia/resolve_node")
+
         if cls.USE_DYNAMIC_TABLES:
             for cluster_index in range(cls.NUM_REMOTE_CLUSTERS + 1):
                 driver = yt_commands.get_driver(cluster=cls.get_cluster_name(cluster_index))

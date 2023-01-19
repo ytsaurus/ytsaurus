@@ -102,6 +102,7 @@ def get_dynamic_master_config():
         expiration_check_period = 200;
         expiration_backoff_time = 200;
         enable_symlink_cyclicity_check = %true;
+        scion_removal_period = 1000;
     };
 
     multicell_manager = {

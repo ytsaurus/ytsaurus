@@ -728,6 +728,16 @@ private:
                 EObjectType::CypressShardMap);
 
             ScheduleCreateNode(
+                "//sys/rootstocks",
+                transactionId,
+                EObjectType::RootstockMap);
+
+            ScheduleCreateNode(
+                "//sys/scions",
+                transactionId,
+                EObjectType::ScionMap);
+
+            ScheduleCreateNode(
                 "//sys/estimated_creation_time",
                 transactionId,
                 EObjectType::EstimatedCreationTimeMap);

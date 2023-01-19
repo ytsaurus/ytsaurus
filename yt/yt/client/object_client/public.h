@@ -203,13 +203,21 @@ DEFINE_ENUM(EObjectType,
     ((AccessControlObjectNamespace)        (432))
     ((AccessControlObjectNamespaceMap)     (433))
 
+    // Cypress shards
+    ((CypressShard)                      (11004))
+    ((CypressShardMap)                   (11005))
+
     // Portals
     ((PortalEntrance)                    (11000))
     ((PortalExit)                        (11001))
     ((PortalEntranceMap)                 (11002))
     ((PortalExitMap)                     (11003))
-    ((CypressShard)                      (11004))
-    ((CypressShardMap)                   (11005))
+
+    // Grafting
+    ((Rootstock)                         (12000))
+    ((Scion)                             (12001))
+    ((RootstockMap)                      (12002))
+    ((ScionMap)                          (12003))
 
     // Security Manager stuff
     ((Account)                             (500))

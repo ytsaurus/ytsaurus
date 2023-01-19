@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/lib/sequoia_client/proto/transaction_client.pb.h>
+#include <yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h>
 
 namespace NYT::NSequoiaServer {
 
