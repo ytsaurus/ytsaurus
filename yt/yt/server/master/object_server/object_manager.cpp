@@ -38,8 +38,6 @@
 
 #include <yt/yt/server/master/sequoia_server/config.h>
 
-#include <yt/yt/server/lib/sequoia_client/transaction.h>
-
 #include <yt/yt/server/lib/election/election_manager.h>
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
@@ -59,6 +57,7 @@
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
 
 #include <yt/yt/ytlib/election/cell_manager.h>
 

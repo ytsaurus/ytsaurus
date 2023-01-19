@@ -39,6 +39,7 @@ DECLARE_REFCOUNTED_STRUCT(ICypressNodeVisitor)
 
 DECLARE_REFCOUNTED_STRUCT(ICypressManager)
 DECLARE_REFCOUNTED_STRUCT(IPortalManager)
+DECLARE_REFCOUNTED_STRUCT(IGraftingManager)
 
 DECLARE_REFCOUNTED_STRUCT(TResolveCacheNode)
 DECLARE_REFCOUNTED_CLASS(TResolveCache)
@@ -79,6 +80,8 @@ class TDocumentNode;
 class TPortalEntranceNode;
 class TPortalExitNode;
 class TCompositeNodeBase;
+class TRootstockNode;
+class TScionNode;
 
 template <class T>
 class TScalarNodeTypeHandler;

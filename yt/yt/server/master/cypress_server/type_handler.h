@@ -100,6 +100,11 @@ struct INodeTypeHandler
      */
     virtual void Destroy(TCypressNode* node) = 0;
 
+    //! Removes relevant rows during sequoia object destruction.
+    virtual void DestroySequoiaObject(
+        TCypressNode* node,
+        const NSequoiaClient::ISequoiaTransactionPtr& transaction) = 0;
+
     //! See IObjectTypeHandler::RecreateObjectAsGhost.
     virtual void RecreateAsGhost(TCypressNode* node) = 0;
 

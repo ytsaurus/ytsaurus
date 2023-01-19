@@ -134,7 +134,6 @@ private:
                     THROW_ERROR_EXCEPTION("Portal entrances cannot be made non-opaque");
                 }
                 return true;
-
             }
 
             default:

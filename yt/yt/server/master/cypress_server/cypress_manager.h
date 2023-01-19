@@ -124,6 +124,9 @@ public:
     //! Returns the root node.
     virtual TMapNode* GetRootNode() const = 0;
 
+    //! Returns the root shard.
+    virtual TCypressShard* GetRootCypressShard() const = 0;
+
     //! Finds node by id, throws if nothing is found.
     virtual TCypressNode* GetNodeOrThrow(TVersionedNodeId id) = 0;
 

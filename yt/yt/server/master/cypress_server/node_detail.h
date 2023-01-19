@@ -171,6 +171,14 @@ public:
         DoDestroy(typedNode);
     }
 
+    void DestroySequoiaObject(
+        TCypressNode* node,
+        const NSequoiaClient::ISequoiaTransactionPtr& transaction) noexcept override
+    {
+        auto* typedNode = node->As<TImpl>();
+        DoDestroySequoiaObject(typedNode, transaction);
+    }
+
     void RecreateAsGhost(TCypressNode* node) override
     {
         auto* typedNode = node->As<TImpl>();
@@ -339,6 +347,11 @@ protected:
     }
 
     virtual void DoDestroy(TImpl* /*node*/)
+    { }
+
+    virtual void DoDestroySequoiaObject(
+        TImpl* /*node*/,
+        const NSequoiaClient::ISequoiaTransactionPtr& /*transaction*/) noexcept
     { }
 
     virtual void DoBeginCopy(

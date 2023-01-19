@@ -1,6 +1,7 @@
 #include "table_descriptor.h"
 
 #include <yt/yt/ytlib/sequoia_client/chunk_meta_extensions.record.h>
+#include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
 
 #include <yt/yt/library/query/engine/column_evaluator.h>
 
@@ -50,6 +51,7 @@ const ITableDescriptor* ITableDescriptor::Get(ESequoiaTable table)
 
     switch (table) {
         XX(ChunkMetaExtensions, "chunk_meta_extensions")
+        XX(ResolveNode, "resolve_node")
         default:
             YT_ABORT();
     }

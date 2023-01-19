@@ -2,7 +2,7 @@
 
 #include <yt/yt/server/master/cell_master/public.h>
 
-#include <yt/yt/server/lib/sequoia_client/write_set.h>
+#include <yt/yt/ytlib/sequoia_client/write_set.h>
 
 namespace NYT::NSequoiaServer {
 

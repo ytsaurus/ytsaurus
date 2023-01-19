@@ -106,6 +106,7 @@ DEFINE_ENUM(EMasterReign,
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko
     ((RipForbidSetCommand)                                          (2302))  // babenko
+    ((RootstocksAndScions)                                          (2303))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

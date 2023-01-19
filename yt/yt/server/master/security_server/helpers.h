@@ -33,6 +33,11 @@ void LogAcdUpdate(const TString& attribute, const NYPath::TYPath& path, const NY
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Deserializes ACL from string. Alerts if some mentioned subjects are missing.
+TAccessControlList DeserializeAcl(const NYson::TYsonString& serializedAcl, const ISecurityManagerPtr& securityManager);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NSecurityServer
 
 #define HELPERS_INL_H_

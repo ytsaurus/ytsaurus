@@ -81,6 +81,8 @@ public:
     // COMPAT(shakurov)
     bool AllowCrossShardDynamicTableCopying;
 
+    TDuration ScionRemovalPeriod;
+
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);

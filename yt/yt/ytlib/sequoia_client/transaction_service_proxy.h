@@ -1,6 +1,6 @@
 #pragma once
 
-#include <yt/yt/server/lib/sequoia_client/proto/transaction_client.pb.h>
+#include <yt/yt/ytlib/sequoia_client/proto/transaction_client.pb.h>
 
 #include <yt/yt/core/rpc/client.h>
 

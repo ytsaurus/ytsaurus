@@ -6,7 +6,7 @@
 #include <yt/yt/server/master/cell_master/bootstrap.h>
 #include <yt/yt/server/master/cell_master/master_hydra_service.h>
 
-#include <yt/yt/server/lib/sequoia_client/transaction_service_proxy.h>
+#include <yt/yt/ytlib/sequoia_client/transaction_service_proxy.h>
 
 namespace NYT::NSequoiaServer {
 

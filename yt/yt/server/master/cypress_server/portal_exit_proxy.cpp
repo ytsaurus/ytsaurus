@@ -64,7 +64,7 @@ private:
                 BuildYsonFluently(consumer)
                     .Value(node->DirectAcd().Acl());
                 return true;
-            
+
             case EInternedAttributeKey::AnnotationPath:
                 BuildYsonFluently(consumer)
                     .Value(node->EffectiveAnnotationPath());

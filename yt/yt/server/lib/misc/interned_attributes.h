@@ -405,6 +405,7 @@
     XX(Revision, revision) \
     XX(RootNodeId, root_node_id) \
     XX(RootPath, root_path) \
+    XX(RootstockId, rootstock_id) \
     XX(RowCount, row_count) \
     XX(ScanFlags, scan_flags) \
     XX(SchedulingTag, scheduling_tag) \
@@ -413,6 +414,7 @@
     XX(SchemaDuplicateCount, schema_duplicate_count) \
     XX(SchemaId, schema_id) \
     XX(SchemaMode, schema_mode) \
+    XX(ScionId, scion_id) \
     XX(Sealed, sealed) \
     XX(Sequoia, sequoia) \
     XX(SharedToSkynet, shared_to_skynet) \

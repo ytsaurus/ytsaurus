@@ -45,6 +45,7 @@ message TReqCreate
     optional bool lock_existing = 5 [default = false];
     optional bool force = 6 [default = false];
     optional bool ignore_type_mismatch = 7 [default = false];
+    optional NYT.NProto.TGuid hint_id = 8;
 }
 
 message TRspCreate
@@ -158,6 +159,14 @@ message TRspEnumerate
 
     required bool incomplete = 1;
     repeated TItem items = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateRootstock
+{
+    required TReqCreate request = 1;
+    required string path = 2;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

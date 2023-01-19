@@ -1,0 +1,21 @@
+namespace: NYT::NSequoiaClient::NRecords
+
+h_verbatim: |
+    #include <yt/yt/ytlib/sequoia_client/public.h>
+
+types:
+  - type_name: TResolveNode
+    fields:
+      - cpp_name: Path
+        cpp_type: TString
+        column_name: path
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: NodeId
+        cpp_type: TString
+        column_name: node_id
+        column_type: String
+
+    verbatim: |
+        static constexpr auto Table = ESequoiaTable::ResolveNode;
