@@ -295,7 +295,7 @@ void TCompositeAutomaton::RegisterMethod(
     const TString& type,
     TCallback<void(TMutationContext*)> callback)
 {
-    auto profiler = Profiler_.WithTag("type", type);
+    auto profiler = Profiler_.WithTag("type", type).WithSparse();
     TCompositeAutomaton::TMethodDescriptor descriptor{
         callback,
         profiler.TimeCounter("/cumulative_mutation_time"),
