@@ -247,7 +247,7 @@ public:
     TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        EPeerKind peerKind) override;
+        NApi::EMasterChannelKind channelKind) override;
 
     void ReplicateObjectCreationToSecondaryMaster(
         TObject* object,
@@ -491,15 +491,13 @@ public:
 
         auto forwardedMessage = SetRequestHeader(requestMessage, forwardedRequestHeader);
 
-        auto peerKind = isMutating ? EPeerKind::Leader : EPeerKind::Follower;
+        auto channelKind = isMutating ? NApi::EMasterChannelKind::Leader : NApi::EMasterChannelKind::Follower;
 
-        const auto& connection = Bootstrap_->GetClusterConnection();
-        auto forwardedCellId = connection->GetMasterCellId(ForwardedCellTag_);
-
-        const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-        auto channel = cellDirectory->GetChannelByCellIdOrThrow(forwardedCellId, peerKind);
-
-        TObjectServiceProxy proxy(std::move(channel));
+        TObjectServiceProxy proxy(
+            Bootstrap_->GetClusterConnection(),
+            channelKind,
+            ForwardedCellTag_,
+            /*stickyGroupSizeCache*/ nullptr);
         auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
         batchReq->SetOriginalRequestId(context->GetRequestId());
         batchReq->SetTimeout(ComputeForwardingTimeout(context, Bootstrap_->GetConfig()->ObjectService));
@@ -513,7 +511,7 @@ public:
         counters->AutomatonForwardingRequestCounter.Increment();
 
         YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
-            "TargetPath: %v, %v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+            "TargetPath: %v, %v%v%v, Mutating: %v, CellTag: %v, ChannelKind: %v)",
             context->GetRequestId(),
             forwardedRequestId,
             context->GetService(),
@@ -532,7 +530,7 @@ public:
             context->GetAuthenticationIdentity(),
             isMutating,
             ForwardedCellTag_,
-            peerKind);
+            channelKind);
 
         batchReq->Invoke().Subscribe(
             BIND([
@@ -1628,7 +1626,7 @@ void TObjectManager::ValidatePrerequisites(const NObjectClient::NProto::TPrerequ
 TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     const TSharedRefArray& requestMessage,
     TCellTag cellTag,
-    EPeerKind peerKind)
+    NApi::EMasterChannelKind channelKind)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -1646,17 +1644,15 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
         FromProto<TDuration>(header.timeout()),
         Bootstrap_->GetConfig()->ObjectService);
 
-    const auto& connection = Bootstrap_->GetClusterConnection();
-    auto cellId = connection->GetMasterCellId(cellTag);
-
-    const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-    auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
-
     auto identity = ParseAuthenticationIdentityFromProto(header);
 
     auto forwardedRequestMessage = SetRequestHeader(requestMessage, header);
 
-    TObjectServiceProxy proxy(std::move(channel));
+    auto proxy = TObjectServiceProxy(
+        Bootstrap_->GetClusterConnection(),
+        channelKind,
+        cellTag,
+        /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
     batchReq->SetOriginalRequestId(requestId);
     batchReq->SetTimeout(timeout);
@@ -1664,7 +1660,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
     SetAuthenticationIdentity(batchReq, identity);
 
     YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, Path: %v, %v, Mutating: %v, "
-        "CellTag: %v, PeerKind: %v)",
+        "CellTag: %v, ChannelKind: %v)",
         requestId,
         batchReq->GetRequestId(),
         header.service(),
@@ -1673,7 +1669,7 @@ TFuture<TSharedRefArray> TObjectManager::ForwardObjectRequest(
         identity,
         ypathExt.mutating(),
         cellTag,
-        peerKind);
+        channelKind);
 
     return batchReq->Invoke().Apply(BIND([=] (const TObjectServiceProxy::TErrorOrRspExecuteBatchPtr& batchRspOrError) {
         if (!batchRspOrError.IsOK()) {

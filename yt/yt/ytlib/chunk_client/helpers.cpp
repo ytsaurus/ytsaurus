@@ -152,9 +152,7 @@ void GetUserObjectBasicAttributes(
 
     YT_LOG_DEBUG("Getting basic attributes of user objects");
 
-    auto channel = client->GetMasterChannelOrThrow(options.ReadFrom);
-    TObjectServiceProxy proxy(channel);
-
+    auto proxy = CreateObjectServiceReadProxy(client, options.ReadFrom);
     auto batchReq = proxy.ExecuteBatch();
 
     for (auto* userObject : objects) {
@@ -336,9 +334,10 @@ std::vector<NProto::TChunkSpec> FetchChunkSpecs(
         chunkSpecs.reserve(static_cast<size_t>(chunkCount));
     }
 
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
-    TObjectServiceProxy proxy(channel);
-
+    auto proxy = CreateObjectServiceReadProxy(
+        client,
+        EMasterChannelKind::Follower,
+        userObject.ExternalCellTag);
     auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
     for (int rangeIndex = 0; rangeIndex < static_cast<int>(ranges.size()); ++rangeIndex) {

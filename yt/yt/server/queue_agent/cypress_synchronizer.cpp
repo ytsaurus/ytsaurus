@@ -195,8 +195,9 @@ private:
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         std::vector<TString> clusters;
         for (const auto& [cluster, objects] : ClusterToDynamicStateObjects_) {
-            const auto& channel = GetMasterChannelOrThrow(cluster);
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceReadProxy(
+                GetNativeClientOrThrow(cluster),
+                EMasterChannelKind::Follower);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& object : objects) {
                 batchReq->AddRequest(TYPathProxy::Get(object.Object.Path + "/@attribute_revision"));
@@ -295,8 +296,9 @@ private:
 
         std::vector<TFuture<TYPathProxy::TRspGetPtr>> asyncResults;
         for (const auto& cluster : Clusters_) {
-            const auto& channel = GetMasterChannelOrThrow(cluster);
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceReadProxy(
+                GetNativeClientOrThrow(cluster),
+                EMasterChannelKind::Follower);
             asyncResults.push_back(proxy.Execute(
                 TYPathProxy::Get("//sys/@queue_agent_object_revisions")));
         }
@@ -416,8 +418,9 @@ private:
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         std::vector<TString> clusters;
         for (const auto& [cluster, modifiedObjects] : ClusterToModifiedObjects_) {
-            const auto& channel = GetMasterChannelOrThrow(cluster);
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceReadProxy(
+                GetNativeClientOrThrow(cluster),
+                EMasterChannelKind::Follower);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& object : modifiedObjects) {
                 auto req = TYPathProxy::Get(object.Object.Path + "/@");
@@ -527,13 +530,12 @@ private:
             .ThrowOnError();
     }
 
-    IChannelPtr GetMasterChannelOrThrow(const TString& cluster) const
+    NNative::IClientPtr GetNativeClientOrThrow(const TString& cluster) const
     {
         try {
-            const auto& client = AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
-            return client->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
+            return AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating channel for cluster %v", cluster) << ex;
+            THROW_ERROR_EXCEPTION("Error creating client for cluster %v", cluster) << ex;
         }
     }
 };

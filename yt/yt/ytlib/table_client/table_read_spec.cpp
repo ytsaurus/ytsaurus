@@ -55,11 +55,10 @@ TTableReadSpec FetchRegularTableReadSpec(
     {
         YT_LOG_INFO("Requesting extended table attributes");
 
-        auto channel = options.Client->GetMasterChannelOrThrow(
+        auto proxy = CreateObjectServiceReadProxy(
+            options.Client,
             EMasterChannelKind::Follower,
             userObject->ExternalCellTag);
-
-        TObjectServiceProxy proxy(channel);
 
         // NB: objectId is null for virtual tables.
         auto req = TYPathProxy::Get(userObject->GetObjectIdPathIfAvailable() + "/@");

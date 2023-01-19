@@ -213,11 +213,12 @@ private:
 
             auto options = GetMasterReadOptions();
 
-            auto channel = CreateAuthenticatedChannel(
-                connection->GetMasterChannelOrThrow(options.ReadFrom),
+            auto primaryProxy = TObjectServiceProxy(
+                connection,
+                options.ReadFrom,
+                PrimaryMasterCellTagSentinel,
+                connection->GetStickyGroupSizeCache(),
                 NRpc::TAuthenticationIdentity(NSecurityClient::TableMountInformerUserName));
-
-            auto primaryProxy = TObjectServiceProxy(channel, connection->GetStickyGroupSizeCache());
             auto batchReq = primaryProxy.ExecuteBatch();
             SetBalancingHeader(batchReq, connection->GetConfig(), options);
 
@@ -279,11 +280,12 @@ private:
 
             auto options = GetMasterReadOptions();
 
-            auto channel = CreateAuthenticatedChannel(
-                connection->GetMasterChannelOrThrow(options.ReadFrom, CellTag_),
+            auto secondaryProxy = TObjectServiceProxy(
+                connection,
+                options.ReadFrom,
+                CellTag_,
+                connection->GetStickyGroupSizeCache(),
                 NRpc::TAuthenticationIdentity(NSecurityClient::TableMountInformerUserName));
-
-            auto secondaryProxy = TObjectServiceProxy(channel, connection->GetStickyGroupSizeCache());
             auto batchReq = secondaryProxy.ExecuteBatch();
             SetBalancingHeader(batchReq, connection->GetConfig(), options);
 

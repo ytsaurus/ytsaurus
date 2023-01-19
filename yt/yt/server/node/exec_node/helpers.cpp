@@ -129,9 +129,10 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
     const auto& client = bootstrap->GetClient();
     const auto& connection = client->GetNativeConnection();
 
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Cache, userObject.ExternalCellTag);
-    TObjectServiceProxy proxy(channel);
-
+    auto proxy = CreateObjectServiceReadProxy(
+        client,
+        EMasterChannelKind::Cache,
+        userObject.ExternalCellTag);
     auto batchReq = proxy.ExecuteBatchWithRetries(client->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
     auto req = TFileYPathProxy::Fetch(objectIdPath);
     ToProto(req->mutable_ranges(), std::vector<TLegacyReadRange>{{}});

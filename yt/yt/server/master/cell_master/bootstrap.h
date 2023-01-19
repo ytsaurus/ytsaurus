@@ -107,6 +107,7 @@ public:
     const NRpc::IServerPtr& GetRpcServer() const;
     const NRpc::IChannelPtr& GetLocalRpcChannel() const;
     const NApi::NNative::IConnectionPtr& GetClusterConnection() const;
+    const NApi::NNative::IClientPtr& GetRootClient() const;
     const NElection::TCellManagerPtr& GetCellManager() const;
     const NHydra::IChangelogStoreFactoryPtr& GetChangelogStoreFactory() const;
     const NHydra::ISnapshotStorePtr& GetSnapshotStore() const;
@@ -181,6 +182,7 @@ protected:
     NRpc::IServerPtr RpcServer_;
     NRpc::IChannelPtr LocalRpcChannel_;
     NApi::NNative::IConnectionPtr ClusterConnection_;
+    NApi::NNative::IClientPtr RootClient_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NHttp::IServerPtr HttpServer_;
     NElection::TCellManagerPtr CellManager_;

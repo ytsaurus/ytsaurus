@@ -2175,8 +2175,10 @@ private:
         {
             YT_LOG_DEBUG("Requesting extended table attributes");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                externalCellTag);
 
             static const auto AttributeKeys = [] {
                 return ConcatVectors(
@@ -2255,9 +2257,7 @@ private:
         {
             YT_LOG_DEBUG("Starting table upload");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceWriteProxy(Client_, nativeCellTag);
             auto batchReq = proxy.ExecuteBatch();
 
             {
@@ -2299,11 +2299,14 @@ private:
         {
             YT_LOG_DEBUG("Requesting table upload parameters");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                externalCellTag);
 
             auto req =  TTableYPathProxy::GetUploadParams(objectIdPath);
-            req->set_fetch_last_key(TableUploadOptions_.UpdateMode == EUpdateMode::Append &&
+            req->set_fetch_last_key(
+                TableUploadOptions_.UpdateMode == EUpdateMode::Append &&
                 TableUploadOptions_.TableSchema->IsSorted());
             SetTransactionId(req, UploadTransaction_);
 
@@ -2369,9 +2372,9 @@ private:
 
         StopListenTransaction(UploadTransaction_);
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
-        TObjectServiceProxy proxy(channel);
-
+        auto proxy = CreateObjectServiceWriteProxy(
+            Client_,
+            nativeCellTag);
         auto batchReq = proxy.ExecuteBatch();
 
         {

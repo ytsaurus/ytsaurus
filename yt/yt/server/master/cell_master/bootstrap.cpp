@@ -342,6 +342,11 @@ const NNative::IConnectionPtr& TBootstrap::GetClusterConnection() const
     return ClusterConnection_;
 }
 
+const NNative::IClientPtr& TBootstrap::GetRootClient() const
+{
+    return RootClient_;
+}
+
 const TCellManagerPtr& TBootstrap::GetCellManager() const
 {
     return CellManager_;
@@ -707,6 +712,8 @@ void TBootstrap::DoInitialize()
     }
 
     ClusterConnection_ = NNative::CreateConnection(Config_->ClusterConnection);
+
+    RootClient_ = ClusterConnection_->CreateNativeClient(NApi::TClientOptions::FromUser(NSecurityClient::RootUserName));
 
     NativeAuthenticator_ = NNative::CreateNativeAuthenticator(ClusterConnection_);
 

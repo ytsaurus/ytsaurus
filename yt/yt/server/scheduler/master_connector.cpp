@@ -395,10 +395,7 @@ public:
         GenerateMutationId(req);
         batchReq->AddRequest(req);
 
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
-
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto rspOrError = WaitFor(proxy.Execute(req));
         if (!rspOrError.IsOK()) {
             YT_LOG_ERROR(rspOrError, "Error storing persistent strategy state");
@@ -749,11 +746,9 @@ private:
 
         void EnsureNoSafeMode()
         {
-            TObjectServiceProxy proxy(Owner_
-                ->Bootstrap_
-                ->GetClient()
-                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-
+            auto proxy = CreateObjectServiceReadProxy(
+                Owner_->Bootstrap_->GetClient(),
+                EMasterChannelKind::Follower);
             auto req = TCypressYPathProxy::Get("//sys/@config/enable_safe_mode");
             auto rspOrError = WaitFor(proxy.Execute(req));
             THROW_ERROR_EXCEPTION_IF_FAILED(rspOrError, "Error requesting \"enable_safe_mode\" from master");
@@ -767,10 +762,7 @@ private:
         // - Register scheduler instance.
         void RegisterInstance()
         {
-            TObjectServiceProxy proxy(Owner_
-                ->Bootstrap_
-                ->GetClient()
-                ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+            auto proxy = CreateObjectServiceWriteProxy(Owner_->Bootstrap_->GetClient());
             auto batchReq = proxy.ExecuteBatch();
             auto path = "//sys/scheduler/instances/" + ToYPathLiteral(GetDefaultAddress(ServiceAddresses_));
             {
@@ -1620,9 +1612,11 @@ private:
         TCellTag cellTag = PrimaryMasterCellTagSentinel,
         int subbatchSize = 100)
     {
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(channelKind, cellTag));
+        TObjectServiceProxy proxy(
+            Bootstrap_->GetClient(),
+            channelKind,
+            cellTag,
+            /*stickyGroupSizeCache*/ nullptr);
         auto batchReq = proxy.ExecuteBatch(subbatchSize);
         YT_VERIFY(LockTransaction_);
         auto* prerequisitesExt = batchReq->Header().MutableExtension(TPrerequisitesExt::prerequisites_ext);
@@ -2024,9 +2018,7 @@ private:
             }
         }
 
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto req = TYPathProxy::Set("//sys/scheduler/@alerts");
         req->set_value(ConvertToYsonStringNestingLimited(alerts).ToString());
 
@@ -2048,9 +2040,7 @@ private:
         VERIFY_THREAD_AFFINITY(ControlThread);
 
         YT_VERIFY(LockTransaction_);
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto req = TYPathProxy::Set(FromObjectId(LockTransaction_->GetId()) + "/@timeout");
         req->set_value(ConvertToYsonStringNestingLimited(timeout.MilliSeconds()).ToString());
         auto rspOrError = WaitFor(proxy.Execute(req));

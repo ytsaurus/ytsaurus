@@ -37,7 +37,7 @@ NYPath::TYPath GetControllerAgentOrchidOperationPath(
     TOperationId operationId);
 std::optional<TString> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
-    const NRpc::IChannelPtr& channel);
+    const NApi::NNative::IClientPtr& client);
 
 NYPath::TYPath GetJobPath(
     TOperationId operationId,

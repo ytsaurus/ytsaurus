@@ -444,7 +444,7 @@ void TClusterBackupSession::CloneTables(ENodeCloneMode nodeCloneMode)
     }
 
     // TODO(ifsmirnov): this doesn't work for tables beyond the portals.
-    auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = Client_->CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
 
     for (const auto& table : Tables_) {
@@ -612,7 +612,7 @@ void TClusterBackupSession::UpdateUpstreamReplicaIds()
 {
     // Alter requests should go to native cell. Backups do not support portals yet,
     // so we use primary instead.
-    auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = Client_->CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
 
     for (const auto& table : Tables_) {
@@ -634,7 +634,7 @@ void TClusterBackupSession::RememberTabletStates()
 {
     // Set-attribute requests should go to native cell. Backups do not support portals yet,
     // so we use primary instead.
-    auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = Client_->CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
 
     for (const auto& table : Tables_) {
@@ -773,8 +773,8 @@ void TClusterBackupSession::ExecuteForAllTables(
         cellTags.push_back(cellTag);
 
         auto proxy = write
-            ? Client_->CreateWriteProxy<TObjectServiceProxy>(cellTag)
-            : Client_->CreateReadProxy<TObjectServiceProxy>(
+            ? Client_->CreateObjectServiceWriteProxy(cellTag)
+            : Client_->CreateObjectServiceReadProxy(
                 masterReadOptions,
                 cellTag);
         auto batchReq = proxy->ExecuteBatch();

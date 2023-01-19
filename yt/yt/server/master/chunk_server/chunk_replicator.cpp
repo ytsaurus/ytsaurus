@@ -2519,11 +2519,9 @@ void TChunkReplicator::OnCheckEnabledPrimary()
 
 void TChunkReplicator::OnCheckEnabledSecondary()
 {
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto primaryCellTag = multicellManager->GetPrimaryCellTag();
-    auto channel = multicellManager->GetMasterChannelOrThrow(primaryCellTag, EPeerKind::Leader);
-
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceReadProxy(
+        Bootstrap_->GetRootClient(),
+        NApi::EMasterChannelKind::Leader);
 
     auto req = TYPathProxy::Get("//sys/@chunk_replicator_enabled");
     auto rsp = WaitFor(proxy.Execute(req))

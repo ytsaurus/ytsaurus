@@ -49,7 +49,10 @@ THashMap<TObjectId, IAttributeDictionaryPtr> FetchAttributesByCellTags(
         auto req = TTableYPathProxy::Get(FromObjectId(objectId) + "/@");
         ToProto(req->mutable_attributes()->mutable_keys(), attributeKeys);
 
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag));
+        auto proxy = CreateObjectServiceReadProxy(
+            client,
+            EMasterChannelKind::Follower,
+            cellTag);
         auto it = batchRequests.emplace(cellTag, TCellTagBatch{proxy.ExecuteBatch(), {}}).first;
         it->second.Request->AddRequest(req, ToString(objectId));
     }

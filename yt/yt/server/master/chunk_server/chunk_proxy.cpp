@@ -964,7 +964,7 @@ private:
 
             for (int peerIndex = 0; peerIndex < cellManager->GetTotalPeerCount(); ++peerIndex) {
                 auto peerChannel = cellManager->GetPeerChannel(peerIndex);
-                TObjectServiceProxy proxy(std::move(peerChannel));
+                auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(peerChannel));
                 auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
                 responseFutures.push_back(proxy.Execute(req));
             }
@@ -974,7 +974,7 @@ private:
 
         auto requestAttributeFromChunkReplicator = [&] (const TString& attributeSuffix) {
             auto replicatorChannel = chunkManager->GetChunkReplicatorChannelOrThrow(chunk);
-            TObjectServiceProxy proxy(std::move(replicatorChannel));
+            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(replicatorChannel));
             auto req = TYPathProxy::Get(FromObjectId(chunk->GetId()) + attributeSuffix);
             return proxy.Execute(req)
                 .Apply(BIND([] (const TIntrusivePtr<TObjectYPathProxy::TRspGet>& rsp) {

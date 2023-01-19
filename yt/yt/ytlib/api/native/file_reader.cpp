@@ -159,9 +159,10 @@ private:
         {
             YT_LOG_INFO("Requesting extended file attributes");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                userObject.ExternalCellTag);
             auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
             ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
                 "account",
@@ -190,9 +191,10 @@ private:
         if (!emptyRead) {
             YT_LOG_INFO("Fetching file chunks");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                userObject.ExternalCellTag);
             auto batchReq = proxy.ExecuteBatchWithRetries(Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
             auto req = TFileYPathProxy::Fetch(userObject.GetObjectIdPath());

@@ -1291,11 +1291,9 @@ private:
 
         // Fetch lock_count attribute.
         {
-            auto channel = Client_->GetMasterChannelOrThrow(
-                EMasterChannelKind::Follower,
-                PrimaryMasterCellTagSentinel);
-
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower);
             auto batchReq = proxy.ExecuteBatch();
 
             for (auto operationId : operationIds) {
@@ -1344,10 +1342,7 @@ private:
         if (!operationIdsToRemove.empty()) {
             int subbatchSize = Config_->RemoveSubbatchSize;
 
-            auto channel = Client_->GetMasterChannelOrThrow(
-                EMasterChannelKind::Leader,
-                PrimaryMasterCellTagSentinel);
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceWriteProxy(Client_);
 
             std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> responseFutures;
 
@@ -1512,10 +1507,9 @@ private:
 
     TObjectServiceProxy::TReqExecuteBatchPtr CreateBatchRequest()
     {
-        auto channel = Client_->GetMasterChannelOrThrow(
-            EMasterChannelKind::Follower, PrimaryMasterCellTagSentinel);
-
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceReadProxy(
+            Client_,
+            EMasterChannelKind::Follower);
         return proxy.ExecuteBatch();
     }
 

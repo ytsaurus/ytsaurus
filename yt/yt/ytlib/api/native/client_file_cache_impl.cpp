@@ -78,7 +78,7 @@ TGetFileFromCacheResult TClient::DoGetFileFromCache(
 
     auto destination = GetFilePathInCache(md5, options.CachePath);
 
-    auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+    auto proxy = CreateObjectServiceReadProxy(options);
     auto req = TYPathProxy::Get(destination + "/@");
     NCypressClient::SetTransactionId(req, options.TransactionId);
 
@@ -192,7 +192,7 @@ TPutFileToCacheResult TClient::DoAttemptPutFileToCache(
 
     // Check that MD5 hash is equal to the original MD5 hash of the file.
     {
-        auto proxy = CreateReadProxy<TObjectServiceProxy>(options);
+        auto proxy = CreateObjectServiceReadProxy(options);
         auto req = TYPathProxy::Get(objectIdPath + "/@");
 
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{

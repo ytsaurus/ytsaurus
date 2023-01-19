@@ -1453,9 +1453,7 @@ void TChunkMerger::GuardedDisableChunkMerger()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    const auto& multicellManager = Bootstrap_->GetMulticellManager();
-    auto channel = multicellManager->GetMasterChannelOrThrow(multicellManager->GetPrimaryCellTag(), EPeerKind::Leader);
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
     auto batchReq = proxy.ExecuteBatch();
     auto req = TYPathProxy::Set("//sys/@config/chunk_manager/chunk_merger/enable");
     req->set_value("\%false");

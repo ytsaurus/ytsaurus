@@ -136,7 +136,7 @@ public:
         }
 
         auto cellTag = CellTagFromId(replicaId);
-        auto proxy = Client_->CreateWriteProxy<TObjectServiceProxy>(cellTag);
+        auto proxy = Client_->CreateObjectServiceWriteProxy(cellTag);
         WaitFor(proxy->Execute(req))
             .ThrowOnError();
 

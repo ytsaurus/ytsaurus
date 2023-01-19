@@ -29,21 +29,36 @@ class TObjectServiceProxy
     : public NRpc::TProxyBase
 {
 public:
-    DEFINE_RPC_PROXY(TObjectServiceProxy, ObjectService,
-        .SetProtocolVersion(12)
-        .SetAcceptsBaggage(false)
-        .SetFeaturesType<EMasterFeature>());
+    TObjectServiceProxy(
+        NApi::NNative::IClientPtr client,
+        NApi::EMasterChannelKind masterChannelKind,
+        NObjectClient::TCellTag cellTag,
+        NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
 
     TObjectServiceProxy(
-        NRpc::IChannelPtr channel,
+        NApi::NNative::IConnectionPtr connection,
+        NApi::EMasterChannelKind masterChannelKind,
+        NObjectClient::TCellTag cellTag,
         NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
+
+    TObjectServiceProxy(
+        NApi::NNative::IConnectionPtr connection,
+        NApi::EMasterChannelKind masterChannelKind,
+        NObjectClient::TCellTag cellTag,
+        NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
+        NRpc::TAuthenticationIdentity identity);
+
+    //! Used to create proxy directly to master via provided channel.
+    //! Requests passed through obtained proxy bypass Cypress Proxy, so such
+    //! proxy should be used with caution.
+    static TObjectServiceProxy FromDirectMasterChannel(NRpc::IChannelPtr channel);
 
     DEFINE_RPC_PROXY_METHOD(NProto, Execute);
     DEFINE_RPC_PROXY_METHOD(NProto, GCCollect);
 
     //! Executes a single typed request.
     template <class TTypedRequest>
-    TFuture< TIntrusivePtr<typename TTypedRequest::TTypedResponse> >
+    TFuture<TIntrusivePtr<typename TTypedRequest::TTypedResponse>>
     Execute(TIntrusivePtr<TTypedRequest> innerRequest);
 
     class TReqExecuteBatchBase;
@@ -414,6 +429,8 @@ public:
         TAttachmentRange GetResponseAttachmentRange(int index) const;
     };
 
+    explicit TObjectServiceProxy(NRpc::IChannelPtr channel);
+
     //! Executes a batched Cypress request. Retries backed off and uncertain
     //! subrequests. May take an arbitrarily long time.
     TReqExecuteBatchPtr ExecuteBatch(int subbatchSize = DefaultSubbatchSize);
@@ -437,6 +454,8 @@ public:
 
     template <class TBatchReqPtr>
     void PrepareBatchRequest(const TBatchReqPtr& batchReq);
+
+    static const NRpc::TServiceDescriptor& GetDescriptor();
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -457,6 +476,18 @@ TError GetCumulativeError(
 TError GetCumulativeError(
     const TObjectServiceProxy::TRspExecuteBatchPtr& batchRsp,
     const std::optional<TString>& key = {});
+
+////////////////////////////////////////////////////////////////////////////////
+
+TObjectServiceProxy CreateObjectServiceReadProxy(
+    NApi::NNative::IClientPtr client,
+    NApi::EMasterChannelKind readFrom,
+    TCellTag cellTag = PrimaryMasterCellTagSentinel,
+    NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache = nullptr);
+
+TObjectServiceProxy CreateObjectServiceWriteProxy(
+    NApi::NNative::IClientPtr client,
+    TCellTag cellTag = PrimaryMasterCellTagSentinel);
 
 ////////////////////////////////////////////////////////////////////////////////
 

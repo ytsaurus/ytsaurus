@@ -3,6 +3,8 @@
 #include "private.h"
 #include "config.h"
 
+#include <yt/yt/ytlib/api/native/client.h>
+
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/yt/core/misc/checksum.h>
@@ -15,22 +17,58 @@
 namespace NYT::NObjectClient {
 
 using namespace NYTree;
+using namespace NObjectClient;
 using namespace NRpc;
 using namespace NApi::NNative;
 
 ////////////////////////////////////////////////////////////////////////////////
 
 static const auto& Logger = ObjectClientLogger;
+
 static const auto ExecuteMethodDescriptor = TMethodDescriptor("Execute");
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TObjectServiceProxy::TObjectServiceProxy(
-    IChannelPtr channel,
+    IClientPtr client,
+    NApi::EMasterChannelKind masterChannelKind,
+    TCellTag cellTag,
     TStickyGroupSizeCachePtr stickyGroupSizeCache)
-    : TProxyBase(std::move(channel), GetDescriptor())
+    : TProxyBase(
+        client->GetMasterChannelOrThrow(masterChannelKind, cellTag),
+        GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
 { }
+
+TObjectServiceProxy::TObjectServiceProxy(
+    IConnectionPtr connection,
+    NApi::EMasterChannelKind masterChannelKind,
+    TCellTag cellTag,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache)
+    : TProxyBase(
+        connection->GetMasterChannelOrThrow(masterChannelKind, cellTag),
+        GetDescriptor())
+    , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
+{ }
+
+TObjectServiceProxy::TObjectServiceProxy(
+    IConnectionPtr connection,
+    NApi::EMasterChannelKind masterChannelKind,
+    TCellTag cellTag,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache,
+    TAuthenticationIdentity identity)
+    : TProxyBase(
+        CreateAuthenticatedChannel(
+            connection->GetMasterChannelOrThrow(masterChannelKind, cellTag),
+            identity),
+        GetDescriptor())
+    , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
+{ }
+
+TObjectServiceProxy TObjectServiceProxy::FromDirectMasterChannel(IChannelPtr channel)
+{
+    return TObjectServiceProxy(std::move(channel));
+}
 
 TStickyGroupSizeCache::TKey TObjectServiceProxy::TReqExecuteSubbatch::TInnerRequestDescriptor::GetKey() const
 {
@@ -260,6 +298,10 @@ void TObjectServiceProxy::TReqExecuteBatch::SetEnableClientStickiness(bool value
 {
     EnableClientStickiness_ = value;
 }
+
+TObjectServiceProxy::TObjectServiceProxy(IChannelPtr channel)
+    : TProxyBase(std::move(channel), GetDescriptor())
+{ }
 
 TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     const TReqExecuteBatchBase& other,
@@ -943,6 +985,15 @@ void TObjectServiceProxy::PrepareBatchRequest(const TBatchReqPtr& batchReq)
     batchReq->SetAcknowledgementTimeout(DefaultAcknowledgementTimeout_);
 }
 
+const TServiceDescriptor& TObjectServiceProxy::GetDescriptor()
+{
+    static auto serviceDescriptor = TServiceDescriptor("ObjectService")
+        .SetProtocolVersion(12)
+        .SetAcceptsBaggage(false)
+        .SetFeaturesType<EMasterFeature>();
+    return serviceDescriptor;
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TError GetCumulativeError(
@@ -967,6 +1018,32 @@ TError GetCumulativeError(
         }
     }
     return cumulativeError.InnerErrors().empty() ? TError() : cumulativeError;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TObjectServiceProxy CreateObjectServiceReadProxy(
+    IClientPtr client,
+    NApi::EMasterChannelKind readFrom,
+    TCellTag cellTag,
+    TStickyGroupSizeCachePtr stickyGroupSizeCache)
+{
+    return TObjectServiceProxy(
+        std::move(client),
+        readFrom,
+        cellTag,
+        std::move(stickyGroupSizeCache));
+}
+
+TObjectServiceProxy CreateObjectServiceWriteProxy(
+    NApi::NNative::IClientPtr client,
+    TCellTag cellTag)
+{
+    return TObjectServiceProxy(
+        std::move(client),
+        NApi::EMasterChannelKind::Leader,
+        cellTag,
+        /*stickyGroupSizeCache*/ nullptr);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

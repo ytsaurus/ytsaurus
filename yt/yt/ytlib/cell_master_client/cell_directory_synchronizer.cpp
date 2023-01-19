@@ -114,7 +114,7 @@ private:
             // channel to primary cell even before the first sync happens.
 
             auto primaryMasterChannel = Directory_->GetMasterChannelOrThrow(EMasterChannelKind::Cache);
-            TObjectServiceProxy proxy(primaryMasterChannel);
+            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(primaryMasterChannel));
 
             auto batchReq = proxy.ExecuteBatch();
             batchReq->SetSuppressTransactionCoordinatorSync(true);
@@ -187,7 +187,6 @@ private:
         std::swap(nextSyncPromise, NextSyncPromise_);
         std::swap(recentSyncPromise, RecentSyncPromise_);
     }
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

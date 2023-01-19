@@ -1,9 +1,11 @@
 #include "caching_object_service.h"
+
+#include "config.h"
+#include "object_service_cache.h"
+#include "object_service_proxy.h"
 #include "private.h"
 
-#include <yt/yt/ytlib/object_client/config.h>
-#include <yt/yt/ytlib/object_client/object_service_cache.h>
-#include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/api/native/client.h>
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
@@ -46,7 +48,7 @@ public:
     TCachingObjectService(
         TCachingObjectServiceConfigPtr config,
         IInvokerPtr invoker,
-        IChannelPtr masterChannel,
+        IThrottlingChannelPtr cypressChannel,
         TObjectServiceCachePtr cache,
         TRealmId masterCellId,
         NLogging::TLogger logger,
@@ -60,9 +62,7 @@ public:
         , Config_(config)
         , Cache_(std::move(cache))
         , CellId_(masterCellId)
-        , MasterChannel_(CreateThrottlingChannel(
-            config,
-            masterChannel))
+        , CypressChannel_(std::move(cypressChannel))
         , Logger(logger.WithTag("RealmId: %v", masterCellId))
         , CacheTtlRatio_(Config_->CacheTtlRatio)
         , EntryByteRateLimit_(Config_->EntryByteRateLimit)
@@ -76,9 +76,48 @@ public:
         DeclareServerFeature(EMasterFeature::PortalExitSynchronization);
     }
 
+    TCachingObjectService(
+        TCachingObjectServiceConfigPtr config,
+        IInvokerPtr invoker,
+        const NApi::NNative::IConnectionPtr& connection,
+        TObjectServiceCachePtr cache,
+        TRealmId masterCellId,
+        NLogging::TLogger logger,
+        IAuthenticatorPtr authenticator)
+        : TCachingObjectService(
+            config,
+            std::move(invoker),
+            CreateCypressChannel(
+                connection,
+                CellTagFromId(masterCellId),
+                config),
+            std::move(cache),
+            masterCellId,
+            std::move(logger),
+            std::move(authenticator))
+        { }
+
+    TCachingObjectService(
+        TCachingObjectServiceConfigPtr config,
+        IInvokerPtr invoker,
+        IChannelPtr cacheChannel,
+        TObjectServiceCachePtr cache,
+        TRealmId masterCellId,
+        NLogging::TLogger logger,
+        IAuthenticatorPtr authenticator)
+        : TCachingObjectService(
+            config,
+            std::move(invoker),
+            CreateThrottlingChannel(config, std::move(cacheChannel)),
+            std::move(cache),
+            masterCellId,
+            std::move(logger),
+            std::move(authenticator))
+        { }
+
     void Reconfigure(const TCachingObjectServiceDynamicConfigPtr& config) override
     {
-        MasterChannel_->Reconfigure(config);
+        CypressChannel_->Reconfigure(config);
         CacheTtlRatio_.store(config->CacheTtlRatio.value_or(Config_->CacheTtlRatio));
         EntryByteRateLimit_.store(config->EntryByteRateLimit.value_or(Config_->EntryByteRateLimit));
     }
@@ -89,7 +128,7 @@ private:
     const TCachingObjectServiceConfigPtr Config_;
     const TObjectServiceCachePtr Cache_;
     const TCellId CellId_;
-    const IThrottlingChannelPtr MasterChannel_;
+    const IThrottlingChannelPtr CypressChannel_;
     const NLogging::TLogger Logger;
 
     std::atomic<double> CacheTtlRatio_;
@@ -98,6 +137,18 @@ private:
     TPerUserRequestQueues ExecuteRequestQueue_;
 
     std::atomic<bool> CachingEnabled_ = false;
+
+    static IThrottlingChannelPtr CreateCypressChannel(
+        const NApi::NNative::IConnectionPtr& connection,
+        TCellTag cellTag,
+        const TCachingObjectServiceConfigPtr& config)
+    {
+        // TODO(gritukan): Support Cypress Proxies here.
+        auto channel = connection->GetMasterChannelOrThrow(
+            NApi::EMasterChannelKind::Follower,
+            cellTag);
+        return CreateThrottlingChannel(config, std::move(channel));
+    }
 };
 
 DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
@@ -197,7 +248,7 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         }
 
         if (cookie.IsActive()) {
-            TObjectServiceProxy proxy(MasterChannel_);
+            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(CypressChannel_);
             auto req = proxy.Execute();
             SetCurrentAuthenticationIdentity(req);
 
@@ -297,10 +348,12 @@ DEFINE_RPC_SERVICE_METHOD(TCachingObjectService, Execute)
         }));
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 ICachingObjectServicePtr CreateCachingObjectService(
     TCachingObjectServiceConfigPtr config,
     IInvokerPtr invoker,
-    IChannelPtr masterChannel,
+    const NApi::NNative::IConnectionPtr& connection,
     TObjectServiceCachePtr cache,
     TRealmId masterCellId,
     NLogging::TLogger logger,
@@ -309,7 +362,26 @@ ICachingObjectServicePtr CreateCachingObjectService(
     return New<TCachingObjectService>(
         std::move(config),
         std::move(invoker),
-        std::move(masterChannel),
+        connection,
+        std::move(cache),
+        masterCellId,
+        std::move(logger),
+        std::move(authenticator));
+}
+
+ICachingObjectServicePtr CreateCachingObjectService(
+    TCachingObjectServiceConfigPtr config,
+    IInvokerPtr invoker,
+    IChannelPtr cacheChannel,
+    TObjectServiceCachePtr cache,
+    TRealmId masterCellId,
+    NLogging::TLogger logger,
+    IAuthenticatorPtr authenticator)
+{
+    return New<TCachingObjectService>(
+        std::move(config),
+        std::move(invoker),
+        std::move(cacheChannel),
         std::move(cache),
         masterCellId,
         std::move(logger),

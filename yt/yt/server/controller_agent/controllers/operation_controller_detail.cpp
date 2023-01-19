@@ -973,8 +973,7 @@ void TOperationControllerBase::CreateOutputTables(
         tablesToCreate.size(),
         outputTableType);
 
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceWriteProxy(client);
     auto batchReq = proxy.ExecuteBatch();
 
     for (auto* table : tablesToCreate) {
@@ -2032,8 +2031,7 @@ void TOperationControllerBase::StartOutputCompletionTransaction()
     // Set transaction id to Cypress.
     {
         const auto& client = Host->GetClient();
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceWriteProxy(client);
 
         auto path = GetOperationPath(OperationId) + "/@output_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
@@ -2047,9 +2045,7 @@ void TOperationControllerBase::CommitOutputCompletionTransaction()
 {
     // Set committed flag.
     {
-        const auto& client = Host->GetClient();
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceWriteProxy(Host->GetClient());
 
         auto path = GetOperationPath(OperationId) + "/@" + CommittedAttribute;
         auto req = TYPathProxy::Set(path);
@@ -2084,9 +2080,7 @@ void TOperationControllerBase::StartDebugCompletionTransaction()
 
     // Set transaction id to Cypress.
     {
-        const auto& client = Host->GetClient();
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceWriteProxy(Host->GetClient());
 
         auto path = GetOperationPath(OperationId) + "/@debug_completion_transaction_id";
         auto req = TYPathProxy::Set(path);
@@ -2116,9 +2110,7 @@ void TOperationControllerBase::SleepInCommitStage(EDelayInsideOperationCommitSta
     auto skipOnSecondEntrance = Spec_->TestingOperationOptions->NoDelayOnSecondEntranceToCommit;
 
     {
-        const auto& client = Host->GetClient();
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceWriteProxy(Host->GetClient());
 
         auto path = GetOperationPath(OperationId) + "/@testing";
         auto req = TYPathProxy::Get(path);
@@ -2174,9 +2166,8 @@ void TOperationControllerBase::CommitFeatures()
     if (!DebugTransaction) {
         return;
     }
-    const auto& client = Host->GetClient();
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
+
+    auto proxy = CreateObjectServiceWriteProxy(Host->GetClient());
 
     auto path = GetOperationPath(OperationId) + "/@controller_features";
     auto req = TYPathProxy::Set(path);
@@ -2282,10 +2273,7 @@ void TOperationControllerBase::LockOutputDynamicTables()
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
     std::vector<TCellTag> externalCellTags;
     for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
-        auto channel = OutputClient->GetMasterChannelOrThrow(
-            EMasterChannelKind::Leader,
-            externalCellTag);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceWriteProxy(OutputClient, externalCellTag);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : tables) {
@@ -2318,11 +2306,11 @@ void TOperationControllerBase::LockOutputDynamicTables()
         externalCellTags.clear();
         innerErrors.clear();
 
-        for (const auto& [externalCellTag, tables]  : externalCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(
+        for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
+            auto proxy = CreateObjectServiceReadProxy(
+                OutputClient,
                 EMasterChannelKind::Follower,
                 externalCellTag);
-            TObjectServiceProxy proxy(channel);
             auto batchReq = proxy.ExecuteBatch();
 
             for (const auto& table : tables) {
@@ -2740,9 +2728,7 @@ void TOperationControllerBase::EndUploadOutputTables(const std::vector<TOutputTa
     {
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         for (const auto& [nativeCellTag, tables] : nativeCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceWriteProxy(OutputClient, nativeCellTag);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& table : tables) {
                 {
@@ -3421,8 +3407,9 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
     if (Spec_->TestingOperationOptions && Spec_->TestingOperationOptions->CrashControllerAgent) {
         bool canCrashControllerAgent = false;
         {
-            TObjectServiceProxy proxy(Host->GetClient()->GetMasterChannelOrThrow(EMasterChannelKind::Cache, PrimaryMasterCellTagSentinel));
-            auto connectionConfig = Host->GetClient()->GetNativeConnection()->GetConfig();
+            const auto& client = Host->GetClient();
+            auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Cache);
+            auto connectionConfig = client->GetNativeConnection()->GetConfig();
             TMasterReadOptions readOptions{
                 .ReadFrom = EMasterChannelKind::Cache
             };
@@ -5242,9 +5229,7 @@ void TOperationControllerBase::CreateLivePreviewTables()
     auto connection = client->GetNativeConnection();
 
     // NB: use root credentials.
-    auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
-
+    auto proxy = CreateObjectServiceWriteProxy(client);
     auto batchReq = proxy.ExecuteBatch();
 
     auto addRequest = [&] (
@@ -5570,9 +5555,7 @@ void TOperationControllerBase::LockInputTables()
     //! TODO(ignat): Merge in with lock input files method.
     YT_LOG_INFO("Locking input tables");
 
-    auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
-
+    auto proxy = CreateObjectServiceWriteProxy(InputClient);
     auto batchReq = proxy.ExecuteBatchWithRetries(InputClient->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
     for (const auto& table : InputTables_) {
@@ -5628,8 +5611,7 @@ void TOperationControllerBase::FetchTableSchemas(
         std::sort(schemaIds.begin(), schemaIds.end());
         schemaIds.erase(std::unique(schemaIds.begin(), schemaIds.end()), schemaIds.end());
 
-        auto channel = client->GetMasterChannelOrThrow(EMasterChannelKind::Follower, cellTag);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower, cellTag);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& schemaId : schemaIds) {
@@ -5844,9 +5826,7 @@ void TOperationControllerBase::GetInputTablesAttributes()
 
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
     for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
-        auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
-        TObjectServiceProxy proxy(channel);
-
+        auto proxy = CreateObjectServiceReadProxy(InputClient, EMasterChannelKind::Follower, externalCellTag);
         auto batchReq = proxy.ExecuteBatch();
         for (const auto& table : tables) {
             auto req = TTableYPathProxy::Get(table->GetObjectIdPath() + "/@");
@@ -5981,8 +5961,7 @@ void TOperationControllerBase::GetOutputTablesSchema()
     YT_LOG_INFO("Getting output tables schema");
 
     // XXX(babenko): fetch from external cells
-    auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
     static const auto AttributeKeys = [] {
@@ -6111,59 +6090,55 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
     YT_LOG_INFO("Locking output tables");
 
     {
-        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceWriteProxy(OutputClient);
+        auto batchReq = proxy.ExecuteBatch();
+        for (const auto& table : UpdatingTables_) {
+            auto req = TTableYPathProxy::Lock(table->GetObjectIdPath());
+            SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
+            GenerateMutationId(req);
+            req->set_mode(ToProto<int>(table->TableUploadOptions.LockMode));
+            req->Tag() = table;
+            batchReq->AddRequest(req);
+        }
+        auto batchRspOrError = WaitFor(batchReq->Invoke());
+        THROW_ERROR_EXCEPTION_IF_FAILED(
+            GetCumulativeError(batchRspOrError),
+            "Error locking output tables");
 
-        {
-            auto batchReq = proxy.ExecuteBatch();
-            for (const auto& table : UpdatingTables_) {
-                auto req = TTableYPathProxy::Lock(table->GetObjectIdPath());
-                SetTransactionId(req, GetTransactionForOutputTable(table)->GetId());
-                GenerateMutationId(req);
-                req->set_mode(ToProto<int>(table->TableUploadOptions.LockMode));
-                req->Tag() = table;
-                batchReq->AddRequest(req);
-            }
-            auto batchRspOrError = WaitFor(batchReq->Invoke());
-            THROW_ERROR_EXCEPTION_IF_FAILED(
-                GetCumulativeError(batchRspOrError),
-                "Error locking output tables");
+        const auto& batchRsp = batchRspOrError.Value();
+        for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
+            const auto& rsp = rspOrError.Value();
+            const auto& table = std::any_cast<TOutputTablePtr>(rsp->Tag());;
 
-            const auto& batchRsp = batchRspOrError.Value();
-            for (const auto& rspOrError : batchRsp->GetResponses<TCypressYPathProxy::TRspLock>()) {
-                const auto& rsp = rspOrError.Value();
-                const auto& table = std::any_cast<TOutputTablePtr>(rsp->Tag());;
+            auto objectId = FromProto<TObjectId>(rsp->node_id());
+            auto revision = rsp->revision();
 
-                auto objectId = FromProto<TObjectId>(rsp->node_id());
-                auto revision = rsp->revision();
+            table->ExternalTransactionId = rsp->has_external_transaction_id()
+                ? FromProto<TTransactionId>(rsp->external_transaction_id())
+                : GetTransactionForOutputTable(table)->GetId();
 
-                table->ExternalTransactionId = rsp->has_external_transaction_id()
-                    ? FromProto<TTransactionId>(rsp->external_transaction_id())
-                    : GetTransactionForOutputTable(table)->GetId();
+            YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, Schema: %v, ExternalTransactionId: %v, Revision: %x)",
+                table->GetPath(),
+                objectId,
+                *table->TableUploadOptions.TableSchema,
+                table->ExternalTransactionId,
+                revision);
 
-                YT_LOG_INFO("Output table locked (Path: %v, ObjectId: %v, Schema: %v, ExternalTransactionId: %v, Revision: %x)",
-                    table->GetPath(),
-                    objectId,
-                    *table->TableUploadOptions.TableSchema,
-                    table->ExternalTransactionId,
-                    revision);
-
-                if (auto it = PathToInputTables_.find(table->GetPath())) {
-                    for (const auto& inputTable : it->second) {
-                        // NB: remote copy is a special case.
-                        if (CellTagFromId(inputTable->ObjectId) != CellTagFromId(objectId)) {
-                            continue;
-                        }
-                        if (inputTable->ObjectId != objectId || inputTable->Revision != revision) {
-                            THROW_ERROR_EXCEPTION(
-                                NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
-                                "Table %v has changed between taking input and output locks",
-                                inputTable->GetPath())
-                                << TErrorAttribute("input_object_id", inputTable->ObjectId)
-                                << TErrorAttribute("input_revision", inputTable->Revision)
-                                << TErrorAttribute("output_object_id", objectId)
-                                << TErrorAttribute("output_revision", revision);
-                        }
+            if (auto it = PathToInputTables_.find(table->GetPath())) {
+                for (const auto& inputTable : it->second) {
+                    // NB: remote copy is a special case.
+                    if (CellTagFromId(inputTable->ObjectId) != CellTagFromId(objectId)) {
+                        continue;
+                    }
+                    if (inputTable->ObjectId != objectId || inputTable->Revision != revision) {
+                        THROW_ERROR_EXCEPTION(
+                            NScheduler::EErrorCode::OperationFailedWithInconsistentLocking,
+                            "Table %v has changed between taking input and output locks",
+                            inputTable->GetPath())
+                            << TErrorAttribute("input_object_id", inputTable->ObjectId)
+                            << TErrorAttribute("input_revision", inputTable->Revision)
+                            << TErrorAttribute("output_object_id", objectId)
+                            << TErrorAttribute("output_revision", revision);
                     }
                 }
             }
@@ -6173,8 +6148,7 @@ void TOperationControllerBase::LockOutputTablesAndGetAttributes()
     YT_LOG_INFO("Getting output tables attributes");
 
     {
-        auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto& table : UpdatingTables_) {
@@ -6330,9 +6304,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         for (const auto& [nativeCellTag, tables] : nativeCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceWriteProxy(OutputClient, nativeCellTag);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& table : tables) {
                 auto req = TTableYPathProxy::BeginUpload(table->GetObjectIdPath());
@@ -6373,9 +6345,7 @@ void TOperationControllerBase::BeginUploadOutputTables(const std::vector<TOutput
 
         std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> asyncResults;
         for (const auto& [externalCellTag, tables] : externalCellTagToTables) {
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower, externalCellTag);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceReadProxy(OutputClient, EMasterChannelKind::Follower, externalCellTag);
             auto batchReq = proxy.ExecuteBatch();
             for (const auto& table : tables) {
                 auto req = TTableYPathProxy::GetUploadParams(table->GetObjectIdPath());
@@ -6625,8 +6595,7 @@ void TOperationControllerBase::LockUserFiles()
 {
     YT_LOG_INFO("Locking user files");
 
-    auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceWriteProxy(OutputClient);
     auto batchReq = proxy.ExecuteBatch();
 
     for (auto& [userJobSpec, files] : UserJobFiles_) {
@@ -6692,8 +6661,7 @@ void TOperationControllerBase::GetUserFilesAttributes()
     }
 
 
-    auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-    TObjectServiceProxy proxy(channel);
+    auto proxy = CreateObjectServiceWriteProxy(OutputClient);
     auto batchReq = proxy.ExecuteBatch();
 
     for (const auto& files : GetValues(UserJobFiles_)) {
@@ -7089,8 +7057,7 @@ void TOperationControllerBase::InitAccountResourceUsageLeases()
             try {
                 ValidateAccountPermission(account, EPermission::Use);
 
-                auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-                TObjectServiceProxy proxy(channel);
+                auto proxy = CreateObjectServiceWriteProxy(OutputClient);
 
                 auto req = TMasterYPathProxy::CreateObject();
                 SetPrerequisites(req, TPrerequisiteOptions{

@@ -54,12 +54,7 @@ public:
             return CreateCachingObjectService(
                 GetConfig()->CachingObjectService,
                 MasterCacheQueue_->GetInvoker(),
-                CreateDefaultTimeoutChannel(
-                    CreatePeerChannel(
-                        masterConfig,
-                        GetConnection()->GetChannelFactory(),
-                        EPeerKind::Follower),
-                    masterConfig->RpcTimeout),
+                GetConnection(),
                 ObjectServiceCache_,
                 masterConfig->CellId,
                 Logger,

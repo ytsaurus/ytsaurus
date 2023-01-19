@@ -392,12 +392,10 @@ private:
 
     TFuture<std::pair<TCellTag, TAccountResourcesMap>> GetRemoteResourcesMap(TCellTag cellTag)
     {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto channel = multicellManager->GetMasterChannelOrThrow(
-            cellTag,
-            EPeerKind::Follower);
-
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceReadProxy(
+            Bootstrap_->GetRootClient(),
+            NApi::EMasterChannelKind::Follower,
+            cellTag);
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = GetId();
@@ -439,13 +437,10 @@ private:
         TCellTag cellTag,
         const std::function<void(const TIntrusivePtr<TSession>& session, const TYsonString& yson)>& accumulator)
     {
-        const auto& multicellManager = Bootstrap_->GetMulticellManager();
-        auto channel = multicellManager->FindMasterChannel(cellTag, NHydra::EPeerKind::Follower);
-        if (!channel) {
-            return VoidFuture;
-        }
-
-        TObjectServiceProxy proxy(channel);
+        auto proxy = CreateObjectServiceReadProxy(
+            Bootstrap_->GetRootClient(),
+            NApi::EMasterChannelKind::Follower,
+            cellTag);
         auto batchReq = proxy.ExecuteBatch();
 
         auto transactionId = Object_->GetId();

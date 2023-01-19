@@ -233,9 +233,7 @@ public:
             return *Tags_;
         }
 
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
 
         YT_LOG_DEBUG("Fetching \"tags_override\" attribute");
 
@@ -472,9 +470,7 @@ private:
 
     void RegisterInstance()
     {
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto batchReq = proxy.ExecuteBatch();
         auto path = GetInstancePath();
         {
@@ -523,9 +519,11 @@ private:
         EMasterChannelKind channelKind = EMasterChannelKind::Leader,
         TCellTag cellTag = PrimaryMasterCellTagSentinel)
     {
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(channelKind, cellTag));
+        TObjectServiceProxy proxy(
+            Bootstrap_->GetClient(),
+            channelKind,
+            cellTag,
+            /*stickyGroupSizeCache*/ nullptr);
         auto batchReq = proxy.ExecuteBatch();
 
         auto* prerequisitesExt = batchReq->Header().MutableExtension(NObjectClient::NProto::TPrerequisitesExt::prerequisites_ext);
@@ -578,9 +576,7 @@ private:
                 if (!connection) {
                     continue;
                 }
-                auto channel = connection->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-                auto authenticatedChannel = CreateAuthenticatedChannel(channel, NRpc::TAuthenticationIdentity(SchedulerUserName));
-                TObjectServiceProxy proxy(authenticatedChannel);
+                auto proxy = CreateObjectServiceReadProxy(Bootstrap_->GetClient(), EMasterChannelKind::Follower);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }
 
@@ -1152,10 +1148,7 @@ private:
             ->GetNativeConnection()
             ->GetMediumDirectory();
 
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
-
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto batchReq = proxy.ExecuteBatch();
         for (auto [mediumIndex, diskSpace] : diskQuota.DiskSpacePerMedium) {
             auto* mediumDescriptor = mediumDirectory->FindByIndex(mediumIndex);
@@ -1294,10 +1287,9 @@ private:
         YT_LOG_INFO("Updating controller agent configuration");
 
         try {
-            TObjectServiceProxy proxy(Bootstrap_
-                ->GetClient()
-                ->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
-
+            auto proxy = CreateObjectServiceReadProxy(
+                Bootstrap_->GetClient(),
+                EMasterChannelKind::Follower);
             auto req = TYPathProxy::Get("//sys/controller_agents/config");
             auto rspOrError = WaitFor(proxy.Execute(req));
             if (rspOrError.FindMatching(NYTree::EErrorCode::ResolveError)) {
@@ -1363,9 +1355,10 @@ private:
 
             auto cellTag = CellTagFromId(transactionId);
             if (!batchReqs.contains(cellTag)) {
-                TObjectServiceProxy proxy(Bootstrap_->GetClient()->GetMasterChannelOrThrow(
+                auto proxy = CreateObjectServiceReadProxy(
+                    Bootstrap_->GetClient(),
                     EMasterChannelKind::Follower,
-                    cellTag));
+                    cellTag);
                 batchReqs[cellTag] = proxy.ExecuteBatch();
             }
 
@@ -1473,9 +1466,7 @@ private:
             }
         }
 
-        TObjectServiceProxy proxy(Bootstrap_
-            ->GetClient()
-            ->GetMasterChannelOrThrow(EMasterChannelKind::Leader, PrimaryMasterCellTagSentinel));
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetClient());
         auto req = TYPathProxy::Set(GetInstancePath() + "/@alerts");
         req->set_value(ConvertToYsonStringNestingLimited(alerts).ToString());
         req->set_recursive(true);

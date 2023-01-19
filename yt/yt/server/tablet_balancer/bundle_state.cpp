@@ -325,8 +325,7 @@ void TBundleState::DoFetchStatistics()
 
 THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTabletCells() const
 {
-    TObjectServiceProxy proxy(
-        Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower));
+    auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
     static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics"};
 

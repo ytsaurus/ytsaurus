@@ -142,14 +142,13 @@ const TYPath& GetUserToDefaultPoolMapPath()
 
 std::optional<TString> FindControllerAgentAddressFromCypress(
     TOperationId operationId,
-    const IChannelPtr& channel)
+    const NApi::NNative::IClientPtr& client)
 {
     using NYT::ToProto;
 
     static const std::vector<TString> attributes = {"controller_agent_address"};
 
-    TObjectServiceProxy proxy(channel);
-
+    auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
 
     {
@@ -407,7 +406,7 @@ void SaveJobFiles(
     auto transactionId = transaction->GetId();
 
     {
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+        auto proxy = CreateObjectServiceWriteProxy(client);
         auto batchReq = proxy.ExecuteBatch();
 
         const auto nestingLevelLimit = client->GetNativeConnection()->GetConfig()->CypressWriteYsonNestingLevelLimit;
@@ -461,7 +460,7 @@ void SaveJobFiles(
     }
 
     for (const auto& [nativeCellTag, files] : nativeCellTagToFiles) {
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag));
+        auto proxy = CreateObjectServiceWriteProxy(client, nativeCellTag);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto* file : files) {
@@ -491,7 +490,7 @@ void SaveJobFiles(
     }
 
     for (const auto& [externalCellTag, files] : externalCellTagToFiles) {
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, externalCellTag));
+        auto proxy = CreateObjectServiceWriteProxy(client, externalCellTag);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto* file : files) {
@@ -543,7 +542,7 @@ void SaveJobFiles(
     }
 
     for (const auto& [nativeCellTag, files] : nativeCellTagToFiles) {
-        TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(EMasterChannelKind::Leader, nativeCellTag));
+        auto proxy = CreateObjectServiceWriteProxy(client, nativeCellTag);
         auto batchReq = proxy.ExecuteBatch();
 
         for (const auto* file : files) {

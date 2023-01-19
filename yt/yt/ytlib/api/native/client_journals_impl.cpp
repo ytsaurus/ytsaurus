@@ -37,7 +37,7 @@ void TClient::DoTruncateJournal(
     i64 rowCount,
     const TTruncateJournalOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
 
     auto req = TJournalYPathProxy::Truncate(path);
     req->set_path(path);

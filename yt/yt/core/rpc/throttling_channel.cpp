@@ -70,6 +70,8 @@ private:
     const IReconfigurableThroughputThrottlerPtr Throttler_;
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
 IThrottlingChannelPtr CreateThrottlingChannel(
     TThrottlingChannelConfigPtr config,
     IChannelPtr underlyingChannel)

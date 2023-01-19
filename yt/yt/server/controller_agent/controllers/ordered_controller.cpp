@@ -1245,8 +1245,7 @@ private:
 
             const auto& table = InputTables_[0];
 
-            auto channel = InputClient->GetMasterChannelOrThrow(EMasterChannelKind::Follower);
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceReadProxy(InputClient, EMasterChannelKind::Follower);
 
             auto req = TObjectYPathProxy::Get(table->GetObjectIdPath() + "/@");
             SetTransactionId(req, *table->TransactionId);
@@ -1292,8 +1291,7 @@ private:
         if (Spec_->CopyAttributes) {
             const auto& path = Spec_->OutputTablePath.GetPath();
 
-            auto channel = OutputClient->GetMasterChannelOrThrow(EMasterChannelKind::Leader);
-            TObjectServiceProxy proxy(channel);
+            auto proxy = CreateObjectServiceWriteProxy(OutputClient);
 
             auto userAttributeKeys = InputTableAttributes_->Get<std::vector<TString>>("user_attribute_keys");
             auto attributeKeys = Spec_->AttributeKeys.value_or(userAttributeKeys);

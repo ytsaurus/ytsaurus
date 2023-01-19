@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
+#include <yt/yt/client/api/public.h>
+
 #include <yt/yt/library/profiling/sensor.h>
 
 #include <yt/yt/core/test_framework/testing_tag.h>
@@ -213,7 +215,7 @@ struct IObjectManager
     virtual TFuture<TSharedRefArray> ForwardObjectRequest(
         const TSharedRefArray& requestMessage,
         TCellTag cellTag,
-        NHydra::EPeerKind peerKind) = 0;
+        NApi::EMasterChannelKind channelKind) = 0;
 
     //! Posts a creation request to the secondary master.
     virtual void ReplicateObjectCreationToSecondaryMaster(

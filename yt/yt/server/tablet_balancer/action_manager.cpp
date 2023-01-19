@@ -120,7 +120,7 @@ void TActionManager::CreateActions(const TString& bundleName)
         return;
     }
 
-    TObjectServiceProxy proxy(Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader));
+    auto proxy = CreateObjectServiceWriteProxy(Client_);
     auto batchReq = proxy.ExecuteBatch();
     const auto& descriptors = PendingActionDescriptors_[bundleName];
 

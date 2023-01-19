@@ -114,7 +114,11 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
         return MakeFuture<void>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
     }
 
-    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom), connection->GetStickyGroupSizeCache());
+    TObjectServiceProxy proxy(
+        connection,
+        Config_->ReadFrom,
+        PrimaryMasterCellTagSentinel,
+        connection->GetStickyGroupSizeCache());
     auto batchReq = proxy.ExecuteBatch();
     SetBalancingHeader(batchReq, connection->GetConfig(), GetMasterReadOptions());
     batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);
@@ -151,7 +155,11 @@ TFuture<std::vector<TError>> TPermissionCache::DoGetMany(
         return MakeFuture<std::vector<TError>>(TError(NYT::EErrorCode::Canceled, "Connection destroyed"));
     }
 
-    TObjectServiceProxy proxy(connection->GetMasterChannelOrThrow(Config_->ReadFrom));
+    TObjectServiceProxy proxy(
+        connection,
+        Config_->ReadFrom,
+        PrimaryMasterCellTagSentinel,
+        /*stickyGroupSizeCache*/ nullptr);
     auto batchReq = proxy.ExecuteBatch();
     batchReq->SetUser(Config_->RefreshUser);
     for (const auto& key : keys) {
@@ -189,7 +197,7 @@ NApi::TMasterReadOptions TPermissionCache::GetMasterReadOptions()
         .ReadFrom = Config_->ReadFrom,
         .ExpireAfterSuccessfulUpdateTime = Config_->ExpireAfterSuccessfulUpdateTime,
         .ExpireAfterFailedUpdateTime = Config_->ExpireAfterFailedUpdateTime,
-        .CacheStickyGroupSize = 1
+        .CacheStickyGroupSize = 1,
     };
 }
 

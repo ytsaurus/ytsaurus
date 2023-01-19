@@ -28,6 +28,7 @@
 namespace NYT::NHiveServer {
 
 using namespace NConcurrency;
+using namespace NObjectClient;
 using namespace NYTree;
 using namespace NApi;
 using namespace NApi::NNative;
@@ -139,8 +140,11 @@ private:
             const auto& multicellManager = Bootstrap_->GetMulticellManager();
             if (multicellManager->IsSecondaryMaster()) {
                 const auto& connection = Bootstrap_->GetClusterConnection();
-                auto channel = MulticellManager_->FindMasterChannel(CellTag_, NHydra::EPeerKind::Follower);
-                NObjectClient::TObjectServiceProxy proxy(channel, connection->GetStickyGroupSizeCache());
+                auto proxy = CreateObjectServiceReadProxy(
+                    Bootstrap_->GetRootClient(),
+                    EMasterChannelKind::Follower,
+                    CellTag_,
+                    connection->GetStickyGroupSizeCache());
 
                 auto batchReq = proxy.ExecuteBatch();
                 batchReq->SetSuppressTransactionCoordinatorSync(true);

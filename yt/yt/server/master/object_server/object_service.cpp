@@ -1253,24 +1253,22 @@ private:
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
-        using TBatchKey = std::tuple<TCellTag, EPeerKind>;
+        using TBatchKey = std::tuple<TCellTag, NApi::EMasterChannelKind>;
         struct TBatchValue
         {
             TObjectServiceProxy::TReqExecuteBatchBasePtr BatchReq;
             TCompactVector<int, 16> Indexes;
         };
         THashMap<TBatchKey, TBatchValue> batchMap;
-        auto getOrCreateBatch = [&] (TCellTag cellTag, EPeerKind peerKind) {
-            auto key = std::make_tuple(cellTag, peerKind);
+        auto getOrCreateBatch = [&] (TCellTag cellTag, NApi::EMasterChannelKind channelKind) {
+            auto key = std::make_tuple(cellTag, channelKind);
             auto it = batchMap.find(key);
             if (it == batchMap.end()) {
-                const auto& connection = Bootstrap_->GetClusterConnection();
-                auto cellId = connection->GetMasterCellId(cellTag);
-
-                const auto& cellDirectory = Bootstrap_->GetCellDirectory();
-                auto channel = cellDirectory->GetChannelByCellIdOrThrow(cellId, peerKind);
-
-                TObjectServiceProxy proxy(std::move(channel));
+                TObjectServiceProxy proxy(
+                    Bootstrap_->GetClusterConnection(),
+                    channelKind,
+                    cellTag,
+                    /*stickyGroupSizeCache*/ nullptr);
                 auto batchReq = proxy.ExecuteBatchNoBackoffRetries();
                 batchReq->SetOriginalRequestId(RequestId_);
                 batchReq->SetTimeout(ComputeForwardingTimeout(RpcContext_, Owner_->Config_));
@@ -1291,16 +1289,18 @@ private:
 
             const auto& requestHeader = subrequest.RequestHeader;
             const auto& ypathExt = *subrequest.YPathExt;
-            auto peerKind = subrequest.YPathExt->mutating() ? EPeerKind::Leader : EPeerKind::Follower;
+            auto channelKind = subrequest.YPathExt->mutating()
+                ? NApi::EMasterChannelKind::Leader
+                : NApi::EMasterChannelKind::Follower;
 
-            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, peerKind);
+            auto* batch = getOrCreateBatch(subrequest.ForwardedCellTag, channelKind);
             batch->BatchReq->AddRequestMessage(subrequest.RemoteRequestMessage);
             batch->Indexes.push_back(subrequestIndex);
 
             AcquireReplyLock();
 
             YT_LOG_DEBUG("Forwarding object request (RequestId: %v -> %v, Method: %v.%v, "
-                "%v%v%v%v, Mutating: %v, CellTag: %v, PeerKind: %v)",
+                "%v%v%v%v, Mutating: %v, CellTag: %v, ChannelKind: %v)",
                 RequestId_,
                 batch->BatchReq->GetRequestId(),
                 requestHeader.service(),
@@ -1323,7 +1323,7 @@ private:
                 RpcContext_->GetAuthenticationIdentity(),
                 ypathExt.mutating(),
                 subrequest.ForwardedCellTag,
-                peerKind);
+                channelKind);
         }
 
         for (auto& [cellTag, batch] : batchMap) {
@@ -1688,7 +1688,7 @@ private:
         auto asyncSubresponse = objectManager->ForwardObjectRequest(
             subrequest->RequestMessage,
             Bootstrap_->GetMulticellManager()->GetCellTag(),
-            EPeerKind::Leader);
+            NApi::EMasterChannelKind::Leader);
 
         SubscribeToSubresponse(subrequest, std::move(asyncSubresponse));
     }

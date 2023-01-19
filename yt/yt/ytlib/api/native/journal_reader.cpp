@@ -136,9 +136,10 @@ private:
         {
             YT_LOG_DEBUG("Fetching journal chunks");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, userObject.ExternalCellTag);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                userObject.ExternalCellTag);
             auto batchReq = proxy.ExecuteBatchWithRetries(Client_->GetNativeConnection()->GetConfig()->ChunkFetchRetries);
 
             auto req = TJournalYPathProxy::Fetch(userObject.GetObjectIdPath());

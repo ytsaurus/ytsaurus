@@ -27,7 +27,7 @@ void TClient::DoTransferPoolResources(
     NYTree::INodePtr resourceDelta,
     const TTransferPoolResourcesOptions& options)
 {
-    auto proxy = CreateWriteProxy<TObjectServiceProxy>();
+    auto proxy = CreateObjectServiceWriteProxy();
     auto batchReq = proxy->ExecuteBatch();
 
     auto req = TSchedulerPoolYPathProxy::TransferPoolResources(GetPoolTreePath(poolTree));

@@ -718,8 +718,8 @@ private:
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
-    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OperationsArchiveChannelsLock_);
-    std::optional<TEnumIndexedVector<EMasterChannelKind, NRpc::IChannelPtr>> OperationsArchiveChannels_;
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OperationsArchiveClientLock_);
+    IClientPtr OperationsArchiveClient_;
     NNodeTrackerClient::INodeChannelFactoryPtr ChannelFactory_;
     NTransactionClient::TTransactionManagerPtr TransactionManager_;
     TLazyIntrusivePtr<NQueryClient::TFunctionImplCache> FunctionImplCache_;
@@ -737,7 +737,7 @@ private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ReplicaClientsLock_);
     THashMap<TString, TIntrusivePtr<TReplicaClient>> ReplicaClients_;
 
-    const NRpc::IChannelPtr& GetOperationArchiveChannel(EMasterChannelKind kind);
+    const IClientPtr& GetOperationArchiveClient();
 
     template <class T>
     TFuture<T> Execute(
@@ -770,10 +770,12 @@ private:
         const NObjectClient::TObjectServiceProxy::TReqExecuteBatchPtr& request,
         const TMasterReadOptions& options);
 
-    template <class TProxy>
-    std::unique_ptr<TProxy> CreateReadProxy(
+    std::unique_ptr<NObjectClient::TObjectServiceProxy> CreateObjectServiceReadProxy(
         const TMasterReadOptions& options,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
+    std::unique_ptr<NObjectClient::TObjectServiceProxy> CreateObjectServiceWriteProxy(
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);
+
     template <class TProxy>
     std::unique_ptr<TProxy> CreateWriteProxy(
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel);

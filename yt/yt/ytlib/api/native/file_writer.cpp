@@ -175,9 +175,10 @@ private:
         {
             YT_LOG_INFO("Requesting extended file attributes");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, NativeCellTag_);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                NativeCellTag_);
             auto req = TCypressYPathProxy::Get(objectIdPath + "/@");
             AddCellTagToSyncWith(req, ObjectId_);
             SetTransactionId(req, Transaction_);
@@ -216,9 +217,9 @@ private:
         {
             YT_LOG_INFO("Starting file upload");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceWriteProxy(
+                Client_,
+                NativeCellTag_);
             auto batchReq = proxy.ExecuteBatch();
 
             {
@@ -270,9 +271,10 @@ private:
         {
             YT_LOG_INFO("Requesting file upload parameters");
 
-            auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Follower, ExternalCellTag_);
-            TObjectServiceProxy proxy(channel);
-
+            auto proxy = CreateObjectServiceReadProxy(
+                Client_,
+                EMasterChannelKind::Follower,
+                ExternalCellTag_);
             auto req = TFileYPathProxy::GetUploadParams(objectIdPath);
             SetTransactionId(req, UploadTransaction_);
 
@@ -333,9 +335,9 @@ private:
 
         auto objectIdPath = FromObjectId(ObjectId_);
 
-        auto channel = Client_->GetMasterChannelOrThrow(EMasterChannelKind::Leader, NativeCellTag_);
-        TObjectServiceProxy proxy(channel);
-
+        auto proxy = CreateObjectServiceWriteProxy(
+            Client_,
+            NativeCellTag_);
         auto batchReq = proxy.ExecuteBatch();
 
         {

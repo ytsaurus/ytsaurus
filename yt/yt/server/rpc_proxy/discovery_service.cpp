@@ -310,7 +310,11 @@ private:
 
         auto connection = Bootstrap_->GetNativeConnection();
         auto channel = RootClient_->GetMasterChannelOrThrow(options.ReadFrom);
-        TObjectServiceProxy proxy(channel, connection->GetStickyGroupSizeCache());
+        auto proxy = CreateObjectServiceReadProxy(
+            RootClient_,
+            options.ReadFrom,
+            PrimaryMasterCellTagSentinel,
+            connection->GetStickyGroupSizeCache());
 
         auto batchReq = proxy.ExecuteBatch();
         SetBalancingHeader(batchReq, connection->GetConfig(), options);

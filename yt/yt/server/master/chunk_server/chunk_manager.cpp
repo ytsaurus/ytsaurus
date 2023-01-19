@@ -5367,7 +5367,7 @@ private:
         std::vector<TFuture<TIntrusivePtr<TObjectYPathProxy::TRspGet>>> responseFutures;
         responseFutures.reserve(channels.size());
         for (const auto& channel : channels) {
-            TObjectServiceProxy proxy(channel);
+            auto proxy = TObjectServiceProxy::FromDirectMasterChannel(channel);
             auto req = TYPathProxy::Get("//sys/local_lost_vital_chunks/@count");
             responseFutures.push_back(proxy.Execute(req));
         }
