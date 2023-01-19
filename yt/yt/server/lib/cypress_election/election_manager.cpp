@@ -230,7 +230,7 @@ private:
         auto attributes = Options_->TransactionAttributes
             ? Options_->TransactionAttributes->Clone()
             : CreateEphemeralAttributes();
-        auto title = Format("Lock tranaction for %v:%v",
+        auto title = Format("Lock transaction for %v:%v",
             Options_->GroupName,
             Options_->MemberName);
         attributes->Set("title", std::move(title));
@@ -266,7 +266,7 @@ private:
         if (rspOrError.IsOK()) {
             LockId_ = rspOrError.Value().LockId;
         } else {
-            // NB: If transaction has created lock, but response was lost creating a new lock
+            // NB: If transaction has created lock, but response was lost, creating a new lock
             // will end up with a conflict, so it's safer to create a new transaction in case
             // of any errors.
             YT_LOG_DEBUG(rspOrError, "Failed to create lock (TransactionId: %v)",
