@@ -16,11 +16,13 @@
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/core/ytree/fluent.h>
+#include <yt/yt/core/ytree/node.h>
 
 namespace NYT::NTabletBalancer {
 
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NHydra;
 using namespace NObjectClient;
 using namespace NTableClient;
 using namespace NTabletClient;
@@ -76,6 +78,25 @@ TTabletStatistics BuildTabletStatistics(
     statistics.PartitionCount = ConvertTo<int>(mapNode->FindChild("partition_count"));
 
     return statistics;
+}
+
+struct TTabletCellPeer
+{
+    TString Address;
+    EPeerState State = EPeerState::None;
+};
+
+void Deserialize(TTabletCellPeer& value, NYTree::INodePtr node)
+{
+    auto mapNode = node->AsMap();
+
+    if (auto address = mapNode->FindChildValue<TString>("address")) {
+        value.Address = *address;
+    }
+
+    if (auto stateNode = mapNode->FindChildValue<EPeerState>("state")) {
+        value.State = *stateNode;
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -327,7 +348,7 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
 {
     auto proxy = CreateObjectServiceReadProxy(Client_, EMasterChannelKind::Follower);
     auto batchReq = proxy.ExecuteBatch();
-    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics"};
+    static const std::vector<TString> attributeKeys{"tablets", "status", "total_statistics", "peers"};
 
     for (auto cellId : CellIds_) {
         auto req = TTableYPathProxy::Get(FromObjectId(cellId) + "/@");
@@ -347,7 +368,25 @@ THashMap<TTabletCellId, TBundleState::TTabletCellInfo> TBundleState::FetchTablet
         auto tablets = attributes->Get<IMapNodePtr>("tablets");
         auto status = attributes->Get<TTabletCellStatus>("status");
         auto statistics = attributes->Get<TTabletCellStatistics>("total_statistics");
-        auto tabletCell = New<TTabletCell>(cellId, statistics, status);
+        auto peers = attributes->Get<std::vector<TTabletCellPeer>>("peers");
+
+        std::optional<TString> address;
+        for (const auto& peer : peers) {
+            if (peer.State == EPeerState::Leading) {
+                if (address.has_value()) {
+                    YT_LOG_WARNING("Cell has two leading peers (Cell: %v, Peers: [%v, %v])",
+                        cellId,
+                        address,
+                        peer.Address);
+
+                    address.reset();
+                    break;
+                }
+                address = peer.Address;
+            }
+        }
+
+        auto tabletCell = New<TTabletCell>(cellId, statistics, status, std::move(address));
 
         tabletCells.emplace(cellId, TTabletCellInfo{
             .TabletCell = std::move(tabletCell),
