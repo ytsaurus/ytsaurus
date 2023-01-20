@@ -192,6 +192,8 @@ void TControllerAgentConnectorDynamicConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("running_job_sending_backoff", &TThis::RunningJobInfoSendingBackoff)
         .Default();
+    registrar.Parameter("use_new_job_tracker_service", &TThis::UseNewJobTrackerService)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

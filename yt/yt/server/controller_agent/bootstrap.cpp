@@ -4,6 +4,7 @@
 #include "job_prober_service.h"
 #include "controller_agent_service.h"
 #include "controller_agent.h"
+#include "job_tracker.h"
 #include "job_tracker_service.h"
 #include "private.h"
 
@@ -129,6 +130,8 @@ void TBootstrap::DoRun()
 
     NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
 
+    JobTracker_ = New<TJobTracker>(this);
+
     // Force start node directory synchronizer.
     Connection_->GetNodeDirectorySynchronizer()->Start();
 
@@ -188,6 +191,7 @@ void TBootstrap::DoRun()
     RpcServer_->RegisterService(CreateControllerAgentService(this));
     RpcServer_->RegisterService(CreateJobProberService(this));
     RpcServer_->RegisterService(CreateJobTrackerService(this));
+    RpcServer_->RegisterService(CreateOldJobTrackerService(this));
 
     YT_LOG_INFO("Listening for HTTP requests on port %v", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -252,6 +256,11 @@ const ICoreDumperPtr& TBootstrap::GetCoreDumper() const
 const IAuthenticatorPtr& TBootstrap::GetNativeAuthenticator() const
 {
     return NativeAuthenticator_;
+}
+
+const TJobTrackerPtr& TBootstrap::GetJobTracker() const
+{
+    return JobTracker_;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

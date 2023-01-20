@@ -23,7 +23,7 @@ using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NRpc;
 
-using NControllerAgent::TJobTrackerServiceProxy;
+using namespace NControllerAgent;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -100,8 +100,8 @@ TControllerAgentConnectorPool::TControllerAgentConnector::~TControllerAgentConne
     HeartbeatExecutor_->Stop();
 }
 
-// This method will be called in control thread when controller agent controls job lifetime.
-void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
+template <class TJobTrackerServiceProxy>
+void TControllerAgentConnectorPool::TControllerAgentConnector::DoSendHeartbeat()
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
 
@@ -176,6 +176,18 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
     HeartbeatInfo_.FailedHeartbeatBackoffTime = TDuration::Zero();
 }
 
+// This method will be called in control thread when controller agent controls job lifetime.
+void TControllerAgentConnectorPool::TControllerAgentConnector::SendHeartbeat()
+{
+    VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
+
+    if (ControllerAgentConnectorPool_->UseNewJobTrackerService_) {
+        DoSendHeartbeat<TJobTrackerServiceProxy>();
+    } else {
+        DoSendHeartbeat<TOldJobTrackerServiceProxy>();
+    }
+}
+
 void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnationOutdated() noexcept
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
@@ -237,9 +249,12 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
     }
 
     TDuration testHeartbeatDelay;
+    bool useNewJobTrackerService = false;
     TControllerAgentConnectorConfigPtr newCurrentConfig;
     if (newConfig->ControllerAgentConnector) {
         testHeartbeatDelay = newConfig->ControllerAgentConnector->TestHeartbeatDelay;
+        useNewJobTrackerService = newConfig->ControllerAgentConnector->UseNewJobTrackerService;
+
         newCurrentConfig = StaticConfig_->ApplyDynamic(newConfig->ControllerAgentConnector);
     }
 
@@ -249,9 +264,11 @@ void TControllerAgentConnectorPool::OnDynamicConfigChanged(
             this_{MakeStrong(this)},
             newConfig{std::move(newConfig)},
             testHeartbeatDelay,
+            useNewJobTrackerService,
             newCurrentConfig{std::move(newCurrentConfig)}]
         {
             TestHeartbeatDelay_ = testHeartbeatDelay;
+            UseNewJobTrackerService_ = useNewJobTrackerService;
             CurrentConfig_ = newCurrentConfig ? newCurrentConfig : StaticConfig_;
             OnConfigUpdated();
         }));

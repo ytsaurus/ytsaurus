@@ -80,6 +80,9 @@ public:
 
         void SendHeartbeat();
         void OnAgentIncarnationOutdated() noexcept;
+
+        template <class TJobTrackerServiceProxy>
+        void DoSendHeartbeat();
     };
 
     using TControllerAgentConnectorPtr = TIntrusivePtr<TControllerAgentConnector>;
@@ -107,6 +110,7 @@ private:
     IBootstrap* const Bootstrap_;
 
     TDuration TestHeartbeatDelay_{};
+    bool UseNewJobTrackerService_ = false;
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
