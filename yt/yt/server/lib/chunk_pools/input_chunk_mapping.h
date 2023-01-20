@@ -58,17 +58,20 @@ public:
 
     void Persist(const TPersistenceContext& context);
 
-    // TODO(max42): rename this method and the correspodning method of IChunkPollInput.
+    // TODO(max42): rename this method and the corresponding method of IChunkPollInput.
     void Add(NChunkPools::IChunkPoolInput::TCookie cookie, const NChunkPools::TChunkStripePtr& stripe);
 
 private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     EChunkMappingMode Mode_;
     THashMap<NChunkClient::TInputChunkPtr, TCompactVector<NChunkClient::TInputChunkPtr, 1>> Substitutes_;
     THashMap<NChunkPools::IChunkPoolInput::TCookie, NChunkPools::TChunkStripePtr> OriginalStripes_;
 
-    void ValidateSortedChunkConsistency(
+    NChunkPools::TChunkStripePtr GetMappedStripeGuarded(const NChunkPools::TChunkStripePtr& stripe) const;
+
+    static void ValidateSortedChunkConsistency(
         const NChunkClient::TInputChunkPtr& oldChunk,
-        const NChunkClient::TInputChunkPtr& newChunk) const;
+        const NChunkClient::TInputChunkPtr& newChunk);
 };
 
 DEFINE_REFCOUNTED_TYPE(TInputChunkMapping)
