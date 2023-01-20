@@ -1,6 +1,6 @@
 #pragma once
 
-#include "public.h"
+#include "private.h"
 
 #include <yt/yt/ytlib/api/native/public.h>
 
@@ -41,6 +41,7 @@ public:
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
     const ICoreDumperPtr& GetCoreDumper() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
+    const TJobTrackerPtr& GetJobTracker() const;
 
     void Run();
 
@@ -60,6 +61,7 @@ private:
     TControllerAgentPtr ControllerAgent_;
     ICoreDumperPtr CoreDumper_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
+    TJobTrackerPtr JobTracker_;
 
     void DoRun();
 };
