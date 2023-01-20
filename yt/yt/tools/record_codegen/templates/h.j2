@@ -3,6 +3,9 @@
 #pragma once
 
 #include <yt/yt/client/table_client/record_codegen_h.h>
+{% for include in includes %}
+#include <{{include}}>
+{% endfor %}
 
 {% if h_verbatim %}
 {{h_verbatim}}
