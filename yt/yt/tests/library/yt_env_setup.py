@@ -2,7 +2,6 @@ from __future__ import print_function
 
 import yt_commands
 import yt_scheduler_helpers
-from yt_helpers import get_current_time, parse_yt_time
 
 from yt.environment import YTInstance, arcadia_interop
 from yt.environment.api import LocalYtConfig
@@ -1237,34 +1236,35 @@ class YTEnvSetup(object):
         if scheduler_count > 0:
             self._wait_for_scheduler_state_restored(driver=driver)
 
-    def _setup_nodes_dynamic_config(self, driver=None):
-        yt_commands.set("//sys/cluster_nodes/@config", get_dynamic_node_config(), driver=driver)
-
-        now = get_current_time()
-
-        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
-
+    def _wait_for_dynamic_config(self, root_path, config, instances, driver=None):
         def check():
             responses = yt_commands.execute_batch(
                 [
                     yt_commands.make_batch_request(
                         "get",
-                        path="//sys/cluster_nodes/{0}/orchid/dynamic_config_manager".format(node),
+                        path=f"{root_path}/{instance}/orchid/dynamic_config_manager",
                         return_only_value=True,
                     )
-                    for node in nodes
+                    for instance in instances
                 ],
                 driver=driver,
                 verbose=False,
             )
             for response in responses:
                 output = yt_commands.get_batch_output(response)
-                last_config_update_time = parse_yt_time(output["last_config_update_time"])
-                if last_config_update_time < now:
+                if config != output.get("applied_config"):
                     return False
             return True
 
         wait(check)
+
+    def _setup_nodes_dynamic_config(self, driver=None):
+        config = get_dynamic_node_config()
+        yt_commands.set("//sys/cluster_nodes/@config", config, driver=driver)
+
+        nodes = yt_commands.ls("//sys/cluster_nodes", driver=driver)
+
+        self._wait_for_dynamic_config("//sys/cluster_nodes", config["%true"], nodes, driver=driver)
 
     def _setup_tablet_manager(self, driver=None):
         for response in yt_commands.execute_batch(
@@ -1306,14 +1306,20 @@ class YTEnvSetup(object):
 
     def _setup_tablet_balancer_dynamic_config(self, driver=None):
         if self.ENABLE_STANDALONE_TABLET_BALANCER:
+            config = {
+                "enable": self.ENABLE_STANDALONE_TABLET_BALANCER,
+                "enable_everywhere": self.ENABLE_STANDALONE_TABLET_BALANCER,
+                "schedule": "1"
+            }
+
             yt_commands.set(
                 "//sys/tablet_balancer/config",
-                {
-                    "enable": self.ENABLE_STANDALONE_TABLET_BALANCER,
-                    "enable_everywhere": self.ENABLE_STANDALONE_TABLET_BALANCER,
-                    "schedule": "1"
-                },
+                config,
                 driver=driver)
+
+            instances = yt_commands.ls("//sys/tablet_balancer/instances")
+
+            self._wait_for_dynamic_config("//sys/tablet_balancer/instances", config, instances, driver=driver)
 
     def _clear_ql_pools(self, driver=None):
         yt_commands.remove("//sys/ql_pools/*", driver=driver)

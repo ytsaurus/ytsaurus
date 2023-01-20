@@ -806,4 +806,10 @@ def get_queue_agent_config():
 
 
 def get_tablet_balancer_config():
-    return {}
+    return yson.loads(b"""
+{
+    dynamic_config_manager = {
+        update_period = 100;
+    };
+}
+""")
