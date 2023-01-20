@@ -13,6 +13,7 @@ namespace NYT::NChunkPools {
 
 using namespace NChunkClient;
 using namespace NTableClient;
+using namespace NThreading;
 using namespace NYson;
 using namespace NYTree;
 
@@ -28,6 +29,14 @@ TInputChunkMapping::TInputChunkMapping(EChunkMappingMode mode)
 
 TChunkStripePtr TInputChunkMapping::GetMappedStripe(const TChunkStripePtr& stripe) const
 {
+    auto guard = ReaderGuard(SpinLock_);
+    return GetMappedStripeGuarded(stripe);
+}
+
+TChunkStripePtr TInputChunkMapping::GetMappedStripeGuarded(const TChunkStripePtr& stripe) const
+{
+    VERIFY_SPINLOCK_AFFINITY(SpinLock_);
+
     YT_VERIFY(stripe);
 
     if (Substitutes_.empty()) {
@@ -105,6 +114,8 @@ void TInputChunkMapping::OnStripeRegenerated(
     IChunkPoolInput::TCookie cookie,
     const NChunkPools::TChunkStripePtr& newStripe)
 {
+    auto guard = WriterGuard(SpinLock_);
+
     YT_VERIFY(cookie != IChunkPoolInput::NullCookie);
     const auto& oldStripe = OriginalStripes_[cookie];
     YT_VERIFY(oldStripe);
@@ -152,7 +163,7 @@ void TInputChunkMapping::OnStripeRegenerated(
 
 void TInputChunkMapping::ValidateSortedChunkConsistency(
     const TInputChunkPtr& oldChunk,
-    const TInputChunkPtr& newChunk) const
+    const TInputChunkPtr& newChunk)
 {
     std::optional<TOwningBoundaryKeys> oldBoundaryKeys =
         oldChunk->BoundaryKeys() ? std::make_optional(*oldChunk->BoundaryKeys()) : std::nullopt;
@@ -193,16 +204,20 @@ void TInputChunkMapping::ValidateSortedChunkConsistency(
 
 void TInputChunkMapping::OnChunkDisappeared(const TInputChunkPtr& chunk)
 {
+    auto guard = WriterGuard(SpinLock_);
+
     Substitutes_[chunk].clear();
 }
 
 void TInputChunkMapping::Reset(IChunkPoolInput::TCookie resetCookie, const TChunkStripePtr& resetStripe)
 {
+    auto guard = WriterGuard(SpinLock_);
+
     for (auto& [cookie, stripe] : OriginalStripes_) {
         if (cookie == resetCookie) {
             stripe = resetStripe;
         } else {
-            stripe = GetMappedStripe(stripe);
+            stripe = GetMappedStripeGuarded(stripe);
         }
     }
 
@@ -211,11 +226,20 @@ void TInputChunkMapping::Reset(IChunkPoolInput::TCookie resetCookie, const TChun
 
 void TInputChunkMapping::Add(IChunkPoolInput::TCookie cookie, const TChunkStripePtr& stripe)
 {
+    auto guard = WriterGuard(SpinLock_);
+
     YT_VERIFY(OriginalStripes_.emplace(cookie, stripe).second);
 }
 
 void TInputChunkMapping::Persist(const TPersistenceContext& context)
 {
+    auto readerGuard = [&, this] () {
+        return context.IsSave() ? std::make_optional(ReaderGuard(SpinLock_)) : std::nullopt;
+    }();
+    auto writerGuard = [&, this] () {
+        return context.IsLoad() ? std::make_optional(WriterGuard(SpinLock_)) : std::nullopt;
+    }();
+
     using NYT::Persist;
 
     Persist<TMapSerializer<TDefaultSerializer, TDefaultSerializer, TUnsortedTag>>(context, Substitutes_);
