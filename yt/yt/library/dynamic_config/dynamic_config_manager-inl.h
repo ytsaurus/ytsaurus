@@ -79,8 +79,14 @@ std::vector<TError> TDynamicConfigManagerBase<TConfig>::GetErrors() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    std::vector<TError> errors;
     auto guard = Guard(SpinLock_);
+    return LockedGetErrors(guard);
+}
+
+template <typename TConfig>
+std::vector<TError> TDynamicConfigManagerBase<TConfig>::LockedGetErrors(const TGuard<NThreading::TSpinLock>& /*guard*/) const
+{
+    std::vector<TError> errors;
     if (!UpdateError_.IsOK()) {
         errors.push_back(UpdateError_);
     }
@@ -317,12 +323,14 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
     TConfigPtr config;
     TInstant lastConfigUpdateTime;
     TInstant lastConfigChangeTime;
+    std::vector<TError> errors;
     {
         auto guard = Guard(SpinLock_);
         configNode = AppliedConfigNode_;
         config = AppliedConfig_;
         lastConfigUpdateTime = LastConfigUpdateTime_;
         lastConfigChangeTime = LastConfigChangeTime_;
+        errors = LockedGetErrors(guard);
     }
 
     NYTree::BuildYsonFluently(consumer)
@@ -335,6 +343,7 @@ void TDynamicConfigManagerBase<TConfig>::DoBuildOrchid(NYson::IYsonConsumer* con
             })
             .Item("last_config_update_time").Value(lastConfigUpdateTime)
             .Item("last_config_change_time").Value(lastConfigChangeTime)
+            .Item("errors").Value(errors)
         .EndMap();
 }
 

@@ -107,6 +107,9 @@ private:
     bool TryUpdateConfig();
 
     void DoBuildOrchid(NYson::IYsonConsumer* consumer) const;
+
+    //! Returns the list of last config update attempt errors when spinlock is already guarded.
+    std::vector<TError> LockedGetErrors(const TGuard<NThreading::TSpinLock>& guard) const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

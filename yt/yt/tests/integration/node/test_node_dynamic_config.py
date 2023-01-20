@@ -51,6 +51,9 @@ class TestNodeDynamicConfig(YTEnvSetup):
     def get_dynamic_config_last_change_time(self, node):
         return get("//sys/cluster_nodes/{}/orchid/dynamic_config_manager/last_config_change_time".format(node))
 
+    def get_dynamic_config_errors(self, node):
+        return get("//sys/cluster_nodes/{}/orchid/dynamic_config_manager/errors".format(node))
+
     @authors("gritukan")
     def test_simple(self):
         for node in ls("//sys/cluster_nodes"):
@@ -167,6 +170,8 @@ class TestNodeDynamicConfig(YTEnvSetup):
         wait(lambda: self.get_dynamic_config_annotation(nodes[0]) == "boo")
         assert get_applied_node_dynamic_config(nodes[0])["some_unrecognized_option"] == 42
         wait(lambda: self.get_dynamic_config_annotation(nodes[1]) == "foo")
+        assert len(self.get_dynamic_config_errors(nodes[0])) > 0
+        assert len(self.get_dynamic_config_errors(nodes[1])) == 0
 
     @authors("gritukan")
     def test_invalid_config(self):
