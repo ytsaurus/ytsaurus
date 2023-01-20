@@ -41,8 +41,6 @@ using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = ChunkServerLogger;
-
 const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -678,15 +676,6 @@ void TChunk::OnMiscExtUpdated(const TMiscExt& miscExt)
     SystemBlockCount_ = miscExt.system_block_count();
     SetSealed(miscExt.sealed());
     SetStripedErasure(miscExt.striped_erasure());
-
-    if (miscExt.has_physical_row_count()) {
-        auto physicalRowCount = GetPhysicalSealedRowCount();
-        YT_LOG_FATAL_IF(
-            physicalRowCount != miscExt.physical_row_count(),
-            "Calculated physical row count does not match the one in misc (CalculatedPhysicalRowCount: %v, MiscPhysicalRowCount: %v)",
-            physicalRowCount,
-            miscExt.physical_row_count());
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
