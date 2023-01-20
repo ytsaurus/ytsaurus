@@ -844,7 +844,9 @@ TRowset TClient::DoLookupRowsOnce(
         tableInfo->IsChaosReplicated() ||
         (tableInfo->ReplicationCardId && options.ReplicaConsistency == EReplicaConsistency::Sync))
     {
-        auto bannedReplicaTracker = Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId);
+        auto bannedReplicaTracker = static_cast<bool>(tableInfo->ReplicationCardId) || tableInfo->IsChaosReplicated()
+            ? Connection_->GetBannedReplicaTrackerCache()->GetTracker(tableInfo->TableId)
+            : nullptr;
 
         auto pickInSyncReplicas = [&] {
             if (tableInfo->ReplicationCardId) {
@@ -898,7 +900,7 @@ TRowset TClient::DoLookupRowsOnce(
             TTableReplicaInfoPtrList inSyncReplicas;
             std::vector<TTableReplicaId> bannedSyncReplicaIds;
             for (const auto& replicaInfo : pickedSyncReplicas) {
-                if (bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
+                if (bannedReplicaTracker && bannedReplicaTracker->IsReplicaBanned(replicaInfo->ReplicaId)) {
                     bannedSyncReplicaIds.push_back(replicaInfo->ReplicaId);
                 } else {
                     inSyncReplicas.push_back(replicaInfo);
@@ -933,7 +935,9 @@ TRowset TClient::DoLookupRowsOnce(
             YT_LOG_DEBUG(resultOrError, "Fallback to replica failed (ReplicaId: %v)",
                 replicaFallbackInfo.ReplicaId);
 
-            bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+            if (bannedReplicaTracker) {
+                bannedReplicaTracker->BanReplica(replicaFallbackInfo.ReplicaId, resultOrError.Truncate());
+            }
         }
 
         YT_VERIFY(!resultOrError.IsOK());
