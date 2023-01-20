@@ -369,11 +369,6 @@ func TestACLUpdate(t *testing.T) {
 			Subjects:    []string{"admins"},
 			Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionAdminister, yt.PermissionManage},
 		},
-		{
-			Action:      yt.ActionAllow,
-			Subjects:    []string{"root"},
-			Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionManage},
-		},
 	}
 	realACL := getOpACL(t, env, "test8")
 

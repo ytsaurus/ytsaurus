@@ -45,6 +45,8 @@ const (
 	StateAccessNodeMissing  = "access_node_missing"
 	StateSpecletNodeMissing = "speclet_node_missing"
 	StateInvalidSpeclet     = "invalid_speclet"
+
+	OneShotRunStage = "one_shot_run"
 )
 
 type Oplet struct {
@@ -240,7 +242,7 @@ func (oplet *Oplet) CheckOperationLiveness(ctx context.Context) error {
 
 	oplet.l.Debug("getting operation info", log.String("operation_id", opID.String()))
 
-	ytOp, err := oplet.userClient.GetOperation(ctx, opID, nil)
+	ytOp, err := oplet.systemClient.GetOperation(ctx, opID, nil)
 	if err != nil {
 		if yterrors.ContainsMessageRE(err, noSuchOperationRE) {
 			oplet.l.Info("operation with current operation id does not exist",
@@ -354,7 +356,7 @@ func (oplet *Oplet) needsUpdateOpParameters() (needsUpdate bool, reason string) 
 	if !oplet.HasYTOperation() {
 		return false, "oplet does not have running yt operation"
 	}
-	if !reflect.DeepEqual(toOperationACL(oplet.acl), oplet.persistentState.YTOpACL) {
+	if !reflect.DeepEqual(oplet.getOpACL(), oplet.persistentState.YTOpACL) {
 		return true, "acl changed"
 	}
 	if !reflect.DeepEqual(oplet.strawberrySpeclet.Pool, oplet.persistentState.YTOpPool) {
@@ -370,7 +372,7 @@ func (oplet *Oplet) needsAbort() (needsAbort bool, reason string) {
 	if !oplet.strawberrySpeclet.ActiveOrDefault() {
 		return true, "oplet is in inactive state"
 	}
-	if oplet.strawberrySpeclet.Pool == nil {
+	if oplet.strawberrySpeclet.StageOrDefault() != OneShotRunStage && oplet.strawberrySpeclet.Pool == nil {
 		return true, "pool is not set"
 	}
 	return false, "up to date"
@@ -547,7 +549,7 @@ func (oplet *Oplet) UpdateACLFromNode(ctx context.Context) error {
 func (oplet *Oplet) abortOp(ctx context.Context, reason string) error {
 	oplet.l.Info("aborting operation", log.String("reason", reason))
 
-	err := oplet.userClient.AbortOperation(
+	err := oplet.systemClient.AbortOperation(
 		ctx,
 		yt.OperationID(oplet.persistentState.YTOpID),
 		&yt.AbortOperationOptions{})
@@ -558,6 +560,23 @@ func (oplet *Oplet) abortOp(ctx context.Context, reason string) error {
 		oplet.persistentState.YTOpState = yt.StateAborted
 	}
 	return err
+}
+
+func (oplet *Oplet) getOpACL() (acl []yt.ACE) {
+	if oplet.agentInfo.RobotUsername != "" {
+		acl = []yt.ACE{
+			yt.ACE{
+				Action:      yt.ActionAllow,
+				Subjects:    []string{oplet.agentInfo.RobotUsername},
+				Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionManage},
+			},
+		}
+	}
+	readACL := toOperationACL(oplet.acl)
+	if readACL != nil {
+		acl = append(acl, readACL...)
+	}
+	return
 }
 
 func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
@@ -587,7 +606,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 	spec["alias"] = "*" + oplet.alias
 	if oplet.strawberrySpeclet.Pool != nil {
 		spec["pool"] = *oplet.strawberrySpeclet.Pool
-	} else {
+	} else if oplet.strawberrySpeclet.StageOrDefault() != OneShotRunStage {
 		err := yterrors.Err("can't run operation because pool is not set")
 		oplet.setError(err)
 		return err
@@ -619,10 +638,9 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		}
 	}
 
-	opACL := toOperationACL(oplet.acl)
-	if oplet.acl != nil {
-		spec["acl"] = opACL
-	}
+	opACL := oplet.getOpACL()
+	spec["acl"] = opACL
+	spec["add_authenticated_user_to_acl"] = false
 
 	if oplet.HasYTOperation() {
 		if err := oplet.abortOp(ctx, "operation restart"); err != nil {
@@ -639,7 +657,7 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 		// Try to abort already existing operation with that alias.
 		oldOpID := extractOpID(err)
 		oplet.l.Debug("aborting operation", log.String("operation_id", oldOpID.String()))
-		abortErr := oplet.userClient.AbortOperation(ctx, yt.OperationID(oldOpID), &yt.AbortOperationOptions{})
+		abortErr := oplet.systemClient.AbortOperation(ctx, yt.OperationID(oldOpID), &yt.AbortOperationOptions{})
 		if abortErr != nil {
 			oplet.setError(abortErr)
 			return abortErr
@@ -680,21 +698,12 @@ func (oplet *Oplet) restartOp(ctx context.Context, reason string) error {
 func (oplet *Oplet) updateOpParameters(ctx context.Context, reason string) error {
 	oplet.l.Info("updating operation parameters", log.String("reason", reason))
 
-	opACL := toOperationACL(oplet.acl)
-	opACLWithRobot := opACL
-	if oplet.agentInfo.RobotUsername != "" {
-		opACLWithRobot = append(opACLWithRobot, yt.ACE{
-			Action:      yt.ActionAllow,
-			Subjects:    []string{oplet.agentInfo.RobotUsername},
-			Permissions: []yt.Permission{yt.PermissionRead, yt.PermissionManage},
-		})
-	}
-
-	err := oplet.userClient.UpdateOperationParameters(
+	opACL := oplet.getOpACL()
+	err := oplet.systemClient.UpdateOperationParameters(
 		ctx,
 		oplet.persistentState.YTOpID,
 		map[string]interface{}{
-			"acl":  opACLWithRobot,
+			"acl":  opACL,
 			"pool": oplet.strawberrySpeclet.Pool,
 		},
 		nil)
