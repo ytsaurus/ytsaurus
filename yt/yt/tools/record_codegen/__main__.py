@@ -6,6 +6,7 @@ import jinja2
 import argparse
 import yaml
 import os
+import pathlib
 
 
 @dataclass
@@ -57,20 +58,19 @@ def render_template(name, context, output):
 
 def main():
     parser = argparse.ArgumentParser()
-    parser.add_argument("--arcadia-root", required=True, help="Path to Arcadia source root")
-    parser.add_argument("--input-root", required=True, help="Path to input root")
     parser.add_argument("--input", required=True, help="Name of input YAML")
-    parser.add_argument("--output-root", required=True, help="Path to generated files root")
+    parser.add_argument("--output-root", required=True, help="Path to generated directory root")
+    parser.add_argument("--output-cpp", required=True, help="Path to generated .cpp file")
     args = parser.parse_args()
 
     with open(args.input) as input_file:
         manifest_dict = yaml.safe_load(input_file)
         manifest = from_dict(Manifest, manifest_dict)
-        relative_input = os.path.relpath(os.path.splitext(args.input)[0], args.input_root)
-        manifest.h_path = os.path.relpath(os.path.splitext(args.input)[0] + ".record.h", args.arcadia_root)
-        with open(args.output_root + "/" + relative_input + ".record.h", "w") as output_file:
+        output_h = os.path.splitext(args.output_cpp)[0] + '.h'
+        manifest.h_path = str(pathlib.Path(output_h).relative_to(args.output_root))
+        with open(output_h, "w") as output_file:
             render_template("h.j2", manifest, output_file)
-        with open(args.output_root + "/" + relative_input + ".record.cpp", "w") as output_file:
+        with open(args.output_cpp, "w") as output_file:
             render_template("cpp.j2", manifest, output_file)
 
 
