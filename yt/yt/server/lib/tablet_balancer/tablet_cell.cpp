@@ -29,10 +29,12 @@ void Deserialize(TTabletCellStatistics& value, NYTree::INodePtr node)
 TTabletCell::TTabletCell(
     TTabletCellId cellId,
     const TTabletCellStatistics& statistics,
-    const TTabletCellStatus& status)
+    const TTabletCellStatus& status,
+    std::optional<TString> nodeAddress)
     : Id(cellId)
     , Statistics(statistics)
     , Status(status)
+    , NodeAddress(std::move(nodeAddress))
 { }
 
 bool TTabletCell::IsAlive() const

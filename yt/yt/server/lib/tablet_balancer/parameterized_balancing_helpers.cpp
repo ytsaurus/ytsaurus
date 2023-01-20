@@ -81,6 +81,7 @@ private:
     THashMap<const TTablet*, TTabletCellId> TabletToCell_;
     THashMap<TTabletCellId, double> CellToMetric_;
     THashMap<const TTablet*, double> TabletToMetric_;
+    THashMap<TString, double> NodeToMetric_;
 
     double CurrentMetric_;
     TBestAction BestAction_;
@@ -95,7 +96,7 @@ private:
 
     void TryMoveTablet(
         const TTablet* tablet,
-        TTabletCellId cellId);
+        const TTabletCell* cell);
 
     void TrySwapTablets(
         const TTablet* lhsTablet,
@@ -122,6 +123,9 @@ TParameterizedReassignSolver::TParameterizedReassignSolver(
 
 void TParameterizedReassignSolver::Initialize()
 {
+    THROW_ERROR_EXCEPTION_IF(!Bundle_->AreAllCellsAssignedToPeers(),
+        "Not all cells are assigned to nodes");
+
     Cells_ = Bundle_->GetAliveCells();
 
     Evaluator_ = NOrm::NQuery::CreateExpressionEvaluator(
@@ -160,6 +164,8 @@ void TParameterizedReassignSolver::Initialize()
             cellMetric += tabletMetric;
         }
 
+        NodeToMetric_[*cell->NodeAddress] += cellMetric;
+
         EmplaceOrCrash(CellToMetric_, cell->Id, cellMetric);
         YT_LOG_DEBUG_IF(
             Bundle_->Config->EnableVerboseLogging,
@@ -169,6 +175,7 @@ void TParameterizedReassignSolver::Initialize()
     }
 
     CurrentMetric_ = CalculateTotalBundleMetric();
+    YT_VERIFY(CurrentMetric_ >= 0.);
 }
 
 bool TParameterizedReassignSolver::ShouldTrigger() const
@@ -221,28 +228,47 @@ double TParameterizedReassignSolver::GetTabletMetric(const TTabletPtr& tablet) c
 
 double TParameterizedReassignSolver::CalculateTotalBundleMetric() const
 {
-    return std::accumulate(
+    double cellMetric = std::accumulate(
         CellToMetric_.begin(),
         CellToMetric_.end(),
         0.0,
         [] (double x, auto item) {
             return x + Sqr(item.second);
         });
+
+    double nodeMetric = std::accumulate(
+        NodeToMetric_.begin(),
+        NodeToMetric_.end(),
+        0.0,
+        [] (double x, auto item) {
+            return x + Sqr(item.second);
+        });
+
+    return cellMetric + nodeMetric;
 };
 
 void TParameterizedReassignSolver::TryMoveTablet(
     const TTablet* tablet,
-    TTabletCellId cellId)
+    const TTabletCell* cell)
 {
     auto newMetric = CurrentMetric_;
     double tabletMetric = GetOrCrash(TabletToMetric_, tablet);
     auto sourceCellId = GetOrCrash(TabletToCell_, tablet);
     auto sourceCell = GetOrCrash(CellToMetric_, sourceCellId);
-    auto destinationCell = GetOrCrash(CellToMetric_, cellId);
+    auto destinationCell = GetOrCrash(CellToMetric_, cell->Id);
 
-    if (sourceCellId == cellId) {
+    if (sourceCellId == cell->Id) {
         // Trying to move the tablet from the cell to itself.
         return;
+    }
+
+    auto sourceNode = *GetOrCrash(Bundle_->TabletCells, sourceCellId)->NodeAddress;
+    if (sourceNode != cell->NodeAddress) {
+        auto sourceNodeMetric = GetOrCrash(NodeToMetric_, sourceNode);
+        auto destinationNodeMetric = GetOrCrash(NodeToMetric_, *cell->NodeAddress);
+
+        newMetric -= Sqr(sourceNodeMetric) - Sqr(sourceNodeMetric - tabletMetric);
+        newMetric += Sqr(destinationNodeMetric + tabletMetric) - Sqr(destinationNodeMetric);
     }
 
     newMetric -= Sqr(sourceCell) - Sqr(sourceCell - tabletMetric);
@@ -253,7 +279,7 @@ void TParameterizedReassignSolver::TryMoveTablet(
         "Trying to move tablet to another cell (TabletId: %v, CellId: %v, CurrentMetric: %v, CurrentBestMetric: %v, "
         "NewMetric: %v, TabletMetric: %v, SourceCellMetric: %v, DestinationCellMetric: %v)",
         tablet->Id,
-        cellId,
+        cell->Id,
         CurrentMetric_,
         BestAction_.Metric,
         newMetric,
@@ -265,16 +291,29 @@ void TParameterizedReassignSolver::TryMoveTablet(
         BestAction_.Metric = newMetric;
 
         BestAction_.Callback = [=, this] (int* availiableActionCount) {
-            TabletToCell_[tablet] = cellId;
+            TabletToCell_[tablet] = cell->Id;
             CellToMetric_[sourceCellId] -= tabletMetric;
-            CellToMetric_[cellId] += tabletMetric;
+            CellToMetric_[cell->Id] += tabletMetric;
             *availiableActionCount -= 1;
 
+            if (sourceNode != cell->NodeAddress) {
+                NodeToMetric_[sourceNode] -= tabletMetric;
+                NodeToMetric_[*cell->NodeAddress] += tabletMetric;
+            } else {
+                YT_LOG_WARNING("The best action is between cells on the same node "
+                    "(NodeAddress: %v, TabletId: %v)",
+                    sourceNode,
+                    tablet->Id);
+            }
+
             YT_LOG_DEBUG("Applying best action: moving tablet to another cell "
-                "(TabletId: %v, SourceCellId: %v, DestinationCellId: %v)",
+                "(TabletId: %v, SourceCellId: %v, DestinationCellId: %v, "
+                "SourceNode: %v, DestinationNode: %v)",
                 tablet->Id,
                 sourceCellId,
-                cellId);
+                cell->Id,
+                sourceNode,
+                *cell->NodeAddress);
         };
     }
 };
@@ -307,6 +346,18 @@ void TParameterizedReassignSolver::TrySwapTablets(
     newMetric += Sqr(lhsCellMetric - lhsTabletMetric + rhsTabletMetric);
     newMetric += Sqr(rhsCellMetric + lhsTabletMetric - rhsTabletMetric);
 
+    auto lhsNode = *GetOrCrash(Bundle_->TabletCells, lhsCellId)->NodeAddress;
+    auto rhsNode = *GetOrCrash(Bundle_->TabletCells, rhsCellId)->NodeAddress;
+
+    if (lhsNode != rhsNode) {
+        auto lhsNodeMetric = GetOrCrash(NodeToMetric_, lhsNode);
+        auto rhsNodeMetric = GetOrCrash(NodeToMetric_, rhsNode);
+
+        newMetric -= Sqr(lhsNodeMetric) + Sqr(rhsNodeMetric);
+        newMetric += Sqr(lhsNodeMetric - lhsTabletMetric + rhsTabletMetric);
+        newMetric += Sqr(rhsNodeMetric + lhsTabletMetric - rhsTabletMetric);
+    }
+
     YT_LOG_DEBUG_IF(
         Bundle_->Config->EnableVerboseLogging && LogMessageCount_++ < MaxVerboseLogMessagesPerIteration,
         "Trying to swap tablets (LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v, "
@@ -336,12 +387,28 @@ void TParameterizedReassignSolver::TrySwapTablets(
             CellToMetric_[rhsCellId] -= rhsTabletMetric;
             *availiableActionCount -= 2;
 
+            if (lhsNode != rhsNode) {
+                NodeToMetric_[lhsNode] -= lhsTabletMetric;
+                NodeToMetric_[lhsNode] += rhsTabletMetric;
+                NodeToMetric_[rhsNode] += lhsTabletMetric;
+                NodeToMetric_[rhsNode] -= rhsTabletMetric;
+            } else {
+                YT_LOG_WARNING("The best action is between cells on the same node "
+                    "(NodeAddress: %v, LhsTabletId: %v, RhsTabletId: %v)",
+                    lhsNode,
+                    lhsTablet->Id,
+                    rhsTablet->Id);
+            }
+
             YT_LOG_DEBUG("Applying best action: swapping tablets "
-                "(LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v)",
+                "(LhsTabletId: %v, RhsTabletId: %v, LhsCellId: %v, RhsCellId: %v "
+                "LhsNode: %v, RhsNode: %v)",
                 lhsTablet->Id,
                 rhsTablet->Id,
                 lhsCellId,
-                rhsCellId);
+                rhsCellId,
+                lhsNode,
+                rhsNode);
         };
     }
 };
@@ -352,7 +419,7 @@ bool TParameterizedReassignSolver::TryFindBestAction(bool canMakeSwap)
 
     for (const auto& [tablet, _] : TabletToMetric_) {
         for (const auto& cell : Cells_) {
-            TryMoveTablet(tablet, cell->Id);
+            TryMoveTablet(tablet, cell.Get());
         }
 
         if (!canMakeSwap) {
