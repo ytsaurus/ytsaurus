@@ -1950,7 +1950,7 @@ private:
         auto response = GetRpcAttachedBlocks(rsp, /* validateChecksums */ false);
 
         for (auto& block: response) {
-            block.Data = TrackMemoryReference(Options_.MemoryReferenceTracker, std::move(block.Data));
+            block.Data = TrackMemory(Options_.MemoryReferenceTracker, std::move(block.Data));
         }
 
         for (int index = 0; index < std::ssize(response); ++index) {

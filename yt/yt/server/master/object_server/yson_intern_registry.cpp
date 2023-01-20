@@ -100,6 +100,12 @@ public:
         return TYsonString(std::move(ref));
     }
 
+    // TSharedRangeHolder overrides.
+    std::optional<size_t> GetTotalByteSize() const override
+    {
+        return Length_ + sizeof(TSharedRangeHolder);
+    }
+
 private:
     DECLARE_NEW_FRIEND()
 

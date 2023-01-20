@@ -22,6 +22,8 @@ struct TStreamHolder
         : Output(std::move(output))
     { }
 
+    // NB: Cannot provide any reasonable GetTotalByteSize implementation.
+
     IAsyncOutputStreamPtr Output;
 };
 

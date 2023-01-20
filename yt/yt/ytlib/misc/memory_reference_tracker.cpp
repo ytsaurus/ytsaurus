@@ -17,6 +17,8 @@ constexpr int ReferenceAddressExpectedAlignmentLog = 4;
 
 /////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_CLASS(TNodeMemoryReferenceTracker)
+
 class TNodeMemoryReferenceTracker
     : public INodeMemoryReferenceTracker
 {
@@ -45,7 +47,7 @@ private:
     {
     public:
         TMemoryReferenceTracker(
-            TIntrusivePtr<TNodeMemoryReferenceTracker> owner,
+            TNodeMemoryReferenceTrackerPtr owner,
             EMemoryCategory category)
             : Owner_(std::move(owner))
             , Category_(category)
@@ -69,32 +71,41 @@ private:
         const EMemoryCategory Category_;
     };
 
-    class TReferenceHolder
+    class TTrackedReferenceHolder
         : public TSharedRangeHolder
     {
     public:
-        TReferenceHolder(TIntrusivePtr<TNodeMemoryReferenceTracker> tracker, TRef rawReference, EMemoryCategory category)
+        TTrackedReferenceHolder(
+            TNodeMemoryReferenceTrackerPtr tracker,
+            TSharedRef underlying,
+            EMemoryCategory category)
             : Tracker_(std::move(tracker))
-            , RawReference_(rawReference)
+            , Underlying_(std::move(underlying))
             , Category_(category)
         { }
 
-        ~TReferenceHolder() override
+        ~TTrackedReferenceHolder() override
         {
-            Tracker_->RemoveStateOrDecreaseUsageConter(RawReference_, Category_);
+            Tracker_->RemoveStateOrDecreaseUsageConter(Underlying_, Category_);
         }
 
+        // TSharedRangeHolder overrides.
         TSharedRangeHolderPtr Clone(const TSharedRangeHolderCloneOptions& options) override
         {
             if (options.KeepMemoryReferenceTracking) {
                 return this;
             }
-            return nullptr;
+            return Underlying_.GetHolder()->Clone(options);
+        }
+
+        std::optional<size_t> GetTotalByteSize() const override
+        {
+            return Underlying_.GetHolder()->GetTotalByteSize();
         }
 
     private:
-        const TIntrusivePtr<TNodeMemoryReferenceTracker> Tracker_;
-        const TRef RawReference_;
+        const TNodeMemoryReferenceTrackerPtr Tracker_;
+        const TSharedRef Underlying_;
         const EMemoryCategory Category_;
     };
 
@@ -139,9 +150,13 @@ private:
         return ReferenceAddressToState_[(key.first >> ReferenceAddressExpectedAlignmentLog) % ReferenceAddressMapShardCount];
     }
 
-    TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepHolder)
+    TSharedRef Track(TSharedRef reference, EMemoryCategory category, bool keepExistingTracking)
     {
         if (!Enabled_.load()) {
+            return reference;
+        }
+
+        if (!reference) {
             return reference;
         }
 
@@ -154,16 +169,13 @@ private:
             return reference;
         }
 
-        auto options = TSharedRangeHolderCloneOptions{
-            .KeepMemoryReferenceTracking = keepHolder
-        };
-
         CreateStateOrIncrementUsageCounter(rawReference, category);
 
-        return TSharedRef(rawReference, MakeCompositeSharedRangeHolder({
-            New<TReferenceHolder>(this, rawReference, category),
-            holder->Clone(options)
-        }));
+        auto underlyingHolder = holder->Clone({.KeepMemoryReferenceTracking = keepExistingTracking});
+        auto underlyingReference = TSharedRef(rawReference, std::move(underlyingHolder));
+        return TSharedRef(
+            rawReference,
+            New<TTrackedReferenceHolder>(this, std::move(underlyingReference), category));
     }
 
     void CreateStateOrIncrementUsageCounter(TRef rawReference, EMemoryCategory category)
@@ -271,6 +283,8 @@ private:
     }
 };
 
+DEFINE_REFCOUNTED_TYPE(TNodeMemoryReferenceTracker)
+
 ////////////////////////////////////////////////////////////////////////////////
 
 INodeMemoryReferenceTrackerPtr CreateNodeMemoryReferenceTracker(INodeMemoryTrackerPtr tracker)
@@ -280,15 +294,34 @@ INodeMemoryReferenceTrackerPtr CreateNodeMemoryReferenceTracker(INodeMemoryTrack
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef TrackMemoryReference(
+TSharedRef TrackMemory(
     const INodeMemoryReferenceTrackerPtr& tracker,
     EMemoryCategory category,
     TSharedRef reference,
-    bool keepHolder)
+    bool keepExistingTracking)
 {
-    return tracker
-        ? tracker->WithCategory(category)->Track(reference, keepHolder)
-        : reference;
+    if (!tracker) {
+        return reference;
+    }
+    return TrackMemory(
+        tracker->WithCategory(category),
+        std::move(reference),
+        keepExistingTracking);
+}
+
+TSharedRefArray TrackMemory(
+    const INodeMemoryReferenceTrackerPtr& tracker,
+    EMemoryCategory category,
+    TSharedRefArray array,
+    bool keepExistingTracking)
+{
+    if (!tracker) {
+        return array;
+    }
+    return TrackMemory(
+        tracker->WithCategory(category),
+        std::move(array),
+        keepExistingTracking);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

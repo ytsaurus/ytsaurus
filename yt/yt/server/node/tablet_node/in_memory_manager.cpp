@@ -104,7 +104,7 @@ TInMemoryChunkDataPtr CreateInMemoryChunkData(
 
     for (const auto& block : blocksWithCategory) {
         blocks.push_back(block);
-        blocks.back().Data = TrackMemoryReference(memoryReferenceTracker, EMemoryCategory::Unknown, block.Data);
+        blocks.back().Data = TrackMemory(memoryReferenceTracker, EMemoryCategory::Unknown, block.Data);
     }
 
     for (auto& block: blocks) {
@@ -625,7 +625,7 @@ TInMemoryChunkDataPtr PreloadInMemoryStore(
     i64 allocatedMemory = 0;
     for (auto& block: blocks) {
         allocatedMemory += block.Size();
-        block.Data = TrackMemoryReference(memoryReferenceTracker, EMemoryCategory::TabletStatic, std::move(block.Data));
+        block.Data = TrackMemory(memoryReferenceTracker, EMemoryCategory::TabletStatic, std::move(block.Data));
     }
 
     if (memoryUsageGuard) {

@@ -88,7 +88,7 @@ public:
 
         if (blockOrError.IsOK()) {
             auto block = blockOrError.Value().Block;
-            block.Data = TrackMemoryReference(MemoryReferenceTracker_, EMemoryCategory::BlockCache, std::move(block.Data));
+            block.Data = TrackMemory(MemoryReferenceTracker_, EMemoryCategory::BlockCache, std::move(block.Data));
             auto entry = New<TAsyncBlockCacheEntry>(
                 Cookie_.GetKey(),
                 TCachedBlock(std::move(block)));
@@ -239,7 +239,7 @@ public:
     {
         if (const auto& cache = FindPerTypeCache(type)) {
             auto cachedBlock = block;
-            cachedBlock.Data = TrackMemoryReference(MemoryReferenceTracker_, EMemoryCategory::BlockCache, std::move(cachedBlock.Data));
+            cachedBlock.Data = TrackMemory(MemoryReferenceTracker_, EMemoryCategory::BlockCache, std::move(cachedBlock.Data));
             cache->PutBlock(id, std::move(cachedBlock));
         }
     }

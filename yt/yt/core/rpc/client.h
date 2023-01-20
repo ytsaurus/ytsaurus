@@ -253,7 +253,7 @@ private:
     void PrepareHeader();
     TSharedRefArray GetHeaderlessMessage() const;
 
-    TSharedRefArray ApplyMemoryTracking(TSharedRefArray array) const;
+    TSharedRefArray TrackMemory(TSharedRefArray array) const;
 };
 
 DEFINE_REFCOUNTED_TYPE(TClientRequest)

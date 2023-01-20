@@ -16,10 +16,10 @@ public:
         IChunkReaderPtr underlying,
         IMemoryReferenceTrackerPtr tracker)
         : Underlying_(std::move(underlying))
-        , MemoryReferenceTracker_(std::move(tracker))
+        , Tracker_(std::move(tracker))
     {
         YT_VERIFY(Underlying_);
-        YT_VERIFY(MemoryReferenceTracker_);
+        YT_VERIFY(Tracker_);
     }
 
     TFuture<std::vector<TBlock>> ReadBlocks(
@@ -60,7 +60,7 @@ public:
 
 private:
     const IChunkReaderPtr Underlying_;
-    const IMemoryReferenceTrackerPtr MemoryReferenceTracker_;
+    const IMemoryReferenceTrackerPtr Tracker_;
 
     TFuture<std::vector<TBlock>> TrackBlocks(const TFuture<std::vector<TBlock>>& future)
     {
@@ -70,7 +70,7 @@ private:
 
             for (const auto& block : blocks) {
                 output.push_back(block);
-                output.back().Data = MemoryReferenceTracker_->Track(block.Data, /*keepHolder*/ true);
+                output.back().Data = TrackMemory(Tracker_, block.Data, /*keepExistingTracking*/ true);
             }
 
             return output;

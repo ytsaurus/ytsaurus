@@ -106,7 +106,7 @@ TSharedRefArray TClientRequest::Serialize()
 
     if (!retry) {
         auto output = CreateRequestMessage(Header_, headerlessMessage);
-        return ApplyMemoryTracking(std::move(output));
+        return TrackMemory(std::move(output));
     }
 
     if (StreamingEnabled_) {
@@ -117,7 +117,7 @@ TSharedRefArray TClientRequest::Serialize()
     patchedHeader.set_retry(true);
 
     auto output = CreateRequestMessage(patchedHeader, headerlessMessage);
-    return ApplyMemoryTracking(std::move(output));
+    return TrackMemory(std::move(output));
 }
 
 IClientRequestControlPtr TClientRequest::Send(IClientResponseHandlerPtr responseHandler)
@@ -492,20 +492,9 @@ bool IsRequestSticky(const IClientRequestPtr& request)
     return balancingExt.enable_stickiness();
 }
 
-TSharedRefArray TClientRequest::ApplyMemoryTracking(TSharedRefArray array) const
+TSharedRefArray TClientRequest::TrackMemory(TSharedRefArray array) const
 {
-    if (!MemoryReferenceTracker_) {
-        return array;
-    }
-
-    std::vector<TSharedRef> output;
-    output.reserve(array.size());
-
-    for (auto& reference : array) {
-        output.push_back(MemoryReferenceTracker_->Track(std::move(reference)));
-    }
-
-    return TSharedRefArray(std::move(output), TSharedRefArray::TMoveParts{});
+    return NYT::TrackMemory(MemoryReferenceTracker_, std::move(array));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
