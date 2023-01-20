@@ -496,3 +496,50 @@ func TestHTTPAPISetSpeclet(t *testing.T) {
 	})
 	require.Equal(t, http.StatusBadRequest, r.StatusCode)
 }
+
+func TestHTTPAPIGetOption(t *testing.T) {
+	t.Parallel()
+
+	_, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("get_option", api.RequestParams{
+		Params: map[string]any{
+			"alias": alias,
+			"key":   "stage",
+		},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var result map[string]any
+	err := yson.Unmarshal(r.Body, &result)
+	require.NoError(t, err)
+	require.Equal(t, "test_stage", result["result"])
+}
+
+func TestHTTPAPIStop(t *testing.T) {
+	t.Parallel()
+
+	env, c := helpers.PrepareAPI(t)
+	alias := helpers.GenerateAlias()
+
+	r := c.MakePostRequest("create", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	r = c.MakePostRequest("stop", api.RequestParams{
+		Params: map[string]any{"alias": alias},
+	})
+	require.Equal(t, http.StatusOK, r.StatusCode)
+
+	var result bool
+	err := env.YT.GetNode(env.Ctx, helpers.StrawberryRoot.JoinChild(alias, "speclet", "active"), &result, nil)
+	require.NoError(t, err)
+	require.Equal(t, false, result)
+}
