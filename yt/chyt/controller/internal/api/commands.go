@@ -249,6 +249,44 @@ func (a HTTPAPI) HandleSetSpeclet(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, nil)
 }
 
+var OneShotRunCmdDescriptor = CmdDescriptor{
+	Name:        "one_shot_run",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Description: "create a clique independent from controller",
+}
+
+func (a HTTPAPI) HandleOneShotRun(w http.ResponseWriter, r *http.Request) {
+	userToken, err := ythttputil.GetTokenFromHeader(r)
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+	userClient, err := ythttp.NewClient(&yt.Config{
+		Token:  userToken,
+		Proxy:  a.api.cfg.AgentInfo.Proxy,
+		Logger: a.l.Structured(),
+	})
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+	params := a.parseAndValidateRequestParams(w, r, OneShotRunCmdDescriptor)
+	if params == nil {
+		return
+	}
+	alias := params["alias"].(string)
+	if err := a.api.OneShotRun(r.Context(), alias, userClient); err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+	status, err := a.api.Status(r.Context(), alias)
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+	a.replyOK(w, status)
+}
+
 func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 	var bb blackbox.Client
 
@@ -296,6 +334,7 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
 			r.Post("/"+GetSpecletCmdDescriptor.Name, api.HandleGetSpeclet)
 			r.Post("/"+SetSpecletCmdDescriptor.Name, api.HandleSetSpeclet)
+			r.Post("/"+OneShotRunCmdDescriptor.Name, api.HandleOneShotRun)
 		})
 	}
 	return r

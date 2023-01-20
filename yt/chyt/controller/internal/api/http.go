@@ -219,6 +219,7 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 			RemoveOptionCmdDescriptor,
 			GetSpecletCmdDescriptor,
 			SetSpecletCmdDescriptor,
+			OneShotRunCmdDescriptor,
 		}})
 	if err != nil {
 		panic(err)

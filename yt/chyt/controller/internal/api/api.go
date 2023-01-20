@@ -173,14 +173,20 @@ func (a *API) validatePoolOption(ctx context.Context, value any) error {
 
 }
 
-func (a *API) getOplet(ctx context.Context, alias string) (*strawberry.Oplet, error) {
+func (a *API) getOplet(
+	ctx context.Context,
+	alias string,
+	userClient yt.Client,
+	agentInfo strawberry.AgentInfo) (*strawberry.Oplet, error) {
+	if userClient == nil {
+		userClient = a.ytc
+	}
 	options := strawberry.OpletOptions{
-		AgentInfo:  a.cfg.AgentInfo,
-		Alias:      alias,
-		Controller: a.ctl,
-		Logger:     a.l,
-		// TODO(dakovalkov): UserClient should be initialized with user credentials from the context.
-		UserClient:   a.ytc,
+		AgentInfo:    agentInfo,
+		Alias:        alias,
+		Controller:   a.ctl,
+		Logger:       a.l,
+		UserClient:   userClient,
 		SystemClient: a.ytc,
 	}
 
@@ -337,7 +343,7 @@ func (a *API) Status(ctx context.Context, alias string) (strawberry.OpletStatus,
 		return strawberry.OpletStatus{}, err
 	}
 
-	oplet, err := a.getOplet(ctx, alias)
+	oplet, err := a.getOplet(ctx, alias, nil, a.cfg.AgentInfo)
 	if err != nil {
 		return strawberry.OpletStatus{}, err
 	}
@@ -453,9 +459,23 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 	return nil
 }
 
-// This method can't be used in API, it is ready only for tests.
-func (a *API) OneShotRun(ctx context.Context, alias string) error {
-	oplet, err := a.getOplet(ctx, alias)
+func (a *API) OneShotRun(ctx context.Context, alias string, userClient yt.Client) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	}
+	if err := a.SetOption(ctx, alias, "stage", strawberry.OneShotRunStage); err != nil {
+		return err
+	}
+	if err := a.SetOption(ctx, alias, "active", true); err != nil {
+		return err
+	}
+	agentInfo := a.cfg.AgentInfo
+	agentInfo.Stage = strawberry.OneShotRunStage
+	agentInfo.OperationNamespace = a.ctl.Family() + ":" + strawberry.OneShotRunStage
+	oplet, err := a.getOplet(ctx, alias, userClient, agentInfo)
 	if err != nil {
 		return err
 	}
