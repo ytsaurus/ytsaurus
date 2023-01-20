@@ -173,13 +173,15 @@ class TestMountConfig(DynamicTablesBase):
             },
         })
 
-        wait(lambda: _get_orchid("/config/replication_throttler") == {"limit": 1234.0, "period": 5000})
+        # Check that the last config is applied.
+        wait(lambda: _get_orchid("/hunk_writer_config/node_channel/retry_backoff_time") == 12345)
+
+        assert _get_orchid("/config/replication_throttler") == {"limit": 1234.0, "period": 5000}
         assert _get_orchid("/config/relative_replication_throttler/ratio") == 5.0
         assert bool(_get_orchid("/config/relative_replication_throttler/enable")) is True
         assert _get_orchid("/config/flush_throttler/period") == 2222
         assert _get_orchid("/config/flush_throttler/limit") == 6666.0
         assert _get_orchid("/hunk_writer_config/node_channel/retry_attempts") == 101
-        assert _get_orchid("/hunk_writer_config/node_channel/retry_backoff_time") == 12345
 
     @authors("ifsmirnov")
     def test_conflicting_patches(self):

@@ -448,6 +448,10 @@ class TestBackups(DynamicTablesBase):
                 "//tmp/t",
                 [{"key": i, "value": str(i), "$tablet_index": j} for j in indexes],
                 return_response=True))
+            # Our poor driver is so busy writing rows that cannot even finish its backup tasks.
+            # Give it a rest.
+            if i % 5 == 0:
+                sleep(0.1)
 
         for rsp in write_responses:
             rsp.wait()
