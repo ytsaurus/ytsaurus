@@ -22,7 +22,7 @@ def parse_arguments():
     parser.add_argument("--repos", nargs="+", default=None, help="Repositories to upload a debian package")
     parser.add_argument("--keep-going", action="store_true", default=False, help="Continue build other packages when some builds failed")
     parser.add_argument("--python-binary", default=sys.executable, help="Path to python binary")
-    parser.add_argument("--debian-dist-user", default=os.getlogin(), help="Username to access 'dupload.dist.yandex.ru' (dist-dmove role required)")
+    parser.add_argument("--debian-dist-user", default=os.environ.get("USER"), help="Username to access 'dupload.dist.yandex.ru' (dist-dmove role required)")
     return parser.parse_args()
 
 
