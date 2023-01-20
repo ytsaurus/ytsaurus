@@ -98,7 +98,7 @@ public:
 
         YT_VERIFY(!data->Blocks[id.BlockIndex].Data);
         data->Blocks[id.BlockIndex] = block;
-        data->Blocks[id.BlockIndex].Data = TrackMemoryReference(
+        data->Blocks[id.BlockIndex].Data = TrackMemory(
             Bootstrap_->GetNodeMemoryReferenceTracker(),
             EMemoryCategory::TabletStatic,
             std::move(block.Data));

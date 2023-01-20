@@ -13,11 +13,9 @@ static constexpr size_t MinUndumpableSize = 64_KB;
 struct TUndumpableHolder
     : public TSharedRangeHolder
 {
-    TUndumpableHolder(const TSharedRef& ref)
-        : Inner(ref.GetHolder())
-        , Mark(MarkUndumpable(
-            const_cast<void*>(reinterpret_cast<const void*>(&(ref[0]))),
-            ref.Size()))
+    explicit TUndumpableHolder(const TSharedRef& ref)
+        : Underlying(ref.GetHolder())
+        , Mark(MarkUndumpable(const_cast<char*>(ref.Begin()), ref.Size()))
     { }
 
     ~TUndumpableHolder()
@@ -27,14 +25,20 @@ struct TUndumpableHolder
         }
     }
 
-    TSharedRangeHolderPtr Inner;
-    TUndumpableMark* Mark = nullptr;
+    // TSharedRangeHolder overrides.
+    std::optional<size_t> GetTotalByteSize() const override
+    {
+        return Underlying->GetTotalByteSize();
+    }
+
+    const TSharedRangeHolderPtr Underlying;
+    TUndumpableMark* const Mark;
 };
 
 TSharedRef MarkUndumpable(const TSharedRef& ref)
 {
     if (ref.Size() >= MinUndumpableSize) {
-        return TSharedRef{ref, New<TUndumpableHolder>(ref)};
+        return TSharedRef(ref, New<TUndumpableHolder>(ref));
     } else {
         return ref;
     }

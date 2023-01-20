@@ -341,9 +341,9 @@ TEST(TMemoryReferenceTrackerTest, ResetCategory)
     {
         auto reference = CreateReference(1);
         EXPECT_TRUE(memoryTracker->IsEmpty());
-        reference = TrackMemoryReference(referenceTracker, EMemoryCategory::P2P, std::move(reference));
+        reference = TrackMemory(referenceTracker, EMemoryCategory::P2P, std::move(reference));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
-        reference = TrackMemoryReference(referenceTracker, EMemoryCategory::MasterCache, std::move(reference));
+        reference = TrackMemory(referenceTracker, EMemoryCategory::MasterCache, std::move(reference));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::MasterCache, 1));
     }
 
@@ -358,9 +358,9 @@ TEST(TMemoryReferenceTrackerTest, AttachCategory)
     {
         auto reference = CreateReference(1);
         EXPECT_TRUE(memoryTracker->IsEmpty());
-        reference = TrackMemoryReference(referenceTracker, EMemoryCategory::P2P, std::move(reference));
+        reference = TrackMemory(referenceTracker, EMemoryCategory::P2P, std::move(reference));
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::P2P, 1));
-        reference = TrackMemoryReference(referenceTracker, EMemoryCategory::MasterCache, std::move(reference), true);
+        reference = TrackMemory(referenceTracker, EMemoryCategory::MasterCache, std::move(reference), true);
         EXPECT_TRUE(memoryTracker->CheckMemoryUsage(EMemoryCategory::Mixed, 1));
     }
 

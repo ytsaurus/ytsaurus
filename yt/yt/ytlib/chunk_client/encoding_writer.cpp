@@ -52,7 +52,7 @@ TEncodingWriter::TEncodingWriter(
 
 void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex)
 {
-    block = TrackMemoryReference(Options_->MemoryReferenceTracker, std::move(block));
+    block = TrackMemory(Options_->MemoryReferenceTracker, std::move(block));
 
     EnsureOpen();
 
@@ -79,7 +79,7 @@ void TEncodingWriter::WriteBlock(TSharedRef block, std::optional<int> groupIndex
 void TEncodingWriter::WriteBlock(std::vector<TSharedRef> vectorizedBlock, std::optional<int> groupIndex)
 {
     for (auto& part: vectorizedBlock) {
-        part = TrackMemoryReference(Options_->MemoryReferenceTracker, std::move(part));
+        part = TrackMemory(Options_->MemoryReferenceTracker, std::move(part));
     }
 
     EnsureOpen();
@@ -152,7 +152,7 @@ void TEncodingWriter::DoCompressBlock(
         compressedBlock.Data = Codec_->Compress(uncompressedBlock);
     }
 
-    compressedBlock.Data = TrackMemoryReference(Options_->MemoryReferenceTracker, std::move(compressedBlock.Data));
+    compressedBlock.Data = TrackMemory(Options_->MemoryReferenceTracker, std::move(compressedBlock.Data));
 
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);
@@ -206,7 +206,7 @@ void TEncodingWriter::DoCompressVector(
         compressedBlock.Data = Codec_->Compress(uncompressedVectorizedBlock);
     }
 
-    compressedBlock.Data = TrackMemoryReference(Options_->MemoryReferenceTracker, std::move(compressedBlock.Data));
+    compressedBlock.Data = TrackMemory(Options_->MemoryReferenceTracker, std::move(compressedBlock.Data));
 
     if (Config_->ComputeChecksum) {
         compressedBlock.Checksum = GetChecksum(compressedBlock.Data);

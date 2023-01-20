@@ -41,21 +41,11 @@ void TBinaryYsonStringSerializer::Load(TStreamLoadContext& context, TYsonString&
     using NYT::Load;
     auto type = Load<i32>(context);
     if (type != -1) {
-        struct TLoadedYsonStringPayload
-            : public TSharedRangeHolder
-            , public TWithExtraSpace<TLoadedYsonStringPayload>
-        {
-            char* GetData()
-            {
-                return static_cast<char*>(GetExtraSpacePtr());
-            }
-        };
-
         auto size = TSizeSerializer::Load(context);
-        auto payload = NewWithExtraSpace<TLoadedYsonStringPayload>(size);
-        TRangeSerializer::Load(context, TMutableRef(payload->GetData(), size));
-        auto ref = TRef(payload->GetData(), size);
-        auto sharedRef = TSharedRef(ref, std::move(payload));
+        auto holder = NDetail::TYsonStringHolder::Allocate(size);
+        TRangeSerializer::Load(context, TMutableRef(holder->GetData(), size));
+        auto ref = TRef(holder->GetData(), size);
+        auto sharedRef = TSharedRef(ref, std::move(holder));
         str = TYsonString(std::move(sharedRef), static_cast<EYsonType>(type));
     } else {
         str = TYsonString();

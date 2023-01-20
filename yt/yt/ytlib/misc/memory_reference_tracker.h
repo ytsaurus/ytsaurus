@@ -18,7 +18,7 @@ struct INodeMemoryReferenceTracker
 
     virtual void Reconfigure(TNodeMemoryReferenceTrackerConfigPtr config) = 0;
 };
- 
+
 DEFINE_REFCOUNTED_TYPE(INodeMemoryReferenceTracker);
 
 /////////////////////////////////////////////////////////////////////////////
@@ -27,11 +27,16 @@ INodeMemoryReferenceTrackerPtr CreateNodeMemoryReferenceTracker(INodeMemoryTrack
 
 /////////////////////////////////////////////////////////////////////////////
 
-TSharedRef TrackMemoryReference(
+TSharedRef TrackMemory(
     const INodeMemoryReferenceTrackerPtr& tracker,
     EMemoryCategory category,
     TSharedRef reference,
-    bool keepHolder = false);
+    bool keepExistingTracking = false);
+TSharedRefArray TrackMemory(
+    const INodeMemoryReferenceTrackerPtr& tracker,
+    EMemoryCategory category,
+    TSharedRefArray array,
+    bool keepExistingTracking = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

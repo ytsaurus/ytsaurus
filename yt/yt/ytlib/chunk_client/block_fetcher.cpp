@@ -255,7 +255,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
                 cachedBlock.Size(),
                 std::memory_order::relaxed);
 
-            cachedBlock.Data = TrackMemoryReference(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
+            cachedBlock.Data = TrackMemory(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
 
             TRef ref = cachedBlock.Data;
             windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
@@ -352,7 +352,7 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;
 
-        uncompressedBlock = TrackMemoryReference(ChunkReadOptions_.MemoryReferenceTracker, std::move(uncompressedBlock));
+        uncompressedBlock = TrackMemory(ChunkReadOptions_.MemoryReferenceTracker, std::move(uncompressedBlock));
 
         auto& windowSlot = Window_[windowIndex];
 
@@ -427,7 +427,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                     cachedBlock.Size(),
                     std::memory_order::relaxed);
 
-                cachedBlock.Data = TrackMemoryReference(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
+                cachedBlock.Data = TrackMemory(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
 
                 auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
 

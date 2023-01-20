@@ -8,28 +8,36 @@ namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Tracks memory used by references.
 /*!
- * Tracks memory used by references.
- *
  * Memory tracking is implemented by specific shared ref holders.
- * #Track returns reference with a combined holder: an old one and memory tracker's holder which releases memory from tracking upon destruction.
- * Subsequent track calls for returned reference drop memory reference tracker's holder unless #keepHolder=true provided.
+ * #Track returns reference with a holder that wraps the old one and also
+ * enables accounting memory in memory tracker's internal state.
+
+ * Subsequent #Track calls for this reference drop memory reference tracker's
+ * holder unless #keepExistingTracking is true.
  */
 struct IMemoryReferenceTracker
     : public TRefCounted
 {
-     //! Tracks reference in a tracker while reference itself is alive.
-    virtual TSharedRef Track(TSharedRef reference, bool keepHolder = false) = 0;
+     //! Tracks reference in a tracker while the reference itself is alive.
+    virtual TSharedRef Track(
+        TSharedRef reference,
+        bool keepExistingTracking = false) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IMemoryReferenceTracker);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TSharedRef TrackMemoryReference(
+TSharedRef TrackMemory(
     const IMemoryReferenceTrackerPtr& tracker,
     TSharedRef reference,
-    bool keepHolder = false);
+    bool keepExistingTracking = false);
+TSharedRefArray TrackMemory(
+    const IMemoryReferenceTrackerPtr& tracker,
+    TSharedRefArray array,
+    bool keepExistingTracking = false);
 
 ////////////////////////////////////////////////////////////////////////////////
 

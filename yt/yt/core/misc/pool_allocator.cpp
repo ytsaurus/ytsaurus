@@ -1,5 +1,7 @@
 #include "pool_allocator.h"
 
+#include <util/system/align.h>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -18,7 +20,7 @@ void TPoolAllocator::AllocateChunk()
     auto alignedBlockSize = AlignUp(BlockSize_, alignment);
     auto fullBlockSize = alignedHeaderSize + alignedBlockSize;
 
-    auto blocksPerChunk = Max<size_t>(ChunkSize_ / fullBlockSize, 1);
+    auto blocksPerChunk = ChunkSize_ < fullBlockSize + alignment ? 1 : (ChunkSize_ - alignment) / fullBlockSize;
     auto chunkSize = blocksPerChunk * fullBlockSize;
     auto chunk = TSharedMutableRef::Allocate(
         chunkSize,
@@ -26,7 +28,7 @@ void TPoolAllocator::AllocateChunk()
         Cookie_);
     Chunks_.push_back(chunk);
 
-    auto* current = chunk.Begin();
+    auto* current = AlignUp(chunk.Begin(), alignment);
     while (true) {
         auto* blockBegin = current + alignedHeaderSize;
         auto* blockEnd = blockBegin + alignedBlockSize;
