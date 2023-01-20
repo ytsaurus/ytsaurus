@@ -50,7 +50,7 @@ private:
 
     std::vector<std::unique_ptr<TValueFrequencyCollector>> ValueFrequencyCollectors_;
 
-    i64 ValueCount_ = 0;
+    int ValueCount_ = 0;
 
     NTableClient::TUnversionedValue CaptureValue(NTableClient::TUnversionedValue value);
     int GetTimestampIndex(NTableClient::TTimestamp timestamp);

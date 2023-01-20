@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/ytlib/table_chunk_format/proto/slim_versioned.pb.h>
-
 #include <yt/yt_proto/yt/client/table_chunk_format/proto/chunk_meta.pb.h>
 
 #include <yt/yt/client/table_client/schema.h>
@@ -59,30 +57,24 @@ TSlimVersionedBlockReader::TSlimVersionedBlockReader(
         ReadPadding(ptr, ptr - Block_.begin());
     };
 
-    auto header = [&] {
-        int headerSize;
-        ReadPod(ptr, headerSize);
-        NTableChunkFormat::NProto::TSlimVersionedBlockHeader header;
-        DeserializeProto(&header, TRef(ptr, headerSize));
-        ptr += headerSize;
-        readPadding();
-        return header;
-    }();
+    TSlimVersionedBlockHeader header;
+    ReadPod(ptr, header);
+    readPadding();
 
     auto initializeStream = [&] (const auto*& stream, int byteSize) {
         stream = reinterpret_cast<std::remove_reference_t<decltype(stream)>>(ptr);
         ptr += byteSize;
         readPadding();
     };
-    initializeStream(RowOffsets_, header.row_offsets_size());
-    initializeStream(Timestamps_, header.timestamp_data_size());
-    initializeStream(KeyDictionary_.Offsets, header.key_dictionary_offsets_size());
-    initializeStream(KeyDictionary_.Data, header.key_dictionary_data_size());
-    initializeStream(ValueDictionary_.Offsets, header.value_dictionary_offsets_size());
-    initializeStream(ValueDictionary_.Data, header.value_dictionary_data_size());
-    initializeStream(Rows_, header.row_data_size());
+    initializeStream(RowOffsets_, header.RowOffsetsSize);
+    initializeStream(Timestamps_, header.TimestampDataSize);
+    initializeStream(KeyDictionary_.Offsets, header.KeyDictionaryOffsetsSize);
+    initializeStream(KeyDictionary_.Data, header.KeyDictionaryDataSize);
+    initializeStream(ValueDictionary_.Offsets, header.ValueDictionaryOffsetsSize);
+    initializeStream(ValueDictionary_.Data, header.ValueDictionaryDataSize);
+    initializeStream(Rows_, header.RowDataSize);
 
-    InitialRowValueCount_ = std::max(2 * header.value_count() / RowCount_, 1);
+    ValueCountPerRowEstimate_ = header.ValueCountPerRowEstimate;
 
     KeyScratch_.reserve(GetUnversionedRowByteSize(KeyColumnCount_));
     Key_ = TLegacyMutableKey::Create(KeyScratch_.data(), KeyColumnCount_);
@@ -190,7 +182,7 @@ TMutableVersionedRow TSlimVersionedBlockReader::ReadRowSingleVersion(TChunkedMem
     auto row = TMutableVersionedRow::Allocate(
         memoryPool,
         KeyColumnCount_,
-        InitialRowValueCount_, // shrinkable
+        ValueCountPerRowEstimate_, // shrinkable
         /*writeTimestampCount*/ 1,
         /*deleteTimestampCount*/ deleteTimestamp == NullTimestamp ? 0 : 1);
 

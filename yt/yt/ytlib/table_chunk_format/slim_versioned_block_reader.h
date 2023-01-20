@@ -46,7 +46,7 @@ private:
     const int RowCount_;
     const int ReaderSchemaColumnCount_;
 
-    int InitialRowValueCount_;
+    int ValueCountPerRowEstimate_;
 
     TCompactVector<bool, NTableClient::TypicalColumnCount> ReaderIdToAggregateFlagStorage_;
     bool* const ReaderIdToAggregateFlag_;

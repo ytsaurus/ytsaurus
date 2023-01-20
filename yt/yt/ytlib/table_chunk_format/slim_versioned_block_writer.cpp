@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/ytlib/table_chunk_format/proto/slim_versioned.pb.h>
-
 #include <yt/yt/ytlib/table_client/hunks.h>
 #include <yt/yt/ytlib/table_client/config.h>
 
@@ -517,22 +515,22 @@ TBlock TSlimVersionedBlockWriter::FlushBlock()
     keyDictionary.Write(KeyDictionaryDataStream_, KeyDictionaryOffsetStream_, LogicalColumnTypes_);
     valueDictionary.Write(ValueDictionaryDataStream_, ValueDictionaryOffsetStream_, LogicalColumnTypes_);
 
-    NTableChunkFormat::NProto::TSlimVersionedBlockHeader header;
-    header.set_row_offsets_size(RowOffsetStream_.GetSize());
-    header.set_timestamp_data_size(TimestampDataStream_.GetSize());
-    header.set_key_dictionary_offsets_size(KeyDictionaryOffsetStream_.GetSize());
-    header.set_key_dictionary_data_size(KeyDictionaryDataStream_.GetSize());
-    header.set_value_dictionary_offsets_size(ValueDictionaryOffsetStream_.GetSize());
-    header.set_value_dictionary_data_size(ValueDictionaryDataStream_.GetSize());
-    header.set_row_data_size(RowDataStream_.GetSize());
-    header.set_row_count(RowCount_);
-    header.set_value_count(ValueCount_);
-    header.set_timestamp_count(std::ssize(TimestampToIndex_));
-    auto serializedHeader = SerializeProtoToRef(header);
+    TSlimVersionedBlockHeader header{
+        .RowOffsetsSize = static_cast<i32>(RowOffsetStream_.GetSize()),
+        .RowDataSize = static_cast<i32>(RowDataStream_.GetSize()),
+        .TimestampDataSize = static_cast<i32>(TimestampDataStream_.GetSize()),
+        .KeyDictionaryOffsetsSize = static_cast<i32>(KeyDictionaryOffsetStream_.GetSize()),
+        .KeyDictionaryDataSize = static_cast<i32>(KeyDictionaryDataStream_.GetSize()),
+        .ValueDictionaryOffsetsSize = static_cast<i32>(ValueDictionaryOffsetStream_.GetSize()),
+        .ValueDictionaryDataSize = static_cast<i32>(ValueDictionaryDataStream_.GetSize()),
+        .RowCount = RowCount_,
+        .ValueCount = ValueCount_,
+        .ValueCountPerRowEstimate = std::max(2 * ValueCount_ / RowCount_, 1),
+        .TimestampCount = static_cast<i32>(TimestampToIndex_.size()),
+    };
 
     TChunkedOutputStream headerStream(GetRefCountedTypeCookie<TSlimVersionedBlockWriterTag>());
-    WritePod(headerStream, static_cast<int>(serializedHeader.Size()));
-    WriteRef(headerStream, serializedHeader);
+    WritePod(headerStream, header);
 
     std::vector<TSharedRef> blockParts;
     auto addStream = [&] (auto& stream) {

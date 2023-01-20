@@ -64,6 +64,8 @@ struct TSegmentInfo
 using TTimestampIndex = ui32;
 using TTimestampIndexes = TCompactVector<TTimestampIndex, 10>;
 
+////////////////////////////////////////////////////////////////////////////////
+
 static constexpr ui32 SlimVersionedValueTagNull = 0x0001;
 static constexpr ui32 SlimVersionedValueTagAggregate = 0x0002;
 static constexpr ui32 SlimVersionedValueTagDictionaryPayload = 0x0004;
@@ -71,6 +73,29 @@ static constexpr int SlimVersionedIdValueTagShift = 3;
 static constexpr ui32 SlimVersionedDictionaryTagEos = 0x0001;
 static constexpr int SlimVersionedDictionaryTagIndexShift = 1;
 
+#pragma pack(push, 4)
+
+struct TSlimVersionedBlockHeader
+{
+    i32 RowOffsetsSize;
+    i32 RowDataSize;
+    i32 TimestampDataSize;
+    i32 KeyDictionaryOffsetsSize;
+    i32 KeyDictionaryDataSize;
+    i32 ValueDictionaryOffsetsSize;
+    i32 ValueDictionaryDataSize;
+    i32 RowCount;
+    i32 ValueCount;
+    i32 ValueCountPerRowEstimate;
+    i32 TimestampCount;
+};
+
+#pragma pack(pop)
+
+static_assert(sizeof(TSlimVersionedBlockHeader) == 44);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableChunkFormat
+
+Y_DECLARE_PODTYPE(NYT::NTableChunkFormat::TSlimVersionedBlockHeader);
