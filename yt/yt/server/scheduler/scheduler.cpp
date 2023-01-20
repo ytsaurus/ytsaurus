@@ -2893,8 +2893,11 @@ private:
 
     IYPathServicePtr CreateOperationOrchidService(const TOperationPtr& operation)
     {
-        auto operationAttributesOrchidService =
-            IYPathService::FromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
+        // TODO(renadeen): remove when YPathDesignatedServiceFromProducer proves worthy.
+        auto operationAttributesOrchidService = Config_->EnableOptimizedOperationOrchid
+            ? IYPathService::YPathDesignatedServiceFromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
+                ->Via(GetControlInvoker(EControlQueue::DynamicOrchid))
+            : IYPathService::FromProducer(BIND(&TImpl::BuildOperationOrchid, MakeStrong(this), operation))
                 ->Via(GetControlInvoker(EControlQueue::DynamicOrchid));
         return New<TServiceCombiner>(
             std::vector<IYPathServicePtr>{

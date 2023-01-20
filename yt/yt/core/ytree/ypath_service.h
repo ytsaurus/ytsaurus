@@ -93,6 +93,14 @@ struct IYPathService
         NYson::TYsonProducer producer,
         TDuration cachePeriod = {});
 
+    //! Creates a YPathDesignated service from a YSON producer.
+    /*!
+     *  Optimized version of previous service.
+     *  Tries to avoid constructing an ephemeral tree using TYPathDesignatedYsonConsumer.
+     */
+    static IYPathServicePtr YPathDesignatedServiceFromProducer(
+        NYson::TYsonProducer producer);
+
     //! Creates a YPath service from an extended YSON producer.
     /*!
      *  Each time a request is executed, producer is called, its output is turned into
