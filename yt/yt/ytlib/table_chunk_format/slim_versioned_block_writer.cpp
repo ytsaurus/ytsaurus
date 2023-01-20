@@ -565,13 +565,14 @@ TUnversionedValue TSlimVersionedBlockWriter::CaptureValue(TUnversionedValue valu
     }
 
     bool inlineHunk = IsInlineHunkValue(value);
-    char* beginPtr = StringPool_.AllocateUnaligned(value.Length + (inlineHunk ? 1 : 0));
+    auto length = value.Length;
+    char* beginPtr = StringPool_.AllocateUnaligned(length + (inlineHunk ? 1 : 0));
     char* ptr = beginPtr;
     if (inlineHunk) {
         *ptr++ = static_cast<char>(EHunkValueTag::Inline);
+        ++value.Length;
     }
-    ::memcpy(ptr, value.Data.String, value.Length);
-    value.Data.String = beginPtr;
+    ::memcpy(ptr, value.Data.String, length);
     return value;
 }
 
