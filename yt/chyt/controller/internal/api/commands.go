@@ -322,6 +322,7 @@ func (a HTTPAPI) HandleStop(w http.ResponseWriter, r *http.Request) {
 	alias := params["alias"].(string)
 	if err := a.api.Stop(r.Context(), alias); err != nil {
 		a.replyWithError(w, err)
+		return
 	}
 	a.replyOK(w, nil)
 }
