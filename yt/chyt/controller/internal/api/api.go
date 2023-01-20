@@ -356,6 +356,21 @@ func (a *API) Status(ctx context.Context, alias string) (strawberry.OpletStatus,
 	return oplet.Status()
 }
 
+func (a *API) GetOption(ctx context.Context, alias, key string) (value yson.RawValue, err error) {
+	if err = a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return
+	}
+	if err = a.CheckPermissionToOp(ctx, alias, yt.PermissionRead); err != nil {
+		return
+	}
+	err = a.ytc.GetNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", key),
+		&value,
+		nil)
+	return
+}
+
 func (a *API) SetOption(ctx context.Context, alias, key string, value any) error {
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
@@ -459,6 +474,13 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 	return nil
 }
 
+func (a *API) getOneShotRunAgentInfo() strawberry.AgentInfo {
+	agentInfo := a.cfg.AgentInfo
+	agentInfo.Stage = strawberry.OneShotRunStage
+	agentInfo.OperationNamespace = a.ctl.Family() + ":" + strawberry.OneShotRunStage
+	return agentInfo
+}
+
 func (a *API) OneShotRun(ctx context.Context, alias string, userClient yt.Client) error {
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
@@ -472,10 +494,38 @@ func (a *API) OneShotRun(ctx context.Context, alias string, userClient yt.Client
 	if err := a.SetOption(ctx, alias, "active", true); err != nil {
 		return err
 	}
-	agentInfo := a.cfg.AgentInfo
-	agentInfo.Stage = strawberry.OneShotRunStage
-	agentInfo.OperationNamespace = a.ctl.Family() + ":" + strawberry.OneShotRunStage
+	agentInfo := a.getOneShotRunAgentInfo()
 	oplet, err := a.getOplet(ctx, alias, userClient, agentInfo)
+	if err != nil {
+		return err
+	}
+	return oplet.Pass(ctx)
+}
+
+func (a *API) Stop(ctx context.Context, alias string) error {
+	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
+		return err
+	}
+	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
+		return err
+	}
+	var stage string
+	err := a.ytc.GetNode(
+		ctx,
+		a.cfg.AgentInfo.StrawberryRoot.JoinChild(alias, "speclet", "stage"),
+		&stage,
+		nil)
+	if err != nil {
+		return err
+	}
+	if err = a.SetOption(ctx, alias, "active", false); err != nil {
+		return err
+	}
+	if stage != strawberry.OneShotRunStage {
+		return nil
+	}
+	agentInfo := a.getOneShotRunAgentInfo()
+	oplet, err := a.getOplet(ctx, alias, nil, agentInfo)
 	if err != nil {
 		return err
 	}

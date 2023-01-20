@@ -215,11 +215,13 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 			RemoveCmdDescriptor,
 			ExistsCmdDescriptor,
 			StatusCmdDescriptor,
+			GetOptionCmdDescriptor,
 			SetOptionCmdDescriptor,
 			RemoveOptionCmdDescriptor,
 			GetSpecletCmdDescriptor,
 			SetSpecletCmdDescriptor,
 			OneShotRunCmdDescriptor,
+			StopCmdDescriptor,
 		}})
 	if err != nil {
 		panic(err)

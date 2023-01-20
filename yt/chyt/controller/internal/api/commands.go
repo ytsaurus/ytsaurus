@@ -152,6 +152,27 @@ var ValueParameter = CmdParameter{
 	Description: "speclet option value",
 }
 
+var GetOptionCmdDescriptor = CmdDescriptor{
+	Name:        "get_option",
+	Parameters:  []CmdParameter{AliasParameter, KeyParameter},
+	Description: "get speclet option",
+}
+
+func (a HTTPAPI) HandleGetOption(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, GetOptionCmdDescriptor)
+	if params == nil {
+		return
+	}
+	alias := params["alias"].(string)
+	key := params["key"].(string)
+	value, err := a.api.GetOption(r.Context(), alias, key)
+	if err != nil {
+		a.replyWithError(w, err)
+		return
+	}
+	a.replyOK(w, value)
+}
+
 var SetOptionCmdDescriptor = CmdDescriptor{
 	Name:        "set_option",
 	Parameters:  []CmdParameter{AliasParameter, KeyParameter, ValueParameter},
@@ -287,6 +308,24 @@ func (a HTTPAPI) HandleOneShotRun(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, status)
 }
 
+var StopCmdDescriptor = CmdDescriptor{
+	Name:        "stop",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
+	Description: "stop strawberry operation",
+}
+
+func (a HTTPAPI) HandleStop(w http.ResponseWriter, r *http.Request) {
+	params := a.parseAndValidateRequestParams(w, r, StopCmdDescriptor)
+	if params == nil {
+		return
+	}
+	alias := params["alias"].(string)
+	if err := a.api.Stop(r.Context(), alias); err != nil {
+		a.replyWithError(w, err)
+	}
+	a.replyOK(w, nil)
+}
+
 func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 	var bb blackbox.Client
 
@@ -330,11 +369,13 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 			r.Post("/"+RemoveCmdDescriptor.Name, api.HandleRemove)
 			r.Post("/"+ExistsCmdDescriptor.Name, api.HandleExists)
 			r.Post("/"+StatusCmdDescriptor.Name, api.HandleStatus)
+			r.Post("/"+GetOptionCmdDescriptor.Name, api.HandleGetOption)
 			r.Post("/"+SetOptionCmdDescriptor.Name, api.HandleSetOption)
 			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
 			r.Post("/"+GetSpecletCmdDescriptor.Name, api.HandleGetSpeclet)
 			r.Post("/"+SetSpecletCmdDescriptor.Name, api.HandleSetSpeclet)
 			r.Post("/"+OneShotRunCmdDescriptor.Name, api.HandleOneShotRun)
+			r.Post("/"+StopCmdDescriptor.Name, api.HandleStop)
 		})
 	}
 	return r

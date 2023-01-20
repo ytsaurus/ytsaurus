@@ -54,7 +54,7 @@ type Config struct {
 
 const (
 	DefaultHealthStatusExpirationPeriod = time.Duration(time.Minute)
-	DefaultHTTPAPIEndpoint              = ":2222"
+	DefaultHTTPAPIEndpoint              = ":80"
 	DefaultHTTPMonitoringEndpoint       = ":2223"
 )
 
