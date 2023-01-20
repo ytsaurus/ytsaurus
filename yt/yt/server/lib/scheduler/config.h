@@ -483,6 +483,8 @@ public:
 
     TDuration SchedulerTreeAlertsUpdatePeriod;
 
+    bool EnableOptimizedOperationOrchid;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 
     static void Register(TRegistrar registrar);

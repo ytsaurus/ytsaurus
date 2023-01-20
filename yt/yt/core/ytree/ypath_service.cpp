@@ -4,6 +4,7 @@
 #include "tree_builder.h"
 #include "ypath_client.h"
 #include "ypath_detail.h"
+#include "ypath_proxy.h"
 #include "fluent.h"
 
 #include <yt/yt/core/profiling/timing.h>
@@ -12,6 +13,8 @@
 
 #include <yt/yt/core/yson/async_consumer.h>
 #include <yt/yt/core/yson/attribute_consumer.h>
+#include <yt/yt/core/yson/null_consumer.h>
+#include <yt/yt/core/yson/ypath_designated_consumer.h>
 #include <yt/yt/core/yson/writer.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -309,6 +312,170 @@ IYPathServicePtr IYPathService::FromProducer(
     NYson::TExtendedYsonProducer<const IAttributeDictionaryPtr&> producer)
 {
     return New<TFromExtendedProducerYPathService>(std::move(producer));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TLazyYPathServiceFromProducer
+    : public TYPathServiceBase
+    , public TSupportsGet
+    , public TSupportsExists
+    , public TSupportsList
+{
+public:
+    explicit TLazyYPathServiceFromProducer(TYsonProducer producer)
+        : Producer_(std::move(producer))
+    { }
+
+    TResolveResult Resolve(
+        const TYPath& path,
+        const IServiceContextPtr& /*context*/) override
+    {
+        return TResolveResultHere{path};
+    }
+
+private:
+    TYsonProducer Producer_;
+
+    bool DoInvoke(const IServiceContextPtr& context) override
+    {
+        DISPATCH_YPATH_SERVICE_METHOD(Get);
+        DISPATCH_YPATH_SERVICE_METHOD(Exists);
+        DISPATCH_YPATH_SERVICE_METHOD(List);
+
+        return TYPathServiceBase::DoInvoke(context);
+    }
+
+    void GetSelf(TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    {
+        IAttributeDictionaryPtr options;
+        if (request->has_options()) {
+            options = NYTree::FromProto(request->options());
+        }
+
+        if (request->has_attributes())  {
+            // Execute fallback.
+            auto node = BuildNodeFromProducer();
+            ExecuteVerb(node, IServiceContextPtr(context));
+            return;
+        }
+
+        auto yson = BuildStringFromProducer();
+        response->set_value(yson.ToString());
+        context->Reply();
+    }
+
+    void GetRecursive(const TYPath& path, TReqGet* request, TRspGet* response, const TCtxGetPtr& context) override
+    {
+        if (request->has_attributes())  {
+            // Execute fallback.
+            auto node = BuildNodeFromProducer();
+            ExecuteVerb(node, IServiceContextPtr(context));
+            return;
+        }
+
+        TStringStream stream;
+        {
+            TBufferedBinaryYsonWriter writer(&stream);
+            auto consumer = CreateYPathDesignatedConsumer(path, EMissingPathMode::ThrowError, &writer);
+            Producer_.Run(consumer.get());
+            writer.Flush();
+        }
+
+        auto str = stream.Str();
+        if (str.empty()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No data is available");
+        }
+
+        response->set_value(std::move(str));
+        context->Reply();
+    }
+
+    void GetAttribute(const TYPath& /*path*/, TReqGet* /*request*/, TRspGet* /*response*/, const TCtxGetPtr& context) override
+    {
+        // Execute fallback.
+        auto node = BuildNodeFromProducer();
+        ExecuteVerb(node, IServiceContextPtr(context));
+    }
+
+    void ListSelf(TReqList* /*request*/, TRspList* /*response*/, const TCtxListPtr& context) override
+    {
+        // Execute fallback.
+        auto node = BuildNodeFromProducer();
+        ExecuteVerb(node, IServiceContextPtr(context));
+    }
+
+    void ListRecursive(const TYPath& path, TReqList* request, TRspList* response, const TCtxListPtr& context) override
+    {
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        auto consumer = CreateYPathDesignatedConsumer(path, EMissingPathMode::ThrowError, builder.get());
+        Producer_.Run(consumer.get());
+        auto node = builder->EndTree();
+
+        auto innerRequest = TYPathProxy::List("");
+        if (request->has_limit()) {
+            innerRequest->set_limit(request->limit());
+        }
+        ExecuteVerb(node, innerRequest)
+            .Subscribe(BIND([=] (const TErrorOr<TYPathProxy::TRspListPtr> resultOrError) {
+                if (resultOrError.IsOK()) {
+                    response->set_value(resultOrError.Value()->value());
+                    context->Reply();
+                } else {
+                    context->Reply(resultOrError);
+                }
+            }));
+    }
+
+   void ListAttribute(const TYPath& /*path*/, TReqList* /*request*/, TRspList* /*response*/, const TCtxListPtr& context) override
+   {
+        // Execute fallback.
+        auto node = BuildNodeFromProducer();
+        ExecuteVerb(node, IServiceContextPtr(context));
+   }
+
+    void ExistsRecursive(const TYPath& path, TReqExists* /*request*/, TRspExists* /*response*/, const TCtxExistsPtr& context) override
+    {
+        auto consumer = CreateYPathDesignatedConsumer(path, EMissingPathMode::ThrowError, GetNullYsonConsumer());
+        try {
+            Producer_.Run(consumer.get());
+        } catch (const TErrorException& ex) {
+            if (ex.Error().FindMatching(EErrorCode::ResolveError)) {
+                Reply(context, false);
+                return;
+            }
+            throw;
+        }
+
+        Reply(context, true);
+    }
+
+    TYsonString BuildStringFromProducer()
+    {
+        TStringStream stream;
+        TBufferedBinaryYsonWriter writer(&stream);
+        Producer_.Run(&writer);
+        writer.Flush();
+
+        auto str = stream.Str();
+        if (str.empty()) {
+            THROW_ERROR_EXCEPTION(NRpc::EErrorCode::Unavailable, "No data is available");
+        }
+
+        return TYsonString(std::move(str));
+    }
+
+    INodePtr BuildNodeFromProducer()
+    {
+        auto builder = CreateBuilderFromFactory(GetEphemeralNodeFactory());
+        Producer_.Run(builder.get());
+        return builder->EndTree();
+    }
+};
+
+IYPathServicePtr IYPathService::YPathDesignatedServiceFromProducer(TYsonProducer producer)
+{
+    return New<TLazyYPathServiceFromProducer>(std::move(producer));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

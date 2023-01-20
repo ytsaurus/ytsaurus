@@ -576,6 +576,9 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduler_tree_alerts_update_period", &TThis::SchedulerTreeAlertsUpdatePeriod)
         .Default(TDuration::Seconds(1));
 
+    registrar.Parameter("enable_optimized_operation_orchid", &TThis::EnableOptimizedOperationOrchid)
+        .Default(true);
+
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));

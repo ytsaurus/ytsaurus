@@ -6,7 +6,7 @@
 #include <yt/yt/core/ytree/ypath_proxy.h>
 
 namespace NYT::NYTree {
-namespace NYT {
+namespace {
 
 using namespace NYson;
 
