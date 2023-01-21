@@ -6,6 +6,7 @@ from .operation_commands import (Operation, OperationState, get_operation_attrib
 from .spec_builders import SpecBuilder
 from .run_operation_commands import run_operation
 from .batch_helpers import batch_apply
+from .transaction import Transaction, get_current_transaction_id
 
 import yt.logger as logger
 
@@ -25,7 +26,7 @@ from copy import deepcopy
 import sys
 
 
-SpecTask = namedtuple("SpecTask", ["spec_builder", "client", "enable_optimizations"])
+SpecTask = namedtuple("SpecTask", ["spec_builder", "client", "enable_optimizations", "transaction_id"])
 
 
 def copy_client(client):
@@ -303,24 +304,21 @@ class _OperationsTrackingPoolThread(_OperationsTrackingThread):
     def set_pool_size(self, pool_size):
         self._pool_size = pool_size
 
-    def add(self, spec_task):
-        """Adds SpecTask object to queue.
-
-        :param SpecTask spec_task: task to track.
+    def add(self, spec_builder, enable_optimizations=None, client=None):
         """
-        if spec_task is None:
+        :param SpecBuilder spec_builder: spec_builder to run operation and track it.
+        """
+        if spec_builder is None:
             return
 
-        if not isinstance(spec_task, SpecTask):
-            raise YtError("Valid SpecTask object should be passed "
-                          "to add method, not {0}".format(repr(spec_task)))
-
         with self._thread_lock:
-            new_spec_task = SpecTask(
-                spec_task.spec_builder,
-                copy_client(spec_task.client),
-                spec_task.enable_optimizations)
-            self._queue.append(new_spec_task)
+            spec_task = SpecTask(
+                spec_builder,
+                copy_client(client),
+                enable_optimizations,
+                get_current_transaction_id(client),
+            )
+            self._queue.append(spec_task)
 
     def _check_operations(self):
         super(_OperationsTrackingPoolThread, self)._check_operations()
@@ -340,11 +338,12 @@ class _OperationsTrackingPoolThread(_OperationsTrackingThread):
         # NB: Not in _thread_lock.
         # It is intentional, operation start may be long operation.
         for spec_task in spec_tasks:
-            operation = run_operation(
-                spec_task.spec_builder,
-                sync=False,
-                enable_optimizations=spec_task.enable_optimizations,
-                client=spec_task.client)
+            with Transaction(transaction_id=spec_task.transaction_id, client=spec_task.client):
+                operation = run_operation(
+                    spec_task.spec_builder,
+                    sync=False,
+                    enable_optimizations=spec_task.enable_optimizations,
+                    client=spec_task.client)
             operations.append(operation)
 
         with self._thread_lock:
@@ -397,8 +396,7 @@ class OperationsTrackerPool(OperationsTrackerBase):
         if not self._is_spec_builder(spec_builder):
             raise YtError("Spec builder is not valid")
 
-        task = SpecTask(spec_builder, copy_client(client), enable_optimizations)
-        self._tracking_thread.add(task)
+        self._tracking_thread.add(spec_builder, enable_optimizations, client)
 
     def map(self, spec_builders, enable_optimizations=None, client=None):
         """Adds Operation object to tracker.
@@ -413,4 +411,4 @@ class OperationsTrackerPool(OperationsTrackerBase):
             raise YtError("Some of the spec builders are not valid")
 
         for spec_builder in spec_builders:
-            self._tracking_thread.add(SpecTask(spec_builder, copy_client(client), enable_optimizations))
+            self._tracking_thread.add(spec_builder, enable_optimizations, client)

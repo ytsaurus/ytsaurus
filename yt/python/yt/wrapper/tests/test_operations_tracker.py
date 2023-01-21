@@ -17,6 +17,15 @@ import pytest
 import uuid
 
 
+def create_spec_builder(binary, source_table, destination_table):
+    return MapSpecBuilder() \
+        .input_table_paths(source_table) \
+        .output_table_paths(destination_table) \
+        .begin_mapper() \
+        .command(binary) \
+        .end_mapper()
+
+
 @pytest.mark.usefixtures("yt_env_with_rpc")
 class TestOperationsTracker(object):
     NUM_TEST_PARTITIONS = 4
@@ -178,14 +187,6 @@ class TestOperationsTracker(object):
 
     @authors("ignat")
     def test_pool_tracker_multiple_instances(self):
-        def create_spec_builder(binary, source_table, destination_table):
-            return MapSpecBuilder() \
-                .input_table_paths(source_table) \
-                .output_table_paths(destination_table) \
-                .begin_mapper() \
-                .command(binary) \
-                .end_mapper()
-
         tracker = yt.OperationsTrackerPool(pool_size=1)
 
         test_name = "TrackPoolOperationsFromMultipleClusters"
@@ -266,14 +267,6 @@ class TestOperationsTracker(object):
 
     @authors("asaitgalin")
     def test_pool_tracker(self):
-        def create_spec_builder(binary, source_table, destination_table):
-            return MapSpecBuilder() \
-                .input_table_paths(source_table) \
-                .output_table_paths(destination_table) \
-                .begin_mapper() \
-                    .command(binary) \
-                .end_mapper() # noqa
-
         tracker = yt.OperationsTrackerPool(pool_size=1)
 
         # To enable progress printing
@@ -336,6 +329,125 @@ class TestOperationsTracker(object):
                 assert tracker.get_operation_count() == 1
 
             assert tracker.get_operation_count() == 0
+
+        finally:
+            logger.LOGGER.setLevel(old_level)
+
+    @authors("aleexfi")
+    def test_pool_tracker_transaction_multiple_instances(self):
+        test_name = "TrackPoolOperationsWithTransactionFromMultipleClusters"
+        dir = os.path.join(get_tests_sandbox(), test_name)
+        id = "run_" + uuid.uuid4().hex[:8]
+        instance = None
+
+        # To enable progress printing
+        old_level = logger.LOGGER.level
+        logger.LOGGER.setLevel(logging.INFO)
+        try:
+            instance = start(path=dir, id=id, node_count=3, enable_debug_logging=True, fqdn="localhost", cell_tag=2)
+            clientA = None
+            clientB = instance.create_client()
+            clientB.config["tabular_data_format"] = yt.format.JsonFormat()
+
+            with yt.Transaction(client=clientA) as transactionA, yt.Transaction(client=clientB) as transactionB, \
+                    yt.OperationsTrackerPool(pool_size=4) as tracker:
+                tableA = TEST_DIR + "/tableA"
+                yt.write_table(tableA, [{"x": 1, "y": 1}])
+                clientB.create("table", tableA, recursive=True, ignore_existing=True)
+                clientB.write_table(tableA, [{"x": 1, "y": 1}])
+
+                spec_builder1 = create_spec_builder("sleep 30; cat", tableA, TEST_DIR + "/out1")
+                spec_builder2 = create_spec_builder("sleep 30; cat", tableA, TEST_DIR + "/out2")
+
+                tracker.map([spec_builder1, spec_builder2], client=clientA)
+                tracker.map([spec_builder1, spec_builder2], client=clientB)
+
+                client_transactions = set([transactionA.transaction_id, transactionB.transaction_id])
+                tracker._tracking_thread._check_operations()
+                with tracker._tracking_thread._thread_lock:
+                    assert len(tracker._tracking_thread._operations_to_track) == 4
+                    op_transactions = set([
+                        o.get_attributes()['user_transaction_id'] for o in tracker._tracking_thread._operations_to_track
+                    ])
+                assert client_transactions == op_transactions
+
+                tracker.abort_all()
+
+            with yt.OperationsTrackerPool(pool_size=4) as tracker:
+                tableB = TEST_DIR + "/tableB"
+                yt.write_table(tableB, [{"x": 1, "y": 1}])
+                clientB.create("table", tableB, recursive=True, ignore_existing=True)
+                clientB.write_table(tableB, [{"x": 1, "y": 1}])
+
+                spec_builder1 = create_spec_builder("sleep 30; cat", tableB, TEST_DIR + "/out1")
+                spec_builder2 = create_spec_builder("sleep 30; cat", tableB, TEST_DIR + "/out2")
+
+                tracker.map([spec_builder1, spec_builder2], client=clientA)
+                tracker.map([spec_builder1, spec_builder2], client=clientB)
+
+                client_transactions = set([yt.get_current_transaction_id(clientA), yt.get_current_transaction_id(clientB)])
+                tracker._tracking_thread._check_operations()
+                with tracker._tracking_thread._thread_lock:
+                    assert len(tracker._tracking_thread._operations_to_track) == 4
+                    op_transactions = set([
+                        o.get_attributes()['user_transaction_id'] for o in tracker._tracking_thread._operations_to_track
+                    ])
+                assert client_transactions == op_transactions
+
+                tracker.abort_all()
+
+        finally:
+            logger.LOGGER.setLevel(old_level)
+            if instance is not None:
+                stop(instance.id, path=dir, remove_runtime_data=True)
+
+    @authors("aleexfi")
+    def test_pool_tracker_transaction_single_instances(self):
+        # To enable progress printing
+        old_level = logger.LOGGER.level
+        logger.LOGGER.setLevel(logging.INFO)
+        try:
+            with yt.Transaction() as transaction, yt.OperationsTrackerPool(pool_size=2) as tracker:
+                tableA = TEST_DIR + "/tableA"
+                yt.write_table(tableA, [{"x": 1, "y": 1}])
+
+                spec_builder1 = create_spec_builder("sleep 30; cat", tableA, TEST_DIR + "/out1")
+                spec_builder2 = create_spec_builder("sleep 30; cat", tableA, TEST_DIR + "/out2")
+
+                tracker.add(spec_builder1)
+                tracker.add(spec_builder2)
+
+                client_transactions = set([transaction.transaction_id])
+                tracker._tracking_thread._check_operations()
+                with tracker._tracking_thread._thread_lock:
+                    assert len(tracker._tracking_thread._operations_to_track) == 2
+                    op_transactions = set([
+                        o.get_attributes()['user_transaction_id'] for o in tracker._tracking_thread._operations_to_track
+                    ])
+                assert client_transactions == op_transactions
+
+                tracker.abort_all()
+
+            with yt.OperationsTrackerPool(pool_size=2) as tracker:
+                tableB = TEST_DIR + "/tableB"
+                yt.write_table(tableB, [{"x": 1, "y": 1}])
+
+                spec_builder1 = create_spec_builder("sleep 30; cat", tableB, TEST_DIR + "/out1")
+                spec_builder2 = create_spec_builder("sleep 30; cat", tableB, TEST_DIR + "/out2")
+
+                tracker.add(spec_builder1)
+                tracker.add(spec_builder2)
+
+                client_transactions = set([yt.get_current_transaction_id()])
+                tracker._tracking_thread._check_operations()
+                with tracker._tracking_thread._thread_lock:
+                    assert len(tracker._tracking_thread._operations_to_track) == 2
+                    op_transactions = set([
+                        o.get_attributes()['user_transaction_id'] for o in tracker._tracking_thread._operations_to_track
+                    ])
+                assert client_transactions == op_transactions
+
+                tracker.abort_all()
 
         finally:
             logger.LOGGER.setLevel(old_level)
