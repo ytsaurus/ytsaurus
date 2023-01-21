@@ -1473,9 +1473,10 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     auto* sourceAncestorWithResourceLimits = GetNearestAncestorWithResourceLimits(oldParent);
     auto* destinationAncestorWithResourceLimits = GetNearestAncestorWithResourceLimits(newParent);
 
-    if (PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() &&
-        sourceAncestorWithResourceLimits != destinationAncestorWithResourceLimits)
-    {
+    bool ancestorWithResourceLimitsChanged =
+        PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() &&
+        sourceAncestorWithResourceLimits != destinationAncestorWithResourceLimits;
+    if (ancestorWithResourceLimitsChanged) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         CollectResourceTreeOperationElements(&descendantOperationElements);
 
@@ -1494,9 +1495,21 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     Parent_->IncreaseOperationCount(OperationCount());
     Parent_->IncreaseRunningOperationCount(RunningOperationCount());
 
-    YT_LOG_INFO("Parent pool is changed (NewParent: %v, OldParent: %v)",
+    YT_LOG_INFO("Parent pool is changed ("
+        "NewParent: %v, "
+        "OldParent: %v, "
+        "SourceAncestorWithResourceLimits: %v, "
+        "DestinationAncestorWithResourceLimits: %v, "
+        "AncestorWithResourceLimitsChanged: %v)",
         newParent->GetId(),
-        oldParent->GetId());
+        oldParent->GetId(),
+        sourceAncestorWithResourceLimits
+            ? std::make_optional(sourceAncestorWithResourceLimits->GetId())
+            : std::nullopt,
+        destinationAncestorWithResourceLimits
+            ? std::make_optional(destinationAncestorWithResourceLimits->GetId())
+            : std::nullopt,
+        ancestorWithResourceLimitsChanged);
 }
 
 void TSchedulerPoolElement::DetachParent()
