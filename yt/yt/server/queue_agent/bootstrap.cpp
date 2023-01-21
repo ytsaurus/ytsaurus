@@ -6,6 +6,7 @@
 #include "queue_agent.h"
 #include "cypress_synchronizer.h"
 #include "dynamic_config_manager.h"
+#include "queue_agent_sharding_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -20,6 +21,9 @@
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
+
+#include <yt/yt/ytlib/discovery_client/member_client.h>
+#include <yt/yt/ytlib/discovery_client/discovery_client.h>
 
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 #include <yt/yt/ytlib/hive/cluster_directory.h>
@@ -90,6 +94,7 @@ static const auto& Logger = QueueAgentLogger;
 TBootstrap::TBootstrap(TQueueAgentServerConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
+    , DynamicConfig_(New<TQueueAgentServerDynamicConfig>())
 {
     if (Config_->AbortOnUnrecognizedOptions) {
         AbortOnUnrecognizedOptions(Logger, Config_);
@@ -122,6 +127,7 @@ void TBootstrap::DoRun()
         Config_->User);
 
     AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+    GroupId_ = "/queue_agents";
 
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
@@ -151,6 +157,16 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
+    MemberClient_ = NativeConnection_->CreateMemberClient(
+        DynamicConfig_->MemberClient,
+        NativeConnection_->GetChannelFactory(),
+        ControlInvoker_,
+        AgentId_,
+        GroupId_);
+    DiscoveryClient_ = NativeConnection_->CreateDiscoveryClient(
+        DynamicConfig_->DiscoveryClient,
+        NativeConnection_->GetChannelFactory());
+
     {
         TCypressElectionManagerOptionsPtr options = New<TCypressElectionManagerOptions>();
         options->GroupName = "QueueAgent";
@@ -163,6 +179,13 @@ void TBootstrap::DoRun()
     DynamicState_ = New<TDynamicState>(Config_->DynamicState, NativeClient_, ClientDirectory_);
 
     AlertManager_ = New<TAlertManager>(ControlInvoker_);
+
+    QueueAgentShardingManager_ = CreateQueueAgentShardingManager(
+        ControlInvoker_,
+        DynamicState_,
+        MemberClient_,
+        DiscoveryClient_,
+        Config_->QueueAgent->Stage);
 
     QueueAgent_ = New<TQueueAgent>(
         Config_->QueueAgent,
@@ -208,6 +231,10 @@ void TBootstrap::DoRun()
         CreateVirtualNode(AlertManager_->GetOrchidService()));
     SetNodeByYPath(
         orchidRoot,
+        "/queue_agent_sharding_manager",
+        CreateVirtualNode(QueueAgentShardingManager_->GetOrchidService()));
+    SetNodeByYPath(
+        orchidRoot,
         "/queue_agent",
         QueueAgent_->GetOrchidNode());
     SetNodeByYPath(
@@ -236,18 +263,21 @@ void TBootstrap::DoRun()
 
     UpdateCypressNode();
 
+    MemberClient_->Start();
+
+    AlertManager_->SubscribePopulateAlerts(BIND(&IQueueAgentShardingManager::PopulateAlerts, QueueAgentShardingManager_));
     AlertManager_->SubscribePopulateAlerts(BIND(&TQueueAgent::PopulateAlerts, QueueAgent_));
     AlertManager_->SubscribePopulateAlerts(BIND(&ICypressSynchronizer::PopulateAlerts, CypressSynchronizer_));
 
-    ElectionManager_->SubscribeLeadingStarted(BIND(&TAlertManager::Start, AlertManager_));
-    ElectionManager_->SubscribeLeadingStarted(BIND(&TQueueAgent::Start, QueueAgent_));
     ElectionManager_->SubscribeLeadingStarted(BIND(&ICypressSynchronizer::Start, CypressSynchronizer_));
 
-    ElectionManager_->SubscribeLeadingEnded(BIND(&TAlertManager::Stop, AlertManager_));
-    ElectionManager_->SubscribeLeadingEnded(BIND(&TQueueAgent::Stop, QueueAgent_));
     ElectionManager_->SubscribeLeadingEnded(BIND(&ICypressSynchronizer::Stop, CypressSynchronizer_));
 
     ElectionManager_->Start();
+
+    AlertManager_->Start();
+    QueueAgentShardingManager_->Start();
+    QueueAgent_->Start();
 }
 
 void TBootstrap::UpdateCypressNode()
@@ -285,6 +315,13 @@ void TBootstrap::OnDynamicConfigChanged(
 {
     ReconfigureNativeSingletons(Config_, newConfig);
 
+    YT_VERIFY(MemberClient_);
+    YT_VERIFY(DiscoveryClient_);
+    MemberClient_->Reconfigure(newConfig->MemberClient);
+    DiscoveryClient_->Reconfigure(newConfig->DiscoveryClient);
+
+    YT_VERIFY(AlertManager_);
+    YT_VERIFY(QueueAgentShardingManager_);
     YT_VERIFY(QueueAgent_);
     YT_VERIFY(CypressSynchronizer_);
 
@@ -294,6 +331,13 @@ void TBootstrap::OnDynamicConfigChanged(
             AlertManager_,
             oldConfig->AlertManager,
             newConfig->AlertManager)
+            .AsyncVia(ControlInvoker_)
+            .Run(),
+        BIND(
+            &IQueueAgentShardingManager::OnDynamicConfigChanged,
+            QueueAgentShardingManager_,
+            oldConfig->QueueAgentShardingManager,
+            newConfig->QueueAgentShardingManager)
             .AsyncVia(ControlInvoker_)
             .Run(),
         BIND(

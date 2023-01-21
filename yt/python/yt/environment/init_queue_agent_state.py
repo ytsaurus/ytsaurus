@@ -10,6 +10,7 @@ QUEUE_TABLE_SCHEMA = [
     {"name": "queue_agent_stage", "type": "string"},
     {"name": "synchronization_error", "type": "any"},
 ]
+DEFAULT_QUEUE_TABLE_NAME = "queues"
 
 CONSUMER_TABLE_SCHEMA = [
     {"name": "cluster", "type": "string", "sort_order": "ascending"},
@@ -22,6 +23,13 @@ CONSUMER_TABLE_SCHEMA = [
     {"name": "queue_agent_stage", "type": "string"},
     {"name": "synchronization_error", "type": "any"},
 ]
+DEFAULT_CONSUMER_TABLE_NAME = "consumers"
+
+QUEUE_AGENT_OBJECT_MAPPING_TABLE_SCHEMA = [
+    {"name": "object", "type": "string", "sort_order": "ascending"},
+    {"name": "host", "type": "string"},
+]
+DEFAULT_QUEUE_AGENT_OBJECT_MAPPING_TABLE_NAME = "queue_agent_object_mapping"
 
 REGISTRATION_TABLE_SCHEMA = [
     {"name": "queue_cluster", "type": "string", "sort_order": "ascending"},
@@ -35,16 +43,38 @@ DEFAULT_ROOT = "//sys/queue_agents"
 DEFAULT_REGISTRATION_TABLE_PATH = DEFAULT_ROOT + "/consumer_registrations"
 
 
+def create_table(client, path, schema, **kwargs):
+    client.create("table", path, attributes={"dynamic": True, "schema": schema}, **kwargs)
+    client.mount_table(path, sync=True)
+
+
 def create_tables(client, root=DEFAULT_ROOT, registration_table_path=DEFAULT_REGISTRATION_TABLE_PATH,
-                  skip_queues=False, skip_consumers=False, create_registration_table=False,
-                  queue_table_schema=None, consumer_table_schema=None, registration_table_schema=None):
+                  skip_queues=False, skip_consumers=False, skip_object_mapping=False, create_registration_table=False,
+                  queue_table_schema=None, consumer_table_schema=None, object_mapping_schema=None,
+                  registration_table_schema=None,
+                  **kwargs):
     queue_table_schema = queue_table_schema or QUEUE_TABLE_SCHEMA
     consumer_table_schema = consumer_table_schema or CONSUMER_TABLE_SCHEMA
+    object_mapping_schema = object_mapping_schema or QUEUE_AGENT_OBJECT_MAPPING_TABLE_SCHEMA
     registration_table_schema = registration_table_schema or REGISTRATION_TABLE_SCHEMA
+
     if not skip_queues:
-        client.create("table", root + "/queues", attributes={"dynamic": True, "schema": queue_table_schema})
+        create_table(client, "{}/{}".format(root, DEFAULT_QUEUE_TABLE_NAME), queue_table_schema, **kwargs)
     if not skip_consumers:
-        client.create("table", root + "/consumers", attributes={"dynamic": True, "schema": consumer_table_schema})
+        create_table(client, "{}/{}".format(root, DEFAULT_CONSUMER_TABLE_NAME), consumer_table_schema, **kwargs)
+    if not skip_object_mapping:
+        create_table(client, "{}/{}".format(root, DEFAULT_QUEUE_AGENT_OBJECT_MAPPING_TABLE_NAME), object_mapping_schema, **kwargs)
     if create_registration_table:
-        client.create("table", registration_table_path,
-                      attributes={"dynamic": True, "schema": registration_table_schema})
+        create_table(client, registration_table_path, registration_table_schema, **kwargs)
+
+
+def delete_tables(client, root=DEFAULT_ROOT, registration_table_path=DEFAULT_REGISTRATION_TABLE_PATH,
+                  skip_queues=False, skip_consumers=False, skip_object_mapping=False, skip_registration_table=False):
+    if not skip_queues:
+        client.remove("{}/{}".format(root, DEFAULT_QUEUE_TABLE_NAME), force=True)
+    if not skip_consumers:
+        client.remove("{}/{}".format(root, DEFAULT_CONSUMER_TABLE_NAME), force=True)
+    if not skip_object_mapping:
+        client.remove("{}/{}".format(root, DEFAULT_QUEUE_AGENT_OBJECT_MAPPING_TABLE_NAME), force=True)
+    if not skip_registration_table:
+        client.remove(registration_table_path, force=True)

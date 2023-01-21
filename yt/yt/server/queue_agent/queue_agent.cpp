@@ -12,11 +12,15 @@
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/discovery_client/member_client.h>
+
 #include <yt/yt/ytlib/auth/native_authenticating_channel.h>
 
 #include <yt/yt/ytlib/orchid/orchid_ypath_service.h>
 
 #include <yt/yt/client/object_client/public.h>
+
+#include <yt/yt/client/ypath/rich.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
 
@@ -35,6 +39,7 @@ using namespace NObjectClient;
 using namespace NOrchid;
 using namespace NApi;
 using namespace NConcurrency;
+using namespace NDiscoveryClient;
 using namespace NYson;
 using namespace NHydra;
 using namespace NQueueClient;
@@ -103,24 +108,29 @@ public:
 
     IYPathServicePtr FindItemService(TStringBuf key) const override
     {
-        if (auto remoteYPathService = Owner_->RedirectYPathRequestToLeader(QueryRoot_, key)) {
-            return remoteYPathService;
+
+        auto guard = ReaderGuard(Owner_->ObjectLock_);
+
+        auto objectRef = TCrossClusterReference::FromString(key);
+
+        const auto& objectToHost = Owner_->ObjectToHost_;
+        auto objectToHostIt = objectToHost.find(objectRef);
+        if (objectToHostIt == objectToHost.end()) {
+            THROW_ERROR_EXCEPTION("Object %Qv is not mapped to any queue agent", objectRef);
         }
 
-        {
-            auto guard = ReaderGuard(Owner_->ObjectLock_);
-
-            auto objectRef = TCrossClusterReference::FromString(key);
-
-            const auto& objectMap = Owner_->Objects_[ObjectKind_];
-
-            auto it = objectMap.find(objectRef);
-            if (it == objectMap.end()) {
-                THROW_ERROR_EXCEPTION("Object %Qv is missing", objectRef);
-            }
-
-            return IYPathService::FromProducer(BIND(&IObjectController::BuildOrchid, it->second.Controller));
+        if (objectToHostIt->second != Owner_->AgentId_) {
+            return Owner_->RedirectYPathRequest(objectToHostIt->second, QueryRoot_, key);
         }
+
+        const auto& objectMap = Owner_->Objects_[ObjectKind_];
+
+        auto it = objectMap.find(objectRef);
+        if (it == objectMap.end()) {
+            THROW_ERROR_EXCEPTION("Object %Qv is missing", objectRef);
+        }
+
+        return IYPathService::FromProducer(BIND(&IObjectController::BuildOrchid, it->second.Controller));
     }
 
 private:
@@ -155,10 +165,10 @@ TQueueAgent::TQueueAgent(
     , DynamicState_(std::move(dynamicState))
     , ElectionManager_(std::move(electionManager))
     , ControllerThreadPool_(CreateThreadPool(DynamicConfig_->ControllerThreadCount, "Controller"))
-    , PollExecutor_(New<TPeriodicExecutor>(
+    , PassExecutor_(New<TPeriodicExecutor>(
         ControlInvoker_,
-        BIND(&TQueueAgent::Poll, MakeWeak(this)),
-        DynamicConfig_->PollPeriod))
+        BIND(&TQueueAgent::Pass, MakeWeak(this)),
+        DynamicConfig_->PassPeriod))
     , AgentId_(std::move(agentId))
     , GlobalProfilingCounters_(QueueAgentProfiler)
     , QueueAgentChannelFactory_(
@@ -180,42 +190,7 @@ void TQueueAgent::Start()
 
     YT_LOG_INFO("Starting queue agent");
 
-    Active_ = true;
-
-    PollExecutor_->Start();
-}
-
-void TQueueAgent::Stop()
-{
-    VERIFY_THREAD_AFFINITY_ANY();
-
-    YT_LOG_INFO("Stopping queue agent");
-
-    ControlInvoker_->Invoke(BIND(&TQueueAgent::DoStop, MakeWeak(this)));
-
-    Active_ = false;
-}
-
-void TQueueAgent::DoStop()
-{
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
-
-    YT_LOG_INFO("Stopping polling");
-
-    // Returning without waiting here is a bit racy in case of a concurrent Start(),
-    // but it does not seem like a big issue.
-    PollExecutor_->Stop();
-
-    YT_LOG_INFO("Clearing state");
-
-    {
-        auto guard = WriterGuard(ObjectLock_);
-
-        Objects_[EObjectKind::Queue].clear();
-        Objects_[EObjectKind::Consumer].clear();
-    }
-
-    YT_LOG_INFO("Queue agent stopped");
+    PassExecutor_->Start();
 }
 
 void TQueueAgent::PopulateAlerts(std::vector<TError>* alerts) const
@@ -229,16 +204,16 @@ void TQueueAgent::PopulateAlerts(std::vector<TError>* alerts) const
 
 void TQueueAgent::DoPopulateAlerts(std::vector<TError>* alerts) const
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
 }
 
 IMapNodePtr TQueueAgent::GetOrchidNode() const
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
-    YT_LOG_DEBUG("Executing orchid request (PollIndex: %v)", PollIndex_ - 1);
+    YT_LOG_DEBUG("Executing orchid request (LastSuccessfulPassIndex: %v)", PassIndex_ - 1);
 
     auto virtualScalarNode = [] (auto callable) {
         return CreateVirtualNode(IYPathService::FromProducer(BIND([callable] (IYsonConsumer* consumer) {
@@ -247,10 +222,9 @@ IMapNodePtr TQueueAgent::GetOrchidNode() const
     };
 
     auto node = GetEphemeralNodeFactory()->CreateMap();
-    node->AddChild("active", virtualScalarNode([&] { return Active_.load(); }));
-    node->AddChild("poll_instant", virtualScalarNode([&] { return PollInstant_; }));
-    node->AddChild("poll_index", virtualScalarNode([&] { return PollIndex_; }));
-    node->AddChild("poll_error", virtualScalarNode([&] { return PollError_; }));
+    node->AddChild("pass_instant", virtualScalarNode([&] { return PassInstant_; }));
+    node->AddChild("pass_index", virtualScalarNode([&] { return PassIndex_; }));
+    node->AddChild("pass_error", virtualScalarNode([&] { return PassError_; }));
     node->AddChild("queues", ObjectServiceNodes_[EObjectKind::Queue]);
     node->AddChild("consumers", ObjectServiceNodes_[EObjectKind::Consumer]);
 
@@ -261,12 +235,12 @@ void TQueueAgent::OnDynamicConfigChanged(
     const TQueueAgentDynamicConfigPtr& oldConfig,
     const TQueueAgentDynamicConfigPtr& newConfig)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     // NB: We do this in the beginning, so that we use the new config if a context switch happens below.
     DynamicConfig_ = newConfig;
 
-    PollExecutor_->SetPeriod(newConfig->PollPeriod);
+    PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
     ControllerThreadPool_->Configure(newConfig->ControllerThreadCount);
 
@@ -317,58 +291,76 @@ std::vector<TConsumerRegistrationTableRow> TQueueAgent::GetRegistrations(
     return {};
 }
 
-void TQueueAgent::Poll()
+void TQueueAgent::Pass()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
-    PollInstant_ = TInstant::Now();
-    ++PollIndex_;
+    PassInstant_ = TInstant::Now();
+    ++PassIndex_;
 
     auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("QueueAgent"));
 
-    auto Logger = QueueAgentLogger.WithTag("PollIndex: %v", PollIndex_);
+    auto Logger = QueueAgentLogger.WithTag("PassIndex: %v", PassIndex_);
 
     // Collect queue and consumer rows.
 
-    YT_LOG_INFO("State poll started");
+    YT_LOG_INFO("Pass started");
     auto logFinally = Finally([&] {
-        YT_LOG_INFO("State poll finished");
+        YT_LOG_INFO("Pass finished");
     });
 
     auto where = Format("[queue_agent_stage] = \"%v\"", Config_->Stage);
     auto asyncQueueRows = DynamicState_->Queues->Select("*", where);
     auto asyncConsumerRows = DynamicState_->Consumers->Select("*", where);
     auto asyncRegistrationRows = DynamicState_->Registrations->Select();
+    auto asyncObjectMappingRows = DynamicState_->QueueAgentObjectMapping->Select();
 
     std::vector<TFuture<void>> futures{
         asyncQueueRows.AsVoid(),
         asyncConsumerRows.AsVoid(),
         asyncRegistrationRows.AsVoid(),
+        asyncObjectMappingRows.AsVoid(),
     };
 
     if (auto error = WaitFor(AllSucceeded(futures)); !error.IsOK()) {
-        PollError_ = error;
-        YT_LOG_ERROR(error, "Error polling queue state");
+        PassError_ = error;
+        YT_LOG_ERROR(error, "Error while reading dynamic state");
         auto alert = TError(
             NAlerts::EErrorCode::QueueAgentPassFailed,
-            "Error polling queue state")
+            "Error while reading dynamic state")
             << error;
         Alerts_ = {alert};
         return;
     }
-    const auto& queueRows = asyncQueueRows.Get().Value();
-    const auto& consumerRows = asyncConsumerRows.Get().Value();
+    auto queueRows = asyncQueueRows.GetUnique().Value();
+    auto consumerRows = asyncConsumerRows.GetUnique().Value();
     const auto& registrationRows = asyncRegistrationRows.Get().Value();
+    const auto& objectMappingRows = asyncObjectMappingRows.Get().Value();
 
     YT_LOG_INFO(
-        "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, RegistrationRowCount: %v)",
+        "State table rows collected (QueueRowCount: %v, ConsumerRowCount: %v, RegistrationRowCount: %v, QueueAgentObjectMappingRows: %v)",
         queueRows.size(),
         consumerRows.size(),
-        registrationRows.size());
+        registrationRows.size(),
+        objectMappingRows.size());
+
+    // Fresh queue/consumer -> responsible queue agent mapping.
+    auto objectMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);
+
+    // Filter only those queues and consumers for which our queue agent is responsible.
+
+    queueRows.erase(std::remove_if(queueRows.begin(), queueRows.end(), [&, this] (const TQueueTableRow& queueRow) {
+        auto it = objectMapping.find(queueRow.Ref);
+        return it == objectMapping.end() || it->second != AgentId_;
+    }), queueRows.end());
+    consumerRows.erase(std::remove_if(consumerRows.begin(), consumerRows.end(), [&, this] (const TConsumerTableRow& consumerRow) {
+        auto it = objectMapping.find(consumerRow.Ref);
+        return it == objectMapping.end() || it->second != AgentId_;
+    }), consumerRows.end());
+
+    // Prepare fresh queue and consumer controllers.
 
     TEnumIndexedVector<EObjectKind, TObjectMap> freshObjects;
-
-    // First, prepare fresh queue and consumer controllers.
 
     auto updateControllers = [&] (EObjectKind objectKind, const auto& rows, auto updateController) {
         VERIFY_READER_SPINLOCK_AFFINITY(ObjectLock_);
@@ -396,7 +388,7 @@ void TQueueAgent::Poll()
                 ControllerThreadPool_->GetInvoker());
 
             YT_LOG_DEBUG(
-                "Controller updated (Kind: %v, Object: %Qv, Reused: %v, Recreated: %v)",
+                "Controller updated (Kind: %v, Object: %v, Reused: %v, Recreated: %v)",
                 objectKind,
                 row.Ref,
                 reused,
@@ -431,6 +423,8 @@ void TQueueAgent::Poll()
         for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
             Objects_[objectKind].swap(freshObjects[objectKind]);
         }
+
+        ObjectToHost_.swap(objectMapping);
     }
 
     // Finally, update rows in the controllers. As best effort to prevent some inconsistencies (like enabling trimming
@@ -451,7 +445,7 @@ void TQueueAgent::Poll()
         updateRows(EObjectKind::Consumer, consumerRows);
     }
 
-    PollError_ = TError();
+    PassError_ = TError();
     Alerts_.clear();
 
     Profile();
@@ -494,29 +488,11 @@ void TQueueAgent::Profile()
     }
 }
 
-NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key) const
+NYTree::IYPathServicePtr TQueueAgent::RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    if (Active_) {
-        return nullptr;
-    }
-
-    auto leaderTransactionAttributes = ElectionManager_->GetCachedLeaderTransactionAttributes();
-    if (!leaderTransactionAttributes) {
-        THROW_ERROR_EXCEPTION(
-            "Unable to fetch %Qv, instance is not active and leader information is not available",
-            key);
-    }
-
-    auto host = leaderTransactionAttributes->Get<TString>("host");
-    if (host == AgentId_) {
-        THROW_ERROR_EXCEPTION(
-            "Unable to fetch %v, instance is not active and leader information is stale",
-            key);
-    }
-
-    YT_LOG_DEBUG("Redirecting orchid request (LeaderHost: %v, QueryRoot: %v, Key: %v)", host, queryRoot, key);
+    YT_LOG_DEBUG("Redirecting orchid request (QueueAgentHost: %v, QueryRoot: %v, Key: %v)", host, queryRoot, key);
     auto leaderChannel = QueueAgentChannelFactory_->CreateChannel(host);
     auto remoteRoot = Format("%v/%v", queryRoot, ToYPathLiteral(key));
     return CreateOrchidYPathService({

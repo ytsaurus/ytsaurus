@@ -138,6 +138,35 @@ DEFINE_REFCOUNTED_TYPE(TConsumerTable)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueueAgentObjectMappingTableRow
+{
+    TCrossClusterReference Object;
+    TString QueueAgentHost;
+
+    static std::vector<TQueueAgentObjectMappingTableRow> ParseRowRange(
+        TRange<NTableClient::TUnversionedRow> rows,
+        const NTableClient::TNameTablePtr& nameTable,
+        const NTableClient::TTableSchemaPtr& schema);
+
+    static NApi::IUnversionedRowsetPtr InsertRowRange(TRange<TQueueAgentObjectMappingTableRow> rows);
+    static NApi::IUnversionedRowsetPtr DeleteRowRange(TRange<TQueueAgentObjectMappingTableRow> keys);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueAgentObjectMappingTable
+    : public TTableBase<TQueueAgentObjectMappingTableRow>
+{
+public:
+    TQueueAgentObjectMappingTable(NYPath::TYPath root, NApi::IClientPtr client);
+
+    static THashMap<TCrossClusterReference, TString> ToMapping(const std::vector<TQueueAgentObjectMappingTableRow>& rows);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueAgentObjectMappingTable)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TConsumerRegistrationTableRow
 {
     TCrossClusterReference Queue;
@@ -173,6 +202,7 @@ struct TDynamicState
 {
     TQueueTablePtr Queues;
     TConsumerTablePtr Consumers;
+    TQueueAgentObjectMappingTablePtr QueueAgentObjectMapping;
     TConsumerRegistrationTablePtr Registrations;
 
     TDynamicState(

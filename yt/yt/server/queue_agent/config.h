@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
+#include <yt/yt/ytlib/discovery_client/public.h>
+
 #include <yt/yt/ytlib/queue_client/public.h>
 
 #include <yt/yt/core/ytree/yson_struct.h>
@@ -58,7 +60,7 @@ class TCypressSynchronizerDynamicConfig
 {
 public:
     //! Cypress poll period.
-    TDuration PollPeriod;
+    TDuration PassPeriod;
 
     //! Flag for disabling cypress synchronizer entirely; used primarily for tests.
     bool Enable;
@@ -123,7 +125,7 @@ class TQueueAgentDynamicConfig
 {
 public:
     //! State table poll period.
-    TDuration PollPeriod;
+    TDuration PassPeriod;
 
     //! Controller thread pool thread count.
     int ControllerThreadCount;
@@ -137,6 +139,21 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueAgentDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TQueueAgentShardingManagerDynamicConfig
+    : public NYTree::TYsonStruct
+{
+public:
+    TDuration PassPeriod;
+
+    REGISTER_YSON_STRUCT(TQueueAgentShardingManagerDynamicConfig)
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TQueueAgentShardingManagerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -178,7 +195,11 @@ class TQueueAgentServerDynamicConfig
     : public TNativeSingletonsDynamicConfig
 {
 public:
+    NDiscoveryClient::TMemberClientConfigPtr MemberClient;
+    NDiscoveryClient::TDiscoveryClientConfigPtr DiscoveryClient;
+
     TAlertManagerDynamicConfigPtr AlertManager;
+    TQueueAgentShardingManagerDynamicConfigPtr QueueAgentShardingManager;
     TQueueAgentDynamicConfigPtr QueueAgent;
     TCypressSynchronizerDynamicConfigPtr CypressSynchronizer;
 

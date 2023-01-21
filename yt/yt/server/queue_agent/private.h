@@ -14,6 +14,7 @@ namespace NYT::NQueueAgent {
 
 inline const NLogging::TLogger AlertManagerLogger("AlertManager");
 inline const NLogging::TLogger QueueAgentLogger("QueueAgent");
+inline const NLogging::TLogger QueueAgentShardingManagerLogger("QueueAgentShardingManager");
 inline const NLogging::TLogger CypressSynchronizerLogger("CypressSynchronizer");
 inline const NProfiling::TProfiler QueueAgentProfiler = NProfiling::TProfiler("/queue_agent").WithGlobal();
 
@@ -28,7 +29,9 @@ YT_DEFINE_ERROR_ENUM(
     ((CypressSynchronizerUnableToFetchAttributes)                 (3001))
     ((CypressSynchronizerPassFailed)                              (3002))
 
-    ((QueueAgentPassFailed)                                       (3030))
+    ((QueueAgentPassFailed)                                       (3025))
+
+    ((QueueAgentShardingManagerPassFailed)                        (3050))
 );
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -49,6 +52,9 @@ DECLARE_REFCOUNTED_STRUCT(ICypressSynchronizer)
 DECLARE_REFCOUNTED_CLASS(TCypressSynchronizer)
 DECLARE_REFCOUNTED_CLASS(TCypressSynchronizerConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressSynchronizerDynamicConfig)
+
+DECLARE_REFCOUNTED_STRUCT(IQueueAgentShardingManager)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentShardingManagerDynamicConfig)
 
 DECLARE_REFCOUNTED_CLASS(TQueueAgentServerConfig)
 DECLARE_REFCOUNTED_CLASS(TQueueAgentServerDynamicConfig)

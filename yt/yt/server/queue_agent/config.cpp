@@ -2,6 +2,8 @@
 
 #include <yt/yt/ytlib/api/native/config.h>
 
+#include <yt/yt/ytlib/discovery_client/config.h>
+
 #include <yt/yt/ytlib/queue_client/config.h>
 
 #include <yt/yt/client/security_client/public.h>
@@ -29,8 +31,8 @@ void TCypressSynchronizerConfig::Register(TRegistrar /*registrar*/)
 
 void TCypressSynchronizerDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("poll_period", &TThis::PollPeriod)
-        .Default(TDuration::Seconds(2));
+    registrar.Parameter("pass_period", &TThis::PassPeriod)
+        .Default(TDuration::Seconds(1));
     registrar.Parameter("enable", &TThis::Enable)
         .Default(true);
     registrar.Parameter("policy", &TThis::Policy)
@@ -63,12 +65,20 @@ void TQueueControllerDynamicConfig::Register(TRegistrar registrar)
 
 void TQueueAgentDynamicConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("poll_period", &TThis::PollPeriod)
+    registrar.Parameter("pass_period", &TThis::PassPeriod)
         .Default(TDuration::Seconds(1));
     registrar.Parameter("controller_thread_count", &TThis::ControllerThreadCount)
         .Default(4);
     registrar.Parameter("controller", &TThis::Controller)
         .DefaultNew();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TQueueAgentShardingManagerDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("pass_period", &TThis::PassPeriod)
+        .Default(TDuration::Seconds(5));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -113,7 +123,14 @@ void TQueueAgentServerConfig::Register(TRegistrar registrar)
 
 void TQueueAgentServerDynamicConfig::Register(TRegistrar registrar)
 {
+    registrar.Parameter("member_client", &TThis::MemberClient)
+        .DefaultNew();
+    registrar.Parameter("discovery_client", &TThis::DiscoveryClient)
+        .DefaultNew();
+
     registrar.Parameter("alert_manager", &TThis::AlertManager)
+        .DefaultNew();
+    registrar.Parameter("queue_agent_sharding_manager", &TThis::QueueAgentShardingManager)
         .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
         .DefaultNew();

@@ -22,8 +22,6 @@ public:
 
     void Start();
 
-    void Stop();
-
     DEFINE_SIGNAL(void(std::vector<TError>*), PopulateAlerts);
 
     void OnDynamicConfigChanged(

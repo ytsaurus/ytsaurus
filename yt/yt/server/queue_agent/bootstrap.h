@@ -6,13 +6,15 @@
 
 #include <yt/yt/ytlib/api/native/public.h>
 
-#include <yt/yt/library/monitoring/public.h>
+#include <yt/yt/ytlib/discovery_client/public.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/ytlib/hive/public.h>
+
+#include <yt/yt/library/monitoring/public.h>
 
 #include <yt/yt/core/bus/public.h>
 
@@ -39,8 +41,10 @@ public:
 private:
     const TQueueAgentServerConfigPtr Config_;
     const NYTree::INodePtr ConfigNode_;
+    TQueueAgentServerDynamicConfigPtr DynamicConfig_;
 
     TString AgentId_;
+    TString GroupId_;
 
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
     NConcurrency::TActionQueuePtr ControlQueue_;
@@ -59,12 +63,15 @@ private:
 
     NHiveClient::TClientDirectoryPtr ClientDirectory_;
 
+    NDiscoveryClient::IMemberClientPtr MemberClient_;
+    NDiscoveryClient::IDiscoveryClientPtr DiscoveryClient_;
     NCypressElection::ICypressElectionManagerPtr ElectionManager_;
 
     TAlertManagerPtr AlertManager_;
 
     NQueueClient::TDynamicStatePtr DynamicState_;
 
+    IQueueAgentShardingManagerPtr QueueAgentShardingManager_;
     TQueueAgentPtr QueueAgent_;
 
     ICypressSynchronizerPtr CypressSynchronizer_;
