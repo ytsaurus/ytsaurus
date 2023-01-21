@@ -104,7 +104,17 @@ public:
         return ThreadSafeAttributes_.Get();
     }
 
-    i64 GetPriority() override
+    TMemberId GetId() const override
+    {
+        return Id_;
+    }
+
+    TGroupId GetGroupId() const override
+    {
+        return GroupId_;
+    }
+
+    i64 GetPriority() const override
     {
         return Priority_.load();
     }

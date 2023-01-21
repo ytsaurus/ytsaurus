@@ -120,7 +120,7 @@ private:
             auto queueRef = registration.Queue;
             auto queueSnapshot = DynamicPointerCast<const TQueueSnapshot>(Graph_->FindSnapshot(queueRef));
             if (!queueSnapshot) {
-                YT_LOG_DEBUG("Snapshot is missing for the queue while building subconsumer snapshot (Queue: %Qv)", queueRef);
+                YT_LOG_DEBUG("Snapshot is missing for the queue while building subconsumer snapshot (Queue: %v)", queueRef);
                 auto errorQueueSnapshot = New<TQueueSnapshot>();
                 errorQueueSnapshot->Error = TError("Queue %Qv snapshot is missing", queueRef);
                 queueSnapshot = std::move(errorQueueSnapshot);
@@ -145,7 +145,7 @@ private:
             if (subConsumerSnapshotOrError.IsOK()) {
                 subConsumerSnapshot = std::move(subConsumerSnapshotOrError.Value());
             } else {
-                YT_LOG_DEBUG(subConsumerSnapshotOrError, "Error building subconsumer snapshot (Queue: %Qv)", queueRef);
+                YT_LOG_DEBUG(subConsumerSnapshotOrError, "Error building subconsumer snapshot (Queue: %v)", queueRef);
                 subConsumerSnapshot = New<TSubConsumerSnapshot>();
                 subConsumerSnapshot->Error = std::move(subConsumerSnapshotOrError);
             }
@@ -161,7 +161,7 @@ private:
         TCrossClusterReference queueRef,
         TQueueSnapshotConstPtr queueSnapshot)
     {
-        auto Logger = this->Logger.WithTag("Queue: %Qv", queueRef);
+        auto Logger = this->Logger.WithTag("Queue: %v", queueRef);
 
         YT_LOG_DEBUG("Building subconsumer snapshot (PassIndex: %v)", ConsumerSnapshot_->PassIndex);
 
@@ -305,7 +305,7 @@ private:
         // Calculate next row commit times and processing lags.
         const auto& client = ClientDirectory_->GetClientOrThrow(queueRef.Cluster);
         auto query = queryBuilder.Flush();
-        YT_LOG_TRACE("Executing query for next row commit times (Query: %Qv)", query);
+        YT_LOG_TRACE("Executing query for next row commit times (Query: %v)", query);
         auto result = WaitFor(client->SelectRows(query))
             .ValueOrThrow();
 
@@ -376,7 +376,7 @@ public:
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger.WithTag("Consumer: %Qv", ConsumerRef_))
+        , Logger(QueueAgentLogger.WithTag("Consumer: %v", ConsumerRef_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),
@@ -473,7 +473,7 @@ private:
         YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
         for (const auto& registration : registrations) {
             YT_LOG_DEBUG(
-                "Relevant registration (Queue: %Qv, Consumer: %Qv, Vital: %v)",
+                "Relevant registration (Queue: %v, Consumer: %v, Vital: %v)",
                 registration.Queue,
                 registration.Consumer,
                 registration.Vital);

@@ -22,7 +22,10 @@ struct IMemberClient
 
     virtual NYTree::IAttributeDictionary* GetAttributes() = 0;
 
-    virtual i64 GetPriority() = 0;
+    virtual TMemberId GetId() const = 0;
+    virtual TGroupId GetGroupId() const = 0;
+
+    virtual i64 GetPriority() const = 0;
     virtual void SetPriority(i64 value) = 0;
 };
 
@@ -33,8 +36,8 @@ IMemberClientPtr CreateMemberClient(
     TMemberClientConfigPtr clientConfig,
     NRpc::IChannelFactoryPtr channelFactory,
     IInvokerPtr invoker,
-    TString id,
-    TString groupId);
+    TMemberId id,
+    TGroupId groupId);
 
 ////////////////////////////////////////////////////////////////////////////////
 

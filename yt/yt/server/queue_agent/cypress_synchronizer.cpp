@@ -60,10 +60,10 @@ struct TObject
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TCypressSynchronizerPollSession final
+class TCypressSynchronizerPassSession final
 {
 public:
-    TCypressSynchronizerPollSession(
+    TCypressSynchronizerPassSession(
         ECypressSynchronizerPolicy policy,
         std::vector<TString> clusters,
         TDynamicStatePtr dynamicState,
@@ -554,10 +554,10 @@ public:
         , ControlInvoker_(std::move(controlInvoker))
         , DynamicState_(std::move(dynamicState))
         , ClientDirectory_(std::move(clientDirectory))
-        , PollExecutor_(New<TPeriodicExecutor>(
+        , PassExecutor_(New<TPeriodicExecutor>(
             ControlInvoker_,
-            BIND(&TCypressSynchronizer::Poll, MakeWeak(this)),
-            DynamicConfig_->PollPeriod))
+            BIND(&TCypressSynchronizer::Pass, MakeWeak(this)),
+            DynamicConfig_->PassPeriod))
         , OrchidService_(IYPathService::FromProducer(BIND(&TCypressSynchronizer::BuildOrchid, MakeWeak(this)))->Via(ControlInvoker_))
     { }
 
@@ -570,67 +570,67 @@ public:
     {
         Active_ = true;
 
-        PollExecutor_->Start();
+        PassExecutor_->Start();
     }
 
     void Stop() override
     {
         // NB: We can't have context switches happen in this callback, so sync operations could potentially be performed
         // after a call to CypressSynchronizer::Stop().
-        PollExecutor_->Stop();
+        PassExecutor_->Stop();
 
         Active_ = false;
     }
 
-    //! Perform a polling round which finds out which objects have changed since the last round
+    //! Perform a pass iteration which finds out which objects have changed since the last round
     //! and updates the corresponding rows in the dynamic state.
-    void Poll()
+    void Pass()
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         auto traceContextGuard = TTraceContextGuard(TTraceContext::NewRoot("CypressSynchronizer"));
 
         if (!DynamicConfig_->Enable) {
-            YT_LOG_DEBUG("Polling iteration skipped");
+            YT_LOG_DEBUG("Pass skipped");
             Alerts_.clear();
             return;
         }
 
-        PollInstant_ = TInstant::Now();
-        ++PollIndex_;
+        PassInstant_ = TInstant::Now();
+        ++PassIndex_;
 
-        YT_LOG_DEBUG("Polling round started (PollIndex: %v)", PollIndex_);
+        YT_LOG_DEBUG("Pass started (PassIndex: %v)", PassIndex_);
         try {
-            auto alerts = TCypressSynchronizerPollSession(
+            auto alerts = TCypressSynchronizerPassSession(
                 DynamicConfig_->Policy,
                 DynamicConfig_->Clusters,
                 DynamicState_,
                 ClientDirectory_,
-                Logger.WithTag("PollIndex: %v", PollIndex_))
+                Logger.WithTag("PassIndex: %v", PassIndex_))
                 .Build();
-            PollError_ = TError();
+            PassError_ = TError();
             Alerts_.swap(alerts);
         } catch (const std::exception& ex) {
-            PollError_ = TError(ex);
+            PassError_ = TError(ex);
             auto alert = TError(
                 NAlerts::EErrorCode::CypressSynchronizerPassFailed,
-                "Error performing polling round")
+                "Error performing cypress synchronizer pass")
                 << TError(ex);
             Alerts_ = {alert};
         }
 
-        YT_LOG_DEBUG("Polling round finished (PollIndex: %v)", PollIndex_);
+        YT_LOG_DEBUG("Pass finished (PassIndex: %v)", PassIndex_);
     }
 
     void OnDynamicConfigChanged(
         const TCypressSynchronizerDynamicConfigPtr& oldConfig,
         const TCypressSynchronizerDynamicConfigPtr& newConfig) override
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         DynamicConfig_ = newConfig;
 
-        PollExecutor_->SetPeriod(newConfig->PollPeriod);
+        PassExecutor_->SetPeriod(newConfig->PassPeriod);
 
         YT_LOG_DEBUG(
             "Updated Cypress synchronizer dynamic config (OldConfig: %v, NewConfig: %v)",
@@ -653,35 +653,35 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TDynamicStatePtr DynamicState_;
     const TClientDirectoryPtr ClientDirectory_;
-    const TPeriodicExecutorPtr PollExecutor_;
+    const TPeriodicExecutorPtr PassExecutor_;
     const IYPathServicePtr OrchidService_;
 
-    //! Whether this instance is actively performing polling.
+    //! Whether this instance is actively performing passes.
     std::atomic<bool> Active_ = false;
-    //! Current poll iteration error.
-    TError PollError_;
-    //! Current poll iteration instant.
-    TInstant PollInstant_ = TInstant::Zero();
-    //! Index of the current poll iteration.
-    i64 PollIndex_ = -1;
+    //! Current pass iteration error.
+    TError PassError_;
+    //! Current pass iteration instant.
+    TInstant PassInstant_ = TInstant::Zero();
+    //! Index of the current pass iteration.
+    i64 PassIndex_ = -1;
 
     std::vector<TError> Alerts_;
 
     void BuildOrchid(NYson::IYsonConsumer* consumer) const
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         BuildYsonFluently(consumer).BeginMap()
             .Item("active").Value(Active_)
-            .Item("poll_instant").Value(PollInstant_)
-            .Item("poll_index").Value(PollIndex_)
-            .Item("poll_error").Value(PollError_)
+            .Item("pass_instant").Value(PassInstant_)
+            .Item("pass_index").Value(PassIndex_)
+            .Item("pass_error").Value(PassError_)
         .EndMap();
     }
 
     void DoPopulateAlerts(std::vector<TError>* alerts) const
     {
-        VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+        VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
         alerts->insert(alerts->end(), Alerts_.begin(), Alerts_.end());
     }

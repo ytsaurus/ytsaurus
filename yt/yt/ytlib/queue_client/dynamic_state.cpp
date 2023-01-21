@@ -492,6 +492,98 @@ TConsumerTable::TConsumerTable(TYPath root, IClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TQueueAgentObjectMappingTableDescriptor
+{
+    static constexpr TStringBuf Name = "queue_agent_object_mapping";
+    static NTableClient::TTableSchemaPtr Schema;
+};
+
+TTableSchemaPtr TQueueAgentObjectMappingTableDescriptor::Schema = New<TTableSchema>(std::vector<TColumnSchema>{
+    TColumnSchema("object", EValueType::String, ESortOrder::Ascending),
+    TColumnSchema("host", EValueType::String),
+});
+
+std::vector<TQueueAgentObjectMappingTableRow> TQueueAgentObjectMappingTableRow::ParseRowRange(
+    TRange<TUnversionedRow> rows,
+    const TNameTablePtr& nameTable,
+    const TTableSchemaPtr& schema)
+{
+    // TODO(max42): eliminate copy-paste?
+    std::vector<TQueueAgentObjectMappingTableRow> typedRows;
+    typedRows.reserve(rows.size());
+
+    if (auto [compatibility, error] = CheckTableSchemaCompatibility(*schema, *TQueueAgentObjectMappingTableDescriptor::Schema, /*ignoreSortOrder*/ true);
+        compatibility != ESchemaCompatibility::FullyCompatible) {
+        THROW_ERROR_EXCEPTION("Row range schema is incompatible with registration table row schema")
+            << error;
+    }
+
+    // TODO(achulkov2): Fix schema checks. See YT-16786.
+    auto objectId = nameTable->GetIdOrThrow("object");
+    auto hostId = nameTable->GetIdOrThrow("host");
+
+    for (const auto& row : rows) {
+        auto& typedRow = typedRows.emplace_back();
+        typedRow.Object = TCrossClusterReference::FromString(FromUnversionedValue<TString>(row[objectId]));
+        typedRow.QueueAgentHost = FromUnversionedValue<TString>(row[hostId]);
+    }
+
+    return typedRows;
+}
+
+IUnversionedRowsetPtr TQueueAgentObjectMappingTableRow::InsertRowRange(TRange<TQueueAgentObjectMappingTableRow> rows)
+{
+    auto nameTable = TNameTable::FromSchema(*TQueueAgentObjectMappingTableDescriptor::Schema);
+
+    TUnversionedRowsBuilder rowsBuilder;
+    for (const auto& row : rows) {
+        auto rowBuffer = New<TRowBuffer>();
+        TUnversionedRowBuilder rowBuilder;
+
+        rowBuilder.AddValue(ToUnversionedValue(ToString(row.Object), rowBuffer, nameTable->GetIdOrThrow("object")));
+        rowBuilder.AddValue(ToUnversionedValue(row.QueueAgentHost, rowBuffer, nameTable->GetIdOrThrow("host")));
+
+        rowsBuilder.AddRow(rowBuilder.GetRow());
+    }
+
+    return CreateRowset(TQueueAgentObjectMappingTableDescriptor::Schema, rowsBuilder.Build());
+}
+
+NApi::IUnversionedRowsetPtr TQueueAgentObjectMappingTableRow::DeleteRowRange(TRange<TQueueAgentObjectMappingTableRow> keys)
+{
+    auto nameTable = TNameTable::FromSchema(*TQueueAgentObjectMappingTableDescriptor::Schema);
+
+    TUnversionedRowsBuilder rowsBuilder;
+    for (const auto& row : keys) {
+        TUnversionedOwningRowBuilder rowBuilder;
+        rowBuilder.AddValue(MakeUnversionedStringValue(ToString(row.Object), nameTable->GetIdOrThrow("object")));
+
+        rowsBuilder.AddRow(rowBuilder.FinishRow().Get());
+    }
+
+    return CreateRowset(TQueueAgentObjectMappingTableDescriptor::Schema, rowsBuilder.Build());
+}
+
+THashMap<TCrossClusterReference, TString> TQueueAgentObjectMappingTable::ToMapping(
+    const std::vector<TQueueAgentObjectMappingTableRow>& rows)
+{
+    THashMap<TCrossClusterReference, TString> objectMapping;
+    for (const auto& row : rows) {
+        objectMapping[row.Object] = row.QueueAgentHost;
+    }
+    return objectMapping;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+template class TTableBase<TQueueAgentObjectMappingTableRow>;
+
+TQueueAgentObjectMappingTable::TQueueAgentObjectMappingTable(TYPath root, IClientPtr client)
+    : TTableBase<TQueueAgentObjectMappingTableRow>(root + "/" + TQueueAgentObjectMappingTableDescriptor::Name, std::move(client))
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TConsumerRegistrationTableDescriptor
 {
     static constexpr TStringBuf Name = "consumer_registrations";
@@ -612,6 +704,7 @@ TDynamicState::TDynamicState(
     const TClientDirectoryPtr& clientDirectory)
     : Queues(New<TQueueTable>(config->Root, localClient))
     , Consumers(New<TConsumerTable>(config->Root, localClient))
+    , QueueAgentObjectMapping(New<TQueueAgentObjectMappingTable>(config->Root, localClient))
     , Registrations(New<TConsumerRegistrationTable>(
         config->ConsumerRegistrationTablePath.GetPath(),
         GetRemoteClient(localClient, clientDirectory, config->ConsumerRegistrationTablePath.GetCluster())))

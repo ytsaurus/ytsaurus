@@ -39,16 +39,9 @@ void TAlertManager::Start()
     AlertCollectionExecutor_->Start();
 }
 
-void TAlertManager::Stop()
-{
-    // NB: We can't have context switches happen in this callback, so alert collection could potentially be performed
-    // after a call to TAlertManager::Stop().
-    AlertCollectionExecutor_->Stop();
-}
-
 void TAlertManager::CollectAlerts()
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     std::vector<TError> alerts;
     PopulateAlerts_.Fire(&alerts);
@@ -74,7 +67,7 @@ void TAlertManager::OnDynamicConfigChanged(
     const TAlertManagerDynamicConfigPtr& oldConfig,
     const TAlertManagerDynamicConfigPtr& newConfig)
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     DynamicConfig_ = newConfig;
 
@@ -88,7 +81,7 @@ void TAlertManager::OnDynamicConfigChanged(
 
 void TAlertManager::BuildOrchid(NYson::IYsonConsumer* consumer) const
 {
-    VERIFY_INVOKER_AFFINITY(ControlInvoker_);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ControlInvoker_);
 
     BuildYsonFluently(consumer)
         .BeginAttributes()

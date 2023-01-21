@@ -50,8 +50,6 @@ public:
 
     void Start();
 
-    void Stop();
-
     NYTree::IMapNodePtr GetOrchidNode() const;
 
     void OnDynamicConfigChanged(
@@ -76,8 +74,10 @@ private:
     const NQueueClient::TDynamicStatePtr DynamicState_;
     const NCypressElection::ICypressElectionManagerPtr ElectionManager_;
     const NConcurrency::IThreadPoolPtr ControllerThreadPool_;
-    const NConcurrency::TPeriodicExecutorPtr PollExecutor_;
-    TString AgentId_;
+    const NConcurrency::TPeriodicExecutorPtr PassExecutor_;
+
+    const TString AgentId_;
+
     THashMap<TString, TClusterProfilingCounters> ClusterProfilingCounters_;
     TGlobalProfilingCounters GlobalProfilingCounters_;
 
@@ -92,13 +92,14 @@ private:
 
     mutable NThreading::TReaderWriterSpinLock ObjectLock_;
     TEnumIndexedVector<EObjectKind, TObjectMap> Objects_;
+    THashMap<NQueueClient::TCrossClusterReference, TString> ObjectToHost_;
 
-    //! Current poll error if any.
-    TError PollError_;
+    //! Current pass error if any.
+    TError PassError_;
     //! Current poll iteration instant.
-    TInstant PollInstant_ = TInstant::Zero();
-    //! Index of a current poll iteration.
-    i64 PollIndex_ = 0;
+    TInstant PassInstant_ = TInstant::Zero();
+    //! Index of the current poll iteration.
+    i64 PassIndex_ = -1;
 
     NRpc::IChannelFactoryPtr QueueAgentChannelFactory_;
 
@@ -106,7 +107,7 @@ private:
 
     std::vector<TError> Alerts_;
 
-    NYTree::IYPathServicePtr RedirectYPathRequestToLeader(TStringBuf queryRoot, TStringBuf key) const;
+    NYTree::IYPathServicePtr RedirectYPathRequest(const TString& host, TStringBuf queryRoot, TStringBuf key) const;
 
     void BuildObjectYson(
         EObjectKind objectKind,
@@ -115,9 +116,9 @@ private:
         NYson::IYsonConsumer* ysonConsumer) const;
 
     //! One iteration of state polling and object store updating.
-    void Poll();
+    void Pass();
 
-    //! Stops periodic polling and destroys all controllers.
+    //! Stops periodic passes and destroys all controllers.
     void DoStop();
 
     void DoPopulateAlerts(std::vector<TError>* alerts) const;

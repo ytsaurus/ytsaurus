@@ -25,6 +25,7 @@ constexpr TRowRevision NullRowRevision = 0;
 DECLARE_REFCOUNTED_CLASS(TQueueTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerTable)
 DECLARE_REFCOUNTED_CLASS(TConsumerRegistrationTable)
+DECLARE_REFCOUNTED_CLASS(TQueueAgentObjectMappingTable)
 DECLARE_REFCOUNTED_STRUCT(TDynamicState)
 
 ////////////////////////////////////////////////////////////////////////////////
