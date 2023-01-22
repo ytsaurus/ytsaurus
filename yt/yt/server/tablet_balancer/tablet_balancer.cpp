@@ -42,6 +42,45 @@ constexpr static TDuration MinBalanceFrequency = TDuration::Minutes(1);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TParameterizedBalancingTimeoutScheduler
+{
+public:
+    TParameterizedBalancingTimeoutScheduler(TDuration timeoutOnStart, TDuration timeout)
+        : TimeoutOnStart_(timeoutOnStart)
+        , Timeout_(timeout)
+    { }
+
+    bool IsBalancingAllowed(const TString& bundleName) const
+    {
+        auto now = Now();
+        if (now - InstanceStartTime_ < TimeoutOnStart_) {
+            return false;
+        }
+
+        auto it = BundleToLastBalancingTime_.find(bundleName);
+        return it == BundleToLastBalancingTime_.end() || now - it->second >= Timeout_;
+    }
+
+    void Start()
+    {
+        InstanceStartTime_ = Now();
+        BundleToLastBalancingTime_.clear();
+    }
+
+    void UpdateBalancingTime(const TString& bundleName)
+    {
+        BundleToLastBalancingTime_[bundleName] = Now();
+    }
+
+private:
+    const TDuration TimeoutOnStart_;
+    const TDuration Timeout_;
+    TInstant InstanceStartTime_;
+    THashMap<TString, TInstant> BundleToLastBalancingTime_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TTabletBalancer
     :  public ITabletBalancer
 {
@@ -75,7 +114,9 @@ private:
     std::atomic<int> MaxParameterizedMoveActionCount_{0};
     std::atomic<double> ParameterizedDeviationThreshold_{0.0};
     TAtomicObject<TTimeFormula> ScheduleFormula_;
+    TAtomicObject<std::optional<TDuration>> Period_;
 
+    TParameterizedBalancingTimeoutScheduler ParameterizedBalancingScheduler_;
     TInstant CurrentIterationStartTime_;
     TInstant PreviousIterationStartTime_;
     i64 IterationIndex_;
@@ -84,12 +125,14 @@ private:
     void TryBalancerIteration();
 
     bool IsBalancingAllowed(const TBundleStatePtr& bundleState) const;
+    bool IsParameterizedBalancingEnabled(const TBundleStatePtr& bundleState) const;
 
-    void BalanceViaReshard(const TBundleStatePtr& bundleState) const;
+    void BalanceViaReshard(const TBundleStatePtr& bundleState);
     void BalanceViaMove(const TBundleStatePtr& bundleState) const;
     void BalanceViaMoveInMemory(const TBundleStatePtr& bundleState) const;
     void BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState) const;
-    void BalanceViaMoveParameterized(const TBundleStatePtr& bundleState) const;
+    void TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState);
+    void BalanceViaMoveParameterized(const TBundleStatePtr& bundleState);
 
     std::vector<TString> UpdateBundleList();
     bool HasUntrackedUnfinishedActions(
@@ -123,6 +166,9 @@ TTabletBalancer::TTabletBalancer(
         Config_->TabletActionPollingPeriod,
         Bootstrap_->GetClient(),
         Bootstrap_))
+    , ParameterizedBalancingScheduler_(
+        Config_->ParameterizedTimeoutOnStart,
+        Config_->ParameterizedTimeout)
     , PreviousIterationStartTime_(TruncatedNow())
     , IterationIndex_(0)
 {
@@ -133,9 +179,12 @@ void TTabletBalancer::Start()
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    YT_LOG_INFO("Starting tablet balancer instance");
+    YT_LOG_INFO("Starting tablet balancer instance (Period: %v)",
+        Period_.Load().value_or(Config_->Period));
 
     BundleNamesToMoveOnNextIteration_.clear();
+
+    ParameterizedBalancingScheduler_.Start();
 
     PollExecutor_->Start();
 
@@ -194,10 +243,15 @@ void TTabletBalancer::BalancerIteration()
             continue;
         }
 
-        // TODO(alexelex): Use Tablets as tablets for each table.
-
         if (auto it = BundleNamesToMoveOnNextIteration_.find(bundleName); it != BundleNamesToMoveOnNextIteration_.end()) {
-            BundleNamesToMoveOnNextIteration_.erase(it);
+            if (IsParameterizedBalancingEnabled(bundle) && !ParameterizedBalancingScheduler_.IsBalancingAllowed(bundleName)) {
+                YT_LOG_DEBUG("Skip parameterized balancing iteration due to "
+                    "recalculation of performance counters (BundleName: %v)", bundleName);
+            } else {
+                BundleNamesToMoveOnNextIteration_.erase(it);
+                TryBalanceViaMoveParameterized(bundle);
+            }
+
             BalanceViaMove(bundle);
         } else if (DidBundleBalancingTimeHappen(bundle->GetBundle())) {
             BundleNamesToMoveOnNextIteration_.insert(bundleName);
@@ -233,6 +287,11 @@ bool TTabletBalancer::IsBalancingAllowed(const TBundleStatePtr& bundleState) con
          bundleState->GetBundle()->Config->EnableStandaloneTabletBalancer);
 }
 
+bool TTabletBalancer::IsParameterizedBalancingEnabled(const TBundleStatePtr& bundleState) const
+{
+    return !bundleState->GetBundle()->Config->ParameterizedBalancingMetric.empty();
+}
+
 IYPathServicePtr TTabletBalancer::GetOrchidService()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
@@ -260,6 +319,7 @@ void TTabletBalancer::OnDynamicConfigChanged(
     MaxParameterizedMoveActionCount_.store(newConfig->MaxParameterizedMoveActionCount);
     ParameterizedDeviationThreshold_.store(newConfig->ParameterizedDeviationThreshold);
     ScheduleFormula_.Store(newConfig->Schedule);
+    Period_.Store(newConfig->Period);
 
     auto oldPeriod = oldConfig->Period.value_or(Config_->Period);
     auto newPeriod = newConfig->Period.value_or(Config_->Period);
@@ -457,12 +517,12 @@ void TTabletBalancer::BalanceViaMoveOrdinary(const TBundleStatePtr& bundleState)
         actionCount);
 }
 
-void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleState) const
+void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleState)
 {
     YT_LOG_DEBUG("Balancing tablets via parameterized move started (BundleName: %v)",
         bundleState->GetBundle()->Name);
 
-    if (bundleState->GetBundle()->Config->ParameterizedBalancingMetric.empty()) {
+    if (!IsParameterizedBalancingEnabled(bundleState)) {
         YT_LOG_DEBUG("Balance tablets via parameterized move is disabled (BundleName: %v)",
             bundleState->GetBundle()->Name);
         return;
@@ -498,10 +558,14 @@ void TTabletBalancer::BalanceViaMoveParameterized(const TBundleStatePtr& bundleS
         actionCount += std::ssize(descriptors);
     }
 
+    if (actionCount > 0) {
+        ParameterizedBalancingScheduler_.UpdateBalancingTime(bundleState->GetBundle()->Name);
+    }
+
     YT_LOG_DEBUG("Balance tablets via parameterized move finished (ActionCount: %v)", actionCount);
 }
 
-void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState) const
+void TTabletBalancer::TryBalanceViaMoveParameterized(const TBundleStatePtr& bundleState)
 {
     try {
         BalanceViaMoveParameterized(bundleState);
@@ -511,12 +575,15 @@ void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState) const
             bundleState->GetBundle()->Name,
             bundleState->GetBundle()->Config->ParameterizedBalancingMetric);
     }
+}
 
+void TTabletBalancer::BalanceViaMove(const TBundleStatePtr& bundleState) const
+{
     BalanceViaMoveInMemory(bundleState);
     BalanceViaMoveOrdinary(bundleState);
 }
 
-void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState) const
+void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState)
 {
     YT_LOG_DEBUG("Balancing tablets via reshard started (BundleName: %v)",
         bundleState->GetBundle()->Name);
@@ -580,6 +647,10 @@ void TTabletBalancer::BalanceViaReshard(const TBundleStatePtr& bundleState) cons
             }
         }
         actionCount += std::ssize(descriptors);
+    }
+
+    if (actionCount > 0) {
+        ParameterizedBalancingScheduler_.UpdateBalancingTime(bundleState->GetBundle()->Name);
     }
 
     YT_LOG_DEBUG("Balancing tablets via reshard finished (BundleName: %v, ActionCount: %v)",
