@@ -22,7 +22,8 @@ from yt_commands import (
 from yt_scheduler_helpers import (
     scheduler_orchid_pool_path, scheduler_orchid_default_pool_tree_path,
     scheduler_orchid_operation_path, scheduler_orchid_default_pool_tree_config_path,
-    scheduler_orchid_path, scheduler_orchid_pool_tree_config_path)
+    scheduler_orchid_path, scheduler_orchid_pool_tree_config_path,
+    scheduler_new_orchid_pool_tree_path)
 
 from yt_helpers import profiler_factory
 
@@ -1112,6 +1113,53 @@ class TestSchedulerOperationLimits(YTEnvSetup):
             user="u",
             spec={"pool": "p3"},
         )
+
+    @authors("ignat")
+    def test_rename_pool_with_running_operation(self):
+        create_pool("default_pool", attributes={"resource_limits": {"user_slots": 2}})
+        create_pool("test_pool", attributes={"resource_limits": {"user_slots": 1}})
+
+        def rename_test_pool(check_usage=False):
+            set("//sys/pool_trees/default/test_pool/@name", "renamed_pool")
+            wait(lambda: "renamed_pool" in ls(scheduler_new_orchid_pool_tree_path("default") + "/pools"))
+
+            pool_info = get(scheduler_new_orchid_pool_tree_path("default") + "/pools/test_pool")
+            assert pool_info["full_path"] == "/default_pool/test_pool"
+            assert pool_info["resource_limits"]["user_slots"] == 3
+
+            if check_usage:
+                wait(lambda: get(scheduler_new_orchid_pool_tree_path("default") + "/pools/test_pool/resource_usage/user_slots") == 2)
+
+        def restore_test_pool(check_usage=False):
+            set("//sys/pool_trees/default/renamed_pool/@name", "test_pool")
+            wait(lambda: "renamed_pool" not in ls(scheduler_new_orchid_pool_tree_path("default") + "/pools"))
+
+            pool_info = get(scheduler_new_orchid_pool_tree_path("default") + "/pools/test_pool")
+            assert pool_info["full_path"] == "/test_pool"
+            assert pool_info["resource_limits"]["user_slots"] == 1
+
+            if check_usage:
+                wait(lambda: get(scheduler_new_orchid_pool_tree_path("default") + "/pools/test_pool/resource_usage/user_slots") == 1)
+
+        op = run_test_vanilla(with_breakpoint("BREAKPOINT; sleep 0.5"), job_count=10, pool="test_pool")
+
+        wait_breakpoint()
+
+        rename_test_pool(check_usage=True)
+        restore_test_pool(check_usage=True)
+
+        release_breakpoint()
+
+        rename_test_pool()
+        time.sleep(2)
+        restore_test_pool()
+        time.sleep(2)
+        rename_test_pool()
+
+        op.track()
+
+        # Give some time to process ephemeral pool deletion.
+        time.sleep(1)
 
 
 ##################################################################
