@@ -22,6 +22,10 @@ void TStandaloneTabletBalancerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Minutes(20));
     registrar.Parameter("tablet_action_polling_period", &TThis::TabletActionPollingPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("parameterized_timeout_on_start", &TThis::ParameterizedTimeoutOnStart)
+        .Default(TDuration::Minutes(10));
+    registrar.Parameter("parameterized_timeout", &TThis::ParameterizedTimeout)
+        .Default(TDuration::Minutes(10));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

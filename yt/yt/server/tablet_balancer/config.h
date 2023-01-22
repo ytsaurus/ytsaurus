@@ -28,6 +28,8 @@ public:
 
     TDuration TabletActionExpirationTime;
     TDuration TabletActionPollingPeriod;
+    TDuration ParameterizedTimeoutOnStart;
+    TDuration ParameterizedTimeout;
 
     REGISTER_YSON_STRUCT(TStandaloneTabletBalancerConfig)
 

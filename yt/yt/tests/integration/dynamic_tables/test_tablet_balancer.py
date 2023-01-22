@@ -42,6 +42,7 @@ class TestStandaloneTabletBalancerBase:
             "tablet_balancer": {
                 "period" : 100,
                 "tablet_action_polling_period": 100,
+                "parameterized_timeout_on_start": 0,
             },
             "election_manager": {
                 "transaction_ping_period": 100,
@@ -94,7 +95,7 @@ class TestStandaloneTabletBalancer(TestStandaloneTabletBalancerBase, TabletBalan
 class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTablesBase):
     @classmethod
     def modify_tablet_balancer_config(cls, config):
-        super(TestStandaloneTabletBalancerBase, cls).modify_tablet_balancer_config(config)
+        super(TestParameterizedBalancing, cls).modify_tablet_balancer_config(config)
         update_inplace(config, {
             "tablet_balancer": {
                 "period" : 5000,
@@ -129,10 +130,12 @@ class TestParameterizedBalancing(TestStandaloneTabletBalancerBase, DynamicTables
         sync_reshard_table("//tmp/t", [[], [10], [20], [30]])
         sync_mount_table("//tmp/t", cell_id=cells[0])
 
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(3)])  # 3 rows
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(10, 11)])  # 1 row
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(20, 22)])  # 2 rows
-        insert_rows("//tmp/t", [{"key": i, "value": str(i)} for i in range(30, 32)])  # 2 rows
+        rows = [{"key": i, "value": str(i)} for i in range(3)]  # 3 rows
+        rows.extend([{"key": i, "value": str(i)} for i in range(10, 11)])  # 1 row
+        rows.extend([{"key": i, "value": str(i)} for i in range(20, 22)])  # 2 rows
+        rows.extend([{"key": i, "value": str(i)} for i in range(30, 32)])  # 2 rows
+
+        insert_rows("//tmp/t", rows)
         sync_flush_table("//tmp/t")
 
         set("//tmp/t/@enable_parameterized_balancing", True)
