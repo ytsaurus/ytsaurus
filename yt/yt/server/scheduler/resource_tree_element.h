@@ -37,6 +37,8 @@ public:
         const std::vector<TResourceTreeElementPtr>& descendantOperations);
     bool AreResourceLimitsViolated() const;
 
+    bool ResourceLimitsSpecified() const;
+
     inline bool GetAlive() const;
     inline void SetNonAlive();
 

@@ -41,6 +41,7 @@ void TPersistentAttributes::ResetOnElementEnabled()
     resetAttributes.IntegralResourcesState = IntegralResourcesState;
     resetAttributes.LastNonStarvingTime = TInstant::Now();
     resetAttributes.SchedulingSegmentModule = SchedulingSegmentModule;
+    resetAttributes.AppliedResourceLimits = AppliedResourceLimits;
     *this = resetAttributes;
 }
 
@@ -94,12 +95,17 @@ void TSchedulerElement::PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* 
     HasSpecifiedResourceLimits_ = GetSpecifiedResourceLimits() != TJobResources::Infinite();
 
     auto specifiedResourceLimits = GetSpecifiedResourceLimits();
+
     if (PersistentAttributes_.AppliedResourceLimits != specifiedResourceLimits) {
         std::vector<TResourceTreeElementPtr> descendantOperationElements;
         if (!IsOperation() && PersistentAttributes_.AppliedResourceLimits == TJobResources::Infinite() && specifiedResourceLimits != TJobResources::Infinite()) {
             // NB: this code executed in control thread, therefore tree structure is actual and agreed with tree structure of resource tree.
             CollectResourceTreeOperationElements(&descendantOperationElements);
         }
+        YT_LOG_INFO("Update resource limits (SpecifiedResourceLimits: %v, CurrentResourceLimits: %v)",
+            specifiedResourceLimits,
+            PersistentAttributes_.AppliedResourceLimits);
+
         ResourceTreeElement_->SetResourceLimits(specifiedResourceLimits, descendantOperationElements);
         PersistentAttributes_.AppliedResourceLimits = specifiedResourceLimits;
     }
@@ -1498,11 +1504,13 @@ void TSchedulerPoolElement::ChangeParent(TSchedulerCompositeElement* newParent)
     YT_LOG_INFO("Parent pool is changed ("
         "NewParent: %v, "
         "OldParent: %v, "
+        "CurrentResourceLimits: %v, "
         "SourceAncestorWithResourceLimits: %v, "
         "DestinationAncestorWithResourceLimits: %v, "
         "AncestorWithResourceLimitsChanged: %v)",
         newParent->GetId(),
         oldParent->GetId(),
+        PersistentAttributes_.AppliedResourceLimits,
         sourceAncestorWithResourceLimits
             ? std::make_optional(sourceAncestorWithResourceLimits->GetId())
             : std::nullopt,

@@ -57,8 +57,8 @@ void TResourceTreeElement::SetResourceLimits(
     // NB: this method called from Control thread, tree structure supposed to have no changes.
     bool resourceLimitsSpecifiedBeforeUpdate = ResourceLimitsSpecified_;
     bool resourceLimitsSpecified = resourceLimits != TJobResources::Infinite();
-    
-    bool shouldInitializeResourceUsage = 
+
+    bool shouldInitializeResourceUsage =
         !resourceLimitsSpecifiedBeforeUpdate &&
         resourceLimitsSpecified &&
         Kind_ != EResourceTreeElementKind::Operation;
@@ -72,6 +72,7 @@ void TResourceTreeElement::SetResourceLimits(
         ResourceLimitsSpecified_ = (resourceLimits != TJobResources::Infinite());
         if (!ResourceLimitsSpecified_ && Kind_ != EResourceTreeElementKind::Operation) {
             ResourceUsagePrecommit_ = TJobResources();
+            ResourceUsage_ = TJobResources();
         }
     };
 
@@ -93,6 +94,11 @@ bool TResourceTreeElement::AreResourceLimitsViolated() const
     auto guard = ReaderGuard(ResourceUsageLock_);
 
     return !Dominates(ResourceLimits_, ResourceUsage_);
+}
+
+bool TResourceTreeElement::ResourceLimitsSpecified() const
+{
+    return ResourceLimitsSpecified_;
 }
 
 bool TResourceTreeElement::IncreaseLocalResourceUsagePrecommit(const TJobResources& delta)
