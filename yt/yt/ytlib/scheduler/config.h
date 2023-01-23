@@ -1171,6 +1171,9 @@ public:
 
     std::optional<TString> SystemLayerPath;
 
+    //! Default base layer used if no other layers are requested.
+    std::optional<TString> DefaultBaseLayerPath;
+
     //! If set, overrides |Profilers| from operation spec.
     std::optional<std::vector<TJobProfilerSpecPtr>> Profilers;
 
