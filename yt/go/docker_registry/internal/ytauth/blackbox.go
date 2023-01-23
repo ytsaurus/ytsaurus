@@ -18,7 +18,7 @@ const (
 )
 
 func getBlackBoxClient() (*httpbb.Client, error) {
-	opts := make([]httpbb.Option, 1)
+	var opts []httpbb.Option
 	if _, ok := os.LookupEnv(QloudTVMTokenEnvName); ok {
 		tvmClient, err := tvmtool.NewQloudClient(tvmtool.WithSrc(TVMAppAlias))
 		if err != nil {
