@@ -460,6 +460,27 @@ def check_chunk_locations():
     check_everything()
 
 
+def check_tablet_balancer_config():
+    set("//sys/tablet_cell_bundles/default/@tablet_balancer_config/animal", "panda")
+    assert get("//sys/tablet_cell_bundles/default/@tablet_balancer_config/animal") == "panda"
+
+    create_dynamic_table(
+        "//tmp/tablet_balancer_test_table",
+        schema=[
+            {"name": "key", "type": "int64", "sort_order": "ascending"},
+            {"name": "value", "type": "string"},
+        ],
+    )
+
+    set("//tmp/tablet_balancer_test_table/@tablet_balancer_config/animal", "zebra")
+    assert get("//tmp/tablet_balancer_test_table/@tablet_balancer_config/animal") == "zebra"
+
+    yield
+
+    assert get("//sys/tablet_cell_bundles/default/@tablet_balancer_config/animal") == "panda"
+    assert get("//tmp/tablet_balancer_test_table/@tablet_balancer_config/animal") == "zebra"
+
+
 MASTER_SNAPSHOT_CHECKER_LIST = [
     check_simple_node,
     check_schema,
@@ -547,6 +568,7 @@ class TestAllMastersSnapshots(YTEnvSetup):
             check_master_memory,
             check_hierarchical_accounts,
             check_transactions,
+            check_tablet_balancer_config,
             check_removed_account,  # keep this item last as it's sensitive to timings
         ]
 

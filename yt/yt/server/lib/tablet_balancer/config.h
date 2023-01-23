@@ -11,6 +11,7 @@ namespace NYT::NTabletBalancer {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Frozen.
 class TBundleTabletBalancerConfig
     : public NYTree::TYsonStruct
 {
@@ -51,6 +52,7 @@ DEFINE_REFCOUNTED_TYPE(TBundleTabletBalancerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+//! Frozen.
 class TTableTabletBalancerConfig
     : public NYTree::TYsonStruct
 {

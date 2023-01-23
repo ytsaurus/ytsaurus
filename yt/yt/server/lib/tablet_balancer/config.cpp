@@ -2,10 +2,14 @@
 
 namespace NYT::NTabletBalancer {
 
+using namespace NYTree;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
 {
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+
     registrar.Parameter("enable_in_memory_cell_balancer", &TThis::EnableInMemoryCellBalancer)
         .Default(true)
         .Alias("enable_in_memory_balancer");
@@ -87,6 +91,8 @@ void TBundleTabletBalancerConfig::Register(TRegistrar registrar)
 
 void TTableTabletBalancerConfig::Register(TRegistrar registrar)
 {
+    registrar.UnrecognizedStrategy(EUnrecognizedStrategy::KeepRecursive);
+
     registrar.Parameter("enable_auto_reshard", &TThis::EnableAutoReshard)
         .Default(true);
 
