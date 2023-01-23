@@ -254,8 +254,8 @@ void AppendVector(TVector& destination, TVector&& source)
 
 } // namespace NDetail
 
-template <class T, class... TArgs>
-std::vector<T> ConcatVectors(std::vector<T> first, TArgs&&... rest)
+template <class TVector, class... TArgs>
+TVector ConcatVectors(TVector first, TArgs&&... rest)
 {
     // We need to put results somewhere; that's why we accept first parameter by value and use it as a resulting vector.
     // First, calculate total size of the result.
