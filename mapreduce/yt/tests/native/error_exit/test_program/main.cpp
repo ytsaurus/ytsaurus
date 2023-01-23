@@ -3,6 +3,8 @@
 #include <mapreduce/yt/interface/logging/yt_log.h>
 #include <mapreduce/yt/common/config.h>
 
+#include <yt/yt/core/misc/shutdown.h>
+
 #include <util/system/env.h>
 
 using namespace NYT;
@@ -51,7 +53,22 @@ private:
 int main(int argc, const char** argv) {
     if (GetEnv("EXIT_CODE_FOR_TERMINATE")) {
         std::set_terminate([] {
-            exit(FromString<int>(GetEnv("EXIT_CODE_FOR_TERMINATE")));
+            int exitCode = FromString<int>(GetEnv("EXIT_CODE_FOR_TERMINATE"));
+            if (FromString<bool>(GetEnv("CALL_SHUTDOWN_HANDLERS"))) {
+                NYT::Shutdown({
+                    .GraceTimeout = TDuration::Seconds(5),
+                    .AbortOnHang = false,
+                    .HungExitCode = exitCode,
+                });
+                // NYT::Shutdown doesn't wait for threads from mapreduce/yt/http client
+                if (TConfig::Get()->UseAsyncTxPinger) {
+                    Y_FAIL("Shutdown should have never returned");
+                } else {
+                    _exit(exitCode);
+                }
+            } else {
+                _exit(exitCode);
+            }
         });
     }
 

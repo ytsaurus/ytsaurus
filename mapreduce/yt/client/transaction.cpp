@@ -1,5 +1,7 @@
 #include "transaction.h"
 
+#include "transaction_pinger.h"
+
 #include <mapreduce/yt/interface/error_codes.h>
 
 #include <mapreduce/yt/common/config.h>
@@ -27,11 +29,14 @@ TPingableTransaction::TPingableTransaction(
     const IClientRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& parentId,
+    ITransactionPingerPtr transactionPinger,
     const TStartTransactionOptions& options)
     : ClientRetryPolicy_(retryPolicy)
     , Auth_(auth)
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
     , AbortOnTermination_(true)
+    , AutoPingable_(options.AutoPingable_)
+    , Pinger_(std::move(transactionPinger))
 {
     auto transactionId = NDetail::NRawClient::StartTransaction(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
@@ -40,18 +45,21 @@ TPingableTransaction::TPingableTransaction(
         options);
 
     auto actualTimeout = options.Timeout_.GetOrElse(TConfig::Get()->TxTimeout);
-    Init(auth, transactionId, actualTimeout, options.AutoPingable_);
+    Init(auth, transactionId, actualTimeout);
 }
 
 TPingableTransaction::TPingableTransaction(
     const IClientRetryPolicyPtr& retryPolicy,
     const TAuth& auth,
     const TTransactionId& transactionId,
+    ITransactionPingerPtr transactionPinger,
     const TAttachTransactionOptions& options)
     : ClientRetryPolicy_(retryPolicy)
     , Auth_(auth)
     , AbortableRegistry_(NDetail::TAbortableRegistry::Get())
     , AbortOnTermination_(options.AbortOnTermination_)
+    , AutoPingable_(options.AutoPingable_)
+    , Pinger_(std::move(transactionPinger))
 {
     auto timeoutNode = NDetail::NRawClient::TryGet(
         ClientRetryPolicy_->CreatePolicyForGenericRequest(),
@@ -63,14 +71,13 @@ TPingableTransaction::TPingableTransaction(
         throw yexception() << "Transaction " << GetGuidAsString(transactionId) << " does not exist";
     }
     auto timeout = TDuration::MilliSeconds(timeoutNode.AsInt64());
-    Init(auth, transactionId, timeout, options.AutoPingable_);
+    Init(auth, transactionId, timeout);
 }
 
 void TPingableTransaction::Init(
     const TAuth& auth,
     const TTransactionId& transactionId,
-    TDuration timeout,
-    bool autoPingable)
+    TDuration timeout)
 {
     TransactionId_ = transactionId;
 
@@ -80,18 +87,14 @@ void TPingableTransaction::Init(
             ::MakeIntrusive<NDetail::TTransactionAbortable>(auth, TransactionId_));
     }
 
-    Running_ = true;
-
-    if (autoPingable) {
+    if (AutoPingable_) {
         // Compute 'MaxPingInterval_' and 'MinPingInterval_' such that 'pingInterval == (max + min) / 2'.
         auto pingInterval = TConfig::Get()->PingInterval;
         auto safeTimeout = timeout - TDuration::Seconds(5);
         MaxPingInterval_ = Max(pingInterval, Min(safeTimeout, pingInterval * 1.5));
         MinPingInterval_ = pingInterval - (MaxPingInterval_ - pingInterval);
 
-        Thread_ = MakeHolder<TThread>(
-            TThread::TParams{Pinger, this}.SetName("pingable_tx"));
-        Thread_->Start();
+        Pinger_->RegisterTransaction(*this);
     }
 }
 
@@ -106,6 +109,14 @@ TPingableTransaction::~TPingableTransaction()
 const TTransactionId TPingableTransaction::GetId() const
 {
     return TransactionId_;
+}
+
+const std::pair<TDuration, TDuration> TPingableTransaction::GetPingInterval() const {
+    return {MinPingInterval_, MaxPingInterval_};
+}
+
+const TAuth TPingableTransaction::GetAuth() const {
+    return Auth_;
 }
 
 void TPingableTransaction::Commit()
@@ -125,14 +136,14 @@ void TPingableTransaction::Detach()
 
 void TPingableTransaction::Stop(EStopAction action)
 {
-    if (!Running_) {
+    if (Finalized_) {
         return;
     }
 
     Y_DEFER {
-        Running_ = false;
-        if (Thread_) {
-            Thread_->Join();
+        Finalized_ = true;
+        if (AutoPingable_ && Pinger_->HasTransaction(*this)) {
+            Pinger_->RemoveTransaction(*this);
         }
     };
 
@@ -155,37 +166,6 @@ void TPingableTransaction::Stop(EStopAction action)
     }
 
     AbortableRegistry_->Remove(TransactionId_);
-}
-
-void TPingableTransaction::Pinger()
-{
-    while (Running_) {
-        TDuration waitTime = MinPingInterval_ + (MaxPingInterval_ - MinPingInterval_) * RandomNumber<float>();
-        try {
-            auto noRetryPolicy = MakeIntrusive<TAttemptLimitedRetryPolicy>(1u);
-            NDetail::NRawClient::PingTx(noRetryPolicy, Auth_, TransactionId_);
-        } catch (const yexception& e) {
-            if (auto* errorResponse = dynamic_cast<const TErrorResponse*>(&e)) {
-                if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::NTransactionClient::NoSuchTransaction)) {
-                    break;
-                } else if (errorResponse->GetError().ContainsErrorCode(NYT::NClusterErrorCodes::Timeout)) {
-                    waitTime = TDuration::MilliSeconds(0);
-                }
-            }
-            // Else do nothing, going to retry this error.
-        }
-
-        TInstant t = Now();
-        while (Running_ && Now() - t < waitTime) {
-            NDetail::TWaitProxy::Get()->Sleep(TDuration::MilliSeconds(100));
-        }
-    }
-}
-
-void* TPingableTransaction::Pinger(void* opaque)
-{
-    static_cast<TPingableTransaction*>(opaque)->Pinger();
-    return nullptr;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

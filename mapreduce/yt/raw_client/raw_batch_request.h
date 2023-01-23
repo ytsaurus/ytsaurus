@@ -59,88 +59,88 @@ public:
         TInstant now = TInstant::Now());
     void SetErrorResult(std::exception_ptr e) const;
 
-    NThreading::TFuture<TNodeId> Create(
+    ::NThreading::TFuture<TNodeId> Create(
         const TTransactionId& transaction,
         const TYPath& path,
         ENodeType type,
         const TCreateOptions& options);
-    NThreading::TFuture<void> Remove(
+    ::NThreading::TFuture<void> Remove(
         const TTransactionId& transaction,
         const TYPath& path,
         const TRemoveOptions& options);
-    NThreading::TFuture<bool> Exists(
+    ::NThreading::TFuture<bool> Exists(
         const TTransactionId& transaction,
         const TYPath& path,
         const TExistsOptions& options);
-    NThreading::TFuture<TNode> Get(
+    ::NThreading::TFuture<TNode> Get(
         const TTransactionId& transaction,
         const TYPath& path,
         const TGetOptions& options);
-    NThreading::TFuture<void> Set(
+    ::NThreading::TFuture<void> Set(
         const TTransactionId& transaction,
         const TYPath& path,
         const TNode& value,
         const TSetOptions& options);
-    NThreading::TFuture<TNode::TListType> List(
+    ::NThreading::TFuture<TNode::TListType> List(
         const TTransactionId& transaction,
         const TYPath& path,
         const TListOptions& options);
-    NThreading::TFuture<TNodeId> Copy(
+    ::NThreading::TFuture<TNodeId> Copy(
         const TTransactionId& transaction,
         const TYPath& sourcePath,
         const TYPath& destinationPath,
         const TCopyOptions& options);
-    NThreading::TFuture<TNodeId> Move(
+    ::NThreading::TFuture<TNodeId> Move(
         const TTransactionId& transaction,
         const TYPath& sourcePath,
         const TYPath& destinationPath,
         const TMoveOptions& options);
-    NThreading::TFuture<TNodeId> Link(
+    ::NThreading::TFuture<TNodeId> Link(
         const TTransactionId& transaction,
         const TYPath& targetPath,
         const TYPath& linkPath,
         const TLinkOptions& options);
-    NThreading::TFuture<TLockId> Lock(
+    ::NThreading::TFuture<TLockId> Lock(
         const TTransactionId& transaction,
         const TYPath& path,
         ELockMode mode,
         const TLockOptions& options);
-    NThreading::TFuture<void> Unlock(
+    ::NThreading::TFuture<void> Unlock(
         const TTransactionId& transaction,
         const TYPath& path,
         const TUnlockOptions& options);
-    NThreading::TFuture<TMaybe<TYPath>> GetFileFromCache(
+    ::NThreading::TFuture<TMaybe<TYPath>> GetFileFromCache(
         const TTransactionId& transactionId,
         const TString& md5Signature,
         const TYPath& cachePath,
         const TGetFileFromCacheOptions& options);
-    NThreading::TFuture<TYPath> PutFileToCache(
+    ::NThreading::TFuture<TYPath> PutFileToCache(
         const TTransactionId& transactionId,
         const TYPath& filePath,
         const TString& md5Signature,
         const TYPath& cachePath,
         const TPutFileToCacheOptions& options);
-    NThreading::TFuture<TCheckPermissionResponse> CheckPermission(
+    ::NThreading::TFuture<TCheckPermissionResponse> CheckPermission(
         const TString& user,
         EPermission permission,
         const TYPath& path,
         const TCheckPermissionOptions& options);
-    NThreading::TFuture<TOperationAttributes> GetOperation(
+    ::NThreading::TFuture<TOperationAttributes> GetOperation(
         const TOperationId& operationId,
         const TGetOperationOptions& options);
-    NThreading::TFuture<void> AbortOperation(const TOperationId& operationId);
-    NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId);
-    NThreading::TFuture<void> SuspendOperation(
+    ::NThreading::TFuture<void> AbortOperation(const TOperationId& operationId);
+    ::NThreading::TFuture<void> CompleteOperation(const TOperationId& operationId);
+    ::NThreading::TFuture<void> SuspendOperation(
         const TOperationId& operationId,
         const TSuspendOperationOptions& options);
-    NThreading::TFuture<void> ResumeOperation(
+    ::NThreading::TFuture<void> ResumeOperation(
         const TOperationId& operationId,
         const TResumeOperationOptions& options);
-    NThreading::TFuture<void> UpdateOperationParameters(
+    ::NThreading::TFuture<void> UpdateOperationParameters(
         const TOperationId& operationId,
         const TUpdateOperationParametersOptions& options);
-    NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path);
-    NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(
+    ::NThreading::TFuture<TRichYPath> CanonizeYPath(const TRichYPath& path);
+    ::NThreading::TFuture<TVector<TTableColumnarStatistics>> GetTableColumnarStatistics(
         const TTransactionId& transaction,
         const TVector<TRichYPath>& paths,
         const TGetTableColumnarStatisticsOptions& options);
