@@ -273,6 +273,10 @@ private:
     void DisableChunkMerger();
     void GuardedDisableChunkMerger();
 
+    void ValidateStatistics(
+        const NChunkClient::NProto::TDataStatistics& oldStatistics,
+        const NChunkClient::NProto::TDataStatistics& newStatistics);
+
     void HydraCreateChunks(NProto::TReqCreateChunks* request);
     void HydraReplaceChunks(NProto::TReqReplaceChunks* request);
     void HydraStartMergeTransaction(NProto::TReqStartMergeTransaction* request);

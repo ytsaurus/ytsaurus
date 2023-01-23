@@ -403,9 +403,16 @@ private:
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto* firstChunk = chunkManager->FindChunk(ChunkIds_.front());
         if (!IsObjectAlive(firstChunk)) {
+            YT_LOG_DEBUG("Shallow merge criteria violated: chunk is dead (NodeId: %v, ChunkId: %v)",
+                Node_->GetId(),
+                ChunkIds_.front());
             return false;
         }
         if (!ChunkMetaEqual(firstChunk, chunk)) {
+            YT_LOG_DEBUG("Shallow merge criteria violated: chunk metas differ (NodeId: %v, ChunkId: %v, ChunkId: %v)",
+                Node_->GetId(),
+                ChunkIds_.front(),
+                chunk->GetId());
             return false;
         }
 
@@ -431,6 +438,12 @@ private:
         const auto& config = GetDynamicConfig();
 
         if (parent->GetId() == LastChunkListId_ && JobsForLastChunkList_ >= config->MaxJobsPerChunkList) {
+            YT_LOG_DEBUG("Cannot add chunk to merge job due to job limit (NodeId: %v, "
+                "ChunkListId: %v, JobsForLastChunkList: %v, MaxJobsPerChunkList: %v)",
+                Node_->GetId(),
+                LastChunkListId_,
+                JobsForLastChunkList_,
+                config->MaxJobsPerChunkList);
             return false;
         }
 
@@ -446,6 +459,10 @@ private:
         }
 
         if (chunk->GetSystemBlockCount() != 0) {
+            YT_LOG_DEBUG("Cannot add chunk to merge job due to nonzero system block count (NodeId: %v, ChunkId: %v, SystemBlockCount: %v)",
+                Node_->GetId(),
+                chunk->GetId(),
+                chunk->GetSystemBlockCount());
             return false;
         }
 
@@ -464,6 +481,32 @@ private:
             ParentChunkListId_ = parent->GetId();
             ChunkIds_.push_back(chunk->GetId());
             return true;
+        } else {
+            YT_LOG_DEBUG("Cannot add chunk to merje job due to limits violation (NodeId: %v, "
+                "CurrentRowCount: %v, ChunkRowCount: %v, MaxRowCount: %v, "
+                "CurrentDataWeight: %v, ChunkDataWeight: %v, MaxDataWeight: %v, MaxInputChunkDataWeight: %v, "
+                "CurrentCompressedDataSize: %v, ChunkCompressedDataSize: %v, MaxCompressedDataSize: %v, "
+                "CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v, "
+                "CurrentChunkCount: %v, MaxChunkCount: %v, "
+                "DesiredParentChunkListId: %v, ParentChunkListId: %v)",
+                Node_->GetId(),
+                CurrentRowCount_,
+                chunk->GetRowCount(),
+                config->MaxRowCount,
+                CurrentDataWeight_,
+                chunk->GetDataWeight(),
+                config->MaxDataWeight,
+                config->MaxInputChunkDataWeight,
+                CurrentCompressedDataSize_,
+                chunk->GetCompressedDataSize(),
+                config->MaxCompressedDataSize,
+                CurrentUncompressedDataSize_,
+                chunk->GetUncompressedDataSize(),
+                config->MaxUncompressedDataSize,
+                std::ssize(ChunkIds_),
+                config->MaxChunkCount,
+                ParentChunkListId_,
+                parent->GetId());
         }
         return false;
     }
@@ -1462,6 +1505,21 @@ void TChunkMerger::GuardedDisableChunkMerger()
         .ThrowOnError();
 }
 
+void TChunkMerger::ValidateStatistics(
+    const NChunkClient::NProto::TDataStatistics& oldStatistics,
+    const NChunkClient::NProto::TDataStatistics& newStatistics)
+{
+    YT_LOG_ALERT_IF(oldStatistics.row_count() != newStatistics.row_count(),
+        "Row count in new statistics is different (OldRowCount: %v, NewRowCount: %v)",
+        oldStatistics.row_count(),
+        newStatistics.row_count());
+
+    YT_LOG_ALERT_IF(oldStatistics.data_weight() != newStatistics.data_weight(),
+        "Data weight in new statistics is different (OldDataWeight: %v, NewDataWeight: %v)",
+        oldStatistics.data_weight(),
+        newStatistics.data_weight());
+}
+
 void TChunkMerger::HydraCreateChunks(NProto::TReqCreateChunks* request)
 {
     const auto& chunkManager = Bootstrap_->GetChunkManager();
@@ -1692,7 +1750,9 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     // NB: this may destroy old chunk list, so be sure to schedule requisition
     // update beforehand.
     chunkOwner->SetChunkList(newRootChunkList);
-    chunkOwner->SnapshotStatistics() = newRootChunkList->Statistics().ToDataStatistics();
+    auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
+    ValidateStatistics(chunkOwner->SnapshotStatistics(), newStatistics);
+    chunkOwner->SnapshotStatistics() = std::move(newStatistics);
 
     // TODO(aleksandra-zh): Move to HydraFinalizeChunkMergeSessions?
     if (chunkOwner->IsForeign()) {
@@ -1784,7 +1844,11 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         chunkOwner->SetChunkList(newRootChunkList);
         newRootChunkList->AddOwningNode(chunkOwner);
         oldRootChunkList->RemoveOwningNode(chunkOwner);
-        chunkOwner->SnapshotStatistics() = newRootChunkList->Statistics().ToDataStatistics();
+
+        auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
+        ValidateStatistics(chunkOwner->SnapshotStatistics(), newStatistics);
+        chunkOwner->SnapshotStatistics() = std::move(newStatistics);
+
         if (chunkOwner->IsForeign()) {
             const auto& tableManager = Bootstrap_->GetTableManager();
             tableManager->ScheduleStatisticsUpdate(
