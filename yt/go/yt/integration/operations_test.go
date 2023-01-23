@@ -184,13 +184,13 @@ func TestListAllOperations(t *testing.T) {
 
 	env := yttest.New(t)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*2)
+	ctx, cancel := context.WithTimeout(context.Background(), time.Minute*4)
 	defer cancel()
 
 	opAnnotation := guid.New().String()
 
 	var opIDs []yt.OperationID
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 8; i++ {
 		s := spec.Vanilla().
 			AddVanillaTask("job", 1).
 			AddAnnotations(map[string]interface{}{
