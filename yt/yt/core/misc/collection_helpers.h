@@ -113,8 +113,8 @@ typename TMap::mapped_type GetOrDefault(
     const TKey& key,
     const typename TMap::mapped_type& defaultValue = {});
 
-template <class T, class... TArgs>
-std::vector<T> ConcatVectors(std::vector<T> first, TArgs&&... rest);
+template <class TVector, class... TArgs>
+TVector ConcatVectors(TVector first, TArgs&&... rest);
 
 template <class T>
 void SortByFirst(T begin, T end);
