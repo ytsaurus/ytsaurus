@@ -13,6 +13,7 @@ namespace NYT {
 TClientWriter::TClientWriter(
     const TRichYPath& path,
     IClientRetryPolicyPtr clientRetryPolicy,
+    ITransactionPingerPtr transactionPinger,
     const TAuth& auth,
     const TTransactionId& transactionId,
     const TMaybe<TFormat>& format,
@@ -31,6 +32,7 @@ TClientWriter::TClientWriter(
     } else {
         RawWriter_.Reset(new TRetryfulWriter(
             std::move(clientRetryPolicy),
+            std::move(transactionPinger),
             auth,
             transactionId,
             GetWriteTableCommand(),

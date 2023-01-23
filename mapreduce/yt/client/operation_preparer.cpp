@@ -6,6 +6,7 @@
 #include "operation_helpers.h"
 #include "operation_tracker.h"
 #include "transaction.h"
+#include "transaction_pinger.h"
 #include "yt_poller.h"
 
 #include <mapreduce/yt/common/helpers.h>
@@ -73,7 +74,7 @@ public:
 private:
     TOperationId OperationId_;
     THolder<TPingableTransaction> Transaction_;
-    NThreading::TFuture<TOperationAttributes> Future_;
+    ::NThreading::TFuture<TOperationAttributes> Future_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -137,6 +138,7 @@ TOperationPreparer::TOperationPreparer(TClientPtr client, TTransactionId transac
         Client_->GetRetryPolicy(),
         Client_->GetAuth(),
         TransactionId_,
+        GetTransactionPinger()->GetChildTxPinger(),
         TStartTransactionOptions()))
     , ClientRetryPolicy_(Client_->GetRetryPolicy())
     , PreparationId_(CreateGuidAsString())
@@ -150,6 +152,11 @@ const TAuth& TOperationPreparer::GetAuth() const
 TTransactionId TOperationPreparer::GetTransactionId() const
 {
     return TransactionId_;
+}
+
+ITransactionPingerPtr TOperationPreparer::GetTransactionPinger() const
+{
+    return Client_->GetTransactionPinger();
 }
 
 const TString& TOperationPreparer::GetPreparationId() const
@@ -207,7 +214,7 @@ void TOperationPreparer::LockFiles(TVector<TRichYPath>* paths)
 {
     CheckValidity();
 
-    TVector<NThreading::TFuture<TLockId>> lockIdFutures;
+    TVector<::NThreading::TFuture<TLockId>> lockIdFutures;
     lockIdFutures.reserve(paths->size());
     TRawBatchRequest lockRequest;
     for (const auto& path : *paths) {
@@ -219,7 +226,7 @@ void TOperationPreparer::LockFiles(TVector<TRichYPath>* paths)
     }
     ExecuteBatch(ClientRetryPolicy_->CreatePolicyForGenericRequest(), GetAuth(), lockRequest);
 
-    TVector<NThreading::TFuture<TNode>> nodeIdFutures;
+    TVector<::NThreading::TFuture<TNode>> nodeIdFutures;
     nodeIdFutures.reserve(paths->size());
     TRawBatchRequest getNodeIdRequest;
     for (const auto& lockIdFuture : lockIdFutures) {
@@ -497,6 +504,7 @@ TString TJobPreparer::UploadToRandomPath(const IItemToUpload& itemToUpload) cons
         TFileWriter writer(
             uniquePath,
             OperationPreparer_.GetClientRetryPolicy(),
+            OperationPreparer_.GetTransactionPinger(),
             OperationPreparer_.GetAuth(),
             Options_.FileStorageTransactionId_);
         itemToUpload.CreateInputStream()->ReadAll(writer);
@@ -554,6 +562,7 @@ TString TJobPreparer::UploadToCacheUsingApi(const IItemToUpload& itemToUpload) c
         TFileWriter writer(
             uniquePath,
             OperationPreparer_.GetClientRetryPolicy(),
+            OperationPreparer_.GetTransactionPinger(),
             OperationPreparer_.GetAuth(),
             TTransactionId(),
             TFileWriterOptions().ComputeMD5(true));

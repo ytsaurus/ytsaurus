@@ -11,7 +11,7 @@ class TDefaultWaitProxy
     : public IWaitProxy
 {
 public:
-    bool WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout) override;
+    bool WaitFuture(const ::NThreading::TFuture<void>& future, TDuration timeout) override;
     bool WaitEvent(TSystemEvent& event, TDuration timeout) override;
     bool WaitCondVar(TCondVar& condVar, TMutex& mutex, TDuration timeout) override;
     void Sleep(TDuration timeout) override;
@@ -26,9 +26,9 @@ public:
     // NB: Non thread-safe, should be called only in initialization code.
     void SetProxy(::TIntrusivePtr<IWaitProxy> proxy);
 
-    bool WaitFuture(const NThreading::TFuture<void>& future);
-    bool WaitFuture(const NThreading::TFuture<void>& future, TInstant deadLine);
-    bool WaitFuture(const NThreading::TFuture<void>& future, TDuration timeout);
+    bool WaitFuture(const ::NThreading::TFuture<void>& future);
+    bool WaitFuture(const ::NThreading::TFuture<void>& future, TInstant deadLine);
+    bool WaitFuture(const ::NThreading::TFuture<void>& future, TDuration timeout);
 
     bool WaitEventD(TSystemEvent& event, TInstant deadLine);
     bool WaitEventT(TSystemEvent& event, TDuration timeout);
