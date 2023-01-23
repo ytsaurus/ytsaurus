@@ -139,14 +139,15 @@ public:
                 YT_VERIFY(offsetValue->Id == offsetRowsetColumnId);
                 offsetTimestamp = offsetValue->Timestamp;
                 if (offsetValue->Type == EValueType::Uint64) {
+                    currentOffset = FromUnversionedValue<i64>(*offsetValue);
                     if (DecrementOffset_) {
                         // We need to add 1, since BigRT stores the offset of the last read row.
-                        currentOffset = static_cast<i64>(offsetValue->Data.Uint64) + 1;
+                        ++currentOffset;
                     }
                 }
 
                 YT_LOG_DEBUG(
-                    "Read current offset (Consumer: %Qv, PartitionIndex: %v, Offset: %v, Timestamp: %v)",
+                    "Read current offset (Consumer: %v, PartitionIndex: %v, Offset: %v, Timestamp: %v)",
                     Path_,
                     partitionIndex,
                     currentOffset,
@@ -156,7 +157,7 @@ public:
             if (currentOffset != *oldOffset) {
                 THROW_ERROR_EXCEPTION(
                     EErrorCode::ConsumerOffsetConflict,
-                    "Offset conflict at partition %v of consumer %Qv: expected offset %v, found offset %v",
+                    "Offset conflict at partition %v of consumer %v: expected offset %v, found offset %v",
                     partitionIndex,
                     Path_,
                     *oldOffset,
@@ -171,6 +172,9 @@ public:
 
         TUnversionedRowsBuilder rowsBuilder;
         TUnversionedRowBuilder rowBuilder;
+        for (const auto& value : RowPrefix_) {
+            rowBuilder.AddValue(value);
+        }
         rowBuilder.AddValue(MakeUnversionedUint64Value(partitionIndex, PartitionIndexColumnId_));
         if (DecrementOffset_) {
             if (newOffset >= 1) {
@@ -301,7 +305,7 @@ private:
     {
         std::vector<TPartitionInfo> result;
 
-        YT_LOG_DEBUG("Collecting partitions (Query: %Qv)", selectQuery);
+        YT_LOG_DEBUG("Collecting partitions (Query: %v)", selectQuery);
 
         auto selectRowsResult = WaitFor(client->SelectRows(selectQuery))
             .ValueOrThrow();
@@ -332,16 +336,15 @@ private:
             }
             YT_VERIFY(partitionIndexValue.Type == EValueType::Uint64);
 
-            partitionIndices.push_back(partitionIndexValue.Data.Uint64);
+            partitionIndices.push_back(FromUnversionedValue<ui64>(partitionIndexValue));
 
             const auto& offsetValue = row[*offsetRowsetColumnId];
 
             i64 offset;
             if (offsetValue.Type == EValueType::Uint64) {
+                offset = FromUnversionedValue<i64>(offsetValue);
                 if (DecrementOffset_) {
-                    offset = static_cast<i64>(offsetValue.Data.Uint64) + 1;
-                } else {
-                    offset = static_cast<i64>(offsetValue.Data.Uint64);
+                    ++offset;
                 }
             } else if (offsetValue.Type == EValueType::Null) {
                 offset = 0;
@@ -351,7 +354,7 @@ private:
 
             // NB: in BigRT offsets encode the last read row, while we operate with the first unread row.
             result.emplace_back(TPartitionInfo{
-                .PartitionIndex = static_cast<i64>(partitionIndexValue.Data.Uint64),
+                .PartitionIndex = FromUnversionedValue<i64>(partitionIndexValue),
                 .NextRowIndex = offset,
             });
         }

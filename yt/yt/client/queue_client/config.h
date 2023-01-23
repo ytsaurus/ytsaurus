@@ -19,6 +19,7 @@ public:
     std::optional<i64> DataWeightPerRowHint;
 
     bool UseNativeTabletNodeApi;
+    bool UsePullConsumer;
 
     REGISTER_YSON_STRUCT(TPartitionReaderConfig)
 

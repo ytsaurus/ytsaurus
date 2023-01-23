@@ -35,6 +35,13 @@ IPartitionReaderPtr CreatePartitionReader(
     NYPath::TYPath path,
     int partitionIndex);
 
+IPartitionReaderPtr CreateMultiQueueConsumerPartitionReader(
+    TPartitionReaderConfigPtr config,
+    NApi::IClientPtr client,
+    NYPath::TRichYPath consumerPath,
+    NYPath::TRichYPath queuePath,
+    int partitionIndex);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueClient

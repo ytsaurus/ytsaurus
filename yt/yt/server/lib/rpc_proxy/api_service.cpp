@@ -3779,6 +3779,16 @@ private:
 
         auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
 
+        context->SetRequestInfo(
+            "QueuePath: %v, Offset: %v, PartitionIndex: %v, "
+            "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
+            request->queue_path(),
+            request->offset(),
+            request->partition_index(),
+            rowBatchReadOptions.MaxRowCount,
+            rowBatchReadOptions.MaxDataWeight,
+            rowBatchReadOptions.DataWeightPerRowHint);
+
         // TODO(achulkov2): Support WorkloadDescriptor.
         options.UseNativeTabletNodeApi = request->use_native_tablet_node_api();
 
@@ -3815,6 +3825,17 @@ private:
         SetTimeoutOptions(&options, context.Get());
 
         auto rowBatchReadOptions = FromProto<NQueueClient::TQueueRowBatchReadOptions>(request->row_batch_read_options());
+
+        context->SetRequestInfo(
+            "ConsumerPath: %v, QueuePath: %v, Offset: %v, PartitionIndex: %v, "
+            "MaxRowCount: %v, MaxDataWeight: %v, DataWeightPerRowHint: %v",
+            request->consumer_path(),
+            request->queue_path(),
+            request->offset(),
+            request->partition_index(),
+            rowBatchReadOptions.MaxRowCount,
+            rowBatchReadOptions.MaxDataWeight,
+            rowBatchReadOptions.DataWeightPerRowHint);
 
         // TODO(achulkov2): Support WorkloadDescriptor.
 

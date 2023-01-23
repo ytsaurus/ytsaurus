@@ -79,7 +79,7 @@ THashMap<int, THashMap<i64, i64>> CollectCumulativeDataWeights(
     YT_VERIFY(!isFirstTuple);
 
     auto query = queryBuilder.Flush();
-    YT_LOG_TRACE("Executing query for cumulative data weights (Query: %Qv)", query);
+    YT_LOG_TRACE("Executing query for cumulative data weights (Query: %v)", query);
     auto selectResult = WaitFor(client->SelectRows(query))
         .ValueOrThrow();
 

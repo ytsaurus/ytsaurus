@@ -15,6 +15,14 @@ void TPartitionReaderConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("use_native_tablet_node_api", &TThis::UseNativeTabletNodeApi)
         .Default(false);
+    registrar.Parameter("use_pull_consumer", &TThis::UsePullConsumer)
+        .Default(false);
+
+    registrar.Postprocessor([] (TThis* config) {
+        if (config->UsePullConsumer && !config->UseNativeTabletNodeApi) {
+            THROW_ERROR_EXCEPTION("PullConsumer can only be used with the native tablet node api for pulling rows");
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////
