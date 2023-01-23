@@ -579,6 +579,9 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
     registrar.Parameter("enable_optimized_operation_orchid", &TThis::EnableOptimizedOperationOrchid)
         .Default(true);
 
+    registrar.Parameter("enable_async_operation_event_logging", &TThis::EnableAsyncOperationEventLogging)
+        .Default(true);
+
     registrar.Postprocessor([&] (TFairShareStrategyConfig* config) {
         THashMap<int, TStringBuf> priorityToName;
         priorityToName.reserve(std::size(config->TemplatePoolTreeConfigMap));
