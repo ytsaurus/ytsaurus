@@ -172,6 +172,13 @@ struct ITransaction
         int partitionIndex,
         std::optional<i64> oldOffset,
         i64 newOffset);
+
+    void AdvanceConsumer(
+        const NYPath::TYPath& consumerPath,
+        const NYPath::TRichYPath& queuePath,
+        int partitionIndex,
+        std::optional<i64> oldOffset,
+        i64 newOffset);
 };
 
 DEFINE_REFCOUNTED_TYPE(ITransaction)

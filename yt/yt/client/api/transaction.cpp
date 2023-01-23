@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 namespace NYT::NApi {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -139,6 +141,27 @@ void ITransaction::AdvanceConsumer(
 {
     auto consumerClient = CreateBigRTConsumerClient(GetClient(), path);
     consumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
+}
+
+void ITransaction::AdvanceConsumer(
+    const NYPath::TYPath& consumerPath,
+    const NYPath::TRichYPath& queuePath,
+    int partitionIndex,
+    std::optional<i64> oldOffset,
+    i64 newOffset)
+{
+    // TODO(achulkov2): Refactor this as part of YT-18038.
+    auto queueCluster = queuePath.GetCluster();
+    if (!queueCluster) {
+        THROW_ERROR_EXCEPTION("Cluster must be specified for queue path");
+    }
+
+    auto consumerClient = CreateConsumerClient(GetClient(), consumerPath);
+    auto subConsumerClient = consumerClient->GetSubConsumerClient(TCrossClusterReference{
+        .Cluster = *queueCluster,
+        .Path = queuePath.GetPath(),
+    });
+    return subConsumerClient->Advance(MakeStrong(this), partitionIndex, oldOffset, newOffset);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
