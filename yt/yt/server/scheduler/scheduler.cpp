@@ -269,7 +269,7 @@ public:
             GetClient(),
             Bootstrap_->GetControlInvoker(EControlQueue::EventLog));
         ControlEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
-        FairShareEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
+        OffloadedEventLogWriterConsumer_ = EventLogWriter_->CreateConsumer();
 
         LogEventFluently(&SchedulerStructuredLogger, ELogEventType::SchedulerStarted)
             .Item("address").Value(ServiceAddress_);
@@ -1381,7 +1381,7 @@ public:
 
     IInvokerPtr GetFairShareLoggingInvoker() const override
     {
-        return FairShareLoggingActionQueue_->GetInvoker();
+        return OffloadedEventLoggingActionQueue_->GetInvoker();
     }
 
     IInvokerPtr GetFairShareProfilingInvoker() const override
@@ -1425,7 +1425,7 @@ public:
     {
         VERIFY_INVOKER_AFFINITY(GetFairShareLoggingInvoker());
 
-        return FairShareEventLogWriterConsumer_.get();
+        return OffloadedEventLogWriterConsumer_.get();
     }
 
     IYsonConsumer* GetEventLogConsumer() override
@@ -1762,7 +1762,7 @@ private:
     TOperationsCleanerPtr OperationsCleaner_;
 
     const IThreadPoolPtr OrchidWorkerPool_;
-    const TActionQueuePtr FairShareLoggingActionQueue_ = New<TActionQueue>("FSLogging");
+    const TActionQueuePtr OffloadedEventLoggingActionQueue_ = New<TActionQueue>("EventLogging");
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
     const IThreadPoolPtr FairShareUpdatePool_;
     const IThreadPoolPtr BackgroundThreadPool_;
@@ -1829,7 +1829,7 @@ private:
 
     IEventLogWriterPtr EventLogWriter_;
     std::unique_ptr<IYsonConsumer> ControlEventLogWriterConsumer_;
-    std::unique_ptr<IYsonConsumer> FairShareEventLogWriterConsumer_;
+    std::unique_ptr<IYsonConsumer> OffloadedEventLogWriterConsumer_;
 
     std::atomic<int> OperationArchiveVersion_ = -1;
 
@@ -2190,30 +2190,6 @@ private:
 
         YT_LOG_INFO("Master disconnected for scheduler");
     }
-
-
-    void LogOperationFinished(
-        const TOperationPtr& operation,
-        ELogEventType logEventType,
-        const TError& error,
-        TYsonString progress,
-        TYsonString alerts)
-    {
-        LogEventFluently(&SchedulerStructuredLogger, logEventType)
-            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
-            .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
-            .Item("start_time").Value(operation->GetStartTime())
-            .Item("finish_time").Value(operation->GetFinishTime())
-            .Item("error").Value(error)
-            .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
-            .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("progress").Value(progress);
-            })
-            .DoIf(alerts.operator bool(), [&] (TFluentMap fluent) {
-                fluent.Item("alerts").Value(alerts);
-            });
-    }
-
 
     void ValidateOperationState(const TOperationPtr& operation, EOperationState expectedState)
     {
@@ -4073,6 +4049,94 @@ private:
     const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const override
     {
         return UserToDefaultPoolMap_;
+    }
+
+    void LogOperationFinished(
+        const TOperationPtr& operation,
+        ELogEventType logEventType,
+        const TError& error,
+        TYsonString progress,
+        TYsonString alerts)
+    {
+        // TODO(renadeen): remove sync version when async proves worthy.
+        if (Config_->EnableAsyncOperationEventLogging) {
+            LogOperationFinishedAsync(operation, logEventType, error, progress, alerts);
+            return;
+        }
+
+        LogEventFluently(&SchedulerStructuredLogger, logEventType)
+            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
+            .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
+            .Item("start_time").Value(operation->GetStartTime())
+            .Item("finish_time").Value(operation->GetFinishTime())
+            .Item("error").Value(error)
+            .Item("runtime_parameters").Value(operation->GetRuntimeParameters())
+            .DoIf(progress.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("progress").Value(progress);
+            })
+            .DoIf(alerts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("alerts").Value(alerts);
+            });
+    }
+
+    void LogOperationFinishedAsync(
+        const TOperationPtr& operation,
+        ELogEventType logEventType,
+        const TError& error,
+        TYsonString progress,
+        TYsonString alerts)
+    {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
+        TOperationFinishedLogEvent request{
+            .LogEventType = logEventType,
+            .StartTime = operation->GetStartTime(),
+            .FinishTime = operation->GetFinishTime(),
+            .Progress = std::move(progress),
+            .Alerts = std::move(alerts),
+            .RuntimeParameters = operation->GetRuntimeParameters()
+        };
+
+        request.OperationInfoForEventLog = BuildYsonStringFluently<EYsonType::MapFragment>()
+            .Do(BIND(&TImpl::BuildOperationInfoForEventLog, MakeStrong(this), operation))
+            .Do(std::bind(&ISchedulerStrategy::BuildOperationInfoForEventLog, Strategy_, operation.Get(), _1))
+            .Item("error").Value(error)
+            .Finish();
+
+        OffloadedEventLoggingActionQueue_->GetInvoker()
+            ->Invoke(BIND(&TImpl::DoLogOperationFinishedEventAsync, MakeStrong(this), std::move(request)));
+    }
+
+    struct TOperationFinishedLogEvent
+    {
+        ELogEventType LogEventType;
+        TInstant StartTime;
+        std::optional<TInstant> FinishTime;
+        TYsonString Progress;
+        TYsonString Alerts;
+        TOperationRuntimeParametersPtr RuntimeParameters;
+        TYsonString OperationInfoForEventLog;
+    };
+
+    void DoLogOperationFinishedEventAsync(const TOperationFinishedLogEvent& request)
+    {
+        VERIFY_INVOKER_AFFINITY(OffloadedEventLoggingActionQueue_->GetInvoker());
+
+        LogEventFluently(
+            &SchedulerStructuredLogger,
+            OffloadedEventLogWriterConsumer_.get(),
+            request.LogEventType,
+            TInstant::Now())
+            .Item("start_time").Value(request.StartTime)
+            .Item("finish_time").Value(request.FinishTime)
+            .Item("runtime_parameters").Value(request.RuntimeParameters)
+            .DoIf(request.Progress.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("progress").Value(request.Progress);
+            })
+            .DoIf(request.Alerts.operator bool(), [&] (TFluentMap fluent) {
+                fluent.Item("alerts").Value(request.Alerts);
+            })
+            .Items(request.OperationInfoForEventLog);
     }
 
     class TOperationService

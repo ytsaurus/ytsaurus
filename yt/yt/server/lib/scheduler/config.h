@@ -485,6 +485,8 @@ public:
 
     bool EnableOptimizedOperationOrchid;
 
+    bool EnableAsyncOperationEventLogging;
+
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
 
     static void Register(TRegistrar registrar);
