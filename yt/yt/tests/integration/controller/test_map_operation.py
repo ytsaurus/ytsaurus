@@ -1900,6 +1900,7 @@ class TestSchedulerMapCommandsShardedTxNoBoomerangs(TestSchedulerMapCommandsShar
 
 class TestSchedulerMapCommandsSequoia(TestSchedulerMapCommandsShardedTx):
     USE_SEQUOIA = True
+    NUM_CYPRESS_PROXIES = 1
 
 
 ##################################################################

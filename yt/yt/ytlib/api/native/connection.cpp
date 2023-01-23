@@ -180,6 +180,8 @@ public:
 
         InitializeTimestampProvider();
 
+        InitializeCypressProxyChannel();
+
         ClockManager_ = CreateClockManager(
             Config_->ClockManager,
             this,
@@ -446,6 +448,18 @@ public:
         TCellId cellId) override
     {
         return MasterCellDirectory_->GetMasterChannelOrThrow(kind, cellId);
+    }
+
+    IChannelPtr GetCypressChannelOrThrow(
+        EMasterChannelKind kind,
+        TCellTag cellTag = PrimaryMasterCellTagSentinel) override
+    {
+        auto canUseCypressProxy =
+            kind == EMasterChannelKind::Follower ||
+            kind == EMasterChannelKind::Leader;
+        return canUseCypressProxy && CypressProxyChannel_
+            ? CypressProxyChannel_
+            : GetMasterChannelOrThrow(kind, cellTag);
     }
 
     const IChannelPtr& GetSchedulerChannel() override
@@ -725,6 +739,8 @@ private:
     NCellMasterClient::TCellDirectoryPtr MasterCellDirectory_;
     NCellMasterClient::TCellDirectorySynchronizerPtr MasterCellDirectorySynchronizer_;
 
+    IChannelPtr CypressProxyChannel_;
+
     IChannelPtr SchedulerChannel_;
     THashMap<TString, IChannelPtr> QueueAgentChannels_;
     TQueueConsumerRegistrationManagerPtr QueueConsumerRegistrationManager_;
@@ -826,6 +842,28 @@ private:
                 BIND(&CreateTimestampProviderChannelFromAddresses, timestampProviderConfig, ChannelFactory_)) :
             CreateTimestampProviderChannel(timestampProviderConfig, ChannelFactory_);
         TimestampProvider_ = CreateBatchingRemoteTimestampProvider(timestampProviderConfig, TimestampProviderChannel_);
+    }
+
+    void InitializeCypressProxyChannel()
+    {
+        const auto& config = Config_->CypressProxy;
+        if (!config) {
+            return;
+        }
+
+        auto endpointDescription = Format("CypressProxy");
+        auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
+            .BeginMap()
+                .Item("cypress_proxy").Value(true)
+            .EndMap());
+        auto channel = CreateBalancingChannel(
+            config,
+            ChannelFactory_,
+            std::move(endpointDescription),
+            std::move(endpointAttributes));
+        channel = CreateRetryingChannel(config, std::move(channel));
+        channel = CreateDefaultTimeoutChannel(std::move(channel), config->RpcTimeout);
+        CypressProxyChannel_ = std::move(channel);
     }
 
     void InitializeQueueAgentChannels()

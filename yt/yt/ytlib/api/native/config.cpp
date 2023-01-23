@@ -69,6 +69,14 @@ void TClockServersConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void TCypressProxyConnectionConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("rpc_timeout", &TThis::RpcTimeout)
+        .Default(TDuration::Seconds(30));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TConnectionConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("networks", &TThis::Networks)
@@ -82,6 +90,8 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("chaos_cell_directory_synchronizer", &TThis::ChaosCellDirectorySynchronizer)
         .DefaultNew();
     registrar.Parameter("clock_servers", &TThis::ClockServers)
+        .Default();
+    registrar.Parameter("cypress_proxy", &TThis::CypressProxy)
         .Default();
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
         .DefaultNew();

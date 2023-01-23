@@ -47,6 +47,8 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
     # Note that queue agent config depends on master rpc ports and master config depends on queue agent rpc ports.
     # That's why we prepare queue agent rpc ports separately before both configs.
     queue_agent_rpc_ports = _allocate_queue_agent_rpc_ports(yt_config, ports_generator)
+    # Cypress proxies are involved in a similar cycle.
+    cypress_proxy_rpc_ports = _allocate_cypress_proxy_rpc_ports(yt_config, ports_generator)
 
     master_configs, master_connection_configs = _build_master_configs(
         yt_config,
@@ -55,6 +57,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         clock_connection_config,
         discovery_configs,
         queue_agent_rpc_ports,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir)
 
@@ -71,6 +74,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         clock_connection_config,
         discovery_configs,
         timestamp_provider_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir)
 
@@ -81,6 +85,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
     )
@@ -93,6 +98,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
         yt_config)
@@ -104,6 +110,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
         yt_config)
@@ -114,6 +121,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         queue_agent_rpc_ports,
         ports_generator,
         logs_dir,
@@ -126,6 +134,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
         yt_config)
@@ -137,6 +146,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
         yt_config)
@@ -148,6 +158,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
         yt_config=yt_config)
@@ -163,6 +174,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         yt_config)
 
@@ -184,16 +196,10 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
         yt_config=yt_config)
 
-    rpc_driver_config = _build_rpc_driver_config(
-        deepcopy(master_connection_configs),
-        deepcopy(clock_connection_config),
-        master_cache_addresses,
-        rpc_proxy_addresses=rpc_proxy_addresses,
-        http_proxy_url=http_proxy_url,
-        yt_config=yt_config,
-    )
+    rpc_driver_config = _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url)
 
     tablet_balancer_configs, tablet_balancer_addresses = _build_tablet_balancer_configs(
         yt_config,
@@ -202,6 +208,19 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         discovery_configs,
         timestamp_provider_addresses,
         master_cache_addresses,
+        cypress_proxy_rpc_ports,
+        ports_generator,
+        logs_dir,
+    )
+
+    cypress_proxy_configs = _build_cypress_proxy_configs(
+        yt_config,
+        deepcopy(master_connection_configs),
+        deepcopy(clock_connection_config),
+        discovery_configs,
+        timestamp_provider_addresses,
+        master_cache_addresses,
+        cypress_proxy_rpc_ports,
         ports_generator,
         logs_dir,
     )
@@ -224,6 +243,7 @@ def build_configs(yt_config, ports_generator, dirs, logs_dir):
         "rpc_proxy": rpc_proxy_configs,
         "rpc_client": rpc_client_config,
         "tablet_balancer": tablet_balancer_configs,
+        "cypress_proxy": cypress_proxy_configs,
     }
 
     return cluster_configuration
@@ -235,6 +255,7 @@ def _build_master_configs(yt_config,
                           clock_connection_config,
                           discovery_configs,
                           queue_agent_rpc_ports,
+                          cypress_proxy_rpc_ports,
                           ports_generator,
                           logs_dir):
     ports = []
@@ -281,6 +302,7 @@ def _build_master_configs(yt_config,
             discovery_configs,
             timestamp_provider_addresses=[],
             master_cache_addresses=[],
+            cypress_proxy_rpc_ports=cypress_proxy_rpc_ports,
             queue_agent_rpc_ports=queue_agent_rpc_ports)
 
     configs = {}
@@ -447,6 +469,7 @@ def _build_queue_agent_configs(master_connection_configs,
                                discovery_configs,
                                timestamp_provider_addresses,
                                master_cache_addresses,
+                               cypress_proxy_rpc_ports,
                                rpc_ports,
                                ports_generator,
                                logs_dir,
@@ -471,7 +494,8 @@ def _build_queue_agent_configs(master_connection_configs,
                 clock_connection_config,
                 discovery_configs,
                 timestamp_provider_addresses,
-                master_cache_addresses)
+                master_cache_addresses,
+                cypress_proxy_rpc_ports)
 
         config["rpc_port"] = rpc_ports[i]
         config["monitoring_port"] = next(ports_generator)
@@ -522,6 +546,7 @@ def _build_cell_balancer_configs(yt_config,
                                  discovery_configs,
                                  timestamp_provider_addresses,
                                  master_cache_addresses,
+                                 cypress_proxy_rpc_ports,
                                  ports_generator,
                                  logs_dir):
     configs = []
@@ -544,6 +569,7 @@ def _build_cell_balancer_configs(yt_config,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
         config["rpc_port"] = next(ports_generator)
@@ -564,6 +590,7 @@ def _build_master_cache_configs(yt_config,
                                 clock_connection_config,
                                 discovery_configs,
                                 timestamp_provider_addresses,
+                                cypress_proxy_rpc_ports,
                                 ports_generator,
                                 logs_dir):
     configs = []
@@ -584,6 +611,7 @@ def _build_master_cache_configs(yt_config,
                 discovery_configs,
                 timestamp_provider_addresses,
                 [],  # master cache addresses
+                cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
         config["rpc_port"] = next(ports_generator)
@@ -605,6 +633,7 @@ def _build_scheduler_configs(scheduler_dirs,
                              discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
+                             cypress_proxy_rpc_ports,
                              ports_generator,
                              logs_dir,
                              yt_config):
@@ -625,6 +654,7 @@ def _build_scheduler_configs(scheduler_dirs,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
         config["rpc_port"] = next(ports_generator)
@@ -645,6 +675,7 @@ def _build_controller_agent_configs(controller_agent_dirs,
                                     discovery_configs,
                                     timestamp_provider_addresses,
                                     master_cache_addresses,
+                                    cypress_proxy_rpc_ports,
                                     ports_generator,
                                     logs_dir,
                                     yt_config):
@@ -665,6 +696,7 @@ def _build_controller_agent_configs(controller_agent_dirs,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
         config["rpc_port"] = next(ports_generator)
@@ -686,6 +718,7 @@ def _build_node_configs(node_dirs,
                         discovery_configs,
                         timestamp_provider_addresses,
                         master_cache_addresses,
+                        cypress_proxy_rpc_ports,
                         ports_generator,
                         logs_dir,
                         yt_config):
@@ -720,6 +753,7 @@ def _build_node_configs(node_dirs,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
         set_at(config, "data_node/multiplexed_changelog/path", os.path.join(node_dirs[index], "multiplexed"))
@@ -836,6 +870,7 @@ def _build_chaos_node_configs(chaos_node_dirs,
                               discovery_configs,
                               timestamp_provider_addresses,
                               master_cache_addresses,
+                              cypress_proxy_rpc_ports,
                               ports_generator,
                               logs_dir,
                               yt_config):
@@ -864,6 +899,7 @@ def _build_chaos_node_configs(chaos_node_dirs,
                 discovery_configs,
                 timestamp_provider_addresses,
                 master_cache_addresses,
+                cypress_proxy_rpc_ports,
                 config_template=config["cluster_connection"])
 
         cache_location_config = {
@@ -891,6 +927,7 @@ def _build_http_proxy_config(proxy_dir,
                              discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
+                             cypress_proxy_rpc_ports,
                              ports_generator,
                              logs_dir,
                              yt_config):
@@ -901,7 +938,8 @@ def _build_http_proxy_config(proxy_dir,
         clock_connection_config,
         discovery_configs,
         timestamp_provider_addresses,
-        master_cache_addresses))
+        master_cache_addresses,
+        cypress_proxy_rpc_ports))
 
     proxy_configs = []
 
@@ -941,6 +979,7 @@ def _build_native_driver_configs(master_connection_configs,
                                  discovery_configs,
                                  timestamp_provider_addresses,
                                  master_cache_addresses,
+                                 cypress_proxy_rpc_ports,
                                  yt_config):
     secondary_cell_tags = master_connection_configs["secondary_cell_tags"]
     primary_cell_tag = master_connection_configs["primary_cell_tag"]
@@ -957,7 +996,8 @@ def _build_native_driver_configs(master_connection_configs,
                 clock_connection_config,
                 discovery_configs,
                 timestamp_provider_addresses,
-                master_cache_addresses))
+                master_cache_addresses,
+                cypress_proxy_rpc_ports))
         else:
             tag = secondary_cell_tags[cell_index - 1]
             cell_connection_config = {
@@ -1016,12 +1056,7 @@ def _build_native_driver_configs(master_connection_configs,
     return configs
 
 
-def _build_rpc_driver_config(master_connection_configs,
-                             clock_connection_config,
-                             master_cache_nodes,
-                             rpc_proxy_addresses,
-                             http_proxy_url,
-                             yt_config):
+def _build_rpc_driver_config(rpc_proxy_addresses, http_proxy_url):
     config = default_config.get_driver_config()
 
     config["connection_type"] = "rpc"
@@ -1045,6 +1080,7 @@ def _build_rpc_proxy_configs(logs_dir,
                              discovery_configs,
                              timestamp_provider_addresses,
                              master_cache_addresses,
+                             cypress_proxy_rpc_ports,
                              ports_generator,
                              yt_config):
     configs = []
@@ -1096,7 +1132,8 @@ def _build_rpc_proxy_configs(logs_dir,
             clock_connection_config,
             discovery_configs,
             timestamp_provider_addresses,
-            master_cache_addresses)
+            master_cache_addresses,
+            cypress_proxy_rpc_ports)
         config["logging"] = _init_logging(logs_dir, "rpc-proxy-{}".format(rpc_proxy_index), yt_config)
 
         config["rpc_port"] = \
@@ -1115,6 +1152,7 @@ def _build_cluster_connection_config(yt_config,
                                      discovery_configs,
                                      timestamp_provider_addresses,
                                      master_cache_addresses,
+                                     cypress_proxy_rpc_ports,
                                      queue_agent_rpc_ports=None,
                                      config_template=None):
     queue_agent_rpc_ports = queue_agent_rpc_ports or []
@@ -1199,6 +1237,11 @@ def _build_cluster_connection_config(yt_config,
         # TODO(gritukan): Turn on after 22.2 compat tests will be removed.
         "use_followers_for_write_targets_allocation": False,
     }
+
+    if len(cypress_proxy_rpc_ports) > 0:
+        cypress_proxy_addresses = ["{}:{}".format(yt_config.fqdn, rpc_port) for rpc_port in cypress_proxy_rpc_ports]
+        cluster_connection["cypress_proxy"] = {}
+        cluster_connection["cypress_proxy"]["addresses"] = cypress_proxy_addresses
 
     if yt_config.mock_tvm_id is not None:
         cluster_connection["tvm_id"] = yt_config.mock_tvm_id
@@ -1288,6 +1331,7 @@ def _build_tablet_balancer_configs(yt_config,
                                    discovery_configs,
                                    timestamp_provider_addresses,
                                    master_cache_addresses,
+                                   cypress_proxy_rpc_ports,
                                    ports_generator,
                                    logs_dir):
     configs = []
@@ -1307,7 +1351,8 @@ def _build_tablet_balancer_configs(yt_config,
                 clock_connection_config,
                 discovery_configs,
                 timestamp_provider_addresses,
-                master_cache_addresses)
+                master_cache_addresses,
+                cypress_proxy_rpc_ports)
 
         config["rpc_port"] = next(ports_generator)
         config["monitoring_port"] = next(ports_generator)
@@ -1320,6 +1365,56 @@ def _build_tablet_balancer_configs(yt_config,
         addresses.append("{}:{}".format(yt_config.fqdn, config["rpc_port"]))
 
     return configs, addresses
+
+
+def _allocate_cypress_proxy_rpc_ports(yt_config, ports_generator):
+    rpc_ports = []
+
+    for i in xrange(yt_config.cypress_proxy_count):
+        rpc_port = next(ports_generator)
+        rpc_ports.append(rpc_port)
+
+    return rpc_ports
+
+
+def _build_cypress_proxy_configs(yt_config,
+                                 master_connection_configs,
+                                 clock_connection_config,
+                                 discovery_configs,
+                                 timestamp_provider_addresses,
+                                 master_cache_addresses,
+                                 cypress_proxy_rpc_ports,
+                                 ports_generator,
+                                 logs_dir):
+    configs = []
+
+    for index in xrange(yt_config.cypress_proxy_count):
+        config = default_config.get_cypress_proxy_config()
+
+        init_singletons(config, yt_config, index)
+
+        init_jaeger_collector(config, "cypress_proxy", {"cypress_proxy_index": str(index)})
+
+        config["cluster_connection"] = \
+            _build_cluster_connection_config(
+                yt_config,
+                master_connection_configs,
+                clock_connection_config,
+                discovery_configs,
+                timestamp_provider_addresses,
+                master_cache_addresses,
+                cypress_proxy_rpc_ports=[])
+
+        config["rpc_port"] = cypress_proxy_rpc_ports[index]
+        config["monitoring_port"] = next(ports_generator)
+        config["logging"] = _init_logging(logs_dir,
+                                          "cypress-proxy-" + str(index),
+                                          yt_config,
+                                          has_structured_logs=True)
+
+        configs.append(config)
+
+    return configs
 
 
 def _init_logging(path, name, yt_config, log_errors_to_stderr=False, has_structured_logs=False):

@@ -15,6 +15,7 @@
 #include <yt/yt/server/cell_balancer/program.h>
 #include <yt/yt/server/queue_agent/program.h>
 #include <yt/yt/server/tablet_balancer/program.h>
+#include <yt/yt/server/cypress_proxy/program.h>
 
 #include <yt/yt/library/program/program.h>
 
@@ -63,6 +64,7 @@ int main(int argc, const char** argv)
     TryProgram<NCellBalancer::TCellBalancerProgram>(argc, argv, "cell-balancer");
     TryProgram<NQueueAgent::TQueueAgentProgram>(argc, argv, "queue-agent");
     TryProgram<NTabletBalancer::TTabletBalancerProgram>(argc, argv, "tablet-balancer");
+    TryProgram<NCypressProxy::TCypressProxyProgram>(argc, argv, "cypress-proxy");
     // Handles auxiliary flags like --version and --build.
     TAllProgram().Run(argc, argv);
 }

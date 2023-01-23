@@ -84,6 +84,15 @@ struct IConnection
     virtual NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellId cellId) = 0;
+
+    //! Returns channel for communicating with Cypress.
+    //! If Cypress Proxies are configured, returns channel to them,
+    //! otherwise returns channel directly to the master.
+    //! Throws if cell tag is unknown.
+    virtual NRpc::IChannelPtr GetCypressChannelOrThrow(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
+
     virtual const NRpc::IChannelPtr& GetSchedulerChannel() = 0;
     virtual const NRpc::IChannelFactoryPtr& GetChannelFactory() = 0;
     virtual const NChaosClient::IReplicationCardChannelFactoryPtr& GetReplicationCardChannelFactory() = 0;

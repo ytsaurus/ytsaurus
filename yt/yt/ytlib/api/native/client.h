@@ -98,6 +98,12 @@ struct IClient
     virtual NRpc::IChannelPtr GetCellChannelOrThrow(
         NElection::TCellId cellId) = 0;
 
+    //! Returns authenticated channel to work with Cypress.
+    //! See IConnection::GetCypressChannelOrThrow.
+    virtual NRpc::IChannelPtr GetCypressChannelOrThrow(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) = 0;
+
     virtual NRpc::IChannelPtr GetSchedulerChannel() = 0;
     virtual const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() = 0;
 

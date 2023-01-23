@@ -31,7 +31,8 @@ PROGRAMS = [("master", "master/bin"),
             ("cell-balancer", "cell_balancer/bin"),
             ("tablet-balancer", "tablet_balancer/bin"),
             ("master-cache", "master_cache/bin"),
-            ("queue-agent", "queue_agent/bin")]
+            ("queue-agent", "queue_agent/bin"),
+            ("cypress-proxy", "cypress_proxy/bin")]
 
 
 def sudo_rmtree(path):

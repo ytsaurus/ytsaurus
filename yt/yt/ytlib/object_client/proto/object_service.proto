@@ -28,6 +28,12 @@ message TReqExecute
     // COMPAT(shakurov): deprecated; use TMulticellSyncExt instead.
     optional bool suppress_upstream_sync = 2 [default = false];
     optional bool suppress_transaction_coordinator_sync = 7 [default = false];
+
+    // When Cypress Proxy is used, requests to different cells and peer kinds
+    // are sent to the same proxies. These fields are used by Cypress Proxy to
+    // redirect request properly. Master ignores these fields.
+    optional int32 cell_tag = 9;
+    optional int32 peer_kind = 10; // EMasterChannelKind
 }
 
 message TRspExecute
