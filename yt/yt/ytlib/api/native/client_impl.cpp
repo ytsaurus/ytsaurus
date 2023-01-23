@@ -172,10 +172,15 @@ TClient::TClient(
     auto initMasterChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
         MasterChannels_[kind][cellTag] = wrapChannel(Connection_->GetMasterChannelOrThrow(kind, cellTag));
     };
+    auto initCypressChannel = [&] (EMasterChannelKind kind, TCellTag cellTag) {
+        CypressChannels_[kind][cellTag] = wrapChannel(Connection_->GetCypressChannelOrThrow(kind, cellTag));
+    };
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
         initMasterChannel(kind, Connection_->GetPrimaryMasterCellTag());
+        initCypressChannel(kind, Connection_->GetPrimaryMasterCellTag());
         for (auto cellTag : Connection_->GetSecondaryMasterCellTags()) {
             initMasterChannel(kind, cellTag);
+            initCypressChannel(kind, cellTag);
         }
     }
 
@@ -256,6 +261,19 @@ IChannelPtr TClient::GetMasterChannelOrThrow(
     return it->second;
 }
 
+IChannelPtr TClient::GetCypressChannelOrThrow(
+    EMasterChannelKind kind,
+    TCellTag cellTag)
+{
+    const auto& channels = CypressChannels_[kind];
+    auto it = channels.find(cellTag == PrimaryMasterCellTagSentinel ? Connection_->GetPrimaryMasterCellTag() : cellTag);
+    if (it == channels.end()) {
+        THROW_ERROR_EXCEPTION("Unknown master cell tag %v",
+            cellTag);
+    }
+    return it->second;
+}
+
 IChannelPtr TClient::GetCellChannelOrThrow(TCellId cellId)
 {
     const auto& cellDirectory = Connection_->GetCellDirectory();
@@ -280,7 +298,10 @@ void TClient::Terminate()
     auto error = TError("Client terminated");
 
     for (auto kind : TEnumTraits<EMasterChannelKind>::GetDomainValues()) {
-        for (const auto& [cellTag, channel]  : MasterChannels_[kind]) {
+        for (const auto& [cellTag, channel] : MasterChannels_[kind]) {
+            channel->Terminate(error);
+        }
+        for (const auto& [cellTag, channel] : CypressChannels_[kind]) {
             channel->Terminate(error);
         }
     }

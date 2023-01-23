@@ -101,6 +101,23 @@ DEFINE_REFCOUNTED_TYPE(TClockServersConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class TCypressProxyConnectionConfig
+    : public NRpc::TBalancingChannelConfig
+    , public NRpc::TRetryingChannelConfig
+{
+public:
+    //! Timeout for RPC requests to cypress proxies.
+    TDuration RpcTimeout;
+
+    REGISTER_YSON_STRUCT(TCypressProxyConnectionConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TCypressProxyConnectionConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
 class TConnectionConfig
     : public NApi::TConnectionConfig
     , public NChunkClient::TChunkTeleporterConfig
@@ -114,6 +131,9 @@ public:
     NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
     NChaosClient::TChaosCellDirectorySynchronizerConfigPtr ChaosCellDirectorySynchronizer;
     TClockServersConfigPtr ClockServers;
+
+    //! If |nullptr|, requests are passed directly to masters.
+    TCypressProxyConnectionConfigPtr CypressProxy;
 
     NDiscoveryClient::TDiscoveryConnectionConfigPtr DiscoveryConnection;
 

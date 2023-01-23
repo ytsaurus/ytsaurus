@@ -225,6 +225,7 @@ class YTEnvSetup(object):
     NUM_CELL_BALANCERS = 0
     NUM_QUEUE_AGENTS = 0
     NUM_TABLET_BALANCERS = 0
+    NUM_CYPRESS_PROXIES = 0
     ENABLE_RESOURCE_TRACKING = False
     ENABLE_TVM_ONLY_PROXIES = False
 
@@ -256,6 +257,7 @@ class YTEnvSetup(object):
     DELTA_TABLET_BALANCER_CONFIG = {}
     DELTA_MASTER_CACHE_CONFIG = {}
     DELTA_QUEUE_AGENT_CONFIG = {}
+    DELTA_CYPRESS_PROXY_CONFIG = {}
 
     USE_PORTO = False
     USE_CUSTOM_ROOTFS = False
@@ -326,6 +328,10 @@ class YTEnvSetup(object):
 
     @classmethod
     def modify_tablet_balancer_config(cls, config):
+        pass
+
+    @classmethod
+    def modify_cypress_proxy_config(cls, config):
         pass
 
     @classmethod
@@ -400,6 +406,7 @@ class YTEnvSetup(object):
                 cls.get_param("NUM_HTTP_PROXIES", index) if cls.get_param("ENABLE_HTTP_PROXY", index) else 0),
             rpc_proxy_count=(
                 cls.get_param("NUM_RPC_PROXIES", index) if cls.get_param("ENABLE_RPC_PROXY", index) else 0),
+            cypress_proxy_count=cls.get_param("NUM_CYPRESS_PROXIES", index),
             fqdn="localhost",
             enable_master_cache=cls.get_param("USE_MASTER_CACHE", index),
             enable_permission_cache=cls.get_param("USE_PERMISSION_CACHE", index),
@@ -719,6 +726,11 @@ class YTEnvSetup(object):
             config = update_inplace(config, cls.get_param("DELTA_RPC_PROXY_CONFIG", cluster_index))
             configs["rpc_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
             cls.modify_rpc_proxy_config(configs["rpc_proxy"])
+
+        for index, config in enumerate(configs["cypress_proxy"]):
+            config = update_inplace(config, cls.get_param("DELTA_CYPRESS_PROXY_CONFIG", cluster_index))
+            configs["cypress_proxy"][index] = cls.update_timestamp_provider_config(cluster_index, config)
+            cls.modify_cypress_proxy_config(configs["cypress_proxy"][index])
 
         for key, config in configs["driver"].items():
             config = update_inplace(config, cls.get_param("DELTA_DRIVER_CONFIG", cluster_index))

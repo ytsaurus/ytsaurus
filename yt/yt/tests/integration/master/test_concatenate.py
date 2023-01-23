@@ -903,3 +903,7 @@ class TestConcatenateRpcProxy(TestConcatenate):
     DRIVER_BACKEND = "rpc"
     ENABLE_HTTP_PROXY = True
     ENABLE_RPC_PROXY = True
+
+
+class TestConcatenateCypressProxy(TestConcatenate):
+    NUM_CYPRESS_PROXIES = 1

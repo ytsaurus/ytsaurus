@@ -298,7 +298,8 @@ class YTInstance(object):
                 "master_cache": self._make_service_dirs("master_cache", self.yt_config.master_cache_count),
                 "http_proxy": self._make_service_dirs("http_proxy", self.yt_config.http_proxy_count),
                 "rpc_proxy": self._make_service_dirs("rpc_proxy", self.yt_config.rpc_proxy_count),
-                "tablet_balancer": self._make_service_dirs("tablet_balancer", self.yt_config.tablet_balancer_count)}
+                "tablet_balancer": self._make_service_dirs("tablet_balancer", self.yt_config.tablet_balancer_count),
+                "cypress_proxy": self._make_service_dirs("cypress_proxy", self.yt_config.cypress_proxy_count)}
 
     def _prepare_environment(self, ports_generator, modify_configs_func):
         service_infos = [
@@ -315,7 +316,8 @@ class YTInstance(object):
             ("queue-agent", "queue agents", self.yt_config.queue_agent_count),
             ("ytserver-tablet-balancer", "tablet balancers", self.yt_config.tablet_balancer_count),
             ("ytserver-http-proxy", "HTTP proxies", self.yt_config.http_proxy_count),
-            ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count)
+            ("ytserver-proxy", "RPC proxies", self.yt_config.rpc_proxy_count),
+            ("ytserver-cypres-proxy", "cypress proxies", self.yt_config.cypress_proxy_count),
         ]
 
         logger.info("Start preparing cluster instance as follows:")
@@ -380,6 +382,8 @@ class YTInstance(object):
             self._prepare_queue_agents(cluster_configuration["queue_agent"])
         if self.yt_config.tablet_balancer_count > 0:
             self._prepare_tablet_balancers(cluster_configuration["tablet_balancer"])
+        if self.yt_config.cypress_proxy_count > 0:
+            self._prepare_cypress_proxies(cluster_configuration["cypress_proxy"])
 
         self._prepare_drivers(
             cluster_configuration["driver"],
@@ -457,6 +461,9 @@ class YTInstance(object):
             if self.yt_config.tablet_balancer_count > 0:
                 self.start_tablet_balancers(sync=False)
 
+            if self.yt_config.cypress_proxy_count > 0:
+                self.start_cypress_proxies(sync=False)
+
             self.synchronize()
 
             if not self.yt_config.defer_secondary_cell_start:
@@ -531,7 +538,7 @@ class YTInstance(object):
 
         for name in ["http_proxy", "node", "chaos_node", "scheduler", "controller_agent", "master",
                      "rpc_proxy", "timestamp_provider", "master_caches", "cell_balancer",
-                     "tablet_balancer"]:
+                     "tablet_balancer", "cypress_proxy"]:
             if name in self.configs:
                 self.kill_service(name)
                 killed_services.add(name)
@@ -713,7 +720,10 @@ class YTInstance(object):
         self.kill_service("queue_agent", indexes=indexes)
 
     def kill_tablet_balancers(self, indexes=None):
-        self.kill_service("tablet_balancer", indexes=None)
+        self.kill_service("tablet_balancer", indexes=indexes)
+
+    def kill_cypress_proxies(self, indexes=None):
+        self.kill_service("cypress_proxies", indexes=indexes)
 
     def kill_service(self, name, indexes=None):
         with self._lock:
@@ -1789,6 +1799,34 @@ class YTInstance(object):
 
         self._wait_or_skip(
             lambda: self._wait_for(tablet_balancer_ready, "tablet_balancer", max_wait_time=20),
+            sync)
+
+    def _prepare_cypress_proxies(self, cypress_proxy_configs):
+        for cypress_proxy_index in xrange(self.yt_config.cypress_proxy_count):
+            cypress_proxy_config_name = "cypress_proxy-{0}.yson".format(cypress_proxy_index)
+            config_path = os.path.join(self.configs_path, cypress_proxy_config_name)
+            if self._load_existing_environment:
+                if not os.path.isfile(config_path):
+                    raise YtError("Cypress proxy config {0} not found. It is possible that you requested "
+                                  "more cypress proxies than configs exist".format(config_path))
+                config = read_config(config_path)
+            else:
+                config = cypress_proxy_configs[cypress_proxy_index]
+                write_config(config, config_path)
+
+            self.configs["cypress_proxy"].append(config)
+            self.config_paths["cypress_proxy"].append(config_path)
+            self._service_processes["cypress_proxy"].append(None)
+
+    def start_cypress_proxies(self, sync=True):
+        self._run_yt_component("cypress-proxy", name="cypress_proxy")
+
+        def cypress_proxy_ready():
+            self._validate_processes_are_running("cypress_proxy")
+            return True
+
+        self._wait_or_skip(
+            lambda: self._wait_for(cypress_proxy_ready, "cypress_proxy", max_wait_time=20),
             sync)
 
     def _validate_process_is_running(self, process, name, number=None):

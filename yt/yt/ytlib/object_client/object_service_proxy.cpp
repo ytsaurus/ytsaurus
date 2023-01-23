@@ -35,9 +35,11 @@ TObjectServiceProxy::TObjectServiceProxy(
     TCellTag cellTag,
     TStickyGroupSizeCachePtr stickyGroupSizeCache)
     : TProxyBase(
-        client->GetMasterChannelOrThrow(masterChannelKind, cellTag),
+        client->GetCypressChannelOrThrow(masterChannelKind, cellTag),
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
+    , CellTag_(cellTag)
+    , ChannelKind_(masterChannelKind)
 { }
 
 TObjectServiceProxy::TObjectServiceProxy(
@@ -46,9 +48,11 @@ TObjectServiceProxy::TObjectServiceProxy(
     TCellTag cellTag,
     TStickyGroupSizeCachePtr stickyGroupSizeCache)
     : TProxyBase(
-        connection->GetMasterChannelOrThrow(masterChannelKind, cellTag),
+        connection->GetCypressChannelOrThrow(masterChannelKind, cellTag),
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
+    , CellTag_(cellTag)
+    , ChannelKind_(masterChannelKind)
 { }
 
 TObjectServiceProxy::TObjectServiceProxy(
@@ -59,10 +63,12 @@ TObjectServiceProxy::TObjectServiceProxy(
     TAuthenticationIdentity identity)
     : TProxyBase(
         CreateAuthenticatedChannel(
-            connection->GetMasterChannelOrThrow(masterChannelKind, cellTag),
+            connection->GetCypressChannelOrThrow(masterChannelKind, cellTag),
             identity),
         GetDescriptor())
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
+    , CellTag_(cellTag)
+    , ChannelKind_(masterChannelKind)
 { }
 
 TObjectServiceProxy TObjectServiceProxy::FromDirectMasterChannel(IChannelPtr channel)
@@ -78,13 +84,17 @@ TStickyGroupSizeCache::TKey TObjectServiceProxy::TReqExecuteSubbatch::TInnerRequ
 TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     IChannelPtr channel,
     int subbatchSize,
-    TStickyGroupSizeCachePtr stickyGroupSizeCache)
+    TStickyGroupSizeCachePtr stickyGroupSizeCache,
+    std::optional<TCellTag> cellTag,
+    std::optional<NApi::EMasterChannelKind> channelKind)
     : TClientRequest(
         std::move(channel),
         TObjectServiceProxy::GetDescriptor(),
         ExecuteMethodDescriptor)
     , StickyGroupSizeCache_(std::move(stickyGroupSizeCache))
     , SubbatchSize_(subbatchSize)
+    , CellTag_(cellTag)
+    , ChannelKind_(channelKind)
 {
     SetResponseHeavy(true);
 }
@@ -95,6 +105,8 @@ TObjectServiceProxy::TReqExecuteSubbatch::TReqExecuteSubbatch(
     : TClientRequest(other)
     , StickyGroupSizeCache_(other.StickyGroupSizeCache_)
     , SubbatchSize_(other.SubbatchSize_)
+    , CellTag_(other.CellTag_)
+    , ChannelKind_(other.ChannelKind_)
     , InnerRequestDescriptors_(std::move(innerRequestDescriptors))
     , OriginalRequestId_(other.OriginalRequestId_)
     , SuppressUpstreamSync_(other.SuppressUpstreamSync_)
@@ -149,6 +161,13 @@ TSharedRefArray TObjectServiceProxy::TReqExecuteSubbatch::SerializeHeaderless() 
     req.set_allow_backoff(true);
     req.set_supports_portals(true);
 
+    if (CellTag_) {
+        req.set_cell_tag(ToProto<int>(*CellTag_));
+    }
+    if (ChannelKind_) {
+        req.set_peer_kind(ToProto<int>(*ChannelKind_));
+    }
+
     if (Header().HasExtension(NRpc::NProto::TBalancingExt::balancing_ext)) {
         auto currentStickyGroupSize = Header().GetExtension(NRpc::NProto::TBalancingExt::balancing_ext).sticky_group_size();
         req.set_current_sticky_group_size(currentStickyGroupSize);
@@ -189,8 +208,15 @@ size_t TObjectServiceProxy::TReqExecuteSubbatch::ComputeHash() const
 TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
     IChannelPtr channel,
     int subbatchSize,
-    TStickyGroupSizeCachePtr stickyGroupSizeCache)
-    : TReqExecuteSubbatch(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
+    TStickyGroupSizeCachePtr stickyGroupSizeCache,
+    std::optional<TCellTag> cellTag,
+    std::optional<NApi::EMasterChannelKind> channelKind)
+    : TReqExecuteSubbatch(
+        std::move(channel),
+        subbatchSize,
+        std::move(stickyGroupSizeCache),
+        cellTag,
+        channelKind)
 { }
 
 TObjectServiceProxy::TReqExecuteBatchBase::TReqExecuteBatchBase(
@@ -312,8 +338,15 @@ TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
 TObjectServiceProxy::TReqExecuteBatch::TReqExecuteBatch(
     IChannelPtr channel,
     int subbatchSize,
-    TStickyGroupSizeCachePtr stickyGroupSizeCache)
-    : TReqExecuteBatchBase(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
+    TStickyGroupSizeCachePtr stickyGroupSizeCache,
+    std::optional<TCellTag> cellTag,
+    std::optional<NApi::EMasterChannelKind> channelKind)
+    : TReqExecuteBatchBase(
+        std::move(channel),
+        subbatchSize,
+        std::move(stickyGroupSizeCache),
+        cellTag,
+        channelKind)
 { }
 
 TObjectServiceProxy::TReqExecuteSubbatchPtr TObjectServiceProxy::TReqExecuteBatch::FormNextBatch()
@@ -494,9 +527,16 @@ TObjectServiceProxy::TReqExecuteBatchWithRetries::TReqExecuteBatchWithRetries(
     IChannelPtr channel,
     TReqExecuteBatchWithRetriesConfigPtr config,
     TStickyGroupSizeCachePtr stickyGroupSizeCache,
+    std::optional<TCellTag> cellTag,
+    std::optional<NApi::EMasterChannelKind> channelKind,
     TCallback<bool(int, const TError&)> needRetry,
     int subbatchSize)
-    : TReqExecuteBatchBase(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
+    : TReqExecuteBatchBase(
+        std::move(channel),
+        subbatchSize,
+        std::move(stickyGroupSizeCache),
+        cellTag,
+        channelKind)
     , Config_(std::move(config))
     , NeedRetry_(BIND(std::move(needRetry), std::cref(CurrentRetry_)))
 { }
@@ -854,7 +894,12 @@ NHydra::TRevision TObjectServiceProxy::TRspExecuteBatch::GetRevision(int index) 
 TObjectServiceProxy::TReqExecuteBatchPtr
 TObjectServiceProxy::ExecuteBatch(int subbatchSize)
 {
-    auto batchReq = New<TReqExecuteBatch>(Channel_, subbatchSize, StickyGroupSizeCache_);
+    auto batchReq = New<TReqExecuteBatch>(
+        Channel_,
+        subbatchSize,
+        StickyGroupSizeCache_,
+        CellTag_,
+        ChannelKind_);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
@@ -865,7 +910,9 @@ TObjectServiceProxy::ExecuteBatchNoBackoffRetries(int subbatchSize)
     auto batchReq = New<TReqExecuteBatchBase>(
         Channel_,
         subbatchSize,
-        StickyGroupSizeCache_);
+        StickyGroupSizeCache_,
+        CellTag_,
+        ChannelKind_);
     PrepareBatchRequest(batchReq);
     return batchReq;
 }
@@ -880,6 +927,8 @@ TObjectServiceProxy::ExecuteBatchWithRetries(
         Channel_,
         std::move(config),
         StickyGroupSizeCache_,
+        CellTag_,
+        ChannelKind_,
         std::move(needRetry),
         subbatchSize);
     PrepareBatchRequest(batchReq);
@@ -907,6 +956,8 @@ TObjectServiceProxy::ExecuteBatchWithRetriesInParallel(
         Channel_,
         subbatchSize,
         StickyGroupSizeCache_,
+        CellTag_,
+        ChannelKind_,
         std::move(parallelReqs));
 }
 
@@ -914,8 +965,15 @@ TObjectServiceProxy::TReqExecuteBatchWithRetriesInParallel::TReqExecuteBatchWith
     NRpc::IChannelPtr channel,
     int subbatchSize,
     TStickyGroupSizeCachePtr stickyGroupSizeCache,
+    std::optional<TCellTag> cellTag,
+    std::optional<NApi::EMasterChannelKind> channelKind,
     std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs)
-    : TReqExecuteBatchBase(std::move(channel), subbatchSize, std::move(stickyGroupSizeCache))
+    : TReqExecuteBatchBase(
+        std::move(channel),
+        subbatchSize,
+        std::move(stickyGroupSizeCache),
+        cellTag,
+        channelKind)
     , ParallelReqs_(std::move(parallelReqs))
 { }
 

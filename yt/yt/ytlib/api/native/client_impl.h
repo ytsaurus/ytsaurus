@@ -83,6 +83,9 @@ public:
     NRpc::IChannelPtr GetMasterChannelOrThrow(
         EMasterChannelKind kind,
         NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
+    NRpc::IChannelPtr GetCypressChannelOrThrow(
+        EMasterChannelKind kind,
+        NObjectClient::TCellTag cellTag = NObjectClient::PrimaryMasterCellTagSentinel) override;
     NRpc::IChannelPtr GetCellChannelOrThrow(NObjectClient::TCellId cellId) override;
     NRpc::IChannelPtr GetSchedulerChannel() override;
     const NNodeTrackerClient::INodeChannelFactoryPtr& GetChannelFactory() override;
@@ -717,6 +720,7 @@ private:
     const std::vector<ITypeHandlerPtr> TypeHandlers_;
 
     TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> MasterChannels_;
+    TEnumIndexedVector<EMasterChannelKind, THashMap<NObjectClient::TCellTag, NRpc::IChannelPtr>> CypressChannels_;
     NRpc::IChannelPtr SchedulerChannel_;
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, OperationsArchiveClientLock_);
     IClientPtr OperationsArchiveClient_;

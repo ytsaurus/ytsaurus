@@ -97,6 +97,9 @@ private:
         const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
         const int SubbatchSize_;
 
+        const std::optional<TCellTag> CellTag_;
+        const std::optional<NApi::EMasterChannelKind> ChannelKind_;
+
         std::vector<TInnerRequestDescriptor> InnerRequestDescriptors_;
         NRpc::TRequestId OriginalRequestId_;
         bool SuppressUpstreamSync_ = false;
@@ -105,7 +108,9 @@ private:
         TReqExecuteSubbatch(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
+            std::optional<TCellTag> cellTag,
+            std::optional<NApi::EMasterChannelKind> channelKind);
         TReqExecuteSubbatch(
             const TReqExecuteSubbatch& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
@@ -124,6 +129,9 @@ private:
     using TReqExecuteSubbatchPtr = TIntrusivePtr<TReqExecuteSubbatch>;
 
     const NApi::NNative::TStickyGroupSizeCachePtr StickyGroupSizeCache_;
+
+    const std::optional<TCellTag> CellTag_;
+    const std::optional<NApi::EMasterChannelKind> ChannelKind_;
 
 public:
     class TReqExecuteBatchBase
@@ -166,7 +174,9 @@ public:
         TReqExecuteBatchBase(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
+            std::optional<TCellTag> cellTag,
+            std::optional<NApi::EMasterChannelKind> channelKind);
         TReqExecuteBatchBase(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
@@ -201,7 +211,9 @@ public:
         TReqExecuteBatch(
             NRpc::IChannelPtr channel,
             int subbatchSize,
-            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache);
+            NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
+            std::optional<TCellTag> cellTag,
+            std::optional<NApi::EMasterChannelKind> channelKind);
         TReqExecuteBatch(
             const TReqExecuteBatchBase& other,
             std::vector<TInnerRequestDescriptor>&& innerRequestDescriptors);
@@ -248,6 +260,8 @@ public:
             NRpc::IChannelPtr channel,
             TReqExecuteBatchWithRetriesConfigPtr config,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
+            std::optional<TCellTag> cellTag,
+            std::optional<NApi::EMasterChannelKind> channelKind,
             TCallback<bool(int, const TError&)> needRetry,
             int subbatchSize = DefaultSubbatchSize);
 
@@ -280,6 +294,8 @@ public:
             NRpc::IChannelPtr channel,
             int subbatchSize,
             NApi::NNative::TStickyGroupSizeCachePtr stickyGroupSizeCache,
+            std::optional<TCellTag> cellTag,
+            std::optional<NApi::EMasterChannelKind> channelKind,
             std::vector<TReqExecuteBatchWithRetriesPtr> parallelReqs);
 
         //! Starts the asynchronous invocation.

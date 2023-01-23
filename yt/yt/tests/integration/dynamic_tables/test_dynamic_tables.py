@@ -3270,6 +3270,10 @@ class TestDynamicTablesShardedTxNoBoomerangs(TestDynamicTablesShardedTx):
         set("//sys/@config/chunk_service/enable_mutation_boomerangs", False)
 
 
+class TestDynamicTablesCypressProxy(TestDynamicTablesShardedTx):
+    NUM_CYPRESS_PROXIES = 1
+
+
 ##################################################################
 
 

@@ -132,6 +132,12 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+    NRpc::IChannelPtr GetCypressChannelOrThrow(
+        NApi::EMasterChannelKind /*kind*/,
+        NObjectClient::TCellTag /*cellTag*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
     const NRpc::IChannelPtr& GetSchedulerChannel() override
     {
         YT_UNIMPLEMENTED();

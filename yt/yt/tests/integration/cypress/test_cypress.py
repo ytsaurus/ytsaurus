@@ -3812,6 +3812,10 @@ class TestCypressNoLocalReadExecutor(TestCypress):
         set("//sys/@config/object_service/enable_local_read_executor", False)
 
 
+class TestCypressCypressProxy(TestCypressShardedTx):
+    NUM_CYPRESS_PROXIES = 2
+
+
 ##################################################################
 
 
