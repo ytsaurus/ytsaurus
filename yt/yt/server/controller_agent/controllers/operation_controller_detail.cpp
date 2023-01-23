@@ -9975,6 +9975,9 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
             layerPaths.insert(layerPaths.begin(), *systemLayerPath);
         }
     }
+    if (layerPaths.empty() && userJobSpec->DefaultBaseLayerPath) {
+        layerPaths.insert(layerPaths.begin(), *userJobSpec->DefaultBaseLayerPath);
+    }
     return layerPaths;
 }
 

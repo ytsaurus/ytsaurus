@@ -933,6 +933,9 @@ void TUserJobSpec::Register(TRegistrar registrar)
     registrar.Parameter("system_layer_path", &TThis::SystemLayerPath)
         .Default();
 
+    registrar.Parameter("default_base_layer_path", &TThis::DefaultBaseLayerPath)
+        .Default();
+
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();
 
