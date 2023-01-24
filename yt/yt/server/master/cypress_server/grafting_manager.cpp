@@ -106,8 +106,8 @@ public:
         YT_VERIFY(HasMutationContext());
 
         if (RootstockNodes_.erase(rootstockNode->GetId()) != 1) {
-            YT_LOG_DEBUG("Unknown rootstock destroyed, ignored "
-                "(RootstockNodeId: %v, ScionNodeId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Unknown rootstock destroyed, ignored (RootstockNodeId: %v, ScionNodeId: %v)",
                 rootstockNode->GetId(),
                 rootstockNode->GetScionId());
             return;
@@ -137,16 +137,16 @@ public:
         YT_VERIFY(HasMutationContext());
 
         if (ScionNodes_.erase(scionNode->GetId()) != 1) {
-            YT_LOG_DEBUG("Unknown scion destroyed, ignored "
-                "(ScionNodeId: %v, RootstockNodeId: %v)",
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Unknown scion destroyed, ignored (ScionNodeId: %v, RootstockNodeId: %v)",
                 scionNode->GetId(),
                 scionNode->GetRootstockId());
             return;
         }
 
-        if (ScionsToRemove_.erase(scionNode->GetId())) {
-            YT_LOG_DEBUG("Scion removed from removal queue "
-                "(ScionNodeId: %v, RootstockNodeId: %v)",
+        if (ScionIdsToRemove_.erase(scionNode->GetId())) {
+            YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
+                "Scion removed from removal queue (ScionNodeId: %v, RootstockNodeId: %v)",
                 scionNode->GetId(),
                 scionNode->GetRootstockId());
         }
@@ -170,14 +170,14 @@ public:
             scionNode->GetRootstockId());
     }
 
-    const TRootstockNodeMap& GetRootstockNodes() override
+    const TRootstockNodeMap& RootstockNodes() override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
         return RootstockNodes_;
     }
 
-    const TScionNodeMap& GetScionNodes() override
+    const TScionNodeMap& ScionNodes() override
     {
         Bootstrap_->VerifyPersistentStateRead();
 
@@ -190,7 +190,7 @@ private:
     TRootstockNodeMap RootstockNodes_;
     TScionNodeMap ScionNodes_;
 
-    THashSet<TNodeId> ScionsToRemove_;
+    THashSet<TNodeId> ScionIdsToRemove_;
 
     TPeriodicExecutorPtr ScionRemovalExecutor_;
 
@@ -205,8 +205,10 @@ private:
 
     void OnStopLeading() override
     {
-        ScionRemovalExecutor_->Stop();
-        ScionRemovalExecutor_.Reset();
+        if (ScionRemovalExecutor_) {
+            ScionRemovalExecutor_->Stop();
+            ScionRemovalExecutor_.Reset();
+        }
     }
 
     void SaveKeys(NCellMaster::TSaveContext& /*context*/) const
@@ -218,7 +220,7 @@ private:
 
         Save(context, RootstockNodes_);
         Save(context, ScionNodes_);
-        Save(context, ScionsToRemove_);
+        Save(context, ScionIdsToRemove_);
     }
 
     void LoadKeys(NCellMaster::TLoadContext& /*context*/)
@@ -234,7 +236,7 @@ private:
 
         Load(context, RootstockNodes_);
         Load(context, ScionNodes_);
-        Load(context, ScionsToRemove_);
+        Load(context, ScionIdsToRemove_);
     }
 
     void Clear() override
@@ -245,6 +247,7 @@ private:
 
         RootstockNodes_.clear();
         ScionNodes_.clear();
+        ScionIdsToRemove_.clear();
     }
 
     void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
@@ -260,13 +263,13 @@ private:
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
-        if (ScionsToRemove_.empty()) {
+        if (ScionIdsToRemove_.empty()) {
             YT_LOG_DEBUG("Skipping scions removal iteration since there are no enqueued scions");
             return;
         }
 
-        auto scionNodeId = *ScionsToRemove_.begin();
-        YT_LOG_DEBUG("Removing scion (ScionNodeId: %v)",
+        auto scionNodeId = *ScionIdsToRemove_.begin();
+        YT_LOG_DEBUG("Scion removal started (ScionNodeId: %v)",
             scionNodeId);
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -276,7 +279,10 @@ private:
         removeReq->set_recursive(true);
 
         auto rspOrError = WaitFor(ExecuteVerb(rootService, removeReq));
-        if (!rspOrError.IsOK()) {
+        if (rspOrError.IsOK()) {
+            YT_LOG_DEBUG("Scion removal completed (ScionNodeId: %v)",
+                scionNodeId);
+        } else {
             YT_LOG_WARNING(rspOrError,
                 "Failed to remove scion (ScionNodeId: %v)",
                 scionNodeId);
@@ -337,11 +343,7 @@ private:
         auto path = cypressManager->GetNodePath(trunkNode, transaction);
         request.set_path(path);
 
-        if (auto key = FindNodeKey(
-            cypressManager,
-            trunkNode,
-            transaction))
-        {
+        if (auto key = FindNodeKey(cypressManager, trunkNode, transaction)) {
             request.set_key(*key);
         }
 
@@ -470,7 +472,8 @@ private:
             if (auto* owner = securityManager->FindSubjectByNameOrAlias(*ownerName, /*activeLifeStageOnly*/ true)) {
                 scionNode->Acd().SetOwner(owner);
             } else {
-                YT_LOG_ALERT("Scion owner subject is missing (SubjectName: %v)",
+                YT_LOG_ALERT("Scion owner subject is missing (ScionNodeId: %v, SubjectName: %v)",
+                    scionNode->GetId(),
                     ownerName);
             }
         }
@@ -574,7 +577,7 @@ private:
             scionNodeId,
             scionNode->GetRootstockId());
 
-        InsertOrCrash(ScionsToRemove_, scionNode->GetId());
+        InsertOrCrash(ScionIdsToRemove_, scionNode->GetId());
     }
 };
 

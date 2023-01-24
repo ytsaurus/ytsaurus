@@ -7,14 +7,6 @@ using namespace NObjectClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TScionNode::TScionNode(TVersionedNodeId nodeId)
-    : TMapNode(nodeId)
-{ }
-
-TScionNode::TScionNode(TObjectId objectId)
-    : TMapNode(objectId)
-{ }
-
 void TScionNode::Save(TSaveContext& context) const
 {
     TMapNode::Save(context);

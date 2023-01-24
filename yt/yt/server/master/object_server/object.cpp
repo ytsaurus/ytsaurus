@@ -18,6 +18,7 @@ namespace NYT::NObjectServer {
 using namespace NObjectClient;
 using namespace NCellMaster;
 using namespace NCypressServer;
+using namespace NSequoiaServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -223,6 +224,13 @@ const NYson::TYsonString* TObject::FindAttribute(const TString& key) const
     return it != attributeMap.end()
         ? &it->second
         : nullptr;
+}
+
+void TObject::RememberAevum()
+{
+    if (IsSequoia()) {
+        SetAevum(GetCurrentAevum());
+    }
 }
 
 int TObject::GetGCWeight() const

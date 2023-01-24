@@ -197,17 +197,28 @@ public:
         commitSession->TransactionActions.push_back(data);
     }
 
-    TObjectId GenerateObjectId(EObjectType objectType, TCellTag cellTag) override
+    TObjectId GenerateObjectId(
+        EObjectType objectType,
+        TCellTag cellTag,
+        bool sequoia) override
     {
         VERIFY_THREAD_AFFINITY_ANY();
 
         auto guard = Guard(Lock_);
 
-        return MakeSequoiaId(
+        auto id = MakeSequoiaId(
             objectType,
             cellTag,
             Transaction_->GetStartTimestamp(),
             RandomGenerator_->Generate<ui32>());
+        if (sequoia) {
+            YT_ASSERT(IsSequoiaId(id));
+        } else {
+            id.Parts64[1] &= ~SequoiaCounterMask;
+            YT_ASSERT(!IsSequoiaId(id));
+        }
+
+        return id;
     }
 
     const TRowBufferPtr& GetRowBuffer() const override
