@@ -140,6 +140,9 @@ struct TSchedulerMutations
 
     THashMap<TString, i64> ChangedTabletStaticMemory;
     THashMap<TString, TString> ChangedBundleShortName;
+
+    THashMap<TString, TString> InitializedNodeTagFilters;
+    THashMap<TString, TBundleConfigPtr> InitializedBundleTargetConfig;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

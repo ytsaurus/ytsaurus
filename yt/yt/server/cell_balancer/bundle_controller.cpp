@@ -123,6 +123,8 @@ public:
         , InflightProxyDeallocationCounter_(Profiler.Gauge("/inflight_proxy_deallocation_counter"))
         , ChangedBundleShortNameCounter_(Profiler.Counter("/changed_bundle_short_name_counter"))
         , ChangedProxyRoleCounter_(Profiler.Counter("/changed_proxy_role_counter"))
+        , InitializedNodeTagFiltersCounter_(Profiler.Counter("/initialized_node_tag_filters_counter"))
+        , InitializedBundleTargetConfigCounter_(Profiler.Counter("/initialized_bundle_target_config_counter"))
         , ChangedProxyAnnotationCounter_(Profiler.Counter("/changed_proxy_annotation_counter"))
         , ProxyAllocationRequestAge_(Profiler.TimeGauge("/proxy_allocation_request_age"))
         , ProxyDeallocationRequestAge_(Profiler.TimeGauge("/proxy_deallocation_request_age"))
@@ -183,6 +185,8 @@ private:
 
     TCounter ChangedBundleShortNameCounter_;
     TCounter ChangedProxyRoleCounter_;
+    TCounter InitializedNodeTagFiltersCounter_;
+    TCounter InitializedBundleTargetConfigCounter_;
 
     TCounter ChangedProxyAnnotationCounter_;
     TTimeGauge ProxyAllocationRequestAge_;
@@ -319,6 +323,8 @@ private:
     inline static const TString  AccountAttributeResourceLimits = "resource_limits";
     inline static const TString  BundleTabletStaticMemoryLimits = "resource_limits/tablet_static_memory";
     inline static const TString  BundleAttributeShortName = "short_name";
+    inline static const TString  BundleAttributeNodeTagFilter = "node_tag_filter";
+    inline static const TString  BundleAttributeTargetConfig = "bundle_controller_target_config";
 
     void Mutate(const ITransactionPtr& transaction, const TSchedulerMutations& mutations) const
     {
@@ -352,6 +358,9 @@ private:
         SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleTabletStaticMemoryLimits, mutations.ChangedTabletStaticMemory);
         SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeShortName, mutations.ChangedBundleShortName);
 
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeNodeTagFilter, mutations.InitializedNodeTagFilters);
+        SetInstanceAttributes(transaction, TabletCellBundlesPath, BundleAttributeTargetConfig, mutations.InitializedBundleTargetConfig);
+
         AlarmCounter_.Increment(mutations.AlertsToFire.size());
         InstanceAllocationCounter_.Increment(mutations.NewAllocations.size());
         InstanceDeallocationCounter_.Increment(mutations.NewDeallocations.size());
@@ -369,6 +378,8 @@ private:
         ChangedResourceLimitsCounter_.Increment(mutations.ChangedTabletStaticMemory.size());
 
         ChangedBundleShortNameCounter_.Increment(mutations.ChangedBundleShortName.size());
+        InitializedNodeTagFiltersCounter_.Increment(mutations.InitializedNodeTagFilters.size());
+        InitializedBundleTargetConfigCounter_.Increment(mutations.InitializedBundleTargetConfig.size());
 
         RemoveInstanceCypressNode(transaction, TabletNodesPath, mutations.NodesToCleanup);
         RemoveInstanceCypressNode(transaction, RpcProxiesPath, mutations.ProxiesToCleanup);

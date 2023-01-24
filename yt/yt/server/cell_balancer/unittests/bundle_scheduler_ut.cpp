@@ -442,6 +442,22 @@ TEST(TBundleSchedulerTest, AllocationCreated)
     EXPECT_TRUE(templates.count(GetInstancePodIdTemplate(input.Config->Cluster, "bigd", "tab", 5)));
 }
 
+TEST(TBundleSchedulerTest, InitializeTargetConfig)
+{
+    auto input = GenerateSimpleInputContext(0);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.InitializedBundleTargetConfig));
+
+    input.Bundles["bigd"]->TargetConfig = {};
+    mutations = TSchedulerMutations{};
+
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(1, std::ssize(mutations.InitializedBundleTargetConfig));
+}
+
 TEST(TBundleSchedulerTest, AllocationQuotaExceeded)
 {
     auto input = GenerateSimpleInputContext(5);
@@ -992,11 +1008,8 @@ TEST(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
-    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
-    EXPECT_EQ("bundle_with_no_tag_filter", mutations.AlertsToFire.front().Id);
-
-    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
-    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(1, std::ssize(mutations.InitializedNodeTagFilters));
+    EXPECT_EQ(mutations.InitializedNodeTagFilters["bigd"], "default-zone/bigd");
 }
 
 TEST(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)

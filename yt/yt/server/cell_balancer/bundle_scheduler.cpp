@@ -2124,6 +2124,63 @@ void ManageBundleShortName(TSchedulerInputState& input, TSchedulerMutations* mut
     }
 }
 
+void InitializeNodeTagFilters(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    for (auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController || bundleInfo->Zone.empty()) {
+            continue;
+        }
+
+        if (bundleInfo->NodeTagFilter.empty()) {
+            auto nodeTagFilter = Format("%v/%v", bundleInfo->Zone, bundleName);
+            bundleInfo->NodeTagFilter = nodeTagFilter;
+            mutations->InitializedNodeTagFilters[bundleName] = nodeTagFilter;
+
+            YT_LOG_INFO("Initializing node tag filter for bundle (Bundle: %v, NodeTagFilter: %v)",
+                bundleName,
+                nodeTagFilter);
+        }
+    }
+}
+
+void InitializeBundleTargetConfig(TSchedulerInputState& input, TSchedulerMutations* mutations)
+{
+    for (auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController || bundleInfo->TargetConfig) {
+            continue;
+        }
+        auto targetConfig = New<TBundleConfig>();
+        bundleInfo->TargetConfig = targetConfig;
+        mutations->InitializedBundleTargetConfig[bundleName] = targetConfig;
+
+        auto zoneIt = input.Zones.find(bundleInfo->Zone);
+        if (zoneIt == input.Zones.end()) {
+            continue;
+        }
+
+        const auto& zoneInfo = zoneIt->second;
+        if (!zoneInfo->TabletNodeSizes.empty()) {
+            auto& front = *zoneInfo->TabletNodeSizes.begin();
+            targetConfig->TabletNodeResourceGuarantee = NYTree::CloneYsonSerializable(front.second->ResourceGuarantee);
+            targetConfig->TabletNodeResourceGuarantee->Type = front.first;
+            targetConfig->CpuLimits = front.second->DefaultConfig->CpuLimits;
+            targetConfig->MemoryLimits = front.second->DefaultConfig->MemoryLimits;
+        }
+
+        if (!zoneInfo->RpcProxySizes.empty()) {
+            auto& front = *zoneInfo->RpcProxySizes.begin();
+            targetConfig->RpcProxyResourceGuarantee = NYTree::CloneYsonSerializable(front.second->ResourceGuarantee);
+            targetConfig->RpcProxyResourceGuarantee->Type = front.first;
+        }
+    }
+
+    for (const auto& [bundleName, targetConfig] : mutations->InitializedBundleTargetConfig) {
+        YT_LOG_INFO("Initializing target config for bundle (Bundle: %v, TargetConfig: %v)",
+            bundleName,
+            ConvertToYsonString(targetConfig, EYsonFormat::Text));
+    }
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations)
@@ -2133,6 +2190,9 @@ void ScheduleBundles(TSchedulerInputState& input, TSchedulerMutations* mutations
     input.BundleNodes = MapBundlesToInstancies(input.TabletNodes);
     input.BundleProxies = MapBundlesToInstancies(input.RpcProxies);
     input.PodIdToInstanceName = MapPodIdToInstanceName(input);
+
+    InitializeNodeTagFilters(input, mutations);
+    InitializeBundleTargetConfig(input, mutations);
 
     ManageBundlesDynamicConfig(input, mutations);
     ManageInstancies(input, mutations);

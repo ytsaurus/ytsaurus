@@ -63,6 +63,22 @@ void TResourceLimits::Register(TRegistrar registrar)
         .Default(0);
 }
 
+void TDefaultInstanceConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cpu_limits", &TThis::CpuLimits)
+        .DefaultNew();
+    registrar.Parameter("memory_limits", &TThis::MemoryLimits)
+        .DefaultNew();
+}
+
+void TInstanceSize::Register(TRegistrar registrar)
+{
+    registrar.Parameter("resource_guarantee", &TThis::ResourceGuarantee)
+        .DefaultNew();
+    registrar.Parameter("default_config", &TThis::DefaultConfig)
+        .DefaultNew();
+}
+
 void TInstanceResources::Clear()
 {
     Vcpu = 0;
@@ -170,9 +186,7 @@ void TBundleInfo::Register(TRegistrar registrar)
     RegisterAttribute(registrar, "enable_resource_limits_management", &TThis::EnableResourceLimitsManagement)
         .Default(true);
     RegisterAttribute(registrar, "bundle_controller_target_config", &TThis::TargetConfig)
-        .DefaultNew();
-    RegisterAttribute(registrar, "bundle_controller_actual_config", &TThis::ActualConfig)
-        .DefaultNew();
+        .Default();
     RegisterAttribute(registrar, "tablet_cell_ids", &TThis::TabletCellIds)
         .Default();
     RegisterAttribute(registrar, "options", &TThis::Options)
@@ -200,6 +214,12 @@ void TZoneInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "short_name", &TThis::ShortName)
         .Optional();
+
+    RegisterAttribute(registrar, "tablet_node_sizes", &TThis::TabletNodeSizes)
+        .Default();
+    RegisterAttribute(registrar, "rpc_proxy_sizes", &TThis::RpcProxySizes)
+        .Default();
+
     RegisterAttribute(registrar, "spare_target_config", &TThis::SpareTargetConfig)
         .DefaultNew();
     RegisterAttribute(registrar, "disrupted_threshold_factor", &TThis::DisruptedThresholdFactor)
