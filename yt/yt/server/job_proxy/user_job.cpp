@@ -875,7 +875,7 @@ private:
         return response;
     }
 
-    std::vector<pid_t> GetPidsForInerrupt() const
+    std::vector<pid_t> GetPidsForInterrupt() const
     {
         std::vector<pid_t> pids;
         if (UserJobSpec_.signal_root_process_only()) {
@@ -919,7 +919,7 @@ private:
                     THROW_ERROR_EXCEPTION("Signalling by porto is not supported at non-linux environment");
 #endif
                 } else {
-                    auto pids = GetPidsForInerrupt();
+                    auto pids = GetPidsForInterrupt();
 
                     YT_LOG_INFO("Sending interrup signal to user job (SignalName: %v, UserJobPids: %v)",
                         signal,

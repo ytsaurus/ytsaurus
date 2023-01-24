@@ -656,42 +656,53 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto currentFaultCount = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->GetMajorPageFaultCount();
-        if (currentFaultCount != LastMajorPageFaultCount_) {
-            auto config = DynamicConfig_.Load()->MemoryPressureDetector;
-            YT_LOG_DEBUG(
-                "Increased rate of major page faults in node container detected (MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v)",
-                LastMajorPageFaultCount_,
-                currentFaultCount,
-                currentFaultCount - LastMajorPageFaultCount_,
-                config->MajorPageFaultCountThreshold,
-                config->CheckPeriod);
-
-            if (config->Enabled &&
-                currentFaultCount - LastMajorPageFaultCount_ > config->MajorPageFaultCountThreshold)
-            {
-                auto previousMemoryWatermarkMultiplier = FreeMemoryWatermarkMultiplier_;
-                FreeMemoryWatermarkMultiplier_ = std::min(
-                    FreeMemoryWatermarkMultiplier_ + config->MemoryWatermarkMultiplierIncreaseStep,
-                    config->MaxMemoryWatermarkMultiplier);
-
-                YT_LOG_DEBUG(
-                    "Increasing memory watermark multiplier "
-                    "(MemoryWatermarkMultiplier: %v -> %v, "
-                    "UpdatedFreeMemoryWatermark: %v, "
-                    "UserMemoryUsageTrackerLimit: %v, "
-                    "UserMemoryUsageTrackerUsed: %v, "
-                    "NodeMemoryUsageTrackerTotalFree: %v)",
-                    previousMemoryWatermarkMultiplier,
-                    FreeMemoryWatermarkMultiplier_,
-                    GetFreeMemoryWatermark(),
-                    UserMemoryUsageTracker_->GetLimit(),
-                    UserMemoryUsageTracker_->GetUsed(),
-                    NodeMemoryUsageTracker_->GetTotalFree());
+        try {
+            auto currentFaultCount = Bootstrap_->GetExecNodeBootstrap()->GetSlotManager()->GetMajorPageFaultCount();
+            if (currentFaultCount != LastMajorPageFaultCount_) {
+                HandleMajorPageFaultsRateIncrease(currentFaultCount);
             }
-
-            LastMajorPageFaultCount_ = currentFaultCount;
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(
+                ex,
+                "Error getting information about major page faults");
         }
+    }
+
+    void HandleMajorPageFaultsRateIncrease(i64 currentFaultCount)
+    {
+        auto config = DynamicConfig_.Load()->MemoryPressureDetector;
+        YT_LOG_DEBUG(
+            "Increased rate of major page faults in node container detected (MajorPageFaultCount: %v -> %v, Delta: %v, Threshold: %v, Period: %v)",
+            LastMajorPageFaultCount_,
+            currentFaultCount,
+            currentFaultCount - LastMajorPageFaultCount_,
+            config->MajorPageFaultCountThreshold,
+            config->CheckPeriod);
+
+        if (config->Enabled &&
+            currentFaultCount - LastMajorPageFaultCount_ > config->MajorPageFaultCountThreshold)
+        {
+            auto previousMemoryWatermarkMultiplier = FreeMemoryWatermarkMultiplier_;
+            FreeMemoryWatermarkMultiplier_ = std::min(
+                FreeMemoryWatermarkMultiplier_ + config->MemoryWatermarkMultiplierIncreaseStep,
+                config->MaxMemoryWatermarkMultiplier);
+
+            YT_LOG_DEBUG(
+                "Increasing memory watermark multiplier "
+                "(MemoryWatermarkMultiplier: %v -> %v, "
+                "UpdatedFreeMemoryWatermark: %v, "
+                "UserMemoryUsageTrackerLimit: %v, "
+                "UserMemoryUsageTrackerUsed: %v, "
+                "NodeMemoryUsageTrackerTotalFree: %v)",
+                previousMemoryWatermarkMultiplier,
+                FreeMemoryWatermarkMultiplier_,
+                GetFreeMemoryWatermark(),
+                UserMemoryUsageTracker_->GetLimit(),
+                UserMemoryUsageTracker_->GetUsed(),
+                NodeMemoryUsageTracker_->GetTotalFree());
+        }
+
+        LastMajorPageFaultCount_ = currentFaultCount;
     }
 
     //! Returns |true| if a acquiring with given #neededResources can succeed.

@@ -248,9 +248,19 @@ T& TErrorOr<T>::ValueOrDefault(T& defaultValue) &
 }
 
 template <class T>
-T&& TErrorOr<T>::ValueOrDefault(T&& defaultValue) &&
+constexpr T TErrorOr<T>::ValueOrDefault(T&& defaultValue) const &
 {
-    return IsOK() ? std::move(*Value_) : defaultValue;
+    return IsOK()
+        ? *Value_
+        : std::forward<T>(defaultValue);
+}
+
+template <class T>
+constexpr T TErrorOr<T>::ValueOrDefault(T&& defaultValue) &&
+{
+    return IsOK()
+        ? std::move(*Value_)
+        : std::forward<T>(defaultValue);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
