@@ -620,6 +620,8 @@ public:
     //! This option does not affect fetching after cleaner is re-enabled.
     bool DisconnectOnFinishedOperationFetchFailure;
 
+    bool EnableOptimizedRowBuilding;
+
     REGISTER_YSON_STRUCT(TOperationsCleanerConfig);
 
     static void Register(TRegistrar registrar);
