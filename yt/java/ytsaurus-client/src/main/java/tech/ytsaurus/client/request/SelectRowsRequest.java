@@ -35,6 +35,8 @@ public class SelectRowsRequest
     private final String executionPool;
     @Nullable
     private final Boolean allowFullScan;
+    @Nullable
+    private final Long rangeExpansionLimit;
 
     public SelectRowsRequest(BuilderBase<?> builder) {
         super(builder);
@@ -49,6 +51,7 @@ public class SelectRowsRequest
         this.udfRegistryPath = builder.udfRegistryPath;
         this.executionPool = builder.executionPool;
         this.allowFullScan = builder.allowFullScan;
+        this.rangeExpansionLimit = builder.rangeExpansionLimit;
     }
 
     private SelectRowsRequest(String query) {
@@ -107,6 +110,10 @@ public class SelectRowsRequest
         return Optional.ofNullable(allowFullScan);
     }
 
+    public Optional<Long> getRangeExpansionLimit() {
+        return Optional.ofNullable(rangeExpansionLimit);
+    }
+
     /**
      * Internal method: prepare request to send over network.
      */
@@ -142,6 +149,9 @@ public class SelectRowsRequest
         }
         if (getAllowFullScan().isPresent()) {
             builder.body().setAllowFullScan(getAllowFullScan().get());
+        }
+        if (getRangeExpansionLimit().isPresent()) {
+            builder.body().setRangeExpansionLimit(getRangeExpansionLimit().get());
         }
     }
 
@@ -190,6 +200,9 @@ public class SelectRowsRequest
         if (allowFullScan != null) {
             builder.setAllowFullScan(allowFullScan);
         }
+        if (rangeExpansionLimit != null) {
+            builder.setRangeExpansionLimit(rangeExpansionLimit);
+        }
         return builder;
     }
 
@@ -225,6 +238,8 @@ public class SelectRowsRequest
         private String executionPool;
         @Nullable
         private Boolean allowFullScan;
+        @Nullable
+        private Long rangeExpansionLimit;
 
         public BuilderBase() {
         }
@@ -242,6 +257,7 @@ public class SelectRowsRequest
             udfRegistryPath = builder.udfRegistryPath;
             executionPool = builder.executionPool;
             allowFullScan = builder.allowFullScan;
+            rangeExpansionLimit = builder.rangeExpansionLimit;
         }
 
         public TBuilder setQuery(String query) {
@@ -299,6 +315,11 @@ public class SelectRowsRequest
             return self();
         }
 
+        public TBuilder setRangeExpansionLimit(long rangeExpansionLimit) {
+            this.rangeExpansionLimit = rangeExpansionLimit;
+            return self();
+        }
+
         public String getQuery() {
             return Objects.requireNonNull(query);
         }
@@ -341,6 +362,10 @@ public class SelectRowsRequest
 
         public Optional<Boolean> getAllowFullScan() {
             return Optional.ofNullable(allowFullScan);
+        }
+
+        public Optional<Long> getRangeExpansionLimit() {
+            return Optional.ofNullable(rangeExpansionLimit);
         }
 
         @Override
