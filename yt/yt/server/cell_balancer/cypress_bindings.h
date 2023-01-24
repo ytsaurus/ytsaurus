@@ -16,6 +16,8 @@ DECLARE_REFCOUNTED_STRUCT(THulkInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TInstanceResources)
 DECLARE_REFCOUNTED_STRUCT(TResourceQuota)
 DECLARE_REFCOUNTED_STRUCT(TResourceLimits)
+DECLARE_REFCOUNTED_STRUCT(TDefaultInstanceConfig)
+DECLARE_REFCOUNTED_STRUCT(TInstanceSize)
 DECLARE_REFCOUNTED_STRUCT(TBundleConfig)
 DECLARE_REFCOUNTED_STRUCT(TBundleSystemOptions)
 DECLARE_REFCOUNTED_STRUCT(TCpuLimits)
@@ -174,6 +176,36 @@ DEFINE_REFCOUNTED_TYPE(TResourceLimits)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TDefaultInstanceConfig
+    : public NYTree::TYsonStruct
+{
+    TCpuLimitsPtr CpuLimits;
+    TMemoryLimitsPtr MemoryLimits;
+
+    REGISTER_YSON_STRUCT(TDefaultInstanceConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TDefaultInstanceConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInstanceSize
+    : public NYTree::TYsonStruct
+{
+    TInstanceResourcesPtr ResourceGuarantee;
+    TDefaultInstanceConfigPtr DefaultConfig;
+
+    REGISTER_YSON_STRUCT(TInstanceSize);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TInstanceSize)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TBundleConfig
     : public NYTree::TYsonStruct
 {
@@ -255,7 +287,6 @@ struct TBundleInfo
     bool EnableResourceLimitsManagement;
 
     TBundleConfigPtr TargetConfig;
-    TBundleConfigPtr ActualConfig;
     std::vector<TString> TabletCellIds;
 
     TBundleSystemOptionsPtr Options;
@@ -283,6 +314,9 @@ struct TZoneInfo
 
     int MaxTabletNodeCount;
     int MaxRpcProxyCount;
+
+    THashMap<TString, TInstanceSizePtr> TabletNodeSizes;
+    THashMap<TString, TInstanceSizePtr> RpcProxySizes;
 
     TBundleConfigPtr SpareTargetConfig;
     double DisruptedThresholdFactor;
