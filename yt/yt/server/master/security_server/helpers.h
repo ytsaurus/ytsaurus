@@ -18,23 +18,34 @@ namespace NYT::NSecurityServer {
 void ValidateDiskSpace(i64 diskSpace);
 
 template <class T>
-THashMap<TString, T> CellTagMapToCellNameMap(const THashMap<NObjectClient::TCellTag, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager);
+THashMap<TString, T> CellTagMapToCellNameMap(
+    const THashMap<NObjectClient::TCellTag, T>& map,
+    const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 template <class T>
-THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(const THashMap<TString, T>& map, const NCellMaster::IMulticellManagerPtr& multicellManager);
+THashMap<NObjectClient::TCellTag, T> CellNameMapToCellTagMapOrThrow(
+    const THashMap<TString, T>& map,
+    const NCellMaster::IMulticellManagerPtr& multicellManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-i64 GetOptionalNonNegativeI64ChildOrThrow(const NYTree::IMapNodePtr mapNode, const char* key);
+i64 GetOptionalNonNegativeI64ChildOrThrow(
+    const NYTree::IMapNodePtr mapNode,
+    const char* key);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void LogAcdUpdate(const TString& attribute, const NYPath::TYPath& path, const NYson::TYsonString& value);
+void LogAcdUpdate(
+    const TString& attribute,
+    const NYPath::TYPath& path,
+    const NYson::TYsonString& value);
 
 ////////////////////////////////////////////////////////////////////////////////
 
 //! Deserializes ACL from string. Alerts if some mentioned subjects are missing.
-TAccessControlList DeserializeAcl(const NYson::TYsonString& serializedAcl, const ISecurityManagerPtr& securityManager);
+TAccessControlList DeserializeAcl(
+    const NYson::TYsonString& serializedAcl,
+    const ISecurityManagerPtr& securityManager);
 
 ////////////////////////////////////////////////////////////////////////////////
 

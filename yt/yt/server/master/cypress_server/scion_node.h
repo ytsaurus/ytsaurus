@@ -11,6 +11,8 @@ class TScionNode
     : public TMapNode
 {
 public:
+    using TMapNode::TMapNode;
+
     DEFINE_BYVAL_RW_PROPERTY(NObjectClient::TObjectId, RootstockId);
 
     DEFINE_BYVAL_RW_PROPERTY(bool, RemovalStarted);
@@ -27,9 +29,6 @@ public:
     DEFINE_BYREF_RW_PROPERTY(NSecurityServer::TAccessControlDescriptor, DirectAcd);
 
 public:
-    explicit TScionNode(TVersionedNodeId nodeId);
-    explicit TScionNode(NObjectClient::TObjectId objectId);
-
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 };

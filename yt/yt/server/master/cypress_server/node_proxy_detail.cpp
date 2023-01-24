@@ -1048,7 +1048,7 @@ void TNontemplateCypressNodeProxyBase::DoRemoveSelf(bool recursive, bool force)
     auto* node = GetThisImpl();
 
     if (node->GetType() == EObjectType::PortalExit || node->GetType() == EObjectType::Scion) {
-        // XXX(babenko)
+        // TODO(babenko, gritukan)
         if (Transaction_) {
             THROW_ERROR_EXCEPTION("Removing %v in transaction is not supported",
                 node->GetLowercaseObjectName());

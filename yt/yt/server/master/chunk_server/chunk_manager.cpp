@@ -2698,9 +2698,7 @@ private:
     {
         auto chunkHolder = TPoolAllocator::New<TChunk>(chunkId);
         auto* chunk = ChunkMap_.Insert(chunkId, std::move(chunkHolder));
-        if (chunk->IsSequoia()) {
-            chunk->SetAevum(GetCurrentAevum());
-        }
+        chunk->RememberAevum();
 
         RegisterChunk(chunk);
         chunk->RefUsedRequisitions(GetChunkRequisitionRegistry());

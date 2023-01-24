@@ -1,34 +1,34 @@
 #include "cypress_manager.h"
 
 #include "private.h"
-#include "access_control_object_type_handler.h"
 #include "access_control_object_namespace_type_handler.h"
+#include "access_control_object_type_handler.h"
 #include "access_tracker.h"
-#include "cypress_traverser.h"
-#include "expiration_tracker.h"
 #include "config.h"
+#include "cypress_traverser.h"
+#include "document_node_type_handler.h"
+#include "expiration_tracker.h"
+#include "grafting_manager.h"
+#include "helpers.h"
+#include "link_node_type_handler.h"
 #include "lock_proxy.h"
 #include "node_detail.h"
 #include "node_proxy_detail.h"
-#include "portal_manager.h"
 #include "portal_entrance_node.h"
-#include "portal_exit_node.h"
-#include "shard.h"
 #include "portal_entrance_type_handler.h"
+#include "portal_exit_node.h"
 #include "portal_exit_type_handler.h"
+#include "portal_manager.h"
 #include "portal_node_map_type_handler.h"
-#include "shard_type_handler.h"
-#include "shard_map_type_handler.h"
 #include "resolve_cache.h"
-#include "link_node_type_handler.h"
-#include "document_node_type_handler.h"
-#include "helpers.h"
-#include "grafting_manager.h"
+#include "rootstock_map_type_handler.h"
 #include "rootstock_node.h"
 #include "rootstock_type_handler.h"
-#include "scion_type_handler.h"
-#include "rootstock_map_type_handler.h"
 #include "scion_map_type_handler.h"
+#include "scion_type_handler.h"
+#include "shard_map_type_handler.h"
+#include "shard_type_handler.h"
+#include "shard.h"
 
 // COMPAT(babenko)
 #include <yt/yt/server/master/journal_server/journal_node.h>
@@ -476,10 +476,10 @@ public:
         }
 
         if (type == EObjectType::PortalEntrance)  {
-            CreatedPortalEntrances_.push_back({
-                StageNode(node->As<TPortalEntranceNode>()),
-                inheritedAttributes->Clone(),
-                explicitAttributes->Clone()
+            CreatedPortalEntrances_.push_back(TCreatedPortalEntrance{
+                .Node = StageNode(node->As<TPortalEntranceNode>()),
+                .InheritedAttributes = inheritedAttributes->Clone(),
+                .ExplicitAttributes = explicitAttributes->Clone()
             });
         } else if (type == EObjectType::Rootstock) {
             CreatedRootstocks_.push_back(TCreatedRootstock{
@@ -2649,9 +2649,7 @@ private:
         node->SetAttributeRevision(currentRevision);
         node->SetContentRevision(currentRevision);
 
-        if (node->IsSequoia()) {
-            node->SetAevum(GetCurrentAevum());
-        }
+        node->RememberAevum();
 
         if (node->IsExternal()) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "External node registered (NodeId: %v, Type: %v, ExternalCellTag: %v)",

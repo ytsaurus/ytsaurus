@@ -60,17 +60,23 @@ public:
         auto scionCellTag = attributes->GetAndRemove<TCellTag>("scion_cell_tag");
         auto scionCellId = connection->GetMasterCellId(scionCellTag);
 
-        auto rootstockId = transaction->GenerateObjectId(EObjectType::Rootstock, rootstockCellTag);
-        // NB: Rootstock is not a sequoia object, so we need to reset sequoia bit.
-        rootstockId.Parts64[1] &= ~SequoiaCounterMask;
+        auto rootstockId = transaction->GenerateObjectId(
+            EObjectType::Rootstock,
+            rootstockCellTag,
+            /*sequoia*/ false);
+        // NB: Rootstock is not a sequoia object.
+        YT_VERIFY(!IsSequoiaId(rootstockId));
 
         auto scionId = transaction->GenerateObjectId(EObjectType::Scion, scionCellTag);
         attributes->Set("scion_id", scionId);
 
-        NRecords::TResolveNode row;
-        row.Key.Path = path;
-        row.NodeId = ToString(scionId);
-        transaction->WriteRow(row);
+        NRecords::TResolveNode record{
+            .Key = {
+                .Path = path,
+            },
+            .NodeId = ToString(scionId),
+        };
+        transaction->WriteRow(record);
 
         NCypressClient::NProto::TReqCreateRootstock rootstockAction;
         auto* request = rootstockAction.mutable_request();

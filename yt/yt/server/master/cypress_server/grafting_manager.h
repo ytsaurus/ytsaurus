@@ -24,10 +24,10 @@ struct IGraftingManager
     virtual void OnScionDestroyed(TScionNode* scionNode) = 0;
 
     using TRootstockNodeMap = THashMap<TNodeId, TRootstockNode*>;
-    virtual const TRootstockNodeMap& GetRootstockNodes() = 0;
+    virtual const TRootstockNodeMap& RootstockNodes() = 0;
 
     using TScionNodeMap = THashMap<TNodeId, TScionNode*>;
-    virtual const TScionNodeMap& GetScionNodes() = 0;
+    virtual const TScionNodeMap& ScionNodes() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IGraftingManager)

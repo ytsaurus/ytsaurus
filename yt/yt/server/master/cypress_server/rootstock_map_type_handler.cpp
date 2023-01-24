@@ -27,7 +27,7 @@ private:
     TFuture<std::vector<TObjectId>> GetKeys(i64 sizeLimit) const override
     {
         const auto& graftingManager = Bootstrap_->GetGraftingManager();
-        return MakeFuture(ToObjectIds(GetValues(graftingManager->GetRootstockNodes(), sizeLimit)));
+        return MakeFuture(ToObjectIds(GetValues(graftingManager->RootstockNodes(), sizeLimit)));
     }
 
     bool IsValid(TObject* object) const override
@@ -38,7 +38,7 @@ private:
     TFuture<i64> GetSize() const override
     {
         const auto& graftingManager = Bootstrap_->GetGraftingManager();
-        return MakeFuture<i64>(graftingManager->GetRootstockNodes().size());
+        return MakeFuture<i64>(graftingManager->RootstockNodes().size());
     }
 
     NYPath::TYPath GetWellKnownPath() const override

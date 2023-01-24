@@ -223,6 +223,10 @@ public:
     //! Returns a pointer to the value of the attribute or |nullptr| if it is not set.
     const NYson::TYsonString* FindAttribute(const TString& key) const;
 
+    //! For Sequoia objects sets aevum equal to the current aevum.
+    //! For non-Sequoia objects does nothing.
+    void RememberAevum();
+
     //! Returns the relative complexity of object destruction.
     //! This value must always be positive. The default is 10.
     virtual int GetGCWeight() const;

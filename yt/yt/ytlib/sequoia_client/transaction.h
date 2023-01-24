@@ -74,7 +74,8 @@ public:
 
     virtual NObjectClient::TObjectId GenerateObjectId(
         NObjectClient::EObjectType objectType,
-        NObjectClient::TCellTag cellTag) = 0;
+        NObjectClient::TCellTag cellTag,
+        bool sequoia = true) = 0;
 
     virtual const NTableClient::TRowBufferPtr& GetRowBuffer() const = 0;
     virtual const NApi::NNative::IClientPtr& GetClient() const = 0;

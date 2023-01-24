@@ -535,7 +535,7 @@ private:
         try {
             return AssertNativeClient(ClientDirectory_->GetClientOrThrow(cluster));
         } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error creating client for cluster %v", cluster) << ex;
+            THROW_ERROR_EXCEPTION("Error creating client for cluster %Qv", cluster) << ex;
         }
     }
 };
