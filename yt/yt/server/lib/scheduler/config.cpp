@@ -677,6 +677,9 @@ void TOperationsCleanerConfig::Register(TRegistrar registrar)
     registrar.Parameter("disconnect_on_finished_operation_fetch_failure", &TThis::DisconnectOnFinishedOperationFetchFailure)
         .Default(true);
 
+    registrar.Parameter("enable_optimized_row_building", &TThis::EnableOptimizedRowBuilding)
+        .Default(true);
+
     registrar.Postprocessor([&] (TOperationsCleanerConfig* config) {
         if (config->MaxArchivationRetrySleepDelay <= config->MinArchivationRetrySleepDelay) {
             THROW_ERROR_EXCEPTION("\"max_archivation_retry_sleep_delay\" must be greater than "

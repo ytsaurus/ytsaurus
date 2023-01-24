@@ -43,6 +43,8 @@
 
 #include <yt/yt/core/utilex/random.h>
 
+#include <yt/yt/core/yson/string_filter.h>
+
 #include <yt/yt/core/ytree/fluent.h>
 #include <yt/yt/core/ytree/ypath_resolver.h>
 
@@ -201,9 +203,8 @@ namespace NDetail {
 
 using TAlertEventsMap = THashMap<EOperationAlertType, std::deque<TOperationAlertEvent>>;
 
-THashMap<TString, TString> GetPoolTreeToPool(const IMapNodePtr& runtimeParameters)
+THashMap<TString, TString> GetPoolTreeToPool(const INodePtr& schedulingOptionsNode)
 {
-    auto schedulingOptionsNode = runtimeParameters->FindChild("scheduling_options_per_pool_tree");
     if (!schedulingOptionsNode) {
         return {};
     }
@@ -215,16 +216,16 @@ THashMap<TString, TString> GetPoolTreeToPool(const IMapNodePtr& runtimeParameter
     return poolTreeToPool;
 }
 
-std::vector<TString> GetPools(const IMapNodePtr& runtimeParameters)
+std::vector<TString> GetPools(const INodePtr& schedulingOptionsNode)
 {
     std::vector<TString> pools;
-    for (const auto& [_, pool] : GetPoolTreeToPool(runtimeParameters)) {
+    for (const auto& [_, pool] : GetPoolTreeToPool(schedulingOptionsNode)) {
         pools.push_back(pool);
     }
     return pools;
 }
 
-TString GetFilterFactors(const TArchiveOperationRequest& request)
+TString GetFilterFactors(const TArchiveOperationRequest& request, bool enableOptimization)
 {
     auto getOriginalPath = [] (const TString& path) -> TString {
         try {
@@ -239,8 +240,27 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         }
     };
 
-    auto runtimeParametersMapNode = ConvertToNode(request.RuntimeParameters)->AsMap();
-    auto specMapNode = ConvertToNode(request.Spec)->AsMap();
+    auto ysonString = enableOptimization
+        ? FilterYsonString({
+            "/annotations",
+            "/scheduling_options_per_pool_tree"},
+            request.RuntimeParameters,
+            /*allowNullResult*/ false)
+        : request.RuntimeParameters;
+    auto runtimeParametersMapNode = ConvertToNode(ysonString)->AsMap();
+
+    ysonString = enableOptimization
+        ? FilterYsonString({
+            "/pool",
+            "/title",
+            "/input_table_paths",
+            "/output_table_paths",
+            "/output_table_path",
+            "/table_path"},
+            request.Spec,
+            /*allowNullResult*/ false)
+        : request.Spec;
+    auto specMapNode = ConvertToNode(ysonString)->AsMap();
 
     std::vector<TString> parts;
     parts.push_back(ToString(request.Id));
@@ -287,11 +307,8 @@ TString GetFilterFactors(const TArchiveOperationRequest& request)
         }
     }
 
-    if (request.RuntimeParameters) {
-        auto runtimeParametersNode = ConvertToNode(request.RuntimeParameters)->AsMap();
-        auto pools = GetPools(runtimeParametersNode);
-        parts.insert(parts.end(), pools.begin(), pools.end());
-    }
+    auto pools = GetPools(runtimeParametersMapNode->FindChild("scheduling_options_per_pool_tree"));
+    parts.insert(parts.end(), pools.begin(), pools.end());
 
     auto result = JoinToString(parts.begin(), parts.end(), TStringBuf(" "));
     return to_lower(result);
@@ -321,13 +338,14 @@ TUnversionedRow BuildOrderedByIdTableRow(
     const TRowBufferPtr& rowBuffer,
     const TArchiveOperationRequest& request,
     const TOrderedByIdTableDescriptor::TIndex& index,
-    int version)
+    int version,
+    bool enableOptimization)
 {
     // All any and string values passed to MakeUnversioned* functions MUST be alive till
     // they are captured in row buffer (they are not owned by unversioned value or builder).
     auto state = FormatEnum(request.State);
     auto operationType = FormatEnum(request.OperationType);
-    auto filterFactors = GetFilterFactors(request);
+    auto filterFactors = GetFilterFactors(request, enableOptimization);
 
     TUnversionedRowBuilder builder;
     builder.AddValue(MakeUnversionedUint64Value(request.Id.Parts64[0], index.IdHi));
@@ -392,22 +410,30 @@ TUnversionedRow BuildOrderedByStartTimeTableRow(
     const TRowBufferPtr& rowBuffer,
     const TArchiveOperationRequest& request,
     const TOrderedByStartTimeTableDescriptor::TIndex& index,
-    int version)
+    int version,
+    bool enableOptimization)
 {
     // All any and string values passed to MakeUnversioned* functions MUST be alive till
     // they are captured in row buffer (they are not owned by unversioned value or builder).
     auto state = FormatEnum(request.State);
     auto operationType = FormatEnum(request.OperationType);
-    auto filterFactors = GetFilterFactors(request);
+    auto filterFactors = GetFilterFactors(request, enableOptimization);
 
     TYsonString pools;
     TYsonString poolTreeToPool;
     TYsonString acl;
 
     if (request.RuntimeParameters) {
-        auto runtimeParametersNode = ConvertToNode(request.RuntimeParameters)->AsMap();
-        pools = ConvertToYsonString(GetPools(runtimeParametersNode));
-        poolTreeToPool = ConvertToYsonString(GetPoolTreeToPool(runtimeParametersNode));
+        auto ysonString = enableOptimization
+            ? FilterYsonString(
+                {"/acl", "/scheduling_options_per_pool_tree"},
+                request.RuntimeParameters,
+                /*allowNullResult*/ false)
+            : request.RuntimeParameters;
+        auto runtimeParametersNode = ConvertToNode(ysonString)->AsMap();
+        auto schedulingOptionsNode = runtimeParametersNode->FindChild("scheduling_options_per_pool_tree");
+        pools = ConvertToYsonString(GetPools(schedulingOptionsNode));
+        poolTreeToPool = ConvertToYsonString(GetPoolTreeToPool(schedulingOptionsNode));
         if (auto aclNode = runtimeParametersNode->FindChild("acl")) {
             acl = ConvertToYsonString(aclNode);
         }
@@ -1112,7 +1138,7 @@ private:
                 for (auto operationId : operationIds) {
                     try {
                         const auto& request = GetRequest(operationId);
-                        auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version);
+                        auto row = NDetail::BuildOrderedByIdTableRow(rowBuffer, request, desc.Index, version, Config_->EnableOptimizedRowBuilding);
 
                         if (isValueWeightViolated(row, operationId, desc.NameTable)) {
                             skippedOperationIds.insert(operationId);
@@ -1146,7 +1172,7 @@ private:
                     }
                     try {
                         const auto& request = GetRequest(operationId);
-                        auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version);
+                        auto row = NDetail::BuildOrderedByStartTimeTableRow(rowBuffer, request, desc.Index, version, Config_->EnableOptimizedRowBuilding);
                         rows.push_back(row);
                         orderedByStartTimeRowsDataWeight += GetDataWeight(row);
                     } catch (const std::exception& ex) {
