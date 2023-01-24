@@ -16,6 +16,8 @@
 
 #include <yt/yt/library/monitoring/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -52,7 +54,7 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NApi::NNative::IClientPtr NativeClient_;

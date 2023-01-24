@@ -28,6 +28,8 @@
 
 #include <yt/yt/ytlib/job_proxy/public.h>
 
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
 #include <yt/yt/core/logging/log.h>
 
 #include <yt/yt/core/yson/string.h>
@@ -136,7 +138,7 @@ public:
 
     void AddProfile(NJobAgent::TJobProfile value);
 
-    void SetCoreInfos(NCoreDump::TCoreInfos value);
+    void SetCoreInfos(NScheduler::TCoreInfos value);
 
     const NJobAgent::TChunkCacheStatistics& GetChunkCacheStatistics() const;
 
@@ -160,7 +162,7 @@ public:
 
     std::optional<TString> GetFailContext();
 
-    const NCoreDump::TCoreInfos& GetCoreInfos();
+    const NScheduler::TCoreInfos& GetCoreInfos();
 
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
@@ -246,7 +248,7 @@ private:
     std::optional<TString> Stderr_;
     std::optional<TString> FailContext_;
     std::vector<NJobAgent::TJobProfile> Profiles_;
-    NCoreDump::TCoreInfos CoreInfos_;
+    NScheduler::TCoreInfos CoreInfos_;
 
     NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;
 

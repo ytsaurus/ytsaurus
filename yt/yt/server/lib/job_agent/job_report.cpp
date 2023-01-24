@@ -2,8 +2,6 @@
 
 #include "estimate_size_helpers.h"
 
-#include <yt/yt/server/lib/core_dump/helpers.h>
-
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
 #include <yt/yt/core/ytree/fluent.h>
@@ -477,7 +475,7 @@ TNodeJobReport TNodeJobReport::Profile(const TJobProfile& profile)
     return std::move(*this);
 }
 
-TNodeJobReport TNodeJobReport::CoreInfos(TCoreInfos coreInfos)
+TNodeJobReport TNodeJobReport::CoreInfos(NScheduler::TCoreInfos coreInfos)
 {
     CoreInfos_ = std::move(coreInfos);
     return std::move(*this);

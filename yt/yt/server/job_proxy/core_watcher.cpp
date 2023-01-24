@@ -2,7 +2,9 @@
 
 #include "job.h"
 
-#include <yt/yt/server/lib/core_dump/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
+
+#include <yt/yt/library/sparse_coredump/sparse_coredump.h>
 
 #include <yt/yt/server/lib/job_proxy/config.h>
 
@@ -34,7 +36,7 @@ namespace NYT::NJobProxy {
 using namespace NChunkClient;
 using namespace NConcurrency;
 using namespace NCoreDump;
-using namespace NCoreDump::NProto;
+using namespace NScheduler::NProto;
 using namespace NCypressClient;
 using namespace NFS;
 using namespace NLogging;

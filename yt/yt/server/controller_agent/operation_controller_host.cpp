@@ -16,6 +16,7 @@ using namespace NScheduler;
 using namespace NYTree;
 using NJobTrackerClient::TJobToRelease;
 using NJobTrackerClient::TReleaseJobFlags;
+using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
 

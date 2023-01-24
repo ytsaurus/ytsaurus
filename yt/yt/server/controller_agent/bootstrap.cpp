@@ -10,8 +10,6 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
-
 #include <yt/yt/server/lib/misc/address_helpers.h>
 
 #include <yt/yt/library/program/build_attributes.h>
@@ -49,7 +47,8 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
+
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
 #include <yt/yt/core/misc/proc.h>
@@ -81,6 +80,7 @@ using namespace NHiveClient;
 using namespace NApi;
 using namespace NNodeTrackerClient;
 using namespace NLogging;
+using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
 

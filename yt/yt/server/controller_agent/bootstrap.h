@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -39,7 +41,7 @@ public:
     const IInvokerPtr& GetConnectionInvoker() const;
     const NControllerAgent::TControllerAgentPtr& GetControllerAgent() const;
     const NNodeTrackerClient::TNodeDirectoryPtr& GetNodeDirectory() const;
-    const ICoreDumperPtr& GetCoreDumper() const;
+    const NCoreDump::ICoreDumperPtr& GetCoreDumper() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
     const TJobTrackerPtr& GetJobTracker() const;
 
@@ -59,7 +61,7 @@ private:
     NApi::NNative::IConnectionPtr Connection_;
     NApi::NNative::IClientPtr Client_;
     TControllerAgentPtr ControllerAgent_;
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
     TJobTrackerPtr JobTracker_;
 

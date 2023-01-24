@@ -8,7 +8,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 
@@ -25,6 +25,8 @@
 #include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
 
 #include <yt/yt/ytlib/program/helpers.h>
+
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -138,7 +140,7 @@ private:
     TMonitoringManagerPtr MonitoringManager_;
     ICypressRegistrarPtr CypressRegistrar_;
 
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     IConnectionPtr Connection_;
 

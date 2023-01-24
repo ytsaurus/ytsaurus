@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/object_client/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -73,7 +75,7 @@ private:
     THydraFacadePtr HydraFacade_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     NConcurrency::TActionQueuePtr SnapshotIOQueue_;
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     void DoInitialize();
     void DoRun();

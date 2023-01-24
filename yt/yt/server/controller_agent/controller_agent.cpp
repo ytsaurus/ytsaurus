@@ -75,6 +75,7 @@ using namespace NYson;
 using namespace NRpc;
 using namespace NTracing;
 using namespace NTransactionClient;
+using namespace NCoreDump;
 
 using NYT::FromProto;
 using NYT::ToProto;

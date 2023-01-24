@@ -13,7 +13,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/zookeeper_proxy/bootstrap.h>
 

@@ -2,11 +2,13 @@
 
 #include "public.h"
 
+#include <yt/yt/core/logging/log.h>
+
 namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-ICoreDumperPtr CreateCoreDumper(TCoreDumperConfigPtr config);
+inline const NLogging::TLogger CoreDumpLogger("CoreDump");
 
 ////////////////////////////////////////////////////////////////////////////////
 

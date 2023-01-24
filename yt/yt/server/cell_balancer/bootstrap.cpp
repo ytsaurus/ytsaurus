@@ -7,7 +7,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -23,6 +23,8 @@
 
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
+
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/bus/tcp/server.h>
 
@@ -134,7 +136,7 @@ private:
     IMapNodePtr OrchidRoot_;
     TMonitoringManagerPtr MonitoringManager_;
 
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     NNative::IConnectionPtr Connection_;
     NNative::IClientPtr Client_;

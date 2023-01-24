@@ -9,7 +9,8 @@
 #include "config.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>

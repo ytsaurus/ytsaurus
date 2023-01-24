@@ -1,6 +1,6 @@
 #include "environment.h"
 
-#include <yt/yt/server/lib/core_dump/public.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/library/containers/public.h>
 
@@ -70,7 +70,7 @@ public:
         , PortoExecutor_(std::move(portoExecutor))
     {
         if (Options_.EnableCudaGpuCoreDump && Options_.SlotCoreWatcherDirectory) {
-            auto slotGpuCorePipeFile = NFS::CombinePaths(*Options_.SlotCoreWatcherDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
+            auto slotGpuCorePipeFile = NFS::CombinePaths(*Options_.SlotCoreWatcherDirectory, CudaGpuCoreDumpPipeName);
             Envirnoment_.push_back("CUDA_ENABLE_COREDUMP_ON_EXCEPTION=1");
             Envirnoment_.push_back(Format("CUDA_COREDUMP_FILE=%v", slotGpuCorePipeFile));
         }
@@ -228,8 +228,8 @@ public:
             launcher->SetCoreDumpHandler(coreHandler);
 
             if (Options_.EnableCudaGpuCoreDump) {
-                auto slotGpuCorePipeFile = NFS::CombinePaths(slotCoreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
-                auto gpuCorePipeFile = NFS::CombinePaths(coreDirectory, NCoreDump::CudaGpuCoreDumpPipeName);
+                auto slotGpuCorePipeFile = NFS::CombinePaths(slotCoreDirectory, CudaGpuCoreDumpPipeName);
+                auto gpuCorePipeFile = NFS::CombinePaths(coreDirectory, CudaGpuCoreDumpPipeName);
                 YT_LOG_DEBUG("Creating pipe for GPU core dumps (SlotGpuCorePipeFile: %v, GpuCorePipeFile: %v)",
                     slotGpuCorePipeFile,
                     gpuCorePipeFile);

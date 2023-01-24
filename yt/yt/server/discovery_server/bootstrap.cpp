@@ -6,13 +6,15 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
 #include <yt/yt/library/program/build_attributes.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
+
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/thread_pool.h>
@@ -105,7 +107,7 @@ private:
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
 
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
 

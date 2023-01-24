@@ -28,6 +28,7 @@ using NVectorHdrf::ResourceCount;
 
 namespace NProto {
 
+class TCoreInfo;
 class TSchedulerJobSpecExt;
 class TSchedulerJobResultExt;
 class TTableInputSpec;

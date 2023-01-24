@@ -2,7 +2,7 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/core_dump/public.h>
+#include <yt/yt/library/coredumper/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
 

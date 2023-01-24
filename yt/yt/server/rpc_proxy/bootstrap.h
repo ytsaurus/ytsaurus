@@ -12,6 +12,8 @@
 
 #include <yt/yt/client/node_tracker_client/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/public.h>
@@ -71,7 +73,7 @@ private:
     NRpc::IServerPtr TvmOnlyRpcServer_;
     NRpc::IServerPtr GrpcServer_;
     NHttp::IServerPtr HttpServer_;
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     NApi::NNative::IConnectionPtr NativeConnection_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;

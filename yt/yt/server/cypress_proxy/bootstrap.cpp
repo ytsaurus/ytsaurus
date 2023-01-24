@@ -7,7 +7,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
 
@@ -126,7 +126,7 @@ private:
     TMonitoringManagerPtr MonitoringManager_;
     ICypressRegistrarPtr CypressRegistrar_;
 
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     TDynamicConfigManagerPtr DynamicConfigManager_;
 

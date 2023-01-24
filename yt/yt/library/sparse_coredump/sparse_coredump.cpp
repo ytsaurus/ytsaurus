@@ -1,13 +1,6 @@
-#include "helpers.h"
-
-#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
+#include "sparse_coredump.h"
 
 #include <yt/yt/core/concurrency/scheduler.h>
-
-#include <yt/yt/core/ytree/fluent.h>
-
-#include <yt/yt/core/misc/error.h>
-#include <yt/yt/core/misc/protobuf_helpers.h>
 
 #include <util/generic/buffer.h>
 #include <util/generic/size_literals.h>
@@ -15,48 +8,6 @@
 namespace NYT::NCoreDump {
 
 using namespace NConcurrency;
-using namespace NYson;
-using namespace NYTree;
-
-////////////////////////////////////////////////////////////////////////////////
-
-namespace NProto {
-
-void Serialize(const TCoreInfo& coreInfo, IYsonConsumer* consumer)
-{
-    BuildYsonFluently(consumer)
-        .BeginMap()
-            .Item("process_id").Value(coreInfo.process_id())
-            .Item("executable_name").Value(coreInfo.executable_name())
-            .DoIf(coreInfo.has_size(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("size").Value(coreInfo.size());
-            })
-            .DoIf(coreInfo.has_error(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("error").Value(NYT::FromProto<TError>(coreInfo.error()));
-            })
-            .DoIf(coreInfo.has_thread_id(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("thread_id").Value(coreInfo.thread_id());
-            })
-            .DoIf(coreInfo.has_signal(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("signal").Value(coreInfo.signal());
-            })
-            .DoIf(coreInfo.has_container(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("container").Value(coreInfo.container());
-            })
-            .DoIf(coreInfo.has_datetime(), [&] (TFluentMap fluent) {
-                fluent
-                    .Item("datetime").Value(coreInfo.datetime());
-            })
-            .Item("cuda").Value(coreInfo.cuda())
-        .EndMap();
-}
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

@@ -119,7 +119,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/tablet_server/replicated_table_tracker.h>
 
@@ -172,7 +172,7 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 #include <yt/yt/core/misc/fs.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>

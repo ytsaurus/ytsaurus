@@ -2,6 +2,8 @@
 
 #include "public.h"
 
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+
 #include <yt/yt/ytlib/transaction_client/public.h>
 
 #include <yt/yt/ytlib/chunk_client/public.h>
@@ -17,6 +19,16 @@
 #include <yt/yt/core/logging/log.h>
 
 namespace NYT::NScheduler {
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TCoreInfos = std::vector<NProto::TCoreInfo>;
+
+namespace NProto {
+
+void Serialize(const TCoreInfo& coreInfo, NYson::IYsonConsumer* consumer);
+
+} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

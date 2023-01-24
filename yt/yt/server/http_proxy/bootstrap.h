@@ -17,6 +17,8 @@
 
 #include <yt/yt/client/driver/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/actions/public.h>
@@ -120,7 +122,7 @@ private:
 
     IAccessCheckerPtr AccessChecker_;
 
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     void RegisterRoutes(const NHttp::IServerPtr& server);
     NHttp::IHttpHandlerPtr AllowCors(NHttp::IHttpHandlerPtr nextHandler) const;

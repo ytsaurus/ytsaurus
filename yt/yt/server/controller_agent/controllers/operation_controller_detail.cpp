@@ -22,8 +22,6 @@
 #include <yt/yt/server/lib/scheduler/helpers.h>
 #include <yt/yt/server/lib/scheduler/public.h>
 
-#include <yt/yt/server/lib/core_dump/helpers.h>
-
 #include <yt/yt/server/lib/chunk_pools/helpers.h>
 #include <yt/yt/server/lib/chunk_pools/multi_chunk_pool.h>
 
@@ -48,8 +46,6 @@
 #include <yt/yt/ytlib/cell_master_client/cell_directory.h>
 
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
-
-#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
 
 #include <yt/yt/ytlib/event_log/event_log.h>
 
@@ -123,6 +119,8 @@
 
 #include <yt/yt/library/erasure/impl/codec.h>
 
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+
 #include <yt/yt/core/misc/algorithm_helpers.h>
 #include <yt/yt/core/misc/collection_helpers.h>
 #include <yt/yt/core/misc/crash_handler.h>
@@ -165,7 +163,6 @@ using namespace NYPath;
 using namespace NFormats;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
-using namespace NCoreDump::NProto;
 using namespace NConcurrency;
 using namespace NApi;
 using namespace NRpc;
@@ -195,6 +192,7 @@ using NScheduler::TExecNodeDescriptor;
 using NScheduler::NProto::TSchedulerJobResultExt;
 using NScheduler::NProto::TSchedulerJobSpecExt;
 using NTabletNode::DefaultMaxOverlappingStoreCount;
+using NScheduler::NProto::TCoreInfo;
 
 using std::placeholders::_1;
 

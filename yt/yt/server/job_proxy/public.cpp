@@ -1,6 +1,8 @@
 #include "public.h"
 
-namespace NYT::NCoreDump {
+#include <yt/yt/core/misc/common.h>
+
+namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -9,4 +11,4 @@ const TString CudaGpuCoreDumpPipeName("yt_gpu_core_dump_pipe");
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NCoreDump
+} // namespace NYT::NJobProxy
