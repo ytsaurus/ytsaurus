@@ -363,7 +363,8 @@ public:
 
     const T& ValueOrDefault(const T& defaultValue) const &;
     T& ValueOrDefault(T& defaultValue) &;
-    T&& ValueOrDefault(T&& defaultValue) &&;
+    constexpr T ValueOrDefault(T&& defaultValue) const &;
+    constexpr T ValueOrDefault(T&& defaultValue) &&;
 
 private:
     std::optional<T> Value_;

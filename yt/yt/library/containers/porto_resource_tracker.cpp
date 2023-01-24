@@ -347,19 +347,25 @@ TResourceUsage TPortoResourceTracker::CalculateResourceUsageDelta(
 
 void TPortoResourceTracker::DoUpdateResourceUsage() const
 {
-    auto newResourceUsage = Instance_->GetResourceUsage();
+    try {
+        auto newResourceUsage = Instance_->GetResourceUsage();
 
-    {
-        auto guard = Guard(SpinLock_);
+        {
+            auto guard = Guard(SpinLock_);
 
-        if (IsDeltaTracker_) {
-            ResourceUsageDelta_ = CalculateResourceUsageDelta(
-                ResourceUsage_,
-                newResourceUsage);
+            if (IsDeltaTracker_) {
+                ResourceUsageDelta_ = CalculateResourceUsageDelta(
+                    ResourceUsage_,
+                    newResourceUsage);
+            }
+
+            ResourceUsage_ = newResourceUsage;
+            LastUpdateTime_.store(TInstant::Now());
         }
-
-        ResourceUsage_ = newResourceUsage;
-        LastUpdateTime_.store(TInstant::Now());
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(
+            ex,
+            "Couldn't get metrics from porto");
     }
 }
 
