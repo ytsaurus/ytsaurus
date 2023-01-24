@@ -1047,6 +1047,11 @@ TEST_F(TGetOrderedTabletSafeTrimRowCountTest, Basic)
         return allRowsResult.Rowset->GetRows().empty();
     }, "Table is not empty");
 
+    WaitUntil([&] {
+        auto stores = ConvertTo<std::vector<TStoreId>>(WaitFor(Client_->ListNode(Format("#%v/orchid/stores", tabletId))).ValueOrThrow());
+        return std::ssize(stores) == 1;
+    }, "Stores beside a single dynamic store exist");
+
     SyncFreezeTable(Table_);
 
     WaitUntil([&] {
