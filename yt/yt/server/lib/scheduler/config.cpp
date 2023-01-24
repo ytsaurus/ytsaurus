@@ -577,7 +577,7 @@ void TFairShareStrategyConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(1));
 
     registrar.Parameter("enable_optimized_operation_orchid", &TThis::EnableOptimizedOperationOrchid)
-        .Default(true);
+        .Default(false);
 
     registrar.Parameter("enable_async_operation_event_logging", &TThis::EnableAsyncOperationEventLogging)
         .Default(true);
