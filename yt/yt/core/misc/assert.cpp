@@ -1,13 +1,7 @@
 #include "assert.h"
 
-#include "crash_handler.h"
 #include "raw_formatter.h"
-#include "safe_assert.h"
 #include "proc.h"
-
-#include <yt/yt/core/misc/core_dumper.h>
-
-#include <yt/yt/core/concurrency/async_semaphore.h>
 
 #include <yt/yt/core/logging/log_manager.h>
 
@@ -26,6 +20,12 @@ namespace NYT::NDetail {
 using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
+
+Y_WEAK void MaybeThrowSafeAssertionException(const char* /*message*/, int /*lenght*/)
+{
+    // A default implementation has no means of safety.
+    // Actual implementation lives in yt/yt/library/safe_assert.
+}
 
 void AssertTrapImpl(
     TStringBuf trapType,
@@ -48,35 +48,13 @@ void AssertTrapImpl(
         formatter.AppendString("\n");
     }
 
-    if (SafeAssertionsModeEnabled()) {
-        auto semaphore = GetSafeAssertionsCoreSemaphore();
-        std::optional<TString> corePath;
-        if (auto semaphoreGuard = TAsyncSemaphoreGuard::TryAcquire(semaphore)) {
-            try {
-                std::vector<TString> coreNotes{"Reason: SafeAssertion"};
-                auto contextCoreNotes = GetSafeAssertionsCoreNotes();
-                coreNotes.insert(coreNotes.end(), contextCoreNotes.begin(), contextCoreNotes.end());
-                auto coreDump = GetSafeAssertionsCoreDumper()->WriteCoreDump(coreNotes, "safe_assertion");
-                corePath = coreDump.Path;
-                // A tricky way to return slot only after core is written.
-                coreDump.WrittenEvent.Subscribe(BIND([_ = std::move(semaphoreGuard)] (const TError&) { }));
-            } catch (const std::exception&) {
-                // Do nothing.
-            }
-        }
-        TStringBuilder stackTrace;
-        DumpStackTrace([&stackTrace] (TStringBuf str) {
-            stackTrace.AppendString(str);
-        });
-        TString expression(formatter.GetData(), formatter.GetBytesWritten());
-        throw TAssertionFailedException(std::move(expression), stackTrace.Flush(), std::move(corePath));
-    } else {
-        HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
+    MaybeThrowSafeAssertionException(formatter.GetData(), formatter.GetBytesWritten());
 
-        NLogging::TLogManager::Get()->Shutdown();
+    HandleEintr(::write, 2, formatter.GetData(), formatter.GetBytesWritten());
 
-        YT_BUILTIN_TRAP();
-    }
+    NLogging::TLogManager::Get()->Shutdown();
+
+    YT_BUILTIN_TRAP();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -10,6 +10,8 @@
 
 #include <yt/yt/ytlib/transaction_client/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/bus/public.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
@@ -38,7 +40,6 @@ public:
     IInvokerPtr GetControlInvoker(EControlQueue queue) const;
     const TSchedulerPtr& GetScheduler() const;
     const TControllerAgentTrackerPtr& GetControllerAgentTracker() const;
-    const ICoreDumperPtr& GetCoreDumper() const;
     const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const;
 
     void Run();
@@ -56,7 +57,7 @@ private:
     NApi::NNative::IClientPtr Client_;
     TSchedulerPtr Scheduler_;
     TControllerAgentTrackerPtr ControllerAgentTracker_;
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
     mutable THashMap<NObjectClient::TCellTag, NApi::NNative::IClientPtr> RemoteClients_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
 

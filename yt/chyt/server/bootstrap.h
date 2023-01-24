@@ -4,6 +4,8 @@
 
 #include <yt/yt/library/monitoring/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/bus/public.h>
 #include <yt/yt/core/rpc/public.h>
 #include <yt/yt/core/http/public.h>
@@ -35,7 +37,7 @@ private:
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
     NMonitoring::TMonitoringManagerPtr MonitoringManager_;
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     std::atomic<int> SigintCounter_ = {0};
 

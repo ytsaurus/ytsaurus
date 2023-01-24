@@ -87,7 +87,7 @@ public:
     /*!
      *  \note Thread affinity: any
      */
-    const ICoreDumperPtr& GetCoreDumper() const;
+    const NCoreDump::ICoreDumperPtr& GetCoreDumper() const;
 
     /*!
      *  \note Thread affinity: any

@@ -88,7 +88,7 @@
 #include <yt/yt/library/containers/porto_executor.h>
 #endif
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
@@ -163,7 +163,7 @@
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/misc/collection_helpers.h>
-#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 #include <yt/yt/core/misc/ref_counted_tracker_statistics_producer.h>
@@ -654,7 +654,7 @@ private:
     IPrioritizedInvokerPtr StorageHeavyInvoker_;
     TActionQueuePtr MasterCacheQueue_;
 
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     TMonitoringManagerPtr MonitoringManager_;
 

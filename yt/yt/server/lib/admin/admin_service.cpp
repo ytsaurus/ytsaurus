@@ -4,7 +4,7 @@
 
 #include <yt/yt/ytlib/admin/admin_service_proxy.h>
 
-#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/core/rpc/service_detail.h>
 #include <yt/yt/core/rpc/public.h>
@@ -17,6 +17,7 @@ namespace NYT::NAdmin {
 using namespace NConcurrency;
 using namespace NLogging;
 using namespace NRpc;
+using namespace NCoreDump;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,7 +43,7 @@ public:
     }
 
 private:
-    const ICoreDumperPtr CoreDumper_;
+    const NCoreDump::ICoreDumperPtr CoreDumper_;
 
 
     void BeforeInvoke(NRpc::IServiceContext* context) override

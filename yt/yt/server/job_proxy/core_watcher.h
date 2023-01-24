@@ -2,9 +2,9 @@
 
 #include "public.h"
 
-#include <yt/yt/server/lib/core_dump/helpers.h>
-
 #include <yt/yt/server/lib/job_proxy/public.h>
+
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/api/native/client.h>
 
@@ -25,7 +25,7 @@ namespace NYT::NJobProxy {
 
 struct TCoreResult
 {
-    NCoreDump::TCoreInfos CoreInfos;
+    NScheduler::TCoreInfos CoreInfos;
     NScheduler::NProto::TOutputResult BoundaryKeys;
 
     TCoreResult();
@@ -117,7 +117,7 @@ private:
     void DoProcessLinuxCore(const TString& coreName, int coreIndex);
     void DoProcessGpuCore(NConcurrency::IAsyncInputStreamPtr coreStream, int coreIndex);
     i64 DoReadCore(const NConcurrency::IAsyncInputStreamPtr& coreStream, const TString& coreName, int coreIndex);
-    void DoAddCoreInfo(const NCoreDump::NProto::TCoreInfo& coreInfo);
+    void DoAddCoreInfo(const NScheduler::NProto::TCoreInfo& coreInfo);
 };
 
 

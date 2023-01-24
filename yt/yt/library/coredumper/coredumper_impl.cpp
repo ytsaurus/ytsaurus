@@ -1,13 +1,14 @@
-#include "core_dumper.h"
-#include "helpers.h"
+#include "coredumper.h"
+
 #include "private.h"
 #include "config.h"
+
+#include <yt/yt/library/sparse_coredump/sparse_coredump.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/actions/future.h>
 
-#include <yt/yt/core/misc/core_dumper.h>
 #include <yt/yt/core/misc/proc.h>
 #include <yt/yt/core/misc/finally.h>
 
@@ -17,10 +18,8 @@
 #include <util/system/mutex.h>
 #include <util/system/thread.h>
 
-#ifdef _linux_
-    #include <yt/yt/contrib/coredumper/coredumper.h>
-    #include <sys/prctl.h>
-#endif
+#include <yt/yt/contrib/coredumper/coredumper.h>
+#include <sys/prctl.h>
 
 #include <unistd.h>
 
@@ -41,23 +40,14 @@ public:
         : Config_(std::move(config))
         , OrchidService_(IYPathService::FromProducer(BIND_NO_PROPAGATE(&TCoreDumper::BuildYson, MakeWeak(this))))
     {
-#ifdef _linux_
         if (prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY) != 0) {
             const auto& Logger = CoreDumpLogger;
             YT_LOG_ERROR(TError::FromSystem(), "Failed to call prctl(PR_SET_PTRACER, PR_SET_PTRACER_ANY)");
         }
-#endif
     }
 
     TCoreDump WriteCoreDump(const std::vector<TString>& notes, const TString& reason) override
     {
-#ifdef _asan_enabled_
-        Y_UNUSED(notes);
-        Y_UNUSED(reason);
-
-        // Core dumps are huge under ASAN, so just give up.
-        THROW_ERROR_EXCEPTION("Writing core dumps is not supported under ASAN build");
-#else
         ++ActiveCoreDumpCount_;
         auto activeCoreDumpCountGuard = Finally([&] { --ActiveCoreDumpCount_; });
 
@@ -69,7 +59,6 @@ public:
             notes,
             reason);
 
-#ifdef _linux_
         try {
             CoreDumpParameters parameters;
             ClearCoreDumpParameters(&parameters);
@@ -151,10 +140,6 @@ public:
             THROW_ERROR_EXCEPTION("Error creating core dump")
                 << ex;
         }
-#else
-        THROW_ERROR_EXCEPTION("Unsupported platform");
-#endif
-#endif
     }
 
     const IYPathServicePtr& CreateOrchidService() const override

@@ -13,6 +13,8 @@
 #include <yt/yt/ytlib/chunk_client/data_slice_descriptor.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
+
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
 
 #include <yt/yt/ytlib/job_proxy/job_spec_helper.h>
@@ -137,7 +139,7 @@ struct IJob
 
     virtual std::vector<NJobAgent::TJobProfile> GetProfiles() = 0;
 
-    virtual const NCoreDump::TCoreInfos& GetCoreInfos() const = 0;
+    virtual const NScheduler::TCoreInfos& GetCoreInfos() const = 0;
 
     virtual std::optional<NContainers::TCpuStatistics> GetUserJobCpuStatistics() const = 0;
 

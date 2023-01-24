@@ -5,7 +5,7 @@
 
 #include <yt/yt/server/node/job_agent/job_resource_manager.h>
 
-#include <yt/yt/server/lib/core_dump/helpers.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/job_tracker_client/proto/job.pb.h>
 
@@ -45,7 +45,7 @@ public:
         const NNodeTrackerClient::NProto::TNodeResources& resourceLimits,
         TDataNodeConfigPtr config,
         IBootstrap* bootstrap);
-    
+
     void Start();
 
     bool IsStarted() const noexcept;

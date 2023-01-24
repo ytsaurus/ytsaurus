@@ -40,6 +40,8 @@
 
 #include <yt/yt/ytlib/object_client/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/actions/signal.h>
 
 #include <yt/yt/core/bus/public.h>

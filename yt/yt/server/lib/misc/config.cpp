@@ -1,6 +1,6 @@
 #include "config.h"
 
-#include <yt/yt/server/lib/core_dump/config.h>
+#include <yt/yt/library/coredumper/config.h>
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 

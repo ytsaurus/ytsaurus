@@ -8,10 +8,6 @@
 #include <yt/yt/server/lib/scheduler/experiments.h>
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
-#include <yt/yt/server/lib/core_dump/helpers.h>
-
-#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
-
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/key_set.h>
 
@@ -36,7 +32,6 @@ namespace NYT::NScheduler {
 
 using namespace NYTree;
 using namespace NYPath;
-using namespace NCoreDump::NProto;
 using namespace NYson;
 using namespace NObjectClient;
 using namespace NTableClient;

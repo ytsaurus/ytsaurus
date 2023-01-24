@@ -6,7 +6,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -28,7 +28,7 @@
 
 #include <yt/yt/core/http/server.h>
 
-#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/core/net/local_address.h>
 
@@ -124,7 +124,7 @@ private:
     NBus::IBusServerPtr BusServer_;
     NRpc::IServerPtr RpcServer_;
     NHttp::IServerPtr HttpServer_;
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
 
     NNative::IConnectionPtr Connection_;
     NNative::IClientPtr Client_;

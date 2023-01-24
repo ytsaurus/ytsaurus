@@ -194,7 +194,7 @@ struct IOperationControllerHost
     virtual const IInvokerPtr& GetExecNodesUpdateInvoker() = 0;
     virtual const IInvokerPtr& GetConnectionInvoker() = 0;
     virtual const NEventLog::IEventLogWriterPtr& GetEventLogWriter() = 0;
-    virtual const ICoreDumperPtr& GetCoreDumper() = 0;
+    virtual const NCoreDump::ICoreDumperPtr& GetCoreDumper() = 0;
     virtual const NConcurrency::TAsyncSemaphorePtr& GetCoreSemaphore() = 0;
     virtual const NConcurrency::IThroughputThrottlerPtr& GetJobSpecSliceThrottler() = 0;
     virtual const NJobAgent::TJobReporterPtr& GetJobReporter() = 0;

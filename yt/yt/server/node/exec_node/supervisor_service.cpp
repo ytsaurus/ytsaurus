@@ -273,7 +273,7 @@ private:
         if (request->has_finish_time()) {
             jobReport.SetFinishTime(FromProto<TInstant>(request->finish_time()));
         }
-        job->SetCoreInfos(FromProto<TCoreInfos>(request->core_infos()));
+        job->SetCoreInfos(FromProto<NScheduler::TCoreInfos>(request->core_infos()));
         job->HandleJobReport(std::move(jobReport));
 
         if (request->has_job_stderr()) {

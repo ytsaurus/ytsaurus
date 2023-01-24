@@ -58,6 +58,8 @@
 
 #include <yt/yt/client/object_client/helpers.h>
 
+#include <yt/yt/library/safe_assert/safe_assert.h>
+
 #include <yt/yt/core/actions/cancelable_context.h>
 
 #include <yt/yt/core/concurrency/fair_share_invoker_pool.h>
@@ -70,7 +72,6 @@
 #include <yt/yt/core/misc/histogram.h>
 #include <yt/yt/core/misc/id_generator.h>
 #include <yt/yt/core/misc/ref_tracked.h>
-#include <yt/yt/core/misc/safe_assert.h>
 
 #include <yt/yt/core/ytree/ypath_client.h>
 
@@ -124,7 +125,7 @@ class TOperationControllerBase
 public: \
     virtual returnType method signature final \
     { \
-        TSafeAssertionsGuard safeAssertionsGuard( \
+        auto safeAssertionsGuard = CreateSafeAssertionGuard( \
             Host->GetCoreDumper(), \
             Host->GetCoreSemaphore(), \
             CoreNotes_); \

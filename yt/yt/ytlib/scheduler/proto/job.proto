@@ -6,7 +6,6 @@ import "yt_proto/yt/core/yson/proto/protobuf_interop.proto";
 import "yt_proto/yt/core/ytree/proto/attributes.proto";
 import "yt_proto/yt/client/chunk_client/proto/chunk_spec.proto";
 import "yt/ytlib/chunk_client/proto/data_source.proto";
-import "yt/ytlib/core_dump/proto/core_info.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 import "yt/ytlib/controller_agent/proto/job.proto";
 import "yt_proto/yt/client/node_tracker_client/proto/node_directory.proto";
@@ -14,8 +13,23 @@ import "yt/library/query/proto/functions_cache.proto";
 import "yt/library/query/proto/query.proto";
 import "yt/ytlib/scheduler/proto/output_result.proto";
 import "yt_proto/yt/client/table_chunk_format/proto/chunk_meta.proto";
+import "yt_proto/yt/core/misc/proto/error.proto";
 
 ////////////////////////////////////////////////////////////////////////////////
+
+message TCoreInfo
+{
+    required int32 process_id = 1;
+    required string executable_name = 2;
+    optional uint64 size = 3;
+    optional NYT.NProto.TError error = 4;
+    required int32 core_index = 5;
+    optional int32 thread_id = 6;
+    optional int32 signal = 7;
+    optional string container = 8;
+    optional string datetime = 9;
+    optional bool cuda = 10;
+}
 
 message TJobResources
 {
@@ -400,7 +414,7 @@ message TSchedulerJobResultExt
 
     optional TOutputResult stderr_table_boundary_keys = 10;
 
-    repeated NYT.NCoreDump.NProto.TCoreInfo core_infos = 11;
+    repeated TCoreInfo core_infos = 11;
     optional TOutputResult core_table_boundary_keys = 12;
 
     // NB: these fields are used only if job is interrupted.

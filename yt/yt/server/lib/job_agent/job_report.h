@@ -4,7 +4,7 @@
 
 #include <yt/yt/server/lib/controller_agent/public.h>
 
-#include <yt/yt/server/lib/core_dump/helpers.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/ytlib/job_tracker_client/public.h>
 
@@ -14,7 +14,8 @@
 
 #include <yt/yt/ytlib/node_tracker_client/proto/node_tracker_service.pb.h>
 
-#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
+#include <yt/yt/ytlib/scheduler/helpers.h>
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/yson/string.h>
 
@@ -106,7 +107,7 @@ struct TJobReport
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, Stderr)
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, FailContext)
     DEFINE_BYREF_RO_PROPERTY(std::optional<TJobProfile>, Profile)
-    DEFINE_BYREF_RO_PROPERTY(std::optional<NCoreDump::TCoreInfos>, CoreInfos)
+    DEFINE_BYREF_RO_PROPERTY(std::optional<NScheduler::TCoreInfos>, CoreInfos)
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, JobCompetitionId)
     DEFINE_BYREF_RO_PROPERTY(NJobTrackerClient::TJobId, ProbingJobCompetitionId)
     DEFINE_BYREF_RO_PROPERTY(std::optional<bool>, HasCompetitors)
@@ -146,7 +147,7 @@ struct TNodeJobReport
     TNodeJobReport Stderr(const TString& stderr);
     TNodeJobReport FailContext(const TString& failContext);
     TNodeJobReport Profile(const TJobProfile& profile);
-    TNodeJobReport CoreInfos(NCoreDump::TCoreInfos coreInfos);
+    TNodeJobReport CoreInfos(NScheduler::TCoreInfos coreInfos);
     TNodeJobReport ExecAttributes(const NYson::TYsonString& execAttributes);
     TNodeJobReport TreeId(TString treeId);
     TNodeJobReport MonitoringDescriptor(TString monitoringDescriptor);

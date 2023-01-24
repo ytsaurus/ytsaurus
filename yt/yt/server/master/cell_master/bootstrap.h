@@ -64,6 +64,8 @@
 
 #include <yt/yt/ytlib/distributed_throttler/public.h>
 
+#include <yt/yt/library/coredumper/public.h>
+
 #include <yt/yt/core/concurrency/action_queue.h>
 
 #include <yt/yt/core/rpc/public.h>
@@ -228,7 +230,7 @@ protected:
     NHiveServer::ICellDirectorySynchronizerPtr CellDirectorySynchronizer_;
     NConcurrency::TActionQueuePtr ControlQueue_;
     NConcurrency::TActionQueuePtr SnapshotIOQueue_;
-    ICoreDumperPtr CoreDumper_;
+    NCoreDump::ICoreDumperPtr CoreDumper_;
     NConcurrency::TActionQueuePtr DiscoveryQueue_;
     NDiscoveryServer::IDiscoveryServerPtr DiscoveryServer_;
     NRpc::IChannelFactoryPtr ChannelFactory_;

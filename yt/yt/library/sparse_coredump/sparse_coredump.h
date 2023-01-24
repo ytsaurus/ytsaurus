@@ -1,12 +1,8 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/core/concurrency/async_stream.h>
 
 #include <yt/yt/core/yson/public.h>
-
-#include <yt/yt/core/misc/core_dumper.h>
 
 #include <library/cpp/yt/memory/ref.h>
 
@@ -14,16 +10,6 @@
 #include <util/stream/file.h>
 
 namespace NYT::NCoreDump {
-
-////////////////////////////////////////////////////////////////////////////////
-
-using TCoreInfos = std::vector<NCoreDump::NProto::TCoreInfo>;
-
-namespace NProto {
-
-void Serialize(const TCoreInfo& coreInfo, NYson::IYsonConsumer* consumer);
-
-} // namespace NProto
 
 ////////////////////////////////////////////////////////////////////////////////
 

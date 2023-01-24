@@ -1,12 +1,12 @@
 #pragma once
 
-#include "public.h"
-
 #include <yt/yt/core/actions/future.h>
 
 #include <yt/yt/core/ytree/public.h>
 
-namespace NYT {
+#include "public.h"
+
+namespace NYT::NCoreDump {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -30,4 +30,8 @@ DEFINE_REFCOUNTED_TYPE(ICoreDumper)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT
+ICoreDumperPtr CreateCoreDumper(TCoreDumperConfigPtr config);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCoreDump

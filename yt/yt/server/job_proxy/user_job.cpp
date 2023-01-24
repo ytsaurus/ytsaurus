@@ -32,8 +32,6 @@
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
 
-#include <yt/yt/ytlib/core_dump/proto/core_info.pb.h>
-
 #include <yt/yt/ytlib/file_client/file_chunk_output.h>
 
 #include <yt/yt/ytlib/job_proxy/user_job_read_controller.h>
@@ -63,6 +61,8 @@
 #include <yt/yt/client/table_client/unversioned_writer.h>
 #include <yt/yt/client/table_client/schemaful_reader_adapter.h>
 #include <yt/yt/client/table_client/table_consumer.h>
+
+#include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/delayed_executor.h>
@@ -129,7 +129,7 @@ using namespace NUserJobSynchronizerClient;
 using NControllerAgent::NProto::TJobResult;
 using NControllerAgent::NProto::TJobSpec;
 using NScheduler::NProto::TUserJobSpec;
-using NCoreDump::NProto::TCoreInfo;
+using NScheduler::NProto::TCoreInfo;
 using NChunkClient::TDataSliceDescriptor;
 
 ////////////////////////////////////////////////////////////////////////////////

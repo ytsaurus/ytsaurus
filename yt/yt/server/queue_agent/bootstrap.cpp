@@ -10,7 +10,7 @@
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
-#include <yt/yt/server/lib/core_dump/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 
 #include <yt/yt/server/lib/cypress_election/election_manager.h>
 
@@ -50,7 +50,7 @@
 #include <yt/yt/core/net/address.h>
 #include <yt/yt/core/net/local_address.h>
 
-#include <yt/yt/core/misc/core_dumper.h>
+#include <yt/yt/library/coredumper/coredumper.h>
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/yt/core/rpc/bus/server.h>

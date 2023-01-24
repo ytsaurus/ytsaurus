@@ -42,7 +42,7 @@ public:
     TString GetStderr() override;
     std::optional<TString> GetFailContext() override;
     std::vector<NJobAgent::TJobProfile> GetProfiles() override;
-    const NCoreDump::TCoreInfos& GetCoreInfos() const override;
+    const NScheduler::TCoreInfos& GetCoreInfos() const override;
     NApi::TPollJobShellResponse PollJobShell(
         const NJobProberClient::TJobShellDescriptor& jobShellDescriptor,
         const NYson::TYsonString& parameters) override;
