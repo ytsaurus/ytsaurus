@@ -24,6 +24,9 @@ type Speclet struct {
 	ClickHouseConfig map[string]any `yson:"clickhouse_config"`
 	// YTConfig is a base config for YT part of CHYT. Its usage is highly discouraged.
 	YTConfig map[string]any `yson:"yt_config"`
+
+	// LogRotation contains options for rotating debug/info instance logs.
+	LogRotation map[string]any `yson:"log_rotation"`
 }
 
 const (

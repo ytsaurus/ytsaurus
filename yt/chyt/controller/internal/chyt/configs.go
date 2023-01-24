@@ -4,7 +4,9 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"reflect"
 
+	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/yt/chyt/controller/internal/strawberry"
 	"a.yandex-team.ru/yt/go/ypath"
 	"a.yandex-team.ru/yt/go/yson"
@@ -12,7 +14,7 @@ import (
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
-func cloneNode(ysonNode interface{}) (ysonNodeCopy interface{}, err error) {
+func cloneNode(ysonNode any) (ysonNodeCopy any, err error) {
 	ysonString, err := yson.Marshal(ysonNode)
 	if err != nil {
 		return
@@ -21,21 +23,21 @@ func cloneNode(ysonNode interface{}) (ysonNodeCopy interface{}, err error) {
 	return
 }
 
-func asMapNode(ysonNode interface{}) (asMap map[string]interface{}, err error) {
-	asMap, ok := yson.ValueOf(ysonNode).(map[string]interface{})
+func asMapNode(ysonNode any) (asMap map[string]any, err error) {
+	asMap, ok := yson.ValueOf(ysonNode).(map[string]any)
 	if !ok {
 		err = errors.New("yson node type is not 'Map'")
 	}
 	return
 }
 
-func getPatchedClickHouseConfig(speclet *Speclet) (config interface{}, err error) {
+func getPatchedClickHouseConfig(speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.ClickHouseConfig)
 	if err != nil {
 		return
 	}
 	if config == nil {
-		config = make(map[string]interface{})
+		config = make(map[string]any)
 	}
 	configAsMap, err := asMapNode(config)
 	if err != nil {
@@ -51,7 +53,7 @@ func getPatchedClickHouseConfig(speclet *Speclet) (config interface{}, err error
 	}
 
 	if _, ok := configAsMap["settings"]; !ok {
-		configAsMap["settings"] = make(map[string]interface{})
+		configAsMap["settings"] = make(map[string]any)
 	}
 	settings, err := asMapNode(configAsMap["settings"])
 	if err != nil {
@@ -87,13 +89,13 @@ func getDiscoveryServerAddresses(ctx context.Context, ytc yt.Client) (addresses 
 	return
 }
 
-func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Oplet, speclet *Speclet) (config interface{}, err error) {
+func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Oplet, speclet *Speclet) (config any, err error) {
 	config, err = cloneNode(speclet.YTConfig)
 	if err != nil {
 		return
 	}
 	if config == nil {
-		config = make(map[string]interface{})
+		config = make(map[string]any)
 	}
 	configAsMap, err := asMapNode(config)
 	if err != nil {
@@ -115,7 +117,7 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	}
 
 	if _, ok := configAsMap["discovery"]; !ok {
-		configAsMap["discovery"] = make(map[string]interface{})
+		configAsMap["discovery"] = make(map[string]any)
 	}
 	discovery, err := asMapNode(configAsMap["discovery"])
 	if err != nil {
@@ -135,7 +137,7 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	}
 
 	if _, ok := configAsMap["health_checker"]; !ok {
-		configAsMap["health_checker"] = make(map[string]interface{})
+		configAsMap["health_checker"] = make(map[string]any)
 	}
 	healthChecker, err := asMapNode(configAsMap["health_checker"])
 	if err != nil {
@@ -152,7 +154,35 @@ func getPatchedYtConfig(ctx context.Context, ytc yt.Client, oplet *strawberry.Op
 	return
 }
 
-func (c *Controller) uploadConfig(ctx context.Context, alias string, filename string, config interface{}) (richPath ypath.Rich, err error) {
+func getPatchedLogRotationConfig(speclet *Speclet) (map[string]any, error) {
+	configNode, err := cloneNode(speclet.LogRotation)
+	if err != nil {
+		return nil, err
+	}
+	config, ok := configNode.(map[string]any)
+	if !ok && configNode != nil {
+		return nil, yterrors.Err("log_rotation config has unexpected type",
+			log.String("type", reflect.TypeOf(configNode).String()))
+	}
+	if config == nil {
+		config = map[string]any{}
+	}
+	if _, ok := config["enable"]; !ok {
+		config["enable"] = true
+	}
+	if _, ok := config["rotation_delay"]; !ok {
+		config["rotation_delay"] = 15000
+	}
+	if _, ok := config["log_segment_count"]; !ok {
+		config["log_segment_count"] = 10
+	}
+	if _, ok := config["rotation_period"]; !ok {
+		config["rotation_period"] = 900000
+	}
+	return config, nil
+}
+
+func (c *Controller) uploadConfig(ctx context.Context, alias string, filename string, config any) (richPath ypath.Rich, err error) {
 	configYson, err := yson.MarshalFormat(config, yson.FormatPretty)
 	if err != nil {
 		return
@@ -186,7 +216,7 @@ func (c *Controller) createArtifactDirIfNotExists(ctx context.Context, alias str
 	_, err := c.ytc.CreateNode(ctx, c.artifactDir(alias), yt.NodeMap,
 		&yt.CreateNodeOptions{
 			IgnoreExisting: true,
-			Attributes: map[string]interface{}{
+			Attributes: map[string]any{
 				"opaque": true,
 			},
 		})
@@ -205,11 +235,11 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return fmt.Errorf("invalid yt config: %v", err)
 	}
 
-	var nativeAuthenticatorConfig map[string]interface{}
+	var nativeAuthenticatorConfig map[string]any
 	if tvmID, ok := c.getTvmID(); ok {
 		if c.tvmSecret != "" {
-			nativeAuthenticatorConfig = map[string]interface{}{
-				"tvm_service": map[string]interface{}{
+			nativeAuthenticatorConfig = map[string]any{
+				"tvm_service": map[string]any{
 					"enable_mock":                           false,
 					"enable_ticket_parse_cache":             true,
 					"client_self_id":                        tvmID,
@@ -228,32 +258,32 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return fmt.Errorf("error creating artifact dir: %v", err)
 	}
 
-	ytServerClickHouseConfig := map[string]interface{}{
+	ytServerClickHouseConfig := map[string]any{
 		"clickhouse":         clickhouseConfig,
 		"yt":                 ytConfig,
 		"cpu_limit":          r.InstanceCPU,
 		"memory":             r.InstanceMemory.memoryConfig(),
 		"cluster_connection": c.clusterConnection,
-		"profile_manager": map[string]interface{}{
-			"global_tags": map[string]interface{}{
+		"profile_manager": map[string]any{
+			"global_tags": map[string]any{
 				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
 			},
 		},
-		"logging": map[string]interface{}{
-			"writers": map[string]interface{}{
-				"error": map[string]interface{}{
+		"logging": map[string]any{
+			"writers": map[string]any{
+				"error": map[string]any{
 					"file_name": "./clickhouse.error.log",
 					"type":      "file",
 				},
-				"stderr": map[string]interface{}{
+				"stderr": map[string]any{
 					"type": "stderr",
 				},
-				"debug": map[string]interface{}{
+				"debug": map[string]any{
 					"file_name": "./clickhouse.debug.log",
 					"type":      "file",
 				},
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"file_name": "./clickhouse.log",
 					"type":      "file",
 				},
@@ -262,7 +292,7 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 				"Reinstall peer",
 				"Pass started",
 			},
-			"rules": [3](map[string]interface{}){
+			"rules": [3](map[string]any){
 				{
 					"min_level": "trace",
 					"writers": [1]string{
@@ -297,22 +327,21 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 		return
 	}
 
-	logTailerConfig := map[string]interface{}{
-		"profile_manager": map[string]interface{}{
-			"global_tags": map[string]interface{}{
+	logRotationConfig, err := getPatchedLogRotationConfig(speclet)
+	if err != nil {
+		return
+	}
+	logTailerConfig := map[string]any{
+		"profile_manager": map[string]any{
+			"global_tags": map[string]any{
 				"operation_alias": oplet.Alias(),
 				"cookie":          "$YT_JOB_COOKIE",
 			},
 		},
 		"cluster_connection": c.clusterConnection,
-		"log_tailer": map[string]interface{}{
-			"log_rotation": map[string]interface{}{
-				"enable":            true,
-				"rotation_delay":    15000,
-				"log_segment_count": 10,
-				"rotation_period":   900000,
-			},
-			"log_files": [2](map[string]interface{}){
+		"log_tailer": map[string]any{
+			"log_rotation": logRotationConfig,
+			"log_files": [2](map[string]any){
 				{
 					"path": "clickhouse.debug.log",
 				},
@@ -320,30 +349,30 @@ func (c *Controller) appendConfigs(ctx context.Context, oplet *strawberry.Oplet,
 					"path": "clickhouse.log",
 				},
 			},
-			"log_writer_liveness_checker": map[string]interface{}{
+			"log_writer_liveness_checker": map[string]any{
 				"enable":                true,
 				"liveness_check_period": 5000,
 			},
 		},
-		"logging": map[string]interface{}{
-			"writers": map[string]interface{}{
-				"error": map[string]interface{}{
+		"logging": map[string]any{
+			"writers": map[string]any{
+				"error": map[string]any{
 					"file_name": "./log_tailer.error.log",
 					"type":      "file",
 				},
-				"stderr": map[string]interface{}{
+				"stderr": map[string]any{
 					"type": "stderr",
 				},
-				"debug": map[string]interface{}{
+				"debug": map[string]any{
 					"file_name": "./log_tailer.debug.log",
 					"type":      "file",
 				},
-				"info": map[string]interface{}{
+				"info": map[string]any{
 					"file_name": "./log_tailer.log",
 					"type":      "file",
 				},
 			},
-			"rules": [3](map[string]interface{}){
+			"rules": [3](map[string]any){
 				{
 					"min_level": "trace",
 					"writers": [1]string{
