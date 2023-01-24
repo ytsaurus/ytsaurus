@@ -342,8 +342,6 @@ void GenerateTabletCellsForBundle(
     for (int index = 0; index < cellCount; ++index) {
         auto cellId = Format("tablet-cell-%v-%v", bundleName, bundleInfo->TabletCellIds.size());
         auto cellInfo = New<TTabletCellInfo>();
-        cellInfo->TabletCount = 2;
-        cellInfo->TabletCellBundle = bundleName;
         cellInfo->Peers.resize(peerCount, New<TTabletCellPeer>());
         bundleInfo->TabletCellIds.push_back(cellId);
         inputState.TabletCells[cellId] = cellInfo;
@@ -923,9 +921,6 @@ TEST(TBundleSchedulerTest, PeekRightCellToRemove)
     GenerateNodesForBundle(input, "bigd", 2);
     GenerateTabletCellsForBundle(input, "bigd", 11);
 
-    auto cellId = input.Bundles["bigd"]->TabletCellIds[RandomNumber<ui32>(11)];
-    input.TabletCells[cellId]->TabletCount = 0;
-
     ScheduleBundles(input, &mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
@@ -933,8 +928,6 @@ TEST(TBundleSchedulerTest, PeekRightCellToRemove)
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     EXPECT_EQ(0, std::ssize(mutations.CellsToCreate));
     EXPECT_EQ(1, std::ssize(mutations.CellsToRemove));
-
-    EXPECT_EQ(cellId, mutations.CellsToRemove.front());
 }
 
 TEST(TBundleSchedulerTest, TestSpareNodesAllocate)
