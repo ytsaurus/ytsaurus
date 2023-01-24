@@ -1030,14 +1030,12 @@ struct TTabletCellRemoveOrder
 {
     TString Id;
     TString HostNode;
-    int HostNodeTabletCount = 0;
-    int TabletCount = 0;
     bool Disrupted = false;
     // No tablet host and non zero tablet nodes
 
     auto AsTuple() const
     {
-        return std::tie(Disrupted, TabletCount, HostNodeTabletCount, HostNode, Id);
+        return std::tie(Disrupted, HostNode, Id);
     }
 
     bool operator<(const TTabletCellRemoveOrder& other) const
@@ -1064,67 +1062,21 @@ TString GetHostNodeForCell(const TTabletCellInfoPtr& cellInfo, const THashSet<TS
 }
 
 std::vector<TString> PeekTabletCellsToRemove(
-    const TString& bundleName,
     int cellCountToRemove,
-    const std::vector<TString>& bundleCellIds,
-    const THashSet<TString>& bundleNodes,
-    const TSchedulerInputState& input)
+    const std::vector<TString>& bundleCellIds)
 {
     YT_VERIFY(std::ssize(bundleCellIds) >= cellCountToRemove);
 
-    // Using the following heuristics:
-    // - peek cells that are not running or running at foreign nodes.
-    // - In order to deallocate tablet nodes after instance count shrinkage
-    //      -- try to peek colocated tablet cells on single host node
-    //      -- prefer nodes with less tablets to make less disruption
-
-    THashMap<TString, int> NodeToTabletCount;
-
-    std::vector<TTabletCellRemoveOrder> cellsOrder;
-    cellsOrder.reserve(bundleCellIds.size());
-
-    for(const auto& cellId : bundleCellIds) {
-        auto it = input.TabletCells.find(cellId);
-        if (it == input.TabletCells.end()) {
-            YT_LOG_WARNING("Cannot locate cell info (BundleName: %v, TableCellId: %v)",
-                    bundleName,
-                    cellId);
-            continue;
-        }
-        const auto& cellInfo = it->second;
-        auto nodeName = GetHostNodeForCell(cellInfo, bundleNodes);
-
-        cellsOrder.push_back(TTabletCellRemoveOrder{
-            .Id = cellId,
-            .HostNode = nodeName,
-            .TabletCount = cellInfo->TabletCount,
-            .Disrupted = nodeName.empty() && cellInfo->TabletCount != 0,
-        });
-
-        if (!nodeName.empty()) {
-            NodeToTabletCount[nodeName] += cellInfo->TabletCount;
-        }
-    }
-
-    for (auto& cell : cellsOrder) {
-        auto it = NodeToTabletCount.find(cell.HostNode);
-        if (it != NodeToTabletCount.end()) {
-            cell.HostNodeTabletCount = it->second;
-        }
-    }
-
-    auto endIt = cellsOrder.end();
-    if (std::ssize(cellsOrder) > cellCountToRemove) {
-        endIt = cellsOrder.begin() + cellCountToRemove;
-        std::nth_element(cellsOrder.begin(), endIt, cellsOrder.end());
-    }
-
     std::vector<TString> result;
-    result.reserve(std::distance(cellsOrder.begin(), endIt));
-    for (auto it = cellsOrder.begin(); it != endIt; ++it) {
-        result.push_back(it->Id);
+    result.reserve(bundleCellIds.size());
+
+    for (auto& cell : bundleCellIds) {
+        result.push_back(cell);
     }
 
+    // add some determinism
+    std::sort(result.begin(), result.end());
+    result.resize(cellCountToRemove);
     return result;
 }
 
@@ -1167,11 +1119,9 @@ void ProcessRemovingCells(
         }
 
         YT_LOG_DEBUG("Tablet cell removal in progress"
-            " (BundleName: %v, TabletCellId: %v, LifeStage: %v, Decommissioned: %v)",
+            " (BundleName: %v, TabletCellId: %v)",
             bundleName,
-            cellId,
-            it->second->TabletCellLifeStage,
-            it->second->Status->Decommissioned);
+            cellId);
     }
 
     for (const auto& cellId : removeCompleted) {
@@ -1215,11 +1165,7 @@ void CreateRemoveTabletCells(
         std::ssize(bundleInfo->TabletCellIds));
 
     if (cellCountDiff < 0) {
-        mutations->CellsToRemove = PeekTabletCellsToRemove(bundleName,
-            std::abs(cellCountDiff),
-            bundleInfo->TabletCellIds,
-            aliveNodes,
-            input);
+        mutations->CellsToRemove = PeekTabletCellsToRemove(std::abs(cellCountDiff), bundleInfo->TabletCellIds);
 
         YT_LOG_INFO("Removing tablet cells (BundleName: %v, CellIds: %v)",
             bundleName,

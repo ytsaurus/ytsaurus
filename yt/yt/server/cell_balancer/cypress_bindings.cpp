@@ -139,14 +139,6 @@ void TTabletCellPeer::Register(TRegistrar registrar)
 
 void TTabletCellInfo::Register(TRegistrar registrar)
 {
-    RegisterAttribute(registrar, "tablet_cell_bundle", &TThis::TabletCellBundle)
-        .Default();
-    RegisterAttribute(registrar, "tablet_cell_life_stage", &TThis::TabletCellLifeStage)
-        .Default();
-    RegisterAttribute(registrar, "tablet_count", &TThis::TabletCount)
-        .Default();
-    RegisterAttribute(registrar, "status", &TThis::Status)
-        .DefaultNew();
     RegisterAttribute(registrar, "peers", &TThis::Peers)
         .Default();
 }

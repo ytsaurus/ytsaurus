@@ -226,10 +226,6 @@ DEFINE_REFCOUNTED_TYPE(TTabletCellPeer)
 struct TTabletCellInfo
     : public TYsonStructAttributes<TTabletCellInfo>
 {
-    TString TabletCellBundle;
-    TString TabletCellLifeStage;
-    int TabletCount;
-    TTabletCellStatusPtr Status;
     std::vector<TTabletCellPeerPtr> Peers;
 
     REGISTER_YSON_STRUCT(TTabletCellInfo);
