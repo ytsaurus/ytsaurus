@@ -4,6 +4,7 @@ import "a.yandex-team.ru/yt/go/yt"
 
 // Change of these parameters leads to operation restart.
 type RestartRequiredOptions struct {
+	Stage          *string `yson:"stage"`
 	NetworkProject *string `yson:"network_project"`
 	PreemptionMode *string `yson:"preemption_mode"`
 }
@@ -12,7 +13,6 @@ type Speclet struct {
 	RestartRequiredOptions
 	Active                 *bool   `yson:"active"`
 	Family                 *string `yson:"family"`
-	Stage                  *string `yson:"stage"`
 	RestartOnSpecletChange *bool   `yson:"restart_on_speclet_change"`
 	// MinSpecletRevision is a minimum speclet revision with which an operation does not require a force restart.
 	// If the speclet revision of the running yt operation is less than that,

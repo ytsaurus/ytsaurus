@@ -19,7 +19,7 @@ type RequestParams struct {
 	// Params contains request parameters which are set by the user.
 	// E.g. in CLI "--xxx yyy" should set an "xxx" parameter with the value "yyy".
 	Params map[string]any `yson:"params"`
-	// Unparsed indicates that all params are provided as strings and should be parsed to proper types.
+	// Unparsed indicates that all params with action "store" are provided as strings and should be parsed to proper types.
 	// It can be useful in CLI, where all arguments are strings and params' types are unknown.
 	Unparsed bool `yson:"unparsed"`
 }
@@ -74,6 +74,10 @@ type ParamType string
 const (
 	TypeString ParamType = "string"
 	TypeAny    ParamType = "any"
+
+	DefaultAction   string = "store"
+	StoreAction     string = "store"
+	StoreTrueAction string = "store_true"
 )
 
 type CmdParameter struct {
@@ -81,9 +85,17 @@ type CmdParameter struct {
 	Aliases     []string        `yson:"aliases,omitempty"`
 	Type        ParamType       `yson:"type"`
 	Required    bool            `yson:"required"`
+	Action      string          `yson:"action,omitempty"`
 	Description string          `yson:"description,omitempty"`
 	EnvVariable string          `yson:"env_variable,omitempty"`
 	Validator   func(any) error `yson:"-"`
+}
+
+func (c *CmdParameter) ActionOrDefault() string {
+	if c.Action != "" {
+		return c.Action
+	}
+	return DefaultAction
 }
 
 // AsExplicit returns a copy of the parameter with empty EnvVariable field,
@@ -138,7 +150,7 @@ func (a HTTPAPI) parseAndValidateRequestParams(w http.ResponseWriter, r *http.Re
 	// Cast params to proper type.
 	if request.Unparsed {
 		for _, param := range cmd.Parameters {
-			if value, ok := params[param.Name]; ok {
+			if value, ok := params[param.Name]; param.ActionOrDefault() == StoreAction && ok {
 				unparsedValue, ok := value.(string)
 				if !ok {
 					a.replyWithError(w, yterrors.Err("unparsed parameter has unexpected type",
@@ -220,7 +232,7 @@ func HandleDescribe(w http.ResponseWriter, r *http.Request, clusters []string) {
 			RemoveOptionCmdDescriptor,
 			GetSpecletCmdDescriptor,
 			SetSpecletCmdDescriptor,
-			OneShotRunCmdDescriptor,
+			StartCmdDescriptor,
 			StopCmdDescriptor,
 		}})
 	if err != nil {

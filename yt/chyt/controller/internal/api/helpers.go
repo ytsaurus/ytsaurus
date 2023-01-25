@@ -8,7 +8,7 @@ import (
 	"a.yandex-team.ru/yt/go/yterrors"
 )
 
-func ValidateStringParameter(pattern string, value string) error {
+func validateStringParameter(pattern string, value string) error {
 	matched, err := regexp.MatchString(pattern, value)
 	if err != nil {
 		return err
@@ -19,21 +19,41 @@ func ValidateStringParameter(pattern string, value string) error {
 	return nil
 }
 
-func ValidateAlias(alias any) error {
-	return ValidateStringParameter(`^[A-Za-z][\w-]*$`, alias.(string))
+func validateAlias(alias any) error {
+	return validateStringParameter(`^[A-Za-z][\w-]*$`, alias.(string))
 }
 
-func ValidateOption(option any) error {
-	return ValidateStringParameter(`^[A-Za-z][\w./-]*$`, option.(string))
+func validateOption(option any) error {
+	return validateStringParameter(`^[A-Za-z][\w./-]*$`, option.(string))
 }
 
-func ValidateSpeclet(speclet any) error {
+func unexpectedTypeError(typeName string) error {
+	return yterrors.Err(
+		fmt.Sprintf("parameter has unexpected value type %v", typeName),
+		yterrors.Attr("type", typeName))
+}
+
+func validateSpeclet(speclet any) error {
 	_, ok := speclet.(map[string]any)
 	if !ok {
 		typeName := reflect.TypeOf(speclet).String()
-		return yterrors.Err(
-			fmt.Sprintf("speclet has unexpected value type %v", typeName),
-			yterrors.Attr("type", typeName))
+		return unexpectedTypeError(typeName)
 	}
 	return nil
+}
+
+func validateBool(value any) error {
+	_, ok := value.(bool)
+	if !ok {
+		typeName := reflect.TypeOf(value).String()
+		return unexpectedTypeError(typeName)
+	}
+	return nil
+}
+
+func validateUntracked(untracked any) error {
+	if untracked == nil {
+		return nil
+	}
+	return validateBool(untracked)
 }
