@@ -127,6 +127,11 @@ public:
     bool RescheduleMergeOnSuccess;
     bool ValidateMergerPermission;
 
+    // COMPAT(shakurov)
+    bool EnableNodeStatisticsFix;
+    // COMPAT(shakurov) mainly for testing purposes.
+    bool EnableAlertOnNodeStatisticsFix;
+
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);
@@ -534,6 +539,9 @@ public:
     bool EnableChunkConfirmationWithoutLocationUuid;
 
     bool EnablePerLocationNodeDisposal;
+
+    // COMPAT(shakurov)
+    bool EnableClonedTrunkNodeStatisticsFix;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

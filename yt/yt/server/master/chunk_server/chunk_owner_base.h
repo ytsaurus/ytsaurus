@@ -70,7 +70,7 @@ public:
 
     const TChunkList* GetDeltaChunkList() const;
 
-    NSecurityServer::TSecurityTags GetSecurityTags() const;
+    NSecurityServer::TSecurityTags ComputeSecurityTags() const;
 
     struct TBeginUploadContext
     {
@@ -114,12 +114,20 @@ public:
     void Save(NCellMaster::TSaveContext& context) const override;
     void Load(NCellMaster::TLoadContext& context) override;
 
+    // COMPAT(shakurov)
+    bool FixStatistics();
+    void FixStatisticsAndAlert();
+    bool IsStatisticsFixNeeded() const;
+
 private:
     TEnumIndexedVector<EChunkListContentType, NChunkServer::TChunkListPtr> ChunkLists_;
 
     NChunkClient::NProto::TDataStatistics ComputeUpdateStatistics() const;
 
     NSecurityServer::TClusterResources GetDiskUsage(const NChunkClient::NProto::TDataStatistics& statistics) const;
+
+    // COMPAT(shakurov)
+    void DoFixStatistics();
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TChunkOwnerBase)

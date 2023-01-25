@@ -34,6 +34,10 @@ using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+static const auto& Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
 TChunkOwnerBase::TEndUploadContext::TEndUploadContext(TBootstrap* bootstrap)
     : Bootstrap(bootstrap)
 { }
@@ -198,7 +202,7 @@ const TChunkList* TChunkOwnerBase::GetDeltaChunkList() const
     }
 }
 
-TSecurityTags TChunkOwnerBase::GetSecurityTags() const
+TSecurityTags TChunkOwnerBase::ComputeSecurityTags() const
 {
     return *SnapshotSecurityTags_ + *DeltaSecurityTags_;
 }
@@ -300,6 +304,44 @@ bool TChunkOwnerBase::HasDataWeight() const
 void TChunkOwnerBase::CheckInvariants(TBootstrap* bootstrap) const
 {
     TCypressNode::CheckInvariants(bootstrap);
+}
+
+bool TChunkOwnerBase::FixStatistics()
+{
+    if (IsStatisticsFixNeeded()) {
+        DoFixStatistics();
+        return true;
+    }
+
+    return false;
+}
+
+void TChunkOwnerBase::FixStatisticsAndAlert()
+{
+    if (!IsStatisticsFixNeeded()) {
+        return;
+    }
+
+    YT_LOG_ALERT("Fixing chunk owner statistics (ChunkOwnerId: %v, SnapshotStatistics: %v, DeltaStatistics: %v)",
+        GetId(),
+        SnapshotStatistics_,
+        DeltaStatistics_);
+
+    DoFixStatistics();
+}
+
+bool TChunkOwnerBase::IsStatisticsFixNeeded() const
+{
+    YT_VERIFY(IsTrunk());
+
+    return DeltaStatistics_ != TDataStatistics();
+}
+
+void TChunkOwnerBase::DoFixStatistics()
+{
+    // In this specific order.
+    SnapshotStatistics_ = ComputeTotalStatistics();
+    DeltaStatistics_ = TDataStatistics();
 }
 
 NSecurityServer::TClusterResources TChunkOwnerBase::GetTotalResourceUsage() const

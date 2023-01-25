@@ -211,7 +211,7 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoBranch(
         // Slow path.
         const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
         const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
-        branchedNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(originatingNode->GetSecurityTags());
+        branchedNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(originatingNode->ComputeSecurityTags());
     }
 }
 
@@ -544,10 +544,27 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoClone(
     clonedTrunkNode->SetChunkMergerMode(sourceNode->GetChunkMergerMode());
     clonedTrunkNode->SetPrimaryMediumIndex(sourceNode->GetPrimaryMediumIndex());
     clonedTrunkNode->Replication() = sourceNode->Replication();
-    clonedTrunkNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
-    clonedTrunkNode->DeltaStatistics() = sourceNode->DeltaStatistics();
-    clonedTrunkNode->SnapshotSecurityTags() = sourceNode->SnapshotSecurityTags();
-    clonedTrunkNode->DeltaSecurityTags() = sourceNode->DeltaSecurityTags();
+
+    const auto& configManager = TBase::Bootstrap_->GetConfigManager();
+    const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
+    // COMPAT(shakurov)
+    if (dynamicConfig->EnableClonedTrunkNodeStatisticsFix) {
+        clonedTrunkNode->SnapshotStatistics() = sourceNode->ComputeTotalStatistics();
+
+        auto securityTags = sourceNode->ComputeSecurityTags();
+        const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+        const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
+        clonedTrunkNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
+
+        // NB: leaving delta statistics empty as snapshot statistics already take
+        // it into account as part of the sum. Ditto security tags.
+    } else {
+        clonedTrunkNode->SnapshotStatistics() = sourceNode->SnapshotStatistics();
+        clonedTrunkNode->DeltaStatistics() = sourceNode->DeltaStatistics();
+        clonedTrunkNode->SnapshotSecurityTags() = sourceNode->SnapshotSecurityTags();
+        clonedTrunkNode->DeltaSecurityTags() = sourceNode->DeltaSecurityTags();
+    }
+
     clonedTrunkNode->SetCompressionCodec(sourceNode->GetCompressionCodec());
     clonedTrunkNode->SetErasureCodec(sourceNode->GetErasureCodec());
     clonedTrunkNode->SetEnableStripedErasure(sourceNode->GetEnableStripedErasure());
@@ -617,10 +634,28 @@ void TChunkOwnerTypeHandler<TChunkOwner>::DoEndCopy(
     trunkNode->SetPrimaryMediumIndex(medium->GetIndex());
 
     Load(*context, trunkNode->Replication());
-    Load(*context, trunkNode->SnapshotStatistics());
-    Load(*context, trunkNode->DeltaStatistics());
-    Load(*context, trunkNode->SnapshotSecurityTags());
-    Load(*context, trunkNode->DeltaSecurityTags());
+
+    // COMPAT(shakurov)
+    const auto& configManager = TBase::Bootstrap_->GetConfigManager();
+    const auto& dynamicConfig = configManager->GetConfig()->ChunkManager;
+    if (dynamicConfig->EnableClonedTrunkNodeStatisticsFix) {
+        auto snapshotStatistics = Load<NChunkClient::NProto::TDataStatistics>(*context);
+        auto deltaStatistics = Load<NChunkClient::NProto::TDataStatistics>(*context);
+        trunkNode->SnapshotStatistics() = snapshotStatistics + deltaStatistics;
+
+        auto snapshotSecurityTags = Load<NSecurityServer::TInternedSecurityTags>(*context);
+        auto deltaSecurityTags = Load<NSecurityServer::TInternedSecurityTags>(*context);
+        auto securityTags = *snapshotSecurityTags + *deltaSecurityTags;
+        const auto& securityManager = TBase::Bootstrap_->GetSecurityManager();
+        const auto& securityTagsRegistry = securityManager->GetSecurityTagsRegistry();
+        trunkNode->SnapshotSecurityTags() = securityTagsRegistry->Intern(std::move(securityTags));
+    } else {
+        Load(*context, trunkNode->SnapshotStatistics());
+        Load(*context, trunkNode->DeltaStatistics());
+        Load(*context, trunkNode->SnapshotSecurityTags());
+        Load(*context, trunkNode->DeltaSecurityTags());
+    }
+
     trunkNode->SetCompressionCodec(Load<NCompression::ECodec>(*context));
     trunkNode->SetErasureCodec(Load<NErasure::ECodec>(*context));
     trunkNode->SetEnableStripedErasure(Load<bool>(*context));

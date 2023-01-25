@@ -1,4 +1,4 @@
-from yt_env_setup import YTEnvSetup
+from yt_env_setup import YTEnvSetup, Restarter, MASTERS_SERVICE
 
 from yt_commands import (
     authors, print_debug, wait, create, ls, get, set,
@@ -8,6 +8,7 @@ from yt_commands import (
     sort, remote_copy, get_first_chunk_id,
     get_singular_chunk_id, get_chunk_replication_factor, set_banned_flag,
     get_recursive_disk_space, get_chunk_owner_disk_space, raises_yt_error, update_nodes_dynamic_config, sorted_dicts,
+    build_snapshot,
 )
 
 from yt_helpers import skip_if_no_descending, profiler_factory
@@ -2709,7 +2710,6 @@ class TestTables(YTEnvSetup):
         # Timed out rpc call will trigger cancellation that will free throttler queue.
         wait(lambda: queue_size.get() == 0)
 
-
 ##################################################################
 
 
@@ -2952,6 +2952,45 @@ class TestTablesMulticell(TestTables):
                 spec={"cluster_connection": self.__class__.Env.configs["driver"]},
             )
 
+    # COMPAT(shakurov)
+    @authors("shakurov")
+    def test_cloned_table_statistics_yt_18290_bug(self):
+        if not self.ENABLE_TMP_PORTAL:
+            create("map_node", "//portals", force=True)
+
+        create("table", "//tmp/t")
+        tx = start_transaction()
+        write_table("<append=%true>//tmp/t", [{"foo": "bar"}], tx=tx)
+        copy("//tmp/t", "//portals/t2", tx=tx)
+        commit_transaction(tx)
+        assert get("//portals/t2/@snapshot_statistics/chunk_count") == 0
+        assert get("//portals/t2/@delta_statistics/chunk_count") == 1
+
+    @authors("shakurov")
+    def test_cloned_table_statistics_yt_18290_fix(self):
+        # COMPAT(shakurov)
+        set("//sys/@config/chunk_manager/enable_cloned_trunk_node_statistics_fix", True)
+
+        if not self.ENABLE_TMP_PORTAL:
+            create("map_node", "//portals", force=True)
+
+        create("table", "//tmp/t")
+        tx = start_transaction()
+        write_table("<append=%true>//tmp/t", [{"foo": "bar"}], tx=tx)
+        copy("//tmp/t", "//portals/t3", tx=tx)
+        commit_transaction(tx)
+        assert get("//portals/t3/@snapshot_statistics/chunk_count") == 1
+        assert get("//portals/t3/@delta_statistics/chunk_count") == 0
+
+    @authors("shakurov")
+    def test_trunk_node_has_zero_delta_statistics_after_append(self):
+        create("table", "//tmp/t")
+        write_table("<append=%true>//tmp/t", [{"foo": "bar"}])
+        assert get("//tmp/t/@snapshot_statistics/chunk_count") == 1
+        assert get("//tmp/t/@delta_statistics/chunk_count") == 0
+        write_table("<append=%true>//tmp/t", [{"foo": "bar"}])
+        assert get("//tmp/t/@snapshot_statistics/chunk_count") == 2
+        assert get("//tmp/t/@delta_statistics/chunk_count") == 0
 
 ##################################################################
 
@@ -3048,3 +3087,66 @@ class TestYPathTypeConversion(TestTables):
             {"foo": 46, "bar": "val2"}
         ])
         assert read_table("//tmp/input2[45]") == [{"foo": 45, "bar": "val1"}]
+
+
+##################################################################
+
+
+# COMPAT(shakurov)
+@authors("shakurov")
+class TestNodeStatisticsFixer(YTEnvSetup):
+
+    def _create_buggy_table(self, name):
+        assert not exists("//sys/@config/chunk_manager/enable_cloned_trunk_node_statistics_fix")
+
+        if not self.ENABLE_TMP_PORTAL:
+            create("map_node", "//portals", force=True)
+
+        create("table", "//tmp/t")
+        tx = start_transaction()
+        write_table("<append=%true>//tmp/t", [{"foo": "bar"}], tx=tx)
+        copy("//tmp/t", f"//portals/{name}", tx=tx)
+        commit_transaction(tx)
+        assert get(f"//portals/{name}/@snapshot_statistics/chunk_count") == 0
+        assert get(f"//portals/{name}/@delta_statistics/chunk_count") == 1
+
+    @authors("shakurov")
+    def test_node_statistics_fixer(self):
+        set("//sys/@config/cypress_manager/enable_node_statistics_fixer", True)
+
+        self._create_buggy_table("t4")
+
+        build_snapshot(cell_id=None)
+        with Restarter(self.Env, MASTERS_SERVICE):
+            pass
+
+        def table_is_ok(name):
+            return get(f"//portals/{name}/@snapshot_statistics/chunk_count") == 1 and \
+                get(f"//portals/{name}/@delta_statistics/chunk_count") == 0
+
+        wait(lambda: table_is_ok("t4"))
+
+    @authors("shakurov")
+    def test_merger_fixes_node_statistics(self):
+        assert not exists("//sys/@config/cypress_manager/enable_node_statistics_fixer")
+        assert not exists("//sys/@config/chunk_manager/chunk_merger/enable_node_statistics_fix")
+
+        self._create_buggy_table("t5")
+
+        set("//sys/@config/chunk_manager/chunk_merger/enable_alert_on_node_statistics_fix", False)
+        set("//sys/@config/chunk_manager/chunk_merger/enable_node_statistics_fix", True)
+        set("//sys/@config/chunk_manager/chunk_merger/enable", True)
+
+        account = get("//portals/t5/@account")
+        set(f"//sys/accounts/{account}/@merge_job_rate_limit", 10)
+        set(f"//sys/accounts/{account}/@chunk_merger_node_traversal_concurrency", 1)
+
+        write_table("<append=%true>//portals/t5", [{"foo": "bar"}])
+
+        set("//portals/t5/@chunk_merger_mode", "auto")
+
+        def table_is_ok(name):
+            return get(f"//portals/{name}/@snapshot_statistics/chunk_count") > 0 and \
+                get(f"//portals/{name}/@delta_statistics/chunk_count") == 0
+
+        wait(lambda: table_is_ok("t5"))
