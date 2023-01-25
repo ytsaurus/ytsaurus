@@ -149,7 +149,7 @@ private:
 
         {
             TCypressRegistrarOptions options{
-                .RootPath = "//sys/master_caches/" + NNet::BuildServiceAddress(
+                .RootPath = Config_->RootPath + NNet::BuildServiceAddress(
                     NNet::GetLocalHostName(),
                     Config_->RpcPort),
                 .OrchidRemoteAddresses = GetLocalAddresses(/*addresses*/ {}, Config_->RpcPort),
