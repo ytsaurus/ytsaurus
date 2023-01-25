@@ -172,6 +172,13 @@ Py::Object TSkiffStructuredIterator::GetKeySwitch() const
 
 Py::Object TSkiffStructuredIterator::GetRowIndex() const
 {
+    if (RowContext_.RowIndex == ERowIndex::NotAvailable) {
+        throw CreateSkiffError(
+            "RowIndex requested, but it's not available. "
+            "Possibly you're using dynamic tables, that doesn't support it",
+            TError(),
+            &RowContext_);
+    }
     return Py::Long(RowContext_.RowIndex);
 }
 

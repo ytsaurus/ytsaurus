@@ -11,7 +11,7 @@ namespace NYT::NPython {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-Py::Exception CreateSkiffError(const TString& message, const TError& error, TSkiffRowContext* rowContext)
+Py::Exception CreateSkiffError(const TString& message, const TError& error, const TSkiffRowContext* rowContext)
 {
     auto innerErrors = NYTree::ConvertTo<Py::Object>(std::vector<TError>({error}));
 

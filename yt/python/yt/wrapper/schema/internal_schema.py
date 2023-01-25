@@ -570,7 +570,15 @@ def _row_py_schema_to_skiff_schema(py_schema, for_reading):
         skiff_schema["children"].append({"name": "$key_switch", "wire_type": "boolean"})
     assert next(system_column_iter) == "row_index"
     if for_reading and py_schema._control_attributes.get("enable_row_index", False):
-        row_index_schema = _create_optional_skiff_schema({"wire_type": "int64"}, name="$row_index")
+        row_index_schema = {
+            "wire_type": "variant8",
+            "children": [
+                {"wire_type": "nothing"},
+                {"wire_type": "int64"},
+                {"wire_type": "nothing"},
+            ],
+            "name": "$row_index",
+        }
         skiff_schema["children"].append(row_index_schema)
     assert next(system_column_iter) == "range_index"
     if for_reading and py_schema._control_attributes.get("enable_range_index", False):
