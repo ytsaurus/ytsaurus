@@ -46,6 +46,8 @@
 
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 
+#include <yt/yt/client/security_client/access_control.h>
+#include <yt/yt/client/security_client/public.h>
 #include <yt/yt/client/security_client/helpers.h>
 
 #include <yt/yt/core/concurrency/async_semaphore.h>
@@ -574,6 +576,35 @@ void TClient::ValidateSuperuserPermissions()
 
     if (!groups.contains(NSecurityClient::SuperusersGroupName)) {
         THROW_ERROR_EXCEPTION("Superuser permissions required");
+    }
+}
+
+void TClient::ValidatePermissionsWithACN(
+    NSecurityClient::EAccessControlObject accessControlObjectName,
+    EPermission permission)
+{
+    TErrorOr<TCheckPermissionResponse> response;
+
+    auto aco = GetAccessControlObjectDescriptor(accessControlObjectName);
+    auto objectPath = aco.GetPrincipalPath();
+
+    try {
+        response = DoCheckPermission(
+            Options_.GetAuthenticatedUser(),
+            objectPath,
+            permission,
+            TCheckPermissionOptions());
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Check permission failed");
+        response = TError(ex);
+    }
+
+    if (!(response.IsOK() && response.Value().Action == NSecurityClient::ESecurityAction::Allow)) {
+        ValidateSuperuserPermissions();
+        YT_LOG_WARNING("There is no access control object with the necessary permissions (Name: %v, Path: %v, Permission: %v)",
+            Options_.User,
+            objectPath,
+            ToString(permission));
     }
 }
 

@@ -68,14 +68,14 @@ public:
         auto namespace_ = attributes->Get<TString>("namespace");
         auto* namespaceObject = cypressManager->FindAccessControlObjectNamespaceByName(namespace_);
         if (!namespaceObject) {
-            return std::nullopt;
+            return nullptr;
         }
 
         if (auto* result = namespaceObject->FindMember(name)) {
             return result;
         }
 
-        return std::nullopt;
+        return nullptr;
     }
 
 private:

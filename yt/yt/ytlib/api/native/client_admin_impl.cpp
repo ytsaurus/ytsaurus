@@ -40,6 +40,8 @@
 
 #include <yt/yt/client/node_tracker_client/helpers.h>
 
+#include <yt/yt/client/security_client/public.h>
+
 #include <yt/yt/core/rpc/helpers.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
@@ -59,6 +61,7 @@ using namespace NHydra;
 using namespace NJobTrackerClient;
 using namespace NNodeTrackerClient;
 using namespace NObjectClient;
+using namespace NSecurityClient;
 using namespace NRpc;
 using namespace NScheduler;
 using namespace NTabletClient;
@@ -472,7 +475,10 @@ TDisableChunkLocationsResult TClient::DoDisableChunkLocations(
     const std::vector<TGuid>& locationUuids,
     const TDisableChunkLocationsOptions& options)
 {
-    ValidateSuperuserPermissions();
+    ValidatePermissionsWithACN(
+        EAccessControlObject::DisableChunkLocations,
+        EPermission::Use);
+
     TDataNodeServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
 
     auto req = proxy.DisableChunkLocations();
@@ -491,7 +497,10 @@ TDestroyChunkLocationsResult TClient::DoDestroyChunkLocations(
     const std::vector<TGuid>& locationUuids,
     const TDestroyChunkLocationsOptions& options)
 {
-    ValidateSuperuserPermissions();
+    ValidatePermissionsWithACN(
+        EAccessControlObject::DestroyChunkLocations,
+        EPermission::Use);
+
     TDataNodeServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
 
     auto req = proxy.DestroyChunkLocations();
@@ -510,7 +519,10 @@ TResurrectChunkLocationsResult TClient::DoResurrectChunkLocations(
     const std::vector<TGuid>& locationUuids,
     const TResurrectChunkLocationsOptions& options)
 {
-    ValidateSuperuserPermissions();
+    ValidatePermissionsWithACN(
+        EAccessControlObject::ResurrectChunkLocations,
+        EPermission::Use);
+
     TDataNodeServiceProxy proxy(Connection_->GetChannelFactory()->CreateChannel(nodeAddress));
 
     auto req = proxy.ResurrectChunkLocations();

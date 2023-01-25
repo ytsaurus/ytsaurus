@@ -18,6 +18,8 @@
 #include <yt/yt/ytlib/cypress_client/cypress_ypath_proxy.h>
 #include <yt/yt/ytlib/cypress_client/rpc_helpers.h>
 
+#include <yt/yt/ytlib/object_client/master_ypath_proxy.h>
+
 #include <yt/yt/ytlib/election/cell_manager.h>
 #include <yt/yt/ytlib/election/config.h>
 
@@ -25,9 +27,13 @@
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
+#include <yt/yt/client/api/client.h>
+
 #include <yt/yt/client/object_client/helpers.h>
 
 #include <yt/yt/client/transaction_client/config.h>
+
+#include <yt/yt/client/security_client/access_control.h>
 
 #include <yt/yt/core/concurrency/scheduler.h>
 
@@ -52,6 +58,7 @@ using namespace NObjectClient;
 using namespace NObjectServer;
 using namespace NRpc;
 using namespace NSecurityServer;
+using namespace NSecurityClient;
 using namespace NTransactionClient;
 using namespace NYPath;
 using namespace NYTree;
@@ -920,6 +927,25 @@ private:
 
             CommitTransaction(transactionId);
 
+            for (const auto& namespaceName : AccessControlObjectNamespaces) {
+                ScheduleCreateObject(
+                    EObjectType::AccessControlObjectNamespace,
+                    ConvertToAttributes(BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("name").Value(GetAccessControlObjectNamespaceName(namespaceName))
+                        .EndMap()));
+            }
+
+            for (const auto& acoEntry : AccessControlObjects) {
+                ScheduleCreateObject(
+                    EObjectType::AccessControlObject,
+                    ConvertToAttributes(BuildYsonStringFluently()
+                        .BeginMap()
+                            .Item("namespace").Value(GetAccessControlObjectNamespaceName(acoEntry.second.GetNamespace()))
+                            .Item("name").Value(GetAccessControlObjectName(acoEntry.second.GetName()))
+                        .EndMap()));
+            }
+
             YT_LOG_INFO("World initialization completed");
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "World initialization failed");
@@ -1010,6 +1036,26 @@ private:
         ScheduledMutations_.push_back(ExecuteVerb(service, req).AsVoid());
     }
 
+    void ScheduleCreateObject(
+        EObjectType type,
+        const NYTree::IAttributeDictionaryPtr attributesPtr)
+    {
+        auto attributes = attributesPtr ? attributesPtr->Clone() : EmptyAttributes().Clone();
+        auto proxy = CreateObjectServiceWriteProxy(Bootstrap_->GetRootClient());
+        auto batchReq = proxy.ExecuteBatch();
+
+        auto req = TMasterYPathProxy::CreateObject();
+        req->set_type(ToProto<int>(type));
+        req->set_ignore_existing(true);
+        ToProto(req->mutable_object_attributes(), *attributes);
+        batchReq->AddRequest(req);
+
+        auto batchRsp = WaitFor(batchReq->Invoke())
+            .ValueOrThrow();
+        batchRsp->GetResponse<TMasterYPathProxy::TRspCreateObject>(0)
+            .ThrowOnError();
+    }
+
     void ScheduleSetNode(
         const TYPath& path,
         TTransactionId transactionId,
@@ -1055,4 +1101,3 @@ IWorldInitializerPtr CreateWorldInitializer(TBootstrap* bootstrap)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NCellMaster
-
