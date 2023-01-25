@@ -132,6 +132,11 @@ public:
     // COMPAT(shakurov) mainly for testing purposes.
     bool EnableAlertOnNodeStatisticsFix;
 
+    // COMPAT(aleksandra-zh)
+    bool EnableQueueSizeLimitChanges;
+
+    int MaxNodesBeingMerged;
+
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);

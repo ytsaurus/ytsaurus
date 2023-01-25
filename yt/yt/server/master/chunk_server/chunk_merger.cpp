@@ -614,7 +614,7 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
     YT_VERIFY(trunkChunkOwner->IsTrunk());
 
     const auto& config = GetDynamicConfig();
-    if (!config->Enable) {
+    if (!config->Enable && !config->EnableQueueSizeLimitChanges) {
         YT_LOG_DEBUG("Cannot schedule merge: chunk merger is disabled");
         return;
     }
@@ -941,6 +941,13 @@ void TChunkMerger::RegisterSession(TChunkOwnerBase* chunkOwner)
         YT_LOG_ALERT("Node is marked as updated, but has no running merge sessions (NodeId: %v)",
             chunkOwner->GetId());
         chunkOwner->SetUpdatedSinceLastMerge(false);
+    }
+
+    const auto& config = GetDynamicConfig();
+    if (config->EnableQueueSizeLimitChanges && ssize(NodesBeingMerged_) >= config->MaxNodesBeingMerged) {
+        YT_LOG_DEBUG("Skipping merge due to nodes being merged count exceeding the limit (NodeId: %v)",
+            chunkOwner->GetId());
+        return;
     }
 
     YT_VERIFY(NodesBeingMerged_.insert(chunkOwner->GetId()).second);

@@ -606,6 +606,30 @@ class TestChunkMerger(YTEnvSetup):
         assert read_table("//tmp/t") == rows
 
     @authors("aleksandra-zh")
+    @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
+    def test_max_nodes_being_merged(self, merge_mode):
+        create("table", "//tmp/t")
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+
+        set("//sys/@config/chunk_manager/chunk_merger/enable_queue_size_limit_changes", True)
+        set("//sys/@config/chunk_manager/chunk_merger/max_nodes_being_merged", 0)
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        assert (get("//tmp/t/@chunk_count") == 3)
+
+        set("//sys/@config/chunk_manager/chunk_merger/max_nodes_being_merged", 10)
+        # Trigger merge again.
+        set("//tmp/t/@chunk_merger_mode", "deep")
+        wait(lambda: get("//tmp/t/@chunk_count") == 1)
+
+    @authors("aleksandra-zh")
     def test_merge_job_rate_limit_permission(self):
         create_account("a")
         create_user("u")
