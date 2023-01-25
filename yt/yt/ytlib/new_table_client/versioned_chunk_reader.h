@@ -27,7 +27,8 @@ NTableClient::IVersionedReaderPtr CreateVersionedChunkReader(
     NTableClient::TChunkReaderPerformanceCountersPtr performanceCounters,
     const NChunkClient::TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics = nullptr);
+    TReaderStatisticsPtr readerStatistics = nullptr,
+    IInvokerPtr sessionInvoker = nullptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 

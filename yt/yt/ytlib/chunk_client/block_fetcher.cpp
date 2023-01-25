@@ -633,7 +633,8 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
     IBlockCachePtr blockCache,
     NCompression::ECodec codecId,
     double compressionRatio,
-    const TClientChunkReadOptions& chunkReadOptions)
+    const TClientChunkReadOptions& chunkReadOptions,
+    IInvokerPtr sessionnInvoker)
     : TBlockFetcher(
         std::move(config),
         blockInfos,
@@ -642,7 +643,8 @@ TSequentialBlockFetcher::TSequentialBlockFetcher(
         std::move(blockCache),
         codecId,
         compressionRatio,
-        chunkReadOptions)
+        chunkReadOptions,
+        std::move(sessionnInvoker))
     , OriginalOrderBlockInfos_(std::move(blockInfos))
 { }
 

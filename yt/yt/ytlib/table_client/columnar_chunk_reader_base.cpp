@@ -326,7 +326,7 @@ void TColumnarRangeChunkReaderBase::Initialize(NYT::TRange<IUnversionedColumnRea
     }
 }
 
-void TColumnarRangeChunkReaderBase::InitBlockFetcher()
+void TColumnarRangeChunkReaderBase::InitBlockFetcher(IInvokerPtr sessionInvoker)
 {
     YT_VERIFY(LowerRowIndex_ < ChunkMeta_->Misc().row_count());
 
@@ -444,7 +444,7 @@ void TColumnarRangeChunkReaderBase::InitBlockFetcher()
             CheckedEnumCast<NCompression::ECodec>(ChunkMeta_->Misc().compression_codec()),
             static_cast<double>(ChunkMeta_->Misc().compressed_data_size()) / ChunkMeta_->Misc().uncompressed_data_size(),
             ChunkReadOptions_,
-            GetCurrentInvoker());
+            std::move(sessionInvoker));
         BlockFetcher_->Start();
     }
 }

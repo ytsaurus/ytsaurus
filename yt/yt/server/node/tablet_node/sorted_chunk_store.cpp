@@ -368,7 +368,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
             std::move(backendReaders.ChunkReader),
             chunkState->PerformanceCounters,
             chunkReadOptions,
-            produceAllVersions));
+            produceAllVersions,
+            nullptr,
+            GetCurrentInvoker()));
     }
 
     // Reader can handle chunk timestamp itself if needed, no need to wrap with
@@ -383,7 +385,9 @@ IVersionedReaderPtr TSortedChunkStore::CreateReader(
         columnFilter,
         timestamp,
         produceAllVersions,
-        ReadRange_);
+        ReadRange_,
+        nullptr,
+        GetCurrentInvoker());
 }
 
 IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
@@ -434,7 +438,9 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             chunkReader,
             chunkState->PerformanceCounters,
             chunkReadOptions,
-            produceAllVersions);
+            produceAllVersions,
+            nullptr,
+            GetCurrentInvoker());
     }
 
     return CreateCacheBasedVersionedChunkReader(
@@ -636,7 +642,9 @@ IVersionedReaderPtr TSortedChunkStore::TryCreateCacheBasedReader(
             chunkReader,
             chunkState->PerformanceCounters,
             chunkReadOptions,
-            produceAllVersions);
+            produceAllVersions,
+            nullptr,
+            GetCurrentInvoker());
     }
 
     return CreateCacheBasedVersionedChunkReader(
