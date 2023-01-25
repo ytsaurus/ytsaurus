@@ -118,6 +118,7 @@
     XX(Deadline, deadline) \
     XX(Decommissioned, decommissioned) \
     XX(DecommissionedNodeCount, decommissioned_node_count) \
+    XX(DeltaStatistics, delta_statistics) \
     XX(DependentTransactionIds, dependent_transaction_ids) \
     XX(DescriptorConfigVersion, descriptor_config_version) \
     XX(Depth, depth) \
@@ -425,6 +426,7 @@
     XX(ShardIndex, shard_index) \
     XX(SkipFreezing, skip_freezing) \
     XX(SnapshotAccountViolatedResourceLimits, snapshot_account_violated_resource_limits) \
+    XX(SnapshotStatistics, snapshot_statistics) \
     XX(Sorted, sorted) \
     XX(SortedBy, sorted_by) \
     XX(StagedNodeIds, staged_node_ids) \

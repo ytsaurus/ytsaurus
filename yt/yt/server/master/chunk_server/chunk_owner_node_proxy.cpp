@@ -647,6 +647,10 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkFormatStatistics)
         .SetExternal(isExternal)
         .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::SnapshotStatistics)
+        .SetOpaque(true));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::DeltaStatistics)
+        .SetOpaque(true));
     descriptors->push_back(EInternedAttributeKey::ChunkCount);
     descriptors->push_back(EInternedAttributeKey::UncompressedDataSize);
     descriptors->push_back(EInternedAttributeKey::CompressedDataSize);
@@ -722,6 +726,14 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
         case EInternedAttributeKey::ChunkCount:
             BuildYsonFluently(consumer)
                 .Value(statistics.chunk_count());
+            return true;
+
+        case EInternedAttributeKey::SnapshotStatistics:
+            Serialize(node->SnapshotStatistics(), consumer);
+            return true;
+
+        case EInternedAttributeKey::DeltaStatistics:
+            Serialize(node->DeltaStatistics(), consumer);
             return true;
 
         case EInternedAttributeKey::UncompressedDataSize:
@@ -800,7 +812,7 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
 
         case EInternedAttributeKey::SecurityTags:
             BuildYsonFluently(consumer)
-                .Value(node->GetSecurityTags().Items);
+                .Value(node->ComputeSecurityTags().Items);
             return true;
 
         case EInternedAttributeKey::ChunkMergerMode:
@@ -1033,7 +1045,7 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
             // TODO(babenko): audit
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node security tags updated; node is switched to \"overwrite\" mode (NodeId: %v, OldSecurityTags: %v, NewSecurityTags: %v",
                 node->GetVersionedId(),
-                node->GetSecurityTags().Items,
+                node->ComputeSecurityTags().Items,
                 securityTags.Items);
 
             const auto& securityManager = Bootstrap_->GetSecurityManager();
@@ -1229,7 +1241,7 @@ void TChunkOwnerNodeProxy::GetBasicAttributes(TGetBasicAttributesContext* contex
     }
 
     if (context->PopulateSecurityTags) {
-        context->SecurityTags = node->GetSecurityTags();
+        context->SecurityTags = node->ComputeSecurityTags();
     }
 
     auto* transaction = GetTransaction();
