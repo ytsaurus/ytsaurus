@@ -508,9 +508,7 @@ private:
             context->KeySwitch = parser->ParseBoolean();
         }
         if (HasRowIndex_) {
-            if (auto optionalRowIndex = ParseOptionalInt64(parser)) {
-                context->RowIndex = *optionalRowIndex;
-            }
+            context->RowIndex = ParseRowIndex(parser);
         }
         if (HasRangeIndex_) {
             if (auto optionalRangeIndex = ParseOptionalInt64(parser)) {
@@ -535,6 +533,21 @@ private:
                 return parser->ParseInt64();
             default:
                 THROW_ERROR_EXCEPTION("Expected variant8 tag in range [0, 2), got %v", tag);
+        }
+    }
+
+    i64 ParseRowIndex(TCheckedInDebugSkiffParser* parser)
+    {
+        auto tag = parser->ParseVariant8Tag();
+        switch (tag) {
+            case 0:
+                return ERowIndex::ConsecutiveRow;
+            case 1:
+                return parser->ParseInt64();
+            case 2:
+                return ERowIndex::NotAvailable;
+            default:
+                THROW_ERROR_EXCEPTION("Expected variant8 tag in range [0, 3), got %v", tag);
         }
     }
 };

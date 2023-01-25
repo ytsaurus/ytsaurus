@@ -28,7 +28,8 @@ from yt.wrapper.schema import (
 from yt.wrapper.schema.internal_schema import _get_annotation
 
 from yt.wrapper.prepare_operation import TypedJob
-from yt.testlib.helpers import set_config_option
+from yt.testlib.helpers import set_config_option, check_rows_equality
+from yt.wrapper.testlib.helpers import sync_create_cell, TEST_DIR
 
 import yt.yson as yson
 import yt.wrapper as yt
@@ -1537,3 +1538,25 @@ class TestTypedApi(object):
     def test_read_skiff_ranges_parallel_with_retries(self):
         with set_config_option("read_parallel/enable", True):
             self.test_read_skiff_ranges_with_retries()
+
+    @authors("aleexfi")
+    def test_dynamic_table_map(self):
+        table = TEST_DIR + "/dyntable"
+        result_table = table + "-out"
+        schema = TableSchema.from_row_type(TheRow)
+
+        sync_create_cell()
+
+        yt.create("table", table, attributes={"dynamic": True, "schema": schema})
+
+        yt.mount_table(table, sync=True)
+        yt.insert_rows(table, ROW_DICTS, raw=False)
+        yt.unmount_table(table, sync=True)
+
+        yt.run_map(TestTypedApi.SimpleIdentityMapper(), table, result_table)
+
+        check_rows_equality(
+            yt.read_table(result_table),
+            ROW_DICTS,
+            ordered=False
+        )
