@@ -120,10 +120,10 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("queue_size_limit", &TThis::QueueSizeLimit)
         .GreaterThan(0)
-        .Default(100000);
+        .Default(100'000);
     registrar.Parameter("max_running_job_count", &TThis::MaxRunningJobCount)
         .GreaterThan(1)
-        .Default(100000);
+        .Default(100'000);
 
     registrar.Parameter("shallow_merge_validation_probability", &TThis::ShallowMergeValidationProbability)
         .Default(0);
@@ -142,6 +142,14 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_alert_on_node_statistics_fix", &TThis::EnableAlertOnNodeStatisticsFix)
         .Default(true)
+        .DontSerializeDefault();
+
+    registrar.Parameter("enable_queue_size_limit_changes", &TThis::EnableQueueSizeLimitChanges)
+        .Default(false)
+        .DontSerializeDefault();
+
+    registrar.Parameter("max_nodes_being_merged", &TThis::MaxNodesBeingMerged)
+        .Default(1'000'000)
         .DontSerializeDefault();
 }
 
