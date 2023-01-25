@@ -1040,7 +1040,6 @@ public:
         FixNodeStatisticsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
             Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::NodeStatisticsFixer),
             BIND(&TCypressManager::FixNodeStatistics, MakeWeak(this)));
-        FixNodeStatisticsExecutor_->Start();
     }
 
     void FixNodeStatistics()
