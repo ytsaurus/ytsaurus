@@ -13,7 +13,7 @@ using namespace NDynamicConfig;
 TDynamicConfigManager::TDynamicConfigManager(IBootstrap* bootstrap)
     : TDynamicConfigManagerBase(
         TDynamicConfigManagerOptions{
-            .ConfigPath = "//sys/master_caches/@config",
+            .ConfigPath = bootstrap->GetConfig()->DynamicConfigPath,
             .Name = "MasterCache",
         },
         bootstrap->GetConfig()->DynamicConfigManager,
