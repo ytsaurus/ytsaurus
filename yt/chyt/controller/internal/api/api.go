@@ -474,27 +474,33 @@ func (a *API) SetSpeclet(ctx context.Context, alias string, speclet map[string]a
 	return nil
 }
 
-func (a *API) getOneShotRunAgentInfo() strawberry.AgentInfo {
+func (a *API) getAgentInfoForUntrackedStage() strawberry.AgentInfo {
 	agentInfo := a.cfg.AgentInfo
-	agentInfo.Stage = strawberry.OneShotRunStage
-	agentInfo.OperationNamespace = a.ctl.Family() + ":" + strawberry.OneShotRunStage
+	agentInfo.Stage = strawberry.UntrackedStage
+	agentInfo.OperationNamespace = a.ctl.Family() + ":" + strawberry.UntrackedStage
 	return agentInfo
 }
 
-func (a *API) OneShotRun(ctx context.Context, alias string, userClient yt.Client) error {
+func (a *API) Start(ctx context.Context, alias string, untracked bool, userClient yt.Client) error {
 	if err := a.CheckExistence(ctx, alias, true /*shouldExist*/); err != nil {
 		return err
 	}
 	if err := a.CheckPermissionToOp(ctx, alias, yt.PermissionManage); err != nil {
 		return err
 	}
-	if err := a.SetOption(ctx, alias, "stage", strawberry.OneShotRunStage); err != nil {
-		return err
-	}
 	if err := a.SetOption(ctx, alias, "active", true); err != nil {
 		return err
 	}
-	agentInfo := a.getOneShotRunAgentInfo()
+	if !untracked {
+		if err := a.SetOption(ctx, alias, "stage", a.cfg.AgentInfo.Stage); err != nil {
+			return err
+		}
+		return nil
+	}
+	if err := a.SetOption(ctx, alias, "stage", strawberry.UntrackedStage); err != nil {
+		return err
+	}
+	agentInfo := a.getAgentInfoForUntrackedStage()
 	oplet, err := a.getOplet(ctx, alias, userClient, agentInfo)
 	if err != nil {
 		return err
@@ -521,10 +527,10 @@ func (a *API) Stop(ctx context.Context, alias string) error {
 	if err = a.SetOption(ctx, alias, "active", false); err != nil {
 		return err
 	}
-	if stage != strawberry.OneShotRunStage {
+	if stage != strawberry.UntrackedStage {
 		return nil
 	}
-	agentInfo := a.getOneShotRunAgentInfo()
+	agentInfo := a.getAgentInfoForUntrackedStage()
 	oplet, err := a.getOplet(ctx, alias, nil, agentInfo)
 	if err != nil {
 		return err

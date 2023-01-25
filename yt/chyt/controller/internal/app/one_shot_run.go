@@ -73,5 +73,5 @@ func (runner *OneShotRunner) Run(alias string, specletYson yson.RawValue) error 
 	if err := a.SetSpeclet(ctx, alias, speclet); err != nil {
 		return err
 	}
-	return a.OneShotRun(ctx, alias, nil)
+	return a.Start(ctx, alias, true /*untracked*/, nil)
 }

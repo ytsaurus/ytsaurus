@@ -21,7 +21,7 @@ var AliasParameter = CmdParameter{
 	Required:    true,
 	Description: "alias for the operation",
 	EnvVariable: "ALIAS",
-	Validator:   ValidateAlias,
+	Validator:   validateAlias,
 }
 
 var ListCmdDescriptor = CmdDescriptor{
@@ -142,7 +142,7 @@ var KeyParameter = CmdParameter{
 	Type:        TypeString,
 	Required:    true,
 	Description: "speclet option name",
-	Validator:   ValidateOption,
+	Validator:   validateOption,
 }
 
 var ValueParameter = CmdParameter{
@@ -247,7 +247,7 @@ var SpecletParameter = CmdParameter{
 	Type:        TypeAny,
 	Required:    true,
 	Description: "speclet in yson format",
-	Validator:   ValidateSpeclet,
+	Validator:   validateSpeclet,
 }
 
 var SetSpecletCmdDescriptor = CmdDescriptor{
@@ -270,13 +270,22 @@ func (a HTTPAPI) HandleSetSpeclet(w http.ResponseWriter, r *http.Request) {
 	a.replyOK(w, nil)
 }
 
-var OneShotRunCmdDescriptor = CmdDescriptor{
-	Name:        "one_shot_run",
-	Parameters:  []CmdParameter{AliasParameter.AsExplicit()},
-	Description: "create a clique independent from controller",
+var UntrackedParameter = CmdParameter{
+	Name:   "untracked",
+	Action: StoreTrueAction,
+	Description: "start operation via user credentials; " +
+		"operation will not be tracked by the controller; " +
+		"highly unrecommended for production operations",
+	Validator: validateUntracked,
 }
 
-func (a HTTPAPI) HandleOneShotRun(w http.ResponseWriter, r *http.Request) {
+var StartCmdDescriptor = CmdDescriptor{
+	Name:        "start",
+	Parameters:  []CmdParameter{AliasParameter.AsExplicit(), UntrackedParameter},
+	Description: "start strawberry operation",
+}
+
+func (a HTTPAPI) HandleStart(w http.ResponseWriter, r *http.Request) {
 	userToken, err := ythttputil.GetTokenFromHeader(r)
 	if err != nil {
 		a.replyWithError(w, err)
@@ -291,12 +300,16 @@ func (a HTTPAPI) HandleOneShotRun(w http.ResponseWriter, r *http.Request) {
 		a.replyWithError(w, err)
 		return
 	}
-	params := a.parseAndValidateRequestParams(w, r, OneShotRunCmdDescriptor)
+	params := a.parseAndValidateRequestParams(w, r, StartCmdDescriptor)
 	if params == nil {
 		return
 	}
 	alias := params["alias"].(string)
-	if err := a.api.OneShotRun(r.Context(), alias, userClient); err != nil {
+	untracked := false
+	if params["untracked"] != nil {
+		untracked = params["untracked"].(bool)
+	}
+	if err := a.api.Start(r.Context(), alias, untracked, userClient); err != nil {
 		a.replyWithError(w, err)
 		return
 	}
@@ -375,7 +388,7 @@ func RegisterHTTPAPI(cfg HTTPAPIConfig, l log.Logger) chi.Router {
 			r.Post("/"+RemoveOptionCmdDescriptor.Name, api.HandleRemoveOption)
 			r.Post("/"+GetSpecletCmdDescriptor.Name, api.HandleGetSpeclet)
 			r.Post("/"+SetSpecletCmdDescriptor.Name, api.HandleSetSpeclet)
-			r.Post("/"+OneShotRunCmdDescriptor.Name, api.HandleOneShotRun)
+			r.Post("/"+StartCmdDescriptor.Name, api.HandleStart)
 			r.Post("/"+StopCmdDescriptor.Name, api.HandleStop)
 		})
 	}
