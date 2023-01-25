@@ -203,7 +203,8 @@ public:
         TTimestamp timestamp,
         bool produceAllVersions,
         const TSharedRange<TRowRange>& singletonClippingRange,
-        const TChunkReaderMemoryManagerPtr& memoryManager)
+        const TChunkReaderMemoryManagerPtr& memoryManager,
+        IInvokerPtr sessionInvoker)
         : TSimpleVersionedChunkReaderBase(
             std::move(config),
             std::move(chunkMeta),
@@ -223,7 +224,7 @@ public:
     {
         YT_VERIFY(ChunkMeta_->GetChunkFormat() == TBlockReader::ChunkFormat);
 
-        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc()));
+        SetReadyEvent(DoOpen(GetBlockSequence(), ChunkMeta_->Misc(), sessionInvoker));
     }
 
     IVersionedRowBatchPtr Read(const TRowBatchReadOptions& options) override
@@ -1107,7 +1108,8 @@ public:
         const std::vector<TColumnIdMapping>& schemaIdMapping,
         TChunkReaderPerformanceCountersPtr performanceCounters,
         TTimestamp timestamp,
-        const TChunkReaderMemoryManagerPtr& memoryManager)
+        const TChunkReaderMemoryManagerPtr& memoryManager,
+        IInvokerPtr sessionInvoker)
         : TColumnarVersionedChunkReaderBase(
             std::move(config),
             chunkMeta,
@@ -1147,7 +1149,7 @@ public:
         InitUpperRowIndex();
 
         if (LowerRowIndex_ < HardUpperRowIndex_) {
-            InitBlockFetcher();
+            InitBlockFetcher(std::move(sessionInvoker));
             SetReadyEvent(RequestFirstBlocks());
         } else {
             Initialized_ = true;
@@ -1724,7 +1726,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TTimestamp timestamp,
     bool produceAllVersions,
     const TSharedRange<TRowRange>& singletonClippingRange,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerPtr& memoryManager,
+    IInvokerPtr sessionInvoker)
 {
     const auto& blockCache = chunkState->BlockCache;
     const auto& performanceCounters = chunkState->PerformanceCounters;
@@ -1780,7 +1783,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     timestamp,
                     produceAllVersions,
                     singletonClippingRange,
-                    memoryManager);
+                    memoryManager,
+                    sessionInvoker);
             };
 
             switch (chunkMeta->GetChunkFormat()) {
@@ -1824,7 +1828,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
                     schemaIdMapping,
                     performanceCounters,
                     timestamp,
-                    memoryManager);
+                    memoryManager,
+                    sessionInvoker);
             };
 
             if (timestamp == AllCommittedTimestamp) {
@@ -1921,7 +1926,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     const TColumnFilter& columnFilter,
     TTimestamp timestamp,
     bool produceAllVersions,
-    const TChunkReaderMemoryManagerPtr& memoryManager)
+    const TChunkReaderMemoryManagerPtr& memoryManager,
+    IInvokerPtr sessionInvoker)
 {
     return CreateVersionedChunkReader(
         config,
@@ -1934,7 +1940,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
         timestamp,
         produceAllVersions,
         {},
-        memoryManager);
+        memoryManager,
+        sessionInvoker);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

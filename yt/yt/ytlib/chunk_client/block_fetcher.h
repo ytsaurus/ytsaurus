@@ -51,7 +51,7 @@ public:
         NCompression::ECodec codecId,
         double compressionRatio,
         const TClientChunkReadOptions& chunkReadOptions,
-        IInvokerPtr compressionInvoker = nullptr);
+        IInvokerPtr sessionnInvoker = nullptr);
 
     ~TBlockFetcher();
 
@@ -205,7 +205,8 @@ public:
         IBlockCachePtr blockCache,
         NCompression::ECodec codecId,
         double compressionRatio,
-        const TClientChunkReadOptions& chunkReadOptions);
+        const TClientChunkReadOptions& chunkReadOptions,
+        IInvokerPtr sessionnInvoker = nullptr);
 
     TFuture<TBlock> FetchNextBlock();
 

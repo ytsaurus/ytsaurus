@@ -585,7 +585,8 @@ IVersionedReaderPtr CreateVersionedChunkReader(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics)
+    TReaderStatisticsPtr readerStatistics,
+    IInvokerPtr sessionInvoker)
 {
     if (!readerStatistics) {
         readerStatistics = New<TReaderStatistics>();
@@ -637,7 +638,7 @@ IVersionedReaderPtr CreateVersionedChunkReader(
             static_cast<double>(chunkMeta->Misc().compressed_data_size()) / chunkMeta->Misc().uncompressed_data_size(),
             chunkReadOptions,
             // Enable current invoker for range reads.
-            IsKeys(readItems) ? nullptr : GetCurrentInvoker());
+            IsKeys(readItems) ? nullptr : sessionInvoker);
         blockFetcher->Start();
         readerStatistics->CreateBlockFetcherTime = createBlockFetcherTimer.GetElapsedTime();
     }
@@ -735,7 +736,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TRowRange>(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics);
+    TReaderStatisticsPtr readerStatistics,
+    IInvokerPtr sessionInvoker);
 
 template
 IVersionedReaderPtr CreateVersionedChunkReader<TLegacyKey>(
@@ -751,7 +753,8 @@ IVersionedReaderPtr CreateVersionedChunkReader<TLegacyKey>(
     TChunkReaderPerformanceCountersPtr performanceCounters,
     const TClientChunkReadOptions& chunkReadOptions,
     bool produceAll,
-    TReaderStatisticsPtr readerStatistics);
+    TReaderStatisticsPtr readerStatistics,
+    IInvokerPtr sessionInvoker);
 
 ////////////////////////////////////////////////////////////////////////////////
 

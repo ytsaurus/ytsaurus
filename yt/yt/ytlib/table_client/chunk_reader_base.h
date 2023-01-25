@@ -65,7 +65,8 @@ protected:
 
     TFuture<void> DoOpen(
         std::vector<NChunkClient::TBlockFetcher::TBlockInfo> blockSequence,
-        const NChunkClient::NProto::TMiscExt& miscExt);
+        const NChunkClient::NProto::TMiscExt& miscExt,
+        IInvokerPtr sessionInvoker = nullptr);
 
     //! Used in versioned chunk reader only and thus still uses legacy keys.
     void CheckBlockUpperKeyLimit(

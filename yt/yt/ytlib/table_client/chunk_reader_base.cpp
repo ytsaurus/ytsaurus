@@ -62,7 +62,8 @@ TChunkReaderBase::~TChunkReaderBase()
 
 TFuture<void> TChunkReaderBase::DoOpen(
     std::vector<TBlockFetcher::TBlockInfo> blockSequence,
-    const TMiscExt& miscExt)
+    const TMiscExt& miscExt,
+    IInvokerPtr sessionInvoker)
 {
     TCurrentTraceContextGuard traceGuard(TraceContext_);
 
@@ -85,7 +86,8 @@ TFuture<void> TChunkReaderBase::DoOpen(
         BlockCache_,
         CheckedEnumCast<ECodec>(miscExt.compression_codec()),
         static_cast<double>(miscExt.compressed_data_size()) / miscExt.uncompressed_data_size(),
-        ChunkReadOptions_);
+        ChunkReadOptions_,
+        std::move(sessionInvoker));
     SequentialBlockFetcher_->Start();
 
     InitFirstBlockNeeded_ = true;

@@ -134,7 +134,7 @@ protected:
 
     void Initialize(TRange<NTableChunkFormat::IUnversionedColumnReader*> keyReaders);
 
-    void InitBlockFetcher();
+    void InitBlockFetcher(IInvokerPtr sessionInvoker = nullptr);
     TFuture<void> RequestFirstBlocks();
 
     bool TryFetchNextRow();
