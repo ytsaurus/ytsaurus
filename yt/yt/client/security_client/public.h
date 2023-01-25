@@ -78,6 +78,16 @@ DEFINE_ENUM(EProxyKind,
     ((Rpc)           (2))
 );
 
+DEFINE_ENUM(EAccessControlObjectNamespace,
+    (AdminCommands)
+);
+
+DEFINE_ENUM(EAccessControlObject,
+    (DisableChunkLocations)
+    (DestroyChunkLocations)
+    (ResurrectChunkLocations)
+);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NSecurityClient

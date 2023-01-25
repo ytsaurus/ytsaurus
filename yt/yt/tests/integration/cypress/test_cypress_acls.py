@@ -1544,6 +1544,14 @@ class TestCypressAcls(CheckPermissionBase):
         build_snapshot(cell_id=None, set_read_only=False)
         get("//sys/users/u1/@")
 
+    @authors("don-dron")
+    def test_create_access_control_objects_with_ignore_existing(self):
+        create_access_control_object_namespace("cats", ignore_existing=True)
+        create_access_control_object("garfield", "cats", ignore_existing=True)
+
+        remove("//sys/access_control_object_namespaces/cats/garfield")
+        remove("//sys/access_control_object_namespaces/cats")
+
 ##################################################################
 
 

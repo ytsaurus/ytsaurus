@@ -39,6 +39,8 @@
 
 #include <yt/yt/client/chaos_client/replication_card.h>
 
+#include <yt/yt/client/security_client/public.h>
+
 #include <yt/yt/client/api/internal_client.h>
 
 #include <yt/yt/client/ypath/rich.h>
@@ -791,6 +793,9 @@ private:
     NApi::IClientPtr CreateRootClient();
 
     void ValidateSuperuserPermissions();
+    void ValidatePermissionsWithACN(
+        NSecurityClient::EAccessControlObject accessControlObject,
+        NYTree::EPermission permission);
 
     NObjectClient::TObjectId CreateObjectImpl(
         NObjectClient::EObjectType type,

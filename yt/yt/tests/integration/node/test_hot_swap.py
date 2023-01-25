@@ -2,7 +2,8 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, wait,
-    ls, get, create,
+    ls, get, create, set, make_ace,
+    create_user,
     update_nodes_dynamic_config,
     write_table, disable_chunk_locations,
     resurrect_chunk_locations)
@@ -127,6 +128,27 @@ class TestHotSwap(YTEnvSetup):
                 wait(lambda: len(resurrect_chunk_locations(node, [location_uuid])) == 0)
 
         wait(lambda: can_write())
+
+        create_user("test_user")
+
+        acl = [make_ace("allow", "test_user", "use")]
+
+        def check():
+            node = ls("//sys/cluster_nodes", attributes=["chunk_locations"])[0]
+            try:
+                disable_chunk_locations(node, [], authenticated_user="test_user")
+                return True
+            except Exception:
+                return False
+
+        wait(lambda: not check())
+        set("//sys/access_control_object_namespaces/admin_commands/disable_chunk_locations/principal/@acl", acl)
+
+        wait(lambda: check())
+
+        set("//sys/access_control_object_namespaces/admin_commands/disable_chunk_locations/principal/@acl", [])
+
+        wait(lambda: not check())
 
         for node in ls("//sys/cluster_nodes", attributes=["chunk_locations"]):
             for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
