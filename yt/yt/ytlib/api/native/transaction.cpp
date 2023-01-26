@@ -605,6 +605,16 @@ private:
 
         void SubmitRows()
         {
+            try {
+                GuardedSubmitRows();
+            } catch (const std::exception& ex) {
+                THROW_ERROR_EXCEPTION("Error submitting rows for table %v", TableSession_->GetInfo()->Path)
+                    << TError(ex);
+            }
+        }
+
+        void GuardedSubmitRows()
+        {
             auto transaction = Transaction_.Lock();
             if (!transaction) {
                 return;
