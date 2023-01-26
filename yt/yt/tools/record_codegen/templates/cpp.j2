@@ -112,11 +112,16 @@ TUnversionedRow {{type.type_name}}::ToUnversionedRow(
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);
+        try {
 {% if field.sort_order %}
-        FromUnversionedValue(&result.Key.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
+            FromUnversionedValue(&result.Key.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
 {% else %}
-        FromUnversionedValue(&result.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
+            FromUnversionedValue(&result.{{field.cpp_name}}, row[*idMapping.{{field.cpp_name}}]);
 {% endif %}
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing column %Qv", "{{field.column_name}}")
+                << ex;
+        }
     }
 {%- endfor %}
     return result;
@@ -149,11 +154,16 @@ TUnversionedRow {{type.type_name}}Partial::ToUnversionedRow(
     if (idMapping.{{field.cpp_name}}) {
         auto id = *idMapping.{{field.cpp_name}};
         ValidateRowValueCount(row, id);
+        try {
 {%- if field.sort_order %}
-        FromUnversionedValue(&result.Key.{{field.cpp_name}}, row[id]);
+            FromUnversionedValue(&result.Key.{{field.cpp_name}}, row[id]);
 {% else %}
-        FromUnversionedValue(&result.{{field.cpp_name}}, row[id]);
+            FromUnversionedValue(&result.{{field.cpp_name}}, row[id]);
 {% endif %}
+        } catch (const std::exception& ex) {
+            THROW_ERROR_EXCEPTION("Error parsing column %Qv", "{{field.column_name}}")
+                << ex;
+        }
     }
 {%- endfor %}
     return result;

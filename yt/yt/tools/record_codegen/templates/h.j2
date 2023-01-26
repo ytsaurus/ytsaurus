@@ -17,6 +17,7 @@ namespace {{namespace}} {
 
 {% for type in types %}
 struct {{type.type_name}};
+struct {{type.type_name}}Partial;
 struct {{type.type_name}}Key;
 struct {{type.type_name}}IdMapping;
 class {{type.type_name}}Descriptor;
@@ -35,8 +36,10 @@ class {{type.type_name}}Descriptor
 {
 public:
     using TRecord = {{type.type_name}};
+    using TRecordPartial = {{type.type_name}}Partial;
     using TKey = {{type.type_name}}Key;
     using TIdMapping = {{type.type_name}}IdMapping;
+    static constexpr int FieldCount = {{type.fields | length}};
 {% if type.verbatim %}
 {{type.verbatim}}
 {% endif %}
