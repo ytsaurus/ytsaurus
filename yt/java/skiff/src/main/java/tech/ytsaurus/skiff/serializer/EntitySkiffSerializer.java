@@ -1,12 +1,15 @@
 package tech.ytsaurus.skiff.serializer;
 
+import java.io.BufferedOutputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.OutputStream;
 import java.lang.reflect.Field;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
 import java.nio.charset.StandardCharsets;
 import java.util.Collection;
+import java.util.HashMap;
 import java.util.List;
 
 import javax.annotation.Nullable;
@@ -19,13 +22,21 @@ import tech.ytsaurus.skiff.schema.WireType;
 import static tech.ytsaurus.core.utils.ClassUtils.castToList;
 import static tech.ytsaurus.core.utils.ClassUtils.isFieldTransient;
 import static tech.ytsaurus.skiff.schema.WireTypeUtil.getClassWireType;
+import static tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator.getEntitySchema;
 
 public class EntitySkiffSerializer<T> {
-
     private final SkiffSchema schema;
+    private final Field[] fields;
+    private final HashMap<Class<?>, Field[]> entityFieldsMap = new HashMap<>();
 
-    public EntitySkiffSerializer(SkiffSchema schema) {
-        this.schema = schema;
+    public EntitySkiffSerializer(Class<T> entityClass) {
+        if (!entityClass.isAnnotationPresent(Entity.class)) {
+            throw new IllegalArgumentException("Class must be annotated with @Entity");
+        }
+        this.schema = getEntitySchema(entityClass);
+        this.fields = entityClass.getDeclaredFields();
+        entityFieldsMap.put(entityClass, fields);
+        setFieldsAccessible(fields);
     }
 
     public SkiffSchema getSchema() {
@@ -33,13 +44,9 @@ public class EntitySkiffSerializer<T> {
     }
 
     public byte[] serialize(T object) {
-        if (!object.getClass().isAnnotationPresent(Entity.class)) {
-            throw new IllegalArgumentException("Class must be annotated with @Entity");
-        }
-
         ByteArrayOutputStream byteOS = new ByteArrayOutputStream();
-        serializeObject(object, schema, byteOS);
         try {
+            serializeComplexObject(object, schema, fields, byteOS);
             byteOS.flush();
         } catch (IOException e) {
             throw new RuntimeException(e);
@@ -47,19 +54,30 @@ public class EntitySkiffSerializer<T> {
         return byteOS.toByteArray();
     }
 
-    private static <T> ByteArrayOutputStream serializeObject(@Nullable T object,
-                                                             SkiffSchema objectSchema,
-                                                             ByteArrayOutputStream byteOS) {
+    public void serialize(T object, BufferedOutputStream outputStream) {
+        serializeComplexObject(object, schema, fields, outputStream);
+    }
+
+    private static void setFieldsAccessible(Field[] fields) {
+        for (var field : fields) {
+            field.setAccessible(true);
+        }
+    }
+
+    private <Type> OutputStream serializeObject(@Nullable Type object,
+                                                SkiffSchema objectSchema,
+                                                OutputStream byteOS) throws IOException {
         boolean isNullable = objectSchema.getWireType().isVariant() &&
                 objectSchema.getChildren().get(0).getWireType() == WireType.NOTHING;
         if (object == null) {
             if (!isNullable) {
                 throw new NullPointerException("Field \"" + objectSchema.getName() + "\" is non nullable");
             }
-            return serializeByte((byte) 0x00, byteOS);
+            byteOS.write(0x00);
+            return byteOS;
         }
         if (isNullable) {
-            serializeByte((byte) 0x01, byteOS);
+            byteOS.write(0x01);
             objectSchema = objectSchema.getChildren().get(1);
         }
 
@@ -73,38 +91,43 @@ public class EntitySkiffSerializer<T> {
             return serializeCollection(object, objectSchema, byteOS);
         }
 
-        return serializeComplexObject(object, objectSchema, byteOS);
+        Field[] entityFields = entityFieldsMap.computeIfAbsent(clazz, entityClass -> {
+            Field[] declaredFields = entityClass.getDeclaredFields();
+            setFieldsAccessible(declaredFields);
+            return declaredFields;
+        });
+        return serializeComplexObject(object, objectSchema, entityFields, byteOS);
     }
 
-    private static <T> ByteArrayOutputStream serializeComplexObject(T object,
-                                                                    SkiffSchema objectSchema,
-                                                                    ByteArrayOutputStream byteOS) {
+    private <Type> OutputStream serializeComplexObject(Type object,
+                                                       SkiffSchema objectSchema,
+                                                       Field[] fields,
+                                                       OutputStream byteOS) {
         if (objectSchema.getWireType() != WireType.TUPLE) {
             throwInvalidSchemeException();
         }
-        Field[] fields = object.getClass().getDeclaredFields();
+
         int indexInSchema = 0;
         for (Field field : fields) {
             if (isFieldTransient(field, Transient.class)) {
                 continue;
             }
             try {
-                field.setAccessible(true);
                 serializeObject(
                         field.get(object),
                         objectSchema.getChildren().get(indexInSchema),
                         byteOS);
                 indexInSchema++;
-            } catch (IllegalAccessException | IndexOutOfBoundsException e) {
+            } catch (IllegalAccessException | IndexOutOfBoundsException | IOException e) {
                 throwInvalidSchemeException();
             }
         }
         return byteOS;
     }
 
-    private static <T> ByteArrayOutputStream serializeCollection(T object,
-                                                                 SkiffSchema collectionSchema,
-                                                                 ByteArrayOutputStream byteOS) {
+    private <Type> OutputStream serializeCollection(Type object,
+                                                    SkiffSchema collectionSchema,
+                                                    OutputStream byteOS) throws IOException {
         if (List.class.isAssignableFrom(object.getClass())) {
             return serializeList(object, collectionSchema, byteOS);
         } else {
@@ -113,23 +136,23 @@ public class EntitySkiffSerializer<T> {
         }
     }
 
-    private static <T, E> ByteArrayOutputStream serializeList(T object,
-                                                              SkiffSchema listSchema,
-                                                              ByteArrayOutputStream byteOS) {
+    private <Type, ElemType> OutputStream serializeList(Type object,
+                                                        SkiffSchema listSchema,
+                                                        OutputStream byteOS) throws IOException {
         if (!listSchema.isListSchema()) {
             throwInvalidSchemeException();
         }
 
-        List<E> list = castToList(object);
-        for (E elem : list) {
+        List<ElemType> list = castToList(object);
+        for (ElemType elem : list) {
             serializeObject(elem, listSchema, byteOS);
         }
         return serializeByte((byte) 0xFF, byteOS);
     }
 
-    private static <T> ByteArrayOutputStream serializeSimpleType(T object,
-                                                                 WireType wireType,
-                                                                 ByteArrayOutputStream byteOS) {
+    private static <Type> OutputStream serializeSimpleType(Type object,
+                                                           WireType wireType,
+                                                           OutputStream byteOS) {
         try {
             switch (wireType) {
                 case INT_8:
@@ -149,61 +172,60 @@ public class EntitySkiffSerializer<T> {
                 default:
                     throw new IllegalArgumentException("This type + (\"" + wireType + "\") is not supported");
             }
-        } catch (ClassCastException e) {
+        } catch (ClassCastException | IOException e) {
             throwInvalidSchemeException();
         }
         throw new IllegalStateException();
     }
 
-    private static ByteArrayOutputStream serializeString(String string, ByteArrayOutputStream byteOS) {
+    private static OutputStream serializeString(String string, OutputStream byteOS) throws IOException {
         byte[] bytes = string.getBytes(StandardCharsets.UTF_8);
         serializeInt(bytes.length, byteOS)
-                .writeBytes(bytes);
+                .write(bytes);
         return byteOS;
     }
 
-    private static ByteArrayOutputStream serializeBoolean(boolean bool, ByteArrayOutputStream byteOS) {
-        byteOS.writeBytes(bool ? new byte[]{1} : new byte[]{0});
+    private static OutputStream serializeBoolean(boolean bool, OutputStream byteOS) throws IOException {
+        byteOS.write(bool ? 1 : 0);
         return byteOS;
     }
 
-    private static ByteArrayOutputStream serializeDouble(double number, ByteArrayOutputStream byteOS) {
-        byteOS.writeBytes(ByteBuffer
+    private static OutputStream serializeDouble(double number, OutputStream byteOS) throws IOException {
+        byteOS.write(ByteBuffer
                 .allocate(8).order(ByteOrder.LITTLE_ENDIAN)
                 .putDouble(number)
                 .array());
         return byteOS;
     }
 
-    private static ByteArrayOutputStream serializeByte(byte number, ByteArrayOutputStream byteOS) {
-        byteOS.writeBytes(ByteBuffer
-                .allocate(1).order(ByteOrder.LITTLE_ENDIAN)
-                .put(number)
-                .array());
+    private static OutputStream serializeByte(byte number, OutputStream byteOS) throws IOException {
+        byteOS.write(number);
         return byteOS;
     }
 
-    private static ByteArrayOutputStream serializeShort(short number, ByteArrayOutputStream byteOS) {
-        byteOS.writeBytes(ByteBuffer
-                .allocate(2).order(ByteOrder.LITTLE_ENDIAN)
-                .putShort(number)
-                .array());
+    private static OutputStream serializeShort(short number, OutputStream byteOS) throws IOException {
+        byteOS.write((number & 0xFF));
+        byteOS.write((number >> 8) & 0xFF);
         return byteOS;
     }
 
-    private static ByteArrayOutputStream serializeInt(int number, ByteArrayOutputStream byteOS) {
-        byteOS.writeBytes(ByteBuffer
-                .allocate(4).order(ByteOrder.LITTLE_ENDIAN)
-                .putInt(number)
-                .array());
+    private static OutputStream serializeInt(int number, OutputStream byteOS) throws IOException {
+        byteOS.write((number & 0xFF));
+        byteOS.write((number >> 8) & 0xFF);
+        byteOS.write((number >> 16) & 0xFF);
+        byteOS.write((number >> 24) & 0xFF);
         return byteOS;
     }
 
-    private static ByteArrayOutputStream serializeLong(long number, ByteArrayOutputStream byteOS) {
-        byteOS.writeBytes(ByteBuffer
-                .allocate(8).order(ByteOrder.LITTLE_ENDIAN)
-                .putLong(number)
-                .array());
+    private static OutputStream serializeLong(long number, OutputStream byteOS) throws IOException {
+        byteOS.write((int) (number & 0xFF));
+        byteOS.write((int) ((number >> 8) & 0xFF));
+        byteOS.write((int) ((number >> 16) & 0xFF));
+        byteOS.write((int) ((number >> 24) & 0xFF));
+        byteOS.write((int) ((number >> 32) & 0xFF));
+        byteOS.write((int) ((number >> 40) & 0xFF));
+        byteOS.write((int) ((number >> 48) & 0xFF));
+        byteOS.write((int) ((number >> 56) & 0xFF));
         return byteOS;
     }
 

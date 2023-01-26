@@ -240,7 +240,10 @@ class YsonLexer {
     private String readBinaryString() {
         BufferReference ref = new BufferReference();
         readBinaryString(ref);
-        return new String(Arrays.copyOfRange(ref.buffer, ref.offset, ref.offset + ref.length), StandardCharsets.UTF_8);
+        return new String(
+                Arrays.copyOfRange(ref.getBuffer(), ref.getOffset(), ref.getOffset() + ref.getLength()),
+                StandardCharsets.UTF_8
+        );
     }
 
     private void readBinaryString(BufferReference bufferReference) {

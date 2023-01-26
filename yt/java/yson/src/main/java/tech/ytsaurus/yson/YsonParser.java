@@ -1,7 +1,6 @@
 package tech.ytsaurus.yson;
 
 import java.io.ByteArrayOutputStream;
-import java.io.IOException;
 import java.io.InputStream;
 import java.io.StringWriter;
 import java.io.UncheckedIOException;
@@ -143,7 +142,8 @@ public class YsonParser {
             switch (currentByte) {
                 case YsonTags.BINARY_STRING:
                     readBinaryString(bufferReference);
-                    consumer.onString(bufferReference.buffer, bufferReference.offset, bufferReference.length);
+                    consumer.onString(bufferReference.getBuffer(), bufferReference.getOffset(),
+                            bufferReference.getLength());
                     return;
                 case YsonTags.BINARY_INT: {
                     long value = readSInt64();
@@ -322,7 +322,8 @@ public class YsonParser {
             switch (currentByte) {
                 case YsonTags.BINARY_STRING:
                     readBinaryString(bufferReference);
-                    consumer.onKeyedItem(bufferReference.buffer, bufferReference.offset, bufferReference.length);
+                    consumer.onKeyedItem(bufferReference.getBuffer(), bufferReference.getOffset(),
+                            bufferReference.getLength());
                     return;
                 case '"': {
                     byte[] string = readQuotedString();
@@ -422,8 +423,8 @@ public class YsonParser {
             ) {
                 out.write(b);
             } else {
-               tokenizer.unreadByte();
-               break;
+                tokenizer.unreadByte();
+                break;
             }
         }
         return out.toByteArray();
@@ -601,16 +602,26 @@ public class YsonParser {
 
     private int decodeDigit(byte b) {
         switch (b) {
-            case '0': return 0;
-            case '1': return 1;
-            case '2': return 2;
-            case '3': return 3;
-            case '4': return 4;
-            case '5': return 5;
-            case '6': return 6;
-            case '7': return 7;
-            case '8': return 8;
-            case '9': return 9;
+            case '0':
+                return 0;
+            case '1':
+                return 1;
+            case '2':
+                return 2;
+            case '3':
+                return 3;
+            case '4':
+                return 4;
+            case '5':
+                return 5;
+            case '6':
+                return 6;
+            case '7':
+                return 7;
+            case '8':
+                return 8;
+            case '9':
+                return 9;
             case 'a':
             case 'A':
                 return 10;
@@ -643,60 +654,13 @@ public class YsonParser {
     }
 }
 
-class BufferReference {
-    static final byte[] EMPTY_BUFFER = new byte[]{};
-
-    byte[] buffer = EMPTY_BUFFER;
-    int length = 0;
-    int offset = 0;
-}
-
 interface ZeroCopyInput {
     boolean next(BufferReference out);
 }
 
-class BufferedStreamZeroCopyInput implements ZeroCopyInput {
-    final InputStream underlying;
-    final byte[] buffer;
-
-    BufferedStreamZeroCopyInput(InputStream input, int bufferSize) {
-        this(input, new byte[bufferSize]);
-    }
-
-    BufferedStreamZeroCopyInput(InputStream input, byte[] buffer) {
-        if (buffer.length == 0) {
-            throw new IllegalArgumentException("Buffer must be nonempty");
-        }
-        underlying = input;
-        this.buffer = buffer;
-    }
-
-    @Override
-    public boolean next(BufferReference out) {
-        try {
-            int totalRead = 0;
-            while (totalRead < buffer.length) {
-                int read = underlying.read(buffer, totalRead, buffer.length - totalRead);
-                if (read == -1) {
-                    break;
-                }
-                totalRead += read;
-            }
-            if (totalRead == 0) {
-                return false;
-            }
-            out.buffer = buffer;
-            out.offset = 0;
-            out.length = totalRead;
-            return true;
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
-    }
-}
-
 class ByteZeroCopyInput implements ZeroCopyInput {
-    @Nullable byte[] buffer;
+    @Nullable
+    byte[] buffer;
     int offset;
     int length;
 
@@ -714,9 +678,9 @@ class ByteZeroCopyInput implements ZeroCopyInput {
             buffer = null;
             return false;
         }
-        out.buffer = buffer;
-        out.offset = offset;
-        out.length = length;
+        out.setBuffer(buffer);
+        out.setOffset(offset);
+        out.setLength(length);
 
         buffer = null;
         return true;

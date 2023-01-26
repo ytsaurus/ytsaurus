@@ -1,6 +1,6 @@
 package tech.ytsaurus.yson;
 
-class StreamReader {
+public class StreamReader {
     public static final int END_OF_STREAM = Integer.MAX_VALUE;
 
     private final ZeroCopyInput underlying;
@@ -21,7 +21,7 @@ class StreamReader {
         this(new ByteZeroCopyInput(buffer, offset, length));
     }
 
-    StreamReader(ZeroCopyInput underlying) {
+    public StreamReader(ZeroCopyInput underlying) {
         this.underlying = underlying;
     }
 
@@ -59,9 +59,9 @@ class StreamReader {
 
     public void readBytes(int length, BufferReference out) {
         if (bufferOffset + length <= bufferLength) {
-            out.buffer = buffer;
-            out.offset = bufferOffset;
-            out.length = length;
+            out.setBuffer(buffer);
+            out.setOffset(bufferOffset);
+            out.setLength(length);
             bufferOffset += length;
         } else {
             if (largeStringBuffer.length < length) {
@@ -82,9 +82,9 @@ class StreamReader {
                 }
             }
 
-            out.buffer = largeStringBuffer;
-            out.offset = 0;
-            out.length = length;
+            out.setBuffer(largeStringBuffer);
+            out.setOffset(0);
+            out.setLength(length);
         }
         position += length;
     }
@@ -156,9 +156,9 @@ class StreamReader {
     private boolean nextBuffer() {
         boolean read = underlying.next(tmp);
         if (read) {
-            buffer = tmp.buffer;
-            bufferOffset = tmp.offset;
-            bufferLength = tmp.length;
+            buffer = tmp.getBuffer();
+            bufferOffset = tmp.getOffset();
+            bufferLength = tmp.getLength();
         }
         return read;
     }

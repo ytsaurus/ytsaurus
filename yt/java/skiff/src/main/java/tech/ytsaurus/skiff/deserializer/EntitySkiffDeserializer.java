@@ -16,6 +16,7 @@ import javax.persistence.Transient;
 
 import tech.ytsaurus.skiff.schema.SkiffSchema;
 import tech.ytsaurus.skiff.schema.WireType;
+import tech.ytsaurus.yson.BufferReference;
 
 import static tech.ytsaurus.core.utils.ClassUtils.castToList;
 import static tech.ytsaurus.core.utils.ClassUtils.castToType;
@@ -144,7 +145,9 @@ public class EntitySkiffDeserializer {
                 case BOOLEAN:
                     return castToType(parser.parseBoolean());
                 case STRING_32:
-                    return castToType(new String(parser.parseString32(), StandardCharsets.UTF_8));
+                    BufferReference ref = parser.parseString32();
+                    return castToType(new String(ref.getBuffer(), ref.getOffset(),
+                            ref.getLength(), StandardCharsets.UTF_8));
                 case NOTHING:
                     return null;
                 default:
