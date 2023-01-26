@@ -135,11 +135,17 @@ TTraceContext::TTraceContext(
     , ParentContext_(std::move(parentTraceContext))
     , SpanName_(std::move(spanName))
     , RequestId_(ParentContext_ ? ParentContext_->GetRequestId() : TRequestId{})
+    , TargetEndpoint_(ParentContext_ ? ParentContext_->GetTargetEndpoint() : std::nullopt)
     , LoggingTag_(ParentContext_ ? ParentContext_->GetLoggingTag() : TString{})
     , StartTime_(GetCpuInstant())
     , Baggage_(ParentContext_ ? ParentContext_->GetBaggage() : TYsonString{})
 {
 
+}
+
+void TTraceContext::SetTargetEndpoint(const std::optional<TString>& targetEndpoint)
+{
+    TargetEndpoint_ = targetEndpoint;
 }
 
 void TTraceContext::SetRequestId(TRequestId requestId)
@@ -191,6 +197,7 @@ TTraceContextPtr TTraceContext::CreateChild(
 
     auto guard = Guard(Lock_);
     child->ProfilingTags_ = ProfilingTags_;
+    child->TargetEndpoint_ = TargetEndpoint_;
     return child;
 }
 
@@ -456,6 +463,9 @@ void ToProto(NProto::TTracingExt* ext, const TTraceContextPtr& context)
     ext->set_sampled(context->IsSampled());
     ext->set_debug(context->IsDebug());
 
+    if (auto endpoint = context->GetTargetEndpoint()){
+        ext->set_target_endpoint(endpoint.value());
+    }
     if (GetTracingConfig()->SendBaggage) {
         if (auto baggage = context->GetBaggage()) {
             ext->set_baggage(baggage.ToString());
@@ -478,12 +488,14 @@ TTraceContextPtr TTraceContext::NewRoot(TString spanName, TTraceId traceId)
 TTraceContextPtr TTraceContext::NewChildFromSpan(
     TSpanContext parentSpanContext,
     TString spanName,
+    std::optional<TString> endpoint,
     TYsonString baggage)
 {
     auto result = New<TTraceContext>(
         parentSpanContext,
         std::move(spanName));
     result->SetBaggage(std::move(baggage));
+    result->SetTargetEndpoint(endpoint);
     return result;
 }
 
@@ -516,6 +528,9 @@ TTraceContextPtr TTraceContext::NewChildFromRpc(
     traceContext->SetRequestId(requestId);
     if (ext.has_baggage()) {
         traceContext->SetBaggage(TYsonString(ext.baggage()));
+    }
+    if (ext.has_target_endpoint()) {
+        traceContext->SetTargetEndpoint(ext.target_endpoint());
     }
     return traceContext;
 }

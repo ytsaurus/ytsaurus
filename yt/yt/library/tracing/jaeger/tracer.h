@@ -54,6 +54,8 @@ public:
 
     TDuration RpcTimeout;
 
+    TDuration EndpointChannelTimeout;
+
     TDuration QueueStallTimeout;
 
     TDuration ReconnectPeriod;
@@ -88,12 +90,61 @@ DEFINE_REFCOUNTED_TYPE(TJaegerTracerConfig)
 
 DECLARE_REFCOUNTED_CLASS(TJaegerTracer)
 
+class TBatchInfo
+{
+public:
+    TBatchInfo();
+    TBatchInfo(const TString& endpoint);
+
+    void PopFront();
+    void EmplaceBack(int size, NYT::TSharedRef&& value);
+    std::pair<i64, i64> DropQueue(int spanCount);
+    void IncrementTracesDropped(i64 delta);
+    std::tuple<std::vector<TSharedRef>, int, int> PeekQueue(const TJaegerTracerConfigPtr& config, std::optional<TSharedRef> processInfo);
+
+private:
+    std::deque<std::pair<int, TSharedRef>> BatchQueue_;
+
+    i64 QueueMemory_ = 0;
+    i64 QueueSize_ = 0;
+
+    NProfiling::TCounter TracesDequeued_;
+    NProfiling::TCounter TracesDropped_;
+    NProfiling::TGauge MemoryUsage_;
+    NProfiling::TGauge TraceQueueSize_;
+};
+
+class TJaegerChannelManager
+{
+public:
+    TJaegerChannelManager();
+    TJaegerChannelManager(const TIntrusivePtr<TJaegerTracerConfig>& config, const TString& endpoint);
+
+    bool Push(const std::vector<TSharedRef>& batches, int spanCount);
+    bool NeedsReopen(TInstant currentTime);
+    void ForceReset(TInstant currentTime);
+
+    TInstant GetReopenTime();
+
+private:
+    NRpc::IChannelPtr Channel_;
+
+    TString Endpoint_;
+
+    TInstant ReopenTime_;
+    TDuration RpcTimeout_;
+
+    NProfiling::TCounter PushedBytes_;
+    NProfiling::TCounter PushErrors_;
+    NProfiling::TSummary PayloadSize_;
+    NProfiling::TEventTimer PushDuration_;
+};
+
 class TJaegerTracer
     : public ITracer
 {
 public:
-    TJaegerTracer(
-        const TJaegerTracerConfigPtr& config);
+    TJaegerTracer(const TJaegerTracerConfigPtr& config);
 
     TFuture<void> WaitFlush();
 
@@ -113,31 +164,22 @@ private:
 
     TInstant LastSuccessfullFlushTime_ = TInstant::Now();
 
-    std::deque<std::pair<int, TSharedRef>> BatchQueue_;
-    i64 QueueMemory_ = 0;
-    i64 QueueSize_ = 0;
+    THashMap<TString, TBatchInfo> BatchInfo_;
+    i64 TotalMemory_ = 0;
+    i64 TotalSize_ = 0;
 
     TAtomicObject<TPromise<void>> QueueEmptyPromise_ = NewPromise<void>();
 
-    NRpc::IChannelPtr CollectorChannel_;
+    THashMap<TString, TJaegerChannelManager> CollectorChannels_;
     NRpc::NGrpc::TChannelConfigPtr OpenChannelConfig_;
-    TInstant ChannelReopenTime_;
 
     void Flush();
     void DequeueAll(const TJaegerTracerConfigPtr& config);
     void NotifyEmptyQueue();
 
-    std::tuple<std::vector<TSharedRef>, int, int> PeekQueue(const TJaegerTracerConfigPtr& config);
-    void DropQueue(int i);
-
-    NProfiling::TCounter TracesDequeued_;
-    NProfiling::TCounter TracesDropped_;
-    NProfiling::TCounter PushedBytes_;
-    NProfiling::TCounter PushErrors_;
-    NProfiling::TSummary PayloadSize_;
-    NProfiling::TGauge MemoryUsage_;
-    NProfiling::TGauge TraceQueueSize_;
-    NProfiling::TEventTimer PushDuration_;
+    std::tuple<std::vector<TSharedRef>, int, int> PeekQueue(const TJaegerTracerConfigPtr& config, const TString& endpoint);
+    void DropQueue(int batchCount, const TString& endpoint);
+    void DropFullQueue();
 
     TSharedRef GetProcessInfo(const TJaegerTracerConfigPtr& config);
 };

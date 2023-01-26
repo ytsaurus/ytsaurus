@@ -21,8 +21,11 @@ public:
     //! Request is sampled with probability P.
     double GlobalSampleRate;
 
-    //! Additionaly, request is sampled with probability P(user).
+    //! Additionally, request is sampled with probability P(user).
     THashMap<TString, double> UserSampleRate;
+
+    //! Spans are sent to specified endpoint.
+    THashMap<TString, TString> UserEndpoint;
 
     //! Additionally, sample first N requests for each user in the window.
     ui64 MinPerUserSamples;

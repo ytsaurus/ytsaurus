@@ -9,6 +9,7 @@
 #include <yt/yt/core/concurrency/action_queue.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
+#include <yt/yt/core/ytree/yson_serializable.h>
 #include <yt/yt/core/misc/protobuf_helpers.h>
 #include <yt/yt/core/misc/serialize.h>
 #include <yt/yt/core/utilex/random.h>
@@ -72,6 +73,8 @@ void TJaegerTracerConfig::Register(TRegistrar registrar)
         .Default();
     registrar.Parameter("reconnect_period", &TThis::ReconnectPeriod)
         .Default(TDuration::Minutes(15));
+    registrar.Parameter("endpoint_channel_timeout", &TThis::EndpointChannelTimeout)
+        .Default(TDuration::Hours(2));
 
     registrar.Parameter("service_name", &TThis::ServiceName)
         .Default();
@@ -189,9 +192,161 @@ void ToProto(NProto::Span* proto, const TTraceContextPtr& traceContext)
     }
 }
 
+template<typename TK, typename TV>
+std::vector<TK> ExtractKeys(THashMap<TK, TV> const& inputMap) {
+    std::vector<TK> retval;
+    for (auto const& element : inputMap) {
+        retval.push_back(element.first);
+    }
+    return retval;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
+
+TBatchInfo::TBatchInfo()
+{ }
+
+TBatchInfo::TBatchInfo(const TString& endpoint)
+    : TracesDequeued_(Profiler.WithTag("endpoint", endpoint).Counter("/traces_dequeued"))
+    , TracesDropped_(Profiler.WithTag("endpoint", endpoint).Counter("/traces_dropped"))
+    , MemoryUsage_(Profiler.WithTag("endpoint", endpoint).Gauge("/memory_usage"))
+    , TraceQueueSize_(Profiler.WithTag("endpoint", endpoint).Gauge("/queue_size"))
+{ }
+
+void TBatchInfo::PopFront()
+{
+    QueueMemory_ -= BatchQueue_[0].second.Size();
+    QueueSize_ -= BatchQueue_[0].first;
+
+    BatchQueue_.pop_front();
+
+    MemoryUsage_.Update(QueueMemory_);
+    TraceQueueSize_.Update(QueueSize_);
+}
+
+void TBatchInfo::EmplaceBack(int size, NYT::TSharedRef&& value)
+{
+    QueueMemory_ += value.size();
+    QueueSize_ += size;
+
+    BatchQueue_.emplace_back(size, value);
+
+    MemoryUsage_.Update(QueueMemory_);
+    TraceQueueSize_.Update(QueueSize_);
+    TracesDequeued_.Increment(size);
+}
+
+std::pair<i64, i64> TBatchInfo::DropQueue(int batchCount)
+{
+    auto oldMemory = QueueMemory_;
+    auto oldSize = QueueSize_;
+    for (; batchCount > 0; batchCount--) {
+        PopFront();
+    }
+
+    return {QueueMemory_ - oldMemory, QueueSize_ - oldSize};
+}
+
+void TBatchInfo::IncrementTracesDropped(i64 delta)
+{
+    TracesDropped_.Increment(delta);
+}
+
+std::tuple<std::vector<TSharedRef>, int, int> TBatchInfo::PeekQueue(const TJaegerTracerConfigPtr& config, std::optional<TSharedRef> processInfo)
+{
+    std::vector<TSharedRef> batches;
+    if (processInfo) {
+        batches.push_back(processInfo.value());
+    }
+
+    i64 memorySize = 0;
+    int spanCount = 0;
+    int batchCount = 0;
+
+    for (; batchCount < std::ssize(BatchQueue_); batchCount++) {
+        if (memorySize > config->MaxRequestSize) {
+            break;
+        }
+
+        memorySize += BatchQueue_[batchCount].second.Size();
+        spanCount += BatchQueue_[batchCount].first;
+        batches.push_back(BatchQueue_[batchCount].second);
+    }
+
+    return std::make_tuple(batches, batchCount, spanCount);
+}
+
+TJaegerChannelManager::TJaegerChannelManager()
+    : Channel_()
+    , ReopenTime_(TInstant::Now())
+    , RpcTimeout_()
+{ }
+
+TJaegerChannelManager::TJaegerChannelManager(const TIntrusivePtr<TJaegerTracerConfig>& config, const TString& endpoint)
+    : Endpoint_(endpoint)
+    , ReopenTime_(TInstant::Now() + config->ReconnectPeriod + RandomDuration(config->ReconnectPeriod))
+    , RpcTimeout_(config->RpcTimeout)
+    , PushedBytes_(Profiler.WithTag("endpoint", endpoint).Counter("/pushed_bytes"))
+    , PushErrors_(Profiler.WithTag("endpoint", endpoint).Counter("/push_errors"))
+    , PayloadSize_(Profiler.WithTag("endpoint", endpoint).Summary("/payload_size"))
+    , PushDuration_(Profiler.WithTag("endpoint", endpoint).Timer("/push_duration"))
+{
+    auto channelEndpointConfig = CloneYsonSerializable(config->CollectorChannelConfig);
+    channelEndpointConfig->Address = endpoint;
+
+    Channel_ = NGrpc::CreateGrpcChannel(channelEndpointConfig);
+}
+
+bool TJaegerChannelManager::Push(const std::vector<TSharedRef>& batches, int spanCount)
+{
+    try {
+        TJaegerCollectorProxy proxy(Channel_);
+        proxy.SetDefaultTimeout(RpcTimeout_);
+
+        auto req = proxy.PostSpans();
+        req->SetEnableLegacyRpcCodecs(false);
+        req->set_batch(MergeRefsToString(batches));
+
+        YT_LOG_DEBUG("Sending spans (SpanCount: %v, PayloadSize: %v, Endpoint: %v)",
+            spanCount,
+            req->batch().size(),
+            Endpoint_);
+
+        TEventTimerGuard timerGuard(PushDuration_);
+        WaitFor(req->Invoke())
+            .ThrowOnError();
+
+        PushedBytes_.Increment(req->batch().size());
+        PayloadSize_.Record(req->batch().size());
+    } catch (const std::exception& ex) {
+        PushErrors_.Increment();
+        YT_LOG_ERROR(ex, "Failed to send spans (Endpoint: %v)", Endpoint_);
+        return false;
+    }
+
+    return true;
+}
+
+bool TJaegerChannelManager::NeedsReopen(TInstant currentTime)
+{
+    if (Channel_ && currentTime >= ReopenTime_) {
+        Channel_.Reset();
+    }
+
+    return !Channel_;
+}
+
+void TJaegerChannelManager::ForceReset(TInstant currentTime)
+{
+    currentTime = currentTime - TDuration::Minutes(1);
+}
+
+TInstant TJaegerChannelManager::GetReopenTime()
+{
+    return ReopenTime_;
+}
 
 TJaegerTracer::TJaegerTracer(
     const TJaegerTracerConfigPtr& config)
@@ -201,14 +356,6 @@ TJaegerTracer::TJaegerTracer(
         BIND(&TJaegerTracer::Flush, MakeStrong(this)),
         config->FlushPeriod))
     , Config_(config)
-    , TracesDequeued_(Profiler.Counter("/traces_dequeued"))
-    , TracesDropped_(Profiler.Counter("/traces_dropped"))
-    , PushedBytes_(Profiler.Counter("/pushed_bytes"))
-    , PushErrors_(Profiler.Counter("/push_errors"))
-    , PayloadSize_(Profiler.Summary("/payload_size"))
-    , MemoryUsage_(Profiler.Gauge("/memory_usage"))
-    , TraceQueueSize_(Profiler.Gauge("/queue_size"))
-    , PushDuration_(Profiler.Timer("/push_duration"))
 {
     Profiler.AddFuncGauge("/enabled", MakeStrong(this), [this] {
         return Config_.Load()->IsEnabled();
@@ -224,7 +371,7 @@ TFuture<void> TJaegerTracer::WaitFlush()
 
 void TJaegerTracer::NotifyEmptyQueue()
 {
-    if (!TraceQueue_.IsEmpty() || !BatchQueue_.empty()) {
+    if (!TraceQueue_.IsEmpty() || TotalSize_ != 0) {
         return;
     }
 
@@ -261,29 +408,41 @@ void TJaegerTracer::Enqueue(TTraceContextPtr trace)
 void TJaegerTracer::DequeueAll(const TJaegerTracerConfigPtr& config)
 {
     auto traces = TraceQueue_.DequeueAll();
-    if (traces.empty()) {
+    if (traces.empty() || !OpenChannelConfig_) {
         return;
     }
 
-    NProto::Batch batch;
-    auto flushBatch = [&] {
+    THashMap<TString, NProto::Batch> batches;
+    auto flushBatch = [&](TString endpoint) {
+        auto itBatch = batches.find(endpoint);
+        if (itBatch == batches.end()) {
+            return;
+        }
+        auto& batch = itBatch->second;
         if (batch.spans_size() == 0) {
             return;
         }
 
-        if (QueueMemory_ > config->MaxMemory) {
-            TracesDropped_.Increment(batch.spans_size());
+        auto itInfo = BatchInfo_.find(endpoint);
+        if (itInfo == BatchInfo_.end()) {
+            itInfo = BatchInfo_.insert({endpoint, TBatchInfo(endpoint)}).first;
+        }
+        auto& currentInfo = itInfo->second;
+
+        if (TotalMemory_ > config->MaxMemory) {
+            currentInfo.IncrementTracesDropped(batch.spans_size());
             batch.Clear();
             return;
         }
 
-        BatchQueue_.emplace_back(batch.spans_size(), SerializeProtoToRef(batch));
+        auto tmpProto = SerializeProtoToRef(batch);
 
-        QueueMemory_ += BatchQueue_.back().second.size();
-        MemoryUsage_.Update(QueueMemory_);
-        QueueSize_ += batch.spans_size();
-        TraceQueueSize_.Update(QueueSize_);
-        TracesDequeued_.Increment(batch.spans_size());
+        auto sizeDelta = batch.spans_size();
+        TotalMemory_ += tmpProto.size();
+
+        currentInfo.EmplaceBack(sizeDelta, std::move(tmpProto));
+
+        TotalSize_ += sizeDelta;
 
         batch.Clear();
     };
@@ -297,128 +456,135 @@ void TJaegerTracer::DequeueAll(const TJaegerTracerConfigPtr& config)
             }
         }
 
-        ToProto(batch.add_spans(), trace);
+        auto targetEndpoint = trace->GetTargetEndpoint();
+        auto endpoint = targetEndpoint.value_or(OpenChannelConfig_->Address);
 
-        if (batch.spans_size() > config->MaxBatchSize) {
-            flushBatch();
+        ToProto(batches[endpoint].add_spans(), trace);
+
+        if (batches[endpoint].spans_size() > config->MaxBatchSize) {
+            flushBatch(endpoint);
         }
     }
 
-    flushBatch();
+    auto keys = ExtractKeys(batches);
+    for (const auto& endpoint : keys) {
+        flushBatch(endpoint);
+    }
 }
 
-std::tuple<std::vector<TSharedRef>, int, int> TJaegerTracer::PeekQueue(const TJaegerTracerConfigPtr& config)
+std::tuple<std::vector<TSharedRef>, int, int> TJaegerTracer::PeekQueue(const TJaegerTracerConfigPtr& config, const TString& endpoint)
 {
-    std::vector<TSharedRef> batches;
-    if (config->IsEnabled()) {
-        batches.push_back(GetProcessInfo(config));
+    auto it = BatchInfo_.find(endpoint);
+    if (it == BatchInfo_.end()) {
+        return {{}, 0, 0};
     }
 
-    i64 memorySize = 0;
-    int spanCount = 0;
-    int batchCount = 0;
-    for (; batchCount < std::ssize(BatchQueue_); batchCount++) {
-        if (memorySize > config->MaxRequestSize) {
-            break;
+    std::optional<TSharedRef> processInfo;
+    if (config != nullptr && config->IsEnabled()) {
+        processInfo = GetProcessInfo(config);
+    }
+
+    return it->second.PeekQueue(config, processInfo);
+}
+
+void TJaegerTracer::DropQueue(int batchCount, const TString& endpoint)
+{
+    auto it = BatchInfo_.find(endpoint);
+    if (it == BatchInfo_.end()) {
+        return;
+    }
+
+    auto& batchInfo = it->second;
+
+    auto [memoryDelta, sizeDelta] = batchInfo.DropQueue(batchCount);
+
+    TotalMemory_ += memoryDelta;
+    TotalSize_ += sizeDelta;
+}
+
+void TJaegerTracer::DropFullQueue()
+{
+    auto keys = ExtractKeys(BatchInfo_);
+    for (const auto& endpoint : keys) {
+        while (true) {
+            auto [batches, batchCount, spanCount] = PeekQueue(nullptr, endpoint);
+            BatchInfo_[endpoint].IncrementTracesDropped(spanCount);
+            DropQueue(batchCount, endpoint);
+
+            if (batchCount == 0) {
+                break;
+            }
         }
-
-        memorySize += BatchQueue_[batchCount].second.Size();
-        spanCount += BatchQueue_[batchCount].first;
-        batches.push_back(BatchQueue_[batchCount].second);
     }
-
-    return std::make_tuple(batches, batchCount, spanCount);
-}
-
-void TJaegerTracer::DropQueue(int spanCount)
-{
-    for (; spanCount > 0; spanCount--) {
-        QueueMemory_ -= BatchQueue_[0].second.Size();
-        QueueSize_ -= BatchQueue_[0].first;
-        BatchQueue_.pop_front();
-    }
-
-    TraceQueueSize_.Update(QueueSize_);
-    MemoryUsage_.Update(QueueMemory_);
 }
 
 void TJaegerTracer::Flush()
 {
-    try {
-        YT_LOG_DEBUG("Started span flush");
+    YT_LOG_DEBUG("Started span flush");
 
-        auto config = Config_.Load();
+    auto config = Config_.Load();
 
-        DequeueAll(config);
+    DequeueAll(config);
 
-        auto dropFullQueue = [&] {
-            while (true) {
-                auto [batches, batchCount, spanCount] = PeekQueue(config);
-                TracesDropped_.Increment(spanCount);
-                DropQueue(batchCount);
-
-                if (batchCount == 0) {
-                    break;
-                }
-            }
-        };
-
-        if (TInstant::Now() - LastSuccessfullFlushTime_ > config->QueueStallTimeout) {
-            dropFullQueue();
-        }
-
-        if (!config->IsEnabled()) {
-            YT_LOG_DEBUG("Tracer is disabled");
-            dropFullQueue();
-            NotifyEmptyQueue();
-            return;
-        }
-
-        if (CollectorChannel_ && TInstant::Now() > ChannelReopenTime_) {
-            CollectorChannel_.Reset();
-        }
-
-        if (!CollectorChannel_ || OpenChannelConfig_ != config->CollectorChannelConfig) {
-            OpenChannelConfig_.Reset();
-
-            CollectorChannel_ = NGrpc::CreateGrpcChannel(config->CollectorChannelConfig);
-            OpenChannelConfig_ = config->CollectorChannelConfig;
-            ChannelReopenTime_ = TInstant::Now() + config->ReconnectPeriod + RandomDuration(config->ReconnectPeriod);
-        }
-
-        auto [batches, batchCount, spanCount] = PeekQueue(config);
-        if (batchCount > 0) {
-            TJaegerCollectorProxy proxy(CollectorChannel_);
-            proxy.SetDefaultTimeout(config->RpcTimeout);
-
-            auto req = proxy.PostSpans();
-            req->SetEnableLegacyRpcCodecs(false);
-            req->set_batch(MergeRefsToString(batches));
-
-            YT_LOG_DEBUG("Sending spans (SpanCount: %v, PayloadSize: %v)",
-                spanCount,
-                req->batch().size());
-
-            TEventTimerGuard timerGuard(PushDuration_);
-            WaitFor(req->Invoke())
-                .ThrowOnError();
-
-            DropQueue(batchCount);
-
-            PushedBytes_.Increment(req->batch().size());
-            PayloadSize_.Record(req->batch().size());
-
-            YT_LOG_DEBUG("Spans sent");
-        } else {
-            YT_LOG_DEBUG("Span queue is empty");
-        }
-
-        LastSuccessfullFlushTime_ = TInstant::Now();
-        NotifyEmptyQueue();
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Failed to send spans");
-        PushErrors_.Increment();
+    if (TInstant::Now() - LastSuccessfullFlushTime_ > config->QueueStallTimeout) {
+        DropFullQueue();
     }
+
+    if (!config->IsEnabled()) {
+        YT_LOG_DEBUG("Tracer is disabled");
+        DropFullQueue();
+        NotifyEmptyQueue();
+        return;
+    }
+
+    auto flushStartTime = TInstant::Now();
+
+    if (OpenChannelConfig_ != config->CollectorChannelConfig) {
+        OpenChannelConfig_ = config->CollectorChannelConfig;
+        for (auto& [endpoint, channel] : CollectorChannels_) {
+            CollectorChannels_[endpoint].ForceReset(flushStartTime);
+        }
+    }
+
+    std::stack<TString> toRemove;
+    auto keys = ExtractKeys(BatchInfo_);
+    for (const auto& endpoint : keys) {
+        auto [batches, batchCount, spanCount] = PeekQueue(config, endpoint);
+        if (batchCount <= 0) {
+            if (!CollectorChannels_.contains(endpoint) || flushStartTime > CollectorChannels_[endpoint].GetReopenTime() + config->EndpointChannelTimeout) {
+                toRemove.push(endpoint);
+            }
+            YT_LOG_DEBUG("Span queue is empty (Endpoint: %v)", endpoint);
+            continue;
+        }
+
+        auto it = CollectorChannels_.find(endpoint);
+        if (it == CollectorChannels_.end()) {
+            it = CollectorChannels_.insert({endpoint, TJaegerChannelManager(config, endpoint)}).first;
+        }
+
+        auto& channel = it->second;
+
+        if (channel.NeedsReopen(flushStartTime)) {
+            channel = TJaegerChannelManager(config, endpoint);
+        }
+
+        if (channel.Push(batches, spanCount)) {
+            DropQueue(batchCount, endpoint);
+            YT_LOG_DEBUG("Spans sent (Endpoint: %v)", endpoint);
+            LastSuccessfullFlushTime_ = flushStartTime;
+        }
+    }
+
+    while (!toRemove.empty()) {
+        auto endpoint = toRemove.top();
+        toRemove.pop();
+
+        CollectorChannels_.erase(endpoint);
+        BatchInfo_.erase(endpoint);
+    }
+
+    NotifyEmptyQueue();
 }
 
 TSharedRef TJaegerTracer::GetProcessInfo(const TJaegerTracerConfigPtr& config)

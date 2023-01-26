@@ -17,6 +17,8 @@ void TSamplerConfig::Register(TRegistrar registrar)
         .Default(0.0);
     registrar.Parameter("user_sample_rate", &TThis::UserSampleRate)
         .Default();
+    registrar.Parameter("user_endpoints", &TThis::UserEndpoint)
+        .Default();
     registrar.Parameter("clear_sampled_flag", &TThis::ClearSampledFlag)
         .Default();
 
@@ -67,6 +69,12 @@ void TSampler::SampleTraceContext(const TString& user, const TTraceContextPtr& t
 
         return state;
     });
+
+    std::optional<TString> endpoint;
+    auto itEndpoint = config->UserEndpoint.find(user);
+    if (itEndpoint != config->UserEndpoint.end()) {
+        traceContext->SetTargetEndpoint(itEndpoint->second);
+    }
 
     if (traceContext->IsSampled()) {
         userState->Get()->TracesSampledByUser.Increment();

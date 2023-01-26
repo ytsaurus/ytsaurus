@@ -104,6 +104,13 @@ public:
     bool IsDebug() const;
     const TString& GetSpanName() const;
 
+    //! Sets target endpoint.
+    /*!
+     *  Not thread-safe.
+     */
+    void SetTargetEndpoint(const std::optional<TString>& targetEndpoint);
+    const std::optional<TString>& GetTargetEndpoint() const;
+
     //! Sets request id.
     /*!
      *  Not thread-safe.
@@ -179,6 +186,7 @@ public:
     static TTraceContextPtr NewChildFromSpan(
         TSpanContext parentSpanContext,
         TString spanName,
+        std::optional<TString> endpoint = {},
         NYson::TYsonString baggage = NYson::TYsonString());
 
     TTraceContextPtr CreateChild(TString spanName);
@@ -203,6 +211,7 @@ private:
     const TTraceContextPtr ParentContext_;
     const TString SpanName_;
     TRequestId RequestId_;
+    std::optional<TString> TargetEndpoint_;
     TString LoggingTag_;
     const NProfiling::TCpuInstant StartTime_;
 
