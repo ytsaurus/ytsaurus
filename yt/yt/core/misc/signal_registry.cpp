@@ -44,6 +44,14 @@ void TSignalRegistry::SetupSignal(int signal, int flags)
             YT_VERIFY(false);
         }
 
+        if (!OverrideNonDefaultSignalHandlers_) {
+            struct sigaction oldact;
+            YT_VERIFY(sigaction(signal, NULL, &oldact) == 0);
+            if (reinterpret_cast<void*>(oldact.sa_sigaction) != SIG_DFL) {
+                return;
+            }
+        }
+
         struct sigaction sa;
         memset(&sa, 0, sizeof(sa));
         sigemptyset(&sa.sa_mask);
@@ -54,7 +62,12 @@ void TSignalRegistry::SetupSignal(int signal, int flags)
     });
 #else
     DispatchMultiSignal(signal, [&] (int signal) {
-        YT_VERIFY(::signal(signal, static_cast<_crt_signal_t>(&Handle)) == 0);
+        _crt_signal_t oldact = ::signal(signal, static_cast<_crt_signal_t>(&Handle));
+        YT_VERIFY(oldact != SIG_ERR);
+        if (!OverrideNonDefaultSignalHandlers_ && oldact != SIG_DFL) {
+            YT_VERIFY(::signal(signal, oldact) != SIG_ERR);
+            return;
+        }
         Signals_[signal].SetUp = true;
     });
 #endif
