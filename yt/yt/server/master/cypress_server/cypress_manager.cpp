@@ -4121,19 +4121,17 @@ private:
         return configManager->GetConfig()->CypressManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
     {
         RecursiveResourceUsageCache_->SetExpirationTimeout(
             GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
 
         FixNodeStatisticsExecutor_->SetPeriod(GetDynamicConfig()->NodeStatisticsFixerPeriod);
 
-        if (oldConfig->CypressManager->EnableNodeStatisticsFixer != GetDynamicConfig()->EnableNodeStatisticsFixer) {
-            if (GetDynamicConfig()->EnableNodeStatisticsFixer) {
-                FixNodeStatisticsExecutor_->Start();
-            } else {
-                FixNodeStatisticsExecutor_->Stop();
-            }
+        if (GetDynamicConfig()->EnableNodeStatisticsFixer) {
+            FixNodeStatisticsExecutor_->Start();
+        } else {
+            FixNodeStatisticsExecutor_->Stop();
         }
     }
 };
