@@ -182,23 +182,6 @@ void TBlockFetcher::DoFinishBlock(const TBlockInfo& blockInfo)
     }
 }
 
-void TBlockFetcher::DoSetBlock(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, TBlock block)
-{
-    // Note that the last call to OnReaderFinished_ happens-before the end of the last FetchBlock(),
-    // so call DoFinishBlock() before setting the promise. Otherwise, we can set the promise from
-    // background fetch loop and then switch to the fiber calling the last FinishBlock(), leading to
-    // violation of this guarantee.
-    DoFinishBlock(blockInfo);
-    GetBlockPromise(windowSlot).Set(std::move(block));
-}
-
-void TBlockFetcher::DoSetError(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, const TError& error)
-{
-    // Do the same as in DoSetBlock(). See the comment above.
-    DoFinishBlock(blockInfo);
-    GetBlockPromise(windowSlot).Set(error);
-}
-
 void TBlockFetcher::SetTraceContextForReader(int readerIndex, TTraceContextPtr traceContext)
 {
     YT_VERIFY(readerIndex < std::ssize(Chunks_));
@@ -224,16 +207,28 @@ i64 TBlockFetcher::GetBlockSize(int blockIndex) const
 
 TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
 {
+    return BIND(
+        &TBlockFetcher::DoFetchBlock,
+        MakeStrong(this),
+        readerIndex,
+        blockIndex)
+        .AsyncVia(ReaderInvoker_)
+        .Run();
+}
+
+TFuture<TBlock> TBlockFetcher::DoFetchBlock(int readerIndex, int blockIndex)
+{
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ReaderInvoker_);
     YT_VERIFY(Started_);
     YT_VERIFY(HasMoreBlocks());
+
+    TForbidContextSwitchGuard guard;
 
     int windowIndex = GetOrCrash(Chunks_[readerIndex].BlockIndexToWindowIndex, blockIndex);
     auto& windowSlot = Window_[windowIndex];
 
-    auto blockPromise = GetBlockPromise(windowSlot);
-
     YT_VERIFY(windowSlot.RemainingFetches > 0);
-    if (!windowSlot.FetchStarted.test_and_set()) {
+    if (!std::exchange(windowSlot.FetchStarted, true)) {
         auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
 
         YT_LOG_DEBUG("Fetching block out of turn "
@@ -246,6 +241,8 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
             BlockInfos_[windowIndex].UncompressedDataSize);
 
         TBlockId blockId(chunkId, blockIndex);
+
+        TFuture<std::vector<TBlock>> asyncBlocks;
 
         auto cachedBlock = Config_->UseUncompressedBlockCache
             ? BlockCache_->FindBlock(blockId, EBlockType::UncompressedData).Block
@@ -263,22 +260,27 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
             cachedBlock = TBlock(TSharedRef(ref, MakeSharedRangeHolder(std::move(windowSlot.MemoryUsageGuard))));
 
             DoStartBlock(BlockInfos_[windowIndex]);
-            DoSetBlock(BlockInfos_[windowIndex], windowSlot, std::move(cachedBlock));
+            asyncBlocks = MakeFuture<std::vector<TBlock>>(std::vector{std::move(cachedBlock)});
         } else {
             TBlockDescriptor blockDescriptor{
                 .ReaderIndex = readerIndex,
                 .BlockIndex = blockIndex
             };
-            ReaderInvoker_->Invoke(BIND(
+            asyncBlocks = BIND(
                 &TBlockFetcher::RequestBlocks,
-                MakeWeak(this),
+                MakeStrong(this),
                 std::vector{windowIndex},
-                std::vector{blockDescriptor}));
+                std::vector{blockDescriptor})
+                .AsyncVia(ReaderInvoker_)
+                .Run();
         }
+
+        SetAsyncBlocks(std::vector{windowIndex}, std::move(asyncBlocks));
     }
 
-    auto blockFuture = blockPromise.ToFuture();
-    if (--windowSlot.RemainingFetches == 0 && blockFuture.IsSet()) {
+    auto asyncBlock = windowSlot.AsyncBlock;
+    // No one else needs this block, so it can be removed from block fetcher.
+    if (--windowSlot.RemainingFetches == 0) {
         ReaderInvoker_->Invoke(
             BIND(&TBlockFetcher::ReleaseBlocks,
                 MakeWeak(this),
@@ -287,7 +289,7 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int readerIndex, int blockIndex)
 
     --TotalRemainingFetches_;
 
-    return blockFuture;
+    return asyncBlock;
 }
 
 TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
@@ -296,17 +298,19 @@ TFuture<TBlock> TBlockFetcher::FetchBlock(int blockIndex)
     return FetchBlock(/*readerIndex*/ 0, blockIndex);
 }
 
-void TBlockFetcher::DecompressBlocks(
-    std::vector<int> windowIndexes,
+std::vector<TBlock> TBlockFetcher::MaybeDecompressAndCacheBlocks(
+    std::vector<int> windowIndices,
     std::vector<TBlock> compressedBlocks)
 {
-    YT_VERIFY(windowIndexes.size() == compressedBlocks.size());
+    YT_VERIFY(windowIndices.size() == compressedBlocks.size());
 
-    std::vector<int> windowIndexesToRelease;
-    for (int i = 0; i < std::ssize(compressedBlocks); ++i) {
-        auto& compressedBlock = compressedBlocks[i];
+    std::vector<TBlock> blocks;
+    blocks.reserve(compressedBlocks.size());
+
+    for (int index = 0; index < std::ssize(compressedBlocks); ++index) {
+        auto& compressedBlock = compressedBlocks[index];
         auto compressedBlockSize = compressedBlock.Size();
-        int windowIndex = windowIndexes[i];
+        int windowIndex = windowIndices[index];
         const auto& blockInfo = BlockInfos_[windowIndex];
         auto readerIndex = blockInfo.ReaderIndex;
         auto blockIndex = blockInfo.BlockIndex;
@@ -352,7 +356,9 @@ void TBlockFetcher::DecompressBlocks(
         UncompressedDataSize_ += uncompressedBlock.Size();
         CompressedDataSize_ += compressedBlockSize;
 
-        uncompressedBlock = TrackMemory(ChunkReadOptions_.MemoryReferenceTracker, std::move(uncompressedBlock));
+        uncompressedBlock = TrackMemory(
+            ChunkReadOptions_.MemoryReferenceTracker,
+            std::move(uncompressedBlock));
 
         auto& windowSlot = Window_[windowIndex];
 
@@ -363,22 +369,18 @@ void TBlockFetcher::DecompressBlocks(
             ref,
             MakeSharedRangeHolder(std::move(windowSlot.MemoryUsageGuard)));
 
-        DoSetBlock(blockInfo, windowSlot, TBlock(std::move(uncompressedBlock)));
-        if (windowSlot.RemainingFetches == 0) {
-            windowIndexesToRelease.push_back(windowIndex);
-        }
+        blocks.push_back(TBlock(std::move(uncompressedBlock)));
     }
 
-    if (!windowIndexesToRelease.empty()) {
-        ReaderInvoker_->Invoke(
-            BIND(&TBlockFetcher::ReleaseBlocks,
-                MakeWeak(this),
-                std::move(windowIndexesToRelease)));
-    }
+    return blocks;
 }
 
 void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryUsageGuardOrError)
 {
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ReaderInvoker_);
+
+    TForbidContextSwitchGuard guard;
+
     if (!memoryUsageGuardOrError.IsOK()) {
         YT_LOG_INFO(memoryUsageGuardOrError,
             "Failed to acquire memory in chunk reader memory manager");
@@ -388,7 +390,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
     const auto& memoryUsageGuard = memoryUsageGuardOrError.Value();
     auto* underlyingGuard = memoryUsageGuard->GetGuard();
 
-    std::vector<int> windowIndexes;
+    std::vector<int> windowIndices;
     std::vector<TBlockDescriptor> blockDescriptors;
     i64 uncompressedSize = 0;
     i64 availableSlots = underlyingGuard->GetSlots();
@@ -399,8 +401,9 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
         auto blockIndex = blockInfo.BlockIndex;
         auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
 
-        if (windowIndexes.empty() || uncompressedSize + blockInfo.UncompressedDataSize <= availableSlots) {
-            if (Window_[FirstUnfetchedWindowIndex_].FetchStarted.test_and_set()) {
+        if (windowIndices.empty() || uncompressedSize + blockInfo.UncompressedDataSize <= availableSlots) {
+            auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
+            if (std::exchange(windowSlot.FetchStarted, true)) {
                 // This block has been already requested out of order.
                 YT_LOG_DEBUG("Skipping out of turn block (ChunkId: %v, BlockIndex: %v, WindowIndex: %v)",
                     chunkId,
@@ -414,7 +417,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                 std::min(
                     static_cast<i64>(blockInfo.UncompressedDataSize),
                     underlyingGuard->GetSlots()));
-            Window_[FirstUnfetchedWindowIndex_].MemoryUsageGuard = New<TMemoryUsageGuard>(
+            windowSlot.MemoryUsageGuard = New<TMemoryUsageGuard>(
                 std::move(transferred),
                 memoryUsageGuard->GetMemoryManager());
 
@@ -429,8 +432,6 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
 
                 cachedBlock.Data = TrackMemory(ChunkReadOptions_.MemoryReferenceTracker, std::move(cachedBlock.Data));
 
-                auto& windowSlot = Window_[FirstUnfetchedWindowIndex_];
-
                 TRef ref = cachedBlock.Data;
                 windowSlot.MemoryUsageGuard->CaptureBlock(std::move(cachedBlock.Data));
                 cachedBlock = TBlock(TSharedRef(
@@ -438,10 +439,13 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
                     MakeSharedRangeHolder(std::move(windowSlot.MemoryUsageGuard))));
 
                 DoStartBlock(blockInfo);
-                DoSetBlock(blockInfo, windowSlot, std::move(cachedBlock));
+                auto asyncBlocks = MakeFuture<std::vector<TBlock>>(std::vector{std::move(cachedBlock)});
+                SetAsyncBlocks(
+                    std::vector{FirstUnfetchedWindowIndex_},
+                    std::move(asyncBlocks));
             } else {
                 uncompressedSize += blockInfo.UncompressedDataSize;
-                windowIndexes.push_back(FirstUnfetchedWindowIndex_);
+                windowIndices.push_back(FirstUnfetchedWindowIndex_);
                 blockDescriptors.push_back(TBlockDescriptor{
                     .ReaderIndex = readerIndex,
                     .BlockIndex = blockIndex
@@ -454,7 +458,7 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
         ++FirstUnfetchedWindowIndex_;
     }
 
-    if (windowIndexes.empty()) {
+    if (windowIndices.empty()) {
         FetchingCompleted_ = true;
         MemoryManager_->Finalize();
         return;
@@ -470,54 +474,41 @@ void TBlockFetcher::FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryU
             .Via(ReaderInvoker_));
     }
 
-    RequestBlocks(
-        std::move(windowIndexes),
+    auto asyncBlocks = RequestBlocks(
+        windowIndices,
         std::move(blockDescriptors));
+    SetAsyncBlocks(std::move(windowIndices), std::move(asyncBlocks));
 }
 
-void TBlockFetcher::MarkFailedBlocks(const std::vector<int>& windowIndexes, const TError& error)
+void TBlockFetcher::ReleaseBlocks(const std::vector<int>& windowIndices)
 {
-    for (auto index : windowIndexes) {
-        DoSetError(BlockInfos_[index], Window_[index], error);
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ReaderInvoker_);
+
+    YT_LOG_DEBUG("Releasing blocks (WindowIndices: %v)",
+        MakeShrunkFormattableView(windowIndices, TDefaultFormatter(), 3));
+
+    for (auto index : windowIndices) {
+        Window_[index].AsyncBlock.Reset();
     }
 }
 
-void TBlockFetcher::ReleaseBlocks(const std::vector<int>& windowIndexes)
-{
-    YT_LOG_DEBUG("Releasing blocks (WindowIndexes: %v)",
-        MakeShrunkFormattableView(windowIndexes, TDefaultFormatter(), 3));
-
-    for (auto index : windowIndexes) {
-        ResetBlockPromise(Window_[index]);
-    }
-}
-
-TPromise<TBlock> TBlockFetcher::GetBlockPromise(TWindowSlot& windowSlot)
-{
-    auto guard = Guard(windowSlot.BlockPromiseLock);
-    if (!windowSlot.BlockPromise) {
-        windowSlot.BlockPromise = NewPromise<TBlock>();
-    }
-    return windowSlot.BlockPromise;
-}
-
-void TBlockFetcher::ResetBlockPromise(TWindowSlot& windowSlot)
-{
-    TPromise<TBlock> promise;
-    {
-        auto guard = Guard(windowSlot.BlockPromiseLock);
-        promise = std::move(windowSlot.BlockPromise);
-    }
-}
-
-void TBlockFetcher::RequestBlocks(
-    std::vector<int> windowIndexes,
+TFuture<std::vector<TBlock>> TBlockFetcher::RequestBlocks(
+    std::vector<int> windowIndices,
     std::vector<TBlockDescriptor> blockDescriptors)
 {
-    YT_VERIFY(windowIndexes.size() == blockDescriptors.size());
+    YT_VERIFY(windowIndices.size() == blockDescriptors.size());
+
+    // Position of window index in |windowIndices|.
+    THashMap<int, int> windowIndexToPosition;
+    for (int index = 0; index < std::ssize(windowIndices); ++index) {
+        EmplaceOrCrash(windowIndexToPosition, windowIndices[index], index);
+    }
+
+    std::vector<TFuture<TBlock>> result;
+    result.resize(windowIndices.size());
 
     i64 uncompressedSize = 0;
-    for (auto index : windowIndexes) {
+    for (auto index : windowIndices) {
         DoStartBlock(BlockInfos_[index]);
         uncompressedSize += BlockInfos_[index].UncompressedDataSize;
     }
@@ -528,7 +519,7 @@ void TBlockFetcher::RequestBlocks(
         const auto& blockDescriptor = blockDescriptors[index];
         auto readerIndex = blockDescriptor.ReaderIndex;
         readerIndexToBlockIndices[readerIndex].push_back(blockDescriptor.BlockIndex);
-        readerIndexToWindowIndices[readerIndex].push_back(windowIndexes[index]);
+        readerIndexToWindowIndices[readerIndex].push_back(windowIndices[index]);
     }
 
     for (auto& indexPair : readerIndexToBlockIndices) {
@@ -541,7 +532,7 @@ void TBlockFetcher::RequestBlocks(
             MakeShrunkFormattableView(blockIndices, TDefaultFormatter(), 3),
             uncompressedSize);
 
-        auto future = [&] {
+        auto asyncRawBlocks = [&] {
             std::optional<TTraceContextGuard> maybeGuard;
             if (Chunks_[readerIndex].TraceContext.has_value()) {
                 maybeGuard.emplace(*Chunks_[readerIndex].TraceContext);
@@ -554,49 +545,91 @@ void TBlockFetcher::RequestBlocks(
                 SessionInvoker_);
         }();
 
-        // NB: Handling |OnGotBlocks| in an arbitrary thread seems OK.
-        YT_VERIFY(readerIndexToWindowIndices[readerIndex].size() == blockIndices.size());
-        future.SubscribeUnique(
-            BIND(
-                &TBlockFetcher::OnGotBlocks,
-                MakeWeak(this),
+        const auto& windowIndices = readerIndexToWindowIndices[readerIndex];
+        YT_VERIFY(windowIndices.size() == blockIndices.size());
+        // NB: Handling |MaybeDecompressBlocks| in an arbitrary thread seems OK.
+        auto asyncBlocks = asyncRawBlocks
+            .ApplyUnique(BIND(
+                &TBlockFetcher::MaybeDecompressBlocks,
+                MakeStrong(this),
                 readerIndex,
-                Passed(std::move(readerIndexToWindowIndices[readerIndex])),
+                windowIndices,
                 Passed(std::move(blockIndices))));
+        // Fast path.
+        if (std::ssize(readerIndexToBlockIndices) == 1) {
+            return asyncBlocks;
+        }
+
+        for (int index = 0; index < std::ssize(windowIndices); ++index) {
+            auto windowIndex = windowIndices[index];
+            auto position = GetOrCrash(windowIndexToPosition, windowIndex);
+            auto asyncBlock = asyncBlocks.Apply(BIND(
+                [=] (const std::vector<TBlock>& blocks) {
+                    return blocks[index];
+                }));
+            result[position] = std::move(asyncBlock);
+        }
     }
+
+    return AllSucceeded(std::move(result));
 }
 
-void TBlockFetcher::OnGotBlocks(
+TFuture<std::vector<TBlock>> TBlockFetcher::MaybeDecompressBlocks(
     int readerIndex,
-    std::vector<int> windowIndexes,
-    std::vector<int> blockIndexes,
+    std::vector<int> windowIndices,
+    std::vector<int> blockIndices,
     TErrorOr<std::vector<TBlock>>&& blocksOrError)
 {
     if (!blocksOrError.IsOK()) {
-        MarkFailedBlocks(windowIndexes, blocksOrError);
-        return;
+        return MakeFuture<std::vector<TBlock>>(blocksOrError);
     }
 
     auto blocks = std::move(blocksOrError.Value());
 
-    YT_VERIFY(blocks.size() == blockIndexes.size());
-    YT_VERIFY(blocks.size() == windowIndexes.size());
+    YT_VERIFY(blocks.size() == blockIndices.size());
+    YT_VERIFY(blocks.size() == windowIndices.size());
 
     auto chunkId = Chunks_[readerIndex].Reader->GetChunkId();
     YT_LOG_DEBUG("Got block group (ChunkId: %v, Blocks: %v)",
         chunkId,
-        MakeShrunkFormattableView(blockIndexes, TDefaultFormatter(), 3));
+        MakeShrunkFormattableView(blockIndices, TDefaultFormatter(), 3));
 
     if (Codec_->GetId() == NCompression::ECodec::None) {
-        DecompressBlocks(
-            std::move(windowIndexes),
+        auto processedBlocks = MaybeDecompressAndCacheBlocks(
+            std::move(windowIndices),
             std::move(blocks));
+        return MakeFuture<std::vector<TBlock>>(std::move(processedBlocks));
     } else {
-        CompressionInvoker_->Invoke(BIND(
-            &TBlockFetcher::DecompressBlocks,
-            MakeWeak(this),
-            Passed(std::move(windowIndexes)),
-            Passed(std::move(blocks))));
+        return BIND(
+            &TBlockFetcher::MaybeDecompressAndCacheBlocks,
+            MakeStrong(this),
+            Passed(std::move(windowIndices)),
+            Passed(std::move(blocks)))
+            .AsyncVia(CompressionInvoker_)
+            .Run();
+    }
+}
+
+void TBlockFetcher::SetAsyncBlocks(
+    std::vector<int> windowIndices,
+    TFuture<std::vector<TBlock>> asyncBlocks)
+{
+    VERIFY_SERIALIZED_INVOKER_AFFINITY(ReaderInvoker_);
+
+    for (int index = 0; index < std::ssize(windowIndices); ++index) {
+        auto windowIndex = windowIndices[index];
+        auto windowIndicesSize = windowIndices.size();
+
+        auto asyncBlock = asyncBlocks.Apply(
+            BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<std::vector<TBlock>>& blocksOrError) {
+                DoFinishBlock(BlockInfos_[windowIndex]);
+
+                const auto& blocks = blocksOrError
+                    .ValueOrThrow();
+                YT_VERIFY(blocks.size() == windowIndicesSize);
+                return std::move(blocks[index]);
+            }).AsyncVia(ReaderInvoker_));
+        Window_[windowIndex].AsyncBlock = std::move(asyncBlock);
     }
 }
 
@@ -619,7 +652,7 @@ TCodecDuration TBlockFetcher::GetDecompressionTime() const
 {
     return TCodecDuration{
         Codec_->GetId(),
-        NProfiling::ValueToDuration(DecompressionTime_)
+        NProfiling::ValueToDuration(DecompressionTime_),
     };
 }
 
