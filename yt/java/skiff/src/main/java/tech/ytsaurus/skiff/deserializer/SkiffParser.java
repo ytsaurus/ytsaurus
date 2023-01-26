@@ -1,44 +1,56 @@
 package tech.ytsaurus.skiff.deserializer;
 
-import java.io.IOException;
 import java.io.InputStream;
-import java.io.UncheckedIOException;
 import java.math.BigInteger;
 import java.nio.ByteBuffer;
 import java.nio.ByteOrder;
-import java.util.Arrays;
-import java.util.Collections;
+
+import tech.ytsaurus.yson.BufferReference;
+import tech.ytsaurus.yson.BufferedStreamZeroCopyInput;
+import tech.ytsaurus.yson.StreamReader;
 
 public class SkiffParser {
-    private final InputStream input;
+    private final StreamReader reader;
+    private final BufferReference bufferReference = new BufferReference();
 
     /**
      * @param input input stream with Little Endian byte order
      */
     public SkiffParser(InputStream input) {
-        this.input = input;
+        this.reader = new StreamReader(new BufferedStreamZeroCopyInput(input, 1 << 16));
     }
 
     public byte parseInt8() {
-        return getDataInLittleEndian(1)[0];
+        return reader.readByte();
     }
 
     public short parseInt16() {
-        return ByteBuffer.wrap(getDataInLittleEndian(2))
-                .order(ByteOrder.LITTLE_ENDIAN)
-                .getShort();
+        getDataInLittleEndian(2);
+        byte[] buffer = bufferReference.getBuffer();
+        int bufferOffset = bufferReference.getOffset();
+        return (short) ((buffer[bufferOffset] & 0xFF) |
+                ((buffer[bufferOffset + 1] & 0xFF) << 8));
+
     }
 
     public int parseInt32() {
-        return ByteBuffer.wrap(getDataInLittleEndian(4))
-                .order(ByteOrder.LITTLE_ENDIAN)
-                .getInt();
+        getDataInLittleEndian(4);
+        byte[] buffer = bufferReference.getBuffer();
+        int bufferOffset = bufferReference.getOffset();
+        return (buffer[bufferOffset] & 0xFF) |
+                ((buffer[bufferOffset + 1] & 0xFF) << 8) |
+                ((buffer[bufferOffset + 2] & 0xFF) << 16) |
+                ((buffer[bufferOffset + 3] & 0xFF) << 24);
     }
 
     public long parseInt64() {
-        return ByteBuffer.wrap(getDataInLittleEndian(8))
-                .order(ByteOrder.LITTLE_ENDIAN)
-                .getLong();
+        getDataInLittleEndian(8);
+        long result = 0;
+        for (int i = 7; i >= 0; i--) {
+            result <<= 8;
+            result |= (bufferReference.getBuffer()[bufferReference.getOffset() + i] & 0xFF);
+        }
+        return result;
     }
 
     public BigInteger parseInt128() {
@@ -48,11 +60,15 @@ public class SkiffParser {
     }
 
     public short parseUint8() {
-        return (short) (getDataInBigEndian(1)[0] & 0xff);
+        return (short) (reader.readByte() & 0xff);
     }
 
     public int parseUint16() {
-        return new BigInteger(1, getDataInBigEndian(2)).intValue();
+        getDataInLittleEndian(2);
+        byte[] buffer = bufferReference.getBuffer();
+        int bufferOffset = bufferReference.getOffset();
+        return (buffer[bufferOffset] & 0xFF) |
+                ((buffer[bufferOffset + 1] & 0xFF) << 8);
     }
 
     public long parseUint32() {
@@ -68,24 +84,25 @@ public class SkiffParser {
     }
 
     public double parseDouble() {
-        return ByteBuffer.wrap(getDataInLittleEndian(8))
-                .order(ByteOrder.LITTLE_ENDIAN)
+        return ByteBuffer.wrap(getDataInBigEndian(8))
+                .order(ByteOrder.BIG_ENDIAN)
                 .getDouble();
     }
 
     public boolean parseBoolean() {
-        return (getDataInLittleEndian(1)[0] != 0);
+        return (reader.readByte() != 0);
     }
 
-    public byte[] parseString32() {
+    public BufferReference parseString32() {
         int length = parseInt32();
         if (length < 0) {
             throw new IllegalArgumentException("Max length of string in Java = Integer.MAX_VALUE");
         }
-        return getDataInLittleEndian(length);
+        getDataInLittleEndian(length);
+        return bufferReference;
     }
 
-    public byte[] parseYson32() {
+    public BufferReference parseYson32() {
         return parseString32();
     }
 
@@ -98,31 +115,24 @@ public class SkiffParser {
     }
 
     public boolean hasMoreData() {
-        if (!input.markSupported()) {
-            throw new IllegalArgumentException("Input stream is not support mark()");
-        }
-        input.mark(1);
         boolean isNotEOF;
-        try {
-            isNotEOF = input.read() != -1;
-            input.reset();
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
+        isNotEOF = reader.tryReadByte() != StreamReader.END_OF_STREAM;
+        if (isNotEOF) {
+            reader.unreadByte();
         }
         return isNotEOF;
     }
 
-    private byte[] getDataInLittleEndian(int length) {
-        try {
-            return input.readNBytes(length);
-        } catch (IOException e) {
-            throw new UncheckedIOException(e);
-        }
+    private void getDataInLittleEndian(int length) {
+        reader.readBytes(length, bufferReference);
     }
 
     private byte[] getDataInBigEndian(int length) {
-        byte[] data = getDataInLittleEndian(length);
-        Collections.reverse(Arrays.asList(data));
+        getDataInLittleEndian(length);
+        var data = new byte[length];
+        for (int i = length - 1; i >= 0; i--) {
+            data[length - i - 1] = bufferReference.getBuffer()[bufferReference.getOffset() + i];
+        }
         return data;
     }
 }

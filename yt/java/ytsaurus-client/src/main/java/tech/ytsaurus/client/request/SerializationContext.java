@@ -11,8 +11,6 @@ import tech.ytsaurus.core.rows.YTreeSerializer;
 import tech.ytsaurus.rpcproxy.ERowsetFormat;
 import tech.ytsaurus.skiff.serializer.EntitySkiffSerializer;
 
-import static tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator.getEntitySchema;
-
 public class SerializationContext<T> {
     @Nullable
     protected WireRowSerializer<T> wireSerializer;
@@ -56,7 +54,7 @@ public class SerializationContext<T> {
     }
 
     public static <T> SerializationContext<T> skiff(Class<T> entityClass) {
-        return new SerializationContext<>(new EntitySkiffSerializer<>(getEntitySchema(entityClass)), entityClass);
+        return new SerializationContext<>(new EntitySkiffSerializer<>(entityClass), entityClass);
     }
 
     public Optional<WireRowSerializer<T>> getWireSerializer() {

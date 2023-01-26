@@ -162,7 +162,7 @@ public class EntitySkiffDeserializerTest {
                 new Phone(12345),
                 "secret", Arrays.asList("yandex", null, "spbu"), null);
 
-        byte[] bytes = new EntitySkiffSerializer<Person>(entitySchema).serialize(person);
+        byte[] bytes = new EntitySkiffSerializer<Person>(Person.class).serialize(person);
 
         Person deserializedPerson = EntitySkiffDeserializer
                 .deserialize(bytes, Person.class, entitySchema)

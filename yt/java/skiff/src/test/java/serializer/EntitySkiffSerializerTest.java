@@ -148,7 +148,7 @@ public class EntitySkiffSerializerTest {
                 .put((byte) 0x00)
                 .array();
 
-        byte[] bytes = new EntitySkiffSerializer<Person>(entitySchema).serialize(person);
+        byte[] bytes = new EntitySkiffSerializer<Person>(Person.class).serialize(person);
 
         assertArrayEquals(expectedBytes, bytes);
     }
