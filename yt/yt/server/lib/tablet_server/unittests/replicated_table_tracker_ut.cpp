@@ -464,7 +464,11 @@ public:
 
     void MockGoodReplicaCluster(const TStrictMockClientPtr& client)
     {
-        EXPECT_CALL(*client, CheckClusterLiveness(_))
+        NApi::TCheckClusterLivenessOptions options{
+            .CheckCypressRoot = true,
+            .CheckSecondaryMasterCells = true,
+        };
+        EXPECT_CALL(*client, CheckClusterLiveness(options))
             .WillRepeatedly(Return(VoidFuture));
         EXPECT_CALL(*client, GetNode("//sys/@config/enable_safe_mode", _))
             .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(false))));
@@ -476,8 +480,11 @@ public:
     {
         EXPECT_CALL(*client, GetNode(tablePath + "/@tablet_cell_bundle", _))
             .WillOnce(Return(MakeFuture(ConvertToYsonString(BundleName))));
-        EXPECT_CALL(*client, GetNode("//sys/tablet_cell_bundles/" + BundleName + "/@health", _))
-            .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(ETabletCellHealth::Good))));
+        NApi::TCheckClusterLivenessOptions options{
+            .CheckTabletCellBundle = BundleName
+        };
+        EXPECT_CALL(*client, CheckClusterLiveness(options))
+            .WillRepeatedly(Return(VoidFuture));
     }
 
     void MockGoodTable(const TStrictMockClientPtr& client, const TString& tablePath = TablePath1)
@@ -681,6 +688,7 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
     auto sleepPeriod = CheckPeriod * maxIterationsWithoutAcceptableBundleHealth;
     Config_->MaxIterationsWithoutAcceptableBundleHealth = maxIterationsWithoutAcceptableBundleHealth;
     Config_->BundleHealthCache->RefreshTime = CheckPeriod / 2;
+    Config_->BundleHealthCache->ExpireAfterFailedUpdateTime = CheckPeriod / 2;
     Host_->ChangeConfig(Config_);
 
     auto tableId = Host_->CreateReplicatedTable();
@@ -696,24 +704,31 @@ TEST_F(TReplicatedTableTrackerTest, BundleHealthCheck)
     Sleep(WarmUpPeriod);
     Host_->ValidateReplicaModeRemained(replicaId);
 
-    EXPECT_CALL(*client, GetNode("//sys/tablet_cell_bundles/" + BundleName + "/@health", _))
-        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(ETabletCellHealth::Degraded))));
+    EXPECT_CALL(*client, CheckClusterLiveness(NApi::TCheckClusterLivenessOptions{
+        .CheckTabletCellBundle = BundleName
+    }))
+        .WillRepeatedly(Return(VoidFuture));
+
     EXPECT_CALL(*client, GetNode(TablePath1 + "/@tablet_cell_bundle", _))
         .WillOnce(Return(MakeFuture(ConvertToYsonString(BundleName))));
 
     Sleep(WarmUpPeriod);
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);
 
-    EXPECT_CALL(*client, GetNode("//sys/tablet_cell_bundles/" + BundleName + "/@health", _))
-        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(ETabletCellHealth::Failed))));
+    EXPECT_CALL(*client, CheckClusterLiveness(NApi::TCheckClusterLivenessOptions{
+        .CheckTabletCellBundle = BundleName
+    }))
+        .WillRepeatedly(Return(MakeFuture(TError("Err"))));
 
     Sleep(sleepPeriod / 2);
     Host_->ValidateReplicaModeRemained(replicaId);
     Sleep(sleepPeriod * 2);
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Async);
 
-    EXPECT_CALL(*client, GetNode("//sys/tablet_cell_bundles/" + BundleName + "/@health", _))
-        .WillRepeatedly(Return(MakeFuture(ConvertToYsonString(ETabletCellHealth::Good))));
+    EXPECT_CALL(*client, CheckClusterLiveness(NApi::TCheckClusterLivenessOptions{
+        .CheckTabletCellBundle = BundleName
+    }))
+        .WillRepeatedly(Return(VoidFuture));
 
     Sleep(SleepPeriod);
     Host_->ValidateReplicaModeChanged(replicaId, ETableReplicaMode::Sync);

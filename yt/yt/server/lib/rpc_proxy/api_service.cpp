@@ -5052,10 +5052,14 @@ private:
 
         options.CheckCypressRoot = request->check_cypress_root();
         options.CheckSecondaryMasterCells = request->check_secondary_master_cells();
+        if (request->has_check_tablet_cell_bundle()) {
+            options.CheckTabletCellBundle = request->check_tablet_cell_bundle();
+        }
 
-        context->SetRequestInfo("CheckCypressRoot: %v, CheckSecondaryMasterCells: %v",
+        context->SetRequestInfo("CheckCypressRoot: %v, CheckSecondaryMasterCells: %v, CheckTabletCellBundle: %v",
             options.CheckCypressRoot,
-            options.CheckSecondaryMasterCells);
+            options.CheckSecondaryMasterCells,
+            options.CheckTabletCellBundle);
 
         ExecuteCall(
             context,

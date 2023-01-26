@@ -47,6 +47,7 @@ YT_DEFINE_ERROR_ENUM(
     ((UncertainOperationControllerState)                 (1917))
     ((NoSuchAttribute)                                   (1920))
     ((FormatDisabled)                                    (1925))
+    ((ClusterLivenessCheckFailed)                        (1926))
 );
 
 DEFINE_ENUM(ERowModificationType,

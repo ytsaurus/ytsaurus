@@ -1462,6 +1462,9 @@ TFuture<void> TClient::CheckClusterLiveness(
 
     req->set_check_cypress_root(options.CheckCypressRoot);
     req->set_check_secondary_master_cells(options.CheckSecondaryMasterCells);
+    if (auto bundleName = options.CheckTabletCellBundle) {
+        req->set_check_tablet_cell_bundle(*bundleName);
+    }
 
     return req->Invoke().As<void>();
 }
