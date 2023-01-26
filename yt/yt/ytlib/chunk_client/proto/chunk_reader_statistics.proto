@@ -15,6 +15,7 @@ message TChunkReaderStatistics
     optional int64 meta_read_from_disk_time = 9 [default = 0];
     optional int64 pick_peer_wait_time = 6 [default = 0];
     optional int64 p2p_activation_count = 12;
+    optional int64 remote_cpu_time = 13;
 
     reserved 8;
 }

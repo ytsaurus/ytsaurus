@@ -25,9 +25,13 @@ struct TChunkReaderStatistics
     // COMPAT(babenko): drop
     std::atomic<i64> OmittedSuspiciousNodeCount = 0;
 
+    // TODO(akozhikhov): Examine whether corresponing plot has non-zero values for dynamic tables.
     std::atomic<i64> P2PActivationCount = 0;
 
-    // TODO(prime@): replace with max time. Cumulative disk IO time has not physical meaning.
+    std::atomic<NProfiling::TValue> RemoteCpuTime = 0;
+
+    // TODO(akozhikhov): Replace with max time or with histogram with predefined percentiles.
+    // Cumulative disk IO time has no physical meaning.
     std::atomic<NProfiling::TValue> DataWaitTime = 0;
     std::atomic<NProfiling::TValue> MetaWaitTime = 0;
     std::atomic<NProfiling::TValue> MetaReadFromDiskTime = 0;
@@ -85,6 +89,8 @@ private:
     NProfiling::TCounter OmittedSuspiciousNodeCount_;
 
     NProfiling::TCounter P2PActivationCount_;
+
+    NProfiling::TTimeCounter RemoteCpuTime_;
 
     NProfiling::TTimeCounter DataWaitTime_;
     NProfiling::TTimeCounter MetaWaitTime_;
