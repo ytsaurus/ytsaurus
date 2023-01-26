@@ -14,7 +14,7 @@ class TTimestampProviderConfig
 public:
     bool AbortOnUnrecognizedOptions;
 
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
 

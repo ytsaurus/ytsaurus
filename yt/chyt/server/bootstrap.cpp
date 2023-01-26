@@ -126,7 +126,7 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    BusServer_ = CreateTcpBusServer(Config_->BusServer);
+    BusServer_ = CreateBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 

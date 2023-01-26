@@ -143,8 +143,8 @@ public:
 
     IBusServerPtr StartBusServer(IMessageHandlerPtr handler)
     {
-        auto config = TTcpBusServerConfig::CreateTcp(Port);
-        auto server = CreateTcpBusServer(config);
+        auto config = TBusServerConfig::CreateTcp(Port);
+        auto server = CreateBusServer(config);
         server->Start(handler);
         return server;
     }
@@ -152,7 +152,7 @@ public:
     void TestReplies(int numRequests, int numParts, EDeliveryTrackingLevel level = EDeliveryTrackingLevel::Full)
     {
         auto server = StartBusServer(New<TReplying42BusHandler>(numParts));
-        auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
+        auto client = CreateBusClient(TBusClientConfig::CreateTcp(Address));
         auto handler = New<TChecking42BusHandler>(numRequests);
         auto bus = client->CreateBus(handler);
         auto message = CreateMessage(numParts);
@@ -182,26 +182,26 @@ public:
 
 TEST_F(TBusTest, ConfigDefaultConstructor)
 {
-    auto config = New<TTcpBusClientConfig>();
+    auto config = New<TBusClientConfig>();
 }
 
-TEST_F(TBusTest, CreateTcpBusClientConfig)
+TEST_F(TBusTest, CreateBusClientConfig)
 {
-    auto config = TTcpBusClientConfig::CreateTcp(Address);
+    auto config = TBusClientConfig::CreateTcp(Address);
     EXPECT_EQ(Address, *config->Address);
     EXPECT_FALSE(config->UnixDomainSocketPath);
 }
 
-TEST_F(TBusTest, CreateUnixDomainBusClientConfig)
+TEST_F(TBusTest, CreateUdsBusClientConfig)
 {
-    auto config = TTcpBusClientConfig::CreateUnixDomain("unix-socket");
+    auto config = TBusClientConfig::CreateUds("unix-socket");
     EXPECT_EQ("unix-socket", *config->UnixDomainSocketPath);
 }
 
 TEST_F(TBusTest, OK)
 {
     auto server = StartBusServer(New<TEmptyBusHandler>());
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(Address));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full))
@@ -215,7 +215,7 @@ TEST_F(TBusTest, OK)
 TEST_F(TBusTest, Terminate)
 {
     auto server = StartBusServer(New<TEmptyBusHandler>());
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(Address));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
 
@@ -248,7 +248,7 @@ TEST_F(TBusTest, TerminateBeforeAccept)
     NNet::BindSocket(serverSocket, NNet::TNetworkAddress::CreateIPv6Loopback(Port));
     NNet::ListenSocket(serverSocket, 0);
 
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(Address));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
 
     auto terminated = NewPromise<void>();
@@ -274,7 +274,7 @@ TEST_F(TBusTest, Failed)
 {
     auto port = NTesting::GetFreePort();
 
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Format("localhost:%v", port)));
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(Format("localhost:%v", port)));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto result = bus->Send(message, NBus::TSendOptions(EDeliveryTrackingLevel::Full)).Get();
@@ -284,11 +284,11 @@ TEST_F(TBusTest, Failed)
 TEST_F(TBusTest, BlackHole)
 {
     auto server = StartBusServer(New<TEmptyBusHandler>());
-    auto config = TTcpBusClientConfig::CreateTcp(Address);
+    auto config = TBusClientConfig::CreateTcp(Address);
 
     config->ReadStallTimeout = TDuration::Seconds(1);
 
-    auto client = CreateTcpBusClient(config);
+    auto client = CreateBusClient(config);
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(1);
     auto options = TSendOptions(EDeliveryTrackingLevel::Full);
@@ -311,7 +311,7 @@ TEST_F(TBusTest, SendCancel)
 {
     auto handler = New<TCountingBusHandler>();
     auto server = StartBusServer(handler);
-    auto client = CreateTcpBusClient(TTcpBusClientConfig::CreateTcp(Address));
+    auto client = CreateBusClient(TBusClientConfig::CreateTcp(Address));
     auto bus = client->CreateBus(New<TEmptyBusHandler>());
     auto message = CreateMessage(4, 16_MB);
 

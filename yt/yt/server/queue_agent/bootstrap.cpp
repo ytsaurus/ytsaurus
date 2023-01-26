@@ -147,7 +147,7 @@ void TBootstrap::DoRun()
 
     ClientDirectory_ = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
 
-    BusServer_ = CreateTcpBusServer(Config_->BusServer);
+    BusServer_ = CreateBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 

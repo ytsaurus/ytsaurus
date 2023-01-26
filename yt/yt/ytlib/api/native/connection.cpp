@@ -156,7 +156,7 @@ public:
     {
         ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
             CreateCachingChannelFactory(
-                NRpc::NBus::CreateBusChannelFactory(Config_->BusClient),
+                NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient),
                 Config_->IdleChannelTtl),
             Config_->TvmId,
             Options_.TvmService);

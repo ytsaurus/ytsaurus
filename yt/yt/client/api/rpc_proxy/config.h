@@ -27,7 +27,7 @@ public:
     std::optional<TString> ProxyNetworkName;
     std::optional<std::vector<TString>> ProxyAddresses;
     NRpc::TServiceDiscoveryEndpointsConfigPtr ProxyEndpoints;
-    std::vector<NRe2::TRe2Ptr> ProxyHostOrder;
+    std::optional<TString> ProxyUnixDomainSocket;
 
     NRpc::TDynamicChannelPoolConfigPtr DynamicChannelPool;
 
@@ -49,7 +49,7 @@ public:
     TDuration DefaultStreamingStallTimeout;
     TDuration DefaultPingPeriod;
 
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
     TDuration IdleChannelTtl;
 
     NHttp::TClientConfigPtr HttpClient;

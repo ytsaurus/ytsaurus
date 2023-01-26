@@ -132,7 +132,7 @@ void TBootstrap::DoRun()
 
     Connection_->GetClusterDirectorySynchronizer()->Start();
 
-    BusServer_ = CreateTcpBusServer(Config_->BusServer);
+    BusServer_ = CreateBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 

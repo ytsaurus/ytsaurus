@@ -207,13 +207,13 @@ void TBootstrap::DoInitialize()
         CellTag_,
         localPeerId);
 
-    auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
+    auto channelFactory = CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
 
     if (Config_->CoreDumper) {
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    auto busServer = CreateTcpBusServer(Config_->BusServer);
+    auto busServer = CreateBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(busServer);
 

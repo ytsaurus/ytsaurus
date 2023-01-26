@@ -725,7 +725,7 @@ void TBootstrap::DoInitialize()
 
     ChannelFactory_ = NAuth::CreateNativeAuthenticationInjectingChannelFactory(
         CreateCachingChannelFactory(
-            NRpc::NBus::CreateBusChannelFactory(Config_->BusClient)),
+            NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient)),
         Config_->ClusterConnection->TvmId);
 
     const auto& networks = Config_->Networks;
@@ -748,7 +748,7 @@ void TBootstrap::DoInitialize()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    auto busServer = CreateTcpBusServer(Config_->BusServer);
+    auto busServer = CreateBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(busServer);
 

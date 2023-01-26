@@ -207,14 +207,14 @@ public:
         return Location_->GetMediumName();
     }
 
-    TTcpBusServerConfigPtr GetBusServerConfig() const override
+    TBusServerConfigPtr GetBusServerConfig() const override
     {
-        return TTcpBusServerConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);
+        return TBusServerConfig::CreateUds(JobProxyUnixDomainSocketPath_);
     }
 
-    TTcpBusClientConfigPtr GetBusClientConfig() const override
+    TBusClientConfigPtr GetBusClientConfig() const override
     {
-        return TTcpBusClientConfig::CreateUnixDomain(JobProxyUnixDomainSocketPath_);
+        return TBusClientConfig::CreateUds(JobProxyUnixDomainSocketPath_);
     }
 
     TFuture<std::vector<TString>> PrepareSandboxDirectories(const TUserSandboxOptions& options) override

@@ -8,8 +8,8 @@ namespace NYT::NBus {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBusServerPtr CreateTcpBusServer(
-    TTcpBusServerConfigPtr config,
+IBusServerPtr CreateBusServer(
+    TBusServerConfigPtr config,
     IPacketTranscoderFactory* packetTranscoderFactory = GetYTPacketTranscoderFactory());
 
 ////////////////////////////////////////////////////////////////////////////////

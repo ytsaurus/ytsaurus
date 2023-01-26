@@ -23,8 +23,8 @@ int main(int argc, char* argv[])
 
         auto port = FromString<int>(argv[1]);
 
-        auto busConfig = TTcpBusServerConfig::CreateTcp(port);
-        auto busServer = CreateTcpBusServer(busConfig);
+        auto busConfig = TBusServerConfig::CreateTcp(port);
+        auto busServer = CreateBusServer(busConfig);
         auto server = CreateBusServer(busServer);
 
         auto workerPool = CreateThreadPool(4, "Worker");

@@ -168,10 +168,10 @@ public:
     // Job-independent parameters.
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
-    NBus::TTcpBusClientConfigPtr SupervisorConnection;
+    NBus::TBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;
 
-    NBus::TTcpBusClientConfigPtr TvmBridgeConnection;
+    NBus::TBusClientConfigPtr TvmBridgeConnection;
     NAuth::TTvmBridgeConfigPtr TvmBridge;
 
     TDuration HeartbeatPeriod;

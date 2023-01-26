@@ -77,7 +77,6 @@ protected:
             // Form a default rpc proxy config listening port 9013.
             auto defaultConfig = New<NRpcProxy::TProxyConfig>();
             defaultConfig->SetDefaults();
-            defaultConfig->RpcPort = 9013;
             defaultConfig->Logging = NLogging::TLogManagerConfig::CreateYTServer(
                 /*componentName*/ "rpc_proxy",
                 /*directory*/ ".",
@@ -96,6 +95,10 @@ protected:
             config = New<NRpcProxy::TProxyConfig>();
             config->SetUnrecognizedStrategy(NYTree::EUnrecognizedStrategy::KeepRecursive);
             config->Load(configNode);
+
+            if (!config->RpcPort) {
+                defaultConfig->RpcPort = 9013;
+            }
 
             // Do not forget to forcefully disable discovery service. Otherwise our local proxy would register
             // as a regular proxy and start serving user requests.

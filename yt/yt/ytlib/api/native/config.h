@@ -178,7 +178,7 @@ public:
 
     int ThreadPoolSize;
 
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
     TDuration IdleChannelTtl;
 
     TDuration DefaultGetInSyncReplicasTimeout;

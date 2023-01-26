@@ -618,7 +618,7 @@ private:
         NApi::NNative::TConnectionOptions connectionOptions;
         connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
 
-        ChannelFactory_ = CreateCachingChannelFactory(CreateBusChannelFactory(New<NBus::TTcpBusConfig>()));
+        ChannelFactory_ = CreateCachingChannelFactory(CreateTcpBusChannelFactory(New<NBus::TBusConfig>()));
 
         Connection_ = NApi::NNative::CreateConnection(
             ConnectionConfig_,

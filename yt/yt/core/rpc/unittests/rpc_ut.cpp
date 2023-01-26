@@ -44,13 +44,13 @@ TString StringFromSharedRef(const TSharedRef& sharedRef)
 template <class TImpl>
 using TRpcTest = TTestBase<TImpl>;
 template <class TImpl>
-using TNotUnixDomainTest = TTestBase<TImpl>;
+using TNotUdsTest = TTestBase<TImpl>;
 template <class TImpl>
 using TNotGrpcTest = TTestBase<TImpl>;
 template <class TImpl>
 using TGrpcTest = TTestBase<TImpl>;
 TYPED_TEST_SUITE(TRpcTest, TAllTransports);
-TYPED_TEST_SUITE(TNotUnixDomainTest, TWithoutUnixDomain);
+TYPED_TEST_SUITE(TNotUdsTest, TWithoutUds);
 TYPED_TEST_SUITE(TNotGrpcTest, TWithoutGrpc);
 TYPED_TEST_SUITE(TGrpcTest, TGrpcOnly);
 
@@ -106,7 +106,7 @@ TYPED_TEST(TRpcTest, UserTag)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TYPED_TEST(TNotUnixDomainTest, Address)
+TYPED_TEST(TNotUdsTest, Address)
 {
     auto testChannel = [] (IChannelPtr channel) {
         TMyProxy proxy(std::move(channel));
