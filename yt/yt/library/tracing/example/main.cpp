@@ -9,11 +9,12 @@
 using namespace NYT;
 using namespace NYT::NTracing;
 
-void SubrequestExample()
+void SubrequestExample(std::optional<TString> endpoint)
 {
     auto traceContext = TTraceContext::NewRoot("Example");
     traceContext->SetSampled();
     traceContext->AddTag("user", "prime");
+    traceContext->SetTargetEndpoint(endpoint);
 
     traceContext->AddLogEntry(GetCpuInstant(), "Request started");
 
@@ -31,10 +32,11 @@ void SubrequestExample()
     Cout << ToString(traceContext->GetTraceId()) << Endl;
 }
 
-void DelayedSamplingExample()
+void DelayedSamplingExample(std::optional<TString> endpoint)
 {
     auto traceContext = TTraceContext::NewRoot("Job");
     traceContext->SetRecorded();
+    traceContext->SetTargetEndpoint(endpoint);
 
     auto fastRequestContext = traceContext->CreateChild("FastRequest");
     fastRequestContext->Finish();
@@ -54,8 +56,8 @@ void DelayedSamplingExample()
 int main(int argc, char* argv[])
 {
     try {
-        if (argc != 2 && argc != 3) {
-            throw yexception() << "usage: " << argv[0] << " COLLECTOR_ENDPOINT";
+        if (argc < 2) {
+            throw yexception() << "usage: " << argv[0] << " COLLECTOR_ENDPOINTS";
         }
 
         auto config = New<NTracing::TJaegerTracerConfig>();
@@ -70,9 +72,16 @@ int main(int argc, char* argv[])
         auto jaeger = New<NTracing::TJaegerTracer>(config);
         SetGlobalTracer(jaeger);
 
-        SubrequestExample();
+        for (int i = 1; i < argc; ++i) {
+            std::optional<TString> endpoint;
+            if (i != 1) {
+                endpoint = argv[i];
+            }
 
-        DelayedSamplingExample();
+            SubrequestExample(endpoint);
+
+            DelayedSamplingExample(endpoint);
+        }
 
         jaeger->WaitFlush().Get();
     } catch (const std::exception& ex) {

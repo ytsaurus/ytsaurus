@@ -56,6 +56,11 @@ Y_FORCE_INLINE const TString& TTraceContext::GetLoggingTag() const
     return LoggingTag_;
 }
 
+Y_FORCE_INLINE const std::optional<TString>& TTraceContext::GetTargetEndpoint() const
+{
+    return TargetEndpoint_;
+}
+
 Y_FORCE_INLINE NProfiling::TCpuDuration TTraceContext::GetElapsedCpuTime() const
 {
     return ElapsedCpuTime_.load(std::memory_order::relaxed);
