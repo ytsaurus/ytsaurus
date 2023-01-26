@@ -19,6 +19,7 @@ void ToProto(NProto::TChunkReaderStatistics* protoChunkReaderStatistics, const T
     protoChunkReaderStatistics->set_meta_bytes_read_from_disk(chunkReaderStatistics->MetaBytesReadFromDisk.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_omitted_suspicious_node_count(chunkReaderStatistics->OmittedSuspiciousNodeCount.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_p2p_activation_count(chunkReaderStatistics->P2PActivationCount.load(std::memory_order::relaxed));
+    protoChunkReaderStatistics->set_remote_cpu_time(chunkReaderStatistics->RemoteCpuTime.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_data_wait_time(chunkReaderStatistics->DataWaitTime.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_wait_time(chunkReaderStatistics->MetaWaitTime.load(std::memory_order::relaxed));
     protoChunkReaderStatistics->set_meta_read_from_disk_time(chunkReaderStatistics->MetaReadFromDiskTime.load(std::memory_order::relaxed));
@@ -36,6 +37,7 @@ void FromProto(TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, const NProto
     chunkReaderStatistics->MetaBytesReadFromDisk.store(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->OmittedSuspiciousNodeCount.store(protoChunkReaderStatistics.omitted_suspicious_node_count(), std::memory_order::relaxed);
     chunkReaderStatistics->P2PActivationCount.store(protoChunkReaderStatistics.p2p_activation_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->RemoteCpuTime.store(protoChunkReaderStatistics.remote_cpu_time(), std::memory_order::relaxed);
     chunkReaderStatistics->DataWaitTime.store(protoChunkReaderStatistics.data_wait_time(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaWaitTime.store(protoChunkReaderStatistics.meta_wait_time(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaReadFromDiskTime.store(protoChunkReaderStatistics.meta_read_from_disk_time(), std::memory_order::relaxed);
@@ -52,6 +54,7 @@ void UpdateFromProto(const TChunkReaderStatisticsPtr* chunkReaderStatisticsPtr, 
     chunkReaderStatistics->MetaBytesReadFromDisk.fetch_add(protoChunkReaderStatistics.meta_bytes_read_from_disk(), std::memory_order::relaxed);
     chunkReaderStatistics->OmittedSuspiciousNodeCount.fetch_add(protoChunkReaderStatistics.omitted_suspicious_node_count(), std::memory_order::relaxed);
     chunkReaderStatistics->P2PActivationCount.fetch_add(protoChunkReaderStatistics.p2p_activation_count(), std::memory_order::relaxed);
+    chunkReaderStatistics->RemoteCpuTime.fetch_add(protoChunkReaderStatistics.remote_cpu_time(), std::memory_order::relaxed);
     chunkReaderStatistics->DataWaitTime.fetch_add(protoChunkReaderStatistics.data_wait_time(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaWaitTime.fetch_add(protoChunkReaderStatistics.meta_wait_time(), std::memory_order::relaxed);
     chunkReaderStatistics->MetaReadFromDiskTime.fetch_add(protoChunkReaderStatistics.meta_read_from_disk_time(), std::memory_order::relaxed);
@@ -93,6 +96,7 @@ TChunkReaderStatisticsCounters::TChunkReaderStatisticsCounters(const NProfiling:
     , WastedMetaBytesReadFromDisk_(profiler.Counter("/wasted_meta_bytes_read_from_disk"))
     , OmittedSuspiciousNodeCount_(profiler.Counter("/omitted_suspicious_node_count"))
     , P2PActivationCount_(profiler.Counter("/p2p_activation_count"))
+    , RemoteCpuTime_(profiler.TimeCounter("/remote_cpu_time"))
     , DataWaitTime_(profiler.TimeCounter("/data_wait_time"))
     , MetaWaitTime_(profiler.TimeCounter("/meta_wait_time"))
     , MetaReadFromDiskTime_(profiler.TimeCounter("/meta_read_from_disk_time"))
@@ -112,6 +116,8 @@ void TChunkReaderStatisticsCounters::Increment(
     OmittedSuspiciousNodeCount_.Increment(chunkReaderStatistics->OmittedSuspiciousNodeCount.load(std::memory_order::relaxed));
 
     P2PActivationCount_.Increment(chunkReaderStatistics->P2PActivationCount.load(std::memory_order::relaxed));
+
+    RemoteCpuTime_.Add(TDuration::FromValue(chunkReaderStatistics->RemoteCpuTime.load(std::memory_order::relaxed)));
 
     DataWaitTime_.Add(TDuration::FromValue(chunkReaderStatistics->DataWaitTime.load(std::memory_order::relaxed)));
     MetaWaitTime_.Add(TDuration::FromValue(chunkReaderStatistics->MetaWaitTime.load(std::memory_order::relaxed)));

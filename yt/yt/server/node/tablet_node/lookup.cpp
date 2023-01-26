@@ -1265,8 +1265,9 @@ std::vector<TSharedRef> TLookupSession::ProcessResults(
     FinishedSuccessfully_ = true;
 
     YT_LOG_DEBUG("Lookup session finished successfully "
-        "(CpuTime: %v, WallTime: %v, SkippedTabletResultCount: %v)",
+        "(CpuTime: %v, RemoteCpuTime: %v, WallTime: %v, SkippedTabletResultCount: %v)",
         CpuTime_,
+        ChunkReadOptions_.ChunkReaderStatistics->RemoteCpuTime.load(std::memory_order::relaxed),
         WallTimer_.GetElapsedTime(),
         skippedTabletResultCount);
 

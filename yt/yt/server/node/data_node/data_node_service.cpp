@@ -1381,7 +1381,15 @@ private:
 
                 response->Attachments().push_back(result);
                 response->set_fetched_rows(true);
-                ToProto(response->mutable_chunk_reader_statistics(), chunkReadSession->GetChunkReaderStatistics());
+
+                const auto& chunkReaderStatistics = chunkReadSession->GetChunkReaderStatistics();
+                if (const auto* traceContext = NTracing::GetCurrentTraceContext()) {
+                    NTracing::FlushCurrentTraceContextTime();
+                    chunkReaderStatistics->RemoteCpuTime.fetch_add(
+                        traceContext->GetElapsedTime().GetValue(),
+                        std::memory_order_relaxed);
+                }
+                ToProto(response->mutable_chunk_reader_statistics(), chunkReaderStatistics);
 
                 context->SetComplete();
 
