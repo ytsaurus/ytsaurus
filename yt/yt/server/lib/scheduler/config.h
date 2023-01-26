@@ -483,8 +483,10 @@ public:
 
     TDuration SchedulerTreeAlertsUpdatePeriod;
 
+    // COMPAT(renadeen): remove when optimization proves worthy.
     bool EnableOptimizedOperationOrchid;
 
+    // COMPAT(renadeen): remove when optimization proves worthy.
     bool EnableAsyncOperationEventLogging;
 
     REGISTER_YSON_STRUCT(TFairShareStrategyConfig);
@@ -620,6 +622,7 @@ public:
     //! This option does not affect fetching after cleaner is re-enabled.
     bool DisconnectOnFinishedOperationFetchFailure;
 
+    // COMPAT(renadeen): remove when optimization proves worthy.
     bool EnableOptimizedRowBuilding;
 
     REGISTER_YSON_STRUCT(TOperationsCleanerConfig);
