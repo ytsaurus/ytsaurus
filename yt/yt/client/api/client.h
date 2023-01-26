@@ -1422,8 +1422,13 @@ struct TCheckClusterLivenessOptions
     bool CheckCypressRoot = false;
     //! Checks secondary master cells generic availability.
     bool CheckSecondaryMasterCells = false;
+    //! Unless null checks tablet cell bundle health.
+    std::optional<TString> CheckTabletCellBundle;
 
     bool IsCheckTrivial() const;
+
+    // NB: For testing purposes.
+    bool operator==(const TCheckClusterLivenessOptions& other) const;
 };
 
 struct TBuildSnapshotOptions

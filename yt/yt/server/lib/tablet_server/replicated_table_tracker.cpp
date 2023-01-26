@@ -233,7 +233,7 @@ TString ToString(const TBundleHealthKey& key)
 DECLARE_REFCOUNTED_CLASS(TNewBundleHealthCache)
 
 class TNewBundleHealthCache
-    : public TAsyncExpiringCache<TBundleHealthKey, ETabletCellHealth>
+    : public TAsyncExpiringCache<TBundleHealthKey, void>
 {
 public:
     TNewBundleHealthCache(
@@ -246,20 +246,19 @@ public:
     { }
 
 protected:
-    TFuture<ETabletCellHealth> DoGet(
+    TFuture<void> DoGet(
         const TBundleHealthKey& key,
         bool /*isPeriodicUpdate*/) noexcept override
     {
         auto clientOrError = ClusterClientCache_->Get(key.ClusterKey);
         if (!clientOrError.IsOK()) {
-            return MakeFuture<ETabletCellHealth>(TError(clientOrError));
+            return MakeFuture(TError(clientOrError));
         }
 
-        auto bundleHealthPath = "//sys/tablet_cell_bundles/" + ToYPathLiteral(key.BundleName) + "/@health";
-        return clientOrError.Value()->GetNode(bundleHealthPath)
-            .Apply(BIND([=] (const TErrorOr<TYsonString>& error) {
-                return ConvertTo<ETabletCellHealth>(error.ValueOrThrow());
-            }));
+        NApi::TCheckClusterLivenessOptions options{
+            .CheckTabletCellBundle = key.BundleName,
+        };
+        return clientOrError.Value()->CheckClusterLiveness(options);
     }
 
 private:
@@ -385,7 +384,7 @@ public:
         return {};
     }
 
-    TErrorOr<ETabletCellHealth> CheckBundleHealth(const TBundleHealthKey& key)
+    TError CheckBundleHealth(const TBundleHealthKey& key)
     {
         return BundleHealthChecker_.Get(key);
     }
@@ -568,17 +567,12 @@ public:
 
             auto bundleHealthOrError = TableTracker_->CheckBundleHealth({ClusterName_, bundleNameOrError.Value()});
             if (!bundleHealthOrError.IsOK()) {
-                return bundleHealthOrError;
-            }
-
-            auto bundleHealth = bundleHealthOrError.Value();
-            if (bundleHealth != ETabletCellHealth::Good && bundleHealth != ETabletCellHealth::Degraded) {
                 if (++IterationsWithoutAcceptableBundleHealth_ >
                     TableTracker_->GetConfig()->MaxIterationsWithoutAcceptableBundleHealth)
                 {
-                    return TError("Bad tablet cell health for %v times in a row; actual health is %Qlv",
-                        IterationsWithoutAcceptableBundleHealth_,
-                        bundleHealth);
+                    return TError("Tablet cell bundle health check failed for %v times in a row",
+                        IterationsWithoutAcceptableBundleHealth_)
+                        << bundleHealthOrError;
                 }
             } else {
                 IterationsWithoutAcceptableBundleHealth_ = 0;

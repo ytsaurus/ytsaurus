@@ -752,33 +752,79 @@ void TClient::DoCheckClusterLiveness(
         THROW_ERROR_EXCEPTION("No liveness check methods specified");
     }
 
+    TMasterReadOptions masterReadOptions;
     std::vector<TFuture<TObjectServiceProxy::TRspExecuteBatchPtr>> futures;
-    auto makeRequest = [&] (auto proxy) {
+
+    std::optional<int> bundleCheckSubrequestIndex;
+
+    // Requests to primary master.
+    if (options.CheckCypressRoot || options.CheckTabletCellBundle) {
+        auto proxy = CreateObjectServiceReadProxy(masterReadOptions);
         auto batchReq = proxy->ExecuteBatch();
 
-        auto req = TYPathProxy::List("/");
-        req->set_limit(1);
-        batchReq->AddRequest(req);
+        if (options.CheckCypressRoot) {
+            auto req = TYPathProxy::List("/");
+            req->set_limit(1);
+            batchReq->AddRequest(req);
+        }
+
+        if (auto bundleName = options.CheckTabletCellBundle) {
+            bundleCheckSubrequestIndex = batchReq->GetSize();
+            auto req = TYPathProxy::Get("//sys/tablet_cell_bundles/" + ToYPathLiteral(*bundleName) + "/@health");
+            batchReq->AddRequest(req);
+        }
 
         futures.push_back(batchReq->Invoke());
-    };
-
-    TMasterReadOptions masterReadOptions;
-    if (options.CheckCypressRoot) {
-        makeRequest(CreateObjectServiceReadProxy(masterReadOptions));
     }
+
+    // Requests to secondary masters.
     if (options.CheckSecondaryMasterCells) {
         for (auto secondaryCellTag : Connection_->GetSecondaryMasterCellTags()) {
-            makeRequest(CreateObjectServiceReadProxy(masterReadOptions, secondaryCellTag));
+            auto proxy = CreateObjectServiceReadProxy(masterReadOptions, secondaryCellTag);
+            auto batchReq = proxy->ExecuteBatch();
+
+            auto req = TYPathProxy::List("/");
+            req->set_limit(1);
+            batchReq->AddRequest(req);
+
+            futures.push_back(batchReq->Invoke());
         }
     }
 
-    auto batchResponses = WaitFor(AllSucceeded(std::move(futures))
-        .WithTimeout(Connection_->GetConfig()->ClusterLivenessCheckTimeout))
-        .ValueOrThrow();
+    auto batchResponsesOrError = WaitFor(AllSucceeded(std::move(futures))
+        .WithTimeout(Connection_->GetConfig()->ClusterLivenessCheckTimeout));
+    if (!batchResponsesOrError.IsOK()) {
+        if (batchResponsesOrError.FindMatching(NYT::EErrorCode::Timeout)) {
+            THROW_ERROR_EXCEPTION(NApi::EErrorCode::ClusterLivenessCheckFailed,
+                "Cluster liveness request timed out")
+                << TError(batchResponsesOrError);
+        } else {
+            batchResponsesOrError.ThrowOnError();
+        }
+    }
+
+    const auto& batchResponses = batchResponsesOrError.Value();
     for (const auto& batchResponse : batchResponses) {
-        batchResponse->GetResponse<TYPathProxy::TRspList>(0)
-            .ThrowOnError();
+        for (int responseIndex = 0; responseIndex < batchResponse->GetResponseCount(); ++responseIndex) {
+            const auto& responseOrError = batchResponse->GetResponse(responseIndex);
+            if (!responseOrError.IsOK()) {
+                THROW_ERROR_EXCEPTION(NApi::EErrorCode::ClusterLivenessCheckFailed,
+                    "Cluster liveness subrequest failed")
+                    << TError(responseOrError);
+            }
+        }
+    }
+
+    if (bundleCheckSubrequestIndex) {
+        auto bundleCheckSubresponse = batchResponses[0]->GetResponse<TYPathProxy::TRspGet>(*bundleCheckSubrequestIndex)
+            .Value();
+        auto health = ConvertTo<ETabletCellHealth>(TYsonString(bundleCheckSubresponse->value()));
+        if (health != ETabletCellHealth::Good && health != ETabletCellHealth::Degraded) {
+            THROW_ERROR_EXCEPTION(NApi::EErrorCode::ClusterLivenessCheckFailed,
+                "Tablet cell bundle health subrequest failed")
+                << TErrorAttribute("bundle_name", *options.CheckTabletCellBundle)
+                << TErrorAttribute("bundle_health", health);
+        }
     }
 }
 

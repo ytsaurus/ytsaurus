@@ -2406,6 +2406,7 @@ message TReqCheckClusterLiveness
 {
     required bool check_cypress_root = 1;
     optional bool check_secondary_master_cells = 2;
+    optional string check_tablet_cell_bundle = 3;
 }
 
 message TRspCheckClusterLiveness
