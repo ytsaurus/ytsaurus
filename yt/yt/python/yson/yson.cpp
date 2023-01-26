@@ -257,6 +257,7 @@ public:
         PyEval_InitThreads();
 #endif
 
+        TSignalRegistry::Get()->SetOverrideNonDefaultSignalHandlers(false);
         TSignalRegistry::Get()->PushCallback(SIGSEGV, CrashSignalHandler);
         TSignalRegistry::Get()->PushDefaultSignalHandler(SIGSEGV);
 

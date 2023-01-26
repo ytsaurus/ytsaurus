@@ -20,6 +20,9 @@ public:
     //! execution.
     DEFINE_BYVAL_RW_PROPERTY(bool, EnableCrashSignalProtection, true);
 
+    //! Flag preventing us to override user custom signal handlers.
+    DEFINE_BYVAL_RW_PROPERTY(bool, OverrideNonDefaultSignalHandlers, true);
+
 #ifdef _unix_
     using TSignalHandler = std::function<void(int, siginfo_t*, void*)>;
 #else
