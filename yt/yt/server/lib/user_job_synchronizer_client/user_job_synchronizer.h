@@ -17,7 +17,7 @@ class TUserJobSynchronizerConnectionConfig
 {
 public:
     //! User job -> Job proxy connection config.
-    NBus::TTcpBusClientConfigPtr BusClientConfig;
+    NBus::TBusClientConfigPtr BusClientConfig;
 
     REGISTER_YSON_STRUCT(TUserJobSynchronizerConnectionConfig);
 

@@ -11,7 +11,7 @@
 
 namespace NYT::NJobProberClient {
 
-using NBus::TTcpBusClientConfigPtr;
+using NBus::TBusClientConfigPtr;
 using NChunkClient::TChunkId;
 using NYson::TYsonString;
 using NJobTrackerClient::TJobId;
@@ -26,7 +26,7 @@ class TJobProberClient
     : public IJobProbe
 {
 public:
-    TJobProberClient(TTcpBusClientConfigPtr config, TJobId jobId)
+    TJobProberClient(TBusClientConfigPtr config, TJobId jobId)
         : TcpBusClientConfig_(config)
         , JobId_(jobId)
     { }
@@ -122,7 +122,7 @@ public:
     }
 
 private:
-    const TTcpBusClientConfigPtr TcpBusClientConfig_;
+    const TBusClientConfigPtr TcpBusClientConfig_;
     const TJobId JobId_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
@@ -133,7 +133,7 @@ private:
     {
         auto guard = Guard(SpinLock_);
         if (!JobProberProxy_) {
-            auto client = CreateTcpBusClient(TcpBusClientConfig_);
+            auto client = CreateBusClient(TcpBusClientConfig_);
             auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
             JobProberProxy_ = std::make_unique<TJobProberServiceProxy>(std::move(channel));
         }
@@ -144,7 +144,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IJobProbePtr CreateJobProbe(
-    NBus::TTcpBusClientConfigPtr config,
+    NBus::TBusClientConfigPtr config,
     TJobId jobId)
 {
     return New<TJobProberClient>(config, jobId);

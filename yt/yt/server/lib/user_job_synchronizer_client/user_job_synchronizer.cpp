@@ -27,9 +27,9 @@ class TUserJobSynchronizerClient
     : public IUserJobSynchronizerClient
 {
 public:
-    explicit TUserJobSynchronizerClient(TTcpBusClientConfigPtr config)
+    explicit TUserJobSynchronizerClient(TBusClientConfigPtr config)
     {
-        auto client = CreateTcpBusClient(config);
+        auto client = CreateBusClient(config);
         auto channel = NRpc::NBus::CreateBusChannel(std::move(client));
         ControlServiceProxy_.reset(new TUserJobSynchronizerServiceProxy(channel));
     }

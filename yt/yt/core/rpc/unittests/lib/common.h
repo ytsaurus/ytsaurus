@@ -172,14 +172,14 @@ public:
         const TString& /*serverAddress*/,
         THashMap<TString, NYTree::INodePtr> /*grpcArguments*/)
     {
-        auto client = CreateTcpBusClient(NYT::NBus::TTcpBusClientConfig::CreateTcp(address));
+        auto client = CreateBusClient(NYT::NBus::TBusClientConfig::CreateTcp(address));
         return NRpc::NBus::CreateBusChannel(client);
     }
 
     static NYT::NBus::IBusServerPtr MakeBusServer(ui16 port)
     {
-        auto busConfig = NYT::NBus::TTcpBusServerConfig::CreateTcp(port);
-        return CreateTcpBusServer(busConfig);
+        auto busConfig = NYT::NBus::TBusServerConfig::CreateTcp(port);
+        return CreateBusServer(busConfig);
     }
 };
 
@@ -378,15 +378,15 @@ public:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// TRpcOverUnixDomainImpl creates unix domain sockets, supported only on Linux.
-class TRpcOverUnixDomainImpl
+// TRpcOverUdsImpl creates unix domain sockets, supported only on Linux.
+class TRpcOverUdsImpl
 {
 public:
     static NYT::NBus::IBusServerPtr MakeBusServer(ui16 port)
     {
         SocketPath_ = GetWorkPath() + "/socket_" + ToString(port);
-        auto busConfig = NYT::NBus::TTcpBusServerConfig::CreateUnixDomain(SocketPath_);
-        return CreateTcpBusServer(busConfig);
+        auto busConfig = NYT::NBus::TBusServerConfig::CreateUds(SocketPath_);
+        return CreateBusServer(busConfig);
     }
 
     static IChannelPtr CreateChannel(
@@ -394,9 +394,9 @@ public:
         const TString& serverAddress,
         THashMap<TString, NYTree::INodePtr> /*grpcArguments*/)
     {
-        auto clientConfig = NYT::NBus::TTcpBusClientConfig::CreateUnixDomain(
+        auto clientConfig = NYT::NBus::TBusClientConfig::CreateUds(
             address == serverAddress ? SocketPath_ : address);
-        auto client = CreateTcpBusClient(clientConfig);
+        auto client = CreateBusClient(clientConfig);
         return NRpc::NBus::CreateBusChannel(client);
     }
 
@@ -404,13 +404,13 @@ private:
     static TString SocketPath_;
 };
 
-TString TRpcOverUnixDomainImpl::SocketPath_ = "";
+TString TRpcOverUdsImpl::SocketPath_ = "";
 
 ////////////////////////////////////////////////////////////////////////////////
 
 using TAllTransports = ::testing::Types<
 #ifdef _linux_
-    TRpcOverBus<TRpcOverUnixDomainImpl>,
+    TRpcOverBus<TRpcOverUdsImpl>,
     TRpcOverBus<TRpcOverBusImpl<true>>,
 #endif
     TRpcOverBus<TRpcOverBusImpl<false>>,
@@ -418,7 +418,7 @@ using TAllTransports = ::testing::Types<
     TRpcOverGrpcImpl<true>
 >;
 
-using TWithoutUnixDomain = ::testing::Types<
+using TWithoutUds = ::testing::Types<
 #ifdef _linux_
     TRpcOverBus<TRpcOverBusImpl<true>>,
 #endif
@@ -429,7 +429,7 @@ using TWithoutUnixDomain = ::testing::Types<
 
 using TWithoutGrpc = ::testing::Types<
 #ifdef _linux_
-    TRpcOverBus<TRpcOverUnixDomainImpl>,
+    TRpcOverBus<TRpcOverUdsImpl>,
     TRpcOverBus<TRpcOverBusImpl<true>>,
 #endif
     TRpcOverBus<TRpcOverBusImpl<false>>

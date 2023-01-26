@@ -158,7 +158,7 @@ void TBootstrap::DoRun()
     auto clientOptions = TClientOptions::FromUser(Config_->ClusterUser);
     Client_ = Connection_->CreateNativeClient(clientOptions);
 
-    BusServer_ = CreateTcpBusServer(Config_->BusServer);
+    BusServer_ = CreateBusServer(Config_->BusServer);
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
 

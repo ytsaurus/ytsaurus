@@ -635,7 +635,7 @@ TJobResult TJobProxy::RunJob()
 
     try {
         if (Config_->TvmBridge && Config_->TvmBridgeConnection) {
-            auto tvmBridgeClient = CreateTcpBusClient(Config_->TvmBridgeConnection);
+            auto tvmBridgeClient = CreateBusClient(Config_->TvmBridgeConnection);
             auto tvmBridgeChannel = NRpc::NBus::CreateBusChannel(tvmBridgeClient);
 
             TvmBridge_ = NAuth::CreateTvmBridge(GetControlInvoker(), tvmBridgeChannel, Config_->TvmBridge);
@@ -652,7 +652,7 @@ TJobResult TJobProxy::RunJob()
         TrafficMeter_ = New<TTrafficMeter>(LocalDescriptor_.GetDataCenter());
         TrafficMeter_->Start();
 
-        RpcServer_ = NRpc::NBus::CreateBusServer(CreateTcpBusServer(Config_->BusServer));
+        RpcServer_ = NRpc::NBus::CreateBusServer(CreateBusServer(Config_->BusServer));
         RpcServer_->RegisterService(CreateJobProberService(this, GetControlInvoker()));
         RpcServer_->Start();
 
@@ -665,7 +665,7 @@ TJobResult TJobProxy::RunJob()
             YT_LOG_DEBUG("Destination service id is ready");
         }
 
-        auto supervisorClient = CreateTcpBusClient(Config_->SupervisorConnection);
+        auto supervisorClient = CreateBusClient(Config_->SupervisorConnection);
         auto supervisorChannel = NRpc::NBus::CreateBusChannel(supervisorClient);
         if (TvmBridge_) {
             auto serviceTicketAuth = CreateServiceTicketAuth(TvmBridge_, TvmBridge_->GetSelfTvmId());

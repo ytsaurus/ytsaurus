@@ -301,7 +301,7 @@ private:
         JobProxyConfigTemplate_->ClusterConnection = CloneYsonSerializable(GetConfig()->ClusterConnection);
         JobProxyConfigTemplate_->ClusterConnection->OverrideMasterAddresses({localAddress});
 
-        JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TTcpBusClientConfig>();
+        JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
 
         JobProxyConfigTemplate_->SupervisorConnection->Address = localAddress;
 
@@ -328,7 +328,7 @@ private:
         JobProxyConfigTemplate_->CheckUserJobMemoryLimit = GetConfig()->ExecNode->CheckUserJobMemoryLimit;
 
         if (auto tvmService = NAuth::TNativeAuthenticationManager::Get()->GetTvmService()) {
-            JobProxyConfigTemplate_->TvmBridgeConnection = New<NYT::NBus::TTcpBusClientConfig>();
+            JobProxyConfigTemplate_->TvmBridgeConnection = New<NYT::NBus::TBusClientConfig>();
             JobProxyConfigTemplate_->TvmBridgeConnection->Address = localAddress;
 
             JobProxyConfigTemplate_->TvmBridge = New<NAuth::TTvmBridgeConfig>();

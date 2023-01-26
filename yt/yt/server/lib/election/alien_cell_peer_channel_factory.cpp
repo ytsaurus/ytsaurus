@@ -84,7 +84,7 @@ public:
             return MakeFuture<IChannelPtr>(UnavailableError_);
         }
 
-        auto channelFactory = NRpc::NBus::CreateBusChannelFactory(New<NYT::NBus::TTcpBusConfig>());
+        auto channelFactory = NRpc::NBus::CreateTcpBusChannelFactory(New<NYT::NBus::TBusConfig>());
         auto channel = CreateRealmChannel(
             channelFactory->CreateChannel(*address),
             CellId_);

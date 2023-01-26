@@ -53,7 +53,7 @@ public:
 
     NTimestampServer::TTimestampManagerConfigPtr TimestampManager;
 
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
 
     bool UseNewHydra;
 

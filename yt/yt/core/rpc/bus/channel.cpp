@@ -1203,19 +1203,19 @@ IChannelPtr CreateBusChannel(IBusClientPtr client)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TBusChannelFactory
+class TTcpBusChannelFactory
     : public IChannelFactory
 {
 public:
-    explicit TBusChannelFactory(TTcpBusConfigPtr config)
+    explicit TTcpBusChannelFactory(TBusConfigPtr config)
         : Config_(ConvertToNode(std::move(config)))
     { }
 
     IChannelPtr CreateChannel(const TString& address) override
     {
-        auto config = TTcpBusClientConfig::CreateTcp(address);
-        config->Load(Config_, true, false);
-        auto client = CreateTcpBusClient(std::move(config));
+        auto config = TBusClientConfig::CreateTcp(address);
+        config->Load(Config_, /*postprocess*/ true, /*setDefaults*/ false);
+        auto client = CreateBusClient(std::move(config));
         return CreateBusChannel(std::move(client));
     }
 
@@ -1223,9 +1223,36 @@ private:
     const INodePtr Config_;
 };
 
-IChannelFactoryPtr CreateBusChannelFactory(TTcpBusConfigPtr config)
+IChannelFactoryPtr CreateTcpBusChannelFactory(TBusConfigPtr config)
 {
-    return New<TBusChannelFactory>(std::move(config));
+    return New<TTcpBusChannelFactory>(std::move(config));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TUdsBusChannelFactory
+    : public IChannelFactory
+{
+public:
+    explicit TUdsBusChannelFactory(TBusConfigPtr config)
+        : Config_(ConvertToNode(std::move(config)))
+    { }
+
+    IChannelPtr CreateChannel(const TString& address) override
+    {
+        auto config = TBusClientConfig::CreateUds(address);
+        config->Load(Config_, /*postprocess*/ true, /*setDefaults*/ false);
+        auto client = CreateBusClient(std::move(config));
+        return CreateBusChannel(std::move(client));
+    }
+
+private:
+    const INodePtr Config_;
+};
+
+IChannelFactoryPtr CreateUdsBusChannelFactory(TBusConfigPtr config)
+{
+    return New<TUdsBusChannelFactory>(std::move(config));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

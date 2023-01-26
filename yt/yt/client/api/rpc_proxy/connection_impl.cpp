@@ -184,7 +184,9 @@ TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options
     , LoggingTag_(MakeConnectionLoggingTag(Config_, ConnectionId_))
     , ClusterId_(MakeConnectionClusterId(Config_))
     , Logger(RpcProxyClientLogger.WithRawTag(LoggingTag_))
-    , ChannelFactory_(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient))
+    , ChannelFactory_(Config_->ProxyUnixDomainSocket
+        ? NRpc::NBus::CreateUdsBusChannelFactory(Config_->BusClient)
+        : NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient))
     , CachingChannelFactory_(CreateCachingChannelFactory(
         ChannelFactory_,
         Config_->IdleChannelTtl))
@@ -220,6 +222,10 @@ TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options
 
     if (Config_->ProxyAddresses) {
         ChannelPool_->SetPeers(*Config_->ProxyAddresses);
+    }
+
+    if (Config_->ProxyUnixDomainSocket) {
+        ChannelPool_->SetPeers({*Config_->ProxyUnixDomainSocket});
     }
 }
 

@@ -134,7 +134,7 @@ class TTcpBusClient
 {
 public:
     TTcpBusClient(
-        TTcpBusClientConfigPtr config,
+        TBusClientConfigPtr config,
         IPacketTranscoderFactory* packetTranscoderFactory)
         : Config_(std::move(config))
         , PacketTranscoderFactory_(packetTranscoderFactory)
@@ -200,7 +200,7 @@ public:
     }
 
 private:
-    const TTcpBusClientConfigPtr Config_;
+    const TBusClientConfigPtr Config_;
 
     IPacketTranscoderFactory* const PacketTranscoderFactory_;
 
@@ -210,8 +210,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBusClientPtr CreateTcpBusClient(
-    TTcpBusClientConfigPtr config,
+IBusClientPtr CreateBusClient(
+    TBusClientConfigPtr config,
     IPacketTranscoderFactory* packetTranscoderFactory)
 {
     return New<TTcpBusClient>(std::move(config), packetTranscoderFactory);

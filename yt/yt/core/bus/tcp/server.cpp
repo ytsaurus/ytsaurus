@@ -39,7 +39,7 @@ class TTcpBusServerBase
 {
 public:
     TTcpBusServerBase(
-        TTcpBusServerConfigPtr config,
+        TBusServerConfigPtr config,
         IPollerPtr poller,
         IMessageHandlerPtr handler,
         IPacketTranscoderFactory* packetTranscoderFactory)
@@ -116,7 +116,7 @@ public:
     }
 
 protected:
-    const TTcpBusServerConfigPtr Config_;
+    const TBusServerConfigPtr Config_;
     const IPollerPtr Poller_;
     const IMessageHandlerPtr Handler_;
 
@@ -341,7 +341,7 @@ class TLocalTcpBusServer
 {
 public:
     TLocalTcpBusServer(
-        TTcpBusServerConfigPtr config,
+        TBusServerConfigPtr config,
         IPollerPtr poller,
         IMessageHandlerPtr handler,
         IPacketTranscoderFactory* packetTranscoderFactory)
@@ -386,7 +386,7 @@ class TTcpBusServerProxy
 {
 public:
     explicit TTcpBusServerProxy(
-        TTcpBusServerConfigPtr config,
+        TBusServerConfigPtr config,
         IPacketTranscoderFactory* packetTranscoderFactory)
         : Config_(std::move(config))
         , PacketTranscoderFactory_(packetTranscoderFactory)
@@ -421,7 +421,7 @@ public:
     }
 
 private:
-    const TTcpBusServerConfigPtr Config_;
+    const TBusServerConfigPtr Config_;
 
     IPacketTranscoderFactory* const PacketTranscoderFactory_;
 
@@ -462,8 +462,8 @@ private:
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IBusServerPtr CreateTcpBusServer(
-    TTcpBusServerConfigPtr config,
+IBusServerPtr CreateBusServer(
+    TBusServerConfigPtr config,
     IPacketTranscoderFactory* packetTranscoderFactory)
 {
     std::vector<IBusServerPtr> servers;

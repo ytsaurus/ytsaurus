@@ -173,7 +173,7 @@ TQueueAgent::TQueueAgent(
     , GlobalProfilingCounters_(QueueAgentProfiler)
     , QueueAgentChannelFactory_(
         NAuth::CreateNativeAuthenticationInjectingChannelFactory(
-            CreateCachingChannelFactory(CreateBusChannelFactory(Config_->BusClient)),
+            CreateCachingChannelFactory(CreateTcpBusChannelFactory(Config_->BusClient)),
             nativeConnection->GetConfig()->TvmId))
 {
     for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {

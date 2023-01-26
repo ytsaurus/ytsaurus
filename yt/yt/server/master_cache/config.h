@@ -26,7 +26,7 @@ class TMasterCacheConfig
 public:
     bool AbortOnUnrecognizedOptions;
 
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
 
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 

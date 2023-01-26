@@ -162,11 +162,11 @@ void TBootstrap::DoRun()
 
     AccessChecker_ = CreateAccessChecker(this);
 
-    BusServer_ = CreateTcpBusServer(Config_->BusServer);
+    BusServer_ = CreateBusServer(Config_->BusServer);
     if (Config_->TvmOnlyRpcPort) {
         auto busConfigCopy = CloneYsonSerializable(Config_->BusServer);
         busConfigCopy->Port = Config_->TvmOnlyRpcPort;
-        TvmOnlyBusServer_ = CreateTcpBusServer(busConfigCopy);
+        TvmOnlyBusServer_ = CreateBusServer(busConfigCopy);
     }
 
     RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);

@@ -247,7 +247,7 @@ public:
     //! If |true| then |//sys/@provision_lock| is set during cluster initialization.
     bool EnableProvisionLock;
 
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
 
     NYTree::IMapNodePtr CypressAnnotations;
 

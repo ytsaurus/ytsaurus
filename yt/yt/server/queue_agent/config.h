@@ -85,7 +85,7 @@ class TQueueAgentConfig
 {
 public:
     //! Used to create channels to other queue agents.
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
 
     //! Identifies a family of queue agents.
     //! Each queue agent only handles queues and consumers with the corresponding attribute set to its own stage.

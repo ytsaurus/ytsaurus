@@ -63,7 +63,7 @@ class TTcpConnection
 {
 public:
     TTcpConnection(
-        TTcpBusConfigPtr config,
+        TBusConfigPtr config,
         EConnectionType connectionType,
         TConnectionId id,
         SOCKET socket,
@@ -169,7 +169,7 @@ private:
 
     using TPacketPtr = TIntrusivePtr<TPacket>;
 
-    const TTcpBusConfigPtr Config_;
+    const TBusConfigPtr Config_;
     const EConnectionType ConnectionType_;
     const TConnectionId Id_;
     const TString EndpointDescription_;

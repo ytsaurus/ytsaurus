@@ -82,8 +82,8 @@ struct ISlot
         const std::vector<NDataNode::TArtifactKey>& layers,
         const TArtifactDownloadOptions& downloadOptions) = 0;
 
-    virtual NBus::TTcpBusServerConfigPtr GetBusServerConfig() const = 0;
-    virtual NBus::TTcpBusClientConfigPtr GetBusClientConfig() const = 0;
+    virtual NBus::TBusServerConfigPtr GetBusServerConfig() const = 0;
+    virtual NBus::TBusClientConfigPtr GetBusClientConfig() const = 0;
 
     virtual int GetSlotIndex() const = 0;
 

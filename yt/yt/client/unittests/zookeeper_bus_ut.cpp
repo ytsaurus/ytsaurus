@@ -114,8 +114,8 @@ public:
 
     IBusServerPtr StartBusServer(IMessageHandlerPtr handler)
     {
-        auto config = TTcpBusServerConfig::CreateTcp(Port);
-        auto server = CreateTcpBusServer(
+        auto config = TBusServerConfig::CreateTcp(Port);
+        auto server = CreateBusServer(
             config,
             GetZookeeperPacketTranscoderFactory());
         server->Start(handler);
@@ -125,8 +125,8 @@ public:
     void TestReplies(int numRequests, const TString& message)
     {
         auto server = StartBusServer(New<TReplyingBusHandler>(message));
-        auto client = CreateTcpBusClient(
-            TTcpBusClientConfig::CreateTcp(Address),
+        auto client = CreateBusClient(
+            TBusClientConfig::CreateTcp(Address),
             GetZookeeperPacketTranscoderFactory());
         auto handler = New<TCheckingBusHandler>(numRequests, message);
         auto bus = client->CreateBus(handler);

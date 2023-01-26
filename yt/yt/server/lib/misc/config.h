@@ -29,7 +29,7 @@ class TServerConfig
     , public TDiagnosticDumpConfig
 {
 public:
-    NBus::TTcpBusServerConfigPtr BusServer;
+    NBus::TBusServerConfigPtr BusServer;
     NRpc::TServerConfigPtr RpcServer;
     NCoreDump::TCoreDumperConfigPtr CoreDumper;
 

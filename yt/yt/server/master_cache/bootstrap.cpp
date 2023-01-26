@@ -155,7 +155,7 @@ private:
 
     void DoInitialize()
     {
-        BusServer_ = NBus::CreateTcpBusServer(Config_->BusServer);
+        BusServer_ = NBus::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 

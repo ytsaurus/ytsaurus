@@ -106,7 +106,7 @@ private:
 
     void DoInitialize()
     {
-        BusServer_ = NBus::CreateTcpBusServer(Config_->BusServer);
+        BusServer_ = NBus::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
@@ -130,7 +130,7 @@ private:
             OrchidRoot_,
             "timestamp_provider");
 
-        auto channelFactory = NRpc::CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
+        auto channelFactory = NRpc::CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             Config_->TimestampProvider,
             CreateTimestampProviderChannel(Config_->TimestampProvider, channelFactory));

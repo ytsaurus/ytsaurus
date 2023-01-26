@@ -127,11 +127,11 @@ private:
 
     void DoInitialize()
     {
-        BusServer_ = NBus::CreateTcpBusServer(Config_->BusServer);
+        BusServer_ = NBus::CreateBusServer(Config_->BusServer);
         RpcServer_ = NRpc::NBus::CreateBusServer(BusServer_);
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());
 
-        ChannelFactory_ = CreateCachingChannelFactory(NRpc::NBus::CreateBusChannelFactory(Config_->BusClient));
+        ChannelFactory_ = CreateCachingChannelFactory(NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient));
 
         if (Config_->CoreDumper) {
             CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);

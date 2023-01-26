@@ -90,7 +90,7 @@ void TTcpConnection::TPacket::EnableCancel(TTcpConnectionPtr connection)
 ////////////////////////////////////////////////////////////////////////////////
 
 TTcpConnection::TTcpConnection(
-    TTcpBusConfigPtr config,
+    TBusConfigPtr config,
     EConnectionType connectionType,
     TConnectionId id,
     SOCKET socket,

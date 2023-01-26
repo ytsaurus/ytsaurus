@@ -40,7 +40,7 @@ class TYqlAgentConfig
 {
 public:
     //! Used to create channels to other queue agents.
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
 
     std::vector<TString> AdditionalClusters;
 

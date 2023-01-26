@@ -20,7 +20,7 @@ public:
 
     int WorkerThreadPoolSize;
 
-    NBus::TTcpBusConfigPtr BusClient;
+    NBus::TBusConfigPtr BusClient;
 
     NDiscoveryServer::TDiscoveryServerConfigPtr DiscoveryServer;
 

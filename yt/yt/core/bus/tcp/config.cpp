@@ -63,7 +63,7 @@ void TTcpDispatcherDynamicConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTcpBusServerConfig::Register(TRegistrar registrar)
+void TBusServerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("port", &TThis::Port)
         .Default();
@@ -75,23 +75,23 @@ void TTcpBusServerConfig::Register(TRegistrar registrar)
         .Default(50000);
 }
 
-TTcpBusServerConfigPtr TTcpBusServerConfig::CreateTcp(int port)
+TBusServerConfigPtr TBusServerConfig::CreateTcp(int port)
 {
-    auto config = New<TTcpBusServerConfig>();
+    auto config = New<TBusServerConfig>();
     config->Port = port;
     return config;
 }
 
-TTcpBusServerConfigPtr TTcpBusServerConfig::CreateUnixDomain(const TString& socketPath)
+TBusServerConfigPtr TBusServerConfig::CreateUds(const TString& socketPath)
 {
-    auto config = New<TTcpBusServerConfig>();
+    auto config = New<TBusServerConfig>();
     config->UnixDomainSocketPath = socketPath;
     return config;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTcpBusConfig::Register(TRegistrar registrar)
+void TBusConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("enable_quick_ack", &TThis::EnableQuickAck)
         .Default(true);
@@ -111,7 +111,7 @@ void TTcpBusConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TTcpBusClientConfig::Register(TRegistrar registrar)
+void TBusClientConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("address", &TThis::Address)
         .Default();
@@ -125,16 +125,16 @@ void TTcpBusClientConfig::Register(TRegistrar registrar)
     });
 }
 
-TTcpBusClientConfigPtr TTcpBusClientConfig::CreateTcp(const TString& address)
+TBusClientConfigPtr TBusClientConfig::CreateTcp(const TString& address)
 {
-    auto config = New<TTcpBusClientConfig>();
+    auto config = New<TBusClientConfig>();
     config->Address = address;
     return config;
 }
 
-TTcpBusClientConfigPtr TTcpBusClientConfig::CreateUnixDomain(const TString& socketPath)
+TBusClientConfigPtr TBusClientConfig::CreateUds(const TString& socketPath)
 {
-    auto config = New<TTcpBusClientConfig>();
+    auto config = New<TBusClientConfig>();
     config->UnixDomainSocketPath = socketPath;
     return config;
 }

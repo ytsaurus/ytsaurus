@@ -8,8 +8,6 @@
 
 #include <yt/yt/core/rpc/config.h>
 
-#include <yt/yt/library/re2/re2.h>
-
 namespace NYT::NApi::NRpcProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -29,7 +27,7 @@ void TConnectionConfig::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("proxy_endpoints", &TThis::ProxyEndpoints)
         .Optional();
-    registrar.Parameter("proxy_host_order", &TThis::ProxyHostOrder)
+    registrar.Parameter("proxy_unix_domain_socket", &TThis::ProxyUnixDomainSocket)
         .Optional();
 
     registrar.Parameter("dynamic_channel_pool", &TThis::DynamicChannelPool)
@@ -100,8 +98,8 @@ void TConnectionConfig::Register(TRegistrar registrar)
         .Default(NObjectClient::InvalidCellTag);
 
     registrar.Postprocessor([] (TThis* config) {
-        if (!config->ProxyEndpoints && !config->ClusterUrl && !config->ProxyAddresses) {
-            THROW_ERROR_EXCEPTION("Either \"endpoints\" or \"cluster_url\" or \"proxy_addresses\" must be specified");
+        if (!config->ProxyEndpoints && !config->ClusterUrl && !config->ProxyAddresses && !config->ProxyUnixDomainSocket) {
+            THROW_ERROR_EXCEPTION("Either \"endpoints\" or \"cluster_url\" or \"proxy_addresses\" or \"proxy_unix_domain_socket\" must be specified");
         }
         if (config->ProxyEndpoints && config->ProxyRole) {
             THROW_ERROR_EXCEPTION("\"proxy_role\" is not supported by Service Discovery");

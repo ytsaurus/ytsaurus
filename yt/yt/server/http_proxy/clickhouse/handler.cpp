@@ -117,7 +117,7 @@ public:
         , BannedCounter_(bannedCounter)
         , ControlInvoker_(controlInvoker)
         , Handler_(handler)
-        , ChannelFactory_(CreateBusChannelFactory(New<NBus::TTcpBusConfig>()))
+        , ChannelFactory_(CreateTcpBusChannelFactory(New<NBus::TBusConfig>()))
     {
         if (auto* traceParent = req->GetHeaders()->Find("traceparent")) {
             YT_LOG_INFO("Request contains traceparent header (Traceparent: %v)", traceParent);

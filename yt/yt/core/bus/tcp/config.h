@@ -72,7 +72,7 @@ DEFINE_REFCOUNTED_TYPE(TTcpDispatcherDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTcpBusConfig
+class TBusConfig
     : public NNet::TDialerConfig
 {
 public:
@@ -87,17 +87,17 @@ public:
     bool VerifyChecksums;
     bool GenerateChecksums;
 
-    REGISTER_YSON_STRUCT(TTcpBusConfig);
+    REGISTER_YSON_STRUCT(TBusConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTcpBusConfig)
+DEFINE_REFCOUNTED_TYPE(TBusConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTcpBusServerConfig
-    : public TTcpBusConfig
+class TBusServerConfig
+    : public TBusConfig
 {
 public:
     std::optional<int> Port;
@@ -105,34 +105,34 @@ public:
     int MaxBacklogSize;
     int MaxSimultaneousConnections;
 
-    static TTcpBusServerConfigPtr CreateTcp(int port);
-    static TTcpBusServerConfigPtr CreateUnixDomain(const TString& socketPath);
+    static TBusServerConfigPtr CreateTcp(int port);
+    static TBusServerConfigPtr CreateUds(const TString& socketPath);
 
-    REGISTER_YSON_STRUCT(TTcpBusServerConfig);
+    REGISTER_YSON_STRUCT(TBusServerConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTcpBusServerConfig)
+DEFINE_REFCOUNTED_TYPE(TBusServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TTcpBusClientConfig
-    : public TTcpBusConfig
+class TBusClientConfig
+    : public TBusConfig
 {
 public:
     std::optional<TString> Address;
     std::optional<TString> UnixDomainSocketPath;
 
-    static TTcpBusClientConfigPtr CreateTcp(const TString& address);
-    static TTcpBusClientConfigPtr CreateUnixDomain(const TString& socketPath);
+    static TBusClientConfigPtr CreateTcp(const TString& address);
+    static TBusClientConfigPtr CreateUds(const TString& socketPath);
 
-    REGISTER_YSON_STRUCT(TTcpBusClientConfig);
+    REGISTER_YSON_STRUCT(TBusClientConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TTcpBusClientConfig)
+DEFINE_REFCOUNTED_TYPE(TBusClientConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
