@@ -119,7 +119,6 @@ using NNodeTrackerClient::TNodeDescriptor;
 
 using std::placeholders::_1;
 
-using NYT::FromProto;
 using NYT::ToProto;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1381,7 +1380,7 @@ public:
 
     IInvokerPtr GetFairShareLoggingInvoker() const override
     {
-        return OffloadedEventLoggingActionQueue_->GetInvoker();
+        return EventLoggingActionQueue_->GetInvoker();
     }
 
     IInvokerPtr GetFairShareProfilingInvoker() const override
@@ -1762,7 +1761,7 @@ private:
     TOperationsCleanerPtr OperationsCleaner_;
 
     const IThreadPoolPtr OrchidWorkerPool_;
-    const TActionQueuePtr OffloadedEventLoggingActionQueue_ = New<TActionQueue>("EventLogging");
+    const TActionQueuePtr EventLoggingActionQueue_ = New<TActionQueue>("EventLogging");
     const TActionQueuePtr FairShareProfilingActionQueue_ = New<TActionQueue>("FSProfiling");
     const IThreadPoolPtr FairShareUpdatePool_;
     const IThreadPoolPtr BackgroundThreadPool_;
@@ -4103,8 +4102,8 @@ private:
             .Item("error").Value(error)
             .Finish();
 
-        OffloadedEventLoggingActionQueue_->GetInvoker()
-            ->Invoke(BIND(&TImpl::DoLogOperationFinishedEventAsync, MakeStrong(this), std::move(request)));
+        EventLoggingActionQueue_->GetInvoker()
+            ->Invoke(BIND(&TImpl::DoLogOperationFinishedEvent, MakeStrong(this), std::move(request)));
     }
 
     struct TOperationFinishedLogEvent
@@ -4118,9 +4117,9 @@ private:
         TYsonString OperationInfoForEventLog;
     };
 
-    void DoLogOperationFinishedEventAsync(const TOperationFinishedLogEvent& request)
+    void DoLogOperationFinishedEvent(const TOperationFinishedLogEvent& request)
     {
-        VERIFY_INVOKER_AFFINITY(OffloadedEventLoggingActionQueue_->GetInvoker());
+        VERIFY_INVOKER_AFFINITY(EventLoggingActionQueue_->GetInvoker());
 
         LogEventFluently(
             &SchedulerStructuredLogger,
