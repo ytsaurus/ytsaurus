@@ -16,6 +16,11 @@ TDuration TIdleConnection::GetIdleTime() const
     return TInstant::Now() - InsertionTime;
 }
 
+bool TIdleConnection::IsOK() const
+{
+    return Connection->IsIdle();
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TConnectionPool::TConnectionPool(
@@ -53,7 +58,7 @@ TFuture<IConnectionPtr> TConnectionPool::Connect(const TNetworkAddress& address)
         auto guard = Guard(SpinLock_);
 
         while (auto item = Connections_.Extract(address)) {
-            if (item->GetIdleTime() < Config_->ConnectionIdleTimeout) {
+            if (item->GetIdleTime() < Config_->ConnectionIdleTimeout && item->IsOK()) {
                 return MakeFuture<IConnectionPtr>(std::move(item->Connection));
             }
         }
@@ -77,7 +82,7 @@ void TConnectionPool::DropExpiredConnections()
 
     while (Connections_.GetSize() > 0) {
         auto idleConnection = Connections_.Pop();
-        if (idleConnection.GetIdleTime() < Config_->ConnectionIdleTimeout) {
+        if (idleConnection.GetIdleTime() < Config_->ConnectionIdleTimeout && idleConnection.IsOK()) {
             validConnections.Insert(idleConnection.Connection->RemoteAddress(), idleConnection);
         }
     }

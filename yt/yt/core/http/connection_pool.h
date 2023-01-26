@@ -22,6 +22,7 @@ struct TIdleConnection
     TInstant InsertionTime;
 
     TDuration GetIdleTime() const;
+    bool IsOK() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
