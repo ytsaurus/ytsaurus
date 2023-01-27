@@ -18,6 +18,7 @@ struct TAuth
     TString ServerName;
     TString Token;
     NAuth::IServiceTicketAuthPtrWrapperPtr ServiceTicketAuth;
+    NHttpClient::IHttpClientPtr HttpClient;
 };
 
 bool operator==(const TAuth& lhs, const TAuth& rhs);
@@ -34,7 +35,7 @@ TGUID ParseGuidFromResponse(const TString& response);
 TString GetProxyForHeavyRequest(const TAuth& auth);
 
 void LogRequestError(
-    const THttpRequest& request,
+    const TString& requestId,
     const THttpHeader& header,
     const TString& message,
     const TString& attemptDescription);

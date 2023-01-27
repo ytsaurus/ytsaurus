@@ -1,5 +1,6 @@
 #include "init.h"
 
+#include "abortable_registry.h"
 #include "job_profiler.h"
 
 #include <mapreduce/yt/http/requests.h>
@@ -12,7 +13,6 @@
 
 #include <mapreduce/yt/io/job_reader.h>
 
-#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/wait_proxy.h>

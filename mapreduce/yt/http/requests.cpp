@@ -5,7 +5,6 @@
 
 #include <mapreduce/yt/client/transaction.h>
 
-#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>
@@ -58,24 +57,21 @@ TString GetProxyForHeavyRequest(const TAuth& auth)
         return auth.ServerName;
     }
 
-    return NPrivate::THostManager::Get().GetProxyForHeavyRequest(auth.ServerName);
+    return NPrivate::THostManager::Get().GetProxyForHeavyRequest(auth);
 }
 
 void LogRequestError(
-    const THttpRequest& request,
+    const TString& requestId,
     const THttpHeader& header,
     const TString& message,
     const TString& attemptDescription)
 {
     YT_LOG_ERROR("RSP %v - %v - %v - %v - X-YT-Parameters: %v",
-        request.GetRequestId(),
+        requestId,
         header.GetUrl(),
         message,
         attemptDescription,
         NodeToYsonString(header.GetParameters()));
-    if (TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Error) {
-        TraceRequest(request);
-    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

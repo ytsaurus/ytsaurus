@@ -3,6 +3,8 @@
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/common/fwd.h>
 
+#include <mapreduce/yt/http/http_client.h>
+
 #include <util/datetime/base.h>
 #include <util/generic/maybe.h>
 #include <util/generic/string.h>
@@ -28,7 +30,7 @@ struct TResponseInfo
 
 struct TRequestConfig
 {
-    TDuration SocketTimeout = TDuration::Zero();
+    NHttpClient::THttpConfig HttpConfig;
     bool IsHeavy = false;
 };
 

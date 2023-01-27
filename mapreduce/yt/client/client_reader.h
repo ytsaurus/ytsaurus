@@ -4,6 +4,7 @@
 
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/http.h>
+#include <mapreduce/yt/http/http_client.h>
 
 namespace NYT {
 
@@ -46,8 +47,8 @@ private:
 
     THolder<TPingableTransaction> ReadTransaction_;
 
-    THolder<THttpRequest> Request_;
-    THttpResponse* Input_;
+    NHttpClient::IHttpResponsePtr Response_;
+    IInputStream* Input_;
 
     IRequestRetryPolicyPtr CurrentRequestRetryPolicy_;
 

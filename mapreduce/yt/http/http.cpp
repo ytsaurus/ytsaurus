@@ -52,46 +52,6 @@ static TString TruncateForLogs(const TString& text, size_t maxSize)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDebugRequestTracer
-    : public IOutputStream
-{
-public:
-    TDebugRequestTracer(IOutputStream* underlyingStream)
-        : UnderlyingStream(underlyingStream)
-    { }
-
-    TStringBuf GetTrace() const
-    {
-        return Trace;
-    }
-
-private:
-    void DoWrite(const void* buf, size_t len) override
-    {
-        const size_t saveToDebugLen = Min(len, MaxSize - Trace.size());
-        UnderlyingStream->Write(buf, len);
-        if (saveToDebugLen) {
-            Trace.append(static_cast<const char*>(buf), saveToDebugLen);
-        }
-    }
-
-    void DoFlush() override
-    {
-        UnderlyingStream->Flush();
-    }
-
-    void DoFinish() override
-    {
-        UnderlyingStream->Finish();
-    }
-
-private:
-    static constexpr size_t MaxSize = 1024 * 1024;
-    IOutputStream* const UnderlyingStream;
-    TString Trace;
-};
-
-
 class THttpRequest::TRequestStream
     : public IOutputStream
 {
@@ -99,26 +59,9 @@ public:
     TRequestStream(THttpRequest* httpRequest, const TSocket& s)
         : HttpRequest_(httpRequest)
         , SocketOutput_(s)
-        , DebugTracer_(IsTracingRequired() ? MakeHolder<TDebugRequestTracer>(&SocketOutput_) : nullptr)
-        , HttpOutput_(
-                DebugTracer_
-                ? static_cast<IOutputStream*>(DebugTracer_.Get())
-                : static_cast<IOutputStream*>(&SocketOutput_))
+        , HttpOutput_(static_cast<IOutputStream*>(&SocketOutput_))
     {
         HttpOutput_.EnableKeepAlive(true);
-    }
-
-    bool IsTracingEnabled() const
-    {
-        return DebugTracer_.Get();
-    }
-
-    TStringBuf GetTrace() const
-    {
-        if (DebugTracer_) {
-            return DebugTracer_->GetTrace();
-        }
-        return {};
     }
 
 private:
@@ -190,15 +133,9 @@ private:
         }
     }
 
-    static bool IsTracingRequired()
-    {
-        return TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Never;
-    }
-
 private:
     THttpRequest* const HttpRequest_;
     TSocketOutput SocketOutput_;
-    THolder<TDebugRequestTracer> DebugTracer_;
     THttpOutput HttpOutput_;
     std::exception_ptr WriteError_;
 };
@@ -931,6 +868,10 @@ THttpRequest::THttpRequest()
     RequestId = CreateGuidAsString();
 }
 
+THttpRequest::THttpRequest(const TString& requestId)
+    : RequestId(requestId)
+{ }
+
 THttpRequest::~THttpRequest()
 {
     if (!Connection) {
@@ -1015,9 +956,6 @@ void THttpRequest::FinishRequest()
 {
     RequestStream_->Flush();
     RequestStream_->Finish();
-    if (TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Always) {
-        TraceRequest(*this);
-    }
 }
 
 void THttpRequest::SmallRequest(const THttpHeader& header, TMaybe<TStringBuf> body)
@@ -1085,43 +1023,6 @@ void THttpRequest::InvalidateConnection()
 {
     TConnectionPool::Get()->Invalidate(HostName, Connection);
     Connection.Reset();
-}
-
-TString THttpRequest::GetTracedHttpRequest() const
-{
-    if (!RequestStream_->IsTracingEnabled()) {
-        return {};
-    }
-    TStringStream result;
-    TMemoryInput savedRequest(RequestStream_->GetTrace());
-    TString line;
-    while (savedRequest.ReadLine(line)) {
-        TStringBuf authPattern = "Authorization: OAuth";
-        if (line.StartsWith(authPattern)) {
-            for (size_t i = authPattern.size(); i < line.size(); ++i) {
-                if (!isspace(line[i])) {
-                    line[i] = '*';
-                }
-            }
-        }
-
-        result << ">   " << EscapeC(line) << Endl;
-    }
-
-    return result.Str();
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TraceRequest(const THttpRequest& request)
-{
-    Y_VERIFY(TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Error ||
-             TConfig::Get()->TraceHttpRequestsMode == ETraceHttpRequestsMode::Always);
-    auto httpRequestTrace = request.GetTracedHttpRequest();
-    YT_LOG_DEBUG("Dump of request %v:\n%v\n",
-        request.GetRequestId(),
-        httpRequestTrace
-    );
 }
 
 ////////////////////////////////////////////////////////////////////////////////

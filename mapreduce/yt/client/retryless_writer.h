@@ -3,10 +3,16 @@
 #include "transaction.h"
 
 #include <mapreduce/yt/common/config.h>
-#include <mapreduce/yt/io/helpers.h>
+
+#include <mapreduce/yt/http/helpers.h>
+#include <mapreduce/yt/http/http.h>
+#include <mapreduce/yt/http/http_client.h>
+
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/io.h>
-#include <mapreduce/yt/http/http.h>
+
+#include <mapreduce/yt/io/helpers.h>
+
 #include <mapreduce/yt/raw_client/raw_requests.h>
 
 #include <util/stream/buffered.h>
@@ -28,7 +34,6 @@ public:
         const TRichYPath& path,
         size_t bufferSize,
         const TWriterOptions& options)
-        : Request_()
     {
         THttpHeader header("PUT", command);
         header.SetInputFormat(format);
@@ -37,9 +42,11 @@ public:
         header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
         header.SetToken(auth.Token);
 
-        Request_.Connect(GetProxyForHeavyRequest(auth));
-        auto* outputStream = Request_.StartRequest(header);
-        BufferedOutput_.Reset(new TBufferedOutput(outputStream, bufferSize));
+        TString requestId = CreateGuidAsString();
+
+        auto hostName = GetProxyForHeavyRequest(auth);
+        Request_ = auth.HttpClient->StartRequest(GetFullUrl(hostName, auth, header), requestId, header);
+        BufferedOutput_.Reset(new TBufferedOutput(Request_->GetStream(), bufferSize));
     }
 
     ~TRetrylessWriter() override;
@@ -52,7 +59,7 @@ protected:
 
 private:
     bool Running_ = true;
-    THttpRequest Request_;
+    NHttpClient::IHttpRequestPtr Request_;
     THolder<TBufferedOutput> BufferedOutput_;
 };
 

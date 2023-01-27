@@ -198,6 +198,7 @@ class THttpRequest
 {
 public:
     THttpRequest();
+    THttpRequest(const TString& requestId);
     ~THttpRequest();
 
     TString GetRequestId() const;
@@ -207,15 +208,13 @@ public:
     IOutputStream* StartRequest(const THttpHeader& header);
     void FinishRequest();
 
-    void SmallRequest(const THttpHeader& request, TMaybe<TStringBuf> data);
+    void SmallRequest(const THttpHeader& header, TMaybe<TStringBuf> body);
 
     THttpResponse* GetResponseStream();
 
     TString GetResponse();
 
     void InvalidateConnection();
-
-    TString GetTracedHttpRequest() const;
 
     int GetHttpCode();
 
@@ -241,10 +240,6 @@ private:
 
     bool LogResponse = false;
 };
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TraceRequest(const THttpRequest& request);
 
 ////////////////////////////////////////////////////////////////////////////////
 

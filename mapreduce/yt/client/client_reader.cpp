@@ -13,6 +13,7 @@
 #include <mapreduce/yt/io/helpers.h>
 #include <mapreduce/yt/io/yamr_table_reader.h>
 
+#include <mapreduce/yt/http/helpers.h>
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 
@@ -171,22 +172,20 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
 
         header.MergeParameters(FormIORequestParameters(Path_, Options_));
 
-        Request_.Reset(new THttpRequest);
+        auto requestId = CreateGuidAsString();
 
         try {
             const auto proxyName = GetProxyForHeavyRequest(Auth_);
-            Request_->Connect(proxyName);
-            Request_->StartRequest(header);
-            Request_->FinishRequest();
+            Response_ = Auth_.HttpClient->StartRequest(GetFullUrl(proxyName, Auth_, header), requestId, header)->Finish();
 
-            Input_ = Request_->GetResponseStream();
+            Input_ = Response_->GetResponseStream();
 
-            YT_LOG_DEBUG("RSP %v - table stream", Request_->GetRequestId());
+            YT_LOG_DEBUG("RSP %v - table stream", requestId);
 
             return;
         } catch (const TErrorResponse& e) {
             LogRequestError(
-                *Request_,
+                requestId,
                 header,
                 e.what(),
                 CurrentRequestRetryPolicy_->GetAttemptDescription());
@@ -201,14 +200,13 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
             NDetail::TWaitProxy::Get()->Sleep(*backoff);
         } catch (const yexception& e) {
             LogRequestError(
-                *Request_,
+                requestId,
                 header,
                 e.what(),
                 CurrentRequestRetryPolicy_->GetAttemptDescription());
 
-            if (Request_) {
-                Request_->InvalidateConnection();
-            }
+            Response_.reset();
+
             auto backoff = CurrentRequestRetryPolicy_->OnGenericError(e);
             if (!backoff) {
                 throw;

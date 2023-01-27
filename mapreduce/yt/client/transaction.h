@@ -1,6 +1,7 @@
 #pragma once
 
-#include <mapreduce/yt/common/abortable_registry.h>
+#include "abortable_registry.h"
+
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 

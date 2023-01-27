@@ -26,6 +26,7 @@
 #include <mapreduce/yt/common/retry_lib.h>
 
 #include <mapreduce/yt/http/http.h>
+#include <mapreduce/yt/http/http_client.h>
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 
@@ -1295,6 +1296,8 @@ TClientPtr CreateClientImpl(
     if (options.TvmOnly_ && serverName.find(':') == TString::npos) {
         auth.ServerName = std::format("tvm.{}:{}", std::string_view(auth.ServerName), TvmOnlyHttpProxyPort);
     }
+
+    auth.HttpClient = NHttpClient::CreateDefaultHttpClient();
 
     auth.Token = TConfig::Get()->Token;
     if (options.Token_) {

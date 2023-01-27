@@ -19,8 +19,7 @@ void TRetrylessWriter::DoFinish()
     Running_ = false;
 
     BufferedOutput_->Finish();
-    Request_.FinishRequest();
-    Request_.GetResponse();
+    Request_->Finish()->GetResponse();
 }
 
 void TRetrylessWriter::DoWrite(const void* buf, size_t len)

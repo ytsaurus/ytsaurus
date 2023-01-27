@@ -1,6 +1,10 @@
 #include "host_manager.h"
 
+#include "helpers.h"
 #include "http.h"
+#include "http_client.h"
+#include "requests.h"
+#include "util/generic/guid.h"
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
@@ -87,8 +91,9 @@ void THostManager::Reset()
     ClusterHosts_.clear();
 }
 
-TString THostManager::GetProxyForHeavyRequest(TStringBuf cluster)
+TString THostManager::GetProxyForHeavyRequest(const TAuth& auth)
 {
+    auto cluster = auth.ServerName;
     {
         auto guard = Guard(Lock_);
         auto it = ClusterHosts_.find(cluster);
@@ -97,7 +102,7 @@ TString THostManager::GetProxyForHeavyRequest(TStringBuf cluster)
         }
     }
 
-    auto hostList = GetHosts(cluster);
+    auto hostList = GetHosts(auth);
     auto result = hostList.ChooseHostOrThrow();
     {
         auto guard = Guard(Lock_);
@@ -106,7 +111,7 @@ TString THostManager::GetProxyForHeavyRequest(TStringBuf cluster)
     return result;
 }
 
-THostManager::TClusterHostList THostManager::GetHosts(TStringBuf cluster)
+THostManager::TClusterHostList THostManager::GetHosts(const TAuth& auth)
 {
     TString hostsEndpoint = TConfig::Get()->Hosts;
     while (hostsEndpoint.StartsWith("/")) {
@@ -115,11 +120,11 @@ THostManager::TClusterHostList THostManager::GetHosts(TStringBuf cluster)
     THttpHeader header("GET", hostsEndpoint, false);
 
     try {
-        THttpRequest request;
+        auto hostName = auth.ServerName;
+        auto requestId = CreateGuidAsString();
         // TODO: we need to set socket timeout here
-        request.Connect(TString(cluster));
-        request.SmallRequest(header, {});
-        auto hosts = ParseJsonStringArray(request.GetResponse());
+        auto response = auth.HttpClient->Request(GetFullUrl(hostName, auth, header), requestId, header);
+        auto hosts = ParseJsonStringArray(response->GetResponse());
         return TClusterHostList(std::move(hosts));
     } catch (const std::exception& e) {
         return TClusterHostList(std::current_exception());
