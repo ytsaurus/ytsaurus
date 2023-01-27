@@ -328,12 +328,17 @@ TEST_F(TDefaultSecretVaultTest, GetToken)
         "a comment"
     };
 
-    auto response = WaitFor(service->GetDelegationToken(request));
-    ASSERT_TRUE(response.IsOK());
-    ASSERT_EQ("TheToken", response.ValueOrThrow());
+    if (IsDummyTvmServiceImplementation()) {
+        EXPECT_THROW(WaitFor(service->GetDelegationToken(request)).ValueOrThrow(), TErrorException);
+    } else {
+        auto response = WaitFor(service->GetDelegationToken(request));
+        ASSERT_TRUE(response.IsOK());
+        ASSERT_EQ("TheToken", response.ValueOrThrow());
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
 TEST_F(TDefaultSecretVaultTest, GetTokenFails)
 {
     TStringStream outputStream;
