@@ -18,11 +18,18 @@
     If you want to generate such constants for your polynomial utilities/caclulations_for_matlab.py may be helpful.
 */
 
+#ifdef __x86_64__
+    #define ISA_CRC64_FAST_IMPL_SUPPORTED
+#endif
+
 namespace NYT::NIsaCrc64 {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+#ifdef ISA_CRC64_FAST_IMPL_SUPPORTED
 uint64_t CrcImplFast(const void* data, size_t length, uint64_t seed);
+#endif
+
 uint64_t CrcImplBase(const void* data, size_t length, uint64_t seed);
 
 ////////////////////////////////////////////////////////////////////////////////
