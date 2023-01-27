@@ -171,7 +171,7 @@ private:
     THashSet<const NNodeTrackerServer::TDataCenter*> AliveStorageDataCenters_;
     std::vector<TError> DataCenterSetErrors_;
 
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
 
     void RegisterNode(TNode* node);
     void UnregisterNode(TNode* node);

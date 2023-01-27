@@ -232,9 +232,6 @@ void TChunkPlacement::Initialize()
     for (auto [nodeId, node] : nodes) {
         OnNodeUpdated(node);
     }
-
-    // Just in case.
-    OnDynamicConfigChanged();
 }
 
 void TChunkPlacement::OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)

@@ -607,7 +607,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->ChunkManager->DataNodeTracker;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         FullHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentFullHeartbeats);
         IncrementalHeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentIncrementalHeartbeats);

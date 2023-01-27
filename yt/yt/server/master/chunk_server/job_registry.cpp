@@ -279,7 +279,7 @@ private:
         }
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         for (auto jobType : TEnumTraits<EJobType>::GetDomainValues()) {
             if (IsMasterJobType(jobType)) {

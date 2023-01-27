@@ -74,7 +74,7 @@ private:
         const TUserWorkload& workload);
 
     const TDynamicSecurityManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
     void ReconfigureUserThrottlers();
     void OnUpdateAlivePeerCount();
 };

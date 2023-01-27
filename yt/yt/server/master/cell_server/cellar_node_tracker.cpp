@@ -168,7 +168,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->CellManager->CellarNodeTracker;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         HeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentHeartbeats);
     }

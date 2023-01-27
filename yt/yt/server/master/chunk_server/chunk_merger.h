@@ -266,7 +266,7 @@ private:
     void OnJobFinished(const TMergeJobPtr& job);
 
     const TDynamicChunkMergerConfigPtr& GetDynamicConfig() const;
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/ = nullptr);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
 
     TChunkOwnerBase* FindChunkOwner(NCypressClient::TObjectId nodeId);
 

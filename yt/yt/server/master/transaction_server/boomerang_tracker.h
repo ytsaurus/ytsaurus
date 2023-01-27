@@ -84,7 +84,7 @@ private:
     void ApplyBoomerangMutation(NProto::TReqReturnBoomerang* request);
 
     const TBoomerangTrackerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBoomerangTracker)

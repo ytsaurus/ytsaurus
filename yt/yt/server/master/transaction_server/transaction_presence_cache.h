@@ -124,7 +124,7 @@ private:
     void OnEviction();
 
     const TTransactionPresenceCacheConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
 
     void NotifyRemoteTransactionReplicated(TTransactionId transactionId);
 };

@@ -274,7 +274,7 @@ private:
     }
 
     const TDynamicObjectServiceConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr);
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig);
 
     void EnqueueReadySession(TExecuteSessionPtr session);
     void EnqueueFinishedSession(TExecuteSessionInfo sessionInfo);

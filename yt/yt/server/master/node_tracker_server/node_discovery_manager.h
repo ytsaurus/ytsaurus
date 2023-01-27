@@ -41,9 +41,11 @@ protected:
     NConcurrency::TPeriodicExecutorPtr PeriodicExecutor_;
     TNodeDiscoveryManagerConfigPtr Config_;
 
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
+
     void OnLeaderActive();
     void OnStopLeading();
+
     bool IsGoodNode(const TNode* node) const;
     void UpdateNodeList();
     void CommitNewNodes(const THashSet<TNode*>& nodes);
