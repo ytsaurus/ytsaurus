@@ -11,23 +11,6 @@ struct TAuth;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMaybe<TNode> GetCommonTableFormat(
-    const TVector<TMaybe<TNode>>& formats);
-
-TMaybe<TNode> GetTableFormat(
-    const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TRichYPath& path);
-
-TMaybe<TNode> GetTableFormats(
-    const IClientRetryPolicyPtr& clientRetryPolicy,
-    const TAuth& auth,
-    const TTransactionId& transactionId,
-    const TVector<TRichYPath>& paths);
-
-////////////////////////////////////////////////////////////////////////////////
-
 class TYaMRTableReader
     : public IYaMRReaderImpl
     , public TLenvalTableReader
