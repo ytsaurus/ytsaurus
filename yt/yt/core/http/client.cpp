@@ -72,6 +72,27 @@ public:
         return Request(EMethod::Delete, url, std::nullopt, headers);
     }
 
+    TFuture<IActiveRequestPtr> StartPost(
+        const TString& url,
+        const THeadersPtr& headers) override
+    {
+        return StartRequest(EMethod::Post, url, headers);
+    }
+
+    TFuture<IActiveRequestPtr> StartPatch(
+        const TString& url,
+        const THeadersPtr& headers) override
+    {
+        return StartRequest(EMethod::Patch, url, headers);
+    }
+
+    TFuture<IActiveRequestPtr> StartPut(
+        const TString& url,
+        const THeadersPtr& headers) override
+    {
+        return StartRequest(EMethod::Put, url, headers);
+    }
+
 private:
     const TClientConfigPtr Config_;
     const IDialerPtr Dialer_;
@@ -157,7 +178,8 @@ private:
         }
     }
 
-    TFuture<IResponsePtr> WrapError(const TString& url, TCallback<IResponsePtr()> action)
+    template <typename T>
+    TFuture<T> WrapError(const TString& url, TCallback<T()> action)
     {
         return BIND([=, this, this_ = MakeStrong(this)] {
             try {
@@ -172,6 +194,81 @@ private:
             .Run();
     }
 
+    class TActiveRequest
+        : public IActiveRequest
+    {
+    public:
+        TActiveRequest(
+            THttpOutputPtr request,
+            THttpInputPtr response,
+            TIntrusivePtr<TClient> client,
+            TString url
+        )
+            : Request_(std::move(request))
+            , Response_(std::move(response))
+            , Client_(std::move(client))
+            , Url_(std::move(url))
+        { }
+
+        TFuture<IResponsePtr> Finish() override
+        {
+            return Client_->WrapError(Url_, BIND([=] {
+                WaitFor(Request_->Close())
+                    .ThrowOnError();
+
+                // Waits for response headers internally.
+                Response_->GetStatusCode();
+
+                return IResponsePtr{Response_};
+            }));
+        }
+
+        NConcurrency::IAsyncOutputStreamPtr GetRequestStream() override
+        {
+            return Request_;
+        }
+
+    private:
+        THttpOutputPtr Request_;
+        THttpInputPtr Response_;
+        TIntrusivePtr<TClient> Client_;
+        TString Url_;
+    };
+
+    std::pair<THttpOutputPtr, THttpInputPtr> StartAndWriteHeaders(
+        EMethod method,
+        const TString& url,
+        const THeadersPtr& headers)
+    {
+        THttpOutputPtr request;
+        THttpInputPtr response;
+
+        auto urlRef = ParseUrl(url);
+        auto address = GetAddress(urlRef);
+        std::tie(request, response) = OpenHttp(address);
+
+        request->SetHost(urlRef.Host, urlRef.PortStr);
+        if (headers) {
+            request->SetHeaders(headers);
+        }
+
+        auto requestPath = Format("%v?%v", urlRef.Path, urlRef.RawQuery);
+        request->WriteRequest(method, requestPath);
+
+        return {std::move(request), std::move(response)};
+    }
+
+    TFuture<IActiveRequestPtr> StartRequest(
+        EMethod method,
+        const TString& url,
+        const THeadersPtr& headers)
+    {
+        return WrapError(url, BIND([=, this, this_ = MakeStrong(this)] {
+            auto [request, response] = StartAndWriteHeaders(method, url, headers);
+            return IActiveRequestPtr{New<TActiveRequest>(request, response, this_, url)};
+        }));
+    }
+
     TFuture<IResponsePtr> Request(
         EMethod method,
         const TString& url,
@@ -179,20 +276,7 @@ private:
         const THeadersPtr& headers)
     {
         return WrapError(url, BIND([=, this, this_ = MakeStrong(this)] {
-            THttpOutputPtr request;
-            THttpInputPtr response;
-
-            auto urlRef = ParseUrl(url);
-            auto address = GetAddress(urlRef);
-            std::tie(request, response) = OpenHttp(address);
-
-            request->SetHost(urlRef.Host, urlRef.PortStr);
-            if (headers) {
-                request->SetHeaders(headers);
-            }
-
-            auto requestPath = Format("%v?%v", urlRef.Path, urlRef.RawQuery);
-            request->WriteRequest(method, requestPath);
+            auto [request, response] = StartAndWriteHeaders(method, url, headers);
 
             if (body) {
                 WaitFor(request->Write(*body))
