@@ -1,5 +1,6 @@
 #include "client_reader.h"
 
+#include "structured_table_formats.h"
 #include "transaction.h"
 #include "transaction_pinger.h"
 
@@ -17,9 +18,9 @@
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 
-#include <library/cpp/yson/node/serialize.h>
-
 #include <mapreduce/yt/raw_client/raw_requests.h>
+
+#include <library/cpp/yson/node/serialize.h>
 
 #include <util/random/random.h>
 #include <util/stream/file.h>
