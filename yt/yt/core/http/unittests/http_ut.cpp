@@ -733,6 +733,27 @@ TEST_P(THttpServerTest, TransferSmallBody)
     Sleep(TDuration::MilliSeconds(10));
 }
 
+TEST_P(THttpServerTest, TransferSmallBodyUsingStreaming)
+{
+    Server->AddHandler("/echo", New<TEchoHttpHandler>());
+    Server->Start();
+
+    auto reqBody = TSharedMutableRef::Allocate(1024);
+    std::fill(reqBody.Begin(), reqBody.End(), 0xab);
+
+    auto activeRequest = WaitFor(Client->StartPost(TestUrl + "/echo")).ValueOrThrow();
+    WaitFor(activeRequest->GetRequestStream()->Write(reqBody)).ThrowOnError();
+    auto rsp = WaitFor(activeRequest->Finish()).ValueOrThrow();
+
+    ASSERT_EQ(EStatusCode::OK, rsp->GetStatusCode());
+
+    auto rspBody = ReadAll(rsp);
+    ASSERT_EQ(TString(reqBody.Begin(), reqBody.Size()), rspBody);
+
+    Server->Stop();
+    Sleep(TDuration::MilliSeconds(10));
+}
+
 class TTestStatusCodeHandler
     : public IHttpHandler
 {

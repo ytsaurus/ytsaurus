@@ -157,4 +157,22 @@ TFuture<IResponsePtr> TMockClient::Delete(const TString& url, const THeadersPtr&
     return MakeFuture<IResponsePtr>(New<TMockResponseStream>(mockRsp));
 }
 
+TFuture<IActiveRequestPtr> TMockClient::StartPost(
+    const TString& /*url*/, const THeadersPtr& /*headers*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TFuture<IActiveRequestPtr> TMockClient::StartPatch(
+    const TString& /*url*/, const THeadersPtr& /*headers*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
+TFuture<IActiveRequestPtr> TMockClient::StartPut(
+    const TString& /*url*/, const THeadersPtr& /*headers*/)
+{
+    YT_UNIMPLEMENTED();
+}
+
 } // namespace NYT::NHttp

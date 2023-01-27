@@ -14,6 +14,18 @@ namespace NYT::NHttp {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+class IActiveRequest
+    : public virtual TRefCounted
+{
+public:
+    virtual TFuture<IResponsePtr> Finish() = 0;
+    virtual NConcurrency::IAsyncOutputStreamPtr GetRequestStream() = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(IActiveRequest)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IClient
     : public virtual TRefCounted
 {
@@ -37,6 +49,18 @@ struct IClient
         const THeadersPtr& headers = nullptr) = 0;
 
     virtual TFuture<IResponsePtr> Delete(
+        const TString& url,
+        const THeadersPtr& headers = nullptr) = 0;
+
+    virtual TFuture<IActiveRequestPtr> StartPost(
+        const TString& url,
+        const THeadersPtr& headers = nullptr) = 0;
+
+    virtual TFuture<IActiveRequestPtr> StartPatch(
+        const TString& url,
+        const THeadersPtr& headers = nullptr) = 0;
+
+    virtual TFuture<IActiveRequestPtr> StartPut(
         const TString& url,
         const THeadersPtr& headers = nullptr) = 0;
 };

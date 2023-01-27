@@ -66,6 +66,18 @@ public:
         const TString& url,
         const THeadersPtr& headers) override;
 
+    TFuture<IActiveRequestPtr> StartPost(
+        const TString& url,
+        const THeadersPtr& headers) override;
+
+    TFuture<IActiveRequestPtr> StartPatch(
+        const TString& url,
+        const THeadersPtr& headers) override;
+
+    TFuture<IActiveRequestPtr> StartPut(
+        const TString& url,
+        const THeadersPtr& headers) override;
+
     MOCK_METHOD(TMockResponse, Get, (
         const TString& url, const TMockHeaders& headers));
     MOCK_METHOD(TMockResponse, Post, (
@@ -76,6 +88,7 @@ public:
         const TString& url, const TString& body, const TMockHeaders& headers));
     MOCK_METHOD(TMockResponse, Delete, (
         const TString& url, const TMockHeaders& headers));
+
 }; // class TMockClient
 
 DECLARE_REFCOUNTED_CLASS(TMockClient);

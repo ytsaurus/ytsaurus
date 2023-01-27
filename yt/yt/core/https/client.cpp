@@ -73,6 +73,27 @@ public:
         return Underlying_->Delete(url, headers);
     }
 
+    TFuture<IActiveRequestPtr> StartPost(
+        const TString& url,
+        const THeadersPtr& headers) override
+    {
+        return Underlying_->StartPost(url, headers);
+    }
+
+    TFuture<IActiveRequestPtr> StartPatch(
+        const TString& url,
+        const THeadersPtr& headers) override
+    {
+        return Underlying_->StartPatch(url, headers);
+    }
+
+    TFuture<IActiveRequestPtr> StartPut(
+        const TString& url,
+        const THeadersPtr& headers) override
+    {
+        return Underlying_->StartPut(url, headers);
+    }
+
 private:
     const NRpc::NGrpc::TGrpcLibraryLockPtr LibraryLock_;
     const IClientPtr Underlying_;
