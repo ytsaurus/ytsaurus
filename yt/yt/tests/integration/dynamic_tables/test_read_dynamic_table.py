@@ -295,6 +295,14 @@ class TestReadDynamicTableFormats(DynamicTablesBase):
                         }
                     ],
                 }
+            },
+            {
+                "name": "mapping",
+                "type_v3": {
+                    "type_name": "dict",
+                    "key": "int64",
+                    "value": "int64",
+                }
             }
         ]
 
@@ -308,18 +316,29 @@ class TestReadDynamicTableFormats(DynamicTablesBase):
                 "value": {
                     "foo": 1,
                     "bar": 2,
-                }
+                },
+                "mapping": [
+                    (1, 2),
+                    (3, 4),
+                ],
             },
             {
                 "key": "bar",
                 "value": {
                     "foo": 42,
                     "bar": 42,
-                }
+                },
+                "mapping": [
+                    (42, 42),
+                    (43, 42),
+                ],
             }
         ]
 
         insert_rows("//tmp/t", items)
         sync_flush_table("//tmp/t")
 
-        assert select_rows("* from [//tmp/t] order by key limit 2") == items[::-1]
+        rows = select_rows("* from [//tmp/t] order by key limit 2")
+        assert len(rows) == len(rows)
+        for row, expected in zip(rows, items[::-1]):
+            assert_items_equal(row, expected)
