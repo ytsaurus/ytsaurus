@@ -250,7 +250,7 @@ private:
         ScionIdsToRemove_.clear();
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& configManager = Bootstrap_->GetConfigManager();
         const auto& config = configManager->GetConfig()->CypressManager;

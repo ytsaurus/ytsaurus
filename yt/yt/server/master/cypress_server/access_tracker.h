@@ -69,7 +69,7 @@ private:
     TShard* GetShard(TCypressNode* node);
 
     const TDynamicCypressManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TAccessTracker)

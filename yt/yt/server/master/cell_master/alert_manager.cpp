@@ -129,7 +129,7 @@ private:
         UpdateAlertsExecutor_->Stop();
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr/* oldConfig */ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 

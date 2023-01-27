@@ -1822,7 +1822,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->TransactionManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         ProfilingExecutor_->SetPeriod(GetDynamicConfig()->ProfilingPeriod);
     }

@@ -363,7 +363,7 @@ private:
         int mediumIndex);
 
     const TDynamicChunkManagerConfigPtr& GetDynamicConfig() const;
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr /*oldConfig*/);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
     bool IsConsistentChunkPlacementEnabled() const;
     bool UsePullReplication(TChunk* chunk) const;
 

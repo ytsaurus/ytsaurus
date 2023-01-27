@@ -86,7 +86,7 @@ private:
         ResponseKeeperEvictionExecutor_->Stop();
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& config = Bootstrap_->GetConfigManager()->GetConfig();
         ResponseKeeperEvictionExecutor_->SetPeriod(

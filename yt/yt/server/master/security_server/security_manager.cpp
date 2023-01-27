@@ -4297,7 +4297,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->SecurityManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         if (AccountStatisticsGossipExecutor_) {
             AccountStatisticsGossipExecutor_->SetPeriod(GetDynamicConfig()->AccountStatisticsGossipPeriod);

@@ -301,7 +301,7 @@ private:
         return configManager->GetConfig()->ChunkManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         if (SealExecutor_) {
             SealExecutor_->SetPeriod(GetDynamicConfig()->ChunkRefreshPeriod);

@@ -846,7 +846,7 @@ private:
         return configManager->GetConfig()->TabletManager->MulticellGossip;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& gossipConfig = GetGossipConfig();
         StatisticsGossipThrottler_->Reconfigure(gossipConfig->TableStatisticsGossipThrottler);

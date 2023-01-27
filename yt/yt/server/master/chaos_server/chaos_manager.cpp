@@ -378,8 +378,6 @@ private:
 
         TMasterAutomatonPart::OnLeaderActive();
 
-        OnDynamicConfigChanged();
-
         const auto& multicellManager = Bootstrap_->GetMulticellManager();
         if (multicellManager->IsPrimaryMaster()) {
             AlienCellSynchronizer_->Start();
@@ -404,7 +402,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->ChaosManager;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         const auto& config = GetDynamicConfig();
         AlienCellSynchronizer_->Reconfigure(config->AlienCellSynchronizer);

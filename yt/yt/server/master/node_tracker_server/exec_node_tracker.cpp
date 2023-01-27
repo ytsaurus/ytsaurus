@@ -133,7 +133,7 @@ private:
         return Bootstrap_->GetConfigManager()->GetConfig()->NodeTracker;
     }
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/ = nullptr)
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr /*oldConfig*/)
     {
         HeartbeatSemaphore_->SetTotal(GetDynamicConfig()->MaxConcurrentExecNodeHeartbeats);
     }

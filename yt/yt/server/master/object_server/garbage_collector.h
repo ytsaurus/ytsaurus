@@ -124,7 +124,7 @@ private:
     bool IsMutationLoggingEnabled();
 
     const TDynamicObjectManagerConfigPtr& GetDynamicConfig();
-    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig = nullptr);
+    void OnDynamicConfigChanged(NCellMaster::TDynamicClusterConfigPtr oldConfig);
 };
 
 DEFINE_REFCOUNTED_TYPE(TGarbageCollector)

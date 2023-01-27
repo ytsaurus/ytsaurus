@@ -54,7 +54,7 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(AutomatonThread);
 
-    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig = nullptr);
+    void OnDynamicConfigChanged(TDynamicClusterConfigPtr oldConfig);
     const TDynamicTabletManagerConfigPtr& GetDynamicConfig();
     bool IsEnabled();
     void ScanCells();
