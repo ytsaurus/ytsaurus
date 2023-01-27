@@ -1,8 +1,6 @@
 #include "abortable_registry.h"
 
-#include "retry_lib.h"
-
-#include <mapreduce/yt/client/operation.h>
+#include <mapreduce/yt/common/retry_lib.h>
 
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/logging/yt_log.h>

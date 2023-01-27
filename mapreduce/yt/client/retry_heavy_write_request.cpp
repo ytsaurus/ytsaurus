@@ -9,6 +9,8 @@
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
+#include <mapreduce/yt/http/helpers.h>
+#include <mapreduce/yt/http/http_client.h>
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 
@@ -36,19 +38,16 @@ void RetryHeavyWriteRequest(
         TString requestId;
 
         try {
-            auto proxyName = GetProxyForHeavyRequest(auth);
-            THttpRequest request;
-            requestId = request.GetRequestId();
+            auto hostName = GetProxyForHeavyRequest(auth);
+            requestId = CreateGuidAsString();
 
             header.AddTransactionId(attemptTx.GetId(), /* overwrite = */ true);
             header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
 
-            request.Connect(proxyName);
+            auto request = auth.HttpClient->StartRequest(GetFullUrl(hostName, auth, header), requestId, header);
 
-            IOutputStream* output = request.StartRequest(header);
-            TransferData(input.Get(), output);
-            request.FinishRequest();
-            request.GetResponse();
+            TransferData(input.Get(), request->GetStream());
+            request->Finish()->GetResponse();
         } catch (TErrorResponse& e) {
             YT_LOG_ERROR("RSP %v - attempt %v failed",
                 requestId,

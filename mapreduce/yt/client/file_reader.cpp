@@ -12,7 +12,9 @@
 
 #include <mapreduce/yt/io/helpers.h>
 
+#include <mapreduce/yt/http/helpers.h>
 #include <mapreduce/yt/http/http.h>
+#include <mapreduce/yt/http/http_client.h>
 #include <mapreduce/yt/http/retry_request.h>
 
 #include <mapreduce/yt/raw_client/raw_requests.h>
@@ -58,8 +60,8 @@ TYPath TStreamReaderBase::Snapshot(const TYPath& path)
 
 TString TStreamReaderBase::GetActiveRequestId() const
 {
-    if (Request_) {
-        return Request_->GetRequestId();
+    if (Response_) {
+        return Response_->GetRequestId();;
     } else {
         return "<no-active-request>";
     }
@@ -71,8 +73,8 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
     for (int attempt = 1; attempt <= retryCount; ++attempt) {
         try {
             if (!Input_) {
-                Request_ = CreateRequest(Auth_, ReadTransaction_->GetId(), CurrentOffset_);
-                Input_ = Request_->GetResponseStream();
+                Response_ = Request(Auth_, ReadTransaction_->GetId(), CurrentOffset_);
+                Input_ = Response_->GetResponseStream();
             }
             if (len == 0) {
                 return 0;
@@ -98,9 +100,9 @@ size_t TStreamReaderBase::DoRead(void* buf, size_t len)
                 attempt,
                 retryCount);
 
-            if (Request_) {
-                Request_->InvalidateConnection();
-            }
+            // Invalidate connection.
+            Response_.reset();
+
             if (attempt == retryCount) {
                 throw;
             }
@@ -129,10 +131,10 @@ TFileReader::TFileReader(
     Path_.Path_ = TStreamReaderBase::Snapshot(Path_.Path_);
 }
 
-THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes)
+NHttpClient::IHttpResponsePtr TFileReader::Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes)
 {
     const ui64 currentOffset = StartOffset_ + readBytes;
-    TString proxyName = GetProxyForHeavyRequest(auth);
+    TString hostName = GetProxyForHeavyRequest(auth);
 
     THttpHeader header("GET", GetReadFileCommand());
     header.SetToken(auth.Token);
@@ -148,20 +150,19 @@ THolder<THttpRequest> TFileReader::CreateRequest(const TAuth& auth, const TTrans
 
     header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
 
-    auto request = MakeHolder<THttpRequest>();
+    auto requestId = CreateGuidAsString();
+    NHttpClient::IHttpResponsePtr response;
     try {
-        request->Connect(proxyName);
-        request->StartRequest(header);
-        request->FinishRequest();
+        response = auth.HttpClient->StartRequest(GetFullUrl(hostName, auth, header), requestId, header)->Finish();
     } catch (const yexception& ex) {
-        LogRequestError(*request, header, ex.what(), "");
+        LogRequestError(requestId, header, ex.what(), "");
         throw;
     }
 
     YT_LOG_DEBUG("RSP %v - file stream",
-        request->GetRequestId());
+        requestId);
 
-    return request;
+    return response;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -181,9 +182,9 @@ TBlobTableReader::TBlobTableReader(
     Path_ = TStreamReaderBase::Snapshot(path);
 }
 
-THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes)
+NHttpClient::IHttpResponsePtr TBlobTableReader::Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes)
 {
-    TString proxyName = GetProxyForHeavyRequest(auth);
+    TString hostName = GetProxyForHeavyRequest(auth);
 
     THttpHeader header("GET", "read_blob_table");
     header.SetToken(auth.Token);
@@ -212,19 +213,18 @@ THolder<THttpRequest> TBlobTableReader::CreateRequest(const TAuth& auth, const T
     header.MergeParameters(params);
     header.SetResponseCompression(ToString(TConfig::Get()->AcceptEncoding));
 
-    auto request = MakeHolder<THttpRequest>();
+    auto requestId = CreateGuidAsString();
+    NHttpClient::IHttpResponsePtr response;
     try {
-        request->Connect(proxyName);
-        request->StartRequest(header);
-        request->FinishRequest();
+        response = auth.HttpClient->StartRequest(GetFullUrl(hostName, auth, header), requestId, header)->Finish();
     } catch (const yexception& ex) {
-        LogRequestError(*request, header, ex.what(), "");
+        LogRequestError(requestId, header, ex.what(), "");
         throw;
     }
 
     YT_LOG_DEBUG("RSP %v - blob table stream",
-        request->GetRequestId());
-    return request;
+        requestId);
+    return response;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

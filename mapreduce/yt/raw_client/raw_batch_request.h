@@ -144,7 +144,7 @@ public:
         const TTransactionId& transaction,
         const TVector<TRichYPath>& paths,
         const TGetTableColumnarStatisticsOptions& options);
-    NThreading::TFuture<TMultiTablePartitions> GetTablePartitions(
+    ::NThreading::TFuture<TMultiTablePartitions> GetTablePartitions(
         const TTransactionId& transaction,
         const TVector<TRichYPath>& paths,
         const TGetTablePartitionsOptions& options);

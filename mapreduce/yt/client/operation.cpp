@@ -1,5 +1,6 @@
 #include "operation.h"
 
+#include "abortable_registry.h"
 #include "client.h"
 #include "operation_helpers.h"
 #include "operation_tracker.h"
@@ -10,7 +11,6 @@
 #include "structured_table_formats.h"
 #include "yt_poller.h"
 
-#include <mapreduce/yt/common/abortable_registry.h>
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/retry_lib.h>

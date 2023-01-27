@@ -30,7 +30,7 @@ protected:
 
 private:
     size_t DoRead(void* buf, size_t len) override;
-    virtual THolder<THttpRequest> CreateRequest(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) = 0;
+    virtual NHttpClient::IHttpResponsePtr Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) = 0;
     TString GetActiveRequestId() const;
 
 private:
@@ -38,7 +38,7 @@ private:
     const TAuth Auth_;
     TFileReaderOptions FileReaderOptions_;
 
-    THolder<THttpRequest> Request_;
+    NHttpClient::IHttpResponsePtr Response_;
     IInputStream* Input_ = nullptr;
 
     THolder<TPingableTransaction> ReadTransaction_;
@@ -61,7 +61,7 @@ public:
         const TFileReaderOptions& options = TFileReaderOptions());
 
 private:
-    THolder<THttpRequest> CreateRequest(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) override;
+    NHttpClient::IHttpResponsePtr Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) override;
 
 private:
     TFileReaderOptions FileReaderOptions_;
@@ -87,7 +87,7 @@ public:
         const TBlobTableReaderOptions& options);
 
 private:
-    THolder<THttpRequest> CreateRequest(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) override;
+    NHttpClient::IHttpResponsePtr Request(const TAuth& auth, const TTransactionId& transactionId, ui64 readBytes) override;
 
 private:
     const TKey Key_;

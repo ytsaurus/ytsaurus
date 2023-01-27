@@ -1,5 +1,7 @@
 #include "retry_request.h"
 
+#include "helpers.h"
+#include "http_client.h"
 #include "requests.h"
 
 #include <mapreduce/yt/common/config.h>
@@ -18,11 +20,11 @@ namespace NDetail {
 ///////////////////////////////////////////////////////////////////////////////
 
 static TResponseInfo Request(
-    const TAuth &auth,
-    THttpHeader &header,
+    const TAuth& auth,
+    THttpHeader& header,
     TMaybe<TStringBuf> body,
-    THttpRequest& request,
-    const TRequestConfig &config)
+    const TString& requestId,
+    const TRequestConfig& config)
 {
     TString hostName;
     if (config.IsHeavy) {
@@ -31,14 +33,14 @@ static TResponseInfo Request(
         hostName = auth.ServerName;
     }
 
-    request.Connect(hostName, config.SocketTimeout);
+    auto url = GetFullUrl(hostName, auth, header);
 
-    request.SmallRequest(header, body);
+    auto response = auth.HttpClient->Request(url, requestId, config.HttpConfig, header, body);
 
     TResponseInfo result;
-    result.RequestId = request.GetRequestId();
-    result.Response = request.GetResponse();
-    result.HttpCode = request.GetHttpCode();
+    result.RequestId = requestId;
+    result.Response = response->GetResponse();
+    result.HttpCode = response->GetStatusCode();
     return result;
 }
 
@@ -57,8 +59,8 @@ TResponseInfo RequestWithoutRetry(
         header.RemoveParameter("retry");
         header.AddMutationId();
     }
-    THttpRequest request;
-    return Request(auth, header, body, request, config);
+    auto requestId = CreateGuidAsString();
+    return Request(auth, header, body, requestId, config);
 }
 
 
@@ -82,7 +84,7 @@ TResponseInfo RetryRequestWithPolicy(
     }
 
     while (true) {
-        THttpRequest request;
+        auto requestId = CreateGuidAsString();
         try {
             retryPolicy->NotifyNewAttempt();
 
@@ -95,9 +97,9 @@ TResponseInfo RetryRequestWithPolicy(
                 }
             }
 
-            return Request(auth, header, body, request, config);
+            return Request(auth, header, body, requestId, config);
         } catch (const TErrorResponse& e) {
-            LogRequestError(request, header, e.GetError().GetMessage(), retryPolicy->GetAttemptDescription());
+            LogRequestError(requestId, header, e.GetError().GetMessage(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = e.IsTransportError();
 
             if (!IsRetriable(e)) {
@@ -111,7 +113,7 @@ TResponseInfo RetryRequestWithPolicy(
                 throw;
             }
         } catch (const yexception& e) {
-            LogRequestError(request, header, e.what(), retryPolicy->GetAttemptDescription());
+            LogRequestError(requestId, header, e.what(), retryPolicy->GetAttemptDescription());
             retryWithSameMutationId = true;
 
             if (!IsRetriable(e)) {

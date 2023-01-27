@@ -1,7 +1,11 @@
 #include "raw_requests.h"
 
+#include "mapreduce/yt/http/fwd.h"
+#include "mapreduce/yt/http/helpers.h"
+#include "mapreduce/yt/http/http_client.h"
 #include "raw_batch_request.h"
 #include "rpc_parameters_serialization.h"
+#include "util/generic/guid.h"
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -282,7 +286,9 @@ void PingTx(
     THttpHeader header("POST", "ping_tx");
     header.MergeParameters(SerializeParamsForPingTx(transactionId));
     TRequestConfig requestConfig;
-    requestConfig.SocketTimeout = TConfig::Get()->PingTimeout;
+    requestConfig.HttpConfig = NHttpClient::THttpConfig{
+        .SocketTimeout = TConfig::Get()->PingTimeout
+    };
     RetryRequestWithPolicy(retryPolicy, auth, header, {}, requestConfig);
 }
 
@@ -642,31 +648,31 @@ class TResponseReader
 {
 public:
     TResponseReader(const TAuth& auth, THttpHeader header)
-        : Request_()
     {
         header.SetToken(auth.Token);
 
-        Request_.Connect(GetProxyForHeavyRequest(auth));
-        Request_.StartRequest(header);
-        Request_.FinishRequest();
+        auto hostName = GetProxyForHeavyRequest(auth);
+        auto requestId = CreateGuidAsString();
 
-        Response_ = Request_.GetResponseStream();
+        Response_ = auth.HttpClient->Request(GetFullUrl(hostName, auth, header), requestId, header);
+        ResponseStream_ = Response_->GetResponseStream();
     }
 
 private:
     size_t DoRead(void* buf, size_t len) override
     {
-        return Response_->Read(buf, len);
+        return ResponseStream_->Read(buf, len);
     }
 
     size_t DoSkip(size_t len) override
     {
-        return Response_->Skip(len);
+        return ResponseStream_->Skip(len);
     }
 
 private:
     THttpRequest Request_;
-    THttpResponse* Response_;
+    NHttpClient::IHttpResponsePtr Response_;
+    IInputStream* ResponseStream_;
 };
 
 IFileReaderPtr GetJobInput(
@@ -765,7 +771,7 @@ TNode::TListType SkyShareTable(
     }
 
     header.MergeParameters(SerializeParamsForSkyShareTable(proxyName, tablePaths, options));
-    TAuth skyApiHost({host, "", nullptr});
+    TAuth skyApiHost({host, "", nullptr, NHttpClient::CreateDefaultHttpClient()});
     TResponseInfo response = {};
 
     // As documented at https://wiki.yandex-team.ru/yt/userdoc/blob_tables/#shag3.sozdajomrazdachu
