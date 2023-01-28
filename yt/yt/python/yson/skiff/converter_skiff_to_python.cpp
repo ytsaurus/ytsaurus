@@ -508,7 +508,9 @@ private:
             context->KeySwitch = parser->ParseBoolean();
         }
         if (HasRowIndex_) {
-            context->RowIndex = ParseRowIndex(parser);
+            if (auto rowIndex = ParseRowIndex(parser); rowIndex != ERowIndex::ConsecutiveRow) {
+                context->RowIndex = rowIndex;
+            }
         }
         if (HasRangeIndex_) {
             if (auto optionalRangeIndex = ParseOptionalInt64(parser)) {
