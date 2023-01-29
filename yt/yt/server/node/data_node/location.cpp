@@ -648,6 +648,8 @@ bool TChunkLocation::Disable(const TError& reason)
 
     YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
 
+    Disabled_.Fire();
+
     // Save the reason in a file and exit.
     // Location will be disabled during the scan in the restart process.
     auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
@@ -664,8 +666,6 @@ bool TChunkLocation::Disable(const TError& reason)
     if (dynamicConfig->AbortOnLocationDisabled) {
         TProgram::Abort(EProgramExitCode::ProgramError);
     }
-
-    Disabled_.Fire();
 
     LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath()));
 
