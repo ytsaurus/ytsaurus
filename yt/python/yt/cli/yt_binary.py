@@ -1141,6 +1141,83 @@ def add_unregister_queue_consumer_parser(add_parser):
     add_ypath_argument(parser, "consumer_path", hybrid=True)
 
 
+@copy_docstring_from(yt.start_query)
+def start_query(*args, **kwargs):
+    query_id = yt.start_query(*args, **kwargs)
+    print(query_id)
+
+
+def add_start_query_parser(add_parser):
+    parser = add_parser("start-query", start_query)
+    parser.add_argument("engine", type=str, help='engine of a query, one of "ql", "yql"')
+    parser.add_argument("query", type=str, help="query text")
+    add_structured_argument(parser, "--settings", help="additional settings of a query in structured form")
+    parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+
+
+def add_abort_query_parser(add_parser):
+    parser = add_parser("abort-query", yt.abort_query)
+    parser.add_argument("query_id", type=str, help="query id")
+    parser.add_argument("--message", type=str, help="optional abort message")
+    parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+
+
+@copy_docstring_from(yt.read_query_result)
+def read_query_result(**kwargs):
+    write_silently(chunk_iter_stream(yt.read_query_result(raw=True, **kwargs), yt.config["read_buffer_size"]))
+
+
+def add_read_query_result_parser(add_parser):
+    parser = add_parser("read-query-result", read_query_result)
+    parser.add_argument("query_id", type=str, help="query id")
+    parser.add_argument("--result-index", type=str, help="index of query result, defaults to 0")
+    parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    add_format_argument(parser, help="output format")
+
+
+@copy_docstring_from(yt.get_query)
+def get_query(**kwargs):
+    result = yt.get_query(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_get_query_parser(add_parser):
+    parser = add_parser("get-query", get_query)
+    parser.add_argument("query_id", type=str, help="query id")
+    parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
+    parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    add_structured_format_argument(parser)
+
+
+@copy_docstring_from(yt.list_queries)
+def list_queries(**kwargs):
+    result = yt.list_queries(**kwargs)
+    if kwargs["format"] is None:
+        result = dump_data(result)
+    print_to_output(result, eoln=False)
+
+
+def add_list_queries_parser(add_parser):
+    parser = add_parser("list-queries", list_queries)
+    parser.add_argument("--user", help="filter queries by user")
+    parser.add_argument("--engine", help="filter queries by engine")
+    parser.add_argument("--state", help="filter queries by state")
+    parser.add_argument("--filter", help="filter queries by some text factor. "
+                                         "For example, part of the query can be passed to this option")
+    add_time_argument(parser, "--from-time", help="lower limit for operations start time")
+    add_time_argument(parser, "--to-time", help="upper limit for operations start time")
+    add_time_argument(parser, "--cursor-time",
+                      help="cursor time. Used in combination with --cursor-direction and --limit")
+    parser.add_argument("--cursor-direction", help='cursor direction, can be one of ("none", "past", "future"). '
+                                                   'Used in combination with --cursor-time and --limit')
+    parser.add_argument("--limit", type=int, help="maximum number of operations in output")
+    parser.add_argument("--attribute", action="append", dest="attributes", help="desired attributes in the response")
+    parser.add_argument("--stage", type=str, help='query tracker stage, defaults to "production"')
+    add_structured_format_argument(parser)
+
+
 SPEC_BUILDERS = {
     "map": MapSpecBuilder,
     "reduce": ReduceSpecBuilder,
@@ -2407,6 +2484,12 @@ def main_func():
 
     add_register_queue_consumer_parser(add_parser)
     add_unregister_queue_consumer_parser(add_parser)
+
+    add_start_query_parser(add_parser)
+    add_abort_query_parser(add_parser)
+    add_read_query_result_parser(add_parser)
+    add_get_query_parser(add_parser)
+    add_list_queries_parser(add_parser)
 
     add_erase_parser(add_parser)
     add_merge_parser(add_parser)

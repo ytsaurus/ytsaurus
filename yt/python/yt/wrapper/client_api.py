@@ -6,6 +6,7 @@ from .table_commands import (  # noqa
 from .download_core_dump import download_core_dump  # noqa
 from .dynamic_table_commands import select_rows, insert_rows, delete_rows, lookup_rows, lock_rows, explain_query  # noqa
 from .queue_commands import register_queue_consumer, unregister_queue_consumer  # noqa
+from .query_commands import start_query, abort_query, read_query_result, get_query, list_queries  # noqa
 from .run_operation_commands import (  # noqa
     run_erase, run_merge, run_sort, run_map_reduce, run_map, run_reduce,
     run_join_reduce, run_remote_copy, run_operation)

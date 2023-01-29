@@ -150,6 +150,26 @@ class YtClient(ClientState):
             client=self,
             reason=reason)
 
+    def abort_query(
+            self,
+            query_id,
+            message=None, stage=None):
+        """
+        Abort query.
+
+        :param query_id: id of a query to abort
+        :type query_id: str
+        :param message: optional message to be shown in query abort error
+        :type message: str or None
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+
+        """
+        return client_api.abort_query(
+            query_id,
+            client=self,
+            message=message, stage=stage)
+
     def abort_transaction(
             self,
             transaction):
@@ -862,6 +882,26 @@ class YtClient(ClientState):
             operation,
             client=self)
 
+    def get_query(
+            self,
+            query_id,
+            attributes=None, stage=None, format=None):
+        """
+        Get query.
+
+        :param query_id: id of a query to get
+        :type query_id: str
+        :param attributes: optional attribute filter
+        :type attributes: list or None
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+
+        """
+        return client_api.get_query(
+            query_id,
+            client=self,
+            attributes=attributes, stage=stage, format=format)
+
     def get_supported_features(
             self,
             format=None):
@@ -1140,6 +1180,20 @@ class YtClient(ClientState):
             cursor_direction=cursor_direction, include_archive=include_archive, include_counters=include_counters,
             limit=limit, enable_ui_mode=enable_ui_mode, attributes=attributes, format=format)
 
+    def list_queries(
+            self,
+            user=None, engine=None, state=None, filter=None, from_time=None, to_time=None, cursor_time=None,
+            cursor_direction=None, limit=None, attributes=None, stage=None, format=None):
+        """
+        List operations that satisfy given options.
+
+        """
+        return client_api.list_queries(
+            client=self,
+            user=user, engine=engine, state=state, filter=filter, from_time=from_time, to_time=to_time,
+            cursor_time=cursor_time, cursor_direction=cursor_direction, limit=limit, attributes=attributes,
+            stage=stage, format=format)
+
     def lock(
             self,
             path,
@@ -1361,6 +1415,26 @@ class YtClient(ClientState):
             path,
             client=self,
             file_reader=file_reader, offset=offset, length=length, enable_read_parallel=enable_read_parallel)
+
+    def read_query_result(
+            self,
+            query_id,
+            result_index=None, stage=None, format=None, raw=None):
+        """
+        Read query result.
+
+        :param query_id: id of a query to read result
+        :type query_id: str
+        :param result_index: index of a result to read, defaults to 0
+        :type result_index: int
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+
+        """
+        return client_api.read_query_result(
+            query_id,
+            client=self,
+            result_index=result_index, stage=stage, format=format, raw=raw)
 
     def read_table(
             self,
@@ -2071,6 +2145,28 @@ class YtClient(ClientState):
             client=self,
             destination=destination, yt_filename=yt_filename, placement_strategy=placement_strategy,
             ignore_set_attributes_error=ignore_set_attributes_error, hash=hash)
+
+    def start_query(
+            self,
+            engine, query,
+            settings=None, stage=None):
+        """
+        Start query.
+
+        :param engine: one of "ql", "yql".
+        :type engine: str
+        :param query: text of a query
+        :type query: str
+        :param settings: a ditionary of settings
+        :type settings: dict or None
+        :param stage: query tracker stage, defaults to "production"
+        :type stage: str
+
+        """
+        return client_api.start_query(
+            engine, query,
+            client=self,
+            settings=settings, stage=stage)
 
     def start_spark_cluster(
             self,
