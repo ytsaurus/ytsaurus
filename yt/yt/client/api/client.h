@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/query_client/query_statistics.h>
 
+#include <yt/yt/client/query_tracker_client/public.h>
+
 #include <yt/yt/client/scheduler/operation_id_or_alias.h>
 
 #include <yt/yt/client/security_client/public.h>
@@ -1405,6 +1407,27 @@ struct TListJobsResult
     std::vector<TError> Errors;
 };
 
+struct TQuery
+{
+    // Keep in sync with fields below. Static asserts will guide your way through the boilerplate.
+    static constexpr int KnownFieldCount = 12;
+
+    NQueryTrackerClient::TQueryId Id;
+    std::optional<NQueryTrackerClient::EQueryEngine> Engine;
+    std::optional<TString> Query;
+    std::optional<TInstant> StartTime;
+    std::optional<TInstant> FinishTime;
+    NYson::TYsonString Settings;
+    std::optional<TString> User;
+    std::optional<NQueryTrackerClient::EQueryState> State;
+    std::optional<i64> ResultCount;
+    NYson::TYsonString Progress;
+    std::optional<TError> Error;
+    NYTree::IAttributeDictionaryPtr OtherAttributes;
+};
+
+void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer);
+
 struct TGetFileFromCacheResult
 {
     NYPath::TYPath Path;
@@ -1606,18 +1629,59 @@ struct TRestoreTableBackupOptions
     bool EnableReplicas = false;
 };
 
-struct TStartYqlQueryOptions
+struct TQueryTrackerOptions
+{
+    TString QueryTrackerStage = "production";
+};
+
+struct TStartQueryOptions
     : public TTimeoutOptions
+    , public TQueryTrackerOptions
+{
+    NYTree::INodePtr Settings;
+};
+
+struct TAbortQueryOptions
+    : public TTimeoutOptions
+    , public TQueryTrackerOptions
+{
+    std::optional<TString> AbortMessage;
+};
+
+struct TReadQueryResultOptions
+    : public TTimeoutOptions
+    , public TQueryTrackerOptions
 { };
 
-struct TStartYqlQueryResult
+struct TGetQueryOptions
+    : public TTimeoutOptions
+    , public TQueryTrackerOptions
 {
-    // Any field may be a null YSON string.
+    NYTree::TAttributeFilter Attributes;
+};
 
-    NYson::TYsonString Result;
-    NYson::TYsonString Plan;
-    NYson::TYsonString Statistics;
-    NYson::TYsonString TaskInfo;
+struct TListQueriesOptions
+    : public TTimeoutOptions
+    , public TQueryTrackerOptions
+{
+    std::optional<TInstant> FromTime;
+    std::optional<TInstant> ToTime;
+    std::optional<TInstant> CursorTime;
+    EOperationSortDirection CursorDirection = EOperationSortDirection::Past;
+    std::optional<TString> UserFilter;
+
+    std::optional<NQueryTrackerClient::EQueryState> StateFilter;
+    std::optional<NQueryTrackerClient::EQueryEngine> EngineFilter;
+    std::optional<TString> SubstrFilter;
+    ui64 Limit = 100;
+
+    NYTree::TAttributeFilter Attributes;
+};
+
+struct TListQueriesResult
+{
+    std::vector<TQuery> Queries;
+    bool Incomplete = false;
 };
 
 struct TSetUserPasswordOptions
@@ -2207,11 +2271,27 @@ struct IClient
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options = {}) = 0;
 
-    // YQL
+    // Query tracker
 
-    virtual TFuture<TStartYqlQueryResult> StartYqlQuery(
+    virtual TFuture<NQueryTrackerClient::TQueryId> StartQuery(
+        NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartYqlQueryOptions& options = {}) = 0;
+        const TStartQueryOptions& options = {}) = 0;
+
+    virtual TFuture<void> AbortQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TAbortQueryOptions& options = {}) = 0;
+
+    virtual TFuture<IUnversionedRowsetPtr> ReadQueryResult(
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex = 0,
+        const TReadQueryResultOptions& options = {}) = 0;
+
+    virtual TFuture<TQuery> GetQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TGetQueryOptions& options = {}) = 0;
+
+    virtual TFuture<TListQueriesResult> ListQueries(const TListQueriesOptions& options = {}) = 0;
 
     // Authentication
 

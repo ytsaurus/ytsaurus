@@ -26,6 +26,7 @@ const TString TableMountInformerUserName("table_mount_informer");
 const TString AlienCellSynchronizerUserName("alien_cell_synchronizer");
 const TString QueueAgentUserName("queue_agent");
 const TString YqlAgentUserName("yql_agent");
+const TString QueryTrackerUserName("query_tracker");
 const TString TabletBalancerUserName("tablet_balancer");
 
 const TString EveryoneGroupName("everyone");

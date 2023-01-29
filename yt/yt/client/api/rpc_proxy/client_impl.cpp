@@ -1812,11 +1812,40 @@ TFuture<TResurrectChunkLocationsResult> TClient::ResurrectChunkLocations(
     }));
 }
 
-TFuture<TStartYqlQueryResult> TClient::StartYqlQuery(
+TFuture<NQueryTrackerClient::TQueryId> TClient::StartQuery(
+    NQueryTrackerClient::EQueryEngine /*engine*/,
     const TString& /*query*/,
-    const TStartYqlQueryOptions& /*options*/)
+    const TStartQueryOptions& /*options*/)
 {
-    ThrowUnimplemented("StartYqlQuery");
+    ThrowUnimplemented("StartQuery");
+}
+
+TFuture<void> TClient::AbortQuery(
+    NQueryTrackerClient::TQueryId /*queryId*/,
+    const TAbortQueryOptions& /*options*/)
+{
+    ThrowUnimplemented("AbortQuery");
+}
+
+TFuture<IUnversionedRowsetPtr> TClient::ReadQueryResult(
+    NQueryTrackerClient::TQueryId /*queryId*/,
+    i64 /*resultIndex*/,
+    const TReadQueryResultOptions& /*options*/)
+{
+    ThrowUnimplemented("AbortQuery");
+}
+
+TFuture<TQuery> TClient::GetQuery(
+    NQueryTrackerClient::TQueryId /*queryId*/,
+    const TGetQueryOptions& /*options*/)
+{
+    ThrowUnimplemented("GetQuery");
+}
+
+TFuture<TListQueriesResult> TClient::ListQueries(
+    const TListQueriesOptions& /*options*/)
+{
+    ThrowUnimplemented("ListQueries");
 }
 
 TFuture<void> TClient::SetUserPassword(

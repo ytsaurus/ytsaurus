@@ -1,26 +1,34 @@
 #include "yql_agent.h"
 
 #include "config.h"
+#include "interop.h"
 
 #include <yt/yt/ytlib/hive/cluster_directory.h>
+
+#include <yt/yt/client/security_client/public.h>
 
 #include <yt/yt/core/ytree/ephemeral_node_factory.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
-#include <yt/yt/core/yson/null_consumer.h>
-
 #include <yql/library/embedded/yql_embedded.h>
+
+#include <ads/bsyeti/libs/ytex/logging/adapters/global/global.h>
+
+#include <ydb/library/yql/utils/log/log.h>
 
 namespace NYT::NYqlAgent {
 
 using namespace NConcurrency;
-using namespace NCypressElection;
 using namespace NYTree;
 using namespace NHiveClient;
 using namespace NYqlClient;
 using namespace NYqlClient::NProto;
 using namespace NYson;
+using namespace NApi;
+using namespace NHiveClient;
+using namespace NSecurityClient;
+using namespace NLogging;
 
 const auto& Logger = YqlAgentLogger;
 
@@ -33,13 +41,13 @@ public:
     TYqlAgent(
         TYqlAgentConfigPtr config,
         TClusterDirectoryPtr clusterDirectory,
+        TClientDirectoryPtr clientDirectory,
         IInvokerPtr controlInvoker,
-        ICypressElectionManagerPtr electionManager,
         TString agentId)
         : Config_(std::move(config))
         , ClusterDirectory_(std::move(clusterDirectory))
+        , ClientDirectory_(std::move(clientDirectory))
         , ControlInvoker_(std::move(controlInvoker))
-        , ElectionManager_(std::move(electionManager))
         , AgentId_(std::move(agentId))
         , ThreadPool_(CreateThreadPool(Config_->YqlThreadCount, "Yql"))
     {
@@ -61,6 +69,9 @@ public:
                 .Cluster_ = cluster,
             });
         }
+
+        auto logBackend = NYTEx::NLogging::CreateLogBackend(TLogger("YqlEmbedded"));
+        NYql::NLog::InitLogger(std::move(logBackend));
 
         auto options = NYql::NEmbedded::TOperationFactoryOptions{
             .MrJobBinary_ = Config_->MRJobBinary,
@@ -90,7 +101,7 @@ public:
         const TYqlAgentDynamicConfigPtr& /*newConfig*/) override
     { }
 
-    TFuture<TYqlResponse> StartQuery(TQueryId queryId, const TYqlRequest& request) override
+    TFuture<std::pair<TRspStartQuery, std::vector<TSharedRef>>> StartQuery(TQueryId queryId, const TReqStartQuery& request) override
     {
         YT_LOG_INFO("Starting query (QueryId: %v)", queryId);
 
@@ -102,53 +113,76 @@ public:
 private:
     TYqlAgentConfigPtr Config_;
     TClusterDirectoryPtr ClusterDirectory_;
+    TClientDirectoryPtr ClientDirectory_;
     IInvokerPtr ControlInvoker_;
-    ICypressElectionManagerPtr ElectionManager_;
     TString AgentId_;
 
     std::unique_ptr<NYql::NEmbedded::IOperationFactory> OperationFactory_;
 
     IThreadPoolPtr ThreadPool_;
 
-    TYqlResponse DoStartQuery(TQueryId queryId, const TYqlRequest& request)
+    std::pair<TRspStartQuery, std::vector<TSharedRef>> DoStartQuery(TQueryId queryId, const TReqStartQuery& request)
     {
         const auto& Logger = YqlAgentLogger.WithTag("QueryId: %v", queryId);
 
+        const auto& yqlRequest = request.yql_request();
+
+        TRspStartQuery response;
+
         YT_LOG_INFO("Invoking YQL embedded");
 
+        std::vector<TSharedRef> wireRowsets;
         try {
             NYql::NEmbedded::TOperationOptions options;
-            if (request.has_attributes()) {
-                options.Attributes = request.attributes();
+            if (yqlRequest.has_attributes()) {
+                options.Attributes = yqlRequest.attributes();
             }
-            if (request.has_parameters()) {
-                options.Parameters = request.parameters();
+            if (yqlRequest.has_parameters()) {
+                options.Parameters = yqlRequest.parameters();
             }
-            if (request.has_title()) {
-                options.Title = request.title();
+            if (yqlRequest.has_title()) {
+                options.Title = yqlRequest.title();
             }
-            options.SyntaxVersion = request.syntax_version();
-            options.Mode = static_cast<NYql::NEmbedded::EExecuteMode>(request.mode());
+            options.SyntaxVersion = yqlRequest.syntax_version();
+            options.Mode = static_cast<NYql::NEmbedded::EExecuteMode>(yqlRequest.mode());
             // This is a long blocking call.
-            auto operation = OperationFactory_->Run(request.query(), options);
+            auto query = yqlRequest.query();
+            if (request.build_rowsets()) {
+                query = "pragma RefSelect; pragma yt.UseNativeYtTypes; " + query;
+            }
+            auto operation = OperationFactory_->Run(query, options);
             YT_LOG_INFO("YQL embedded call completed");
 
-            TYqlResponse response;
+            TYqlResponse yqlResponse;
 
             auto validateAndFillField = [&] (const TString& rawField, TString* (TYqlResponse::*mutableProtoFieldAccessor)()) {
                 if (rawField.empty()) {
                     return;
                 }
                 // TODO(max42): original YSON tends to unnecessary pretty.
-                *((&response)->*mutableProtoFieldAccessor)() = rawField;
+                *((&yqlResponse)->*mutableProtoFieldAccessor)() = rawField;
             };
 
             validateAndFillField(operation->YsonResult(), &TYqlResponse::mutable_result);
             validateAndFillField(operation->Plan(), &TYqlResponse::mutable_plan);
             validateAndFillField(operation->Statistics(), &TYqlResponse::mutable_statistics);
             validateAndFillField(operation->TaskInfo(), &TYqlResponse::mutable_task_info);
-
-            return response;
+            if (request.build_rowsets()) {
+                auto rowsets = BuildRowsets(ClientDirectory_, operation->YsonResult(), request.row_count_limit());
+                for (const auto& rowset : rowsets) {
+                    if (rowset.Error.IsOK()) {
+                        wireRowsets.push_back(rowset.WireRowset);
+                        response.add_rowset_errors();
+                        response.add_incomplete(rowset.Incomplete);
+                    } else {
+                        wireRowsets.push_back(TSharedRef());
+                        ToProto(response.add_rowset_errors(), rowset.Error);
+                        response.add_incomplete(false);
+                    }
+                }
+            }
+            response.mutable_yql_response()->Swap(&yqlResponse);
+            return {response, wireRowsets};
         } catch (const std::exception& ex) {
             auto error = TError("YQL embedded call failed") << TError(ex);
             YT_LOG_INFO(error, "YQL embedded call failed");
@@ -160,15 +194,15 @@ private:
 IYqlAgentPtr CreateYqlAgent(
     TYqlAgentConfigPtr config,
     TClusterDirectoryPtr clusterDirectory,
+    TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
-    ICypressElectionManagerPtr electionManager,
     TString agentId)
 {
     return New<TYqlAgent>(
         std::move(config),
         std::move(clusterDirectory),
+        std::move(clientDirectory),
         std::move(controlInvoker),
-        std::move(electionManager),
         std::move(agentId));
 }
 

@@ -534,10 +534,6 @@ public:
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options = {}) override;
 
-    TFuture<TStartYqlQueryResult> StartYqlQuery(
-        const TString& query,
-        const TStartYqlQueryOptions& options = {}) override;
-
     TFuture<void> SetUserPassword(
         const TString& user,
         const TString& currentPasswordSha256,
@@ -559,6 +555,28 @@ public:
         const TString& user,
         const TString& passwordSha256,
         const TListUserTokensOptions& options) override;
+
+    // Query tracker
+
+    TFuture<NQueryTrackerClient::TQueryId> StartQuery(
+        NQueryTrackerClient::EQueryEngine engine,
+        const TString& query,
+        const TStartQueryOptions& options) override;
+
+    TFuture<void> AbortQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TAbortQueryOptions& options) override;
+
+    TFuture<IUnversionedRowsetPtr> ReadQueryResult(
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex,
+        const TReadQueryResultOptions& options) override;
+
+    TFuture<TQuery> GetQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TGetQueryOptions& options) override;
+
+    TFuture<TListQueriesResult> ListQueries(const TListQueriesOptions& options) override;
 
 protected:
     const IClientPtr Underlying_;

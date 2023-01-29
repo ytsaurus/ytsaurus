@@ -20,6 +20,8 @@
 
 #include <yt/yt/ytlib/queue_client/public.h>
 
+#include <yt/yt/ytlib/query_tracker_client/public.h>
+
 #include <yt/yt/ytlib/yql_client/public.h>
 
 #include <yt/yt/ytlib/table_client/config.h>
@@ -140,6 +142,7 @@ public:
     NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
 
     NQueueClient::TQueueAgentConnectionConfigPtr QueueAgent;
+    NQueryTrackerClient::TQueryTrackerConnectionConfigPtr QueryTracker;
     NYqlClient::TYqlAgentConnectionConfigPtr YqlAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;

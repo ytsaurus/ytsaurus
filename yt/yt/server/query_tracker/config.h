@@ -2,6 +2,8 @@
 
 #include "private.h"
 
+#include <yt/yt/server/lib/cypress_election/config.h>
+
 #include <yt/yt/server/lib/misc/config.h>
 
 #include <yt/yt/client/ypath/public.h>
@@ -12,103 +14,104 @@
 
 #include <yt/yt/library/dynamic_config/config.h>
 
-namespace NYT::NYqlAgent {
+namespace NYT::NQueryTracker {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlEmbeddedConfig
+class TEngineConfigBase
     : public NYTree::TYsonStruct
 {
 public:
-    TString MRJobBinary;
+    TDuration QueryStateWriteBackoff;
+    i64 RowCountLimit;
 
-    TString YTToken;
-
-    REGISTER_YSON_STRUCT(TYqlEmbeddedConfig)
+    REGISTER_YSON_STRUCT(TEngineConfigBase)
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYqlEmbeddedConfig)
+DEFINE_REFCOUNTED_TYPE(TEngineConfigBase)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentConfig
-    : public TYqlEmbeddedConfig
+class TYqlEngineConfig
+    : public TEngineConfigBase
 {
 public:
-    //! Used to create channels to other queue agents.
-    NBus::TBusConfigPtr BusClient;
-
-    std::vector<TString> AdditionalClusters;
-
-    int YqlThreadCount;
-
-    REGISTER_YSON_STRUCT(TYqlAgentConfig)
+    REGISTER_YSON_STRUCT(TYqlEngineConfig)
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYqlAgentConfig)
+DEFINE_REFCOUNTED_TYPE(TYqlEngineConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentDynamicConfig
+class TQueryTrackerDynamicConfig
     : public NYTree::TYsonStruct
 {
 public:
-    REGISTER_YSON_STRUCT(TYqlAgentDynamicConfig);
+    TDuration ActiveQueryAcquisitionPeriod;
+    TDuration ActiveQueryLeaseTimeout;
+    TDuration ActiveQueryPingPeriod;
+    TDuration QueryFinishBackoff;
+
+    TEngineConfigBasePtr MockEngine;
+    TEngineConfigBasePtr QlEngine;
+    TYqlEngineConfigPtr YqlEngine;
+
+    REGISTER_YSON_STRUCT(TQueryTrackerDynamicConfig)
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYqlAgentDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TQueryTrackerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentServerConfig
+class TQueryTrackerServerConfig
     : public TServerConfig
 {
 public:
-    TYqlAgentConfigPtr YqlAgent;
-
     NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     bool AbortOnUnrecognizedOptions;
 
-    //! User for native client.
     TString User;
 
-    //! The path of directory for orchids.
-    NYPath::TYPath Root;
-
     NYTree::IMapNodePtr CypressAnnotations;
+
+    NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
 
     NDynamicConfig::TDynamicConfigManagerConfigPtr DynamicConfigManager;
     TString DynamicConfigPath;
 
-    REGISTER_YSON_STRUCT(TYqlAgentServerConfig)
+    TString Root;
+
+    bool CreateStateTablesOnStartup;
+
+    REGISTER_YSON_STRUCT(TQueryTrackerServerConfig)
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYqlAgentServerConfig)
+DEFINE_REFCOUNTED_TYPE(TQueryTrackerServerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TYqlAgentServerDynamicConfig
+class TQueryTrackerServerDynamicConfig
     : public TNativeSingletonsDynamicConfig
 {
 public:
-    TYqlAgentDynamicConfigPtr YqlAgent;
+    TQueryTrackerDynamicConfigPtr QueryTracker;
 
-    REGISTER_YSON_STRUCT(TYqlAgentServerDynamicConfig);
+    REGISTER_YSON_STRUCT(TQueryTrackerServerDynamicConfig);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TYqlAgentServerDynamicConfig)
+DEFINE_REFCOUNTED_TYPE(TQueryTrackerServerDynamicConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NYqlAgent
+} // namespace NYT::NQueryTracker

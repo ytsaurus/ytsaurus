@@ -31,16 +31,22 @@ message TReqStartQuery
 {
     optional bool async = 1;
     optional TYqlRequest yql_request = 2;
+    optional bool build_rowsets = 3;
+    optional int64 row_count_limit = 4;
 }
 
 message TRspStartQuery
 {
     optional NYT.NProto.TGuid query_id = 1;
     // May be missing if request mode is async.
-    oneof result {
-        TYqlResponse yql_response = 2;
-        NYT.NProto.TError error = 3;
-    }
+    optional TYqlResponse yql_response = 2;
+
+    // Filled only if build_rowset in request was false.
+    // In such case there are as many attachments as there are errors in this field;
+    // non-OK error corresponds to empty attachment and OK error corresponds to
+    // wire-encoded schema + schemaful rowset attachment.
+    repeated NYT.NProto.TError rowset_errors = 3;
+    repeated bool incomplete = 4;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

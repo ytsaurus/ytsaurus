@@ -1,31 +1,37 @@
 #include "bootstrap.h"
 
+#include "query_tracker.h"
 #include "config.h"
 #include "private.h"
-#include "yql_agent.h"
-#include "yql_service.h"
 #include "dynamic_config_manager.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
 
+#include <yt/yt/server/lib/cypress_registrar/config.h>
+#include <yt/yt/server/lib/cypress_registrar/cypress_registrar.h>
+
+#include <yt/yt/ytlib/query_tracker_client/records/query.record.h>
+
 #include <yt/yt/ytlib/api/native/client.h>
 #include <yt/yt/ytlib/api/native/config.h>
 #include <yt/yt/ytlib/api/native/connection.h>
 #include <yt/yt/ytlib/api/native/helpers.h>
+
+#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
+#include <yt/yt/ytlib/hive/cluster_directory.h>
 
 #include <yt/yt/library/monitoring/http_integration.h>
 #include <yt/yt/library/monitoring/monitoring_manager.h>
 
 #include <yt/yt/ytlib/orchid/orchid_service.h>
 
-#include <yt/yt/ytlib/hive/cluster_directory_synchronizer.h>
-#include <yt/yt/ytlib/hive/cluster_directory.h>
-
 #include <yt/yt/library/program/build_attributes.h>
 #include <yt/yt/library/program/config.h>
 #include <yt/yt/ytlib/program/helpers.h>
+
+#include <yt/yt/client/table_client/public.h>
 
 #include <yt/yt/core/bus/server.h>
 
@@ -39,6 +45,7 @@
 #include <yt/yt/core/net/local_address.h>
 
 #include <yt/yt/library/coredumper/coredumper.h>
+
 #include <yt/yt/core/misc/ref_counted_tracker.h>
 
 #include <yt/yt/core/rpc/bus/server.h>
@@ -48,11 +55,10 @@
 #include <yt/yt/core/ytree/virtual.h>
 #include <yt/yt/core/ytree/ypath_client.h>
 
-namespace NYT::NYqlAgent {
+namespace NYT::NQueryTracker {
 
 using namespace NAdmin;
 using namespace NBus;
-using namespace NElection;
 using namespace NHydra;
 using namespace NMonitoring;
 using namespace NObjectClient;
@@ -70,14 +76,15 @@ using namespace NNodeTrackerClient;
 using namespace NLogging;
 using namespace NHiveClient;
 using namespace NYson;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto& Logger = YqlAgentLogger;
+static const auto& Logger = QueryTrackerLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TBootstrap::TBootstrap(TYqlAgentServerConfigPtr config, INodePtr configNode)
+TBootstrap::TBootstrap(TQueryTrackerServerConfigPtr config, INodePtr configNode)
     : Config_(std::move(config))
     , ConfigNode_(std::move(configNode))
 {
@@ -107,11 +114,11 @@ void TBootstrap::Run()
 void TBootstrap::DoRun()
 {
     YT_LOG_INFO(
-        "Starting Yql agent process (NativeCluster: %v, User: %v)",
+        "Starting persistent query agent process (NativeCluster: %v, User: %v)",
         Config_->ClusterConnection->ClusterName,
         Config_->User);
 
-    AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
+    SelfAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = true;
@@ -126,12 +133,6 @@ void TBootstrap::DoRun()
     auto clientOptions = TClientOptions::FromUser(Config_->User);
     NativeClient_ = NativeConnection_->CreateNativeClient(clientOptions);
 
-    const auto& clusterDirectorySynchronizer = NativeConnection_->GetClusterDirectorySynchronizer();
-    WaitFor(clusterDirectorySynchronizer->Sync(/*force*/ true))
-        .ThrowOnError();
-
-    auto clientDirectory = New<TClientDirectory>(NativeConnection_->GetClusterDirectory(), clientOptions);
-
     DynamicConfigManager_ = New<TDynamicConfigManager>(Config_, NativeClient_, ControlInvoker_);
     DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
 
@@ -145,14 +146,10 @@ void TBootstrap::DoRun()
         CoreDumper_ = NCoreDump::CreateCoreDumper(Config_->CoreDumper);
     }
 
-    YqlAgent_ = CreateYqlAgent(
-        Config_->YqlAgent,
-        NativeConnection_->GetClusterDirectory(),
-        clientDirectory,
-        ControlInvoker_,
-        AgentId_);
-
     DynamicConfigManager_->Start();
+
+    WaitFor(DynamicConfigManager_->GetConfigLoadedFuture())
+        .ThrowOnError();
 
     NYTree::IMapNodePtr orchidRoot;
     NMonitoring::Initialize(
@@ -175,13 +172,9 @@ void TBootstrap::DoRun()
             "/core_dumper",
             CreateVirtualNode(CoreDumper_->CreateOrchidService()));
     }
-    SetNodeByYPath(
-        orchidRoot,
-        "/yql_agent",
-        YqlAgent_->GetOrchidNode());
     SetBuildAttributes(
         orchidRoot,
-        "yql_agent");
+        "query_tracker");
 
     RpcServer_->RegisterService(CreateAdminService(
         ControlInvoker_,
@@ -191,11 +184,19 @@ void TBootstrap::DoRun()
         orchidRoot,
         ControlInvoker_,
         NativeAuthenticator_));
-    RpcServer_->RegisterService(CreateYqlService(
-        ControlInvoker_,
-        YqlAgent_));
 
-    YqlAgent_->Start();
+    if (Config_->CreateStateTablesOnStartup) {
+        CreateStateTablesIfNeeded();
+    }
+
+    QueryTracker_ = CreateQueryTracker(
+        DynamicConfigManager_->GetConfig()->QueryTracker,
+        SelfAddress_,
+        ControlInvoker_,
+        NativeClient_,
+        Config_->Root);
+
+    QueryTracker_->Start();
 
     YT_LOG_INFO("Listening for HTTP requests (Port: %v)", Config_->MonitoringPort);
     HttpServer_->Start();
@@ -207,87 +208,75 @@ void TBootstrap::DoRun()
     UpdateCypressNode();
 }
 
-void TBootstrap::UpdateCypressNode()
+void TBootstrap::CreateStateTablesIfNeeded()
 {
-    while (true) {
-        try {
-            GuardedUpdateCypressNode();
-        } catch (const std::exception& ex) {
-            YT_LOG_DEBUG(ex, "Error updating cypress node");
-            continue;
-        }
-        return;
-    }
+    auto createTable = [&] (const TTableSchemaPtr& schema, TStringBuf tableName) {
+        TCreateNodeOptions options;
+        options.IgnoreExisting = true;
+        options.Attributes = ConvertToAttributes(BuildYsonNodeFluently()
+            .BeginMap()
+                .Item("schema").Value(schema)
+                .Item("dynamic").Value(true)
+                .Item("min_data_ttl").Value(0)
+                .Item("merge_rows_on_flush").Value(true)
+            .EndMap());
+
+        WaitFor(NativeClient_->CreateNode(
+            Config_->Root + "/" + tableName,
+            EObjectType::Table,
+            options))
+            .ThrowOnError();
+
+        WaitFor(NativeClient_->MountTable(Config_->Root + "/" + tableName))
+            .ThrowOnError();
+    };
+    createTable(NQueryTrackerClient::NRecords::TActiveQueryDescriptor::Get()->GetSchema(), "active_queries");
+    createTable(NQueryTrackerClient::NRecords::TFinishedQueryDescriptor::Get()->GetSchema(), "finished_queries");
+    createTable(NQueryTrackerClient::NRecords::TFinishedQueryByStartTimeDescriptor::Get()->GetSchema(), "finished_queries_by_start_time");
+    createTable(NQueryTrackerClient::NRecords::TQueryResultDescriptor::Get()->GetSchema(), "query_results");
 }
 
-void TBootstrap::GuardedUpdateCypressNode()
+void TBootstrap::UpdateCypressNode()
 {
     VERIFY_INVOKER_AFFINITY(ControlInvoker_);
 
-    auto instancePath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(AgentId_));
+    TCypressRegistrarOptions options{
+        .RootPath = Format("%v/instances/%v", Config_->Root, ToYPathLiteral(SelfAddress_)),
+        .OrchidRemoteAddresses = TAddressMap{{NNodeTrackerClient::DefaultNetworkName, SelfAddress_}},
+        .AttributesOnStart = BuildAttributeDictionaryFluently()
+            .Item("annotations").Value(Config_->CypressAnnotations)
+            .Finish(),
+    };
 
-    {
-        TCreateNodeOptions options;
-        options.Recursive = true;
-        options.Force = true;
-        options.Attributes = ConvertToAttributes(
-            BuildYsonStringFluently().BeginMap()
-                .Item("annotations").Value(Config_->CypressAnnotations)
-            .EndMap());
+    auto registrar = CreateCypressRegistrar(
+        std::move(options),
+        New<TCypressRegistrarConfig>(),
+        NativeClient_,
+        GetCurrentInvoker());
 
-        YT_LOG_INFO("Creating instance node (Path: %Qv)", instancePath);
+    while (true) {
+        auto error = WaitFor(registrar->CreateNodes());
 
-        WaitFor(NativeClient_->CreateNode(instancePath, EObjectType::MapNode, options))
-            .ThrowOnError();
-
-        YT_LOG_INFO("Instance node created");
-    }
-    {
-        TCreateNodeOptions options;
-        options.Attributes = ConvertToAttributes(
-            BuildYsonStringFluently().BeginMap()
-                .Item("remote_addresses").BeginMap()
-                    .Item("default").Value(AgentId_)
-                .EndMap()
-            .EndMap());
-
-        auto orchidPath = instancePath + "/orchid";
-
-        YT_LOG_INFO("Creating orchid node (Path: %Qv)", orchidPath);
-
-        WaitFor(NativeClient_->CreateNode(orchidPath, EObjectType::Orchid, options))
-            .ThrowOnError();
-
-        YT_LOG_INFO("Orchid node created");
+        if (error.IsOK()) {
+            break;
+        } else {
+            YT_LOG_DEBUG(error, "Error updating Cypress node");
+        }
     }
 }
 
 void TBootstrap::OnDynamicConfigChanged(
-    const TYqlAgentServerDynamicConfigPtr& oldConfig,
-    const TYqlAgentServerDynamicConfigPtr& newConfig)
+    const TQueryTrackerServerDynamicConfigPtr& oldConfig,
+    const TQueryTrackerServerDynamicConfigPtr& newConfig)
 {
     ReconfigureNativeSingletons(Config_, newConfig);
 
-    YT_VERIFY(YqlAgent_);
-
-    std::vector<TFuture<void>> asyncUpdateComponents{
-        BIND(
-            &IYqlAgent::OnDynamicConfigChanged,
-            YqlAgent_,
-            oldConfig->YqlAgent,
-            newConfig->YqlAgent)
-            .AsyncVia(ControlInvoker_)
-            .Run(),
-    };
-    WaitFor(AllSucceeded(asyncUpdateComponents))
-        .ThrowOnError();
-
     YT_LOG_DEBUG(
-        "Updated Yql agent server dynamic config (OldConfig: %v, NewConfig: %v)",
+        "Updated query tracker server dynamic config (OldConfig: %v, NewConfig: %v)",
         ConvertToYsonString(oldConfig, EYsonFormat::Text),
         ConvertToYsonString(newConfig, EYsonFormat::Text));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NYqlAgent
+} // namespace NYT::NQueryTracker

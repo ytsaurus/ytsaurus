@@ -65,17 +65,12 @@ void TYqlAgentServerConfig::Register(TRegistrar registrar)
         ->AsMap());
     registrar.Parameter("root", &TThis::Root)
         .Default("//sys/yql_agents");
-    registrar.Parameter("election_manager", &TThis::ElectionManager)
-        .DefaultNew();
     registrar.Parameter("dynamic_config_manager", &TThis::DynamicConfigManager)
         .DefaultNew();
     registrar.Parameter("dynamic_config_path", &TThis::DynamicConfigPath)
         .Default();
 
     registrar.Postprocessor([] (TThis* config) {
-        if (auto& lockPath = config->ElectionManager->LockPath; lockPath.empty()) {
-            lockPath = config->Root + "/leader_lock";
-        }
         if (auto& dynamicConfigPath = config->DynamicConfigPath; dynamicConfigPath.empty()) {
             dynamicConfigPath = config->Root + "/config";
         }

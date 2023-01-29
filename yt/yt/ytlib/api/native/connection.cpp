@@ -42,6 +42,8 @@
 #include <yt/yt/ytlib/queue_client/config.h>
 #include <yt/yt/ytlib/queue_client/registration_manager.h>
 
+#include <yt/yt/ytlib/query_tracker_client/config.h>
+
 #include <yt/yt/ytlib/yql_client/config.h>
 
 #include <yt/yt/ytlib/discovery_client/discovery_client.h>
@@ -946,6 +948,26 @@ private:
                     tvmService->AddDestinationServiceIds({*config->TvmId});
                 }
             }));
+    }
+
+    std::pair<IClientPtr, TString> GetQueryTrackerStage(const TString& stage) override
+    {
+        auto clusterConnection = MakeStrong(this);
+        auto clusterStage = stage;
+        if (auto semicolonPosition = stage.find(":"); semicolonPosition != TString::npos) {
+            auto cluster = stage.substr(0, semicolonPosition);
+            clusterStage = stage.substr(semicolonPosition + 1);
+            clusterConnection = DynamicPointerCast<TConnection>(ClusterDirectory_->GetConnectionOrThrow(cluster));
+            YT_VERIFY(clusterConnection);
+        }
+        const auto& stages = clusterConnection->Config_->QueryTracker->Stages;
+        if (auto iter = stages.find(clusterStage); iter != stages.end()) {
+            auto client = DynamicPointerCast<IClient>(clusterConnection->CreateClient(TClientOptions::FromUser(QueryTrackerUserName)));
+            YT_VERIFY(client);
+            return {client, iter->second->Root};
+        } else {
+            THROW_ERROR_EXCEPTION("Query tracker stage %Qv is not found in cluster directory", stage);
+        }
     }
 };
 
