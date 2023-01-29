@@ -15,7 +15,7 @@
 #include "transaction_commands.h"
 #include "internal_commands.h"
 #include "proxy_discovery_cache.h"
-#include "yql_commands.h"
+#include "query_commands.h"
 
 #include <yt/yt/client/api/transaction.h>
 #include <yt/yt/client/api/connection.h>
@@ -328,8 +328,6 @@ public:
         REGISTER_ALL(TDestroyChunkLocationsCommand,        "destroy_chunk_locations",         Null,       Structured, false,  false);
         REGISTER_ALL(TResurrectChunkLocationsCommand,      "resurrect_chunk_locations",       Null,       Structured, false,  false);
 
-        REGISTER    (TStartYqlQueryCommand,                "start_yql_query",                 Null,       Structured, false,  false, ApiVersion4);
-
         REGISTER_ALL(TSetUserPasswordCommand,              "set_user_password",               Null,       Structured, false,  false);
         REGISTER_ALL(TIssueTokenCommand,                   "issue_token",                     Null,       Structured, false,  false);
         REGISTER_ALL(TRevokeTokenCommand,                  "revoke_token",                    Null,       Structured, false,  false);
@@ -337,6 +335,12 @@ public:
 
         REGISTER    (TRegisterQueueConsumerCommand,        "register_queue_consumer",         Null,       Structured, false,  false, ApiVersion4);
         REGISTER    (TUnregisterQueueConsumerCommand,      "unregister_queue_consumer",       Null,       Structured, false,  false, ApiVersion4);
+
+        REGISTER    (TStartQueryCommand,                   "start_query",                     Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TAbortQueryCommand,                   "abort_query",                     Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TReadQueryResultCommand,              "read_query_result",               Null,       Tabular,    false, true, ApiVersion4);
+        REGISTER    (TGetQueryCommand,                     "get_query",                       Null,       Structured, false, false, ApiVersion4);
+        REGISTER    (TListQueriesCommand,                  "list_queries",                    Null,       Structured, false, false, ApiVersion4);
 
         if (Config_->EnableInternalCommands) {
             REGISTER_ALL(TReadHunksCommand,                "read_hunks",                      Null,       Structured, false,  true );

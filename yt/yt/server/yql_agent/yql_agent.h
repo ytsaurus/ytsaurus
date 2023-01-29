@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/server/lib/cypress_election/public.h>
-
 #include <yt/yt/ytlib/hive/public.h>
 
 #include <yt/yt/ytlib/yql_client/proto/yql_service.pb.h>
@@ -29,9 +27,9 @@ struct IYqlAgent
         const TYqlAgentDynamicConfigPtr& oldConfig,
         const TYqlAgentDynamicConfigPtr& newConfig) = 0;
 
-    virtual TFuture<NYqlClient::NProto::TYqlResponse> StartQuery(
+    virtual TFuture<std::pair<NYqlClient::NProto::TRspStartQuery, std::vector<TSharedRef>>> StartQuery(
         TQueryId queryId,
-        const NYqlClient::NProto::TYqlRequest& request) = 0;
+        const NYqlClient::NProto::TReqStartQuery& request) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IYqlAgent)
@@ -39,8 +37,8 @@ DEFINE_REFCOUNTED_TYPE(IYqlAgent)
 IYqlAgentPtr CreateYqlAgent(
     TYqlAgentConfigPtr config,
     NHiveClient::TClusterDirectoryPtr clusterDirectory,
+    NHiveClient::TClientDirectoryPtr clientDirectory,
     IInvokerPtr controlInvoker,
-    NCypressElection::ICypressElectionManagerPtr electionManager,
     TString agentId);
 
 ////////////////////////////////////////////////////////////////////////////////

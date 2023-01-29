@@ -35,14 +35,14 @@ private:
 
     DECLARE_RPC_SERVICE_METHOD(NYqlClient::NProto, StartQuery)
     {
-        context->SetRequestInfo("Async: %v", request->async());
+        context->SetRequestInfo("Async: %v, BuildRowsets: %v, RowCountLimit: %v", request->async(), request->build_rowsets(), request->row_count_limit());
 
         auto queryId = TQueryId::Create();
         ToProto(response->mutable_query_id(), queryId);
 
         context->SetResponseInfo("QueryId: %v", queryId);
 
-        auto responseFuture = YqlAgent_->StartQuery(queryId, request->yql_request());
+        auto responseFuture = YqlAgent_->StartQuery(queryId, *request);
 
         if (request->async()) {
             // TODO(max42): there is no way to poll query result for now.
@@ -50,12 +50,11 @@ private:
             return;
         }
 
-        auto responseOrError = WaitFor(responseFuture);
-        if (responseOrError.IsOK()) {
-            response->mutable_yql_response()->Swap(&responseOrError.Value());
-        } else {
-            ToProto(response->mutable_error(), static_cast<TError>(responseOrError));
-        }
+        auto [builtResponse, refs] = WaitForUnique(responseFuture)
+            .ValueOrThrow();
+
+        response->MergeFrom(builtResponse);
+        response->Attachments() = std::move(refs);
 
         context->Reply();
     }

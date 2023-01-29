@@ -539,9 +539,6 @@ public:
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options), (override));
 
-    MOCK_METHOD(TFuture<TStartYqlQueryResult>, StartYqlQuery, (
-        const TString& query, const TStartYqlQueryOptions& options), (override));
-
     MOCK_METHOD(TFuture<void>, SetUserPassword, (
         const TString& user,
         const TString& currentPasswordSha256,
@@ -567,6 +564,27 @@ public:
         const TString& passwordSha256,
         const TListUserTokensOptions& options),
         (override));
+
+    MOCK_METHOD(TFuture<NQueryTrackerClient::TQueryId>, StartQuery, (
+        NQueryTrackerClient::EQueryEngine engine,
+        const TString& query,
+        const TStartQueryOptions& options), (override));
+
+    MOCK_METHOD(TFuture<void>, AbortQuery, (
+        NQueryTrackerClient::TQueryId queryId,
+        const TAbortQueryOptions& options), (override));
+
+    MOCK_METHOD(TFuture<IUnversionedRowsetPtr>, ReadQueryResult, (
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex,
+        const TReadQueryResultOptions& options), (override));
+
+    MOCK_METHOD(TFuture<TQuery>, GetQuery, (
+        NQueryTrackerClient::TQueryId queryId,
+        const TGetQueryOptions& options), (override));
+
+    MOCK_METHOD(TFuture<TListQueriesResult>, ListQueries, (
+        const TListQueriesOptions& options), (override));
 };
 
 DEFINE_REFCOUNTED_TYPE(TMockClient)

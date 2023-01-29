@@ -288,10 +288,27 @@ public:
         const TUnregisterQueueConsumerOptions& options = {}),
         (queuePath, consumerPath, options))
 
-    IMPLEMENT_METHOD(TStartYqlQueryResult, StartYqlQuery, (
+    IMPLEMENT_METHOD(NQueryTrackerClient::TQueryId, StartQuery, (
+        NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartYqlQueryOptions& options = {}),
-        (query, options))
+        const TStartQueryOptions& options = {}),
+        (engine, query, options));
+    IMPLEMENT_METHOD(void, AbortQuery, (
+        NQueryTrackerClient::TQueryId queryId,
+        const TAbortQueryOptions& options = {}),
+        (queryId, options));
+    IMPLEMENT_METHOD(IUnversionedRowsetPtr, ReadQueryResult, (
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex = 0,
+        const TReadQueryResultOptions& options = {}),
+        (queryId, resultIndex, options));
+    IMPLEMENT_METHOD(TQuery, GetQuery, (
+        NQueryTrackerClient::TQueryId queryId,
+        const TGetQueryOptions& options = {}),
+        (queryId, options));
+    IMPLEMENT_METHOD(TListQueriesResult, ListQueries, (
+        const TListQueriesOptions& options = {}),
+        (options));
 
     IMPLEMENT_METHOD(NYson::TYsonString, GetNode, (
         const NYPath::TYPath& path,
@@ -1657,12 +1674,25 @@ private:
         const TGetOrderedTabletSafeTrimRowCountOptions& options);
 
     //
-    // YQL
+    // Query tracker
     //
 
-    TStartYqlQueryResult DoStartYqlQuery(
+    NQueryTrackerClient::TQueryId DoStartQuery(
+        NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartYqlQueryOptions& options);
+        const TStartQueryOptions& options);
+    void DoAbortQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TAbortQueryOptions& options);
+    IUnversionedRowsetPtr DoReadQueryResult(
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex ,
+        const TReadQueryResultOptions& options);
+    TQuery DoGetQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TGetQueryOptions& options);
+    TListQueriesResult DoListQueries(
+        const TListQueriesOptions& options);
 
     //
     // Authentication

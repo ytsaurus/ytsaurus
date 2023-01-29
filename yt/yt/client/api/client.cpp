@@ -335,6 +335,32 @@ void Deserialize(TOperation& operation, NYTree::IAttributeDictionaryPtr attribut
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer)
+{
+    static_assert(TQuery::KnownFieldCount == 12);
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .OptionalItem("id", query.Id)
+            .OptionalItem("engine", query.Engine)
+            .OptionalItem("query", query.Query)
+            .OptionalItem("start_time", query.StartTime)
+            .OptionalItem("finish_time", query.FinishTime)
+            .OptionalItem("settings", query.Settings)
+            .OptionalItem("user", query.User)
+            .OptionalItem("state", query.State)
+            .OptionalItem("result_count", query.ResultCount)
+            .OptionalItem("progress", query.Progress)
+            .OptionalItem("error", query.Error)
+            .DoIf(static_cast<bool>(query.OtherAttributes), [&] (TFluentMap fluent) {
+                for (const auto& [key, value] : query.OtherAttributes->ListPairs()) {
+                    fluent.Item(key).Value(value);
+                }
+            })
+        .EndMap();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 std::optional<EJobState> TJob::GetState() const
 {
     if (ArchiveState && ControllerAgentState) {

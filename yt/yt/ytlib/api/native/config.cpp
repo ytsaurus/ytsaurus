@@ -14,6 +14,8 @@
 
 #include <yt/yt/ytlib/queue_client/config.h>
 
+#include <yt/yt/ytlib/query_tracker_client/config.h>
+
 #include <yt/yt/ytlib/yql_client/config.h>
 
 #include <yt/yt/ytlib/transaction_client/config.h>
@@ -98,6 +100,8 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
     registrar.Parameter("queue_agent", &TThis::QueueAgent)
+        .DefaultNew();
+    registrar.Parameter("query_tracker", &TThis::QueryTracker)
         .DefaultNew();
     registrar.Parameter("yql_agent", &TThis::YqlAgent)
         .Default();

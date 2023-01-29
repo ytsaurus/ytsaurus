@@ -1,0 +1,231 @@
+namespace: NYT::NQueryTrackerClient::NRecords
+
+types:
+  - type_name: TActiveQuery
+    fields:
+      # Key.
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+
+      # Query specification; written by the client on initial query creation.
+
+      # One of: yql, chyt.
+      - cpp_name: Engine
+        cpp_type: EQueryEngine
+        column_name: engine
+        column_type: String
+
+      - cpp_name: Query
+        cpp_type: TString
+        column_name: query
+        column_type: String
+
+      # YSON dictionary.
+      - cpp_name: Settings
+        cpp_type: NYson::TYsonString
+        column_name: settings
+        column_type: Any
+
+      - cpp_name: User
+        cpp_type: TString
+        column_name: user
+        column_type: String
+
+      - cpp_name: StartTime
+        cpp_type: TInstant
+        column_name: start_time
+        column_type: Timestamp
+
+      - cpp_name: FilterFactors
+        cpp_type: TString
+        column_name: filter_factors
+        column_type: String
+
+      # Query runtime information; written by the acquirer query tracker.
+
+      - cpp_name: State
+        cpp_type: EQueryState
+        column_name: state
+        column_type: String
+
+      # Used in CAS checks for ownership acquisition by query tracker and to check
+      # that particular agent must still work on the query.
+      - cpp_name: Incarnation
+        cpp_type: i64
+        column_name: incarnation
+        column_type: Int64
+
+      - cpp_name: PingTime
+        cpp_type: TInstant
+        column_name: ping_time
+        column_type: Timestamp
+
+      - cpp_name: AssignedTracker
+        cpp_type: std::optional<TString>
+        column_name: assigned_tracker
+        column_type: String
+
+      - cpp_name: Progress
+        cpp_type: NYson::TYsonString
+        column_name: progress
+        column_type: Any
+
+      - cpp_name: Error
+        cpp_type: std::optional<TError>
+        column_name: error
+        column_type: Any
+
+      - cpp_name: ResultCount
+        cpp_type: std::optional<i64>
+        column_name: result_count
+        column_type: Int64
+
+      - cpp_name: FinishTime
+        cpp_type: std::optional<TInstant>
+        column_name: finish_time
+        column_type: Timestamp
+
+      # Query control information; written by the client on user request.
+
+      # TODO(max42): std::optional<TError>? AbortError?
+      - cpp_name: AbortRequest
+        cpp_type: std::optional<NYson::TYsonString>
+        column_name: abort_request
+        column_type: Any
+
+
+  - type_name: TFinishedQuery
+    fields:
+      # Key.
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+      # Query specification; written by the client on initial query creation.
+
+      # One of: yql, chyt.
+      - cpp_name: Engine
+        cpp_type: EQueryEngine
+        column_name: engine
+        column_type: String
+
+      - cpp_name: Query
+        cpp_type: TString
+        column_name: query
+        column_type: String
+
+      # YSON dictionary.
+      - cpp_name: Settings
+        cpp_type: NYson::TYsonString
+        column_name: settings
+        column_type: Any
+
+      - cpp_name: User
+        cpp_type: TString
+        column_name: user
+        column_type: String
+
+      - cpp_name: StartTime
+        cpp_type: TInstant
+        column_name: start_time
+        column_type: Timestamp
+
+      - cpp_name: State
+        cpp_type: EQueryState
+        column_name: state
+        column_type: String
+
+      - cpp_name: Progress
+        cpp_type: NYson::TYsonString
+        column_name: progress
+        column_type: Any
+
+      - cpp_name: Error
+        cpp_type: std::optional<TError>
+        column_name: error
+        column_type: Any
+
+      - cpp_name: ResultCount
+        cpp_type: std::optional<i64>
+        column_name: result_count
+        column_type: Int64
+
+      - cpp_name: FinishTime
+        cpp_type: std::optional<TInstant>
+        column_name: finish_time
+        column_type: Timestamp
+
+  - type_name: TFinishedQueryByStartTime
+    fields:
+      # Key.
+
+      - cpp_name: StartTime
+        cpp_type: TInstant
+        column_name: start_time
+        column_type: Timestamp
+        sort_order: Ascending
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: Engine
+        cpp_type: NQueryTrackerClient::EQueryEngine
+        column_name: engine
+        column_type: String
+
+      - cpp_name: User
+        cpp_type: TString
+        column_name: user
+        column_type: String
+
+      - cpp_name: State
+        cpp_type: NQueryTrackerClient::EQueryState
+        column_name: state
+        column_type: String
+
+      - cpp_name: FilterFactors
+        cpp_type: TString
+        column_name: filter_factors
+        column_type: String
+
+
+  - type_name: TQueryResult
+    fields:
+      # Key.
+
+      - cpp_name: QueryId
+        cpp_type: TQueryId
+        column_name: query_id
+        column_type: String
+        sort_order: Ascending
+
+      - cpp_name: Index
+        cpp_type: i64
+        column_name: result_index
+        column_type: Int64
+        sort_order: Ascending
+
+      # Value.
+
+      - cpp_name: Error
+        cpp_type: std::optional<TError>
+        column_name: error
+        column_type: Any
+
+      - cpp_name: Rowset
+        cpp_type: TString
+        column_name: rowset
+        column_type: String

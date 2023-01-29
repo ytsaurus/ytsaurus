@@ -166,6 +166,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    std::pair<NApi::NNative::IClientPtr, TString> GetQueryTrackerStage(const TString& /*stage*/) override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     const NTabletClient::ITableMountCachePtr& GetTableMountCache() override
     {
         YT_UNIMPLEMENTED();
@@ -299,6 +304,8 @@ public:
     {
         YT_UNIMPLEMENTED();
     }
+
+
 
 private:
     const NDiscoveryClient::TDiscoveryConnectionConfigPtr Config_;

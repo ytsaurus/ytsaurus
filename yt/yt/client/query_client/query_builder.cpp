@@ -132,6 +132,10 @@ TString TQueryBuilder::Build()
 void AppendToString(TString& dst, const TQueryBuilder::TEntryWithAlias& entry)
 {
     TStringOutput output(dst);
+    if (entry.Expression == "*") {
+        output << "*";
+        return;
+    }
     output << '(' << entry.Expression << ')';
     if (entry.Alias) {
         output << " AS " << *entry.Alias;

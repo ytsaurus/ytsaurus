@@ -850,13 +850,6 @@ TFuture<TResurrectChunkLocationsResult> TDelegatingClient::ResurrectChunkLocatio
     return Underlying_->ResurrectChunkLocations(nodeAddress, locationUuids, options);
 }
 
-TFuture<TStartYqlQueryResult> TDelegatingClient::StartYqlQuery(
-    const TString& query,
-    const TStartYqlQueryOptions& options)
-{
-    return Underlying_->StartYqlQuery(query, options);
-}
-
 TFuture<void> TDelegatingClient::SetUserPassword(
     const TString& user,
     const TString& currentPasswordSha256,
@@ -903,6 +896,52 @@ TFuture<TListUserTokensResult> TDelegatingClient::ListUserTokens(
         user,
         passwordSha256,
         options);
+}
+
+TFuture<NQueryTrackerClient::TQueryId> TDelegatingClient::StartQuery(
+    NQueryTrackerClient::EQueryEngine engine,
+    const TString& query,
+    const TStartQueryOptions& options)
+{
+    return Underlying_->StartQuery(engine, query, options);
+}
+
+TFuture<void> TDelegatingClient::AbortQuery(
+    NQueryTrackerClient::TQueryId queryId,
+    const TAbortQueryOptions& options)
+{
+    return Underlying_->AbortQuery(queryId, options);
+}
+
+TFuture<IUnversionedRowsetPtr> TDelegatingClient::ReadQueryResult(
+    NQueryTrackerClient::TQueryId queryId,
+    i64 resultIndex,
+    const TReadQueryResultOptions& options)
+{
+    return Underlying_->ReadQueryResult(queryId, resultIndex, options);
+}
+
+TFuture<TQuery> TDelegatingClient::GetQuery(
+    NQueryTrackerClient::TQueryId queryId,
+    const TGetQueryOptions& options)
+{
+    return Underlying_->GetQuery(queryId, options);
+}
+
+TFuture<TListQueriesResult> TDelegatingClient::ListQueries(const TListQueriesOptions& options)
+{
+    return Underlying_->ListQueries(options);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+// Method below ensures that delegating client contains implementations for all
+// methods of IClient. Tthis reduces the number of PR iterations you need to
+// find that some out-of-yt/yt implementation of IClient does not compile.
+void InstantiateDelegatingClient()
+{
+    auto delegatingClient = New<TDelegatingClient>(/*client*/ nullptr);
+    Y_UNUSED(delegatingClient);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

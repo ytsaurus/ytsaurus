@@ -395,11 +395,28 @@ public:
         const std::vector<TGuid>& locationUuids,
         const TResurrectChunkLocationsOptions& options) override;
 
-    // YQL
+    // Query tracker
 
-    TFuture<TStartYqlQueryResult> StartYqlQuery(
+    TFuture<NQueryTrackerClient::TQueryId> StartQuery(
+        NQueryTrackerClient::EQueryEngine engine,
         const TString& query,
-        const TStartYqlQueryOptions& options) override;
+        const TStartQueryOptions& options) override;
+
+    TFuture<void> AbortQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TAbortQueryOptions& options) override;
+
+    TFuture<IUnversionedRowsetPtr> ReadQueryResult(
+        NQueryTrackerClient::TQueryId queryId,
+        i64 resultIndex = 0,
+        const TReadQueryResultOptions& options = {}) override;
+
+    TFuture<TQuery> GetQuery(
+        NQueryTrackerClient::TQueryId queryId,
+        const TGetQueryOptions& options = {}) override;
+
+    TFuture<TListQueriesResult> ListQueries(
+        const TListQueriesOptions& options = {}) override;
 
     // Authentication
 
