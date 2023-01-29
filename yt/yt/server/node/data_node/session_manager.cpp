@@ -275,7 +275,6 @@ void TSessionManager::OnLocationDisabled(const TChunkLocationPtr& location)
 
     for (const auto& [sessionId, session] : sessionMap) {
         if (location == session->GetStoreLocation()) {
-            session->Cancel(TError("Target location is disabled"));
             activeSessions.push_back(session->GetUnregisteredEvent());
         }
     }
