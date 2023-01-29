@@ -41,7 +41,9 @@ struct TChunkExportData
 
 static_assert(sizeof(TChunkExportData) == 8, "sizeof(TChunkExportData) != 8");
 
-using TChunkExportDataList = std::array<TChunkExportData, NObjectClient::MaxSecondaryMasterCells>;
+using TCellIndexToChunkExportData = TCompactFlatMap<int, TChunkExportData, TypicalChunkExportFactor>;
+static_assert(sizeof(TCellIndexToChunkExportData::value_type) == 12, "sizeof(TCellIndexToChunkExportData::value_type) != 12");
+static_assert(sizeof(TCellIndexToChunkExportData) == 56, "sizeof(TCellIndexToChunkExportData) != 56");
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -329,7 +331,7 @@ public:
     //! Same as GetExportData(cellIndex).RefCounter != 0.
     bool IsExportedToCell(int cellIndex) const;
 
-    int ExportCounter() const;
+    bool IsExported() const;
 
     //! Increments export ref counter.
     void Export(int cellIndex, TChunkRequisitionRegistry* registry);
@@ -366,7 +368,7 @@ private:
     i64 FirstOverlayedRowIndex_ = -1;
 
     //! Per-cell data, indexed by cell index; cf. IMulticellManager::GetRegisteredMasterCellIndex.
-    std::unique_ptr<TChunkExportDataList> ExportDataList_;
+    std::unique_ptr<TCellIndexToChunkExportData> CellIndexToExportData_;
 
     TChunkRequisitionIndex AggregatedRequisitionIndex_;
     TChunkRequisitionIndex LocalRequisitionIndex_;
@@ -384,10 +386,6 @@ private:
         bool StripedErasure : 1;
         bool Sealable : 1;
     } Flags_ = {};
-
-    //! The number of non-empty entries in #ExportDataList_.
-    //! If zero, #ExportDataList_ is null.
-    ui8 ExportCounter_ = 0;
 
     struct TReplicasDataBase
         : public TPoolAllocator::TObjectBase
@@ -487,8 +485,6 @@ DEFINE_MASTER_OBJECT_TYPE(TChunk)
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
-
-Y_DECLARE_PODTYPE(NYT::NChunkServer::TChunkExportDataList);
 
 #define CHUNK_INL_H_
 #include "chunk-inl.h"

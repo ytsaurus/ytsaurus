@@ -309,6 +309,9 @@ using TShardedChunkSet = TShardedSet<TChunk*, ChunkShardCount, TChunkToShardInde
 //! Number of shards in sharded location map.
 constexpr int ChunkLocationShardCount = 256;
 
+//! A reasonable upper estimate on the number of cells 99% of chunks are exported to.
+constexpr int TypicalChunkExportFactor = 4;
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NChunkServer
