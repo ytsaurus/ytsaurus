@@ -43,6 +43,20 @@ using NYT::FromProto;
 
 const TChunk::TEmptyChunkReplicasData TChunk::EmptyChunkReplicasData = {};
 
+static const auto& Logger = ChunkServerLogger;
+
+////////////////////////////////////////////////////////////////////////////////
+
+// COMPAT(shakurov)
+using TLegacyChunkExportDataList = std::array<TChunkExportData, NObjectClient::MaxSecondaryMasterCells>;
+
+} // namespace NYT::NChunkServer
+
+// COMPAT(shakurov)
+Y_DECLARE_PODTYPE(NYT::NChunkServer::TLegacyChunkExportDataList);
+
+namespace NYT::NChunkServer {
+
 ////////////////////////////////////////////////////////////////////////////////
 
 TChunk::TChunk(TChunkId id)
@@ -156,10 +170,14 @@ void TChunk::Save(NCellMaster::TSaveContext& context) const
     } else {
         Save(context, false);
     }
-    Save(context, ExportCounter_);
-    if (ExportCounter_ > 0) {
-        YT_ASSERT(ExportDataList_);
-        TPodSerializer::Save(context, *ExportDataList_);
+    ui8 exportCounter = CellIndexToExportData_ ? std::ssize(*CellIndexToExportData_) : 0;
+    Save(context, exportCounter);
+    if (exportCounter > 0) {
+        TLegacyChunkExportDataList legacyExportDataList{};
+        for (auto [cellIndex, data] : *CellIndexToExportData_) {
+            legacyExportDataList[cellIndex] = data;
+        }
+        TPodSerializer::Save(context, legacyExportDataList);
     }
     Save(context, EndorsementRequired_);
     Save(context, ConsistentReplicaPlacementHash_);
@@ -206,13 +224,21 @@ void TChunk::Load(NCellMaster::TLoadContext& context)
         MutableReplicasData()->Load(context);
     }
 
-    Load(context, ExportCounter_);
-    if (ExportCounter_ > 0) {
-        ExportDataList_ = std::make_unique<TChunkExportDataList>();
-        TPodSerializer::Load(context, *ExportDataList_);
+    auto exportCounter = Load<ui8>(context);
+    if (exportCounter > 0) {
+        CellIndexToExportData_ = std::make_unique<TCellIndexToChunkExportData>();
+
+        TLegacyChunkExportDataList legacyExportDataList{};
+        TPodSerializer::Load(context, legacyExportDataList);
         YT_VERIFY(std::any_of(
-            ExportDataList_->begin(), ExportDataList_->end(),
+            legacyExportDataList.begin(), legacyExportDataList.end(),
             [] (auto data) { return data.RefCounter != 0; }));
+        for (auto cellIndex = 0; cellIndex < MaxSecondaryMasterCells; ++cellIndex) {
+            auto data = legacyExportDataList[cellIndex];
+            if (data.RefCounter != 0) {
+                CellIndexToExportData_->emplace(cellIndex, data);
+            }
+        }
     }
 
     Load(context, EndorsementRequired_);
@@ -559,42 +585,121 @@ int TChunk::GetMaxReplicasPerFailureDomain(
 
 TChunkExportData TChunk::GetExportData(int cellIndex) const
 {
-    if (ExportCounter_ == 0) {
+    if (!IsExported()) {
         return {};
     }
 
-    YT_ASSERT(ExportDataList_);
-    return (*ExportDataList_)[cellIndex];
+    auto it = CellIndexToExportData_->find(cellIndex);
+    return it == CellIndexToExportData_->end()
+        ? TChunkExportData{}
+        : it->second;
 }
 
 bool TChunk::IsExportedToCell(int cellIndex) const
 {
-    if (ExportCounter_ == 0) {
+    if (!IsExported()) {
         return false;
     }
 
-    YT_ASSERT(ExportDataList_);
-    return (*ExportDataList_)[cellIndex].RefCounter != 0;
+    auto it = CellIndexToExportData_->find(cellIndex);
+    if (it == CellIndexToExportData_->end()) {
+        return false;
+    }
+
+    if (it->second.RefCounter == 0) {
+        YT_LOG_ALERT("Chunk export data has zero reference counter "
+            "(ChunkId: %v, CellIndex: %v)",
+            GetId(),
+            cellIndex);
+    }
+
+    return true;
+}
+
+void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const
+{
+    registry->Ref(AggregatedRequisitionIndex_);
+    registry->Ref(LocalRequisitionIndex_);
+
+    if (!IsExported()) {
+        return;
+    }
+
+    for (auto [cellIndex, data] : *CellIndexToExportData_) {
+        if (data.RefCounter != 0) {
+            registry->Ref(data.ChunkRequisitionIndex);
+        } else {
+            YT_LOG_ALERT("Chunk export data has zero reference counter "
+                "(ChunkId: %v, CellIndex: %v)",
+                GetId(),
+                cellIndex);
+        }
+    }
+}
+
+void TChunk::UnrefUsedRequisitions(
+    TChunkRequisitionRegistry* registry,
+    const NObjectServer::IObjectManagerPtr& objectManager) const
+{
+    registry->Unref(AggregatedRequisitionIndex_, objectManager);
+    registry->Unref(LocalRequisitionIndex_, objectManager);
+
+    if (!IsExported()) {
+        return;
+    }
+
+    for (auto [cellIndex, data] : *CellIndexToExportData_) {
+        if (data.RefCounter != 0) {
+            registry->Unref(data.ChunkRequisitionIndex, objectManager);
+        } else {
+            YT_LOG_ALERT("Chunk export data has zero reference counter "
+                "(ChunkId: %v, CellIndex: %v)",
+                GetId(),
+                cellIndex);
+        }
+    }
+}
+
+inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry)
+{
+    auto result = registry->GetRequisition(LocalRequisitionIndex_);
+
+    // Shortcut for non-exported chunk.
+    if (!IsExported()) {
+        return result;
+    }
+
+    for (auto [cellIndex, data] : *CellIndexToExportData_) {
+        if (data.RefCounter != 0) {
+            result |= registry->GetRequisition(data.ChunkRequisitionIndex);
+        } else {
+            YT_LOG_ALERT("Chunk export data has zero reference counter "
+                "(ChunkId: %v, CellIndex: %v)",
+                GetId(),
+                cellIndex);
+        }
+    }
+
+    return result;
 }
 
 void TChunk::Export(int cellIndex, TChunkRequisitionRegistry* registry)
 {
-    if (ExportCounter_ == 0) {
-        ExportDataList_ = std::make_unique<TChunkExportDataList>();
-        for (auto& data : *ExportDataList_) {
-            data.RefCounter = 0;
-            data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex;
-        }
+    if (!CellIndexToExportData_) {
+        CellIndexToExportData_ = std::make_unique<TCellIndexToChunkExportData>();
     }
 
-    auto& data = (*ExportDataList_)[cellIndex];
-    if (++data.RefCounter == 1) {
-        ++ExportCounter_;
-
+    auto [it, inserted] = CellIndexToExportData_->emplace(cellIndex, TChunkExportData{});
+    auto& data = it->second;
+    ++data.RefCounter;
+    if (inserted) {
+        YT_VERIFY(data.RefCounter == 1);
         YT_VERIFY(data.ChunkRequisitionIndex == EmptyChunkRequisitionIndex);
         registry->Ref(data.ChunkRequisitionIndex);
         // NB: an empty requisition doesn't affect the aggregated requisition
         // and thus doesn't call for updating the latter.
+    } else {
+        YT_VERIFY(data.RefCounter > 1);
     }
 }
 
@@ -604,16 +709,18 @@ void TChunk::Unexport(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::IObjectManagerPtr& objectManager)
 {
-    YT_ASSERT(ExportDataList_);
-    auto& data = (*ExportDataList_)[cellIndex];
+    YT_VERIFY(IsExported());
+
+    auto it = CellIndexToExportData_->find(cellIndex);
+    YT_VERIFY(it != CellIndexToExportData_->end());
+    auto& data = it->second;
     if ((data.RefCounter -= importRefCounter) == 0) {
         registry->Unref(data.ChunkRequisitionIndex, objectManager);
-        data.ChunkRequisitionIndex = EmptyChunkRequisitionIndex; // just in case
 
-        --ExportCounter_;
+        CellIndexToExportData_->erase(it);
 
-        if (ExportCounter_ == 0) {
-            ExportDataList_.reset();
+        if (CellIndexToExportData_->empty()) {
+            CellIndexToExportData_.reset();
         }
 
         UpdateAggregatedRequisitionIndex(registry, objectManager);

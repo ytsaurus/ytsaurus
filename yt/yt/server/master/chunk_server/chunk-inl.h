@@ -185,42 +185,6 @@ inline void TChunk::RemoveJob(const TJobPtr& job)
     }
 }
 
-inline void TChunk::RefUsedRequisitions(TChunkRequisitionRegistry* registry) const
-{
-    registry->Ref(AggregatedRequisitionIndex_);
-    registry->Ref(LocalRequisitionIndex_);
-
-    if (ExportCounter_ == 0) {
-        return;
-    }
-
-    YT_ASSERT(ExportDataList_);
-    for (auto data : *ExportDataList_) {
-        if (data.RefCounter != 0) {
-            registry->Ref(data.ChunkRequisitionIndex);
-        }
-    }
-}
-
-inline void TChunk::UnrefUsedRequisitions(
-    TChunkRequisitionRegistry* registry,
-    const NObjectServer::IObjectManagerPtr& objectManager) const
-{
-    registry->Unref(AggregatedRequisitionIndex_, objectManager);
-    registry->Unref(LocalRequisitionIndex_, objectManager);
-
-    if (ExportCounter_ == 0) {
-        return;
-    }
-
-    YT_ASSERT(ExportDataList_);
-    for (auto data : *ExportDataList_) {
-        if (data.RefCounter != 0) {
-            registry->Unref(data.ChunkRequisitionIndex, objectManager);
-        }
-    }
-}
-
 inline TChunkRequisitionIndex TChunk::GetLocalRequisitionIndex() const
 {
     return LocalRequisitionIndex_;
@@ -240,8 +204,10 @@ inline void TChunk::SetLocalRequisitionIndex(
 
 inline TChunkRequisitionIndex TChunk::GetExternalRequisitionIndex(int cellIndex) const
 {
-    YT_ASSERT(ExportDataList_);
-    auto data = (*ExportDataList_)[cellIndex];
+    YT_VERIFY(IsExported());
+    auto it = CellIndexToExportData_->find(cellIndex);
+    YT_VERIFY(it != CellIndexToExportData_->end());
+    const auto& data = it->second;
     YT_VERIFY(data.RefCounter != 0);
     return data.ChunkRequisitionIndex;
 }
@@ -252,8 +218,10 @@ inline void TChunk::SetExternalRequisitionIndex(
     TChunkRequisitionRegistry* registry,
     const NObjectServer::IObjectManagerPtr& objectManager)
 {
-    YT_ASSERT(ExportDataList_);
-    auto& data = (*ExportDataList_)[cellIndex];
+    YT_VERIFY(IsExported());
+    auto it = CellIndexToExportData_->find(cellIndex);
+    YT_VERIFY(it != CellIndexToExportData_->end());
+    auto& data = it->second;
     YT_VERIFY(data.RefCounter != 0);
     registry->Unref(data.ChunkRequisitionIndex, objectManager);
     data.ChunkRequisitionIndex = requisitionIndex;
@@ -280,25 +248,6 @@ inline void TChunk::UpdateAggregatedRequisitionIndex(
         AggregatedRequisitionIndex_ = newIndex;
         registry->Ref(AggregatedRequisitionIndex_);
     }
-}
-
-inline TChunkRequisition TChunk::ComputeAggregatedRequisition(const TChunkRequisitionRegistry* registry)
-{
-    auto result = registry->GetRequisition(LocalRequisitionIndex_);
-
-    // Shortcut for non-exported chunk.
-    if (ExportCounter_ == 0) {
-        return result;
-    }
-
-    YT_ASSERT(ExportDataList_);
-    for (auto data : *ExportDataList_) {
-        if (data.RefCounter != 0) {
-            result |= registry->GetRequisition(data.ChunkRequisitionIndex);
-        }
-    }
-
-    return result;
 }
 
 inline const TChunkRequisition& TChunk::GetAggregatedRequisition(const TChunkRequisitionRegistry* registry) const
@@ -378,9 +327,16 @@ inline bool TChunk::IsDiskSizeFinal() const
     return IsJournal() ? IsSealed() : IsConfirmed();
 }
 
-inline int TChunk::ExportCounter() const
+inline bool TChunk::IsExported() const
 {
-    return ExportCounter_;
+    YT_ASSERT(!CellIndexToExportData_ ||
+        !CellIndexToExportData_->empty() &&
+        std::all_of(
+            CellIndexToExportData_->begin(),
+            CellIndexToExportData_->end(),
+            [] (auto pair) { return pair.second.RefCounter != 0; }));
+
+    return static_cast<bool>(CellIndexToExportData_);
 }
 
 inline void TChunk::OnRefresh()

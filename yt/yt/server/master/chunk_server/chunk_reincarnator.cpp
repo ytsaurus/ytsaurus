@@ -1108,7 +1108,7 @@ private:
                         return false;
                 }
 
-                if (chunk->ExportCounter() != 0) {
+                if (chunk->IsExported()) {
                     OnReincarnationFinished(EReincarnationResult::Teleportations);
                     return false;
                 }
@@ -1220,7 +1220,7 @@ private:
                 continue;
             }
 
-            if (oldChunk->ExportCounter() > 0) {
+            if (oldChunk->IsExported()) {
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Chunk was teleported after reincarnated chunks creation has been scheduled (ChunkId: %v)",
                     oldChunkId);
@@ -1299,7 +1299,7 @@ private:
                 continue;
             }
 
-            if (oldChunk->ExportCounter() > 0) {
+            if (oldChunk->IsExported()) {
                 OnReincarnationFinished(EReincarnationResult::Teleportations);
                 YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(),
                     "Chunk was teleported after reincarnation had been scheduled; chunk reincarnation skipped (ChunkId: %v)",
