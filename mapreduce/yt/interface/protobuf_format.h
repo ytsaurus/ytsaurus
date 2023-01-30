@@ -1,11 +1,5 @@
 #pragma once
 
-///
-/// @file mapreduce/yt/interface/protobuf_format.h
-///
-/// Header containing declarations of types and functions
-/// to work with protobuf format flags and options
-
 #include "common.h"
 
 #include <mapreduce/yt/interface/protos/extension.pb.h>
@@ -14,6 +8,7 @@
 
 #include <google/protobuf/message.h>
 
+/// @cond Doxygen_Suppress
 namespace NYT::NDetail {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -102,4 +97,4 @@ TTableSchema CreateTableSchemaImpl(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NDetail
-
+/// @endcond

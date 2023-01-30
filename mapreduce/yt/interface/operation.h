@@ -92,7 +92,7 @@ TTableStructure StructuredTableDescription();
 struct TVoidStructuredRowStream
 { };
 
-/// Tag class marking that row stream consists of @ref NYT::TNode.
+/// Tag class marking that row stream consists of `NYT::TNode`.
 struct TTNodeStructuredRowStream
 { };
 
@@ -1896,6 +1896,7 @@ public:
     using TWriter = TW;
 
 public:
+    /// Type of job implemented by this class.
     static constexpr EType JobType = EType::Mapper;
 
     ///
@@ -1943,6 +1944,7 @@ public:
     using TWriter = TW;
 
 public:
+    /// Type of job implemented by this class.
     static constexpr EType JobType = EType::Reducer;
 
 public:
@@ -1991,6 +1993,7 @@ public:
     using TWriter = TW;
 
 public:
+    /// Type of job implemented by this class.
     static constexpr EType JobType = EType::ReducerAggregator;
 
 public:
@@ -2024,6 +2027,7 @@ class IRawJob
     : public IJob
 {
 public:
+    /// Type of job implemented by this class.
     static constexpr EType JobType = EType::RawJob;
 
     ///
@@ -2076,6 +2080,7 @@ class IVanillaJobBase
    : public virtual IStructuredJob
 {
 public:
+    /// Type of job implemented by this class.
     static constexpr EType JobType = EType::VanillaJob;
 };
 

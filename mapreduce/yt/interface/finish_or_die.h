@@ -4,8 +4,10 @@
 
 #include <exception>
 
-namespace NYT {
-namespace NDetail {
+/// @cond Doxygen_Suppress
+namespace NYT::NDetail {
+
+////////////////////////////////////////////////////////////////////////////////
 
 template <typename T>
 void FinishOrDie(T* pThis, const char* className) noexcept
@@ -33,5 +35,7 @@ void FinishOrDie(T* pThis, const char* className) noexcept
     }
 }
 
-} // namespace NDetail
-} // namespace NYT
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NDetail
+/// @endcond

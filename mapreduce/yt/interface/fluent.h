@@ -175,12 +175,14 @@ public:
     class TFluentBase
     {
     public:
-      operator NYT::NYson::IYsonConsumer* () const
+        /// Implicit conversion to yson consumer
+        operator NYT::NYson::IYsonConsumer* () const
         {
             return Consumer;
         }
 
     protected:
+        /// @cond Doxygen_Suppress
         NYT::NYson::IYsonConsumer* Consumer;
         TParent Parent;
 
@@ -195,7 +197,7 @@ public:
         {
             return TFluentYsonUnwrapper<TParent>::Unwrap(std::move(Parent));
         }
-
+        /// @endcond Doxygen_Suppress
     };
 
     /// Base class for fluent adapters for fragment of list, map or attributes.
