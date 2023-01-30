@@ -266,7 +266,7 @@ std::tuple<std::vector<TSharedRef>, int, int> TBatchInfo::PeekQueue(const TJaege
     int batchCount = 0;
 
     for (; batchCount < std::ssize(BatchQueue_); batchCount++) {
-        if (memorySize > config->MaxRequestSize) {
+        if (config && memorySize > config->MaxRequestSize) {
             break;
         }
 
@@ -480,7 +480,7 @@ std::tuple<std::vector<TSharedRef>, int, int> TJaegerTracer::PeekQueue(const TJa
     }
 
     std::optional<TSharedRef> processInfo;
-    if (config != nullptr && config->IsEnabled()) {
+    if (config && config->IsEnabled()) {
         processInfo = GetProcessInfo(config);
     }
 
