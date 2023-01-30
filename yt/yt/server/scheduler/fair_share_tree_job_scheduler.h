@@ -326,7 +326,7 @@ public:
     void CountOperationsByPreemptionPriority();
     int GetOperationWithPreemptionPriorityCount(
         EOperationPreemptionPriority priority,
-        EOperationPreemptionPriorityScope scope = EOperationPreemptionPriorityScope::OperationAndAncestors) const;
+        EOperationPreemptionPriorityScope scope) const;
 
     void AnalyzePreemptibleJobs(
         EOperationPreemptionPriority targetOperationPreemptionPriority,

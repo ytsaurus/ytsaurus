@@ -3019,7 +3019,10 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithPreemption(
 
     // NB(eshcherbin): We might want to analyze jobs and attempt preemption even if there are no candidate operations of target priority.
     // For example, we preempt jobs in pools or operations which exceed their specified resource limits.
-    bool shouldAttemptScheduling = context->GetOperationWithPreemptionPriorityCount(targetOperationPreemptionPriority) > 0;
+    auto operationWithPreemptionPriorityCount = context->GetOperationWithPreemptionPriorityCount(
+        targetOperationPreemptionPriority,
+        treeSnapshot->TreeConfig()->SchedulingPreemptionPriorityScope);
+    bool shouldAttemptScheduling = operationWithPreemptionPriorityCount > 0;
     bool shouldAttemptPreemption = forcePreemptionAttempt || shouldAttemptScheduling;
     if (!shouldAttemptPreemption) {
         return;
