@@ -119,6 +119,8 @@ public:
 
     virtual int GetActiveJobCount() const = 0;
 
+    virtual void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) = 0;
+
     DECLARE_INTERFACE_SIGNAL(void(const TJobPtr&), JobFinished);
     DECLARE_INTERFACE_SIGNAL(void(const TError& error), JobProxyBuildInfoUpdated);
 };

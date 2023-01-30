@@ -192,6 +192,15 @@ void TControllerAgentConnectorPool::TControllerAgentConnector::OnAgentIncarnatio
 {
     VERIFY_INVOKER_THREAD_AFFINITY(ControllerAgentConnectorPool_->Bootstrap_->GetJobInvoker(), JobThread);
 
+    YT_LOG_DEBUG(
+        "Controller agent incarnation is outdated, stop connector (ControllerAgentDescriptor: %v)",
+        ControllerAgentDescriptor_);
+
+    const auto& jobController = ControllerAgentConnectorPool_->Bootstrap_->GetJobController();
+    jobController->OnAgentIncarnationOutdated(ControllerAgentDescriptor_);
+
+    EnqueuedFinishedJobs_.clear();
+
     HeartbeatExecutor_->Stop();
 }
 

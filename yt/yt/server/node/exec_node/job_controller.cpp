@@ -499,6 +499,17 @@ public:
         return std::ssize(JobMap_);
     }
 
+    void OnAgentIncarnationOutdated(const TControllerAgentDescriptor& controllerAgentDescriptor) override
+    {
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        for (const auto& [id, job] : JobMap_) {
+            if (job->GetControllerAgentDescriptor() == controllerAgentDescriptor) {
+                job->UpdateControllerAgentDescriptor({});
+            }
+        }
+    }
+
 private:
     const TIntrusivePtr<const TJobControllerConfig> Config_;
     NClusterNode::IBootstrapBase* const Bootstrap_;
