@@ -42,6 +42,7 @@
 #include <util/generic/maybe.h>
 #include <util/system/compiler.h>
 
+/// Main namespace of YT client
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
