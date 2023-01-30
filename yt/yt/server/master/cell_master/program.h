@@ -8,9 +8,9 @@
 #include <yt/yt/library/program/program_setsid_mixin.h>
 #include <yt/yt/ytlib/program/helpers.h>
 
-#include <yt/yt/core/logging/log_manager.h>
 #include <yt/yt/core/logging/config.h>
 #include <yt/yt/core/logging/file_log_writer.h>
+#include <yt/yt/core/misc/fs.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
 
@@ -43,9 +43,9 @@ public:
             .StoreMappedResult(&DumpSnapshot_, &CheckPathExistsArgMapper)
             .RequiredArgument("SNAPSHOT");
         Opts_
-            .AddLongOption("validate-snapshot", "validate master snapshot and exit")
-            .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
-            .RequiredArgument("SNAPSHOT");
+            .AddLongOption("dump-config", "config for snapshot dumping, which contains 'lower_limit' and 'upper_limit'")
+            .StoreResult(&DumpConfig_)
+            .RequiredArgument("CONFIG_YSON");
         Opts_
             .AddLongOption("export-snapshot", "export master snapshot\nexpects path to snapshot")
             .StoreMappedResult(&ExportSnapshot_, &CheckPathExistsArgMapper)
@@ -56,9 +56,24 @@ public:
             .StoreResult(&ExportSnapshotConfig_)
             .RequiredArgument("CONFIG_YSON");
         Opts_
-            .AddLongOption("dump-config", "config for snapshot dumping, which contains 'lower_limit' and 'upper_limit'")
-            .StoreResult(&DumpConfig_)
-            .RequiredArgument("CONFIG_YSON");
+            .AddLongOption("validate-snapshot", "load master snapshot in a dry run mode")
+            .StoreMappedResult(&ValidateSnapshot_, &CheckPathExistsArgMapper)
+            .RequiredArgument("SNAPSHOT");
+        Opts_
+            .AddLongOption("replay-changelogs", "replay one or more consecutive master changelogs\n"
+                           "Usually used in conjunction with 'validate-snapshot' option to apply changelogs over a specific snapshot")
+            .SplitHandler(&ChangelogFileNames_, ' ')
+            .RequiredArgument("CHANGELOG");
+        Opts_
+            .AddLongOption("build-snapshot", "save resulting state in a snapshot\n"
+                                             "Path to a directory can be specified here\n"
+                                             "By default snapshot will be saved in the working directory")
+            .StoreResult(&SnapshotBuildDirectory_)
+            .OptionalArgument("DIRECTORY");
+        Opts_
+            .AddLongOption("use-new-hydra-for-dry-run", "use Hydra2 during dry run")
+            .SetFlag(&UseNewHydraForDryRun_)
+            .NoArgument();
         Opts_
             .AddLongOption("report-total-write-count")
             .SetFlag(&EnableTotalWriteCountReport_)
@@ -74,9 +89,19 @@ protected:
     {
         TThread::SetCurrentThreadName("MasterMain");
 
-        bool dumpSnapshot = parseResult.Has("dump-snapshot");
-        bool validateSnapshot = parseResult.Has("validate-snapshot");
-        bool exportSnapshot = parseResult.Has("export-snapshot");
+        auto dumpSnapshot = parseResult.Has("dump-snapshot");
+        auto exportSnapshot = parseResult.Has("export-snapshot");
+        auto validateSnapshot = parseResult.Has("validate-snapshot");
+        auto replayChangelogs = parseResult.Has("replay-changelogs");
+        auto buildSnapshot = parseResult.Has("build-snapshot");
+
+        if (dumpSnapshot + validateSnapshot + exportSnapshot > 1) {
+            THROW_ERROR_EXCEPTION("Options 'dump-snapshot', 'validate-snapshot' and 'export-snapshot' are mutually exclusive");
+        }
+
+        if (buildSnapshot && !replayChangelogs && !validateSnapshot) {
+            THROW_ERROR_EXCEPTION("Option 'build-snapshot' can only be used with 'validate-snapshot' or 'replay-changelog'");
+        }
 
         ConfigureUids();
         ConfigureIgnoreSigpipe();
@@ -99,9 +124,31 @@ protected:
 
         auto config = GetConfig();
 
-        if (dumpSnapshot || validateSnapshot || exportSnapshot) {
+        auto isDryRun = dumpSnapshot || validateSnapshot || exportSnapshot || replayChangelogs;
+
+        if (isDryRun) {
             NBus::TTcpDispatcher::Get()->DisableNetworking();
-            config->SnapshotValidation->EnableHostNameValidation = false;
+            config->DryRun->EnableHostNameValidation = false;
+            config->DryRun->EnableDryRun = true;
+
+            if (UseNewHydraForDryRun_) {
+                config->UseNewHydra = true;
+            }
+        }
+
+        if (replayChangelogs) {
+            auto changelogDirectory = NFS::GetDirectoryName(ChangelogFileNames_.front());
+            for (const auto& fileName : ChangelogFileNames_) {
+                if (changelogDirectory != NFS::GetDirectoryName(fileName)) {
+                    THROW_ERROR_EXCEPTION("Changelogs must be located in one directory");
+                }
+            }
+        }
+
+        if (buildSnapshot) {
+            config->Snapshots->Path = SnapshotBuildDirectory_.empty()
+                ? NFS::GetDirectoryName(".")
+                : NFS::GetRealPath(SnapshotBuildDirectory_);
         }
 
         if (dumpSnapshot) {
@@ -139,11 +186,25 @@ protected:
         }
 
         if (dumpSnapshot) {
-            bootstrap->TryLoadSnapshot(DumpSnapshot_, true, false, DumpConfig_);
-        } else if (validateSnapshot) {
-            bootstrap->TryLoadSnapshot(ValidateSnapshot_, false, EnableTotalWriteCountReport_, TString());
-        } else if (exportSnapshot) {
+            bootstrap->LoadSnapshotOrThrow(DumpSnapshot_, true, false, DumpConfig_);
+        }
+
+        if (exportSnapshot) {
             ExportSnapshot(bootstrap, ExportSnapshot_, ExportSnapshotConfig_);
+        }
+
+        if (validateSnapshot) {
+            bootstrap->LoadSnapshotOrThrow(ValidateSnapshot_, false, EnableTotalWriteCountReport_, {});
+        }
+        if (replayChangelogs) {
+            bootstrap->ReplayChangelogsOrThrow(std::move(ChangelogFileNames_));
+        }
+        if (buildSnapshot) {
+            bootstrap->BuildSnapshotOrThrow();
+        }
+
+        if (isDryRun) {
+            bootstrap->FinishDryRunOrThrow();
         } else {
             bootstrap->Run();
         }
@@ -155,12 +216,15 @@ protected:
 
 private:
     TString DumpSnapshot_;
-    TString ValidateSnapshot_;
+    TString DumpConfig_;
     TString ExportSnapshot_;
     TString ExportSnapshotConfig_;
-    TString DumpConfig_;
+    TString ValidateSnapshot_;
+    std::vector<TString> ChangelogFileNames_;
+    TString SnapshotBuildDirectory_;
     bool EnableTotalWriteCountReport_ = false;
     bool SleepAfterInitialize_ = false;
+    bool UseNewHydraForDryRun_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

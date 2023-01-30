@@ -194,7 +194,7 @@ void TCellMasterConfig::Register(TRegistrar registrar)
     registrar.Parameter("snapshots", &TThis::Snapshots);
     registrar.Parameter("hydra_manager", &TThis::HydraManager)
         .DefaultNew();
-    registrar.Parameter("snapshot_validation", &TThis::SnapshotValidation)
+    registrar.Parameter("dry_run", &TThis::DryRun)
         .DefaultNew();
     registrar.Parameter("cell_directory", &TThis::CellDirectory)
         .DefaultNew();
@@ -353,10 +353,12 @@ void TDynamicClusterConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TMasterSnapshotValidationConfig::TMasterSnapshotValidationConfig()
+TMasterDryRunConfig::TMasterDryRunConfig()
 {
     RegisterParameter("enable_host_name_validation", EnableHostNameValidation)
         .Default(true);
+    RegisterParameter("enable_dry_run", EnableDryRun)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

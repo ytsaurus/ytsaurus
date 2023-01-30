@@ -37,6 +37,8 @@
 
 #include <yt/yt/server/lib/hive/hive_manager.h>
 
+#include <yt/yt/server/lib/io/io_engine.h>
+
 #include <yt/yt/server/lib/transaction_supervisor/transaction_manager.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
 #include <yt/yt/server/lib/transaction_supervisor/transaction_participant_provider.h>
@@ -44,11 +46,14 @@
 #include <yt/yt/server/master/hive/cell_directory_synchronizer.h>
 
 #include <yt/yt/server/lib/hydra_common/changelog.h>
-#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/dry_run_hydra_manager.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog_dispatcher.h>
+#include <yt/yt/server/lib/hydra_common/file_changelog.h>
 #include <yt/yt/server/lib/hydra_common/local_changelog_store.h>
+#include <yt/yt/server/lib/hydra_common/local_snapshot_store.h>
+#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
 #include <yt/yt/server/lib/hydra_common/snapshot.h>
 #include <yt/yt/server/lib/hydra_common/validate_snapshot.h>
-#include <yt/yt/server/lib/hydra_common/persistent_response_keeper.h>
 
 #include <yt/yt/server/lib/hydra/local_snapshot_service.h>
 
@@ -584,7 +589,7 @@ void TBootstrap::Run()
     Sleep(TDuration::Max());
 }
 
-void TBootstrap::TryLoadSnapshot(
+void TBootstrap::LoadSnapshotOrThrow(
     const TString& fileName,
     bool dump,
     bool enableTotalWriteCountReport,
@@ -594,6 +599,45 @@ void TBootstrap::TryLoadSnapshot(
     ValidateLoadSnapshotParameters(dump, enableTotalWriteCountReport, dumpConfigString, &dumpConfig);
 
     BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump, enableTotalWriteCountReport, dumpConfig)
+        .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
+
+void TBootstrap::ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames)
+{
+    if (!Config_->UseNewHydra) {
+        THROW_ERROR_EXCEPTION("Dry run is only supported for Hydra2");
+    }
+
+    BIND(&TBootstrap::DoReplayChangelogs, this, Passed(std::move(changelogFileNames)))
+        .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
+
+void TBootstrap::BuildSnapshotOrThrow()
+{
+    if (!Config_->UseNewHydra) {
+        THROW_ERROR_EXCEPTION("Dry run is only supported for Hydra2");
+    }
+
+    BIND(&TBootstrap::DoBuildSnapshot, this)
+        .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
+        .Run()
+        .Get()
+        .ThrowOnError();
+}
+
+void TBootstrap::FinishDryRunOrThrow()
+{
+    if (!Config_->UseNewHydra) {
+        THROW_ERROR_EXCEPTION("Dry run is olny supported for Hydra2");
+    }
+
+    BIND(&TBootstrap::DoFinishDryRun, this)
         .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
         .Run()
         .Get()
@@ -655,7 +699,7 @@ void TBootstrap::DoInitialize()
     auto expectedLocalHostName = Config_->AddressResolver->LocalHostNameOverride.value_or(
         Config_->AddressResolver->ExpectedLocalHostName.value_or(actualLocalHostName));
 
-    if (Config_->SnapshotValidation->EnableHostNameValidation &&
+    if (Config_->DryRun->EnableHostNameValidation &&
         expectedLocalHostName != actualLocalHostName)
     {
         THROW_ERROR_EXCEPTION("Local address differs from expected address specified in config")
@@ -1155,15 +1199,61 @@ void TBootstrap::DoLoadSnapshot(
     bool enableTotalWriteCountReport,
     const TSerializationDumperConfigPtr& dumpConfig)
 {
-    auto reader = CreateLocalSnapshotReader(
-        fileName,
-        InvalidSegmentId,
-        GetSnapshotIOInvoker());
-    auto automaton = HydraFacade_->GetAutomaton();
-    ValidateSnapshot(
-        automaton,
-        reader,
-        /*options*/ {dump, enableTotalWriteCountReport, dumpConfig});
+    auto snapshotReader = CreateLocalSnapshotReader(fileName, InvalidSegmentId, GetSnapshotIOInvoker());
+
+    if (Config_->UseNewHydra) {
+        const auto& hydraManager = HydraFacade_->GetHydraManager();
+        auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+
+        const auto& automaton = HydraFacade_->GetAutomaton();
+        automaton->SetSnapshotValidationOptions({dump, enableTotalWriteCountReport, dumpConfig});
+
+        dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader));
+    } else {
+        const auto& automaton = HydraFacade_->GetAutomaton();
+        ValidateSnapshot(
+            automaton,
+            std::move(snapshotReader),
+            /*options*/ {dump, enableTotalWriteCountReport, dumpConfig});
+    }
+}
+
+void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
+{
+    const auto& hydraManager = HydraFacade_->GetHydraManager();
+    auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+
+    auto changelogsConfig = Config_->Changelogs;
+
+    changelogsConfig->Path = NFS::GetDirectoryName(changelogFileNames.front());
+    auto ioEngine = CreateIOEngine(Config_->Changelogs->IOEngineType, Config_->Changelogs->IOConfig);
+
+    auto dispatcher = CreateFileChangelogDispatcher(
+        std::move(ioEngine),
+        /*memoryUsageTracker*/ nullptr,
+        changelogsConfig,
+        "DryRunChangelogDispatcher",
+        /*profiler*/ {});
+
+    for (auto changelogFileName : changelogFileNames) {
+        auto changelog = WaitFor(dispatcher->OpenChangelog(-1, changelogFileName, changelogsConfig))
+            .ValueOrThrow();
+        dryRunHydraManager->DryRunReplayChangelog(changelog);
+    }
+}
+
+void TBootstrap::DoBuildSnapshot()
+{
+    const auto& hydraManager = HydraFacade_->GetHydraManager();
+    auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+    dryRunHydraManager->DryRunBuildSnapshot();
+}
+
+void TBootstrap::DoFinishDryRun()
+{
+    const auto& hydraManager = HydraFacade_->GetHydraManager();
+    auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+    dryRunHydraManager->DryRunShutdown();
 }
 
 void TBootstrap::ValidateLoadSnapshotParameters(
