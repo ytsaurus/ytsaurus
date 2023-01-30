@@ -289,6 +289,7 @@ const std::vector<TStatisticsDescription>& GetOperationStatisticsDescriptions()
 
         {"job_proxy/cumulative_estimated_memory", "Memory for the job proxy estimated by scheduler/controller agent multiplied by job length in seconds", "bytes * sec"},
         {"job_proxy/cumulative_max_memory", "Maximum amount of memory used by the job proxy process multiplied by job length in seconds", "bytes * sec"},
+        {"job_proxy/cumulative_memory_reserve", "Amount of memory reserved for job proxy at the time of start multiplied by job length in seconds", "bytes * sec"},
         {"job_proxy/estimated_memory", "Memory for the job proxy estimated by scheduler/controller agent", "bytes"},
         // TODO(renadeen): Maybe elaborate on CPU monitor's statistics?
         {"job_proxy/aggregated_max_cpu_usage_x100", "Internal statistic of job CPU monitor", ""},
