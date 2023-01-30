@@ -729,11 +729,13 @@ bool TChunkOwnerNodeProxy::GetBuiltinAttribute(
             return true;
 
         case EInternedAttributeKey::SnapshotStatistics:
-            Serialize(node->SnapshotStatistics(), consumer);
+            BuildYsonFluently(consumer)
+                .Value(node->SnapshotStatistics());
             return true;
 
         case EInternedAttributeKey::DeltaStatistics:
-            Serialize(node->DeltaStatistics(), consumer);
+            BuildYsonFluently(consumer)
+                .Value(node->DeltaStatistics());
             return true;
 
         case EInternedAttributeKey::UncompressedDataSize:

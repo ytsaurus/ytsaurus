@@ -108,6 +108,7 @@ DEFINE_ENUM(EMasterReign,
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko
     ((RipForbidSetCommand)                                          (2302))  // babenko
     ((RootstocksAndScions)                                          (2303))  // gritukan
+    ((FixClonedTrunkNodeStatistics)                                 (2304))  // shakurov
 );
 
 ////////////////////////////////////////////////////////////////////////////////

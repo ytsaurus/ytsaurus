@@ -140,10 +140,6 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
-    registrar.Parameter("enable_alert_on_node_statistics_fix", &TThis::EnableAlertOnNodeStatisticsFix)
-        .Default(true)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_queue_size_limit_changes", &TThis::EnableQueueSizeLimitChanges)
         .Default(false)
         .DontSerializeDefault();
@@ -564,10 +560,6 @@ void TDynamicChunkManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("enable_per_location_node_disposal", &TThis::EnablePerLocationNodeDisposal)
         .Default(false);
-
-    registrar.Parameter("enable_cloned_trunk_node_statistics_fix", &TThis::EnableClonedTrunkNodeStatisticsFix)
-        .Default(false)
-        .DontSerializeDefault();
 
     registrar.Preprocessor([] (TThis* config) {
         config->JobThrottler->Limit = 10'000;

@@ -304,6 +304,8 @@ bool TChunkOwnerBase::HasDataWeight() const
 void TChunkOwnerBase::CheckInvariants(TBootstrap* bootstrap) const
 {
     TCypressNode::CheckInvariants(bootstrap);
+
+    YT_VERIFY(!IsTrunk() || !IsStatisticsFixNeeded());
 }
 
 bool TChunkOwnerBase::FixStatistics()

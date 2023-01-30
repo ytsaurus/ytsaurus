@@ -83,11 +83,6 @@ public:
 
     TDuration ScionRemovalPeriod;
 
-    // COMPAT(shakurov)
-    bool EnableNodeStatisticsFixer;
-    TDuration NodeStatisticsFixerPeriod;
-    int NodeStatisticsFixerBatchSize;
-
     REGISTER_YSON_STRUCT(TDynamicCypressManagerConfig);
 
     static void Register(TRegistrar registrar);
