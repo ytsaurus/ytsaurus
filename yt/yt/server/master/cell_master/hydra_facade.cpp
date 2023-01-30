@@ -25,6 +25,7 @@
 #include <yt/yt/server/lib/hydra/private.h>
 
 #include <yt/yt/server/lib/hydra2/distributed_hydra_manager.h>
+#include <yt/yt/server/lib/hydra2/dry_run_hydra_manager.h>
 #include <yt/yt/server/lib/hydra2/private.h>
 
 #include <yt/yt/server/lib/transaction_supervisor/transaction_supervisor.h>
@@ -126,7 +127,18 @@ public:
         TDistributedHydraManagerDynamicOptions hydraManagerDynamicOptions{
             .AbandonLeaderLeaseDuringRecovery = true
         };
-        if (Config_->UseNewHydra) {
+        if (Config_->DryRun->EnableDryRun) {
+            hydraManagerOptions.UseFork = false;
+
+            HydraManager_ = NHydra2::CreateDryRunHydraManager(
+                Config_->HydraManager,
+                Bootstrap_->GetControlInvoker(),
+                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
+                Automaton_,
+                Bootstrap_->GetSnapshotStore(),
+                hydraManagerOptions,
+                Bootstrap_->GetCellManager());
+        } else if (Config_->UseNewHydra) {
             HydraManager_ = NHydra2::CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),

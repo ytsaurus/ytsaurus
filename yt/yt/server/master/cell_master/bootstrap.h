@@ -159,11 +159,17 @@ public:
 
     void Initialize();
     void Run();
-    void TryLoadSnapshot(
+    void LoadSnapshotOrThrow(
         const TString& fileName,
         bool dump,
         bool EnableTotalWriteCountReport,
         const TString& dumpConfigString);
+
+    void ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames);
+
+    void BuildSnapshotOrThrow();
+
+    void FinishDryRunOrThrow();
 
 protected:
     const TCellMasterConfigPtr Config_;
@@ -255,6 +261,12 @@ protected:
         bool dump,
         bool enableTotalWriteCountReport,
         const NHydra::TSerializationDumperConfigPtr& dumpConfig);
+
+    void DoReplayChangelogs(const std::vector<TString>& changelogFileNames);
+
+    void DoBuildSnapshot();
+
+    void DoFinishDryRun();
 
     void ValidateLoadSnapshotParameters(
         bool dump,
