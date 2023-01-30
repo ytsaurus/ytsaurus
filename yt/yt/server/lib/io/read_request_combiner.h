@@ -7,6 +7,7 @@ namespace NYT::NIO {
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IReadRequestCombiner
+    : public TRefCounted
 {
     virtual ~IReadRequestCombiner() = default;
 
@@ -21,12 +22,12 @@ struct IReadRequestCombiner
         i64 pageSize,
         TRefCountedTypeCookie tagCookie) = 0;
 
-    virtual TError CheckEof(const TMutableRef& bufferTail) = 0;
+    virtual TError CheckEof(const TMutableRef bufferTail) const = 0;
 
     virtual std::vector<TSharedRef>&& ReleaseOutputBuffers() = 0;
 };
 
-using IReadRequestCombinerPtr = std::unique_ptr<IReadRequestCombiner>;
+DEFINE_REFCOUNTED_TYPE(IReadRequestCombiner)
 
 ////////////////////////////////////////////////////////////////////////////////
 

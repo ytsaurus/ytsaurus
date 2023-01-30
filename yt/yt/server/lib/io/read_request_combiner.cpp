@@ -151,7 +151,7 @@ public:
 
     void PushResult(
         std::vector<TCombinedRequest>* results,
-        TMutableRef& buffer,
+        TMutableRef buffer,
         const IIOEngine::TReadRequest& original,
         const TIORequest& combined)
     {
@@ -163,7 +163,7 @@ public:
         resultRequest.ReadRequest.Size = combined.Size;
     }
 
-    TError CheckEof(const TMutableRef& bufferTail) override
+    TError CheckEof(const TMutableRef bufferTail) const override
     {
         if (bufferTail.Empty()) {
             return {};
@@ -194,7 +194,7 @@ private:
 
 IReadRequestCombinerPtr CreateReadRequestCombiner()
 {
-    return std::make_unique<TReadRequestCombiner>();
+    return New<TReadRequestCombiner>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -241,7 +241,7 @@ public:
         return ioRequests;
     }
 
-    TError CheckEof(const TMutableRef& bufferTail) override
+    TError CheckEof(const TMutableRef bufferTail) const override
     {
         if (bufferTail.Empty()) {
             return {};
@@ -274,7 +274,7 @@ private:
 
 IReadRequestCombinerPtr CreateDummyReadRequestCombiner()
 {
-    return std::make_unique<TDummyReadRequestCombiner>();
+    return New<TDummyReadRequestCombiner>();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

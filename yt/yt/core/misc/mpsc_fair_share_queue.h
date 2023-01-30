@@ -131,7 +131,7 @@ public:
 
     void Enqueue(TEnqueuedTask task);
 
-    void EnqueueMany(std::vector<TEnqueuedTask>& tasks);
+    void EnqueueMany(std::vector<TEnqueuedTask>&& tasks);
 
     void PrepareDequeue();
 

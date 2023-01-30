@@ -1,10 +1,15 @@
 #include "io_engine_uring.h"
 #include "io_engine_base.h"
-#include "read_request_combiner.h"
+#include "io_request_slicer.h"
 #include "private.h"
+#include "read_request_combiner.h"
 
-#include <yt/yt/core/concurrency/notification_handle.h>
+#include <yt/yt/core/concurrency/action_queue.h>
+#include <yt/yt/core/concurrency/delayed_executor.h>
 #include <yt/yt/core/concurrency/moody_camel_concurrent_queue.h>
+#include <yt/yt/core/concurrency/notification_handle.h>
+
+#include <yt/yt/core/misc/mpsc_fair_share_queue.h>
 
 #include <library/cpp/yt/containers/intrusive_linked_list.h>
 
@@ -28,7 +33,7 @@ using namespace NProfiling;
 static const auto& Logger = IOLogger;
 
 static constexpr int UringEngineNotificationCount = 2;
-static constexpr int MaxUringConcurrentRequestsPerThread = 32;
+static constexpr int MaxUringConcurrentRequestsPerThread = 128;
 
 // See SetRequestUserData/GetRequestUserData.
 static constexpr int MaxSubrequestCount = 1 << 16;
@@ -39,6 +44,8 @@ static constexpr intptr_t StopNotificationUserData = -2;
 static constexpr intptr_t RequestNotificationUserData = -3;
 
 static constexpr int RequestNotificationIndex = 1;
+
+static constexpr auto OffloadRequestDelay = TDuration::MicroSeconds(100);
 
 DEFINE_ENUM(EUringRequestType,
     (FlushFile)
@@ -62,6 +69,15 @@ public:
 
     int DirectIOPageSize;
 
+    bool FlushAfterWrite;
+
+    // Request size in bytes.
+    i64 DesiredRequestSize;
+    i64 MinRequestSize;
+
+    double UserInteractiveRequestWeight;
+    double UserRealtimeRequestWeight;
+
     REGISTER_YSON_STRUCT(TUringIOEngineConfig);
 
     static void Register(TRegistrar registrar)
@@ -77,6 +93,24 @@ public:
         registrar.Parameter("direct_io_page_size", &TThis::DirectIOPageSize)
             .GreaterThan(0)
             .Default(DefaultPageSize);
+
+        registrar.Parameter("flush_after_write", &TThis::FlushAfterWrite)
+            .Default(false);
+
+        registrar.Parameter("desired_request_size", &TThis::DesiredRequestSize)
+            .GreaterThanOrEqual(4_KB)
+            .Default(128_KB);
+        registrar.Parameter("min_request_size", &TThis::MinRequestSize)
+            .GreaterThanOrEqual(512)
+            .Default(32_KB);
+
+        registrar.Parameter("user_interactive_weight", &TThis::UserInteractiveRequestWeight)
+            .GreaterThanOrEqual(1)
+            .Default(100);
+
+        registrar.Parameter("user_realtime_request_weight", &TThis::UserRealtimeRequestWeight)
+            .GreaterThanOrEqual(1)
+            .Default(200);
     }
 };
 
@@ -204,20 +238,21 @@ struct TUringRequest
     };
 
     EUringRequestType Type;
-    TIOEngineSensors::TRequestSensors Sensors;
+    std::optional<TRequestStatsGuard> RequestTimeGuard_;
 
-    virtual ~TUringRequest() = 0;
+    virtual ~TUringRequest();
 
-    void StartTimeTracker() {
-        RequestTimeGuard_.emplace(Sensors);
+    void StartTimeTracker(const TIOEngineSensors::TRequestSensors& sensors)
+    {
+        RequestTimeGuard_.emplace(sensors);
     }
 
-    void StopTimeTracker() {
+    void StopTimeTracker()
+    {
         RequestTimeGuard_.reset();
     }
 
-private:
-    std::optional<TRequestStatsGuard> RequestTimeGuard_;
+    virtual void SetPromise() = 0;
 };
 
 TUringRequest::~TUringRequest() { }
@@ -225,27 +260,38 @@ TUringRequest::~TUringRequest() { }
 using TUringRequestPtr = std::unique_ptr<TUringRequest>;
 
 template <typename TResponse>
-struct TUringRequestGeneric
+struct TUringRequestBase
     : public TUringRequest
 {
     const TPromise<TResponse> Promise = NewPromise<TResponse>();
 
-    virtual ~TUringRequestGeneric();
+    virtual ~TUringRequestBase();
+
+    std::optional<TError> OptionalError;
+
+    void SetPromise() override
+    {
+        if (!OptionalError.has_value()) {
+            return;
+        }
+
+        if (OptionalError->IsOK()) {
+            Promise.TrySet();
+        } else {
+            Promise.TrySet(std::move(*OptionalError));
+        }
+    }
 
     void TrySetSucceeded()
     {
-        if (Promise.TrySet()) {
-            YT_LOG_TRACE("Request succeeded (Request: %p)",
-                this);
+        if (!OptionalError.has_value()) {
+            OptionalError = TError{ };
         }
     }
 
     void TrySetFailed(TError error)
     {
-        if (Promise.TrySet(std::move(error))) {
-            YT_LOG_TRACE(error, "Request failed (Request: %p)",
-                this);
-        }
+        OptionalError = std::move(error);
     }
 
     void TrySetFailed(const io_uring_cqe* cqe)
@@ -265,33 +311,35 @@ struct TUringRequestGeneric
 };
 
 template <typename TResponse>
-TUringRequestGeneric<TResponse>::~TUringRequestGeneric()
+TUringRequestBase<TResponse>::~TUringRequestBase()
 { }
 
 struct TFlushFileUringRequest
-    : public TUringRequestGeneric<void>
+    : public TUringRequestBase<void>
 {
     IIOEngine::TFlushFileRequest FlushFileRequest;
 };
 
 struct TAllocateUringRequest
-    : public TUringRequestGeneric<void>
+    : public TUringRequestBase<void>
 {
     IIOEngine::TAllocateRequest AllocateRequest;
 };
 
 struct TWriteUringRequest
-    : public TUringRequestGeneric<void>
+    : public TUringRequestBase<void>
 {
     IIOEngine::TWriteRequest WriteRequest;
     int CurrentWriteSubrequestIndex = 0;
     TUringIovBuffer* WriteIovBuffer = nullptr;
+    i64 WrittenBytes = 0;
 
     int FinishedSubrequestCount = 0;
+    bool SyncedFileRange = false;
 };
 
 struct TReadUringRequest
-    : public TUringRequestGeneric<IIOEngine::TReadResponse>
+    : public TUringRequestBase<void>
 {
     struct TReadSubrequestState
     {
@@ -302,43 +350,31 @@ struct TReadUringRequest
     std::vector<IIOEngine::TReadRequest> ReadSubrequests;
     TCompactVector<TReadSubrequestState, TypicalSubrequestCount> ReadSubrequestStates;
     TCompactVector<int, TypicalSubrequestCount> PendingReadSubrequestIndexes;
-    IReadRequestCombinerPtr ReadRequestCombiner;
+    const IReadRequestCombinerPtr ReadRequestCombiner;
 
     i64 PaddedBytes = 0;
     int FinishedSubrequestCount = 0;
 
-    explicit TReadUringRequest(bool useDedicatedAllocations)
-    {
-        ReadRequestCombiner = useDedicatedAllocations
-            ? CreateDummyReadRequestCombiner()
-            : CreateReadRequestCombiner();
-    }
-
-    void TrySetReadSucceeded()
-    {
-        IIOEngine::TReadResponse response{
-            .OutputBuffers = std::move(ReadRequestCombiner->ReleaseOutputBuffers()),
-            .PaddedBytes = PaddedBytes,
-            .IORequests = FinishedSubrequestCount,
-        };
-        if (Promise.TrySet(std::move(response))) {
-            YT_LOG_TRACE("Request succeeded (Request: %p)",
-                this);
-        }
-    }
+    explicit TReadUringRequest(IReadRequestCombinerPtr combiner)
+        : ReadRequestCombiner(std::move(combiner))
+    { }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
 struct IUringThreadPool
 {
-    virtual ~IUringThreadPool() {}
+    virtual ~IUringThreadPool() { }
 
     virtual const TString& Name() const = 0;
 
-    virtual TUringRequestPtr TryDequeueRequest() = 0;
+    virtual void PrepareDequeue(int threadIndex) = 0;
 
-    virtual const TNotificationHandle& GetNotificationHandle() const = 0;
+    virtual TUringRequestPtr TryDequeue(int threadIndex) = 0;
+
+    virtual void MarkFinished(int threadIndex, TUringRequestPtr request) = 0;
+
+    virtual const TNotificationHandle& GetNotificationHandle(int threadIndex) const = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -350,8 +386,10 @@ public:
     TUringThread(IUringThreadPool* threadPool, int index, TUringIOEngineConfigPtr config, TIOEngineSensorsPtr sensors)
         : TThread(Format("%v:%v", threadPool->Name(), index))
         , ThreadPool_(threadPool)
+        , ThreadIndex_(index)
         , Config_(std::move(config))
         , Uring_(Config_->MaxConcurrentRequestsPerThread + UringEngineNotificationCount)
+        , AllIovBuffers_(MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount)
         , Sensors_(std::move(sensors))
     {
         InitIovBuffers();
@@ -360,6 +398,7 @@ public:
 
 private:
     IUringThreadPool* const ThreadPool_;
+    const int ThreadIndex_;
     const TUringIOEngineConfigPtr Config_;
 
     TUring Uring_;
@@ -373,7 +412,7 @@ private:
     TNotificationHandle StopNotificationHandle_{true};
     bool Stopping_ = false;
 
-    std::array<TUringIovBuffer, MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount> AllIovBuffers_;
+    std::vector<TUringIovBuffer> AllIovBuffers_;
     std::vector<TUringIovBuffer*> FreeIovBuffers_;
 
     static constexpr int StopNotificationIndex = 0;
@@ -446,9 +485,9 @@ private:
         SubmitSqes();
     }
 
-    TUringRequestPtr TryDequeueRequest()
+    TUringRequestPtr TryDequeue()
     {
-        auto request = ThreadPool_->TryDequeueRequest();
+        auto request = ThreadPool_->TryDequeue(ThreadIndex_);
         if (!request) {
             return nullptr;
         }
@@ -484,13 +523,15 @@ private:
 
     void HandleSubmissions()
     {
+        ThreadPool_->PrepareDequeue(ThreadIndex_);
+
         while (true) {
             if (!CanHandleMoreSubmissions()) {
                 YT_LOG_TRACE("Cannot handle more submissions");
                 break;
             }
 
-            auto request = TryDequeueRequest();
+            auto request = TryDequeue();
             if (!request) {
                 break;
             }
@@ -513,9 +554,7 @@ private:
             case EUringRequestType::FlushFile:
                 HandleFlushFileRequest(static_cast<TFlushFileUringRequest*>(request));
                 break;
-            case EUringRequestType::Allocate:
-                HandleAllocateRequest(static_cast<TAllocateUringRequest*>(request));
-                break;
+
             default:
                 YT_ABORT();
         }
@@ -535,7 +574,8 @@ private:
         }
 
         if (request->FinishedSubrequestCount == totalSubrequestCount) {
-            request->TrySetReadSucceeded();
+            request->TrySetSucceeded();
+
             DisposeRequest(request);
             return;
         } else if (request->PendingReadSubrequestIndexes.empty()) {
@@ -573,12 +613,35 @@ private:
                 1,
                 subrequest.Offset);
 
-            SetRequestUserData(sqe, request, subrequestIndex);
+            SetRequestUserData(sqe, request, Sensors_->ReadSensors, subrequestIndex);
         }
 
         if (!request->PendingReadSubrequestIndexes.empty()) {
             UndersubmittedRequests_.PushBack(request);
         }
+    }
+
+    bool SyncFileRangeAfterWrite(TWriteUringRequest* request)
+    {
+        if (!Config_->FlushAfterWrite || !request->WriteRequest.Flush || request->SyncedFileRange) {
+            return false;
+        }
+
+        request->SyncedFileRange = true;
+        auto* sqe = AllocateSqe();
+        auto flags = SYNC_FILE_RANGE_WAIT_BEFORE | SYNC_FILE_RANGE_WRITE | SYNC_FILE_RANGE_WAIT_AFTER;
+        auto offset = request->WriteRequest.Offset - request->WrittenBytes;
+        YT_VERIFY(offset >= 0);
+
+        io_uring_prep_sync_file_range(
+            sqe,
+            *request->WriteRequest.Handle,
+            request->WrittenBytes,
+            offset,
+            flags);
+
+        SetRequestUserData(sqe, request, Sensors_->DataSyncSensors);
+        return true;
     }
 
     void HandleWriteRequest(TWriteUringRequest* request)
@@ -591,11 +654,19 @@ private:
             totalSubrequestCount);
 
         if (request->CurrentWriteSubrequestIndex == totalSubrequestCount) {
-            ReleaseIovBuffer(request->WriteIovBuffer);
+            ReleaseIovBuffer(request);
+
+            if (SyncFileRangeAfterWrite(request)) {
+                // Sent command to flush written data to disk.
+                return;
+            }
+
             request->TrySetSucceeded();
             DisposeRequest(request);
             return;
         }
+
+        YT_VERIFY(request->CurrentWriteSubrequestIndex < totalSubrequestCount);
 
         if (!request->WriteIovBuffer) {
             request->WriteIovBuffer = AllocateIovBuffer();
@@ -640,7 +711,7 @@ private:
             iovCount,
             request->WriteRequest.Offset);
 
-        SetRequestUserData(sqe, request);
+        SetRequestUserData(sqe, request, Sensors_->WriteSensors);
     }
 
     static ui32 GetSyncFlags(EFlushFileMode mode)
@@ -667,24 +738,8 @@ private:
 
         auto* sqe = AllocateSqe();
         io_uring_prep_fsync(sqe, *request->FlushFileRequest.Handle, GetSyncFlags(request->FlushFileRequest.Mode));
-        SetRequestUserData(sqe, request);
+        SetRequestUserData(sqe, request, Sensors_->SyncSensors);
     }
-
-    void HandleAllocateRequest(TAllocateUringRequest* request)
-    {
-        YT_LOG_TRACE("Handling allocate request (Request: %p)",
-            request);
-
-        YT_LOG_TRACE("Submitting allocate request (Request: %p, FD: %v, Size: %v)",
-            request,
-            static_cast<FHANDLE>(*request->AllocateRequest.Handle),
-            request->AllocateRequest.Size);
-
-        auto* sqe = AllocateSqe();
-        io_uring_prep_fallocate(sqe, *request->AllocateRequest.Handle, FALLOC_FL_CONVERT_UNWRITTEN, 0, request->AllocateRequest.Size);
-        SetRequestUserData(sqe, request);
-    }
-
 
     void HandleCompletion(const io_uring_cqe* cqe)
     {
@@ -700,9 +755,7 @@ private:
             case EUringRequestType::FlushFile:
                 HandleFlushFileCompletion(cqe);
                 break;
-            case EUringRequestType::Allocate:
-                HandleAllocateCompletion(cqe);
-                break;
+
             default:
                 YT_ABORT();
         }
@@ -733,7 +786,7 @@ private:
                     subrequestIndex,
                     subrequestState.Buffer.Size());
             }
-            subrequestState.Buffer = {};
+            subrequestState.Buffer = { };
             ++request->FinishedSubrequestCount;
         } else if (cqe->res < 0) {
             ++request->FinishedSubrequestCount;
@@ -751,7 +804,7 @@ private:
                     request,
                     subrequestIndex,
                     readSize);
-                subrequestState.Buffer = {};
+                subrequestState.Buffer = { };
                 ++request->FinishedSubrequestCount;
             } else {
                 YT_LOG_TRACE("Read subrequest partially succeeded (Request: %p/%v, Size: %v)",
@@ -795,7 +848,7 @@ private:
                     request->CurrentWriteSubrequestIndex,
                     writtenSize);
                 writtenSize -= bufferSize;
-                buffer = {};
+                buffer = { };
                 ++request->CurrentWriteSubrequestIndex;
             } else {
                 YT_LOG_TRACE("Write subrequest partially succeeded (Request: %p/%v, Size: %v)",
@@ -832,7 +885,6 @@ private:
         DisposeRequest(request);
     }
 
-
     void ArmNotificationRead(
         int notificationIndex,
         const TNotificationHandle& notificationHandle,
@@ -867,7 +919,10 @@ private:
         {
             RequestNotificationReadArmed_ = true;
             YT_LOG_TRACE("Arming request notification read");
-            ArmNotificationRead(RequestNotificationIndex, ThreadPool_->GetNotificationHandle(), RequestNotificationUserData);
+            ArmNotificationRead(
+                RequestNotificationIndex,
+                ThreadPool_->GetNotificationHandle(ThreadIndex_),
+                RequestNotificationUserData);
         }
     }
 
@@ -879,10 +934,10 @@ private:
         return result;
     }
 
-    void ReleaseIovBuffer(TUringIovBuffer* buffer)
+    void ReleaseIovBuffer(TWriteUringRequest* request)
     {
-        if (buffer) {
-            FreeIovBuffers_.push_back(buffer);
+        if (request->WriteIovBuffer) {
+            FreeIovBuffers_.push_back(std::exchange(request->WriteIovBuffer, nullptr));
         }
     }
 
@@ -934,9 +989,14 @@ private:
         }
     }
 
-    static void SetRequestUserData(io_uring_sqe* sqe, TUringRequest* request, int subrequestIndex = 0)
+    static void SetRequestUserData(
+        io_uring_sqe* sqe,
+        TUringRequest* request,
+        const TIOEngineSensors::TRequestSensors& sensors,
+        int subrequestIndex = 0)
     {
-        request->StartTimeTracker();
+        request->StartTimeTracker(sensors);
+
         auto userData = reinterpret_cast<void*>(
             reinterpret_cast<uintptr_t>(request) |
             (static_cast<uintptr_t>(subrequestIndex) << 48));
@@ -958,27 +1018,280 @@ private:
     {
         YT_LOG_TRACE("Request disposed (Request: %v)",
             request);
-        delete request;
+
+        ThreadPool_->MarkFinished(ThreadIndex_, TUringRequestPtr(request));
     }
 };
 
-class TUringThreadPool
+////////////////////////////////////////////////////////////////////////////////
+
+class TMoodyCamelQueue
+    : public TRefCounted
+{
+public:
+    TMoodyCamelQueue(TString /*locationId*/, TUringIOEngineConfigPtr config)
+        : Config_(std::move(config))
+    { }
+
+    void Enqueue(
+        TUringRequestPtr request,
+        EWorkloadCategory /*category*/,
+        IIOEngine::TSessionId /*sessionId*/)
+    {
+        Queue_.enqueue(std::move(request));
+
+        if (!RequestNotificationHandleRaised_.exchange(true)) {
+            RequestNotificationHandle_.Raise();
+        }
+    }
+
+    void Enqueue(
+        std::vector<TUringRequestPtr>& requests,
+        EWorkloadCategory /*category*/,
+        IIOEngine::TSessionId /*sessionId*/)
+    {
+        for (auto& request : requests) {
+            Queue_.enqueue(std::move(request));
+        }
+
+        if (!RequestNotificationHandleRaised_.exchange(true)) {
+            RequestNotificationHandle_.Raise();
+        }
+    }
+
+    void PrepareDequeue(int /*threadIndex*/)
+    { }
+
+    TUringRequestPtr TryDequeue(int /*threadIndex*/)
+    {
+        RequestNotificationHandleRaised_.store(false);
+
+        TUringRequestPtr request;
+        Queue_.try_dequeue(request);
+
+        return request;
+    }
+
+    void MarkFinished(int /*threadIndex*/, TUringRequestPtr request)
+    {
+        request->SetPromise();
+    }
+
+    const TNotificationHandle& GetNotificationHandle(int /*threadIndex*/) const
+    {
+        return RequestNotificationHandle_;
+    }
+
+    static TString GetThreadPoolName()
+    {
+        return "IOU";
+    }
+
+private:
+    const TUringIOEngineConfigPtr Config_;
+
+    moodycamel::ConcurrentQueue<TUringRequestPtr> Queue_;
+    TNotificationHandle RequestNotificationHandle_{true};
+    std::atomic<bool> RequestNotificationHandleRaised_ = false;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TFairShareQueue
+    : public TRefCounted
+{
+public:
+    TFairShareQueue(TString locationId, TUringIOEngineConfigPtr config)
+        : Config_(std::move(config))
+        , Shards_(Config_->UringThreadCount)
+        , OffloadActionQueue_(New<TActionQueue>(Format("%v:%v", "UOffload", locationId)))
+        , OffloadInvoker_(OffloadActionQueue_->GetInvoker())
+        , OffloadScheduled_(false)
+    { }
+
+    void Enqueue(
+        TUringRequestPtr request,
+        EWorkloadCategory category,
+        IIOEngine::TSessionId sessionId)
+    {
+        auto shardIndex = GetShardIndex(sessionId);
+        auto& shard = Shards_[shardIndex];
+
+        shard.Queue.Enqueue({
+            .Item = std::move(request),
+            .PoolId = category,
+            .PoolWeight = GetPoolWeight(category),
+            .FairShareTag = sessionId,
+        });
+
+        NotifyIfNeeded(shard);
+    }
+
+    void Enqueue(
+        std::vector<TUringRequestPtr>& request,
+        EWorkloadCategory category,
+        IIOEngine::TSessionId sessionId)
+    {
+        auto shardIndex = GetShardIndex(sessionId);
+        auto& shard = Shards_[shardIndex];
+
+        std::vector<TRequestQueue::TEnqueuedTask> toEnqueue;
+        toEnqueue.reserve(request.size());
+
+        for (auto& request : request) {
+            toEnqueue.push_back({
+                .Item = std::move(request),
+                .PoolId = category,
+                .PoolWeight = GetPoolWeight(category),
+                .FairShareTag = sessionId,
+            });
+        }
+
+        shard.Queue.EnqueueMany(std::move(toEnqueue));
+        NotifyIfNeeded(shard);
+    }
+
+    void PrepareDequeue(int threadIndex)
+    {
+        auto& shard = Shards_[threadIndex];
+        shard.RequestNotificationHandleRaised.store(false);
+
+        shard.Queue.PrepareDequeue();
+    }
+
+    TUringRequestPtr TryDequeue(int threadIndex)
+    {
+        auto& queue = Shards_[threadIndex].Queue;
+        return queue.TryDequeue();
+    }
+
+    void MarkFinished(int threadIndex, TUringRequestPtr request)
+    {
+        auto now = GetCpuInstant();
+
+        auto& queue = Shards_[threadIndex].Queue;
+        queue.MarkFinished(request, now);
+
+        OffloadedRequests_.Enqueue(std::move(request));
+        ScheduleOffload();
+    }
+
+    const TNotificationHandle& GetNotificationHandle(int threadIndex) const
+    {
+        return Shards_[threadIndex].RequestNotificationHandle;
+    }
+
+    static TString GetThreadPoolName()
+    {
+        return "FSU";
+    }
+
+private:
+    using TRequestQueue = TMpscFairShareQueue<EWorkloadCategory, TUringRequestPtr, TIOEngineBase::TSessionId>;
+
+    struct alignas(2 * NThreading::CacheLineSize) TQueueShard
+    {
+        TRequestQueue Queue;
+        TNotificationHandle RequestNotificationHandle{true};
+        std::atomic<bool> RequestNotificationHandleRaised = false;
+    };
+
+    const TUringIOEngineConfigPtr Config_;
+    std::vector<TQueueShard> Shards_;
+
+    TMpscShardedQueue<TUringRequestPtr> OffloadedRequests_;
+    TActionQueuePtr OffloadActionQueue_;
+    IInvokerPtr OffloadInvoker_;
+    std::atomic_bool OffloadScheduled_;
+
+    void NotifyIfNeeded(TQueueShard& shard)
+    {
+        if (shard.RequestNotificationHandleRaised.load(std::memory_order::relaxed)) {
+            return;
+        }
+
+        if (!shard.RequestNotificationHandleRaised.exchange(true)) {
+            shard.RequestNotificationHandle.Raise();
+        }
+    }
+
+    double GetPoolWeight(EWorkloadCategory category) const
+    {
+        constexpr double DefaultWeight = 1;
+
+        switch (category) {
+            case EWorkloadCategory::UserInteractive:
+                return Config_->UserInteractiveRequestWeight;
+
+            case EWorkloadCategory::UserRealtime:
+                return Config_->UserRealtimeRequestWeight;
+
+            default:
+                return DefaultWeight;
+        }
+    }
+
+    int GetShardIndex(TIOEngineBase::TSessionId sessionId) const
+    {
+        if (!sessionId) {
+            return static_cast<int>(RandomNumber<ui32>(std::ssize(Shards_)));
+        }
+
+        THash<IIOEngine::TSessionId> hasher;
+        return hasher(sessionId) % std::ssize(Shards_);
+    }
+
+    void ScheduleOffload()
+    {
+        if (OffloadScheduled_.load(std::memory_order::relaxed)) {
+            return;
+        }
+
+        if (OffloadScheduled_.exchange(true)) {
+            // Already scheduled.
+            return;
+        }
+
+        TDelayedExecutor::Submit(
+            BIND(&TFairShareQueue::DoOffload, MakeStrong(this)),
+            OffloadRequestDelay,
+            OffloadInvoker_);
+    }
+
+    void DoOffload()
+    {
+        OffloadScheduled_.store(false);
+        OffloadedRequests_.ConsumeAll([] (std::vector<TUringRequestPtr>& batch) {
+            for (auto& request : batch) {
+                request->SetPromise();
+                request.reset();
+            }
+        });
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+template <typename TQueue>
+class TUringThreadPoolBase
     : public IUringThreadPool
 {
 public:
-    TUringThreadPool(
+    TUringThreadPoolBase(
         TString threadNamePrefix,
+        TString locationId,
         TUringIOEngineConfigPtr config,
         TIOEngineSensorsPtr sensors)
         : Config_(std::move(config))
         , ThreadNamePrefix_(std::move(threadNamePrefix))
         , Sensors_(std::move(sensors))
         , Threads_(Config_->UringThreadCount)
+        , RequestQueue_(New<TQueue>(locationId, Config_))
     {
         StartThreads();
     }
 
-    ~TUringThreadPool()
+    ~TUringThreadPoolBase()
     {
         StopThreads();
     }
@@ -988,19 +1301,24 @@ public:
         return ThreadNamePrefix_;
     }
 
-    virtual TUringRequestPtr TryDequeueRequest() override
+    virtual void PrepareDequeue(int threadIndex) override
     {
-        RequestNotificationHandleRaised_.store(false);
-
-        TUringRequestPtr request;
-        RequestQueue_.try_dequeue(request);
-
-        return request;
+        return RequestQueue_->PrepareDequeue(threadIndex);
     }
 
-    virtual const TNotificationHandle& GetNotificationHandle() const override
+    virtual TUringRequestPtr TryDequeue(int threadIndex) override
     {
-        return RequestNotificationHandle_;
+        return RequestQueue_->TryDequeue(threadIndex);
+    }
+
+    virtual void MarkFinished(int threadIndex, TUringRequestPtr request) override
+    {
+        return RequestQueue_->MarkFinished(threadIndex, std::move(request));
+    }
+
+    virtual const TNotificationHandle& GetNotificationHandle(int threadIndex) const override
+    {
+        return RequestQueue_->GetNotificationHandle(threadIndex);
     }
 
     void Configure(const TUringIOEngineConfigPtr& config)
@@ -1008,17 +1326,28 @@ public:
         Y_UNUSED(config);
     }
 
-    void SubmitRequest(TUringRequestPtr request)
+    void SubmitRequest(
+        TUringRequestPtr request,
+        EWorkloadCategory category,
+        IIOEngine::TSessionId sessionId)
     {
         YT_LOG_TRACE("Request enqueued (Request: %v, Type: %v)",
             request.get(),
             request->Type);
 
-        RequestQueue_.enqueue(std::move(request));
+        RequestQueue_->Enqueue(std::move(request), category, sessionId);
+    }
 
-        if (!RequestNotificationHandleRaised_.exchange(true)) {
-            RequestNotificationHandle_.Raise();
-        }
+    void SubmitRequests(
+        std::vector<TUringRequestPtr>& requests,
+        EWorkloadCategory category,
+        IIOEngine::TSessionId sessionId)
+    {
+        YT_LOG_TRACE("Requests enqueued (RequestCount: %v, Type: %v)",
+            std::ssize(requests),
+            requests.front()->Type);
+
+        RequestQueue_->Enqueue(requests, category, sessionId);
     }
 
 private:
@@ -1029,10 +1358,7 @@ private:
     using TUringThreadPtr = TIntrusivePtr<TUringThread>;
 
     std::vector<TUringThreadPtr> Threads_;
-
-    TNotificationHandle RequestNotificationHandle_{true};
-    std::atomic<bool> RequestNotificationHandleRaised_ = false;
-    moodycamel::ConcurrentQueue<TUringRequestPtr> RequestQueue_;
+    TIntrusivePtr<TQueue> RequestQueue_;
 
 
     void StartThreads()
@@ -1050,18 +1376,20 @@ private:
     }
 };
 
-using TUringThreadPoolPtr = std::unique_ptr<TUringThreadPool>;
-
 ////////////////////////////////////////////////////////////////////////////////
 
-class TUringIOEngine
+template <typename TRequestQueue, typename TRequestSlicer>
+class TUringIOEngineBase
     : public TIOEngineBase
 {
 public:
     using TConfig = TUringIOEngineConfig;
     using TConfigPtr = TIntrusivePtr<TConfig>;
 
-    TUringIOEngine(
+    using TUringThreadPool = TUringThreadPoolBase<TRequestQueue>;
+    using TUringThreadPoolPtr = std::unique_ptr<TUringThreadPool>;
+
+    TUringIOEngineBase(
         TConfigPtr config,
         TString locationId,
         TProfiler profiler,
@@ -1073,12 +1401,14 @@ public:
             std::move(logger))
         , StaticConfig_(std::move(config))
         , ThreadPool_(std::make_unique<TUringThreadPool>(
-            Format("IOU:%v", LocationId_),
+            Format("%v:%v", TRequestQueue::GetThreadPoolName(), LocationId_),
+            LocationId_,
             StaticConfig_,
             Sensors_))
+        , RequestSlicer_(StaticConfig_->DesiredRequestSize, StaticConfig_->MinRequestSize)
     { }
 
-    ~TUringIOEngine()
+    ~TUringIOEngineBase()
     {
         GetFinalizerInvoker()->Invoke(BIND([threadPool = std::move(ThreadPool_)] () mutable {
             threadPool.reset();
@@ -1087,9 +1417,9 @@ public:
 
     TFuture<TReadResponse> Read(
         std::vector<TReadRequest> requests,
-        EWorkloadCategory /*category*/,
+        EWorkloadCategory category,
         TRefCountedTypeCookie tagCookie,
-        TSessionId /*sessionId*/,
+        TSessionId sessionId,
         bool useDedicatedAllocations) override
     {
         if (std::ssize(requests) > MaxSubrequestCount) {
@@ -1098,15 +1428,98 @@ public:
                 MaxSubrequestCount));
         }
 
-        auto uringRequest = std::make_unique<TReadUringRequest>(useDedicatedAllocations);
+        auto readRequestCombiner = useDedicatedAllocations
+            ? CreateDummyReadRequestCombiner()
+            : CreateReadRequestCombiner();
 
-        auto combinedRequests = uringRequest->ReadRequestCombiner->Combine(
+        auto combinedRequests = readRequestCombiner->Combine(
             std::move(requests),
             StaticConfig_->DirectIOPageSize,
             tagCookie);
 
+        return SubmitReadRequests(
+            readRequestCombiner,
+            combinedRequests,
+            RequestSlicer_,
+            category,
+            sessionId);
+    }
+
+    TFuture<void> Write(
+        TWriteRequest request,
+        EWorkloadCategory category,
+        TSessionId sessionId) override
+    {
+        std::vector<TFuture<void>> futures;
+        std::vector<TUringRequestPtr> uringRequests;
+
+        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+            auto uringRequest = std::make_unique<TWriteUringRequest>();
+            uringRequest->Type = EUringRequestType::Write;
+            uringRequest->WriteRequest = std::move(slice);
+
+            futures.push_back(uringRequest->Promise.ToFuture());
+            uringRequests.push_back(std::move(uringRequest));
+        }
+
+        ThreadPool_->SubmitRequests(uringRequests, category, sessionId);
+
+        return AllSucceeded(std::move(futures));
+    }
+
+    TFuture<void> FlushFile(
+        TFlushFileRequest request,
+        EWorkloadCategory category) override
+    {
+        auto uringRequest = std::make_unique<TFlushFileUringRequest>();
+        uringRequest->Type = EUringRequestType::FlushFile;
+        uringRequest->FlushFileRequest = std::move(request);
+        return SubmitRequest<void>(std::move(uringRequest), category, { });
+    }
+
+    virtual TFuture<void> FlushFileRange(
+        TFlushFileRangeRequest /*request*/,
+        EWorkloadCategory /*category*/,
+        TSessionId /*sessionId*/) override
+    {
+        // TODO (capone212): implement
+        return VoidFuture;
+    }
+
+private:
+    const TConfigPtr StaticConfig_;
+
+    TUringThreadPoolPtr ThreadPool_;
+    TRequestSlicer RequestSlicer_;
+
+
+    template <typename TUringResponse, typename TUringRequest>
+    TFuture<TUringResponse> SubmitRequest(
+        TUringRequest request,
+        EWorkloadCategory category,
+        IIOEngine::TSessionId sessionId)
+    {
+        auto future = request->Promise.ToFuture();
+        ThreadPool_->SubmitRequest(std::move(request), category, sessionId);
+        return future;
+    }
+
+    void DoReconfigure(const NYTree::INodePtr& node) override
+    {
+        auto config = UpdateYsonStruct(StaticConfig_, node);
+
+        ThreadPool_->Configure(config);
+    }
+
+    TFuture<TReadResponse> SubmitReadRequests(
+        IReadRequestCombinerPtr readRequestCombiner,
+        std::vector<IReadRequestCombiner::TCombinedRequest>& combinedRequests,
+        TDummyRequestSlicer& /*slicer*/,
+        EWorkloadCategory category,
+        TSessionId sessionId)
+    {
+        auto uringRequest = std::make_unique<TReadUringRequest>(readRequestCombiner);
         uringRequest->Type = EUringRequestType::Read;
-        uringRequest->Sensors = Sensors_->ReadSensors;
         uringRequest->ReadSubrequests.reserve(combinedRequests.size());
         uringRequest->ReadSubrequestStates.reserve(combinedRequests.size());
         uringRequest->PendingReadSubrequestIndexes.reserve(combinedRequests.size());
@@ -1128,60 +1541,74 @@ public:
             uringRequest->PendingReadSubrequestIndexes.push_back(index);
         }
 
-        return SubmitRequest<TReadResponse>(std::move(uringRequest));
+        auto paddedBytes = uringRequest->PaddedBytes;
+        auto subrequestCount = std::ssize(uringRequest->PendingReadSubrequestIndexes);
+
+        return SubmitRequest<void>(std::move(uringRequest), category, sessionId)
+            .Apply(BIND([combiner = std::move(readRequestCombiner), paddedBytes, subrequestCount] {
+                return TReadResponse{
+                    .OutputBuffers = std::move(combiner->ReleaseOutputBuffers()),
+                    .PaddedBytes = paddedBytes,
+                    .IORequests = subrequestCount,
+                };
+            }));
     }
 
-    TFuture<void> Write(
-        TWriteRequest request,
-        EWorkloadCategory /*category*/,
-        TSessionId) override
+    TFuture<TReadResponse> SubmitReadRequests(
+        IReadRequestCombinerPtr readRequestCombiner,
+        std::vector<IReadRequestCombiner::TCombinedRequest>& combinedRequests,
+        TIORequestSlicer& slicer,
+        EWorkloadCategory category,
+        TSessionId sessionId)
     {
-        auto uringRequest = std::make_unique<TWriteUringRequest>();
-        uringRequest->Type = EUringRequestType::Write;
-        uringRequest->Sensors = Sensors_->WriteSensors;
-        uringRequest->WriteRequest = std::move(request);
-        return SubmitRequest<void>(std::move(uringRequest));
-    }
+        std::vector<TUringRequestPtr> uringRequests;
+        uringRequests.reserve(combinedRequests.size());
+        i64 paddedBytes = 0;
 
-    TFuture<void> FlushFile(
-        TFlushFileRequest request,
-        EWorkloadCategory /*category*/) override
-    {
-        auto uringRequest = std::make_unique<TFlushFileUringRequest>();
-        uringRequest->Type = EUringRequestType::FlushFile;
-        uringRequest->Sensors = Sensors_->SyncSensors;
-        uringRequest->FlushFileRequest = std::move(request);
-        return SubmitRequest<void>(std::move(uringRequest));
-    }
+        std::vector<TFuture<void>> futures;
+        futures.reserve(combinedRequests.size());
 
-    virtual TFuture<void> FlushFileRange(
-        TFlushFileRangeRequest /*request*/,
-        EWorkloadCategory /*category*/,
-        TSessionId /*sessionId*/) override
-    {
-        // TODO (capone212): implement
-        return VoidFuture;
-    }
+        for (auto& request : combinedRequests) {
+            for (auto& slice : slicer.Slice(std::move(request.ReadRequest), request.ResultBuffer)) {
+                auto uringRequest = std::make_unique<TReadUringRequest>(readRequestCombiner);
+                uringRequest->Type = EUringRequestType::Read;
 
-private:
-    const TConfigPtr StaticConfig_;
+                uringRequest->ReadSubrequests.reserve(1);
+                uringRequest->ReadSubrequestStates.reserve(1);
+                uringRequest->PendingReadSubrequestIndexes.reserve(1);
 
-    TUringThreadPoolPtr ThreadPool_;
+                paddedBytes += GetPaddedSize(
+                    slice.Request.Offset,
+                    slice.Request.Size,
+                    slice.Request.Handle->IsOpenForDirectIO() ? StaticConfig_->DirectIOPageSize : DefaultPageSize);
+                uringRequest->ReadSubrequests.push_back({
+                    .Handle = std::move(slice.Request.Handle),
+                    .Offset = slice.Request.Offset,
+                    .Size = slice.Request.Size
+                });
+                uringRequest->ReadSubrequestStates.push_back({
+                    .Buffer = slice.OutputBuffer,
+                });
+                uringRequest->PendingReadSubrequestIndexes.push_back(0);
 
+                futures.push_back(uringRequest->Promise.ToFuture());
 
-    template <typename TUringResponse, typename TUringRequest>
-    TFuture<TUringResponse> SubmitRequest(TUringRequest request)
-    {
-        auto future = request->Promise.ToFuture();
-        ThreadPool_->SubmitRequest(std::move(request));
-        return future;
-    }
+                uringRequests.push_back(std::move(uringRequest));
+            }
+        }
 
-    void DoReconfigure(const NYTree::INodePtr& node) override
-    {
-        auto config = UpdateYsonStruct(StaticConfig_, node);
+        ThreadPool_->SubmitRequests(uringRequests, category, sessionId);
 
-        ThreadPool_->Configure(config);
+        auto subrequestCount = std::ssize(futures);
+
+        return AllSucceeded(std::move(futures))
+            .Apply(BIND([paddedBytes, combiner = std::move(readRequestCombiner), subrequestCount] {
+                return TReadResponse{
+                    .OutputBuffers = std::move(combiner->ReleaseOutputBuffers()),
+                    .PaddedBytes = paddedBytes,
+                    .IORequests = subrequestCount,
+                };
+            }));
     }
 };
 
@@ -1190,6 +1617,7 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 IIOEnginePtr CreateIOEngineUring(
+    EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
     TString locationId,
     NProfiling::TProfiler profiler,
@@ -1198,14 +1626,30 @@ IIOEnginePtr CreateIOEngineUring(
 {
 #ifdef _linux_
 
-    return CreateIOEngine<TUringIOEngine>(
-        std::move(ioConfig),
-        std::move(locationId),
-        std::move(profiler),
-        std::move(logger));
+    using TFairUringIOEngine = TUringIOEngineBase<TFairShareQueue, TIORequestSlicer>;
+    using TUringIOEngine = TUringIOEngineBase<TMoodyCamelQueue, TDummyRequestSlicer>;
+
+    switch (engineType) {
+        case EIOEngineType::FairShareUring:
+            return CreateIOEngine<TFairUringIOEngine>(
+                std::move(ioConfig),
+                std::move(locationId),
+                std::move(profiler),
+                std::move(logger));
+
+        case EIOEngineType::Uring:
+            return CreateIOEngine<TUringIOEngine>(
+                std::move(ioConfig),
+                std::move(locationId),
+                std::move(profiler),
+                std::move(logger));
+
+        default:
+            YT_ABORT();
+    };
 
 #endif
-    return {};
+    return { };
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -725,7 +725,9 @@ IIOEnginePtr CreateIOEngine(
                 std::move(logger));
 #ifdef _linux_
         case EIOEngineType::Uring:
+        case EIOEngineType::FairShareUring:
             return CreateIOEngineUring(
+                engineType,
                 std::move(ioConfig),
                 std::move(locationId),
                 std::move(profiler),
@@ -749,6 +751,7 @@ std::vector<EIOEngineType> GetSupportedIOEngineTypes()
     result.push_back(EIOEngineType::ThreadPool);
     if (IsUringIOEngineSupported()) {
         result.push_back(EIOEngineType::Uring);
+        result.push_back(EIOEngineType::FairShareUring);
     }
     result.push_back(EIOEngineType::FairShareThreadPool);
     return result;
