@@ -697,6 +697,7 @@ void TChunkMerger::OnProfiling(TSensorBuffer* buffer)
         buffer->AddGauge("/chunk_merger_account_queue_size", queue.size());
     }
 
+    buffer->AddGauge("/chunk_merger_nodes_being_merged", NodesBeingMerged_.size());
     buffer->AddGauge("/chunk_merger_jobs_awaiting_chunk_creation", JobsAwaitingChunkCreation_.size());
     buffer->AddGauge("/chunk_merger_jobs_undergoing_chunk_creation", JobsUndergoingChunkCreation_.size());
     buffer->AddGauge("/chunk_merger_jobs_awaiting_node_heartbeat", JobsAwaitingNodeHeartbeat_.size());
