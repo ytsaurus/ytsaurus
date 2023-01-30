@@ -1948,7 +1948,10 @@ std::optional<TJob> TClient::DoGetJobFromArchive(
     }
 
     auto jobs = ParseJobsFromArchiveResponse(operationId, rowset, /*needFullStatistics*/ true);
-    YT_VERIFY(!jobs.empty());
+    if (jobs.empty()) {
+        return {};
+    }
+
     return std::move(jobs.front());
 }
 
