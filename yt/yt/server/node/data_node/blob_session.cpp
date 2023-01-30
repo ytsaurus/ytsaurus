@@ -217,7 +217,7 @@ private:
         TWallTimer timer;
 
         // This is how TFileWriter works.
-        YT_VERIFY(!Writer_->WriteBlocks(blocks));
+        YT_VERIFY(!Writer_->WriteBlocks(Options_.WorkloadDescriptor, blocks));
 
         return Writer_->GetReadyEvent().Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
@@ -249,7 +249,7 @@ private:
 
         TWallTimer timer;
 
-        return Writer_->Close(deferredChunkMeta).Apply(
+        return Writer_->Close(Options_.WorkloadDescriptor, deferredChunkMeta).Apply(
             BIND([=, this, this_ = MakeStrong(this)] {
                 auto time = timer.GetElapsedTime();
 

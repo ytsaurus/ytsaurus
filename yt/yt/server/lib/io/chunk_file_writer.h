@@ -42,12 +42,19 @@ public:
     // IChunkWriter implementation.
     TFuture<void> Open() override;
 
-    bool WriteBlock(const NChunkClient::TBlock& block) override;
-    bool WriteBlocks(const std::vector<NChunkClient::TBlock>& blocks) override;
+    bool WriteBlock(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TBlock& block) override;
+
+    bool WriteBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<NChunkClient::TBlock>& blocks) override;
 
     TFuture<void> GetReadyEvent() override;
 
-    TFuture<void> Close(const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
+    TFuture<void> Close(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override;
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override;
     const NChunkClient::NProto::TDataStatistics& GetDataStatistics() const override;

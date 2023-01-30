@@ -232,7 +232,8 @@ protected:
                 IOEngine_,
                 /*memoryUsageTracker*/ nullptr,
                 TempIndexFile_->Name(),
-                DefaultFileChangelogConfig_);
+                DefaultFileChangelogConfig_,
+                EWorkloadCategory::Idle);
             EXPECT_EQ(EFileChangelogIndexOpenResult::ExistingOpened, index->Open());
             EXPECT_EQ(flushIndex ? 1 : 0, index->GetRecordCount());
         }
@@ -379,7 +380,8 @@ TEST_P(TUnbufferedFileChangelogTest, TestIndexFlushOnClose)
             IOEngine_,
             /*memoryUsageTracker*/ nullptr,
             TempIndexFile_->Name(),
-            DefaultFileChangelogConfig_);
+            DefaultFileChangelogConfig_,
+            EWorkloadCategory::Idle);
         EXPECT_EQ(EFileChangelogIndexOpenResult::ExistingOpened, index->Open());
         EXPECT_EQ(RecordCount, index->GetRecordCount());
     }

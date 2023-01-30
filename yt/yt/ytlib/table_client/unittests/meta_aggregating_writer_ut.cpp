@@ -144,7 +144,7 @@ protected:
             auto deferredChunkMeta = New<TDeferredChunkMeta>();
             deferredChunkMeta->CopyFrom(*chunkInfo.ChunkMeta);
             writer->AbsorbMeta(deferredChunkMeta, NullChunkId);
-            writer->WriteBlocks(chunkInfo.MemoryWriter->GetBlocks());
+            writer->WriteBlocks(TWorkloadDescriptor(), chunkInfo.MemoryWriter->GetBlocks());
         }
 
         WaitFor(writer->Close())

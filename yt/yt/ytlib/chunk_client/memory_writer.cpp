@@ -31,7 +31,9 @@ TFuture<void> TMemoryWriter::Cancel()
     return VoidFuture;
 }
 
-bool TMemoryWriter::WriteBlock(const TBlock& block)
+bool TMemoryWriter::WriteBlock(
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TBlock& block)
 {
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
@@ -41,7 +43,9 @@ bool TMemoryWriter::WriteBlock(const TBlock& block)
     return true;
 }
 
-bool TMemoryWriter::WriteBlocks(const std::vector<TBlock>& blocks)
+bool TMemoryWriter::WriteBlocks(
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const std::vector<TBlock>& blocks)
 {
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);
@@ -58,7 +62,9 @@ TFuture<void> TMemoryWriter::GetReadyEvent()
     return VoidFuture;
 }
 
-TFuture<void> TMemoryWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
+TFuture<void> TMemoryWriter::Close(
+    const TWorkloadDescriptor& /*workloadDescriptor*/,
+    const TDeferredChunkMetaPtr& chunkMeta)
 {
     YT_VERIFY(Open_);
     YT_VERIFY(!Closed_);

@@ -221,6 +221,7 @@ private:
         std::vector<IPartBlockConsumerPtr> blockConsumers;
         for (int index = 0; index < std::ssize(Writers_); ++index) {
             writerConsumers.push_back(New<TPartWriter>(
+                ChunkReadOptions_.WorkloadDescriptor,
                 Writers_[index],
                 ErasedPartBlockRanges_[index],
                 /* computeChecksums */ true));
@@ -262,7 +263,7 @@ private:
         {
             std::vector<TFuture<void>> asyncResults;
             for (auto writer : Writers_) {
-                asyncResults.push_back(writer->Close(deferredMeta));
+                asyncResults.push_back(writer->Close(ChunkReadOptions_.WorkloadDescriptor, deferredMeta));
             }
             WaitFor(AllSucceeded(asyncResults))
                 .ThrowOnError();
@@ -685,12 +686,12 @@ public:
         return VoidFuture;
     }
 
-    bool WriteBlock(const TBlock&) override
+    bool WriteBlock(const TWorkloadDescriptor&, const TBlock&) override
     {
         return true;
     }
 
-    bool WriteBlocks(const std::vector<TBlock>&) override
+    bool WriteBlocks(const TWorkloadDescriptor&, const std::vector<TBlock>&) override
     {
         return true;
     }
@@ -700,7 +701,7 @@ public:
         return VoidFuture;
     }
 
-    TFuture<void> Close(const TDeferredChunkMetaPtr&) override
+    TFuture<void> Close(const TWorkloadDescriptor&, const TDeferredChunkMetaPtr&) override
     {
         return VoidFuture;
     }

@@ -425,6 +425,7 @@ struct IHunkChunkPayloadWriter
 DEFINE_REFCOUNTED_TYPE(IHunkChunkPayloadWriter)
 
 IHunkChunkPayloadWriterPtr CreateHunkChunkPayloadWriter(
+    const TWorkloadDescriptor& workloadDescriptor,
     THunkChunkPayloadWriterConfigPtr config,
     NChunkClient::IChunkWriterPtr underlying);
 

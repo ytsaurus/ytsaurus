@@ -555,7 +555,7 @@ private:
                 currentBlockIndex,
                 currentBlockIndex + static_cast<int>(writeBlocks.size()) - 1);
 
-            auto writeResult = writer->WriteBlocks(writeBlocks);
+            auto writeResult = writer->WriteBlocks(workloadDescriptor, writeBlocks);
             if (!writeResult) {
                 WaitFor(writer->GetReadyEvent())
                     .ThrowOnError();
@@ -572,7 +572,7 @@ private:
             auto deferredMeta = New<TDeferredChunkMeta>();
             deferredMeta->MergeFrom(*meta);
 
-            WaitFor(writer->Close(deferredMeta))
+            WaitFor(writer->Close(workloadDescriptor, deferredMeta))
                 .ThrowOnError();
 
             YT_LOG_DEBUG("Writer closed");
@@ -1390,7 +1390,7 @@ private:
                 auto readResult = WaitFor(asyncResult);
                 THROW_ERROR_EXCEPTION_IF_FAILED(readResult, "Error reading blocks");
                 auto blocks = readResult.Value();
-                if (!writer->WriteBlocks(blocks)) {
+                if (!writer->WriteBlocks(chunkReadContext.Options.WorkloadDescriptor, blocks)) {
                     auto writeResult = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(writeResult, "Error writing block");
                 }
@@ -2326,6 +2326,9 @@ private:
         std::vector<TFuture<void>> replicaFutures;
         replicaFutures.reserve(writers.size());
 
+        TWorkloadDescriptor workloadDescriptor;
+        workloadDescriptor.Category = EWorkloadCategory::SystemTabletRecovery;
+
         for (int index = 0; index < std::ssize(parts); ++index) {
             const auto& part = parts[index];
             const auto& writer = writers[index];
@@ -2350,11 +2353,11 @@ private:
                 for (const auto& row : part) {
                     blocks.push_back(TBlock(row));
                 }
-                chunkWriter->WriteBlocks(blocks);
+                chunkWriter->WriteBlocks(workloadDescriptor, blocks);
 
                 YT_LOG_DEBUG("Closing writer");
 
-                WaitFor(chunkWriter->Close())
+                WaitFor(chunkWriter->Close(workloadDescriptor))
                     .ThrowOnError();
 
                 YT_LOG_DEBUG("Writer closed");

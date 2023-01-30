@@ -30,10 +30,12 @@ TFileChangelogIndex::TFileChangelogIndex(
     IIOEnginePtr ioEngine,
     IMemoryUsageTrackerPtr memoryUsageTracker,
     TString fileName,
-    TFileChangelogConfigPtr config)
+    TFileChangelogConfigPtr config,
+    EWorkloadCategory workloadCategory)
     : IOEngine_(std::move(ioEngine))
     , FileName_(std::move(fileName))
     , Config_(std::move(config))
+    , WorkloadCategory_(workloadCategory)
     , Logger(HydraLogger.WithTag("Path: %v", FileName_))
     , MemoryUsageTrackerGuard_(TMemoryUsageTrackerGuard::Acquire(memoryUsageTracker, 0))
 { }
@@ -178,7 +180,12 @@ void TFileChangelogIndex::Create()
     auto* header = reinterpret_cast<TChangelogIndexHeader*>(buffer.Begin());
     header->Signature = TChangelogIndexHeader::ExpectedSignature;
 
-    WaitFor(IOEngine_->Write({.Handle = handle, .Offset = 0, .Buffers = {std::move(buffer)}}))
+    WaitFor(IOEngine_->Write({
+            .Handle = handle,
+            .Offset = 0,
+            .Buffers = {std::move(buffer)}
+        },
+        WorkloadCategory_))
         .ThrowOnError();
 
     Handle_ = std::move(handle);
@@ -319,7 +326,13 @@ void TFileChangelogIndex::AsyncFlush()
     IndexFilePosition_ += size;
     FlushedIndexRecordCount_ += flushRecordCount;
 
-    FlushFuture_ = IOEngine_->Write({.Handle = Handle_, .Offset = currentPosition, .Buffers = {std::move(buffer)}, .Flush = Config_->EnableSync})
+    FlushFuture_ = IOEngine_->Write({
+            .Handle = Handle_,
+            .Offset = currentPosition,
+            .Buffers = {std::move(buffer)},
+            .Flush = Config_->EnableSync
+        },
+        WorkloadCategory_)
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(Flushing_.exchange(false));
             YT_LOG_DEBUG("Finished flushing changelog file index segment");

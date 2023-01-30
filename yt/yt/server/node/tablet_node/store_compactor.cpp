@@ -235,6 +235,7 @@ private:
             Bootstrap_->GetOutThrottler(WorkloadCategory_));
 
         HunkChunkPayloadWriter_ = CreateHunkChunkPayloadWriter(
+            TWorkloadDescriptor(WorkloadCategory_),
             HunkWriterConfig_,
             HunkChunkWriter_);
         if (TabletSnapshot_->PhysicalSchema->HasHunkColumns()) {

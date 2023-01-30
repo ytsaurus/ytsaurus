@@ -96,7 +96,11 @@ class TPartWriter
     : public IPartBlockConsumer
 {
 public:
-    TPartWriter(IChunkWriterPtr writer, const std::vector<TPartRange>& blockRanges, bool computeChecksum);
+    TPartWriter(
+        const TWorkloadDescriptor& workloadDescriptor,
+        IChunkWriterPtr writer,
+        const std::vector<TPartRange>& blockRanges,
+        bool computeChecksum);
 
     ~TPartWriter();
 

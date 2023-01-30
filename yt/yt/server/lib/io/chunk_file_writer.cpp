@@ -128,12 +128,16 @@ TFuture<void> TChunkFileWriter::Open()
         }));
 }
 
-bool TChunkFileWriter::WriteBlock(const TBlock& block)
+bool TChunkFileWriter::WriteBlock(
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TBlock& block)
 {
-    return WriteBlocks({block});
+    return WriteBlocks(workloadDescriptor, {block});
 }
 
-bool TChunkFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
+bool TChunkFileWriter::WriteBlocks(
+    const TWorkloadDescriptor& workloadDescriptor,
+    const std::vector<TBlock>& blocks)
 {
     if (auto error = TryChangeState(EState::Ready, EState::WritingBlocks); !error.IsOK()) {
         ReadyEvent_ = MakeFuture<void>(std::move(error));
@@ -165,7 +169,8 @@ bool TChunkFileWriter::WriteBlocks(const std::vector<TBlock>& blocks)
             startOffset,
             std::move(buffers),
             SyncOnClose_
-        })
+        },
+        workloadDescriptor.Category)
         .Apply(BIND([=, this, this_ = MakeStrong(this), newDataSize = currentOffset] (const TError& error) {
             YT_VERIFY(State_.load() == EState::WritingBlocks);
 
@@ -193,7 +198,9 @@ TFuture<void> TChunkFileWriter::GetReadyEvent()
     return ReadyEvent_;
 }
 
-TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
+TFuture<void> TChunkFileWriter::Close(
+    const TWorkloadDescriptor& workloadDescriptor,
+    const TDeferredChunkMetaPtr& chunkMeta)
 {
     if (auto error = TryChangeState(EState::Ready, EState::Closing); !error.IsOK()) {
         return MakeFuture<void>(std::move(error));
@@ -241,13 +248,14 @@ TFuture<void> TChunkFileWriter::Close(const TDeferredChunkMetaPtr& chunkMeta)
                     0,
                     {std::move(buffer)},
                     SyncOnClose_
-                })
+                },
+                workloadDescriptor.Category)
                 .Apply(BIND(&IIOEngine::Close, IOEngine_, IIOEngine::TCloseRequest{
                     std::move(chunkMetaFile),
                     MetaDataSize_,
                     SyncOnClose_
                 },
-                EWorkloadCategory::Idle));
+                workloadDescriptor.Category));
         }))
         .Apply(BIND([=, this, this_ = MakeStrong(this)] {
             YT_VERIFY(State_.load() == EState::Closing);

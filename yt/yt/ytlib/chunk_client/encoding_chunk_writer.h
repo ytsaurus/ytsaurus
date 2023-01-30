@@ -48,6 +48,7 @@ public:
     bool IsCloseDemanded() const;
 
 private:
+    const TEncodingWriterConfigPtr Config_;
     const TEncodingWriterOptionsPtr Options_;
     const IChunkWriterPtr ChunkWriter_;
     const TEncodingWriterPtr EncodingWriter_;

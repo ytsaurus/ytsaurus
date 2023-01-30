@@ -72,18 +72,20 @@ public:
         return UnderlyingWriter_->Open();
     }
 
-    bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TWorkloadDescriptor& workloadDescriptor, const TBlock& block) override
     {
         LargestBlockSize_ = std::max<i64>(LargestBlockSize_, block.Size());
-        return UnderlyingWriter_->WriteBlock(block);
+        return UnderlyingWriter_->WriteBlock(workloadDescriptor, block);
     }
 
-    bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<TBlock>& blocks) override
     {
         for (const auto& block : blocks) {
             LargestBlockSize_ = std::max<i64>(LargestBlockSize_, block.Size());
         }
-        return UnderlyingWriter_->WriteBlocks(blocks);
+        return UnderlyingWriter_->WriteBlocks(workloadDescriptor, blocks);
     }
 
     TFuture<void> GetReadyEvent() override
@@ -91,10 +93,12 @@ public:
         return UnderlyingWriter_->GetReadyEvent();
     }
 
-    TFuture<void> Close(const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr) override
+    TFuture<void> Close(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TDeferredChunkMetaPtr& /*chunkMeta*/ = nullptr) override
     {
         FinalizeMeta();
-        return UnderlyingWriter_->Close(ChunkMeta_);
+        return UnderlyingWriter_->Close(workloadDescriptor, ChunkMeta_);
     }
 
     const NProto::TChunkInfo& GetChunkInfo() const override

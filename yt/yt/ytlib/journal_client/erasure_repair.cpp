@@ -1,6 +1,10 @@
 #include "erasure_repair.h"
 #include "erasure_parts_reader.h"
 
+#include "config.h"
+
+#include <yt/yt/client/misc/workload.h>
+
 #include <yt/yt/ytlib/chunk_client/chunk_reader.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_options.h>
 #include <yt/yt/ytlib/chunk_client/chunk_writer.h>
@@ -97,7 +101,11 @@ void DoRepairErasedParts(
             for (auto& row : rowLists[index]) {
                 blocks.emplace_back(std::move(row));
             }
-            if (!writer->WriteBlocks(blocks)) {
+
+            TWorkloadDescriptor workloadDescriptor;
+            workloadDescriptor.Category = EWorkloadCategory::SystemRepair;
+
+            if (!writer->WriteBlocks(workloadDescriptor, blocks)) {
                 futures.push_back(writer->GetReadyEvent());
             }
         }
