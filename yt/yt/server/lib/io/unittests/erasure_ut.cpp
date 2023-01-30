@@ -285,10 +285,10 @@ public:
         EXPECT_TRUE(erasureWriter->Open().Get().IsOK());
 
         for (const auto& ref : data) {
-            erasureWriter->WriteBlock(TBlock(ref, GetChecksum(ref)));
+            erasureWriter->WriteBlock(TWorkloadDescriptor(), TBlock(ref, GetChecksum(ref)));
             dataSize += ref.Size();
         }
-        EXPECT_TRUE(erasureWriter->Close(meta).Get().IsOK());
+        EXPECT_TRUE(erasureWriter->Close(TWorkloadDescriptor(), meta).Get().IsOK());
         EXPECT_TRUE(erasureWriter->GetChunkInfo().disk_space() >= dataSize);
     }
 

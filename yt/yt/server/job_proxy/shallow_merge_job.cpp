@@ -510,7 +510,7 @@ private:
                     auto block = WaitForUniqueFast(blockFetcher->FetchBlock(chunkIndex, blockIndex))
                         .ValueOrThrow();
 
-                    if (!Writer_->WriteBlock(block)) {
+                    if (!Writer_->WriteBlock(ReaderConfig_->WorkloadDescriptor, block)) {
                         WaitFor(Writer_->GetReadyEvent())
                             .ThrowOnError();
                     }

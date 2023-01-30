@@ -299,7 +299,7 @@ void TEncodingWriter::WritePendingBlock(const TErrorOr<TBlock>& blockOrError)
 
     YT_LOG_DEBUG("Writing pending block (Block: %v)", WrittenBlockIndex_);
 
-    auto isReady = ChunkWriter_->WriteBlock(block);
+    auto isReady = ChunkWriter_->WriteBlock(Config_->WorkloadDescriptor, block);
     ++WrittenBlockIndex_;
 
     auto finally = Finally([&] (){

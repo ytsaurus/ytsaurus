@@ -526,7 +526,9 @@ private:
             IOEngine_,
             MemoryUsageTracker_,
             std::move(fileName),
-            Config_);
+            Config_,
+            // TODO(capone212): better workload category?
+            EWorkloadCategory::UserBatch);
     }
 
 
@@ -623,7 +625,12 @@ private:
             auto dataFile = WaitFor(IOEngine_->Open({.Path = tempFileName, .Mode = WrOnly | CloseOnExec | CreateAlways}))
                 .ValueOrThrow();
 
-            WaitFor(IOEngine_->Write({.Handle = dataFile, .Offset = 0, .Buffers = {std::move(buffer)}}))
+            WaitFor(IOEngine_->Write({
+                    .Handle = dataFile,
+                    .Offset = 0,
+                    .Buffers = {std::move(buffer)}
+                },
+                EWorkloadCategory::UserBatch))
                 .ThrowOnError();
 
             WaitFor(IOEngine_->Close({.Handle = dataFile, .Flush = Config_->EnableSync}))
@@ -712,7 +719,12 @@ private:
 
             // Write blob to file.
             TSharedRef buffer(AppendOutput_.Begin(), AppendOutput_.Size(), MakeSharedRangeHolder(MakeStrong(this)));
-            WaitFor(IOEngine_->Write({.Handle = DataFileHandle_, .Offset = CurrentFileOffset_.load(), .Buffers = {std::move(buffer)}}))
+            WaitFor(IOEngine_->Write({
+                    .Handle = DataFileHandle_,
+                    .Offset = CurrentFileOffset_.load(),
+                    .Buffers = {std::move(buffer)}
+                },
+                EWorkloadCategory::UserBatch))
                 .ThrowOnError();
 
             RecordCount_ += std::ssize(records);
@@ -1030,7 +1042,12 @@ private:
         while (currentOffset < range.second) {
             auto currentSize = std::min(range.second - currentOffset, std::ssize(wipeBuffer));
             auto currentBuffer = wipeBuffer.Slice(0, currentSize);
-            WaitFor(IOEngine_->Write({.Handle = DataFileHandle_, .Offset = currentOffset, .Buffers = {std::move(currentBuffer)}}))
+            WaitFor(IOEngine_->Write({
+                    .Handle = DataFileHandle_,
+                    .Offset = currentOffset,
+                    .Buffers = {std::move(currentBuffer)}
+                },
+                EWorkloadCategory::UserBatch))
                 .ThrowOnError();
             currentOffset += currentSize;
         }

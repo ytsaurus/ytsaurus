@@ -71,7 +71,7 @@ void DoTestEncodingWriter(
 
     auto wallTime = wallTimer.GetElapsedTime();
 
-    WaitFor(memoryWriter->Close(New<TDeferredChunkMeta>()))
+    WaitFor(memoryWriter->Close(TWorkloadDescriptor(), New<TDeferredChunkMeta>()))
         .ThrowOnError();
 
     auto result = memoryWriter->GetBlocks();

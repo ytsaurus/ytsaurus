@@ -25,6 +25,7 @@ TEncodingChunkWriter::TEncodingChunkWriter(
           TMemoryUsageTrackerGuard::Acquire(
               options->MemoryTracker,
               /*size*/ 0)))
+    , Config_(config)
     , Options_(options)
     , ChunkWriter_(std::move(chunkWriter))
     , EncodingWriter_(New<TEncodingWriter>(
@@ -71,7 +72,7 @@ void TEncodingChunkWriter::Close()
     }
     SetProtoExtension(Meta_->mutable_extensions(), MiscExt_);
 
-    WaitFor(ChunkWriter_->Close(Meta_))
+    WaitFor(ChunkWriter_->Close(Config_->WorkloadDescriptor, Meta_))
         .ThrowOnError();
 
     Closed_ = true;

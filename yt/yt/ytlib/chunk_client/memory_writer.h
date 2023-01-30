@@ -18,10 +18,19 @@ class TMemoryWriter
 public:
     // IChunkWriter implementation.
     TFuture<void> Open() override;
-    bool WriteBlock(const TBlock& block) override;
-    bool WriteBlocks(const std::vector<TBlock>& blocks) override;
+    bool WriteBlock(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TBlock& block) override;
+
+    bool WriteBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<TBlock>& blocks) override;
+
     TFuture<void> GetReadyEvent() override;
-    TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override;
+
+    TFuture<void> Close(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TDeferredChunkMetaPtr& chunkMeta) override;
 
     //! Unimplemented.
     const NProto::TChunkInfo& GetChunkInfo() const override;

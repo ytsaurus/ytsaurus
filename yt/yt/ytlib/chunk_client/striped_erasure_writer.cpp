@@ -46,6 +46,7 @@ public:
         : Config_(std::move(config))
         , Codec_(NErasure::GetCodec(codecId))
         , SessionId_(sessionId)
+        , WorkloadDescriptor_(workloadDescriptor)
         , Writers_(std::move(writers))
         , WriterReadyEvents_(Writers_.size(), VoidFuture)
         , WriterInvoker_(TDispatcher::Get()->GetWriterInvoker())
@@ -77,7 +78,7 @@ public:
             .Apply(BIND(&TStripedErasureWriter::OnWriterOpened, MakeStrong(this)));
     }
 
-    bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TWorkloadDescriptor& /*workloadDescriptor*/, const TBlock& block) override
     {
         YT_VERIFY(Opened_ && !Closed_);
 
@@ -87,13 +88,15 @@ public:
         return canHandleMore;
     }
 
-    bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<TBlock>& blocks) override
     {
         YT_VERIFY(Opened_ && !Closed_);
 
         bool canHandleMore = true;
         for (const auto& block : blocks) {
-            canHandleMore = WriteBlock(block);
+            canHandleMore = WriteBlock(workloadDescriptor, block);
         }
 
         return canHandleMore;
@@ -108,7 +111,7 @@ public:
         return ReadyEvent_.ToFuture();
     }
 
-    TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
+    TFuture<void> Close(const TWorkloadDescriptor& /*workloadDescriptor*/, const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Opened_ && !Closed_);
 
@@ -184,6 +187,7 @@ private:
     const TErasureWriterConfigPtr Config_;
     const NErasure::ICodec* const Codec_;
     const TSessionId SessionId_;
+    const TWorkloadDescriptor WorkloadDescriptor_;
 
     const std::vector<IChunkWriterPtr> Writers_;
     std::vector<TFuture<void>> WriterReadyEvents_;
@@ -375,7 +379,7 @@ private:
 
             const auto& writer = Writers_[index];
             const auto& block = parts[index];
-            if (!writer->WriteBlock(block)) {
+            if (!writer->WriteBlock(WorkloadDescriptor_, block)) {
                 WriterReadyEvents_[index] = writer->GetReadyEvent();
             }
 
@@ -465,7 +469,7 @@ private:
         std::vector<TFuture<void>> futures;
         futures.reserve(Writers_.size());
         for (const auto& writer : Writers_) {
-            futures.push_back(writer->Close(chunkMeta));
+            futures.push_back(writer->Close(WorkloadDescriptor_, chunkMeta));
         }
 
         WaitFor(AllSucceeded(std::move(futures)))

@@ -536,7 +536,7 @@ private:
                     erasedPartIndicies.push_back(partIndex);
                     closeReplicaWriterResults.push_back(writer->Cancel());
                 } else {
-                    closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
+                    closeReplicaWriterResults.push_back(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta));
                 }
             }
 
@@ -551,7 +551,7 @@ private:
             std::vector<TFuture<void>> closeReplicaWriterResults;
             closeReplicaWriterResults.reserve(writers.size());
             for (const auto& writer : writers) {
-                closeReplicaWriterResults.push_back(writer->Close(chunkMeta));
+                closeReplicaWriterResults.push_back(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta));
             }
             WaitFor(AllSucceeded(closeReplicaWriterResults))
                 .ThrowOnError();
@@ -771,7 +771,7 @@ private:
     {
         TCurrentTraceContextGuard guard(OutputTraceContext_);
 
-        WaitFor(writer->Close(chunkMeta))
+        WaitFor(writer->Close(ReaderConfig_->WorkloadDescriptor, chunkMeta))
             .ThrowOnError();
         TChunkInfo chunkInfo = writer->GetChunkInfo();
         auto writtenReplicas = writer->GetWrittenChunkReplicas();
@@ -912,7 +912,7 @@ private:
             {
                 TCurrentTraceContextGuard guard(OutputTraceContext_);
 
-                if (!writer->WriteBlocks(blocks)) {
+                if (!writer->WriteBlocks(ReaderConfig_->WorkloadDescriptor, blocks)) {
                     auto result = WaitFor(writer->GetReadyEvent());
                     THROW_ERROR_EXCEPTION_IF_FAILED(result, "Error writing block");
                 }

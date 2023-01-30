@@ -56,7 +56,7 @@ TChunk WriteErasureChunk(
         .ThrowOnError();
 
     for (const auto& block : blocks) {
-        if (!writer->WriteBlock(TBlock(block))) {
+        if (!writer->WriteBlock(TWorkloadDescriptor(), TBlock(block))) {
             WaitFor(writer->GetReadyEvent())
                 .ThrowOnError();
         }
@@ -64,7 +64,7 @@ TChunk WriteErasureChunk(
 
     auto deferredMeta = New<TDeferredChunkMeta>();
     SetProtoExtension(deferredMeta->mutable_extensions(), NProto::TMiscExt());
-    WaitFor(writer->Close(deferredMeta))
+    WaitFor(writer->Close(TWorkloadDescriptor(), deferredMeta))
         .ThrowOnError();
 
     TChunk chunk;

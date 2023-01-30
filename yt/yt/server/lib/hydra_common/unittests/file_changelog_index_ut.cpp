@@ -31,7 +31,8 @@ protected:
             IOEngine_,
             /*memoryUsageTracker*/ nullptr,
             TempFile_->Name(),
-            New<TFileChangelogConfig>());
+            New<TFileChangelogConfig>(),
+            EWorkloadCategory::Idle);
     }
 
     void AppendRecords(

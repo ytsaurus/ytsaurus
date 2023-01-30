@@ -194,14 +194,16 @@ public:
         return Underlying_->Cancel();
     }
 
-    bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TWorkloadDescriptor& workloadDescriptor, const TBlock& block) override
     {
-        return Underlying_->WriteBlock(block);
+        return Underlying_->WriteBlock(workloadDescriptor, block);
     }
 
-    bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<TBlock>& blocks) override
     {
-        return Underlying_->WriteBlocks(blocks);
+        return Underlying_->WriteBlocks(workloadDescriptor, blocks);
     }
 
     TFuture<void> GetReadyEvent() override
@@ -209,9 +211,11 @@ public:
         return Check(Underlying_->GetReadyEvent());
     }
 
-    TFuture<void> Close(const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override
+    TFuture<void> Close(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const NChunkClient::TDeferredChunkMetaPtr& chunkMeta) override
     {
-        return Check(Underlying_->Close(chunkMeta));
+        return Check(Underlying_->Close(workloadDescriptor, chunkMeta));
     }
 
     const NChunkClient::NProto::TChunkInfo& GetChunkInfo() const override
@@ -1031,7 +1035,7 @@ private:
                 YT_LOG_DEBUG("Writing block (BlockIndex: %v)",
                     index);
 
-                if (!checkedChunkWriter->WriteBlock(block)) {
+                if (!checkedChunkWriter->WriteBlock(chunkReadOptions.WorkloadDescriptor, block)) {
                     WaitFor(chunkWriter->GetReadyEvent())
                         .ThrowOnError();
                 }
@@ -1045,7 +1049,7 @@ private:
             auto deferredChunkMeta = New<TDeferredChunkMeta>();
             deferredChunkMeta->CopyFrom(*chunkMeta);
 
-            WaitFor(checkedChunkWriter->Close(deferredChunkMeta))
+            WaitFor(checkedChunkWriter->Close(chunkReadOptions.WorkloadDescriptor, deferredChunkMeta))
                 .ThrowOnError();
 
             if (Bootstrap_->GetIOTracker()->IsEnabled()) {

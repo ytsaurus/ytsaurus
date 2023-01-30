@@ -627,8 +627,10 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
     ) {
         const auto& mountConfig = tabletSnapshot->Settings.MountConfig;
 
+        auto workloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
+
         auto storeWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.StoreWriterConfig);
-        storeWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
+        storeWriterConfig->WorkloadDescriptor = workloadDescriptor;
         storeWriterConfig->MinUploadReplicationFactor = storeWriterConfig->UploadReplicationFactor;
         storeWriterConfig->Postprocess();
 
@@ -639,7 +641,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
         storeWriterOptions->Postprocess();
 
         auto hunkWriterConfig = CloneYsonSerializable(tabletSnapshot->Settings.HunkWriterConfig);
-        hunkWriterConfig->WorkloadDescriptor = TWorkloadDescriptor(EWorkloadCategory::SystemTabletStoreFlush);
+        hunkWriterConfig->WorkloadDescriptor = workloadDescriptor;
         hunkWriterConfig->MinUploadReplicationFactor = hunkWriterConfig->UploadReplicationFactor;
         hunkWriterConfig->Postprocess();
 
@@ -691,6 +693,7 @@ TStoreFlushCallback TSortedStoreManager::MakeStoreFlushCallback(
             /*trafficMeter*/ nullptr,
             combinedThrottler);
         auto hunkChunkPayloadWriter = CreateHunkChunkPayloadWriter(
+            workloadDescriptor,
             hunkWriterConfig,
             hunkChunkWriter);
         auto hunkChunkWriterStatistics = CreateHunkChunkWriterStatistics(

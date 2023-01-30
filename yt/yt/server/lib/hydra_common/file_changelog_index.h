@@ -37,7 +37,8 @@ public:
         NIO::IIOEnginePtr ioEngine,
         IMemoryUsageTrackerPtr memoryUsageTracker,
         TString fileName,
-        TFileChangelogConfigPtr config);
+        TFileChangelogConfigPtr config,
+        EWorkloadCategory workloadCategory);
 
     EFileChangelogIndexOpenResult Open();
     void Create();
@@ -111,6 +112,7 @@ private:
     const NIO::IIOEnginePtr IOEngine_;
     const TString FileName_;
     const TFileChangelogConfigPtr Config_;
+    EWorkloadCategory WorkloadCategory_;
 
     const NLogging::TLogger Logger;
 

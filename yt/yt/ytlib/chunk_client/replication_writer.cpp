@@ -225,12 +225,14 @@ public:
             .Run();
     }
 
-    bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TWorkloadDescriptor& workloadDescriptor, const TBlock& block) override
     {
-        return WriteBlocks({block});
+        return WriteBlocks(workloadDescriptor, {block});
     }
 
-    bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(
+        const TWorkloadDescriptor& /*workloadDescriptor*/,
+        const std::vector<TBlock>& blocks) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
 
@@ -256,7 +258,9 @@ public:
         return promise.ToFuture();
     }
 
-    TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
+    TFuture<void> Close(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(State_.load() == EReplicationWriterState::Open);
         YT_VERIFY(chunkMeta || IsJournalChunkId(DecodeChunkId(SessionId_.ChunkId).Id));
@@ -276,7 +280,7 @@ public:
         YT_LOG_DEBUG("Requesting writer to close");
 
         TDispatcher::Get()->GetWriterInvoker()->Invoke(
-            BIND(&TReplicationWriter::DoClose, MakeWeak(this)));
+            BIND(&TReplicationWriter::DoClose, MakeWeak(this), workloadDescriptor));
 
         return ClosePromise_.ToFuture();
     }
@@ -447,7 +451,7 @@ private:
         }
     }
 
-    void DoClose()
+    void DoClose(const TWorkloadDescriptor& /*workloadDescriptor*/)
     {
         VERIFY_THREAD_AFFINITY(WriterThread);
         YT_VERIFY(!CloseRequested_);

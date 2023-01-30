@@ -511,7 +511,7 @@ private:
                     .ValueOrThrow();
 
                 const auto& writer = PartWriters_[writerIndex];
-                if (!writer->WriteBlock(segmentPart)) {
+                if (!writer->WriteBlock(ChunkReadOptions_.WorkloadDescriptor, segmentPart)) {
                     WaitFor(writer->GetReadyEvent())
                         .ThrowOnError();
                 }
@@ -532,7 +532,7 @@ private:
             std::vector<TFuture<void>> futures;
             futures.reserve(PartWriters_.size());
             for (const auto& writer : PartWriters_) {
-                futures.push_back(writer->Close(deferredMeta));
+                futures.push_back(writer->Close(ChunkReadOptions_.WorkloadDescriptor, deferredMeta));
             }
             WaitFor(AllSucceeded(std::move(futures)))
                 .ThrowOnError();

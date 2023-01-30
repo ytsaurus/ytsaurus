@@ -99,12 +99,14 @@ public:
         return OpenFuture_;
     }
 
-    bool WriteBlock(const TBlock& block) override
+    bool WriteBlock(const TWorkloadDescriptor& workloadDescriptor, const TBlock& block) override
     {
-        return WriteBlocks({block});
+        return WriteBlocks(workloadDescriptor, {block});
     }
 
-    bool WriteBlocks(const std::vector<TBlock>& blocks) override
+    bool WriteBlocks(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const std::vector<TBlock>& blocks) override
     {
         YT_VERIFY(Initialized_);
         YT_VERIFY(OpenFuture_.IsSet());
@@ -112,7 +114,7 @@ public:
         if (!OpenFuture_.Get().IsOK()) {
             return false;
         } else {
-            return UnderlyingWriter_->WriteBlocks(blocks);
+            return UnderlyingWriter_->WriteBlocks(workloadDescriptor, blocks);
         }
     }
 
@@ -127,7 +129,9 @@ public:
         }
     }
 
-    TFuture<void> Close(const TDeferredChunkMetaPtr& chunkMeta) override
+    TFuture<void> Close(
+        const TWorkloadDescriptor& workloadDescriptor,
+        const TDeferredChunkMetaPtr& chunkMeta) override
     {
         YT_VERIFY(Initialized_);
         YT_VERIFY(OpenFuture_.IsSet());
@@ -136,7 +140,8 @@ public:
 
         return BIND(
             &TConfirmingWriter::DoClose,
-            MakeWeak(this))
+            MakeWeak(this),
+            workloadDescriptor)
             .AsyncVia(TDispatcher::Get()->GetWriterInvoker())
             .Run();
     }
@@ -295,9 +300,9 @@ private:
         }
     }
 
-    void DoClose()
+    void DoClose(const TWorkloadDescriptor& workloadDescriptor)
     {
-        auto error = WaitFor(UnderlyingWriter_->Close(ChunkMeta_));
+        auto error = WaitFor(UnderlyingWriter_->Close(workloadDescriptor, ChunkMeta_));
 
         THROW_ERROR_EXCEPTION_IF_FAILED(
             error,
