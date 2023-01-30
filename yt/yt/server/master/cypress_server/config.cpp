@@ -105,18 +105,6 @@ void TDynamicCypressManagerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("scion_removal_period", &TThis::ScionRemovalPeriod)
         .Default(TDuration::Seconds(30));
-
-    registrar.Parameter("enable_node_statistics_fixer", &TThis::EnableNodeStatisticsFixer)
-        .Default(false)
-        .DontSerializeDefault();
-
-    registrar.Parameter("node_statistics_fixer_period", &TThis::NodeStatisticsFixerPeriod)
-        .Default(TDuration::Seconds(5))
-        .DontSerializeDefault();
-
-    registrar.Parameter("node_statistics_fixer_batch_size", &TThis::NodeStatisticsFixerBatchSize)
-        .Default(1000)
-        .DontSerializeDefault();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

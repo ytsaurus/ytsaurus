@@ -129,8 +129,6 @@ public:
 
     // COMPAT(shakurov)
     bool EnableNodeStatisticsFix;
-    // COMPAT(shakurov) mainly for testing purposes.
-    bool EnableAlertOnNodeStatisticsFix;
 
     // COMPAT(aleksandra-zh)
     bool EnableQueueSizeLimitChanges;
@@ -544,9 +542,6 @@ public:
     bool EnableChunkConfirmationWithoutLocationUuid;
 
     bool EnablePerLocationNodeDisposal;
-
-    // COMPAT(shakurov)
-    bool EnableClonedTrunkNodeStatisticsFix;
 
     REGISTER_YSON_STRUCT(TDynamicChunkManagerConfig);
 

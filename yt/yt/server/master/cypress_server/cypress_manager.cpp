@@ -1006,6 +1006,7 @@ public:
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraRemoveExpiredNodes, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraLockForeignNode, Unretained(this)));
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraUnlockForeignNode, Unretained(this)));
+        // COMPAT(shakurov)
         RegisterMethod(BIND_NO_PROPAGATE(&TCypressManager::HydraFixNodeStatistics, Unretained(this)));
     }
 
@@ -1035,43 +1036,6 @@ public:
             multicellManager->SubscribeReplicateValuesToSecondaryMaster(
                 BIND_NO_PROPAGATE(&TCypressManager::OnReplicateValuesToSecondaryMaster, MakeWeak(this)));
         }
-
-        // COMPAT(shakurov)
-        FixNodeStatisticsExecutor_ = New<NConcurrency::TPeriodicExecutor>(
-            Bootstrap_->GetHydraFacade()->GetAutomatonInvoker(EAutomatonThreadQueue::NodeStatisticsFixer),
-            BIND(&TCypressManager::FixNodeStatistics, MakeWeak(this)));
-    }
-
-    void FixNodeStatistics()
-    {
-        const auto& hydraManager = Bootstrap_->GetHydraFacade()->GetHydraManager();
-
-        if (!hydraManager->IsActiveLeader()) {
-            return;
-        }
-
-        NProto::TReqFixNodeStatistics request;
-        while (request.node_ids_size() < GetDynamicConfig()->NodeStatisticsFixerBatchSize &&
-            !NodesNeedingStatisticsFix_.empty())
-        {
-            ToProto(request.add_node_ids(), NodesNeedingStatisticsFix_.back());
-            NodesNeedingStatisticsFix_.pop_back();
-        }
-
-        if (request.node_ids_size() == 0) {
-            return;
-        }
-
-        YT_LOG_DEBUG("Committing node statistics fix (NodeToFix: %v, NodesLeft: %v)",
-            request.node_ids_size(),
-            std::size(NodesNeedingStatisticsFix_));
-
-        auto mutation = CreateMutation(
-            hydraManager,
-            request,
-            &TCypressManager::HydraFixNodeStatistics,
-            this);
-        mutation->CommitAndLog(Logger);
     }
 
     void HydraFixNodeStatistics(NProto::TReqFixNodeStatistics* request)
@@ -2415,8 +2379,7 @@ private:
     TCypressShard* RootShard_ = nullptr;
 
     // COMPAT(shakurov)
-    std::vector<TNodeId> NodesNeedingStatisticsFix_;
-    NConcurrency::TPeriodicExecutorPtr FixNodeStatisticsExecutor_;
+    bool NeedFixNodeStatistics_ = false;
 
     using TRecursiveResourceUsageCache = TSyncExpiringCache<TVersionedNodeId, TFuture<TYsonString>>;
     using TRecursiveResourceUsageCachePtr = TIntrusivePtr<TRecursiveResourceUsageCache>;
@@ -2471,6 +2434,8 @@ private:
         for (auto [id, object] : AccessControlObjectMap_) {
             object->Namespace()->RegisterMember(object);
         }
+
+        NeedFixNodeStatistics_ = context.GetVersion() < EMasterReign::FixClonedTrunkNodeStatistics;
     }
 
     void Clear() override
@@ -2494,6 +2459,8 @@ private:
         RootShard_ = nullptr;
 
         RecursiveResourceUsageCache_->Clear();
+
+        NeedFixNodeStatistics_ = false;
     }
 
     void SetZeroState() override
@@ -2612,29 +2579,31 @@ private:
         InitBuiltins();
 
         // COMPAT(shakurov)
-        for (auto [nodeId, node] : NodeMap_) {
-            if (!IsObjectAlive(node)) {
-                continue;
-            }
+        if (NeedFixNodeStatistics_) {
+            for (auto [nodeId, node] : NodeMap_) {
+                if (!IsObjectAlive(node)) {
+                    continue;
+                }
 
-            if (!node->IsTrunk()) {
-                continue;
-            }
+                if (!node->IsTrunk()) {
+                    continue;
+                }
 
-            if (!IsChunkOwnerType(node->GetType())) {
-                continue;
-            }
+                if (!IsChunkOwnerType(node->GetType())) {
+                    continue;
+                }
 
-            auto* chunkOwner = node->As<TChunkOwnerBase>();
-            if (chunkOwner->IsStatisticsFixNeeded()) {
-                NodesNeedingStatisticsFix_.push_back(nodeId.ObjectId);
+                auto* chunkOwner = node->As<TChunkOwnerBase>();
+                if (chunkOwner->IsStatisticsFixNeeded()) {
+                    YT_LOG_ALERT("Fixing chunk owner statistics (ChunkOwnerId: %v, SnapshotStatistics: %v, DeltaStatistics: %v)",
+                        chunkOwner->GetId(),
+                        chunkOwner->SnapshotStatistics(),
+                        chunkOwner->DeltaStatistics());
+                    chunkOwner->FixStatistics();
+                }
             }
         }
-
-        YT_LOG_DEBUG("Gathered %v chunk owners in need of a statistics fix",
-            std::ssize(NodesNeedingStatisticsFix_));
     }
-
 
     void InitBuiltins()
     {
@@ -4125,14 +4094,6 @@ private:
     {
         RecursiveResourceUsageCache_->SetExpirationTimeout(
             GetDynamicConfig()->RecursiveResourceUsageCacheExpirationTimeout);
-
-        FixNodeStatisticsExecutor_->SetPeriod(GetDynamicConfig()->NodeStatisticsFixerPeriod);
-
-        if (GetDynamicConfig()->EnableNodeStatisticsFixer) {
-            FixNodeStatisticsExecutor_->Start();
-        } else {
-            FixNodeStatisticsExecutor_->Stop();
-        }
     }
 };
 
