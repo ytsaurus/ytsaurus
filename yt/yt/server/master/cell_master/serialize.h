@@ -103,6 +103,7 @@ DEFINE_ENUM(EMasterReign,
     ((RemountNeededNotification)                                    (2223))  // ifsmirnov
     ((FixZombification)                                             (2224))  // gritukan
     ((TabletBalancerConfigUnrecognizedStrategyKeep)                 (2225))  // alexelexa
+    ((FixClonedTrunkNodeStatistics_22_4)                            (2226))  // shakurov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko
