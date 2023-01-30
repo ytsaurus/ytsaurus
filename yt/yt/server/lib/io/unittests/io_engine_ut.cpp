@@ -79,7 +79,12 @@ TEST_P(TIOEngineTest, ReadWrite)
     auto data = GenerateRandomBlob(S);
 
     auto write = [&] {
-        engine->Write({file, 0, {data}})
+        engine->Write({
+            .Handle= file,
+            .Offset = 0,
+            .Buffers = {data},
+            .Flush = true,
+        })
             .Get()
             .ThrowOnError();
     };
@@ -317,7 +322,11 @@ INSTANTIATE_TEST_SUITE_P(
 
         std::make_tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourCollocate),
         std::make_tuple(EIOEngineType::Uring, CustomConfig, AllocatorBehaviourCollocate),
-        std::make_tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate)
+        std::make_tuple(EIOEngineType::Uring, DefaultConfig, AllocatorBehaviourSeparate),
+
+        std::make_tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourCollocate),
+        std::make_tuple(EIOEngineType::FairShareUring, CustomConfig, AllocatorBehaviourCollocate),
+        std::make_tuple(EIOEngineType::FairShareUring, DefaultConfig, AllocatorBehaviourSeparate)
     )
 );
 

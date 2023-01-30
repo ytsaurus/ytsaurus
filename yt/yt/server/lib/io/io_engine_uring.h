@@ -13,6 +13,7 @@ namespace NYT::NIO {
 ////////////////////////////////////////////////////////////////////////////////
 
 IIOEnginePtr CreateIOEngineUring(
+    EIOEngineType engineType,
     NYTree::INodePtr ioConfig,
     TString locationId,
     NProfiling::TProfiler profiler,

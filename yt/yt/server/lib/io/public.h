@@ -10,6 +10,7 @@ DEFINE_ENUM(EIOEngineType,
     (ThreadPool)
     (Uring)
     (FairShareThreadPool)
+    (FairShareUring)
 );
 
 DEFINE_ENUM(EDirectIOPolicy,
@@ -33,6 +34,8 @@ DECLARE_REFCOUNTED_STRUCT(IIOTracker)
 DECLARE_REFCOUNTED_STRUCT(IIOEngineWorkloadModel)
 DECLARE_REFCOUNTED_STRUCT(IRandomFileProvider);
 DECLARE_REFCOUNTED_STRUCT(IGentleLoader);
+
+DECLARE_REFCOUNTED_STRUCT(IReadRequestCombiner)
 
 class TIOEngineHandle;
 

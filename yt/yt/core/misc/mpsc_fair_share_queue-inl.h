@@ -181,9 +181,9 @@ void TMpscFairShareQueue<TPoolId, TItem, TFairShareTag>::Enqueue(TEnqueuedTask t
 }
 
 template <typename TPoolId, typename TItem, typename TFairShareTag>
-void TMpscFairShareQueue<TPoolId, TItem, TFairShareTag>::EnqueueMany(std::vector<TEnqueuedTask>& tasks)
+void TMpscFairShareQueue<TPoolId, TItem, TFairShareTag>::EnqueueMany(std::vector<TEnqueuedTask>&& tasks)
 {
-    Prequeue_.EnqueueMany(tasks);
+    Prequeue_.EnqueueMany(std::move(tasks));
 }
 
 template <typename TPoolId, typename TItem, typename TFairShareTag>
