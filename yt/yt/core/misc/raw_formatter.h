@@ -87,7 +87,7 @@ public:
     }
 
     //! Formats |number| in base |radix| and updates the internal cursor.
-    void AppendNumber(uintptr_t number, int radix = 10, int width = 0)
+    void AppendNumber(uintptr_t number, int radix = 10, int width = 0, char ch = ' ')
     {
         int digits = 0;
 
@@ -127,7 +127,7 @@ public:
         if (digits < width) {
             auto delta = width - digits;
             std::copy(Cursor_, Cursor_ + digits, Cursor_ + delta);
-            std::fill(Cursor_, Cursor_ + delta, ' ');
+            std::fill(Cursor_, Cursor_ + delta, ch);
             Cursor_ += width;
         } else {
             Cursor_ += digits;
