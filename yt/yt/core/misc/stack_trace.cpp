@@ -16,7 +16,7 @@ namespace NYT {
 
 //////////////////////////////////////s//////////////////////////////////////////
 
-namespace NDetail {
+namespace {
 
 int GetSymbolInfo(const void* pc, char* buffer, int length)
 {
@@ -103,7 +103,22 @@ void DumpStackFrameInfo(TBaseFormatter* formatter, const void* pc)
     formatter->AppendString("\n");
 }
 
-} // namespace NDetail
+} // namespace
+
+
+Y_WEAK void FormatStackTrace(const void* const* frames, int frameCount, std::function<void(TStringBuf)> callback)
+{
+    TRawFormatter<1024> formatter;
+
+    // Dump the stack trace.
+    for (int i = 0; i < frameCount; ++i) {
+        formatter.Reset();
+        formatter.AppendNumber(i + 1, 10, 2);
+        formatter.AppendString(". ");
+        DumpStackFrameInfo(&formatter, frames[i]);
+        callback(formatter.GetBuffer());
+    }
+}
 
 TString FormatStackTrace(const void* const* frames, int frameCount)
 {

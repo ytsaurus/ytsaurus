@@ -480,10 +480,11 @@ void CrashSignalHandler(int /*signal*/, siginfo_t* si, void* uc)
 
     // Where did the crash happen?
     {
-        TFormatter formatter;
-        formatter.AppendString("PC: ");
-        NDetail::DumpStackFrameInfo(&formatter, GetPC(uc));
-        WriteToStderr(formatter);
+        const void* frames[] = {GetPC(uc)};
+        FormatStackTrace(frames, 1, [] (TStringBuf info) {
+            info.SkipPrefix(" 1. ");
+            WriteToStderr(info);
+        });
     }
 
     DumpSignalInfo(si);
