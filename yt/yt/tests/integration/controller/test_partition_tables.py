@@ -234,8 +234,8 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
     @authors("galtsev")
     def test_empty_range_does_not_break_output_order(self):
         table = "//tmp/sorted-static"
-        table1 = table + '-1'
-        table2 = table + '-2'
+        table1 = table + "-1"
+        table2 = table + "-2"
         chunk_count = 6
         rows_per_chunk = 1000
         row_weight1 = 1000
@@ -309,7 +309,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
         row_weight = 1000
         data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
 
-        partitions = partition_tables([table + '{key_1,value_1}'], data_weight_per_partition=data_weight // 3)
+        partitions = partition_tables([table + "{key_1, value_1}"], data_weight_per_partition=data_weight // 3)
         assert partitions == [
             {
                 "table_ranges": [
