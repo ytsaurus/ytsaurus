@@ -10,7 +10,7 @@
 
 #include "fwd.h"
 
-#include <mapreduce/yt/client/skiff.h>
+#include <mapreduce/yt/skiff/skiff_schema.h>
 
 #include <mapreduce/yt/interface/format.h>
 

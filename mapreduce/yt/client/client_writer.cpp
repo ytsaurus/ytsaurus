@@ -4,6 +4,7 @@
 #include "retryless_writer.h"
 
 #include <mapreduce/yt/interface/io.h>
+#include <mapreduce/yt/common/fwd.h>
 #include <mapreduce/yt/common/helpers.h>
 
 namespace NYT {

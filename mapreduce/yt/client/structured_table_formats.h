@@ -3,6 +3,8 @@
 #include <mapreduce/yt/interface/fwd.h>
 
 #include <mapreduce/yt/interface/operation.h>
+
+#include <mapreduce/yt/common/fwd.h>
 #include <mapreduce/yt/common/config.h>
 
 #include <mapreduce/yt/http/requests.h>
