@@ -65,10 +65,8 @@ object CommonPlugin extends AutoPlugin {
     resolvers += Resolver.mavenCentral,
     resolvers += ("YandexMediaReleases" at "http://artifactory.yandex.net/artifactory/yandex_media_releases")
       .withAllowInsecureProtocol(true),
-    resolvers += ("YandexSparkReleases" at "http://artifactory.yandex.net/artifactory/yandex_spark_releases")
-      .withAllowInsecureProtocol(true),
-    resolvers += ("YandexSparkSnapshots" at "http://artifactory.yandex.net/artifactory/yandex_spark_snapshots")
-      .withAllowInsecureProtocol(true),
+    resolvers += ("YandexSparkReleases" at "https://bucket.yandex-team.ru/v1/maven/yandex_spark_releases"),
+    resolvers += ("YandexSparkSnapshots" at "https://bucket.yandex-team.ru/v1/maven/yandex_spark_snapshots"),
     ThisBuild / version := (ThisBuild / spytClusterVersion).value,
     organization := "ru.yandex",
     name := s"spark-yt-${name.value}",
@@ -88,11 +86,11 @@ object CommonPlugin extends AutoPlugin {
     assembly / assemblyOption := (assembly / assemblyOption).value.copy(includeScala = false),
     assembly / test := {},
     publishTo := {
-      val nexus = "http://artifactory.yandex.net/artifactory/"
+      val nexus = "https://bucket.yandex-team.ru/v1/maven/"
       if (isSnapshot.value)
-        Some(("snapshots" at nexus + "yandex_spark_snapshots").withAllowInsecureProtocol(true))
+        Some("snapshots" at nexus + "yandex_spark_snapshots")
       else
-        Some(("releases" at nexus + "yandex_spark_releases").withAllowInsecureProtocol(true))
+        Some("releases" at nexus + "yandex_spark_releases")
     },
     credentials += Credentials(Path.userHome / ".sbt" / ".credentials"),
     libraryDependencies ++= testDeps,
