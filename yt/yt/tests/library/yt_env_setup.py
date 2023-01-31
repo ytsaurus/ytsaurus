@@ -1171,8 +1171,8 @@ class YTEnvSetup(object):
         if self.TEST_LOCATION_AWARE_REPLICATOR:
             assert dynamic_master_config["node_tracker"].pop("enable_real_chunk_locations")
 
-        if self.TEST_MAINTENANCE_FLAGS:
-            assert dynamic_master_config["node_tracker"].pop("forbid_maintenance_attribute_writes")
+        if not self.TEST_MAINTENANCE_FLAGS:
+            dynamic_master_config["node_tracker"]["forbid_maintenance_attribute_writes"] = True
 
         default_pool_tree_config = {
             "nodes_filter": "",
