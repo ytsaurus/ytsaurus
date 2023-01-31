@@ -1,7 +1,10 @@
 #pragma once
 
-#include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/common/fwd.h>
+
 #include <mapreduce/yt/http/requests.h>
+
+#include <mapreduce/yt/interface/client.h>
 
 #include <util/generic/list.h>
 #include <util/system/mutex.h>

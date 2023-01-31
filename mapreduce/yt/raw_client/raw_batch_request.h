@@ -1,5 +1,7 @@
 #pragma once
 
+#include <mapreduce/yt/common/fwd.h>
+
 #include <mapreduce/yt/interface/batch_request.h>
 #include <mapreduce/yt/interface/fwd.h>
 #include <mapreduce/yt/interface/node.h>

@@ -2,6 +2,8 @@
 
 #include "retryful_writer.h"
 
+#include <mapreduce/yt/common/fwd.h>
+
 #include <mapreduce/yt/interface/io.h>
 
 namespace NYT {
