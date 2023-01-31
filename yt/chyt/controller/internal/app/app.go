@@ -50,6 +50,8 @@ type Config struct {
 	HealthStatusExpirationPeriod *time.Duration `yson:"health_status_expiration_period"`
 
 	BaseACL []yt.ACE `yson:"base_acl"`
+
+	DisableAPIAuth bool `yson:"disable_api_auth"`
 }
 
 const (
@@ -184,9 +186,10 @@ func New(config *Config, options *Options, cf strawberry.ControllerFactory) (app
 			BaseACL:           config.BaseACL,
 			RobotUsername:     config.Strawberry.RobotUsername,
 		},
-		Clusters: config.LocationProxies,
-		Token:    config.Token,
-		Endpoint: config.HTTPAPIEndpointOrDefault(),
+		Clusters:    config.LocationProxies,
+		Token:       config.Token,
+		Endpoint:    config.HTTPAPIEndpointOrDefault(),
+		DisableAuth: config.DisableAPIAuth,
 	}
 	app.HTTPAPIServer = api.NewServer(apiConfig, l)
 
