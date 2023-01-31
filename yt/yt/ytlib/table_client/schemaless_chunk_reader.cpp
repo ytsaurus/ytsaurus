@@ -1162,7 +1162,20 @@ THorizontalSchemalessLookupChunkReader::THorizontalSchemalessLookupChunkReader(
     if (!misc.unique_keys()) {
         THROW_ERROR_EXCEPTION("Requested lookup for a chunk without \"unique_keys\" restriction");
     }
-    ComputeBlockIndexes(Keys_);
+
+    for (const auto& key : Keys_) {
+        TReadLimit readLimit(TKeyBound::FromRowUnchecked() >= key);
+
+        int index = ApplyLowerKeyLimit(BlockLastKeys_, readLimit, SortOrders_, CommonKeyPrefix_);
+        if (index == BlockMetaExt_->data_blocks_size()) {
+            break;
+        }
+
+        if (BlockIndexes_.empty() || BlockIndexes_.back() != index) {
+            BlockIndexes_.push_back(index);
+        }
+    }
+
     InitBlocks();
 }
 
