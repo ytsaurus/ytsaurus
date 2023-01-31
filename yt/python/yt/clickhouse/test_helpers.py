@@ -1,6 +1,15 @@
+from yt.common import update
+
+import yt.yson as yson
+
 import os.path
 
 # Helpers in this file are used both in Python API tests and integration tests for clickhouse server and log tailer.
+
+INIT_CLUSTER_CONFIG_FILENAME = "init_cluster_config.yson"
+RUN_CONFIG_FILENAME = "run_config.yson"
+STRAWBERRY_ROOT = "//sys/clickhouse/strawberry"
+SPECLET_FILENAME = "speclet.yson"
 
 
 # TODO(max42): join with similar helpers for regular ytserver binary discovery.
@@ -107,3 +116,104 @@ def get_log_tailer_config(mock_tvm_id=None, inject_secret=False):
         if inject_secret:
             config["native_authentication_manager"]["tvm_service"]["client_self_secret"] = "TestSecret-" + str(mock_tvm_id)
     return config
+
+
+def create_controller_init_cluster_config(proxy, work_dir):
+    config_filename = work_dir + "/" + INIT_CLUSTER_CONFIG_FILENAME
+    with open(config_filename, "wb") as fout:
+        yson.dump(
+            {
+                "proxy": proxy,
+                "strawberry_root": STRAWBERRY_ROOT,
+            },
+            fout
+        )
+    return config_filename
+
+
+def create_controller_run_config(proxy, work_dir, api_port, monitoring_port):
+    config_filename = work_dir + "/" + RUN_CONFIG_FILENAME
+    with open(config_filename, "wb") as fout:
+        yson.dump(
+            {
+                "location_proxies": [proxy],
+                "coordination_proxy": proxy,
+                "coordination_path": "//sys/clickhouse/controller/test",
+                "strawberry": {
+                    "root": STRAWBERRY_ROOT,
+                    "pass_period": 100,
+                    "controller_update_period": 500,
+                    "revision_collect_period": 100,
+                    "stage": "test",
+                    "robot_username": "root",
+                },
+                "controller": {
+                    "local_binaries_dir": work_dir,
+                    "enable_log_tailer": False,
+                },
+                "http_api_endpoint": ":{}".format(api_port),
+                "disable_api_auth": True,
+                "http_monitoring_endpoint": ":{}".format(monitoring_port),
+            },
+            fout)
+    return config_filename
+
+
+def create_controller_one_shot_run_config(proxy, work_dir):
+    config_filename = work_dir + "/" + RUN_CONFIG_FILENAME
+    with open(config_filename, "wb") as fout:
+        yson.dump(
+            {
+                "proxy": proxy,
+                "strawberry_root": STRAWBERRY_ROOT,
+                "controller": {
+                    "local_binaries_dir": work_dir,
+                    "enable_log_tailer": False,
+                },
+            },
+            fout,
+        )
+    return config_filename
+
+
+def create_clique_speclet(work_dir, speclet_patch):
+    speclet = {
+        "active": True,
+        "pool": "chyt",
+        "instance_count": 1,
+        "enable_geodata": False,
+        "yt_config": {
+            "health_checker": {
+                "queries": [],
+            },
+        },
+        "instance_cpu": 1,
+        "instance_memory": {
+            "clickhouse": 2 * 1024 ** 3,
+            "chunk_meta_cache": 0,
+            "compressed_cache": 0,
+            "uncompressed_cache": 0,
+            "reader": 1024 ** 3,
+        },
+    }
+    speclet = update(speclet, speclet_patch)
+    speclet_filename = work_dir + "/" + SPECLET_FILENAME
+    with open(speclet_filename, "wb") as fout:
+        yson.dump(
+            speclet,
+            fout
+        )
+    return speclet_filename
+
+
+def create_symlink_for_binary(host_paths, yt_work_dir, binary_name):
+    symlink = yt_work_dir + "/" + binary_name
+    os.symlink(host_paths[binary_name], symlink)
+    return symlink
+
+
+def create_symlinks_for_chyt_binaries(host_paths, yt_work_dir):
+    symlinks = {}
+    for binary in host_paths:
+        symlinks[binary] = create_symlink_for_binary(host_paths, yt_work_dir, binary)
+    return symlinks

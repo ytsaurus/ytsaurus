@@ -7,6 +7,7 @@ import yt.wrapper.yson as yson
 import yt.packages.requests as requests
 
 import os
+import time
 
 
 def get_full_ctl_address(address):
@@ -91,3 +92,24 @@ def make_request(command_name, params, address, cluster_proxy, unparsed=False):
             "response_body": response.content})
 
     return yson.loads(response.content)
+
+
+def make_request_generator(command_name, params, address, cluster_proxy, unparsed=False):
+    while True:
+        response = make_request(
+            command_name=command_name,
+            params=params,
+            address=address,
+            cluster_proxy=cluster_proxy,
+            unparsed=unparsed)
+
+        yield response
+
+        if "wait_ready" in response:
+            command_name = response["wait_ready"]["command_name"]
+            params = response["wait_ready"]["params"]
+            unparsed = False
+            time.sleep(response["wait_ready"]["backoff"])
+
+        else:
+            break
