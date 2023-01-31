@@ -2139,8 +2139,6 @@ def clickhouse_ctl_handler(**kwards):
     proxy_choises = kwards.pop("proxy_choises")
     cluster_proxy = yt.config["proxy"]["url"]
     params = kwards
-    # We pass command arguments as strings, so backend should parse them by itself.
-    unparsed = True
 
     if cluster_proxy not in proxy_choises:
         address = chyt_ctl.get_full_ctl_address(address)
@@ -2150,26 +2148,18 @@ def clickhouse_ctl_handler(**kwards):
         parser.error(msg)
 
     try:
-        while True:
-            response = chyt_ctl.make_request(
+        for response in chyt_ctl.make_request_generator(
                 command_name=command_name,
                 params=params,
                 address=address,
                 cluster_proxy=cluster_proxy,
-                unparsed=unparsed)
+                unparsed=True):
 
             if "to_print" in response:
                 print(response["to_print"])
             elif "result" in response:
                 print(yson.dumps(response["result"], yson_format="pretty").decode("utf-8"))
 
-            if "wait_ready" in response:
-                command_name = response["wait_ready"]["command_name"]
-                params = response["wait_ready"]["params"]
-                unparsed = False
-                time.sleep(response["wait_ready"]["backoff"])
-            else:
-                break
     except Exception as e:
         msg = "failed to execute the command in controller service\n"
         msg += str(e)
