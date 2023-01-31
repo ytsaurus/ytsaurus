@@ -274,6 +274,7 @@ private:
     void GuardedDisableChunkMerger();
 
     void ValidateStatistics(
+        NCypressClient::TObjectId nodeId,
         const NChunkClient::NProto::TDataStatistics& oldStatistics,
         const NChunkClient::NProto::TDataStatistics& newStatistics);
 

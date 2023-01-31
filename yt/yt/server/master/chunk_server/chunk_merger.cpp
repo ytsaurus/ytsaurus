@@ -1514,16 +1514,19 @@ void TChunkMerger::GuardedDisableChunkMerger()
 }
 
 void TChunkMerger::ValidateStatistics(
+    TObjectId nodeId,
     const NChunkClient::NProto::TDataStatistics& oldStatistics,
     const NChunkClient::NProto::TDataStatistics& newStatistics)
 {
     YT_LOG_ALERT_IF(oldStatistics.row_count() != newStatistics.row_count(),
-        "Row count in new statistics is different (OldRowCount: %v, NewRowCount: %v)",
+        "Row count in new statistics is different (NodeId: %v, OldRowCount: %v, NewRowCount: %v)",
+        nodeId,
         oldStatistics.row_count(),
         newStatistics.row_count());
 
     YT_LOG_ALERT_IF(oldStatistics.data_weight() != newStatistics.data_weight(),
-        "Data weight in new statistics is different (OldDataWeight: %v, NewDataWeight: %v)",
+        "Data weight in new statistics is different (NodeId: %v, OldDataWeight: %v, NewDataWeight: %v)",
+        nodeId,
         oldStatistics.data_weight(),
         newStatistics.data_weight());
 }
@@ -1764,7 +1767,7 @@ void TChunkMerger::HydraReplaceChunks(NProto::TReqReplaceChunks* request)
     }
 
     auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
-    ValidateStatistics(chunkOwner->SnapshotStatistics(), newStatistics);
+    ValidateStatistics(nodeId, chunkOwner->SnapshotStatistics(), newStatistics);
     chunkOwner->SnapshotStatistics() = std::move(newStatistics);
 
     // TODO(aleksandra-zh): Move to HydraFinalizeChunkMergeSessions?
@@ -1863,7 +1866,7 @@ void TChunkMerger::HydraFinalizeChunkMergeSessions(NProto::TReqFinalizeChunkMerg
         }
 
         auto newStatistics = newRootChunkList->Statistics().ToDataStatistics();
-        ValidateStatistics(chunkOwner->SnapshotStatistics(), newStatistics);
+        ValidateStatistics(nodeId, chunkOwner->SnapshotStatistics(), newStatistics);
         chunkOwner->SnapshotStatistics() = std::move(newStatistics);
 
         if (chunkOwner->IsForeign()) {
