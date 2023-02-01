@@ -2338,8 +2338,12 @@ void TObjectService::SetStickyUserError(const TString& userName, const TError& e
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
-    Y_UNUSED(request);
     Y_UNUSED(response);
+
+    YT_LOG_ALERT_UNLESS(
+        request->supports_portals(),
+        "Received batch request without portals support (RequestId: %v)",
+        context->GetRequestId());
 
     const auto& userName = context->GetAuthenticationIdentity().User;
     auto error = StickyUserErrorCache_.Get(userName);
