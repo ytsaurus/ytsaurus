@@ -174,12 +174,18 @@ private:
     TFuture<IChannelPtr> Channel_;
 };
 
+TConnectionConfigPtr GetPostprocessedConfig(TConnectionConfigPtr config)
+{
+    config->Postprocess();
+    return config;
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
 
 TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options)
-    : Config_(std::move(config))
+    : Config_(GetPostprocessedConfig(std::move(config)))
     , ConnectionId_(TGuid::Create())
     , LoggingTag_(MakeConnectionLoggingTag(Config_, ConnectionId_))
     , ClusterId_(MakeConnectionClusterId(Config_))
@@ -209,8 +215,6 @@ TConnection::TConnection(TConnectionConfigPtr config, TConnectionOptions options
         GetInvoker(),
         BIND(&TConnection::OnProxyListUpdate, MakeWeak(this)),
         TPeriodicExecutorOptions::WithJitter(Config_->ProxyListUpdatePeriod));
-
-    Config_->Postprocess();
 
     if (Config_->ProxyEndpoints) {
         ServiceDiscovery_ = NRpc::TDispatcher::Get()->GetServiceDiscovery();
@@ -264,6 +268,11 @@ const TString& TConnection::GetLoggingTag() const
 const TString& TConnection::GetClusterId() const
 {
     return ClusterId_;
+}
+
+const std::optional<TString>& TConnection::GetClusterName() const
+{
+    return Config_->ClusterName;
 }
 
 bool TConnection::IsSameCluster(const IConnectionPtr& other) const

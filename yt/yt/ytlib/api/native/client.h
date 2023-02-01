@@ -81,7 +81,7 @@ struct TSyncAlienCellOptions
 
 struct IClient
     : public IClientBase
-    , public NApi::IClient
+    , public virtual NApi::IClient
 {
     virtual const TClientOptions& GetOptions() = 0;
     virtual const IConnectionPtr& GetNativeConnection() = 0;

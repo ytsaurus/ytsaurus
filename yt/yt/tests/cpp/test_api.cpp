@@ -45,6 +45,7 @@ using namespace NRpc;
 using namespace NSecurityClient;
 using namespace NTableClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NQueueClient;
 using namespace NYson;
 using namespace NYTree;
@@ -1070,6 +1071,38 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
     ASSERT_EQ(partitions.size(), 5u);
     EXPECT_EQ(partitions[0].PartitionIndex, 5);
     EXPECT_EQ(partitions[0].NextRowIndex, 5);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClusterIdentificationTest
+    : public TApiTestBase
+{ };
+
+TEST_F(TClusterIdentificationTest, FetchFromMaster)
+{
+    auto clusterName = Client_->GetClusterName();
+    ASSERT_TRUE(clusterName);
+    ASSERT_EQ(*clusterName, ClusterName_);
+
+    {
+        TForbidContextSwitchGuard guard;
+
+        clusterName = Client_->GetClusterName();
+        ASSERT_TRUE(clusterName);
+        ASSERT_EQ(*clusterName, ClusterName_);
+    }
+
+    for (const auto& transactionType : TEnumTraits<ETransactionType>::GetDomainValues()) {
+        auto transaction = WaitFor(Client_->StartTransaction(transactionType))
+            .ValueOrThrow();
+
+        TForbidContextSwitchGuard guard;
+
+        clusterName = transaction->GetClient()->GetClusterName();
+        ASSERT_TRUE(clusterName);
+        ASSERT_EQ(*clusterName, ClusterName_);
+    }
 }
 
 ////////////////////////////////////////////////////////////////////////////////

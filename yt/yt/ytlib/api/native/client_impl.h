@@ -64,6 +64,7 @@ DECLARE_REFCOUNTED_CLASS(TClient)
 class TClient
     : public IClient
     , public NApi::IInternalClient
+    , public NApi::TClusterAwareClientBase
 {
 public:
     TClient(

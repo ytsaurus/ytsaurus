@@ -19,7 +19,7 @@ IClientPtr TClientCache::Get(
     const TClientOptions& options)
 {
     auto client = NApi::TClientCache::Get(identity, options);
-    return IClientPtr(static_cast<IClient*>(client.Get()));
+    return IClientPtr(dynamic_cast<IClient*>(client.Get()));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

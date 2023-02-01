@@ -1198,4 +1198,26 @@ std::optional<TString> InferYPClusterFromHostName(TStringBuf hostName)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<TStringBuf> InferYTClusterFromClusterUrlRaw(TStringBuf clusterUrl)
+{
+    clusterUrl.SkipPrefix("http://");
+    clusterUrl.ChopSuffix(".yt.yandex.net");
+
+    if (clusterUrl.find("localhost") != TStringBuf::npos || clusterUrl.find_first_of(".:/") != TStringBuf::npos) {
+        return {};
+    }
+
+    return clusterUrl;
+}
+
+std::optional<TString> InferYTClusterFromClusterUrl(TStringBuf clusterUrl)
+{
+    if (auto rawResult = InferYTClusterFromClusterUrlRaw(clusterUrl)) {
+        return TString{*rawResult};
+    }
+    return {};
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NNet

@@ -17,6 +17,7 @@ public:
     // IClientBase methods
 
     IConnectionPtr GetConnection() override;
+    std::optional<TStringBuf> GetClusterName(bool fetchIfNull = true) override;
 
     // Transactions
     TFuture<ITransactionPtr> StartTransaction(

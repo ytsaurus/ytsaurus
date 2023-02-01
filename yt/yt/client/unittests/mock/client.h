@@ -35,6 +35,8 @@ public:
         return Connection;
     }
 
+    MOCK_METHOD(std::optional<TStringBuf>, GetClusterName, (bool fetchIfNull), (override));
+
     MOCK_METHOD(TFuture<ITransactionPtr>, StartTransaction, (
         NTransactionClient::ETransactionType type,
         const TTransactionStartOptions& options), (override));

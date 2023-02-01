@@ -322,6 +322,8 @@ TEST(TMtnAddressTest, SimpleTest)
     EXPECT_THROW(address.SetHost(1ull << 33), TErrorException);
 }
 
+////////////////////////////////////////////////////////////////////////////////
+
 TEST(InferYPCluster, ValidFqdns)
 {
     TString gencfgHostName = "sas1-5535-9d7.sas-test.yp.gencfg-c.yandex.net";
@@ -339,6 +341,19 @@ TEST(InferYPCluster, InvalidFqdn)
     EXPECT_EQ(InferYPClusterFromHostName("localhost"), std::nullopt);
     EXPECT_EQ(InferYPClusterFromHostName("noqpmfiudzbb4hvs."), std::nullopt);
     EXPECT_EQ(InferYPClusterFromHostName("yandex.net"), std::nullopt);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(InferYTCluster, ClusterUrls)
+{
+    EXPECT_EQ(InferYTClusterFromClusterUrl("hume"), "hume");
+    EXPECT_EQ(InferYTClusterFromClusterUrl("http://yp-sas.yt.yandex.net"), "yp-sas");
+    EXPECT_EQ(InferYTClusterFromClusterUrl("seneca-man.yt.yandex.net"), "seneca-man");
+    EXPECT_EQ(InferYTClusterFromClusterUrl("seneca-man..yt.yandex.net"), std::nullopt);
+    EXPECT_EQ(InferYTClusterFromClusterUrl("localhost:1245"), std::nullopt);
+    EXPECT_EQ(InferYTClusterFromClusterUrl("kek:1245"), std::nullopt);
+    EXPECT_EQ(InferYTClusterFromClusterUrl("localhost"), std::nullopt);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

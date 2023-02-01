@@ -327,6 +327,11 @@ public:
         return ClusterId_;
     }
 
+    const std::optional<TString>& GetClusterName() const override
+    {
+        return Config_->ClusterName;
+    }
+
     bool IsSameCluster(const NApi::IConnectionPtr& other) const override
     {
         return GetClusterTag() == other->GetClusterTag();

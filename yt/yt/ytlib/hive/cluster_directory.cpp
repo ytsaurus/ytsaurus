@@ -176,6 +176,9 @@ TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name
     cluster.NativeConnectionConfig = config;
     try {
         auto typedConfig = ConvertTo<NNative::TConnectionConfigPtr>(config);
+        if (!typedConfig->ClusterName) {
+            typedConfig->ClusterName = name;
+        }
         cluster.Connection = NNative::CreateConnection(typedConfig, ConnectionOptions_);
     } catch (const std::exception& ex) {
         THROW_ERROR_EXCEPTION("Error creating connection to cluster %Qv",
