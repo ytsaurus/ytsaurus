@@ -110,6 +110,7 @@ DEFINE_ENUM(EMasterReign,
     ((RipForbidSetCommand)                                          (2302))  // babenko
     ((RootstocksAndScions)                                          (2303))  // gritukan
     ((FixClonedTrunkNodeStatistics)                                 (2304))  // shakurov
+    ((MultisetAttributesForEveryone)                                (2305))  // kvk1920
 );
 
 ////////////////////////////////////////////////////////////////////////////////
