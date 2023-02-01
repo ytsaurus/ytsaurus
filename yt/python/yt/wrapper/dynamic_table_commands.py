@@ -761,7 +761,9 @@ class BackupManifest(object):
         return {"clusters": clusters}
 
 
-def create_table_backup(manifest, force=None, checkpoint_timestamp_delay=None, client=None):
+def create_table_backup(
+        manifest, force=None, checkpoint_timestamp_delay=None,
+        checkpoint_check_timeout=None, client=None):
     """Creates a consistent backup copy of a collection of tables.
 
     :param manifest: description of tables to be backed up.
@@ -774,6 +776,7 @@ def create_table_backup(manifest, force=None, checkpoint_timestamp_delay=None, c
     params = {"manifest": manifest}
     set_param(params, "force", force)
     set_param(params, "checkpoint_timestamp_delay", checkpoint_timestamp_delay)
+    set_param(params, "checkpoint_check_timeout", checkpoint_check_timeout)
 
     return make_request("create_table_backup", params, client=client)
 
