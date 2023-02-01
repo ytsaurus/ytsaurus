@@ -25,7 +25,7 @@ namespace NYT::NChunkClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-//! For a sequence of block indices, fetches and uncompresses these blocks in the given order.
+//! For a sequence of block indexes, fetches and uncompresses these blocks in the given order.
 /*!
  *  Internally, blocks are prefetched obeying a given memory limit.
  */
@@ -125,14 +125,16 @@ private:
 
     struct TWindowSlot
     {
-        TFuture<TBlock> AsyncBlock;
+        // Created lazily in GetBlockPromise.
+        YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, BlockPromiseLock);
+        TPromise<TBlock> BlockPromise;
 
         //! Number of not finished blocks. Used for firing OnReaderFinished signal.
         std::atomic<int> RemainingFetches = 0;
 
         TMemoryUsageGuardPtr MemoryUsageGuard;
 
-        bool FetchStarted = false;
+        std::atomic_flag FetchStarted = ATOMIC_FLAG_INIT;
     };
 
     std::unique_ptr<TWindowSlot[]> Window_;
@@ -156,30 +158,34 @@ private:
 
     void FetchNextGroup(const TErrorOr<TMemoryUsageGuardPtr>& memoryUsageGuardOrError);
 
-    TFuture<std::vector<TBlock>> RequestBlocks(
-        std::vector<int> windowIndices,
+    void RequestBlocks(
+        std::vector<int> windowIndexes,
         std::vector<TBlockDescriptor> blockDescriptor);
 
-    TFuture<std::vector<TBlock>> MaybeDecompressBlocks(
+    void OnGotBlocks(
         int readerIndex,
-        std::vector<int> windowIndices,
+        std::vector<int> windowIndexes,
         std::vector<int> blockIndices,
         TErrorOr<std::vector<TBlock>>&& blocksOrError);
 
-    std::vector<TBlock> MaybeDecompressAndCacheBlocks(
-        std::vector<int> windowIndices,
+    void DecompressBlocks(
+        std::vector<int> windowIndexes,
         std::vector<TBlock> compressedBlocks);
 
-    void SetAsyncBlocks(
-        std::vector<int> windowIndices,
-        TFuture<std::vector<TBlock>> asyncBlocks);
+    void MarkFailedBlocks(
+        const std::vector<int>& windowIndexes,
+        const TError& error);
 
-    void ReleaseBlocks(const std::vector<int>& windowIndices);
+    void ReleaseBlocks(const std::vector<int>& windowIndexes);
+
+    static TPromise<TBlock> GetBlockPromise(TWindowSlot& windowSlot);
+    static void ResetBlockPromise(TWindowSlot& windowSlot);
 
     void DoStartBlock(const TBlockInfo& blockInfo);
     void DoFinishBlock(const TBlockInfo& blockInfo);
 
-    TFuture<TBlock> DoFetchBlock(int readerIndex, int blockIndex);
+    void DoSetBlock(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, TBlock block);
+    void DoSetError(const TBlockInfo& blockInfo, TWindowSlot& windowSlot, const TError& error);
 };
 
 DEFINE_REFCOUNTED_TYPE(TBlockFetcher)
