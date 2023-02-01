@@ -21,7 +21,7 @@ constinit thread_local TCpuProfilerTagGuard CpuProfilerTagGuard;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static constexpr int MaxTryDequeueCount = 100;
+static constexpr int MaxTryDequeueCount = 512;
 
 Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TEnqueuedAction action)
 {
@@ -62,7 +62,9 @@ Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsume
             ? Queue_.try_dequeue(*token, *action)
             : Queue_.try_dequeue(*action);
         if (result) {
-            if (tryIndex > 1) {
+            if (tryIndex > 100) {
+                YT_LOG_WARNING("Action has been dequeued (TryIndex: %v)", tryIndex);
+            } else if (tryIndex > 1) {
                 YT_LOG_DEBUG("Action has been dequeued (TryIndex: %v)", tryIndex);
             }
 
@@ -78,7 +80,14 @@ void TMpmcQueueImpl::DrainProducer()
     auto size = Size_.exchange(0);
     TEnqueuedAction action;
     while (size-- > 0) {
-        YT_VERIFY(Queue_.try_dequeue(action));
+        [&] {
+            for (int tryIndex = 0; tryIndex < MaxTryDequeueCount; ++tryIndex) {
+                if (Queue_.try_dequeue(action)) {
+                    return;
+                }
+            }
+            YT_ABORT();
+        }();
     }
 }
 
