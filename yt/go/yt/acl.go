@@ -30,6 +30,7 @@ type ACE struct {
 	Permissions     []Permission   `yson:"permissions,omitempty"`
 	InheritanceMode string         `yson:"inheritance_mode,omitempty"`
 	Columns         []string       `yson:"columns,omitempty"`
+	Vital           *bool          `yson:"vital,omitempty"`
 }
 
 func ConvertPermissionType(typ *Permission) (*int32, error) {
