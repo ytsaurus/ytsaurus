@@ -361,6 +361,7 @@ bool TObjectProxyBase::DoInvoke(const IServiceContextPtr& context)
     DISPATCH_YPATH_SERVICE_METHOD(Remove);
     DISPATCH_YPATH_SERVICE_METHOD(Exists);
     DISPATCH_YPATH_SERVICE_METHOD(CheckPermission);
+    DISPATCH_YPATH_SERVICE_METHOD(MultisetAttributes);
     return TYPathServiceBase::DoInvoke(context);
 }
 

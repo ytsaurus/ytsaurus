@@ -33,21 +33,19 @@ void TClient::DoSetUserPassword(
 
     auto hashedNewPassword = HashPasswordSha256(newPasswordSha256, newPasswordSalt);
 
-    TSetNodeOptions setOptions;
-    static_cast<TTimeoutOptions&>(setOptions) = options;
+    TMultisetAttributesNodeOptions multisetAttributesOptions;
+    static_cast<TTimeoutOptions&>(multisetAttributesOptions) = options;
 
-    // TODO(gritukan): This is not atomic; support MulticellAttributes for users.
     auto rootClient = CreateRootClient();
-    auto path = Format("//sys/users/%v", ToYPathLiteral(user));
-    WaitFor(rootClient->SetNode(
-        Format("%v/@hashed_password", path),
-        ConvertToYsonString(hashedNewPassword),
-        setOptions))
-        .ThrowOnError();
-    WaitFor(rootClient->SetNode(
-        Format("%v/@password_salt", path),
-        ConvertToYsonString(newPasswordSalt),
-        setOptions))
+    auto path = Format("//sys/users/%v/@", ToYPathLiteral(user));
+    auto nodeFactory = GetEphemeralNodeFactory();
+    auto attributes = nodeFactory->CreateMap();
+    attributes->AddChild("hashed_password", ConvertToNode(hashedNewPassword));
+    attributes->AddChild("password_salt", ConvertToNode(newPasswordSalt));
+    WaitFor(rootClient->MultisetAttributesNode(
+        path,
+        attributes,
+        multisetAttributesOptions))
         .ThrowOnError();
 
     YT_LOG_DEBUG("User password updated "
