@@ -458,7 +458,7 @@ class YtClient(ClientState):
     def create_table_backup(
             self,
             manifest,
-            force=None, checkpoint_timestamp_delay=None):
+            force=None, checkpoint_timestamp_delay=None, checkpoint_check_timeout=None):
         """
         Creates a consistent backup copy of a collection of tables.
 
@@ -470,7 +470,7 @@ class YtClient(ClientState):
         return client_api.create_table_backup(
             manifest,
             client=self,
-            force=force, checkpoint_timestamp_delay=checkpoint_timestamp_delay)
+            force=force, checkpoint_timestamp_delay=checkpoint_timestamp_delay, checkpoint_check_timeout=checkpoint_check_timeout)
 
     def create_temp_table(
             self,
