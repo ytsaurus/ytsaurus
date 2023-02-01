@@ -28,7 +28,10 @@ void FormatStackTrace(const void* const* frames, int frameCount, std::function<v
         callback(formatter.GetBuffer());
         // Call the callback exactly `frameCount` times,
         // even if there are inline functions and one frame resolved to several lines.
-        return info.Index + 1 < frameCount;
+        if (info.Index + 1 == frameCount) {
+            return NDwarf::EResolving::Break;
+        }
+        return NDwarf::EResolving::Continue;
     });
     if (error) {
         formatter.Reset();
