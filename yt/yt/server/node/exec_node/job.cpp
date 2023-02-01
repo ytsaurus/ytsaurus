@@ -759,10 +759,7 @@ void TJob::SetResourceUsage(const TNodeResources& newUsage)
 
 bool TJob::ResourceUsageOverdrafted() const
 {
-    if (UserJobSpec_) {
-        return TResourceHolder::GetResourceUsage().user_memory() > RequestedMemory_;
-    }
-    return false;
+    return TResourceHolder::GetResourceUsage().user_memory() > RequestedMemory_;
 }
 
 void TJob::SetProgress(double progress)
