@@ -20,7 +20,6 @@ import (
 
 	"a.yandex-team.ru/library/go/blockcodecs"
 	_ "a.yandex-team.ru/library/go/blockcodecs/all"
-	"a.yandex-team.ru/library/go/certifi"
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
 	"a.yandex-team.ru/yt/go/yson"
@@ -658,7 +657,7 @@ func NewHTTPClient(c *yt.Config) (yt.Client, error) {
 		return nil, err
 	}
 
-	certPool, err := certifi.NewCertPool()
+	certPool, err := internal.NewCertPool()
 	if err != nil {
 		return nil, err
 	}
