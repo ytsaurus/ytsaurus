@@ -256,6 +256,11 @@ std::optional<TString> InferYPClusterFromHostName(TStringBuf hostName);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<TStringBuf> InferYTClusterFromClusterUrlRaw(TStringBuf clusterUrl);
+std::optional<TString> InferYTClusterFromClusterUrl(TStringBuf clusterUrl);
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NNet
 
 template <>

@@ -35,6 +35,7 @@ public:
     TClusterTag GetClusterTag() const override;
     const TString& GetLoggingTag() const override;
     const TString& GetClusterId() const override;
+    const std::optional<TString>& GetClusterName() const override;
 
     bool IsSameCluster(const IConnectionPtr& other) const override;
 

@@ -236,6 +236,11 @@ public:
         YT_UNIMPLEMENTED();
     }
 
+    const std::optional<TString>& GetClusterName() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+
     IInvokerPtr GetInvoker() override
     {
         YT_UNIMPLEMENTED();

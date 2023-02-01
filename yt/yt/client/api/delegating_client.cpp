@@ -13,6 +13,11 @@ IConnectionPtr TDelegatingClient::GetConnection()
     return Underlying_->GetConnection();
 }
 
+std::optional<TStringBuf> TDelegatingClient::GetClusterName(bool fetchIfNull)
+{
+    return Underlying_->GetClusterName(fetchIfNull);
+}
+
 TFuture<ITransactionPtr> TDelegatingClient::StartTransaction(
     NTransactionClient::ETransactionType type,
     const TTransactionStartOptions& options)

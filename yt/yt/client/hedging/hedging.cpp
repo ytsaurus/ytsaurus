@@ -96,13 +96,19 @@ class THedgingClient
 public:
     THedgingClient(const THedgingClientOptions& options, const IPenaltyProviderPtr& penaltyProvider)
         : Executor_(New<THedgingExecutor>(options, penaltyProvider))
-    {
-    }
+    { }
 
     // IClientBase methods.
     // Supported methods.
-    IConnectionPtr GetConnection() override {
+    IConnectionPtr GetConnection() override
+    {
         return Executor_->GetConnection();
+    }
+
+    std::optional<TStringBuf> GetClusterName(bool fetchIfNull = true) override
+    {
+        Y_UNUSED(fetchIfNull);
+        return {};
     }
 
     RETRYABLE_METHOD(TFuture<IUnversionedRowsetPtr>, LookupRows, (const NYPath::TYPath&, NTableClient::TNameTablePtr, const TSharedRange<NTableClient::TUnversionedRow>&, const TLookupRowsOptions&));

@@ -2,6 +2,8 @@
 
 #include "address_helpers.h"
 
+#include <yt/yt/core/net/address.h>
+
 #include <yt/yt/core/bus/tcp/config.h>
 
 #include <yt/yt/core/http/config.h>
@@ -9,6 +11,8 @@
 #include <yt/yt/core/rpc/config.h>
 
 namespace NYT::NApi::NRpcProxy {
+
+using namespace NNet;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -106,6 +110,10 @@ void TConnectionConfig::Register(TRegistrar registrar)
         }
         if (config->ProxyAddresses && config->ProxyAddresses->empty()) {
             THROW_ERROR_EXCEPTION("\"proxy_addresses\" must not be empty");
+        }
+
+        if (!config->ClusterName && config->ClusterUrl) {
+            config->ClusterName = InferYTClusterFromClusterUrl(*config->ClusterUrl);
         }
     });
 }

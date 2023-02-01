@@ -1897,6 +1897,8 @@ struct IClient
     virtual const NChaosClient::IReplicationCardCachePtr& GetReplicationCardCache() = 0;
     virtual const NTransactionClient::ITimestampProviderPtr& GetTimestampProvider() = 0;
 
+    virtual std::optional<TStringBuf> GetClusterName(bool fetchIfNull = true) = 0;
+
     // Transactions
     virtual ITransactionPtr AttachTransaction(
         NTransactionClient::TTransactionId transactionId,
@@ -2321,6 +2323,29 @@ struct IClient
 };
 
 DEFINE_REFCOUNTED_TYPE(IClient)
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TClusterAwareClientBase
+    : public virtual IClient
+{
+public:
+    //! Returns and caches the cluster name corresponding to this client.
+    //! If available, the name is taken from the client's connection configuration.
+    //! Otherwise, if fetchIfNull is set to true, the first call to this method
+    //! will fetch the cluster name from Cypress via master caches.
+    //!
+    //! NB: Descendants of this class should be able to perform GetNode calls,
+    //! so this cannot be used directly in tablet transactions.
+    //! Use the transaction's parent client instead.
+    std::optional<TStringBuf> GetClusterName(bool fetchIfNull) override;
+
+private:
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
+    std::optional<TString> ClusterName_;
+
+    std::optional<TString> FetchClusterNameFromMasterCache();
+};
 
 ////////////////////////////////////////////////////////////////////////////////
 

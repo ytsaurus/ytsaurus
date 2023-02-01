@@ -13,8 +13,9 @@ namespace NYT::NApi::NRpcProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClient
-    : public NApi::IClient
+    : public virtual NApi::IClient
     , public TClientBase
+    , public NApi::TClusterAwareClientBase
 {
 public:
     TClient(
