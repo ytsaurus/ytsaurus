@@ -1564,7 +1564,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // order?
+        // TODO(aleksandra-zh): order?
         if (!ElectionPriority_) {
             THROW_ERROR_EXCEPTION("Election priority is not available");
         }
@@ -1651,6 +1651,8 @@ private:
 
     TElectionPriority GetSnapshotElectionPriority()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         auto asyncMaxSnapshotId = SnapshotStore_->GetLatestSnapshotId();
         int maxSnapshotId = WaitFor(asyncMaxSnapshotId)
             .ValueOrThrow();
@@ -1684,6 +1686,8 @@ private:
 
     TElectionPriority GetChangelogElectionPriority()
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         ChangelogStore_ = WaitFor(ChangelogStoreFactory_->Lock())
             .ValueOrThrow();
 
@@ -1787,10 +1791,16 @@ private:
         if (ControlEpochContext_->LeaderCommitter) {
             ControlEpochContext_->LeaderCommitter->Reconfigure();
         }
+
+        if (ControlEpochContext_->HeartbeatMutationCommitExecutor) {
+            ControlEpochContext_->HeartbeatMutationCommitExecutor->SetPeriod(Config_->Get()->HeartbeatMutationPeriod);
+        }
     }
 
     IChangelogPtr OpenChangelogOrThrow(int id)
     {
+        VERIFY_THREAD_AFFINITY(ControlThread);
+
         if (!ChangelogStore_) {
             THROW_ERROR_EXCEPTION("Changelog store is not currently available");
         }
@@ -1830,7 +1840,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        // verify state
+        // TODO(aleksandra-zh): verify state.
 
         int selfChangelogId = ChangelogStore_->GetLatestChangelogIdOrThrow();
 
