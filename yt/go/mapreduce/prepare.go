@@ -11,7 +11,6 @@ import (
 	"github.com/google/tink/go/keyset"
 	"golang.org/x/xerrors"
 
-	"a.yandex-team.ru/library/go/maxprocs"
 	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
 	"a.yandex-team.ru/yt/go/schema"
@@ -106,8 +105,8 @@ func (p *prepare) setGoMaxProc(spec *spec.UserScript) {
 	if spec.Environment == nil {
 		spec.Environment = make(map[string]string)
 	}
-	if _, ok := spec.Environment[maxprocs.GoMaxProcEnvName]; !ok {
-		spec.Environment[maxprocs.GoMaxProcEnvName] = strconv.Itoa(maxProc)
+	if _, ok := spec.Environment[GoMaxProcEnvName]; !ok {
+		spec.Environment[GoMaxProcEnvName] = strconv.Itoa(maxProc)
 	}
 }
 

@@ -11,7 +11,6 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go"
 
-	"a.yandex-team.ru/library/go/certifi"
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
 	"a.yandex-team.ru/library/go/core/xerrors"
@@ -53,7 +52,7 @@ func NewClient(conf *yt.Config) (*client, error) {
 		stop:           internal.NewStopGroup(),
 	}
 
-	certPool, err := certifi.NewCertPool()
+	certPool, err := internal.NewCertPool()
 	if err != nil {
 		return nil, err
 	}
