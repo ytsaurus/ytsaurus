@@ -101,7 +101,9 @@ public:
         VERIFY_INVOKER_THREAD_AFFINITY(AutomatonInvoker_, AutomatonThread);
     }
 
-    void DryRunLoadSnapshot(const NHydra::ISnapshotReaderPtr& reader) override
+    void DryRunLoadSnapshot(
+        const NHydra::ISnapshotReaderPtr& reader,
+        int snapshotId = InvalidSegmentId) override
     {
         VERIFY_THREAD_AFFINITY(AutomatonThread);
 
@@ -111,7 +113,8 @@ public:
             return;
         }
 
-        YT_LOG_INFO("Dry run instance started recovery using snapshot");
+        YT_LOG_INFO("Dry run instance started recovery using snapshot (SnapshotId: %v)",
+            snapshotId);
 
         WaitFor(reader->Open())
             .ThrowOnError();
@@ -120,7 +123,7 @@ public:
         const auto& meta = params.Meta;
 
         DecoratedAutomaton_->LoadSnapshot(
-            InvalidSegmentId,
+            snapshotId,
             meta.last_mutation_term(),
             TVersion(meta.last_segment_id(), meta.last_record_id()),
             meta.sequence_number(),
@@ -140,7 +143,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        YT_LOG_INFO("Replaying changelog (RecordCount: %v)",
+        YT_LOG_INFO("Replaying changelog (ChangelogId: %v, RecordCount: %v)",
+            changelog->GetId(),
             changelog->GetRecordCount());
 
         DryRunStartLeading();

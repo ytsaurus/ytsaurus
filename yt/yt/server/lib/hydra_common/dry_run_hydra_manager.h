@@ -10,7 +10,9 @@ struct IDryRunHydraManager
     : public IDistributedHydraManager
 {
     //! Loads snapshot and sets automaton to the correct state.
-    virtual void DryRunLoadSnapshot(const NHydra::ISnapshotReaderPtr& reader) = 0;
+    virtual void DryRunLoadSnapshot(
+        const NHydra::ISnapshotReaderPtr& reader,
+        int snapshotId = InvalidSegmentId) = 0;
 
     //! Replays changelog.
     virtual void DryRunReplayChangelog(IChangelogPtr changelog) = 0;

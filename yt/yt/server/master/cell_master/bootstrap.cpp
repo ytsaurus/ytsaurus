@@ -1199,7 +1199,13 @@ void TBootstrap::DoLoadSnapshot(
     bool enableTotalWriteCountReport,
     const TSerializationDumperConfigPtr& dumpConfig)
 {
-    auto snapshotReader = CreateLocalSnapshotReader(fileName, InvalidSegmentId, GetSnapshotIOInvoker());
+    auto snapshotId = InvalidSegmentId;
+    try {
+        snapshotId = FromString<int>(NFS::GetFileNameWithoutExtension(fileName));
+    } catch (const std::exception&) {
+        YT_LOG_INFO("Can't parse snapshot name as id, using id %v as substitute", snapshotId);
+    }
+    auto snapshotReader = CreateLocalSnapshotReader(fileName, snapshotId, GetSnapshotIOInvoker());
 
     if (Config_->UseNewHydra) {
         const auto& hydraManager = HydraFacade_->GetHydraManager();
@@ -1208,7 +1214,7 @@ void TBootstrap::DoLoadSnapshot(
         const auto& automaton = HydraFacade_->GetAutomaton();
         automaton->SetSnapshotValidationOptions({dump, enableTotalWriteCountReport, dumpConfig});
 
-        dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader));
+        dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader), snapshotId);
     } else {
         const auto& automaton = HydraFacade_->GetAutomaton();
         ValidateSnapshot(
@@ -1236,7 +1242,14 @@ void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNam
         /*profiler*/ {});
 
     for (auto changelogFileName : changelogFileNames) {
-        auto changelog = WaitFor(dispatcher->OpenChangelog(-1, changelogFileName, changelogsConfig))
+        auto changelogId = InvalidSegmentId;
+        try {
+            changelogId = FromString<int>(NFS::GetFileNameWithoutExtension(changelogFileName));
+        } catch (const std::exception&) {
+            YT_LOG_INFO("Can't parse changelog name as id, using id %v as substitute", changelogId);
+        }
+
+        auto changelog = WaitFor(dispatcher->OpenChangelog(changelogId, changelogFileName, changelogsConfig))
             .ValueOrThrow();
         dryRunHydraManager->DryRunReplayChangelog(changelog);
     }

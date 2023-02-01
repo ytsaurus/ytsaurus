@@ -75,6 +75,10 @@ public:
             .SetFlag(&UseNewHydraForDryRun_)
             .NoArgument();
         Opts_
+            .AddLongOption("force-log-level-info", "set log level to info for dry run")
+            .SetFlag(&ForceLogLevelInfo_)
+            .NoArgument();
+        Opts_
             .AddLongOption("report-total-write-count")
             .SetFlag(&EnableTotalWriteCountReport_)
             .NoArgument();
@@ -130,9 +134,14 @@ protected:
             NBus::TTcpDispatcher::Get()->DisableNetworking();
             config->DryRun->EnableHostNameValidation = false;
             config->DryRun->EnableDryRun = true;
+            config->Logging->ShutdownGraceTimeout = TDuration::Seconds(10);
 
             if (UseNewHydraForDryRun_) {
                 config->UseNewHydra = true;
+            }
+
+            if (ForceLogLevelInfo_) {
+                config->Logging->Rules[0]->MinLevel = NLogging::ELogLevel::Info;
             }
         }
 
@@ -225,6 +234,7 @@ private:
     bool EnableTotalWriteCountReport_ = false;
     bool SleepAfterInitialize_ = false;
     bool UseNewHydraForDryRun_ = false;
+    bool ForceLogLevelInfo_ = false;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
