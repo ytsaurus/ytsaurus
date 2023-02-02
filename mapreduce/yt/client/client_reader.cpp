@@ -9,6 +9,8 @@
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
+#include <mapreduce/yt/interface/tvm.h>
+
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/io/helpers.h>
@@ -147,6 +149,9 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
 
         THttpHeader header("GET", GetReadTableCommand());
         header.SetToken(Auth_.Token);
+        if (Auth_.ServiceTicketAuth) {
+            header.SetServiceTicket(Auth_.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        }
         auto transactionId = (ReadTransaction_ ? ReadTransaction_->GetId() : ParentTransactionId_);
         header.AddTransactionId(transactionId);
         header.AddParameter("control_attributes", TNode()

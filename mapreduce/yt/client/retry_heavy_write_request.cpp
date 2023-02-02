@@ -7,6 +7,8 @@
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
+#include <mapreduce/yt/interface/tvm.h>
+
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/http/helpers.h>
@@ -30,6 +32,9 @@ void RetryHeavyWriteRequest(
 {
     int retryCount = TConfig::Get()->RetryCount;
     header.SetToken(auth.Token);
+    if (auth.ServiceTicketAuth) {
+        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    }
 
     for (int attempt = 0; attempt < retryCount; ++attempt) {
         TPingableTransaction attemptTx(clientRetryPolicy, auth, parentId, transactionPinger->GetChildTxPinger(), TStartTransactionOptions());

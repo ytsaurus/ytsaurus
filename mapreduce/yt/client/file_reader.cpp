@@ -8,6 +8,8 @@
 #include <mapreduce/yt/common/retry_lib.h>
 #include <mapreduce/yt/common/wait_proxy.h>
 
+#include <mapreduce/yt/interface/tvm.h>
+
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/io/helpers.h>
@@ -138,6 +140,9 @@ NHttpClient::IHttpResponsePtr TFileReader::Request(const TAuth& auth, const TTra
 
     THttpHeader header("GET", GetReadFileCommand());
     header.SetToken(auth.Token);
+    if (auth.ServiceTicketAuth) {
+        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    }
     header.AddTransactionId(transactionId);
     header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
 
@@ -188,6 +193,9 @@ NHttpClient::IHttpResponsePtr TBlobTableReader::Request(const TAuth& auth, const
 
     THttpHeader header("GET", "read_blob_table");
     header.SetToken(auth.Token);
+    if (auth.ServiceTicketAuth) {
+        header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+    }
     header.AddTransactionId(transactionId);
     header.SetOutputFormat(TMaybe<TFormat>()); // Binary format
 
