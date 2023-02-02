@@ -10,6 +10,7 @@
 
 #include <mapreduce/yt/interface/common.h>
 #include <mapreduce/yt/interface/io.h>
+#include <mapreduce/yt/interface/tvm.h>
 
 #include <mapreduce/yt/io/helpers.h>
 
@@ -41,6 +42,9 @@ public:
         header.AddTransactionId(parentId);
         header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
         header.SetToken(auth.Token);
+        if (auth.ServiceTicketAuth) {
+            header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        }
 
         TString requestId = CreateGuidAsString();
 

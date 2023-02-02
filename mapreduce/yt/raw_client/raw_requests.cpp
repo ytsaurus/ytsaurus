@@ -17,6 +17,7 @@
 #include <mapreduce/yt/interface/client.h>
 #include <mapreduce/yt/interface/operation.h>
 #include <mapreduce/yt/interface/serialize.h>
+#include <mapreduce/yt/interface/tvm.h>
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
@@ -650,6 +651,10 @@ public:
     TResponseReader(const TAuth& auth, THttpHeader header)
     {
         header.SetToken(auth.Token);
+
+        if (auth.ServiceTicketAuth) {
+            header.SetServiceTicket(auth.ServiceTicketAuth->Ptr->IssueServiceTicket());
+        }
 
         auto hostName = GetProxyForHeavyRequest(auth);
         auto requestId = CreateGuidAsString();
