@@ -1112,7 +1112,7 @@ class TestSchedulerMaxChunkPerJob(YTEnvSetup):
             out="//tmp/t_output",
         )
         wait_breakpoint(job_count=1)
-        wait(lambda: get(op.get_path() + "/@brief_progress/jobs")["total"] > 0)
+        wait(lambda: get(op.get_path() + "/@brief_progress/jobs", ignore_exceptions=True)["total"] > 0)
         counters = get(op.get_path() + "/@brief_progress/jobs")
         assert counters["running"] + counters["pending"] == 10
         release_breakpoint()
