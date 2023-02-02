@@ -240,6 +240,32 @@ protected:
             EXPECT_EQ(id, nameTable->GetIdOrRegisterName(ColumnNames[(id + idShift) % ColumnNames.size()]));
         }
     }
+
+    ISchemalessChunkReaderPtr CreateReader(TNameTablePtr readNameTable,
+                                           const TReadLimit& lowerReadLimit,
+                                           const TReadLimit& upperReadLimit)
+    {
+        auto schema = std::get<1>(GetParam());
+        auto columnFilter = std::get<2>(GetParam());
+
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
+            ChunkSpec_);
+        chunkState->TableSchema = New<TTableSchema>(std::get<1>(GetParam()));
+
+        return CreateSchemalessRangeChunkReader(
+            std::move(chunkState),
+            ChunkMeta_,
+            TChunkReaderConfig::GetDefault(),
+            TChunkReaderOptions::GetDefault(),
+            MemoryReader_,
+            readNameTable,
+            /* chunkReadOptions */ {},
+            /* sortColumns */ schema.GetSortColumns(),
+            /* omittedInaccessibleColumns */ {},
+            columnFilter,
+            TReadRange(lowerReadLimit, upperReadLimit));
+    }
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -263,28 +289,12 @@ TEST_P(TSchemalessChunksTest, WithoutSampling)
         &Pool_,
         keyColumnCount);
 
-    auto chunkState = New<TChunkState>(
-        GetNullBlockCache(),
-        ChunkSpec_);
-    chunkState->TableSchema = New<TTableSchema>(std::get<1>(GetParam()));
-
     auto legacyReadRange = std::get<3>(GetParam());
 
     auto lowerReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.LowerLimit(), /* isUpper */ false, keyColumnCount);
     auto upperReadLimit = ReadLimitFromLegacyReadLimit(legacyReadRange.UpperLimit(), /* isUpper */ true, keyColumnCount);
 
-    auto chunkReader = CreateSchemalessRangeChunkReader(
-        std::move(chunkState),
-        ChunkMeta_,
-        TChunkReaderConfig::GetDefault(),
-        TChunkReaderOptions::GetDefault(),
-        MemoryReader_,
-        readNameTable,
-        /* chunkReadOptions */ {},
-        /* sortColumns */ schema.GetSortColumns(),
-        /* omittedInaccessibleColumns */ {},
-        columnFilter,
-        TReadRange(lowerReadLimit, upperReadLimit));
+    auto chunkReader = CreateReader(readNameTable, lowerReadLimit, upperReadLimit);
 
     CheckSchemalessResult(expected, chunkReader, 0);
 }
@@ -489,11 +499,22 @@ TEST_F(TColumnarReadTest, ReadAll)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TSchemalessChunksLookupBaseTest
+class TSchemalessSortedChunksTest
     : public ::testing::TestWithParam<std::tuple<EOptimizeFor, int /*BlockSize*/, TTableSchema, int /*MaxDataWeightPerRead*/, int /*MaxRowsPerRead*/>>
 {
 protected:
-    TRowBatchReadOptions ReadOptions() {
+    void SetUp() override
+    {
+        auto optimizeFor = std::get<0>(GetParam());
+        int blockSize = std::get<1>(GetParam());
+        Schema_ = New<TTableSchema>(std::get<2>(GetParam()));
+        InitChunkWriter(optimizeFor, Schema_, blockSize);
+        InitRows(1000, Schema_, WriteNameTable_);
+        InitChunk();
+    }
+
+    TRowBatchReadOptions ReadOptions()
+    {
         TRowBatchReadOptions options;
         options.MaxDataWeightPerRead = std::get<3>(GetParam());
         options.MaxRowsPerRead = std::get<4>(GetParam());
@@ -671,6 +692,10 @@ protected:
 
     void InitChunkWriter(EOptimizeFor optimizeFor, TTableSchemaPtr schema, int blockSize)
     {
+        for (const auto& sortColumn : Schema_->GetSortColumns()) {
+            SortOrders_.push_back(sortColumn.SortOrder);
+        }
+
         MemoryWriter_ = New<TMemoryWriter>();
 
         auto config = New<TChunkWriterConfig>();
@@ -728,30 +753,32 @@ protected:
         return TReadLimit(bound);
     }
 
-    ISchemalessChunkReaderPtr LookupRanges(
-        TSharedRange<TLegacyKey> keys,
-        const TSortColumns& sortColumns)
+    TCachedVersionedChunkMetaPtr FetchMeta()
     {
-        auto options = New<TChunkReaderOptions>();
-        options->DynamicTable = true;
-
         auto asyncCachedMeta = MemoryReader_->GetMeta(/*chunkReadOptions*/ {})
             .Apply(BIND(
                 &TCachedVersionedChunkMeta::Create,
                 /*prepareColumnarMeta*/ false,
                 /*memoryTracker*/ nullptr));
 
-        auto chunkMeta = WaitFor(asyncCachedMeta)
-            .ValueOrThrow();
+        return WaitFor(asyncCachedMeta).ValueOrThrow();
+    }
+
+    ISchemalessChunkReaderPtr LookupRows(
+        TSharedRange<TLegacyKey> keys,
+        const TSortColumns& sortColumns)
+    {
+        auto options = New<TChunkReaderOptions>();
+        options->DynamicTable = true;
 
         auto chunkState = New<TChunkState>(
             GetNullBlockCache(),
             ChunkSpec_);
         chunkState->TableSchema = Schema_;
 
-        return CreateSchemalessKeyRangesChunkReader(
+        return CreateSchemalessLookupChunkReader(
             std::move(chunkState),
-            chunkMeta,
+            FetchMeta(),
             TChunkReaderConfig::GetDefault(),
             options,
             MemoryReader_,
@@ -764,12 +791,67 @@ protected:
     }
 
 
+    ISchemalessChunkReaderPtr LookupRanges(
+        TSharedRange<TLegacyKey> keys,
+        const TSortColumns& sortColumns)
+    {
+        auto options = New<TChunkReaderOptions>();
+        options->DynamicTable = true;
+
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
+            ChunkSpec_);
+        chunkState->TableSchema = Schema_;
+
+        return CreateSchemalessKeyRangesChunkReader(
+            std::move(chunkState),
+            FetchMeta(),
+            TChunkReaderConfig::GetDefault(),
+            options,
+            MemoryReader_,
+            WriteNameTable_,
+            /* chunkReadOptions */ {},
+            sortColumns,
+            /* omittedInaccessibleColumns */ {},
+            /* columnFilter */ {},
+            keys);
+    }
+
+    ISchemalessChunkReaderPtr ReadRange(
+        const NChunkClient::TReadRange& readRange,
+        const TSortColumns& sortColumns)
+    {
+        auto options = New<TChunkReaderOptions>();
+        options->DynamicTable = true;
+
+        auto meta = FetchMeta();
+
+        auto chunkState = New<TChunkState>(
+            GetNullBlockCache(),
+            ChunkSpec_);
+        chunkState->TableSchema = Schema_;
+
+        return CreateSchemalessRangeChunkReader(
+            std::move(chunkState),
+            meta,
+            TChunkReaderConfig::GetDefault(),
+            options,
+            MemoryReader_,
+            WriteNameTable_,
+            /* chunkReadOptions */ {},
+            sortColumns,
+            /* omittedInaccessibleColumns */ {},
+            /* columnFilter */ {},
+            readRange);
+    }
+
     TTableSchemaPtr Schema_;
     TMemoryWriterPtr MemoryWriter_;
     IChunkReaderPtr MemoryReader_;
     TNameTablePtr WriteNameTable_;
     TChunkSpec ChunkSpec_;
     ISchemalessChunkWriterPtr ChunkWriter_;
+    std::vector<ESortOrder> SortOrders_;
 
     TChunkedMemoryPool Pool_;
     TRowBufferPtr RowBuffer_;
@@ -780,43 +862,8 @@ protected:
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessChunksLookupTest
-    : public TSchemalessChunksLookupBaseTest {
+    : public TSchemalessSortedChunksTest {
 public:
-    ISchemalessChunkReaderPtr LookupRows(
-        TSharedRange<TLegacyKey> keys,
-        const TSortColumns& sortColumns)
-    {
-        auto options = New<TChunkReaderOptions>();
-        options->DynamicTable = true;
-
-        auto asyncCachedMeta = MemoryReader_->GetMeta(/*chunkReadOptions*/ {})
-            .Apply(BIND(
-                &TCachedVersionedChunkMeta::Create,
-                /*prepareColumnarMeta*/ false,
-                /*memoryTracker*/ nullptr));
-
-        auto chunkMeta = WaitFor(asyncCachedMeta)
-            .ValueOrThrow();
-
-        auto chunkState = New<TChunkState>(
-            GetNullBlockCache(),
-            ChunkSpec_);
-        chunkState->TableSchema = Schema_;
-
-        return CreateSchemalessLookupChunkReader(
-            std::move(chunkState),
-            chunkMeta,
-            TChunkReaderConfig::GetDefault(),
-            options,
-            MemoryReader_,
-            WriteNameTable_,
-            /* chunkReadOptions */ {},
-            sortColumns,
-            /* omittedInaccessibleColumns */ {},
-            /* columnFilter */ {},
-            keys);
-    }
-
     void SetUp() override
     {
         auto optimizeFor = std::get<0>(GetParam());
@@ -883,6 +930,34 @@ TEST_P(TSchemalessChunksLookupTest, WiderKeyColumns)
     CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount(), ReadOptions());
 }
 
+TEST_P(TSchemalessChunksLookupTest, BlockBoundaries)
+{
+    // Test applies to horizontal format only.
+    auto optimizeFor = std::get<0>(GetParam());
+    if (optimizeFor != EOptimizeFor::Lookup) return;
+
+    auto meta = FetchMeta();
+    std::vector<TUnversionedRow> keys;
+    keys.push_back(meta->BlockLastKeys()[0]);
+    keys.push_back(meta->BlockLastKeys()[2]);
+    keys.push_back(meta->BlockLastKeys()[4]);
+
+    std::vector<TUnversionedRow> expected;
+    int pos = 0;
+    for (int index = 0; index < std::ssize(Rows_); ++index) {
+        if (pos < std::ssize(keys) &&
+            CompareRows(keys[pos], Rows_[index], Schema_->GetKeyColumnCount()) == 0)
+        {
+            expected.push_back(Rows_[index]);
+            ++pos;
+        }
+    }
+
+    auto reader = LookupRows(MakeSharedRange(keys), Schema_->GetSortColumns());
+
+    CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount(), ReadOptions());
+}
+
 INSTANTIATE_TEST_SUITE_P(Sorted,
     TSchemalessChunksLookupTest,
     ::testing::Combine(
@@ -909,17 +984,8 @@ INSTANTIATE_TEST_SUITE_P(Sorted,
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessChunksKeyRangesTest
-    : public TSchemalessChunksLookupBaseTest
+    : public TSchemalessSortedChunksTest
 {
-public:
-    void SetUp() override {
-        auto optimizeFor = std::get<0>(GetParam());
-        int blockSize = std::get<1>(GetParam());
-        Schema_ = New<TTableSchema>(std::get<2>(GetParam()));
-        InitChunkWriter(optimizeFor, Schema_, blockSize);
-        InitRows(1000, Schema_, WriteNameTable_);
-        InitChunk();
-    }
 };
 
 INSTANTIATE_TEST_SUITE_P(Sorted,
@@ -1157,10 +1223,99 @@ TEST_P(TSchemalessChunksKeyRangesTest, ChunkSpecEmptyRange)
                           reader, Schema_->GetColumnCount(), ReadOptions());
 }
 
+TEST_P(TSchemalessChunksKeyRangesTest, BlockBoundaries)
+{
+    auto meta = FetchMeta();
+    std::vector<TUnversionedRow> keys;
+    keys.push_back(meta->BlockLastKeys()[0]);
+    keys.push_back(meta->BlockLastKeys()[2]);
+    keys.push_back(meta->BlockLastKeys()[4]);
+
+    std::vector<TUnversionedRow> expected;
+    int pos = 0;
+    for (int index = 0; index < std::ssize(Rows_); ++index) {
+        if (pos < std::ssize(keys) &&
+            CompareRows(keys[pos], Rows_[index], Schema_->GetKeyColumnCount()) == 0)
+        {
+            expected.push_back(Rows_[index]);
+            ++pos;
+        }
+    }
+
+    auto reader = LookupRanges(MakeSharedRange(keys), Schema_->GetSortColumns());
+
+    CheckSchemalessResult(expected, reader, Schema_->GetKeyColumnCount(), ReadOptions());
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TSchemalessChunksRangeTest
+    : public TSchemalessSortedChunksTest
+{
+};
+
+INSTANTIATE_TEST_SUITE_P(Sorted,
+    TSchemalessChunksRangeTest,
+    ::testing::Combine(
+        ::testing::Values(EOptimizeFor::Lookup),
+        ::testing::Values(32, 2048),  // block size.
+        ::testing::Values(
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
+                "{name = c1; type = boolean; sort_order = ascending};"
+                "{name = c2; type = uint64; sort_order = ascending};"
+                "{name = c3; type = int64; sort_order = ascending};"
+                "{name = c4; type = double};]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
+                "{name = c1; type = int64; sort_order = ascending};"
+                "{name = c2; type = uint64; sort_order = ascending};"
+                "{name = c3; type = string; sort_order = ascending};"
+                "{name = c4; type = boolean; sort_order = ascending};"
+                "{name = c5; type = any};]"))),
+            ConvertTo<TTableSchema>(TYsonString(TStringBuf("<strict=%true;unique_keys=%true>["
+                "{name = c1; type = int64; sort_order = ascending};"
+                "{name = c2; type = string; sort_order = ascending }; ]")))),
+            ::testing::Values(16_MB, 256),  // max data weight per read
+            ::testing::Values(10000, 4)  // max rows per read
+));
+
+TEST_P(TSchemalessChunksRangeTest, BlockBoundaries)
+{
+    auto meta = FetchMeta();
+
+    auto lowerBound = TOwningKeyBound::FromRow(
+            TUnversionedOwningRow(meta->BlockLastKeys()[0]),
+            /*inclusive*/ true, /*upper*/ false);
+
+    auto upperBound = TOwningKeyBound::FromRow(
+            TUnversionedOwningRow(meta->BlockLastKeys()[1]),
+            /*inclusive*/ true, /*upper*/ true);
+
+    auto lowerReadLimit = TReadLimit(lowerBound);
+    auto upperReadLimit = TReadLimit(upperBound);
+
+    auto reader = ReadRange(TReadRange(lowerReadLimit, upperReadLimit), Schema_->GetSortColumns());
+
+    int keyLength = Schema_->GetKeyColumnCount();
+
+    std::vector<TUnversionedRow> expected;
+    for (int i = 0; i < std::ssize(Rows_); i++) {
+        const auto row = Rows_[i];
+        if (TestKey(TRange<TUnversionedValue>(row.begin(), keyLength),
+                ToKeyBoundRef(lowerBound), SortOrders_) &&
+            TestKey(TRange<TUnversionedValue>(row.begin(), keyLength),
+                ToKeyBoundRef(upperBound), SortOrders_))
+        {
+            expected.push_back(row);
+        }
+    }
+
+    CheckSchemalessResult(expected, reader, keyLength, ReadOptions());
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchemalessChunksKeyRangesLargeRowsTest
-    : public TSchemalessChunksLookupBaseTest
+    : public TSchemalessSortedChunksTest
 {
 protected:
     TRowBufferPtr Buffer_;
