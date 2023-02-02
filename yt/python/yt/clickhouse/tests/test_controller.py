@@ -72,7 +72,7 @@ class TestController(object):
 
         wait(check_controller_api_readiness)
 
-        self.client = chyt.ChytControllerClient()
+        self.client = chyt.ChytClient()
 
     def teardown(self):
         if self.controller_process:
