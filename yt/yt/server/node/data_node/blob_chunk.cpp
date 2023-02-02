@@ -186,6 +186,10 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
+    if (session->Finished.exchange(true)) {
+        return;
+    }
+
     ProfileReadBlockSetLatency(session);
 
     std::vector<TBlock> blocks;
@@ -206,6 +210,10 @@ void TBlobChunkBase::CompleteSession(const TReadBlockSetSessionPtr& session)
 void TBlobChunkBase::FailSession(const TReadBlockSetSessionPtr& session, const TError& error)
 {
     VERIFY_THREAD_AFFINITY_ANY();
+
+    if (session->Finished.exchange(true)) {
+        return;
+    }
 
     for (int entryIndex = 0; entryIndex < session->EntryCount; ++entryIndex) {
         auto& entry = session->Entries[entryIndex];

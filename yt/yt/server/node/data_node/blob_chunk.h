@@ -91,6 +91,7 @@ private:
         TPromise<void> DiskFetchPromise;
         NIO::TBlocksExtPtr BlocksExt;
         TPendingIOGuard PendingIOGuard;
+        std::atomic<bool> Finished = false;
     };
 
     using TReadBlockSetSessionPtr = TIntrusivePtr<TReadBlockSetSession>;
@@ -107,8 +108,8 @@ private:
     NIO::TChunkFileReaderPtr GetReader();
     void ReleaseReader(NThreading::TWriterGuard<NThreading::TReaderWriterSpinLock>& writerGuard) override;
 
-    void CompleteSession(const TIntrusivePtr<TReadBlockSetSession>& session);
-    static void FailSession(const TIntrusivePtr<TReadBlockSetSession>& session, const TError& error);
+    void CompleteSession(const TReadBlockSetSessionPtr& session);
+    static void FailSession(const TReadBlockSetSessionPtr& session, const TError& error);
 
     void DoReadMeta(
         const TReadMetaSessionPtr& session,
