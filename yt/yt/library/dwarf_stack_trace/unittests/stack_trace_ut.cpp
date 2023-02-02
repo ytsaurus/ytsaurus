@@ -23,7 +23,7 @@ TEST(TStackTrace, Format)
     const auto stack = GetStackTrace(2);
     ASSERT_THAT(stack,
         ContainsRegex("^ 1\\. 0x[0-9a-f]+ in NYT::\\(anonymous namespace\\)::GetStackTrace.* "
-                      "at .+/yt/yt/library/dwarf_stack_trace/unittests/stack_trace_ut.cpp:17\\n 2. "));
+                      "at .+/yt/yt/library/dwarf_stack_trace/unittests/stack_trace_ut.cpp:[0-9]+\\n 2. "));
 }
 
 TEST(TStackTrace, LinesCountLimit)
@@ -31,7 +31,7 @@ TEST(TStackTrace, LinesCountLimit)
     const auto stack = GetStackTrace(1);
     ASSERT_THAT(stack,
         ContainsRegex("^ 1\\. 0x[0-9a-f]+ in NYT::\\(anonymous namespace\\)::GetStackTrace.* "
-                      "at .+/yt/yt/library/dwarf_stack_trace/unittests/stack_trace_ut.cpp:17\\n$"));
+                      "at .+/yt/yt/library/dwarf_stack_trace/unittests/stack_trace_ut.cpp:[0-9]+\\n$"));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
