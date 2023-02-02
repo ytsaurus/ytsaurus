@@ -9941,6 +9941,9 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
         return Config->TestingOptions->RootfsTestLayers;
     }
     auto layerPaths = userJobSpec->LayerPaths;
+    if (layerPaths.empty() && userJobSpec->DefaultBaseLayerPath) {
+        layerPaths.insert(layerPaths.begin(), *userJobSpec->DefaultBaseLayerPath);
+    }
     if (Config->DefaultLayerPath && layerPaths.empty()) {
         // If no layers were specified, we insert the default one.
         layerPaths.insert(layerPaths.begin(), *Config->DefaultLayerPath);
@@ -9972,9 +9975,6 @@ std::vector<NYPath::TRichYPath> TOperationControllerBase::GetLayerPaths(
             // This must be the top layer, so insert in the beginning.
             layerPaths.insert(layerPaths.begin(), *systemLayerPath);
         }
-    }
-    if (layerPaths.empty() && userJobSpec->DefaultBaseLayerPath) {
-        layerPaths.insert(layerPaths.begin(), *userJobSpec->DefaultBaseLayerPath);
     }
     return layerPaths;
 }
