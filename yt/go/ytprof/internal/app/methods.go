@@ -174,6 +174,45 @@ func (a *App) Merge(ctx context.Context, in *api.MergeRequest, opts ...grpc.Call
 	}, nil
 }
 
+func (a *App) MergeLink(ctx context.Context, in *api.MergeRequest, opts ...grpc.CallOption) (*api.MergeLinkResponse, error) {
+	profileGUIDs := make([]ytprof.ProfID, len(in.ProfileIds))
+
+	for i, profileString := range in.ProfileIds {
+		profileGUID, err := guid.ParseString(profileString)
+		if err != nil {
+			a.l.Error("parsing guid failed", log.Error(err), log.String("guid", profileString))
+			return nil, err
+		}
+		profileGUIDs[i] = ytprof.ProfIDFromGUID(profileGUID)
+	}
+
+	profileMerged, err := a.ts.FindAndMergeProfiles(ctx, profileGUIDs)
+	if err != nil {
+		a.l.Error("find and merge failed", log.Error(err))
+		return nil, err
+	}
+
+	guids, err := a.tsm.PushData(
+		ctx,
+		[]*profile.Profile{profileMerged},
+		[]string{"merged"},
+		"",
+		"",
+		"",
+		map[string]string{},
+	)
+	if err != nil {
+		a.l.Error("storing merged profile failed", log.Error(err))
+		return nil, err
+	}
+
+	a.l.Debug("merge request succeeded", log.Int("total", len(profileGUIDs)))
+
+	return &api.MergeLinkResponse{
+		Link: GetProfileLink(UIManualRequestPrefix, guids[0]),
+	}, nil
+}
+
 func (a *App) MergeAll(ctx context.Context, in *api.MergeAllRequest, opts ...grpc.CallOption) (*httpbody.HttpBody, error) {
 	metaquery, err := a.apiMetaqueryToStorage(in.Metaquery)
 	if err != nil {

@@ -15,6 +15,7 @@ import (
 	"a.yandex-team.ru/library/go/core/log"
 	"a.yandex-team.ru/library/go/core/log/ctxlog"
 	"a.yandex-team.ru/library/go/core/log/zap"
+	"a.yandex-team.ru/yt/go/guid"
 	"a.yandex-team.ru/yt/go/yterrors"
 
 	"a.yandex-team.ru/yt/go/ypath"
@@ -27,6 +28,7 @@ import (
 const DefaultQueryLimit = 1000000
 const UIRequestPrefix = "/ui"
 const UIManualRequestPrefix = "/manual/ui"
+const UIBaseHost = "https://ytprof.yt.yandex-team.ru"
 
 type App struct {
 	l          *zap.Logger
@@ -162,4 +164,8 @@ func (a *App) grpcErrorHandler(ctx context.Context, mux *runtime.ServeMux, marsh
 		yterrors.Attr("origin", hostname),
 		err,
 	))
+}
+
+func GetProfileLink(prefix string, guid guid.GUID) string {
+	return fmt.Sprintf("%s%s/%s/", UIBaseHost, prefix, guid)
 }
