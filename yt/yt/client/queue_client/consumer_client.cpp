@@ -15,6 +15,8 @@
 
 #include <yt/yt/client/transaction_client/helpers.h>
 
+#include <yt/yt/client/ypath/rich.h>
+
 #include <library/cpp/iterator/functools.h>
 
 #include <util/string/join.h>
@@ -218,7 +220,17 @@ public:
             selectQuery,
             withLastConsumeTime)
             .AsyncVia(GetCurrentInvoker())
-            .Run();
+            .Run()
+            .Apply(BIND([expectedPartitionCount] (const std::vector<TPartitionInfo>& partitionInfos) {
+                std::vector<TPartitionInfo> result(expectedPartitionCount);
+                for (int partitionIndex = 0; partitionIndex < expectedPartitionCount; ++partitionIndex) {
+                    result[partitionIndex] = {.PartitionIndex = partitionIndex, .NextRowIndex = 0};
+                }
+                for (const auto& partitionInfo : partitionInfos) {
+                    result[partitionInfo.PartitionIndex] = partitionInfo;
+                }
+                return result;
+            }));
     }
 
     TFuture<std::vector<TPartitionInfo>> CollectPartitions(
@@ -241,7 +253,27 @@ public:
             selectQuery,
             withLastConsumeTime)
             .AsyncVia(GetCurrentInvoker())
-            .Run();
+            .Run()
+            .Apply(BIND([partitionIndexes] (const std::vector<TPartitionInfo>& partitionInfos) {
+                THashMap<int, TPartitionInfo> indexToPartitionInfo;
+                for (auto partitionIndex : partitionIndexes) {
+                    indexToPartitionInfo[partitionIndex] = {
+                        .PartitionIndex = partitionIndex,
+                        .NextRowIndex = 0,
+                    };
+                }
+                for (const auto& partitionInfo : partitionInfos) {
+                    indexToPartitionInfo[partitionInfo.PartitionIndex] = partitionInfo;
+                }
+
+                std::vector<TPartitionInfo> result;
+                result.reserve(partitionIndexes.size());
+                for (auto partitionIndex : partitionIndexes) {
+                    result.push_back(indexToPartitionInfo[partitionIndex]);
+                }
+
+                return result;
+            }));
     }
 
     TFuture<TCrossClusterReference> FetchTargetQueue(const IClientPtr& client) const override
@@ -378,6 +410,7 @@ private:
         TVersionedLookupRowsOptions options;
         // This allows easier detection of key set change during the query.
         options.KeepMissingRows = true;
+        options.RetentionConfig->MaxDataVersions = 1;
 
         auto versionedRowset = WaitFor(client->VersionedLookupRows(
             Path_,
@@ -505,6 +538,32 @@ IConsumerClientPtr CreateConsumerClient(
     auto schema = tableInfo->Schemas[ETableSchemaKind::Primary];
 
     return CreateConsumerClient(path, *schema);
+}
+
+ISubConsumerClientPtr CreateSubConsumerClient(
+    const IClientPtr& client,
+    const TYPath& consumerPath,
+    TRichYPath queuePath)
+{
+    auto queueCluster = queuePath.GetCluster();
+    if (!queueCluster) {
+        if (auto clientCluster = client->GetClusterName()) {
+            queueCluster = *clientCluster;
+        }
+    }
+
+    if (!queueCluster) {
+        THROW_ERROR_EXCEPTION(
+            "Cannot create subconsumer for %Qv, could not infer cluster for queue %Qv from attributes or client",
+            consumerPath,
+            queuePath);
+    }
+
+    TCrossClusterReference queueRef;
+    queueRef.Cluster = *queueCluster;
+    queueRef.Path = queuePath.GetPath();
+
+    return CreateConsumerClient(client, consumerPath)->GetSubConsumerClient(queueRef);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

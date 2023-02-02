@@ -232,6 +232,9 @@ TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::Re
         if (auto localConnection = Connection_.Lock()) {
             if (auto remoteConnection = localConnection->GetClusterDirectory()->FindConnection(*ClusterName_)) {
                 config = remoteConnection->GetConfig()->QueueAgent->QueueConsumerRegistrationManager;
+                YT_LOG_DEBUG(
+                    "Retrieved queue consumer registration manager dynamic config (Config: %v)",
+                    ConvertToYsonString(config, EYsonFormat::Text));
             }
         }
     }
@@ -241,10 +244,18 @@ TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::Re
     //! NB: Should be safe to call inside the periodic executor, since it doesn't post any new callbacks while executing a callback.
     //! This just sets the internal period to be used for scheduling the next invocation.
     if (config->CacheRefreshPeriod != DynamicConfig_->CacheRefreshPeriod) {
+        YT_LOG_DEBUG(
+            "Resetting queue consumer registration manager refresh period (Period: %v -> %v)",
+            DynamicConfig_->CacheRefreshPeriod,
+            config->CacheRefreshPeriod);
         RefreshExecutor_->SetPeriod(config->CacheRefreshPeriod);
     }
 
     if (config->TablePath != DynamicConfig_->TablePath) {
+        YT_LOG_DEBUG(
+            "Resetting queue consumer registration manager registration table (TablePath: %v -> %v)",
+            DynamicConfig_->TablePath,
+            config->TablePath);
         RegistrationTable_ = nullptr;
     }
 

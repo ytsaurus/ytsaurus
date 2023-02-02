@@ -167,7 +167,6 @@ public:
         auto queueAttributes = CreateEphemeralAttributes();
         queueAttributes->Set("tablet_count", queueTabletCount);
         TRichYPath queuePath = Format("//tmp/queue_%v_%v", testName, useNativeTabletNodeApi);
-        queuePath.SetCluster(ClusterName_);
         auto queue = New<TDynamicTable>(
             queuePath,
             New<TTableSchema>(std::vector<TColumnSchema>{
@@ -175,7 +174,6 @@ public:
                 TColumnSchema("b", EValueType::String)}),
             queueAttributes);
         TRichYPath consumerPath = Format("//tmp/consumer_%v_%v", testName, useNativeTabletNodeApi);
-        consumerPath.SetCluster(ClusterName_);
         auto consumer = New<TDynamicTable>(
             consumerPath,
             New<TTableSchema>(std::vector<TColumnSchema>{

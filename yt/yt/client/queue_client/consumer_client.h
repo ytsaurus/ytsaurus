@@ -109,6 +109,15 @@ IConsumerClientPtr CreateConsumerClient(
     const NApi::IClientPtr& client,
     const NYPath::TYPath& path);
 
+//! Uses the table mount cache to fetch the consumer's schema and
+//! make sure the consumer actually has YT consumer schema.
+//! Uses the given queue path to fetch the corresponding subconsumer.
+//! If no cluster is set for queue, it is inferred from the given client.
+ISubConsumerClientPtr CreateSubConsumerClient(
+    const NApi::IClientPtr& client,
+    const NYPath::TYPath& consumerPath,
+    NYPath::TRichYPath queuePath);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NQueueClient

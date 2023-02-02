@@ -976,9 +976,11 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
 
     auto partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
         .ValueOrThrow();
-    ASSERT_EQ(partitions.size(), 1u);
-    EXPECT_EQ(partitions[0].PartitionIndex, 13);
-    EXPECT_EQ(partitions[0].NextRowIndex, 27);
+    ASSERT_EQ(partitions.size(), 15u);
+    EXPECT_EQ(partitions[13].PartitionIndex, 13);
+    EXPECT_EQ(partitions[13].NextRowIndex, 27);
+    EXPECT_EQ(partitions[0].PartitionIndex, 0);
+    EXPECT_EQ(partitions[0].NextRowIndex, 0);
 
     transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
@@ -989,9 +991,9 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
 
     partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
         .ValueOrThrow();
-    ASSERT_EQ(partitions.size(), 1u);
-    EXPECT_EQ(partitions[0].PartitionIndex, 13);
-    EXPECT_EQ(partitions[0].NextRowIndex, 29);
+    ASSERT_EQ(partitions.size(), 15u);
+    EXPECT_EQ(partitions[13].PartitionIndex, 13);
+    EXPECT_EQ(partitions[13].NextRowIndex, 29);
 
     transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
@@ -1016,9 +1018,9 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
 
     partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
         .ValueOrThrow();
-    ASSERT_EQ(partitions.size(), 2u);
-    EXPECT_EQ(partitions[1].PartitionIndex, 14);
-    EXPECT_EQ(partitions[1].NextRowIndex, 29);
+    ASSERT_EQ(partitions.size(), 15u);
+    EXPECT_EQ(partitions[14].PartitionIndex, 14);
+    EXPECT_EQ(partitions[14].NextRowIndex, 29);
 
     transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
@@ -1029,9 +1031,9 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
 
     partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
         .ValueOrThrow();
-    ASSERT_EQ(partitions.size(), 3u);
-    EXPECT_EQ(partitions[0].PartitionIndex, 9);
-    EXPECT_EQ(partitions[0].NextRowIndex, 0);
+    ASSERT_EQ(partitions.size(), 15u);
+    EXPECT_EQ(partitions[9].PartitionIndex, 9);
+    EXPECT_EQ(partitions[9].NextRowIndex, 0);
 
     transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
@@ -1042,9 +1044,9 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
 
     partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
         .ValueOrThrow();
-    ASSERT_EQ(partitions.size(), 4u);
-    EXPECT_EQ(partitions[0].PartitionIndex, 8);
-    EXPECT_EQ(partitions[0].NextRowIndex, 0);
+    ASSERT_EQ(partitions.size(), 15u);
+    EXPECT_EQ(partitions[8].PartitionIndex, 8);
+    EXPECT_EQ(partitions[8].NextRowIndex, 0);
 
     transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
@@ -1055,9 +1057,9 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
 
     partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
         .ValueOrThrow();
-    ASSERT_EQ(partitions.size(), 4u);
-    EXPECT_EQ(partitions[2].PartitionIndex, 13);
-    EXPECT_EQ(partitions[2].NextRowIndex, 0);
+    ASSERT_EQ(partitions.size(), 15u);
+    EXPECT_EQ(partitions[13].PartitionIndex, 13);
+    EXPECT_EQ(partitions[13].NextRowIndex, 0);
 
     transaction = WaitFor(Client_->StartTransaction(NTransactionClient::ETransactionType::Tablet))
         .ValueOrThrow();
@@ -1068,9 +1070,9 @@ TEST_F(TConsumerApiTest, TestBigRTConsumer)
 
     partitions = WaitFor(consumerClient->CollectPartitions(Client_, 15))
         .ValueOrThrow();
-    ASSERT_EQ(partitions.size(), 5u);
-    EXPECT_EQ(partitions[0].PartitionIndex, 5);
-    EXPECT_EQ(partitions[0].NextRowIndex, 5);
+    ASSERT_EQ(partitions.size(), 15u);
+    EXPECT_EQ(partitions[5].PartitionIndex, 5);
+    EXPECT_EQ(partitions[5].NextRowIndex, 5);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
