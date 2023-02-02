@@ -40,6 +40,10 @@ message MergeRequest {
     repeated string profile_ids = 1;
 }
 
+message MergeLinkResponse {
+    string link = 1;
+}
+
 message MergeAllRequest {
     Metaquery metaquery = 1;
 }
@@ -83,6 +87,12 @@ service YTProfService {
     rpc Merge(MergeRequest) returns (google.api.HttpBody) {
         option (google.api.http) = {
             get: "/api/merge"
+        };
+    }
+
+    rpc MergeLink(MergeRequest) returns (MergeLinkResponse) {
+        option (google.api.http) = {
+            get: "/api/merge_link"
         };
     }
 

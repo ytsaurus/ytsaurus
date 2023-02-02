@@ -217,7 +217,7 @@ func findMetadata(cmd *cobra.Command, args []string) error {
 		}
 		fmt.Println(metadata.String())
 		if flagDisplayLink {
-			fmt.Println(getProfileLink(app.UIManualRequestPrefix, ytprof.GUIDFormProfID(metadata.ProfID())))
+			fmt.Println(app.GetProfileLink(app.UIManualRequestPrefix, ytprof.GUIDFormProfID(metadata.ProfID())))
 		}
 	}
 
@@ -303,10 +303,6 @@ func getData(cmd *cobra.Command, args []string) error {
 	return profile.Write(file)
 }
 
-func getProfileLink(prefix string, guid guid.GUID) string {
-	return fmt.Sprintf("https://ytprof.yt.yandex-team.ru%s/%s/", app.UIManualRequestPrefix, guid)
-}
-
 func pushData(cmd *cobra.Command, args []string) error {
 	ctx := context.Background()
 	l := ytlog.Must()
@@ -349,7 +345,7 @@ func pushData(cmd *cobra.Command, args []string) error {
 	}
 
 	fmt.Println("Link to view your profile:")
-	fmt.Println(getProfileLink(app.UIManualRequestPrefix, guids[0]))
+	fmt.Println(app.GetProfileLink(app.UIManualRequestPrefix, guids[0]))
 
 	return nil
 }
