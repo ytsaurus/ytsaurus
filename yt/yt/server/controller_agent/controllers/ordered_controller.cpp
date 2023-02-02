@@ -429,11 +429,7 @@ protected:
     {
         if (IsTeleportationSupported()) {
             for (int index = 0; index < std::ssize(InputTables_); ++index) {
-                if (!InputTables_[index]->Dynamic &&
-                    !InputTables_[index]->Path.GetColumns() &&
-                    InputTables_[index]->ColumnRenameDescriptors.empty() &&
-                    OutputTables_[0]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
-                {
+                if (InputTables_[index]->SupportsTeleportation() && OutputTables_[0]->SupportsTeleportation()) {
                     InputTables_[index]->Teleportable = CheckTableSchemaCompatibility(
                         *InputTables_[index]->Schema,
                         *OutputTables_[0]->TableUploadOptions.TableSchema,

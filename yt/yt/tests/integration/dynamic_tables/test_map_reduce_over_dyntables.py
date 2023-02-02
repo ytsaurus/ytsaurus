@@ -2,9 +2,10 @@ from yt_env_setup import YTEnvSetup, parametrize_external
 from yt_commands import (
     authors, print_debug, wait, create, get, set, copy, insert_rows, trim_rows,
     alter_table, write_file, read_table, write_table, map, map_reduce, generate_timestamp,
-    sync_create_cells, sync_mount_table, sync_unmount_table,
+    sync_create_cells, sync_mount_table, sync_unmount_table, merge,
     sync_freeze_table, sync_unfreeze_table, sync_reshard_table, sync_flush_table, sync_compact_table,
-    create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts)
+    create_dynamic_table, extract_statistic_v2, MinTimestamp, sorted_dicts, get_singular_chunk_id,
+    lookup_rows, raises_yt_error)
 
 from yt_type_helpers import make_schema
 
@@ -411,6 +412,47 @@ class TestMapOnDynamicTables(YTEnvSetup):
         recursive(chunk_list, 0)
         for r in result:
             print(("%s%s %s %s %s" % ("   " * r[0], r[1], r[2], r[3], r[4])))
+
+    @authors("ifsmirnov")
+    def test_output_timestamp(self):
+        sync_create_cells(1)
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1, "value": "foo"}])
+        create("table", "//tmp/t_out", attributes={
+            "schema": make_schema(
+                [
+                    {"name": "key", "type": "int64", "sort_order": "ascending"},
+                    {"name": "value", "type": "string"},
+                ],
+                unique_keys=True,
+            )})
+        for bad_ts in [0, 0x3fffffffffffff01]:
+            with raises_yt_error():
+                merge(
+                    in_="//tmp/t_in",
+                    out=f"<output_timestamp={bad_ts}>//tmp/t_out",
+                    mode="ordered")
+        merge(
+            in_="//tmp/t_in",
+            out="<output_timestamp=123>//tmp/t_out",
+            mode="ordered")
+        chunk_id = get_singular_chunk_id("//tmp/t_out")
+        assert get(f"#{chunk_id}/@min_timestamp") == 123
+        alter_table("//tmp/t_out", dynamic=True)
+        sync_mount_table("//tmp/t_out")
+        lookup_result = lookup_rows("//tmp/t_out", [{"key": 1}], versioned=True)
+        assert lookup_result[0].attributes["write_timestamps"][0] == 123
+
+    @authors("ifsmirnov")
+    def test_output_timestamp_no_teleport(self):
+        create("table", "//tmp/t_in")
+        write_table("//tmp/t_in", [{"key": 1, "value": "foo"}])
+        create("table", "//tmp/t_out")
+        merge(
+            in_="//tmp/t_in",
+            out="<output_timestamp=123>//tmp/t_out")
+        chunk_id = get_singular_chunk_id("//tmp/t_out")
+        assert get(f"#{chunk_id}/@min_timestamp") == 123
 
 
 ##################################################################
