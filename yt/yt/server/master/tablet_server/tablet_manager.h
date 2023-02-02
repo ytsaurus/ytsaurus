@@ -183,11 +183,6 @@ public:
 
     void RecomputeTabletCellStatistics(NCellServer::TCellBase* cellBase);
 
-    void ParseTabletRangeOrThrow(
-        const TTabletOwnerBase* table,
-        int* first,
-        int* last) const;
-
     void OnHunkJournalChunkSealed(NChunkServer::TChunk* chunk);
 
     // Backup stuff. Used internally by TBackupManager.

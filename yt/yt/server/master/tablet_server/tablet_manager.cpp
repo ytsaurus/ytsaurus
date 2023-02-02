@@ -4,18 +4,20 @@
 #include "balancing_helpers.h"
 #include "config.h"
 #include "cypress_integration.h"
-#include "mount_config_storage.h"
-#include "private.h"
-#include "hunk_tablet.h"
-#include "hunk_tablet_type_handler.h"
+#include "helpers.h"
 #include "hunk_storage_node.h"
 #include "hunk_storage_node_type_handler.h"
+#include "hunk_tablet.h"
+#include "hunk_tablet_type_handler.h"
+#include "mount_config_storage.h"
+#include "private.h"
 #include "table_replica.h"
 #include "table_replica_type_handler.h"
+#include "table_settings.h"
 #include "tablet.h"
 #include "tablet_action.h"
-#include "tablet_action_type_handler.h"
 #include "tablet_action_manager.h"
+#include "tablet_action_type_handler.h"
 #include "tablet_balancer.h"
 #include "tablet_cell.h"
 #include "tablet_cell_bundle.h"
@@ -977,8 +979,12 @@ public:
 
     void PrepareMountTable(TTableNode* table)
     {
-        auto tableSettings = GetTableSettings(table);
-        ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig);
+        auto tableSettings = GetTableSettings(
+            table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
+        ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
 
         if (table->GetReplicationCardId() && !table->IsSorted()) {
             if (table->GetCommitOrdering() != ECommitOrdering::Strong) {
@@ -1054,7 +1060,11 @@ public:
                 std::move(tabletsToMount));
         }
 
-        auto tableSettings = GetTabletOwnerSettings(table);
+        auto tableSettings = GetTabletOwnerSettings(
+            table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
         auto serializedTableSettings = SerializeTabletOwnerSettings(tableSettings);
 
         DoMountTablets(
@@ -1157,8 +1167,12 @@ public:
                 lastTabletIndex);
         }
 
-        auto tableSettings = GetTableSettings(table);
-        ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig);
+        auto tableSettings = GetTableSettings(
+            table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
+        ValidateTableMountConfig(table, tableSettings.EffectiveMountConfig, GetDynamicConfig());
     }
 
     void Remount(
@@ -1591,7 +1605,7 @@ public:
 
             if (updateMode == EUpdateMode::Overwrite &&
                 tablet->GetState() == ETabletState::Mounted &&
-                IsDynamicStoreReadEnabled(originatingNode))
+                IsDynamicStoreReadEnabled(originatingNode, GetDynamicConfig()))
             {
                 CreateAndAttachDynamicStores(tablet, &req);
             }
@@ -2819,15 +2833,6 @@ public:
         return error;
     }
 
-    void ParseTabletRangeOrThrow(
-        const TTabletOwnerBase* table,
-        int* first,
-        int* last) const
-    {
-        TryParseTabletRange(table, first, last)
-            .ThrowOnError();
-    }
-
     DECLARE_ENTITY_MAP_ACCESSORS(Tablet, TTabletBase);
     DECLARE_ENTITY_MAP_ACCESSORS(TableReplica, TTableReplica);
     DECLARE_ENTITY_MAP_ACCESSORS(TabletAction, TTabletAction);
@@ -3557,7 +3562,11 @@ private:
                         YT_ABORT();
                 }
 
-                auto tableSettings = GetTableSettings(table->As<TTableNode>());
+                auto tableSettings = GetTableSettings(
+                    table->As<TTableNode>(),
+                    Bootstrap_->GetObjectManager(),
+                    Bootstrap_->GetChunkManager(),
+                    GetDynamicConfig());
                 auto serializedTableSettings = SerializeTableSettings(tableSettings);
 
                 std::vector<std::pair<TTabletBase*, TTabletCell*>> assignment;
@@ -3673,323 +3682,17 @@ private:
         }
     }
 
-    struct TTableSettings
-        : public NTabletNode::TRawTableSettings
-    {
-        TTableMountConfigPtr EffectiveMountConfig;
-    };
-
-    TTableSettings GetTableSettings(TTableNode* table)
-    {
-        TTableSettings result;
-
-        const auto& dynamicConfig = GetDynamicConfig();
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto tableProxy = objectManager->GetProxy(table);
-        const auto& tableAttributes = tableProxy->Attributes();
-
-        // Parse and prepare mount config.
-        try {
-            // Handle builtin attributes.
-            auto builtinMountConfig = ConvertTo<TBuiltinTableMountConfigPtr>(tableAttributes);
-            if (!table->GetProfilingMode()) {
-                builtinMountConfig->ProfilingMode = dynamicConfig->DynamicTableProfilingMode;
-            }
-            builtinMountConfig->EnableDynamicStoreRead = IsDynamicStoreReadEnabled(table);
-
-            // Extract custom attributes and build combined node.
-            auto combinedConfigNode = ConvertTo<IMapNodePtr>(builtinMountConfig);
-
-            if (const auto* storage = table->FindMountConfigStorage();
-                storage && !storage->IsEmpty())
-            {
-                auto [customConfigNode, unrecognizedCustomConfigNode] = storage->GetRecognizedConfig();
-
-                if (unrecognizedCustomConfigNode->GetChildCount() > 0) {
-                    result.Provided.ExtraMountConfig = unrecognizedCustomConfigNode;
-                }
-
-                combinedConfigNode = PatchNode(combinedConfigNode, customConfigNode)->AsMap();
-            }
-
-            // The next line is important for validation.
-            result.EffectiveMountConfig = ConvertTo<TTableMountConfigPtr>(combinedConfigNode);
-
-            result.Provided.MountConfigNode = combinedConfigNode;
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing table mount configuration")
-                << ex;
-        }
-
-        // Parse and prepare store reader config.
-        try {
-            result.Provided.StoreReaderConfig = UpdateYsonStruct(
-                GetDynamicConfig()->StoreChunkReader,
-                // TODO(babenko): rename to store_chunk_reader
-                tableAttributes.FindYson(EInternedAttributeKey::ChunkReader.Unintern()));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing store reader config")
-                << ex;
-        }
-
-        // Parse and prepare hunk reader config.
-        try {
-            result.Provided.HunkReaderConfig = UpdateYsonStruct(
-                GetDynamicConfig()->HunkChunkReader,
-                tableAttributes.FindYson(EInternedAttributeKey::HunkChunkReader.Unintern()));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing hunk reader config")
-                << ex;
-        }
-
-        const auto& chunkReplication = table->Replication();
-        auto primaryMediumIndex = table->GetPrimaryMediumIndex();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
-        auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
-
-        try {
-            // Prepare store writer options.
-            result.Provided.StoreWriterOptions = New<NTabletNode::TTabletStoreWriterOptions>();
-            result.Provided.StoreWriterOptions->ReplicationFactor = replicationFactor;
-            result.Provided.StoreWriterOptions->MediumName = primaryMedium->GetName();
-            result.Provided.StoreWriterOptions->Account = table->GetAccount()->GetName();
-            result.Provided.StoreWriterOptions->CompressionCodec = table->GetCompressionCodec();
-            result.Provided.StoreWriterOptions->ErasureCodec = table->GetErasureCodec();
-            result.Provided.StoreWriterOptions->EnableStripedErasure = table->GetEnableStripedErasure();
-            result.Provided.StoreWriterOptions->ChunksVital = chunkReplication.GetVital();
-            result.Provided.StoreWriterOptions->OptimizeFor = table->GetOptimizeFor();
-            result.Provided.StoreWriterOptions->ChunkFormat = table->TryGetChunkFormat();
-            if (result.Provided.StoreWriterOptions->ChunkFormat) {
-                ValidateTableChunkFormatVersioned(*result.Provided.StoreWriterOptions->ChunkFormat, /*versioned*/ true);
-            }
-            result.Provided.StoreWriterOptions->Postprocess();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error preparing store writer options")
-                << ex;
-        }
-
-        try {
-            // Prepare hunk writer options.
-            result.Provided.HunkWriterOptions = New<NTabletNode::TTabletHunkWriterOptions>();
-            result.Provided.HunkWriterOptions->ReplicationFactor = replicationFactor;
-            result.Provided.HunkWriterOptions->MediumName = primaryMedium->GetName();
-            result.Provided.HunkWriterOptions->Account = table->GetAccount()->GetName();
-            result.Provided.HunkWriterOptions->CompressionCodec = table->GetCompressionCodec();
-            result.Provided.HunkWriterOptions->ErasureCodec = table->GetHunkErasureCodec();
-            result.Provided.HunkWriterOptions->ChunksVital = chunkReplication.GetVital();
-            result.Provided.HunkWriterOptions->Postprocess();
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error preparing hunk writer options")
-                << ex;
-        }
-
-        // Parse and prepare store writer config.
-        try {
-            auto config = CloneYsonSerializable(GetDynamicConfig()->StoreChunkWriter);
-            config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
-            if (GetDynamicConfig()->IncreaseUploadReplicationFactor ||
-                table->TabletCellBundle()->GetDynamicOptions()->IncreaseUploadReplicationFactor)
-            {
-                config->UploadReplicationFactor = replicationFactor;
-            }
-
-            result.Provided.StoreWriterConfig = UpdateYsonStruct(
-                config,
-                // TODO(babenko): rename to store_chunk_writer
-                tableAttributes.FindYson(EInternedAttributeKey::ChunkWriter.Unintern()));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error preparing store writer config")
-                << ex;
-        }
-
-        // Parse and prepare hunk writer config.
-        try {
-            auto config = CloneYsonSerializable(GetDynamicConfig()->HunkChunkWriter);
-            config->PreferLocalHost = primaryMedium->Config()->PreferLocalHostForDynamicTables;
-            config->UploadReplicationFactor = replicationFactor;
-
-            result.Provided.HunkWriterConfig = UpdateYsonStruct(
-                config,
-                tableAttributes.FindYson(EInternedAttributeKey::HunkChunkWriter.Unintern()));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error preparing hunk writer config")
-                << ex;
-        }
-
-        // Set global patch and experiments.
-        result.GlobalPatch = CloneYsonSerializable(
-            ConvertTo<TTableConfigPatchPtr>(dynamicConfig));
-        result.Experiments = dynamicConfig->TableConfigExperiments;
-
-        return result;
-    }
-
-    struct TSerializedTableSettings
-    {
-        TYsonString MountConfig;
-        TYsonString ExtraMountConfig;
-        TYsonString StoreReaderConfig;
-        TYsonString HunkReaderConfig;
-        TYsonString StoreWriterConfig;
-        TYsonString StoreWriterOptions;
-        TYsonString HunkWriterConfig;
-        TYsonString HunkWriterOptions;
-        TYsonString GlobalPatch;
-        TYsonString Experiments;
-    };
-
-    static TSerializedTableSettings SerializeTableSettings(const TTableSettings& tableSettings)
-    {
-        return {
-            .MountConfig = ConvertToYsonString(tableSettings.Provided.MountConfigNode),
-            .ExtraMountConfig = tableSettings.Provided.ExtraMountConfig
-                ? ConvertToYsonString(tableSettings.Provided.ExtraMountConfig)
-                : TYsonString{},
-            .StoreReaderConfig = ConvertToYsonString(tableSettings.Provided.StoreReaderConfig),
-            .HunkReaderConfig = ConvertToYsonString(tableSettings.Provided.HunkReaderConfig),
-            .StoreWriterConfig = ConvertToYsonString(tableSettings.Provided.StoreWriterConfig),
-            .StoreWriterOptions = ConvertToYsonString(tableSettings.Provided.StoreWriterOptions),
-            .HunkWriterConfig = ConvertToYsonString(tableSettings.Provided.HunkWriterConfig),
-            .HunkWriterOptions = ConvertToYsonString(tableSettings.Provided.HunkWriterOptions),
-            .GlobalPatch = ConvertToYsonString(tableSettings.GlobalPatch),
-            .Experiments = ConvertToYsonString(tableSettings.Experiments),
-        };
-    }
-
-    template <class TRequest>
-    void FillTableSettings(TRequest* request, const TSerializedTableSettings& serializedTableSettings)
-    {
-        auto* tableSettings = request->mutable_table_settings();
-        tableSettings->set_mount_config(serializedTableSettings.MountConfig.ToString());
-        if (serializedTableSettings.ExtraMountConfig) {
-            tableSettings->set_extra_mount_config_attributes(
-                serializedTableSettings.ExtraMountConfig.ToString());
-        }
-        tableSettings->set_store_reader_config(serializedTableSettings.StoreReaderConfig.ToString());
-        tableSettings->set_hunk_reader_config(serializedTableSettings.HunkReaderConfig.ToString());
-        tableSettings->set_store_writer_config(serializedTableSettings.StoreWriterConfig.ToString());
-        tableSettings->set_store_writer_options(serializedTableSettings.StoreWriterOptions.ToString());
-        tableSettings->set_hunk_writer_config(serializedTableSettings.HunkWriterConfig.ToString());
-        tableSettings->set_hunk_writer_options(serializedTableSettings.HunkWriterOptions.ToString());
-        tableSettings->set_global_patch(serializedTableSettings.GlobalPatch.ToString());
-        tableSettings->set_experiments(serializedTableSettings.Experiments.ToString());
-    }
-
-    struct THunkStorageSettings
-    {
-        NTabletNode::THunkStorageMountConfigPtr MountConfig;
-        NTabletNode::THunkStoreWriterConfigPtr HunkStoreConfig;
-        NTabletNode::THunkStoreWriterOptionsPtr HunkStoreOptions;
-    };
-
-    THunkStorageSettings GetHunkStorageSettings(THunkStorageNode* hunkStorage)
-    {
-        THunkStorageSettings result;
-
-        const auto& objectManager = Bootstrap_->GetObjectManager();
-        auto hunkStorageProxy = objectManager->GetProxy(hunkStorage);
-        const auto& tableAttributes = hunkStorageProxy->Attributes();
-
-        // Parse and prepare mount config.
-        try {
-            result.MountConfig = ConvertTo<NTabletNode::THunkStorageMountConfigPtr>(tableAttributes);
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing hunk storage mount configuration")
-                << ex;
-        }
-
-        // Parse and prepare store writer config.
-        try {
-            result.HunkStoreConfig = UpdateYsonStruct(
-                GetDynamicConfig()->HunkStoreWriter,
-                tableAttributes.FindYson(EInternedAttributeKey::HunkStoreWriter.Unintern()));
-        } catch (const std::exception& ex) {
-            THROW_ERROR_EXCEPTION("Error parsing hunk store writer config")
-                << ex;
-        }
-
-        const auto& chunkReplication = hunkStorage->Replication();
-        auto primaryMediumIndex = hunkStorage->GetPrimaryMediumIndex();
-        const auto& chunkManager = Bootstrap_->GetChunkManager();
-        auto* primaryMedium = chunkManager->GetMediumByIndex(primaryMediumIndex);
-        auto replicationFactor = chunkReplication.Get(primaryMediumIndex).GetReplicationFactor();
-
-        // Prepare store writer options.
-        auto storeWriterOptions = New<NTabletNode::THunkStoreWriterOptions>();
-        storeWriterOptions->MediumName = primaryMedium->GetName();
-        storeWriterOptions->Account = hunkStorage->Account()->GetName();
-        storeWriterOptions->ErasureCodec = hunkStorage->GetErasureCodec();
-        storeWriterOptions->ReplicationFactor = replicationFactor;
-        storeWriterOptions->ReadQuorum = hunkStorage->GetReadQuorum();
-        storeWriterOptions->WriteQuorum = hunkStorage->GetWriteQuorum();
-        storeWriterOptions->EnableMultiplexing = false;
-        result.HunkStoreOptions = std::move(storeWriterOptions);
-
-        return result;
-    }
-
-    struct TSerializedHunkStorageSettings
-    {
-        TYsonString MountConfig;
-        TYsonString HunkStoreConfig;
-        TYsonString HunkStoreOptions;
-    };
-
-    static TSerializedHunkStorageSettings SerializeHunkStorageSettings(const THunkStorageSettings& settings)
-    {
-        return {
-            .MountConfig = ConvertToYsonString(settings.MountConfig),
-            .HunkStoreConfig = ConvertToYsonString(settings.HunkStoreConfig),
-            .HunkStoreOptions = ConvertToYsonString(settings.HunkStoreOptions),
-        };
-    }
-
-    template <class TRequest>
-    void FillHunkStorageSettings(TRequest* request, const TSerializedHunkStorageSettings& settings)
-    {
-        auto* hunkStorageSettings = request->mutable_hunk_storage_settings();
-        hunkStorageSettings->set_mount_config(settings.MountConfig.ToString());
-        hunkStorageSettings->set_hunk_store_config(settings.HunkStoreConfig.ToString());
-        hunkStorageSettings->set_hunk_store_options(settings.HunkStoreOptions.ToString());
-    }
-
-    using TTabletOwnerSettings = std::variant<
-        TTableSettings,
-        THunkStorageSettings
-    >;
-
-    TTabletOwnerSettings GetTabletOwnerSettings(TTabletOwnerBase* table)
-    {
-        if (IsTableType(table->GetType())) {
-            return GetTableSettings(table->As<TTableNode>());
-        } else if (table->GetType() == EObjectType::HunkStorage) {
-            return GetHunkStorageSettings(table->As<THunkStorageNode>());
-        } else {
-            YT_ABORT();
-        }
-    }
-
-    using TSerializedTabletOwnerSettings = std::variant<
-        TSerializedTableSettings,
-        TSerializedHunkStorageSettings
-    >;
-
-    TSerializedTabletOwnerSettings SerializeTabletOwnerSettings(const TTabletOwnerSettings& settings)
-    {
-        return Visit(settings,
-            [] (const TTableSettings& settings) -> TSerializedTabletOwnerSettings { return SerializeTableSettings(settings); },
-            [] (const THunkStorageSettings& settings) -> TSerializedTabletOwnerSettings { return SerializeHunkStorageSettings(settings); },
-            [] (auto) { YT_ABORT(); });
-    }
-
     void MountTablet(
         TTabletBase* tablet,
         TTabletCell* cell,
         bool freeze)
     {
         auto* table = tablet->GetOwner();
-        auto tableSettings = GetTabletOwnerSettings(table);
+        auto tableSettings = GetTabletOwnerSettings(
+            table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
         auto serializedTableSettings = SerializeTabletOwnerSettings(tableSettings);
         auto assignment = ComputeTabletAssignment(
             table,
@@ -4008,7 +3711,8 @@ private:
     {
         if (IsTableType(table->GetType())) {
             auto* typedTable = table->As<TTableNode>();
-            typedTable->SetMountedWithEnabledDynamicStoreRead(IsDynamicStoreReadEnabled(typedTable));
+            typedTable->SetMountedWithEnabledDynamicStoreRead(
+                IsDynamicStoreReadEnabled(typedTable, GetDynamicConfig()));
         }
 
         const auto& objectManager = Bootstrap_->GetObjectManager();
@@ -4189,7 +3893,7 @@ private:
                 protoLock->set_timestamp(lock.Timestamp);
             }
 
-            if (!freeze && IsDynamicStoreReadEnabled(table)) {
+            if (!freeze && IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
                 CreateAndAttachDynamicStores(tablet, &req);
             }
 
@@ -4349,7 +4053,7 @@ private:
 
             TReqUnfreezeTablet request;
 
-            if (IsDynamicStoreReadEnabled(table)) {
+            if (IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
                 CreateAndAttachDynamicStores(tablet->As<TTablet>(), &request);
             }
 
@@ -4677,7 +4381,11 @@ private:
         int firstTabletIndex,
         int lastTabletIndex)
     {
-        auto tableSettings = GetTableSettings(table);
+        auto tableSettings = GetTableSettings(
+            table,
+            Bootstrap_->GetObjectManager(),
+            Bootstrap_->GetChunkManager(),
+            GetDynamicConfig());
         auto serializedTableSettings = SerializeTableSettings(tableSettings);
 
         for (int index = firstTabletIndex; index <= lastTabletIndex; ++index) {
@@ -6978,7 +6686,7 @@ private:
         }
 
         if (updateReason == ETabletStoresUpdateReason::Flush &&
-            IsDynamicStoreReadEnabled(table) &&
+            IsDynamicStoreReadEnabled(table, GetDynamicConfig()) &&
             !request->stores_to_remove().empty())
         {
             auto storeId = FromProto<TStoreId>(request->stores_to_remove(0).store_id());
@@ -7248,7 +6956,7 @@ private:
                 attachedRowCount += chunk->GetRowCount();
                 chunksToAttach.push_back(chunk);
             } else if (IsDynamicTabletStoreType(type)) {
-                if (IsDynamicStoreReadEnabled(table)) {
+                if (IsDynamicStoreReadEnabled(table, GetDynamicConfig())) {
                     YT_LOG_ALERT("Attempt to attach dynamic store to a table "
                         "with readable dynamic stores (TableId: %v, TabletId: %v, StoreId: %v, Reason: %v)",
                         table->GetId(),
@@ -7349,7 +7057,10 @@ private:
         auto* tabletChunkList = tablet->GetChunkList();
         auto* cell = tablet->GetCell();
 
-        if (!table->IsPhysicallySorted() && IsDynamicStoreReadEnabled(table) && updateReason == ETabletStoresUpdateReason::Flush) {
+        if (!table->IsPhysicallySorted() &&
+            IsDynamicStoreReadEnabled(table, GetDynamicConfig()) &&
+            updateReason == ETabletStoresUpdateReason::Flush)
+        {
             // NB: Flushing ordered tablet requires putting a certain chunk in place of a certain dynamic store.
 
             const auto& children = tabletChunkList->Children();
@@ -8282,86 +7993,6 @@ private:
             TTabletResources().SetTabletStaticMemory(memorySize));
     }
 
-    void ValidateTableMountConfig(
-        const TTableNode* table,
-        const TTableMountConfigPtr& mountConfig)
-    {
-        if (table->IsPhysicallyLog() && mountConfig->InMemoryMode != EInMemoryMode::None) {
-            THROW_ERROR_EXCEPTION("Cannot mount dynamic table of type %Qlv in memory",
-                table->GetType());
-        }
-        if (!table->IsPhysicallySorted() && mountConfig->EnableLookupHashTable) {
-            THROW_ERROR_EXCEPTION("\"enable_lookup_hash_table\" can be \"true\" only for sorted dynamic table");
-        }
-
-        if (Bootstrap_->GetConfigManager()->GetConfig()->TabletManager->ForbidArbitraryDataVersionsInRetentionConfig) {
-            if (mountConfig->MinDataVersions > 1) {
-                THROW_ERROR_EXCEPTION("\"min_data_versions\" must be not greater than 1");
-            }
-
-            if (mountConfig->MaxDataVersions > 1) {
-                THROW_ERROR_EXCEPTION("\"max_data_versions\" must be not greater than 1");
-            }
-
-            if (mountConfig->MinDataVersions > mountConfig->MaxDataVersions) {
-                THROW_ERROR_EXCEPTION("\"min_data_versions\" must be not greater than \"max_data_versions\"");
-            }
-        }
-    }
-
-    bool IsDynamicStoreReadEnabled(const TTableNode* table)
-    {
-        if (table->IsPhysicallyLog() && !table->IsReplicated()) {
-            return false;
-        }
-
-        if (table->GetActualTabletState() == ETabletState::Unmounted) {
-            return table->GetEnableDynamicStoreRead().value_or(
-                GetDynamicConfig()->EnableDynamicStoreReadByDefault);
-        } else {
-            return table->GetMountedWithEnabledDynamicStoreRead();
-        }
-    }
-
-    static TError TryParseTabletRange(
-        const TTabletOwnerBase* table,
-        int* first,
-        int* last)
-    {
-        const auto& tablets = table->Tablets();
-        if (*first == -1 && *last == -1) {
-            *first = 0;
-            *last = static_cast<int>(tablets.size() - 1);
-        } else {
-            if (*first < 0 || *first >= std::ssize(tablets)) {
-                return TError("First tablet index %v is out of range [%v, %v]",
-                    *first,
-                    0,
-                    tablets.size() - 1);
-            }
-            if (*last < 0 || *last >= std::ssize(tablets)) {
-                return TError("Last tablet index %v is out of range [%v, %v]",
-                    *last,
-                    0,
-                    tablets.size() - 1);
-            }
-            if (*first > *last) {
-               return TError("First tablet index is greater than last tablet index");
-            }
-        }
-
-        return TError();
-    }
-
-    static void ParseTabletRange(
-        TTabletOwnerBase* owner,
-        int* first,
-        int* last)
-    {
-        auto error = TryParseTabletRange(owner, first, last);
-        YT_VERIFY(error.IsOK());
-    }
-
     std::pair<std::vector<TTablet*>::iterator, std::vector<TTablet*>::iterator> GetIntersectingTablets(
         std::vector<TTablet*>& tablets,
         const NChunkClient::TLegacyReadRange readRange)
@@ -9015,14 +8646,6 @@ void TTabletManager::OnNodeStorageParametersUpdated(TChunkOwnerBase* node)
 void TTabletManager::RecomputeTabletCellStatistics(TCellBase* cellBase)
 {
     return Impl_->RecomputeTabletCellStatistics(cellBase);
-}
-
-void TTabletManager::ParseTabletRangeOrThrow(
-    const TTabletOwnerBase* owner,
-    int* first,
-    int* last) const
-{
-    Impl_->ParseTabletRangeOrThrow(owner, first, last);
 }
 
 void TTabletManager::OnHunkJournalChunkSealed(TChunk* chunk)

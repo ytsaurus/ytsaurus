@@ -8,11 +8,11 @@
 
 #include <yt/yt/server/master/chunk_server/chunk_list.h>
 
+#include <yt/yt/server/master/tablet_server/helpers.h>
+#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 #include <yt/yt/server/master/tablet_server/mount_config_storage.h>
 #include <yt/yt/server/master/tablet_server/tablet.h>
 #include <yt/yt/server/master/tablet_server/tablet_cell_bundle.h>
-#include <yt/yt/server/master/tablet_server/tablet_manager.h>
-#include <yt/yt/server/master/tablet_server/hunk_storage_node.h>
 
 #include <yt/yt/server/master/object_server/object.h>
 #include <yt/yt/server/master/object_server/public.h>
@@ -739,8 +739,7 @@ void TTableNode::ValidateReshard(
             GetType());
     }
 
-    const auto& tabletManager = bootstrap->GetTabletManager();
-    tabletManager->ParseTabletRangeOrThrow(this, &firstTabletIndex, &lastTabletIndex); // may throw
+    ParseTabletRangeOrThrow(this, &firstTabletIndex, &lastTabletIndex); // may throw
 
     if (IsSorted()) {
         // NB: We allow reshard without pivot keys.
