@@ -9,6 +9,7 @@
 namespace NYT::NControllerAgent::NControllers {
 
 using namespace NYTree;
+using namespace NTableClient;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -42,6 +43,11 @@ bool TInputTable::IsPrimary() const
     return !IsForeign();
 }
 
+bool TInputTable::SupportsTeleportation() const
+{
+    return !Dynamic && !Path.GetColumns() && ColumnRenameDescriptors.empty();
+}
+
 void TInputTable::Persist(const TPersistenceContext& context)
 {
     TTableBase::Persist(context);
@@ -63,6 +69,12 @@ TOutputTable::TOutputTable(NYPath::TRichYPath path, EOutputTableType outputType)
 bool TOutputTable::IsBeginUploadCompleted() const
 {
     return static_cast<bool>(UploadTransactionId);
+}
+
+bool TOutputTable::SupportsTeleportation() const
+{
+    return TableUploadOptions.SchemaModification == ETableSchemaModification::None &&
+        !Path.GetOutputTimestamp();
 }
 
 void TOutputTable::Persist(const TPersistenceContext& context)

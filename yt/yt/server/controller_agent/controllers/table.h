@@ -73,6 +73,12 @@ struct TInputTable
     bool IsForeign() const;
     bool IsPrimary() const;
 
+    //! Returns true unless teleportation is forbidden by some table options,
+    //! e.g. dynamism or renamed columns.
+    //! NB: this method depends only on internal table properties. Use
+    //! |Teleportable| to get effective value.
+    bool SupportsTeleportation() const;
+
     void Persist(const TPersistenceContext& context);
 };
 
@@ -128,6 +134,8 @@ struct TOutputTable
     TStreamDescriptorPtr GetStreamDescriptorTemplate(int tableIndex = -1);
 
     bool IsBeginUploadCompleted() const;
+
+    bool SupportsTeleportation() const;
 
     void Persist(const TPersistenceContext& context);
 };

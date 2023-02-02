@@ -110,6 +110,9 @@ public:
     // "retention_timestamp"
     std::optional<NTransactionClient::TTimestamp> GetRetentionTimestamp() const;
 
+    // "output_timestamp"
+    std::optional<NTransactionClient::TTimestamp> GetOutputTimestamp() const;
+
     // "optimize_for"
     std::optional<NTableClient::EOptimizeFor> GetOptimizeFor() const;
 

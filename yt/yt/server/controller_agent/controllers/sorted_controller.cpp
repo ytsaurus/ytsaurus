@@ -573,11 +573,7 @@ protected:
         auto tableIndex = GetOutputTeleportTableIndex();
         if (tableIndex) {
             for (const auto& inputTable : InputTables_) {
-                if (!inputTable->Dynamic &&
-                    !inputTable->Path.GetColumns() &&
-                    inputTable->ColumnRenameDescriptors.empty() &&
-                    OutputTables_[*tableIndex]->TableUploadOptions.SchemaModification == ETableSchemaModification::None)
-                {
+                if (inputTable->SupportsTeleportation() && OutputTables_[*tableIndex]->SupportsTeleportation()) {
                     inputTable->Teleportable = CheckTableSchemaCompatibility(
                         *inputTable->Schema,
                         *OutputTables_[*tableIndex]->TableUploadOptions.TableSchema,

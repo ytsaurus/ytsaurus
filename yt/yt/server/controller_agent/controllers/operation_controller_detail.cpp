@@ -6018,6 +6018,11 @@ void TOperationControllerBase::GetOutputTablesSchema()
                     << TErrorAttribute("table_path", path);
             }
 
+            if (path.GetOutputTimestamp()) {
+                THROW_ERROR_EXCEPTION("Cannot set \"output_timestamp\" attribute to the dynamic table")
+                    << TErrorAttribute("table_path", path);
+            }
+
             // Check if bulk insert is enabled for a certain user.
             if (!Config->EnableBulkInsertForEveryone && OperationType != EOperationType::RemoteCopy) {
                 TGetNodeOptions options;
@@ -6036,8 +6041,22 @@ void TOperationControllerBase::GetOutputTablesSchema()
             }
         }
 
-        // TODO(savrus): I would like to see commit ts here. But as for now, start ts suffices.
-        table->Timestamp = GetTransactionForOutputTable(table)->GetStartTimestamp();
+        if (path.GetOutputTimestamp()) {
+            auto outputTimestamp = *path.GetOutputTimestamp();
+            if (outputTimestamp < MinTimestamp || outputTimestamp > MaxTimestamp) {
+                THROW_ERROR_EXCEPTION("Attribute \"output_timestamp\" value is out of range [%v, %v]",
+                    MinTimestamp,
+                    MaxTimestamp)
+                    << TErrorAttribute("output_timestamp", outputTimestamp)
+                    << TErrorAttribute("table_path", path);
+
+            }
+
+            table->Timestamp = outputTimestamp;
+        } else {
+            // TODO(savrus): I would like to see commit ts here. But as for now, start ts suffices.
+            table->Timestamp = GetTransactionForOutputTable(table)->GetStartTimestamp();
+        }
 
         // NB(psushin): This option must be set before PrepareOutputTables call.
         table->TableWriterOptions->EvaluateComputedColumns = table->TableUploadOptions.TableSchema->HasComputedColumns();
