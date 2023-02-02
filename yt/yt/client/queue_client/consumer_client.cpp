@@ -410,6 +410,7 @@ private:
         TVersionedLookupRowsOptions options;
         // This allows easier detection of key set change during the query.
         options.KeepMissingRows = true;
+        options.RetentionConfig = New<TRetentionConfig>();
         options.RetentionConfig->MaxDataVersions = 1;
 
         auto versionedRowset = WaitFor(client->VersionedLookupRows(
