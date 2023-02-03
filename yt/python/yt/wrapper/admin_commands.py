@@ -49,7 +49,8 @@ def resume_tablet_cells(cell_ids, client=None):
 
 
 def add_maintenance(node_address, maintenance_type, comment, client=None):
-    """Adds maintenance request for given node
+    """
+    Add maintenance request for given node
 
     :param node_address: node address.
     :param maintenance_type: maintenance type. There are 5 maintenance types: ban, decommission, disable_scheduler_jobs,
@@ -74,7 +75,8 @@ def add_maintenance(node_address, maintenance_type, comment, client=None):
 
 
 def remove_maintenance(node_address, maintenance_id, client=None):
-    """Removes maintenance request from given node
+    """
+    Remove maintenance request from given node
 
     :param node_address: node address.
     :param maintenance_id: maintenance id.
