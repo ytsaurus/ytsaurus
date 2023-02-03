@@ -107,6 +107,11 @@ std::vector<TUnversionedRow> FetchReaderKeyPrefixes(
         }
         auto rows = batch->MaterializeRows();
 
+        if (rows.empty()) {
+            // Reader is not ready, wait.
+            reader->GetReadyEvent().Get().ThrowOnError();
+        }
+
         for (auto row : rows) {
             if (!keys.empty() && ComparePrefix(row.begin(), keys.back().begin(), keyLength) == 0) {
                 continue;
