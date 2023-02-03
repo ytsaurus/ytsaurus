@@ -107,8 +107,9 @@ private:
             return;
         }
 
-        YT_LOG_DEBUG("Request received (RequestId: %v)",
-            requestId);
+        YT_LOG_DEBUG("Request received (RequestId: %v, Endpoint: %v)",
+            requestId,
+            replyBus->GetEndpointDescription());
 
         auto replyWithError = [&] (const TError& error) {
             YT_LOG_DEBUG(error);
