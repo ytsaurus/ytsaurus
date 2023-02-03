@@ -2488,35 +2488,7 @@ private:
 
             // Reconstruct iterators.
             if (lock->GetState() == ELockState::Acquired) {
-                auto* transaction = lock->GetTransaction();
-                auto* lockingState = lock->GetTrunkNode()->MutableLockingState();
-                switch (lock->Request().Mode) {
-                    case ELockMode::Snapshot:
-                        lock->SetTransactionToSnapshotLocksIterator(lockingState->TransactionToSnapshotLocks.emplace(
-                            transaction,
-                            lock));
-                        break;
-
-                    case ELockMode::Shared:
-                        lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
-                            std::make_pair(transaction, lock->Request().Key),
-                            lock));
-                        if (lock->Request().Key.Kind != ELockKeyKind::None) {
-                            lock->SetKeyToSharedLocksIterator(lockingState->KeyToSharedLocks.emplace(
-                                lock->Request().Key,
-                                lock));
-                        }
-                        break;
-
-                    case ELockMode::Exclusive:
-                        lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
-                            transaction,
-                            lock));
-                        break;
-
-                    default:
-                        YT_ABORT();
-                }
+                RegisterLock(lock);
             }
         }
         YT_LOG_INFO("Finished initializing locks");
@@ -2867,13 +2839,12 @@ private:
         }
 
         const auto& lockingState = trunkNode->LockingState();
-        const auto& transactionToSnapshotLocks = lockingState.TransactionToSnapshotLocks;
         const auto& transactionAndKeyToSharedLocks = lockingState.TransactionAndKeyToSharedLocks;
         const auto& keyToSharedLocks = lockingState.KeyToSharedLocks;
         const auto& transactionToExclusiveLocks = lockingState.TransactionToExclusiveLocks;
 
         // Handle snapshot locks.
-        if (transaction && transactionToSnapshotLocks.find(transaction) != transactionToSnapshotLocks.end()) {
+        if (transaction && lockingState.HasSnapshotLock(transaction)) {
             if (request.Mode == ELockMode::Snapshot) {
                 // Already taken by this transaction.
                 return TError();
@@ -2893,7 +2864,7 @@ private:
         if (request.Mode == ELockMode::Snapshot) {
             if (transaction) {
                 // Check if a non-snapshot lock is already taken by this transaction.
-                if (transactionToExclusiveLocks.find(transaction) != transactionToExclusiveLocks.end()) {
+                if (lockingState.HasExclusiveLock(transaction)) {
                     return TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
@@ -2902,17 +2873,14 @@ private:
                         ELockMode::Exclusive,
                         transaction->GetId());
                 }
-                for (const auto& [transactionAndKey, lock] : transactionAndKeyToSharedLocks) {
-                    const auto& lockTransaction = transactionAndKey.first;
-                    if (transaction == lockTransaction) {
-                        return TError(
-                            NCypressClient::EErrorCode::SameTransactionLockConflict,
-                            "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
-                            request.Mode,
-                            GetNodePath(trunkNode, transaction),
-                            ELockMode::Shared,
-                            transaction->GetId());
-                    }
+                if (lockingState.HasSharedLock(transaction)) {
+                    return TError(
+                        NCypressClient::EErrorCode::SameTransactionLockConflict,
+                        "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by same transaction %v",
+                        request.Mode,
+                        GetNodePath(trunkNode, transaction),
+                        ELockMode::Shared,
+                        transaction->GetId());
                 }
 
                 // Check if any nested transaction has taken a non-snapshot lock.
@@ -2934,7 +2902,7 @@ private:
         if (transaction) {
             auto* currentTransaction = transaction->GetParent();
             while (currentTransaction) {
-                if (transactionToSnapshotLocks.find(currentTransaction) != transactionToSnapshotLocks.end()) {
+                if (lockingState.HasSnapshotLock(currentTransaction)) {
                     return TError(
                         NCypressClient::EErrorCode::SameTransactionLockConflict,
                         "Cannot take %Qlv lock for node %v since %Qlv lock is already taken by parent transaction %v",
@@ -2995,7 +2963,7 @@ private:
 
         switch (request.Mode) {
             case ELockMode::Exclusive:
-                for (const auto& [_, lock] : transactionAndKeyToSharedLocks) {
+                for (const auto& [transaction, lockKey, lock] : transactionAndKeyToSharedLocks) {
                     auto error = checkExistingLock(lock);
                     if (!error.IsOK()) {
                         return error;
@@ -3102,7 +3070,7 @@ private:
             case ELockMode::Shared: {
                 auto range = lockingState.TransactionAndKeyToSharedLocks.equal_range(std::make_pair(transaction, request.Key));
                 for (auto it = range.first; it != range.second; ++it) {
-                    const auto* existingLock = it->second;
+                    const auto* existingLock = get<TLock*>(*it);
                     if (existingLock != lockToIgnore) {
                         return true;
                     }
@@ -3197,33 +3165,7 @@ private:
         lockingState->AcquiredLocks.push_back(lock);
         lock->SetLockListIterator(--lockingState->AcquiredLocks.end());
 
-        switch (request.Mode) {
-            case ELockMode::Exclusive:
-                lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
-                    transaction,
-                    lock));
-                break;
-
-            case ELockMode::Shared:
-                lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
-                    std::make_pair(transaction, request.Key),
-                    lock));
-                if (request.Key.Kind != ELockKeyKind::None) {
-                    lock->SetKeyToSharedLocksIterator(lockingState->KeyToSharedLocks.emplace(
-                        request.Key,
-                        lock));
-                }
-                break;
-
-            case ELockMode::Snapshot:
-                lock->SetTransactionToSnapshotLocksIterator(lockingState->TransactionToSnapshotLocks.emplace(
-                    transaction,
-                    lock));
-                break;
-
-            default:
-                YT_ABORT();
-        }
+        RegisterLock(lock);
 
         if (transaction->LockedNodes().insert(trunkNode).second) {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Node locked (NodeId: %v, TransactionId: %v)",
@@ -3276,6 +3218,62 @@ private:
             }
             return currentNode;
         }
+    }
+
+    static void RegisterLock(TLock* lock)
+    {
+        auto* transaction = lock->GetTransaction();
+        auto* lockingState = lock->GetTrunkNode()->MutableLockingState();
+
+        switch (lock->Request().Mode) {
+            case ELockMode::Snapshot:
+                if (auto [it, inserted] = lockingState->TransactionToSnapshotLocks.emplace(transaction, lock);
+                    inserted)
+                {
+                    lock->SetTransactionToSnapshotLocksIterator(it);
+                } else {
+                    AlertDuplicateLock(lock);
+                }
+                break;
+
+            case ELockMode::Shared:
+                if (auto [it, inserted] = lockingState->TransactionAndKeyToSharedLocks.emplace(transaction, lock->Request().Key, lock);
+                    inserted)
+                {
+                    lock->SetTransactionAndKeyToSharedLocksIterator(it);
+                    if (lock->Request().Key.Kind != ELockKeyKind::None) {
+                        lock->SetKeyToSharedLocksIterator(
+                            lockingState->KeyToSharedLocks.emplace(lock->Request().Key, lock));
+                    }
+                } else {
+                    AlertDuplicateLock(lock);
+                }
+                break;
+
+            case ELockMode::Exclusive:
+                if (auto [it, inserted] = lockingState->TransactionToExclusiveLocks.emplace(transaction, lock);
+                    inserted)
+                {
+                    lock->SetTransactionToExclusiveLocksIterator(it);
+                } else {
+                    AlertDuplicateLock(lock);
+                }
+                break;
+
+            default:
+                YT_ABORT();
+        }
+    }
+
+    static void AlertDuplicateLock(TLock* lock)
+    {
+        YT_LOG_ALERT("Duplicate lock detected "
+            "(NodeId: %v, TransactionId: %v, LockId: %v, LockMode: %v, LockKey: %v)",
+            lock->GetTrunkNode()->GetId(),
+            lock->GetTransaction()->GetId(),
+            lock->GetId(),
+            lock->Request().Mode,
+            lock->Request().Key);
     }
 
     TLock* DoCreateLock(
@@ -3378,16 +3376,24 @@ private:
             switch (lock->Request().Mode) {
                 case ELockMode::Exclusive:
                     lockingState->TransactionToExclusiveLocks.erase(lock->GetTransactionToExclusiveLocksIterator());
-                    lock->SetTransactionToExclusiveLocksIterator(lockingState->TransactionToExclusiveLocks.emplace(
-                        parentTransaction,
-                        lock));
+                    if (auto [it, inserted] = lockingState->TransactionToExclusiveLocks.emplace(parentTransaction, lock);
+                        inserted)
+                    {
+                        lock->SetTransactionToExclusiveLocksIterator(it);
+                    } else {
+                        AlertDuplicateLock(lock);
+                    }
                     break;
 
                 case ELockMode::Shared:
                     lockingState->TransactionAndKeyToSharedLocks.erase(lock->GetTransactionAndKeyToSharedLocksIterator());
-                    lock->SetTransactionAndKeyToSharedLocksIterator(lockingState->TransactionAndKeyToSharedLocks.emplace(
-                        std::make_pair(parentTransaction, lock->Request().Key),
-                        lock));
+                    if (auto [it, inserted] = lockingState->TransactionAndKeyToSharedLocks.emplace(parentTransaction, lock->Request().Key, lock);
+                        inserted)
+                    {
+                        lock->SetTransactionAndKeyToSharedLocksIterator(it);
+                    } else {
+                        AlertDuplicateLock(lock);
+                    }
                     break;
 
                 default:
