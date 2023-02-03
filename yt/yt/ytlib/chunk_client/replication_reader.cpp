@@ -3050,7 +3050,6 @@ private:
                 CandidateIndex_ - 1,
                 SinglePassIterationCount_,
                 throttlingRate);
-            YT_VERIFY(response->net_queue_size() > 0 || response->disk_queue_size());
 
             PeerAddressToThrottlingRate_[peerAddress] = throttlingRate;
         } else if (PeerAddressToThrottlingRate_.contains(peerAddress)) {
@@ -3112,7 +3111,8 @@ private:
     {
         SortBy(SinglePassCandidates_, [&] (const TPeer& candidate) {
             auto throttlingRate = PeerAddressToThrottlingRate_.find(candidate.Address);
-            return throttlingRate != PeerAddressToThrottlingRate_.end() ? throttlingRate->second : 0.;
+            //! NB: We use -1 because even in case of throttling |throttlingRate| may be zero.
+            return throttlingRate != PeerAddressToThrottlingRate_.end() ? throttlingRate->second : -1.;
         });
     }
 
