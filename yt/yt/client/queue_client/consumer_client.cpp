@@ -205,6 +205,10 @@ public:
         int expectedPartitionCount,
         bool withLastConsumeTime = false) const override
     {
+        if (expectedPartitionCount <= 0) {
+            return MakeFuture(std::vector<TPartitionInfo>{});
+        }
+
         auto selectQuery = Format(
             "[%v], [%v] from [%v] where ([%v] between 0 and %v) and (%v)",
             PartitionIndexColumnName_,
@@ -222,6 +226,8 @@ public:
             .AsyncVia(GetCurrentInvoker())
             .Run()
             .Apply(BIND([expectedPartitionCount] (const std::vector<TPartitionInfo>& partitionInfos) {
+                YT_VERIFY(std::ssize(partitionInfos) <= expectedPartitionCount);
+
                 std::vector<TPartitionInfo> result(expectedPartitionCount);
                 for (int partitionIndex = 0; partitionIndex < expectedPartitionCount; ++partitionIndex) {
                     result[partitionIndex] = {.PartitionIndex = partitionIndex, .NextRowIndex = 0};
