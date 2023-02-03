@@ -1091,22 +1091,20 @@ void TChunkLocation::InitializeUuid()
     }
 }
 
-i64 TChunkLocation::GetReadQueueSize(const TWorkloadDescriptor& workloadDescriptor) const
+std::tuple<bool, i64> TChunkLocation::CheckReadThrottling(
+    const TWorkloadDescriptor& workloadDescriptor,
+    bool incrementCounter) const
 {
-    return
+    auto readQueueSize =
         GetPendingIOSize(EIODirection::Read, workloadDescriptor) +
         GetOutThrottler(workloadDescriptor)->GetQueueTotalAmount();
-}
-
-bool TChunkLocation::CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool report) const
-{
     bool throttled =
-        GetReadQueueSize(workloadDescriptor) > GetReadThrottlingLimit() ||
+        readQueueSize > GetReadThrottlingLimit() ||
         ReadMemoryTracker_->IsExceeded();
-    if (throttled && report) {
+    if (throttled && incrementCounter) {
         ReportThrottledRead();
     }
-    return throttled;
+    return {throttled, readQueueSize};
 }
 
 void TChunkLocation::ReportThrottledRead() const
@@ -1114,12 +1112,14 @@ void TChunkLocation::ReportThrottledRead() const
     PerformanceCounters_->ReportThrottledRead();
 }
 
-bool TChunkLocation::CheckWriteThrottling(const TWorkloadDescriptor& workloadDescriptor, bool report) const
+bool TChunkLocation::CheckWriteThrottling(
+    const TWorkloadDescriptor& workloadDescriptor,
+    bool incrementCounter) const
 {
     bool throttled =
         GetPendingIOSize(EIODirection::Write, workloadDescriptor) > GetWriteThrottlingLimit() ||
         WriteMemoryTracker_->IsExceeded();
-    if (throttled && report) {
+    if (throttled && incrementCounter) {
         ReportThrottledWrite();
     }
     return throttled;

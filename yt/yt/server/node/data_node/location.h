@@ -365,17 +365,19 @@ public:
     //! Returns |true| if writes were throttled (within some recent time interval).
     bool IsWriteThrottling() const;
 
-    //! Returns the total number of bytes to read from disk including those accounted by out throttler.
-    i64 GetReadQueueSize(const TWorkloadDescriptor& workloadDescriptor) const;
-
-    //! Returns |true| if writes must currently be throttled.
-    bool CheckReadThrottling(const TWorkloadDescriptor& workloadDescriptor, bool report = true) const;
+    //! Returns whether reads must be throttled
+    //! and the total number of bytes to read from disk including those accounted by out throttler.
+    std::tuple<bool, i64> CheckReadThrottling(
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const;
 
     //! Reports throttled read.
     void ReportThrottledRead() const;
 
     //! Returns |true| if writes must currently be throttled.
-    bool CheckWriteThrottling(const TWorkloadDescriptor& workloadDescriptor, bool report = true) const;
+    bool CheckWriteThrottling(
+        const TWorkloadDescriptor& workloadDescriptor,
+        bool incrementCounter = true) const;
 
     //! Reports throttled write.
     void ReportThrottledWrite() const;
