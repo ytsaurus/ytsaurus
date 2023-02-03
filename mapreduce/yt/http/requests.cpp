@@ -28,7 +28,10 @@ bool operator==(const TAuth& lhs, const TAuth& rhs)
 {
     return lhs.ServerName == rhs.ServerName &&
            lhs.Token == rhs.Token &&
-           lhs.ServiceTicketAuth == rhs.ServiceTicketAuth;
+           lhs.ServiceTicketAuth == rhs.ServiceTicketAuth &&
+           lhs.HttpClient == rhs.HttpClient &&
+           lhs.UseTLS == rhs.UseTLS &&
+           lhs.TvmOnly == rhs.TvmOnly;
 }
 
 bool operator!=(const TAuth& lhs, const TAuth& rhs)
