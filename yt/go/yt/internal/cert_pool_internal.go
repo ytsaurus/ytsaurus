@@ -1,3 +1,6 @@
+//go:build internal
+// +build internal
+
 package internal
 
 import (
