@@ -9,6 +9,7 @@
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
+using namespace NTransactionServer;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -89,6 +90,176 @@ bool TLockRequest::operator!=(const TLockRequest& other) const
 }
 
 ////////////////////////////////////////////////////////////////////////////////
+
+bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+    std::pair<TTransaction*, TLock*> lhs,
+    std::pair<TTransaction*, TLock*> rhs) const
+{
+    YT_ASSERT(lhs.first);
+    YT_ASSERT(lhs.second);
+    YT_ASSERT(rhs.first);
+    YT_ASSERT(rhs.second);
+
+    if (lhs.first->GetId() != rhs.first->GetId()) {
+        return lhs.first->GetId() < rhs.first->GetId();
+    }
+
+    return lhs.second->GetId() < rhs.second->GetId();
+}
+
+bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+    TTransaction* lhs,
+    std::pair<TTransaction*, TLock*> rhs) const
+{
+    YT_ASSERT(lhs);
+    YT_ASSERT(rhs.first);
+    YT_ASSERT(rhs.second);
+
+    if (lhs->GetId() != rhs.first->GetId()) {
+        return lhs->GetId() < rhs.first->GetId();
+    }
+
+    return false;
+}
+
+bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+    std::pair<TTransaction*, TLock*> lhs,
+    TTransaction* rhs) const
+{
+    YT_ASSERT(lhs.first);
+    YT_ASSERT(lhs.second);
+    YT_ASSERT(rhs);
+
+    if (lhs.first->GetId() != rhs->GetId()) {
+        return lhs.first->GetId() < rhs->GetId();
+    }
+
+    return false;
+}
+
+bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+    const std::tuple<TTransaction*, TLockKey, TLock*>& lhs,
+    const std::tuple<TTransaction*, TLockKey, TLock*>& rhs) const
+{
+    YT_ASSERT(get<TTransaction*>(lhs));
+    YT_ASSERT(get<TLock*>(lhs));
+    YT_ASSERT(get<TTransaction*>(rhs));
+    YT_ASSERT(get<TLock*>(rhs));
+
+    const auto* lhsTransaction = get<TTransaction*>(lhs);
+    const auto* rhsTransaction = get<TTransaction*>(rhs);
+    if (lhsTransaction->GetId() != rhsTransaction->GetId()) {
+        return lhsTransaction->GetId() < rhsTransaction->GetId();
+    }
+
+    const auto& lhsKey = get<TLockKey>(lhs);
+    const auto& rhsKey = get<TLockKey>(rhs);
+    if (lhsKey != rhsKey) {
+        return lhsKey < rhsKey;
+    }
+
+    const auto* lhsLock = get<TLock*>(lhs);
+    const auto* rhsLock = get<TLock*>(rhs);
+    return lhsLock->GetId() < rhsLock->GetId();
+}
+
+bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+    std::pair<TTransaction*, TLockKey> lhs,
+    const std::tuple<TTransaction*, TLockKey, TLock*>& rhs) const
+{
+    YT_ASSERT(lhs.first);
+    YT_ASSERT(get<TTransaction*>(rhs));
+    YT_ASSERT(get<TLock*>(rhs));
+
+    const auto* lhsTransaction = lhs.first;
+    const auto* rhsTransaction = get<TTransaction*>(rhs);
+    if (lhsTransaction->GetId() != rhsTransaction->GetId()) {
+        return lhsTransaction->GetId() < rhsTransaction->GetId();
+    }
+
+    const auto& lhsKey = lhs.second;
+    const auto& rhsKey = get<TLockKey>(rhs);
+    if (lhsKey != rhsKey) {
+        return lhsKey < rhsKey;
+    }
+
+    return false;
+}
+
+bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+    const std::tuple<TTransaction*, TLockKey, TLock*>& lhs,
+    std::pair<TTransaction*, TLockKey> rhs) const
+{
+    YT_ASSERT(get<TTransaction*>(lhs));
+    YT_ASSERT(get<TLock*>(lhs));
+    YT_ASSERT(rhs.first);
+
+    const auto* lhsTransaction = get<TTransaction*>(lhs);
+    const auto* rhsTransaction = rhs.first;
+    if (lhsTransaction->GetId() != rhsTransaction->GetId()) {
+        return lhsTransaction->GetId() < rhsTransaction->GetId();
+    }
+
+    const auto& lhsKey = get<TLockKey>(lhs);
+    const auto& rhsKey = rhs.second;
+    if (lhsKey != rhsKey) {
+        return lhsKey < rhsKey;
+    }
+
+    return false;
+}
+
+bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+    const TTransaction* lhs,
+    const std::tuple<TTransaction*, TLockKey, TLock*>& rhs) const
+{
+    YT_ASSERT(lhs);
+    YT_ASSERT(get<TTransaction*>(rhs));
+    YT_ASSERT(get<TLock*>(rhs));
+
+    const auto* rhsTransaction = get<TTransaction*>(rhs);
+    if (lhs->GetId() != rhsTransaction->GetId()) {
+        return lhs->GetId() < rhsTransaction->GetId();
+    }
+
+    return false;
+}
+
+bool TCypressNodeLockingState::TLockEntryComparator::operator()(
+    const std::tuple<TTransaction*, TLockKey, TLock*>& lhs,
+    TTransaction* rhs) const
+{
+    YT_ASSERT(get<TTransaction*>(lhs));
+    YT_ASSERT(get<TLock*>(lhs));
+    YT_ASSERT(rhs);
+
+    const auto* lhsTransaction = get<TTransaction*>(lhs);
+    if (lhsTransaction->GetId() != rhs->GetId()) {
+        return lhsTransaction->GetId() < rhs->GetId();
+    }
+
+    return false;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+bool TCypressNodeLockingState::HasExclusiveLock(TTransaction* transaction) const
+{
+    auto it = TransactionToExclusiveLocks.lower_bound(transaction);
+    return it != TransactionToExclusiveLocks.end() && it->first == transaction;
+}
+
+bool TCypressNodeLockingState::HasSharedLock(TTransaction* transaction) const
+{
+    auto it = TransactionAndKeyToSharedLocks.lower_bound(transaction);
+    return it != TransactionAndKeyToSharedLocks.end() && get<TTransaction*>(*it) == transaction;
+}
+
+bool TCypressNodeLockingState::HasSnapshotLock(TTransaction* transaction) const
+{
+    auto it = TransactionToSnapshotLocks.lower_bound(transaction);
+    return it != TransactionToSnapshotLocks.end() && it->first == transaction;
+}
 
 bool TCypressNodeLockingState::IsEmpty() const
 {
