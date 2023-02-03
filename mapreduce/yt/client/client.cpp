@@ -1297,6 +1297,9 @@ TClientPtr CreateClientImpl(
     if (serverName.find(':') == TString::npos) {
         auth.ServerName = CreateHostNameWithPort(auth.ServerName, auth);
     }
+    if (options.TvmOnly_) {
+        auth.ServerName = Format("tvm.%v", auth.ServerName);
+    }
 
     auth.HttpClient = NHttpClient::CreateDefaultHttpClient();
 
