@@ -554,7 +554,8 @@ public:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        YT_LOG_INFO("Releasing ports (PortCount: %v, Ports: %v)",
+        YT_LOG_INFO_UNLESS(ports.empty(),
+            "Releasing ports (PortCount: %v, Ports: %v)",
             ports.size(),
             ports);
         for (auto port : ports) {
