@@ -468,8 +468,12 @@ public:
             YT_VERIFY(!ReadDirection_.Running);
             YT_VERIFY(!WriteDirection_.Running);
 
-            if (Error_.IsOK()) {
-                Error_ = TError("Connection is shut down");
+            auto shutdownError = TError("Connection is shut down");
+            if (WriteError_.IsOK()) {
+                WriteError_ = shutdownError;
+            }
+            if (ReadError_.IsOK()) {
+                ReadError_ = shutdownError;
             }
 
             ShutdownRequested_ = true;
@@ -483,11 +487,11 @@ public:
         }
 
         if (ReadDirection_.Operation) {
-            ReadDirection_.Operation->Abort(Error_);
+            ReadDirection_.Operation->Abort(ReadError_);
             ReadDirection_.Operation.reset();
         }
         if (WriteDirection_.Operation) {
-            WriteDirection_.Operation->Abort(Error_);
+            WriteDirection_.Operation->Abort(WriteError_);
             WriteDirection_.Operation.reset();
         }
 
@@ -572,7 +576,8 @@ public:
     {
         auto guard = Guard(Lock_);
         return
-            Error_.IsOK() &&
+            ReadError_.IsOK() &&
+            WriteError_.IsOK() &&
             !WriteDirection_.Operation &&
             !ReadDirection_.Operation &&
             SynchronousIOCount_ == 0;
@@ -719,7 +724,8 @@ private:
             : Owner_(std::move(owner))
         {
             auto guard = Guard(Owner_->Lock_);
-            Owner_->Error_.ThrowOnError();
+            Owner_->WriteError_.ThrowOnError();
+            Owner_->ReadError_.ThrowOnError();
             ++Owner_->SynchronousIOCount_;
         }
 
@@ -747,14 +753,25 @@ private:
         const TFDConnectionImplPtr Owner_;
     };
 
+    enum class EDirection
+    {
+        Read,
+        Write
+    };
+
     struct TIODirection
     {
+        explicit TIODirection(EDirection direction)
+            : Direction(direction)
+        { }
+
         std::unique_ptr<IIOOperation> Operation;
         std::atomic<i64> BytesTransferred = 0;
         TDuration IdleDuration;
         TDuration BusyDuration;
         TCpuInstant StartTime = GetCpuInstant();
         std::optional<TCpuInstant> EndTime;
+        EDirection Direction;
         bool Pending = false;
         bool Running = false;
 
@@ -787,11 +804,12 @@ private:
     };
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, Lock_);
-    TIODirection ReadDirection_;
-    TIODirection WriteDirection_;
+    TIODirection ReadDirection_{EDirection::Read};
+    TIODirection WriteDirection_{EDirection::Write};
     bool ShutdownRequested_ = false;
     int SynchronousIOCount_ = 0;
-    TError Error_;
+    TError WriteError_;
+    TError ReadError_;
     const TPromise<void> ShutdownPromise_ = NewPromise<void>();
 
     bool PeerDisconnected_ = false;
@@ -809,7 +827,8 @@ private:
         AbortFromWriteTimeout_ = BIND(&TFDConnectionImpl::AbortFromWriteTimeout, MakeWeak(this));
 
         if (!Poller_->TryRegister(this)) {
-            Error_ = TError("Cannot register connection pollable");
+            WriteError_ = TError("Cannot register connection pollable");
+            ReadError_ = WriteError_;
             return;
         }
 
@@ -822,6 +841,23 @@ private:
         Poller_->Arm(FD_, this, control | additionalFlags);
     }
 
+    TError GetCurrentError(EDirection direction)
+    {
+        switch (direction) {
+            case EDirection::Read:
+                return ReadError_;
+            case EDirection::Write: {
+                // We want to read if there were write errors before, but we don't want to write if there were read errors,
+                // because it looks useless.
+                auto error = WriteError_;
+                if (error.IsOK() && !ReadError_.IsOK()) {
+                    error = ReadError_;
+                }
+                return error;
+            }
+        }
+    }
+
     void StartIO(TIODirection* direction, std::unique_ptr<IIOOperation> operation)
     {
         TError error;
@@ -829,7 +865,10 @@ private:
 
         {
             auto guard = Guard(Lock_);
-            if (Error_.IsOK()) {
+
+            error = GetCurrentError(direction->Direction);
+
+            if (error.IsOK()) {
                 if (direction->Operation) {
                     THROW_ERROR_EXCEPTION("Another IO operation is in progress")
                         << TErrorAttribute("connection", Name_);
@@ -842,8 +881,6 @@ private:
                 // event otherwise reading from FIFO before opening by writer
                 // will return EOF immediately.
                 needRetry = direction->Pending;
-            } else {
-                error = Error_;
             }
         }
 
@@ -866,7 +903,8 @@ private:
                 return;
             }
 
-            if (!Error_.IsOK()) {
+            auto error = GetCurrentError(direction->Direction);
+            if (!error.IsOK()) {
                 return;
             }
 
@@ -893,21 +931,27 @@ private:
         {
             auto guard = Guard(Lock_);
             direction->Running = false;
+
+            auto error = GetCurrentError(direction->Direction);
+
             if (!result.IsOK()) {
                 // IO finished with error.
                 operation = std::move(direction->Operation);
-                if (Error_.IsOK()) {
-                    Error_ = result;
-                    Poller_->Unarm(FD_, this);
-                    needUnregister = true;
+                auto& directionError = direction->Direction == EDirection::Read ? ReadError_ : WriteError_;
+                if (directionError.IsOK()) {
+                    directionError = result;
+                    if (direction->Direction == EDirection::Read) {
+                        Poller_->Unarm(FD_, this);
+                        needUnregister = true;
+                    }
                 }
                 direction->StopBusyTimer();
-            } else if (!Error_.IsOK()) {
+            } else if (!error.IsOK()) {
                 // IO was aborted.
                 operation = std::move(direction->Operation);
                 // Avoid aborting completed IO.
                 if (result.Value().Retry) {
-                    result = Error_;
+                    result = error;
                 }
                 direction->Pending = true;
                 direction->StopBusyTimer();
@@ -949,8 +993,15 @@ private:
     TFuture<void> AbortIO(const TError& error)
     {
         auto guard = Guard(Lock_);
-        if (Error_.IsOK()) {
-            Error_ = error;
+        // In case of read errors we have called Unarm and Unregister already.
+        bool needUnarmAndUnregister = ReadError_.IsOK();
+        if (WriteError_.IsOK()) {
+            WriteError_ = error;
+        }
+        if (ReadError_.IsOK()) {
+            ReadError_ = error;
+        }
+        if (needUnarmAndUnregister) {
             Poller_->Unarm(FD_, this);
             guard.Release();
             Poller_->Unregister(this);
