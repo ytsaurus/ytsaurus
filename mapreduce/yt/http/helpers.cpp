@@ -17,17 +17,17 @@ TString CreateHostNameWithPort(const TString& hostName, const TAuth& auth)
     static constexpr int TvmOnlyHttpsProxyPort = 9443;
 
     if (hostName.find(':') == TString::npos) {
+        int port;
         if (auth.TvmOnly) {
-            auto port = auth.UseTLS
+            port = auth.UseTLS
                 ? TvmOnlyHttpsProxyPort
                 : TvmOnlyHttpProxyPort;
-            return Format("tvm.%v:%v", hostName, port);
         } else {
-            auto port = auth.UseTLS
+            port = auth.UseTLS
                 ? HttpsProxyPort
                 : HttpProxyPort;
-            return Format("%v:%v", hostName, port);
         }
+        return Format("%v:%v", hostName, port);
     }
     return hostName;
 }
