@@ -25,6 +25,7 @@
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/retry_lib.h>
 
+#include <mapreduce/yt/http/helpers.h>
 #include <mapreduce/yt/http/http.h>
 #include <mapreduce/yt/http/http_client.h>
 #include <mapreduce/yt/http/requests.h>
@@ -1281,11 +1282,11 @@ TClientPtr CreateClientImpl(
     const TString& serverName,
     const TCreateClientOptions& options)
 {
-    static constexpr int TvmOnlyHttpProxyPort = 9026;
-
     auto globalTxId = GetGuid(TConfig::Get()->GlobalTxId);
 
     TAuth auth;
+    auth.TvmOnly = options.TvmOnly_;
+    auth.UseTLS = false;
     auth.ServerName = serverName;
     if (serverName.find('.') == TString::npos &&
         serverName.find(':') == TString::npos)
@@ -1293,8 +1294,8 @@ TClientPtr CreateClientImpl(
         auth.ServerName += ".yt.yandex.net";
     }
 
-    if (options.TvmOnly_ && serverName.find(':') == TString::npos) {
-        auth.ServerName = std::format("tvm.{}:{}", std::string_view(auth.ServerName), TvmOnlyHttpProxyPort);
+    if (serverName.find(':') == TString::npos) {
+        auth.ServerName = CreateHostNameWithPort(auth.ServerName, auth);
     }
 
     auth.HttpClient = NHttpClient::CreateDefaultHttpClient();

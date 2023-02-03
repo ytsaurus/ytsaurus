@@ -125,6 +125,9 @@ THostManager::TClusterHostList THostManager::GetHosts(const TAuth& auth)
         // TODO: we need to set socket timeout here
         auto response = auth.HttpClient->Request(GetFullUrl(hostName, auth, header), requestId, header);
         auto hosts = ParseJsonStringArray(response->GetResponse());
+        for (auto& host : hosts) {
+            host = CreateHostNameWithPort(host, auth);
+        }
         return TClusterHostList(std::move(hosts));
     } catch (const std::exception& e) {
         return TClusterHostList(std::current_exception());
