@@ -180,6 +180,29 @@ TEST_F(TNetTest, BidirectionalTransfer)
     AllSucceeded(futures).Get().ThrowOnError();
 }
 
+TEST_F(TNetTest, ContinueReadInCaseOfWriteErrors)
+{
+    IConnectionPtr a, b;
+    std::tie(a, b) = CreateConnectionPair(Poller_);
+
+    auto data = TSharedRef::FromString(TString(16 * 1024, 'f'));
+    a->Write(data).Get().ThrowOnError();
+    a->Close().Get().ThrowOnError();
+
+    {
+        auto data = TSharedRef::FromString(TString(16 * 1024, 'a'));
+        #ifndef _win_
+            EXPECT_THROW(b->Write(data).Get().ThrowOnError(), TErrorException);
+        #endif
+    }
+
+    auto buffer = TSharedMutableRef::Allocate(16 * 1024);
+    auto read = b->Read(buffer).Get().Value();
+
+    EXPECT_EQ(data.size(), read);
+    ASSERT_EQ(ToString(buffer.Slice(0, 4)), TString("ffff"));
+}
+
 TEST_F(TNetTest, StressConcurrentClose)
 {
     for (int i = 0; i < 10; i++) {
@@ -201,7 +224,8 @@ TEST_F(TNetTest, StressConcurrentClose)
             return BIND([=] {
                 auto buffer = TSharedMutableRef::Allocate(16 * 1024);
                 while (true) {
-                    WaitFor(conn->Read(buffer)).ThrowOnError();
+                    int res = WaitFor(conn->Read(buffer)).ValueOrThrow();
+                    if (res == 0) break;
                 }
             })
                 .AsyncVia(Poller_->GetInvoker())
