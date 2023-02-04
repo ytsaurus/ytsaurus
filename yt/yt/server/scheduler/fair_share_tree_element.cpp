@@ -521,6 +521,14 @@ TJobResources TSchedulerElement::GetMaxShareResourceLimits() const
     return GetTotalResourceLimits() * GetMaxShare();
 }
 
+TJobResources TSchedulerElement::GetSpecifiedResourceLimits() const
+{
+    auto limitsConfig = GetSpecifiedResourceLimitsConfig();
+    return limitsConfig
+        ? ToJobResources(limitsConfig, TJobResources::Infinite())
+        : TJobResources::Infinite();
+}
+
 void TSchedulerElement::BuildResourceMetering(
     const std::optional<TMeteringKey>& /*key*/,
     const THashMap<TString, TResourceVolume>& /*poolResourceUsages*/,
@@ -1546,9 +1554,9 @@ void TSchedulerPoolElement::DoSetConfig(TPoolConfigPtr newConfig)
     SchedulingTagFilter_ = TSchedulingTagFilter(Config_->SchedulingTagFilter);
 }
 
-TJobResources TSchedulerPoolElement::GetSpecifiedResourceLimits() const
+TJobResourcesConfigPtr TSchedulerPoolElement::GetSpecifiedResourceLimitsConfig() const
 {
-    return ToJobResources(Config_->ResourceLimits, TJobResources::Infinite());
+    return Config_->ResourceLimits;
 }
 
 void TSchedulerPoolElement::BuildElementMapping(TFairSharePostUpdateContext* context)
@@ -2055,9 +2063,9 @@ TJobResources TSchedulerOperationElement::ComputeResourceDemand() const
     return ResourceUsageAtUpdate_ + TotalNeededResources_;
 }
 
-TJobResources TSchedulerOperationElement::GetSpecifiedResourceLimits() const
+TJobResourcesConfigPtr TSchedulerOperationElement::GetSpecifiedResourceLimitsConfig() const
 {
-    return ToJobResources(RuntimeParameters_->ResourceLimits, TJobResources::Infinite());
+    return RuntimeParameters_->ResourceLimits;
 }
 
 void TSchedulerOperationElement::AttachParent(TSchedulerCompositeElement* newParent, int slotIndex)
@@ -2360,9 +2368,9 @@ bool TSchedulerRootElement::IsInferringChildrenWeightsFromHistoricUsageEnabled()
     return false;
 }
 
-TJobResources TSchedulerRootElement::GetSpecifiedResourceLimits() const
+TJobResourcesConfigPtr TSchedulerRootElement::GetSpecifiedResourceLimitsConfig() const
 {
-    return TJobResources::Infinite();
+    return {};
 }
 
 THistoricUsageAggregationParameters TSchedulerRootElement::GetHistoricUsageAggregationParameters() const

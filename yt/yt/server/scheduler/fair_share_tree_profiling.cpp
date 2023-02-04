@@ -33,6 +33,7 @@ TFairShareTreeProfileManager::TFairShareTreeProfileManager(
     : Profiler_(
         SchedulerProfiler
             .WithGlobal()
+            .WithProducerRemoveSupport()
             .WithRequiredTag("tree", treeId))
     , SparsifyMetrics_(sparsifyMetrics)
     , ProfilingInvoker_(profilingInvoker)
@@ -290,6 +291,7 @@ void TFairShareTreeProfileManager::ProfileElement(
     ProfileResources(writer, element->GetResourceUsageAtUpdate(), "/resource_usage");
     ProfileResources(writer, element->GetResourceLimits(), "/resource_limits");
     ProfileResources(writer, element->GetResourceDemand(), "/resource_demand");
+    ProfileResourcesConfig(writer, element->GetSpecifiedResourceLimitsConfig(), "/specified_resource_limits");
 
     auto jobMetricsIt = JobMetricsMap_.find(element->GetId());
     if (jobMetricsIt != JobMetricsMap_.end()) {

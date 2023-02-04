@@ -716,6 +716,33 @@ class TestPoolMetrics(YTEnvSetup):
             "preemption_priority": "aggressive"
         }) == 1.0)
 
+    @authors("eshcherbin")
+    def test_specified_resource_limits(self):
+        create_pool("pool")
+
+        profiler = profiler_factory().at_scheduler(fixed_tags={
+            "tree": "default",
+            "pool": "pool",
+        })
+        specified_resource_limits_cpu_gauge = profiler.gauge("scheduler/pools/specified_resource_limits/cpu")
+        specified_resource_limits_user_slots_gauge = profiler.gauge("scheduler/pools/specified_resource_limits/user_slots")
+
+        time.sleep(3.0)
+        wait(lambda: specified_resource_limits_cpu_gauge.get() is None)
+        wait(lambda: specified_resource_limits_user_slots_gauge.get() is None)
+
+        set("//sys/pool_trees/default/pool/@resource_limits", {"cpu": 1.0})
+        wait(lambda: specified_resource_limits_cpu_gauge.get() == 1.0)
+        wait(lambda: specified_resource_limits_user_slots_gauge.get() is None)
+
+        set("//sys/pool_trees/default/pool/@resource_limits", {"user_slots": 2})
+        wait(lambda: specified_resource_limits_cpu_gauge.get() is None)
+        wait(lambda: specified_resource_limits_user_slots_gauge.get() == 2.0)
+
+        set("//sys/pool_trees/default/pool/@resource_limits", {})
+        wait(lambda: specified_resource_limits_cpu_gauge.get() is None)
+        wait(lambda: specified_resource_limits_user_slots_gauge.get() is None)
+
 
 ##################################################################
 
