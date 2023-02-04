@@ -57,6 +57,7 @@ public:
     ITypedNodeMemoryTrackerPtr WithCategory(
         ECategory category,
         std::optional<TPoolTag> poolTag = {}) override;
+
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
