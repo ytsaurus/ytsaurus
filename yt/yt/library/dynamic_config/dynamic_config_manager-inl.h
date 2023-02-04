@@ -137,7 +137,6 @@ auto TDynamicConfigManagerBase<TConfig>::GetInitialConfig() const -> TConfigPtr
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto guard = Guard(SpinLock_);
     return InitialConfig_;
 }
 
