@@ -200,7 +200,6 @@ public:
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(ProbeBlockSet)
-            .SetCancelable(true)
             .SetQueueSizeLimit(5'000)
             .SetConcurrencyLimit(5'000));
         RegisterMethod(RPC_SERVICE_METHOD_DESC(GetBlockSet)
