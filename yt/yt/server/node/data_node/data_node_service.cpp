@@ -2204,7 +2204,7 @@ private:
         auto netQueueSize =
             netThrottler->GetQueueTotalAmount() +
             context->GetBusNetworkStatistics().PendingOutBytes;
-        auto netQueueLimit = DynamicConfigManager_->GetConfig()->DataNode->NetOutThrottlingLimit.value_or(
+        auto netQueueLimit = GetDynamicConfig()->NetOutThrottlingLimit.value_or(
             Config_->NetOutThrottlingLimit);
         bool throttle = netQueueSize > netQueueLimit;
         if (throttle && incrementCounter) {
