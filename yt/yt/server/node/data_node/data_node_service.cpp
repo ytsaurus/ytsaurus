@@ -427,7 +427,7 @@ private:
             result = result
                 .Apply(BIND([=, this, this_ = MakeStrong(this)] () mutable {
                     auto result = session->FlushBlocks(lastBlockIndex);
-                    result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (TErrorOr<TIOCounters> result) {
+                    result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TIOCounters>& result) {
                         if (!result.IsOK()) {
                             return;
                         }
@@ -509,7 +509,7 @@ private:
         auto result = session->FlushBlocks(blockIndex);
 
         response->set_close_demanded(location->IsSick() || sessionManager->GetDisableWriteSessions());
-        result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (TErrorOr<TIOCounters> result) {
+        result.Subscribe(BIND([=, this, this_ = MakeStrong(this)] (const TErrorOr<TIOCounters>& result) {
             if (result.IsOK()) {
                 // Log IO events for journal chunks only. We don't enable logging for blob chunks here, since they flush
                 // the data to disk in FinishChunk(), not in FlushBlocks().
