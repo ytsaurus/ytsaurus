@@ -662,7 +662,7 @@ bool TChunkLocation::Disable(const TError& reason)
         TProgram::Abort(EProgramExitCode::ProgramError);
     }
 
-    const auto& dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
+    auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
     if (dynamicConfig->AbortOnLocationDisabled) {
         TProgram::Abort(EProgramExitCode::ProgramError);
     }
