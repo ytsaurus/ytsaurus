@@ -45,8 +45,6 @@ void ProfileResourceVector(
     }
 }
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ProfileResourceVolume(
     NProfiling::ISensorWriter* writer,
     const TResourceVolume& volume,
@@ -68,6 +66,22 @@ void ProfileResourceVolume(
         default:
             YT_ABORT();
     }
+}
+
+void ProfileResourcesConfig(
+    NProfiling::ISensorWriter* writer,
+    const TJobResourcesConfigPtr& resourcesConfig,
+    const TString& prefix)
+{
+    if (!resourcesConfig) {
+        return;
+    }
+
+    resourcesConfig->ForEachResource([&] (auto NVectorHdrf::TJobResourcesConfig::* resourceDataMember, EJobResourceType resourceType) {
+        if (auto value = resourcesConfig.Get()->*resourceDataMember) {
+            writer->AddGauge(prefix + "/" + FormatEnum(resourceType), static_cast<double>(*value));
+        }
+    });
 }
 
 ////////////////////////////////////////////////////////////////////////////////

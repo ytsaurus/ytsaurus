@@ -259,10 +259,12 @@ public:
     // in a thread-unsafe manner.
     virtual void PreUpdateBottomUp(NVectorHdrf::TFairShareUpdateContext* context);
 
+    virtual TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const = 0;
+
     TJobResources GetSchedulingTagFilterResourceLimits() const;
     TJobResources GetTotalResourceLimits() const;
     TJobResources GetMaxShareResourceLimits() const;
-    virtual TJobResources GetSpecifiedResourceLimits() const = 0;
+    TJobResources GetSpecifiedResourceLimits() const;
 
     virtual void CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const = 0;
 
@@ -643,7 +645,7 @@ public:
 
 protected:
     //! Pre fair share update methods.
-    TJobResources GetSpecifiedResourceLimits() const override;
+    TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 
     //! Post fair share update methods.
     void SetStarvationStatus(EStarvationStatus starvationStatus) override;
@@ -878,7 +880,7 @@ private:
 
     TJobResources ComputeResourceDemand() const;
 
-    TJobResources GetSpecifiedResourceLimits() const override;
+    TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 
     friend class TSchedulerCompositeElement;
 };
@@ -977,7 +979,7 @@ private:
     // Pre fair share update methods.
     std::optional<double> GetSpecifiedWeight() const override;
 
-    TJobResources GetSpecifiedResourceLimits() const override;
+    TJobResourcesConfigPtr GetSpecifiedResourceLimitsConfig() const override;
 
     bool IsInferringChildrenWeightsFromHistoricUsageEnabled() const override;
     THistoricUsageAggregationParameters GetHistoricUsageAggregationParameters() const override;

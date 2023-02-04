@@ -22,13 +22,16 @@ void ProfileResourceVector(
     const TResourceVector& resourceVector,
     const TString& prefix);
 
-////////////////////////////////////////////////////////////////////////////////
-
 void ProfileResourceVolume(
     NProfiling::ISensorWriter* writer,
     const TResourceVolume& volume,
     const TString& prefix,
     NProfiling::EMetricType metricType = NProfiling::EMetricType::Gauge);
+
+void ProfileResourcesConfig(
+    NProfiling::ISensorWriter* writer,
+    const TJobResourcesConfigPtr& resourcesConfig,
+    const TString& prefix);
 
 ////////////////////////////////////////////////////////////////////////////////
 
