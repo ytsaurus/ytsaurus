@@ -137,7 +137,7 @@ public:
     }
 
 private:
-    IBootstrap const* Bootstrap_;
+    IBootstrap* const Bootstrap_;
     const IChunkPtr Chunk_;
     const TChunkId ChunkId_;
     const NTableClient::TColumnFilter ColumnFilter_;
