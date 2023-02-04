@@ -354,10 +354,10 @@ public:
     virtual void RemoveChunkFiles(TChunkId chunkId, bool force);
 
     //! Returns the incoming bandwidth throttler for a given #descriptor.
-    NConcurrency::IThroughputThrottlerPtr GetInThrottler(const TWorkloadDescriptor& descriptor) const;
+    const NConcurrency::IThroughputThrottlerPtr& GetInThrottler(const TWorkloadDescriptor& descriptor) const;
 
     //! Returns the outcoming bandwidth throttler for a given #descriptor.
-    NConcurrency::IThroughputThrottlerPtr GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
+    const NConcurrency::IThroughputThrottlerPtr& GetOutThrottler(const TWorkloadDescriptor& descriptor) const;
 
     //! Returns |true| if reads were throttled (within some recent time interval).
     bool IsReadThrottling() const;
@@ -454,7 +454,8 @@ private:
     TEnumIndexedVector<ESessionType, std::atomic<int>> PerTypeSessionCount_;
     std::atomic<int> ChunkCount_ = 0;
 
-    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> Throttlers_;
+    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::IReconfigurableThroughputThrottlerPtr> ReconfigurableThrottlers_;
+    TEnumIndexedVector<EChunkLocationThrottlerKind, NConcurrency::IThroughputThrottlerPtr> Throttlers_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedInThrottler_;
     NConcurrency::IThroughputThrottlerPtr UnlimitedOutThrottler_;
 

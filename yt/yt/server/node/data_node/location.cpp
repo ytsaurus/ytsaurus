@@ -321,7 +321,7 @@ TChunkLocation::TChunkLocation(
 
     auto diskThrottlerProfiler = GetProfiler().WithPrefix("/disk_throttler");
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
-        Throttlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
+        Throttlers_[kind] = ReconfigurableThrottlers_[kind] = CreateNamedReconfigurableThroughputThrottler(
             StaticConfig_->Throttlers[kind],
             ToString(kind),
             Logger,
@@ -376,7 +376,7 @@ void TChunkLocation::Reconfigure(TChunkLocationConfigPtr config)
     DynamicIOEngine_->Reconfigure(config->IOConfig);
 
     for (auto kind : TEnumTraits<EChunkLocationThrottlerKind>::GetDomainValues()) {
-        Throttlers_[kind]->Reconfigure(config->Throttlers[kind]);
+        ReconfigurableThrottlers_[kind]->Reconfigure(config->Throttlers[kind]);
     }
 
     RuntimeConfig_.Store(std::move(config));
@@ -933,7 +933,7 @@ void TChunkLocation::RemoveChunkFiles(TChunkId chunkId, bool /*force*/)
     RemoveChunkFilesPermanently(chunkId);
 }
 
-IThroughputThrottlerPtr TChunkLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
+const IThroughputThrottlerPtr& TChunkLocation::GetInThrottler(const TWorkloadDescriptor& descriptor) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
@@ -962,7 +962,7 @@ IThroughputThrottlerPtr TChunkLocation::GetInThrottler(const TWorkloadDescriptor
     }
 }
 
-IThroughputThrottlerPtr TChunkLocation::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
+const IThroughputThrottlerPtr& TChunkLocation::GetOutThrottler(const TWorkloadDescriptor& descriptor) const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
