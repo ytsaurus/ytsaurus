@@ -171,8 +171,10 @@ public:
 
         GetRpcServer()->RegisterService(CreateExecNodeAdminService(this));
 
-        SlotManager_->Initialize();
+        // NB(psushin): initialize chunk cache first, because slot manager (and root
+        // volume manager inside it) can start using it to populate tmpfs layers cache,
         ChunkCache_->Initialize();
+        SlotManager_->Initialize();
         JobController_->Initialize();
     }
 
