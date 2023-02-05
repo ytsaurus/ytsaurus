@@ -732,6 +732,9 @@ void TOperationSpecBase::Register(TRegistrar registrar)
     registrar.Parameter("profilers", &TThis::Profilers)
         .Default();
 
+    registrar.Parameter("adjust_dynamic_table_data_slices", &TThis::AdjustDynamicTableDataSlices)
+        .Default(false);
+
     registrar.Postprocessor([] (TOperationSpecBase* spec) {
         if (spec->UnavailableChunkStrategy == EUnavailableChunkAction::Wait &&
             spec->UnavailableChunkTactics == EUnavailableChunkAction::Skip)
