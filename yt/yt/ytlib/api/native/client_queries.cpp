@@ -17,6 +17,8 @@
 #include <yt/yt/client/table_client/record_helpers.h>
 #include <yt/yt/client/table_client/wire_protocol.h>
 
+#include <contrib/libs/pfr/include/pfr/tuple_size.hpp>
+
 namespace NYT::NApi::NNative {
 
 using namespace NQueryTrackerClient;
@@ -167,7 +169,7 @@ IUnversionedRowsetPtr TClient::DoReadQueryResult(TQueryId queryId, i64 resultInd
 
 TQuery PartialRecordToQuery(const auto& partialRecord)
 {
-    static_assert(TQuery::KnownFieldCount == 12);
+    static_assert(pfr::tuple_size<TQuery>::value == 12);
     static_assert(TActiveQueryDescriptor::FieldCount == 16);
     static_assert(TFinishedQueryDescriptor::FieldCount == 11);
 
@@ -175,7 +177,7 @@ TQuery PartialRecordToQuery(const auto& partialRecord)
     // Note that some of the fields are twice optional.
     // First time due to the fact that they are optional in the record,
     // and second time due to the extra optionality of any field in the partial record.
-    // TODO(max42): coalesce the optionality of thye fields in the partial record.
+    // TODO(max42): coalesce the optionality of the fields in the partial record.
     query.Id = partialRecord.Key.QueryId;
     query.Engine = partialRecord.Engine;
     query.Query = partialRecord.Query;

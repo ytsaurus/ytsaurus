@@ -8,6 +8,8 @@
 
 #include <yt/yt/core/ytree/fluent.h>
 
+#include <contrib/libs/pfr/include/pfr/tuple_size.hpp>
+
 namespace NYT::NApi {
 
 using namespace NConcurrency;
@@ -342,7 +344,7 @@ void Deserialize(TOperation& operation, NYTree::IAttributeDictionaryPtr attribut
 
 void Serialize(const TQuery& query, NYson::IYsonConsumer* consumer)
 {
-    static_assert(TQuery::KnownFieldCount == 12);
+    static_assert(pfr::tuple_size<TQuery>::value == 12);
     BuildYsonFluently(consumer)
         .BeginMap()
             .OptionalItem("id", query.Id)

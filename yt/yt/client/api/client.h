@@ -1409,9 +1409,6 @@ struct TListJobsResult
 
 struct TQuery
 {
-    // Keep in sync with fields below. Static asserts will guide your way through the boilerplate.
-    static constexpr int KnownFieldCount = 12;
-
     NQueryTrackerClient::TQueryId Id;
     std::optional<NQueryTrackerClient::EQueryEngine> Engine;
     std::optional<TString> Query;
