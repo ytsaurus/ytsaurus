@@ -304,7 +304,7 @@ public:
     {
         auto it = Attributes_.find(key);
         if (it != Attributes_.end()) {
-            it->second.Run(consumer);
+            it->second(consumer);
             return true;
         }
 

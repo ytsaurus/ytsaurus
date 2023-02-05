@@ -53,17 +53,18 @@ public:
 
     //! Runs all handlers in the list.
     //! The return values (if any) are ignored.
-    void Fire(const TArgs&... args) const;
+    template <class... TCallArgs>
+    void Fire(TCallArgs&&... args) const;
 
     //! Runs all handlers in the list and clears the list.
     //! The return values (if any) are ignored.
-    void FireAndClear(const TArgs&... args);
+    template <class... TCallArgs>
+    void FireAndClear(TCallArgs&&... args);
 
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, SpinLock_);
     using TCallbackVector = TCompactVector<TCallback, 4>;
     TCallbackVector Callbacks_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -81,7 +82,7 @@ template <class TResult, class... TArgs>
 class TSimpleCallbackList<TResult(TArgs...)>
 {
 public:
-    typedef NYT::TCallback<TResult(TArgs...)> TCallback;
+    using TCallback = NYT::TCallback<TResult(TArgs...)>;
 
     //! Adds a new handler to the list.
     /*!
@@ -97,11 +98,11 @@ public:
 
     //! Runs all handlers in the list.
     //! The return values (if any) are ignored.
-    void Fire(const TArgs&... args) const;
+    template <class... TCallArgs>
+    void Fire(TCallArgs&&... args) const;
 
 private:
     using TCallbackVector = TCompactVector<TCallback, 4>;
-
     TCallbackVector Callbacks_;
 };
 
@@ -122,7 +123,7 @@ template <class TResult, class... TArgs>
 class TSingleShotCallbackList<TResult(TArgs...)>
 {
 public:
-    typedef NYT::TCallback<TResult(TArgs...)> TCallback;
+    using TCallback = NYT::TCallback<TResult(TArgs...)>;
 
     //! Adds a new handler to the list.
     /*!
@@ -165,7 +166,6 @@ private:
     using TCallbackVector = TCompactVector<TCallback, 4>;
     TCallbackVector Callbacks_;
     std::tuple<typename std::decay<TArgs>::type...> Args_;
-
 };
 
 ////////////////////////////////////////////////////////////////////////////////

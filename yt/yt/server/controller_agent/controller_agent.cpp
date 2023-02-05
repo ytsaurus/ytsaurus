@@ -843,7 +843,7 @@ public:
             })
             .AsyncVia(GetCurrentInvoker());
 
-        auto asyncResult = getOrchidAndCommit.Run().Apply(saveOrchid);
+        auto asyncResult = getOrchidAndCommit().Apply(saveOrchid);
 
         return WithSoftTimeout(
             asyncResult,

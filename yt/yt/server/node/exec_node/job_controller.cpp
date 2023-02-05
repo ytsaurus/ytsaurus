@@ -1454,7 +1454,7 @@ private:
             waitingJobTimeout = FromProto<TDuration>(jobSpecExt.waiting_job_timeout());
         }
 
-        auto job = factory.Run(
+        auto job = factory(
             jobId,
             operationId,
             resourceLimits,

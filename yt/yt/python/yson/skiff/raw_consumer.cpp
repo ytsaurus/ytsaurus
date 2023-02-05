@@ -22,7 +22,7 @@ void TPythonSkiffRawRecordBuilder::OnBeginRow(ui16 schemaIndex)
 
 void TPythonSkiffRawRecordBuilder::OnEndRow()
 {
-    EndRowCallback_.Run();
+    EndRowCallback_();
 }
 
 void TPythonSkiffRawRecordBuilder::OnStringScalar(TStringBuf /*value*/, ui16 /*columnId*/)

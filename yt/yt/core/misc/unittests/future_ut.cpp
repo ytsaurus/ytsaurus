@@ -1355,7 +1355,7 @@ TEST_F(TFutureTest, AsyncViaCanceledInvoker)
     auto invoker = context->CreateInvoker(GetSyncInvoker());
     auto generator = BIND([] () {}).AsyncVia(invoker);
     context->Cancel(TError("oops"));
-    auto future = generator.Run();
+    auto future = generator();
     auto error = future.Get();
     ASSERT_EQ(NYT::EErrorCode::Canceled, error.GetCode());
 }

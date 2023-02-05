@@ -18,7 +18,7 @@ void Invoke(
     TArguments&& arguments,
     std::index_sequence<Indexes...>)
 {
-    callee.Run(
+    callee(
         caller,
         std::get<Indexes>(std::forward<TArguments>(arguments))...);
 }

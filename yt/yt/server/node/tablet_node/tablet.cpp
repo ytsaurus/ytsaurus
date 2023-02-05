@@ -880,10 +880,10 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
             Save(context, snapshot->PivotKey);
             Save(context, snapshot->NextPivotKey);
 
-            capturedEden.Run(context);
+            capturedEden(context);
 
             for (const auto& callback : capturedPartitions) {
-                callback.Run(context);
+                callback(context);
             }
 
             SortBy(capturedStores, [] (const auto& pair) { return pair.first; });
@@ -892,7 +892,7 @@ TCallback<void(TSaveContext&)> TTablet::AsyncSave()
                 callback(context);
             }
 
-            capturedTabletWriteManager.Run(context);
+            capturedTabletWriteManager(context);
         });
 }
 

@@ -294,7 +294,7 @@ void SwitchImpl(TExceptionSafeContext* src, TExceptionSafeContext* dest)
     // Allows set new AfterSwitch inside it.
     if (auto afterSwitch = std::move(AfterSwitch())) {
         YT_VERIFY(!AfterSwitch());
-        afterSwitch.Run();
+        afterSwitch();
     }
 
     // TODO(lukyan): Allow to set after switch inside itself
@@ -505,7 +505,7 @@ void TFiber::DoRunNaked()
     // Allows set new AfterSwitch inside it.
     if (auto afterSwitch = std::move(AfterSwitch())) {
         YT_VERIFY(!AfterSwitch());
-        afterSwitch.Run();
+        afterSwitch();
     }
 
     YT_VERIFY(!Terminated);

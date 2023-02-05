@@ -108,7 +108,7 @@ private:
         InvalidateLease(lease);
         guard.Release();
 
-        onExpired.Run();
+        onExpired();
     }
 
     static void InvalidateLease(TLease lease)

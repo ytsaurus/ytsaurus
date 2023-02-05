@@ -112,7 +112,7 @@ void TCompositeAutomatonPart::RegisterLoader(
                 context.GetVersion(),
                 name);
         }
-        callback.Run(context);
+        callback(context);
     });
     YT_VERIFY(Automaton_->PartNameToLoaderDescriptor_.emplace(name, descriptor).second);
 }
@@ -333,7 +333,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
 
             for (const auto& descriptor : syncSavers) {
                 WritePartHeader(context, descriptor);
-                descriptor.Callback.Run(context);
+                descriptor.Callback(context);
             }
         });
 
@@ -357,7 +357,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
         });
 
     for (const auto& descriptor : asyncSavers) {
-        asyncCallbacks.push_back(descriptor.Callback.Run());
+        asyncCallbacks.push_back(descriptor.Callback());
     }
 
     // NB: Hold the parts strongly during the async phase.
@@ -370,7 +370,7 @@ TFuture<void> TCompositeAutomaton::SaveSnapshot(IAsyncOutputStreamPtr writer)
                 [&] (TSaveContext& context) {
                     for (int index = 0; index < std::ssize(asyncSavers); ++index) {
                         WritePartHeader(context, asyncSavers[index]);
-                        asyncCallbacks[index].Run(context);
+                        asyncCallbacks[index](context);
                     }
                 });
         })
@@ -423,7 +423,7 @@ void TCompositeAutomaton::LoadSnapshot(IAsyncZeroCopyInputStreamPtr reader)
                                 version);
                             context.SetVersion(version);
                             const auto& descriptor = it->second;
-                            auto size = readPart([&] { descriptor.Callback.Run(context); });
+                            auto size = readPart([&] { descriptor.Callback(context); });
                             YT_LOG_INFO("Finished loading automaton part (Name: %v, Size: %v)",
                                 name,
                                 size);
@@ -503,9 +503,9 @@ void TCompositeAutomaton::ApplyMutation(TMutationContext* context)
         }
 
         if (handler) {
-            handler.Run(context);
+            handler(context);
         } else {
-            descriptor->Callback.Run(context);
+            descriptor->Callback(context);
         }
 
         if (!isRecovery) {

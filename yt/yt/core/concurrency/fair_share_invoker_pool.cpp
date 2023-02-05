@@ -295,7 +295,7 @@ private:
 
         {
             TCpuTimeAccounter cpuTimeAccounter(bucketIndex, Queue_.Get());
-            callback.Run();
+            callback();
         }
     }
 };

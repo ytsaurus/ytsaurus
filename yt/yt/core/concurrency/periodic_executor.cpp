@@ -81,7 +81,7 @@ void TPeriodicExecutor::DoStop(TGuard<NThreading::TSpinLock>& guard)
     }
 
     if (executionCanceler) {
-        executionCanceler.Run(MakeStoppedError());
+        executionCanceler(MakeStoppedError());
     }
 }
 

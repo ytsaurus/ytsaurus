@@ -1294,7 +1294,7 @@ private:
             YT_LOG_INFO("Request common watcher updates");
             auto batchReq = Owner_->StartObjectBatchRequest(EMasterChannelKind::Follower);
             for (const auto& watcher : Owner_->CommonWatcherRecords_) {
-                watcher.Requester.Run(batchReq);
+                watcher.Requester(batchReq);
             }
 
             auto watcherResponses = WaitFor(batchReq->Invoke())
@@ -1926,7 +1926,7 @@ private:
             SetPrerequisites(batchReq, prerequisiteOptions);
         }
 
-        watcher.Requester.Run(batchReq);
+        watcher.Requester(batchReq);
         auto batchRspOrError = WaitFor(batchReq->Invoke());
         if (!batchRspOrError.IsOK()) {
             HandleWatcherError(
@@ -1952,7 +1952,7 @@ private:
 
         auto batchReq = StartObjectBatchRequest(EMasterChannelKind::Follower);
         for (const auto& watcher : CommonWatcherRecords_) {
-            watcher.Requester.Run(batchReq);
+            watcher.Requester(batchReq);
         }
         Y_UNUSED(WaitFor(batchReq->Invoke().Apply(
             BIND(&TImpl::OnCommonWatchersUpdated, MakeStrong(this))
@@ -1980,7 +1980,7 @@ private:
     void RunWatcherHandler(const TWatcherRecord& watcher, TObjectServiceProxy::TRspExecuteBatchPtr responses, bool strictMode)
     {
         try {
-            watcher.Handler.Run(responses);
+            watcher.Handler(responses);
             if (watcher.AlertType) {
                 SetSchedulerAlert(*watcher.AlertType, TError());
             }

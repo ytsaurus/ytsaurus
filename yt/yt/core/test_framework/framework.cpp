@@ -95,7 +95,7 @@ void RunAndTrackFiber(TClosure closure)
         // NB: Make sure TActionQueue does not keep a strong reference to this fiber by forcing a yield.
         SwitchTo(invoker);
 
-        closure.Run();
+        closure();
     })
     .AsyncVia(invoker)
     .Run();

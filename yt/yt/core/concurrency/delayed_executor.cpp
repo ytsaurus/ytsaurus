@@ -361,7 +361,7 @@ private:
         if (aborted) {
             return;
         }
-        closure.Run();
+        closure();
     }
 
     static TDelayedExecutor::TDelayedCallback TakeCallback(const TDelayedExecutorEntryPtr& entry)

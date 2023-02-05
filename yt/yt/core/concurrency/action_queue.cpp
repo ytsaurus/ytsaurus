@@ -297,7 +297,7 @@ private:
         auto callback = std::move(Heap_.back().Callback);
         Heap_.pop_back();
         guard.Release();
-        callback.Run();
+        callback();
     }
 
 };
@@ -449,7 +449,7 @@ private:
     void DoRunCallback(const TClosure& callback, TInvocationGuard /*invocationGuard*/)
     {
         TCurrentInvokerGuard guard(UnderlyingInvoker_); // sic!
-        callback.Run();
+        callback();
     }
 
     void OnFinished()
@@ -570,7 +570,7 @@ private:
             invocationGuard.Reset();
             OnFinished();
         });
-        callback.Run();
+        callback();
     }
 
     void OnFinished()
@@ -647,7 +647,7 @@ private:
     {
         TCurrentInvokerGuard currentInvokerGuard(this);
         TMemoryTagGuard memoryTagGuard(MemoryTag_);
-        callback.Run();
+        callback();
     }
 };
 
@@ -682,7 +682,7 @@ private:
     {
         TCurrentInvokerGuard currentInvokerGuard(this);
         TCodicilGuard codicilGuard(Codicil_);
-        callback.Run();
+        callback();
     }
 };
 

@@ -421,7 +421,7 @@ private:
             }
 
             if (!isNetworkReleased && UnderlyingReader_->IsFetchingCompleted()) {
-                OnNetworkReleased_.Run();
+                OnNetworkReleased_();
                 isNetworkReleased =  true;
             }
         }
@@ -432,7 +432,7 @@ private:
 
         if (!isNetworkReleased) {
             YT_VERIFY(UnderlyingReader_->IsFetchingCompleted());
-            OnNetworkReleased_.Run();
+            OnNetworkReleased_();
         }
 
         TotalRowCount_ = rowIndex;

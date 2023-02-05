@@ -337,7 +337,7 @@ TEST(THedgingClientTest, MultiThread)
     auto threadPool = NConcurrency::CreateThreadPool(10, "test");
     std::vector<TFuture<void>> futures;
     for (int i = 0; i < 100; ++i) {
-        futures.emplace_back(BIND([=] () {
+        futures.push_back(BIND([=] () {
             for (int j = 0; j < 100; ++j) {
                 NApi::TListNodeOptions options;
                 // on each 5-th request for 1-st and 2-nd thread, the first client will timeout

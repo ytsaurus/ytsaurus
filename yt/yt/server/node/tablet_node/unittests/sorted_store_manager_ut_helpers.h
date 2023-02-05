@@ -199,7 +199,7 @@ protected:
         TStringOutput output(buffer);
         auto checkpointableOutput = CreateBufferedCheckpointableOutputStream(&output);
         TSaveContext saveContext(checkpointableOutput.get());
-        snapshot.second.Run(saveContext);
+        snapshot.second(saveContext);
         saveContext.Finish();
 
         TStringInput input(buffer);

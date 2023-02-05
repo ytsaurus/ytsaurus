@@ -92,7 +92,7 @@ TValue TSyncExpiringCache<TKey, TValue>::Get(const TKey& key)
         }
     }
 
-    auto result = CalculateValueAction_.Run(key);
+    auto result = CalculateValueAction_(key);
 
     {
         auto guard = WriterGuard(MapLock_);
@@ -151,7 +151,7 @@ std::vector<TValue> TSyncExpiringCache<TKey, TValue>::Get(const std::vector<TKey
         if (missingIndex < std::ssize(missingValueIndexes) &&
             missingValueIndexes[missingIndex] == keyIndex)
         {
-            results.push_back(CalculateValueAction_.Run(keys[keyIndex]));
+            results.push_back(CalculateValueAction_(keys[keyIndex]));
             ++missingIndex;
         } else {
             results.push_back(std::move(foundValues[keyIndex - missingIndex]));

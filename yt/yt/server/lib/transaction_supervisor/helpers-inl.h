@@ -21,7 +21,7 @@ TTransactionActionHandlerDescriptor<TCallback<void(TTransaction*, const TString&
         BIND([=] (TTransaction* transaction, const TString& value, TArgs... args) {
             TProto typedValue;
             DeserializeProto(&typedValue, TRef::FromString(value));
-            handler.Run(transaction, &typedValue, args...);
+            handler(transaction, &typedValue, args...);
         })
     };
 }

@@ -184,10 +184,10 @@ private:
             const auto& subresponse = rsp->subresponses(index);
             auto chunkId = FromProto<TChunkId>(subrequest);
             if (subresponse.missing()) {
-                OnChunkLocated_.Run(chunkId, TChunkReplicaList(), true);
+                OnChunkLocated_(chunkId, TChunkReplicaList(), true);
             } else {
                 auto replicas = FromProto<TChunkReplicaList>(subresponse.replicas());
-                OnChunkLocated_.Run(chunkId, replicas, false);
+                OnChunkLocated_(chunkId, replicas, false);
             }
         }
     }

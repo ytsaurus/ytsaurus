@@ -2798,7 +2798,7 @@ private:
 
     void RequestRows()
     {
-        CreateRequestCallback().Run();
+        CreateRequestCallback()();
     }
 
     void DoRequestRows()

@@ -64,9 +64,8 @@ public:
     Py::Object Shutdown(const Py::Tuple& /*args_*/, const Py::Dict& /*kwargs_*/)
     {
         for (int index = 0; index < MaxAdditionalShutdownCallbackCount; ++index) {
-            const auto& callback = BeforeFinalizeShutdownCallbacks[index];
-            if (callback) {
-                callback.Run();
+            if (const auto& callback = BeforeFinalizeShutdownCallbacks[index]) {
+                callback();
             }
         }
         return Py::None();

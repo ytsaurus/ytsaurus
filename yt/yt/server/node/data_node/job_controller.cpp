@@ -162,7 +162,7 @@ public:
         }
 
         auto& jobMap = jobMapIt->second;
-        
+
         auto it = jobMap.find(jobId);
         return it == jobMap.end() ? nullptr : it->second;
     }
@@ -287,7 +287,7 @@ private:
         auto type = CheckedEnumCast<EJobType>(jobSpec.type());
         auto factory = GetJobFactory(type);
 
-        auto job = factory.Run(
+        auto job = factory(
             jobId,
             jobTrackerAddress,
             resourceLimits,
@@ -320,7 +320,7 @@ private:
                 .Via(Bootstrap_->GetJobInvoker()));
 
         ScheduleStartJobs();
-        
+
         TDelayedExecutor::Submit(
             BIND(&TJobController::OnWaitingJobTimeout, MakeWeak(this), MakeWeak(job), waitingJobTimeout),
             waitingJobTimeout,
@@ -489,7 +489,7 @@ private:
 
         for (const auto& protoJobToAbort : response->jobs_to_abort()) {
             auto jobToAbort = FromProto<TJobToAbort>(protoJobToAbort);
-            
+
             if (auto job = FindJob(jobTrackerAddress, jobToAbort.JobId)) {
                 AbortJob(job, std::move(jobToAbort));
             } else {
@@ -555,7 +555,7 @@ private:
         auto jobId = job->GetId();
 
         EraseOrCrash(jobMap, jobId);
-        
+
         if (jobMap.empty()) {
             EraseOrCrash(JobMaps_, job->GetJobTrackerAddress());
         }

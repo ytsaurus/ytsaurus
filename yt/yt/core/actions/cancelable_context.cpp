@@ -36,7 +36,7 @@ public:
             }
 
             TCurrentInvokerGuard guard(this_);
-            callback.Run();
+            callback();
         }));
     }
 
@@ -91,7 +91,7 @@ void TCancelableContext::SubscribeCanceled(const TCallback<void(const TError&)>&
     auto guard = Guard(SpinLock_);
     if (Canceled_) {
         guard.Release();
-        callback.Run(CancelationError_);
+        callback(CancelationError_);
         return;
     }
     Handlers_.Subscribe(callback);
