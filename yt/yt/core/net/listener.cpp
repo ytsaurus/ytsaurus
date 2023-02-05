@@ -1,5 +1,6 @@
 #include "listener.h"
 #include "connection.h"
+#include "private.h"
 
 #include <yt/yt/core/concurrency/pollable_detail.h>
 
@@ -12,6 +13,10 @@
 namespace NYT::NNet {
 
 using namespace NConcurrency;
+
+////////////////////////////////////////////////////////////////////////////////
+
+static const auto& Logger = NetLogger;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -70,6 +75,7 @@ public:
         } catch (const TErrorException& ex) {
             auto error = ex << TErrorAttribute("listener", Name_);
             Abort(error);
+            YT_LOG_FATAL(error, "Listener crashed with fatal error");
         }
 
         auto guard = Guard(Lock_);
