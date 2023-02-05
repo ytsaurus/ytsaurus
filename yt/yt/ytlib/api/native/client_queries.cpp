@@ -349,7 +349,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         }
     };
 
-    auto selectActiveQueries = [=] {
+    auto selectActiveQueries = [=, this, this_ = MakeStrong(this)] {
         try {
             TQueryBuilder builder;
             builder.SetSource(root + "/active_queries");
@@ -370,7 +370,7 @@ TListQueriesResult TClient::DoListQueries(const TListQueriesOptions& options)
         }
     };
 
-    auto selectFinishedQueries = [=] () -> std::vector<TQuery> {
+    auto selectFinishedQueries = [=, this, this_ = MakeStrong(this)] () -> std::vector<TQuery> {
         try {
             TStringBuilder admittedQueryIds;
             {
