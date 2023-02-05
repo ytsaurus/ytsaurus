@@ -277,7 +277,7 @@ TQuery TClient::DoGetQuery(TQueryId queryId, const TGetQueryOptions& options)
             << error;
     }
     bool isActive = asyncActiveRecord.IsSet() && asyncActiveRecord.Get().IsOK();
-    bool isFinished = asyncActiveRecord.IsSet() && asyncFinishedRecord.Get().IsOK();
+    bool isFinished = asyncFinishedRecord.IsSet() && asyncFinishedRecord.Get().IsOK();
     YT_VERIFY(isActive || isFinished);
     if (isActive && isFinished) {
         YT_LOG_ALERT("Query is found in both active and finished query tables (QueryId: %v, Timestamp: %v)", queryId, timestamp);
