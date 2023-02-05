@@ -47,7 +47,7 @@ void TTransactionManagerBase<TTransaction>::RunPrepareTransactionActions(
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Run(transaction, action.Value, options);
+            it->second(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_DEBUG(ex, "Prepare action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -69,7 +69,7 @@ void TTransactionManagerBase<TTransaction>::RunCommitTransactionActions(
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Run(transaction, action.Value, options);
+            it->second(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Commit action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -90,7 +90,7 @@ void TTransactionManagerBase<TTransaction>::RunAbortTransactionActions(
                 THROW_ERROR_EXCEPTION("Action %Qv is not registered",
                     action.Type);
             }
-            it->second.Run(transaction, action.Value, options);
+            it->second(transaction, action.Value, options);
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Abort action failed (TransactionId: %v, ActionType: %v)",
                 transaction->GetId(),
@@ -105,7 +105,7 @@ void TTransactionManagerBase<TTransaction>::RunSerializeTransactionActions(TTran
     for (const auto& action : transaction->Actions()) {
         try {
             if (auto it = SerializeActionHandlerMap_.find(action.Type)) {
-                it->second.Run(transaction, action.Value);
+                it->second(transaction, action.Value);
             }
         } catch (const std::exception& ex) {
             YT_LOG_ALERT(ex, "Serialize action failed (TransactionId: %v, ActionType: %v)",

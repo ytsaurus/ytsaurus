@@ -13,7 +13,7 @@ TYsonProducer::TYsonProducer(TYsonCallback callback, EYsonType type)
 
 void TYsonProducer::Run(IYsonConsumer* consumer) const
 {
-    Callback_.Run(consumer);
+    Callback_(consumer);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

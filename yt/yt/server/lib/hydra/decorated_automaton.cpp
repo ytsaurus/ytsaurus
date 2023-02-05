@@ -214,7 +214,7 @@ public:
 
         auto doInvoke = [=, this_ = MakeStrong(this), callback = std::move(callback)] (TSystemLockGuard /*lockGuard*/) {
             TCurrentInvokerGuard currentInvokerGuard(this_);
-            callback.Run();
+            callback();
         };
 
         Owner_->AutomatonInvoker_->Invoke(BIND(doInvoke, Passed(std::move(lockGuard))));
@@ -249,7 +249,7 @@ public:
                 return;
 
             TCurrentInvokerGuard guard(this_);
-            callback.Run();
+            callback();
         };
 
         UnderlyingInvoker_->Invoke(BIND(doInvoke));

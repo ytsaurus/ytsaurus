@@ -371,13 +371,13 @@ void TNonOwningCGroup::Traverse(
     const TCallback<void(const TNonOwningCGroup&)>& preorderAction,
     const TCallback<void(const TNonOwningCGroup&)>& postorderAction) const
 {
-    preorderAction.Run(*this);
+    preorderAction(*this);
 
     for (const auto& child : GetChildren()) {
         child.Traverse(preorderAction, postorderAction);
     }
 
-    postorderAction.Run(*this);
+    postorderAction(*this);
 }
 
 TString TNonOwningCGroup::GetPath(const TString& filename) const

@@ -408,7 +408,7 @@ void RunInFiberContext(TClosure callback)
 
     TNullPropagatingStorageGuard propagatingStorageGuard;
 
-    callback.Run();
+    callback();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

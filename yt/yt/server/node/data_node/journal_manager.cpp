@@ -1019,7 +1019,7 @@ public:
                     return result.ValueOrThrow();
                 }));
         } else {
-            changelogFuture = creator.Run();
+            changelogFuture = creator();
         }
         return changelogFuture.ToUncancelable();
     }
@@ -1045,7 +1045,7 @@ public:
                     result.ThrowOnError();
                 }));
         } else {
-            asyncResult = remover.Run();
+            asyncResult = remover();
         }
         return asyncResult.ToUncancelable();
     }

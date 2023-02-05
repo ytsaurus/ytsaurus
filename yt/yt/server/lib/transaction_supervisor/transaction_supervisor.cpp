@@ -399,7 +399,7 @@ private:
             YT_LOG_DEBUG("Participant cell is up");
 
             for (const auto& sender : senders) {
-                sender.Run();
+                sender();
             }
         }
 
@@ -542,7 +542,7 @@ private:
 
                 guard.Release();
 
-                sender.Run();
+                sender();
             }
         }
 

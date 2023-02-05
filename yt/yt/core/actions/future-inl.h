@@ -707,7 +707,7 @@ struct TPromiseSetter<T, R(TArgs...)>
         InterceptExceptions(
             promise,
             [&] {
-                promise.Set(callback.Run(std::forward<TCallArgs>(args)...));
+                promise.Set(callback(std::forward<TCallArgs>(args)...));
             });
     }
 };
@@ -721,7 +721,7 @@ struct TPromiseSetter<T, NYT::TErrorOr<R>(TArgs...)>
         InterceptExceptions(
             promise,
             [&] {
-                promise.Set(callback.Run(std::forward<TCallArgs>(args)...));
+                promise.Set(callback(std::forward<TCallArgs>(args)...));
             });
     }
 };
@@ -735,7 +735,7 @@ struct TPromiseSetter<void, void(TArgs...)>
         InterceptExceptions(
             promise,
             [&] {
-                callback.Run(std::forward<TCallArgs>(args)...);
+                callback(std::forward<TCallArgs>(args)...);
                 promise.Set();
             });
     }
@@ -750,7 +750,7 @@ struct TPromiseSetter<T, TFuture<T>(TArgs...)>
         InterceptExceptions(
             promise,
             [&] {
-                promise.SetFrom(callback.Run(std::forward<TCallArgs>(args)...));
+                promise.SetFrom(callback(std::forward<TCallArgs>(args)...));
             });
     }
 };
@@ -764,7 +764,7 @@ struct TPromiseSetter<T, NYT::TErrorOr<TFuture<T>>(TArgs...)>
         InterceptExceptions(
             promise,
             [&] {
-                auto result = callback.Run(std::forward<TCallArgs>(args)...);
+                auto result = callback(std::forward<TCallArgs>(args)...);
                 if (result.IsOK()) {
                     promise.SetFrom(std::move(result));
                 } else {

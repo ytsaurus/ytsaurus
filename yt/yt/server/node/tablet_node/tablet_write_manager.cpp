@@ -483,7 +483,7 @@ public:
             SortBy(transactions, [] (const auto& pair) { return pair.first; });
             for (const auto& [transactionId, callback] : transactions) {
                 Save(context, transactionId);
-                callback.Run(context);
+                callback(context);
             }
         });
     }

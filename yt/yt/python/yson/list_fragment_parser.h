@@ -94,7 +94,7 @@ private:
     void CheckItem()
     {
         if (Balance_ == 0) {
-            CheckItemCallback_.Run();
+            CheckItemCallback_();
         }
     }
 

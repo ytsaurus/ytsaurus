@@ -246,7 +246,7 @@ int FunctionWithWeakParam(TWeakPtr<T> /*ptr*/, int n)
 
 void InvokeClosure(const TClosure& callback)
 {
-    callback.Run();
+    callback();
 }
 
 void Touch(const TProbe& probe) {
@@ -310,50 +310,50 @@ StrictMock<TObject>* TBindTest::StaticObjectPtr = 0;
 TEST_F(TBindTest, ArityTest)
 {
     TCallback<int()> c0 = BIND(&Sum, 5, 4, 3, 2, 1, 0);
-    EXPECT_EQ(543210, c0.Run());
+    EXPECT_EQ(543210, c0());
 
     TCallback<int(int)> c1 = BIND(&Sum, 5, 4, 3, 2, 1);
-    EXPECT_EQ(543219, c1.Run(9));
+    EXPECT_EQ(543219, c1(9));
 
     TCallback<int(int,int)> c2 = BIND(&Sum, 5, 4, 3, 2);
-    EXPECT_EQ(543298, c2.Run(9, 8));
+    EXPECT_EQ(543298, c2(9, 8));
 
     TCallback<int(int,int,int)> c3 = BIND(&Sum, 5, 4, 3);
-    EXPECT_EQ(543987, c3.Run(9, 8, 7));
+    EXPECT_EQ(543987, c3(9, 8, 7));
 
     TCallback<int(int,int,int,int)> c4 = BIND(&Sum, 5, 4);
-    EXPECT_EQ(549876, c4.Run(9, 8, 7, 6));
+    EXPECT_EQ(549876, c4(9, 8, 7, 6));
 
     TCallback<int(int,int,int,int,int)> c5 = BIND(&Sum, 5);
-    EXPECT_EQ(598765, c5.Run(9, 8, 7, 6, 5));
+    EXPECT_EQ(598765, c5(9, 8, 7, 6, 5));
 
     TCallback<int(int,int,int,int,int,int)> c6 = BIND(&Sum);
-    EXPECT_EQ(987654, c6.Run(9, 8, 7, 6, 5, 4));
+    EXPECT_EQ(987654, c6(9, 8, 7, 6, 5, 4));
 }
 
 // Test the currying ability of the BIND().
 TEST_F(TBindTest, CurryingTest)
 {
     TCallback<int(int,int,int,int,int,int)> c6 = BIND(&Sum);
-    EXPECT_EQ(987654, c6.Run(9, 8, 7, 6, 5, 4));
+    EXPECT_EQ(987654, c6(9, 8, 7, 6, 5, 4));
 
     TCallback<int(int,int,int,int,int)> c5 = BIND(c6, 5);
-    EXPECT_EQ(598765, c5.Run(9, 8, 7, 6, 5));
+    EXPECT_EQ(598765, c5(9, 8, 7, 6, 5));
 
     TCallback<int(int,int,int,int)> c4 = BIND(c5, 4);
-    EXPECT_EQ(549876, c4.Run(9, 8, 7, 6));
+    EXPECT_EQ(549876, c4(9, 8, 7, 6));
 
     TCallback<int(int,int,int)> c3 = BIND(c4, 3);
-    EXPECT_EQ(543987, c3.Run(9, 8, 7));
+    EXPECT_EQ(543987, c3(9, 8, 7));
 
     TCallback<int(int,int)> c2 = BIND(c3, 2);
-    EXPECT_EQ(543298, c2.Run(9, 8));
+    EXPECT_EQ(543298, c2(9, 8));
 
     TCallback<int(int)> c1 = BIND(c2, 1);
-    EXPECT_EQ(543219, c1.Run(9));
+    EXPECT_EQ(543219, c1(9));
 
     TCallback<int()> c0 = BIND(c1, 0);
-    EXPECT_EQ(543210, c0.Run());
+    EXPECT_EQ(543210, c0());
 }
 
 // Test that currying the rvalue result of another BIND() works correctly.
@@ -369,11 +369,11 @@ TEST_F(TBindTest, CurryingRvalueResultOfBind)
     // the internal BindState<> would have been transfered to a *temporary*
     // constructon of a TCallback object on the first call.
     x = 0;
-    cb.Run();
+    cb();
     EXPECT_EQ(2012, x);
 
     x = 0;
-    cb.Run();
+    cb();
     EXPECT_EQ(2012, x);
 }
 
@@ -406,8 +406,8 @@ TEST_F(TBindTest, FunctionTypeSupport)
     TCallback<TObject*()> normalFuncNonRC =
         BIND(&PolymorphicIdentity<TObject*>, &Object);
 
-    normalFunc.Run();
-    EXPECT_EQ(&Object, normalFuncNonRC.Run());
+    normalFunc();
+    EXPECT_EQ(&Object, normalFuncNonRC());
 
     // Bound methods.
     TClosure boundMethodViaRawPtr =
@@ -415,8 +415,8 @@ TEST_F(TBindTest, FunctionTypeSupport)
     TClosure boundMethodViaRefPtr =
         BIND(&TObjectWithRC::VoidMethod0, TObjectWithRCPtr(&ObjectWithRC)); // (Ref)
 
-    boundMethodViaRawPtr.Run();
-    boundMethodViaRefPtr.Run();
+    boundMethodViaRawPtr();
+    boundMethodViaRefPtr();
 
     // Const-methods.
     TClosure constMethodNonConstObject =
@@ -424,20 +424,20 @@ TEST_F(TBindTest, FunctionTypeSupport)
     TClosure constMethodConstObject =
         BIND(&TObjectWithRC::VoidConstMethod0, ConstObjectWithRCPtr); // (NoRef)
 
-    constMethodNonConstObject.Run();
-    constMethodConstObject.Run();
+    constMethodNonConstObject();
+    constMethodConstObject();
 
     // Virtual calls.
     TRefChild child;
 
     child.Value = 0;
     TClosure virtualSet = BIND(&TRefParent::VirtualSet, &child);
-    virtualSet.Run();
+    virtualSet();
     EXPECT_EQ(SomeChildValue, child.Value);
 
     child.Value = 0;
     TClosure nonVirtualSet = BIND(&TRefParent::NonVirtualSet, &child);
-    nonVirtualSet.Run();
+    nonVirtualSet();
     EXPECT_EQ(SomeParentValue, child.Value);
 }
 
@@ -462,16 +462,16 @@ TEST_F(TBindTest, ReturnValuesSupport)
     TCallback<int()> boundMethod =
         BIND(&TObjectWithRC::IntMethod0, &ObjectWithRC); // (NoRef)
 
-    EXPECT_EQ(13, normalFunc.Run());
-    EXPECT_EQ(17, boundMethod.Run());
+    EXPECT_EQ(13, normalFunc());
+    EXPECT_EQ(17, boundMethod());
 
     TCallback<int()> constMethodNonConstObject =
         BIND(&TObjectWithRC::IntConstMethod0, &ObjectWithRC); // (NoRef)
     TCallback<int()> constMethodConstObject =
         BIND(&TObjectWithRC::IntConstMethod0, ConstObjectWithRCPtr); // (NoRef)
 
-    EXPECT_EQ(19, constMethodNonConstObject.Run());
-    EXPECT_EQ(23, constMethodConstObject.Run());
+    EXPECT_EQ(19, constMethodNonConstObject());
+    EXPECT_EQ(23, constMethodConstObject());
 }
 
 // An ability to ignore returned value.
@@ -492,15 +492,15 @@ TEST_F(TBindTest, IgnoreResultWrapper)
 
     TClosure normalFunc =
         BIND(IgnoreResult(&StaticIntFunc0));
-    normalFunc.Run();
+    normalFunc();
 
     TClosure boundMethod =
         BIND(IgnoreResult(&TObjectWithRC::IntMethod0), &ObjectWithRC); // (NoRef)
-    boundMethod.Run();
+    boundMethod();
 
     TClosure constBoundMethod =
         BIND(IgnoreResult(&TObjectWithRC::IntConstMethod0), &ObjectWithRC); // (NoRef)
-    constBoundMethod.Run();
+    constBoundMethod();
 }
 
 // Argument binding tests.
@@ -518,51 +518,51 @@ TEST_F(TBindTest, ArgumentBindingSupport)
 
     TCallback<int()> primitiveBind =
         BIND(&IntegerIdentity, n);
-    EXPECT_EQ(n, primitiveBind.Run());
+    EXPECT_EQ(n, primitiveBind());
 
     TCallback<int*()> primitivePointerBind =
         BIND(&PolymorphicIdentity<int*>, &n);
-    EXPECT_EQ(&n, primitivePointerBind.Run());
+    EXPECT_EQ(&n, primitivePointerBind());
 
     TCallback<int()> literalIntegerBind
         = BIND(&IntegerIdentity, 2);
-    EXPECT_EQ(2, literalIntegerBind.Run());
+    EXPECT_EQ(2, literalIntegerBind());
 
     TCallback<const char*()> literalStringBind =
         BIND(&StringIdentity, "Dire Straits");
-    EXPECT_STREQ("Dire Straits", literalStringBind.Run());
+    EXPECT_STREQ("Dire Straits", literalStringBind());
 
     TCallback<int()> templateFunctionBind =
         BIND(&PolymorphicIdentity<int>, 3);
-    EXPECT_EQ(3, templateFunctionBind.Run());
+    EXPECT_EQ(3, templateFunctionBind());
 
     TNoRefParent p;
     p.Value = 4;
 
     TCallback<int()> objectBind = BIND(&UnwrapNoRefParent, p);
-    EXPECT_EQ(4, objectBind.Run());
+    EXPECT_EQ(4, objectBind());
 
     TIncompleteType* dummyPtr = reinterpret_cast<TIncompleteType*>(123);
     TCallback<TIncompleteType*()> incompleteTypeBind =
         BIND(&PolymorphicIdentity<TIncompleteType*>, dummyPtr);
-    EXPECT_EQ(dummyPtr, incompleteTypeBind.Run());
+    EXPECT_EQ(dummyPtr, incompleteTypeBind());
 
     NoRefChild c;
 
     c.Value = 5;
     TCallback<int()> upcastBind =
         BIND(&UnwrapNoRefParent, c);
-    EXPECT_EQ(5, upcastBind.Run());
+    EXPECT_EQ(5, upcastBind());
 
     c.Value = 6;
     TCallback<int()> upcastPtrBind =
         BIND(&UnwrapNoRefParentPtr, &c);
-    EXPECT_EQ(6, upcastPtrBind.Run());
+    EXPECT_EQ(6, upcastPtrBind());
 
     c.Value = 7;
     TCallback<int()> upcastConstRefBind =
         BIND(&UnwrapNoRefParentConstRef, c);
-    EXPECT_EQ(7, upcastConstRefBind.Run());
+    EXPECT_EQ(7, upcastConstRefBind());
 }
 
 // Unbound argument type support tests.
@@ -600,7 +600,7 @@ TEST_F(TBindTest, UnboundReference)
 {
     int n = 0;
     TCallback<void(int&)> unboundRef = BIND(&SetIntViaRef);
-    unboundRef.Run(n);
+    unboundRef(n);
     EXPECT_EQ(2012, n);
 }
 
@@ -615,15 +615,15 @@ TEST_F(TBindTest, ReferenceArgumentBinding)
 
     TCallback<int()> firstAction =
         BIND(&IntegerIdentity, myIntRef);
-    EXPECT_EQ(1, firstAction.Run());
+    EXPECT_EQ(1, firstAction());
     myInt++;
-    EXPECT_EQ(1, firstAction.Run());
+    EXPECT_EQ(1, firstAction());
 
     TCallback<int()> secondAction =
         BIND(&IntegerIdentity, myIntConstRef);
-    EXPECT_EQ(2, secondAction.Run());
+    EXPECT_EQ(2, secondAction());
     myInt++;
-    EXPECT_EQ(2, secondAction.Run());
+    EXPECT_EQ(2, secondAction());
 
     EXPECT_EQ(3, myInt);
 }
@@ -637,20 +637,20 @@ TEST_F(TBindTest, ArrayArgumentBinding)
     const int (*constArrayPtr)[4] = &array;
 
     TCallback<int(int)> arrayPolyGet = BIND(&ArrayGet, array);
-    EXPECT_EQ(1, arrayPolyGet.Run(0));
-    EXPECT_EQ(2, arrayPolyGet.Run(1));
-    EXPECT_EQ(3, arrayPolyGet.Run(2));
-    EXPECT_EQ(4, arrayPolyGet.Run(3));
+    EXPECT_EQ(1, arrayPolyGet(0));
+    EXPECT_EQ(2, arrayPolyGet(1));
+    EXPECT_EQ(3, arrayPolyGet(2));
+    EXPECT_EQ(4, arrayPolyGet(3));
 
     TCallback<int()> arrayGet = BIND(&ArrayGet, array, 1);
-    EXPECT_EQ(2, arrayGet.Run());
+    EXPECT_EQ(2, arrayGet());
 
     TCallback<int()> constArrayGet = BIND(&ArrayGet, *constArrayPtr, 1);
-    EXPECT_EQ(2, constArrayGet.Run());
+    EXPECT_EQ(2, constArrayGet());
 
     array[1] = 7;
-    EXPECT_EQ(7, arrayGet.Run());
-    EXPECT_EQ(7, constArrayGet.Run());
+    EXPECT_EQ(7, arrayGet());
+    EXPECT_EQ(7, constArrayGet());
 }
 
 // Unretained() wrapper support.
@@ -669,27 +669,27 @@ TEST_F(TBindTest, UnretainedWrapper)
 
     TCallback<void()> boundMethod =
         BIND(&TObject::VoidMethod0, Unretained(&Object));
-    boundMethod.Run();
+    boundMethod();
 
     TCallback<void()> constMethodNonConstObject =
         BIND(&TObject::VoidConstMethod0, Unretained(&Object));
-    constMethodNonConstObject.Run();
+    constMethodNonConstObject();
 
     TCallback<void()> constMethodConstObject =
         BIND(&TObject::VoidConstMethod0, Unretained(ConstObjectPtr));
-    constMethodConstObject.Run();
+    constMethodConstObject();
 
     TCallback<void()> boundMethodWithoutRC =
         BIND(&TObjectWithRC::VoidMethod0, Unretained(&ObjectWithRC)); // (NoRef)
-    boundMethodWithoutRC.Run();
+    boundMethodWithoutRC();
 
     TCallback<void()> constMethodNonConstObjectWithoutRC =
         BIND(&TObjectWithRC::VoidConstMethod0, Unretained(&ObjectWithRC)); // (NoRef)
-    constMethodNonConstObjectWithoutRC.Run();
+    constMethodNonConstObjectWithoutRC();
 
     TCallback<void()> constMethodConstObjectWithoutRC =
         BIND(&TObjectWithRC::VoidConstMethod0, Unretained(ConstObjectWithRCPtr)); // (NoRef)
-    constMethodConstObjectWithoutRC.Run();
+    constMethodConstObjectWithoutRC();
 }
 
 // Weak pointer support.
@@ -710,35 +710,35 @@ TEST_F(TBindTest, WeakPtr)
         BIND(
             &TObjectWithFullRC::VoidMethod0,
             TObjectWithExtrinsicRCWkPtr(object));
-    boundMethod.Run();
+    boundMethod();
 
     TClosure constMethodNonConstObject =
         BIND(
             &TObject::VoidConstMethod0,
             TObjectWithExtrinsicRCWkPtr(object));
-    constMethodNonConstObject.Run();
+    constMethodNonConstObject();
 
     TClosure constMethodConstObject =
         BIND(
             &TObject::VoidConstMethod0,
             TObjectWithExtrinsicRCConstWkPtr(object));
-    constMethodConstObject.Run();
+    constMethodConstObject();
 
     TCallback<int(int)> normalFunc =
         BIND(
             &FunctionWithWeakParam<TObjectWithFullRC>,
             TObjectWithExtrinsicRCWkPtr(object));
 
-    EXPECT_EQ(1, normalFunc.Run(1));
+    EXPECT_EQ(1, normalFunc(1));
 
     object.Reset();
     ASSERT_TRUE(objectWk.IsExpired());
 
-    boundMethod.Run();
-    constMethodNonConstObject.Run();
-    constMethodConstObject.Run();
+    boundMethod();
+    constMethodNonConstObject();
+    constMethodConstObject();
 
-    EXPECT_EQ(2, normalFunc.Run(2));
+    EXPECT_EQ(2, normalFunc(2));
 }
 
 // ConstRef() wrapper support.
@@ -754,18 +754,18 @@ TEST_F(TBindTest, ConstRefWrapper)
     TCallback<int()> withConstRef =
         BIND(&IntegerIdentity, ConstRef(n));
 
-    EXPECT_EQ(1, withoutConstRef.Run());
-    EXPECT_EQ(1, withConstRef.Run());
+    EXPECT_EQ(1, withoutConstRef());
+    EXPECT_EQ(1, withConstRef());
     n++;
-    EXPECT_EQ(1, withoutConstRef.Run());
-    EXPECT_EQ(2, withConstRef.Run());
+    EXPECT_EQ(1, withoutConstRef());
+    EXPECT_EQ(2, withConstRef());
 
     TProbeState state;
     TProbe probe(&state);
 
     TClosure everywhereConstRef =
         BIND(&Touch, ConstRef(probe));
-    everywhereConstRef.Run();
+    everywhereConstRef();
 
     EXPECT_THAT(probe, HasCopyMoveCounts(0, 0));
     EXPECT_THAT(probe, NoAssignments());
@@ -785,8 +785,8 @@ TEST_F(TBindTest, OwnedWrapper)
     TCallback<TProbe*()> capturedArgument =
         BIND(&PolymorphicIdentity<TProbe*>, Owned(probe));
 
-    ASSERT_EQ(probe, capturedArgument.Run());
-    ASSERT_EQ(probe, capturedArgument.Run());
+    ASSERT_EQ(probe, capturedArgument());
+    ASSERT_EQ(probe, capturedArgument());
     EXPECT_EQ(0, state.Destructors);
     capturedArgument.Reset(); // This should trigger a delete.
     EXPECT_EQ(1, state.Destructors);
@@ -796,7 +796,7 @@ TEST_F(TBindTest, OwnedWrapper)
     TCallback<void()> capturedTarget =
         BIND(&TProbe::Touch, Owned(probe));
 
-    capturedTarget.Run();
+    capturedTarget();
     EXPECT_EQ(0, state.Destructors);
     capturedTarget.Reset();
     EXPECT_EQ(1, state.Destructors);
@@ -823,7 +823,7 @@ TEST_F(TBindTest, PassedWrapper1)
     {
         // Check that ownership can be transferred back out.
         int n = state.MoveConstructors;
-        TProbe result = cb.Run();
+        TProbe result = cb();
         EXPECT_EQ(0, state.Destructors);
         EXPECT_LT(n, state.MoveConstructors);
         EXPECT_THAT(state, NoCopies());
@@ -856,7 +856,7 @@ TEST_F(TBindTest, PassedWrapper2)
     {
         // Check that ownership can be transferred back out.
         int n = state.MoveConstructors;
-        TProbe result = cb.Run();
+        TProbe result = cb();
         EXPECT_EQ(0, state.Destructors);
         EXPECT_LT(n, state.MoveConstructors);
         EXPECT_THAT(state, NoCopies());
@@ -886,7 +886,7 @@ TEST_F(TBindTest, PassedWrapper3)
     EXPECT_EQ(0, state.Destructors);
     EXPECT_THAT(state, NoCopies());
 
-    receiver = cb.Run(std::move(sender));
+    receiver = cb(std::move(sender));
 
     EXPECT_FALSE(sender.IsValid());
     EXPECT_TRUE(receiver.IsValid());
@@ -910,7 +910,7 @@ TEST_F(TBindTest, PassedWrapper4)
     EXPECT_EQ(0, state.Destructors);
     EXPECT_THAT(state, NoCopies());
 
-    receiver = cb.Run(std::move(sender));
+    receiver = cb(std::move(sender));
 
     EXPECT_FALSE(sender.IsValid());
     EXPECT_TRUE(receiver.IsValid());
@@ -936,7 +936,7 @@ TEST_F(TBindTest, ArgumentProbing)
         TClosure boundValue =
             BIND(&VoidPolymorphic1<TProbe>, probe);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
-        boundValue.Run();
+        boundValue();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 0), NoAssignments()));
 
         // Bind T&
@@ -944,7 +944,7 @@ TEST_F(TBindTest, ArgumentProbing)
         TClosure boundRef =
             BIND(&VoidPolymorphic1<TProbe>, probeRef);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
-        boundRef.Run();
+        boundRef();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 0), NoAssignments()));
 
         // Bind const T&
@@ -952,7 +952,7 @@ TEST_F(TBindTest, ArgumentProbing)
         TClosure boundConstRef =
             BIND(&VoidPolymorphic1<TProbe>, probeConstRef);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
-        boundConstRef.Run();
+        boundConstRef();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(2, 0), NoAssignments()));
 
         // Bind T&&
@@ -960,7 +960,7 @@ TEST_F(TBindTest, ArgumentProbing)
         TClosure boundRvRef =
             BIND(&VoidPolymorphic1<TProbe>, static_cast<TProbe&&>(TProbe(&state)));
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(0, 1), NoAssignments()));
-        boundRvRef.Run();
+        boundRvRef();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 1), NoAssignments()));
 
         // Pass all of above as a forwarded argument.
@@ -969,13 +969,13 @@ TEST_F(TBindTest, ArgumentProbing)
         TCallback<void(TProbe)> forward = BIND(&VoidPolymorphic1<TProbe>);
 
         EXPECT_THAT(probe, HasCopyMoveCounts(0, 0));
-        forward.Run(probe);
+        forward(probe);
         EXPECT_THAT(probe, HasCopyMoveCounts(1, 1));
-        forward.Run(probeRef);
+        forward(probeRef);
         EXPECT_THAT(probe, HasCopyMoveCounts(2, 2));
-        forward.Run(probeConstRef);
+        forward(probeConstRef);
         EXPECT_THAT(probe, HasCopyMoveCounts(3, 3));
-        forward.Run(TProbe(&state));
+        forward(TProbe(&state));
         EXPECT_THAT(probe, HasCopyMoveCounts(3, 4));
 
         EXPECT_THAT(probe, NoAssignments());
@@ -988,7 +988,7 @@ TEST_F(TBindTest, ArgumentProbing)
         TClosure boundValue =
             BIND(&VoidPolymorphic1<const TProbe&>, probe);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
-        boundValue.Run();
+        boundValue();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
 
         // Bind T&
@@ -996,7 +996,7 @@ TEST_F(TBindTest, ArgumentProbing)
         TClosure boundRef =
             BIND(&VoidPolymorphic1<const TProbe&>, probeRef);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
-        boundRef.Run();
+        boundRef();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
 
         // Bind const T&
@@ -1004,7 +1004,7 @@ TEST_F(TBindTest, ArgumentProbing)
         TClosure boundConstRef =
             BIND(&VoidPolymorphic1<const TProbe&>, probeConstRef);
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
-        boundConstRef.Run();
+        boundConstRef();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(1, 0), NoAssignments()));
 
         // Bind T&&
@@ -1012,7 +1012,7 @@ TEST_F(TBindTest, ArgumentProbing)
         TClosure boundRvRef =
             BIND(&VoidPolymorphic1<const TProbe&>, TProbe(&state));
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(0, 1), NoAssignments()));
-        boundRvRef.Run();
+        boundRvRef();
         EXPECT_THAT(probe, AllOf(HasCopyMoveCounts(0, 1), NoAssignments()));
 
         // Pass all of above as a forwarded argument.
@@ -1021,13 +1021,13 @@ TEST_F(TBindTest, ArgumentProbing)
         TCallback<void(const TProbe&)> forward = BIND(&VoidPolymorphic1<const TProbe&>);
 
         EXPECT_THAT(probe, HasCopyMoveCounts(0, 0));
-        forward.Run(probe);
+        forward(probe);
         EXPECT_THAT(probe, HasCopyMoveCounts(0, 0));
-        forward.Run(probeRef);
+        forward(probeRef);
         EXPECT_THAT(probe, HasCopyMoveCounts(0, 0));
-        forward.Run(probeConstRef);
+        forward(probeConstRef);
         EXPECT_THAT(probe, HasCopyMoveCounts(0, 0));
-        forward.Run(static_cast<TProbe&&>(TProbe(&state)));
+        forward(static_cast<TProbe&&>(TProbe(&state)));
         EXPECT_THAT(probe, HasCopyMoveCounts(0, 0));
 
         EXPECT_THAT(probe, NoAssignments());
@@ -1049,13 +1049,13 @@ TEST_F(TBindTest, CoercibleArgumentProbing)
     TCallback<void(TProbe)> forward = BIND(&VoidPolymorphic1<TProbe>);
 
     EXPECT_THAT(state, HasCopyMoveCounts(0, 0));
-    forward.Run(probe);
+    forward(probe);
     EXPECT_THAT(state, HasCopyMoveCounts(1, 1));
-    forward.Run(probeRef);
+    forward(probeRef);
     EXPECT_THAT(state, HasCopyMoveCounts(2, 2));
-    forward.Run(probeConstRef);
+    forward(probeConstRef);
     EXPECT_THAT(state, HasCopyMoveCounts(3, 3));
-    forward.Run(TProbe(&state));
+    forward(TProbe(&state));
     EXPECT_THAT(state, HasCopyMoveCounts(3, 4));
 
     EXPECT_THAT(state, NoAssignments());
@@ -1076,33 +1076,33 @@ TEST_F(TBindTest, LambdaSupport)
 
     TClosure closure = BIND([&n] () { ++n; });
     EXPECT_EQ(1, n);
-    closure.Run();
+    closure();
     EXPECT_EQ(2, n);
-    closure.Run();
+    closure();
     EXPECT_EQ(3, n);
 
     TCallback<int()> cb1 = BIND([  ] () -> int { return 42;  });
     TCallback<int()> cb2 = BIND([&n] () -> int { return ++n; });
 
-    EXPECT_EQ(42, cb1.Run());
-    EXPECT_EQ( 4, cb2.Run());
+    EXPECT_EQ(42, cb1());
+    EXPECT_EQ( 4, cb2());
     EXPECT_EQ( 4, n);
-    EXPECT_EQ( 5, cb2.Run());
+    EXPECT_EQ( 5, cb2());
     EXPECT_EQ( 5, n);
 
     TCallback<int(int, int)> plus  = BIND([] (int a, int b) -> int { return a + b; });
     TCallback<int(int)>      plus5 = BIND([] (int a, int b) -> int { return a + b; }, 5);
 
     EXPECT_EQ(3, plus. Run(1, 2));
-    EXPECT_EQ(6, plus5.Run(1));
+    EXPECT_EQ(6, plus5(1));
 }
 
 TEST_F(TBindTest, MutableLambdaSupport)
 {
     auto f = BIND([n = 1] () mutable { ++n; return n; });
-    EXPECT_EQ(2, f.Run());
-    EXPECT_EQ(3, f.Run());
-    EXPECT_EQ(4, f.Run());
+    EXPECT_EQ(2, f());
+    EXPECT_EQ(3, f());
+    EXPECT_EQ(4, f());
 }
 
 TEST_F(TBindTest, ConstLambdaSupport)
@@ -1110,9 +1110,9 @@ TEST_F(TBindTest, ConstLambdaSupport)
     int n = 1;
     const auto l = [&n] () { ++n; return n; };
     const auto f = BIND(l);
-    EXPECT_EQ(2, f.Run());
-    EXPECT_EQ(3, f.Run());
-    EXPECT_EQ(4, f.Run());
+    EXPECT_EQ(2, f());
+    EXPECT_EQ(3, f());
+    EXPECT_EQ(4, f());
 }
 
 TEST_F(TBindTest, MoveOnlyLambdaSupport)
@@ -1148,8 +1148,8 @@ TEST_F(TBindTest, MoveOnlyLambdaSupport)
     EXPECT_EQ(0u, outer.Value());
 
     // Call twice just in case
-    EXPECT_EQ(5u, f.Run());
-    EXPECT_EQ(5u, f.Run());
+    EXPECT_EQ(5u, f());
+    EXPECT_EQ(5u, f());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

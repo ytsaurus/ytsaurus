@@ -42,13 +42,13 @@ public:
         } else {
             // We are the outermost callback; execute synchronously.
             state.AlreadyInvoking = true;
-            callback.Run();
+            callback();
             callback.Reset();
             // If some callbacks were deferred, execute them until the queue is drained.
             // Note that some of the callbacks may defer new callbacks, which is perfectly valid.
             if (state.DeferredCallbacks) {
                 while (!state.DeferredCallbacks->empty()) {
-                    state.DeferredCallbacks->front().Run();
+                    state.DeferredCallbacks->front()();
                     state.DeferredCallbacks->pop();
                 }
                 // Reset queue to reduce fiber memory footprint.
@@ -160,7 +160,7 @@ void GuardedInvoke(
         ~TGuard()
         {
             if (OnCancel_) {
-                OnCancel_.Run();
+                OnCancel_();
             }
         }
 
@@ -171,12 +171,11 @@ void GuardedInvoke(
 
     private:
         TClosure OnCancel_;
-
     };
 
     auto doInvoke = [] (TClosure onSuccess, TGuard guard) {
         guard.Release();
-        onSuccess.Run();
+        onSuccess();
     };
 
     invoker->Invoke(BIND_NO_PROPAGATE(

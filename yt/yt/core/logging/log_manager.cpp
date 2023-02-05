@@ -195,7 +195,7 @@ public:
 
     void Run()
     {
-        Callback_.Run();
+        Callback_();
         // Reinitialize watch to hook to the newly created file.
         DropWatch();
         CreateWatch();

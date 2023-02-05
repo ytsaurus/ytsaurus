@@ -43,7 +43,7 @@ public:
     void RunCallback(const TClosure& callback)
     {
         TCurrentInvokerGuard currentInvokerGuard(this);
-        callback.Run();
+        callback();
     }
 
     void Invoke(TClosure callback) override;

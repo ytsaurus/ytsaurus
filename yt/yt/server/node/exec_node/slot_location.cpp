@@ -371,7 +371,7 @@ TFuture<void> TSlotLocation::DoMakeSandboxFile(
         };
 
         try {
-            callback.Run();
+            callback();
         } catch (const TSystemError& ex) {
             // For util functions.
             onError(TError::FromSystem(ex));

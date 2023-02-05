@@ -47,14 +47,14 @@
 // a templated constructor that takes an #TBindState<>*. In the context of
 // the constructor, the static type of this #TBindState<> pointer uniquely
 // identifies the function it is representing, all its bound parameters,
-// and a Run() method that is capable of invoking the target.
+// and operator() that is capable of invoking the target.
 //
 // #TCallback<>'s constructor takes the #TBindState<>* that has the full static
 // type and erases the target function type as well as the types of the bound
-// parameters. It does this by storing a pointer to the specific Run()
-// function, and upcasting the state of #TBindState<>* to a #TBindStateBase*.
+// parameters. It does this by storing a pointer to the specific operator()
+// and upcasting the state of #TBindState<>* to a #TBindStateBase*.
 // This is safe as long as this #TBindStateBase pointer is only used with
-// the stored Run() pointer.
+// the stored operator() pointer.
 //
 // To #TBindState<> objects are created inside the #Bind() functions.
 // These functions, along with a set of internal templates, are responsible for:
@@ -214,15 +214,15 @@ public:
         return *this;
     }
 
-    R Run(TArgs... args) const
+    R operator()(TArgs... args) const
     {
         auto invokeFunction = reinterpret_cast<TTypedInvokeFunction>(UntypedInvoke);
         return invokeFunction(BindState.Get(), std::forward<TArgs>(args)...);
     }
 
-    R operator()(TArgs... args) const
+    R Run(TArgs... args) const
     {
-        return Run(std::forward<TArgs>(args)...);
+        return operator()(std::forward<TArgs>(args)...);
     }
 
 private:

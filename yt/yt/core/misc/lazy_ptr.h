@@ -62,7 +62,7 @@ private:
             TGuard<TLock> guard(Lock_);
             if (!HasValue()) {
                 NTracing::TNullTraceContextGuard guard;
-                Value_ = Factory_.Run();
+                Value_ = Factory_();
                 Initialized_.store(true);
             }
         }

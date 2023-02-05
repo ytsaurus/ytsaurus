@@ -929,7 +929,7 @@ private:
     void DoRunCallback(TClosure callback) override
     {
         TVerifyingMemoryTagGuard memoryTagGuard(MemoryTag_);
-        callback.Run();
+        callback();
     }
 };
 

@@ -27,7 +27,7 @@ namespace NYT {
 //
 // #Passed() is for transferring movable-but-not-copyable types through
 // a #TCallback<>. Logically, this signifies a destructive transfer of the state
-// of the argument into the target function. Invoking #TCallback<>::Run() twice
+// of the argument into the target function. Invoking #TCallback<>::operator() twice
 // on a TCallback that was created with a #Passed() argument will YT_ASSERT()
 // because the first invocation would have already transferred ownership
 // to the target function.
@@ -46,7 +46,7 @@ namespace NYT {
 //   // Somewhere else.
 //   TFoo foo;
 //   TClosure cb = Bind(&TFoo::Bar, Unretained(&foo));
-//   cb.Run(); // Prints "Hello!".
+//   cb(); // Prints "Hello!".
 //
 // Without the #Unretained() wrapper on |&foo|, the above call would fail
 // to compile because |TFoo| does not support the Ref() and Unref() methods.
@@ -59,10 +59,10 @@ namespace NYT {
 //   int* px = new int(17);
 //   TClosure cb = Bind(&Foo, Owned(px));
 //
-//   cb.Run(); // Prints "17"
-//   cb.Run(); // Prints "17"
+//   cb(); // Prints "17"
+//   cb(); // Prints "17"
 //   *n = 42;
-//   cb.Run(); // Prints "42"
+//   cb(); // Prints "42"
 //
 //   cb.Reset(); // |px| is deleted.
 //   // Also will happen when |cb| goes out of scope.
@@ -81,7 +81,7 @@ namespace NYT {
 //   // You may also use std::move(foo), but its more verbose.
 //   TClosure cb = Bind(&TakesOwnership, Passed(&foo));
 //
-//   // Run was never called so |cb| still owns the instance and deletes
+//   // Operator() was never called so |cb| still owns the instance and deletes
 //   // it on #Reset().
 //   cb.Reset();
 //
@@ -90,8 +90,8 @@ namespace NYT {
 //
 //   // |arg| in TakesOwnership() is given ownership of |TFoo|.
 //   // |cb| no longer owns |TFoo| and, if reset, would not delete anything.
-//   cb.Run(); // |TFoo| is now transferred to |arg| and deleted.
-//   cb.Run(); // This YT_ASSERT()s since |TFoo| already been used once.
+//   cb(); // |TFoo| is now transferred to |arg| and deleted.
+//   cb(); // This YT_ASSERT()s since |TFoo| already been used once.
 //
 //
 // EXAMPLE OF ConstRef()
@@ -102,11 +102,11 @@ namespace NYT {
 //   TClosure noRef = Bind(&Foo, n);
 //   TClosure hasRef = Bind(&Foo, ConstRef(n));
 //
-//   noRef.Run();  // Prints "1"
-//   hasRef.Run(); // Prints "1"
+//   noRef();  // Prints "1"
+//   hasRef(); // Prints "1"
 //   n = 2;
-//   noRef.Run();  // Prints "1"
-//   hasRef.Run(); // Prints "2"
+//   noRef();  // Prints "1"
+//   hasRef(); // Prints "2"
 //
 // Note that because #ConstRef() takes a reference on |n|,
 // |n| must outlive all its bound callbacks.
