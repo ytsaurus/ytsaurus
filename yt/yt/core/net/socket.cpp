@@ -354,7 +354,9 @@ int AcceptSocket(SOCKET serverSocket, TNetworkAddress* clientAddress)
 #endif
 
     if (clientSocket == INVALID_SOCKET) {
-        if (LastSystemError() != EAGAIN && LastSystemError() != EWOULDBLOCK) {
+        if (LastSystemError() != EAGAIN && LastSystemError() != EWOULDBLOCK && LastSystemError() != ECONNABORTED) {
+            // ECONNABORTED means, that a socket on the listen
+            // queue was closed before we Accept()ed it; ignore it.
             THROW_ERROR_EXCEPTION(
                 NRpc::EErrorCode::TransportError,
                 "Error accepting connection")
