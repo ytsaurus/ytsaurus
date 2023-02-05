@@ -1021,6 +1021,8 @@ public:
     //! List of the enabled profilers.
     std::vector<TJobProfilerSpecPtr> Profilers;
 
+    bool AdjustDynamicTableDataSlices;
+
     REGISTER_YSON_STRUCT(TOperationSpecBase);
 
     static void Register(TRegistrar registrar);

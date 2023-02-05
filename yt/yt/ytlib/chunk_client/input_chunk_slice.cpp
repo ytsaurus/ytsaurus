@@ -662,8 +662,8 @@ void TInputChunkSlice::OverrideSize(i64 rowCount, i64 dataWeight)
 
 void TInputChunkSlice::ApplySamplingSelectivityFactor(double samplingSelectivityFactor)
 {
-    i64 rowCount = GetRowCount() * samplingSelectivityFactor;
-    i64 dataWeight = GetDataWeight() * samplingSelectivityFactor;
+    i64 rowCount = std::max<i64>(1, GetRowCount() * samplingSelectivityFactor);
+    i64 dataWeight = std::max<i64>(1, GetDataWeight() * samplingSelectivityFactor);
     OverrideSize(rowCount, dataWeight);
 }
 

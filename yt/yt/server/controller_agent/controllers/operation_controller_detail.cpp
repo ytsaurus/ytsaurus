@@ -7235,6 +7235,8 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
         }
     };
 
+    i64 totalDataWeightBefore = 0;
+
     std::vector<TFuture<void>> asyncResults;
     std::vector<TComparator> comparators;
     std::vector<IChunkSliceFetcherPtr> fetchers;
@@ -7265,6 +7267,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
                 dataSlice->TransformToNew(RowBuffer, table->Comparator.GetLength());
                 fetcher->AddDataSliceForSlicing(dataSlice, table->Comparator, sliceSize, true);
+                totalDataWeightBefore += dataSlice->GetDataWeight();
             }
 
             fetcher->SetCancelableContext(GetCancelableContext());
@@ -7281,6 +7284,7 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
         .ThrowOnError();
 
     i64 totalDataSliceCount = 0;
+    i64 totalDataWeightAfter = 0;
 
     std::vector<TLegacyDataSlicePtr> result;
     for (const auto& [fetcher, comparator] : Zip(fetchers, comparators)) {
@@ -7296,13 +7300,29 @@ std::vector<TLegacyDataSlicePtr> TOperationControllerBase::CollectPrimaryVersion
                 dataSlice->ChunkSlices);
 
             dataSlice->SetInputStreamIndex(InputStreamDirectory_.GetInputStreamIndex(dataSlice->GetTableIndex(), dataSlice->GetRangeIndex()));
-
+            totalDataWeightAfter += dataSlice->GetDataWeight();
             result.emplace_back(std::move(dataSlice));
             ++totalDataSliceCount;
         }
     }
 
-    YT_LOG_INFO("Collected versioned data slices (Count: %v)", totalDataSliceCount);
+    YT_LOG_INFO(
+        "Collected versioned data slices (Count: %v, DataWeight: %v -> %v)",
+        totalDataSliceCount,
+        totalDataWeightBefore,
+        totalDataWeightAfter);
+
+    if (Spec_->AdjustDynamicTableDataSlices) {
+        double scaleFactor = totalDataWeightBefore / std::max<double>(1.0, totalDataWeightAfter);
+        i64 totalDataWeightAdjusted = 0;
+        for (const auto& dataSlice : result) {
+            for (const auto& chunkSlice : dataSlice->ChunkSlices) {
+                chunkSlice->ApplySamplingSelectivityFactor(scaleFactor);
+            }
+            totalDataWeightAdjusted += dataSlice->GetDataWeight();
+        }
+        YT_LOG_INFO("Adjusted dynamic table data slices (AdjutedDataWeight: %v)", totalDataWeightAdjusted);
+    }
 
     DataSliceFetcherChunkScrapers.clear();
 
