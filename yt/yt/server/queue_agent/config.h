@@ -158,14 +158,12 @@ DEFINE_REFCOUNTED_TYPE(TQueueAgentShardingManagerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueueAgentServerConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     TQueueAgentConfigPtr QueueAgent;
 
     TCypressSynchronizerConfigPtr CypressSynchronizer;
-
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     bool AbortOnUnrecognizedOptions;
 

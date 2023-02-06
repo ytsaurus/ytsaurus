@@ -928,11 +928,9 @@ DEFINE_REFCOUNTED_TYPE(TSchedulerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSchedulerBootstrapConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
-    //! Node-to-master connection.
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NScheduler::TSchedulerConfigPtr Scheduler;
 

@@ -68,14 +68,12 @@ DEFINE_REFCOUNTED_TYPE(TTabletBalancerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TTabletBalancerServerConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
 
     TStandaloneTabletBalancerConfigPtr TabletBalancer;
-
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     TString ClusterUser;
 

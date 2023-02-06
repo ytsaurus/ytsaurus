@@ -144,7 +144,7 @@ DEFINE_REFCOUNTED_TYPE(TBindConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TJobProxyConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     // Job-specific parameters.
@@ -164,9 +164,6 @@ public:
 
     //! Path to write stderr (for testing purposes).
     std::optional<TString> StderrPath;
-
-    // Job-independent parameters.
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NBus::TBusClientConfigPtr SupervisorConnection;
     TDuration SupervisorRpcTimeout;

@@ -48,7 +48,7 @@ void TClusterDiscoveryServerProgram::DoRun(const NLastGetopt::TOptsParseResult& 
 
     auto config = GetConfig();
 
-    ConfigureNativeSingletons(config);
+    ConfigureSingletons(config);
     StartDiagnosticDump(config);
 
     // TODO(babenko): This memory leak is intentional.

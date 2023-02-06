@@ -47,8 +47,6 @@ void TQueryTrackerDynamicConfig::Register(TRegistrar registrar)
 
 void TQueryTrackerServerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
-
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
     registrar.Parameter("user", &TThis::User)

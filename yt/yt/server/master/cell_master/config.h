@@ -199,7 +199,7 @@ DEFINE_REFCOUNTED_TYPE(TDynamicResponseKeeperConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellMasterConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     NNodeTrackerClient::TNetworkPreferenceList Networks;
@@ -252,8 +252,6 @@ public:
     NYTree::IMapNodePtr CypressAnnotations;
 
     bool AbortOnUnrecognizedOptions;
-
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     bool UseNewHydra;
 

@@ -1049,7 +1049,6 @@ void TSchedulerConfig::Register(TRegistrar registrar)
 
 void TSchedulerBootstrapConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
     registrar.Parameter("addresses", &TThis::Addresses)

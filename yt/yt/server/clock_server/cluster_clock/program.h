@@ -79,7 +79,7 @@ protected:
             config->Logging = NLogging::TLogManagerConfig::CreateQuiet();
         }
 
-        ConfigureNativeSingletons(config);
+        ConfigureSingletons(config);
         StartDiagnosticDump(config);
 
         // TODO(babenko): This memory leak is intentional.

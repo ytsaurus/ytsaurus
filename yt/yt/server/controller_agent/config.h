@@ -1091,12 +1091,9 @@ DEFINE_REFCOUNTED_TYPE(TControllerAgentConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TControllerAgentBootstrapConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
-    //! Node-to-master connection.
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
-
     TControllerAgentConfigPtr ControllerAgent;
 
     //! Known scheduler addresses.

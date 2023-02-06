@@ -193,7 +193,11 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyConfig
+    // TODO(max42): YT-18401.
+    // Replace the following two bases with TNativeServerConfig when cluster connection is
+    // taken from "cluster_connection" field instead of "driver".
     : public TServerConfig
+    , public TNativeSingletonsConfig
 {
 public:
     int Port;

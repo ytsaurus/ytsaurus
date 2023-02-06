@@ -65,9 +65,6 @@ void TAccessCheckerDynamicConfig::Register(TRegistrar registrar)
 
 void TProxyConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
-        .Default();
-
     registrar.Parameter("grpc_server", &TThis::GrpcServer)
         .Default();
     registrar.Parameter("tvm_only_auth", &TThis::TvmOnlyAuth)

@@ -4,6 +4,8 @@
 
 #include <yt/yt/ytlib/chunk_client/config.h>
 
+#include <yt/yt/ytlib/api/native/config.h>
+
 #include <yt/yt/core/net/address.h>
 
 #include <yt/yt/core/rpc/config.h>
@@ -62,6 +64,13 @@ NHttp::TServerConfigPtr TServerConfig::CreateMonitoringHttpServerConfig()
     config->BindRetryBackoff = BusServer->BindRetryBackoff;
     config->ServerName = "HttpMon";
     return config;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TNativeServerConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

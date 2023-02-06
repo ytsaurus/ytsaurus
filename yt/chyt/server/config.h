@@ -638,11 +638,9 @@ struct TPorts
 };
 
 class TClickHouseServerBootstrapConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
-
     TClickHouseConfigPtr ClickHouse;
 
     TYtConfigPtr Yt;

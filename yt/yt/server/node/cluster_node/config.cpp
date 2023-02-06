@@ -243,7 +243,6 @@ void TClusterNodeConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("orchid_cache_update_period", &TThis::OrchidCacheUpdatePeriod)
         .Default(TDuration::Seconds(5));
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     registrar.Parameter("data_node", &TThis::DataNode)
         .DefaultNew();
     registrar.Parameter("exec_node", &TThis::ExecNode)

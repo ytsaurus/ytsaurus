@@ -265,14 +265,11 @@ DEFINE_REFCOUNTED_TYPE(TMasterConnectorConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TClusterNodeConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     //! Interval between Orchid cache rebuilds.
     TDuration OrchidCacheUpdatePeriod;
-
-    //! Node-to-master connection.
-    TClusterNodeConnectionConfigPtr ClusterConnection;
 
     //! Data node configuration part.
     NDataNode::TDataNodeConfigPtr DataNode;

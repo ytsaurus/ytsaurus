@@ -533,8 +533,6 @@ void TMemoryConfig::Register(TRegistrar registrar)
 
 void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
-
     registrar.Parameter("yt", &TThis::Yt)
         .DefaultNew();
 
