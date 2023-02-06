@@ -122,7 +122,8 @@ public:
     NObjectClient::TCellTag GetCellTag() const;
 
 private:
-    TPromise<void> Finished_ = NewPromise<void>();
+    TPromise<void> FinishedPromise_ = NewPromise<void>();
+    TFuture<void> FinishedFuture_ = FinishedPromise_.ToFuture().ToUncancelable();
 };
 
 ////////////////////////////////////////////////////////////////////////////////

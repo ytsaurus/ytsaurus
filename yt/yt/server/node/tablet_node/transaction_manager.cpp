@@ -269,6 +269,8 @@ public:
             CloseLease(transaction);
         }
 
+        transaction->SetFinished();
+
         auto transactionId = transaction->GetId();
         TransientTransactionMap_.Remove(transactionId);
 
@@ -520,6 +522,9 @@ public:
         } else {
             YT_LOG_DEBUG_IF(IsMutationLoggingEnabled(), "Transaction removed without serialization (TransactionId: %v)",
                 transactionId);
+
+            transaction->SetFinished();
+
             PersistentTransactionMap_.Remove(transactionId);
         }
     }
@@ -569,6 +574,8 @@ public:
             transaction->GetTransient());
 
         FinishTransaction(transaction);
+
+        transaction->SetFinished();
 
         if (transaction->GetTransient()) {
             TransientTransactionMap_.Remove(transactionId);
@@ -1025,6 +1032,8 @@ private:
 
                 // NB: Update replication progress after all rows are serialized and available for pulling.
                 RunSerializeTransactionActions(transaction);
+
+                transaction->SetFinished();
 
                 PersistentTransactionMap_.Remove(transactionId);
 
