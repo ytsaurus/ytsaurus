@@ -112,6 +112,7 @@ DEFINE_ENUM(EMasterReign,
     ((FixClonedTrunkNodeStatistics)                                 (2304))  // shakurov
     ((MultisetAttributesForEveryone)                                (2305))  // kvk1920
     ((AddTabletMountTime)                                           (2306))  // alexelexa
+    ((ThrowOnNullColumnMount)                                       (2307))  // alexelexa
 );
 
 ////////////////////////////////////////////////////////////////////////////////
