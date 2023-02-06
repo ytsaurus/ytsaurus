@@ -16,6 +16,7 @@ except ImportError:
 
 from yt.environment.helpers import assert_items_equal
 from yt.common import YtError, underscore_case_to_camel_case
+from yt.yson import get_bytes
 
 try:
     from yt.common import uuid_to_parts, parts_to_uuid
@@ -149,7 +150,7 @@ class TestGrpcProxy(YTEnvSetup):
 
     def _get_node(self, **kwargs):
         rsp = loads(self._make_light_api_request("get_node", kwargs))
-        return loads(rsp["value"].encode("ascii"))
+        return loads(get_bytes(rsp["value"]))
 
     def _create_node(self, **kwargs):
         return loads(self._make_light_api_request("create_node", kwargs))["node_id"]

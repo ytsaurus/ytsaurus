@@ -32,8 +32,9 @@ struct TTablet final
     const TTabletId Id;
     const TTable* Table;
 
-    i64 Index;
+    i64 Index = {};
     TTabletCell* Cell = nullptr;
+    TInstant MountTime;
 
     TTabletStatistics Statistics;
     TPerformanceCountersProtoList PerformanceCountersProto;

@@ -17,6 +17,7 @@ using namespace NChunkServer;
 using namespace NCellMaster;
 using namespace NCypressClient;
 using namespace NTabletClient;
+using namespace NTransactionClient;
 using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -31,6 +32,7 @@ void TTabletBase::Save(TSaveContext& context) const
     Save(context, Cell_);
     Save(context, MountRevision_);
     Save(context, SettingsRevision_);
+    Save(context, MountTime_);
     Save(context, WasForcefullyUnmounted_);
     Save(context, Action_);
     Save(context, StoresUpdatePreparedTransaction_);
@@ -57,6 +59,10 @@ void TTabletBase::Load(TLoadContext& context)
     // COMPAT(ifsmirnov)
     if (context.GetVersion() >= EMasterReign::RemountNeededNotification) {
         Load(context, SettingsRevision_);
+    }
+    // COMPAT(alexelexa)
+    if (context.GetVersion() >= EMasterReign::AddTabletMountTime) {
+        Load(context, MountTime_);
     }
     Load(context, WasForcefullyUnmounted_);
     Load(context, Action_);
@@ -155,6 +161,7 @@ void TTabletBase::CopyFrom(const TTabletBase& other)
     Index_ = other.Index_;
     MountRevision_ = other.MountRevision_;
     InMemoryMode_ = other.InMemoryMode_;
+    MountTime_ = other.MountTime_;
 }
 
 void TTabletBase::ValidateMountRevision(NHydra::TRevision mountRevision)
