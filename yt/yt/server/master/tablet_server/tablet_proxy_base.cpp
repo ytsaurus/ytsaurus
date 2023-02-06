@@ -79,6 +79,8 @@ void TTabletProxyBase::ListSystemAttributes(std::vector<TAttributeDescriptor>* d
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountRevision)
         .SetPresent(tablet->GetCell()));
+    descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::MountTime)
+        .SetPresent(tablet->GetCell()));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::StoresUpdatePrepared)
         .SetPresent(tablet->GetStoresUpdatePreparedTransaction() != nullptr));
     descriptors->push_back(EInternedAttributeKey::Index);
@@ -142,6 +144,14 @@ bool TTabletProxyBase::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsu
             }
             BuildYsonFluently(consumer)
                 .Value(tablet->GetMountRevision());
+            return true;
+
+        case EInternedAttributeKey::MountTime:
+            if (!tablet->GetCell()) {
+                break;
+            }
+            BuildYsonFluently(consumer)
+                .Value(tablet->GetMountTime());
             return true;
 
         case EInternedAttributeKey::StoresUpdatePreparedTransactionId:

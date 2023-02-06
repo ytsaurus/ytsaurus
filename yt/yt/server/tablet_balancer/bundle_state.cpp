@@ -319,6 +319,7 @@ void TBundleState::DoFetchStatistics()
             tablet->Statistics = std::move(tabletResponse.Statistics);
             tablet->PerformanceCountersProto = std::move(tabletResponse.PerformanceCounters);
             tablet->State = tabletResponse.State;
+            tablet->MountTime = tabletResponse.MountTime;
 
             YT_VERIFY(tablet->Index == std::ssize(table->Tablets));
 
@@ -526,6 +527,10 @@ THashMap<TTableId, std::vector<TBundleState::TTabletStatisticsResponse>> TBundle
 
                 if (tablet.has_cell_id()) {
                     tablets.back().CellId = FromProto<TTabletCellId>(tablet.cell_id());
+                }
+
+                if (tablet.has_mount_time()) {
+                    tablets.back().MountTime = FromProto<TInstant>(tablet.mount_time());
                 }
             }
 

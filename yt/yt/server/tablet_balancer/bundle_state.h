@@ -92,6 +92,7 @@ private:
         TTabletStatistics Statistics;
         TTablet::TPerformanceCountersProtoList PerformanceCounters;
         TTabletCellId CellId;
+        TInstant MountTime = TInstant::Zero();
     };
 
     const NLogging::TLogger Logger;

@@ -2998,6 +2998,38 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         expected = [{"key": 0, "value": "x"}, {"key": 2, "value": "z"}]
         assert_items_equal(select_rows("* from [//tmp/t]"), expected)
 
+    @authors("alexelexa")
+    def test_tablet_mount_attributes(self):
+        sync_create_cells(1)
+        self._create_sorted_table("//tmp/t")
+
+        def _check_tablet(tablet, mounted=True):
+            assert (tablet.get("mount_time") is not None) == mounted
+            if mounted:
+                assert tablet.get("mount_revision") > 0
+            else:
+                assert tablet.get("mount_revision") is None
+
+        tablet = get("//tmp/t/@tablets/0")
+        _check_tablet(tablet, False)
+        tablet_id = tablet["tablet_id"]
+        tablet_by_id = get(f"#{tablet_id}/@")
+        _check_tablet(tablet_by_id, False)
+
+        sync_mount_table("//tmp/t")
+
+        tablet = get("//tmp/t/@tablets/0")
+        _check_tablet(tablet, True)
+        tablet_by_id = get(f"#{tablet_id}/@")
+        _check_tablet(tablet_by_id, True)
+
+        sync_unmount_table("//tmp/t")
+
+        tablet = get("//tmp/t/@tablets/0")
+        _check_tablet(tablet, False)
+        tablet_by_id = get(f"#{tablet_id}/@")
+        _check_tablet(tablet_by_id, False)
+
 ##################################################################
 
 

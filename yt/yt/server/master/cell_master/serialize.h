@@ -111,6 +111,7 @@ DEFINE_ENUM(EMasterReign,
     ((RootstocksAndScions)                                          (2303))  // gritukan
     ((FixClonedTrunkNodeStatistics)                                 (2304))  // shakurov
     ((MultisetAttributesForEveryone)                                (2305))  // kvk1920
+    ((AddTabletMountTime)                                           (2306))  // alexelexa
 );
 
 ////////////////////////////////////////////////////////////////////////////////

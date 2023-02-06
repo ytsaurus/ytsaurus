@@ -3762,6 +3762,7 @@ private:
             tablet->SetMountRevision(context->GetVersion().ToRevision());
             tablet->SetSettingsRevision(context->GetVersion().ToRevision());
             tablet->SetWasForcefullyUnmounted(false);
+            tablet->SetMountTime(context->GetTimestamp());
 
             switch (tablet->GetType()) {
                 case EObjectType::Tablet:
@@ -6172,6 +6173,7 @@ private:
         tablet->SetMountRevision(NullRevision);
         tablet->SetSettingsRevision(NullRevision);
         tablet->SetWasForcefullyUnmounted(force);
+        tablet->SetMountTime(TInstant::Zero());
 
         UpdateResourceUsage(table, -resourceUsageDelta);
         UpdateTabletState(table);

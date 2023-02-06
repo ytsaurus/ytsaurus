@@ -294,6 +294,7 @@
     XX(ModificationTime, modification_time) \
     XX(MountConfig, mount_config) \
     XX(MountRevision, mount_revision) \
+    XX(MountTime, mount_time) \
     XX(Movable, movable) \
     XX(MulticellCount, multicell_count) \
     XX(MulticellResourceUsage, multicell_resource_usage) \

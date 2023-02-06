@@ -80,6 +80,7 @@ using namespace NChunkClient;
 using namespace NChunkServer;
 using namespace NConcurrency;
 using namespace NCypressServer;
+using namespace NHydra;
 using namespace NNodeTrackerServer;
 using namespace NObjectClient;
 using namespace NObjectServer;
@@ -520,6 +521,12 @@ bool TTableNodeProxy::GetBuiltinAttribute(TInternedAttributeKey key, IYsonConsum
                             })
                             .DoIf(node, [&] (TFluentMap fluent) {
                                 fluent.Item("cell_leader_address").Value(node->GetDefaultAddress());
+                            })
+                            .DoIf(cell, [&] (TFluentMap fluent) {
+                                fluent.Item("mount_time").Value(tablet->GetMountTime());
+                            })
+                            .DoIf(cell, [&] (TFluentMap fluent) {
+                                fluent.Item("mount_revision").Value(tablet->GetMountRevision());
                             })
                             .Item("error_count").Value(tablet->GetTabletErrorCount())
                             .Item("replication_error_count").Value(tablet->GetReplicationErrorCount())

@@ -136,6 +136,7 @@ message TRspGetTableBalancingAttributes
         required int32 index = 4;
         required TCompressedStatistics statistics = 5;
         repeated TEmaCounterSnapshot performance_counters = 6;
+        optional int64 mount_time = 7;
     }
 
     message TTableBalancingAttributes
