@@ -7,7 +7,7 @@ from yt_commands import authors, get, create_user, set, ls, discover_proxies
 import yatest.common
 import yatest.common.network
 
-from yt.wrapper import YtClient, tvm
+from yt.wrapper import YtClient, tvm, config
 from yt.common import YtError, update_inplace
 
 from yt_driver_bindings import Driver
@@ -230,6 +230,23 @@ class TestAuth(TestAuthBase):
             rsp.raise_for_status()
 
             assert get(path+"/@owner") == "prime"
+
+    @authors("verytable")
+    def test_config_deepcopy(self):
+        tvm_client = tvmauth.TvmClient(
+            tvmauth.TvmToolClientSettings(
+                self_alias="this_test",
+                auth_token='e152bb86666565ee6619c15f60156cd6',
+                port=self.tvm_port,
+            )
+        )
+        tvm_auth = tvm.ServiceTicketAuth(tvm_client)
+        tvm_auth.override_proxy_tvm_id(12345)
+
+        yc = self._create_yt_client(config={"tvm_auth": tvm_auth})
+
+        # Config must be deepcopy-able.
+        deepcopy(config.get_config(yc))
 
     @authors("prime", "verytable")
     def test_http_proxy_service_ticket(self):

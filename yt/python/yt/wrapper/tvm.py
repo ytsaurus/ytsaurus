@@ -1,5 +1,7 @@
 from yt.packages.requests.auth import AuthBase
 
+from copy import deepcopy
+
 
 class ServiceTicketAuth(AuthBase):
     PROXY_TVM_ID = 2031010
@@ -26,3 +28,10 @@ class ServiceTicketAuth(AuthBase):
         self._set_ticket(request)
         request.register_hook("response", self.handle_redirect)
         return request
+
+    def __deepcopy__(self, memo):
+        result = type(self)(self._tvm_client)
+        memo[id(self._tvm_client)] = self._tvm_client
+        for k, v in self.__dict__.items():
+            setattr(result, k, deepcopy(v, memo))
+        return result
