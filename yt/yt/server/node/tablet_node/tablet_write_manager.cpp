@@ -340,6 +340,21 @@ public:
         // in different generations, so we abort all locks and then relock
         // records in write log again. See YT-18097 for better explanation
         // of possible problem.
+
+        if (!Tablet_->GetStoreManager()) {
+            // NB: OnStopLeading can be called prior to OnAfterSnapshotLoaded.
+            // In this case, tablet does not have store manager initialized and
+            // relock cannot be performed, however no rows are actually locked, so
+            // we can just do nothing.
+            if (auto transientWriteState = FindTransactionTransientWriteState(transaction->GetId())) {
+                YT_VERIFY(transientWriteState->PrelockedRows.empty());
+                YT_VERIFY(transientWriteState->LockedRows.empty());
+                YT_VERIFY(!transaction->GetTransient());
+            }
+
+            return;
+        }
+
         AbortPrelockedRows(transaction);
         AbortLockedRows(transaction);
 
