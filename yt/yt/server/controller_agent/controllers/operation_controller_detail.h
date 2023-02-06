@@ -625,6 +625,8 @@ protected:
 
     void CheckAvailableExecNodes();
 
+    bool CheckUserTransactionAlive();
+
     void FlushOperationNode(bool checkFlushResult);
 
     void CheckMinNeededResourcesSanity();

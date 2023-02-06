@@ -3915,27 +3915,32 @@ ELegacyLivePreviewMode TOperationControllerBase::GetLegacyIntermediateLivePrevie
     return ELegacyLivePreviewMode::NotSupported;
 }
 
+bool TOperationControllerBase::CheckUserTransactionAlive()
+{
+    if (!UserTransaction) {
+        return true;
+    }
+
+    auto result = WaitFor(UserTransaction->Ping());
+    if (result.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
+        OnOperationAborted(GetUserTransactionAbortedError(UserTransaction->GetId()));
+        return false;
+    }
+
+    return true;
+}
+
 void TOperationControllerBase::OnTransactionsAborted(const std::vector<TTransactionId>& transactionIds)
 {
     VERIFY_INVOKER_AFFINITY(CancelableInvokerPool->GetInvoker(EOperationControllerQueue::Default));
 
-    // Check if the user transaction is still alive to determine the exact abort reason.
-    bool userTransactionAborted = false;
-    if (UserTransaction) {
-        auto result = WaitFor(UserTransaction->Ping());
-        if (result.FindMatching(NTransactionClient::EErrorCode::NoSuchTransaction)) {
-            userTransactionAborted = true;
-        }
+    if (!CheckUserTransactionAlive()) {
+        return;
     }
 
-    if (userTransactionAborted) {
-        OnOperationAborted(
-            GetUserTransactionAbortedError(UserTransaction->GetId()));
-    } else {
-        OnOperationFailed(
-            GetSchedulerTransactionsAbortedError(transactionIds),
-            /*flush*/ false);
-    }
+    OnOperationFailed(
+        GetSchedulerTransactionsAbortedError(transactionIds),
+        /*flush*/ false);
 }
 
 TControllerTransactionIds TOperationControllerBase::GetTransactionIds()
@@ -4680,6 +4685,10 @@ void TOperationControllerBase::UpdateAccountResourceUsageLeases()
 
         auto error = WaitFor(Host->UpdateAccountResourceUsageLease(info.LeaseId, info.DiskQuota));
         if (!error.IsOK()) {
+            if (!CheckUserTransactionAlive()) {
+                return;
+            }
+
             if (error.FindMatching(NSecurityClient::EErrorCode::AccountLimitExceeded) ||
                 error.FindMatching(NSecurityClient::EErrorCode::AuthorizationError) ||
                 error.FindMatching(NYTree::EErrorCode::ResolveError))
