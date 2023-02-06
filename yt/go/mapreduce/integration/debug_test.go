@@ -14,6 +14,7 @@ import (
 	"a.yandex-team.ru/yt/go/blobtable"
 	"a.yandex-team.ru/yt/go/mapreduce"
 	"a.yandex-team.ru/yt/go/mapreduce/spec"
+	"a.yandex-team.ru/yt/go/yt"
 	"a.yandex-team.ru/yt/go/yttest"
 )
 
@@ -28,7 +29,11 @@ type CrashJob struct {
 }
 
 func (c *CrashJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) error {
-	_, _ = fmt.Fprintf(os.Stderr, "Hello, World!\n")
+	// NB(psushin): we should read the input to ensure that job initialization in job proxy
+	// was completed. Otherwise stderr can remain uncaptured.
+	for in.Next() {
+		_, _ = fmt.Fprintf(os.Stderr, "Hello, World!\n")
+	}
 
 	debug.SetTraceback("crash")
 	panic("dump core")
@@ -42,19 +47,31 @@ func TestStderrAndCoreTable(t *testing.T) {
 	env, cancel := yttest.NewEnv(t)
 	defer cancel()
 
-	jobs := map[string]mapreduce.Job{"job": &CrashJob{}}
-	s := spec.Vanilla().AddVanillaTask("job", 1)
+	inputPath := env.TmpPath()
+	outputPath := env.TmpPath()
+
+	require.NoError(t, env.UploadSlice(inputPath, []struct {
+		A int `yson:"a"`
+	}{{A: 1}}))
+
+	_, err := yt.CreateTable(env.Ctx, env.YT, outputPath)
+	require.NoError(t, err)
+
+	job := &CrashJob{}
+	s := spec.Map().AddInput(inputPath).AddOutput(outputPath)
+
 	s.MaxFailedJobCount = 1
 
 	s.StderrTablePath = env.TmpPath()
-	_, err := mapreduce.CreateStderrTable(env.Ctx, env.YT, s.StderrTablePath)
+	_, err = mapreduce.CreateStderrTable(env.Ctx, env.YT, s.StderrTablePath)
 	require.NoError(t, err)
 
 	s.CoreTablePath = env.TmpPath()
 	_, err = mapreduce.CreateCoreTable(env.Ctx, env.YT, s.CoreTablePath)
 	require.NoError(t, err)
 
-	op, err := env.MR.Vanilla(s, jobs)
+	op, err := env.MR.Map(job, s)
+
 	require.NoError(t, err)
 	require.Error(t, op.Wait())
 
