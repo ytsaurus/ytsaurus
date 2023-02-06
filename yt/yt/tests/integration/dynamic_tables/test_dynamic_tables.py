@@ -3030,6 +3030,19 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         tablet_by_id = get(f"#{tablet_id}/@")
         _check_tablet(tablet_by_id, False)
 
+    @authors("alexelexa")
+    def test_null_column_mount(self):
+        sync_create_cells(1)
+        schema = make_schema([
+            {"name": "key", "type": "string", "sort_order": "ascending"},
+            {"name": "value", "type_v3": "null"}
+        ], unique_keys=True)
+        self._create_sorted_table("//tmp/t", schema=schema)
+
+        with pytest.raises(YtError, match="Cannot mount table since it has column \"value\" with value type \"null\""):
+            sync_mount_table("//tmp/t")
+
+
 ##################################################################
 
 

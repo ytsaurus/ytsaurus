@@ -998,6 +998,14 @@ public:
             }
         }
 
+        for (const auto& column : table->GetSchema()->AsTableSchema()->Columns()) {
+            if (column.GetWireType() == EValueType::Null) {
+                THROW_ERROR_EXCEPTION("Cannot mount table since it has column %Qv with value type %Qlv",
+                    column.Name(),
+                    EValueType::Null);
+            }
+        }
+
         if (auto backupState = table->GetAggregatedTabletBackupState();
             backupState != ETabletBackupState::None)
         {

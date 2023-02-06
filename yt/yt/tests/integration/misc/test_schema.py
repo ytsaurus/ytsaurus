@@ -983,30 +983,33 @@ class TestLogicalType(YTEnvSetup):
     @authors("ermolovd")
     @pytest.mark.parametrize("table_type", ["static", "dynamic"])
     def test_logical_types(self, table_type):
+        type_list = [
+            "int8",
+            "int16",
+            "int32",
+            "int64",
+            "uint8",
+            "uint16",
+            "uint32",
+            "uint64",
+            "utf8",
+            "string",
+            "date",
+            "datetime",
+            "timestamp",
+            "interval",
+            "float",
+            "json",
+        ]
+
         dynamic = table_type == "dynamic"
         if dynamic:
             sync_create_cells(1)
+        else:
+            type_list.append("null")
 
         type_tester = TypeTester(
-            [
-                "int8",
-                "int16",
-                "int32",
-                "int64",
-                "uint8",
-                "uint16",
-                "uint32",
-                "uint64",
-                "utf8",
-                "string",
-                "null",
-                "date",
-                "datetime",
-                "timestamp",
-                "interval",
-                "float",
-                "json",
-            ],
+            type_list,
             dynamic=dynamic,
         )
 
@@ -1063,11 +1066,6 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_good_value("string", b"\xFF")
         type_tester.check_bad_value("string", 1)
 
-        type_tester.check_good_value("null", None)
-        type_tester.check_bad_value("null", 0)
-        type_tester.check_bad_value("null", False)
-        type_tester.check_bad_value("null", "")
-
         date_upper_bound = 49673
         type_tester.check_good_value("date", 0)
         type_tester.check_good_value("date", 5)
@@ -1119,6 +1117,12 @@ class TestLogicalType(YTEnvSetup):
         type_tester.check_bad_value("json", "}{")
         type_tester.check_bad_value("json", '{3: "wrong key type"}')
         type_tester.check_bad_value("json", b"Non-utf8: \xFF")
+
+        if not dynamic:
+            type_tester.check_good_value("null", None)
+            type_tester.check_bad_value("null", 0)
+            type_tester.check_bad_value("null", False)
+            type_tester.check_bad_value("null", "")
 
     @authors("ermolovd")
     def test_special_float_values(self):
