@@ -224,7 +224,7 @@ void TNodeTableReader::NextImpl()
             Valid_ = false;
             break;
         }
-        
+
         try {
             ParseListFragmentItem();
         } catch (yexception& ex) {
@@ -234,7 +234,7 @@ void TNodeTableReader::NextImpl()
             ParseFirstListFragmentItem();
             continue;
         }
-            
+
         Row_ = std::move(*NextRow_);
         if (!Row_) {
             throw yexception() << "No row in NextRow_";
@@ -280,6 +280,7 @@ void TNodeTableReader::ParseFirstListFragmentItem() {
             NeedParseFirst_ = false;
             break;
         } catch (yexception& ex) {
+            Exception_ = ex;
             OnStreamError();
         }
     }

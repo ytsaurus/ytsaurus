@@ -722,7 +722,11 @@ public:
 
     ~TParallelTableReaderBase()
     {
-        ReadManager_->Stop();
+        try {
+            ReadManager_->Stop();
+        } catch (const std::exception& ex) {
+            YT_LOG_WARNING("Parallel table reader was finished with exception: %v", ex.what());
+        }
     }
 
 protected:
@@ -958,7 +962,7 @@ auto CreateParallelTableReader(
         return ::MakeIntrusive<TTableReader<TRow>>(
             ::MakeIntrusive<NDetail::TParallelTableReader<TRow>>(std::move(readManager)));
     }
-} 
+}
 
 template <typename TRow>
 auto CreateParallelTableReader(
