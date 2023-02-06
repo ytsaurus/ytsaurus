@@ -161,18 +161,19 @@ void TTransaction::AsyncLoad(TLoadContext& context)
 
 TFuture<void> TTransaction::GetFinished() const
 {
-    return Finished_;
+    return FinishedFuture_;
 }
 
 void TTransaction::SetFinished()
 {
-    Finished_.Set();
+    FinishedPromise_.Set();
 }
 
 void TTransaction::ResetFinished()
 {
-    Finished_.Set();
-    Finished_ = NewPromise<void>();
+    FinishedPromise_.Set();
+    FinishedPromise_ = NewPromise<void>();
+    FinishedFuture_ = FinishedPromise_.ToFuture().ToUncancelable();
 }
 
 TTimestamp TTransaction::GetPersistentPrepareTimestamp() const
