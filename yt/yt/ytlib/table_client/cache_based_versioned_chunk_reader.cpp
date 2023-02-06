@@ -769,6 +769,7 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
         }
 
         case EChunkFormat::TableVersionedSimple:
+        case EChunkFormat::TableVersionedSlim:
         case EChunkFormat::TableVersionedIndexed: {
             auto createReader = [&] <class TReader> {
                 return New<TReader>(
@@ -785,6 +786,9 @@ IVersionedReaderPtr CreateCacheBasedVersionedChunkReader(
             switch (chunkMeta->GetChunkFormat()) {
                 case EChunkFormat::TableVersionedSimple:
                     return createReader.operator()<TSimpleCacheBasedVersionedRangeChunkReader<TSimpleVersionedBlockReader>>();
+
+                case EChunkFormat::TableVersionedSlim:
+                    return createReader.operator()<TSimpleCacheBasedVersionedRangeChunkReader<TSlimVersionedBlockReader>>();
 
                 case EChunkFormat::TableVersionedIndexed:
                     return createReader.operator ()<TSimpleCacheBasedVersionedRangeChunkReader<TIndexedVersionedBlockReader>>();
