@@ -252,18 +252,20 @@ class TOrderedDynamicTableController
 {
 public:
     TOrderedDynamicTableController(
+        bool leading,
         TQueueTableRow queueRow,
         const IObjectStore* store,
-        TQueueControllerDynamicConfigPtr dynamicConfig,
+        const TQueueControllerDynamicConfigPtr& dynamicConfig,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
-        : QueueRow_(queueRow)
+        : Leading_(leading)
+        , QueueRow_(queueRow)
         , QueueRef_(queueRow.Ref)
         , ObjectStore_(store)
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger.WithTag("Queue: %Qv", QueueRef_))
+        , Logger(QueueAgentLogger.WithTag("Queue: %v, Leading: %v", QueueRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TOrderedDynamicTableController::Pass, MakeWeak(this)),
@@ -293,6 +295,7 @@ public:
         YT_LOG_DEBUG("Building queue controller orchid (PassIndex: %v)", queueSnapshot->PassIndex);
 
         BuildYsonFluently(consumer).BeginMap()
+            .Item("leading").Value(Leading_)
             .Item("pass_index").Value(queueSnapshot->PassIndex)
             .Item("pass_instant").Value(queueSnapshot->PassInstant)
             .Item("row").Value(queueSnapshot->Row)
@@ -336,7 +339,13 @@ public:
         return EQueueFamily::OrderedDynamicTable;
     }
 
+    bool IsLeading() const override
+    {
+        return Leading_;
+    }
+
 private:
+    bool Leading_;
     TAtomicObject<TQueueTableRow> QueueRow_;
     const TCrossClusterReference QueueRef_;
     const IObjectStore* ObjectStore_;
@@ -366,7 +375,7 @@ private:
         YT_LOG_INFO("Registrations fetched (RegistrationCount: %v)", registrations.size());
         for (const auto& registration : registrations) {
             YT_LOG_DEBUG(
-                "Relevant registration (Queue: %Qv, Consumer: %Qv, Vital: %v)",
+                "Relevant registration (Queue: %v, Consumer: %v, Vital: %v)",
                 registration.Queue,
                 registration.Consumer,
                 registration.Vital);
@@ -383,10 +392,14 @@ private:
 
         YT_LOG_INFO("Queue snapshot updated");
 
-        ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
+        if (Leading_) {
+            YT_LOG_DEBUG("Queue controller is leading, performing mutating operations");
 
-        if (DynamicConfig_.Acquire()->EnableAutomaticTrimming) {
-            Trim();
+            ProfileManager_->Profile(previousQueueSnapshot, nextQueueSnapshot);
+
+            if (DynamicConfig_.Acquire()->EnableAutomaticTrimming) {
+                Trim();
+            }
         }
 
         YT_LOG_INFO("Queue controller pass finished");
@@ -464,7 +477,7 @@ private:
         if (vitalConsumerSubSnapshots.empty()) {
             // TODO(achulkov2): This should produce some warning/misconfiguration alert to the client?
             YT_LOG_DEBUG(
-                "Attempted trimming iteration on queue with no vital consumers (Queue: %Qv)",
+                "Attempted trimming iteration on queue with no vital consumers (Queue: %v)",
                 queueSnapshot->Row.Ref);
             return;
         }
@@ -571,10 +584,10 @@ class TErrorQueueController
 {
 public:
     TErrorQueueController(
-        const TQueueTableRow& row,
-        const TError& error)
-        : Row_(row)
-        , Error_(error)
+        TQueueTableRow row,
+        TError error)
+        : Row_(std::move(row))
+        , Error_(std::move(error))
         , Snapshot_(New<TQueueSnapshot>())
     {
         Snapshot_->Error = Error_;
@@ -612,6 +625,11 @@ public:
         return EQueueFamily::Null;
     }
 
+    bool IsLeading() const override
+    {
+        return false;
+    }
+
 private:
     TQueueTableRow Row_;
     TError Error_;
@@ -624,6 +642,7 @@ DEFINE_REFCOUNTED_TYPE(TErrorQueueController)
 
 bool UpdateQueueController(
     IObjectControllerPtr& controller,
+    bool leading,
     const TQueueTableRow& row,
     const IObjectStore* store,
     TQueueControllerDynamicConfigPtr dynamicConfig,
@@ -645,14 +664,17 @@ bool UpdateQueueController(
         return true;
     }
 
-    if (controller && DynamicPointerCast<IQueueController>(controller)->GetFamily() == queueFamily.Value()) {
-        // Do not recreate the controller if it is of the same family.
+    auto currentController = DynamicPointerCast<IQueueController>(controller);
+    if (currentController && currentController->GetFamily() == queueFamily.Value() && currentController->IsLeading() == leading) {
+        // Do not recreate the controller if it is of the same family and leader/follower status.
         return false;
     }
+
     switch (queueFamily.Value()) {
         case EQueueFamily::OrderedDynamicTable:
             controller = New<TOrderedDynamicTableController>(
-                std::move(row),
+                leading,
+                row,
                 store,
                 std::move(dynamicConfig),
                 std::move(clientDirectory),
@@ -661,6 +683,7 @@ bool UpdateQueueController(
         default:
             YT_ABORT();
     }
+
     return true;
 }
 

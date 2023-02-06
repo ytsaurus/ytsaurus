@@ -91,7 +91,13 @@ private:
     using TObjectMap = THashMap<NQueueClient::TCrossClusterReference, TObject>;
 
     mutable NThreading::TReaderWriterSpinLock ObjectLock_;
+    //! Objects available in this queue agent.
+    //! NB: Holds objects with both leading and following controllers.
     TEnumIndexedVector<EObjectKind, TObjectMap> Objects_;
+    //! The number of objects (per object type) with leading controllers.
+    //! In other words, this map accounts for the number of objects that are actually served by this queue agent.
+    TEnumIndexedVector<EObjectKind, i64> LeadingObjectCount_;
+    //! Mapping of objects to their corresponding queue agent host.
     THashMap<NQueueClient::TCrossClusterReference, TString> ObjectToHost_;
 
     //! Current pass error if any.

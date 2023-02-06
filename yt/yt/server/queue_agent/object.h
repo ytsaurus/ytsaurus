@@ -47,6 +47,8 @@ struct IObjectController
     virtual TRefCountedPtr GetLatestSnapshot() const = 0;
 
     virtual void BuildOrchid(NYson::IYsonConsumer* consumer) const = 0;
+
+    virtual bool IsLeading() const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IObjectController)
