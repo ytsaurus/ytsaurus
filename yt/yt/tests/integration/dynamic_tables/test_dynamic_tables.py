@@ -1575,6 +1575,7 @@ class TestDynamicTablesSingleCell(DynamicTablesSingleCellBase):
         self._test_cell_bundle_distribution(False)
 
     @authors("gritukan")
+    @pytest.mark.timeout(150)
     @pytest.mark.skipif(is_asan_build(), reason="Test is too slow to fit into timeout")
     def test_tablet_cell_balancer_works_after_decommission(self):
         self._test_cell_bundle_distribution(True)
