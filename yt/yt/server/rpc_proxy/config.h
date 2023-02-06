@@ -95,13 +95,10 @@ DEFINE_REFCOUNTED_TYPE(TAccessCheckerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TProxyConfig
-    : public TServerConfig
+    : public TNativeServerConfig
     , public NAuth::TAuthenticationManagerConfig
 {
 public:
-    //! Proxy-to-master connection.
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
-
     //! Initial config for API service.
     TApiServiceConfigPtr ApiService;
 

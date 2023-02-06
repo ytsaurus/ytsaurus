@@ -70,11 +70,9 @@ DEFINE_REFCOUNTED_TYPE(TQueryTrackerDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TQueryTrackerServerConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
-
     bool AbortOnUnrecognizedOptions;
 
     TString User;

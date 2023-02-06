@@ -24,9 +24,6 @@ void TMasterCacheConfig::Register(TRegistrar registrar)
     registrar.Parameter("bus_client", &TThis::BusClient)
         .DefaultNew();
 
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
-        .DefaultNew();
-
     registrar.Parameter("caching_object_service", &TThis::CachingObjectService)
         .DefaultNew();
 

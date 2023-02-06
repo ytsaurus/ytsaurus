@@ -21,14 +21,12 @@ namespace NYT::NMasterCache {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TMasterCacheConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
 
     NBus::TBusConfigPtr BusClient;
-
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     NObjectClient::TCachingObjectServiceConfigPtr CachingObjectService;
 

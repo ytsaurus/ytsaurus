@@ -84,7 +84,6 @@ void TCellBalancerBootstrapConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     registrar.Parameter("election_manager", &TThis::ElectionManager)
         .DefaultNew();
     registrar.Parameter("master_connector", &TThis::MasterConnector)

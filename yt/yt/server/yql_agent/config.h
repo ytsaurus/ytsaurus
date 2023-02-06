@@ -67,12 +67,10 @@ DEFINE_REFCOUNTED_TYPE(TYqlAgentDynamicConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TYqlAgentServerConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     TYqlAgentConfigPtr YqlAgent;
-
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     bool AbortOnUnrecognizedOptions;
 

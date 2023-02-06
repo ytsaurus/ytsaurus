@@ -175,14 +175,12 @@ DEFINE_REFCOUNTED_TYPE(TLogTailerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TLogTailerBootstrapConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     TLogTailerConfigPtr LogTailer;
 
     TString ClusterUser;
-
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     REGISTER_YSON_STRUCT(TLogTailerBootstrapConfig);
 
@@ -192,8 +190,6 @@ public:
 
         registrar.Parameter("cluster_user", &TThis::ClusterUser)
             .Default("yt-log-tailer");
-
-        registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     }
 };
 

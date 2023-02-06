@@ -17,12 +17,10 @@ namespace NYT::NCypressProxy {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCypressProxyConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
-
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
 
     TCypressRegistrarConfigPtr CypressRegistrar;
 

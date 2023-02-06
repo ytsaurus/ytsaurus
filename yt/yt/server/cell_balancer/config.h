@@ -85,12 +85,10 @@ DEFINE_REFCOUNTED_TYPE(TBundleControllerConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TCellBalancerBootstrapConfig
-    : public TServerConfig
+    : public TNativeServerConfig
 {
 public:
     bool AbortOnUnrecognizedOptions;
-
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
     NCypressElection::TCypressElectionManagerConfigPtr ElectionManager;
     TCellBalancerMasterConnectorConfigPtr MasterConnector;
     NNodeTrackerClient::TNetworkAddressList Addresses;

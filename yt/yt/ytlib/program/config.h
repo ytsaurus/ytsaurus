@@ -11,7 +11,7 @@ namespace NYT {
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNativeSingletonsConfig
-    : public TSingletonsConfig
+    : public virtual TSingletonsConfig
 {
 public:
     NChunkClient::TDispatcherConfigPtr ChunkClientDispatcher;
@@ -28,7 +28,7 @@ DEFINE_REFCOUNTED_TYPE(TNativeSingletonsConfig)
 ////////////////////////////////////////////////////////////////////////////////
 
 class TNativeSingletonsDynamicConfig
-    : public TSingletonsDynamicConfig
+    : public virtual TSingletonsDynamicConfig
 {
 public:
     NChunkClient::TDispatcherDynamicConfigPtr ChunkClientDispatcher;

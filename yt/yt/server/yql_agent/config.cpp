@@ -50,8 +50,6 @@ void TYqlAgentDynamicConfig::Register(TRegistrar /*registrar*/)
 
 void TYqlAgentServerConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
-
     registrar.Parameter("yql_agent", &TThis::YqlAgent)
         .DefaultNew();
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)

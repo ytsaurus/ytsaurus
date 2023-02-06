@@ -62,7 +62,6 @@ void TTabletBalancerServerConfig::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("tablet_balancer", &TThis::TabletBalancer)
         .DefaultNew();
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection);
     registrar.Parameter("cluster_user", &TThis::ClusterUser)
         .Default(NSecurityClient::TabletBalancerUserName);
     registrar.Parameter("root_path", &TThis::RootPath)

@@ -11,9 +11,6 @@ void TCypressProxyConfig::Register(TRegistrar registrar)
     registrar.Parameter("abort_on_unrecognized_options", &TThis::AbortOnUnrecognizedOptions)
         .Default(false);
 
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
-        .DefaultNew();
-
     registrar.Parameter("cypress_registrar", &TThis::CypressRegistrar)
         .DefaultNew();
 

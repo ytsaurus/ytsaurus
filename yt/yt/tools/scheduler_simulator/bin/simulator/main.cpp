@@ -234,7 +234,7 @@ protected:
 
         auto config = LoadConfig<TSchedulerSimulatorConfig>(/* configFilename */ parseResult.GetFreeArgs()[0]);
 
-        ConfigureNativeSingletons(config);
+        ConfigureSingletons(config);
         StartDiagnosticDump(config);
 
         {

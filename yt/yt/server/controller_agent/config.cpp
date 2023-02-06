@@ -1021,8 +1021,6 @@ void TControllerAgentConfig::Register(TRegistrar registrar)
 
 void TControllerAgentBootstrapConfig::Register(TRegistrar registrar)
 {
-    registrar.Parameter("cluster_connection", &TThis::ClusterConnection)
-        .Default();
     registrar.Parameter("controller_agent", &TThis::ControllerAgent)
         .DefaultNew();
     registrar.Parameter("addresses", &TThis::Addresses)
