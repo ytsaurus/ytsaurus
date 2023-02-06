@@ -51,7 +51,7 @@ public:
     bool HasUnfinishedActions(const TString& bundleName) const override;
     bool IsKnownAction(const TString& bundleName, TTabletActionId actionId) const override;
 
-    void Start(const TTransactionId& prerequisiteTransactionId) override;
+    void Start(TTransactionId prerequisiteTransactionId) override;
     void Stop() override;
 
 private:
@@ -200,7 +200,7 @@ bool TActionManager::IsKnownAction(const TString& bundleName, TTabletActionId ac
     return false;
 }
 
-void TActionManager::Start(const TTransactionId& prerequisiteTransactionId)
+void TActionManager::Start(TTransactionId prerequisiteTransactionId)
 {
     VERIFY_INVOKER_AFFINITY(Invoker_);
 
