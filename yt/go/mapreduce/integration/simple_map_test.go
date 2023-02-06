@@ -54,8 +54,8 @@ func (*CatJob) OutputTypes() []interface{} {
 func (*CatJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []mapreduce.Writer) (err error) {
 	DumpFDs()
 
-	if len(out) != 1 {
-		panic(fmt.Sprintf("unexpected input table count: %d != 1", len(out)))
+	if len(out) != 2 {
+		panic(fmt.Sprintf("unexpected output table count: %d != 2", len(out)))
 	}
 
 	var row TestRow
@@ -98,15 +98,16 @@ func TestMap(t *testing.T) {
 	_, err = yt.CreateTable(env.Ctx, env.YT, output1Path)
 	require.NoError(t, err)
 
-	op, err := env.MR.Map(job, spec.Map().AddInput(inputPath).AddOutput(output0Path).AddInput(output1Path))
+	op, err := env.MR.Map(job, spec.Map().AddInput(inputPath).AddOutput(output0Path).AddOutput(output1Path))
 
 	require.NoError(t, err)
 	require.NoError(t, op.Wait())
 
-	var output []TestRow
-	require.NoError(t, env.DownloadSlice(output0Path, &output))
-	require.Equal(t, input, output)
+	var output1 []TestRow
+	require.NoError(t, env.DownloadSlice(output0Path, &output1))
+	require.Equal(t, input, output1)
 
-	require.NoError(t, env.DownloadSlice(output1Path, &output))
-	require.Equal(t, input, output)
+	var output2 []TestRow
+	require.NoError(t, env.DownloadSlice(output1Path, &output2))
+	require.Equal(t, input, output2)
 }
