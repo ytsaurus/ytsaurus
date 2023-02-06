@@ -1193,18 +1193,17 @@ bool TFollowerCommitter::AcceptMutations(
         return false;
     }
 
-    auto firstMutationIndex = expectedSequenceNumber - startSequenceNumber;
-    auto mutationIndex = firstMutationIndex;
-    for (; mutationIndex < std::ssize(recordsData); ++mutationIndex) {
-        DoAcceptMutation(recordsData[mutationIndex]);
+    auto startIndex = expectedSequenceNumber - startSequenceNumber;
+    int acceptedCount = 0;
+    for (auto index = startIndex; index < std::ssize(recordsData); ++index, ++acceptedCount) {
+        DoAcceptMutation(recordsData[index]);
     }
-    auto lastMutationIndex = mutationIndex - 1;
 
     YT_LOG_DEBUG_IF(
-        firstMutationIndex <= lastMutationIndex,
-        "Mutations accepted (FirstMutationIndex: %v, LastMutationIndex: %v)",
-        firstMutationIndex,
-        lastMutationIndex);
+        acceptedCount > 0,
+        "Mutations accepted (SequenceNumbers: %v-%v)",
+        expectedSequenceNumber,
+        expectedSequenceNumber + acceptedCount - 1);
 
     CheckIfCaughtUp();
 
