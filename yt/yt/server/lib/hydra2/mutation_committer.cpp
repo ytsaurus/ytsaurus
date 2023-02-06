@@ -47,6 +47,11 @@ i64 GetMutationDataSize(const TPendingMutationPtr& mutation)
     return sizeof(TPendingMutation) + mutation->RecordData.Size() + mutation->Request.Data.Size();
 }
 
+TError MakeStoppedError()
+{
+    return TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+}
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -302,7 +307,7 @@ void TLeaderCommitter::Stop()
     // YT-16687: We do not want to apply mutation after its promise is set.
     Y_UNUSED(WaitFor(LastOffloadedMutationsFuture_));
 
-    auto error = TError(NRpc::EErrorCode::Unavailable, "Hydra peer has stopped");
+    auto error = MakeStoppedError();
     for (const auto& mutation : MutationQueue_) {
         mutation->LocalCommitPromise.TrySet(error);
     }
@@ -1169,7 +1174,7 @@ void TFollowerCommitter::CheckIfCaughtUp()
         return;
     }
 
-    СaughtUpPromise_.Set();
+    СaughtUpPromise_.TrySet();
 }
 
 bool TFollowerCommitter::AcceptMutations(
@@ -1469,6 +1474,9 @@ void TFollowerCommitter::Stop()
     for (const auto& [id, changelog] : NextChangelogs_) {
         CloseChangelog(changelog);
     }
+
+    auto error = MakeStoppedError();
+    СaughtUpPromise_.TrySet(error);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
