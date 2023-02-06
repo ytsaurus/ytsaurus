@@ -889,15 +889,16 @@ TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
     CreateTable(
         Format("//tmp/pull_queue_can_read_big_batches_%v", GetParam()), // tablePath
         "[" // schema
-        "{name=v1;type=string}]");
-
-    SyncUnmountTable(Table_);
+        "{name=v1;type=string}]",
+        /*mount*/ false);
 
     auto chunkWriterConfig = New<TChunkWriterConfig>();
     chunkWriterConfig->BlockSize = 1024;
     WaitFor(Client_->SetNode(Table_ + "/@chunk_writer", ConvertToYsonString(chunkWriterConfig)))
         .ThrowOnError();
     WaitFor(Client_->SetNode(Table_ + "/@compression_codec", ConvertToYsonString("none")))
+        .ThrowOnError();
+    WaitFor(Client_->SetNode(Table_ + "/@dynamic_store_auto_flush_period", ConvertToYsonString(GetEphemeralNodeFactory()->CreateEntity())))
         .ThrowOnError();
 
     SyncMountTable(Table_);
@@ -910,11 +911,13 @@ TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
             Format("<id=0> %v;", bigString));
     }
 
-    SyncUnmountTable(Table_);
+    // Flush.
+    SyncFreezeTable(Table_);
+    SyncUnfreezeTable(Table_);
 
     auto chunkIds = ConvertTo<std::vector<NChunkClient::TChunkId>>(
         WaitFor(Client_->GetNode(Table_ + "/@chunk_ids")).ValueOrThrow());
-    ASSERT_EQ(chunkIds.size(), 1u);
+    ASSERT_GE(chunkIds.size(), 1u);
     auto chunkId = chunkIds[0];
 
     auto compressedDataSize = ConvertTo<ui64>(WaitFor(Client_->GetNode(Format("#%v/@compressed_data_size", chunkId))).ValueOrThrow());
@@ -922,8 +925,6 @@ TEST_P(TQueueApiTest, PullQueueCanReadBigBatches)
 
     ASSERT_GE(compressedDataSize, 10_MB);
     ASSERT_LE(maxBlockSize, 2_MB);
-
-    SyncMountTable(Table_);
 
     TPullQueueOptions pullQueueOptions;
     pullQueueOptions.UseNativeTabletNodeApi = GetParam();

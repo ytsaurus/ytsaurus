@@ -123,7 +123,8 @@ void TDynamicTablesTestBase::SetUpTestCase()
 
 void TDynamicTablesTestBase::CreateTable(
     const TString& tablePath,
-    const TString& schema)
+    const TString& schema,
+    bool mount)
 {
     Table_ = tablePath;
     ASSERT_TRUE(tablePath.StartsWith("//tmp"));
@@ -135,7 +136,9 @@ void TDynamicTablesTestBase::CreateTable(
     WaitFor(Client_->CreateNode(Table_, EObjectType::Table, options))
         .ThrowOnError();
 
-    SyncMountTable(Table_);
+    if (mount) {
+        SyncMountTable(Table_);
+    }
 }
 
 void TDynamicTablesTestBase::SyncMountTable(const TYPath& path)
