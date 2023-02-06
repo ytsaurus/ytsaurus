@@ -34,6 +34,7 @@ static const auto& Logger = IOLogger;
 
 static constexpr int UringEngineNotificationCount = 2;
 static constexpr int MaxUringConcurrentRequestsPerThread = 128;
+static constexpr int MaxUringThreadCount = 16;
 
 // See SetRequestUserData/GetRequestUserData.
 static constexpr int MaxSubrequestCount = 1 << 16;
@@ -72,8 +73,8 @@ public:
     bool FlushAfterWrite;
 
     // Request size in bytes.
-    i64 DesiredRequestSize;
-    i64 MinRequestSize;
+    int DesiredRequestSize;
+    int MinRequestSize;
 
     double UserInteractiveRequestWeight;
     double UserRealtimeRequestWeight;
@@ -84,6 +85,7 @@ public:
     {
         registrar.Parameter("uring_thread_count", &TThis::UringThreadCount)
             .GreaterThanOrEqual(1)
+            .LessThanOrEqual(MaxUringThreadCount)
             .Default(1);
         registrar.Parameter("max_concurrent_requests_per_thread", &TThis::MaxConcurrentRequestsPerThread)
             .GreaterThan(0)
@@ -362,6 +364,59 @@ struct TReadUringRequest
 
 ////////////////////////////////////////////////////////////////////////////////
 
+DECLARE_REFCOUNTED_STRUCT(TUringConfigProvider);
+
+#define YT_DECLARE_ATOMIC_FIELD(type, name) \
+    std::atomic<type> name##_;\
+    type Get##name() { \
+        return name##_.load(std::memory_order::relaxed); \
+    }
+
+#define YT_STORE_ATOMIC_FIELD(config, name) \
+    name##_.store(config->name);
+
+struct TUringConfigProvider final
+{
+    const std::optional<i64> SimulatedMaxBytesPerRead;
+    const std::optional<i64> SimulatedMaxBytesPerWrite;
+    const int MaxBytesPerRead;
+    const int MaxBytesPerWrite;
+
+    YT_DECLARE_ATOMIC_FIELD(int, UringThreadCount)
+    YT_DECLARE_ATOMIC_FIELD(int, MaxConcurrentRequestsPerThread)
+    YT_DECLARE_ATOMIC_FIELD(int, DirectIOPageSize)
+    YT_DECLARE_ATOMIC_FIELD(bool, FlushAfterWrite)
+    YT_DECLARE_ATOMIC_FIELD(int, DesiredRequestSize)
+    YT_DECLARE_ATOMIC_FIELD(int, MinRequestSize)
+    YT_DECLARE_ATOMIC_FIELD(double, UserInteractiveRequestWeight)
+    YT_DECLARE_ATOMIC_FIELD(double, UserRealtimeRequestWeight)
+
+    explicit TUringConfigProvider(const TUringIOEngineConfigPtr& config)
+        : SimulatedMaxBytesPerRead(config->SimulatedMaxBytesPerRead)
+        , SimulatedMaxBytesPerWrite(config->SimulatedMaxBytesPerWrite)
+        , MaxBytesPerRead(config->MaxBytesPerRead)
+        , MaxBytesPerWrite(config->MaxBytesPerWrite)
+    {
+        Update(config);
+    }
+
+    void Update(const TUringIOEngineConfigPtr& newConfig)
+    {
+        YT_STORE_ATOMIC_FIELD(newConfig, UringThreadCount)
+        YT_STORE_ATOMIC_FIELD(newConfig, MaxConcurrentRequestsPerThread)
+        YT_STORE_ATOMIC_FIELD(newConfig, DirectIOPageSize)
+        YT_STORE_ATOMIC_FIELD(newConfig, FlushAfterWrite)
+        YT_STORE_ATOMIC_FIELD(newConfig, DesiredRequestSize)
+        YT_STORE_ATOMIC_FIELD(newConfig, MinRequestSize)
+        YT_STORE_ATOMIC_FIELD(newConfig, UserInteractiveRequestWeight)
+        YT_STORE_ATOMIC_FIELD(newConfig, UserRealtimeRequestWeight)
+    }
+};
+
+DEFINE_REFCOUNTED_TYPE(TUringConfigProvider);
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct IUringThreadPool
 {
     virtual ~IUringThreadPool() { }
@@ -383,12 +438,12 @@ class TUringThread
     : public TThread
 {
 public:
-    TUringThread(IUringThreadPool* threadPool, int index, TUringIOEngineConfigPtr config, TIOEngineSensorsPtr sensors)
+    TUringThread(IUringThreadPool* threadPool, TUringConfigProviderPtr config, int index, TIOEngineSensorsPtr sensors)
         : TThread(Format("%v:%v", threadPool->Name(), index))
         , ThreadPool_(threadPool)
-        , ThreadIndex_(index)
         , Config_(std::move(config))
-        , Uring_(Config_->MaxConcurrentRequestsPerThread + UringEngineNotificationCount)
+        , ThreadIndex_(index)
+        , Uring_(MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount)
         , AllIovBuffers_(MaxUringConcurrentRequestsPerThread + UringEngineNotificationCount)
         , Sensors_(std::move(sensors))
     {
@@ -398,8 +453,8 @@ public:
 
 private:
     IUringThreadPool* const ThreadPool_;
+    const TUringConfigProviderPtr Config_;
     const int ThreadIndex_;
-    const TUringIOEngineConfigPtr Config_;
 
     TUring Uring_;
 
@@ -514,7 +569,7 @@ private:
 
     bool CanHandleMoreSubmissions()
     {
-        bool result = PendingSubmissionsCount_ < Config_->MaxConcurrentRequestsPerThread;
+        bool result = PendingSubmissionsCount_ < Config_->GetMaxConcurrentRequestsPerThread();
 
         YT_VERIFY(!result || Uring_.GetSQSpaceLeft() > 0);
 
@@ -623,7 +678,7 @@ private:
 
     bool SyncFileRangeAfterWrite(TWriteUringRequest* request)
     {
-        if (!Config_->FlushAfterWrite || !request->WriteRequest.Flush || request->SyncedFileRange) {
+        if (!Config_->GetFlushAfterWrite() || !request->WriteRequest.Flush || request->SyncedFileRange) {
             return false;
         }
 
@@ -1029,8 +1084,7 @@ class TMoodyCamelQueue
     : public TRefCounted
 {
 public:
-    TMoodyCamelQueue(TString /*locationId*/, TUringIOEngineConfigPtr config)
-        : Config_(std::move(config))
+    TMoodyCamelQueue(TString /*locationId*/, TUringConfigProviderPtr /*config*/)
     { }
 
     void Enqueue(
@@ -1088,8 +1142,6 @@ public:
     }
 
 private:
-    const TUringIOEngineConfigPtr Config_;
-
     moodycamel::ConcurrentQueue<TUringRequestPtr> Queue_;
     TNotificationHandle RequestNotificationHandle_{true};
     std::atomic<bool> RequestNotificationHandleRaised_ = false;
@@ -1101,9 +1153,8 @@ class TFairShareQueue
     : public TRefCounted
 {
 public:
-    TFairShareQueue(TString locationId, TUringIOEngineConfigPtr config)
+    TFairShareQueue(TString locationId, TUringConfigProviderPtr config)
         : Config_(std::move(config))
-        , Shards_(Config_->UringThreadCount)
         , OffloadActionQueue_(New<TActionQueue>(Format("%v:%v", "UOffload", locationId)))
         , OffloadInvoker_(OffloadActionQueue_->GetInvoker())
         , OffloadScheduled_(false)
@@ -1196,8 +1247,8 @@ private:
         std::atomic<bool> RequestNotificationHandleRaised = false;
     };
 
-    const TUringIOEngineConfigPtr Config_;
-    std::vector<TQueueShard> Shards_;
+    const TUringConfigProviderPtr Config_;
+    std::array<TQueueShard, MaxUringThreadCount> Shards_;
 
     TMpscShardedQueue<TUringRequestPtr> OffloadedRequests_;
     TActionQueuePtr OffloadActionQueue_;
@@ -1221,10 +1272,10 @@ private:
 
         switch (category) {
             case EWorkloadCategory::UserInteractive:
-                return Config_->UserInteractiveRequestWeight;
+                return Config_->GetUserInteractiveRequestWeight();
 
             case EWorkloadCategory::UserRealtime:
-                return Config_->UserRealtimeRequestWeight;
+                return Config_->GetUserRealtimeRequestWeight();
 
             default:
                 return DefaultWeight;
@@ -1234,11 +1285,11 @@ private:
     int GetShardIndex(TIOEngineBase::TSessionId sessionId) const
     {
         if (!sessionId) {
-            return static_cast<int>(RandomNumber<ui32>(std::ssize(Shards_)));
+            return static_cast<int>(RandomNumber<ui32>(Config_->GetUringThreadCount()));
         }
 
         THash<IIOEngine::TSessionId> hasher;
-        return hasher(sessionId) % std::ssize(Shards_);
+        return hasher(sessionId) % Config_->GetUringThreadCount();
     }
 
     void ScheduleOffload()
@@ -1282,13 +1333,12 @@ public:
         TString locationId,
         TUringIOEngineConfigPtr config,
         TIOEngineSensorsPtr sensors)
-        : Config_(std::move(config))
+        : Config_(New<TUringConfigProvider>(config))
         , ThreadNamePrefix_(std::move(threadNamePrefix))
         , Sensors_(std::move(sensors))
-        , Threads_(Config_->UringThreadCount)
         , RequestQueue_(New<TQueue>(locationId, Config_))
     {
-        StartThreads();
+        ResizeThreads();
     }
 
     ~TUringThreadPoolBase()
@@ -1321,9 +1371,10 @@ public:
         return RequestQueue_->GetNotificationHandle(threadIndex);
     }
 
-    void Configure(const TUringIOEngineConfigPtr& config)
+    void Reconfigure(const TUringIOEngineConfigPtr& config)
     {
-        Y_UNUSED(config);
+        Config_->Update(config);
+        ResizeThreads();
     }
 
     void SubmitRequest(
@@ -1351,7 +1402,7 @@ public:
     }
 
 private:
-    const TUringIOEngineConfigPtr Config_;
+    const TUringConfigProviderPtr Config_;
     const TString ThreadNamePrefix_;
     const TIOEngineSensorsPtr Sensors_;
 
@@ -1360,17 +1411,48 @@ private:
     std::vector<TUringThreadPtr> Threads_;
     TIntrusivePtr<TQueue> RequestQueue_;
 
-
-    void StartThreads()
-    {
-        for (int threadIndex = 0; threadIndex < Config_->UringThreadCount; ++threadIndex) {
-            Threads_[threadIndex] = New<TUringThread>(this, threadIndex, Config_, Sensors_);
-        }
-    }
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, SpinLock_);
 
     void StopThreads()
     {
         for (const auto& thread : Threads_) {
+            thread->Stop();
+        }
+    }
+
+    void ResizeThreads()
+    {
+        std::vector<TUringThreadPtr> threadsToStop;
+
+        int newThreadCount = 0;
+        int oldThreadCount = 0;
+        {
+            auto guard = Guard(SpinLock_);
+            oldThreadCount = std::ssize(Threads_);
+            newThreadCount = Config_->GetUringThreadCount();
+
+            if (oldThreadCount == newThreadCount) {
+                return;
+            }
+
+            while (std::ssize(Threads_) < newThreadCount) {
+                auto threadIndex = Threads_.size();
+                auto thread = New<TUringThread>(this, Config_, threadIndex, Sensors_);
+                Threads_.push_back(std::move(thread));
+            }
+
+            while (std::ssize(Threads_) > newThreadCount) {
+                threadsToStop.push_back(Threads_.back());
+                Threads_.pop_back();
+            }
+        }
+
+        YT_LOG_DEBUG("Uring thread pool reconfigured (ThreadNamePrefix: %v, ThreadPoolSize: %v -> %v)",
+            ThreadNamePrefix_,
+            oldThreadCount,
+            newThreadCount);
+
+        for (const auto& thread : threadsToStop) {
             thread->Stop();
         }
     }
@@ -1400,12 +1482,12 @@ public:
             std::move(profiler),
             std::move(logger))
         , StaticConfig_(std::move(config))
+        , Config_(New<TUringConfigProvider>(StaticConfig_))
         , ThreadPool_(std::make_unique<TUringThreadPool>(
             Format("%v:%v", TRequestQueue::GetThreadPoolName(), LocationId_),
             LocationId_,
             StaticConfig_,
             Sensors_))
-        , RequestSlicer_(StaticConfig_->DesiredRequestSize, StaticConfig_->MinRequestSize)
     { }
 
     ~TUringIOEngineBase()
@@ -1434,13 +1516,15 @@ public:
 
         auto combinedRequests = readRequestCombiner->Combine(
             std::move(requests),
-            StaticConfig_->DirectIOPageSize,
+            Config_->GetDirectIOPageSize(),
             tagCookie);
+
+        TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize());
 
         return SubmitReadRequests(
             readRequestCombiner,
             combinedRequests,
-            RequestSlicer_,
+            requestSlicer,
             category,
             sessionId);
     }
@@ -1453,7 +1537,9 @@ public:
         std::vector<TFuture<void>> futures;
         std::vector<TUringRequestPtr> uringRequests;
 
-        for (auto& slice : RequestSlicer_.Slice(std::move(request))) {
+        TRequestSlicer requestSlicer(Config_->GetDesiredRequestSize(), Config_->GetMinRequestSize());
+
+        for (auto& slice : requestSlicer.Slice(std::move(request))) {
             auto uringRequest = std::make_unique<TWriteUringRequest>();
             uringRequest->Type = EUringRequestType::Write;
             uringRequest->WriteRequest = std::move(slice);
@@ -1488,9 +1574,8 @@ public:
 
 private:
     const TConfigPtr StaticConfig_;
-
+    const TUringConfigProviderPtr Config_;
     TUringThreadPoolPtr ThreadPool_;
-    TRequestSlicer RequestSlicer_;
 
 
     template <typename TUringResponse, typename TUringRequest>
@@ -1507,8 +1592,9 @@ private:
     void DoReconfigure(const NYTree::INodePtr& node) override
     {
         auto config = UpdateYsonStruct(StaticConfig_, node);
+        Config_->Update(config);
 
-        ThreadPool_->Configure(config);
+        ThreadPool_->Reconfigure(config);
     }
 
     TFuture<TReadResponse> SubmitReadRequests(
@@ -1529,7 +1615,7 @@ private:
             uringRequest->PaddedBytes += GetPaddedSize(
                 ioRequest.Offset,
                 ioRequest.Size,
-                ioRequest.Handle->IsOpenForDirectIO() ? StaticConfig_->DirectIOPageSize : DefaultPageSize);
+                ioRequest.Handle->IsOpenForDirectIO() ? Config_->GetDirectIOPageSize() : DefaultPageSize);
             uringRequest->ReadSubrequests.push_back({
                 .Handle = std::move(ioRequest.Handle),
                 .Offset = ioRequest.Offset,
@@ -1580,7 +1666,7 @@ private:
                 paddedBytes += GetPaddedSize(
                     slice.Request.Offset,
                     slice.Request.Size,
-                    slice.Request.Handle->IsOpenForDirectIO() ? StaticConfig_->DirectIOPageSize : DefaultPageSize);
+                    slice.Request.Handle->IsOpenForDirectIO() ? Config_->GetDirectIOPageSize() : DefaultPageSize);
                 uringRequest->ReadSubrequests.push_back({
                     .Handle = std::move(slice.Request.Handle),
                     .Offset = slice.Request.Offset,
