@@ -84,9 +84,7 @@ public:
     {
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
-        const auto& objectMap = Owner_->Objects_[ObjectKind_];
-
-        return std::ssize(objectMap);
+        return Owner_->LeadingObjectCount_[ObjectKind_];
     }
 
     std::vector<TString> GetKeys(i64 limit) const override
@@ -94,10 +92,15 @@ public:
         auto guard = ReaderGuard(Owner_->ObjectLock_);
 
         const auto& objectMap = Owner_->Objects_[ObjectKind_];
+        const auto& objectToHost = Owner_->ObjectToHost_;
 
         std::vector<TString> keys;
         keys.reserve(std::min(std::ssize(objectMap), limit));
         for (const auto& [key, _] : objectMap) {
+            if (auto it = objectToHost.find(key); it == objectToHost.end() || it->second != Owner_->AgentId_) {
+                continue;
+            }
+
             keys.push_back(ToString(key));
             if (std::ssize(keys) == limit) {
                 break;
@@ -309,10 +312,11 @@ void TQueueAgent::Pass()
         YT_LOG_INFO("Pass finished");
     });
 
-    auto where = Format("[queue_agent_stage] = \"%v\"", Config_->Stage);
-    auto asyncQueueRows = DynamicState_->Queues->Select("*", where);
-    auto asyncConsumerRows = DynamicState_->Consumers->Select("*", where);
+    // NB: The tables below contain information about all stages.
+    auto asyncQueueRows = DynamicState_->Queues->Select();
+    auto asyncConsumerRows = DynamicState_->Consumers->Select();
     auto asyncRegistrationRows = DynamicState_->Registrations->Select();
+    // NB: Only contains objects with the same stage as ours.
     auto asyncObjectMappingRows = DynamicState_->QueueAgentObjectMapping->Select();
 
     std::vector<TFuture<void>> futures{
@@ -344,25 +348,43 @@ void TQueueAgent::Pass()
         registrationRows.size(),
         objectMappingRows.size());
 
+    auto getHashTable = [] <class T>(const std::vector<T>& rowList) {
+        THashMap<TCrossClusterReference, T> result;
+        for (const auto& row : rowList) {
+            result[row.Ref] = row;
+        }
+        return result;
+    };
+
+    auto allQueues = getHashTable(queueRows);
+    auto allConsumers = getHashTable(consumerRows);
+
     // Fresh queue/consumer -> responsible queue agent mapping.
+    // NB: Contains objects from all stages.
     auto objectMapping = TQueueAgentObjectMappingTable::ToMapping(objectMappingRows);
 
     // Filter only those queues and consumers for which our queue agent is responsible.
 
-    queueRows.erase(std::remove_if(queueRows.begin(), queueRows.end(), [&, this] (const TQueueTableRow& queueRow) {
-        auto it = objectMapping.find(queueRow.Ref);
-        return it == objectMapping.end() || it->second != AgentId_;
-    }), queueRows.end());
-    consumerRows.erase(std::remove_if(consumerRows.begin(), consumerRows.end(), [&, this] (const TConsumerTableRow& consumerRow) {
-        auto it = objectMapping.find(consumerRow.Ref);
-        return it == objectMapping.end() || it->second != AgentId_;
-    }), consumerRows.end());
+    auto filterRows = [&, this] <class T>(std::vector<T>& rowList) {
+        rowList.erase(std::remove_if(rowList.begin(), rowList.end(), [&, this] (const T& row) {
+            // NB: We don't need to check the object's stage, since the object to host mapping only contains objects for our stage.
+            auto it = objectMapping.find(row.Ref);
+            return it == objectMapping.end() || it->second != AgentId_;
+        }), rowList.end());
+    };
 
-    // Prepare fresh queue and consumer controllers.
+    filterRows(queueRows);
+    filterRows(consumerRows);
+
+    // The remaining objects are considered leading for this queue agent.
+    // Leading controllers only exist on a single queue agent, whereas follower-controllers can be present on multiple queue agents.
+
+    auto leaderQueueRows = std::move(queueRows);
+    auto leaderConsumerRows = std::move(consumerRows);
 
     TEnumIndexedVector<EObjectKind, TObjectMap> freshObjects;
 
-    auto updateControllers = [&] (EObjectKind objectKind, const auto& rows, auto updateController) {
+    auto updateControllers = [&] (EObjectKind objectKind, const auto& rows, auto updateController, bool leading) {
         VERIFY_READER_SPINLOCK_AFFINITY(ObjectLock_);
 
         for (const auto& row : rows) {
@@ -381,6 +403,7 @@ void TQueueAgent::Pass()
 
             auto recreated = updateController(
                 controller,
+                leading,
                 row,
                 /*store*/ this,
                 DynamicConfig_->Controller,
@@ -388,25 +411,61 @@ void TQueueAgent::Pass()
                 ControllerThreadPool_->GetInvoker());
 
             YT_LOG_DEBUG(
-                "Controller updated (Kind: %v, Object: %v, Reused: %v, Recreated: %v)",
+                "Controller updated (Kind: %v, Object: %v, Reused: %v, Recreated: %v, Leading: %v)",
                 objectKind,
                 row.Ref,
                 reused,
-                recreated);
+                recreated,
+                leading);
         }
     };
+
+    // Prepare fresh queue and consumer leading controllers.
 
     {
         auto guard = ReaderGuard(ObjectLock_);
 
-        updateControllers(EObjectKind::Queue, queueRows, UpdateQueueController);
-        updateControllers(EObjectKind::Consumer, consumerRows, UpdateConsumerController);
+        updateControllers(EObjectKind::Queue, leaderQueueRows, UpdateQueueController, /*leading*/ true);
+        updateControllers(EObjectKind::Consumer, leaderConsumerRows, UpdateConsumerController, /*leading*/ true);
     }
 
-    // Then, put fresh registrations into fresh objects.
+    auto ledQueues = getHashTable(leaderQueueRows);
+    auto ledConsumers = getHashTable(leaderConsumerRows);
+
+    std::vector<TQueueTableRow> followerQueueRows;
+    std::vector<TConsumerTableRow> followerConsumerRows;
+
+    // Then, collect follower objects from registrations.
+    // NB: Follower objects can be from stages other than ours, since consumers from one stage can be registered for queues from another.
 
     for (const auto& registration : registrationRows) {
-        auto appendRegistration = [&] (TObjectMap& objectMap, NQueueClient::TCrossClusterReference objectRef) {
+        auto isQueueLeading = ledQueues.contains(registration.Queue);
+        auto isConsumerLeading = ledConsumers.contains(registration.Consumer);
+        if (isQueueLeading && !isConsumerLeading) {
+            if (auto it = allConsumers.find(registration.Consumer); it != allConsumers.end()) {
+                followerConsumerRows.push_back(it->second);
+            }
+        }
+        if (isConsumerLeading && !isQueueLeading) {
+            if (auto it = allQueues.find(registration.Queue); it != allQueues.end()) {
+                followerQueueRows.push_back(it->second);
+            }
+        }
+    }
+
+    // Then, create following-controllers for objects referenced by queues and consumers this queue agent is responsible for.
+
+    {
+        auto guard = ReaderGuard(ObjectLock_);
+
+        updateControllers(EObjectKind::Queue, followerQueueRows, UpdateQueueController, /*leading*/ false);
+        updateControllers(EObjectKind::Consumer, followerConsumerRows, UpdateConsumerController, /*leading*/ false);
+    }
+
+    // Then, put fresh registrations into fresh objects (both leading and following).
+
+    for (const auto& registration : registrationRows) {
+        auto appendRegistration = [&] (TObjectMap& objectMap, const NQueueClient::TCrossClusterReference& objectRef) {
             if (auto it = objectMap.find(objectRef); it != objectMap.end()) {
                 it->second.Registrations.push_back(registration);
             }
@@ -423,6 +482,9 @@ void TQueueAgent::Pass()
         for (auto objectKind : {EObjectKind::Queue, EObjectKind::Consumer}) {
             Objects_[objectKind].swap(freshObjects[objectKind]);
         }
+
+        LeadingObjectCount_[EObjectKind::Queue] = std::ssize(leaderQueueRows);
+        LeadingObjectCount_[EObjectKind::Consumer] = std::ssize(leaderConsumerRows);
 
         ObjectToHost_.swap(objectMapping);
     }
@@ -441,8 +503,11 @@ void TQueueAgent::Pass()
     {
         auto guard = ReaderGuard(ObjectLock_);
 
-        updateRows(EObjectKind::Queue, queueRows);
-        updateRows(EObjectKind::Consumer, consumerRows);
+        updateRows(EObjectKind::Queue, leaderQueueRows);
+        updateRows(EObjectKind::Consumer, leaderConsumerRows);
+
+        updateRows(EObjectKind::Queue, followerQueueRows);
+        updateRows(EObjectKind::Consumer, followerConsumerRows);
     }
 
     PassError_ = TError();

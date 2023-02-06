@@ -14,6 +14,8 @@
 
 #include <yt/yt/client/queue_client/consumer_client.h>
 
+#include <yt/yt/client/table_client/helpers.h>
+
 #include <yt/yt/client/transaction_client/helpers.h>
 
 #include <yt/yt/core/concurrency/periodic_executor.h>
@@ -164,8 +166,17 @@ private:
         auto Logger = this->Logger.WithTag("Queue: %v", queueRef);
 
         YT_LOG_DEBUG("Building subconsumer snapshot (PassIndex: %v)", ConsumerSnapshot_->PassIndex);
+        auto logFinally = Finally([&] {
+            YT_LOG_DEBUG("Subconsumer snapshot built");
+        });
 
         auto subSnapshot = New<TSubConsumerSnapshot>();
+
+        if (!queueSnapshot->Error.IsOK()) {
+            subSnapshot->Error = queueSnapshot->Error;
+            return subSnapshot;
+        }
+
         // Assume partition count to be the same as the partition count in the current queue snapshot.
         auto partitionCount = queueSnapshot->PartitionCount;
         subSnapshot->PartitionCount = partitionCount;
@@ -270,8 +281,6 @@ private:
             subSnapshot->ReadRate += subConsumerPartitionSnapshot->ReadRate;
         }
 
-        YT_LOG_DEBUG("Subconsumer snapshot built");
-
         return subSnapshot;
     }
 
@@ -311,13 +320,11 @@ private:
 
         for (const auto& row : result.Rowset->GetRows()) {
             YT_VERIFY(row.GetCount() == 2);
-            YT_VERIFY(row[0].Type == EValueType::Int64);
-            auto tabletIndex = row[0].Data.Int64;
+            auto tabletIndex = FromUnversionedValue<i64>(row[0]);
 
             auto& consumerPartitionSnapshot = subSnapshot->PartitionSnapshots[tabletIndex];
 
-            YT_VERIFY(row[1].Type == EValueType::Uint64);
-            auto commitTimestamp = row[1].Data.Uint64;
+            auto commitTimestamp = FromUnversionedValue<ui64>(row[1]);
             consumerPartitionSnapshot->NextRowCommitTime = TimestampToInstant(commitTimestamp).first;
         }
 
@@ -365,18 +372,20 @@ class TConsumerController
 {
 public:
     TConsumerController(
-        TConsumerTableRow row,
+        bool leading,
+        const TConsumerTableRow& row,
         const IObjectStore* store,
-        TQueueControllerDynamicConfigPtr dynamicConfig,
+        const TQueueControllerDynamicConfigPtr& dynamicConfig,
         TClientDirectoryPtr clientDirectory,
         IInvokerPtr invoker)
-        : ConsumerRow_(row)
+        : Leading_(leading)
+        , ConsumerRow_(row)
         , ConsumerRef_(row.Ref)
         , ObjectStore_(store)
         , DynamicConfig_(dynamicConfig)
         , ClientDirectory_(std::move(clientDirectory))
         , Invoker_(std::move(invoker))
-        , Logger(QueueAgentLogger.WithTag("Consumer: %v", ConsumerRef_))
+        , Logger(QueueAgentLogger.WithTag("Consumer: %v, Leading: %v", ConsumerRef_, Leading_))
         , PassExecutor_(New<TPeriodicExecutor>(
             Invoker_,
             BIND(&TConsumerController::Pass, MakeWeak(this)),
@@ -436,6 +445,7 @@ public:
         YT_LOG_DEBUG("Building consumer controller orchid (PassIndex: %v)", consumerSnapshot->PassIndex);
 
         BuildYsonFluently(consumer).BeginMap()
+            .Item("leading").Value(Leading_)
             .Item("pass_index").Value(consumerSnapshot->PassIndex)
             .Item("pass_instant").Value(consumerSnapshot->PassInstant)
             .Item("row").Value(consumerSnapshot->Row)
@@ -444,7 +454,13 @@ public:
         .EndMap();
     }
 
+    bool IsLeading() const override
+    {
+        return Leading_;
+    }
+
 private:
+    bool Leading_;
     TAtomicObject<TConsumerTableRow> ConsumerRow_;
     const TCrossClusterReference ConsumerRef_;
     const IObjectStore* ObjectStore_;
@@ -491,7 +507,11 @@ private:
 
         YT_LOG_INFO("Consumer snapshot updated");
 
-        ProfileManager_->Profile(previousConsumerSnapshot, nextConsumerSnapshot);
+        if (Leading_) {
+            YT_LOG_DEBUG("Consumer controller is leading, performing mutating operations");
+
+            ProfileManager_->Profile(previousConsumerSnapshot, nextConsumerSnapshot);
+        }
 
         YT_LOG_INFO("Consumer controller pass finished");
     }
@@ -501,22 +521,25 @@ private:
 
 bool UpdateConsumerController(
     IObjectControllerPtr& controller,
+    bool leading,
     const TConsumerTableRow& row,
     const IObjectStore* store,
     TQueueControllerDynamicConfigPtr dynamicConfig,
     TClientDirectoryPtr clientDirectory,
     IInvokerPtr invoker)
 {
-    if (!controller) {
-        controller = New<TConsumerController>(
-            row,
-            store,
-            std::move(dynamicConfig),
-            std::move(clientDirectory),
-            std::move(invoker));
-        return true;
+    if (controller && controller->IsLeading() == leading) {
+        return false;
     }
-    return false;
+
+    controller = New<TConsumerController>(
+        leading,
+        row,
+        store,
+        std::move(dynamicConfig),
+        std::move(clientDirectory),
+        std::move(invoker));
+    return true;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -1301,6 +1301,7 @@ class TestMultipleAgents(TestQueueAgentBase):
             "pass_period": 75,
             "controller": {
                 "pass_period": 75,
+                "enable_automatic_trimming": True,
             },
         },
         "cypress_synchronizer": {
@@ -1363,6 +1364,16 @@ class TestMultipleAgents(TestQueueAgentBase):
         for path in paths:
             wait_for_tablet_state(path, "mounted", **kwargs)
 
+    @staticmethod
+    def _add_registration(registrations, queue, consumer, vital=False):
+        registrations.append({
+            "queue_cluster": "primary",
+            "queue_path": queue,
+            "consumer_cluster": "primary",
+            "consumer_path": consumer,
+            "vital": vital,
+        })
+
     @authors("achulkov2")
     @pytest.mark.parametrize("restart_victim_policy", ["heavy", "leader"])
     @pytest.mark.timeout(150)
@@ -1377,20 +1388,11 @@ class TestMultipleAgents(TestQueueAgentBase):
 
         registrations = []
 
-        def add_registration(queue, consumer):
-            registrations.append({
-                "queue_cluster": "primary",
-                "queue_path": queue,
-                "consumer_cluster": "primary",
-                "consumer_path": consumer,
-                "vital": False,
-            })
-
         for i in range(len(consumers)):
             self._create_consumer(consumers[i], mount=False)
             # Each consumer is reading from 2 queues.
-            add_registration(queues[i % len(queues)], consumers[i])
-            add_registration(queues[(i + 1) % len(queues)], consumers[i])
+            self._add_registration(registrations, queues[i % len(queues)], consumers[i])
+            self._add_registration(registrations, queues[(i + 1) % len(queues)], consumers[i])
 
         # Save test execution time by bulk performing bulk registrations.
         insert_rows("//sys/queue_agents/consumer_registrations", registrations)
@@ -1419,7 +1421,13 @@ class TestMultipleAgents(TestQueueAgentBase):
             for queue in queues:
                 assert len(get(queue + "/@queue_status/registrations")) == 20
             for consumer in consumers:
-                assert len(get(consumer + "/@queue_consumer_status/queues")) == 2
+                consumer_registrations = get(consumer + "/@queue_consumer_status/registrations")
+                assert len(consumer_registrations) == 2
+                consumer_queues = get(consumer + "/@queue_consumer_status/queues")
+                assert len(consumer_queues) == 2
+                for registration in consumer_registrations:
+                    assert "error" not in consumer_queues[registration["queue"]]
+                    assert consumer_queues[registration["queue"]]["partition_count"] == 1
 
             for instance in instances:
                 if instance in ignore_instances:
@@ -1429,7 +1437,12 @@ class TestMultipleAgents(TestQueueAgentBase):
                     assert len(queue_orchid.get_status()["registrations"]) == 20
                 for consumer in consumers:
                     consumer_orchid = queue_agent_orchids[instance].get_consumer_orchid("primary:" + consumer)
-                    assert len(consumer_orchid.get_status()["queues"]) == 2
+                    consumer_status = consumer_orchid.get_status()
+                    consumer_queues = consumer_status["queues"]
+                    assert len(consumer_queues) == 2
+                    for registration in consumer_status["registrations"]:
+                        assert "error" not in consumer_queues[registration["queue"]]
+                        assert consumer_queues[registration["queue"]]["partition_count"] == 1
 
         perform_checks()
 
@@ -1461,6 +1474,39 @@ class TestMultipleAgents(TestQueueAgentBase):
             assert hits >= len(new_mapping) // len(instances)
 
             perform_checks(ignore_instances=(victim,))
+
+    @authors("achulkov2")
+    def test_trimming_with_sharded_objects(self):
+        consumer_count = 10
+
+        queue = "//tmp/q"
+        self._create_queue(queue, mount=False)
+        consumers = ["//tmp/c{}".format(i) for i in range(consumer_count)]
+
+        registrations = []
+
+        for i in range(len(consumers)):
+            self._create_consumer(consumers[i], mount=False)
+            self._add_registration(registrations, queue, consumers[i], vital=True)
+
+        # Save test execution time by bulk performing bulk registrations.
+        insert_rows("//sys/queue_agents/consumer_registrations", registrations)
+
+        self._sync_mount_tables([queue] + consumers)
+
+        set(queue + "/@auto_trim_config", {"enable": True})
+
+        self._wait_for_global_sync()
+
+        insert_rows("//tmp/q", [{"data": "foo"}] * len(consumers))
+
+        for i, consumer in enumerate(consumers):
+            self._advance_consumer(consumer, queue, 0, i)
+
+        # No trimming is performed when none of the consumers are vital, so we don't touch the last one.
+        for i in range(len(consumers) - 1):
+            register_queue_consumer(queue, consumers[i], vital=False)
+            self._wait_for_row_count(queue, 0, len(consumers) - i - 1)
 
     @authors("achulkov2")
     def test_queue_agent_sharding_manager_alerts(self):
