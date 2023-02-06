@@ -12,17 +12,18 @@ namespace NYT {
 template <class T>
 TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr)
 {
-    if (ptr) {
-        if (GetRefCounter(ptr.Get())->TryRef()) {
-             return TIntrusivePtr<T>(ptr.Get(), false);
-        } else {
-            static const auto& Logger = LockFreePtrLogger;
-            YT_LOG_TRACE("Failed to acquire ref (Ptr: %v)",
-                ptr.Get());
-        }
+    if (!ptr) {
+        return nullptr;
     }
 
-    return nullptr;
+    if (!GetRefCounter(ptr.Get())->TryRef()) {
+        static const auto& Logger = LockFreePtrLogger;
+        YT_LOG_TRACE("Failed to acquire intrusive ptr from hazard ptr (Ptr: %v)",
+            ptr.Get());
+        return nullptr;
+    }
+
+    return TIntrusivePtr<T>(ptr.Get(), false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
