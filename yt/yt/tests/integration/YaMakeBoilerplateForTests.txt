@@ -70,12 +70,6 @@ PY_NAMESPACE(.)
 
 SRCDIR(yt/yt/tests/integration)
 
-IF (CLANG_COVERAGE)
-    REQUIREMENTS(ram_disk:16)
-ELSE()
-    REQUIREMENTS(ram_disk:4)
-ENDIF()
-
 IF (SANITIZER_TYPE)
     REQUIREMENTS(
         cpu:12
@@ -91,4 +85,13 @@ ELSE()
         cpu:8
         ram:16
     )
+ENDIF()
+
+IF (CLANG_COVERAGE)
+    REQUIREMENTS(
+        ram_disk:16
+        ram:32
+    )
+ELSE()
+    REQUIREMENTS(ram_disk:4)
 ENDIF()
