@@ -742,6 +742,7 @@ TFuture<IQueueRowsetPtr> TClient::PullQueue(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.PullQueue();
+    req->SetResponseHeavy(true);
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_queue_path(), queuePath);
@@ -769,6 +770,7 @@ TFuture<IQueueRowsetPtr> TClient::PullConsumer(
     auto proxy = CreateApiServiceProxy();
 
     auto req = proxy.PullConsumer();
+    req->SetResponseHeavy(true);
     SetTimeoutOptions(*req, options);
 
     ToProto(req->mutable_consumer_path(), consumerPath);
