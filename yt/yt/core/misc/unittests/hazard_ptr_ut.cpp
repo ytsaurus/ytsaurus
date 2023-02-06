@@ -1,7 +1,9 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/core/misc/public.h>
+#include <yt/yt/core/misc/hazard_ptr.h>
 #include <yt/yt/core/misc/atomic_ptr.h>
+#include <yt/yt/core/misc/error.h>
 
 #include <library/cpp/yt/threading/event_count.h>
 
@@ -137,6 +139,46 @@ TEST(THazardPtrTest, DelayedDeallocation)
     EXPECT_STREQ("AC!D", output.Str().c_str());
 
     hazardPtr.Reset();
+    ScanDeleteList();
+
+    EXPECT_STREQ("AC!DF", output.Str().c_str());
+}
+
+TEST(THazardPtrTest, DelayedDeallocationWithMultipleHPs)
+{
+    // Ensure that delete list is empty.
+    FlushDeleteList();
+
+    TStringStream output;
+    TTestAllocator allocator(&output);
+
+    auto ptr = New<TSampleObject>(&allocator, &output);
+    ptr->DoSomething();
+
+    auto hazardPtr1 = THazardPtr<TSampleObject>::Acquire([&] {
+        return ptr.Get();
+    });
+
+    auto hazardPtr2 = THazardPtr<TSampleObject>::Acquire([&] {
+        return ptr.Get();
+    });
+
+    ptr = nullptr;
+
+    EXPECT_STREQ("AC!D", output.Str().c_str());
+
+    EXPECT_TRUE(hazardPtr1);
+    EXPECT_FALSE(MakeStrong(hazardPtr1));
+
+    ScanDeleteList();
+
+    EXPECT_STREQ("AC!D", output.Str().c_str());
+
+    hazardPtr1.Reset();
+    ScanDeleteList();
+
+    EXPECT_STREQ("AC!D", output.Str().c_str());
+    hazardPtr2.Reset();
     ScanDeleteList();
 
     EXPECT_STREQ("AC!DF", output.Str().c_str());

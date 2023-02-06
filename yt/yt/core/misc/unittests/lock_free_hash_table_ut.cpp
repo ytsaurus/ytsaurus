@@ -48,8 +48,6 @@ namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using namespace NYT::NConcurrency;
-
 TEST(TLockFreeHashTableTest, Simple)
 {
     size_t keyColumnCount = 3;

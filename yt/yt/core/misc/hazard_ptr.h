@@ -2,25 +2,24 @@
 
 #include <yt/yt/core/misc/public.h>
 
+#include <library/cpp/yt/logging/logger.h>
+
+#include <atomic>
+
 namespace NYT {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct THazardThreadState;
+extern const NLogging::TLogger LockFreePtrLogger;
 
-extern thread_local std::atomic<void*> HazardPointer;
-extern thread_local THazardThreadState* HazardThreadState;
-
-using TDeleter = void (*)(void*);
-
-template <class T, class TPtrLoader>
-T* AcquireHazardPointer(const TPtrLoader& ptrLoader, T* localPtr);
-void ReleaseHazardPointer();
-
-void InitThreadState();
-void ScheduleObjectDeletion(void* ptr, TDeleter deleter);
 bool ScanDeleteList();
 void FlushDeleteList();
+
+using THazardPtrDeleter = void(*)(void*);
+
+void ScheduleObjectDeletion(void* ptr, THazardPtrDeleter deleter);
+
+////////////////////////////////////////////////////////////////////////////////
 
 struct THazardPtrFlushGuard
 {
@@ -46,9 +45,9 @@ public:
     THazardPtr& operator=(THazardPtr&& other);
 
     template <class TPtrLoader>
-    static THazardPtr Acquire(const TPtrLoader& ptrLoader, T* localPtr);
+    static THazardPtr Acquire(TPtrLoader&& ptrLoader, T* ptr);
     template <class TPtrLoader>
-    static THazardPtr Acquire(const TPtrLoader& ptrLoader);
+    static THazardPtr Acquire(TPtrLoader&& ptrLoader);
 
     void Reset();
 
@@ -64,10 +63,10 @@ public:
     explicit operator bool() const;
 
 private:
-    explicit THazardPtr(std::nullptr_t);
-    explicit THazardPtr(T* ptr);
+    THazardPtr(T* ptr, std::atomic<void*>* hazardPtr);
 
     T* Ptr_ = nullptr;
+    std::atomic<void*>* HazardPtr_ = nullptr;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
