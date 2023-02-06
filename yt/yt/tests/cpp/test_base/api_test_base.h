@@ -43,7 +43,8 @@ protected:
 
     static void CreateTable(
         const TString& tablePath,
-        const TString& schema);
+        const TString& schema,
+        bool mount = true);
 
     static void SyncMountTable(const NYPath::TYPath& path);
     static void SyncFreezeTable(const NYPath::TYPath& path);
