@@ -262,8 +262,7 @@ public:
     i64 GetExpectedSequenceNumber() const;
     void SetSequenceNumber(i64 number);
 
-    TFuture<void> GetCatchUpFuture() const;
-    void CompleteRecovery();
+    void CatchUp();
 
     void RegisterNextChangelog(int id, NHydra::IChangelogPtr changelog);
 

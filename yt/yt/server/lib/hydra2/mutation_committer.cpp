@@ -40,6 +40,10 @@ using namespace NLogging;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+constexpr auto FollowerCatchupLoggingPeriod = TDuration::Seconds(3);
+
+////////////////////////////////////////////////////////////////////////////////
+
 namespace {
 
 i64 GetMutationDataSize(const TPendingMutationPtr& mutation)
@@ -1141,14 +1145,26 @@ void TFollowerCommitter::SetSequenceNumber(i64 number)
     CommittedSequenceNumber_ = number;
 }
 
-TFuture<void> TFollowerCommitter::GetCatchUpFuture() const
-{
-    return СaughtUpPromise_;
-}
-
-void TFollowerCommitter::CompleteRecovery()
+void TFollowerCommitter::CatchUp()
 {
     RecoveryComplete_ = true;
+
+    while (true) {
+        Y_UNUSED(WaitFor(СaughtUpPromise_.ToFuture().ToUncancelable().WithTimeout(FollowerCatchupLoggingPeriod)));
+        if (СaughtUpPromise_.IsSet()) {
+            break;
+        }
+        // NB: Keep this diagnostics in sync with #CheckIfCaughtUp.
+        YT_LOG_INFO("Follower is still catching up (AcceptedMutationCount: %v, LoggedMutationCount: %v, CommittedSequenceNumberLag: %v)",
+            ssize(AcceptedMutations_),
+            ssize(LoggedMutations_),
+            CommittedSequenceNumber_ - DecoratedAutomaton_->GetSequenceNumber());
+    }
+
+    // Promise must be set by now.
+    СaughtUpPromise_
+        .Get()
+        .ThrowOnError();
 }
 
 void TFollowerCommitter::CheckIfCaughtUp()

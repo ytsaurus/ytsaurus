@@ -2246,17 +2246,16 @@ private:
             WaitFor(epochContext->Recovery->Run())
                 .ThrowOnError();
 
-            YT_LOG_INFO("Waiting for follower to catch up");
+            YT_LOG_INFO("Follower is catching up");
 
             epochContext->CatchingUp = true;
 
             auto followerCommitter = epochContext->FollowerCommitter;
             YT_VERIFY(followerCommitter);
-            followerCommitter->CompleteRecovery();
-            WaitFor(followerCommitter->GetCatchUpFuture())
-                .ThrowOnError();
 
-            // Do not discard CatchingUp.
+            followerCommitter->CatchUp();
+
+            // NB: Do not discard CatchingUp.
 
             YT_LOG_INFO("Follower caught up");
 
