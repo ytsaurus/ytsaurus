@@ -120,6 +120,7 @@ struct TJobTableDescriptor
         const int TaskName;
         const int PoolTree;
         const int MonitoringDescriptor;
+        const int JobCookie;
     };
 
     const NTableClient::TNameTablePtr NameTable;

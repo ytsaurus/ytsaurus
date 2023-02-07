@@ -347,7 +347,7 @@ bool TJobReport::IsEmpty() const
 {
     bool somethingSpecified =
         Type_ || State_ || StartTime_ || FinishTime_ || Error_ || Spec_ || SpecVersion_ ||
-        Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ ||
+        Statistics_ || Events_ || Stderr_ || StderrSize_ || FailContext_ || Profile_ || JobCookie_ ||
         CoreInfos_ || HasCompetitors_ || HasProbingCompetitors_ || MonitoringDescriptor_ || ExecAttributes_;
     return !somethingSpecified;
 }
@@ -376,6 +376,12 @@ TControllerJobReport TControllerJobReport::HasCompetitors(bool hasCompetitors, E
         default:
             YT_ABORT();
     }
+    return std::move(*this);
+}
+
+TControllerJobReport TControllerJobReport::JobCookie(ui64 jobCookie)
+{
+    JobCookie_ = jobCookie;
     return std::move(*this);
 }
 

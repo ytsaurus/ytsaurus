@@ -1427,6 +1427,8 @@ private:
     void OnJobFailed(std::unique_ptr<TFailedJobSummary> jobSummary);
     void OnJobAborted(std::unique_ptr<TAbortedJobSummary> jobSummary);
 
+    void ReportJobCookieToArchive(const TJobletPtr& joblet);
+
     //! Helper class that implements IPersistentChunkPoolInput interface for output tables.
     class TSink
         : public NChunkPools::IPersistentChunkPoolInput

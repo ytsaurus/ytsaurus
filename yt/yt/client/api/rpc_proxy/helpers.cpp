@@ -938,6 +938,9 @@ void ToProto(NProto::TJob* protoJob, const NApi::TJob& job)
     if (job.Pool) {
         protoJob->set_pool(*job.Pool);
     }
+    if (job.JobCookie) {
+        protoJob->set_job_cookie(*job.JobCookie);
+    }
 }
 
 void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
@@ -1066,6 +1069,11 @@ void FromProto(NApi::TJob* job, const NProto::TJob& protoJob)
         job->Pool = protoJob.pool();
     } else {
         job->Pool.reset();
+    }
+    if (protoJob.has_job_cookie()) {
+        job->JobCookie = protoJob.job_cookie();
+    } else {
+        job->JobCookie.reset();
     }
 }
 

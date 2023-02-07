@@ -540,6 +540,7 @@ class TestListJobsBase(YTEnvSetup):
         assert len(completed_map_job["exec_attributes"]["sandbox_path"]) > 0
         assert completed_map_job["pool"] == "my_pool"
         assert completed_map_job["pool_tree"] == "default"
+        assert completed_map_job["job_cookie"] >= 0
 
         stderr_size = len(b"STDERR-OUTPUT\n")
         assert completed_map_job["stderr_size"] == stderr_size
