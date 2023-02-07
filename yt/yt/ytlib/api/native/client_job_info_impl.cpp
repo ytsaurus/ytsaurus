@@ -106,6 +106,7 @@ static const THashSet<TString> DefaultListJobsAttributes = {
     "pool_tree",
     "monitoring_descriptor",
     "core_infos",
+    "job_cookie",
 };
 
 static const auto DefaultGetJobAttributes = [] {
@@ -1045,6 +1046,7 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
     auto coreInfosIndex = findColumnIndex("core_infos");
     auto poolTreeIndex = findColumnIndex("pool_tree");
     auto monitoringDescriptorIndex = findColumnIndex("monitoring_descriptor");
+    auto jobCookieIndex = findColumnIndex("job_cookie");
 
     std::vector<TJob> jobs;
     auto rows = rowset->GetRows();
@@ -1198,6 +1200,10 @@ static std::vector<TJob> ParseJobsFromArchiveResponse(
             job.MonitoringDescriptor = FromUnversionedValue<TString>(row[*monitoringDescriptorIndex]);
         }
 
+        if (jobCookieIndex && row[*jobCookieIndex].Type != EValueType::Null) {
+            job.JobCookie = FromUnversionedValue<ui64>(row[*jobCookieIndex]);
+        }
+
         // We intentionally mark stderr as missing if job has no spec since
         // it is impossible to check permissions without spec.
         if (job.GetState() && NJobTrackerClient::IsJobFinished(*job.GetState()) && !job.HasSpec) {
@@ -1236,9 +1242,8 @@ TFuture<std::vector<TJob>> TClient::DoListJobsFromArchiveAsync(
     builder.AddSelectExpression("task_name");
     builder.AddSelectExpression("pool_tree");
     builder.AddSelectExpression("monitoring_descriptor");
-    if (constexpr int requiredVersion = 31; DoGetOperationsArchiveVersion() >= requiredVersion) {
-        builder.AddSelectExpression("core_infos");
-    }
+    builder.AddSelectExpression("core_infos");
+    builder.AddSelectExpression("job_cookie");
 
     if (options.WithStderr) {
         if (*options.WithStderr) {
@@ -1362,6 +1367,7 @@ static void ParseJobsFromControllerAgentResponse(
     auto needError = attributes.contains("error");
     auto needTaskName = attributes.contains("task_name");
     auto needCoreInfos = attributes.contains("core_infos");
+    auto needJobCookie = attributes.contains("job_cookie");
 
     for (const auto& [jobIdString, jobNode] : jobNodes) {
         if (!filter(jobNode)) {
@@ -1428,6 +1434,12 @@ static void ParseJobsFromControllerAgentResponse(
         if (needCoreInfos) {
             if (auto childNode = jobMapNode->FindChild("core_infos")) {
                 job.CoreInfos = ConvertToYsonString(childNode);
+            }
+        }
+        if (needJobCookie) {
+            // COMPAT(renadeen): remove this condition in 23.1.
+            if (auto childNode = jobMapNode->FindChild("job_cookie")) {
+                job.JobCookie = jobMapNode->GetChildValueOrThrow<ui64>("job_cookie");
             }
         }
     }
@@ -1665,6 +1677,7 @@ static void MergeJobs(TJob&& controllerAgentJob, TJob* archiveJob)
     mergeNullableField(&TJob::ExecAttributes);
     mergeNullableField(&TJob::TaskName);
     mergeNullableField(&TJob::PoolTree);
+    mergeNullableField(&TJob::JobCookie);
     if (controllerAgentJob.StderrSize && archiveJob->StderrSize.value_or(0) < controllerAgentJob.StderrSize) {
         archiveJob->StderrSize = controllerAgentJob.StderrSize;
     }

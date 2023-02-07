@@ -116,6 +116,7 @@ struct TJobReport
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TaskName);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, TreeId);
     DEFINE_BYREF_RO_PROPERTY(std::optional<TString>, MonitoringDescriptor);
+    DEFINE_BYREF_RO_PROPERTY(std::optional<ui64>, JobCookie);
 
 protected:
     TJobReport() = default;
@@ -127,6 +128,7 @@ struct TControllerJobReport
     TControllerJobReport OperationId(NJobTrackerClient::TOperationId operationId);
     TControllerJobReport JobId(NJobTrackerClient::TJobId jobId);
     TControllerJobReport HasCompetitors(bool hasCompetitors, NControllerAgent::EJobCompetitionType);
+    TControllerJobReport JobCookie(ui64 jobCookie);
 };
 
 struct TNodeJobReport

@@ -2804,6 +2804,8 @@ void TOperationControllerBase::SafeOnJobStarted(TJobId jobId)
 
     IncreaseAccountResourceUsageLease(joblet->DiskRequestAccount, joblet->DiskQuota);
 
+    ReportJobCookieToArchive(joblet);
+
     LogEventFluently(ELogEventType::JobStarted)
         .Item("job_id").Value(jobId)
         .Item("operation_id").Value(OperationId)
@@ -3547,6 +3549,7 @@ void TOperationControllerBase::BuildJobAttributes(
         .Item("probing").Value(joblet->CompetitionType == EJobCompetitionType::Probing)
         .Item("speculative").Value(joblet->CompetitionType == EJobCompetitionType::Speculative)
         .Item("task_name").Value(joblet->TaskName)
+        .Item("job_cookie").Value(joblet->OutputCookie)
         .DoIf(joblet->PredecessorType != EPredecessorType::None, [&] (TFluentMap fluent) {
             fluent
                 .Item("predecessor_type").Value(joblet->PredecessorType)
@@ -10175,6 +10178,16 @@ void TOperationControllerBase::UnregisterUnavailableInputChunk(TChunkId chunkId)
     EraseOrCrash(UnavailableInputChunkIds, chunkId);
 
     YT_LOG_TRACE("Input chunk is no longer unavailable (ChunkId: %v)", chunkId);
+}
+
+void TOperationControllerBase::ReportJobCookieToArchive(const TJobletPtr& joblet)
+{
+    auto jobReport = NJobAgent::TControllerJobReport()
+        .OperationId(OperationId)
+        .JobId(joblet->JobId)
+        .JobCookie(joblet->OutputCookie);
+
+    Host->GetJobReporter()->HandleJobReport(std::move(jobReport));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

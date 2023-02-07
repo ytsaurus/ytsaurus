@@ -445,6 +445,7 @@ void Serialize(const TJob& job, NYson::IYsonConsumer* consumer, TStringBuf idKey
             .OptionalItem("pool", job.Pool)
             .OptionalItem("monitoring_descriptor", job.MonitoringDescriptor)
             .OptionalItem("is_stale", job.IsStale)
+            .OptionalItem("job_cookie", job.JobCookie)
         .EndMap();
 }
 

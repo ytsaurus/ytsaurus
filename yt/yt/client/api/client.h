@@ -1381,6 +1381,7 @@ struct TJob
     std::optional<TString> PoolTree;
     std::optional<TString> Pool;
     std::optional<TString> MonitoringDescriptor;
+    std::optional<ui64> JobCookie;
 
     std::optional<bool> IsStale;
 

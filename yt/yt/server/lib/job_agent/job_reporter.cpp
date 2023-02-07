@@ -162,9 +162,12 @@ public:
         if (Report_.TreeId()) {
             builder.AddValue(MakeUnversionedStringValue(*Report_.TreeId(), index.PoolTree));
         }
-        // COMPAT(levysotsky)
-        if (archiveVersion >= 39 && Report_.MonitoringDescriptor()) {
+        if (Report_.MonitoringDescriptor()) {
             builder.AddValue(MakeUnversionedStringValue(*Report_.MonitoringDescriptor(), index.MonitoringDescriptor));
+        }
+        // COMPAT(renadeen)
+        if (archiveVersion >= 47 && Report_.JobCookie()) {
+            builder.AddValue(MakeUnversionedInt64Value(*Report_.JobCookie(), index.JobCookie));
         }
 
         return builder.FinishRow();

@@ -2558,6 +2558,7 @@ message TJob
     optional string pool = 24;
     optional NYT.NProto.TGuid probing_job_competition_id = 25;
     optional bool has_probing_competitors = 26;
+    optional uint64 job_cookie = 27;
 }
 
 message TListJobsStatistics
