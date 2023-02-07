@@ -77,20 +77,14 @@ TString FormatScheduleJobAttemptsCompact(const TScheduleJobsStatistics& statisti
 }
 
 TString FormatOperationCountByPreemptionPriorityCompact(
-    const TEnumIndexedVector<EOperationPreemptionPriorityScope, TEnumIndexedVector<EOperationPreemptionPriority, int>>& operationsByPriority)
+    const TEnumIndexedVector<EOperationPreemptionPriority, int>& operationCountByPriority)
 {
-    auto doFormat = [] (const auto& countByPriority) {
-        return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v}",
-            countByPriority[EOperationPreemptionPriority::None],
-            countByPriority[EOperationPreemptionPriority::Regular],
-            countByPriority[EOperationPreemptionPriority::Aggressive],
-            countByPriority[EOperationPreemptionPriority::SsdRegular],
-            countByPriority[EOperationPreemptionPriority::SsdAggressive]);
-    };
-
-    return Format("{OperationAndAncestors: %v, OperationOnly: %v}",
-        doFormat(operationsByPriority[EOperationPreemptionPriorityScope::OperationAndAncestors]),
-        doFormat(operationsByPriority[EOperationPreemptionPriorityScope::OperationOnly]));
+    return Format("{N: %v, R: %v, A: %v, SR: %v, SA: %v}",
+        operationCountByPriority[EOperationPreemptionPriority::None],
+        operationCountByPriority[EOperationPreemptionPriority::Regular],
+        operationCountByPriority[EOperationPreemptionPriority::Aggressive],
+        operationCountByPriority[EOperationPreemptionPriority::SsdRegular],
+        operationCountByPriority[EOperationPreemptionPriority::SsdAggressive]);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

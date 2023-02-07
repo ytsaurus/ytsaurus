@@ -1,6 +1,7 @@
 #pragma once
 
 #include "fair_share_strategy_operation_controller.h"
+#include "helpers.h"
 #include "job.h"
 #include "private.h"
 #include "resource_tree.h"

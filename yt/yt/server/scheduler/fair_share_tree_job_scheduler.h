@@ -28,6 +28,12 @@ using TNonOwningJobSet = THashSet<TJob*>;
 
 ////////////////////////////////////////////////////////////////////////////////
 
+using TOperationCountByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, int>;
+using TOperationPreemptionPriorityParameters = std::pair<EOperationPreemptionPriorityScope, /*ssdPriorityPreemptionEnabled*/ bool>;
+using TOperationCountsByPreemptionPriorityParameters = THashMap<TOperationPreemptionPriorityParameters, TOperationCountByPreemptionPriority>;
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TStaticAttributes
 {
     int SchedulingIndex = UndefinedSchedulingIndex;
@@ -313,6 +319,7 @@ public:
         TFairShareTreeSnapshotPtr treeSnapshot,
         std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
         ESchedulingSegment nodeSchedulingSegment,
+        const TOperationCountByPreemptionPriority& operationCountByPreemptionPriority,
         bool enableSchedulingInfoLogging,
         ISchedulerStrategyHost* strategyHost,
         const NLogging::TLogger& logger);
@@ -323,10 +330,7 @@ public:
     // NB(eshcherbin): Public for testing purposes.
     TFairShareScheduleJobResult ScheduleJob(TSchedulerElement* element, bool ignorePacking);
 
-    void CountOperationsByPreemptionPriority();
-    int GetOperationWithPreemptionPriorityCount(
-        EOperationPreemptionPriority priority,
-        EOperationPreemptionPriorityScope scope) const;
+    int GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const;
 
     void AnalyzePreemptibleJobs(
         EOperationPreemptionPriority targetOperationPreemptionPriority,
@@ -377,6 +381,7 @@ private:
     const std::vector<TSchedulingTagFilter> KnownSchedulingTagFilters_;
     // TODO(eshcherbin): Think about storing the entire node state here.
     const ESchedulingSegment NodeSchedulingSegment_;
+    const TOperationCountByPreemptionPriority OperationCountByPreemptionPriority_;
     const bool EnableSchedulingInfoLogging_;
     ISchedulerStrategyHost* const StrategyHost_;
     const NLogging::TLogger Logger;
@@ -413,9 +418,6 @@ private:
 
     TDynamicAttributesListSnapshotPtr DynamicAttributesListSnapshot_;
     TDynamicAttributesManager DynamicAttributesManager_;
-
-    using TOperationCountByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, int>;
-    TEnumIndexedVector<EOperationPreemptionPriorityScope, TOperationCountByPreemptionPriority> OperationCountByPreemptionPriority_;
 
     std::vector<bool> CanSchedule_;
 
@@ -533,6 +535,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TCachedJobPreemptionStatuses, CachedJobPreemptionStatuses);
     DEFINE_BYREF_RO_PROPERTY(TTreeSchedulingSegmentsState, SchedulingSegmentsState);
     DEFINE_BYREF_RO_PROPERTY(std::vector<TSchedulingTagFilter>, KnownSchedulingTagFilters);
+    DEFINE_BYREF_RO_PROPERTY(TOperationCountsByPreemptionPriorityParameters, OperationCountsByPreemptionPriorityParameters);
 
 public:
     TFairShareTreeSchedulingSnapshot(
@@ -541,6 +544,7 @@ public:
         TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
         TTreeSchedulingSegmentsState schedulingSegmentsState,
         std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
+        TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
         TOperationIdToJobSchedulerSharedState operationIdToSharedState);
 
     const TFairShareTreeJobSchedulerOperationSharedStatePtr& GetOperationSharedState(const TSchedulerOperationElement* element) const;
@@ -568,10 +572,12 @@ struct TJobSchedulerPostUpdateContext
 {
     TSchedulerRootElement* RootElement;
 
+    THashSet<int> SsdPriorityPreemptionMedia;
     TManageTreeSchedulingSegmentsContext ManageSchedulingSegmentsContext;
     TStaticAttributesList StaticAttributesList;
     TOperationIdToJobSchedulerSharedState OperationIdToSharedState;
     std::vector<TSchedulingTagFilter> KnownSchedulingTagFilters;
+    TOperationCountsByPreemptionPriorityParameters OperationCountsByPreemptionPriorityParameters;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -718,8 +724,7 @@ private:
 
     NProfiling::TCounter ScheduleJobsDeadlineReachedCounter_;
 
-    using TSummaryByPreemptionPriority = TEnumIndexedVector<EOperationPreemptionPriority, NProfiling::TSummary>;
-    TEnumIndexedVector<EOperationPreemptionPriorityScope, TSummaryByPreemptionPriority> OperationCountByPreemptionPrioritySummary_;
+    NProfiling::TBufferedProducerPtr OperationCountByPreemptionPriorityBufferedProducer_;
 
     std::atomic<TCpuInstant> LastSchedulingInformationLoggedTime_ = 0;
 
@@ -798,6 +803,7 @@ private:
     void ManageSchedulingSegments(TFairSharePostUpdateContext* fairSharePostUpdateContext, TManageTreeSchedulingSegmentsContext* manageSegmentsContext) const;
     void CollectKnownSchedulingTagFilters(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
     void UpdateSsdNodeSchedulingAttributes(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
+    void CountOperationsByPreemptionPriority(TFairSharePostUpdateContext* fairSharePostUpdateContext, TJobSchedulerPostUpdateContext* postUpdateContext) const;
 
     static std::optional<bool> IsAggressivePreemptionAllowed(const TSchedulerElement* element);
 

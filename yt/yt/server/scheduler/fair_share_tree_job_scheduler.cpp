@@ -137,6 +137,62 @@ std::optional<EJobPreemptionStatus> GetCachedJobPreemptionStatus(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool IsEligibleForSsdPriorityPreemption(
+    const THashSet<int>& diskRequestMedia,
+    const THashSet<int>& ssdPriorityPreemptionMedia)
+{
+    for (auto medium : diskRequestMedia) {
+        if (ssdPriorityPreemptionMedia.contains(medium)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+EOperationPreemptionPriority GetOperationPreemptionPriority(
+    const TSchedulerOperationElement* operationElement,
+    EOperationPreemptionPriorityScope scope,
+    bool ssdPriorityPreemptionEnabled,
+    const THashSet<int>& ssdPriorityPreemptionMedia)
+{
+    if (!operationElement->IsSchedulable()) {
+        return EOperationPreemptionPriority::None;
+    }
+
+    bool isEligibleForAggressivePreemption;
+    bool isEligibleForPreemption;
+    switch (scope) {
+        case EOperationPreemptionPriorityScope::OperationOnly:
+            isEligibleForAggressivePreemption = operationElement->GetLowestAggressivelyStarvingAncestor() == operationElement;
+            isEligibleForPreemption = operationElement->GetLowestStarvingAncestor() == operationElement;
+            break;
+        case EOperationPreemptionPriorityScope::OperationAndAncestors:
+            isEligibleForAggressivePreemption = operationElement->GetLowestAggressivelyStarvingAncestor() != nullptr;
+            isEligibleForPreemption = operationElement->GetLowestStarvingAncestor() != nullptr;
+            break;
+        default:
+            YT_ABORT();
+    }
+
+    bool isEligibleForSsdPriorityPreemption = ssdPriorityPreemptionEnabled &&
+        IsEligibleForSsdPriorityPreemption(operationElement->DiskRequestMedia(), ssdPriorityPreemptionMedia);
+    if (isEligibleForAggressivePreemption) {
+        return isEligibleForSsdPriorityPreemption
+            ? EOperationPreemptionPriority::SsdAggressive
+            : EOperationPreemptionPriority::Aggressive;
+    }
+    if (isEligibleForPreemption) {
+        return isEligibleForSsdPriorityPreemption
+            ? EOperationPreemptionPriority::SsdRegular
+            : EOperationPreemptionPriority::Regular;
+    }
+
+    return EOperationPreemptionPriority::None;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -617,12 +673,14 @@ TFairShareTreeSchedulingSnapshot::TFairShareTreeSchedulingSnapshot(
     TCachedJobPreemptionStatuses cachedJobPreemptionStatuses,
     TTreeSchedulingSegmentsState schedulingSegmentsState,
     std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
+    TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters,
     TOperationIdToJobSchedulerSharedState operationIdToSharedState)
     : StaticAttributesList_(std::move(staticAttributesList))
     , SsdPriorityPreemptionMedia_(std::move(ssdPriorityPreemptionMedia))
     , CachedJobPreemptionStatuses_(std::move(cachedJobPreemptionStatuses))
     , SchedulingSegmentsState_(std::move(schedulingSegmentsState))
     , KnownSchedulingTagFilters_(std::move(knownSchedulingTagFilters))
+    , OperationCountsByPreemptionPriorityParameters_(std::move(operationCountsByPreemptionPriorityParameters))
     , OperationIdToSharedState_(std::move(operationIdToSharedState))
 { }
 
@@ -727,6 +785,7 @@ TScheduleJobsContext::TScheduleJobsContext(
     TFairShareTreeSnapshotPtr treeSnapshot,
     std::vector<TSchedulingTagFilter> knownSchedulingTagFilters,
     ESchedulingSegment nodeSchedulingSegment,
+    const TOperationCountByPreemptionPriority& operationCountByPreemptionPriority,
     bool enableSchedulingInfoLogging,
     ISchedulerStrategyHost* strategyHost,
     const NLogging::TLogger& logger)
@@ -734,6 +793,7 @@ TScheduleJobsContext::TScheduleJobsContext(
     , TreeSnapshot_(std::move(treeSnapshot))
     , KnownSchedulingTagFilters_(std::move(knownSchedulingTagFilters))
     , NodeSchedulingSegment_(nodeSchedulingSegment)
+    , OperationCountByPreemptionPriority_(operationCountByPreemptionPriority)
     , EnableSchedulingInfoLogging_(enableSchedulingInfoLogging)
     , StrategyHost_(strategyHost)
     , Logger(logger)
@@ -798,23 +858,9 @@ TFairShareScheduleJobResult TScheduleJobsContext::ScheduleJob(TSchedulerElement*
     }
 }
 
-void TScheduleJobsContext::CountOperationsByPreemptionPriority()
+int TScheduleJobsContext::GetOperationWithPreemptionPriorityCount(EOperationPreemptionPriority priority) const
 {
-    OperationCountByPreemptionPriority_ = {};
-    for (const auto& [_, operationElement] : TreeSnapshot_->EnabledOperationMap()) {
-        for (auto scope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
-            ++OperationCountByPreemptionPriority_[scope][GetOperationPreemptionPriority(operationElement, scope)];
-        }
-    }
-
-    SchedulingStatistics_.OperationCountByPreemptionPriority = OperationCountByPreemptionPriority_;
-}
-
-int TScheduleJobsContext::GetOperationWithPreemptionPriorityCount(
-    EOperationPreemptionPriority priority,
-    EOperationPreemptionPriorityScope scope) const
-{
-    return OperationCountByPreemptionPriority_[scope][priority];
+    return OperationCountByPreemptionPriority_[priority];
 }
 
 void TScheduleJobsContext::AnalyzePreemptibleJobs(
@@ -1756,38 +1802,11 @@ EOperationPreemptionPriority TScheduleJobsContext::GetOperationPreemptionPriorit
     const TSchedulerOperationElement* operationElement,
     EOperationPreemptionPriorityScope scope) const
 {
-    if (!operationElement->IsSchedulable()) {
-        return EOperationPreemptionPriority::None;
-    }
-
-    bool isEligibleForAggressivePreemption;
-    bool isEligibleForPreemption;
-    switch (scope) {
-        case EOperationPreemptionPriorityScope::OperationOnly:
-            isEligibleForAggressivePreemption = operationElement->GetLowestAggressivelyStarvingAncestor() == operationElement;
-            isEligibleForPreemption = operationElement->GetLowestStarvingAncestor() == operationElement;
-            break;
-        case EOperationPreemptionPriorityScope::OperationAndAncestors:
-            isEligibleForAggressivePreemption = operationElement->GetLowestAggressivelyStarvingAncestor() != nullptr;
-            isEligibleForPreemption = operationElement->GetLowestStarvingAncestor() != nullptr;
-            break;
-        default:
-            YT_ABORT();
-    }
-
-    bool isEligibleForSsdPriorityPreemption = SsdPriorityPreemptionEnabled_ &&
-        IsEligibleForSsdPriorityPreemption(operationElement->DiskRequestMedia());
-    if (isEligibleForAggressivePreemption) {
-        return isEligibleForSsdPriorityPreemption
-            ? EOperationPreemptionPriority::SsdAggressive
-            : EOperationPreemptionPriority::Aggressive;
-    }
-    if (isEligibleForPreemption) {
-        return isEligibleForSsdPriorityPreemption
-            ? EOperationPreemptionPriority::SsdRegular
-            : EOperationPreemptionPriority::Regular;
-    }
-    return EOperationPreemptionPriority::None;
+    return NScheduler::GetOperationPreemptionPriority(
+        operationElement,
+        scope,
+        SsdPriorityPreemptionEnabled_,
+        SsdPriorityPreemptionMedia_);
 }
 
 bool TScheduleJobsContext::CheckForDeactivation(
@@ -2164,12 +2183,7 @@ EJobPreemptionLevel TScheduleJobsContext::GetJobPreemptionLevel(const TJobWithPr
 
 bool TScheduleJobsContext::IsEligibleForSsdPriorityPreemption(const THashSet<int>& diskRequestMedia) const
 {
-    for (const auto& medium : diskRequestMedia) {
-        if (SsdPriorityPreemptionMedia_.contains(medium)) {
-            return true;
-        }
-    }
-    return false;
+    return NScheduler::IsEligibleForSsdPriorityPreemption(diskRequestMedia, SsdPriorityPreemptionMedia_);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2191,19 +2205,12 @@ TFairShareTreeJobScheduler::TFairShareTreeJobScheduler(
     , Profiler_(std::move(profiler))
     , CumulativeScheduleJobsTime_(Profiler_.TimeCounter("/cumulative_schedule_jobs_time"))
     , ScheduleJobsDeadlineReachedCounter_(Profiler_.Counter("/schedule_jobs_deadline_reached"))
+    , OperationCountByPreemptionPriorityBufferedProducer_(New<TBufferedProducer>())
     , NodeSchedulingSegmentManager_(TreeId_, Logger, Profiler_)
 {
     InitSchedulingStages();
 
-    for (auto preemptionPriorityScope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
-        for (auto preemptionPriority : TEnumTraits<EOperationPreemptionPriority>::GetDomainValues()) {
-            auto profilerWithTags = Profiler_
-                .WithRequiredTag("preemption_priority_scope", FormatEnum(preemptionPriorityScope))
-                .WithRequiredTag("preemption_priority", FormatEnum(preemptionPriority));
-            OperationCountByPreemptionPrioritySummary_[preemptionPriorityScope][preemptionPriority] =
-                profilerWithTags.Summary("/operation_count_by_preemption_priority");
-        }
-    }
+    Profiler_.AddProducer("/operation_count_by_preemption_priority", OperationCountByPreemptionPriorityBufferedProducer_);
 
     NodeSchedulingSegmentsManagementExecutor_ = New<TPeriodicExecutor>(
         StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy),
@@ -2321,12 +2328,23 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
         LastSchedulingInformationLoggedTime_ = now;
     }
 
+    auto ssdPriorityPreemptionConfig = treeSnapshot->TreeConfig()->SsdPriorityPreemption;
+    bool ssdPriorityPreemptionEnabled = ssdPriorityPreemptionConfig->Enable &&
+        schedulingContext->CanSchedule(ssdPriorityPreemptionConfig->NodeTagFilter);
+    const auto& operationCountByPreemptionPriority = GetOrCrash(
+        treeSnapshot->SchedulingSnapshot()->OperationCountsByPreemptionPriorityParameters(),
+        TOperationPreemptionPriorityParameters{
+            treeSnapshot->TreeConfig()->SchedulingPreemptionPriorityScope,
+            ssdPriorityPreemptionEnabled,
+        });
+
     // TODO(eshcherbin): Create context outside of this method to avoid passing scheduling segment as an argument.
     TScheduleJobsContext context(
         schedulingContext,
         treeSnapshot,
         treeSnapshot->SchedulingSnapshot()->KnownSchedulingTagFilters(),
         nodeSchedulingSegment,
+        operationCountByPreemptionPriority,
         enableSchedulingInfoLogging,
         StrategyHost_,
         Logger);
@@ -2344,10 +2362,7 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
 
     // NB(eshcherbin): We check whether SSD priority preemption is enabled even if there will be no preemptive scheduling stages,
     // because we also need to prevent scheduling jobs of production critical operations on SSD nodes.
-    auto ssdPriorityPreemptionConfig = treeSnapshot->TreeConfig()->SsdPriorityPreemption;
-    bool isSsdPriorityPreemptionEnabled = ssdPriorityPreemptionConfig->Enable &&
-        schedulingContext->CanSchedule(ssdPriorityPreemptionConfig->NodeTagFilter);
-    context.SetSsdPriorityPreemptionEnabled(isSsdPriorityPreemptionEnabled);
+    context.SetSsdPriorityPreemptionEnabled(ssdPriorityPreemptionEnabled);
     context.SsdPriorityPreemptionMedia() = treeSnapshot->SchedulingSnapshot()->SsdPriorityPreemptionMedia();
     context.SchedulingStatistics().SsdPriorityPreemptionEnabled = context.GetSsdPriorityPreemptionEnabled();
     context.SchedulingStatistics().SsdPriorityPreemptionMedia = context.SsdPriorityPreemptionMedia();
@@ -2386,14 +2401,7 @@ void TFairShareTreeJobScheduler::ScheduleJobs(
 
     context.SchedulingStatistics().ScheduleWithPreemption = scheduleJobsWithPreemption;
     if (scheduleJobsWithPreemption) {
-        context.CountOperationsByPreemptionPriority();
-
-        for (auto priorityScope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
-            for (auto priority : TEnumTraits<EOperationPreemptionPriority>::GetDomainValues()) {
-                OperationCountByPreemptionPrioritySummary_[priorityScope][priority].Record(
-                    context.GetOperationWithPreemptionPriorityCount(priority, priorityScope));
-            }
-        }
+        context.SchedulingStatistics().OperationCountByPreemptionPriority = operationCountByPreemptionPriority;
 
         for (const auto& preemptiveStage : BuildPreemptiveSchedulingStageList(&context)) {
             // We allow to schedule at most one job using preemption.
@@ -2689,6 +2697,13 @@ TJobSchedulerPostUpdateContext TFairShareTreeJobScheduler::CreatePostUpdateConte
 {
     VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
+    // NB(eshcherbin): We cannot update SSD media in the constructor, because initial pool trees update
+    // in the registration pipeline is done before medium directory sync. That's why we do the initial update
+    // during the first fair share update.
+    if (!SsdPriorityPreemptionMedia_) {
+        UpdateSsdPriorityPreemptionMedia();
+    }
+
     THashMap<TSchedulingSegmentModule, TJobResources> resourceLimitsPerModule;
     if (Config_->SchedulingSegments->Mode != ESegmentedSchedulingMode::Disabled) {
         for (const auto& schedulingSegmentModule : Config_->SchedulingSegments->GetModules()) {
@@ -2702,6 +2717,7 @@ TJobSchedulerPostUpdateContext TFairShareTreeJobScheduler::CreatePostUpdateConte
 
     return TJobSchedulerPostUpdateContext{
         .RootElement = rootElement,
+        .SsdPriorityPreemptionMedia = SsdPriorityPreemptionMedia_.value_or(THashSet<int>()),
         .ManageSchedulingSegmentsContext = TManageTreeSchedulingSegmentsContext{
             .TreeConfig = Config_,
             .TotalResourceLimits = rootElement->GetTotalResourceLimits(),
@@ -2738,25 +2754,21 @@ void TFairShareTreeJobScheduler::PostUpdate(
     CollectKnownSchedulingTagFilters(fairSharePostUpdateContext, postUpdateContext);
 
     UpdateSsdNodeSchedulingAttributes(fairSharePostUpdateContext, postUpdateContext);
+
+    CountOperationsByPreemptionPriority(fairSharePostUpdateContext, postUpdateContext);
 }
 
 TFairShareTreeSchedulingSnapshotPtr TFairShareTreeJobScheduler::CreateSchedulingSnapshot(TJobSchedulerPostUpdateContext* postUpdateContext)
 {
     VERIFY_INVOKER_AFFINITY(StrategyHost_->GetControlInvoker(EControlQueue::FairShareStrategy));
 
-    // NB(eshcherbin): We cannot update SSD media in the constructor, because initial pool trees update
-    // in the registration pipeline is done before medium directory sync. That's why we do the initial update
-    // during the first fair share update.
-    if (!SsdPriorityPreemptionMedia_) {
-        UpdateSsdPriorityPreemptionMedia();
-    }
-
     return New<TFairShareTreeSchedulingSnapshot>(
         std::move(postUpdateContext->StaticAttributesList),
-        SsdPriorityPreemptionMedia_.value_or(THashSet<int>()),
+        std::move(postUpdateContext->SsdPriorityPreemptionMedia),
         CachedJobPreemptionStatuses_,
         std::move(postUpdateContext->ManageSchedulingSegmentsContext.SchedulingSegmentsState),
         std::move(postUpdateContext->KnownSchedulingTagFilters),
+        std::move(postUpdateContext->OperationCountsByPreemptionPriorityParameters),
         std::move(postUpdateContext->OperationIdToSharedState));
 }
 
@@ -3019,9 +3031,7 @@ void TFairShareTreeJobScheduler::ScheduleJobsWithPreemption(
 
     // NB(eshcherbin): We might want to analyze jobs and attempt preemption even if there are no candidate operations of target priority.
     // For example, we preempt jobs in pools or operations which exceed their specified resource limits.
-    auto operationWithPreemptionPriorityCount = context->GetOperationWithPreemptionPriorityCount(
-        targetOperationPreemptionPriority,
-        treeSnapshot->TreeConfig()->SchedulingPreemptionPriorityScope);
+    auto operationWithPreemptionPriorityCount = context->GetOperationWithPreemptionPriorityCount(targetOperationPreemptionPriority);
     bool shouldAttemptScheduling = operationWithPreemptionPriorityCount > 0;
     bool shouldAttemptPreemption = forcePreemptionAttempt || shouldAttemptScheduling;
     if (!shouldAttemptPreemption) {
@@ -3344,6 +3354,43 @@ void TFairShareTreeJobScheduler::UpdateSsdNodeSchedulingAttributes(
             current = current->GetParent();
         }
     }
+}
+
+void TFairShareTreeJobScheduler::CountOperationsByPreemptionPriority(
+    TFairSharePostUpdateContext* fairSharePostUpdateContext,
+    TJobSchedulerPostUpdateContext* postUpdateContext) const
+{
+    TOperationCountsByPreemptionPriorityParameters operationCountsByPreemptionPriorityParameters;
+    for (const auto& [_, element] : fairSharePostUpdateContext->EnabledOperationIdToElement) {
+        for (auto scope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
+            for (bool ssdPriorityPreemptionEnabled : {false, true}) {
+                TOperationPreemptionPriorityParameters parameters{scope, ssdPriorityPreemptionEnabled};
+                auto priority = NScheduler::GetOperationPreemptionPriority(
+                    element,
+                    scope,
+                    ssdPriorityPreemptionEnabled,
+                    postUpdateContext->SsdPriorityPreemptionMedia);
+                ++operationCountsByPreemptionPriorityParameters[parameters][priority];
+            }
+        }
+    }
+
+    TSensorBuffer sensorBuffer;
+    for (auto scope : TEnumTraits<EOperationPreemptionPriorityScope>::GetDomainValues()) {
+        TWithTagGuard scopeTagGuard(&sensorBuffer, "scope", FormatEnum(scope));
+        for (bool ssdPriorityPreemptionEnabled : {false, true}) {
+            TWithTagGuard ssdTagGuard(&sensorBuffer, "ssd_priority_preemption_enabled", TString(FormatBool(ssdPriorityPreemptionEnabled)));
+            TOperationPreemptionPriorityParameters parameters{scope, ssdPriorityPreemptionEnabled};
+            const auto& operationCountByPreemptionPriority = operationCountsByPreemptionPriorityParameters[parameters];
+            for (auto priority : TEnumTraits<EOperationPreemptionPriority>::GetDomainValues()) {
+                TWithTagGuard priorityTagGuard(&sensorBuffer, "priority", FormatEnum(priority));
+                sensorBuffer.AddGauge(/*name*/ "", operationCountByPreemptionPriority[priority]);
+            }
+        }
+    }
+    OperationCountByPreemptionPriorityBufferedProducer_->Update(std::move(sensorBuffer));
+
+    postUpdateContext->OperationCountsByPreemptionPriorityParameters = std::move(operationCountsByPreemptionPriorityParameters);
 }
 
 std::optional<bool> TFairShareTreeJobScheduler::IsAggressivePreemptionAllowed(const TSchedulerElement* element)
