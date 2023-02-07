@@ -820,6 +820,7 @@ protected:
             treeSnapshot,
             /*registeredSchedulingTagFilters*/ {},
             /*nodeSchedulingSegment*/ ESchedulingSegment::Default,
+            /*operationCountByPreemptionPriority*/ {},
             /*enableSchedulingInfoLogging*/ true,
             strategyHost,
             SchedulerLogger);

@@ -916,13 +916,13 @@ class TestPreemptionPriorityScope(YTEnvSetup):
         def check():
             op_count = get(
                 scheduler_orchid_node_path(node) +
-                "/last_preemptive_heartbeat_statistics/operation_count_by_preemption_priority/operation_only"
+                "/last_preemptive_heartbeat_statistics/operation_count_by_preemption_priority"
             )
             return op_count["none"] == 2 and op_count["regular"] == 1
         wait(check)
 
         update_pool_tree_config_option("default", "scheduling_preemption_priority_scope", "operation_and_ancestors")
-        wait(lambda: get(scheduler_orchid_operation_path(greedy_op.id) + "/resource_usage/cpu") == 6.0, iter=10)
+        wait(lambda: get(scheduler_orchid_operation_path(greedy_op.id) + "/resource_usage/cpu") == 6.0)
 
 
 ##################################################################

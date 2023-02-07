@@ -661,6 +661,8 @@ class TestPoolMetrics(YTEnvSetup):
 
     @authors("eshcherbin")
     def test_operation_count_by_preemption_priority(self):
+        # For operations with strange tag filters to have non-zero fair share and starve.
+        update_scheduler_config("total_resource_limits_consider_delay", 1000000000, wait_for_orchid=False)
         update_scheduler_config("operation_hangup_check_period", 1000000000)
         update_controller_agent_config("safe_scheduler_online_time", 1000000000)
         update_pool_tree_config(
@@ -672,7 +674,7 @@ class TestPoolMetrics(YTEnvSetup):
             })
 
         profiler = profiler_factory().at_scheduler(fixed_tags={"tree": "default"})
-        operation_count_by_preemption_priority_summary = profiler.summary("scheduler/operation_count_by_preemption_priority")
+        operation_count_by_preemption_priority_gauge = profiler.gauge("scheduler/operation_count_by_preemption_priority")
 
         create_pool("pool", wait_for_orchid=False)
         create_pool("subpool", attributes={"enable_aggressive_starvation": True})
@@ -696,25 +698,32 @@ class TestPoolMetrics(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_pool_path("pool") + "/starvation_status") == "starving")
         wait(lambda: get(scheduler_orchid_operation_path(op3.id) + "/starvation_status") == "aggressively_starving")
         wait(lambda: get(scheduler_orchid_pool_path("subpool") + "/starvation_status") == "aggressively_starving")
-
-        for priority in ["none", "regular", "aggressive"]:
-            wait(lambda: operation_count_by_preemption_priority_summary.get_max(tags={
-                "preemption_priority_scope": "operation_only",
-                "preemption_priority": priority
-            }) == 1.0)
         wait(lambda: get(scheduler_orchid_operation_path(op1.id) + "/lowest_starving_ancestor", default=None) is not None)
-        wait(lambda: operation_count_by_preemption_priority_summary.get_max(tags={
-            "preemption_priority_scope": "operation_and_ancestors",
-            "preemption_priority": "none"
-        }) == 0.0)
-        wait(lambda: operation_count_by_preemption_priority_summary.get_max(tags={
-            "preemption_priority_scope": "operation_and_ancestors",
-            "preemption_priority": "regular"
-        }) == 2.0)
-        wait(lambda: operation_count_by_preemption_priority_summary.get_max(tags={
-            "preemption_priority_scope": "operation_and_ancestors",
-            "preemption_priority": "aggressive"
-        }) == 1.0)
+
+        expected_counts_per_scope = {
+            "operation_only": {
+                "none": 1.0,
+                "regular": 1.0,
+                "aggressive": 1.0,
+                "ssd_regular": 0.0,
+                "ssd_aggressive": 0.0,
+            },
+            "operation_and_ancestors": {
+                "none": 0.0,
+                "regular": 2.0,
+                "aggressive": 1.0,
+                "ssd_regular": 0.0,
+                "ssd_aggressive": 0.0,
+            },
+        }
+        for scope, expected_counts in expected_counts_per_scope.items():
+            for priority, count in expected_counts.items():
+                for ssd_enabled in ["true", "false"]:
+                    wait(lambda: operation_count_by_preemption_priority_gauge.get(tags={
+                        "scope": scope,
+                        "ssd_priority_preemption_enabled": ssd_enabled,
+                        "priority": priority,
+                    }) == count)
 
     @authors("eshcherbin")
     def test_specified_resource_limits(self):
