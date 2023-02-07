@@ -178,9 +178,15 @@ private:
         InitializeReader();
 
         std::vector<TTableSchemaPtr> schemas;
-        auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
-        for (const auto& dataSource : dataSourceDirectory->DataSources()) {
-            schemas.emplace_back(dataSource.Schema() ? dataSource.Schema() : New<TTableSchema>());
+        if (JobSpecHelper_->GetSchedulerJobSpecExt().input_stream_schemas_size() > 0) {
+            for (const auto& schemaProto : JobSpecHelper_->GetSchedulerJobSpecExt().input_stream_schemas()) {
+                DeserializeFromWireProto(&schemas.emplace_back(), schemaProto);
+            }
+        } else {
+            auto dataSourceDirectory = JobSpecHelper_->GetDataSourceDirectory();
+            for (const auto& dataSource : dataSourceDirectory->DataSources()) {
+                schemas.emplace_back(dataSource.Schema() ? dataSource.Schema() : New<TTableSchema>());
+            }
         }
 
         auto writer = CreateStaticTableWriterForFormat(

@@ -1818,19 +1818,7 @@ for l in sys.stdin:
         assert len(result_rows) == row_count * len(input_schemas)
         assert sorted([r["a"] for r in result_rows]) == list(range(row_count * len(input_schemas)))
 
-    @authors("levysotsky")
-    @pytest.mark.xfail(reason="levysotsky: schema passing is broken")
-    @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
-    @pytest.mark.parametrize(
-        "method",
-        [
-            "ordered_map_reduce",
-        ],
-    )
-    def test_several_intermediate_schemas_failing(self, sort_order, method):
-        self._test_several_intermediate_schemas(sort_order, method)
-
-    @authors("levysotsky")
+    @authors("aleexfi")
     @pytest.mark.parametrize("sort_order", ["ascending", "descending"])
     @pytest.mark.parametrize(
         "method",
@@ -1838,6 +1826,7 @@ for l in sys.stdin:
             "map_reduce",
             "map_reduce_1p",
             "map_reduce_with_hierarchical_partitions",
+            "ordered_map_reduce",
         ],
     )
     def test_several_intermediate_schemas_passing(self, sort_order, method):
@@ -1847,6 +1836,10 @@ for l in sys.stdin:
         if sort_order == "descending":
             skip_if_no_descending(self.Env)
             self.skip_if_legacy_sorted_pool()
+
+        is_compat = "22_3" in getattr(self, "ARTIFACT_COMPONENTS", {})
+        if is_compat and method == "ordered_map_reduce":
+            pytest.xfail("Hasn't worked before")
 
         first_schema = [
             {"name": "a", "type_v3": "int64", "sort_order": sort_order},

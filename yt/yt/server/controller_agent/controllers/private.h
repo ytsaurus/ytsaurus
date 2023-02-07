@@ -39,7 +39,8 @@ DECLARE_REFCOUNTED_STRUCT(TOutputTable)
 DECLARE_REFCOUNTED_STRUCT(TIntermediateTable)
 
 DECLARE_REFCOUNTED_CLASS(TDataFlowGraph)
-DECLARE_REFCOUNTED_STRUCT(TStreamDescriptor)
+DECLARE_REFCOUNTED_STRUCT(TInputStreamDescriptor)
+DECLARE_REFCOUNTED_STRUCT(TOutputStreamDescriptor)
 
 DECLARE_REFCOUNTED_STRUCT(TBriefJobStatistics)
 
@@ -56,4 +57,3 @@ class TAggregatedJobStatistics;
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NControllerAgent::NControllers
-

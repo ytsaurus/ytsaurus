@@ -169,10 +169,11 @@ void TJoblet::Persist(const TPersistenceContext& context)
     Persist(context, TreeIsTentative);
     Persist(context, CompetitionType);
     Persist(context, JobSpeculationTimeout);
-    Persist(context, StreamDescriptors);
     Persist(context, DiskQuota);
     Persist(context, DiskRequestAccount);
     Persist(context, EnabledJobProfiler);
+    Persist(context, OutputStreamDescriptors);
+    Persist(context, InputStreamDescriptors);
 
     if (context.IsLoad()) {
         Revived = true;

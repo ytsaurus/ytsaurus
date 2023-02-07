@@ -25,7 +25,7 @@ using NYT::FromProto;
 
 TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
-    const TStreamDescriptorPtr& streamDescriptor,
+    const TOutputStreamDescriptorPtr& streamDescriptor,
     const TRowBufferPtr& rowBuffer)
 {
     YT_VERIFY(!boundaryKeys.empty());
@@ -119,6 +119,20 @@ NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
     }
     return dataSinkDirectory;
 }
+
+std::vector<TInputStreamDescriptorPtr> BuildInputStreamDescriptorsFromOutputStreamDescriptors(
+    const std::vector<TOutputStreamDescriptorPtr>& outputStreamDescriptors)
+{
+    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors;
+    inputStreamDescriptors.reserve(outputStreamDescriptors.size());
+
+    for (const auto& descriptor : outputStreamDescriptors) {
+        inputStreamDescriptors.push_back(TInputStreamDescriptor::FromOutputStreamDescriptor(descriptor));
+    }
+
+    return inputStreamDescriptors;
+}
+
 
 ////////////////////////////////////////////////////////////////////////////////
 

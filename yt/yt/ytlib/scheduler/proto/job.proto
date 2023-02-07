@@ -310,8 +310,12 @@ message TSchedulerJobSpecExt
 
     // Job input.
     optional bytes table_reader_options = 19 [(NYT.NYson.NProto.yson_string) = true];
+
     repeated TTableInputSpec input_table_specs = 3;
     repeated TTableInputSpec foreign_input_table_specs = 15;
+
+    // Serialized NTableClient.NProto.TTableSchemaExt with stream schemas.
+    repeated bytes input_stream_schemas = 38;
 
     // Job output.
     repeated TTableOutputSpec output_table_specs = 4;

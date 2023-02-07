@@ -138,7 +138,7 @@ protected:
         { }
 
         TOrderedTask(TOrderedControllerBase* controller)
-            : TTask(controller)
+            : TTask(controller, controller->GetStandardStreamDescriptors(), /*inputStreamDescriptors*/ {})
             , Controller_(controller)
         {
             auto options = controller->GetOrderedChunkPoolOptions();

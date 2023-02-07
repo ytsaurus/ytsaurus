@@ -133,7 +133,8 @@ struct TJoblet
 
     std::optional<TDuration> JobSpeculationTimeout;
 
-    std::vector<TStreamDescriptorPtr> StreamDescriptors;
+    std::vector<TOutputStreamDescriptorPtr> OutputStreamDescriptors;
+    std::vector<TInputStreamDescriptorPtr> InputStreamDescriptors;
 
     // These fields are used only to build job spec and thus transient.
     std::optional<TString> UserJobMonitoringDescriptor;

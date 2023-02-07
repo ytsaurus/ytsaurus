@@ -128,8 +128,11 @@ protected:
             : Controller_(nullptr)
         { }
 
-        TSortedTaskBase(TSortedControllerBase* controller, std::vector<TStreamDescriptorPtr> streamDescriptors)
-            : TTask(controller, std::move(streamDescriptors))
+        TSortedTaskBase(
+            TSortedControllerBase* controller,
+            std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
+            std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+            : TTask(controller, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
             , Controller_(controller)
             , Options_(controller->GetSortedChunkPoolOptions())
             , UseNewSortedPool_(ParseOperationSpec<TSortedOperationSpec>(ConvertToNode(Controller_->GetSpec()))->UseNewSortedPool)
@@ -618,9 +621,11 @@ protected:
         }
 
         if (autoMergeNeeded) {
-            SortedTask_ = New<TAutoMergeableSortedTask>(this, GetAutoMergeStreamDescriptors());
+            SortedTask_ = New<TAutoMergeableSortedTask>(this, GetAutoMergeStreamDescriptors(), std::vector<TInputStreamDescriptorPtr>{});
+            AutoMergeTask_->SetInputStreamDescriptors(
+                BuildInputStreamDescriptorsFromOutputStreamDescriptors(SortedTask_->GetOutputStreamDescriptors()));
         } else {
-            SortedTask_ = New<TSortedTask>(this, GetStandardStreamDescriptors());
+            SortedTask_ = New<TSortedTask>(this, GetStandardStreamDescriptors(), std::vector<TInputStreamDescriptorPtr>{});
         }
         RegisterTask(SortedTask_);
 

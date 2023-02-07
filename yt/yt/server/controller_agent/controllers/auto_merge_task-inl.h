@@ -42,7 +42,7 @@ public:
 
         this->TaskHost_->GetAutoMergeDirector()->OnTaskCompleted();
 
-        for (const auto& streamDescriptor : this->StreamDescriptors_) {
+        for (const auto& streamDescriptor : this->OutputStreamDescriptors_) {
             streamDescriptor->DestinationPool->Finish();
         }
     }

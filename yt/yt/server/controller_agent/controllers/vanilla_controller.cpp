@@ -39,8 +39,9 @@ public:
         ITaskHostPtr taskHost,
         TVanillaTaskSpecPtr spec,
         TString name,
-        std::vector<TStreamDescriptorPtr> streamDescriptors)
-        : TTask(std::move(taskHost), std::move(streamDescriptors))
+        std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
+        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+        : TTask(std::move(taskHost), std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
         , Spec_(std::move(spec))
         , Name_(std::move(name))
         , VanillaChunkPool_(CreateVanillaChunkPool({Spec_->JobCount, Spec_->RestartCompletedJobs, Logger}))
@@ -232,7 +233,7 @@ public:
         ValidateOperationLimits();
 
         for (const auto& [taskName, taskSpec] : Spec_->Tasks) {
-            std::vector<TStreamDescriptorPtr> streamDescriptors;
+            std::vector<TOutputStreamDescriptorPtr> streamDescriptors;
             int taskIndex = Tasks.size();
             for (int index = 0; index < std::ssize(TaskOutputTables_[taskIndex]); ++index) {
                 auto streamDescriptor = TaskOutputTables_[taskIndex][index]->GetStreamDescriptorTemplate(index)->Clone();
@@ -240,7 +241,12 @@ public:
                 streamDescriptor->TargetDescriptor = TDataFlowGraph::SinkDescriptor;
                 streamDescriptors.push_back(std::move(streamDescriptor));
             }
-            auto task = New<TVanillaTask>(this, taskSpec, taskName, std::move(streamDescriptors));
+            auto task = New<TVanillaTask>(
+                this,
+                taskSpec,
+                taskName,
+                std::move(streamDescriptors),
+                std::vector<TInputStreamDescriptorPtr>{});
             RegisterTask(task);
             FinishTaskInput(task);
 

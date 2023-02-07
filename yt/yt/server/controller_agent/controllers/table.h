@@ -131,7 +131,7 @@ struct TOutputTable
 
     int TableIndex;
 
-    TStreamDescriptorPtr GetStreamDescriptorTemplate(int tableIndex = -1);
+    TOutputStreamDescriptorPtr GetStreamDescriptorTemplate(int tableIndex = -1);
 
     bool IsBeginUploadCompleted() const;
 
