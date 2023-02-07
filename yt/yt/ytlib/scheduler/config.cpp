@@ -1878,6 +1878,9 @@ void TPoolPreemptionConfig::Register(TRegistrar registrar)
     registrar.Parameter("allow_aggressive_preemption", &TThis::AllowAggressivePreemption)
         .Alias("allow_aggressive_starvation_preemption")
         .Default();
+
+    registrar.Parameter("allow_regular_preemption", &TThis::AllowRegularPreemption)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
