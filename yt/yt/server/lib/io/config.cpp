@@ -145,6 +145,9 @@ void TGentleLoaderConfig::Register(TRegistrar registrar)
         .GreaterThan(0)
         .Default(96_MB);
 
+    registrar.Parameter("limit_max_window_sizes_by_max_write_rate", &TThis::LimitMaxWindowSizesByMaxWriteRate)
+        .Default(false);
+
     registrar.Parameter("initial_window_size", &TThis::InitialWindowSize)
         .Default(1);
 

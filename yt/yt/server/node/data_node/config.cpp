@@ -490,6 +490,9 @@ void TMediumThroughputMeterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("verification_window_period", &TThis::VerificationWindowPeriod)
         .Default(TDuration::Minutes(5));
+
+    registrar.Parameter("dwpd_factor", &TThis::DWPDFactor)
+        .Default(1);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

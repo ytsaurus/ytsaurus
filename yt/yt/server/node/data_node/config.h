@@ -545,6 +545,7 @@ public:
     double VerificationInitialWindowFactor;
     double VerificationSegmentSizeFactor;
     TDuration VerificationWindowPeriod;
+    double DWPDFactor;
 
     REGISTER_YSON_STRUCT(TMediumThroughputMeterConfig);
 
