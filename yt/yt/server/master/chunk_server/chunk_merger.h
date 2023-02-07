@@ -64,8 +64,11 @@ struct TChunkMergerSession
     NCypressClient::TObjectId AccountId;
 
     TChunkMergerTraversalInfo TraversalInfo;
+    bool TraversalFinished = false;
 
     int JobCount = 0;
+
+    bool IsReadyForFinalization() const;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
