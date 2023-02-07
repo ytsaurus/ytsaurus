@@ -492,7 +492,7 @@ void TNode::RecomputeIOWeights(const IChunkManagerPtr& chunkManager)
 
 ENodeState TNode::GetLocalState() const
 {
-    return *LocalStatePtr_;
+    return LocalStatePtr_ ? *LocalStatePtr_ : ENodeState::Unknown;
 }
 
 void TNode::SetLocalState(ENodeState state)
