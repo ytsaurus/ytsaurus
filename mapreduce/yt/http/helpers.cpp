@@ -4,6 +4,8 @@
 
 #include <mapreduce/yt/interface/logging/yt_log.h>
 
+#include <library/cpp/yson/node/node_io.h>
+
 namespace NYT {
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -36,6 +38,48 @@ TString GetFullUrl(const TString& hostName, const TAuth& auth, THttpHeader& head
 {
     Y_UNUSED(auth);
     return Format("http://%v%v", hostName, header.GetUrl());
+}
+
+static TString GetParametersDebugString(const THttpHeader& header)
+{
+    const auto& parameters = header.GetParameters();
+    if (parameters.Empty()) {
+        return "<empty>";
+    } else {
+        return NodeToYsonString(parameters);
+    }
+}
+
+TString TruncateForLogs(const TString& text, size_t maxSize)
+{
+    Y_VERIFY(maxSize > 10);
+    if (text.empty()) {
+        static TString empty = "empty";
+        return empty;
+    } else if (text.size() > maxSize) {
+        TStringStream out;
+        out << text.substr(0, maxSize) + "... ("  << text.size() << " bytes total)";
+        return out.Str();
+    } else {
+        return text;
+    }
+}
+
+TString GetLoggedAttributes(const THttpHeader& header, const TString& url, bool includeParameters, size_t sizeLimit)
+{
+    const auto parametersDebugString = GetParametersDebugString(header);
+    TStringStream out;
+    out << "Method: " << url << "; "
+        << "X-YT-Parameters (sent in " << (includeParameters ? "header" : "body") << "): " << TruncateForLogs(parametersDebugString, sizeLimit);
+    return out.Str();
+}
+
+void LogRequest(const THttpHeader& header, const TString& url, bool includeParameters, const TString& requestId, const TString& hostName)
+{
+    YT_LOG_DEBUG("REQ %v - sending request (HostName: %v; %v)",
+        requestId,
+        hostName,
+        GetLoggedAttributes(header, url, includeParameters, Max<size_t>()));
 }
 
 ///////////////////////////////////////////////////////////////////////////////

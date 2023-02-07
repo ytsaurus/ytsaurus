@@ -19,8 +19,8 @@ struct TAuth
     TString Token;
     NAuth::IServiceTicketAuthPtrWrapperPtr ServiceTicketAuth;
     NHttpClient::IHttpClientPtr HttpClient;
-    bool UseTLS;
-    bool TvmOnly;
+    bool TvmOnly = false;
+    bool UseTLS = false;
 };
 
 bool operator==(const TAuth& lhs, const TAuth& rhs);

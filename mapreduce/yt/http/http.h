@@ -25,6 +25,12 @@ namespace NYT {
 
 class TNode;
 
+namespace NHttp {
+
+struct THeadersPtrWrapper;
+
+} // NHttp
+
 ///////////////////////////////////////////////////////////////////////////////
 
 enum class EFrameType
@@ -32,6 +38,7 @@ enum class EFrameType
     Data = 0x01,
     KeepAlive = 0x02,
 };
+
 
 class THttpHeader
 {
@@ -63,7 +70,8 @@ public:
 
     TString GetCommand() const;
     TString GetUrl() const;
-    TString GetHeader(const TString& hostName, const TString& requestId, bool includeParameters = true) const;
+    TString GetHeaderAsString(const TString& hostName, const TString& requestId, bool includeParameters = true) const;
+    NHttp::THeadersPtrWrapper GetHeader(const TString& hostName, const TString& requestId, bool includeParameters) const;
 
     const TString& GetMethod() const;
 

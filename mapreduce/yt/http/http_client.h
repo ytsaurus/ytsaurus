@@ -48,24 +48,26 @@ class IHttpClient
 public:
     virtual ~IHttpClient() = default;
 
-    virtual IHttpResponsePtr Request(const TString& url, const TString& requestId, const THttpConfig& config, const THttpHeader& headers, TMaybe<TStringBuf> body = {}) = 0;
+    virtual IHttpResponsePtr Request(const TString& url, const TString& requestId, const THttpConfig& config, const THttpHeader& header, TMaybe<TStringBuf> body = {}) = 0;
 
-    virtual IHttpResponsePtr Request(const TString& url, const TString& requestId, const THttpHeader& headers, TMaybe<TStringBuf> body = {})
+    virtual IHttpResponsePtr Request(const TString& url, const TString& requestId, const THttpHeader& header, TMaybe<TStringBuf> body = {})
     {
-        return Request(url, requestId, /*config*/ {}, headers, body);
+        return Request(url, requestId, /*config*/ {}, header, body);
     }
 
-    virtual IHttpRequestPtr StartRequest(const TString& url, const TString& requestId, const THttpConfig& config, const THttpHeader& headers) = 0;
+    virtual IHttpRequestPtr StartRequest(const TString& url, const TString& requestId, const THttpConfig& config, const THttpHeader& header) = 0;
 
-    virtual IHttpRequestPtr StartRequest(const TString& url, const TString& requestId, const THttpHeader& headers)
+    virtual IHttpRequestPtr StartRequest(const TString& url, const TString& requestId, const THttpHeader& header)
     {
-        return StartRequest(url, requestId, /*config*/ {}, headers);
+        return StartRequest(url, requestId, /*config*/ {}, header);
     }
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 
 IHttpClientPtr CreateDefaultHttpClient();
+
+IHttpClientPtr CreateCoreHttpClient(bool useTLS);
 
 ///////////////////////////////////////////////////////////////////////////////
 

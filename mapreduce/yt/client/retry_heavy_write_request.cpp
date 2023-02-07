@@ -50,7 +50,6 @@ void RetryHeavyWriteRequest(
             header.SetRequestCompression(ToString(TConfig::Get()->ContentEncoding));
 
             auto request = auth.HttpClient->StartRequest(GetFullUrl(hostName, auth, header), requestId, header);
-
             TransferData(input.Get(), request->GetStream());
             request->Finish()->GetResponse();
         } catch (TErrorResponse& e) {

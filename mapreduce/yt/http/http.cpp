@@ -1,6 +1,8 @@
 #include "http.h"
 
 #include "abortable_http_response.h"
+#include "core.h"
+#include "helpers.h"
 
 #include <mapreduce/yt/common/config.h>
 #include <mapreduce/yt/common/helpers.h>
@@ -9,6 +11,8 @@
 
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/logging/yt_log.h>
+
+#include <yt/yt/core/http/http.h>
 
 #include <library/cpp/json/json_writer.h>
 
@@ -32,23 +36,6 @@
 
 
 namespace NYT {
-
-////////////////////////////////////////////////////////////////////////////////
-
-static TString TruncateForLogs(const TString& text, size_t maxSize)
-{
-    Y_VERIFY(maxSize > 10);
-    if (text.empty()) {
-        static TString empty = "empty";
-        return empty;
-    } else if (text.size() > maxSize) {
-        TStringStream out;
-        out << text.substr(0, maxSize) + "... ("  << text.size() << " bytes total)";
-        return out.Str();
-    } else {
-        return text;
-    }
-}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -276,38 +263,54 @@ bool THttpHeader::ShouldAcceptFraming() const
     return TConfig::Get()->CommandsWithFraming.contains(Command);
 }
 
-TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId, bool includeParameters) const
+TString THttpHeader::GetHeaderAsString(const TString& hostName, const TString& requestId, bool includeParameters) const
 {
-    TStringStream header;
+    TStringStream result;
 
-    header << Method << " " << GetUrl() << " HTTP/1.1\r\n";
-    header << "Host: " << hostName << "\r\n";
-    header << "User-Agent: " << TProcessState::Get()->ClientVersion << "\r\n";
+    result << Method << " " << GetUrl() << " HTTP/1.1\r\n";
+
+    GetHeader(hostName, requestId, includeParameters).Get()->WriteTo(&result);
+
+    if (ShouldAcceptFraming()) {
+        result << "X-YT-Accept-Framing: 1\r\n";
+    }
+
+    result << "\r\n";
+
+    return result.Str();
+}
+
+NHttp::THeadersPtrWrapper THttpHeader::GetHeader(const TString& hostName, const TString& requestId, bool includeParameters) const
+{
+    auto headers = New<NHttp::THeaders>();
+
+    headers->Add("Host", hostName);
+    headers->Add("User-Agent", TProcessState::Get()->ClientVersion);
 
     if (!Token.empty()) {
-        header << "Authorization: OAuth " << Token << "\r\n";
+        headers->Add("Authorization", "OAuth " + Token);
     }
     if (!ServiceTicket.empty()) {
-        header << "X-Ya-Service-Ticket: " << ServiceTicket << "\r\n";
+        headers->Add("X-Ya-Service-Ticket", ServiceTicket);
     }
 
     if (Method == "PUT" || Method == "POST") {
-        header << "Transfer-Encoding: chunked\r\n";
+        headers->Add("Transfer-Encoding", "chunked");
     }
 
-    header << "X-YT-Correlation-Id: " << requestId << "\r\n";
-    header << "X-YT-Header-Format: <format=text>yson\r\n";
+    headers->Add("X-YT-Correlation-Id", requestId);
+    headers->Add("X-YT-Header-Format", "<format=text>yson");
 
-    header << "Content-Encoding: " << RequestCompression << "\r\n";
-    header << "Accept-Encoding: " << ResponseCompression << "\r\n";
+    headers->Add("Content-Encoding", RequestCompression);
+    headers->Add("Accept-Encoding", ResponseCompression);
 
-    auto printYTHeader = [&header] (const char* headerName, const TString& value) {
+    auto printYTHeader = [&headers] (const char* headerName, const TString& value) {
         static const size_t maxHttpHeaderSize = 64 << 10;
         if (!value) {
             return;
         }
         if (value.size() <= maxHttpHeaderSize) {
-            header << headerName << ": " << value << "\r\n";
+            headers->Add(headerName, value);
             return;
         }
 
@@ -318,8 +321,7 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
         size_t index = 0;
         do {
             auto end = Min(ptr + maxHttpHeaderSize, finish);
-            header << headerName << index++ << ": " <<
-                TStringBuf(ptr, end) << "\r\n";
+            headers->Add(Format("%v%v", headerName, index++), TString(ptr, end));
             ptr = end;
         } while (ptr != finish);
     };
@@ -334,13 +336,7 @@ TString THttpHeader::GetHeader(const TString& hostName, const TString& requestId
         printYTHeader("X-YT-Parameters", NodeToYsonString(Parameters));
     }
 
-    if (ShouldAcceptFraming()) {
-        header << "X-YT-Accept-Framing: 1\r\n";
-    }
-
-    header << "\r\n";
-
-    return header.Str();
+    return NHttp::THeadersPtrWrapper(std::move(headers));
 }
 
 const TString& THttpHeader::GetMethod() const
@@ -907,34 +903,14 @@ void THttpRequest::Connect(TString hostName, TDuration socketTimeout)
         Connection->Id);
 }
 
-static TString GetParametersDebugString(const THttpHeader& header)
-{
-    const auto& parameters = header.GetParameters();
-    if (parameters.Empty()) {
-        return "<empty>";
-    } else {
-        return NodeToYsonString(parameters);
-    }
-}
-
 IOutputStream* THttpRequest::StartRequestImpl(const THttpHeader& header, bool includeParameters)
 {
-    auto strHeader = header.GetHeader(HostName, RequestId, includeParameters);
+    auto strHeader = header.GetHeaderAsString(HostName, RequestId, includeParameters);
     Url_ = header.GetUrl();
 
-    const auto parametersDebugString = GetParametersDebugString(header);
-    auto getLoggedAttributes = [&] (size_t sizeLimit) {
-        TStringStream out;
-        out << "Method: " << Url_ << "; "
-            << "X-YT-Parameters (sent in " << (includeParameters ? "header" : "body") << "): " << TruncateForLogs(parametersDebugString, sizeLimit);
-        return out.Str();
-    };
-    YT_LOG_DEBUG("REQ %v - sending request (HostName: %v; %v)",
-        RequestId,
-        HostName,
-        getLoggedAttributes(Max<size_t>()));
+    LogRequest(header, Url_, includeParameters, RequestId, HostName);
 
-    LoggedAttributes_ = getLoggedAttributes(128);
+    LoggedAttributes_ = GetLoggedAttributes(header, Url_, includeParameters, 128);
 
     auto outputFormat = header.GetOutputFormat();
     if (outputFormat && outputFormat->IsTextYson()) {

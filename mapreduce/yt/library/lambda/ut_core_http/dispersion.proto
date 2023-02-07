@@ -1,0 +1,20 @@
+import "mapreduce/yt/interface/protos/extension.proto";
+
+message TSimpleKeyValue {
+    required string Key = 1          [(NYT.column_name) = "key"];
+    required uint64 Value = 2        [(NYT.column_name) = "value"];
+}
+
+message TDispersionDataMsg {
+    required string Key = 1          [(NYT.column_name) = "key"];
+    required uint64 Count = 2        [(NYT.column_name) = "count"];
+    required double Sum = 3          [(NYT.column_name) = "sum"];
+    required double SumSquared = 4   [(NYT.column_name) = "sum_squared"];
+}
+
+message TKeyStat {
+    required string Key = 1          [(NYT.column_name) = "key"];
+    required double Mean = 2         [(NYT.column_name) = "mean"];
+    required double Sigma = 3        [(NYT.column_name) = "sigma"];
+}
+

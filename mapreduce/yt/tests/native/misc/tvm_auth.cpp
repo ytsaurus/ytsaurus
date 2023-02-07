@@ -83,18 +83,18 @@ Y_UNIT_TEST_SUITE(TvmAuth)
             CreateTestClient("somecluster", TCreateClientOptions()
                 .ServiceTicketAuth(serviceTicketAuth)
                 .TvmOnly(true)),
-            yexception,
-            [] (const yexception& ex) {
-                return ex.AsStrBuf().Contains("tvm.somecluster.yt.yandex.net:9026");
+            std::exception,
+            [] (const std::exception& ex) {
+                return TString{ex.what()}.Contains("tvm.somecluster.yt.yandex.net:9026");
             }
         );
 
         UNIT_ASSERT_EXCEPTION_SATISFIES(
             CreateTestClient("somecluster", TCreateClientOptions()
                 .ServiceTicketAuth(serviceTicketAuth)),
-            yexception,
-            [] (const yexception& ex) {
-                return ex.AsStrBuf().Contains("somecluster.yt.yandex.net:80");
+            std::exception,
+            [] (const std::exception& ex) {
+                return TString{ex.what()}.Contains("somecluster.yt.yandex.net:80");
             }
         );
     }

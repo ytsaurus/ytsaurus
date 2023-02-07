@@ -1016,6 +1016,14 @@ struct TCreateClientOptions
 
     FLUENT_FIELD_DEFAULT(bool, TvmOnly, false);
 
+    /// @brief Use HTTPs (use HTTP client from yt/yt/core always).
+    ///
+    /// @see UseCoreHttpClient
+    FLUENT_FIELD_DEFAULT(bool, UseTLS, false);
+
+    /// @brief Use HTTP client from yt/yt/core.
+    FLUENT_FIELD_DEFAULT(bool, UseCoreHttpClient, false);
+
     ///
     /// @brief RetryConfig provider allows to fine tune request retries.
     ///
