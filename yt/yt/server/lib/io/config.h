@@ -111,7 +111,7 @@ struct TGentleLoaderConfig
     int MaxInFlightCount;
 
     // 100 means only reads, 0 - only writes.
-    ui8 DefaultReadToWriteRatio;
+    int DefaultReadToWriteRatio;
 
     // Use accumulated statistics to derive read/write ratio after
     // this bytes count transmitted (read+written).
@@ -123,7 +123,7 @@ struct TGentleLoaderConfig
     // Measured in packets.
     int SegmentSize;
 
-    // Sane maximum window value.
+    // Sane maximum window value, i.e. max IO per second.
     int MaxWindowSize;
 
     // Each writer corresponds to one open file for write.
@@ -158,6 +158,9 @@ struct TGentleLoaderConfig
 
     // Max write rate limit (mb/s)
     i64 MaxWriteRate;
+
+    // If true, read request will not disproportionally outgrow write requests.
+    bool LimitMaxWindowSizesByMaxWriteRate;
 
     // The followings are very low-level settings (do not use if unsure).
     int InitialWindowSize;

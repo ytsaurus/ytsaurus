@@ -112,8 +112,22 @@ public:
 
         // Override max write rate for current location.
         mediumConfig = CloneYsonSerializable(mediumConfig);
-        if (auto maxWriteRate = Location_->GetMaxWriteRateByDwpd()) {
-            mediumConfig->MaxWriteRate = maxWriteRate;
+        if (auto dwpd = Location_->GetMaxWriteRateByDwpd()) {
+            mediumConfig->MaxWriteRate = static_cast<i64>(dwpd * mediumConfig->DWPDFactor);
+
+            YT_LOG_DEBUG("Setting MaxWriteRate for io test (Location: %v, DWPD: %v, DWPDFactor: %v, MaxWriteRate: %v)",
+                Location_->GetId(),
+                dwpd,
+                mediumConfig->DWPDFactor,
+                mediumConfig->MaxWriteRate);
+        }
+
+        if (mediumConfig->MaxWriteRate == 0) {
+            YT_LOG_WARNING("Skipping load test for location. DWPD of current disk is unknown (Location: %v)",
+                Location_->GetId());
+
+            Stop();
+            return;
         }
 
         auto now = TInstant::Now();

@@ -22,7 +22,8 @@ using namespace NConcurrency;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const int PageSize = 4_KB;
+static constexpr int PageSize = 4_KB;
+static constexpr int IOScale = 100;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -160,7 +161,8 @@ public:
             Writer(std::move(writer))
         { }
 
-        ~TStopGuard() {
+        ~TStopGuard()
+        {
             Writer->Stop();
         }
 
@@ -678,15 +680,18 @@ public:
         return Requests_[index];
     }
 
-    i64 TotalByteCount() const {
+    i64 TotalByteCount() const
+    {
         return TotalByteCount_;
     }
 
-    i64 TotalIOCount() const {
+    i64 TotalIOCount() const
+    {
         return Weights_.back();
     }
 
-    i64 AverageRequestSize() const  {
+    i64 AverageRequestSize() const
+    {
         return AverageRequestSize_;
     }
 
@@ -865,7 +870,7 @@ private:
     const IRandomFileProviderPtr RandomFileProvider_;
     const IInvokerPtr Invoker_;
 
-    ui8 ReadToWriteRatio_;
+    int ReadToWriteRatio_;
     ILoadAdjusterPtr LoadAdjuster_;
     TRequestSamplerPtr ReadRequestSampler_;
     TRequestSamplerPtr WriteRequestSampler_;
@@ -919,17 +924,19 @@ private:
 
         ImbueWorkloadModel(workloadModel);
 
+        const int maxWindowSize = GetMaxWindowSize();
         const int initialWindow = Config_->InitialWindowSize;
 
         // State variable that limits the amount of data to send to medium.
         int congestionWindow = initialWindow;
+
         auto congestionWindowChanged = TInstant::Now();
 
         // State variable determines whether the slow start or congestion avoidance algorithm
         // is used to control data transmission
         int slowStartThreshold = Config_->InitialSlowStartThreshold
-            ? Config_->InitialSlowStartThreshold
-            : Config_->MaxWindowSize;
+            ? std::min(maxWindowSize, Config_->InitialSlowStartThreshold)
+            : maxWindowSize;
 
         TCongestedState lastState;
         i64 requestCounter = 0;
@@ -982,14 +989,14 @@ private:
                 }
 
                 // Keeping window in sane limits.
-                congestionWindow = std::min(Config_->MaxWindowSize, congestionWindow);
+                congestionWindow = std::min(maxWindowSize, congestionWindow);
                 congestionWindow = std::max(initialWindow, congestionWindow);
 
                 if (prevWindow != congestionWindow) {
                     congestionWindowChanged = TInstant::Now();
                 }
 
-                YT_LOG_DEBUG("New congestion message received"
+                YT_LOG_INFO("New congestion message received"
                     " (Index: %v, Status: %v, CongestionWindow: %v, SlowStartThreshold: %v, RequestCounter: %v)",
                     state.Epoch,
                     state.Status,
@@ -1000,7 +1007,21 @@ private:
                 // Signal probing round finished.
                 ProbesRoundFinished_.Fire(prevWindow);
 
-                if (state.Status != ECongestedStatus::OK) {
+                bool reachedMaximumWindow = prevWindow == maxWindowSize;
+
+                if (reachedMaximumWindow) {
+                    YT_LOG_INFO("Reporting congested state because we have reached maximum window size"
+                        " (Index: %v, Status: %v, CongestionWindow: %v, MaxWindowSize: %v)",
+                        state.Epoch,
+                        state.Status,
+                        congestionWindow,
+                        maxWindowSize);
+
+                    slowStartThreshold = congestionWindow / 2;
+                    congestionWindow = slowStartThreshold;
+                }
+
+                if (reachedMaximumWindow || state.Status != ECongestedStatus::OK) {
                     // Signal congested.
                     Congested_.Fire(prevWindow);
                     // If congested wait all inflight events before starting new round.
@@ -1049,11 +1070,9 @@ private:
                 Results_.end());
         }
 
-        static const ui8 IOScale = 100;
-
         i64 desiredWriteIOPS = congestionWindow * (IOScale - ReadToWriteRatio_) / IOScale;
 
-        TFuture<TDuration> future = ReadToWriteRatio_ > RandomNumber(IOScale)
+        TFuture<TDuration> future = ReadToWriteRatio_ > static_cast<int>(RandomNumber<ui32>(IOScale))
             ? SendReadRequest(reader)
             : SendWriteRequest(writer, desiredWriteIOPS);
 
@@ -1124,8 +1143,27 @@ private:
         }
     }
 
+    int GetMaxWindowSize() const
+    {
+        if (!Config_->LimitMaxWindowSizesByMaxWriteRate) {
+            return Config_->MaxWindowSize;
+        }
+
+        int maxWriteIOPS = Config_->MaxWriteRate / WriteRequestSampler_->AverageRequestSize();
+        int maxTotalIops = maxWriteIOPS * IOScale / std::max(IOScale - ReadToWriteRatio_, 1);
+
+        YT_LOG_DEBUG("Max window size calculated based on MaxWriteRate "
+            "(MaxWriteRate: %v, ReadToWriteRatio: %v, ConfigMaxWindowSize: %v, CalculatedMaxWindowSize: %v)",
+            Config_->MaxWriteRate,
+            ReadToWriteRatio_,
+            Config_->MaxWindowSize,
+            maxTotalIops);
+
+        return std::min(Config_->MaxWindowSize, maxTotalIops);
+    }
+
     // TODO(capone212): Remove after using request sizes histogram everywhere.
-     static ui8 GetReadToWriteRatio(
+     static int GetReadToWriteRatio(
         const TGentleLoaderConfigPtr& config,
         IIOEngineWorkloadModelPtr engine)
     {
