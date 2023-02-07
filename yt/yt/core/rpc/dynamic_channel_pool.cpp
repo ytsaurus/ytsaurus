@@ -455,7 +455,7 @@ private:
             } else {
                 auto error = owner->MakeNoAlivePeersError()
                     << GetDiscoveryErrors();
-                YT_LOG_ERROR(error, "Error performing peer discovery");
+                YT_LOG_DEBUG(error, "Error performing peer discovery");
                 owner->ViablePeerRegistry_->SetError(error);
                 FinishedPromise_.Set(error);
             }
