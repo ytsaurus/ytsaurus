@@ -121,6 +121,10 @@ public:
 
     std::optional<bool> AllowAggressivePreemption;
 
+    // NB(eshcherbin): Intended for testing purposes only.
+    // Should not be used in real clusters, unless something extraordinary happens.
+    bool AllowRegularPreemption;
+
     REGISTER_YSON_STRUCT(TPoolPreemptionConfig);
 
     static void Register(TRegistrar registrar);

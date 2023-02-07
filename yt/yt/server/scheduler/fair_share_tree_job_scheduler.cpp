@@ -193,6 +193,35 @@ EOperationPreemptionPriority GetOperationPreemptionPriority(
 
 ////////////////////////////////////////////////////////////////////////////////
 
+std::optional<bool> IsAggressivePreemptionAllowed(const TSchedulerElement* element)
+{
+    switch (element->GetType()) {
+        case ESchedulerElementType::Root:
+            return true;
+        case ESchedulerElementType::Pool:
+            return static_cast<const TSchedulerPoolElement*>(element)->GetConfig()->AllowAggressivePreemption;
+        case ESchedulerElementType::Operation: {
+            const auto* operationElement = static_cast<const TSchedulerOperationElement*>(element);
+            if (operationElement->IsGang() && !operationElement->TreeConfig()->AllowAggressivePreemptionForGangOperations) {
+                return false;
+            }
+            return {};
+        }
+    }
+}
+
+bool IsRegularPreemptionAllowed(const TSchedulerElement* element)
+{
+    switch (element->GetType()) {
+        case ESchedulerElementType::Pool:
+            return static_cast<const TSchedulerPoolElement*>(element)->GetConfig()->AllowRegularPreemption;
+        default:
+            return true;
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -1240,8 +1269,15 @@ const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
             return current;
         }
 
+        // NB: This option is intended only for testing purposes.
+        if (!IsRegularPreemptionAllowed(current)) {
+            UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::ForbiddenInAncestorConfig);
+            return element;
+        }
+
         current = current->GetParent();
     }
+
 
     UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::AllowedUnconditionally);
     return {};
@@ -3391,23 +3427,6 @@ void TFairShareTreeJobScheduler::CountOperationsByPreemptionPriority(
     OperationCountByPreemptionPriorityBufferedProducer_->Update(std::move(sensorBuffer));
 
     postUpdateContext->OperationCountsByPreemptionPriorityParameters = std::move(operationCountsByPreemptionPriorityParameters);
-}
-
-std::optional<bool> TFairShareTreeJobScheduler::IsAggressivePreemptionAllowed(const TSchedulerElement* element)
-{
-    switch (element->GetType()) {
-        case ESchedulerElementType::Root:
-            return true;
-        case ESchedulerElementType::Pool:
-            return static_cast<const TSchedulerPoolElement*>(element)->GetConfig()->AllowAggressivePreemption;
-        case ESchedulerElementType::Operation: {
-            const auto* operationElement = static_cast<const TSchedulerOperationElement*>(element);
-            if (operationElement->IsGang() && !operationElement->TreeConfig()->AllowAggressivePreemptionForGangOperations) {
-                return false;
-            }
-            return {};
-        }
-    }
 }
 
 const TFairShareTreeJobSchedulerNodeState* TFairShareTreeJobScheduler::FindNodeState(TNodeId nodeId) const
