@@ -16,7 +16,7 @@ namespace NYT::NControllerAgent::NControllers {
 
 NChunkPools::TBoundaryKeys BuildBoundaryKeysFromOutputResult(
     const NScheduler::NProto::TOutputResult& boundaryKeys,
-    const TStreamDescriptorPtr& outputTable,
+    const TOutputStreamDescriptorPtr& outputTable,
     const NTableClient::TRowBufferPtr& rowBuffer);
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +30,9 @@ NChunkClient::TDataSinkDirectoryPtr BuildDataSinkDirectoryWithAutoMerge(
     const std::optional<TString>& intermediateAccountName);
 
 NChunkClient::TDataSink BuildDataSinkFromOutputTable(const TOutputTablePtr& outputTable);
+
+std::vector<TInputStreamDescriptorPtr> BuildInputStreamDescriptorsFromOutputStreamDescriptors(
+    const std::vector<TOutputStreamDescriptorPtr>& outputStreamDescriptors);
 
 ////////////////////////////////////////////////////////////////////////////////
 

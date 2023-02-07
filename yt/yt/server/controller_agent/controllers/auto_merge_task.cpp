@@ -141,14 +141,15 @@ TAutoMergeTask::TAutoMergeTask(
     i64 chunkSizeThreshold,
     i64 dataWeightPerJob,
     i64 maxDataWeightPerJob,
-    std::vector<TStreamDescriptorPtr> streamDescriptors)
-    : TTask(taskHost, std::move(streamDescriptors))
+    std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
+    std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors)
+    : TTask(taskHost, std::move(outputStreamDescriptors), std::move(inputStreamDescriptors))
     , FakeProgressCounters_{New<TProgressCounter>(), New<TProgressCounter>()}
     , EnableShallowMerge_(taskHost->GetSpec()->AutoMerge->EnableShallowMerge)
 {
-    ChunkPools_.reserve(StreamDescriptors_.size());
-    CurrentChunkCounts_.resize(StreamDescriptors_.size(), 0);
-    for (int poolIndex = 0; poolIndex < std::ssize(StreamDescriptors_); ++poolIndex) {
+    ChunkPools_.reserve(OutputStreamDescriptors_.size());
+    CurrentChunkCounts_.resize(OutputStreamDescriptors_.size(), 0);
+    for (int poolIndex = 0; poolIndex < std::ssize(OutputStreamDescriptors_); ++poolIndex) {
         auto autoMergeJobSizeConstraints = CreateExplicitJobSizeConstraints(
             false /* canAdjustDataSizePerJob */,
             false /* isExplicitJobCount */,
@@ -452,12 +453,13 @@ void TAutoMergeTask::OnChunkTeleported(TInputChunkPtr teleportChunk, std::any ta
 void TAutoMergeTask::SetStreamDescriptors(TJobletPtr joblet) const
 {
     auto poolIndex = *joblet->InputStripeList->PartitionTag;
-    joblet->StreamDescriptors = {StreamDescriptors_[poolIndex]};
+    joblet->OutputStreamDescriptors = {OutputStreamDescriptors_[poolIndex]};
+    joblet->InputStreamDescriptors = InputStreamDescriptors_;
 }
 
 int TAutoMergeTask::GetTableIndex(int poolIndex) const
 {
-    return *StreamDescriptors_[poolIndex]->PartitionTag;
+    return *OutputStreamDescriptors_[poolIndex]->PartitionTag;
 }
 
 TJobSplitterConfigPtr TAutoMergeTask::GetJobSplitterConfig() const

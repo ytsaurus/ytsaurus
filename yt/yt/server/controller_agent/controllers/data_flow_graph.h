@@ -77,9 +77,40 @@ DEFINE_REFCOUNTED_TYPE(TDataFlowGraph);
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// NB: store all the fields for TStreamDescriptor in a non-refcounted
+// TStreamDescriptor base to copy all the fields in Clone() function at once.
 struct TStreamDescriptorBase
 {
-    TStreamDescriptorBase() = default;
+    std::vector<NTableClient::TTableSchemaPtr> StreamSchemas;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TInputStreamDescriptor
+    : public TRefCounted
+    , public TStreamDescriptorBase
+{
+    static TInputStreamDescriptorPtr FromOutputStreamDescriptor(
+        TOutputStreamDescriptorPtr outputStreamDescriptor);
+
+    TInputStreamDescriptor(TStreamDescriptorBase base);
+    TInputStreamDescriptor() = default;
+
+    TInputStreamDescriptorPtr Clone() const;
+
+    void Persist(const TPersistenceContext& context);
+};
+
+DEFINE_REFCOUNTED_TYPE(TInputStreamDescriptor);
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TOutputStreamDescriptorBase
+    : public TStreamDescriptorBase
+{
+    TOutputStreamDescriptorBase() = default;
 
     // Keep fields below in sync with operator =.
     NChunkPools::IPersistentChunkPoolInputPtr DestinationPool;
@@ -98,8 +129,6 @@ struct TStreamDescriptorBase
     bool IsFinalOutput = false;
     bool IsOutputTableDynamic = false;
 
-    std::vector<NTableClient::TTableSchemaPtr> StreamSchemas;
-
     // In most situations coincides with the index of an stream descriptor,
     // but in some situations may differ. For example, an auto merge task
     // may have the only output descriptor, but we would like to attach
@@ -112,19 +141,19 @@ struct TStreamDescriptorBase
 
 };
 
-struct TStreamDescriptor
+struct TOutputStreamDescriptor
     : public TRefCounted
-    , public TStreamDescriptorBase
+    , public TOutputStreamDescriptorBase
 {
-    TStreamDescriptor(TStreamDescriptorBase base);
-    TStreamDescriptor() = default;
+    TOutputStreamDescriptor(TOutputStreamDescriptorBase base);
+    TOutputStreamDescriptor() = default;
 
-    TStreamDescriptorPtr Clone() const;
+    TOutputStreamDescriptorPtr Clone() const;
 
     void Persist(const TPersistenceContext& context);
 };
 
-DEFINE_REFCOUNTED_TYPE(TStreamDescriptor);
+DEFINE_REFCOUNTED_TYPE(TOutputStreamDescriptor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

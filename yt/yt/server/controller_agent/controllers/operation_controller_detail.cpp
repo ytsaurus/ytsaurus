@@ -1439,7 +1439,7 @@ void TOperationControllerBase::StartTransactions()
 
 void TOperationControllerBase::InitInputStreamDirectory()
 {
-    std::vector<TInputStreamDescriptor> inputStreams;
+    std::vector<NChunkPools::TInputStreamDescriptor> inputStreams;
     inputStreams.reserve(InputTables_.size());
     for (const auto& [tableIndex, inputTable] : Enumerate(InputTables_)) {
         for (const auto& [rangeIndex, range] : Enumerate(inputTable->Path.GetRanges())) {
@@ -1794,8 +1794,8 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
 
     const auto standardStreamDescriptors = GetStandardStreamDescriptors();
 
-    std::vector<TStreamDescriptorPtr> streamDescriptors;
-    streamDescriptors.reserve(OutputTables_.size());
+    std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors;
+    outputStreamDescriptors.reserve(OutputTables_.size());
     for (int index = 0; index < std::ssize(OutputTables_); ++index) {
         const auto& outputTable = OutputTables_[index];
         if (outputTable->Path.GetAutoMerge()) {
@@ -1807,13 +1807,13 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
                 // index in writer options with 0.
                 streamDescriptor->TableWriterOptions = CloneYsonSerializable(streamDescriptor->TableWriterOptions);
                 streamDescriptor->TableWriterOptions->TableIndex = 0;
-                streamDescriptors.push_back(std::move(streamDescriptor));
+                outputStreamDescriptors.push_back(std::move(streamDescriptor));
                 AutoMergeEnabled_[index] = true;
             }
         }
     }
 
-    bool autoMergeEnabled = !streamDescriptors.empty();
+    bool autoMergeEnabled = !outputStreamDescriptors.empty();
     if (autoMergeEnabled) {
         AutoMergeTask_ = New<TAutoMergeTask>(
             /*taskHost*/ this,
@@ -1821,7 +1821,8 @@ bool TOperationControllerBase::TryInitAutoMerge(int outputChunkCountEstimate)
             autoMergeSpec->ChunkSizeThreshold,
             dataWeightPerJob,
             Spec_->MaxDataWeightPerJob,
-            std::move(streamDescriptors));
+            std::move(outputStreamDescriptors),
+            std::vector<TInputStreamDescriptorPtr>{});
         RegisterTask(AutoMergeTask_);
     }
 
@@ -1899,7 +1900,7 @@ IYPathServicePtr TOperationControllerBase::BuildZombieOrchid()
     return orchid;
 }
 
-std::vector<TStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeStreamDescriptors()
+std::vector<TOutputStreamDescriptorPtr> TOperationControllerBase::GetAutoMergeStreamDescriptors()
 {
     auto streamDescriptors = GetStandardStreamDescriptors();
     YT_VERIFY(GetAutoMergeDirector());
@@ -4956,7 +4957,7 @@ void TOperationControllerBase::CheckFailedJobsStatusReceived()
     }
 }
 
-const std::vector<TStreamDescriptorPtr>& TOperationControllerBase::GetStandardStreamDescriptors() const
+const std::vector<TOutputStreamDescriptorPtr>& TOperationControllerBase::GetStandardStreamDescriptors() const
 {
     return StandardStreamDescriptors_;
 }
@@ -9701,9 +9702,9 @@ TTableWriterOptionsPtr TOperationControllerBase::GetIntermediateTableWriterOptio
     return options;
 }
 
-TStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescriptorTemplate() const
+TOutputStreamDescriptorPtr TOperationControllerBase::GetIntermediateStreamDescriptorTemplate() const
 {
-    auto descriptor = New<TStreamDescriptor>();
+    auto descriptor = New<TOutputStreamDescriptor>();
     descriptor->CellTags = IntermediateOutputCellTagList;
 
     descriptor->TableWriterOptions = GetIntermediateTableWriterOptions();

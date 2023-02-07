@@ -71,8 +71,10 @@ public:
 public:
     //! For persistence only.
     TTask();
-    TTask(ITaskHostPtr taskHost, std::vector<TStreamDescriptorPtr> streamDescriptors);
-    explicit TTask(ITaskHostPtr taskHost);
+    TTask(
+        ITaskHostPtr taskHost,
+        std::vector<TOutputStreamDescriptorPtr> outputStreamDescriptors,
+        std::vector<TInputStreamDescriptorPtr> inputStreamDescriptors);
 
     //! This method is called on task object creation (both at clean creation and at revival).
     //! It may be used when calling virtual method is needed, but not allowed.
@@ -95,6 +97,11 @@ public:
 
     //! Returns the list of all possible vertex desciptors for the task.
     virtual TVertexDescriptorList GetAllVertexDescriptors() const;
+
+    const std::vector<TOutputStreamDescriptorPtr>& GetOutputStreamDescriptors() const;
+    const std::vector<TInputStreamDescriptorPtr>& GetInputStreamDescriptors() const;
+
+    void SetInputStreamDescriptors(std::vector<TInputStreamDescriptorPtr> streamDescriptors);
 
     //! Human-readable title of a particular task that appears in logging. For builtin tasks it coincides
     //! with the vertex descriptor and a task level in brackets (if applicable).
@@ -162,7 +169,7 @@ public:
         TError error,
         NChunkPools::IChunkPoolInput::TCookie cookie,
         const NChunkPools::TChunkStripePtr& stripe,
-        const TStreamDescriptorPtr& streamDescriptor);
+        const TOutputStreamDescriptorPtr& streamDescriptor);
 
     void CheckResourceDemandSanity(const NScheduler::TJobResources& neededResources);
     void DoCheckResourceDemandSanity(const NScheduler::TJobResources& neededResources);
@@ -219,7 +226,7 @@ public:
     void BuildTaskYson(NYTree::TFluentMap fluent) const;
 
     virtual void PropagatePartitions(
-        const std::vector<TStreamDescriptorPtr>& streamDescriptors,
+        const std::vector<TOutputStreamDescriptorPtr>& streamDescriptors,
         const NChunkPools::TChunkStripeListPtr& inputStripeList,
         std::vector<NChunkPools::TChunkStripePtr>* outputStripes);
 
@@ -247,10 +254,11 @@ protected:
     ITaskHost* TaskHost_;
 
     //! Outgoing data stream descriptors.
-    std::vector<TStreamDescriptorPtr> StreamDescriptors_;
+    std::vector<TOutputStreamDescriptorPtr> OutputStreamDescriptors_;
 
-    //! Incoming data stream schemas.
-    std::vector<NTableClient::TTableSchemaPtr> InputStreamSchemas_;
+    //! Incoming data stream descriptors.
+    //! NB: The field is filled for only SortedMerge tasks. Fill it if you need it somewhere else.
+    std::vector<TInputStreamDescriptorPtr> InputStreamDescriptors_;
 
     //! Increments each time a new job in this task is scheduled.
     TIdGenerator TaskJobIndexGenerator_;
@@ -316,7 +324,7 @@ protected:
     // Send stripe to the next chunk pool.
     void RegisterStripe(
         NChunkPools::TChunkStripePtr chunkStripe,
-        const TStreamDescriptorPtr& streamDescriptor,
+        const TOutputStreamDescriptorPtr& streamDescriptor,
         TJobletPtr joblet,
         NChunkPools::TChunkStripeKey key = NChunkPools::TChunkStripeKey(),
         bool processEmptyStripes = false);

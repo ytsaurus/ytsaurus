@@ -18,6 +18,7 @@ DEFINE_ENUM(ESnapshotVersion,
     ((ReworkJobProfilerSpec)                (301101))
     ((PersistDataStatistics)                (301102))
     ((ChunkFormat)                          (301103))
+    ((InputStreamDescriptors)               (301104))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

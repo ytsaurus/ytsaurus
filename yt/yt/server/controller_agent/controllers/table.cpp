@@ -99,9 +99,9 @@ void TOutputTable::Persist(const TPersistenceContext& context)
     Persist(context, TableIndex);
 }
 
-TStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIndex)
+TOutputStreamDescriptorPtr TOutputTable::GetStreamDescriptorTemplate(int tableIndex)
 {
-    auto descriptor = New<TStreamDescriptor>();
+    auto descriptor = New<TOutputStreamDescriptor>();
     descriptor->TableUploadOptions = TableUploadOptions;
     descriptor->TableWriterOptions = CloneYsonSerializable(TableWriterOptions);
     descriptor->TableWriterOptions->TableIndex = tableIndex;

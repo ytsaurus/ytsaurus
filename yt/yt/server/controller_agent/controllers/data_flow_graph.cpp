@@ -41,17 +41,52 @@ DECLARE_REFCOUNTED_CLASS(TLivePreview)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TStreamDescriptor::TStreamDescriptor(TStreamDescriptorBase base)
+void TStreamDescriptorBase::Persist(const TPersistenceContext &context)
+{
+    using NYT::Persist;
+
+    Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, StreamSchemas);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TInputStreamDescriptorPtr TInputStreamDescriptor::FromOutputStreamDescriptor(
+    TOutputStreamDescriptorPtr outputStreamDescriptor)
+{
+    auto inputStreamDescriptor = New<TInputStreamDescriptor>();
+    inputStreamDescriptor->StreamSchemas = outputStreamDescriptor->StreamSchemas;
+    return inputStreamDescriptor;
+}
+
+TInputStreamDescriptor::TInputStreamDescriptor(TStreamDescriptorBase base)
     : TStreamDescriptorBase(std::move(base))
 { }
 
-TStreamDescriptorPtr TStreamDescriptor::Clone() const
+TInputStreamDescriptorPtr TInputStreamDescriptor::Clone() const
 {
-    return New<TStreamDescriptor>(static_cast<const TStreamDescriptorBase&>(*this));
+    return New<TInputStreamDescriptor>(static_cast<const TStreamDescriptorBase&>(*this));
 }
 
-void TStreamDescriptor::Persist(const TPersistenceContext& context)
+void TInputStreamDescriptor::Persist(const TPersistenceContext& context)
 {
+    TStreamDescriptorBase::Persist(context);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TOutputStreamDescriptor::TOutputStreamDescriptor(TOutputStreamDescriptorBase base)
+    : TOutputStreamDescriptorBase(std::move(base))
+{ }
+
+TOutputStreamDescriptorPtr TOutputStreamDescriptor::Clone() const
+{
+    return New<TOutputStreamDescriptor>(static_cast<const TOutputStreamDescriptorBase&>(*this));
+}
+
+void TOutputStreamDescriptor::Persist(const TPersistenceContext& context)
+{
+    TStreamDescriptorBase::Persist(context);
+
     using NYT::Persist;
 
     Persist(context, ChunkMapping);
@@ -72,7 +107,6 @@ void TStreamDescriptor::Persist(const TPersistenceContext& context)
     Persist(context, LivePreviewIndex);
     Persist(context, TargetDescriptor);
     Persist(context, PartitionTag);
-    Persist<TVectorSerializer<TNonNullableIntrusivePtrSerializer<>>>(context, StreamSchemas);
 }
 
 ////////////////////////////////////////////////////////////////////////////////
