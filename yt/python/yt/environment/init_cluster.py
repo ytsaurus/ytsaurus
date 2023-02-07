@@ -1,5 +1,7 @@
 #!/usr/bin/env python
 
+from .init_queue_agent_state import create_tables as create_queue_agent_state_tables
+
 from yt.common import get_fqdn
 
 import yt.wrapper as yt
@@ -422,6 +424,10 @@ def _initialize_world(client, environment, yt_config):
     # Tablet limits for tmp account.
     client.set("//sys/accounts/tmp/@resource_limits/tablet_count", 1000)
     client.set("//sys/accounts/tmp/@resource_limits/tablet_static_memory", 5 * 1024 ** 3)
+
+    if yt_config.wait_tablet_cell_initialization:
+        client.create("map_node", "//sys/queue_agents", ignore_existing=True)
+        create_queue_agent_state_tables(client, create_registration_table=True)
 
 
 def main():
