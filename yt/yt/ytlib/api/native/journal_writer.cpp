@@ -1203,19 +1203,16 @@ private:
             QuorumUnflushedBatchCount_ = 0;
             ReplicationFactorUnflushedBatches_.clear();
 
-            while (true) {
+            bool cancel = false;
+            while (!cancel) {
                 auto command = DequeueCommand();
                 Visit(command,
                     [&] (const TBatchCommand& typedCommand) {
                         const auto& batch = typedCommand.Batch;
                         batch->FlushedPromise.Set(error);
                     },
-                    [&] (TCancelCommand) {
-                        throw TFiberCanceledException();
-                    },
-                    [&] (const auto&) {
-                        // ignore
-                    });
+                    [&] (TCancelCommand) { cancel = true; },
+                    [&] (const auto&) { /*ignore*/ });
             }
 
             if (CurrentChunkSession_) {
@@ -1230,6 +1227,8 @@ private:
                         }
                     }).Via(Invoker_));
             }
+
+            throw TFiberCanceledException();
         }
 
 
