@@ -550,7 +550,6 @@ TPortoResourceProfilerPtr CreatePortoProfilerWithTags(IInstancePtr instance, con
     return New<TPortoResourceProfiler>(
         portoResourceTracker,
         TProfiler("/porto")
-            .WithTag("porto_name", instance->GetName())
             .WithTag("container_category", containerCategory));
 }
 
