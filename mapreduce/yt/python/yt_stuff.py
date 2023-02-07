@@ -166,6 +166,7 @@ class YtConfig(object):
 class YtStuff(object):
     def __init__(self, config=None):
         self.config = config or YtConfig()
+        self.fetched_cluster_connection_config = None
 
         self.python_binary = self.config.python_binary or yatest.common.python_path()
 
@@ -214,10 +215,17 @@ class YtStuff(object):
         # YT binaries.
         os.makedirs(self.binaries_yt_path)
 
-        prepare_yt_binaries(self.binaries_yt_path, package_dir="yt/packages/latest")
+        package_name = "yt/packages/latest"
+
+        # Please, do not use this without consulting with the YT team via YTADMINREQ.
+        # You are probably doing something wrong.
+        if os.environ.get("USE_YT_RECIPE_BUILT_FROM_SOURCE") == "yes":
+            package_name = "yt/yt/packages/tests_package"
+
+        prepare_yt_binaries(self.binaries_yt_path, package_dir=package_name)
         copy_misc_binaries(self.binaries_yt_path)
 
-        self.yt_local_exec = [search_binary_path("yt_local", build_path_dir="yt/packages/latest")]
+        self.yt_local_exec = [search_binary_path("yt_local", build_path_dir=package_name)]
 
         user_yt_work_dir_base = self.config.yt_work_dir or yatest.common.get_param("yt_work_dir")
         if user_yt_work_dir_base:
@@ -419,6 +427,13 @@ class YtStuff(object):
         return "localhost:%d" % self.yt_proxy_port
 
     def get_cluster_config(self):
+        if self.fetched_cluster_connection_config is not None:
+            return self.fetched_cluster_connection_config
+        try:
+            self.fetched_cluster_connection_config = self.yt_client.get("//sys/@cluster_connection")
+            return self.fetched_cluster_connection_config
+        except Exception:
+            self.logger.exception("Could not fetch cluster_connection from cluster, falling back to config from files")
         return self.cluster_config
 
     def get_env(self):
