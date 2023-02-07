@@ -733,12 +733,10 @@ i64 TChunk::GetMasterMemoryUsage() const
         sizeof(TChunk) +
         sizeof(TChunkDynamicData) +
         ChunkMeta_->GetTotalByteSize();
-    if (ReplicasData_) {
-        if (IsErasure()) {
-            memoryUsage += sizeof(TErasureChunkReplicasData);
-        } else {
-            memoryUsage += sizeof(TRegularChunkReplicasData);
-        }
+    if (IsErasure()) {
+        memoryUsage += sizeof(TErasureChunkReplicasData);
+    } else {
+        memoryUsage += sizeof(TRegularChunkReplicasData);
     }
 
     return memoryUsage;

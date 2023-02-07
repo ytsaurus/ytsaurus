@@ -1570,6 +1570,14 @@ class TestAccounts(AccountsTestSuiteBase):
         wait(lambda: self._get_master_memory_usage("b") > 0)
         wait(lambda: self._get_detailed_master_memory_usage("b", "chunks") > 0)
 
+    @authors("h0pless")
+    def test_master_memory_chunk_heartbeat_race(self):
+        create_account("juan")
+        create("table", "//tmp/table")
+        write_table("//tmp/table", {"a": "b"})
+        remove("//tmp/table")
+        wait(lambda: self._get_master_memory_usage("juan") == 0)
+
     @authors("aleksandra-zh")
     def test_master_memory_change_account(self):
         create_account("a")
