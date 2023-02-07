@@ -1237,7 +1237,7 @@ const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
                 current == element
                     ? EOperationPreemptionStatus::ForbiddenSinceUnsatisfied
                     : EOperationPreemptionStatus::AllowedConditionally);
-            return element;
+            return current;
         }
 
         current = current->GetParent();
