@@ -88,6 +88,13 @@ void FromProto(TChunkMergerTraversalInfo* traversalInfo, const NProto::TTraversa
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool TChunkMergerSession::IsReadyForFinalization() const
+{
+    return TraversalFinished && ChunkListIdToRunningJobs.empty() && ChunkListIdToCompletedJobs.empty();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TMergeJob::TMergeJob(
     TJobId jobId,
     TJobEpoch jobEpoch,
@@ -240,6 +247,7 @@ public:
         TWeakPtr<IMergeChunkVisitorHost> chunkVisitorHost)
         : Bootstrap_(bootstrap)
         , Node_(std::move(node))
+        , NodeId_(Node_->GetId())
         , ConfigVersion_(configVersion)
         , Mode_(Node_->GetChunkMergerMode())
         , Account_(Node_->Account().Get())
@@ -268,7 +276,7 @@ public:
         NChunkClient::TReadLimit lowerLimit;
         lowerLimit.SetChunkIndex(TraversalInfo_.ChunkCount);
         YT_LOG_DEBUG("Traversal started (NodeId: %v, RootChunkListId: %v, LowerLimit: %v)",
-            Node_->GetId(),
+            NodeId_,
             Node_->GetChunkList()->GetId(),
             lowerLimit);
 
@@ -292,6 +300,7 @@ public:
 private:
     TBootstrap* const Bootstrap_;
     const TEphemeralObjectPtr<TChunkOwnerBase> Node_;
+    const TObjectId NodeId_;
     const i64 ConfigVersion_;
     const EChunkMergerMode Mode_;
     const TAccountChunkMergerNodeTraversalsPtr<TAccount> Account_;
@@ -364,10 +373,9 @@ private:
             return;
         }
 
-        auto nodeId = Node_->GetId();
         if (!IsNodeMergeable()) {
             chunkVisitorHost->OnTraversalFinished(
-                nodeId,
+                NodeId_,
                 EMergeSessionResult::PermanentFailure,
                 TraversalInfo_);
             return;
@@ -377,7 +385,7 @@ private:
 
         auto result = error.IsOK() ? EMergeSessionResult::OK : EMergeSessionResult::TransientFailure;
         chunkVisitorHost->OnTraversalFinished(
-            nodeId,
+            NodeId_,
             result,
             TraversalInfo_);
     }
@@ -404,13 +412,13 @@ private:
         auto* firstChunk = chunkManager->FindChunk(ChunkIds_.front());
         if (!IsObjectAlive(firstChunk)) {
             YT_LOG_DEBUG("Shallow merge criteria violated: chunk is dead (NodeId: %v, ChunkId: %v)",
-                Node_->GetId(),
+                NodeId_,
                 ChunkIds_.front());
             return false;
         }
         if (!ChunkMetaEqual(firstChunk, chunk)) {
             YT_LOG_DEBUG("Shallow merge criteria violated: chunk metas differ (NodeId: %v, ChunkId: %v, ChunkId: %v)",
-                Node_->GetId(),
+                NodeId_,
                 ChunkIds_.front(),
                 chunk->GetId());
             return false;
@@ -440,7 +448,7 @@ private:
         if (parent->GetId() == LastChunkListId_ && JobsForLastChunkList_ >= config->MaxJobsPerChunkList) {
             YT_LOG_DEBUG("Cannot add chunk to merge job due to job limit (NodeId: %v, "
                 "ChunkListId: %v, JobsForLastChunkList: %v, MaxJobsPerChunkList: %v)",
-                Node_->GetId(),
+                NodeId_,
                 LastChunkListId_,
                 JobsForLastChunkList_,
                 config->MaxJobsPerChunkList);
@@ -460,7 +468,7 @@ private:
 
         if (chunk->GetSystemBlockCount() != 0) {
             YT_LOG_DEBUG("Cannot add chunk to merge job due to nonzero system block count (NodeId: %v, ChunkId: %v, SystemBlockCount: %v)",
-                Node_->GetId(),
+                NodeId_,
                 chunk->GetId(),
                 chunk->GetSystemBlockCount());
             return false;
@@ -489,7 +497,7 @@ private:
                 "CurrentUncompressedDataSize: %v, ChunkUncompressedDataSize: %v, MaxUncompressedDataSize: %v, "
                 "CurrentChunkCount: %v, MaxChunkCount: %v, "
                 "DesiredParentChunkListId: %v, ParentChunkListId: %v)",
-                Node_->GetId(),
+                NodeId_,
                 CurrentRowCount_,
                 chunk->GetRowCount(),
                 config->MaxRowCount,
@@ -538,7 +546,6 @@ private:
         // May overdraft a lot.
         mergeJobThrottler->Acquire(1);
 
-        auto nodeId = Node_->GetId();
         const auto& chunkManager = Bootstrap_->GetChunkManager();
         auto jobId = chunkManager->GenerateJobId();
 
@@ -551,7 +558,7 @@ private:
             jobId,
             CurrentJobMode_,
             JobIndex_++,
-            nodeId,
+            NodeId_,
             ParentChunkListId_,
             std::move(ChunkIds_));
     }
@@ -1015,7 +1022,7 @@ void TChunkMerger::FinalizeJob(
         }
     }
 
-    if (session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty()) {
+    if (session.IsReadyForFinalization()) {
         ScheduleSessionFinalization(nodeId, EMergeSessionResult::None);
     }
 }
@@ -1038,7 +1045,7 @@ void TChunkMerger::FinalizeReplacement(
     session.Result = std::max(session.Result, result);
     EraseOrCrash(session.ChunkListIdToCompletedJobs, chunkListId);
 
-    if (session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty()) {
+    if (session.IsReadyForFinalization()) {
         ScheduleSessionFinalization(nodeId, EMergeSessionResult::None);
     }
 }
@@ -1108,7 +1115,8 @@ void TChunkMerger::OnTraversalFinished(TObjectId nodeId, EMergeSessionResult res
 {
     auto& session = GetOrCrash(RunningSessions_, nodeId);
     session.TraversalInfo = traversalInfo;
-    if (session.ChunkListIdToRunningJobs.empty() && session.ChunkListIdToCompletedJobs.empty()) {
+    session.TraversalFinished = true;
+    if (session.IsReadyForFinalization()) {
         ScheduleSessionFinalization(nodeId, result);
     }
 }

@@ -172,7 +172,7 @@ protected:
                 THROW_ERROR_EXCEPTION(
                     NChunkClient::EErrorCode::OptimisticLockFailure,
                     "Optimistic locking failed for chunk list %v",
-                    chunkList->GetId());
+                    chunkList.GetUnsafe()->GetId());
             }
 
             if (entry.ChildIndex == std::ssize(chunkList->Children())) {
