@@ -77,6 +77,7 @@ bool UseLocalModeOptimization(const TAuth& auth, const IClientRetryPolicyPtr& cl
 
 TString GetOperationWebInterfaceUrl(TStringBuf serverName, TOperationId operationId)
 {
+    serverName.ChopSuffix(":80");
     serverName.ChopSuffix(".yt.yandex-team.ru");
     serverName.ChopSuffix(".yt.yandex.net");
     return ::TStringBuilder() << "https://yt.yandex-team.ru/" << serverName <<
