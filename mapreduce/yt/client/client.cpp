@@ -8,18 +8,11 @@
 #include "format_hints.h"
 #include "lock.h"
 #include "operation.h"
+#include "retry_transaction.h"
 #include "retryful_writer.h"
 #include "transaction.h"
 #include "transaction_pinger.h"
 #include "yt_poller.h"
-
-#include <mapreduce/yt/client/retry_transaction.h>
-
-#include <mapreduce/yt/interface/client.h>
-#include <mapreduce/yt/interface/fluent.h>
-#include <mapreduce/yt/interface/skiff_row.h>
-
-#include <mapreduce/yt/interface/logging/yt_log.h>
 
 #include <mapreduce/yt/common/helpers.h>
 #include <mapreduce/yt/common/config.h>
@@ -31,7 +24,10 @@
 #include <mapreduce/yt/http/requests.h>
 #include <mapreduce/yt/http/retry_request.h>
 
-#include <mapreduce/yt/raw_client/raw_requests.h>
+#include <mapreduce/yt/interface/client.h>
+#include <mapreduce/yt/interface/fluent.h>
+#include <mapreduce/yt/interface/logging/yt_log.h>
+#include <mapreduce/yt/interface/skiff_row.h>
 
 #include <mapreduce/yt/io/yamr_table_reader.h>
 #include <mapreduce/yt/io/yamr_table_writer.h>
@@ -42,9 +38,10 @@
 #include <mapreduce/yt/io/skiff_row_table_reader.h>
 #include <mapreduce/yt/io/proto_helpers.h>
 
-#include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
-
 #include <mapreduce/yt/library/table_schema/protobuf.h>
+
+#include <mapreduce/yt/raw_client/raw_requests.h>
+#include <mapreduce/yt/raw_client/rpc_parameters_serialization.h>
 
 #include <library/cpp/json/json_reader.h>
 
@@ -983,7 +980,7 @@ void TClient::InsertRows(
     auto body = NodeListToYsonString(rows);
     TRequestConfig config;
     config.IsHeavy = true;
-    auto requestResult = RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, body, config);
+    RetryRequestWithPolicy(ClientRetryPolicy_->CreatePolicyForGenericRequest(), Auth_, header, body, config);
 }
 
 void TClient::DeleteRows(
@@ -1286,7 +1283,8 @@ TClientPtr CreateClientImpl(
 
     TAuth auth;
     auth.TvmOnly = options.TvmOnly_;
-    auth.UseTLS = false;
+    auth.UseTLS = options.UseTLS_;
+
     auth.ServerName = serverName;
     if (serverName.find('.') == TString::npos &&
         serverName.find(':') == TString::npos)
@@ -1301,7 +1299,11 @@ TClientPtr CreateClientImpl(
         auth.ServerName = Format("tvm.%v", auth.ServerName);
     }
 
-    auth.HttpClient = NHttpClient::CreateDefaultHttpClient();
+    if (options.UseTLS_ || options.UseCoreHttpClient_) {
+        auth.HttpClient = NHttpClient::CreateCoreHttpClient(options.UseTLS_);
+    } else {
+        auth.HttpClient = NHttpClient::CreateDefaultHttpClient();
+    }
 
     auth.Token = TConfig::Get()->Token;
     if (options.Token_) {

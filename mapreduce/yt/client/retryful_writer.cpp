@@ -7,6 +7,8 @@
 #include <mapreduce/yt/interface/errors.h>
 #include <mapreduce/yt/interface/finish_or_die.h>
 
+#include <mapreduce/yt/interface/logging/yt_log.h>
+
 #include <util/generic/size_literals.h>
 
 namespace NYT {

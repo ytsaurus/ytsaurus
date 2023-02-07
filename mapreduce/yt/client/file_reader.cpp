@@ -158,7 +158,7 @@ NHttpClient::IHttpResponsePtr TFileReader::Request(const TAuth& auth, const TTra
     auto requestId = CreateGuidAsString();
     NHttpClient::IHttpResponsePtr response;
     try {
-        response = auth.HttpClient->StartRequest(GetFullUrl(hostName, auth, header), requestId, header)->Finish();
+        response = auth.HttpClient->Request(GetFullUrl(hostName, auth, header), requestId, header);
     } catch (const yexception& ex) {
         LogRequestError(requestId, header, ex.what(), "");
         throw;
@@ -224,7 +224,7 @@ NHttpClient::IHttpResponsePtr TBlobTableReader::Request(const TAuth& auth, const
     auto requestId = CreateGuidAsString();
     NHttpClient::IHttpResponsePtr response;
     try {
-        response = auth.HttpClient->StartRequest(GetFullUrl(hostName, auth, header), requestId, header)->Finish();
+        response = auth.HttpClient->Request(GetFullUrl(hostName, auth, header), requestId, header);
     } catch (const yexception& ex) {
         LogRequestError(requestId, header, ex.what(), "");
         throw;

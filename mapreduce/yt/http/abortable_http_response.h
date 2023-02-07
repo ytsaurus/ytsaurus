@@ -6,9 +6,13 @@
 
 namespace NYT {
 
+////////////////////////////////////////////////////////////////////////////////
+
 class TAbortableHttpResponseRegistry;
 
 using TOutageId = size_t;
+
+////////////////////////////////////////////////////////////////////////////////
 
 class TAbortedForTestPurpose
     : public yexception
@@ -25,10 +29,64 @@ struct TOutageOptions
     FLUENT_FIELD_DEFAULT(size_t, LengthLimit, 0)
 };
 
+////////////////////////////////////////////////////////////////////////////////
+
+class IAbortableHttpResponse
+    : public TIntrusiveListItem<IAbortableHttpResponse>
+{
+public:
+    virtual void Abort() = 0;
+    virtual const TString& GetUrl() const = 0;
+    virtual bool IsAborted() const = 0;
+    virtual void SetLengthLimit(size_t limit) = 0;
+
+    virtual ~IAbortableHttpResponse() = default;
+};
+
+class TAbortableHttpResponseBase
+    : public IAbortableHttpResponse
+{
+public:
+    TAbortableHttpResponseBase(const TString& url);
+    ~TAbortableHttpResponseBase();
+
+    void Abort() override;
+    const TString& GetUrl() const override;
+    bool IsAborted() const override;
+    void SetLengthLimit(size_t limit) override;
+
+protected:
+    TString Url_;
+    std::atomic<bool> Aborted_ = {false};
+    size_t LengthLimit_ = std::numeric_limits<size_t>::max();
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
+/// @brief Stream wrapper for @ref NYT::NHttpClient::TCoreHttpResponse with possibility to emulate errors.
+class TAbortableCoreHttpResponse
+    : public IInputStream
+    , public TAbortableHttpResponseBase
+{
+public:
+    TAbortableCoreHttpResponse(
+        std::unique_ptr<IInputStream> stream,
+        const TString& url);
+
+private:
+    size_t DoRead(void* buf, size_t len) override;
+    size_t DoSkip(size_t len) override;
+
+private:
+    std::unique_ptr<IInputStream> Stream_;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 /// @brief Class extends @ref NYT::THttpResponse with possibility to emulate errors.
 class TAbortableHttpResponse
     : public THttpResponse
-    , public TIntrusiveListItem<TAbortableHttpResponse>
+    , public TAbortableHttpResponseBase
 {
 public:
     class TOutage
@@ -55,8 +113,6 @@ public:
         const TString& hostName,
         const TString& url);
 
-    ~TAbortableHttpResponse();
-
     /// @brief Abort any responses which match `urlPattern` (i.e. contain it in url).
     ///
     /// @return number of aborted responses.
@@ -76,21 +132,11 @@ public:
         const TString& urlPattern,
         size_t responseCount);
 
-    void SetLengthLimit(size_t limit);
-
-    void Abort();
-    const TString& GetUrl() const;
-
-    bool IsAborted() const;
-
 private:
     size_t DoRead(void* buf, size_t len) override;
     size_t DoSkip(size_t len) override;
-
-private:
-    TString Url_;
-    std::atomic<bool> Aborted_ = {false};
-    size_t LengthLimit_ = std::numeric_limits<size_t>::max();
 };
+
+////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT

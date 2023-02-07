@@ -228,6 +228,11 @@ private:
             return Request_;
         }
 
+        IResponsePtr GetResponse() override
+        {
+            return Response_;
+        }
+
     private:
         THttpOutputPtr Request_;
         THttpInputPtr Response_;

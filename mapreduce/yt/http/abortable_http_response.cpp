@@ -24,7 +24,7 @@ public:
         IdToOutage.erase(id);
     }
 
-    void Add(TAbortableHttpResponse* response)
+    void Add(IAbortableHttpResponse* response)
     {
         auto g = Guard(Lock_);
         for (auto& [id, entry] : IdToOutage) {
@@ -36,7 +36,7 @@ public:
         ResponseList_.PushBack(response);
     }
 
-    void Remove(TAbortableHttpResponse* response)
+    void Remove(IAbortableHttpResponse* response)
     {
         auto g = Guard(Lock_);
         response->Unlink();
@@ -69,7 +69,7 @@ private:
 
 private:
     TOutageId NextId_ = 0;
-    TIntrusiveList<TAbortableHttpResponse> ResponseList_;
+    TIntrusiveList<IAbortableHttpResponse> ResponseList_;
     THashMap<TOutageId, TOutageEntry> IdToOutage;
     TMutex Lock_;
 };
@@ -100,20 +100,50 @@ void TAbortableHttpResponse::TOutage::Stop()
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TAbortableHttpResponseBase::TAbortableHttpResponseBase(const TString& url)
+    : Url_(url)
+{
+    TAbortableHttpResponseRegistry::Get().Add(this);
+}
+
+TAbortableHttpResponseBase::~TAbortableHttpResponseBase()
+{
+    TAbortableHttpResponseRegistry::Get().Remove(this);
+}
+
+void TAbortableHttpResponseBase::Abort()
+{
+    Aborted_ = true;
+}
+
+void TAbortableHttpResponseBase::SetLengthLimit(size_t limit)
+{
+    LengthLimit_ = limit;
+    if (LengthLimit_ == 0) {
+        Abort();
+    }
+}
+
+const TString& TAbortableHttpResponseBase::GetUrl() const
+{
+    return Url_;
+}
+
+bool TAbortableHttpResponseBase::IsAborted() const
+{
+    return Aborted_;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TAbortableHttpResponse::TAbortableHttpResponse(
     IInputStream* socketStream,
     const TString& requestId,
     const TString& hostName,
     const TString& url)
     : THttpResponse(socketStream, requestId, hostName)
-    , Url_(url)
+    , TAbortableHttpResponseBase(url)
 {
-    TAbortableHttpResponseRegistry::Get().Add(this);
-}
-
-TAbortableHttpResponse::~TAbortableHttpResponse()
-{
-    TAbortableHttpResponseRegistry::Get().Remove(this);
 }
 
 size_t TAbortableHttpResponse::DoRead(void* buf, size_t len)
@@ -138,19 +168,6 @@ size_t TAbortableHttpResponse::DoSkip(size_t len)
     return THttpResponse::DoSkip(len);
 }
 
-void TAbortableHttpResponse::Abort()
-{
-    Aborted_ = true;
-}
-
-void TAbortableHttpResponse::SetLengthLimit(size_t limit)
-{
-    LengthLimit_ = limit;
-    if (LengthLimit_ == 0) {
-        Abort();
-    }
-}
-
 int TAbortableHttpResponse::AbortAll(const TString& urlPattern)
 {
     return TAbortableHttpResponseRegistry::Get().AbortAll(urlPattern);
@@ -170,14 +187,35 @@ TAbortableHttpResponse::TOutage TAbortableHttpResponse::StartOutage(
     return StartOutage(urlPattern, TOutageOptions().ResponseCount(responseCount));
 }
 
-const TString& TAbortableHttpResponse::GetUrl() const
+TAbortableCoreHttpResponse::TAbortableCoreHttpResponse(
+    std::unique_ptr<IInputStream> stream,
+    const TString& url)
+    : TAbortableHttpResponseBase(url)
+    , Stream_(std::move(stream))
 {
-    return Url_;
 }
 
-bool TAbortableHttpResponse::IsAborted() const
+size_t TAbortableCoreHttpResponse::DoRead(void* buf, size_t len)
 {
-    return Aborted_;
+    if (Aborted_) {
+        ythrow TAbortedForTestPurpose() << "response was aborted";
+    }
+    len = std::min(len, LengthLimit_);
+    auto read = Stream_->Read(buf, len);
+    LengthLimit_ -= read;
+    if (LengthLimit_ == 0) {
+        Abort();
+    }
+
+    return read;
+}
+
+size_t TAbortableCoreHttpResponse::DoSkip(size_t len)
+{
+    if (Aborted_) {
+        ythrow TAbortedForTestPurpose() << "response was aborted";
+    }
+    return Stream_->Skip(len);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

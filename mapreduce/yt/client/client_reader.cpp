@@ -182,7 +182,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
 
         try {
             const auto proxyName = GetProxyForHeavyRequest(Auth_);
-            Response_ = Auth_.HttpClient->StartRequest(GetFullUrl(proxyName, Auth_, header), requestId, header)->Finish();
+            Response_ = Auth_.HttpClient->Request(GetFullUrl(proxyName, Auth_, header), requestId, header);
 
             Input_ = Response_->GetResponseStream();
 
@@ -212,6 +212,7 @@ void TClientReader::CreateRequest(const TMaybe<ui32>& rangeIndex, const TMaybe<u
                 CurrentRequestRetryPolicy_->GetAttemptDescription());
 
             Response_.reset();
+            Input_ = nullptr;
 
             auto backoff = CurrentRequestRetryPolicy_->OnGenericError(e);
             if (!backoff) {

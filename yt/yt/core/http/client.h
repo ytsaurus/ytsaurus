@@ -20,6 +20,7 @@ class IActiveRequest
 public:
     virtual TFuture<IResponsePtr> Finish() = 0;
     virtual NConcurrency::IAsyncOutputStreamPtr GetRequestStream() = 0;
+    virtual IResponsePtr GetResponse() = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IActiveRequest)
