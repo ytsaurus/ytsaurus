@@ -11,7 +11,7 @@ namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TDiskInfoProvider::TDiskInfoProvider(TDiskManagerProxyPtr diskManagerProxy)
+TDiskInfoProvider::TDiskInfoProvider(IDiskManagerProxyPtr diskManagerProxy)
     : DiskManagerProxy_(std::move(diskManagerProxy))
 { }
 

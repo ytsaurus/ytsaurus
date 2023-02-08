@@ -265,7 +265,7 @@ public:
             DataNodeLogger.WithTag("IOMeter"));
         JobController_->Initialize();
 
-        DiskManagerProxy_ = New<TDiskManagerProxy>(
+        DiskManagerProxy_ = CreateDiskManagerProxy(
             GetConfig()->DataNode->DiskManagerProxy);
         LocationManager_ = New<TLocationManager>(
             ChunkStore_,
@@ -470,7 +470,7 @@ private:
 
     IIOThroughputMeterPtr IOThroughputMeter_;
 
-    TDiskManagerProxyPtr DiskManagerProxy_;
+    IDiskManagerProxyPtr DiskManagerProxy_;
     TLocationManagerPtr LocationManager_;
     TLocationHealthCheckerPtr LocationHealthChecker_;
 
