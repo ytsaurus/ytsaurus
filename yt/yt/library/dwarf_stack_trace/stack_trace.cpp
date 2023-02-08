@@ -28,6 +28,7 @@ void FormatStackTrace(const void* const* frames, int frameCount, std::function<v
         callback(formatter.GetBuffer());
         // Call the callback exactly `frameCount` times,
         // even if there are inline functions and one frame resolved to several lines.
+        // It needs for case when caller uses `frameCount` less than 100 for pretty formatting.
         if (info.Index + 1 == frameCount) {
             return NDwarf::EResolving::Break;
         }
