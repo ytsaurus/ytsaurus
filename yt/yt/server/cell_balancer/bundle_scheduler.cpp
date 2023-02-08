@@ -887,6 +887,10 @@ void CalculateResourceUsage(TSchedulerInputState& input)
     input.AliveProxiesBySize.clear();
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController) {
+            continue;
+        }
+
         {
             auto aliveResourceUsage = New<TInstanceResources>();
             aliveResourceUsage->Clear();
@@ -2135,6 +2139,9 @@ void ManageBundleShortName(TSchedulerInputState& input, TSchedulerMutations* mut
 {
     for (auto& [bundleName, shortName] : input.BundleToShortName) {
         const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
+        if (!bundleInfo->EnableBundleController) {
+            continue;
+        }
 
         if (bundleName == shortName || (bundleInfo->ShortName && *bundleInfo->ShortName == shortName)) {
             continue;
