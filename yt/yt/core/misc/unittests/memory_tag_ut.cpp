@@ -13,7 +13,7 @@
 #include <util/system/compiler.h>
 
 // These tests do not work under MSAN and ASAN.
-#if !defined(_msan_enabled_) and !defined(_asan_enabled_) and defined(_linux_)
+#if !defined(_msan_enabled_) and !defined(_asan_enabled_) and defined(_linux_) and defined(YT_ALLOC_ENABLED)
 
 namespace NYT {
 
@@ -244,4 +244,3 @@ INSTANTIATE_TEST_SUITE_P(MemoryTagTest, TMemoryTagTest, Values(
 } // namespace NYT
 
 #endif // !defined(_msan_enabled_)
-

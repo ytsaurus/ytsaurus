@@ -233,6 +233,8 @@ const char* GetSignalCodeName(int signo, int code)
 
 #endif
 
+#ifdef _x86_64_
+
 // From include/asm/traps.h
 
 [[maybe_unused]]
@@ -307,6 +309,8 @@ void FormatErrorCodeName(TBaseFormatter* formatter, int codeno)
         formatter->AppendString(", protection keys block access");
     }
 }
+
+#endif // _x86_64_
 
 //! Dumps information about the signal.
 void DumpSignalInfo(siginfo_t* si)

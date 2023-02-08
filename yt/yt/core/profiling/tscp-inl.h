@@ -16,7 +16,7 @@ inline TTscp TTscp::Get()
     asm volatile ( "rdtscp\n" : "=a" (rax), "=c" (rcx), "=d" (rdx) : : );
     ui64 t = (rdx << 32) + rax;
     ui64 c = rcx;
-#elif defined(__arm64__)
+#elif defined(__arm64__) || defined(__aarch64__)
     ui64 c;
     __asm__ volatile("mrs %x0, tpidrro_el0" : "=r"(c));
     c = c & 0x07u;

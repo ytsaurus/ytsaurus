@@ -88,7 +88,14 @@ int RecursiveFunction(size_t maxDepth, size_t currentDepth)
         return 0;
     }
 
-    if (!CheckFreeStackSpace(40 * 1024)) {
+// It seems that aarch64 requires more stack to throw an exception.
+#if defined(__aarch64__) || defined(__arm64__)
+    constexpr size_t requiredStackSpace = 60 * 1024;
+#else
+    constexpr size_t requiredStackSpace = 40 * 1024;
+#endif
+
+    if (!CheckFreeStackSpace(requiredStackSpace)) {
         THROW_ERROR_EXCEPTION("Evaluation depth causes stack overflow");
     }
 

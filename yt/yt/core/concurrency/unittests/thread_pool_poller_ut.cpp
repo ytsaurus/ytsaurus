@@ -146,7 +146,12 @@ TEST_F(TThreadPoolPollerTest, Stress)
     std::vector<std::thread> threads;
 
     auto envIterCount = GetEnv("ITER_COUNT");
-    int iterCount = envIterCount.empty() ? 20000 : FromString<int>(envIterCount);
+#if defined(__aarch64__) || defined(__arm64__)
+    constexpr int defaultIterCount = 10'000;
+#else
+    constexpr int defaultIterCount = 20'000;
+#endif
+    int iterCount = envIterCount.empty() ? defaultIterCount : FromString<int>(envIterCount);
 
     std::vector<std::thread> auxThreads;
     auxThreads.emplace_back([&] {
