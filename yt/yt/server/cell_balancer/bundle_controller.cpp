@@ -70,6 +70,10 @@ struct TBundleSensors final
 
     TGauge UsingSpareNodeCount;
     TGauge UsingSpareProxyCount;
+
+    TGauge AssigningTabletNodes;
+    TGauge AssigningSpareNodes;
+    TGauge ReleasingSpareNodes;
 };
 
 using TBundleSensorsPtr = TIntrusivePtr<TBundleSensors>;
@@ -591,6 +595,14 @@ private:
                 sensors->TargetRpcProxSize);
         }
 
+        for (const auto& [bundleName, bundleState] : input.BundleStates) {
+            auto sensors = GetBundleSensors(bundleName);
+
+            sensors->AssigningTabletNodes.Update(std::ssize(bundleState->BundleNodeAssignments));
+            sensors->AssigningSpareNodes.Update(std::ssize(bundleState->SpareNodeAssignments));
+            sensors->ReleasingSpareNodes.Update(std::ssize(bundleState->SpareNodeReleasements));
+        }
+
         for (const auto& [zoneName, zoneDisrupted] : input.ZonesDisrupted) {
             auto sensor = GetZoneSensors(zoneName);
             sensor->OfflineNodeCount.Update(zoneDisrupted.OfflineNodeCount);
@@ -637,6 +649,10 @@ private:
 
         sensors->UsingSpareNodeCount = bundleProfiler.Gauge("/using_spare_node_count");
         sensors->UsingSpareProxyCount = bundleProfiler.Gauge("/using_spare_proxy_count");
+
+        sensors->AssigningTabletNodes = bundleProfiler.Gauge("/assigning_tablet_nodes");
+        sensors->AssigningSpareNodes = bundleProfiler.Gauge("/assigning_spare_nodes");
+        sensors->ReleasingSpareNodes = bundleProfiler.Gauge("/releasing_spare_nodes");
 
         BundleSensors_[bundleName] = sensors;
         return sensors;

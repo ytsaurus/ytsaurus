@@ -295,6 +295,12 @@ void TBundleControllerState::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "proxy_deallocations", &TThis::ProxyDeallocations)
         .Default();
+    RegisterAttribute(registrar, "bundle_node_assignments", &TThis::BundleNodeAssignments)
+        .Default();
+    RegisterAttribute(registrar, "spare_node_assignments", &TThis::SpareNodeAssignments)
+        .Default();
+    RegisterAttribute(registrar, "spare_node_releasements", &TThis::SpareNodeReleasements)
+        .Default();
 }
 
 void TAllocationRequestState::Register(TRegistrar registrar)
@@ -318,9 +324,15 @@ void TDeallocationRequestState::Register(TRegistrar registrar)
         .Default(false);
 }
 
-void TRemovingTabletCellInfo::Register(TRegistrar registrar)
+void TRemovingTabletCellState::Register(TRegistrar registrar)
 {
     registrar.Parameter("removed_time", &TThis::RemovedTime)
+        .Default();
+}
+
+void TNodeTagFilterOperationState::Register(TRegistrar registrar)
+{
+    registrar.Parameter("creation_time", &TThis::CreationTime)
         .Default();
 }
 
@@ -358,6 +370,28 @@ void TMaintenanceRequest::Register(TRegistrar /*registrar*/)
 {
 }
 
+void TMemoryCategory::Register(TRegistrar registrar)
+{
+    registrar.Parameter("used", &TThis::Used)
+        .Default(0);
+    registrar.Parameter("limit", &TThis::Limit)
+        .Default(0);
+}
+
+void TTabletNodeMemoryStatistics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("tablet_dynamic", &TThis::TabletDynamic)
+        .DefaultNew();
+    registrar.Parameter("tablet_static", &TThis::TabletStatic)
+        .DefaultNew();
+}
+
+void TTabletNodeStatistics::Register(TRegistrar registrar)
+{
+    registrar.Parameter("memory", &TThis::Memory)
+        .DefaultNew();
+}
+
 void TTabletNodeInfo::Register(TRegistrar registrar)
 {
     RegisterAttribute(registrar, "banned", &TThis::Banned)
@@ -384,6 +418,8 @@ void TTabletNodeInfo::Register(TRegistrar registrar)
         .Default();
     RegisterAttribute(registrar, "last_seen_time", &TThis::LastSeenTime)
         .Default();
+    RegisterAttribute(registrar, "statistics", &TThis::Statistics)
+        .DefaultNew();
 }
 
 void TBundleDynamicConfig::Register(TRegistrar registrar)

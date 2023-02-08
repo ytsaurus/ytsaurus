@@ -14,7 +14,7 @@ struct TSpareNodesInfo
 {
     std::vector<TString> FreeNodes;
     THashMap<TString, std::vector<TString>> UsedByBundle;
-    THashMap<TString, std::vector<TString>> DecommissionedByBundle;
+    THashMap<TString, std::vector<TString>> ReleasingByBundle;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
