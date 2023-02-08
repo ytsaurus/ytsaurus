@@ -59,6 +59,11 @@ struct TRequestSizes
     TDuration Duration;
 };
 
+void FormatValue(
+    TStringBuilderBase* builder,
+    const TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram>& statsByCategory,
+    TStringBuf /*spec*/);
+
 ////////////////////////////////////////////////////////////////////////////////
 
 class TRequestLatencyHistogram
@@ -96,4 +101,3 @@ IIOEngineWorkloadModelPtr CreateIOModelInterceptor(
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NIO
-

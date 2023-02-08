@@ -98,7 +98,7 @@ THistogramSummary ComputeHistogramSummary(const TFixedBinsHistogramBase& hist)
 
 void FormatValue(
     TStringBuilderBase* builder,
-    TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram>& statsByCategory,
+    const TEnumIndexedVector<EWorkloadCategory, TRequestSizeHistogram>& statsByCategory,
     TStringBuf /*spec*/)
 {
     builder->AppendString("{");
@@ -343,6 +343,9 @@ public:
         , Logger(std::move(logger))
         , ModelManager_(New<TWorkloadModelManager>(std::move(locationId), Logger))
     {
+        ModelManager_->SubscribeRequestSizesSignal(
+            BIND(&TIOModelInterceptor::OnUpdateRequestSizes, MakeWeak(this)));
+
         ModelManager_->SubscribeRequestLatenciesSignal(
             BIND(&TIOModelInterceptor::OnUpdateRequestLatencies, MakeWeak(this)));
     }
@@ -457,14 +460,14 @@ public:
 
     std::optional<TRequestSizes> GetRequestSizes() override
     {
-        // TODO(capone212): implement and use.
-        return {};
+        auto guard = Guard(StatsLock_);
+        return RequestSizeStats_;
     }
 
     std::optional<TRequestLatencies> GetRequestLatencies() override
     {
         auto guard = Guard(StatsLock_);
-        return LatencyStats_;
+        return RequestLatencyStats_;
     }
 
     i64 GetTotalReadBytes() const override
@@ -493,12 +496,19 @@ private:
     const TWorkloadModelManagerPtr ModelManager_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, StatsLock_);
-    std::optional<TRequestLatencies> LatencyStats_;
+    std::optional<TRequestSizes> RequestSizeStats_;
+    std::optional<TRequestLatencies> RequestLatencyStats_;
 
-    void OnUpdateRequestLatencies(const TRequestLatencies& latencies)
+    void OnUpdateRequestSizes(const TRequestSizes& requestSizes)
     {
         auto guard = Guard(StatsLock_);
-        LatencyStats_ = latencies;
+        RequestSizeStats_ = requestSizes;
+    }
+
+    void OnUpdateRequestLatencies(const TRequestLatencies& requestLatencies)
+    {
+        auto guard = Guard(StatsLock_);
+        RequestLatencyStats_ = requestLatencies;
     }
 };
 

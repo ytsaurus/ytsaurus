@@ -546,6 +546,7 @@ public:
     double VerificationSegmentSizeFactor;
     TDuration VerificationWindowPeriod;
     double DWPDFactor;
+    bool UseWorkloadModel;
 
     REGISTER_YSON_STRUCT(TMediumThroughputMeterConfig);
 
@@ -564,7 +565,7 @@ public:
 
     std::vector<TMediumThroughputMeterConfigPtr> Mediums;
 
-    // Remeasure throughtput after this timeout.
+    // Remeasure throughput after this timeout.
     TDuration TimeBetweenTests;
 
     // Desired estimate stage duration.

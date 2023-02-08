@@ -493,6 +493,9 @@ void TMediumThroughputMeterConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("dwpd_factor", &TThis::DWPDFactor)
         .Default(1);
+
+    registrar.Parameter("use_workload_model", &TThis::UseWorkloadModel)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
