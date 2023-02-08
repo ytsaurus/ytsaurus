@@ -166,6 +166,10 @@ void ManageRpcProxyRoles(TSchedulerInputState& input, TSchedulerMutations* mutat
     TProxyRoleToBundle proxyRoleToBundle;
 
     for (const auto& [bundleName, bundleInfo] : input.Bundles) {
+        if (!bundleInfo->EnableBundleController) {
+            continue;
+        }
+
         if (bundleInfo->RpcProxyRole && !bundleInfo->RpcProxyRole->empty()) {
             proxyRoleToBundle[*bundleInfo->RpcProxyRole] = bundleName;
         } else {
