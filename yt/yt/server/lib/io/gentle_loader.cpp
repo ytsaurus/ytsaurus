@@ -298,6 +298,15 @@ private:
 
         info.Handle = WaitFor(IOEngine_->Open({info.FilePath, mode}))
             .ValueOrThrow();
+
+        if (Config_->PreallocateWriteFiles) {
+            YT_LOG_INFO("Preallocating test write file (WriterIndex: %v, FileSize: %v)",
+                info.WriterIndex,
+                Config_->MaxWriteFileSize);
+
+            WaitFor(IOEngine_->Allocate({.Handle = info.Handle, .Size = Config_->MaxWriteFileSize}))
+                .ThrowOnError();
+        }
     }
 
     TDuration DoWrite(TWriterInfo& fileInfo, EWorkloadCategory category, i64 packetSize)
@@ -1129,9 +1138,13 @@ private:
         return writer.Write(sample.Workload, sample.Size);
     }
 
-    void ImbueWorkloadModel(const TRequestSizes& requestSizes) {
-        ReadRequestSampler_ = New<TRequestSampler>(Config_->PacketSize, requestSizes.Reads);
-        WriteRequestSampler_ = New<TRequestSampler>(Config_->PacketSize, requestSizes.Writes);
+    void ImbueWorkloadModel(const TRequestSizes& model) {
+        YT_LOG_INFO("Using workload model for io test (Reads: %v, Writes: %v)",
+            model.Reads,
+            model.Writes);
+
+        ReadRequestSampler_ = New<TRequestSampler>(Config_->PacketSize, model.Reads);
+        WriteRequestSampler_ = New<TRequestSampler>(Config_->PacketSize, model.Writes);
 
         static const i64 DefaultIOCount = 1;
 

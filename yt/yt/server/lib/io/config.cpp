@@ -119,6 +119,9 @@ void TGentleLoaderConfig::Register(TRegistrar registrar)
         .GreaterThan(4_KB)
         .Default(512_MB);
 
+    registrar.Parameter("preallocate_write_files", &TThis::PreallocateWriteFiles)
+        .Default();
+
     registrar.Parameter("writers_folder", &TThis::WriterDirectory)
         .NonEmpty()
         .Default("writes_bench");

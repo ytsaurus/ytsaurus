@@ -134,6 +134,8 @@ struct TGentleLoaderConfig
 
     int MaxWriteFileSize;
 
+    bool PreallocateWriteFiles;
+
     // Subfolder to create temporary files.
     TString WriterDirectory;
 

@@ -300,7 +300,14 @@ private:
 
         loader->SubscribeCongested(
             BIND(&TLocationLoadTester::SessionCongested, MakeWeak(this), Session_->Timestamp, stage));
-        loader->Start({});
+
+        NIO::TRequestSizes workloadModel;
+
+        if (auto wm = Location_->GetIOEngineModel()->GetRequestSizes(); wm && config->UseWorkloadModel) {
+            workloadModel = *wm;
+        }
+
+        loader->Start(workloadModel);
 
         Session_->Stage = stage;
         std::swap(Session_->Loader, loader);
