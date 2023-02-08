@@ -69,6 +69,8 @@ void TGpuInfoSourceConfig::Register(TRegistrar registrar)
         .Default("unix:/var/run/nvgpu-manager.sock");
     registrar.Parameter("nv_gpu_manager_service_name", &TThis::NvGpuManagerServiceName)
         .Default("nvgpu.NvGpuManager");
+    registrar.Parameter("gpu_indexes_from_nvidia_smi", &TThis::GpuIndexesFromNvidiaSmi)
+        .Default(true);
 }
 
 void TGpuManagerConfig::Register(TRegistrar registrar)
