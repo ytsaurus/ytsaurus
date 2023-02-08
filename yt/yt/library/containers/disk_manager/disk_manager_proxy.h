@@ -8,64 +8,30 @@
 
 #include <yt/yt/core/rpc/client.h>
 
-#include <infra/diskmanager/proto/diskman.pb.h>
-
 namespace NYT::NContainers {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-using TReqGetYTMountedDevices = diskman::GetYTMountedDevicesRequest;
-using TRspGetYTMountedDevices = diskman::GetYTMountedDevicesResponse;
-
-using TReqListDisks = diskman::ListDisksRequest;
-using TRspListDisks = diskman::ListDisksResponse;
-
-using TReqRecoverDisk = diskman::RecoverDiskRequest;
-using TRspRecoverDisk = diskman::RecoverDiskResponse;
-
-using TReqFailDisk = diskman::FailDiskRequest;
-using TRspFailDisk = diskman::FailDiskResponse;
-
-class TDiskManagerApi
-    : public NRpc::TProxyBase
+struct IDiskManagerProxy
+    : public virtual TRefCounted
 {
-public:
-    explicit TDiskManagerApi(NRpc::IChannelPtr channel, TString serviceName);
+    virtual TFuture<THashSet<TString>> GetYtDiskMountPaths() = 0;
 
-    DEFINE_RPC_PROXY_METHOD(NContainers, GetYTMountedDevices);
-    DEFINE_RPC_PROXY_METHOD(NContainers, ListDisks);
-    DEFINE_RPC_PROXY_METHOD(NContainers, RecoverDisk);
-    DEFINE_RPC_PROXY_METHOD(NContainers, FailDisk);
+    virtual TFuture<std::vector<TDiskInfo>> GetDisks() = 0;
+
+    virtual TFuture<void> RecoverDiskById(const TString& diskId, ERecoverPolicy recoverPolicy) = 0;
+
+    virtual TFuture<void> FailDiskById(const TString& diskId, const TString& reason) = 0;
+
+    virtual void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig) = 0;
+
 };
+
+DEFINE_REFCOUNTED_TYPE(IDiskManagerProxy)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TDiskManagerProxy
-    : public TRefCounted
-{
-public:
-    explicit TDiskManagerProxy(TDiskManagerProxyConfigPtr config);
-
-    TFuture<THashSet<TString>> GetYtDiskMountPaths();
-
-    TFuture<std::vector<TDiskInfo>> GetDisks();
-
-    TFuture<void> RecoverDiskById(const TString& diskId, ERecoverPolicy recoverPolicy);
-
-    TFuture<void> FailDiskById(const TString& diskId, const TString& reason);
-
-    void OnDynamicConfigChanged(const TDiskManagerProxyDynamicConfigPtr& newConfig);
-
-private:
-    const NRpc::IChannelPtr Channel_;
-    const TString ServiceName_;
-
-    const TDiskManagerProxyConfigPtr Config_;
-    TAtomicObject<TDiskManagerProxyDynamicConfigPtr> DynamicConfig_;
-    TDuration GetRequestTimeout() const;
-};
-
-DEFINE_REFCOUNTED_TYPE(TDiskManagerProxy)
+IDiskManagerProxyPtr CreateDiskManagerProxy(TDiskManagerProxyConfigPtr config);
 
 ////////////////////////////////////////////////////////////////////////////////
 
