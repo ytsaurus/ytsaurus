@@ -199,7 +199,6 @@ struct IObjectManager
     struct TResolvePathOptions
     {
         bool EnablePartialResolve = false;
-        bool FollowPortals = true;
     };
 
     //! Handles paths to versioned and most unversioned objects.

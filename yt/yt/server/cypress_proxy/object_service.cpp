@@ -1,9 +1,12 @@
 #include "object_service.h"
 
+#include "bootstrap.h"
 #include "config.h"
+#include "dynamic_config_manager.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
+#include <yt/yt/ytlib/object_client/proto/object_ypath.pb.h>
 
 #include <yt/yt/core/concurrency/thread_pool.h>
 
@@ -15,6 +18,7 @@ using namespace NApi;
 using namespace NConcurrency;
 using namespace NObjectClient;
 using namespace NRpc;
+using namespace NYTree;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -23,16 +27,15 @@ class TObjectService
     , public TServiceBase
 {
 public:
-    TObjectService(
-        NApi::NNative::IConnectionPtr connection,
-        IAuthenticatorPtr authenticator)
+    TObjectService(IBootstrap* bootstrap)
         : TServiceBase(
             /*invoker*/ nullptr,
             TObjectServiceProxy::GetDescriptor(),
             CypressProxyLogger,
             NullRealmId,
-            std::move(authenticator))
-        , Connection_(std::move(connection))
+            bootstrap->GetNativeAuthenticator())
+        , Bootstrap_(bootstrap)
+        , Connection_(bootstrap->GetNativeConnection())
         , ThreadPool_(CreateThreadPool(/*threadCount*/ 1, "ObjectService"))
         , Invoker_(ThreadPool_->GetInvoker())
     {
@@ -58,11 +61,239 @@ public:
 private:
     DECLARE_RPC_SERVICE_METHOD(NObjectClient::NProto, Execute);
 
+    IBootstrap* const Bootstrap_;
+
     const NApi::NNative::IConnectionPtr Connection_;
 
     const IThreadPoolPtr ThreadPool_;
     const IInvokerPtr Invoker_;
+
+    class TExecuteSession;
+    using TExecuteSessionPtr = TIntrusivePtr<TExecuteSession>;
 };
+
+using TObjectServicePtr = TIntrusivePtr<TObjectService>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+class TObjectService::TExecuteSession
+    : public TRefCounted
+{
+public:
+    TExecuteSession(
+        TObjectServicePtr owner,
+        TCtxExecutePtr rpcContext,
+        TObjectServiceProxy masterProxy)
+        : Owner_(std::move(owner))
+        , RpcContext_(std::move(rpcContext))
+        , MasterProxy_(std::move(masterProxy))
+    { }
+
+    void Run()
+    {
+        try {
+            GuardedRun();
+        } catch (const std::exception& ex) {
+            Reply(TError(ex));
+        }
+    }
+
+private:
+    const TObjectServicePtr Owner_;
+    const TCtxExecutePtr RpcContext_;
+
+    TObjectServiceProxy MasterProxy_;
+
+    struct TSubrequest
+    {
+        TSharedRefArray RequestMessage;
+
+        // Whether resolve cache predicted that request affects Sequoia.
+        bool PredictedSequoia = false;
+        // Whether master said that request affects Sequoia.
+        bool ForcedSequoia = false;
+        // Whether Sequoia said that request does not affect Sequoia.
+        bool ForcedNonSequoia = false;
+    };
+    std::vector<TSubrequest> Subrequests_;
+
+    void GuardedRun()
+    {
+        ParseSubrequests();
+        PredictSequoia();
+        InvokeMasterRequests(/*firstRun*/ true);
+        InvokeSequoiaRequests();
+        InvokeMasterRequests(/*firstRun*/ false);
+        Reply();
+    }
+
+    void ParseSubrequests()
+    {
+        const auto& request = RpcContext_->Request();
+        const auto& attachments = RpcContext_->RequestAttachments();
+
+        auto subrequestCount = request.part_counts_size();
+        Subrequests_.resize(subrequestCount);
+        int currentPartIndex = 0;
+        for (int index = 0; index < subrequestCount; ++index) {
+            auto& subrequest = Subrequests_[index];
+
+            auto partCount = request.part_counts(index);
+            TSharedRefArrayBuilder messageBuilder(partCount);
+            for (int partIndex = 0; partIndex < partCount; ++partIndex) {
+                messageBuilder.Add(attachments[currentPartIndex++]);
+            }
+            subrequest.RequestMessage = messageBuilder.Finish();
+        }
+    }
+
+    void PredictSequoia()
+    {
+        for (auto& subrequest : Subrequests_) {
+            // TODO: Do something more smart when resolve cache
+            // will be implemented.
+            subrequest.PredictedSequoia = false;
+        }
+    }
+
+    // This function is called twice.
+    // During the first run, requests that are predicted to be non-Sequoia
+    // are sent to master.
+    // During the second run, requests that were rejected by Sequoia are
+    // send to master.
+    void InvokeMasterRequests(bool firstRun)
+    {
+        const auto& request = RpcContext_->Request();
+
+        auto subrequestFilter = firstRun
+            ? [] (const TSubrequest& subrequest) { return !subrequest.PredictedSequoia; }
+            : [] (const TSubrequest& subrequest) { return subrequest.ForcedNonSequoia; };
+
+        std::vector<int> subrequestIndices;
+        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
+            if (subrequestFilter(Subrequests_[index])) {
+                subrequestIndices.push_back(index);
+            }
+        }
+
+        // Fast path.
+        if (subrequestIndices.empty()) {
+            return;
+        }
+
+        auto req = MasterProxy_.Execute();
+
+        // Copy request.
+        req->CopyFrom(request);
+
+        // Copy authentication identity.
+        SetAuthenticationIdentity(req, RpcContext_->GetAuthenticationIdentity());
+
+        // Copy some header extensions.
+        auto copyHeaderExtension = [&] (auto tag) {
+            if (RpcContext_->RequestHeader().HasExtension(tag)) {
+                const auto& ext = RpcContext_->RequestHeader().GetExtension(tag);
+                req->Header().MutableExtension(tag)->CopyFrom(ext);
+            }
+        };
+        copyHeaderExtension(NObjectClient::NProto::TMulticellSyncExt::multicell_sync_ext);
+
+        // Fill request with non-Sequoia requests.
+        req->clear_part_counts();
+
+        for (auto index : subrequestIndices) {
+            const auto& subrequest = Subrequests_[index];
+            const auto& requestMessage = subrequest.RequestMessage;
+            req->add_part_counts(requestMessage.size());
+            req->Attachments().insert(
+                req->Attachments().end(),
+                requestMessage.Begin(),
+                requestMessage.End());
+        }
+
+        auto rsp = WaitFor(req->Invoke())
+            .ValueOrThrow();
+
+        auto& response = RpcContext_->Response();
+
+        int currentPartIndex = 0;
+        for (const auto& subresponseInfo : rsp->subresponses()) {
+            auto partCount = subresponseInfo.part_count();
+            TSharedRefArrayBuilder subresponseMessageBuilder(partCount);
+            auto partsRange = TRange<TSharedRef>(
+                rsp->Attachments().begin() + currentPartIndex,
+                rsp->Attachments().begin() + currentPartIndex + partCount);
+            currentPartIndex += partCount;
+            for (const auto& part : partsRange) {
+                subresponseMessageBuilder.Add(part);
+            }
+            auto subresponseMessage = subresponseMessageBuilder.Finish();
+            if (CheckSubresponseError(subresponseMessage, NObjectClient::EErrorCode::RequestInvolvesSequoia)) {
+                auto index = subresponseInfo.index();
+                Subrequests_[index].ForcedSequoia = true;
+                continue;
+            }
+
+            response.add_subresponses()->CopyFrom(subresponseInfo);
+            response.Attachments().insert(
+                response.Attachments().end(),
+                partsRange.begin(),
+                partsRange.end());
+        }
+    }
+
+    void InvokeSequoiaRequests()
+    {
+        auto& response = RpcContext_->Response();
+
+        for (int index = 0; index < std::ssize(Subrequests_); ++index) {
+            auto& subrequest = Subrequests_[index];
+            if (subrequest.PredictedSequoia || subrequest.ForcedSequoia) {
+                const auto& sequoiaService = Owner_->Bootstrap_->GetSequoiaService();
+                auto rspFuture = ExecuteVerb(sequoiaService, subrequest.RequestMessage);
+                auto rsp = WaitFor(rspFuture)
+                    .ValueOrThrow();
+                TSharedRefArrayBuilder messageBuilder(rsp.size());
+                for (const auto& part : rsp) {
+                    messageBuilder.Add(part);
+                }
+                auto message = messageBuilder.Finish();
+                if (CheckSubresponseError(message, NObjectClient::EErrorCode::RequestInvolvesCypress)) {
+                    Subrequests_[index].ForcedNonSequoia = true;
+                    continue;
+                }
+
+                auto* subresponseInfo = response.add_subresponses();
+                subresponseInfo->set_index(index);
+                subresponseInfo->set_part_count(rsp.size());
+                response.Attachments().insert(
+                    response.Attachments().end(),
+                    rsp.Begin(),
+                    rsp.End());
+            }
+        }
+    }
+
+    void Reply(const TError& error = {})
+    {
+        RpcContext_->Reply(error);
+    }
+
+    bool CheckSubresponseError(const TSharedRefArray& message, TErrorCode errorCode)
+    {
+        try {
+            auto subresponse = New<TYPathResponse>();
+            subresponse->Deserialize(message);
+        } catch (const std::exception& ex) {
+            auto error = TError(ex);
+            return static_cast<bool>(error.FindMatching(errorCode));
+        }
+
+        return false;
+    }
+};
+
+////////////////////////////////////////////////////////////////////////////////
 
 DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 {
@@ -93,38 +324,19 @@ DEFINE_RPC_SERVICE_METHOD(TObjectService, Execute)
 
     auto masterChannel = Connection_->GetMasterChannelOrThrow(peerKind, cellTag);
     auto proxy = TObjectServiceProxy::FromDirectMasterChannel(std::move(masterChannel));
-    auto req = proxy.Execute();
-    req->CopyFrom(*request);
-    req->Attachments() = request->Attachments();
 
-    if (!req->has_original_request_id()) {
-        ToProto(req->mutable_original_request_id(), context->GetRequestId());
-    }
-
-    SetAuthenticationIdentity(req, context->GetAuthenticationIdentity());
-
-    req->Invoke().Subscribe(
-        BIND([=, /*this,*/ this_ = MakeStrong(this)] (const TErrorOr<TObjectServiceProxy::TRspExecutePtr>& rspOrError) {
-            if (!rspOrError.IsOK()) {
-                context->Reply(rspOrError);
-                return;
-            }
-
-            const auto& rsp = rspOrError.Value();
-            response->CopyFrom(*rsp);
-            response->Attachments() = rsp->Attachments();
-
-            context->Reply();
-        }).Via(Invoker_));
+    auto session = New<TObjectService::TExecuteSession>(
+        MakeStrong(this),
+        context,
+        proxy);
+    session->Run();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectServicePtr CreateObjectService(
-    NApi::NNative::IConnectionPtr connection,
-    IAuthenticatorPtr authenticator)
+IObjectServicePtr CreateObjectService(IBootstrap* bootstrap)
 {
-    return New<TObjectService>(std::move(connection), std::move(authenticator));
+    return New<TObjectService>(bootstrap);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

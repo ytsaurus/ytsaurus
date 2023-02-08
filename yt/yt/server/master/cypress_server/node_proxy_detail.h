@@ -213,11 +213,11 @@ protected:
 
     virtual bool CanHaveChildren() const;
 
-    virtual void SetChildNode(
+    void SetChildNode(
         NYTree::INodeFactory* factory,
         const NYPath::TYPath& path,
         const NYTree::INodePtr& child,
-        bool recursive);
+        bool recursive) override;
 
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Lock);
     DECLARE_YPATH_SERVICE_METHOD(NCypressClient::NProto, Unlock);

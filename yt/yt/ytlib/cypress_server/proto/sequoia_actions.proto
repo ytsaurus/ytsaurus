@@ -1,0 +1,22 @@
+package NYT.NCypressServer.NProto;
+
+import "yt_proto/yt/core/misc/proto/guid.proto";
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqCreateNode
+{
+    required int32 type = 1;
+    required NYT.NProto.TGuid node_id = 2;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+message TReqAttachChild
+{
+    required NYT.NProto.TGuid parent_id = 1;
+    required NYT.NProto.TGuid child_id = 2;
+    required string key = 3;
+}
+
+////////////////////////////////////////////////////////////////////////////////

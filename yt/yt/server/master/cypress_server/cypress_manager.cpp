@@ -15,6 +15,9 @@
 #include "node_detail.h"
 #include "node_proxy_detail.h"
 #include "portal_entrance_node.h"
+#include "portal_exit_node.h"
+#include "scion_node.h"
+#include "shard.h"
 #include "portal_entrance_type_handler.h"
 #include "portal_exit_node.h"
 #include "portal_exit_type_handler.h"
@@ -1413,6 +1416,12 @@ public:
             builder.AppendString(portalExit->GetPath());
             if (pathRootType) {
                 *pathRootType = EPathRootType::PortalExit;
+            }
+        } else if (currentNode->GetType() == EObjectType::Scion) {
+            const auto* scion = currentNode->GetTrunkNode()->As<TScionNode>();
+            builder.AppendString(scion->GetPath());
+            if (pathRootType) {
+                *pathRootType = EPathRootType::Scion;
             }
         } else {
             return fallbackToId();

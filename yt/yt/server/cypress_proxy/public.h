@@ -4,6 +4,8 @@ namespace NYT::NCypressProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct IBootstrap;
+
 DECLARE_REFCOUNTED_STRUCT(IObjectService)
 
 DECLARE_REFCOUNTED_CLASS(TDynamicConfigManager)

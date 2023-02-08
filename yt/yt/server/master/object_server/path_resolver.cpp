@@ -7,6 +7,7 @@
 #include <yt/yt/server/master/cypress_server/node_detail.h>
 #include <yt/yt/server/master/cypress_server/link_node.h>
 #include <yt/yt/server/master/cypress_server/portal_entrance_node.h>
+#include <yt/yt/server/master/cypress_server/rootstock_node.h>
 #include <yt/yt/server/master/cypress_server/helpers.h>
 #include <yt/yt/server/master/cypress_server/resolve_cache.h>
 
@@ -77,8 +78,8 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 Bootstrap_->GetObjectManager()->GetMasterObject(),
                 GetTransaction()
             },
-            /* canCacheResolve */ false,
-            /* resolveDepth */ 0
+            /*canCacheResolve*/ false,
+            /*resolveDepth*/ 0
         };
     }
 
@@ -240,13 +241,6 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
                 return makeCurrentLocalObjectResult();
             }
 
-            if (!options.FollowPortals &&
-                !slashSkipped &&
-                Tokenizer_.GetType() == NYPath::ETokenType::EndOfStream)
-            {
-                return makeCurrentLocalObjectResult();
-            }
-
             const auto* portalEntrance = currentNode->As<TPortalEntranceNode>();
             auto portalExitNodeId = MakePortalExitNodeId(
                 portalEntrance->GetId(),
@@ -255,6 +249,24 @@ TPathResolver::TResolveResult TPathResolver::Resolve(const TPathResolverOptions&
             return TResolveResult{
                 TYPath(unresolvedPathSuffix),
                 TRemoteObjectPayload{portalExitNodeId},
+                canCacheResolve,
+                resolveDepth
+            };
+        } else if (currentNode->GetType() == EObjectType::Rootstock) {
+            if (ampersandSkipped) {
+                return makeCurrentLocalObjectResult();
+            }
+
+            auto* rootstockNode = currentNode->As<TRootstockNode>();
+            auto rootstockNodePath = cypressManager->GetNodePath(
+                rootstockNode->GetTrunkNode(),
+                GetTransaction());
+            return TResolveResult{
+                TYPath(unresolvedPathSuffix),
+                TSequoiaRedirectPayload{
+                    .RootstockNodeId = rootstockNode->GetId(),
+                    .RootstockPath = rootstockNodePath,
+                },
                 canCacheResolve,
                 resolveDepth
             };

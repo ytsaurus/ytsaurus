@@ -209,6 +209,7 @@ protected:
     NCypressServer::ICypressManagerPtr CypressManager_;
     NCypressServer::IPortalManagerPtr PortalManager_;
     NCypressServer::IGraftingManagerPtr GraftingManager_;
+    NCypressServer::ISequoiaActionsExecutorPtr SequoiaActionsExecutor_;
     IHydraFacadePtr HydraFacade_;
     IEpochHistoryManagerPtr EpochHistoryManager_;
     IWorldInitializerPtr WorldInitializer_;

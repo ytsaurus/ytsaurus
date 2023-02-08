@@ -83,6 +83,12 @@ struct ICypressNodeProxy
     static TIntrusivePtr<ICypressNodeProxy> FromNode(const TIntrusivePtr<NYTree::INode>& ptr);
     static const ICypressNodeProxy* FromNode(const NYTree::INode* ptr);
     static TIntrusivePtr<const ICypressNodeProxy> FromNode(const TIntrusivePtr<const NYTree::INode>& ptr);
+
+    virtual void SetChildNode(
+        NYTree::INodeFactory* factory,
+        const NYPath::TYPath& path,
+        const NYTree::INodePtr& child,
+        bool recursive) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(ICypressNodeProxy)

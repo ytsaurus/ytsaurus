@@ -22,7 +22,6 @@ struct TPathResolverOptions
 {
     bool EnablePartialResolve = true;
     bool PopulateResolveCache = false;
-    bool FollowPortals = true;
     std::optional<int> SymlinkEncounterCountLimit;
     int InitialResolveDepth = 0;
 };
@@ -51,12 +50,19 @@ public:
         NObjectClient::TObjectId ObjectId;
     };
 
+    struct TSequoiaRedirectPayload
+    {
+        NCypressClient::TNodeId RootstockNodeId;
+        NYTree::TYPath RootstockPath;
+    };
+
     struct TMissingObjectPayload
     { };
 
     using TResolvePayload = std::variant<
         TLocalObjectPayload,
         TRemoteObjectPayload,
+        TSequoiaRedirectPayload,
         TMissingObjectPayload
     >;
 

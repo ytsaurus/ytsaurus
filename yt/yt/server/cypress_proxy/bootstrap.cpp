@@ -4,6 +4,7 @@
 #include "private.h"
 #include "config.h"
 #include "object_service.h"
+#include "sequoia_service.h"
 
 #include <yt/yt/server/lib/admin/admin_service.h>
 
@@ -97,22 +98,49 @@ public:
         return Config_;
     }
 
+    const TDynamicConfigManagerPtr& GetDynamicConfigManager() const override
+    {
+        return DynamicConfigManager_;
+    }
+
+    const NRpc::IAuthenticatorPtr& GetNativeAuthenticator() const override
+    {
+        return NativeAuthenticator_;
+    }
+
     const IInvokerPtr& GetControlInvoker() const override
     {
         return ControlQueue_->GetInvoker();
     }
 
+    const NApi::NNative::IConnectionPtr& GetNativeConnection() const override
+    {
+        return NativeConnection_;
+    }
+
+    const NApi::NNative::IClientPtr& GetNativeClient() const override
+    {
+        return NativeRootClient_;
+    }
+
     NApi::IClientPtr GetRootClient() const override
     {
-        return RootClient_;
+        return NativeRootClient_;
+    }
+
+    const IYPathServicePtr& GetSequoiaService() const override
+    {
+        return SequoiaService_;
     }
 
 private:
     const TCypressProxyConfigPtr Config_;
 
-    NApi::NNative::IConnectionPtr Connection_;
-    NApi::NNative::IClientPtr RootClient_;
+    NApi::NNative::IConnectionPtr NativeConnection_;
+    NApi::NNative::IClientPtr NativeRootClient_;
     NRpc::IAuthenticatorPtr NativeAuthenticator_;
+
+    IYPathServicePtr SequoiaService_;
 
     TActionQueuePtr ControlQueue_;
 
@@ -140,9 +168,9 @@ private:
             CoreDumper_ = CreateCoreDumper(Config_->CoreDumper);
         }
 
-        Connection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
-        RootClient_ = Connection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
-        NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(Connection_);
+        NativeConnection_ = NApi::NNative::CreateConnection(Config_->ClusterConnection);
+        NativeRootClient_ = NativeConnection_->CreateNativeClient({.User = NSecurityClient::RootUserName});
+        NativeAuthenticator_ = NApi::NNative::CreateNativeAuthenticator(NativeConnection_);
 
         DynamicConfigManager_ = New<TDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, Unretained(this)));
@@ -158,7 +186,7 @@ private:
             CypressRegistrar_ = CreateCypressRegistrar(
                 std::move(options),
                 Config_->CypressRegistrar,
-                RootClient_,
+                NativeRootClient_,
                 GetControlInvoker());
         }
 
@@ -189,7 +217,8 @@ private:
             CoreDumper_,
             /*authenticator*/ nullptr));
 
-        ObjectService_ = CreateObjectService(Connection_, NativeAuthenticator_);
+        SequoiaService_ = CreateSequoiaService(this);
+        ObjectService_ = CreateObjectService(this);
         RpcServer_->RegisterService(ObjectService_->GetService());
     }
 

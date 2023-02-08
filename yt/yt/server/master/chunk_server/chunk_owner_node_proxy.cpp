@@ -320,8 +320,8 @@ TFuture<void> FetchChunkMetasFromSequoia(
 
     auto future = transaction->LookupRows(
         std::move(keys),
-        NTransactionClient::SyncLastCommittedTimestamp,
-        columnFilter);
+        columnFilter,
+        NTransactionClient::SyncLastCommittedTimestamp);
     // TODO(babenko): capturing client is needed to ensure its in-flight requests get executed properly
     return future.Apply(BIND([chunkSpecs = std::move(chunkSpecs), client] (const std::vector<std::optional<NRecords::TChunkMetaExtensions>>& optionalRecords) {
         YT_VERIFY(optionalRecords.size() == chunkSpecs.size());

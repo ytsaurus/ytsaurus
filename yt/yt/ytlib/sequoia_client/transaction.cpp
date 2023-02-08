@@ -98,14 +98,19 @@ public:
     TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         ESequoiaTable table,
         TSharedRange<TLegacyKey> keys,
-        TTimestamp timestamp,
-        const TColumnFilter& columnFilter) override
+        const TColumnFilter& columnFilter,
+        std::optional<TTimestamp> timestamp) override
     {
         // TODO(gritukan): Default options.
         NApi::TLookupRowsOptions options;
         options.KeepMissingRows = true;
         options.ColumnFilter = columnFilter;
-        options.Timestamp = timestamp;
+        if (timestamp) {
+            options.Timestamp = *timestamp;
+        } else {
+            YT_VERIFY(Transaction_);
+            options.Timestamp = Transaction_->GetStartTimestamp();
+        }
 
         const auto* tableDescriptor = ITableDescriptor::Get(table);
         return Client_->LookupRows(
