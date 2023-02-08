@@ -45,7 +45,7 @@ Y_FORCE_INLINE bool CompareAndSet(
         : "cc"
     );
     return success;
-#elif defined(__arm64__)
+#elif defined(__arm64__) || (defined(__aarch64__) && defined(RTE_ARM_FEATURE_ATOMICS))
     register ui64 x0 __asm("x0") = (ui64)expected1;
     register ui64 x1 __asm("x1") = (ui64)expected2;
     register ui64 x2 __asm("x2") = (ui64)new1;
@@ -68,6 +68,39 @@ Y_FORCE_INLINE bool CompareAndSet(
     expected1 = (T1)x0;
     expected2 = (T2)x1;
     return x0 == old1 && x1 == old2;
+#elif defined(__aarch64__)
+    ui64 exp1 = reinterpret_cast<ui64>(expected1);
+    ui64 exp2 = reinterpret_cast<ui64>(expected2);
+    ui32 fail = 0;
+
+    do {
+        ui64 current1 = 0;
+        ui64 current2 = 0;
+        asm volatile (
+            "ldaxp %[cur1], %[cur2], [%[src]]"
+            : [cur1] "=r" (current1)
+            , [cur2] "=r" (current2)
+            : [src] "r" (atomic)
+            : "memory"
+        );
+
+        if (current1 != exp1 || current2 != exp2) {
+            expected1 = reinterpret_cast<T1>(current1);
+            expected2 = reinterpret_cast<T2>(current2);
+            return false;
+        }
+
+        asm volatile (
+            "stlxp %w[fail], %[new1], %[new2], [%[dst]]"
+            : [fail] "=&r" (fail)
+            : [new1] "r" (new1)
+            , [new2] "r" (new2)
+            , [dst] "r" (atomic)
+            : "memory"
+        );
+
+    } while (Y_UNLIKELY(fail));
+    return true;
 #else
 #    error Unsupported platform
 #endif

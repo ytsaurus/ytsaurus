@@ -44,4 +44,6 @@
 
 #endif
 
-#cmakedefine PC_FROM_UCONTEXT @PC_FROM_UCONTEXT@
+#ifdef __x86_64__
+    #cmakedefine PC_FROM_UCONTEXT @PC_FROM_UCONTEXT@
+#endif
