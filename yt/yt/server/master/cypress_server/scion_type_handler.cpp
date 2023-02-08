@@ -5,9 +5,6 @@
 #include "scion_node.h"
 #include "scion_proxy.h"
 
-#include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
-#include <yt/yt/ytlib/sequoia_client/transaction.h>
-
 namespace NYT::NCypressServer {
 
 using namespace NCellMaster;
@@ -55,19 +52,6 @@ private:
         }
 
         TMapNodeTypeHandlerImpl::DoDestroy(node);
-    }
-
-    void DoDestroySequoiaObject(
-        TScionNode* node,
-        const NSequoiaClient::ISequoiaTransactionPtr& transaction) noexcept override
-    {
-        // TODO: Rewrite after removal implementation.
-        if (node->IsTrunk()) {
-            NRecords::TResolveNodeKey key{
-                .Path = node->GetPath(),
-            };
-            transaction->DeleteRow(key);
-        }
     }
 
     void DoBeginCopy(

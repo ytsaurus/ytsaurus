@@ -15,14 +15,14 @@ namespace NYT::NSequoiaClient {
 template <class TRecordKey>
 TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> ISequoiaTransaction::LookupRows(
     const std::vector<TRecordKey>& keys,
-    NTransactionClient::TTimestamp timestamp,
-    const NTableClient::TColumnFilter& columnFilter)
+    const NTableClient::TColumnFilter& columnFilter,
+    std::optional<NTransactionClient::TTimestamp> timestamp)
 {
     auto rowsetFuture = LookupRows(
         TRecordKey::Table,
         FromRecordKeys<TRecordKey>(keys, GetRowBuffer()),
-        timestamp,
-        columnFilter);
+        columnFilter,
+        timestamp);
     return rowsetFuture.Apply(BIND([] (const NApi::IUnversionedRowsetPtr& rowset) {
         return NTableClient::ToOptionalRecords<typename TRecordKey::TRecordDescriptor::TRecord>(rowset);
     }));

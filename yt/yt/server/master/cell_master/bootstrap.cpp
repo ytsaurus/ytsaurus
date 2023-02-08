@@ -25,6 +25,7 @@
 #include <yt/yt/server/master/cypress_server/cypress_manager.h>
 #include <yt/yt/server/master/cypress_server/grafting_manager.h>
 #include <yt/yt/server/master/cypress_server/portal_manager.h>
+#include <yt/yt/server/master/cypress_server/sequoia_actions_executor.h>
 
 #include <yt/yt/server/master/file_server/file_node_type_handler.h>
 
@@ -883,6 +884,8 @@ void TBootstrap::DoInitialize()
 
     GraftingManager_ = CreateGraftingManager(this);
 
+    SequoiaActionsExecutor_ = CreateSequoiaActionsExecutor(this);
+
     ChunkManager_ = CreateChunkManager(this);
 
     JournalManager_ = CreateJournalManager(this);
@@ -969,6 +972,7 @@ void TBootstrap::DoInitialize()
     ZookeeperBootstrap_->Initialize();
     ZookeeperManager_->Initialize();
     GraftingManager_->Initialize();
+    SequoiaActionsExecutor_->Initialize();
 
     // NB: Keep Config Manager initialization last and prevent
     // new automaton parts registration after its initialization.

@@ -1,0 +1,15 @@
+#pragma once
+
+#include "public.h"
+
+#include <yt/yt/core/ytree/public.h>
+
+namespace NYT::NCypressProxy {
+
+////////////////////////////////////////////////////////////////////////////////
+
+NYTree::IYPathServicePtr CreateSequoiaService(IBootstrap* bootstrap);
+
+////////////////////////////////////////////////////////////////////////////////
+
+} // namespace NYT::NCypressProxy

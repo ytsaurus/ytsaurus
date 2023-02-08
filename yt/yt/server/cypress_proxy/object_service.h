@@ -22,9 +22,7 @@ DEFINE_REFCOUNTED_TYPE(IObjectService)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IObjectServicePtr CreateObjectService(
-    NApi::NNative::IConnectionPtr connection,
-    NRpc::IAuthenticatorPtr authenticator);
+IObjectServicePtr CreateObjectService(IBootstrap* bootstrap);
 
 ////////////////////////////////////////////////////////////////////////////////
 

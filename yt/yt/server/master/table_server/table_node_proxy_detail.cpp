@@ -1539,9 +1539,7 @@ bool TTableNodeProxy::SetBuiltinAttribute(TInternedAttributeKey key, const TYson
 
             auto path = ConvertTo<TYPath>(value);
             const auto& objectManager = Bootstrap_->GetObjectManager();
-            IObjectManager::TResolvePathOptions options;
-            options.FollowPortals = false;
-            auto* node = objectManager->ResolvePathToObject(path, /*transaction*/ nullptr, options);
+            auto* node = objectManager->ResolvePathToObject(path, /*transaction*/ nullptr, /*options*/ {});
             if (node->GetType() != EObjectType::HunkStorage) {
                 THROW_ERROR_EXCEPTION("Unexpected node type: expected %Qlv, got %Qlv",
                     EObjectType::HunkStorage,

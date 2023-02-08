@@ -23,14 +23,14 @@ public:
     virtual TFuture<NApi::IUnversionedRowsetPtr> LookupRows(
         ESequoiaTable table,
         TSharedRange<NTableClient::TLegacyKey> keys,
-        NTransactionClient::TTimestamp timestamp,
-        const NTableClient::TColumnFilter& columnFilter) = 0;
+        const NTableClient::TColumnFilter& columnFilter,
+        std::optional<NTransactionClient::TTimestamp> timestamp) = 0;
 
     template <class TRecordKey>
     TFuture<std::vector<std::optional<typename TRecordKey::TRecordDescriptor::TRecord>>> LookupRows(
         const std::vector<TRecordKey>& keys,
-        NTransactionClient::TTimestamp timestamp,
-        const NTableClient::TColumnFilter& columnFilter = {});
+        const NTableClient::TColumnFilter& columnFilter = {},
+        std::optional<NTransactionClient::TTimestamp> timestamp = {});
 
     virtual void DatalessLockRow(
         NObjectClient::TCellTag masterCellTag,

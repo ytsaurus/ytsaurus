@@ -113,6 +113,7 @@ DEFINE_ENUM(EMasterReign,
     ((MultisetAttributesForEveryone)                                (2305))  // kvk1920
     ((AddTabletMountTime)                                           (2306))  // alexelexa
     ((ThrowOnNullColumnMount)                                       (2307))  // alexelexa
+    ((SequoiaCreate)                                                (2308))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////

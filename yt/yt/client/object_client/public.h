@@ -22,6 +22,8 @@ YT_DEFINE_ERROR_ENUM(
     ((ForwardedRequestFailed)                    (1004))
     ((CannotCacheMutatingRequest)                (1005))
     ((InvalidObjectType)                         (1006))
+    ((RequestInvolvesSequoia)                    (1007))
+    ((RequestInvolvesCypress)                    (1008))
 );
 
 ////////////////////////////////////////////////////////////////////////////////

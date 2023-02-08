@@ -52,6 +52,7 @@ struct TNodeFactoryOptions
 DEFINE_ENUM(EPathRootType,
     (RootNode)
     (PortalExit)
+    (Scion)
     (Other)
 );
 

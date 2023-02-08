@@ -23,6 +23,9 @@
 
 #include <yt/yt/server/lib/tablet_node/public.h>
 
+#include <yt/yt/ytlib/sequoia_client/resolve_node.record.h>
+#include <yt/yt/ytlib/sequoia_client/transaction.h>
+
 #include <yt/yt/ytlib/table_client/public.h>
 
 #include <yt/yt/core/misc/serialize.h>
@@ -177,6 +180,16 @@ public:
     {
         auto* typedNode = node->As<TImpl>();
         DoDestroySequoiaObject(typedNode, transaction);
+
+        // TODO: Rewrite after removal implementation.
+        if (node->IsTrunk()) {
+            const auto& cypressManager = Bootstrap_->GetCypressManager();
+            auto path = cypressManager->GetNodePath(node, /*transaction*/ nullptr);
+            NSequoiaClient::NRecords::TResolveNodeKey key{
+                .Path = path,
+            };
+            transaction->DeleteRow(key);
+        }
     }
 
     void RecreateAsGhost(TCypressNode* node) override

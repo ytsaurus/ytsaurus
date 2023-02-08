@@ -658,6 +658,12 @@ private:
             },
             [&] (const TPathResolver::TMissingObjectPayload& /*payload*/) -> IYPathServicePtr {
                 return TNonexistingService::Get();
+            },
+            [&] (const TPathResolver::TSequoiaRedirectPayload& payload) -> IYPathServicePtr {
+                THROW_ERROR_EXCEPTION(NObjectClient::EErrorCode::RequestInvolvesSequoia,
+                    "Request involves Sequoia shard")
+                    << TErrorAttribute("rootstock_node_id", payload.RootstockNodeId)
+                    << TErrorAttribute("rootstock_path", payload.RootstockPath);
             });
 
         return TResolveResultThere{
@@ -1561,7 +1567,6 @@ TObject* TObjectManager::ResolvePathToObject(const TYPath& path, TTransaction* t
 
     auto result = resolver.Resolve(TPathResolverOptions{
         .EnablePartialResolve = options.EnablePartialResolve,
-        .FollowPortals = options.FollowPortals
     });
     const auto* payload = std::get_if<TPathResolver::TLocalObjectPayload>(&result.Payload);
     if (!payload) {
@@ -1907,7 +1912,7 @@ TFuture<void> TObjectManager::DestroySequoiaObjects(NProto::TReqDestroyObjects r
             };
 
             return transaction->Commit(commitOptions);
-        }));
+        }).AsyncVia(EpochAutomatonInvoker_));
 }
 
 void TObjectManager::DoDestroyObjects(NProto::TReqDestroyObjects* request) noexcept
