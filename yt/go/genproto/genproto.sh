@@ -1,5 +1,10 @@
 #!/bin/bash
 
+set -e
+set -u
+set -o pipefail
+set -x
+
 GIT_WORK_DIR=$(git rev-parse --show-toplevel)
 
 (cd $GIT_WORK_DIR && protoc --go_opt=module=ytsaurus.tech --go_out=. -I ./yt $(find ./yt/yt_proto/yt/client/api/rpc_proxy -iname "*.proto"))
