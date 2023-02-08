@@ -1,6 +1,5 @@
 #include <yt/yt/server/lib/job_agent/config.h>
 #include <yt/yt/server/lib/job_agent/gpu_info_provider.h>
-#include <yt/yt/server/lib/job_agent/nvgpu_manager.h>
 
 #include <yt/yt/core/rpc/server.h>
 #include <yt/yt/core/rpc/service_detail.h>
@@ -19,6 +18,8 @@
 
 #include <library/cpp/testing/common/network.h>
 
+#include <infra/rsm/nvgpumanager/api/nvgpu.pb.h>
+
 namespace NYT::NJobAgent {
 namespace {
 
@@ -29,6 +30,11 @@ using namespace NRpc;
 ////////////////////////////////////////////////////////////////////////////////
 
 static const TString ServiceName = "NvGpuManager";
+
+////////////////////////////////////////////////////////////////////////////////
+
+using TReqListDevices = nvgpu::Empty;
+using TRspListDevices = nvgpu::ListResponse;
 
 class TMockNvGpuManagerService
     : public NRpc::TServiceBase
@@ -126,7 +132,13 @@ protected:
 
 TEST_F(TTestNvManagerGpuInfoProvider, Simple)
 {
-    auto provider = New<TNvManagerGpuInfoProvider>(Address_, ServiceName, /*getGpuIndexesFromNvidiaSmi*/ false);
+    auto config = New<TGpuInfoSourceConfig>();
+    config->NvGpuManagerServiceAddress = Address_;
+    config->NvGpuManagerServiceName = ServiceName;
+    config->Type = EGpuInfoSourceType::NvGpuManager;
+    config->GpuIndexesFromNvidiaSmi = false;
+
+    auto provider = CreateGpuInfoProvider(config);
     auto gpuInfos = provider->GetGpuInfos(TDuration::Max());
 
     {
