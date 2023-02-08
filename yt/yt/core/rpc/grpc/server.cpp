@@ -97,6 +97,7 @@ private:
     std::vector<TGrpcServerCredentialsPtr> Credentials_;
 
     std::atomic<int> CallHandlerCount_ = {0};
+    std::atomic<bool> ShutdownStarted_ = {false};
     TPromise<void> ShutdownPromise_ = NewPromise<void>();
 
 
@@ -201,14 +202,16 @@ private:
             const TServerPtr Owner_;
         };
 
-        auto* shutdownTag = new TStopTag(this);
+        if (!ShutdownStarted_.exchange(true)) {
+            YT_VERIFY(Native_);
+            auto* shutdownTag = new TStopTag(this);
 
-        grpc_server_shutdown_and_notify(Native_.Unwrap(), CompletionQueue_, shutdownTag->GetTag());
+            grpc_server_shutdown_and_notify(Native_.Unwrap(), CompletionQueue_, shutdownTag->GetTag());
 
-        if (!graceful) {
-            grpc_server_cancel_all_calls(Native_.Unwrap());
+            if (!graceful) {
+                grpc_server_cancel_all_calls(Native_.Unwrap());
+            }
         }
-
         return ShutdownPromise_;
     }
 
