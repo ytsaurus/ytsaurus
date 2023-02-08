@@ -25,16 +25,16 @@ static constexpr int MaxTryDequeueCount = 512;
 
 Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TEnqueuedAction action)
 {
-    Queue_.enqueue(std::move(action));
+    YT_VERIFY(Queue_.enqueue(std::move(action)));
     Size_.fetch_add(1, std::memory_order::release);
 }
 
 Y_FORCE_INLINE void TMpmcQueueImpl::Enqueue(TMutableRange<TEnqueuedAction> actions)
 {
     auto size = std::ssize(actions);
-    Queue_.enqueue_bulk(
+    YT_VERIFY(Queue_.enqueue_bulk(
         std::make_move_iterator(actions.Begin()),
-        size);
+        size));
     Size_.fetch_add(size, std::memory_order::release);
 }
 
@@ -77,9 +77,12 @@ Y_FORCE_INLINE bool TMpmcQueueImpl::TryDequeue(TEnqueuedAction* action, TConsume
 
 void TMpmcQueueImpl::DrainProducer()
 {
-    auto size = Size_.exchange(0);
+    auto queueSize = Size_.load();
+    // Must use cas to prevent modifying Size_ if it is negative.
+    while (queueSize > 0 && !Size_.compare_exchange_weak(queueSize, 0));
+
     TEnqueuedAction action;
-    while (size-- > 0) {
+    while (queueSize-- > 0) {
         [&] {
             for (int tryIndex = 0; tryIndex < MaxTryDequeueCount; ++tryIndex) {
                 if (Queue_.try_dequeue(action)) {
