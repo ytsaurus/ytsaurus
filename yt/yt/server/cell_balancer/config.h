@@ -55,6 +55,7 @@ public:
     TDuration BundleScanTransactionTimeout;
     TDuration HulkRequestTimeout;
     TDuration CellRemovalTimeout;
+    TDuration NodeAssignmentTimeout;
 
     NYPath::TYPath RootPath;
 

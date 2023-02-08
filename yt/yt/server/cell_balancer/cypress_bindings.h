@@ -33,6 +33,9 @@ DECLARE_REFCOUNTED_STRUCT(TDeallocationRequest)
 DECLARE_REFCOUNTED_STRUCT(TDeallocationRequestState)
 DECLARE_REFCOUNTED_STRUCT(TInstanceAnnotations)
 DECLARE_REFCOUNTED_STRUCT(TTabletNodeInfo)
+DECLARE_REFCOUNTED_STRUCT(TTabletNodeMemoryStatistics)
+DECLARE_REFCOUNTED_STRUCT(TMemoryCategory)
+DECLARE_REFCOUNTED_STRUCT(TTabletNodeStatistics)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellStatus)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellInfo)
 DECLARE_REFCOUNTED_STRUCT(TTabletCellPeer)
@@ -43,6 +46,7 @@ DECLARE_REFCOUNTED_STRUCT(TMaintenanceRequest)
 DECLARE_REFCOUNTED_STRUCT(TRpcProxyInfo)
 DECLARE_REFCOUNTED_STRUCT(TAccountResources)
 DECLARE_REFCOUNTED_STRUCT(TSystemAccount)
+DECLARE_REFCOUNTED_STRUCT(TNodeTagFilterOperationState)
 
 template <typename TEntryInfo>
 using TIndexedEntries = THashMap<TString, TIntrusivePtr<TEntryInfo>>;
@@ -473,17 +477,31 @@ DEFINE_REFCOUNTED_TYPE(TDeallocationRequestState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-struct TRemovingTabletCellInfo
+struct TRemovingTabletCellState
     : public NYTree::TYsonStruct
 {
     TInstant RemovedTime;
 
-    REGISTER_YSON_STRUCT(TRemovingTabletCellInfo);
+    REGISTER_YSON_STRUCT(TRemovingTabletCellState);
 
     static void Register(TRegistrar registrar);
 };
 
-DEFINE_REFCOUNTED_TYPE(TRemovingTabletCellInfo)
+DEFINE_REFCOUNTED_TYPE(TRemovingTabletCellState)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TNodeTagFilterOperationState
+    : public NYTree::TYsonStruct
+{
+    TInstant CreationTime;
+
+    REGISTER_YSON_STRUCT(TNodeTagFilterOperationState);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TNodeTagFilterOperationState)
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -492,10 +510,18 @@ struct TBundleControllerState
 {
     TIndexedEntries<TAllocationRequestState> NodeAllocations;
     TIndexedEntries<TDeallocationRequestState> NodeDeallocations;
-    TIndexedEntries<TRemovingTabletCellInfo> RemovingCells;
+    TIndexedEntries<TRemovingTabletCellState> RemovingCells;
 
     TIndexedEntries<TAllocationRequestState> ProxyAllocations;
     TIndexedEntries<TDeallocationRequestState> ProxyDeallocations;
+
+    TIndexedEntries<TNodeTagFilterOperationState> BundleNodeAssignments;
+    TIndexedEntries<TNodeTagFilterOperationState> SpareNodeAssignments;
+    // Is "releasement" can be used as opposite of "assignment"?
+    // Chat GPT3: Yes, "releasement" can also be used as the opposite of "assignment"
+    // It refers to the act of releasing or freeing someone or something from an assigned task
+    // or responsibility.
+    TIndexedEntries<TNodeTagFilterOperationState> SpareNodeReleasements;
 
     REGISTER_YSON_STRUCT(TBundleControllerState);
 
@@ -556,6 +582,50 @@ DEFINE_REFCOUNTED_TYPE(TMaintenanceRequest)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TMemoryCategory
+    : public NYTree::TYsonStruct
+{
+    i64 Used;
+    i64 Limit;
+
+    REGISTER_YSON_STRUCT(TMemoryCategory);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TMemoryCategory)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletNodeMemoryStatistics
+    : public NYTree::TYsonStruct
+{
+    TMemoryCategoryPtr TabletDynamic;
+    TMemoryCategoryPtr TabletStatic;
+
+    REGISTER_YSON_STRUCT(TTabletNodeMemoryStatistics);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletNodeMemoryStatistics)
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TTabletNodeStatistics
+    : public NYTree::TYsonStruct
+{
+    TTabletNodeMemoryStatisticsPtr Memory;
+
+    REGISTER_YSON_STRUCT(TTabletNodeStatistics);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TTabletNodeStatistics)
+
+////////////////////////////////////////////////////////////////////////////////
+
 struct TTabletNodeInfo
     : public TYsonStructAttributes<TTabletNodeInfo>
 {
@@ -571,6 +641,7 @@ struct TTabletNodeInfo
     std::vector<TTabletSlotPtr> TabletSlots;
     THashMap<TString, TMaintenanceRequestPtr> MaintenanceRequests;
     TInstant LastSeenTime;
+    TTabletNodeStatisticsPtr Statistics;
 
     REGISTER_YSON_STRUCT(TTabletNodeInfo);
 

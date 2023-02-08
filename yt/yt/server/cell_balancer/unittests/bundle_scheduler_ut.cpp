@@ -41,6 +41,13 @@ void ApplyChangedStates(TSchedulerInputState* schedulerState, const TSchedulerMu
 
 ////////////////////////////////////////////////////////////////////////////////
 
+bool Contains(const auto& container, const auto& item)
+{
+    return std::find(container.begin(), container.end(), item) != container.end();
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TBundleInfoPtr SetBundleInfo(
     TSchedulerInputState& input,
     const TString& bundleName,
@@ -273,7 +280,8 @@ void SetTabletSlotsState(TSchedulerInputState& inputState, const TString& nodeNa
 {
     const auto& nodeInfo = GetOrCrash(inputState.TabletNodes, nodeName);
 
-    for (const auto& slot : nodeInfo->TabletSlots) {
+    for (auto& slot : nodeInfo->TabletSlots) {
+        slot = New<TTabletSlot>();
         slot->State = state;
     }
 }
@@ -404,6 +412,14 @@ void GenerateProxyDeallocationsForBundle(
         spec->YPCluster = "pre-pre";
         spec->PodId = "random_pod_id";
     }
+}
+
+THashSet<TString> GetRandomElements(const auto& collection, int count)
+{
+    std::vector<TString> result(collection.begin(), collection.end());
+    Shuffle(result.begin(), result.end());
+    result.resize(count);
+    return {result.begin(), result.end()};
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -990,6 +1006,7 @@ void CheckEmptyAlerts(const TSchedulerMutations& mutations)
 
     for (const auto& alert : mutations.AlertsToFire) {
         EXPECT_EQ("", alert.Id);
+        EXPECT_EQ("", alert.BundleName);
         EXPECT_EQ("", alert.Description);
     }
 }
@@ -1014,32 +1031,91 @@ TEST(TNodeTagsFilterManager, TestBundleWithNoTagFilter)
 
 TEST(TNodeTagsFilterManager, TestBundleNodeTagsAssigned)
 {
-    auto input = GenerateSimpleInputContext(2, 5);
-    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    auto input = GenerateSimpleInputContext(2, 11);
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    auto bundleNodeTagFilter = bundleInfo->NodeTagFilter;
+    bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
 
     GenerateNodesForBundle(input, "bigd", 2);
-    GenerateTabletCellsForBundle(input, "bigd", 10);
+    GenerateTabletCellsForBundle(input, "bigd", 22);
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
 
-    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(2, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(2, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(2, std::ssize(mutations.ChangedStates.at("bigd")->BundleNodeAssignments));
 
+    THashSet<TString> newTabletNodes;
     for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
-        input.TabletNodes[nodeName]->UserTags = tags;
+        EXPECT_TRUE(mutations.ChangedDecommissionedFlag.at(nodeName));
+        EXPECT_TRUE(tags.find(bundleNodeTagFilter) != tags.end());
+
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->UserTags = tags;
+        nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
+
+        newTabletNodes.insert(nodeName);
     }
 
+    ApplyChangedStates(&input, mutations);
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
-
     CheckEmptyAlerts(mutations);
 
     EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    // Nothing happen until node prepared (applied dyn config)
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (const auto& node : newTabletNodes) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, node);
+        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+        nodeInfo->Statistics->Memory->TabletStatic->Limit = *bundleInfo->TargetConfig->MemoryLimits->TabletStatic;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    CheckEmptyAlerts(mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(2, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
+        EXPECT_TRUE(newTabletNodes.find(nodeName) != newTabletNodes.end());
+        EXPECT_FALSE(decommissioned);
+
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->Decommissioned = decommissioned;
+    }
+
+        mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Finally bundle nodes assigned
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_TRUE(mutations.ChangedStates.at("bigd")->BundleNodeAssignments.empty());
+
+    ApplyChangedStates(&input, mutations);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
 }
+
+// TODO(capone212): more test ideas
+// - don't mix assigning requests with deallocate requests. Can brake allocation of other nodes
+// - maintenance requests for spare nodes
+// - check spare acquire/release timeouts
 
 TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
 {
@@ -1047,38 +1123,107 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     const int SlotCount = 5;
 
     auto input = GenerateSimpleInputContext(2, SlotCount);
-    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
 
     GenerateNodesForBundle(input, "bigd", 1, SetNodeFilterTag, SlotCount);
-    GenerateTabletCellsForBundle(input, "bigd", 15);
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
+    GenerateTabletCellsForBundle(input, "bigd", 13);
 
     // Generate Spare nodes
     auto zoneInfo = input.Zones["default-zone"];
     zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
-    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, SlotCount);
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, 15);
+
+    for (const auto& nodeName : spareNodes) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->TabletSlots.clear();
+    }
 
     TSchedulerMutations mutations;
     ScheduleBundles(input, &mutations);
 
     CheckEmptyAlerts(mutations);
+    EXPECT_EQ(2, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
     EXPECT_EQ(2, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(2, std::ssize(mutations.ChangedNodeUserTags));
 
-    const TString BundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+    ApplyChangedStates(&input, mutations);
 
+    const TString BundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
     THashSet<TString> usedSpare;
 
-    for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
-        EXPECT_FALSE(mutations.ChangedDecommissionedFlag.at(nodeName));
+    for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        EXPECT_TRUE(mutations.ChangedDecommissionedFlag.at(nodeName));
         EXPECT_TRUE(tags.find(BundleNodeTagFilter) != tags.end());
         EXPECT_TRUE(spareNodes.find(nodeName) != spareNodes.end());
 
         usedSpare.insert(nodeName);
-        input.TabletNodes[nodeName]->UserTags = tags;
-        input.TabletNodes[nodeName]->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
+
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->UserTags = tags;
+        nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
     }
 
     EXPECT_EQ(2, std::ssize(usedSpare));
+    EXPECT_EQ(1, std::ssize(input.ZoneToSpareNodes["default-zone"].FreeNodes));
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Nothing happen until node prepared (applied dyn config)
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (auto& node : spareNodes) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, node);
+        nodeInfo->TabletSlots.resize(bundleInfo->TargetConfig->CpuLimits->WriteThreadPoolSize);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (auto& node : spareNodes) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, node);
+        nodeInfo->Statistics->Memory->TabletStatic->Limit = *bundleInfo->TargetConfig->MemoryLimits->TabletStatic;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(2, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
+        EXPECT_TRUE(spareNodes.find(nodeName) != spareNodes.end());
+        EXPECT_FALSE(decommissioned);
+
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->Decommissioned = decommissioned;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Finally spare node assigned
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates));
+    EXPECT_TRUE(mutations.ChangedStates["bigd"]->SpareNodeAssignments.empty());
+
+    ApplyChangedStates(&input, mutations);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
 
     // Populate slots with cell peers.
     for (const auto& spareNode : usedSpare) {
@@ -1101,6 +1246,9 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 
     TString spareNodeToRelease;
 
@@ -1110,6 +1258,8 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
         input.TabletNodes[nodeName]->Decommissioned = decommission;
         spareNodeToRelease = nodeName;
     }
+
+    ApplyChangedStates(&input, mutations);
 
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
@@ -1127,6 +1277,7 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     CheckEmptyAlerts(mutations);
     EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(1, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
 
     for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
         EXPECT_EQ(spareNodeToRelease, nodeName);
@@ -1137,9 +1288,83 @@ TEST(TNodeTagsFilterManager, TestBundleNodesWithSpare)
     mutations = TSchedulerMutations{};
     ScheduleBundles(input, &mutations);
 
-    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
     EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
     EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_TRUE(Contains(input.ZoneToSpareNodes["default-zone"].ReleasingByBundle["bigd"], spareNodeToRelease));
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_FALSE(Contains(input.ZoneToSpareNodes["default-zone"].FreeNodes, spareNodeToRelease));
+    EXPECT_FALSE(Contains(input.ZoneToSpareNodes["default-zone"].UsedByBundle["bigd"], spareNodeToRelease));
+    EXPECT_TRUE(Contains(input.ZoneToSpareNodes["default-zone"].ReleasingByBundle["bigd"], spareNodeToRelease));
+
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    EXPECT_TRUE(Contains(input.ZoneToSpareNodes["default-zone"].FreeNodes, spareNodeToRelease));
+    EXPECT_EQ(1, std::ssize(input.ZoneToSpareNodes["default-zone"].UsedByBundle["bigd"]));
+
+    // Add one more node to bundle
+    GenerateNodesForBundle(input, "bigd", 1, SetNodeFilterTag, SlotCount);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
+}
+
+TEST(TNodeTagsFilterManager, TestSeveralBundlesNodesLookingForSpare)
+{
+    auto input = GenerateSimpleInputContext(0, 5);
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    GenerateTabletCellsForBundle(input, "bigd", 9);
+
+    SetBundleInfo(input, "bigc", 0, 10);
+    auto& bundleInfo2 = input.Bundles["bigc"];
+    bundleInfo2->EnableNodeTagFilterManagement = true;
+    GenerateTabletCellsForBundle(input, "bigc", 17);
+
+    bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, 0);
+
+    for (const auto& nodeName : spareNodes) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->TabletSlots.clear();
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(3, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(3, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(0, std::ssize(input.ZoneToSpareNodes["default-zone"].FreeNodes));
+    ApplyChangedStates(&input, mutations);
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    auto& zoneSpare = input.ZoneToSpareNodes["default-zone"];
+    EXPECT_EQ(0, std::ssize(zoneSpare.FreeNodes));
+    EXPECT_EQ(3, std::ssize(zoneSpare.UsedByBundle.at("bigd")) + std::ssize(zoneSpare.UsedByBundle.at("bigc")));
+    EXPECT_EQ(0, std::ssize(zoneSpare.ReleasingByBundle));
 }
 
 TEST(TNodeTagsFilterManager, TestBundleNodesGracePeriod)
@@ -1206,6 +1431,282 @@ TEST(TNodeTagsFilterManager, SpareNodesExhausted)
 
     EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(mutations.AlertsToFire.front().Id, "no_free_spare_nodes");
+}
+
+TEST(TNodeTagsFilterManager, SpareNodesOffline)
+{
+    const int SlotCount = 5;
+
+    auto input = GenerateSimpleInputContext(2, SlotCount);
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+
+    GenerateTabletCellsForBundle(input, "bigd", 10);
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, SlotCount);
+
+    auto aliveSpare = GetRandomElements(spareNodes, 1);
+
+    for (const auto& spareNode : spareNodes) {
+        if (aliveSpare.count(spareNode) == 0) {
+            input.TabletNodes[spareNode]->State = InstanceStateOffline;
+            input.TabletNodes[spareNode]->LastSeenTime = TInstant::Now();
+        }
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        input.TabletNodes[nodeName]->UserTags = tags;
+        input.TabletNodes[nodeName]->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
+
+        EXPECT_TRUE(aliveSpare.count(nodeName) != 0);
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(1, std::ssize(mutations.AlertsToFire));
+    EXPECT_EQ(mutations.AlertsToFire.front().Id, "no_free_spare_nodes");
+}
+
+TEST(TNodeTagsFilterManager, SpareNodesWentOfflineAfterAssigning)
+{
+    const int SlotCount = 5;
+
+    auto input = GenerateSimpleInputContext(2, SlotCount);
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+
+    GenerateTabletCellsForBundle(input, "bigd", 5);
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, SlotCount);
+
+    auto usingSpareNode = GetRandomElements(spareNodes, 1);
+
+    for (const auto& spareNode : usingSpareNode) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, spareNode);
+        nodeInfo->UserTags = { bundleNodeTagFilter };
+        nodeInfo->Decommissioned = false;
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    // Using spare node went offline
+    for (const auto& spareNode : usingSpareNode) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, spareNode);
+        nodeInfo->State = InstanceStateOffline;
+        nodeInfo->LastSeenTime = TInstant::Now();
+    }
+
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeUserTags));
+
+    for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        input.TabletNodes[nodeName]->UserTags = tags;
+        input.TabletNodes[nodeName]->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
+
+        EXPECT_TRUE(usingSpareNode.count(nodeName) == 0);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TNodeTagsFilterManager, SpareNodesWentOfflineDuringAssigning)
+{
+    const int SlotCount = 5;
+
+    auto input = GenerateSimpleInputContext(1, SlotCount);
+    auto& bundleInfo = input.Bundles["bigd"];
+    bundleInfo->EnableNodeTagFilterManagement = true;
+    bundleInfo->TargetConfig->MemoryLimits->TabletStatic = 212212;
+
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
+    GenerateTabletCellsForBundle(input, "bigd", 5);
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, 15);
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeUserTags));
+
+    ApplyChangedStates(&input, mutations);
+    TString assigningSpare;
+
+    for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        assigningSpare = nodeName;
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->UserTags = tags;
+        nodeInfo->Decommissioned = mutations.ChangedDecommissionedFlag[nodeName];
+        // Set wrong settings
+        nodeInfo->TabletSlots.clear();
+        nodeInfo->Statistics->Memory->TabletStatic->Limit = 212;
+    }
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    // Nothing happen until node prepared (applied dyn config)
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    // Here our spare node tragically went offline.
+    input.TabletNodes[assigningSpare]->State = InstanceStateOffline;
+    input.TabletNodes[assigningSpare]->LastSeenTime = TInstant::Now();
+
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+
+    // At this point we expect the followings:
+    // - Old spare node assignment should be finished
+    // - New node assignment should be started
+
+    EXPECT_EQ(2, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+    EXPECT_EQ(2, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_TRUE(mutations.ChangedStates["bigd"]->SpareNodeAssignments.count(assigningSpare) != 0);
+
+    for (const auto& [nodeName, decommissioned] : mutations.ChangedDecommissionedFlag) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->Decommissioned = decommissioned;
+    }
+
+    for (const auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, nodeName);
+        nodeInfo->UserTags = tags;
+    }
+
+    ApplyChangedStates(&input, mutations);
+    mutations = TSchedulerMutations{};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeAssignments));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_TRUE(mutations.ChangedStates["bigd"]->SpareNodeAssignments.count(assigningSpare) == 0);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TEST(TNodeTagsFilterManager, SpareNodesWentOfflineDuringReleasing)
+{
+    const int SlotCount = 5;
+
+    auto input = GenerateSimpleInputContext(1, SlotCount);
+    input.Bundles["bigd"]->EnableNodeTagFilterManagement = true;
+    auto bundleNodeTagFilter = input.Bundles["bigd"]->NodeTagFilter;
+    GenerateNodeAllocationsForBundle(input, "bigd", 1);
+
+    GenerateTabletCellsForBundle(input, "bigd", 5);
+
+    // Generate Spare nodes
+    auto zoneInfo = input.Zones["default-zone"];
+    zoneInfo->SpareTargetConfig->TabletNodeCount = 3;
+    auto spareNodes = GenerateNodesForBundle(input, SpareBundleName, 3, false, SlotCount);
+
+    auto usingSpareNode = GetRandomElements(spareNodes, 1);
+
+    for (const auto& spareNode : usingSpareNode) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, spareNode);
+        nodeInfo->UserTags = { bundleNodeTagFilter };
+        nodeInfo->Decommissioned = false;
+    }
+
+    TSchedulerMutations mutations;
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+
+    // Populate slots with cell peers.
+    for (const auto& spareNode : usingSpareNode) {
+        SetTabletSlotsState(input, spareNode, PeerStateLeading);
+    }
+
+    // Add new node to bundle
+    auto nodeNames = GenerateNodesForBundle(input, "bigd", 1, SetNodeTagFilters, SlotCount);
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+
+    // Start releasing spare node
+    EXPECT_EQ(1, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(1, std::ssize(mutations.ChangedStates.at("bigd")->SpareNodeReleasements));
+
+    for (const auto& [nodeName, decommission] : mutations.ChangedDecommissionedFlag) {
+        EXPECT_TRUE(usingSpareNode.count(nodeName) != 0);
+        EXPECT_TRUE(decommission);
+        input.TabletNodes[nodeName]->Decommissioned = decommission;
+    }
+
+    ApplyChangedStates(&input, mutations);
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+
+    // Nothing happens until spare node is populated with cells
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
+
+    // Using spare node went offline
+    for (const auto& spareNode : usingSpareNode) {
+        const auto& nodeInfo = GetOrCrash(input.TabletNodes, spareNode);
+        nodeInfo->State = InstanceStateOffline;
+        nodeInfo->LastSeenTime = TInstant::Now();
+        nodeInfo->TabletSlots.clear();
+    }
+
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+
+    EXPECT_EQ(1, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(0u, mutations.ChangedStates.count("bigd"));
+
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+    for (auto& [nodeName, tags] : mutations.ChangedNodeUserTags) {
+        EXPECT_TRUE(usingSpareNode.count(nodeName) != 0);
+        EXPECT_TRUE(tags.count(bundleNodeTagFilter) == 0);
+        input.TabletNodes[nodeName]->UserTags = tags;
+    }
+    ApplyChangedStates(&input, mutations);
+
+    mutations = {};
+    ScheduleBundles(input, &mutations);
+
+    CheckEmptyAlerts(mutations);
+    EXPECT_EQ(0, std::ssize(mutations.ChangedDecommissionedFlag));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedNodeUserTags));
+    EXPECT_EQ(0, std::ssize(mutations.ChangedStates["bigd"]->SpareNodeReleasements));
 }
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -2226,14 +2727,6 @@ TEST(TBundleSchedulerTest, ReAllocateOutdatedProxies)
     EXPECT_EQ(0, std::ssize(mutations.AlertsToFire));
     EXPECT_EQ(0, std::ssize(mutations.NewDeallocations));
     VerifyProxyAllocationRequests(mutations, 4);
-}
-
-THashSet<TString> GetRandomElements(const auto& collection, int count)
-{
-    std::vector<TString> nodesToRemove(collection.begin(), collection.end());
-    Shuffle(nodesToRemove.begin(), nodesToRemove.end());
-    nodesToRemove.resize(count);
-    return {nodesToRemove.begin(), nodesToRemove.end()};
 }
 
 TEST(TBundleSchedulerTest, DeallocateOutdatedNodes)

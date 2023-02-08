@@ -35,6 +35,8 @@ void TBundleControllerConfig::Register(TRegistrar registrar)
         .Default(TDuration::Hours(1));
     registrar.Parameter("cell_removal_timeout", &TThis::CellRemovalTimeout)
         .Default(TDuration::Hours(1));
+    registrar.Parameter("spare_node_assignment_timeout", &TThis::NodeAssignmentTimeout)
+        .Default(TDuration::Minutes(30));
 
     registrar.Parameter("root_path", &TThis::RootPath)
         .NonEmpty();

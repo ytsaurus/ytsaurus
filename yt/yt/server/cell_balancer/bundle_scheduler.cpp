@@ -173,6 +173,10 @@ private:
         const auto& bundleInfo = GetOrCrash(input.Bundles, bundleName);
         auto& allocationsState = adapter->AllocationsState();
 
+        if (!adapter->IsNewAllocationAllowed(bundleInfo, input)) {
+            return;
+        }
+
         YT_VERIFY(bundleInfo->EnableBundleController);
 
         int aliveInstanceCount = std::ssize(adapter->GetAliveInstancies());
@@ -1172,9 +1176,9 @@ void CreateRemoveTabletCells(
             mutations->CellsToRemove);
 
         for (auto& cellId : mutations->CellsToRemove) {
-            auto removingCellInfo = New<TRemovingTabletCellInfo>();
-            removingCellInfo->RemovedTime = TInstant::Now();
-            bundleState->RemovingCells[cellId] = removingCellInfo;
+            auto removingCellState = New<TRemovingTabletCellState>();
+            removingCellState->RemovedTime = TInstant::Now();
+            bundleState->RemovingCells[cellId] = removingCellState;
         }
     } else if (cellCountDiff > 0) {
         YT_LOG_INFO("Creating tablet cells (BundleName: %v, CellCount: %v)",
@@ -1476,11 +1480,22 @@ public:
         , AliveBundleNodes_(aliveBundleNodes)
     { }
 
+    bool IsNewAllocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/) {
+        if (!State_->BundleNodeAssignments.empty())
+        {
+            // Do not mix node tag operations with new node allocations.
+            return false;
+        }
+
+        return true;
+    }
+
     bool IsNewDeallocationAllowed(const TBundleInfoPtr& bundleInfo, const TSchedulerInputState& input)
     {
         if (!State_->NodeAllocations.empty() ||
             !State_->NodeDeallocations.empty() ||
-            !State_->RemovingCells.empty())
+            !State_->RemovingCells.empty() ||
+            !State_->BundleNodeAssignments.empty())
         {
             // It is better not to mix allocation and deallocation requests.
             return false;
@@ -1606,6 +1621,16 @@ public:
             return false;
         }
 
+        if (nodeInfo->Decommissioned) {
+            mutations->ChangedDecommissionedFlag[nodeName] = false;
+            return false;
+        }
+
+        if (!nodeInfo->UserTags.empty()) {
+            mutations->ChangedNodeUserTags[nodeName] = {};
+            return false;
+        }
+
         const auto& annotations = nodeInfo->Annotations;
 
         if (auto changed = GetInstanceAnnotationsToSet(bundleName, allocationInfo, annotations)) {
@@ -1627,11 +1652,6 @@ public:
                     bundleName)
             });
 
-            return false;
-        }
-
-        if (nodeInfo->Decommissioned) {
-            mutations->ChangedDecommissionedFlag[nodeName] = false;
             return false;
         }
 
@@ -1754,6 +1774,10 @@ public:
         , BundleProxies_(bundleProxies)
         , AliveProxies_(aliveProxies)
     { }
+
+    bool IsNewAllocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/) {
+        return true;
+    }
 
     bool IsNewDeallocationAllowed(const TBundleInfoPtr& /*bundleInfo*/, const TSchedulerInputState& /*input*/)
     {
