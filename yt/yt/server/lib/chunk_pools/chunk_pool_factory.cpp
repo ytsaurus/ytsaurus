@@ -22,12 +22,12 @@ static const i64 InfiniteWeight = std::numeric_limits<i64>::max() / 4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobSizeConstraintsPtr CreateJobSizeConstraints(i64 dataWeightPerPartition)
+IJobSizeConstraintsPtr CreateJobSizeConstraints(i64 dataWeightPerPartition, std::optional<int> maxPartitionCount)
 {
     return CreateExplicitJobSizeConstraints(
-        /*canAdjustDataWeightPerJob*/ false,
-        /*isExplicitJobCount*/ false,
-        /*jobCount*/ InfinitePartitionCount,
+        /*canAdjustDataWeightPerJob*/ maxPartitionCount.has_value(),
+        /*isExplicitJobCount*/ maxPartitionCount.has_value(),
+        /*jobCount*/ maxPartitionCount.value_or(InfinitePartitionCount),
         /*dataWeightPerJob*/ dataWeightPerPartition,
         /*primaryDataWeightPerJob*/ InfiniteWeight,
         /*maxDataSlicesPerJob*/ InfiniteCount,
@@ -44,9 +44,10 @@ IJobSizeConstraintsPtr CreateJobSizeConstraints(i64 dataWeightPerPartition)
 IChunkPoolPtr CreateChunkPool(
     ETablePartitionMode partitionMode,
     i64 dataWeightPerPartition,
+    std::optional<int> maxPartitionCount,
     TLogger logger)
 {
-    auto jobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition);
+    auto jobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition, maxPartitionCount);
 
     switch (partitionMode) {
         case ETablePartitionMode::Ordered:
@@ -67,7 +68,7 @@ IChunkPoolPtr CreateChunkPool(
         case ETablePartitionMode::Unordered:
             return CreateUnorderedChunkPool(
                 TUnorderedChunkPoolOptions{
-                    .JobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition),
+                    .JobSizeConstraints = CreateJobSizeConstraints(dataWeightPerPartition, maxPartitionCount),
                     .RowBuffer = New<TRowBuffer>(),
                     .Logger = std::move(logger),
                 },

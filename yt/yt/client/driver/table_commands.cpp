@@ -414,6 +414,8 @@ TPartitionTablesCommand::TPartitionTablesCommand()
         .Default();
     RegisterParameter("enable_key_guarantee", EnableKeyGuarantee)
         .Default(false);
+    RegisterParameter("adjust_data_weight_per_partition", AdjustDataWeightPerPartition)
+        .Default(true);
 }
 
 void TPartitionTablesCommand::DoExecute(ICommandContextPtr context)
@@ -426,6 +428,7 @@ void TPartitionTablesCommand::DoExecute(ICommandContextPtr context)
     Options.DataWeightPerPartition = DataWeightPerPartition;
     Options.MaxPartitionCount = MaxPartitionCount;
     Options.EnableKeyGuarantee = EnableKeyGuarantee;
+    Options.AdjustDataWeightPerPartition = AdjustDataWeightPerPartition;
 
     // NB: Important for columns to appear in the paths' attributes.
     for (auto& path : Paths) {

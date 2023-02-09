@@ -15,6 +15,7 @@ namespace NYT::NChunkPools {
 IChunkPoolPtr CreateChunkPool(
     NTableClient::ETablePartitionMode partitionMode,
     i64 dataWeightPerPartition,
+    std::optional<int> maxPartitionCount,
     NLogging::TLogger logger);
 
 ////////////////////////////////////////////////////////////////////////////////
