@@ -2288,6 +2288,8 @@ class TestApiCommands(TestQueueAgentBase):
 
         wait(lambda: self._registrations_are(builtins.set()))
 
+    # TODO(achulkov2): Test queue consumer registration manager reconfiguration.
+
 
 class TestApiCommandsRpcProxy(TestApiCommands):
     DRIVER_BACKEND = "rpc"

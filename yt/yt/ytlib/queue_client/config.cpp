@@ -26,8 +26,12 @@ void TQueueConsumerRegistrationManagerConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("state_path", &TThis::TablePath)
         .Default("//sys/queue_agents/consumer_registrations");
+    registrar.Parameter("bypass_caching", &TThis::BypassCaching)
+        .Default(false);
     registrar.Parameter("cache_refresh_period", &TThis::CacheRefreshPeriod)
         .Default(TDuration::Seconds(10));
+    registrar.Parameter("configuration_refresh_period", &TThis::ConfigurationRefreshPeriod)
+        .Default(TDuration::Seconds(60));
     registrar.Parameter("user", &TThis::User)
         .Default(RootUserName);
 

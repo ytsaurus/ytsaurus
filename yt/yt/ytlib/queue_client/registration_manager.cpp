@@ -59,10 +59,14 @@ TQueueConsumerRegistrationManager::TQueueConsumerRegistrationManager(
     : Config_(std::move(config))
     , Connection_(connection)
     , Invoker_(std::move(invoker))
-    , ClusterName_(connection->GetConfig()->ClusterName)
-    , RefreshExecutor_(New<TPeriodicExecutor>(
+    , ClusterName_(connection->GetClusterName())
+    , ConfigurationRefreshExecutor_(New<TPeriodicExecutor>(
         Invoker_,
-        BIND(&TQueueConsumerRegistrationManager::Refresh, MakeWeak(this)),
+        BIND(&TQueueConsumerRegistrationManager::RefreshConfiguration, MakeWeak(this)),
+        Config_->ConfigurationRefreshPeriod))
+    , CacheRefreshExecutor_(New<TPeriodicExecutor>(
+        Invoker_,
+        BIND(&TQueueConsumerRegistrationManager::RefreshCache, MakeWeak(this)),
         Config_->CacheRefreshPeriod))
     , OrchidService_(IYPathService::FromProducer(BIND(&TQueueConsumerRegistrationManager::BuildOrchid, MakeWeak(this)))->Via(Invoker_))
     , Logger(logger)
@@ -71,19 +75,21 @@ TQueueConsumerRegistrationManager::TQueueConsumerRegistrationManager(
 
 void TQueueConsumerRegistrationManager::StartSync() const
 {
-    YT_LOG_DEBUG("Starting queue agent registration cache sync");
-    RefreshExecutor_->Start();
+    YT_LOG_DEBUG("Starting queue consumer registration manager sync");
+    ConfigurationRefreshExecutor_->Start();
+    CacheRefreshExecutor_->Start();
 }
 
 void TQueueConsumerRegistrationManager::StopSync() const
 {
-    YT_LOG_DEBUG("Stopping queue agent registration cache sync");
-    RefreshExecutor_->Stop();
+    YT_LOG_DEBUG("Stopping queue consumer registration manager sync");
+    CacheRefreshExecutor_->Stop();
+    ConfigurationRefreshExecutor_->Stop();
 }
 
 std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::GetRegistration(
     const TRichYPath& queue,
-    const TRichYPath& consumer) const
+    const TRichYPath& consumer)
 {
     if (!ClusterName_) {
         return {};
@@ -95,6 +101,13 @@ std::optional<TConsumerRegistrationTableRow> TQueueConsumerRegistrationManager::
     }
     if (!consumer.GetCluster()) {
         lookupKey.second.SetCluster(*ClusterName_);
+    }
+
+    auto config = GetDynamicConfig();
+    YT_VERIFY(config);
+
+    if (config->BypassCaching) {
+        RefreshCache();
     }
 
     auto guard = ReaderGuard(CacheSpinLock_);
@@ -111,9 +124,9 @@ void TQueueConsumerRegistrationManager::RegisterQueueConsumer(
     const TRichYPath& consumer,
     bool vital)
 {
-    auto registrationTable = GetOrInitRegistrationTableOrThrow();
+    auto registrationTableClient = CreateRegistrationTableClientOrThrow();
 
-    WaitFor(registrationTable->Insert(std::vector{TConsumerRegistrationTableRow{
+    WaitFor(registrationTableClient->Insert(std::vector{TConsumerRegistrationTableRow{
         .Queue = FillCrossClusterReferencesFromRichYPath(queue, ClusterName_),
         .Consumer = FillCrossClusterReferencesFromRichYPath(consumer, ClusterName_),
         .Vital = vital,
@@ -125,9 +138,9 @@ void TQueueConsumerRegistrationManager::UnregisterQueueConsumer(
     const TRichYPath& queue,
     const TRichYPath& consumer)
 {
-    auto registrationTable = GetOrInitRegistrationTableOrThrow();
+    auto registrationTableClient = CreateRegistrationTableClientOrThrow();
 
-    WaitFor(registrationTable->Delete(std::vector{TConsumerRegistrationTableRow{
+    WaitFor(registrationTableClient->Delete(std::vector{TConsumerRegistrationTableRow{
         .Queue = FillCrossClusterReferencesFromRichYPath(queue, ClusterName_),
         .Consumer = FillCrossClusterReferencesFromRichYPath(consumer, ClusterName_),
     }}))
@@ -145,32 +158,21 @@ IYPathServicePtr TQueueConsumerRegistrationManager::GetOrchidService() const
     return OrchidService_;
 }
 
-void TQueueConsumerRegistrationManager::Refresh()
+void TQueueConsumerRegistrationManager::RefreshCache()
 {
     try {
-        GuardedRefresh();
+        GuardedRefreshCache();
     } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Could not refresh queue agent registration cache");
-        // Reset client just to be safe.
-        auto guard = WriterGuard(ConfigurationSpinLock_);
-        RegistrationTable_ = nullptr;
+        YT_LOG_ERROR(ex, "Could not refresh queue consumer registration cache");
     }
 }
 
-void TQueueConsumerRegistrationManager::GuardedRefresh()
+void TQueueConsumerRegistrationManager::GuardedRefreshCache()
 {
-    auto config = RefreshDynamicConfig();
+    YT_LOG_DEBUG("Refreshing queue consumer registration cache");
 
-    YT_VERIFY(config);
-
-    YT_LOG_DEBUG(
-        "Refreshing queue agent registration cache (LocalCluster: %v, RegistrationTableCluster: %v, RegistrationTablePath: %Qv)",
-        ClusterName_,
-        config->TablePath.GetCluster(),
-        config->TablePath.GetPath());
-
-    auto registrationTable = GetOrInitRegistrationTableOrThrow();
-    auto registrations = WaitFor(registrationTable->Select())
+    auto registrationTableClient = CreateRegistrationTableClientOrThrow();
+    auto registrations = WaitFor(registrationTableClient->Select())
         .ValueOrThrow();
 
     auto guard = WriterGuard(CacheSpinLock_);
@@ -181,95 +183,101 @@ void TQueueConsumerRegistrationManager::GuardedRefresh()
         Registrations_[std::pair{TRichYPath{registration.Queue}, TRichYPath{registration.Consumer}}] = registration;
     }
 
-    YT_LOG_DEBUG("Queue agent registration cache refreshed (RegistrationCount: %v)", Registrations_.size());
+    YT_LOG_DEBUG("Queue consumer registration cache refreshed (RegistrationCount: %v)", Registrations_.size());
 }
 
-TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::GetOrInitRegistrationTableOrThrow()
+void TQueueConsumerRegistrationManager::RefreshConfiguration()
 {
-    TConsumerRegistrationTablePtr newRegistrationTable;
-
-    {
-        auto guard = ReaderGuard(ConfigurationSpinLock_);
-
-        if (RegistrationTable_) {
-            return RegistrationTable_;
-        }
-
-        auto localConnection = Connection_.Lock();
-        if (!localConnection) {
-            THROW_ERROR_EXCEPTION("Queue agent registration cache owning connection expired");
-        }
-
-        IClientPtr client;
-        auto clientOptions = TClientOptions::FromUser(DynamicConfig_->User);
-        if (auto cluster = DynamicConfig_->TablePath.GetCluster()) {
-            auto remoteConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
-            client = remoteConnection->CreateClient(clientOptions);
-        } else {
-            client = localConnection->CreateClient(clientOptions);
-        }
-
-        newRegistrationTable = New<TConsumerRegistrationTable>(DynamicConfig_->TablePath.GetPath(), client);
-    }
-
-    {
-        auto guard = WriterGuard(ConfigurationSpinLock_);
-
-        if (!RegistrationTable_) {
-            RegistrationTable_ = std::move(newRegistrationTable);
-            YT_LOG_DEBUG("Reset queue agent registration cache client");
-        }
-
-        return RegistrationTable_;
+    try {
+        GuardedRefreshConfiguration();
+    } catch (const std::exception& ex) {
+        YT_LOG_ERROR(ex, "Could not refresh queue consumer registration manager configuration");
     }
 }
 
-TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::RefreshDynamicConfig()
+void TQueueConsumerRegistrationManager::GuardedRefreshConfiguration()
 {
-    TQueueConsumerRegistrationManagerConfigPtr config = Config_;
+    YT_LOG_DEBUG("Refreshing queue consumer registration manager configuration");
+
+    TQueueConsumerRegistrationManagerConfigPtr newConfig = Config_;
 
     if (ClusterName_) {
         if (auto localConnection = Connection_.Lock()) {
             if (auto remoteConnection = localConnection->GetClusterDirectory()->FindConnection(*ClusterName_)) {
-                config = remoteConnection->GetConfig()->QueueAgent->QueueConsumerRegistrationManager;
+                newConfig = remoteConnection->GetConfig()->QueueAgent->QueueConsumerRegistrationManager;
                 YT_LOG_DEBUG(
                     "Retrieved queue consumer registration manager dynamic config (Config: %v)",
-                    ConvertToYsonString(config, EYsonFormat::Text));
+                    ConvertToYsonString(newConfig, EYsonFormat::Text));
             }
         }
     }
 
-    auto guard = WriterGuard(ConfigurationSpinLock_);
+    auto oldConfig = GetDynamicConfig();
 
-    //! NB: Should be safe to call inside the periodic executor, since it doesn't post any new callbacks while executing a callback.
-    //! This just sets the internal period to be used for scheduling the next invocation.
-    if (config->CacheRefreshPeriod != DynamicConfig_->CacheRefreshPeriod) {
+    YT_VERIFY(oldConfig);
+    YT_VERIFY(newConfig);
+
+    // NB: Should be safe to call inside the periodic executor, since it doesn't post any new callbacks while executing a callback.
+    // This just sets the internal period to be used for scheduling the next invocation.
+    if (newConfig->ConfigurationRefreshPeriod != oldConfig->ConfigurationRefreshPeriod) {
         YT_LOG_DEBUG(
-            "Resetting queue consumer registration manager refresh period (Period: %v -> %v)",
-            DynamicConfig_->CacheRefreshPeriod,
-            config->CacheRefreshPeriod);
-        RefreshExecutor_->SetPeriod(config->CacheRefreshPeriod);
+            "Resetting queue consumer registration manager configuration refresh period (Period: %v -> %v)",
+            oldConfig->ConfigurationRefreshPeriod,
+            newConfig->ConfigurationRefreshPeriod);
+        ConfigurationRefreshExecutor_->SetPeriod(newConfig->ConfigurationRefreshPeriod);
     }
 
-    if (config->TablePath != DynamicConfig_->TablePath) {
+    if (newConfig->CacheRefreshPeriod != oldConfig->CacheRefreshPeriod) {
         YT_LOG_DEBUG(
-            "Resetting queue consumer registration manager registration table (TablePath: %v -> %v)",
-            DynamicConfig_->TablePath,
-            config->TablePath);
-        RegistrationTable_ = nullptr;
+            "Resetting queue consumer registration manager cache refresh period (Period: %v -> %v)",
+            oldConfig->CacheRefreshPeriod,
+            newConfig->CacheRefreshPeriod);
+        CacheRefreshExecutor_->SetPeriod(newConfig->CacheRefreshPeriod);
     }
 
-    DynamicConfig_ = config;
+    {
+        auto guard = WriterGuard(ConfigurationSpinLock_);
+        DynamicConfig_ = newConfig;
+    }
 
-    return config;
+    YT_LOG_DEBUG("Refreshed queue consumer registration manager configuration");
 }
 
-void TQueueConsumerRegistrationManager::BuildOrchid(IYsonConsumer* consumer) const
+TConsumerRegistrationTablePtr TQueueConsumerRegistrationManager::CreateRegistrationTableClientOrThrow() const
 {
-    TQueueConsumerRegistrationManagerConfigPtr config;
-    {
-        auto guard = ReaderGuard(ConfigurationSpinLock_);
-        config = DynamicConfig_;
+    auto localConnection = Connection_.Lock();
+    if (!localConnection) {
+        THROW_ERROR_EXCEPTION("Queue consumer registration cache owning connection expired");
+    }
+
+    auto config = GetDynamicConfig();
+
+    IClientPtr client;
+    auto clientOptions = TClientOptions::FromUser(config->User);
+    if (auto cluster = config->TablePath.GetCluster()) {
+        auto remoteConnection = localConnection->GetClusterDirectory()->GetConnectionOrThrow(*cluster);
+        client = remoteConnection->CreateClient(clientOptions);
+    } else {
+        client = localConnection->CreateClient(clientOptions);
+    }
+
+    return New<TConsumerRegistrationTable>(config->TablePath.GetPath(), client);
+}
+
+TQueueConsumerRegistrationManagerConfigPtr TQueueConsumerRegistrationManager::GetDynamicConfig() const
+{
+    auto guard = ReaderGuard(ConfigurationSpinLock_);
+    // NB: Always non-null, since it is initialized from the static config in the constructor.
+    return DynamicConfig_;
+}
+
+void TQueueConsumerRegistrationManager::BuildOrchid(IYsonConsumer* consumer)
+{
+    auto config = GetDynamicConfig();
+    YT_VERIFY(config);
+
+    if (config->BypassCaching) {
+        RefreshCache();
     }
 
     decltype(Registrations_) registrations;
