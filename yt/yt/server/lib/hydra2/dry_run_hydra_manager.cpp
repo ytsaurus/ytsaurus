@@ -105,7 +105,7 @@ public:
         const NHydra::ISnapshotReaderPtr& reader,
         int snapshotId = InvalidSegmentId) override
     {
-        VERIFY_THREAD_AFFINITY(AutomatonThread);
+        VERIFY_THREAD_AFFINITY(ControlThread);
 
         if (!reader) {
             // Recover using changelogs only.
@@ -122,19 +122,26 @@ public:
         auto params = reader->GetParams();
         const auto& meta = params.Meta;
 
-        DecoratedAutomaton_->LoadSnapshot(
-            snapshotId,
-            meta.last_mutation_term(),
-            TVersion(meta.last_segment_id(), meta.last_record_id()),
-            meta.sequence_number(),
-            meta.random_seed(),
-            meta.state_hash(),
-            FromProto<TInstant>(meta.timestamp()),
-            std::move(reader));
+        auto loadSnapshotFuture = BIND(&TDecoratedAutomaton::LoadSnapshot, DecoratedAutomaton_)
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run(snapshotId,
+                meta.last_mutation_term(),
+                TVersion(meta.last_segment_id(), meta.last_record_id()),
+                meta.sequence_number(),
+                meta.random_seed(),
+                meta.state_hash(),
+                FromProto<TInstant>(meta.timestamp()),
+                std::move(reader));
+        WaitFor(loadSnapshotFuture)
+            .ThrowOnError();
 
         YT_LOG_INFO("Checking invariants");
 
-        DecoratedAutomaton_->CheckInvariants();
+        auto checkInvariantsFuture = BIND(&TDecoratedAutomaton::CheckInvariants, DecoratedAutomaton_)
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run();
+        WaitFor(checkInvariantsFuture)
+            .ThrowOnError();
 
         YT_LOG_INFO("Successfully finished loading snapshot in dry run mode");
     }
@@ -147,7 +154,11 @@ public:
             changelog->GetId(),
             changelog->GetRecordCount());
 
-        DryRunStartLeading();
+        auto startLeadingFuture =  BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run();
+        WaitFor(startLeadingFuture)
+            .ThrowOnError();
 
         int currentRecordId = 0;
         while (currentRecordId < changelog->GetRecordCount()) {
@@ -170,9 +181,15 @@ public:
                 currentRecordId,
                 currentRecordId + recordsRead - 1);
 
-            for (const auto& recordData : recordsData)  {
-                DecoratedAutomaton_->ApplyMutationDuringRecovery(recordData);
-            }
+            auto applyMutationFuture = BIND([=, this, this_ = MakeStrong(this), recordsData = std::move(recordsData)] {
+                    for (const auto& recordData : recordsData)  {
+                        DecoratedAutomaton_->ApplyMutationDuringRecovery(recordData);
+                    }
+                })
+                .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+                .Run();
+            WaitFor(applyMutationFuture)
+                .ThrowOnError();
 
             currentRecordId += recordsRead;
         }
@@ -185,12 +202,19 @@ public:
     {
         VERIFY_THREAD_AFFINITY(ControlThread);
 
-        DryRunStartLeading();
+        auto startLeadingFuture =  BIND(&TDryRunHydraManager::DryRunStartLeading, MakeStrong(this))
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run();
+        WaitFor(startLeadingFuture)
+            .ThrowOnError();
 
         YT_LOG_INFO("Started building snapshot in dry run mode");
         auto sequenceNuber = DecoratedAutomaton_->GetSequenceNumber();
         auto nextSnapshotId = DecoratedAutomaton_->GetAutomatonVersion().SegmentId + 1;
-        WaitFor(DecoratedAutomaton_->BuildSnapshot(nextSnapshotId, sequenceNuber))
+        auto buildSnapshotFuture = BIND(&TDecoratedAutomaton::BuildSnapshot, DecoratedAutomaton_)
+            .AsyncVia(DecoratedAutomaton_->GetSystemInvoker())
+            .Run(nextSnapshotId, sequenceNuber);
+        WaitFor(buildSnapshotFuture)
             .ThrowOnError();
     }
 
