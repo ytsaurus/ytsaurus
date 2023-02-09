@@ -8,12 +8,12 @@ import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.type_info.TiType;
 
 
-public class Example03MultiYtClient {
-    private Example03MultiYtClient() {
+public class ExampleMultiYtClient {
+    private ExampleMultiYtClient() {
     }
 
     public static void main(String[] args) {
-        // Схема динамической таблицы, которую будем читать
+        // Schema of the dynamic table to be read
         TableSchema schema = TableSchema.builder()
                 .setUniqueKeys(true)
                 .add(
@@ -27,18 +27,18 @@ public class Example03MultiYtClient {
                 )
                 .build();
 
-        // Путь, по которому лежит динамическая таблица. Эта таблица есть на двух кластерах - на hume и freud.
+        // Path where the dynamic table is located. This table is available on two clusters - on hume and freud.
         String path = "//home/dev/tutorial/dynamic-table";
 
-        // Создаем клиент, который в первую очередь будет делать запросы в hume,
-        // а если там будут ошибки/долгие ответы, то пойдет в freud.
+        // We create a client that will first of all make requests to hume,
+        // and if there are errors/timeouts, it will make requests to freud.
         MultiYtClient client = MultiYtClient.builder()
                 .addCluster("freud")
                 .addPreferredCluster("hume")
                 .build();
 
         try (client) {
-            // Читаем строчку с key=2.
+            // Reading the row with key=2.
             UnversionedRowset rows = client.lookupRows(
                     LookupRowsRequest.builder()
                             .setPath(path)

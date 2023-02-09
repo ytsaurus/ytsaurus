@@ -18,9 +18,9 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import ru.yandex.lang.NonNullApi;
 
 
-public class Example08MapReduceYTree {
+public class ExampleMapReduceYTree {
 
-    private Example08MapReduceYTree() {
+    private ExampleMapReduceYTree() {
     }
 
     @NonNullApi
@@ -48,7 +48,7 @@ public class Example08MapReduceYTree {
 
         @Override
         public void reduce(String key, Iterator<YTreeMapNode> input, Yield<YTreeMapNode> yield, Statistics statistics) {
-            // В reduce приходят все записи с общим reduce ключом, т.е. в нашем случае с общим полем `name'.
+            // All rows with a common reduce key come to reduce, i.e. in this case with a common field `name`.
 
             int sumNameLength = 0;
             while (input.hasNext()) {

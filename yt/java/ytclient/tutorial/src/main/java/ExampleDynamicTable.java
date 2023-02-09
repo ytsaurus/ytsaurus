@@ -19,17 +19,17 @@ import tech.ytsaurus.type_info.TiType;
 import tech.ytsaurus.ysontree.YTree;
 
 
-public class Example04DynamicTable {
-    private Example04DynamicTable() {
+public class ExampleDynamicTable {
+    private ExampleDynamicTable() {
     }
 
     public static void main(String[] args) {
         //
-        // Программа принимает аргументами имя кластера и путь к таблице, с которой она будет работать (таблица не
-        // должна существовать).
+        // The program takes as arguments the name of the cluster and the path to the table it will work with
+        // (the table must not exist).
         //
-        // По умолчанию у пользователей нет прав монтировать динамические таблицы, и перед запуском программы
-        // необходимо получить такие права (права на монтирование таблиц) на каком-нибудь кластере YT.
+        // By default, users do not have permissions to mount dynamic tables, and you must obtain such permissions
+        // (permissions to mount tables) on some YT cluster before starting the program.
         if (args.length != 2) {
             throw new IllegalArgumentException("Incorrect arguments count");
         }
@@ -54,11 +54,11 @@ public class Example04DynamicTable {
                 .build();
 
         try (client) {
-            // ВАЖНО: при создании динамической таблицы нам нужно
-            //  - указать атрибут dynamic: true
-            //  - указать схему
-            // Это нужно сделать обязательно в вызове createNode. Т.е. не получится сначала создать таблицу,
-            // а потом проставить эти атрибуты.
+            // ATTENTION: when creating a dynamic table, we need to
+            //  - specify attribute dynamic: true
+            //  - specify scheme
+            // This must be done in the createNode call.
+            // That is, it will not work to create a table first, and then put down these attributes.
             CreateNode createNode = CreateNode.builder()
                     .setPath(YPath.simple(path))
                     .setType(CypressNodeType.TABLE)
@@ -70,18 +70,18 @@ public class Example04DynamicTable {
 
             client.createNode(createNode).join();
 
-            // Для того чтобы начать работу с динамической таблицей, её необходимо "подмонтировать".
+            // To start working with a dynamic table, you need to "mount" it.
             //
-            // Часто создание / монтирование / размонтирование таблиц делается отдельными административными скриптами,
-            // а приложение просто расчитывает, что таблицы существуют и уже подмонтированы.
+            // Creating/mounting/unmounting tables is usually done by dedicated administrative scripts,
+            // and the application simply assumes that the tables exist and are already mounted.
             //
-            // Мы для полноты примера подмонтируем таблицу, а в конце её размонтируем.
+            // We will mount the table and unmount it at the end for completeness of the example.
             client.mountTable(path).join();
 
-            // Заполняем таблицу.
+            // Fill the table.
             try (ApiServiceTransaction transaction =
                          client.startTransaction(new StartTransaction(TransactionType.Tablet)).join()) {
-                // Вставлять значения в динтаблицу можно с помощью modifyRows.
+                // Inserting values into a dynamic table can be done using modifyRows.
                 transaction.modifyRows(
                         ModifyRowsRequest.builder()
                                 .setPath(path)
@@ -93,11 +93,11 @@ public class Example04DynamicTable {
                 transaction.commit().join();
             }
 
-            // Читаем таблицу.
+            // Read the table.
             try (ApiServiceTransaction transaction =
                          client.startTransaction(new StartTransaction(TransactionType.Tablet)).join()) {
-                // Получать значения из динтаблицы можно с помощью lookupRows,
-                // возвращает UnversionedRows из найденных строчек.
+                // Get values from a dynamic table can be done using lookupRows.
+                // It returns UnversionedRows consists of the rows it finds.
                 UnversionedRowset rowset = transaction.lookupRows(
                         LookupRowsRequest.builder()
                                 .setPath(path)
@@ -114,7 +114,7 @@ public class Example04DynamicTable {
                 transaction.commit().join();
             }
 
-            // Размонтируем таблицу.
+            // Unmount the table.
             client.unmountTable(path).join();
         }
     }

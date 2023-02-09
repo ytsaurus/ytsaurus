@@ -14,13 +14,13 @@ import tech.ytsaurus.ysontree.YTreeMapNode;
 import ru.yandex.lang.NonNullApi;
 
 
-public class Example06MapYTree {
-    private Example06MapYTree() {
+public class ExampleMapYTree {
+    private ExampleMapYTree() {
     }
 
-    // Класс маппера должен реализовывать соответствующий интерфейс.
-    // В качестве аргументов дженерика указывается класс для представления входного и выходного объектов.
-    // В данном случае это универсальный YTreeMapNode, который позволяет работать с произвольной таблицей.
+    // The mapper class must implement the appropriate interface.
+    // Generic type arguments are the classes to represent the input and output objects.
+    // In this case, it's a universal YTreeMapNode that allows you to work with an arbitrary table.
     @NonNullApi
     public static class SimpleMapper implements Mapper<YTreeMapNode, YTreeMapNode> {
         @Override
@@ -43,13 +43,13 @@ public class Example06MapYTree {
                 .setCluster("freud")
                 .build();
 
-        // Выходная таблица лежит в `//tmp` и содержит имя текущего пользователя
-        // Имя пользователя нужно на тот случай, если два человека одновременно запустят этот пример,
-        // мы не хотим, чтобы они столкнулись на одной выходной таблице.
+        // The output table is located in `//tmp` and contains the name of the current user.
+        // The username is necessary in case two people run this example at the same time
+        // so that they use different output tables.
         YPath outputTable = YPath.simple("//tmp/" + System.getProperty("user.name") + "-tutorial-emails");
 
         try (client) {
-           Operation op = client.map(
+            Operation op = client.map(
                     MapOperation.builder()
                             .setSpec(MapSpec.builder()
                                     .setInputTables(YPath.simple("//home/tutorial/staff_unsorted").withRange(0, 2))
@@ -57,7 +57,7 @@ public class Example06MapYTree {
                                     .setMapperSpec(new MapperSpec(new SimpleMapper()))
                                     .build())
                             .build()
-           ).join();
+            ).join();
 
             System.err.println("Operation was finished (OperationId: " + op.getId() + ")");
             System.err.println("Status: " + op.getStatus().join());
