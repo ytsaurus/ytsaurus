@@ -114,6 +114,15 @@ private:
     std::optional<int> MaxPartitionCount;
     bool EnableKeyGuarantee;
 
+    //! Treat the #DataWeightPerPartition as a hint and not as a maximum limit.
+    //! Consider the situation when the #MaxPartitionCount is given
+    //! and the total data weight exceeds #MaxPartitionCount * #DataWeightPerPartition.
+    //! If #AdjustDataWeightPerPartition is |true|
+    //! the #partition_tables command will yield partitions exceeding the #DataWeightPerPartition.
+    //! If #AdjustDataWeightPerPartition is |false|
+    //! the #partition_tables command will throw an exception.
+    bool AdjustDataWeightPerPartition;
+
     void DoExecute(ICommandContextPtr context) override;
 };
 

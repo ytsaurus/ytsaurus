@@ -53,9 +53,10 @@ TMultiTablePartitioner::TMultiTablePartitioner(
 
 TMultiTablePartitions TMultiTablePartitioner::PartitionTables()
 {
-    YT_LOG_INFO("Partitioning tables (DataWeightPerPartition: %v, MaxPartitionCount: %v)",
+    YT_LOG_INFO("Partitioning tables (DataWeightPerPartition: %v, MaxPartitionCount: %v, AdjustDataWeightPerPartition: %v)",
         Options_.DataWeightPerPartition,
-        Options_.MaxPartitionCount);
+        Options_.MaxPartitionCount,
+        Options_.AdjustDataWeightPerPartition);
 
     InitializeChunkPool();
     CollectInput();
@@ -66,7 +67,11 @@ TMultiTablePartitions TMultiTablePartitioner::PartitionTables()
 
 void TMultiTablePartitioner::InitializeChunkPool()
 {
-    ChunkPool_ = CreateChunkPool(Options_.PartitionMode, Options_.DataWeightPerPartition, Logger);
+    ChunkPool_ = CreateChunkPool(
+        Options_.PartitionMode,
+        Options_.DataWeightPerPartition,
+        Options_.AdjustDataWeightPerPartition ? Options_.MaxPartitionCount : std::nullopt,
+        Logger);
 }
 
 void TMultiTablePartitioner::CollectInput()

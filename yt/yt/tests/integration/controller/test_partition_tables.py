@@ -151,7 +151,7 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             assert count_occurrences(key, partitions) == 1
 
     @authors("galtsev")
-    def test_max_partition_count_exceeded(self):
+    def test_max_partition_count_exceeded_strict(self):
         table = "//tmp/sorted-static"
         chunk_count = 6
         rows_per_chunk = 1000
@@ -160,7 +160,19 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
 
         max_partition_count = 1
         with raises_yt_error(f"Maximum partition count exceeded: {max_partition_count}"):
-            partition_tables([table], data_weight_per_partition=data_weight // 6, max_partition_count=max_partition_count)
+            partition_tables([table], data_weight_per_partition=data_weight // 6, max_partition_count=max_partition_count, adjust_data_weight_per_partition=False)
+
+    @authors("galtsev")
+    def test_adjust_data_weight_per_partition(self):
+        table = "//tmp/sorted-static"
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 1000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+
+        max_partition_count = 1
+        partitions = partition_tables([table], data_weight_per_partition=data_weight // 6, max_partition_count=max_partition_count)
+        assert len(partitions) == max_partition_count
 
     @authors("galtsev")
     def test_unordered_two_equal_tables(self):

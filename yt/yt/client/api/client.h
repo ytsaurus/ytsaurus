@@ -1022,6 +1022,7 @@ struct TPartitionTablesOptions
     NTableClient::ETablePartitionMode PartitionMode = NTableClient::ETablePartitionMode::Unordered;
     i64 DataWeightPerPartition;
     std::optional<int> MaxPartitionCount;
+    bool AdjustDataWeightPerPartition = true;
     bool EnableKeyGuarantee = false;
 };
 
