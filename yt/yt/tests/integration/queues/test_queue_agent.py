@@ -451,7 +451,6 @@ class TestQueueAgent(TestQueueAgentBase):
 
     @authors("achulkov2")
     def test_other_stages_are_ignored(self):
-        cypress_synchronizer_orchid = CypressSynchronizerOrchid()
         queue_orchid = QueueAgentOrchid()
 
         self._create_queue("//tmp/q")
@@ -463,8 +462,7 @@ class TestQueueAgent(TestQueueAgentBase):
 
         set("//tmp/q/@queue_agent_stage", "testing")
 
-        cypress_synchronizer_orchid.wait_fresh_pass()
-        queue_orchid.wait_fresh_pass()
+        self._wait_for_component_passes()
 
         with raises_yt_error(code=yt_error_codes.ResolveErrorCode):
             queue_orchid.get_queue_orchid("primary://tmp/q").get_status()
