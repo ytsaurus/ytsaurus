@@ -101,6 +101,12 @@ const NChunkClient::TMediumMap<i64>& TClusterResources::DiskSpace() const
     return DiskSpace_;
 }
 
+void TClusterResources::ClearMasterMemory()
+{
+    DetailedMasterMemory_ = {};
+    ChunkHostCellMasterMemory_ = 0;
+}
+
 i64 TClusterResources::GetTotalMasterMemory() const
 {
     return DetailedMasterMemory_.GetTotal();

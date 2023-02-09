@@ -23,7 +23,8 @@ class MasterSnapshotsCompatibilityBase(YTEnvSetup):
 
     DELTA_MASTER_CONFIG = {
         "logging": {
-            "abort_on_alert": True,
+            # COMPAT(gritukan): EMasterReign::FixAccountResourceUsageCharge
+            "abort_on_alert": False,
         },
         "security_manager": {
             "alert_on_ref_counter_mismatch": False,

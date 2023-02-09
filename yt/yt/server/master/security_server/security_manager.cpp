@@ -540,8 +540,19 @@ public:
         return DoCreateAccount(id);
     }
 
-    void DestroyAccount(TAccount* /*account*/)
-    { }
+    void DestroyAccount(TAccount* account)
+    {
+        auto usageDelta = -account->LocalStatistics().ResourceUsage;
+        auto committedUsageDelta = -account->LocalStatistics().CommittedResourceUsage;
+        ChargeAccountAncestry(
+            account,
+            [&] (TAccount* account) {
+                account->ClusterStatistics().ResourceUsage += usageDelta;
+                account->LocalStatistics().ResourceUsage += usageDelta;
+                account->ClusterStatistics().CommittedResourceUsage += committedUsageDelta;
+                account->LocalStatistics().CommittedResourceUsage += committedUsageDelta;
+            });
+    }
 
     TAccount* GetAccountOrThrow(TAccountId id) override
     {
@@ -2485,8 +2496,7 @@ private:
     bool IsChunkHostCell_ = false;
 
     // COMPAT(shakurov)
-    bool RecomputeAccountResourceUsage_ = false;
-    bool ValidateAccountResourceUsage_ = false;
+    bool RecomputeAccountResourceUsages_ = false;
     bool RecomputeAccountRefCounters_ = false;
 
     bool MustRecomputeMembershipClosure_ = false;
@@ -2797,6 +2807,7 @@ private:
         AccountResourceUsageLeaseMap_.LoadKeys(context);
 
         RecomputeAccountRefCounters_ = context.GetVersion() < EMasterReign::RecomputeAccountRefCounters;
+        RecomputeAccountResourceUsages_ = context.GetVersion() < EMasterReign::FixAccountResourceUsageCharge;
     }
 
     void LoadValues(NCellMaster::TLoadContext& context)
@@ -2808,9 +2819,6 @@ private:
         GroupMap_.LoadValues(context);
         NetworkProjectMap_.LoadValues(context);
         MustRecomputeMembershipClosure_ = Load<bool>(context);
-
-        // COMPAT(savrus) COMPAT(shakurov)
-        ValidateAccountResourceUsage_ = true;
 
         ProxyRoleMap_.LoadValues(context);
         AccountResourceUsageLeaseMap_.LoadValues(context);
@@ -2894,7 +2902,12 @@ private:
 
         InitBuiltins();
 
-        RecomputeAccountResourceUsage();
+        if (RecomputeAccountResourceUsages_) {
+            RecomputeAccountResourceUsages();
+        } else {
+            ValidateAccountResourceUsages();
+        }
+
         RecomputeAccountMasterMemoryUsage();
         RecomputeSubtreeSize(RootAccount_, /*validateMatch*/ true);
         if (RecomputeAccountRefCounters_) {
@@ -2902,19 +2915,17 @@ private:
         }
     }
 
-    void RecomputeAccountResourceUsage()
+    struct TAccountResourceUsage
     {
-        if (!ValidateAccountResourceUsage_ && !RecomputeAccountResourceUsage_) {
-            return;
-        }
+        TClusterResources Usage;
+        TClusterResources CommittedUsage;
+    };
 
-        struct TStat
-        {
-            TClusterResources NodeUsage;
-            TClusterResources NodeCommittedUsage;
-        };
-
-        THashMap<TAccount*, TStat> statMap;
+    // NB: Does not compute master memory usage, since it is not persisted
+    // and recomputed during every snapshot load.
+    THashMap<TAccount*, TAccountResourceUsage> ComputeAccountResourceUsages()
+    {
+        THashMap<TAccount*, TAccountResourceUsage> accountResourceUsages;
 
         const auto& cypressManager = Bootstrap_->GetCypressManager();
 
@@ -2946,10 +2957,10 @@ private:
             ChargeAccountAncestry(
                 account,
                 [&] (TAccount* account) {
-                    auto& stat = statMap[account];
-                    stat.NodeUsage += usage;
+                    auto& accountUsage = accountResourceUsages[account];
+                    accountUsage.Usage += usage;
                     if (isTrunkNode) {
-                        stat.NodeCommittedUsage += usage;
+                        accountUsage.CommittedUsage += usage;
                     }
                 });
         }
@@ -2962,16 +2973,29 @@ private:
             }
 
             auto* account = lease->Account().Get();
-            statMap[account].NodeUsage += lease->Resources();
+            auto usage = lease->Resources();
+            ChargeAccountAncestry(
+                account,
+                [&] (TAccount* account) {
+                    auto& accountUsage = accountResourceUsages[account];
+                    accountUsage.Usage += usage;
+                });
         }
 
-        auto chargeStatMap = [&] (TAccount* account, int mediumIndex, i64 chunkCount, i64 diskSpace, i64 /*masterMemoryUsage*/, bool committed) {
-            auto& stat = statMap[account];
-            stat.NodeUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
-            stat.NodeUsage.SetChunkCount(stat.NodeUsage.GetChunkCount() + chunkCount);
+        auto chargeAccount = [&] (
+            TAccount* account,
+            int mediumIndex,
+            i64 chunkCount,
+            i64 diskSpace,
+            i64 /*masterMemoryUsage*/,
+            bool committed)
+        {
+            auto& accountUsage = accountResourceUsages[account];
+            accountUsage.Usage.AddToMediumDiskSpace(mediumIndex, diskSpace);
+            accountUsage.Usage.SetChunkCount(accountUsage.Usage.GetChunkCount() + chunkCount);
             if (committed) {
-                stat.NodeCommittedUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
-                stat.NodeCommittedUsage.SetChunkCount(stat.NodeCommittedUsage.GetChunkCount() + chunkCount);
+                accountUsage.CommittedUsage.AddToMediumDiskSpace(mediumIndex, diskSpace);
+                accountUsage.CommittedUsage.SetChunkCount(accountUsage.CommittedUsage.GetChunkCount() + chunkCount);
             }
         };
 
@@ -2990,69 +3014,104 @@ private:
 
             if (chunk->IsDiskSizeFinal()) {
                 auto requisition = chunk->GetAggregatedRequisition(requisitionRegistry);
-                ComputeChunkResourceDelta(chunk, requisition, +1, chargeStatMap);
+                ComputeChunkResourceDelta(chunk, requisition, +1, chargeAccount);
             }  // Else this'll be done later when the chunk is confirmed/sealed.
         }
 
+        return accountResourceUsages;
+    }
+
+    void ValidateAndMaybeRecomputeAccountResourceUsage(
+        TAccount* account,
+        const TAccountResourceUsage& expectedResourceUsage,
+        bool recompute = false)
+    {
         auto resourceUsageMatch = [&] (
             TAccount* account,
-            const TClusterResources& accountUsage,
-            const TClusterResources& expectedUsage)
+            TClusterResources accountUsage,
+            TClusterResources expectedUsage)
         {
-            // Ignore master memory as it's always recomputed anyway.
-            auto accountUsageCopy = accountUsage;
-            accountUsageCopy.DetailedMasterMemory() = TDetailedMasterMemory();
-            accountUsageCopy.SetChunkHostCellMasterMemory(0);
-            auto expectedUsageCopy = expectedUsage;
-            expectedUsageCopy.DetailedMasterMemory() = TDetailedMasterMemory();
-            expectedUsageCopy.SetChunkHostCellMasterMemory(0);
+            // Do not validate master memory since it's always recomputed.
+            accountUsage.ClearMasterMemory();
+            expectedUsage.ClearMasterMemory();
 
-            if (accountUsageCopy == expectedUsageCopy) {
+            if (accountUsage == expectedUsage) {
                 return true;
             }
-            if (account != SysAccount_) {
-                return false;
+
+            if (account == SysAccount_ || account == RootAccount_) {
+                // Root node requires special handling (unless resource usage have previously been recomputed).
+                accountUsage.SetNodeCount(accountUsage.GetNodeCount() + 1);
+                if (accountUsage == expectedUsage) {
+                    return true;
+                }
             }
 
-            // Root node requires special handling (unless resource usage have previously been recomputed).
-            accountUsageCopy.SetNodeCount(accountUsageCopy.GetNodeCount() + 1);
-            return accountUsageCopy == expectedUsageCopy;
+            return false;
         };
 
+        bool resourceUsageMatches = true;
+
+        auto& actualUsage = account->LocalStatistics().ResourceUsage;
+        const auto& expectedUsage = expectedResourceUsage.Usage;
+        if (!resourceUsageMatch(
+            account,
+            actualUsage,
+            expectedUsage))
+        {
+            YT_LOG_ALERT("%v account usage mismatch, snapshot usage: %v, recomputed usage: %v",
+                account->GetName(),
+                actualUsage,
+                expectedUsage);
+            resourceUsageMatches = false;
+        }
+
+        auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
+        const auto& expectedCommittedUsage = expectedResourceUsage.CommittedUsage;
+        if (!resourceUsageMatch(
+            account,
+            actualCommittedUsage,
+            expectedCommittedUsage))
+        {
+            YT_LOG_ALERT("%v account committed usage mismatch, snapshot usage: %v, recomputed usage: %v",
+                account->GetName(),
+                actualUsage,
+                expectedUsage);
+            resourceUsageMatches = false;
+        }
+
+        if (!resourceUsageMatches && recompute) {
+            YT_LOG_ALERT("Setting recomputed resource usage for account (AccountName: %v)",
+                account->GetName());
+
+            actualUsage = expectedUsage;
+            actualCommittedUsage = expectedCommittedUsage;
+
+            const auto& multicellManager = Bootstrap_->GetMulticellManager();
+            if (multicellManager->IsPrimaryMaster()) {
+                account->RecomputeClusterStatistics();
+            }
+        }
+    }
+
+    void ValidateAccountResourceUsages()
+    {
+        auto resourceUsages = ComputeAccountResourceUsages();
         for (auto [accountId, account] : Accounts()) {
-            if (!IsObjectAlive(account)) {
-                continue;
-            }
+            ValidateAndMaybeRecomputeAccountResourceUsage(
+                account,
+                resourceUsages[account]);
+        }
+    }
 
-            // NB: statMap may contain no entry for an account if it has no nodes or chunks.
-            const auto& stat = statMap[account];
-            auto& actualUsage = account->LocalStatistics().ResourceUsage;
-            auto& actualCommittedUsage = account->LocalStatistics().CommittedResourceUsage;
-            const auto& expectedUsage = stat.NodeUsage;
-            const auto& expectedCommittedUsage = stat.NodeCommittedUsage;
-            if (ValidateAccountResourceUsage_) {
-                if (!resourceUsageMatch(account, actualUsage, expectedUsage)) {
-                    YT_LOG_ERROR("%v account usage mismatch, snapshot usage: %v, recomputed usage: %v",
-                        account->GetName(),
-                        actualUsage,
-                        expectedUsage);
-                }
-                if (!resourceUsageMatch(account, actualCommittedUsage, expectedCommittedUsage)) {
-                    YT_LOG_ERROR("%v account committed usage mismatch, snapshot usage: %v, recomputed usage: %v",
-                        account->GetName(),
-                        actualCommittedUsage,
-                        expectedCommittedUsage);
-                }
-            }
-            if (RecomputeAccountResourceUsage_) {;
-                actualUsage = expectedUsage;
-                actualCommittedUsage = expectedCommittedUsage;
-
-                const auto& multicellManager = Bootstrap_->GetMulticellManager();
-                if (multicellManager->IsPrimaryMaster()) {
-                    account->RecomputeClusterStatistics();
-                }
-            }
+    void RecomputeAccountResourceUsages()
+    {
+        auto resourceUsages = ComputeAccountResourceUsages();
+        for (auto [accountId, account] : Accounts()) {
+            ValidateAndMaybeRecomputeAccountResourceUsage(
+                account,
+                resourceUsages[account],
+                /*recompute*/ true);
         }
     }
 
@@ -3157,6 +3216,8 @@ private:
                 expectedRefCounter,
                 actualRefCounter);
         }
+
+        ValidateAccountResourceUsages();
     }
 
     THashMap<TAccount*, int> ComputeAccountRefCounters() const
@@ -3842,8 +3903,12 @@ private:
 
         auto resourcesDelta = resources - accountResourceUsageLease->Resources();
 
-        account->ClusterStatistics().ResourceUsage += resourcesDelta;
-        account->LocalStatistics().ResourceUsage += resourcesDelta;
+        ChargeAccountAncestry(
+            account,
+            [&] (TAccount* account) {
+                account->ClusterStatistics().ResourceUsage += resourcesDelta;
+                account->LocalStatistics().ResourceUsage += resourcesDelta;
+            });
 
         auto* transactionResources = GetTransactionAccountUsage(transaction, account);
         *transactionResources += resourcesDelta;
