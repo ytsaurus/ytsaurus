@@ -304,7 +304,7 @@ private:
         NIO::TRequestSizes workloadModel;
 
         if (auto wm = Location_->GetIOEngineModel()->GetRequestSizes(); wm && config->UseWorkloadModel) {
-            workloadModel = *wm;
+            workloadModel = MakeIdleWorkloadModel(*wm);
         }
 
         loader->Start(workloadModel);
@@ -316,6 +316,23 @@ private:
         if (loader) {
             loader->Stop();
         }
+    }
+
+    NIO::TRequestSizes MakeIdleWorkloadModel(const NIO::TRequestSizes& workloadModel)
+    {
+        NIO::TRequestSizes resultModel{
+            .Duration = workloadModel.Duration,
+        };
+
+        for (const auto& histogram : workloadModel.Reads) {
+            resultModel.Reads[EWorkloadCategory::Idle] += histogram;
+        }
+
+        for (const auto& histogram : workloadModel.Writes) {
+            resultModel.Writes[EWorkloadCategory::Idle] += histogram;
+        }
+
+        return resultModel;
     }
 
     void SessionCongested(TInstant sessionTimestamp, ETestingStage stage, i64 congestionWindow)

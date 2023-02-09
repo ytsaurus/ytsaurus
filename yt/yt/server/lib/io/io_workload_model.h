@@ -21,6 +21,9 @@ public:
     const TCounters& GetCounters() const;
     void RecordValue(i64 value, i64 count = 1);
 
+protected:
+    void Add(const TFixedBinsHistogramBase& other);
+
 private:
     TBins BinValues_;
     TCounters Counters_;
@@ -47,6 +50,8 @@ class TRequestSizeHistogram
 {
 public:
     TRequestSizeHistogram();
+
+    TRequestSizeHistogram& operator+=(const TRequestSizeHistogram& other);
 };
 
 struct TRequestSizes
@@ -71,6 +76,8 @@ class TRequestLatencyHistogram
 {
 public:
     TRequestLatencyHistogram();
+
+    TRequestLatencyHistogram& operator+=(const TRequestLatencyHistogram& other);
 };
 
 struct TRequestLatencies

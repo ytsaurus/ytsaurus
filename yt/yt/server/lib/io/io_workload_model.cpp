@@ -59,13 +59,38 @@ const TFixedBinsHistogramBase::TCounters& TFixedBinsHistogramBase::GetCounters()
     return Counters_;
 }
 
+void TFixedBinsHistogramBase::Add(const TFixedBinsHistogramBase& other)
+{
+    YT_VERIFY(std::ssize(GetBins()) == std::ssize(other.GetBins()));
+
+    const auto& counters = other.GetCounters();
+
+    for (int binIndex = 0; binIndex < std::ssize(GetBins()); ++binIndex) {
+        RecordValue(binIndex, counters[binIndex]);
+    }
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 TRequestSizeHistogram::TRequestSizeHistogram()
     : TFixedBinsHistogramBase(RequestSizeBins)
 { }
 
+TRequestSizeHistogram& TRequestSizeHistogram::operator+=(const TRequestSizeHistogram& other)
+{
+    Add(other);
+    return *this;
+}
+
 TRequestLatencyHistogram::TRequestLatencyHistogram()
     : TFixedBinsHistogramBase(RequestLatencyBins)
 { }
+
+TRequestLatencyHistogram& TRequestLatencyHistogram::operator+=(const TRequestLatencyHistogram& other)
+{
+    Add(other);
+    return *this;
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -138,9 +163,7 @@ template <typename THistogram>
 void MergeHistograms(const THistogram& input, THistogram& output)
 {
     for (auto category : TEnumTraits<EWorkloadCategory>::GetDomainValues()) {
-        for (int binIndex = 0; binIndex < std::ssize(input[category].GetBins()); ++binIndex) {
-            output[category].RecordValue(binIndex, input[category].GetCounters()[binIndex]);
-        }
+        output[category] += input[category];
     }
 }
 
