@@ -1205,7 +1205,9 @@ def _build_cluster_connection_config(yt_config,
             },
             "queue_consumer_registration_manager": {
                 "root": "{}//sys/queue_agents".format("{}:".format(yt_config.cluster_name) if yt_config.cluster_name is not None else ""),
-                "cache_refresh_period": 500,
+                "bypass_caching": True,
+                "cache_refresh_period": 3000,
+                "configuration_refresh_period": 18000,
             },
         },
         "permission_cache": {

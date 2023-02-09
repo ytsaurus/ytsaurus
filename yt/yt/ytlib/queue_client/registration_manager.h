@@ -25,9 +25,10 @@ public:
     void StopSync() const;
 
     // NB: May return stale results in regard to the other methods in this class.
+    // NB: If cache bypass is enabled, this call will always refresh the cache itself.
     std::optional<TConsumerRegistrationTableRow> GetRegistration(
         const NYPath::TRichYPath& queue,
-        const NYPath::TRichYPath& consumer) const;
+        const NYPath::TRichYPath& consumer);
 
     // NB: Calling GetRegistration immediately after this call may return stale results.
     void RegisterQueueConsumer(
@@ -51,31 +52,35 @@ private:
     const TWeakPtr<NApi::NNative::IConnection> Connection_;
     const IInvokerPtr Invoker_;
     const std::optional<TString> ClusterName_;
-    const NConcurrency::TPeriodicExecutorPtr RefreshExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr ConfigurationRefreshExecutor_;
+    const NConcurrency::TPeriodicExecutorPtr CacheRefreshExecutor_;
     const NYTree::IYPathServicePtr OrchidService_;
     const NLogging::TLogger Logger;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, ConfigurationSpinLock_);
     TQueueConsumerRegistrationManagerConfigPtr DynamicConfig_;
-    TConsumerRegistrationTablePtr RegistrationTable_;
 
     YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, CacheSpinLock_);
     THashMap<std::pair<NYPath::TRichYPath, NYPath::TRichYPath>, TConsumerRegistrationTableRow> Registrations_;
 
     //! Polls the registration dynamic table and fills the cached map.
-    void Refresh();
-    void GuardedRefresh();
+    void RefreshCache();
+    void GuardedRefreshCache();
 
-    //! Returns the `RegistrationTable_` if not null.
-    //! Otherwise, attempts to establish a connection to the registration table's (potentially remote) cluster and
-    //! initializes `RegistrationTable_` if successful.
-    TConsumerRegistrationTablePtr GetOrInitRegistrationTableOrThrow();
+    //! Retrieves the dynamic config from cluster directory, applies it and stores a local copy.
+    void RefreshConfiguration();
+    void GuardedRefreshConfiguration();
 
-    //! Retrieves, applies and stores a local version of the dynamic config.
-    TQueueConsumerRegistrationManagerConfigPtr RefreshDynamicConfig();
+    //! Attempts to establish a connection to the registration table's (potentially remote) cluster
+    //! and returns a client to be used for reading and modifying the table.
+    TConsumerRegistrationTablePtr CreateRegistrationTableClientOrThrow() const;
+
+    //! Returns the stored dynamic config.
+    TQueueConsumerRegistrationManagerConfigPtr GetDynamicConfig() const;
 
     //! Produces information about cached registrations.
-    void BuildOrchid(NYson::IYsonConsumer* consumer) const;
+    // NB: If cache bypass is enabled, this call will always refresh the cache itself.
+    void BuildOrchid(NYson::IYsonConsumer* consumer);
 };
 
 DEFINE_REFCOUNTED_TYPE(TQueueConsumerRegistrationManager)

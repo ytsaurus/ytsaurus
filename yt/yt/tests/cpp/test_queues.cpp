@@ -314,8 +314,6 @@ TEST_W(TQueueApiPermissionsTest, PullQueue)
 
 TEST_W(TQueueApiPermissionsTest, PullConsumer)
 {
-    TDelayedExecutor::WaitForDuration(TDuration::Seconds(15));
-
     auto testUser = "u1";
     auto userClient = CreateUser(testUser);
 
@@ -351,16 +349,12 @@ TEST_W(TQueueApiPermissionsTest, PullConsumer)
     EXPECT_TRUE(rowsetOrError.FindMatching(NSecurityClient::EErrorCode::AuthorizationError));
 
     Client_->RegisterQueueConsumer(queue->GetPath(), consumer->GetRichPath(), /*vital*/ false);
-    // Wait for registration cache to sync.
-    TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
 
     auto rowset = WaitFor(userClient->PullConsumer(consumer->GetRichPath(), queue->GetPath(), 0, 0, {}))
         .ValueOrThrow();
     EXPECT_FALSE(rowset->GetRows().empty());
 
     Client_->UnregisterQueueConsumer(queue->GetRichPath(), consumer->GetPath());
-    // Wait for registration cache to sync.
-    TDelayedExecutor::WaitForDuration(TDuration::Seconds(2));
 
     rowsetOrError = WaitFor(userClient->PullConsumer(consumer->GetPath(), queue->GetPath(), 0, 0, {}));
     EXPECT_FALSE(rowsetOrError.IsOK());

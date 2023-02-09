@@ -57,8 +57,16 @@ public:
     //! If no cluster is specified, the connection's local cluster is assumed.
     NYPath::TRichYPath TablePath;
 
+    //! If true, the table will be polled for each registration check and orchid call.
+    //! Off by default.
+    bool BypassCaching;
+
     //! Period with which the registration table is polled by the registration cache.
     TDuration CacheRefreshPeriod;
+
+    //! Period with which a dynamic version of this config is retrieved from the cluster directory of
+    //! the connection with which the manager was created.
+    TDuration ConfigurationRefreshPeriod;
 
     //! User under which requests are performed to read and write registrations.
     TString User;
