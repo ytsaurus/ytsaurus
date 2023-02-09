@@ -3337,6 +3337,7 @@ private:
 
         MustRecomputeMembershipClosure_ = false;
         RecomputeAccountRefCounters_ = false;
+        RecomputeAccountResourceUsages_ = false;
 
         ResetAuthenticatedUser();
     }
