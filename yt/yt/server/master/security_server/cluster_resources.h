@@ -49,6 +49,9 @@ public:
     //! Completely empties disk space counts for all media.
     void ClearDiskSpace();
 
+    //! Sets master memory usage to zero.
+    void ClearMasterMemory();
+
     const NChunkClient::TMediumMap<i64>& DiskSpace() const;
 
     i64 GetTotalMasterMemory() const;

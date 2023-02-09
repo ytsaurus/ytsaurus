@@ -4500,6 +4500,8 @@ private:
             lastTabletIndex,
             newTabletCount);
 
+        auto resourceUsageBefore = hunkStorage->GetTabletResourceUsage();
+
         // Create new tablets.
         std::vector<THunkTablet*> newTablets;
         newTablets.reserve(newTabletCount);
@@ -4572,6 +4574,9 @@ private:
         for (auto* newTablet : newTablets) {
             hunkStorage->AccountTabletStatistics(newTablet->GetTabletStatistics());
         }
+
+        auto resourceUsageDelta = hunkStorage->GetTabletResourceUsage() - resourceUsageBefore;
+        UpdateResourceUsage(hunkStorage, resourceUsageDelta);
 
         return newTabletCount;
     }

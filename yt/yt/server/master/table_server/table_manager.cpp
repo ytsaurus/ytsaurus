@@ -859,7 +859,7 @@ private:
 
     static bool IsSupportedNodeType(EObjectType type)
     {
-        return IsTableType(type) || type == EObjectType::File;
+        return IsTableType(type) || type == EObjectType::File || type == EObjectType::HunkStorage;
     }
 
 
@@ -945,8 +945,8 @@ private:
             }
             YT_VERIFY(IsSupportedNodeType(node->GetType()));
 
-            if (statistics.UpdateTabletResourceUsage && !IsTableType(node->GetType())) {
-                YT_LOG_ALERT("Requested to send tablet resource usage update for a non-table node; ignored (NodeId: %v)",
+            if (statistics.UpdateTabletResourceUsage && !IsTabletOwnerType(node->GetType())) {
+                YT_LOG_ALERT("Requested to send tablet resource usage update for a non-tablet owner node; ignored (NodeId: %v)",
                     nodeId);
                 continue;
             }
@@ -1034,12 +1034,12 @@ private:
             }
 
             if (entry.has_tablet_resource_usage()) {
-                if (IsTableType(chunkOwner->GetType())) {
+                if (IsTabletOwnerType(chunkOwner->GetType())) {
                     auto* table = chunkOwner->As<TTableNode>();
                     auto tabletResourceUsage = FromProto<TTabletResources>(entry.tablet_resource_usage());
                     table->SetExternalTabletResourceUsage(tabletResourceUsage);
                 } else {
-                    YT_LOG_ALERT("Received tablet resource usage update for a non-table node (NodeId: %v)",
+                    YT_LOG_ALERT("Received tablet resource usage update for a non-tablet owner node (NodeId: %v)",
                         nodeId);
                 }
             }
