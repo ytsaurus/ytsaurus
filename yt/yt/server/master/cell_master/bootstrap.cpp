@@ -600,7 +600,7 @@ void TBootstrap::LoadSnapshotOrThrow(
     ValidateLoadSnapshotParameters(dump, enableTotalWriteCountReport, dumpConfigString, &dumpConfig);
 
     BIND(&TBootstrap::DoLoadSnapshot, this, fileName, dump, enableTotalWriteCountReport, dumpConfig)
-        .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
+        .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
         .ThrowOnError();
@@ -613,7 +613,7 @@ void TBootstrap::ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames
     }
 
     BIND(&TBootstrap::DoReplayChangelogs, this, Passed(std::move(changelogFileNames)))
-        .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
+        .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
         .ThrowOnError();
@@ -626,7 +626,7 @@ void TBootstrap::BuildSnapshotOrThrow()
     }
 
     BIND(&TBootstrap::DoBuildSnapshot, this)
-        .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
+        .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
         .ThrowOnError();
@@ -639,7 +639,7 @@ void TBootstrap::FinishDryRunOrThrow()
     }
 
     BIND(&TBootstrap::DoFinishDryRun, this)
-        .AsyncVia(HydraFacade_->GetAutomatonInvoker(EAutomatonThreadQueue::Default))
+        .AsyncVia(GetControlInvoker())
         .Run()
         .Get()
         .ThrowOnError();
