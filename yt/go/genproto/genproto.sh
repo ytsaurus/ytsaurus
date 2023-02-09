@@ -1,11 +1,14 @@
 #!/bin/bash
 
 set -e
-set -u
 set -o pipefail
 set -x
 
-GIT_WORK_DIR=$(git rev-parse --show-toplevel)
+if [[ -z "${GITHUB_WORKSPACE}" ]]; then
+  GIT_WORK_DIR=$(git rev-parse --show-toplevel)
+else
+  GIT_WORK_DIR="${GITHUB_WORKSPACE}"
+fi
 
 (cd $GIT_WORK_DIR && protoc --go_opt=module=ytsaurus.tech --go_out=. -I ./yt $(find ./yt/yt_proto/yt/client/api/rpc_proxy -iname "*.proto"))
 (cd $GIT_WORK_DIR && protoc --go_opt=module=ytsaurus.tech --go_out=. -I ./yt $(find ./yt/yt_proto/yt/core/rpc/proto -iname "*.proto"))
