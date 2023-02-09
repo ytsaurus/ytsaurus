@@ -113,6 +113,7 @@ struct THazardThreadState
 };
 
 thread_local THazardThreadState* HazardThreadState;
+thread_local bool HazardThreadStateDestroyed;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -153,8 +154,6 @@ private:
 
     bool Scan(THazardThreadState* threadState);
 
-    static THazardThreadState* TryGetThreadState();
-    THazardThreadState* GetThreadState();
     THazardThreadState* AllocateThreadState();
     void DestroyThreadState(THazardThreadState* ptr);
 
@@ -203,7 +202,17 @@ void THazardPointerManager::Shutdown()
 
 void THazardPointerManager::ScheduleObjectDeletion(void* ptr, THazardPtrDeleter deleter)
 {
-    auto* threadState = GetThreadState();
+    auto* threadState = HazardThreadState;
+    if (Y_UNLIKELY(!threadState)) {
+        if (HazardThreadStateDestroyed) {
+            // Looks like a global shutdown.
+            deleter(ptr);
+            return;
+        }
+        InitThreadState();
+        threadState = HazardThreadState;
+    }
+
     threadState->DeleteList.push({ptr, deleter});
 
     if (threadState->Scanning) {
@@ -211,14 +220,14 @@ void THazardPointerManager::ScheduleObjectDeletion(void* ptr, THazardPtrDeleter 
     }
 
     int threadCount = ThreadCount_.load(std::memory_order_relaxed);
-    while (std::ssize(threadState->DeleteList) >= 2 * threadCount) {
+    while (std::ssize(threadState->DeleteList) >= std::max(2 * threadCount, 1)) {
         Scan(threadState);
     }
 }
 
 bool THazardPointerManager::ScanDeleteList()
 {
-    auto* threadState = TryGetThreadState();
+    auto* threadState = HazardThreadState;
     if (!threadState || threadState->DeleteList.empty()) {
         return false;
     }
@@ -239,21 +248,10 @@ void THazardPointerManager::FlushDeleteList()
 
 void THazardPointerManager::InitThreadState()
 {
-    Y_UNUSED(GetThreadState());
-}
-
-THazardThreadState* THazardPointerManager::TryGetThreadState()
-{
-    return HazardThreadState;
-}
-
-THazardThreadState* THazardPointerManager::GetThreadState()
-{
-    if (auto* threadState = TryGetThreadState(); Y_LIKELY(threadState)) {
-        return threadState;
+    if (!HazardThreadState) {
+        YT_VERIFY(!HazardThreadStateDestroyed);
+        HazardThreadState = AllocateThreadState();
     }
-    HazardThreadState = AllocateThreadState();
-    return HazardThreadState;
 }
 
 THazardThreadState* THazardPointerManager::AllocateThreadState()
@@ -378,6 +376,9 @@ void THazardPointerManager::DestroyThreadState(THazardThreadState* threadState)
     }
 
     delete threadState;
+
+    HazardThreadState = nullptr;
+    HazardThreadStateDestroyed = true;
 }
 
 void THazardPointerManager::BeforeFork()
