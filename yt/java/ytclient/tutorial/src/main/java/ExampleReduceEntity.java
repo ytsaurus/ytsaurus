@@ -1,5 +1,7 @@
 import java.util.Iterator;
 
+import javax.persistence.Entity;
+
 import tech.ytsaurus.client.YtClient;
 import tech.ytsaurus.client.operations.Operation;
 import tech.ytsaurus.client.operations.ReduceSpec;
@@ -11,29 +13,60 @@ import tech.ytsaurus.client.request.ReduceOperation;
 import tech.ytsaurus.client.request.SortOperation;
 import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.operations.Yield;
-import tech.ytsaurus.ysontree.YTree;
-import tech.ytsaurus.ysontree.YTreeMapNode;
 
 import ru.yandex.lang.NonNullApi;
 
-
-public class Example07ReduceYTree {
-    private Example07ReduceYTree() {
+public class ExampleReduceEntity {
+    private ExampleReduceEntity() {
     }
 
-    // Класс редьюсера должен реализовывать соответствующий интерфейс.
-    // В качестве аргументов дженерика указывается класс для представления входного и выходного объектов.
-    // В данном случае это универсальный YTreeMapNode, который позволяет работать с произвольной таблицей.
+    @Entity
+    static class InputStaffInfo {
+        private String login;
+        private String name;
+        private long uid;
+
+        public String getLogin() {
+            return login;
+        }
+
+        public String getName() {
+            return name;
+        }
+
+        public long getUid() {
+            return uid;
+        }
+    }
+
+    @Entity
+    static class OutputStaffInfo {
+        private String name;
+        private int count;
+
+        OutputStaffInfo() {
+        }
+
+        OutputStaffInfo(String name, int count) {
+            this.name = name;
+            this.count = count;
+        }
+    }
+
+    // The reducer class must implement the appropriate interface.
+    // Generic type arguments are the classes to represent the input and output objects.
+    // The third generic type argument in the ReducerWithKey interface specifies the type of the key.
     @NonNullApi
-    public static class SimpleReducer implements ReducerWithKey<YTreeMapNode, YTreeMapNode, String> {
+    public static class SimpleReducer implements ReducerWithKey<InputStaffInfo, OutputStaffInfo, String> {
         @Override
-        public String key(YTreeMapNode entry) {
-            return entry.getString("name");
+        public String key(InputStaffInfo entry) {
+            return entry.getName();
         }
 
         @Override
-        public void reduce(String key, Iterator<YTreeMapNode> input, Yield<YTreeMapNode> yield, Statistics statistics) {
-            // В reduce приходят все записи с общим reduce ключом, т.е. в нашем случае с общим полем `name'.
+        public void reduce(String key, Iterator<InputStaffInfo> input, Yield<OutputStaffInfo> yield,
+                           Statistics statistics) {
+            // All rows with a common reduce key come to reduce, i.e. in this case with a common field `name`.
 
             int count = 0;
             while (input.hasNext()) {
@@ -41,12 +74,7 @@ public class Example07ReduceYTree {
                 ++count;
             }
 
-            YTreeMapNode outputRow = YTree.builder().beginMap()
-                    .key("name").value(key)
-                    .key("count").value(count)
-                    .buildMap();
-
-            yield.yield(outputRow);
+            yield.yield(new OutputStaffInfo(key, count));
         }
     }
 
@@ -59,7 +87,7 @@ public class Example07ReduceYTree {
         YPath sortedTmpTable = YPath.simple("//tmp/" + System.getProperty("user.name") + "-tutorial-tmp");
 
         try (client) {
-            // Сортируем входную таблицу по `name`.
+            // Sort the input table by `name`.
             client.sort(SortOperation.builder()
                     .setSpec(SortSpec.builder()
                             .setInputTables(YPath.simple("//home/tutorial/staff_unsorted"))

@@ -17,14 +17,14 @@ import tech.ytsaurus.type_info.TiType;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YTreeObject;
 import ru.yandex.inside.yt.kosher.impl.ytree.object.annotation.YtDecimal;
 
-public class Example05Decimal {
-    private Example05Decimal() {
+public class ExampleDecimal {
+    private ExampleDecimal() {
     }
 
     @YTreeObject
     static class TableRow {
         private final String field;
-        // У таблицы обязательно должна быть схема, в который указаны precision и scale.
+        // The table must have a schema that specifies precision and scale.
         private final BigDecimal value;
 
         TableRow(String field, BigDecimal value) {
@@ -42,8 +42,8 @@ public class Example05Decimal {
     static class TableRowAnnotated {
         private final String field;
 
-        // Можно использовать без схемы. Тогда для сериализации/десериализации будут использованы указанные в
-        // аннотации precision и scale.
+        // Can be used without a schema. Then the precision and scale specified in the annotation
+        // will be used for serialization/deserialization.
         @YtDecimal(precision = 7, scale = 3)
         private final BigDecimal value;
 
@@ -59,7 +59,7 @@ public class Example05Decimal {
     }
 
     private static <T> void writeRead(YtClient client, YPath path, List<T> data, Class<T> rowClass) throws Exception {
-        // Создаем writer.
+        // Create the writer.
         var writer = client.writeTable(
                 WriteTable.<T>builder()
                         .setPath(path)
@@ -68,7 +68,7 @@ public class Example05Decimal {
                                 new SerializationContext<>(rowClass))
                         .build()).join();
 
-        // Пишем данные в таблицу.
+        // Writing data to the table.
         try {
             writer.readyEvent().join();
             writer.write(data);
@@ -76,7 +76,7 @@ public class Example05Decimal {
             writer.close().join();
         }
 
-        // Создаем reader.
+        // Create the reader.
         var reader = client.readTable(
                 ReadTable.<T>builder()
                         .setPath(path)
@@ -84,7 +84,7 @@ public class Example05Decimal {
                                 new SerializationContext<>(rowClass))
                         .build()).join();
 
-        // Читаем всю таблицу.
+        // Read the table.
         List<T> result = new ArrayList<>();
         try {
             while (reader.canRead()) {
@@ -118,45 +118,49 @@ public class Example05Decimal {
                 .setCluster("hume")
                 .build();
 
-        // У колонок типа decimal есть два параметра - precision и scale.
-        // Бинарное представление decimal поля зависит от этих параметров.
-        // Есть два варианта:
-        //   - писать/читать в уже существующую таблицу со схемой, в которой хранятся precision и scale
-        //   - разметить decimal поля с помощью @YtDecimal, в которой указаны precision и scale.
+        // Columns of type decimal have two parameters - precision and scale.
+        // The binary representation of a decimal field depends on these options.
+        // There are two options:
+        //   - write/read to an existing table with a schema that stores precision and scale
+        //   - mark up decimal fields with @YtDecimal, which specifies precision and scale.
 
         try (client) {
-            {
-                YPath path = YPath.simple("//tmp/" + System.getProperty("user.name") + "-decimal");
-                client.createNode(
-                        CreateNode.builder()
-                                .setPath(path)
-                                .setType(CypressNodeType.TABLE)
-                                .setAttributes(Map.of(
-                                        "schema", schema.toYTree()
-                                ))
-                                .setIgnoreExisting(true)
-                                .build()).join();
-
-                List<TableRow> data = List.of(
-                        new TableRow("first", BigDecimal.valueOf(123.45)),
-                        new TableRow("second", BigDecimal.valueOf(4.123))
-                );
-
-                // Пишем в уже созданную таблицу (с заданной схемой).
-                writeRead(client, path, data, TableRow.class);
-            }
-
-            {
-                YPath path = YPath.simple("//tmp/" + System.getProperty("user.name") + "-decimal" + UUID.randomUUID());
-
-                List<TableRowAnnotated> data = List.of(
-                        new TableRowAnnotated("first", BigDecimal.valueOf(123.45)),
-                        new TableRowAnnotated("second", BigDecimal.valueOf(4.123))
-                );
-
-                // Пишем в несуществующую таблицу без схемы, precision и scale берем из аннотации @YtDecimal.
-                writeRead(client, path, data, TableRowAnnotated.class);
-            }
+            writeToExistentTable(schema, client);
+            writeToNonExistentTable(client);
         }
+    }
+
+    private static void writeToExistentTable(TableSchema schema, YtClient client) throws Exception {
+        YPath path = YPath.simple("//tmp/" + System.getProperty("user.name") + "-decimal");
+        client.createNode(
+                CreateNode.builder()
+                        .setPath(path)
+                        .setType(CypressNodeType.TABLE)
+                        .setAttributes(Map.of(
+                                "schema", schema.toYTree()
+                        ))
+                        .setIgnoreExisting(true)
+                        .build()).join();
+
+        List<TableRow> data = List.of(
+                new TableRow("first", BigDecimal.valueOf(123.45)),
+                new TableRow("second", BigDecimal.valueOf(4.123))
+        );
+
+        // Writing to the already created table (with the given scheme).
+        writeRead(client, path, data, TableRow.class);
+    }
+
+    private static void writeToNonExistentTable(YtClient client) throws Exception {
+        YPath path = YPath.simple("//tmp/" + System.getProperty("user.name") + "-decimal" + UUID.randomUUID());
+
+        List<TableRowAnnotated> data = List.of(
+                new TableRowAnnotated("first", BigDecimal.valueOf(123.45)),
+                new TableRowAnnotated("second", BigDecimal.valueOf(4.123))
+        );
+
+        // Writing to a non-existent table without a schema,
+        // precision and scale are taken from the @YtDecimal annotation.
+        writeRead(client, path, data, TableRowAnnotated.class);
     }
 }
