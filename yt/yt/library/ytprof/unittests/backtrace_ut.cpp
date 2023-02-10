@@ -2,6 +2,8 @@
 #include <gmock/gmock.h>
 #include <benchmark/benchmark.h>
 
+#include <yt/yt/core/misc/safe_memory_reader.h>
+
 #include <yt/yt/library/ytprof/backtrace.h>
 
 #include <util/system/compiler.h>
@@ -10,19 +12,6 @@ namespace NYT::NYTProf {
 namespace {
 
 ////////////////////////////////////////////////////////////////////////////////
-
-TEST(SafeRead, Simple)
-{
-    TMemReader mem;
-
-    int i = 1;
-
-    int value;
-    ASSERT_TRUE(mem.SafeRead(&i, &value));
-    ASSERT_EQ(value, 1);
-
-    ASSERT_FALSE(mem.SafeRead(reinterpret_cast<void*>(0x1ee3beef), &value));
-}
 
 template <int Depth, class TFn>
 Y_NO_INLINE void RunInDeepStack(TFn cb)
@@ -62,7 +51,7 @@ TEST(TFramePointerCursor, FramePointerCursor)
         unw_word_t rbp = 0;
         ASSERT_TRUE(unw_get_reg(&cursor, UNW_X86_64_RBP, &rbp) == 0);
 
-        TMemReader mem;
+        TSafeMemoryReader mem;
         TFramePointerCursor fpCursor(
             &mem,
             reinterpret_cast<void*>(ip),

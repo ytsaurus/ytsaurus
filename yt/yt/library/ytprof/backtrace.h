@@ -1,8 +1,8 @@
 #pragma once
 
-#include <contrib/libs/libunwind/include/libunwind.h>
+#include <yt/yt/core/misc/safe_memory_reader.h>
 
-#include "mem_reader.h"
+#include <contrib/libs/libunwind/include/libunwind.h>
 
 namespace NYT::NYTProf {
 
@@ -40,14 +40,14 @@ private:
 class TFramePointerCursor
 {
 public:
-    TFramePointerCursor(TMemReader* mem, void* rip, void* rsp, void* rbp);
+    TFramePointerCursor(TSafeMemoryReader* mem, void* rip, void* rsp, void* rbp);
 
     bool IsEnd();
     bool Next();
     void* GetIP();
 
 private:
-    TMemReader* Mem_;
+    TSafeMemoryReader* Mem_;
     bool End_ = false;
     bool First_ = true;
 

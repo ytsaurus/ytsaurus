@@ -84,7 +84,7 @@ void TUWCursor::ReadIP()
 
 ////////////////////////////////////////////////////////////////////////////////
 
-TFramePointerCursor::TFramePointerCursor(TMemReader* mem, void* rip, void* rsp, void* rbp)
+TFramePointerCursor::TFramePointerCursor(TSafeMemoryReader* mem, void* rip, void* rsp, void* rbp)
     : Mem_(mem)
     , Rip_(rip)
     , Rbp_(rbp)
@@ -113,7 +113,7 @@ bool TFramePointerCursor::Next()
 
     auto checkPtr = [this] (auto ptr) {
         ui8 data;
-        return Mem_->SafeRead(ptr, &data);
+        return Mem_->Read(ptr, &data);
     };
 
     // We try unwinding stack manually by following frame pointers.
@@ -137,7 +137,7 @@ bool TFramePointerCursor::Next()
         //  c3               retq
 
         std::array<ui8, 3> data;
-        if (!Mem_->SafeRead(Rip_, &data)) {
+        if (!Mem_->Read(Rip_, &data)) {
             Debug("failed to read instruction");
             End_ = true;
             return false;
@@ -145,7 +145,7 @@ bool TFramePointerCursor::Next()
 
         if (data[0] == 0xc3 || data[0] == 0x55) {
             void* savedRip;
-            if (!Mem_->SafeRead(StartRsp_, &savedRip)) {
+            if (!Mem_->Read(StartRsp_, &savedRip)) {
                 Debug("failed to read saved rip #1");
                 End_ = true;
                 return false;
@@ -160,7 +160,7 @@ bool TFramePointerCursor::Next()
 
             // Detect garbage pointer.
             ui8 data;
-            if (!Mem_->SafeRead(savedRip, &data)) {
+            if (!Mem_->Read(savedRip, &data)) {
                 Debug("saved rip is garbage #1");
                 End_ = true;
                 return false;
@@ -170,7 +170,7 @@ bool TFramePointerCursor::Next()
             return true;
         } else if (data[0] == 0x48 && data[1] == 0x89 && data[2] == 0xe5) {
             void* savedRip;
-            if (!Mem_->SafeRead(add(StartRsp_, 8), &savedRip)) {
+            if (!Mem_->Read(add(StartRsp_, 8), &savedRip)) {
                 Debug("failed to read saved rip #2");
                 End_ = true;
                 return false;
@@ -197,7 +197,7 @@ bool TFramePointerCursor::Next()
 
     void *savedRbp;
     void *savedRip;
-    if (!Mem_->SafeRead(Rbp_, &savedRbp) || !Mem_->SafeRead(add(Rbp_, 8), &savedRip)) {
+    if (!Mem_->Read(Rbp_, &savedRbp) || !Mem_->Read(add(Rbp_, 8), &savedRip)) {
         Debug("failed to read savedRip or savedRpb");
         End_ = true;
         return false;
@@ -207,7 +207,7 @@ bool TFramePointerCursor::Next()
         Debug("savedRbp is garbage");
         End_ = true;
         return false;
-    } 
+    }
 
     if (!checkPtr(savedRip)) {
         Debug("savedRip is garbage");
