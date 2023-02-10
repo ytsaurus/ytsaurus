@@ -404,10 +404,9 @@ public:
             schedulerJobSpecExt.foreign_input_table_specsSize() > 0)
         {
             primaryKeyPrefixes.resize(schedulerJobSpecExt.input_table_specs_size());
-
+            i64 primaryRowCount = 0;
             // TODO(orlovorlov): surface it in `yt get-job` output that a preliminary
             // pass was performed.
-            YT_LOG_INFO("Read all keys from primary table in a preliminary pass (EstimatedRowCount: %v)", inputRowCount);
 
             for (int i = 0; i < schedulerJobSpecExt.input_table_specs_size(); i++) {
                 const auto& inputSpec = schedulerJobSpecExt.input_table_specs(i);
@@ -431,8 +430,15 @@ public:
                     sortColumns.size());
 
                 primaryKeyPrefixes[i] = FetchReaderKeyPrefixes(reader, reduceJobSpecExt.join_key_column_count(), Buffer_);
+                primaryRowCount += std::ssize(primaryKeyPrefixes[i]);
             }
             hintKeyPrefixes = DedupRows(sortColumns, std::move(primaryKeyPrefixes));
+
+            YT_LOG_INFO("Read all keys from primary table in a preliminary pass "
+                        "(EstimatedRowCount: %v, ActualRowCount: %v, DedupedRowCount: %v, "
+                        "NumForeignTables: %v)",
+                        inputRowCount, primaryRowCount, std::ssize(hintKeyPrefixes),
+                        schedulerJobSpecExt.foreign_input_table_specsSize());
         }
 
         for (const auto& inputSpec : schedulerJobSpecExt.input_table_specs()) {

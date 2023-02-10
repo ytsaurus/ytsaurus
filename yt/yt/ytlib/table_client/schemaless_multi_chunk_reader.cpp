@@ -214,6 +214,10 @@ std::vector<IReaderFactoryPtr> CreateReaderFactories(
                             dataSource.Schema());
                         chunkState->DataSource = dataSource;
 
+                        YT_LOG_DEBUG("Create chunk reader (HintCount: %v, ChunkFormat: %v, Sorted: %v)",
+                                    std::ssize(hintKeyPrefixes), chunkMeta->GetChunkFormat(),
+                                    chunkMeta->Misc().sorted());
+
                         if (hintKeyPrefixes.empty() || !chunkMeta->Misc().sorted() ||
                             chunkMeta->GetChunkFormat() != EChunkFormat::TableUnversionedSchemalessHorizontal) {
                             return CreateSchemalessRangeChunkReader(
