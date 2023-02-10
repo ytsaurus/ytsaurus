@@ -4,6 +4,8 @@
 #include <array>
 #include <variant>
 
+#include <yt/yt/core/misc/safe_memory_reader.h>
+
 #include <yt/yt/library/ytprof/profile.pb.h>
 #include <yt/yt/library/ytprof/api/api.h>
 
@@ -13,7 +15,6 @@
 #include <util/datetime/base.h>
 
 #include "queue.h"
-#include "mem_reader.h"
 #include "backtrace.h"
 
 namespace NYT::NYTProf {
@@ -61,7 +62,7 @@ public:
 
 protected:
     const TSignalSafeProfilerOptions Options_;
-    TMemReader Mem_;
+    TSafeMemoryReader Mem_;
 
     std::atomic<bool> Stop_{true};
     std::atomic<i64> QueueOverflows_{0};

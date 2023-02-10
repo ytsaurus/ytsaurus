@@ -17,7 +17,6 @@
 #include <util/datetime/base.h>
 
 #include "queue.h"
-#include "mem_reader.h"
 #include "signal_safe_profiler.h"
 
 namespace NYT::NYTProf {
