@@ -48,12 +48,6 @@ def create_memory_script(memory, before_action=""):
     return MEMORY_SCRIPT.format(before_action=before_action, memory=memory, after_action="time.sleep(5.0)").encode("ascii")
 
 
-def check_memory_limit(op):
-    for job_id in op.list_jobs():
-        inner_errors = get_job(op.id, job_id)["error"]["inner_errors"]
-        assert "Memory limit exceeded" in inner_errors[0]["message"]
-
-
 ###############################################################################################
 
 
@@ -77,15 +71,22 @@ class TestSchedulerMemoryLimits(YTEnvSetup):
             track=False,
             in_="//tmp/t_in",
             out="//tmp/t_out",
-            command="python -c 'import time; a=[1]*1000000; time.sleep(10)'",
-            spec={"max_failed_job_count": 2, "mapper" : {"memory_limit" : 1024}},
+            command="python -c 'import time; a=[1]*100000000; time.sleep(10)'",
+            spec={"max_failed_job_count": 2, "mapper" : {"memory_limit" : 512 * 1024 * 1024}},
         )
 
         # if all jobs failed then operation is also failed
         with pytest.raises(YtError):
             op.track()
         # ToDo: check job error messages.
-        check_memory_limit(op)
+        import builtins
+        for job_id in op.list_jobs():
+            inner_error = get_job(op.id, job_id)["error"]["inner_errors"][0]
+            assert "Memory limit exceeded" in inner_error["message"]
+            attributes = inner_error["attributes"]
+            assert "processes" in attributes
+            expected_cmdline = ["python", "-c", "import time; a=[1]*100000000; time.sleep(10)"]
+            assert expected_cmdline in builtins.map(lambda x: x["cmdline"], attributes["processes"])
 
     @authors("max42", "ignat")
     def test_dirty_sandbox(self):

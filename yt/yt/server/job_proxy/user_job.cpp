@@ -1541,12 +1541,24 @@ private:
             memoryLimit);
 
         if (memoryUsage > memoryLimit && Config_->CheckUserJobMemoryLimit) {
+            auto memoryStatistics = MemoryTracker_->GetMemoryStatistics();
+
+            auto processesStatistics = memoryStatistics->ProcessesStatistics;
+            std::sort(
+                processesStatistics.begin(),
+                processesStatistics.end(),
+                [] (const TProcessMemoryStatisticsPtr& lhs, const TProcessMemoryStatisticsPtr& rhs) {
+                    return lhs->Rss > rhs->Rss;
+                });
+
             YT_LOG_INFO("Memory limit exceeded");
             auto error = TError(
                 NJobProxy::EErrorCode::MemoryLimitExceeded,
                 "Memory limit exceeded")
                 << TErrorAttribute("usage", memoryUsage)
-                << TErrorAttribute("limit", memoryLimit);
+                << TErrorAttribute("limit", memoryLimit)
+                << TErrorAttribute("tmpfs_size", memoryStatistics->TmpfsSize)
+                << TErrorAttribute("processes", processesStatistics);
             JobErrorPromise_.TrySet(error);
             CleanupUserProcesses();
         }

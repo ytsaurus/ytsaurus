@@ -5,9 +5,38 @@
 
 #include <library/cpp/yt/threading/spin_lock.h>
 
+#include <yt/yt/core/misc/proc.h>
+
+#include <yt/yt/core/ytree/yson_struct.h>
+
 namespace NYT::NJobProxy {
 
 ////////////////////////////////////////////////////////////////////////////////
+
+struct TProcessMemoryStatistics
+    : public NYTree::TYsonStruct
+{
+    int Pid;
+    std::vector<TString> Cmdline;
+    ui64 Rss;
+    ui64 Shared;
+
+    REGISTER_YSON_STRUCT(TProcessMemoryStatistics);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TProcessMemoryStatistics)
+
+struct TJobMemoryStatistics
+    : public TRefCounted
+{
+    NContainers::TMemoryStatistics Total;
+    std::vector<TProcessMemoryStatisticsPtr> ProcessesStatistics;
+    i64 TmpfsSize = 0;
+};
+
+DEFINE_REFCOUNTED_TYPE(TJobMemoryStatistics)
 
 class TMemoryTracker
     : public TRefCounted
@@ -24,6 +53,8 @@ public:
 
     i64 GetMemoryUsage();
 
+    TJobMemoryStatisticsPtr GetMemoryStatistics();
+
 private:
     const TMemoryTrackerConfigPtr Config_;
     const IUserJobEnvironmentPtr Environment_;
@@ -36,9 +67,7 @@ private:
 
     TInstant LastMemoryMeasureTime_ = TInstant::Now();
 
-    std::optional<NContainers::TMemoryStatistics> CachedMemoryStatisitcs_;
-
-    NContainers::TMemoryStatistics GetMemoryStatistics();
+    TJobMemoryStatisticsPtr CachedMemoryStatisitcs_ = nullptr;
 };
 
 DEFINE_REFCOUNTED_TYPE(TMemoryTracker)
