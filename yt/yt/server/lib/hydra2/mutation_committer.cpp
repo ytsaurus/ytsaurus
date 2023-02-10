@@ -1369,13 +1369,12 @@ void TFollowerCommitter::LogMutations()
     while (!AcceptedMutations_.empty()) {
         auto version = AcceptedMutations_.front()->Version;
 
-        if (!Changelog_ || version.SegmentId != Changelog_->GetId()) {
+        if ((!Changelog_ || version.SegmentId != Changelog_->GetId()) && Options_.WriteChangelogsAtFollowers) {
             if (!recordsData.empty()) {
                 break;
             }
-            if (Options_.WriteChangelogsAtFollowers) {
-                PrepareNextChangelog(version);
-            }
+
+            PrepareNextChangelog(version);
         }
 
         auto mutation = std::move(AcceptedMutations_.front());
