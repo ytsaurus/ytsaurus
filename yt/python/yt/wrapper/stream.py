@@ -106,14 +106,18 @@ class Stream(object):
         Base Stream class. A subclass class must set self._iter attribute.
     """
 
-    item_type = binary_type
-
     def __init__(self, input, isatty=None):
         self._iter = iter(input)
         if isatty is None:
             self._isatty = _stream_isatty(input)
         else:
             self._isatty = isatty
+
+    def _check_item_type(self, item):
+        if not isinstance(item, binary_type):
+            raise TypeError("Stream expected to contain binary data but contains: '{}'.".format(
+                type(item)
+            ))
 
     def __iter__(self):
         return self
@@ -124,7 +128,7 @@ class Stream(object):
 
     def __next__(self):
         item = next(self._iter)
-        assert isinstance(item, self.item_type)
+        self._check_item_type(item)
         return item
 
     def isatty(self):
@@ -211,14 +215,18 @@ class _ChunkStream(Stream):
 
 
 class ChunkGroupStream(Stream):
-    item_type = list
-
     def __init__(self, chunks, chunk_size, piece_max_size):
         isatty = _stream_isatty(chunks)
         stream = _split_chunks_by_max_size(chunks, piece_max_size)
         self.chunk_size = chunk_size
         self.piece_max_size = piece_max_size
         super(ChunkGroupStream, self).__init__(stream, isatty)
+
+    def _check_item_type(self, item):
+        if not isinstance(item, list):
+            raise TypeError("Stream is expected to contain list, but contains: '{}'".format(
+                type(item)
+            ))
 
     def flatten(self):
         chunks = _flatten_stream(self)
