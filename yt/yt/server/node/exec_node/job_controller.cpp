@@ -1072,6 +1072,23 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
+        {
+            THashSet<TControllerAgentDescriptor> receivedRegisteredAgents;
+            receivedRegisteredAgents.reserve(response->registered_controller_agents_size());
+            for (const auto& protoAgentDescriptor : response->registered_controller_agents()) {
+                auto descriptorOrError = TryParseControllerAgentDescriptor(protoAgentDescriptor);
+                YT_LOG_FATAL_IF(
+                    !descriptorOrError.IsOK(),
+                    descriptorOrError,
+                    "Failed to parse registered controller agent descriptor");
+
+                EmplaceOrCrash(receivedRegisteredAgents, std::move(descriptorOrError.Value()));
+            }
+
+            const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
+            controllerAgentConnectorPool->OnRegisteredAgentSetReceived(std::move(receivedRegisteredAgents));
+        }
+
         for (const auto& protoJobToRemove : response->jobs_to_remove()) {
             auto jobToRemove = FromProto<TJobToRelease>(protoJobToRemove);
             auto jobId = jobToRemove.JobId;
@@ -1185,23 +1202,6 @@ private:
         JobIdsToConfirm_.clear();
         if (!jobIdsToConfirm.empty()) {
             JobIdsToConfirm_.insert(std::cbegin(jobIdsToConfirm), std::cend(jobIdsToConfirm));
-        }
-
-        {
-            THashSet<TControllerAgentDescriptor> receivedRegisteredAgents;
-            receivedRegisteredAgents.reserve(response->registered_controller_agents_size());
-            for (const auto& protoAgentDescriptor : response->registered_controller_agents()) {
-                auto descriptorOrError = TryParseControllerAgentDescriptor(protoAgentDescriptor);
-                YT_LOG_FATAL_IF(
-                    !descriptorOrError.IsOK(),
-                    descriptorOrError,
-                    "Failed to parse registered controller agent descriptor");
-
-                EmplaceOrCrash(receivedRegisteredAgents, std::move(descriptorOrError.Value()));
-            }
-
-            const auto& controllerAgentConnectorPool = Bootstrap_->GetExecNodeBootstrap()->GetControllerAgentConnectorPool();
-            controllerAgentConnectorPool->OnRegisteredAgentSetReceived(std::move(receivedRegisteredAgents));
         }
 
         // COMPAT(pogorelov)
