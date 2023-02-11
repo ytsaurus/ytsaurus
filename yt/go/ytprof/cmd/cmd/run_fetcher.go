@@ -3,7 +3,7 @@ package main
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"path/filepath"
 
@@ -68,7 +68,7 @@ func runFetcher(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	data, err := ioutil.ReadAll(file)
+	data, err := io.ReadAll(file)
 	if err != nil {
 		l.Fatal("reading file failed", log.Error(err), log.String("config_path", flagConfig))
 		return err

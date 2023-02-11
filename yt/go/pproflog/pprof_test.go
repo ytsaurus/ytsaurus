@@ -3,7 +3,7 @@ package pproflog
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
+	"os"
 	"testing"
 	"time"
 
@@ -13,7 +13,7 @@ import (
 )
 
 func TestLogProfile(t *testing.T) {
-	tmp, err := ioutil.TempDir("", "pprof")
+	tmp, err := os.MkdirTemp("", "pprof")
 	require.NoError(t, err)
 
 	t.Logf("logging profiles to %s", tmp)

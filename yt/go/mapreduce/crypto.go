@@ -3,7 +3,7 @@ package mapreduce
 import (
 	"bytes"
 	"errors"
-	"io/ioutil"
+	"os"
 
 	"github.com/google/tink/go/aead"
 	"github.com/google/tink/go/keyset"
@@ -35,7 +35,7 @@ func readJobState(ctx *jobContext) ([]byte, error) {
 		return nil, err
 	}
 
-	ct, err := ioutil.ReadFile("job-state")
+	ct, err := os.ReadFile("job-state")
 	if err != nil {
 		return nil, err
 	}

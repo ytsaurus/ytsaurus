@@ -5,7 +5,7 @@ import (
 	"compress/gzip"
 	"flag"
 	"io"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 
@@ -26,7 +26,7 @@ func readData(b *testing.B, testCase string) []byte {
 		path = filepath.Join(yatest.WorkPath(filepath.Join("testdata", testCase)))
 	}
 
-	data, err := ioutil.ReadFile(path)
+	data, err := os.ReadFile(path)
 	require.NoError(b, err)
 	return data
 }

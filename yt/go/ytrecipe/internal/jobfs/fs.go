@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"strings"
@@ -470,7 +469,7 @@ func (fs *FS) Recreate(l log.Structured) (err error) {
 					log.String("path", p.Path))
 
 				if f.Inlined {
-					if err := ioutil.WriteFile(p.Path, f.InlineBlob, 0666); err != nil {
+					if err := os.WriteFile(p.Path, f.InlineBlob, 0666); err != nil {
 						return err
 					}
 				} else {

@@ -2,7 +2,6 @@ package pproflog
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -11,7 +10,7 @@ import (
 )
 
 func rotateFiles(opts Options, name string) error {
-	files, err := ioutil.ReadDir(opts.Dir)
+	files, err := os.ReadDir(opts.Dir)
 	if err != nil {
 		return err
 	}

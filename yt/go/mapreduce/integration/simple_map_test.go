@@ -2,7 +2,6 @@ package integration
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -17,7 +16,7 @@ import (
 
 func DumpFDs() {
 	const procSelfFD = "/proc/self/fd"
-	files, err := ioutil.ReadDir(procSelfFD)
+	files, err := os.ReadDir(procSelfFD)
 	if err != nil {
 		return
 	}

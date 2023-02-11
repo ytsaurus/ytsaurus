@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"text/template"
@@ -86,7 +85,7 @@ func (e *Exec) writePrepare(job *job.Job, outDir ypath.Path) error {
 		return err
 	}
 
-	err := ioutil.WriteFile(e.config.Exec.ReadmeFile, buf.Bytes(), 0666)
+	err := os.WriteFile(e.config.Exec.ReadmeFile, buf.Bytes(), 0666)
 	if err != nil {
 		return err
 	}
@@ -96,7 +95,7 @@ func (e *Exec) writePrepare(job *job.Job, outDir ypath.Path) error {
 		return err
 	}
 
-	err = ioutil.WriteFile(e.config.Exec.DownloadScript, buf.Bytes(), 0777)
+	err = os.WriteFile(e.config.Exec.DownloadScript, buf.Bytes(), 0777)
 	if err != nil {
 		return err
 	}
@@ -111,7 +110,7 @@ func (e *Exec) writePrepare(job *job.Job, outDir ypath.Path) error {
 		return err
 	}
 
-	return ioutil.WriteFile(e.config.Exec.PreparedFile, preparedJS, 0666)
+	return os.WriteFile(e.config.Exec.PreparedFile, preparedJS, 0666)
 }
 
 func (e *Exec) writeResult(exitRow *jobfs.ExitRow) error {
@@ -134,5 +133,5 @@ func (e *Exec) writeResult(exitRow *jobfs.ExitRow) error {
 		return err
 	}
 
-	return ioutil.WriteFile(e.config.Exec.ResultFile, resultJS, 0666)
+	return os.WriteFile(e.config.Exec.ResultFile, resultJS, 0666)
 }

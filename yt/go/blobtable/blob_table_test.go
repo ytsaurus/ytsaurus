@@ -2,7 +2,7 @@ package blobtable
 
 import (
 	"bytes"
-	"io/ioutil"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -46,14 +46,14 @@ func TestReadBlobTable(t *testing.T) {
 		require.NoError(t, br.ScanKey(&key))
 		require.Equal(t, i, key.Key)
 
-		data, err := ioutil.ReadAll(br)
+		data, err := io.ReadAll(br)
 		require.NoError(t, err)
 		require.Equal(t, []byte("foobar"), data)
 	}
 
 	require.True(t, br.Next())
 
-	data, err := ioutil.ReadAll(br)
+	data, err := io.ReadAll(br)
 	require.NoError(t, err)
 	require.Equal(t, bytes.Repeat([]byte("foobar"), 1<<20), data)
 

@@ -2,7 +2,6 @@ package tarstream
 
 import (
 	"bytes"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"testing"
@@ -11,7 +10,7 @@ import (
 )
 
 func TestTarStream(t *testing.T) {
-	tmpDir, err := ioutil.TempDir("", "tarstream")
+	tmpDir, err := os.MkdirTemp("", "tarstream")
 	require.NoError(t, err)
 
 	t.Logf("running inside %s", tmpDir)
@@ -26,8 +25,8 @@ func TestTarStream(t *testing.T) {
 
 	require.NoError(t, os.Mkdir(filepath.Join(from, "a"), 0777))
 	require.NoError(t, os.MkdirAll(filepath.Join(from, "b", "c", "d"), 0777))
-	require.NoError(t, ioutil.WriteFile(filepath.Join(from, "a", "x.bin"), []byte("xxx"), 0777))
-	require.NoError(t, ioutil.WriteFile(filepath.Join(from, "b", "c", "y.txt"), []byte("yyy"), 0666))
+	require.NoError(t, os.WriteFile(filepath.Join(from, "a", "x.bin"), []byte("xxx"), 0777))
+	require.NoError(t, os.WriteFile(filepath.Join(from, "b", "c", "y.txt"), []byte("yyy"), 0666))
 
 	require.NoError(t, Send(from, &buf))
 
@@ -50,7 +49,7 @@ func TestTarStream(t *testing.T) {
 
 		require.Equal(t, (mode & 0700).String(), (st.Mode() & 0700).String())
 
-		b, err := ioutil.ReadFile(path)
+		b, err := os.ReadFile(path)
 		require.NoError(t, err)
 		require.Equal(t, content, b)
 	}

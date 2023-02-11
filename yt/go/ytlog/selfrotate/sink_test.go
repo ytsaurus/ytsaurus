@@ -2,7 +2,7 @@ package selfrotate
 
 import (
 	"fmt"
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
@@ -93,7 +93,7 @@ func TestSink(t *testing.T) {
 		t.Run(fmt.Sprint(i), func(t *testing.T) {
 			t.Parallel()
 
-			dir, err := ioutil.TempDir("", "sink")
+			dir, err := os.MkdirTemp("", "sink")
 			require.NoError(t, err)
 
 			testCase.options.Name = filepath.Join(dir, "my.log")
@@ -111,7 +111,7 @@ func TestSink(t *testing.T) {
 
 			_ = w.Close()
 
-			files, err := ioutil.ReadDir(dir)
+			files, err := os.ReadDir(dir)
 			require.NoError(t, err)
 
 			var names []string

@@ -6,7 +6,6 @@ import (
 	"fmt"
 	"go/format"
 	"go/parser"
-	"io/ioutil"
 	"os"
 )
 
@@ -52,7 +51,7 @@ func main() {
 		fatalf("%v", err)
 	}
 
-	if err = ioutil.WriteFile(*flagOutput, fmtbuf, 0644); err != nil {
+	if err = os.WriteFile(*flagOutput, fmtbuf, 0644); err != nil {
 		fatalf("%v", err)
 	}
 }

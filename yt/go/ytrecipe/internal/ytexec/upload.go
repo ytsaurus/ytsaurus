@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"context"
 	"io"
-	"io/ioutil"
 	"os"
 	"time"
 
@@ -151,7 +150,7 @@ func (e *Exec) uploadFS(ctx context.Context, fs *jobfs.FS) error {
 
 		if f.Size <= jobfs.InlineBlobThreshold {
 			eg.Go(func() error {
-				blob, err := ioutil.ReadFile(f.LocalPath[0].Path)
+				blob, err := os.ReadFile(f.LocalPath[0].Path)
 				if err != nil {
 					return err
 				}

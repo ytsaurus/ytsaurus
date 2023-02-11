@@ -1,7 +1,7 @@
 package pproflog
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"sort"
 	"testing"
@@ -10,11 +10,11 @@ import (
 )
 
 func TestRotate(t *testing.T) {
-	tmp, err := ioutil.TempDir("", "pprof")
+	tmp, err := os.MkdirTemp("", "pprof")
 	require.NoError(t, err)
 
 	checkFiles := func(files []string) {
-		l, err := ioutil.ReadDir(tmp)
+		l, err := os.ReadDir(tmp)
 		require.NoError(t, err)
 
 		realFiles := []string{}
@@ -28,7 +28,7 @@ func TestRotate(t *testing.T) {
 	}
 
 	makeFile := func(f string) {
-		require.NoError(t, ioutil.WriteFile(filepath.Join(tmp, f), nil, 0666))
+		require.NoError(t, os.WriteFile(filepath.Join(tmp, f), nil, 0666))
 	}
 
 	opts := Options{Dir: tmp, Keep: 10}
