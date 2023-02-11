@@ -960,11 +960,24 @@ private:
                 if (state.Epoch == lastState.Epoch) {
                     continue;
                 }
-                lastState = state;
+
+                randomReader->OpenNewFiles();
+
                 auto prevWindow = congestionWindow;
                 auto windowTime = TInstant::Now() - congestionWindowChanged;
 
-                randomReader->OpenNewFiles();
+                if (congestionWindow == maxWindowSize && windowTime >= Config_->WindowPeriod) {
+                    YT_LOG_INFO("Reporting congested state because we have reached maximum window size"
+                        " (Index: %v, Status: %v, CongestionWindow: %v, MaxWindowSize: %v)",
+                        state.Epoch,
+                        state.Status,
+                        congestionWindow,
+                        maxWindowSize);
+
+                    state.Status = ECongestedStatus::Overload;
+                }
+
+                lastState = state;
 
                 switch (state.Status) {
                     case ECongestedStatus::OK:
@@ -1016,21 +1029,7 @@ private:
                 // Signal probing round finished.
                 ProbesRoundFinished_.Fire(prevWindow);
 
-                bool reachedMaximumWindow = prevWindow == maxWindowSize;
-
-                if (reachedMaximumWindow) {
-                    YT_LOG_INFO("Reporting congested state because we have reached maximum window size"
-                        " (Index: %v, Status: %v, CongestionWindow: %v, MaxWindowSize: %v)",
-                        state.Epoch,
-                        state.Status,
-                        congestionWindow,
-                        maxWindowSize);
-
-                    slowStartThreshold = congestionWindow / 2;
-                    congestionWindow = slowStartThreshold;
-                }
-
-                if (reachedMaximumWindow || state.Status != ECongestedStatus::OK) {
+                if (state.Status != ECongestedStatus::OK) {
                     // Signal congested.
                     Congested_.Fire(prevWindow);
                     // If congested wait all inflight events before starting new round.
@@ -1165,14 +1164,17 @@ private:
         int maxWriteIOPS = Config_->MaxWriteRate / WriteRequestSampler_->AverageRequestSize();
         int maxTotalIops = maxWriteIOPS * IOScale / std::max(IOScale - ReadToWriteRatio_, 1);
 
+        int calculatedMaxWindowSize = std::min(Config_->MaxWindowSize, maxTotalIops);
+        calculatedMaxWindowSize = std::max(calculatedMaxWindowSize, 1);
+
         YT_LOG_DEBUG("Max window size calculated based on MaxWriteRate "
             "(MaxWriteRate: %v, ReadToWriteRatio: %v, ConfigMaxWindowSize: %v, CalculatedMaxWindowSize: %v)",
             Config_->MaxWriteRate,
             ReadToWriteRatio_,
             Config_->MaxWindowSize,
-            maxTotalIops);
+            calculatedMaxWindowSize);
 
-        return std::min(Config_->MaxWindowSize, maxTotalIops);
+        return calculatedMaxWindowSize;
     }
 
     // TODO(capone212): Remove after using request sizes histogram everywhere.
