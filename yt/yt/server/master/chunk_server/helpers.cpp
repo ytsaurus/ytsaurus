@@ -257,55 +257,57 @@ void AttachToChunkList(
         return;
     }
 
-    // Make sure all new children have the same value of "sealed" and "overlayed" flags.
-    const auto* firstChild = childrenBegin[0];
-    bool childrenSealed = firstChild->IsSealed();
-    bool childrenOverlayed = firstChild->GetOverlayed();
-    for (auto it = childrenBegin; it != childrenEnd; ++it) {
-        const auto* child = *it;
-        if (bool childSealed = child->IsSealed(); childSealed != childrenSealed) {
-            THROW_ERROR_EXCEPTION("Improper sealed flag for child %v: expected %Qlv, actual %Qlv",
-                child->GetId(),
-                childrenSealed,
-                childSealed);
+    if (chunkList->GetKind() == EChunkListKind::JournalRoot) {
+        // Make sure all new children have the same value of "sealed" and "overlayed" flags.
+        const auto* firstChild = childrenBegin[0];
+        bool childrenSealed = firstChild->IsSealed();
+        bool childrenOverlayed = firstChild->GetOverlayed();
+        for (auto it = childrenBegin; it != childrenEnd; ++it) {
+            const auto* child = *it;
+            if (bool childSealed = child->IsSealed(); childSealed != childrenSealed) {
+                THROW_ERROR_EXCEPTION("Improper sealed flag for child %v: expected %Qlv, actual %Qlv",
+                    child->GetId(),
+                    childrenSealed,
+                    childSealed);
+            }
+            if (bool childOverlayed = child->GetOverlayed(); childOverlayed != childrenOverlayed) {
+                THROW_ERROR_EXCEPTION("Improper overlayed flag for child %v: expected %Qlv, actual %Qlv",
+                    child->GetId(),
+                    childrenOverlayed,
+                    childOverlayed);
+            }
         }
-        if (bool childOverlayed = child->GetOverlayed(); childOverlayed != childrenOverlayed) {
-            THROW_ERROR_EXCEPTION("Improper overlayed flag for child %v: expected %Qlv, actual %Qlv",
-                child->GetId(),
-                childrenOverlayed,
-                childOverlayed);
-        }
-    }
 
-    // Unsealed children may only appear at the very end of the resulting chunk list.
-    if (!chunkList->IsSealed() && childrenSealed) {
-        THROW_ERROR_EXCEPTION("Cannot append a sealed child %v to chunk list %v since the latter is not sealed",
-            firstChild->GetId(),
-            chunkList->GetId());
-    }
-
-    // Multiple unsealed chunks are only possible if they all are overlayed.
-    int unsealedCount = 0;
-    if (!chunkList->IsSealed()) {
-        // NB: Maybe more actually but will suffice for the purpose of the check.
-        ++unsealedCount;
-    }
-    if (!childrenSealed) {
-        unsealedCount += static_cast<int>(childrenEnd - childrenBegin);
-    }
-    if (unsealedCount > 1 && chunkList->GetKind() == EChunkListKind::JournalRoot) {
-        if (!childrenOverlayed) {
-            THROW_ERROR_EXCEPTION("Cannot append child %v to unsealed chunk list %v since the former is not overlayed",
+        // Unsealed children may only appear at the very end of the resulting chunk list.
+        if (!chunkList->IsSealed() && childrenSealed) {
+            THROW_ERROR_EXCEPTION("Cannot append a sealed child %v to chunk list %v since the latter is not sealed",
                 firstChild->GetId(),
                 chunkList->GetId());
         }
+
+        // Multiple unsealed chunks are only possible if they all are overlayed.
+        int unsealedCount = 0;
         if (!chunkList->IsSealed()) {
-            const auto* lastExistingChild = chunkList->Children().back();
-            if (!lastExistingChild->GetOverlayed()) {
-                THROW_ERROR_EXCEPTION("Cannot append child %v to unsealed chunk list %v since its last child %v is not overlayed",
+            // NB: Maybe more actually but will suffice for the purpose of the check.
+            ++unsealedCount;
+        }
+        if (!childrenSealed) {
+            unsealedCount += static_cast<int>(childrenEnd - childrenBegin);
+        }
+        if (unsealedCount > 1) {
+            if (!childrenOverlayed) {
+                THROW_ERROR_EXCEPTION("Cannot append child %v to unsealed chunk list %v since the former is not overlayed",
                     firstChild->GetId(),
-                    chunkList->GetId(),
-                    lastExistingChild->GetId());
+                    chunkList->GetId());
+            }
+            if (!chunkList->IsSealed()) {
+                const auto* lastExistingChild = chunkList->Children().back();
+                if (!lastExistingChild->GetOverlayed()) {
+                    THROW_ERROR_EXCEPTION("Cannot append child %v to unsealed chunk list %v since its last child %v is not overlayed",
+                        firstChild->GetId(),
+                        chunkList->GetId(),
+                        lastExistingChild->GetId());
+                }
             }
         }
     }
