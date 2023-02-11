@@ -1,6 +1,6 @@
 package blobtable
 
-import "io/ioutil"
+import "io"
 
 func ExampleBlobTableReader() {
 	var r BlobTableReader
@@ -10,7 +10,7 @@ func ExampleBlobTableReader() {
 		defer r.Close()
 
 		for r.Next() {
-			blob, err := ioutil.ReadAll(r)
+			blob, err := io.ReadAll(r)
 			if err != nil {
 				return err
 			}

@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/signal"
 
@@ -17,7 +16,7 @@ import (
 )
 
 func do() error {
-	configYS, err := ioutil.ReadFile(os.Getenv("YTRECIPE_CONFIG_PATH"))
+	configYS, err := os.ReadFile(os.Getenv("YTRECIPE_CONFIG_PATH"))
 	if err != nil {
 		return err
 	}
@@ -57,7 +56,7 @@ func do() error {
 		return err
 	}
 
-	if err := ioutil.WriteFile(yatest.OutputPath("ytexec.json"), configJS, 0666); err != nil {
+	if err := os.WriteFile(yatest.OutputPath("ytexec.json"), configJS, 0666); err != nil {
 		return err
 	}
 

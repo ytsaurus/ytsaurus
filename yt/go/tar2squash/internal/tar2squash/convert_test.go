@@ -4,7 +4,6 @@ import (
 	"archive/tar"
 	"errors"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -33,7 +32,7 @@ func runTest(t *testing.T, setup func(t *testing.T, dir string)) {
 	tempDir := func(name string) string {
 		t.Helper()
 
-		tmpDir, err := ioutil.TempDir("", "")
+		tmpDir, err := os.MkdirTemp("", "")
 		require.NoError(t, err)
 
 		fmt.Fprintln(os.Stderr, name, tmpDir)
@@ -85,14 +84,14 @@ func runTest(t *testing.T, setup func(t *testing.T, dir string)) {
 
 func TestSingleFile(t *testing.T) {
 	runTest(t, func(t *testing.T, dir string) {
-		require.NoError(t, ioutil.WriteFile(filepath.Join(dir, "f.txt"), []byte("Hello"), 0666))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "f.txt"), []byte("Hello"), 0666))
 	})
 }
 
 func TestSingleFileInDir(t *testing.T) {
 	runTest(t, func(t *testing.T, dir string) {
 		require.NoError(t, os.MkdirAll(filepath.Join(dir, "a/b"), 0777))
-		require.NoError(t, ioutil.WriteFile(filepath.Join(dir, "a/b/f.txt"), []byte("Hello"), 0666))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "a/b/f.txt"), []byte("Hello"), 0666))
 	})
 }
 
@@ -104,7 +103,7 @@ func TestSymlink(t *testing.T) {
 
 func TestHardLink(t *testing.T) {
 	runTest(t, func(t *testing.T, dir string) {
-		require.NoError(t, ioutil.WriteFile(filepath.Join(dir, "f.txt"), []byte("Hello"), 0666))
+		require.NoError(t, os.WriteFile(filepath.Join(dir, "f.txt"), []byte("Hello"), 0666))
 		require.NoError(t, os.Link(filepath.Join(dir, "f.txt"), filepath.Join(dir, "copy.txt")))
 	})
 }

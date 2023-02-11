@@ -3,7 +3,6 @@ package integration
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"testing"
 
@@ -42,7 +41,7 @@ func (c *CheckFilesJob) Do(ctx mapreduce.JobContext, in mapreduce.Reader, out []
 			return fmt.Errorf("%s file mode is invalid: mode=%#o", path, st.Mode())
 		}
 
-		content, err := ioutil.ReadFile(path)
+		content, err := os.ReadFile(path)
 		if err != nil {
 			return err
 		}
@@ -99,10 +98,10 @@ func TestLocalFiles(t *testing.T) {
 		{A: 1},
 	}))
 
-	require.NoError(t, ioutil.WriteFile("test.txt", []byte("test.txt"), 0666))
-	require.NoError(t, ioutil.WriteFile("test.bin", []byte("test.bin"), 0777))
+	require.NoError(t, os.WriteFile("test.txt", []byte("test.txt"), 0666))
+	require.NoError(t, os.WriteFile("test.bin", []byte("test.bin"), 0777))
 	require.NoError(t, os.MkdirAll("dir", 0777))
-	require.NoError(t, ioutil.WriteFile("dir/deep.txt", []byte("deep.txt"), 0666))
+	require.NoError(t, os.WriteFile("dir/deep.txt", []byte("deep.txt"), 0666))
 
 	s := spec.Map().
 		AddInput(table).

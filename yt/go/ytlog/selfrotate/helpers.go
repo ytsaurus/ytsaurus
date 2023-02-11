@@ -2,7 +2,6 @@ package selfrotate
 
 import (
 	"fmt"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"sort"
@@ -31,7 +30,7 @@ type logFile struct {
 func removeTmpFiles(name string) error {
 	dir, pattern := filepath.Split(name)
 
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return err
 	}
@@ -99,7 +98,7 @@ func parseFilename(name, pattern string) (logFile, bool) {
 func listLogs(name string) ([]logFile, error) {
 	dir, pattern := filepath.Split(name)
 
-	files, err := ioutil.ReadDir(dir)
+	files, err := os.ReadDir(dir)
 	if err != nil {
 		return nil, err
 	}
@@ -107,7 +106,11 @@ func listLogs(name string) ([]logFile, error) {
 	var logs []logFile
 	for _, f := range files {
 		if logFile, ok := parseFilename(f.Name(), pattern); ok {
-			logFile.Size = f.Size()
+			info, err := f.Info()
+			if err != nil {
+				return nil, err
+			}
+			logFile.Size = info.Size()
 			logs = append(logs, logFile)
 		}
 	}

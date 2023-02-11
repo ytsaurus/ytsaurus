@@ -4,7 +4,6 @@ import (
 	"context"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"os"
 	"path"
 	"path/filepath"
@@ -76,7 +75,7 @@ func doDownload() error {
 		return "", false
 	}
 
-	if _, err := jobfs.ReadOutputTable(r, transformPath, ioutil.Discard, ioutil.Discard); err != nil {
+	if _, err := jobfs.ReadOutputTable(r, transformPath, io.Discard, io.Discard); err != nil {
 		return err
 	}
 
@@ -104,7 +103,7 @@ func doDownload() error {
 
 		stdout = stdoutFile
 	} else {
-		stdout = ioutil.Discard
+		stdout = io.Discard
 	}
 
 	if stderrPath, ok := transformPath(fs.StderrFile); ok {
@@ -120,7 +119,7 @@ func doDownload() error {
 
 		stderr = stderrFile
 	} else {
-		stderr = ioutil.Discard
+		stderr = io.Discard
 	}
 
 	_, err = jobfs.ReadOutputTable(r, transformPath, stdout, stderr)

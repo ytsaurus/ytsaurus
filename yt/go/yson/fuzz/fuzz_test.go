@@ -1,7 +1,7 @@
 package fuzz
 
 import (
-	"io/ioutil"
+	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -10,7 +10,7 @@ import (
 )
 
 func TestFullCrashers(t *testing.T) {
-	files, err := ioutil.ReadDir("crashers")
+	files, err := os.ReadDir("crashers")
 	require.NoError(t, err)
 
 	for _, f := range files {
@@ -22,7 +22,7 @@ func TestFullCrashers(t *testing.T) {
 		}
 
 		t.Run(f.Name(), func(t *testing.T) {
-			data, err := ioutil.ReadFile(filepath.Join("crashers", f.Name()))
+			data, err := os.ReadFile(filepath.Join("crashers", f.Name()))
 			require.NoError(t, err)
 
 			Fuzz(data)

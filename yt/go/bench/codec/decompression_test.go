@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"compress/gzip"
 	"io"
-	"io/ioutil"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -31,7 +30,7 @@ func benchmarkDecompression(
 
 	for i := 0; i < b.N; i++ {
 		d := newDecoder(bytes.NewBuffer(buf.Bytes()))
-		_, err := ioutil.ReadAll(d)
+		_, err := io.ReadAll(d)
 		require.NoError(b, err)
 	}
 

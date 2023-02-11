@@ -4,7 +4,6 @@ package pproflog
 import (
 	"bytes"
 	"context"
-	"io/ioutil"
 	"os"
 	"path/filepath"
 	"runtime/pprof"
@@ -71,7 +70,7 @@ func LogProfile(ctx context.Context, l log.Structured, opts Options) error {
 
 		var buf bytes.Buffer
 		_ = gp.WriteTo(&buf, 1)
-		if err := ioutil.WriteFile(filepath.Join(opts.Dir, "goroutine.pprof"), buf.Bytes(), 0666); err != nil {
+		if err := os.WriteFile(filepath.Join(opts.Dir, "goroutine.pprof"), buf.Bytes(), 0666); err != nil {
 			l.Error("error writing goroutine profile", log.Error(err))
 			continue
 		}

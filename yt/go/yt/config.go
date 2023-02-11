@@ -3,7 +3,6 @@ package yt
 import (
 	"context"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/user"
 	"path/filepath"
@@ -164,7 +163,7 @@ func (c *Config) GetToken() string {
 			return ""
 		}
 
-		token, err := ioutil.ReadFile(filepath.Join(u.HomeDir, ".yt", "token"))
+		token, err := os.ReadFile(filepath.Join(u.HomeDir, ".yt", "token"))
 		if err != nil {
 			return ""
 		}

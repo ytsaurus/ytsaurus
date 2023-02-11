@@ -3,7 +3,7 @@ package integration
 import (
 	"bytes"
 	"fmt"
-	"io/ioutil"
+	"io"
 	"os"
 	"runtime/debug"
 	"strings"
@@ -82,7 +82,7 @@ func TestStderrAndCoreTable(t *testing.T) {
 
 		require.True(t, br.Next())
 
-		stderr, err := ioutil.ReadAll(br)
+		stderr, err := io.ReadAll(br)
 		require.NoError(t, err)
 
 		require.True(t, bytes.HasPrefix(stderr, []byte("Hello, World!\n")), stderr)
@@ -98,7 +98,7 @@ func TestStderrAndCoreTable(t *testing.T) {
 
 		require.True(t, br.Next())
 
-		coredump, err := ioutil.ReadAll(br)
+		coredump, err := io.ReadAll(br)
 		require.NoError(t, err)
 
 		require.NotEmpty(t, coredump)

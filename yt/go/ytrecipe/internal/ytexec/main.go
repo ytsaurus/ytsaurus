@@ -4,7 +4,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
 	"os"
 
 	"github.com/spf13/pflag"
@@ -27,7 +26,7 @@ func do() error {
 
 	switch {
 	case flagJSONConfig != "":
-		configJS, err := ioutil.ReadFile(flagJSONConfig)
+		configJS, err := os.ReadFile(flagJSONConfig)
 		if err != nil {
 			return err
 		}
@@ -37,7 +36,7 @@ func do() error {
 		}
 
 	case flagYSONConfig != "":
-		configYS, err := ioutil.ReadFile(flagYSONConfig)
+		configYS, err := os.ReadFile(flagYSONConfig)
 		if err != nil {
 			return err
 		}

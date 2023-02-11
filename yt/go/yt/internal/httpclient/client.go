@@ -8,7 +8,6 @@ import (
 	"errors"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net"
 	"net/http"
 	"net/url"
@@ -161,10 +160,10 @@ func (c *httpClient) writeParams(req *http.Request, call *internal.Call) error {
 	h := req.Header
 	h.Add("X-YT-Header-Format", "yson")
 	if req.Method == http.MethodPost && req.Body == http.NoBody {
-		req.Body = ioutil.NopCloser(&params)
+		req.Body = io.NopCloser(&params)
 		req.ContentLength = int64(params.Len())
 		req.GetBody = func() (body io.ReadCloser, e error) {
-			return ioutil.NopCloser(&params), nil
+			return io.NopCloser(&params), nil
 		}
 	} else {
 		h.Add("X-YT-Parameters", params.String())
@@ -297,7 +296,7 @@ func (c *httpClient) readResult(rsp *http.Response) (res *internal.CallResult, e
 		return nil, unexpectedStatusCode(rsp)
 	}
 
-	res.YSONValue, err = ioutil.ReadAll(rsp.Body)
+	res.YSONValue, err = io.ReadAll(rsp.Body)
 	return
 }
 

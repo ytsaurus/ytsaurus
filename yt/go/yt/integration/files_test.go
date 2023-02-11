@@ -2,7 +2,7 @@ package integration
 
 import (
 	"context"
-	"io/ioutil"
+	"io"
 	"testing"
 	"time"
 
@@ -42,7 +42,7 @@ func TestFiles(t *testing.T) {
 			require.NoError(t, err)
 			defer func() { _ = r.Close() }()
 
-			file, err := ioutil.ReadAll(r)
+			file, err := io.ReadAll(r)
 			require.NoError(t, err)
 			require.Equal(t, file, []byte("test"))
 		})

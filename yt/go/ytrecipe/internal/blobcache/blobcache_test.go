@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"errors"
 	"io"
-	"io/ioutil"
 	"sync"
 	"testing"
 	"time"
@@ -35,7 +34,7 @@ func TestBlobCache(t *testing.T) {
 		testBlob := []byte("1234")
 
 		newTestBlob := func() (io.ReadCloser, error) {
-			return ioutil.NopCloser(bytes.NewBuffer(testBlob)), nil
+			return io.NopCloser(bytes.NewBuffer(testBlob)), nil
 		}
 
 		path, err := cache.Upload(env.Ctx, "1", newTestBlob)
@@ -45,7 +44,7 @@ func TestBlobCache(t *testing.T) {
 		require.NoError(t, err)
 		defer r.Close()
 
-		blob, err := ioutil.ReadAll(r)
+		blob, err := io.ReadAll(r)
 		require.NoError(t, err)
 		require.Equal(t, testBlob, blob)
 
@@ -71,7 +70,7 @@ func TestBlobCache(t *testing.T) {
 			}
 
 			time.Sleep(uploadDuration)
-			return ioutil.NopCloser(bytes.NewBuffer(testBlob)), nil
+			return io.NopCloser(bytes.NewBuffer(testBlob)), nil
 		}
 
 		var wg sync.WaitGroup
@@ -97,7 +96,7 @@ func TestBlobCache(t *testing.T) {
 	t.Run("UploadTimeout", func(t *testing.T) {
 		testBlob := []byte("1234")
 		newTestBlob := func() (io.ReadCloser, error) {
-			return ioutil.NopCloser(bytes.NewBuffer(testBlob)), nil
+			return io.NopCloser(bytes.NewBuffer(testBlob)), nil
 		}
 
 		errBadBlob := errors.New("bad blob")

@@ -4,7 +4,6 @@ import (
 	"bytes"
 	"encoding/xml"
 	"fmt"
-	"io/ioutil"
 	"os"
 	"os/exec"
 	"path"
@@ -135,7 +134,7 @@ func PrepareBinaries(destination string) error {
 			return fmt.Errorf("Failed to rename %s to %s: %s", binaryPath, origPath, err)
 		}
 
-		err = ioutil.WriteFile(
+		err = os.WriteFile(
 			binaryPath,
 			[]byte(fmt.Sprintf(sudoWrapper, ytSudoFixup, os.Getuid(), origPath, "ytserver-"+binary)),
 			0755)
@@ -256,7 +255,7 @@ func TestPyTest(t *testing.T) {
 	pythonPaths = append(pythonPaths, preparedPythonPath)
 
 	testPathsFilePath := path.Join(preparedPythonPath, "yt/wrapper/tests/system_python/test_paths.txt")
-	testPathsBlob, err := ioutil.ReadFile(testPathsFilePath)
+	testPathsBlob, err := os.ReadFile(testPathsFilePath)
 	require.NoError(t, err)
 
 	testPaths := []string{}
@@ -312,7 +311,7 @@ func TestPyTest(t *testing.T) {
 
 	require.NoError(t, os.RemoveAll(binariesPath))
 
-	junitBlob, err := ioutil.ReadFile(yatest.OutputPath("junit.xml"))
+	junitBlob, err := os.ReadFile(yatest.OutputPath("junit.xml"))
 	require.NoError(t, err)
 
 	var testSuite Testsuite
