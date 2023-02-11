@@ -115,6 +115,7 @@ DEFINE_ENUM(EMasterReign,
     ((AddTabletMountTime)                                           (2306))  // alexelexa
     ((ThrowOnNullColumnMount)                                       (2307))  // alexelexa
     ((SequoiaCreate)                                                (2308))  // gritukan
+    ((FixAttachValidation)                                          (2309))  // gritukan
 );
 
 ////////////////////////////////////////////////////////////////////////////////
