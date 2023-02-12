@@ -3,12 +3,9 @@
 #include "public.h"
 
 #include <yt/yt/client/table_client/unversioned_row.h>
-
 #include <yt/yt/client/table_client/wire_protocol.h>
 
-namespace NYT::NChunkClient {
-
-// ToDo(psushin): move to NTableClient.
+namespace NYT::NTableClient {
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -16,13 +13,14 @@ class TKeySetWriter
     : public TRefCounted
 {
 public:
-    int WriteKey(NTableClient::TLegacyKey key);
-    int WriteValueRange(NTableClient::TUnversionedValueRange key);
+    int WriteKey(TLegacyKey key);
+    int WriteValueRange(TUnversionedValueRange key);
 
     TSharedRef Finish();
 
 private:
-    const std::unique_ptr<NTableClient::IWireProtocolWriter> WireProtocolWriter_ = NTableClient::CreateWireProtocolWriter();
+    const std::unique_ptr<IWireProtocolWriter> WireProtocolWriter_ = CreateWireProtocolWriter();
+
     int Index_ = 0;
 };
 
@@ -35,13 +33,14 @@ class TKeySetReader
 public:
     TKeySetReader(const TSharedRef& compressedData);
 
-    TRange<NTableClient::TLegacyKey> GetKeys() const;
+    TRange<TLegacyKey> GetKeys() const;
 
 private:
-    std::unique_ptr<NTableClient::IWireProtocolReader> WireProtocolReader_;
-    std::vector<NTableClient::TLegacyKey> Keys_;
+    std::unique_ptr<IWireProtocolReader> WireProtocolReader_;
+
+    std::vector<TLegacyKey> Keys_;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace NYT::NTableClient

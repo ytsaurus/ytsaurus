@@ -1,9 +1,10 @@
 #include "chunk_slice.h"
+
 #include "private.h"
 #include "chunk_meta_extensions.h"
 #include "key_set.h"
 
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 
 #include <yt/yt/client/table_client/comparator.h>
 #include <yt/yt/client/table_client/key_bound.h>
@@ -20,17 +21,17 @@
 
 #include <cmath>
 
-namespace NYT::NChunkClient {
+namespace NYT::NTableClient {
 
+using namespace NChunkClient;
 using namespace NConcurrency;
-using namespace NTableClient;
 using namespace NTableClient::NProto;
 
 using NYT::FromProto;
 
 ////////////////////////////////////////////////////////////////////////////////
 
-static const auto SlicerYieldPeriod = TDuration::MilliSeconds(10);
+constexpr static auto SlicerYieldPeriod = TDuration::MilliSeconds(10);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -49,7 +50,9 @@ class TSortedChunkSlicer
     : private TNonCopyable
 {
 public:
-    TSortedChunkSlicer(const NProto::TSliceRequest& sliceReq, const NProto::TChunkMeta& meta)
+    TSortedChunkSlicer(
+        const NChunkClient::NProto::TSliceRequest& sliceReq,
+        const NChunkClient::NProto::TChunkMeta& meta)
         : SliceReq_(sliceReq)
         , Meta_(meta)
     {
@@ -84,7 +87,7 @@ public:
         ChunkLowerBound_ = ShortenKeyBound(ChunkLowerBound_, SliceComparator_.GetLength());
         ChunkUpperBound_ = ShortenKeyBound(ChunkUpperBound_, SliceComparator_.GetLength());
 
-        auto miscExt = GetProtoExtension<NProto::TMiscExt>(Meta_.extensions());
+        auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(Meta_.extensions());
         i64 chunkDataWeight = miscExt.has_data_weight()
             ? miscExt.data_weight()
             : miscExt.uncompressed_data_size();
@@ -321,8 +324,8 @@ private:
     };
     std::vector<TBlockDescriptor> BlockDescriptors_;
 
-    const NProto::TSliceRequest& SliceReq_;
-    const NProto::TChunkMeta& Meta_;
+    const NChunkClient::NProto::TSliceRequest& SliceReq_;
+    const NChunkClient::NProto::TChunkMeta& Meta_;
 
     TOwningKeyBound SliceLowerBound_;
     TOwningKeyBound SliceUpperBound_;
@@ -341,8 +344,8 @@ private:
 ////////////////////////////////////////////////////////////////////////////////
 
 std::vector<TChunkSlice> SliceChunk(
-    const NProto::TSliceRequest& sliceReq,
-    const NProto::TChunkMeta& meta)
+    const NChunkClient::NProto::TSliceRequest& sliceReq,
+    const NChunkClient::NProto::TChunkMeta& meta)
 {
     TSortedChunkSlicer slicer(sliceReq, meta);
     auto result = slicer.Slice();
@@ -353,7 +356,9 @@ std::vector<TChunkSlice> SliceChunk(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice)
+void ToProto(
+    NChunkClient::NProto::TChunkSlice* protoChunkSlice,
+    const TChunkSlice& chunkSlice)
 {
     if (!chunkSlice.LowerLimit.IsTrivial()) {
         ToProto(protoChunkSlice->mutable_lower_limit(), chunkSlice.LowerLimit);
@@ -368,7 +373,7 @@ void ToProto(NProto::TChunkSlice* protoChunkSlice, const TChunkSlice& chunkSlice
 void ToProto(
     const TKeySetWriterPtr& keysWriter,
     const TKeySetWriterPtr& keyBoundsWriter,
-    NProto::TChunkSlice* protoChunkSlice,
+    NChunkClient::NProto::TChunkSlice* protoChunkSlice,
     const TChunkSlice& chunkSlice)
 {
     if (chunkSlice.LowerLimit.KeyBound()) {
@@ -400,10 +405,10 @@ void ToProto(
 ////////////////////////////////////////////////////////////////////////////////
 
 i64 GetChunkSliceDataWeight(
-    const NProto::TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
-    const NProto::TChunkMeta& chunkMeta)
+    const NChunkClient::NProto::TReqGetChunkSliceDataWeights::TChunkSlice& weightedChunkRequest,
+    const NChunkClient::NProto::TChunkMeta& chunkMeta)
 {
-    auto miscExt = GetProtoExtension<NProto::TMiscExt>(chunkMeta.extensions());
+    auto miscExt = GetProtoExtension<NChunkClient::NProto::TMiscExt>(chunkMeta.extensions());
     auto chunkId = FromProto<TChunkId>(weightedChunkRequest.chunk_id());
 
     i64 chunkDataWeight = miscExt.data_weight();
@@ -484,4 +489,4 @@ i64 GetChunkSliceDataWeight(
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace NYT::NTableClient

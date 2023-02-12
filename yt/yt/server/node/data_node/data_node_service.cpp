@@ -23,16 +23,16 @@
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
 #include <yt/yt/ytlib/chunk_client/chunk_reader_statistics.h>
-#include <yt/yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/proto/data_node_service.pb.h>
 #include <yt/yt/ytlib/chunk_client/client_block_cache.h>
 #include <yt/yt/ytlib/chunk_client/data_node_service_proxy.h>
 #include <yt/yt/ytlib/chunk_client/helpers.h>
-#include <yt/yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/yt/ytlib/table_client/cached_versioned_chunk_meta.h>
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_slice.h>
 #include <yt/yt/ytlib/table_client/chunk_state.h>
+#include <yt/yt/ytlib/table_client/key_set.h>
 #include <yt/yt/ytlib/table_client/helpers.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/versioned_chunk_reader.h>
@@ -1559,7 +1559,7 @@ private:
                 THROW_ERROR_EXCEPTION("Chunk %v is not sorted", chunkId);
             }
 
-            auto dataWeight = NChunkClient::GetChunkSliceDataWeight(
+            auto dataWeight = GetChunkSliceDataWeight(
                 weightedChunkRequest,
                 *chunkMeta);
 

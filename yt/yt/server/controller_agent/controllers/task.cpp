@@ -13,7 +13,6 @@
 
 #include <yt/yt/server/lib/chunk_pools/helpers.h>
 
-#include <yt/yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 
@@ -27,6 +26,8 @@
 #include <yt/yt/ytlib/scheduler/public.h>
 
 #include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
+#include <yt/yt/ytlib/table_client/chunk_slice.h>
 
 #include <yt/yt/client/misc/io_tags.h>
 

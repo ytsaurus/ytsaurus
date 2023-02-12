@@ -238,8 +238,6 @@ class TCodecStatistics;
 
 struct TClientChunkReadOptions;
 
-DECLARE_REFCOUNTED_CLASS(TKeySetWriter)
-
 using TDataCenterName = std::optional<TString>;
 
 DECLARE_REFCOUNTED_CLASS(TMemoryUsageGuard)

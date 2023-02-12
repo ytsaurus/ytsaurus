@@ -1,5 +1,4 @@
-#include <yt/yt/ytlib/chunk_client/key_set.h>
-
+#include <yt/yt/ytlib/table_client/key_set.h>
 #include <yt/yt/ytlib/table_client/partitioner.h>
 
 #include <yt/yt/client/table_client/comparator.h>
@@ -32,14 +31,14 @@ TEST(TPartitionerTest, Ordered)
 {
     auto keySetWriter = New<TKeySetWriter>();
     keySetWriter->WriteKey(TUnversionedRow(MakeRow({1})));
-    keySetWriter->WriteKey(TUnversionedRow(MakeRow({6}, /* addMax */true)));
+    keySetWriter->WriteKey(TUnversionedRow(MakeRow({6}, /*addMax*/ true)));
     keySetWriter->WriteKey(TUnversionedRow(MakeRow({8})));
     keySetWriter->WriteKey(TUnversionedRow(MakeRow({8})));
     auto wirePivots = keySetWriter->Finish();
 
     TComparator comparator(std::vector<ESortOrder>({ESortOrder::Ascending}));
     auto partitioner = CreateOrderedPartitioner(wirePivots, comparator);
-    
+
     EXPECT_EQ(5, partitioner->GetPartitionCount());
     EXPECT_EQ(0, partitioner->GetPartitionIndex(MakeRow({0})));
     EXPECT_EQ(1, partitioner->GetPartitionIndex(MakeRow({1})));
@@ -52,8 +51,8 @@ TEST(TPartitionerTest, Ordered)
 
 TEST(TPartitionerTest, Hash)
 {
-    auto partitioner0 = CreateHashPartitioner(/* partitionCount */10, /* keyColumnCount */1, /* salt */0);
-    auto partitioner42 = CreateHashPartitioner(/* partitionCount */7, /* keyColumnCount */1, /* salt */42);
+    auto partitioner0 = CreateHashPartitioner(/*partitionCount*/ 10, /*keyColumnCount*/ 1, /*salt*/ 0);
+    auto partitioner42 = CreateHashPartitioner(/*partitionCount*/ 7, /*keyColumnCount*/ 1, /*salt*/ 42);
 
     EXPECT_EQ(10, partitioner0->GetPartitionCount());
     EXPECT_EQ(7, partitioner42->GetPartitionCount());

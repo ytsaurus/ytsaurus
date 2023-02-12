@@ -2,8 +2,6 @@
 
 #include "private.h"
 
-#include <yt/yt/ytlib/chunk_client/key_set.h>
-
 #include <yt/yt/library/query/engine/evaluator.h>
 #include <yt/yt/ytlib/query_client/functions_cache.h>
 #include <yt/yt/library/query/engine/config.h>
@@ -11,6 +9,7 @@
 
 #include <yt/yt/ytlib/scheduler/proto/job.pb.h>
 
+#include <yt/yt/ytlib/table_client/key_set.h>
 #include <yt/yt/ytlib/table_client/partitioner.h>
 
 #include <yt/yt/client/query_client/query_statistics.h>

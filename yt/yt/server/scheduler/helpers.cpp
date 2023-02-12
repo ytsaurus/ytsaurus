@@ -9,7 +9,8 @@
 #include <yt/yt/server/lib/scheduler/helpers.h>
 
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
-#include <yt/yt/ytlib/chunk_client/key_set.h>
+
+#include <yt/yt/ytlib/table_client/key_set.h>
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 

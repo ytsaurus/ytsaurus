@@ -2,9 +2,12 @@
 
 #include <yt/yt/core/compression/codec.h>
 
-namespace NYT::NChunkClient {
+namespace NYT::NTableClient {
 
-using namespace NTableClient;
+////////////////////////////////////////////////////////////////////////////////
+
+// NB: Changing this requires non-trivial compats.
+constexpr static NCompression::ECodec KeySetCompressionCodec = NCompression::ECodec::Lz4;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -22,7 +25,7 @@ int TKeySetWriter::WriteValueRange(TUnversionedValueRange key)
 
 TSharedRef TKeySetWriter::Finish()
 {
-    auto* codec = NCompression::GetCodec(NCompression::ECodec::Lz4);
+    auto* codec = NCompression::GetCodec(KeySetCompressionCodec);
     return codec->Compress(WireProtocolWriter_->Finish());
 }
 
@@ -30,10 +33,10 @@ TSharedRef TKeySetWriter::Finish()
 
 TKeySetReader::TKeySetReader(const TSharedRef& compressedData)
     : WireProtocolReader_(CreateWireProtocolReader(
-        NCompression::GetCodec(NCompression::ECodec::Lz4)->Decompress(compressedData)))
+        NCompression::GetCodec(KeySetCompressionCodec)->Decompress(compressedData)))
 {
     while (!WireProtocolReader_->IsFinished()) {
-        Keys_.emplace_back(WireProtocolReader_->ReadUnversionedRow(false));
+        Keys_.emplace_back(WireProtocolReader_->ReadUnversionedRow(/*captureValues*/ false));
     }
 }
 
@@ -44,4 +47,4 @@ TRange<TLegacyKey> TKeySetReader::GetKeys() const
 
 ////////////////////////////////////////////////////////////////////////////////
 
-} // namespace NYT::NChunkClient
+} // namespace NYT::NTableClient
