@@ -38,6 +38,13 @@ std::vector<TItem>& TSimpleMpscSpinLockQueue<TItem>::DequeueAll()
     return Dequeued_;
 }
 
+template <typename TItem>
+int TSimpleMpscSpinLockQueue<TItem>::GetSize()
+{
+    auto guard = Guard(QueueLock_);
+    return std::ssize(Queue_);
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 template <typename TItem>
@@ -70,6 +77,14 @@ i64 TMpscShardedQueue<TItem>::ConsumeAll(TConsumer consumer)
     }
 
     return consumedCount;
+}
+
+template <typename TItem>
+int TMpscShardedQueue<TItem>::GetShardSize()
+{
+    auto tscp = NProfiling::TTscp::Get();
+    auto& shardQueue = Shards_[tscp.ProcessorId].Queue;
+    return shardQueue.GetSize();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
