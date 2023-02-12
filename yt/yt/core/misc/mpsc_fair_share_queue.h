@@ -140,7 +140,10 @@ public:
     void MarkFinished(const TItem& item, TCpuDuration finishedTime);
 
     int GetPoolCount();
+
     void Cleanup();
+
+    int GetShardSize();
 
 private:
     using TCookie = uintptr_t;

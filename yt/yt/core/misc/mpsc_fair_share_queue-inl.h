@@ -293,6 +293,12 @@ void TMpscFairShareQueue<TPoolId, TItem, TFairShareTag>::Cleanup()
 }
 
 template <typename TPoolId, typename TItem, typename TFairShareTag>
+int TMpscFairShareQueue<TPoolId, TItem, TFairShareTag>::GetShardSize()
+{
+    return Prequeue_.GetShardSize();
+}
+
+template <typename TPoolId, typename TItem, typename TFairShareTag>
 void TMpscFairShareQueue<TPoolId, TItem, TFairShareTag>::MoveToFairQueue(std::vector<TEnqueuedTask>& tasks)
 {
     for (auto& task : tasks) {

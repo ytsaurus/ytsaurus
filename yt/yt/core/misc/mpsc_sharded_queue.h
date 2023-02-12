@@ -18,6 +18,8 @@ public:
     void EnqueueMany(std::vector<TItem>&& items);
     std::vector<TItem>& DequeueAll();
 
+    int GetSize();
+
 private:
     YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, QueueLock_);
     std::vector<TItem> Queue_;
@@ -37,6 +39,8 @@ public:
     // TConsumer is a functor with a signature: void (vector<TItem>& batch)
     template <typename TConsumer>
     i64 ConsumeAll(TConsumer consumer);
+
+    int GetShardSize();
 
 private:
     struct alignas(2 * NThreading::CacheLineSize) TShard
