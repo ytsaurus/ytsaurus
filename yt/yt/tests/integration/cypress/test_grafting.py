@@ -2,7 +2,8 @@ from yt_env_setup import YTEnvSetup
 
 from yt_commands import (
     authors, create, get, set, exists, copy, move,
-    remove, wait, start_transaction, lookup_rows,
+    remove, wait, start_transaction, lookup_rows, select_rows,
+    gc_collect, delete_rows,
 )
 
 from yt.common import YtError
@@ -17,6 +18,13 @@ class TestGrafting(YTEnvSetup):
     NUM_CYPRESS_PROXIES = 1
 
     NUM_SECONDARY_MASTER_CELLS = 3
+
+    # TODO: Drop when removal will be implemented.
+    def teardown_method(self, method):
+        super(TestGrafting, self).teardown_method(method)
+
+        gc_collect()
+        wait(lambda: select_rows("* from [//sys/sequoia/resolve_node]") == [])
 
     def _resolve_path(self, path):
         rows = lookup_rows("//sys/sequoia/resolve_node", [{"path": path}])
@@ -85,3 +93,6 @@ class TestGrafting(YTEnvSetup):
 
         set(f"#{m_id}/@foo", "bar")
         assert get(f"#{m_id}/@foo") == "bar"
+
+        # GC does not work, let's help it.
+        delete_rows("//sys/sequoia/resolve_node", [{"path": "//tmp/r/m"}])
