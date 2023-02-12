@@ -1,11 +1,11 @@
 #include <yt/yt/core/test_framework/framework.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_meta_extensions.h>
-#include <yt/yt/ytlib/chunk_client/chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/chunk_spec.h>
 
 #include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
+#include <yt/yt/ytlib/table_client/chunk_slice.h>
 
 #include <yt/yt/client/chunk_client/read_limit.h>
 

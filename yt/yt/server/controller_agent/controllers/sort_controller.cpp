@@ -27,7 +27,6 @@
 #include <yt/yt/client/api/transaction.h>
 
 #include <yt/yt/ytlib/chunk_client/chunk_scraper.h>
-#include <yt/yt/ytlib/chunk_client/key_set.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/job_spec_extensions.h>
@@ -38,6 +37,7 @@
 
 #include <yt/yt/ytlib/table_client/config.h>
 #include <yt/yt/ytlib/table_client/chunk_slice_fetcher.h>
+#include <yt/yt/ytlib/table_client/key_set.h>
 #include <yt/yt/ytlib/table_client/samples_fetcher.h>
 #include <yt/yt/ytlib/table_client/schemaless_block_writer.h>
 

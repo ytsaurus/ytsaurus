@@ -1,9 +1,10 @@
 #include "samples_fetcher.h"
 
+#include "key_set.h"
+
 #include <yt/yt/ytlib/chunk_client/config.h>
 #include <yt/yt/ytlib/chunk_client/dispatcher.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
-#include <yt/yt/ytlib/chunk_client/key_set.h>
 
 #include <yt/yt/ytlib/scheduler/config.h>
 

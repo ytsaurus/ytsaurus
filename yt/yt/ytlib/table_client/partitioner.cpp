@@ -1,6 +1,6 @@
 #include "partitioner.h"
 
-#include <yt/yt/ytlib/chunk_client/key_set.h>
+#include "key_set.h"
 
 #include <yt/yt/client/table_client/key_bound.h>
 

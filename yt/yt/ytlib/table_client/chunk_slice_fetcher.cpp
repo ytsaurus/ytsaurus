@@ -1,4 +1,7 @@
 #include "chunk_slice_fetcher.h"
+
+#include "chunk_meta_extensions.h"
+#include "key_set.h"
 #include "private.h"
 
 #include <yt/yt/ytlib/chunk_client/config.h>
@@ -6,9 +9,6 @@
 #include <yt/yt/ytlib/chunk_client/input_chunk.h>
 #include <yt/yt/ytlib/chunk_client/input_chunk_slice.h>
 #include <yt/yt/ytlib/chunk_client/legacy_data_slice.h>
-#include <yt/yt/ytlib/chunk_client/key_set.h>
-
-#include <yt/yt/ytlib/table_client/chunk_meta_extensions.h>
 
 #include <yt/yt/ytlib/tablet_client/helpers.h>
 
