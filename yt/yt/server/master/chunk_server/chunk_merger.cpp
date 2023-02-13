@@ -288,13 +288,23 @@ public:
         auto* table = Node_->As<TTableNode>();
         const auto& schema = table->GetSchema()->AsTableSchema();
         YT_VERIFY(schema);
+
+        TTraverserTestingOptions testingOptions;
+        if (config->MaxChunksPerIteration) {
+            testingOptions.MaxChunksPerIteration = config->MaxChunksPerIteration;
+        }
+        if (config->DelayBetweenIterations) {
+            testingOptions.DelayBetweenIterations = config->DelayBetweenIterations;
+        }
+
         TraverseChunkTree(
             std::move(callbacks),
             this,
             Node_->GetChunkList(),
             lowerLimit,
             {},
-            schema->ToComparator());
+            schema->ToComparator(),
+            testingOptions);
     }
 
 private:

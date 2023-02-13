@@ -527,6 +527,29 @@ class TestChunkMerger(YTEnvSetup):
         sleep(5)
 
     @authors("aleksandra-zh")
+    def test_better_remove(self):
+        create("table", "//tmp/t")
+        # To preserve chunklist.
+        copy("//tmp/t", "//tmp/t1")
+
+        set("//sys/@config/chunk_manager/chunk_merger/max_chunks_per_iteration", 7)
+        set("//sys/@config/chunk_manager/chunk_merger/delay_between_iterations", 3000)
+
+        for i in range(10):
+            write_table("<append=true>//tmp/t", {"a": "b"})
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        sleep(1)
+
+        remove("//tmp/t")
+
+        # Just hope nothing crashes.
+        sleep(5)
+
+    @authors("aleksandra-zh")
     @pytest.mark.parametrize("merge_mode", ["deep", "shallow"])
     def test_schema(self, merge_mode):
         create(

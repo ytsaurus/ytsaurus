@@ -89,6 +89,14 @@ IChunkTraverserContextPtr GetSyncChunkTraverserContext();
 
 ////////////////////////////////////////////////////////////////////////////////
 
+struct TTraverserTestingOptions
+{
+    std::optional<int> MaxChunksPerIteration;
+    std::optional<TDuration> DelayBetweenIterations;
+};
+
+////////////////////////////////////////////////////////////////////////////////
+
 //! Traverses the subtree at #root pruning it to |lowerLimit:upperLimit| range.
 //! For unsealed chunks, may consult the context to figure out the quorum information.
 //! This call never visits hunk chunklists.
@@ -98,7 +106,8 @@ void TraverseChunkTree(
     TChunkList* root,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
-    NTableClient::TComparator comparator);
+    NTableClient::TComparator comparator,
+    TTraverserTestingOptions testingOptions = {});
 
 void TraverseChunkTree(
     IChunkTraverserContextPtr context,
@@ -106,7 +115,8 @@ void TraverseChunkTree(
     const TChunkLists& roots,
     const NChunkClient::TReadLimit& lowerLimit,
     const NChunkClient::TReadLimit& upperLimit,
-    NTableClient::TComparator comparator);
+    NTableClient::TComparator comparator,
+    TTraverserTestingOptions testingOptions = {});
 
 //! Legacy version of previous function. Works by transforming legacy lower and upper
 //! limits into new read limits and invoking previous version.
@@ -116,7 +126,8 @@ void TraverseChunkTree(
     TChunkList* root,
     const NChunkClient::TLegacyReadLimit& legacyLowerLimit,
     const NChunkClient::TLegacyReadLimit& legacyUpperLimit,
-    NTableClient::TComparator comparator);
+    NTableClient::TComparator comparator,
+    TTraverserTestingOptions testingOptions = {});
 
 void TraverseChunkTree(
     IChunkTraverserContextPtr context,
@@ -124,19 +135,22 @@ void TraverseChunkTree(
     const TChunkLists& roots,
     const NChunkClient::TLegacyReadLimit& legacyLowerLimit,
     const NChunkClient::TLegacyReadLimit& legacyUpperLimit,
-    NTableClient::TComparator comparator);
+    NTableClient::TComparator comparator,
+    TTraverserTestingOptions testingOptions = {});
 
 //! Traverses the subtree at #root. No bounds are being checked,
 //! #visitor is notified of each child in the subtree (including hunk chunks, if any).
 void TraverseChunkTree(
     IChunkTraverserContextPtr context,
     IChunkVisitorPtr visitor,
-    TChunkList* root);
+    TChunkList* root,
+    TTraverserTestingOptions testingOptions = {});
 
 void TraverseChunkTree(
     IChunkTraverserContextPtr context,
     IChunkVisitorPtr visitor,
-    const TChunkLists& roots);
+    const TChunkLists& roots,
+    TTraverserTestingOptions testingOptions = {});
 
 //! Appends the chunks found in subtree at #root to #chunks.
 void EnumerateChunksInChunkTree(
