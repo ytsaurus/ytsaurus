@@ -112,6 +112,9 @@ def lazy_import_requests():
 def _setup_new_session(client):
     lazy_import_requests()
     session = requests.Session()
+    configure_proxy(session,
+                    get_config(client)["proxy"]["http_proxy"],
+                    get_config(client)["proxy"]["https_proxy"])
     configure_ip(session,
                  get_config(client)["proxy"]["force_ipv4"],
                  get_config(client)["proxy"]["force_ipv6"])
@@ -128,6 +131,17 @@ def _get_session(client=None):
 def _cleanup_http_session(client=None):
     session = _setup_new_session(client)
     set_option("_requests_session", session, client)
+
+
+def configure_proxy(session, http_proxy, https_proxy):
+    lazy_import_requests()
+    proxies = {}
+    if http_proxy:
+        proxies["http"] = http_proxy
+    if https_proxy:
+        proxies["https"] = https_proxy
+    if len(proxies):
+        session.proxies.update(proxies)
 
 
 def configure_ip(session, force_ipv4=False, force_ipv6=False):
