@@ -268,6 +268,8 @@ public abstract class MapperOrReducerSpec implements UserJobSpec {
                 .when(networkProject != null, b -> b.key("network_project").value(networkProject))
                 .when(prepareTimeLimit != null, b -> b.key("prepare_time_limit")
                         .value(Objects.requireNonNull(prepareTimeLimit).toMillis()))
+                .when(formatContext.getOutputStreams().isPresent(),
+                        b -> b.key("output_streams").value(formatContext.getOutputStreams().get()))
                 .endMap();
     }
 

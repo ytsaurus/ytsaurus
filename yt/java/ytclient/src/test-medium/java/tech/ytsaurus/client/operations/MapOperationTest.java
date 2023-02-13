@@ -16,12 +16,7 @@ import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.ysontree.YTree;
 import tech.ytsaurus.ysontree.YTreeMapNode;
 
-import ru.yandex.lang.NonNullApi;
-import ru.yandex.lang.NonNullFields;
-
 public class MapOperationTest extends YtClientTestBase {
-    @NonNullApi
-    @NonNullFields
     public static class SimpleMapperYTreeMapNode implements Mapper<YTreeMapNode, YTreeMapNode> {
         @Override
         public void map(YTreeMapNode entry, Yield<YTreeMapNode> yield, Statistics statistics,
@@ -51,8 +46,6 @@ public class MapOperationTest extends YtClientTestBase {
         int newCount;
     }
 
-    @NonNullApi
-    @NonNullFields
     public static class SimpleMapperEntity implements Mapper<InputType, OutputType> {
         @Override
         public void map(InputType entry, Yield<OutputType> yield, Statistics statistics,

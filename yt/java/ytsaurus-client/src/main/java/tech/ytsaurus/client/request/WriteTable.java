@@ -12,6 +12,7 @@ import tech.ytsaurus.core.cypress.YPath;
 import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.rpcproxy.TReqWriteTable;
 import tech.ytsaurus.rpcproxy.TTransactionalOptions;
+import tech.ytsaurus.skiff.serializer.EntityTableSchemaCreator;
 import tech.ytsaurus.ysontree.YTreeBinarySerializer;
 import tech.ytsaurus.ysontree.YTreeNode;
 
@@ -51,9 +52,16 @@ public class WriteTable<T> extends RequestBase<WriteTable.Builder<T>, WriteTable
 
     public WriteTable(BuilderBase<T, ?> builder) {
         super(builder);
-        this.path = builder.path;
-        this.stringPath = builder.stringPath;
         this.serializationContext = Objects.requireNonNull(builder.serializationContext);
+        if (builder.needRetries && serializationContext.getSkiffSerializer().isPresent() && builder.path != null) {
+            this.path = builder.path
+                    .withSchema(EntityTableSchemaCreator.create(
+                            serializationContext.getObjectClass().orElseThrow(IllegalStateException::new)
+                    ).toYTree());
+        } else {
+            this.path = builder.path;
+        }
+        this.stringPath = builder.stringPath;
         this.tableSchema = builder.tableSchema;
         this.config = builder.config;
         this.transactionalOptions = builder.transactionalOptions;

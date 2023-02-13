@@ -12,11 +12,13 @@ import tech.ytsaurus.client.request.Format;
 import tech.ytsaurus.core.operations.CloseableIterator;
 import tech.ytsaurus.core.operations.OperationContext;
 import tech.ytsaurus.core.operations.Yield;
+import tech.ytsaurus.core.tables.TableSchema;
 import tech.ytsaurus.skiff.deserializer.EntitySkiffDeserializer;
 import tech.ytsaurus.skiff.deserializer.SkiffParser;
 import tech.ytsaurus.skiff.schema.SkiffSchema;
 import tech.ytsaurus.skiff.schema.WireType;
 import tech.ytsaurus.skiff.serializer.EntitySkiffSerializer;
+import tech.ytsaurus.skiff.serializer.EntityTableSchemaCreator;
 import tech.ytsaurus.ysontree.YTreeStringNode;
 
 import static tech.ytsaurus.skiff.serializer.EntitySkiffSchemaCreator.getEntitySchema;
@@ -25,6 +27,7 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
     private static final byte[] FIRST_TABLE_INDEX = new byte[]{0, 0};
     private final Class<T> entityClass;
     private final SkiffSchema entitySchema;
+    private final TableSchema tableSchema;
     private final boolean trackIndices;
     private final boolean isInputType;
 
@@ -40,6 +43,7 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
                             .setName("$row_index")
             );
         }
+        this.tableSchema = EntityTableSchemaCreator.create(entityClass);
         this.trackIndices = trackIndices;
         this.isInputType = isInputType;
     }
@@ -117,5 +121,9 @@ public class EntityTableEntryType<T> implements YTableEntryType<T> {
                 }
             }
         };
+    }
+
+    public TableSchema getTableSchema() {
+        return tableSchema;
     }
 }

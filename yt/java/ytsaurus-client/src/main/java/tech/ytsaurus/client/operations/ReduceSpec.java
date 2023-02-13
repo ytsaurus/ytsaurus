@@ -108,7 +108,13 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
         joinBy = builder.joinBy;
 
         if (reducerSpec instanceof MapperOrReducerSpec) {
-            jobIo = ((MapperOrReducerSpec) reducerSpec).createJobIo(builder.jobIo);
+            MapperOrReducerSpec mapperOrReducerSpec = (MapperOrReducerSpec) reducerSpec;
+            jobIo = mapperOrReducerSpec.createJobIo(builder.jobIo);
+            if (mapperOrReducerSpec.mapperOrReducer.outputType().getClass() == EntityTableEntryType.class) {
+                var outputTableSchema = ((EntityTableEntryType<?>) mapperOrReducerSpec
+                        .mapperOrReducer.outputType()).getTableSchema();
+                getOutputTables().replaceAll(yPath -> yPath.withSchema(outputTableSchema.toYTree()));
+            }
         } else {
             jobIo = builder.jobIo;
         }
@@ -150,6 +156,7 @@ public class ReduceSpec extends SimpleUserOperationSpecBase implements Spec {
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
                                 SpecPreparationContext specPreparationContext) {
         SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
+
         var formatContext = FormatContext.builder()
                 .setInputTableCount(getInputTables().size())
                 .setOutputTableCount(getOutputTables().size())
