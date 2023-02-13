@@ -156,6 +156,7 @@ void TActionManager::CreateActions(const TString& bundleName)
     }
 
     if (!runningActions.empty()) {
+        GetOrCreateProfilingCounters(bundleName).RunningActions.Update(runningActions.size());
         EmplaceOrCrash(RunningActions_, bundleName, std::move(runningActions));
     }
 
