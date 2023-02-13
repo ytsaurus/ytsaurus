@@ -341,3 +341,38 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             }
             for lower_limit in range(0, 6000, 3000)
         ]
+
+    @authors("galtsev")
+    def test_attributes_and_columns(self):
+        table = "//tmp/sorted-static"
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 1000
+        data_weight = self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+
+        attributes = "<timestamp=0; list=[1; [2; [3]]]; my_attribute=my_value; three_eighths=0.375; yes=%true>"
+        partitions = partition_tables([attributes + table + "{key_1, value_1}"], data_weight_per_partition=data_weight // 3)
+        assert partitions == [
+            {
+                "table_ranges": [
+                    to_yson_type(
+                        table,
+                        attributes={
+                            "columns": ["key_1", "value_1"],
+                            "list": [1, [2, [3]]],
+                            "my_attribute": "my_value",
+                            "three_eighths": 0.375,
+                            "timestamp": 0,
+                            "yes": True,
+                            "ranges": [
+                                {
+                                    "lower_limit": {"row_index": lower_limit},
+                                    "upper_limit": {"row_index": lower_limit + 3000},
+                                },
+                            ],
+                        },
+                    ),
+                ],
+            }
+            for lower_limit in range(0, 6000, 3000)
+        ]
