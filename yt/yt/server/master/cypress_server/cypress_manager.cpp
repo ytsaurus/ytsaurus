@@ -2542,13 +2542,15 @@ private:
             }
 
             // COMPAT(shakurov)
-            if (node->TryGetExpirationTimeout() &&
-                !node->GetTouchTime())
-            {
-                // NB: touch time on branches is not actually used but for
-                // invariant's sake let's set it anyway.
-                const auto* hydraContext = GetCurrentHydraContext();
-                node->SetTouchTime(hydraContext->GetTimestamp());
+            if (node->TryGetExpirationTimeout()) {
+                if (node->IsTrunk() && !node->GetTouchTime(/* force */ true)) {
+                    const auto* hydraContext = GetCurrentHydraContext();
+                    node->SetTouchTime(hydraContext->GetTimestamp());
+                } else if (!node->IsTrunk() && node->GetTouchTime()) {
+                    node->SetTouchTime(TInstant::Zero(), /* force */ true);
+                }
+            } else {
+                node->SetTouchTime(TInstant::Zero(), /* force */ true);
             }
 
             if (node->IsTrunk() && node->TryGetExpirationTimeout()) {
@@ -3797,17 +3799,17 @@ private:
 
         for (const auto& update : request->updates()) {
             auto nodeId = FromProto<TNodeId>(update.node_id());
-            auto* node = FindNode(TVersionedNodeId(nodeId));
-            if (!IsObjectAlive(node)) {
+            auto* trunkNode = FindNode(TVersionedNodeId(nodeId));
+            if (!IsObjectAlive(trunkNode)) {
                 continue;
             }
 
             auto touchTime = FromProto<TInstant>(update.touch_time());
-            if (touchTime > node->GetTouchTime()) {
-                node->SetTouchTime(touchTime);
+            if (touchTime > trunkNode->GetTouchTime()) {
+                trunkNode->SetTouchTime(touchTime);
             }
 
-            ExpirationTracker_->OnNodeTouched(node);
+            ExpirationTracker_->OnNodeTouched(trunkNode);
         }
     }
 

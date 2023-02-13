@@ -223,16 +223,17 @@ public:
     explicit TCypressNode(TVersionedNodeId id);
     virtual ~TCypressNode();
 
-    // NB: Modifying #ExpirationTimeout_ also changes #TouchTime_. Other than
-    // that, these methods are similar to those provided by the
+    // NB: Modifying #ExpirationTimeout_ also changes #TouchTime_ on #TrunkNode_.
+    // Other than that, these methods are similar to those provided by the
     // DEFINE_CYPRESS_BUILTIN_VERSIONED_ATTRIBUTE macro.
     TDuration GetExpirationTimeout() const;
     std::optional<TDuration> TryGetExpirationTimeout() const;
     void SetExpirationTimeout(TDuration timeout);
     void RemoveExpirationTimeout();
     void MergeExpirationTimeout(const TCypressNode* branchedNode);
-    TInstant GetTouchTime() const;
-    void SetTouchTime(TInstant touchTime);
+    // COMPAT(shakurov): delete the #force parameters.
+    TInstant GetTouchTime(bool force = false) const;
+    void SetTouchTime(TInstant touchTime, bool force = false);
 
     NHydra::TRevision GetRevision() const;
     NHydra::TRevision GetNativeContentRevision() const;
@@ -324,6 +325,9 @@ private:
     TVersionedBuiltinAttribute<TDuration> ExpirationTimeout_;
     // Only tracked for nodes with non-null expiration timeout.
     TInstant TouchTime_;
+
+    void InitializeTouchTime();
+    void ResetTouchTime();
 };
 
 DEFINE_MASTER_OBJECT_TYPE(TCypressNode)
