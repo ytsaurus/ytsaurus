@@ -125,6 +125,10 @@ default_config = {
         # !!! It is not proxy specific !!!
         "request_backoff_time": None,
 
+        # use proxies if and only if your have no direct access to yt balancer
+        "http_proxy": None,
+        "https_proxy": None,
+
         "force_ipv4": False,
         "force_ipv6": False,
 
