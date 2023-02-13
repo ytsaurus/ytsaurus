@@ -19,6 +19,7 @@ using namespace NTableClient;
 static const i64 InfiniteCount = std::numeric_limits<i64>::max() / 4;
 static const int InfinitePartitionCount = std::numeric_limits<int>::max() / 4;
 static const i64 InfiniteWeight = std::numeric_limits<i64>::max() / 4;
+static const double SliceDataWeightMultiplier = 0.51;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -33,7 +34,7 @@ IJobSizeConstraintsPtr CreateJobSizeConstraints(i64 dataWeightPerPartition, std:
         /*maxDataSlicesPerJob*/ InfiniteCount,
         /*maxDataWeightPerJob*/ InfiniteWeight,
         /*primaryMaxDataWeightPerJob*/ InfiniteWeight,
-        /*inputSliceDataWeight*/ InfiniteWeight,
+        /*inputSliceDataWeight*/ std::clamp<i64>(SliceDataWeightMultiplier * dataWeightPerPartition, 1, dataWeightPerPartition),
         /*inputSliceRowCount*/ InfiniteCount,
         /*foreignSliceDataWeight*/ 0,
         /*samplingRate*/ std::nullopt);
