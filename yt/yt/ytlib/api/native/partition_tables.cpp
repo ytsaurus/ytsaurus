@@ -186,7 +186,10 @@ void TMultiTablePartitioner::BuildPartitions()
         auto chunkStripeList = ChunkPool_->GetStripeList(cookie);
         auto slicesByTable = ConvertChunkStripeListIntoDataSliceDescriptors(chunkStripeList);
 
-        Partitions_.Partitions.emplace_back(TMultiTablePartition{CombineDataSlices(DataSourceDirectory_, slicesByTable)});
+        Partitions_.Partitions.emplace_back(TMultiTablePartition{CombineDataSlices(
+            DataSourceDirectory_,
+            slicesByTable,
+            Paths_)});
     }
 
     YT_LOG_INFO("Partitions built (PartitionCount: %v)", Partitions_.Partitions.size());

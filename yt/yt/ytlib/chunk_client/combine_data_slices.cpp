@@ -15,7 +15,8 @@ namespace NYT::NChunkClient {
 
 std::vector<NYPath::TRichYPath> CombineDataSlices(
     const TDataSourceDirectoryPtr& dataSourceDirectory,
-    std::vector<std::vector<TDataSliceDescriptor>>& slicesByTable)
+    std::vector<std::vector<TDataSliceDescriptor>>& slicesByTable,
+    const std::optional<std::vector<NYPath::TRichYPath>>& paths)
 {
     auto compareAbsoluteReadLimits = [] (const TLegacyReadLimit& lhs, const TLegacyReadLimit& rhs) -> bool {
         YT_VERIFY(lhs.HasRowIndex() == rhs.HasRowIndex());
@@ -67,10 +68,11 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
         return true;
     };
 
-    std::vector<NYPath::TRichYPath> paths;
-    paths.reserve(slicesByTable.size());
+    std::vector<NYPath::TRichYPath> resultPaths;
+    resultPaths.reserve(slicesByTable.size());
 
     YT_VERIFY(dataSourceDirectory->DataSources().size() == slicesByTable.size());
+    YT_VERIFY(!paths || paths->size() == slicesByTable.size());
 
     for (const auto& [tableIndex, dataSource] : Enumerate(dataSourceDirectory->DataSources())) {
         bool versioned = dataSource.GetType() == EDataSourceType::VersionedTable;
@@ -111,21 +113,25 @@ std::vector<NYPath::TRichYPath> CombineDataSlices(
             firstSlice = lastSlice;
         }
 
-        auto& path = paths.emplace_back();
+        if (paths) {
+            resultPaths.emplace_back((*paths)[tableIndex]);
+        } else {
+            YT_VERIFY(dataSource.GetPath());
+            resultPaths.emplace_back(*dataSource.GetPath());
+        }
+        auto& path = resultPaths.back();
         path.SetRanges(ranges);
         if (dataSource.GetForeign()) {
             path.SetForeign(true);
         }
-        YT_VERIFY(dataSource.GetPath());
-        path.SetPath(*dataSource.GetPath());
         if (dataSource.Columns()) {
             path.SetColumns(*dataSource.Columns());
         }
     }
 
-    YT_VERIFY(paths.size() == slicesByTable.size());
+    YT_VERIFY(resultPaths.size() == slicesByTable.size());
 
-    return paths;
+    return resultPaths;
 }
 
 ////////////////////////////////////////////////////////////////////////////////
