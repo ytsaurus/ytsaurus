@@ -423,6 +423,8 @@ private:
         const TScheduler::TCtxNodeHeartbeat::TTypedRequest* request,
         TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
     void AddRegisteredControllerAgentsToResponse(auto* response);
+
+    void SetMinSpareResources(TScheduler::TCtxNodeHeartbeat::TTypedResponse* response);
 };
 
 DEFINE_REFCOUNTED_TYPE(TNodeShard)

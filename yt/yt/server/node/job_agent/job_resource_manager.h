@@ -16,9 +16,9 @@ namespace NYT::NJobAgent {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-DEFINE_ENUM(EResourcesConsumptionPriority,
-    ((Primary)      (0))
-    ((Secondary)    (1))
+DEFINE_ENUM(EResourcesConsumerType,
+    ((MasterJob)      (0))
+    ((SchedulerJob)   (1))
 )
 
 class IJobResourceManager
@@ -32,7 +32,7 @@ public:
     virtual void Initialize() = 0;
 
     virtual void Start() = 0;
-    
+
     //! Returns the maximum allowed resource usage.
     virtual NNodeTrackerClient::NProto::TNodeResources GetResourceLimits() const = 0;
 
@@ -51,15 +51,19 @@ public:
 
     virtual TResourceAcquiringProxy GetResourceAcquiringProxy() = 0;
 
-    virtual void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumptionPriority consumptionPriority) = 0;
+    virtual int GetWaitingResourceHolderCount() = 0;
+
+    virtual void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumer) = 0;
 
     static IJobResourceManagerPtr CreateJobResourceManager(NClusterNode::IBootstrapBase* bootstrap);
 
-    DECLARE_INTERFACE_SIGNAL(void(), ResourcesUpdated);
+    DECLARE_INTERFACE_SIGNAL(void(), ResourcesAcquired);
+    DECLARE_INTERFACE_SIGNAL(void(EResourcesConsumerType, bool), ResourcesReleased);
+
     DECLARE_INTERFACE_SIGNAL(
         void(i64 mapped),
         ReservedMemoryOvercommited);
-    
+
 protected:
     friend TResourceHolder;
 
@@ -69,7 +73,7 @@ protected:
         TResourceAcquiringProxy(IJobResourceManager* resourceManagerImpl);
         TResourceAcquiringProxy(const TResourceAcquiringProxy&) = delete;
         ~TResourceAcquiringProxy();
-        
+
         bool TryAcquireResourcesFor(TResourceHolder* resourceHolder) &;
 
     private:
@@ -93,6 +97,7 @@ class TResourceHolder
 public:
     TResourceHolder(
         IJobResourceManager* jobResourceManager,
+        EResourcesConsumerType resourceConsumerType,
         NLogging::TLogger logger,
         const NNodeTrackerClient::NProto::TNodeResources& jobResources,
         int portCount);
@@ -129,9 +134,11 @@ private:
 
     EResourcesState State_ = EResourcesState::Waiting;
 
+    const EResourcesConsumerType ResourcesConsumerType_;
+
     class TAcquiredResources;
     void AcquireResources(TAcquiredResources&& acquiredResources);
-    virtual void OnResourcesAcquired() = 0;   
+    virtual void OnResourcesAcquired() = 0;
 };
 
 ////////////////////////////////////////////////////////////////////////////////

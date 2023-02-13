@@ -24,12 +24,16 @@
 
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
+
 #include <yt/yt/core/concurrency/scheduler.h>
 #include <yt/yt/core/concurrency/periodic_executor.h>
 
 namespace NYT::NExecNode {
 
+using namespace NJobAgent;
 using namespace NNodeTrackerClient;
+using namespace NNodeTrackerClient::NProto;
 using namespace NJobTrackerClient;
 using namespace NObjectClient;
 using namespace NClusterNode;
@@ -66,14 +70,70 @@ TSchedulerConnector::TSchedulerConnector(
     VERIFY_INVOKER_THREAD_AFFINITY(Bootstrap_->GetControlInvoker(), ControlThread);
 }
 
+void TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded(bool force)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    auto scheduleOutOfBandHeartbeat = [&] {
+        HeartbeatExecutor_->ScheduleOutOfBand();
+    };
+
+    if (force) {
+        scheduleOutOfBandHeartbeat();
+        return;
+    }
+
+    const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
+    auto resourceLimits = jobResourceManager->GetResourceLimits();
+    auto resourceUsage = jobResourceManager->GetResourceUsage(/*includeWaiting*/ true);
+    bool hasWaitingResourceHolders = jobResourceManager->GetWaitingResourceHolderCount();
+
+    auto freeResources = MakeNonnegative(resourceLimits - resourceUsage);
+
+    if (!Dominates(MinSpareResources_, ToJobResources(freeResources)) && !hasWaitingResourceHolders) {
+        scheduleOutOfBandHeartbeat();
+    }
+}
+
+void TSchedulerConnector::SendOutOfBandHeartbeatIfNeeded(bool force)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    Bootstrap_->GetJobInvoker()->Invoke(
+        BIND(&TSchedulerConnector::DoSendOutOfBandHeartbeatIfNeeded, MakeStrong(this), force));
+}
+
+void TSchedulerConnector::OnResourcesAcquired()
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    SendOutOfBandHeartbeatIfNeeded();
+}
+
+void TSchedulerConnector::OnResourcesReleased(
+    EResourcesConsumerType resourcesConsumerType,
+    bool fullyReleased)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    if (SendHeartbeatOnJobFinished_.load(std::memory_order::relaxed)) {
+        SendOutOfBandHeartbeatIfNeeded(/*force*/ resourcesConsumerType == EResourcesConsumerType::SchedulerJob && fullyReleased);
+    }
+}
+
+void TSchedulerConnector::SetMinSpareResources(const NScheduler::TJobResources& minSpareResources)
+{
+    VERIFY_INVOKER_AFFINITY(Bootstrap_->GetJobInvoker());
+
+    MinSpareResources_ = minSpareResources;
+}
+
 void TSchedulerConnector::Start()
 {
-    // Schedule an out-of-order heartbeat whenever a job finishes
-    // or its resource usage is updated.
     const auto& jobResourceManager = Bootstrap_->GetJobResourceManager();
-    jobResourceManager->SubscribeResourcesUpdated(BIND(
-        &TPeriodicExecutor::ScheduleOutOfBand,
-        HeartbeatExecutor_));
+    jobResourceManager->SubscribeResourcesAcquired(BIND(
+        &TSchedulerConnector::OnResourcesAcquired,
+        MakeWeak(this)));
 
     HeartbeatExecutor_->Start();
 }
@@ -82,6 +142,8 @@ void TSchedulerConnector::OnDynamicConfigChanged(
     const TExecNodeDynamicConfigPtr& oldConfig,
     const TExecNodeDynamicConfigPtr& newConfig)
 {
+    VERIFY_THREAD_AFFINITY_ANY();
+
     if (!newConfig->SchedulerConnector && !oldConfig->SchedulerConnector) {
         return;
     }
@@ -89,8 +151,10 @@ void TSchedulerConnector::OnDynamicConfigChanged(
     Bootstrap_->GetControlInvoker()->Invoke(BIND([this, this_{MakeStrong(this)}, newConfig{std::move(newConfig)}] {
         if (newConfig->SchedulerConnector) {
             CurrentConfig_ = StaticConfig_->ApplyDynamic(newConfig->SchedulerConnector);
+            SendHeartbeatOnJobFinished_.store(newConfig->SchedulerConnector->SendHeartbeatOnJobFinished, std::memory_order::relaxed);
         } else {
             CurrentConfig_ = StaticConfig_;
+            SendHeartbeatOnJobFinished_.store(true, std::memory_order::relaxed);
         }
         HeartbeatExecutor_->SetPeriod(CurrentConfig_->HeartbeatPeriod);
     }));

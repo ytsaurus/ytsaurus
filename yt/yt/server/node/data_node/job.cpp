@@ -130,6 +130,7 @@ TMasterJobBase::TMasterJobBase(
     IBootstrap* bootstrap)
     : TResourceHolder(
         bootstrap->GetJobResourceManager().Get(),
+        EResourcesConsumerType::MasterJob,
         DataNodeLogger.WithTag(
             "JobId: %v, JobType: %v",
             jobId,

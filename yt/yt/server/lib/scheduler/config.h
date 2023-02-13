@@ -890,7 +890,7 @@ public:
     //! All registered scheduler experiments keyed by experiment names.
     THashMap<TString, TExperimentConfigPtr> Experiments;
 
-    //! Minimum about of resources to continue schedule job attempts.
+    //! Minimum amount of resources to continue schedule job attempts.
     std::optional<TJobResourcesConfigPtr> MinSpareJobResourcesOnNode;
 
     bool SendPreemptionReasonInNodeHeartbeat;

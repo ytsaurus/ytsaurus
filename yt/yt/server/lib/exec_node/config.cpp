@@ -180,6 +180,11 @@ void TSchedulerConnectorDynamicConfig::Register(TRegistrar registrar)
         "use_allocation_tracker_service",
         &TSchedulerConnectorDynamicConfig::UseAllocationTrackerService)
         .Default();
+
+    registrar.Parameter(
+        "send_heartbeat_on_job_finished",
+        &TSchedulerConnectorDynamicConfig::SendHeartbeatOnJobFinished)
+        .Default(true);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

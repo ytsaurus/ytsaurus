@@ -5,6 +5,8 @@ import "yt/server/lib/scheduler/proto/allocation.proto";
 import "yt/ytlib/job_tracker_client/proto/job_tracker_service.proto";
 import "yt/ytlib/job_tracker_client/proto/job.proto";
 
+import "yt/ytlib/scheduler/proto/job.proto";
+
 import "yt_proto/yt/client/node_tracker_client/proto/node.proto";
 
 import "yt_proto/yt/core/misc/proto/guid.proto";
@@ -81,6 +83,8 @@ message TRspHeartbeat
     repeated TOperationInfo operation_infos = 10;
 
     repeated NJobTrackerClient.NProto.TControllerAgentDescriptor registered_controller_agents = 11;
+
+    optional TJobResources min_spare_resources = 12;
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -3,6 +3,7 @@
 #include "bootstrap.h"
 #include "job.h"
 #include "private.h"
+#include "scheduler_connector.h"
 #include "slot_manager.h"
 
 #include <yt/yt/server/node/cluster_node/bootstrap.h>
@@ -26,6 +27,8 @@
 #include <yt/yt/ytlib/node_tracker_client/helpers.h>
 
 #include <yt/yt/ytlib/controller_agent/proto/job.pb.h>
+
+#include <yt/yt/ytlib/scheduler/job_resources_helpers.h>
 
 #include <yt/yt/library/process/process.h>
 #include <yt/yt/library/process/subprocess.h>
@@ -216,7 +219,7 @@ public:
         JobResourceManager_->RegisterResourcesConsumer(
             BIND_NO_PROPAGATE(&TJobController::OnResourceReleased, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()),
-            EResourcesConsumptionPriority::Secondary);
+            EResourcesConsumerType::SchedulerJob);
         JobResourceManager_->SubscribeReservedMemoryOvercommited(
             BIND_NO_PROPAGATE(&TJobController::OnReservedMemoryOvercommited, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()));
@@ -1227,6 +1230,13 @@ private:
 
                 UpdateOperationControllerAgent(operationId, std::move(descriptorOrError.Value()));
             }
+
+            {
+                auto minSpareResources = FromProto<NScheduler::TJobResources>(response->min_spare_resources());
+
+                const auto& schedulerConnector = Bootstrap_->GetExecNodeBootstrap()->GetSchedulerConnector();
+                schedulerConnector->SetMinSpareResources(minSpareResources);
+            }
         }
 
         YT_VERIFY(response->Attachments().empty());
@@ -1413,7 +1423,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto resourceAcquiringProxy = JobResourceManager_->GetResourceAcquiringProxy();
+        auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringProxy();
 
         for (const auto& job : GetJobs()) {
             if (job->GetState() != EJobState::Waiting) {
@@ -1423,7 +1433,7 @@ private:
             auto jobId = job->GetId();
             YT_LOG_DEBUG("Trying to start job (JobId: %v)", jobId);
 
-            if (!resourceAcquiringProxy.TryAcquireResourcesFor(job->AsResourceHolder())) {
+            if (!resourceAcquiringContext.TryAcquireResourcesFor(job->AsResourceHolder())) {
                 YT_LOG_DEBUG("Job was not started (JobId: %v)", jobId);
             } else {
                 YT_LOG_DEBUG("Job started (JobId: %v)", jobId);

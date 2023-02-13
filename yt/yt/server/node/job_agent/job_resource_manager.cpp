@@ -71,7 +71,8 @@ class IJobResourceManager::TImpl
     : public IJobResourceManager
 {
 public:
-    DEFINE_SIGNAL_OVERRIDE(void(), ResourcesUpdated);
+    DEFINE_SIGNAL_OVERRIDE(void(), ResourcesAcquired);
+    DEFINE_SIGNAL_OVERRIDE(void(EResourcesConsumerType, bool), ResourcesReleased);
 
     DEFINE_SIGNAL_OVERRIDE(
         void(i64 mapped),
@@ -340,7 +341,7 @@ public:
         YT_VERIFY(std::exchange(HasActiveResourceAcquiring_, false));
 
         if (ShouldNotifyResourcesUpdated_) {
-            ResourcesUpdated_.Fire();
+            ResourcesAcquired_.Fire();
             ShouldNotifyResourcesUpdated_ = false;
         }
     }
@@ -350,6 +351,7 @@ public:
         VERIFY_THREAD_AFFINITY(JobThread);
 
         WaitingResources_ += resources;
+        ++WaitingResourceHolderCount_;
         YT_LOG_DEBUG("Resource holder created, resources waiting (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
             FormatResources(resources),
             FormatResources(ResourceUsage_),
@@ -363,6 +365,8 @@ public:
         WaitingResources_ -= resources;
         ResourceUsage_ += resources;
 
+        --WaitingResourceHolderCount_;
+
         YT_LOG_DEBUG("Resources acquired (Resources: %v, ResourceUsage: %v, WaitingResources: %v)",
             FormatResources(resources),
             FormatResources(ResourceUsage_),
@@ -372,6 +376,7 @@ public:
     }
 
     void OnResourcesReleased(
+        EResourcesConsumerType resourcesConsumerType,
         const TLogger& Logger,
         const TNodeResources& resources,
         const std::vector<int>& ports,
@@ -387,6 +392,7 @@ public:
             ResourceUsage_ -= resources;
         } else {
             WaitingResources_ -= resources;
+            --WaitingResourceHolderCount_;
         }
 
         YT_LOG_DEBUG("Resources released (ResourceHolderStarted: %v, Delta: %v, ResourceUsage: %v, WaitingResources: %v)",
@@ -395,10 +401,13 @@ public:
             FormatResources(ResourceUsage_),
             FormatResources(WaitingResources_));
 
-        NotifyResourcesReleased();
+        NotifyResourcesReleased(resourcesConsumerType, /*fullyReleased*/ true);
     }
 
-    void OnResourcesUpdated(const TLogger& Logger, const TNodeResources& resourceDelta)
+    void OnResourcesUpdated(
+        EResourcesConsumerType resourcesConsumerType,
+        const TLogger& Logger,
+        const TNodeResources& resourceDelta)
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
@@ -410,7 +419,7 @@ public:
             FormatResources(WaitingResources_));
 
         if (!Dominates(resourceDelta, ZeroNodeResources())) {
-            NotifyResourcesReleased();
+            NotifyResourcesReleased(resourcesConsumerType, /*fullyReceived*/ false);
         }
     }
 
@@ -568,9 +577,16 @@ public:
         return TResourceAcquiringProxy{this};
     }
 
-    void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumptionPriority consumptionPriority) override
+    int GetWaitingResourceHolderCount() final
     {
-        ResourcesConsumerCallbacks_[consumptionPriority].Subscribe(std::move(onResourcesReleased));
+        VERIFY_THREAD_AFFINITY(JobThread);
+
+        return WaitingResourceHolderCount_;
+    }
+
+    void RegisterResourcesConsumer(TClosure onResourcesReleased, EResourcesConsumerType consumerType) override
+    {
+        ResourcesConsumerCallbacks_[consumerType].Subscribe(std::move(onResourcesReleased));
     }
 
 private:
@@ -586,7 +602,7 @@ private:
     const ITypedNodeMemoryTrackerPtr UserMemoryUsageTracker_;
     THashSet<int> FreePorts_;
 
-    TEnumIndexedVector<EResourcesConsumptionPriority, TCallbackList<void()>> ResourcesConsumerCallbacks_;
+    TEnumIndexedVector<EResourcesConsumerType, TCallbackList<void()>> ResourcesConsumerCallbacks_;
 
     TProfiler Profiler_;
     TPeriodicExecutorPtr ProfilingExecutor_;
@@ -600,6 +616,7 @@ private:
 
     TNodeResources ResourceUsage_ = ZeroNodeResources();
     TNodeResources WaitingResources_ = ZeroNodeResources();
+    int WaitingResourceHolderCount_ = 0;
 
     TPeriodicExecutorPtr ReservedMappedMemoryChecker_;
     TPeriodicExecutorPtr MemoryPressureDetector_;
@@ -613,8 +630,9 @@ private:
 
     DECLARE_THREAD_AFFINITY_SLOT(JobThread);
 
-    void NotifyResourcesReleased()
+    void NotifyResourcesReleased(EResourcesConsumerType resourcesConsumerType, bool fullyReleased)
     {
+        ResourcesReleased_.Fire(resourcesConsumerType, fullyReleased);
         for (const auto& callbacks : ResourcesConsumerCallbacks_) {
             callbacks.Fire();
         }
@@ -735,7 +753,8 @@ IJobResourceManagerPtr IJobResourceManager::CreateJobResourceManager(NClusterNod
 
 ////////////////////////////////////////////////////////////////////////////////
 
-IJobResourceManager::TResourceAcquiringProxy::TResourceAcquiringProxy(IJobResourceManager* resourceManager)
+IJobResourceManager::TResourceAcquiringProxy::TResourceAcquiringProxy(
+    IJobResourceManager* resourceManager)
     : ResourceManagerImpl_(static_cast<IJobResourceManager::TImpl*>(resourceManager))
 {
     ResourceManagerImpl_->OnResourceAcquiringStarted();
@@ -766,6 +785,7 @@ bool IJobResourceManager::TResourceAcquiringProxy::TryAcquireResourcesFor(TResou
 
 TResourceHolder::TResourceHolder(
     IJobResourceManager* jobResourceManager,
+    EResourcesConsumerType resourceConsumerType,
     TLogger logger,
     const TNodeResources& resources,
     int portCount)
@@ -773,6 +793,7 @@ TResourceHolder::TResourceHolder(
     , ResourceManagerImpl_(static_cast<IJobResourceManager::TImpl*>(jobResourceManager))
     , PortCount_(portCount)
     , Resources_(resources)
+    , ResourcesConsumerType_(resourceConsumerType)
 {
     ResourceManagerImpl_->OnResourceHolderCreated(Logger, Resources_);
 }
@@ -809,6 +830,7 @@ void TResourceHolder::ReleaseResources()
     YT_VERIFY(State_ != EResourcesState::Released);
 
     ResourceManagerImpl_->OnResourcesReleased(
+        ResourcesConsumerType_,
         Logger,
         Resources_,
         GetPorts(),
@@ -827,7 +849,7 @@ TNodeResources TResourceHolder::SetResourceUsage(TNodeResources newResourceUasge
     YT_VERIFY(State_ == EResourcesState::Acquired);
 
     auto resourceDelta = newResourceUasge - Resources_;
-    ResourceManagerImpl_->OnResourcesUpdated(GetLogger(), resourceDelta);
+    ResourceManagerImpl_->OnResourcesUpdated(ResourcesConsumerType_, GetLogger(), resourceDelta);
 
     Resources_ = newResourceUasge;
 

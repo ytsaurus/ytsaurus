@@ -40,6 +40,8 @@ struct IBootstrap
 
     virtual const IMasterConnectorPtr& GetMasterConnector() const = 0;
 
+    virtual const TSchedulerConnectorPtr& GetSchedulerConnector() const = 0;
+
     virtual const NConcurrency::IThroughputThrottlerPtr& GetThrottler(EExecNodeThrottlerKind kind) const = 0;
 
     virtual const NProfiling::TSolomonExporterPtr& GetJobProxySolomonExporter() const = 0;
