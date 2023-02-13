@@ -2701,7 +2701,7 @@ void TNodeShard::SendInterruptedJobToNode(
     TDuration interruptTimeout) const
 {
     YT_LOG_DEBUG(
-        "Add job to interrupt using new format (JobId: %v, InterruptionReason: %v)",
+        "Add job to interrupt (JobId: %v, InterruptionReason: %v)",
         job->GetId(),
         job->GetInterruptionReason());
     AddJobToInterrupt(
@@ -2716,23 +2716,12 @@ void TNodeShard::SendInterruptedJobToNode(
 template <class TRspHeartbeat>
 void TNodeShard::ProcessPreemptedJob(TRspHeartbeat* response, const TJobPtr& job, TDuration interruptTimeout)
 {
-    if (!job->IsInterrupted()) {
-        PreemptJob(job, DurationToCpuDuration(interruptTimeout));
-        SendInterruptedJobToNode(response, job, interruptTimeout);
-    }
+    PreemptJob(job, DurationToCpuDuration(interruptTimeout));
+    SendInterruptedJobToNode(response, job, interruptTimeout);
 }
 
 void TNodeShard::PreemptJob(const TJobPtr& job, TCpuDuration interruptTimeout)
 {
-    if (job->IsInterrupted()) {
-        YT_LOG_DEBUG(
-            "Job is already interruption, ignore preemption (JobId: %v, OperationId: %v, InterruptionReason: %v)",
-            job->GetId(),
-            job->GetOperationId(),
-            job->GetInterruptionReason());
-        return;
-    }
-
     YT_LOG_DEBUG("Preempting job (JobId: %v, OperationId: %v, TreeId: %v, Interruptible: %v, Reason: %v)",
         job->GetId(),
         job->GetOperationId(),
@@ -2752,16 +2741,6 @@ void TNodeShard::DoInterruptJob(
 {
     YT_VERIFY(reason != EInterruptReason::None);
 
-    if (job->IsInterrupted()) {
-        YT_LOG_DEBUG(
-            "Job is already interrupted, do nothing (JobId: %v, OperationId: %v, InterruptionReason: %v, InterruptionTimeout: %.3g)",
-            job->GetId(),
-            job->GetOperationId(),
-            job->GetInterruptionReason(),
-            CpuDurationToDuration(interruptTimeout).SecondsFloat());
-        return;
-    }
-
     YT_LOG_DEBUG("Interrupting job (Reason: %v, InterruptionTimeout: %.3g, JobId: %v, OperationId: %v, User: %v)",
         reason,
         CpuDurationToDuration(interruptTimeout).SecondsFloat(),
@@ -2772,7 +2751,6 @@ void TNodeShard::DoInterruptJob(
     job->SetInterruptionReason(reason);
 
     if (interruptTimeout != 0) {
-        YT_VERIFY(job->GetInterruptionTimeout() == 0);
         job->SetInterruptionTimeout(interruptTimeout);
     }
 }
