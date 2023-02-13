@@ -151,6 +151,20 @@ class TestPartitionTablesCommand(TestPartitionTablesBase):
             assert count_occurrences(key, partitions) == 1
 
     @authors("galtsev")
+    def test_slice_chunk_into_rows(self):
+        table = "//tmp/sorted-static"
+        chunk_count = 6
+        rows_per_chunk = 1000
+        row_weight = 1000
+        self._create_table(table, chunk_count, rows_per_chunk, row_weight)
+
+        requested_rows = 10
+
+        partitions = partition_tables(['<"ranges"=[{"lower_limit"={"row_index"=0}; "upper_limit"={"row_index"=' + str(requested_rows) + '}}]>' + table], data_weight_per_partition=1)
+
+        assert len(partitions) == requested_rows
+
+    @authors("galtsev")
     def test_max_partition_count_exceeded_strict(self):
         table = "//tmp/sorted-static"
         chunk_count = 6

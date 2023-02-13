@@ -83,7 +83,7 @@ public class PartitionTablesTest {
         }
 
         var result = yt.partitionTables(
-                new PartitionTables(List.of(tablePath), PartitionTablesMode.Unordered, DataSize.fromBytes(10))
+                new PartitionTables(List.of(tablePath), PartitionTablesMode.Unordered, DataSize.fromBytes(30))
         ).join();
 
         var resultPaths = result.stream().map(MultiTablePartition::getTableRanges).collect(Collectors.toList());
