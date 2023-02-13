@@ -1070,12 +1070,13 @@ void TJob::GuardedInterrupt(
 {
     VERIFY_THREAD_AFFINITY(JobThread);
 
-    if (InterruptionTimeoutCookie_ || InterruptionReason_ != EInterruptReason::None) {
+    if (InterruptionDeadline_ && InterruptionDeadline_ < TInstant::Now() + timeout) {
         YT_LOG_DEBUG(
-            "Job interruption is already requested, ignore (InterruptionReason: %v, PreemptedFor: %v, CurrentError: %v)",
+            "Job interruption with earlier deadline is already requested, ignore (InterruptionReason: %v, PreemptedFor: %v, CurrentError: %v, CurrentDeadline: %v)",
             InterruptionReason_,
             PreemptedFor_,
-            Error_);
+            Error_,
+            InterruptionDeadline_);
         return;
     }
 
@@ -1127,12 +1128,19 @@ void TJob::GuardedInterrupt(
     }
 
     try {
-        GetJobProbeOrThrow()->Interrupt();
+        if (!InterruptionRequested_) {
+            GetJobProbeOrThrow()->Interrupt();
+        }
+
+        InterruptionRequested_ = true;
+
         if (timeout) {
+            TDelayedExecutor::CancelAndClear(InterruptionTimeoutCookie_);
             InterruptionTimeoutCookie_ = TDelayedExecutor::Submit(
                 BIND(&TJob::OnJobInterruptionTimeout, MakeWeak(this)),
                 timeout,
                 Bootstrap_->GetJobInvoker());
+            InterruptionDeadline_ = TInstant::Now() + timeout;
         }
     } catch (const std::exception& ex) {
         auto error = TError("Error interrupting job on job proxy")

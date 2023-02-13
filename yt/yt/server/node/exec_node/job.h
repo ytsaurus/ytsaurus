@@ -250,7 +250,9 @@ private:
     std::vector<NJobAgent::TJobProfile> Profiles_;
     NScheduler::TCoreInfos CoreInfos_;
 
+    bool InterruptionRequested_ = false;
     NConcurrency::TDelayedExecutorCookie InterruptionTimeoutCookie_;
+    TInstant InterruptionDeadline_;
 
     NYson::TYsonString StatisticsYson_ = NYson::TYsonString(TStringBuf("{}"));
     NChunkClient::NProto::TDataStatistics TotalInputDataStatistics_;
