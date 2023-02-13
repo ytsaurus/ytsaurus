@@ -72,7 +72,7 @@ public:
         JobResourceManager_->RegisterResourcesConsumer(
             BIND_NO_PROPAGATE(&TJobController::OnResourceReleased, MakeWeak(this))
                 .Via(Bootstrap_->GetJobInvoker()),
-            EResourcesConsumptionPriority::Primary);
+            EResourcesConsumerType::MasterJob);
 
         ProfilingExecutor_ = New<TPeriodicExecutor>(
             Bootstrap_->GetJobInvoker(),
@@ -254,7 +254,7 @@ private:
     {
         VERIFY_THREAD_AFFINITY(JobThread);
 
-        auto resourceAcquiringProxy = JobResourceManager_->GetResourceAcquiringProxy();
+        auto resourceAcquiringContext = JobResourceManager_->GetResourceAcquiringProxy();
 
         for (const auto& job : GetJobs()) {
             YT_VERIFY(TypeFromId(job->GetId()) == EObjectType::MasterJob);
@@ -266,7 +266,7 @@ private:
             auto jobId = job->GetId();
             YT_LOG_DEBUG("Trying to start job (JobId: %v)", jobId);
 
-            if (!resourceAcquiringProxy.TryAcquireResourcesFor(job->AsResourceHolder())) {
+            if (!resourceAcquiringContext.TryAcquireResourcesFor(job->AsResourceHolder())) {
                 YT_LOG_DEBUG("Job was not started (JobId: %v)", jobId);
             } else {
                 YT_LOG_DEBUG("Job started (JobId: %v)", jobId);

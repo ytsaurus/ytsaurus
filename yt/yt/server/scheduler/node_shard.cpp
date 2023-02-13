@@ -749,6 +749,7 @@ void TNodeShard::DoProcessHeartbeat(const TCtxNodeHeartbeatPtr& context)
     // COMPAT(pogorelov)
     if constexpr (std::is_same_v<TCtxNodeHeartbeatPtr, TScheduler::TCtxNodeHeartbeatPtr>) {
         ProcessOperationInfoHeartbeat(request, response);
+        SetMinSpareResources(response);
     }
 
     if (Config_->SendRegisteredAgentsToNode) {
@@ -2564,6 +2565,15 @@ void TNodeShard::ProcessOperationInfoHeartbeat(
 
         SetControllerAgentInfo(agent, protoOperationInfo->mutable_controller_agent_descriptor());
     }
+}
+
+void TNodeShard::SetMinSpareResources(
+    TScheduler::TCtxNodeHeartbeat::TTypedResponse* response)
+{
+    auto minSpareResources = Config_->MinSpareJobResourcesOnNode
+        ? ToJobResources(*Config_->MinSpareJobResourcesOnNode, TJobResources())
+        : TJobResources();
+    ToProto(response->mutable_min_spare_resources(), minSpareResources);
 }
 
 void TNodeShard::AddRegisteredControllerAgentsToResponse(auto* response)

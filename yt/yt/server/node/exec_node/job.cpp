@@ -129,6 +129,7 @@ TJob::TJob(
     TControllerAgentDescriptor agentDescriptor)
     : TResourceHolder(
         bootstrap->GetJobResourceManager().Get(),
+        EResourcesConsumerType::SchedulerJob,
         ExecNodeLogger.WithTag(
             "JobId: %v, OperationId: %v, JobType: %v",
             jobId,

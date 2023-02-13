@@ -238,6 +238,11 @@ public:
         return MasterConnector_;
     }
 
+    virtual const TSchedulerConnectorPtr& GetSchedulerConnector() const override
+    {
+        return SchedulerConnector_;
+    }
+
     const IThroughputThrottlerPtr& GetThrottler(EExecNodeThrottlerKind kind) const override
     {
         return Throttlers_[kind];
