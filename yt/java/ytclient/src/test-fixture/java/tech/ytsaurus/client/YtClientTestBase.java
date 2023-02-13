@@ -30,18 +30,18 @@ public class YtClientTestBase {
         final YtClient yt;
         final YPath testDirectory;
 
+        YtFixture(HostPort address, YtClient yt, YPath testDirectory) {
+            this.address = address;
+            this.yt = yt;
+            this.testDirectory = testDirectory;
+        }
+
         public YtClient getYt() {
             return yt;
         }
 
         public YPath getTestDirectory() {
             return testDirectory;
-        }
-
-        YtFixture(HostPort address, YtClient yt, YPath testDirectory) {
-            this.address = address;
-            this.yt = yt;
-            this.testDirectory = testDirectory;
         }
     }
 

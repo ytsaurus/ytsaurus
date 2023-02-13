@@ -74,7 +74,13 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
         mapperSpec = builder.mapperSpec;
 
         if (mapperSpec instanceof MapperOrReducerSpec) {
-            jobIo = ((MapperOrReducerSpec) mapperSpec).createJobIo(builder.jobIo);
+            MapperOrReducerSpec mapperOrReducerSpec = (MapperOrReducerSpec) mapperSpec;
+            jobIo = mapperOrReducerSpec.createJobIo(builder.jobIo);
+            if (mapperOrReducerSpec.mapperOrReducer.outputType().getClass() == EntityTableEntryType.class) {
+                var outputTableSchema = ((EntityTableEntryType<?>) mapperOrReducerSpec
+                        .mapperOrReducer.outputType()).getTableSchema();
+                getOutputTables().replaceAll(yPath -> yPath.withSchema(outputTableSchema.toYTree()));
+            }
         } else {
             jobIo = builder.jobIo;
         }
@@ -101,6 +107,7 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
     public YTreeBuilder prepare(YTreeBuilder builder, TransactionalClient yt,
                                 SpecPreparationContext specPreparationContext) {
         SpecUtils.createOutputTables(yt, getOutputTables(), getOutputTableAttributes());
+
         var formatContext = FormatContext.builder()
                 .setInputTableCount(getInputTables().size())
                 .setOutputTableCount(getOutputTables().size())
@@ -124,6 +131,7 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
      * Builder for {@link MapSpec}
      */
     protected static class Builder extends BuilderBase<Builder> {
+
         @Override
         protected Builder self() {
             return this;
@@ -137,6 +145,7 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
     @NonNullApi
     @NonNullFields
     public abstract static class BuilderBase<T extends BuilderBase<T>> extends SimpleUserOperationSpecBase.Builder<T> {
+
         private @Nullable
         UserJobSpec mapperSpec;
         private @Nullable
@@ -179,5 +188,6 @@ public class MapSpec extends SimpleUserOperationSpecBase implements Spec {
             this.jobIo = jobIo;
             return self();
         }
+
     }
 }

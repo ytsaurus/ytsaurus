@@ -6,6 +6,7 @@ import java.util.List;
 import java.util.Objects;
 import java.util.Optional;
 import java.util.stream.Collectors;
+import java.util.stream.Stream;
 
 import javax.annotation.Nullable;
 
@@ -76,12 +77,29 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
         mapperOutputTableCount = builder.mapperOutputTableCount;
 
         if (mapperSpec instanceof MapperOrReducerSpec) {
-            mapJobIo = ((MapperOrReducerSpec) mapperSpec).createJobIo(builder.mapJobIo);
+            MapperOrReducerSpec mapperOrReducerSpec = (MapperOrReducerSpec) mapperSpec;
+            mapJobIo = mapperOrReducerSpec.createJobIo(builder.mapJobIo);
+            if (mapperOrReducerSpec.mapperOrReducer.outputType().getClass() == EntityTableEntryType.class) {
+                var outputTableSchema = ((EntityTableEntryType<?>) mapperOrReducerSpec
+                        .mapperOrReducer.outputType()).getTableSchema();
+                getOutputTables().subList(0, getMapperOutputTableCount().orElse(0))
+                        .replaceAll(yPath -> yPath.withSchema(outputTableSchema.toYTree()));
+            }
         } else {
             mapJobIo = builder.mapJobIo;
         }
 
         reduceJobIo = builder.reduceJobIo;
+        if (reducerSpec instanceof MapperOrReducerSpec) {
+            MapperOrReducerSpec mapperOrReducerSpec = (MapperOrReducerSpec) reducerSpec;
+            if (mapperOrReducerSpec.mapperOrReducer.outputType().getClass() == EntityTableEntryType.class) {
+                var outputTableSchema = ((EntityTableEntryType<?>) mapperOrReducerSpec
+                        .mapperOrReducer.outputType()).getTableSchema();
+                getOutputTables().subList(getMapperOutputTableCount().orElse(0), getOutputTables().size())
+                        .replaceAll(yPath -> yPath.withSchema(outputTableSchema.toYTree()));
+            }
+        }
+
         sortJobIo = builder.sortJobIo;
     }
 
@@ -240,18 +258,22 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
             title = titles.stream().map(Title::toString).collect(Collectors.joining(", "));
         }
 
-        var mapperFormatContext = FormatContext.builder()
+        var mapperFormatContextBuilder = FormatContext.builder()
                 .setInputTableCount(getInputTables().size())
-                .setOutputTableCount(1 + Optional.ofNullable(mapperOutputTableCount).orElse(0))
-                .build();
+                .setOutputTableCount(1 + Optional.ofNullable(mapperOutputTableCount).orElse(0));
+        setOutputStreamsOfMapper(mapperFormatContextBuilder);
+        var mapperFormatContext = mapperFormatContextBuilder.build();
+
         var reducerFormatContext = FormatContext.builder()
                 .setInputTableCount(1)
                 .setOutputTableCount(getOutputTables().size() - Optional.ofNullable(mapperOutputTableCount).orElse(0))
                 .build();
-        var reduceCombinerFormatContext = FormatContext.builder()
+
+        var reduceCombinerFormatContextBuilder = FormatContext.builder()
                 .setInputTableCount(1)
-                .setOutputTableCount(1)
-                .build();
+                .setOutputTableCount(1);
+        setOutputStreamsOfReduceCombiner(reduceCombinerFormatContextBuilder);
+        var reduceCombinerFormatContext = reduceCombinerFormatContextBuilder.build();
 
         return builder.beginMap()
                 .when(title != null, b -> b.key("title").value(title))
@@ -267,17 +289,67 @@ public class MapReduceSpec extends UserOperationSpecBase implements Spec {
                 .key("reduce_by").value(reduceBy)
                 .key("reducer").apply(b -> reducerSpec.prepare(b, yt, specPreparationContext, reducerFormatContext))
                 .when(reduceCombinerSpec != null, b -> b.key("reduce_combiner")
-                        .apply(b2 -> Objects.requireNonNull(reduceCombinerSpec).prepare(b2, yt, specPreparationContext,
-                                reduceCombinerFormatContext)))
+                        .apply(b2 -> Objects.requireNonNull(reduceCombinerSpec).prepare(b2, yt,
+                                specPreparationContext, reduceCombinerFormatContext)))
                 .key("started_by").apply(b -> SpecUtils.startedBy(b, specPreparationContext))
                 .when(mapperOutputTableCount != null,
                         b -> b.key("mapper_output_table_count").value(mapperOutputTableCount))
                 .when(mapJobIo != null, b -> b.key("map_job_io").value(Objects.requireNonNull(mapJobIo).prepare()))
-                .when(sortJobIo != null, b -> b.key("sort_job_io").value(Objects.requireNonNull(sortJobIo).prepare()))
+                .when(sortJobIo != null,
+                        b -> b.key("sort_job_io").value(Objects.requireNonNull(sortJobIo).prepare()))
                 .when(reduceJobIo != null,
                         b -> b.key("reduce_job_io").value(Objects.requireNonNull(reduceJobIo).prepare()))
                 .apply(b -> toTree(b, specPreparationContext))
                 .endMap();
+    }
+
+    private void setOutputStreamsOfMapper(FormatContext.Builder mapperFormatContextBuilder) {
+        if (!(mapperSpec instanceof MapperOrReducerSpec)) {
+            return;
+        }
+
+        MapperOrReducerSpec mapperOrReducerSpec = (MapperOrReducerSpec) mapperSpec;
+        if (mapperOrReducerSpec.mapperOrReducer.outputType().getClass() != EntityTableEntryType.class) {
+            return;
+        }
+
+        var mapperOutputType =
+                (EntityTableEntryType<?>) mapperOrReducerSpec.mapperOrReducer.outputType();
+        mapperFormatContextBuilder.setOutputStreams(new YTreeBuilder().value(
+                        Stream.generate(() -> new YTreeBuilder().beginMap()
+                                        .key("schema").value(
+                                                mapperOutputType.getTableSchema().toBuilder()
+                                                        .sortBy(
+                                                                sortBy.stream()
+                                                                        .map(SortColumn::getName)
+                                                                        .collect(Collectors.toList()))
+                                                        .build().toYTree())
+                                        .endMap().build())
+                                .limit(1 + Optional.ofNullable(mapperOutputTableCount).orElse(0))
+                                .collect(Collectors.toList()))
+                .build());
+    }
+
+    private void setOutputStreamsOfReduceCombiner(FormatContext.Builder reduceCombinerContextBuilder) {
+        if (!(reduceCombinerSpec instanceof MapperOrReducerSpec)) {
+            return;
+        }
+
+        MapperOrReducerSpec mapperOrReducerSpec = (MapperOrReducerSpec) reduceCombinerSpec;
+        if (mapperOrReducerSpec.mapperOrReducer.outputType().getClass() != EntityTableEntryType.class) {
+            return;
+        }
+
+        var reduceCombinerOutputType =
+                (EntityTableEntryType<?>) mapperOrReducerSpec.mapperOrReducer.outputType();
+        reduceCombinerContextBuilder.setOutputStreams(new YTreeBuilder().value(
+                        Stream.generate(() -> new YTreeBuilder().beginMap()
+                                        .key("schema").value(
+                                                reduceCombinerOutputType.getTableSchema().toYTree())
+                                        .endMap().build())
+                                .limit(1)
+                                .collect(Collectors.toList()))
+                .build());
     }
 
     /**
