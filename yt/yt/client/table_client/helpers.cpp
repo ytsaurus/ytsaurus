@@ -619,6 +619,9 @@ void FromUnversionedValue(TInstant* value, TUnversionedValue unversionedValue)
         case EValueType::Uint64:
             *value = TInstant::MicroSeconds(unversionedValue.Data.Uint64);
             break;
+        case EValueType::String:
+            *value = TInstant::ParseIso8601(unversionedValue.AsStringBuf());
+            break;
         default:
             THROW_ERROR_EXCEPTION("Cannot parse instant from %Qlv",
                 unversionedValue.Type);
