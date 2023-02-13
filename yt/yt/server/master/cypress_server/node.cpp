@@ -64,13 +64,7 @@ void TCypressNode::SetExpirationTimeout(TDuration timeout)
 {
     ExpirationTimeout_.Set(timeout);
 
-    auto* context = GetCurrentMutationContext();
-    YT_VERIFY(context);
-
-    if (!TouchTime_) {
-        // Touch time is not tracked for nodes without expiration timeout.
-        TouchTime_ = context->GetTimestamp();
-    }
+    InitializeTouchTime();
 }
 
 void TCypressNode::RemoveExpirationTimeout()
@@ -79,12 +73,9 @@ void TCypressNode::RemoveExpirationTimeout()
 
     if (IsTrunk()) {
         ExpirationTimeout_.Reset();
+        ResetTouchTime();
     } else {
         ExpirationTimeout_.Remove();
-    }
-
-    if (TouchTime_) {
-        TouchTime_ = TInstant::Zero();
     }
 }
 
@@ -95,25 +86,42 @@ void TCypressNode::MergeExpirationTimeout(const TCypressNode* branchedNode)
     ExpirationTimeout_.Merge(branchedNode->ExpirationTimeout_, IsTrunk());
 
     if (TryGetExpirationTimeout()) {
-        if (!TouchTime_) {
-            auto* context = GetCurrentMutationContext();
-            TouchTime_ = context->GetTimestamp();
-        }
+        InitializeTouchTime();
     } else {
-        if (TouchTime_) {
-            TouchTime_ = TInstant::Zero();
-        }
+        ResetTouchTime();
     }
 }
 
-TInstant TCypressNode::GetTouchTime() const
+TInstant TCypressNode::GetTouchTime(bool force) const
 {
+    YT_VERIFY(force || IsTrunk());
     return TouchTime_;
 }
 
-void TCypressNode::SetTouchTime(TInstant touchTime)
+void TCypressNode::SetTouchTime(TInstant touchTime, bool force)
 {
+    YT_VERIFY(force || IsTrunk());
     TouchTime_ = touchTime;
+}
+
+void TCypressNode::InitializeTouchTime()
+{
+    auto* context = GetCurrentMutationContext();
+    YT_VERIFY(context);
+
+    if (!TrunkNode_->TouchTime_) {
+        // Touch time is not tracked for nodes without expiration timeout.
+        TrunkNode_->TouchTime_ = context->GetTimestamp();
+    }
+}
+
+void TCypressNode::ResetTouchTime()
+{
+    YT_VERIFY(HasMutationContext());
+
+    if (TrunkNode_->TouchTime_) {
+        TrunkNode_->TouchTime_ = TInstant::Zero();
+    }
 }
 
 TCypressNode* TCypressNode::GetParent() const

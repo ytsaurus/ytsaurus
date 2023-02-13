@@ -105,6 +105,7 @@ DEFINE_ENUM(EMasterReign,
     ((TabletBalancerConfigUnrecognizedStrategyKeep)                 (2225))  // alexelexa
     ((FixClonedTrunkNodeStatistics_22_4)                            (2226))  // shakurov
     ((FixAccountResourceUsageCharge)                                (2227))  // gritukan
+    ((FixTouchTime)                                                 (2228))  // shakurov
     // 23.1
     ((RipEnableUnlockCommand)                                       (2300))  // babenko
     ((RipEnableRevisionChangingForBuiltinAttributes)                (2301))  // babenko
