@@ -135,6 +135,10 @@ public:
 
     int MaxNodesBeingMerged;
 
+    // For testing purposes.
+    std::optional<int> MaxChunksPerIteration;
+    std::optional<TDuration> DelayBetweenIterations;
+
     REGISTER_YSON_STRUCT(TDynamicChunkMergerConfig);
 
     static void Register(TRegistrar registrar);

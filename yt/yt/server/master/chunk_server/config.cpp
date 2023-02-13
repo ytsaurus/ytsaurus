@@ -147,6 +147,12 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
     registrar.Parameter("max_nodes_being_merged", &TThis::MaxNodesBeingMerged)
         .Default(1'000'000)
         .DontSerializeDefault();
+
+    registrar.Parameter("max_chunks_per_iteration", &TThis::MaxChunksPerIteration)
+        .Default();
+
+    registrar.Parameter("delay_between_iterations", &TThis::DelayBetweenIterations)
+        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////
