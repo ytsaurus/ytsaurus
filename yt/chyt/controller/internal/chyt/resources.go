@@ -9,35 +9,151 @@ import (
 const (
 	gib = 1024 * 1024 * 1024
 
-	memClickHouse             = 16 * gib
-	memChunkMetaCache         = 1 * gib
-	memCompressedBlockCache   = 16 * gib
-	memUncompressedBlockCache = 0
-	memReader                 = 12 * gib
+	defaultMemoryClickHouse             = 16 * gib
+	defaultMemoryChunkMetaCache         = 1 * gib
+	defaultMemoryCompressedBlockCache   = 16 * gib
+	defaultMemoryUncompressedBlockCache = 0
+	defaultMemoryReader                 = 12 * gib
 
-	memElastic = memClickHouse + memChunkMetaCache + memCompressedBlockCache + memUncompressedBlockCache + memReader
+	memElastic = defaultMemoryClickHouse +
+		defaultMemoryChunkMetaCache +
+		defaultMemoryCompressedBlockCache +
+		defaultMemoryUncompressedBlockCache +
+		defaultMemoryReader
 
-	memLogTailer = 2 * gib
-	memFootprint = 10 * gib
+	defaultMemoryLogTailer = 2 * gib
+	defaultMemoryFootprint = 10 * gib
 
-	memClickHouseWatermark        = 10 * gib
-	memWatchdogOOMWindowWatermark = 20 * gib
-	memWatchdogOOMWatermark       = 4 * gib
+	defaultMemoryClickHouseWatermark = 10 * gib
 
-	memNonElastic = memLogTailer + memFootprint + memClickHouseWatermark
+	defaultMemoryWatchdogOOMWindowWatermark = 20 * gib
+	defaultMemoryWatchdogOOMWatermark       = 4 * gib
 
-	cpu = 16
+	memNonElastic = defaultMemoryLogTailer +
+		defaultMemoryFootprint +
+		defaultMemoryClickHouseWatermark
+
+	defaultInstanceCPU = 16
 
 	defaultInstanceCount = 1
 	maxInstanceCount     = 100
 )
 
 type InstanceMemory struct {
-	ClickHouse        *uint64 `yson:"clickhouse"`
-	ChunkMetaCache    *uint64 `yson:"chunk_meta_cache"`
-	CompressedCache   *uint64 `yson:"compressed_cache"`
-	UncompressedCache *uint64 `yson:"uncompressed_cache"`
-	Reader            *uint64 `yson:"reader"`
+	ClickHouse     *uint64 `yson:"clickhouse"`
+	ChunkMetaCache *uint64 `yson:"chunk_meta_cache"`
+	// NOTE(daokvalkov): compressed and uncompressed block caches mises "block" in yson-name
+	// for compatibility reasons.
+	// TODO(dakovalkov): rename it and migrate existing configs.
+	CompressedBlockCache   *uint64 `yson:"compressed_cache"`
+	UncompressedBlockCache *uint64 `yson:"uncompressed_cache"`
+	Reader                 *uint64 `yson:"reader"`
+	// Some less usefull fields.
+	ClickHouseWatermark        *uint64 `yson:"clickhouse_watermark"`
+	WatchdogOOMWatermark       *uint64 `yson:"watchdog_oom_watermark"`
+	WatchdogOOMWindowWatermark *uint64 `yson:"watchdog_oom_window_watermark"`
+	Footprint                  *uint64 `yson:"footpring"`
+	LogTailer                  *uint64 `yson:"log_tailer"`
+}
+
+func (mem *InstanceMemory) ClickHouseOrDefault() uint64 {
+	if mem.ClickHouse != nil {
+		return *mem.ClickHouse
+	}
+	return defaultMemoryClickHouse
+}
+
+func (mem *InstanceMemory) ChunkMetaCacheOrDefault() uint64 {
+	if mem.ChunkMetaCache != nil {
+		return *mem.ChunkMetaCache
+	}
+	return defaultMemoryChunkMetaCache
+}
+
+func (mem *InstanceMemory) CompressedBlockCacheOrDefault() uint64 {
+	if mem.CompressedBlockCache != nil {
+		return *mem.CompressedBlockCache
+	}
+	return defaultMemoryCompressedBlockCache
+}
+
+func (mem *InstanceMemory) UncompressedBlockCacheOrDefault() uint64 {
+	if mem.UncompressedBlockCache != nil {
+		return *mem.UncompressedBlockCache
+	}
+	return defaultMemoryUncompressedBlockCache
+}
+
+func (mem *InstanceMemory) ReaderOrDefault() uint64 {
+	if mem.Reader != nil {
+		return *mem.Reader
+	}
+	return defaultMemoryReader
+}
+
+func (mem *InstanceMemory) ClickHouseWatermarkOrDefault() uint64 {
+	if mem.ClickHouseWatermark != nil {
+		return *mem.ClickHouseWatermark
+	}
+	return defaultMemoryClickHouseWatermark
+}
+
+func (mem *InstanceMemory) WatchdogOOMWatermarkOrDefault() uint64 {
+	if mem.WatchdogOOMWatermark != nil {
+		return *mem.WatchdogOOMWatermark
+	}
+	return defaultMemoryWatchdogOOMWatermark
+}
+
+func (mem *InstanceMemory) WatchdogOOMWindowWatermarkOrDefault() uint64 {
+	if mem.WatchdogOOMWindowWatermark != nil {
+		return *mem.WatchdogOOMWindowWatermark
+	}
+	return defaultMemoryWatchdogOOMWindowWatermark
+}
+
+func (mem *InstanceMemory) FootprintOrDefault() uint64 {
+	if mem.Footprint != nil {
+		return *mem.Footprint
+	}
+	return defaultMemoryFootprint
+}
+
+func (mem *InstanceMemory) LogTailerOrDefault() uint64 {
+	if mem.LogTailer != nil {
+		return *mem.LogTailer
+	}
+	return defaultMemoryLogTailer
+}
+
+func (mem *InstanceMemory) maxServerMemoryUsage() uint64 {
+	return mem.ClickHouseOrDefault() +
+		mem.ChunkMetaCacheOrDefault() +
+		mem.CompressedBlockCacheOrDefault() +
+		mem.UncompressedBlockCacheOrDefault() +
+		mem.ReaderOrDefault() +
+		mem.FootprintOrDefault()
+}
+
+func (mem *InstanceMemory) ytServerClickHouseMemoryLimit() uint64 {
+	return mem.maxServerMemoryUsage() + mem.ClickHouseWatermarkOrDefault()
+}
+
+func (mem *InstanceMemory) totalMemory() uint64 {
+	return mem.ytServerClickHouseMemoryLimit() + mem.LogTailerOrDefault()
+}
+
+func (mem *InstanceMemory) memoryConfig() map[string]uint64 {
+	return map[string]uint64{
+		"reader":                        mem.ReaderOrDefault(),
+		"chunk_meta_cache":              mem.ChunkMetaCacheOrDefault(),
+		"compressed_block_cache":        mem.CompressedBlockCacheOrDefault(),
+		"uncompressed_block_cache":      mem.UncompressedBlockCacheOrDefault(),
+		"memory_limit":                  mem.ytServerClickHouseMemoryLimit(),
+		"max_server_memory_usage":       mem.maxServerMemoryUsage(),
+		"watchdog_oom_watermark":        mem.WatchdogOOMWatermarkOrDefault(),
+		"watchdog_oom_window_watermark": mem.WatchdogOOMWindowWatermarkOrDefault(),
+	}
 }
 
 type Resources struct {
@@ -52,7 +168,7 @@ type Resources struct {
 	InstanceCPU *uint64 `yson:"instance_cpu"`
 
 	// InstanceTotalMemory is a total instance memory; should not be less than
-	// memFootprint + memLogTailer. If set, all additive memory parts are
+	// defaultMemoryFootprint + defaultMemoryLogTailer. If set, all additive memory parts are
 	// scaled to fit into given total memory.
 	InstanceTotalMemory *uint64 `yson:"instance_total_memory"`
 
@@ -60,48 +176,14 @@ type Resources struct {
 	InstanceMemory *InstanceMemory `yson:"instance_memory"`
 }
 
-func (r *InstanceMemory) maxServerMemoryUsage() uint64 {
-	return *r.ClickHouse + *r.ChunkMetaCache + *r.CompressedCache + *r.UncompressedCache + *r.Reader + memFootprint
-}
-
-func (r *InstanceMemory) ytServerClickHouseMemoryLimit() uint64 {
-	return r.maxServerMemoryUsage() + memClickHouseWatermark
-}
-
-func (r *InstanceMemory) totalMemory() uint64 {
-	return r.ytServerClickHouseMemoryLimit() + memLogTailer
-}
-
-func (r *InstanceMemory) memoryConfig() map[string]uint64 {
-	return map[string]uint64{
-		"reader":                        *r.Reader,
-		"chunk_meta_cache":              *r.ChunkMetaCache,
-		"compressed_block_cache":        *r.CompressedCache,
-		"uncompressed_block_cache":      *r.UncompressedCache,
-		"memory_limit":                  r.ytServerClickHouseMemoryLimit(),
-		"max_server_memory_usage":       r.maxServerMemoryUsage(),
-		"watchdog_oom_watermark":        memWatchdogOOMWatermark,
-		"watchdog_oom_window_watermark": memWatchdogOOMWindowWatermark,
-	}
-}
-
-var memDefault = &InstanceMemory{
-	ClickHouse:        ptr.Uint64(memClickHouse),
-	ChunkMetaCache:    ptr.Uint64(memChunkMetaCache),
-	CompressedCache:   ptr.Uint64(memCompressedBlockCache),
-	UncompressedCache: ptr.Uint64(memUncompressedBlockCache),
-	Reader:            ptr.Uint64(memReader),
-}
-
-func buildResources(instanceCount uint64, instanceCPU uint64, memory *InstanceMemory) *Resources {
-	instanceTotalMemory := memory.totalMemory()
+func buildResources(instanceCount uint64, instanceCPU uint64, instanceMemory *InstanceMemory) *Resources {
 	return &Resources{
 		InstanceCount:       ptr.Uint64(instanceCount),
-		InstanceMemory:      memory,
+		InstanceMemory:      instanceMemory,
 		InstanceCPU:         ptr.Uint64(instanceCPU),
-		InstanceTotalMemory: ptr.Uint64(instanceTotalMemory),
+		InstanceTotalMemory: ptr.Uint64(instanceMemory.totalMemory()),
 		CliqueCPU:           ptr.Uint64(instanceCPU * instanceCount),
-		CliqueMemory:        ptr.Uint64(instanceTotalMemory * instanceCount),
+		CliqueMemory:        ptr.Uint64(instanceMemory.totalMemory() * instanceCount),
 	}
 }
 
@@ -114,19 +196,19 @@ func (c *Controller) populateResourcesClique(resources *Resources) error {
 		return fmt.Errorf("chyt: total_{cpu,memory} should not be specified simultaneously with instance_count")
 	}
 
-	var modelMemory = memDefault.totalMemory()
+	var instanceMemory InstanceMemory
 
 	var instanceCount uint64 = maxInstanceCount
 
 	if resources.CliqueCPU != nil {
-		instanceCountCPU := *resources.CliqueCPU / cpu
+		instanceCountCPU := *resources.CliqueCPU / defaultInstanceCPU
 		if instanceCount > instanceCountCPU {
 			instanceCount = instanceCountCPU
 		}
 	}
 
 	if resources.CliqueMemory != nil {
-		instanceCountMem := *resources.CliqueMemory / modelMemory
+		instanceCountMem := *resources.CliqueMemory / instanceMemory.totalMemory()
 		if instanceCount > instanceCountMem {
 			instanceCount = instanceCountMem
 		}
@@ -136,7 +218,7 @@ func (c *Controller) populateResourcesClique(resources *Resources) error {
 		return fmt.Errorf("chyt: given total resource limits are not enough for running even one instance")
 	}
 
-	*resources = *buildResources(instanceCount, cpu, memDefault)
+	*resources = *buildResources(instanceCount, defaultInstanceCPU, &instanceMemory)
 
 	return nil
 }
@@ -148,50 +230,36 @@ func (c *Controller) populateResourcesInstance(resources *Resources) error {
 	}
 
 	if resources.InstanceCPU == nil {
-		resources.InstanceCPU = ptr.Uint64(cpu)
+		resources.InstanceCPU = ptr.Uint64(defaultInstanceCPU)
 	}
 
 	if resources.InstanceTotalMemory != nil && resources.InstanceMemory != nil {
 		return fmt.Errorf("chyt: instance_memory and instance_total_memory cannot be specified simultaneously")
 	}
 
-	if resources.InstanceTotalMemory == nil && resources.InstanceMemory == nil {
-		resources.InstanceTotalMemory = ptr.Uint64(memElastic + memNonElastic)
-	}
-
 	var mem InstanceMemory
 
-	if resources.InstanceTotalMemory != nil {
-		if *resources.InstanceTotalMemory < memNonElastic {
+	if resources.InstanceMemory != nil {
+		mem = *resources.InstanceMemory
+	} else if resources.InstanceTotalMemory != nil {
+		instanceTotalMemory := *resources.InstanceTotalMemory
+		if instanceTotalMemory < memNonElastic {
 			return fmt.Errorf("chyt: instance memory cannot be less than %v", memNonElastic)
 		}
 
 		// Transform InstanceTotalMemory into InstanceMemory.
-		scale := float64(*resources.InstanceTotalMemory-memNonElastic) / memElastic
 
-		mem = *memDefault
-		mem.ChunkMetaCache = ptr.Uint64(uint64(float64(*mem.ChunkMetaCache) * scale))
-		mem.CompressedCache = ptr.Uint64(uint64(float64(*mem.CompressedCache) * scale))
-		mem.UncompressedCache = ptr.Uint64(uint64(float64(*mem.UncompressedCache) * scale))
-		mem.ClickHouse = ptr.Uint64(uint64(float64(*mem.ClickHouse) * scale))
-		mem.Reader = ptr.Uint64(uint64(float64(*mem.Reader) * scale))
-	} else {
-		mem = *resources.InstanceMemory
-		if mem.ChunkMetaCache == nil {
-			mem.ChunkMetaCache = ptr.Uint64(memChunkMetaCache)
+		scale := float64(instanceTotalMemory-memNonElastic) / memElastic
+
+		applyScale := func(value uint64) *uint64 {
+			return ptr.Uint64(uint64(float64(value) * scale))
 		}
-		if mem.CompressedCache == nil {
-			mem.CompressedCache = ptr.Uint64(memCompressedBlockCache)
-		}
-		if mem.UncompressedCache == nil {
-			mem.UncompressedCache = ptr.Uint64(memUncompressedBlockCache)
-		}
-		if mem.ClickHouse == nil {
-			mem.ClickHouse = ptr.Uint64(memClickHouse)
-		}
-		if mem.Reader == nil {
-			mem.Reader = ptr.Uint64(memReader)
-		}
+
+		mem.ChunkMetaCache = applyScale(mem.ChunkMetaCacheOrDefault())
+		mem.CompressedBlockCache = applyScale(mem.CompressedBlockCacheOrDefault())
+		mem.UncompressedBlockCache = applyScale(mem.UncompressedBlockCacheOrDefault())
+		mem.ClickHouse = applyScale(mem.ClickHouseOrDefault())
+		mem.Reader = applyScale(mem.ReaderOrDefault())
 	}
 	*resources = *buildResources(*resources.InstanceCount, *resources.InstanceCPU, &mem)
 	return nil
@@ -204,7 +272,7 @@ func (c *Controller) populateResources(speclet *Speclet) (err error) {
 	} else if speclet.InstanceCPU != nil || speclet.InstanceTotalMemory != nil || speclet.InstanceMemory != nil || speclet.InstanceCount != nil {
 		err = c.populateResourcesInstance(&speclet.Resources)
 	} else {
-		speclet.Resources = *buildResources(defaultInstanceCount, cpu, memDefault)
+		speclet.Resources = *buildResources(defaultInstanceCount, defaultInstanceCPU, &InstanceMemory{})
 	}
 	return
 }
