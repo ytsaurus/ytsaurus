@@ -21,7 +21,8 @@ DEFINE_REFCOUNTED_TYPE(IQueueProfileManager);
 ////////////////////////////////////////////////////////////////////////////////
 
 IQueueProfileManagerPtr CreateQueueProfileManager(
-    const NProfiling::TProfiler& profiler);
+    const NProfiling::TProfiler& profiler,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -38,7 +39,8 @@ DEFINE_REFCOUNTED_TYPE(IConsumerProfileManager);
 ////////////////////////////////////////////////////////////////////////////////
 
 IConsumerProfileManagerPtr CreateConsumerProfileManager(
-    const NProfiling::TProfiler& profiler);
+    const NProfiling::TProfiler& profiler,
+    const NLogging::TLogger& logger);
 
 ////////////////////////////////////////////////////////////////////////////////
 
