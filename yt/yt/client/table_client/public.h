@@ -381,14 +381,6 @@ DEFINE_ENUM(ESchemaCompatibility,
     (FullyCompatible)
 )
 
-DEFINE_ENUM(EChunkIndexType,
-    ((HashTableIndex)    (0))
-);
-
-DEFINE_ENUM(ESystemBlockType,
-    ((ChunkIndex)       (0))
-);
-
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NTableClient

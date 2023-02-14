@@ -183,6 +183,7 @@ IChunkLookupHashTablePtr CreateChunkLookupHashTable(
             TReader blockReader(
                 uncompressedBlock.Data,
                 blockMeta,
+                chunkMeta->Misc().block_format_version(),
                 chunkMeta->GetChunkSchema(),
                 tableSchema->GetKeyColumnCount(),
                 TChunkColumnMapping(tableSchema, chunkMeta->GetChunkSchema())

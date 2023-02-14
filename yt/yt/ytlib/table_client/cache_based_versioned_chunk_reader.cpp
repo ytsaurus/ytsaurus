@@ -298,6 +298,7 @@ protected:
         BlockReader_.emplace(
             block,
             meta,
+            ChunkMeta_->Misc().block_format_version(),
             ChunkMeta_->GetChunkSchema(),
             ChunkState_->TableSchema->GetKeyColumnCount(),
             SchemaIdMapping_,

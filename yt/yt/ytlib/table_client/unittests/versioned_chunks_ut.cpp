@@ -340,8 +340,8 @@ TEST_F(TVersionedChunkLookupTest, TestIndexedMetadata)
     // TODO(akozhikhov): Check system blocks ext.
 
     const auto& dataBlockMeta = versionedChunkMeta->DataBlockMeta()->data_blocks(0);
-    EXPECT_TRUE(dataBlockMeta.HasExtension(NProto::TIndexedVersionedBlockMeta::block_meta_ext));
     EXPECT_TRUE(!dataBlockMeta.HasExtension(NProto::TSimpleVersionedBlockMeta::block_meta_ext));
+    EXPECT_EQ(1, versionedChunkMeta->Misc().block_format_version());
 }
 
 ////////////////////////////////////////////////////////////////////////////////

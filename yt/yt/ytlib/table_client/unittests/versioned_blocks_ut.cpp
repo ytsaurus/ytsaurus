@@ -140,6 +140,7 @@ protected:
         typename TMockBlockFormatAdapter::TBlockReader reader(
             Data,
             Meta,
+            /*blockFormatVersion*/ 1,
             Schema,
             keyColumnCount,
             schemaIdMapping,

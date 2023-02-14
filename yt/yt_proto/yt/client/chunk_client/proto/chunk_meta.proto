@@ -85,6 +85,9 @@ message TMiscExt
     // Is it a striped erasure chunk?
     optional bool striped_erasure = 22;
 
+    // If present, is used by corresponding block reader to distinguish between block versions.
+    optional int32 block_format_version = 23;
+
     reserved 20;
 }
 
