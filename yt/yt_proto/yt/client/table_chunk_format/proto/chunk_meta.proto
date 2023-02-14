@@ -154,17 +154,6 @@ message TSimpleVersionedBlockMeta
     required int32 timestamp_count = 2;
 }
 
-message TIndexedVersionedBlockMeta
-{
-    extend TDataBlockMeta
-    {
-        optional TIndexedVersionedBlockMeta block_meta_ext = 101;
-    }
-
-    optional bool group_reordering_enabled = 1;
-    optional int32 format_version = 2;
-}
-
 message TDataBlockMetaExt
 {
     repeated TDataBlockMeta data_blocks = 1;
@@ -172,33 +161,19 @@ message TDataBlockMetaExt
     reserved 2;
 }
 
-message THashTableChunkIndexBlockMeta
+message THashTableChunkIndexSystemBlockMeta
 {
-    extend TChunkIndexBlockMeta
+    extend TSystemBlockMeta
     {
-        optional THashTableChunkIndexBlockMeta hash_table_chunk_index_block_meta_ext = 200;
+        optional THashTableChunkIndexSystemBlockMeta hash_table_chunk_index_system_block_meta_ext = 100;
     }
 
     optional uint64 seed = 1;
     optional bytes last_key = 2;
 }
 
-message TChunkIndexBlockMeta
-{
-    extend TSystemBlockMeta
-    {
-        optional TChunkIndexBlockMeta chunk_index_block_meta = 100;
-    }
-
-    optional int32 chunk_index_type = 1; // EChunkIndexType
-
-    extensions 200 to 299;
-}
-
 message TSystemBlockMeta
 {
-    optional int32 system_block_type = 1; // ESystemBlockType
-
     extensions 100 to 199;
 }
 

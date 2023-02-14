@@ -119,6 +119,8 @@ public:
 
     i64 GetBlockSize() const;
 
+    static int GetBlockFormatVersion();
+
 private:
     const TIndexedVersionedBlockFormatDetail& BlockFormatDetail_;
     const IChunkIndexBuilderPtr ChunkIndexBuilder_;

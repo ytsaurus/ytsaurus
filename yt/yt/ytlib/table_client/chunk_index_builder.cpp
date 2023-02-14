@@ -227,16 +227,11 @@ private:
         YT_VERIFY(buffer - blob.Begin() == bestFormatDetail->GetChunkIndexByteSize());
 
         TSystemBlockMeta meta;
-        meta.set_system_block_type(ToProto<int>(ESystemBlockType::ChunkIndex));
-
-        auto* chunkIndexMetaExt = meta.MutableExtension(TChunkIndexBlockMeta::chunk_index_block_meta);
-        chunkIndexMetaExt->set_chunk_index_type(ToProto<int>(EChunkIndexType::HashTableIndex));
-
-        auto* hashTableChunkIndexMetaExt = chunkIndexMetaExt->MutableExtension(
-            THashTableChunkIndexBlockMeta::hash_table_chunk_index_block_meta_ext);
-        hashTableChunkIndexMetaExt->set_seed(bestFormatDetail->GetSeed());
+        auto* chunkIndexMetaExt = meta.MutableExtension(
+            THashTableChunkIndexSystemBlockMeta::hash_table_chunk_index_system_block_meta_ext);
+        chunkIndexMetaExt->set_seed(bestFormatDetail->GetSeed());
         ToProto(
-            hashTableChunkIndexMetaExt->mutable_last_key(),
+            chunkIndexMetaExt->mutable_last_key(),
             entries.Back().Row.Keys());
 
         return {

@@ -47,6 +47,7 @@ TVersionedRowParserBase::TVersionedRowParserBase(const TTableSchemaPtr& chunkSch
 TSimpleVersionedBlockParser::TSimpleVersionedBlockParser(
     TSharedRef block,
     const NProto::TDataBlockMeta& blockMeta,
+    int /*blockFormatVersion*/,
     const TTableSchemaPtr& chunkSchema)
     : TVersionedRowParserBase(chunkSchema)
     , Block_(std::move(block))
@@ -548,19 +549,19 @@ const TIndexedVersionedRowParser::TGroupInfo& TIndexedVersionedRowParser::GetGro
 TIndexedVersionedBlockParser::TIndexedVersionedBlockParser(
     TSharedRef block,
     const NProto::TDataBlockMeta& blockMeta,
+    int blockFormatVersion,
     const TTableSchemaPtr& chunkSchema)
     : TIndexedVersionedRowParser(chunkSchema)
     , Block_(std::move(block))
     , RowCount_(blockMeta.row_count())
 {
-    const auto& indexedVersionedBlockMetaExt = blockMeta.GetExtension(TIndexedVersionedBlockMeta::block_meta_ext);
-    if (indexedVersionedBlockMetaExt.format_version() != 0) {
-        THROW_ERROR_EXCEPTION("Unsupported indexed block format version %v",
-            indexedVersionedBlockMetaExt.format_version());
-    }
-
-    GroupReorderingEnabled_ = indexedVersionedBlockMetaExt.group_reordering_enabled();
     YT_VERIFY(!GroupReorderingEnabled_);
+
+    if (blockFormatVersion != 1) {
+        THROW_ERROR_EXCEPTION("Unsupported indexed block format version %v, expected %v",
+            blockFormatVersion,
+            1);
+    }
 
     auto* blockEnd = Block_.End();
 

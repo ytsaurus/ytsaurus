@@ -217,6 +217,7 @@ template <typename TBlockParser>
 TVersionedBlockReader<TBlockParser>::TVersionedBlockReader(
     TSharedRef block,
     const NProto::TDataBlockMeta& blockMeta,
+    int blockFormatVersion,
     const TTableSchemaPtr& chunkSchema,
     int keyColumnCount,
     const std::vector<TColumnIdMapping>& schemaIdMapping,
@@ -230,6 +231,7 @@ TVersionedBlockReader<TBlockParser>::TVersionedBlockReader(
         produceAllVersions,
         std::move(block),
         blockMeta,
+        blockFormatVersion,
         chunkSchema)
     , KeyComparer_(keyComparer)
 { }

@@ -82,6 +82,7 @@ public:
         BlockReader_ = std::make_unique<TBlockReader>(
             std::move(block),
             chunkMeta->DataBlockMeta()->data_blocks(chunkBlockIndex),
+            chunkMeta->Misc().block_format_version(),
             chunkMeta->GetChunkSchema(),
             keyColumnCount,
             SchemaIdMapping_,

@@ -21,6 +21,7 @@ public:
     TSlimVersionedBlockReader(
         TSharedRef block,
         const NTableClient::NProto::TDataBlockMeta& blockMeta,
+        int blockFormatVersion,
         const NTableClient::TTableSchemaPtr& chunkSchema,
         int keyColumnCount,
         const std::vector<NTableClient::TColumnIdMapping>& schemaIdMapping,

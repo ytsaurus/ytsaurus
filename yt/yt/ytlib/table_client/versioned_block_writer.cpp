@@ -355,12 +355,7 @@ TBlock TIndexedVersionedBlockWriter::FlushBlock()
 
     VerifySerializationAligned(Stream_.GetSize());
 
-    TDataBlockMeta meta;
-    auto* metaExt = meta.MutableExtension(TIndexedVersionedBlockMeta::block_meta_ext);
-    metaExt->set_group_reordering_enabled(EnableGroupReordering_);
-    metaExt->set_format_version(0);
-
-    return TVersionedBlockWriterBase::FlushBlock(Stream_.Finish(), std::move(meta));
+    return TVersionedBlockWriterBase::FlushBlock(Stream_.Finish(), TDataBlockMeta());
 }
 
 i64 TIndexedVersionedBlockWriter::GetUnalignedBlockSize() const
@@ -375,6 +370,11 @@ i64 TIndexedVersionedBlockWriter::GetUnalignedBlockSize() const
 i64 TIndexedVersionedBlockWriter::GetBlockSize() const
 {
     return AlignUp<i64>(GetUnalignedBlockSize(), SectorAlignmentSize_);
+}
+
+int TIndexedVersionedBlockWriter::GetBlockFormatVersion()
+{
+    return 1;
 }
 
 void TIndexedVersionedBlockWriter::ResetRowData(TVersionedRow row)

@@ -435,6 +435,9 @@ protected:
         auto chunkFeatures = FromProto<EChunkFeatures>(meta->features());
         chunkFeatures |= EChunkFeatures::IndexedBlockFormat;
         meta->set_features(ToProto<ui64>(chunkFeatures));
+
+        auto& miscExt = encodingChunkWriter->MiscExt();
+        miscExt.set_block_format_version(TIndexedVersionedBlockWriter::GetBlockFormatVersion());
     }
 
     EChunkFormat GetChunkFormat() const

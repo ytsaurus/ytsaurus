@@ -93,6 +93,7 @@ public:
     TSimpleVersionedBlockParser(
         TSharedRef block,
         const NProto::TDataBlockMeta& blockMeta,
+        int blockFormatVersion,
         const TTableSchemaPtr& chunkSchema);
 
     bool IsValid() const;
@@ -203,7 +204,7 @@ protected:
     // NB: Used along with chunk index if a subset of row groups was read.
     const TCompactVector<int, IndexedRowTypicalGroupCount> GroupIndexesToRead_;
 
-    bool GroupReorderingEnabled_;
+    const bool GroupReorderingEnabled_ = false;
 
     TReadOnlyBitmap KeyNullFlags_;
     TCompactVector<TGroupInfo, IndexedRowTypicalGroupCount> GroupInfos_;
@@ -233,6 +234,7 @@ public:
     TIndexedVersionedBlockParser(
         TSharedRef block,
         const NProto::TDataBlockMeta& blockMeta,
+        int blockFormatVersion,
         const TTableSchemaPtr& chunkSchema);
 
     bool IsValid() const;
@@ -304,6 +306,7 @@ public:
     TVersionedBlockReader(
         TSharedRef block,
         const NProto::TDataBlockMeta& blockMeta,
+        int blockFormatVersion,
         const TTableSchemaPtr& chunkSchema,
         int keyColumnCount,
         const std::vector<TColumnIdMapping>& schemaIdMapping,
