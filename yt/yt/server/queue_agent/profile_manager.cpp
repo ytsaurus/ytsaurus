@@ -7,6 +7,7 @@
 
 namespace NYT::NQueueAgent {
 
+using namespace NLogging;
 using namespace NProfiling;
 using namespace NQueueClient;
 
@@ -48,9 +49,13 @@ void SafeUpdate(TGauge& gauge, std::optional<i64> value)
     }
 }
 
-auto ResizePartitionCounters(auto& counters, const TProfiler& profiler, int partitionCount)
+auto ResizePartitionCounters(auto& counters, const TProfiler& profiler, int partitionCount, const TLogger& Logger)
 {
-    if (counters.size() > static_cast<size_t>(partitionCount)) {
+    if (std::ssize(counters) != partitionCount) {
+        YT_LOG_DEBUG("Resizing partition counters (Size: %v -> %v)", counters.size(), partitionCount);
+    }
+
+    if (std::ssize(counters) > partitionCount) {
         counters.erase(counters.begin() + partitionCount, counters.end());
     } else {
         for (int partitionIndex = counters.size(); partitionIndex < partitionCount; ++partitionIndex) {
@@ -61,7 +66,18 @@ auto ResizePartitionCounters(auto& counters, const TProfiler& profiler, int part
             counters.emplace_back(partitionProfiler, aggregationPartitionProfiler);
         }
     }
-};
+}
+
+TError GetSnapshotError(const TError& previousSnapshotError, const TError& currentSnapshotError)
+{
+    if (!previousSnapshotError.IsOK() || !currentSnapshotError.IsOK()) {
+        return TError("At least one of the snapshots contains errors")
+            << TErrorAttribute("previous_snapshot_error", previousSnapshotError)
+            << TErrorAttribute("current_snapshot_error", currentSnapshotError);
+    }
+
+    return {};
+}
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -105,28 +121,33 @@ class TQueueProfileManager
     : public IQueueProfileManager
 {
 public:
-    explicit TQueueProfileManager(TProfiler profiler)
+    explicit TQueueProfileManager(const TProfiler& profiler, const TLogger& logger)
         : QueueProfiler_(profiler
             .WithPrefix("/queue"))
         , QueuePartitionProfiler_(profiler
             .WithPrefix("/queue_partition"))
+        , Logger(logger)
     { }
 
     void Profile(
         const TQueueSnapshotPtr& previousQueueSnapshot,
         const TQueueSnapshotPtr& currentQueueSnapshot) override
     {
-        EnsureCounters(currentQueueSnapshot);
-
-        if (!CheckSnapshotCompatibility(previousQueueSnapshot, currentQueueSnapshot)) {
+        if (auto snapshotCompatibilityError = CheckSnapshotCompatibility(previousQueueSnapshot, currentQueueSnapshot); !snapshotCompatibilityError.IsOK()) {
             // Simply wait for the next call when snapshots are compatible.
             // Losing an iteration of profiling is not bad for since profiling is essentially stateless.
+            YT_LOG_DEBUG(snapshotCompatibilityError, "Skipping profiling iteration due to snapshot incompatibility");
             return;
         }
 
-        if (!previousQueueSnapshot->Error.IsOK() || !currentQueueSnapshot->Error.IsOK()) {
+        if (auto snapshotError = GetSnapshotError(previousQueueSnapshot->Error, currentQueueSnapshot->Error); !snapshotError.IsOK()) {
+            YT_LOG_DEBUG(snapshotError, "Skipping profiling iteration due to snapshot error");
             return;
         }
+
+        // NB: It is important to perform this call after validating that the snapshot doesn't contain errors.
+        // Otherwise, we might end up using incorrect default values from the snapshot.
+        EnsureCounters(currentQueueSnapshot);
 
         auto partitionCount = currentQueueSnapshot->PartitionCount;
 
@@ -145,7 +166,11 @@ public:
             const auto& previousQueuePartitionSnapshot = previousQueueSnapshot->PartitionSnapshots[partitionIndex];
             const auto& currentQueuePartitionSnapshot = currentQueueSnapshot->PartitionSnapshots[partitionIndex];
 
-            if (!previousQueuePartitionSnapshot->Error.IsOK() || !currentQueuePartitionSnapshot->Error.IsOK()) {
+            if (auto snapshotError = GetSnapshotError(previousQueuePartitionSnapshot->Error, currentQueuePartitionSnapshot->Error); !snapshotError.IsOK()) {
+                YT_LOG_DEBUG(
+                    "Skipping partition in profiling due to error (Partition: %v, Error: %v)",
+                    partitionIndex,
+                    snapshotError);
                 continue;
             }
 
@@ -169,20 +194,24 @@ public:
 private:
     TProfiler QueueProfiler_;
     TProfiler QueuePartitionProfiler_;
+    TLogger Logger;
 
     std::unique_ptr<TQueueProfilingCounters> QueueProfilingCounters_;
     std::vector<TQueuePartitionProfilingCounters> QueuePartitionProfilingCounters_;
 
     //! Check if two snapshots are structurally similar (i.e. have same number of partitions and same set of consumers).
-    bool CheckSnapshotCompatibility(
+    TError CheckSnapshotCompatibility(
         const TQueueSnapshotPtr& previousQueueSnapshot,
         const TQueueSnapshotPtr& currentQueueSnapshot)
     {
         if (previousQueueSnapshot->PartitionCount != currentQueueSnapshot->PartitionCount) {
-            return false;
+            return TError(
+                "Partition counts differ: %v != %v",
+                previousQueueSnapshot->PartitionCount,
+                currentQueueSnapshot->PartitionCount);
         }
 
-        return true;
+        return {};
     }
 
     //! Ensures the existence of all needed counter structures.
@@ -194,7 +223,7 @@ private:
             QueueProfilingCounters_ = std::make_unique<TQueueProfilingCounters>(QueueProfiler_);
         }
 
-        ResizePartitionCounters(QueuePartitionProfilingCounters_, QueuePartitionProfiler_, partitionCount);
+        ResizePartitionCounters(QueuePartitionProfilingCounters_, QueuePartitionProfiler_, partitionCount, Logger);
     }
 };
 
@@ -236,28 +265,35 @@ class TConsumerProfileManager
     : public IConsumerProfileManager
 {
 public:
-    explicit TConsumerProfileManager(TProfiler profiler)
+    explicit TConsumerProfileManager(const TProfiler& profiler, const TLogger& logger)
         : ConsumerProfiler_(profiler
             .WithPrefix("/consumer"))
         , ConsumerPartitionProfiler_(profiler
             .WithPrefix("/consumer_partition"))
+        , Logger(logger)
     { }
 
     void Profile(
         const TConsumerSnapshotPtr& previousConsumerSnapshot,
         const TConsumerSnapshotPtr& currentConsumerSnapshot) override
     {
-        EnsureCounters(currentConsumerSnapshot);
-
-        if (!CheckSnapshotCompatibility(previousConsumerSnapshot, currentConsumerSnapshot)) {
+        if (auto snapshotCompatibilityError = CheckSnapshotCompatibility(previousConsumerSnapshot, currentConsumerSnapshot); !snapshotCompatibilityError.IsOK()) {
             // Simply wait for the next call when snapshots are compatible.
             // Losing an iteration of profiling is not bad for since profiling is essentially stateless.
+            YT_LOG_DEBUG(snapshotCompatibilityError, "Skipping profiling iteration due to snapshot incompatibility");
             return;
         }
 
-        if (!previousConsumerSnapshot->Error.IsOK() || !currentConsumerSnapshot->Error.IsOK()) {
+        if (auto snapshotError = GetSnapshotError(previousConsumerSnapshot->Error, currentConsumerSnapshot->Error); !snapshotError.IsOK()) {
+            YT_LOG_DEBUG(snapshotError, "Skipping profiling iteration due to snapshot error");
             return;
         }
+
+        // NB: It is important to perform this call after validating that the snapshot doesn't contain errors.
+        // Otherwise, we might end up using incorrect default values from the snapshot.
+        EnsureCounters(currentConsumerSnapshot);
+
+        YT_LOG_DEBUG("Profiling consumer (SubConsumerSnapshots: %v)", currentConsumerSnapshot->SubSnapshots.size());
 
         for (const auto& queueRef : GetKeys(currentConsumerSnapshot->SubSnapshots)) {
             const auto& previousSubSnapshot = previousConsumerSnapshot->SubSnapshots[queueRef];
@@ -265,20 +301,38 @@ public:
 
             auto partitionCount = currentSubSnapshot->PartitionCount;
 
-            if (!previousSubSnapshot->Error.IsOK() || !currentSubSnapshot->Error.IsOK()) {
+            if (auto snapshotError = GetSnapshotError(previousSubSnapshot->Error, currentSubSnapshot->Error); !snapshotError.IsOK()) {
+                YT_LOG_DEBUG(
+                    "Skipping sub-consumer snapshot in profiling due to error (Queue: %v, Error: %v)",
+                    queueRef,
+                    snapshotError);
                 continue;
             }
+
+            // NB: It is important to perform this call after validating that the snapshot doesn't contain errors.
+            // Otherwise, we might end up using incorrect default values from the snapshot.
+            EnsureConsumerPartitionCounters(queueRef, currentSubSnapshot);
 
             const auto& previousPartitionSnapshots = previousSubSnapshot->PartitionSnapshots;
             const auto& currentPartitionSnapshots = currentSubSnapshot->PartitionSnapshots;
 
             auto& subConsumerProfilingCounters = ConsumerPartitionProfilingCounters_[queueRef];
 
+            YT_LOG_DEBUG(
+                "Profiling partitions for sub-consumer (Queue: %v, Partitions: %v)",
+                queueRef,
+                partitionCount);
+
             for (int partitionIndex = 0; partitionIndex < partitionCount; ++partitionIndex) {
                 const auto& previousConsumerPartitionSnapshot = previousPartitionSnapshots[partitionIndex];
                 const auto& currentConsumerPartitionSnapshot = currentPartitionSnapshots[partitionIndex];
 
-                if (!previousConsumerPartitionSnapshot->Error.IsOK() || !currentConsumerPartitionSnapshot->Error.IsOK()) {
+                if (auto snapshotError = GetSnapshotError(previousConsumerPartitionSnapshot->Error, currentConsumerPartitionSnapshot->Error); !snapshotError.IsOK()) {
+                    YT_LOG_DEBUG(
+                        "Skipping partition in profiling due to error (Queue: %v, Partition: %v, Error: %v)",
+                        queueRef,
+                        partitionIndex,
+                        snapshotError);
                     continue;
                 }
 
@@ -303,6 +357,7 @@ public:
 private:
     TProfiler ConsumerProfiler_;
     TProfiler ConsumerPartitionProfiler_;
+    TLogger Logger;
 
     std::unique_ptr<TConsumerProfilingCounters> ConsumerProfilingCounters_;
     THashMap<TCrossClusterReference, std::vector<TConsumerPartitionProfilingCounters>> ConsumerPartitionProfilingCounters_;
@@ -313,20 +368,28 @@ private:
             ConsumerProfilingCounters_ = std::make_unique<TConsumerProfilingCounters>(ConsumerProfiler_);
         }
 
-        THashMap<TCrossClusterReference, std::vector<TConsumerPartitionProfilingCounters>> newConsumerPartitionProfilingCounters;
-        for (const auto& [queueRef, subConsumerSnapshot] : currentConsumerSnapshot->SubSnapshots) {
-            auto& subConsumerPartitionProfilingCounters = newConsumerPartitionProfilingCounters[queueRef];
-            subConsumerPartitionProfilingCounters = std::move(ConsumerPartitionProfilingCounters_[queueRef]);
-            auto consumerPartitionProfiler = ConsumerPartitionProfiler_
-                .WithRequiredTag("queue_path", queueRef.Path)
-                .WithRequiredTag("queue_cluster", queueRef.Cluster);
-            ResizePartitionCounters(subConsumerPartitionProfilingCounters, consumerPartitionProfiler, subConsumerSnapshot->PartitionCount);
+        // Remove counters for outdated registrations.
+        decltype(ConsumerPartitionProfilingCounters_) newConsumerPartitionProfilingCounters;
+        for (const auto& queueRef : GetKeys(currentConsumerSnapshot->SubSnapshots)) {
+            newConsumerPartitionProfilingCounters[queueRef] = ConsumerPartitionProfilingCounters_[queueRef];
         }
-
         ConsumerPartitionProfilingCounters_ = std::move(newConsumerPartitionProfilingCounters);
     }
 
-    bool CheckSnapshotCompatibility(const TConsumerSnapshotPtr& previousConsumerSnapshot, const TConsumerSnapshotPtr& currentConsumerSnapshot) const
+    void EnsureConsumerPartitionCounters(const TCrossClusterReference& queueRef, const TSubConsumerSnapshotPtr& subConsumerSnapshot)
+    {
+        auto& subConsumerPartitionProfilingCounters = ConsumerPartitionProfilingCounters_[queueRef];
+        auto consumerPartitionProfiler = ConsumerPartitionProfiler_
+            .WithRequiredTag("queue_path", queueRef.Path)
+            .WithRequiredTag("queue_cluster", queueRef.Cluster);
+        ResizePartitionCounters(
+            subConsumerPartitionProfilingCounters,
+            consumerPartitionProfiler,
+            subConsumerSnapshot->PartitionCount,
+            Logger.WithTag("Queue: %v", queueRef));
+    }
+
+    TError CheckSnapshotCompatibility(const TConsumerSnapshotPtr& previousConsumerSnapshot, const TConsumerSnapshotPtr& currentConsumerSnapshot) const
     {
         auto getQueueRefsAndPartitionCounts = [] (const TConsumerSnapshotPtr& snapshot) {
             std::vector<std::pair<TCrossClusterReference, int>> result;
@@ -340,18 +403,25 @@ private:
         auto previousQueueRefsAndPartitions = getQueueRefsAndPartitionCounts(previousConsumerSnapshot);
         auto currentQueueRefsAndPartitions = getQueueRefsAndPartitionCounts(currentConsumerSnapshot);
 
-        return previousQueueRefsAndPartitions == currentQueueRefsAndPartitions;
+        if (previousQueueRefsAndPartitions != currentQueueRefsAndPartitions) {
+            return TError(
+                "Queue refs and partitions differ: %v != %v",
+                previousQueueRefsAndPartitions,
+                currentQueueRefsAndPartitions);
+        }
+
+        return {};
     }
 };
 
-IQueueProfileManagerPtr CreateQueueProfileManager(const TProfiler& profiler)
+IQueueProfileManagerPtr CreateQueueProfileManager(const TProfiler& profiler, const TLogger& logger)
 {
-    return New<TQueueProfileManager>(profiler);
+    return New<TQueueProfileManager>(profiler, logger);
 }
 
-IConsumerProfileManagerPtr CreateConsumerProfileManager(const TProfiler& profiler)
+IConsumerProfileManagerPtr CreateConsumerProfileManager(const TProfiler& profiler, const TLogger& logger)
 {
-    return New<TConsumerProfileManager>(profiler);
+    return New<TConsumerProfileManager>(profiler, logger);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

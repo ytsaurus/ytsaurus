@@ -393,7 +393,8 @@ public:
         , ProfileManager_(CreateConsumerProfileManager(
             QueueAgentProfiler
                 .WithRequiredTag("consumer_path", ConsumerRef_.Path)
-                .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster)))
+                .WithRequiredTag("consumer_cluster", ConsumerRef_.Cluster),
+            Logger))
     {
         // Prepare initial erroneous snapshot.
         auto consumerSnapshot = New<TConsumerSnapshot>();

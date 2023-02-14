@@ -16,6 +16,7 @@ def build_arguments_parser():
     parser.add_argument("--proxy", type=str, default=config["proxy"]["url"])
     parser.add_argument("--skip-queues", action="store_true", help="Do not create queue state table")
     parser.add_argument("--skip-consumers", action="store_true", help="Do not create consumer state table")
+    parser.add_argument("--skip-object-mapping", action="store_true", help="Do not create queue agent object mapping table")
     parser.add_argument("--create-registration-table", action="store_true", help="Create registration state table")
     return parser
 
@@ -28,6 +29,7 @@ def main():
                   registration_table_path=args.registration_table_path,
                   skip_queues=args.skip_queues,
                   skip_consumers=args.skip_consumers,
+                  skip_object_mapping=args.skip_object_mapping,
                   create_registration_table=args.create_registration_table)
 
 

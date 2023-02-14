@@ -273,7 +273,8 @@ public:
         , ProfileManager_(CreateQueueProfileManager(
             QueueAgentProfiler
                 .WithRequiredTag("queue_path", QueueRef_.Path)
-                .WithRequiredTag("queue_cluster", QueueRef_.Cluster)))
+                .WithRequiredTag("queue_cluster", QueueRef_.Cluster),
+            Logger))
     {
         // Prepare initial erroneous snapshot.
         auto queueSnapshot = New<TQueueSnapshot>();
