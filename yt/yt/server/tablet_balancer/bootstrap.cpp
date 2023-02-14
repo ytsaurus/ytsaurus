@@ -35,6 +35,7 @@
 #include <yt/yt/core/rpc/bus/server.h>
 
 #include <yt/yt/core/ytree/virtual.h>
+#include <yt/yt/core/ytree/node.h>
 
 namespace NYT::NTabletBalancer {
 
@@ -143,7 +144,7 @@ private:
 void TBootstrap::DoRun()
 {
     YT_LOG_INFO("Starting tablet balancer process (ClusterName: %v)",
-        Config_->ClusterConnection->ClusterName);
+        Config_->ClusterConnection->Static->ClusterName);
 
     LocalAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);
 

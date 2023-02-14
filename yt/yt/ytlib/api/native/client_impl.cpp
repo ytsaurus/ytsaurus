@@ -137,7 +137,7 @@ TClient::TClient(
     , Logger(ApiLogger.WithTag("ClientId: %v, AuthenticatedUser: %v",
         TGuid::Create(),
         Options_.GetAuthenticatedUser()))
-    , Profiler_(TProfiler("/native_client").WithTag("connection_name", Connection_->GetConfig()->ConnectionName))
+    , Profiler_(TProfiler("/native_client").WithTag("connection_name", Connection_->GetStaticConfig()->ConnectionName))
     , Counters_(Profiler_)
     , TypeHandlers_{
         CreateReplicatedTableReplicaTypeHandler(this),
@@ -429,14 +429,14 @@ void TClient::SetCachingHeader(
     const IClientRequestPtr& request,
     const TMasterReadOptions& options)
 {
-    NApi::NNative::SetCachingHeader(request, Connection_->GetConfig(), options);
+    NApi::NNative::SetCachingHeader(request, Connection_, options);
 }
 
 void TClient::SetBalancingHeader(
     const TObjectServiceProxy::TReqExecuteBatchPtr& request,
     const TMasterReadOptions& options)
 {
-    NApi::NNative::SetBalancingHeader(request, Connection_->GetConfig(), options);
+    NApi::NNative::SetBalancingHeader(request, Connection_, options);
 }
 
 std::unique_ptr<TObjectServiceProxy> TClient::CreateObjectServiceReadProxy(
@@ -495,7 +495,7 @@ IChannelPtr TClient::GetHydraAdminChannelOrThrow(TCellId cellId)
             return cellDirectory->GetChannelByCellIdOrThrow(cellId);
         }
 
-        auto config = Connection_->GetConfig()->ClockServers;
+        auto config = Connection_->GetStaticConfig()->ClockServers;
         if (config && config->CellId == cellId) {
             if (!config->Addresses) {
                 THROW_ERROR_EXCEPTION("Clock server addresses are empty");
@@ -537,7 +537,7 @@ std::vector<TString> TClient::GetCellAddressesOrThrow(NObjectClient::TCellId cel
         return addresses;
     }
 
-    auto config = Connection_->GetConfig()->ClockServers;
+    auto config = Connection_->GetStaticConfig()->ClockServers;
     if (config && config->CellId == cellId) {
         if (!config->Addresses) {
             THROW_ERROR_EXCEPTION("Clock server addresses are empty");

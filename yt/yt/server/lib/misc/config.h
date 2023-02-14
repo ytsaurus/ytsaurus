@@ -58,7 +58,7 @@ class TNativeServerConfig
     , public TNativeSingletonsConfig
 {
 public:
-    NApi::NNative::TConnectionConfigPtr ClusterConnection;
+    NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
 
     REGISTER_YSON_STRUCT(TNativeServerConfig);
 

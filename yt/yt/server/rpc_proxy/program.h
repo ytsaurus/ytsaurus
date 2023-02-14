@@ -113,7 +113,7 @@ protected:
 
         if (RemoteClusterProxy_) {
             auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, RpcProxyLogger);
-            config->ClusterConnection = ConvertTo<NApi::NNative::TConnectionConfigPtr>(clusterConnectionNode);
+            config->ClusterConnection = ConvertTo<NApi::NNative::TConnectionCompoundConfigPtr>(clusterConnectionNode);
         }
 
         // TODO(babenko): This memory leak is intentional.

@@ -206,19 +206,6 @@ DEFINE_REFCOUNTED_TYPE(TDynamicConfigManagerConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TClusterNodeConnectionConfig
-    : public NApi::NNative::TConnectionConfig
-{
-public:
-    REGISTER_YSON_STRUCT(TClusterNodeConnectionConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TClusterNodeConnectionConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
 // COMPAT(gritukan): Drop optionals here after configs migration.
 class TMasterConnectorConfig
     : public NYTree::TYsonStruct

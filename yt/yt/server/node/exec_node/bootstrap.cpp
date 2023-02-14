@@ -305,8 +305,8 @@ private:
         JobProxyConfigTemplate_->YPServiceDiscovery = GetConfig()->YPServiceDiscovery;
         JobProxyConfigTemplate_->ChunkClientDispatcher = GetConfig()->ChunkClientDispatcher;
 
-        JobProxyConfigTemplate_->ClusterConnection = CloneYsonSerializable(GetConfig()->ClusterConnection);
-        JobProxyConfigTemplate_->ClusterConnection->OverrideMasterAddresses({localAddress});
+        JobProxyConfigTemplate_->ClusterConnection = GetConfig()->ClusterConnection->Clone();
+        JobProxyConfigTemplate_->ClusterConnection->Static->OverrideMasterAddresses({localAddress});
 
         JobProxyConfigTemplate_->SupervisorConnection = New<NYT::NBus::TBusClientConfig>();
 

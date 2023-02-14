@@ -414,7 +414,7 @@ public:
 
     TCellId GetCellId() const override
     {
-        return Config_->ClusterConnection->PrimaryMaster->CellId;
+        return Config_->ClusterConnection->Static->PrimaryMaster->CellId;
     }
 
     TCellId GetCellId(TCellTag cellTag) const override
@@ -441,11 +441,11 @@ public:
 
         auto cellId = GetCellId(cellTag);
 
-        if (Config_->ClusterConnection->PrimaryMaster->CellId == cellId) {
-            return unwrapAddresses(Config_->ClusterConnection->PrimaryMaster->Addresses);
+        if (Config_->ClusterConnection->Static->PrimaryMaster->CellId == cellId) {
+            return unwrapAddresses(Config_->ClusterConnection->Static->PrimaryMaster->Addresses);
         }
 
-        for (const auto& secondaryMaster : Config_->ClusterConnection->SecondaryMasters) {
+        for (const auto& secondaryMaster : Config_->ClusterConnection->Static->SecondaryMasters) {
             if (secondaryMaster->CellId == cellId) {
                 return unwrapAddresses(secondaryMaster->Addresses);
             }
@@ -743,8 +743,8 @@ private:
     {
         auto localRpcAddresses = GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
-        if (!Config_->ClusterConnection->Networks) {
-            Config_->ClusterConnection->Networks = GetLocalNetworks();
+        if (!Config_->ClusterConnection->Static->Networks) {
+            Config_->ClusterConnection->Static->Networks = GetLocalNetworks();
         }
 
         {
@@ -754,14 +754,14 @@ private:
 
         YT_LOG_INFO("Initializing cluster node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v, Flavors: %v)",
             GetValues(localRpcAddresses),
-            Config_->ClusterConnection->PrimaryMaster->Addresses,
+            Config_->ClusterConnection->Static->PrimaryMaster->Addresses,
             Config_->Tags,
             Flavors_);
 
         // NB: Connection thread pool is required for dynamic config manager
         // initialization, so it is created before other thread pools.
         ConnectionThreadPool_ = CreateThreadPool(
-            Config_->ClusterConnection->ThreadPoolSize,
+            Config_->ClusterConnection->Dynamic->ThreadPoolSize,
             "Connection");
 
         NApi::NNative::TConnectionOptions connectionOptions;
@@ -869,8 +869,8 @@ private:
                 NativeAuthenticator_));
         };
 
-        createBatchingChunkService(Config_->ClusterConnection->PrimaryMaster);
-        for (const auto& config : Config_->ClusterConnection->SecondaryMasters) {
+        createBatchingChunkService(Config_->ClusterConnection->Static->PrimaryMaster);
+        for (const auto& config : Config_->ClusterConnection->Static->SecondaryMasters) {
             createBatchingChunkService(config);
         }
 
@@ -925,7 +925,7 @@ private:
 
         auto timestampProviderConfig = Config_->TimestampProvider;
         if (!timestampProviderConfig) {
-            timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->ClusterConnection->PrimaryMaster);
+            timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->ClusterConnection->Static->PrimaryMaster);
         }
         auto timestampProvider = CreateBatchingRemoteTimestampProvider(
             timestampProviderConfig,
@@ -950,9 +950,9 @@ private:
         };
 
         CachingObjectServices_.push_back(initCachingObjectService(
-            Config_->ClusterConnection->PrimaryMaster));
+            Config_->ClusterConnection->Static->PrimaryMaster));
 
-        for (const auto& masterConfig : Config_->ClusterConnection->SecondaryMasters) {
+        for (const auto& masterConfig : Config_->ClusterConnection->Static->SecondaryMasters) {
             CachingObjectServices_.push_back(initCachingObjectService(masterConfig));
         }
 
@@ -1058,7 +1058,7 @@ private:
 
         YT_LOG_INFO("Starting node (LocalAddresses: %v, PrimaryMasterAddresses: %v, NodeTags: %v)",
             GetValues(localRpcAddresses),
-            Config_->ClusterConnection->PrimaryMaster->Addresses,
+            Config_->ClusterConnection->Static->PrimaryMaster->Addresses,
             Config_->Tags);
 
         HttpServer_ = NHttp::CreateServer(Config_->CreateMonitoringHttpServerConfig());

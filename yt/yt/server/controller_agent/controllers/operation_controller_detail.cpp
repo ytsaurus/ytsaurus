@@ -3410,7 +3410,6 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
         {
             const auto& client = Host->GetClient();
             auto proxy = CreateObjectServiceReadProxy(client, EMasterChannelKind::Cache);
-            auto connectionConfig = client->GetNativeConnection()->GetConfig();
             TMasterReadOptions readOptions{
                 .ReadFrom = EMasterChannelKind::Cache
             };
@@ -3418,7 +3417,7 @@ void TOperationControllerBase::SafeOnJobRunning(std::unique_ptr<TRunningJobSumma
             auto userClosure = GetSubjectClosure(
                 AuthenticatedUser,
                 proxy,
-                connectionConfig,
+                client->GetNativeConnection(),
                 readOptions);
 
             canCrashControllerAgent = userClosure.contains(RootUserName) || userClosure.contains(SuperusersGroupName);

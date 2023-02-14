@@ -317,7 +317,7 @@ private:
             connection->GetStickyGroupSizeCache());
 
         auto batchReq = proxy.ExecuteBatch();
-        SetBalancingHeader(batchReq, connection->GetConfig(), options);
+        SetBalancingHeader(batchReq, connection, options);
 
         {
             auto req = TYPathProxy::Get(ProxyPath_ + "/@");
@@ -328,7 +328,7 @@ private:
                     BannedAttributeName,
                     BanMessageAttributeName,
                 });
-            SetCachingHeader(req, connection->GetConfig(), options);
+            SetCachingHeader(req, connection, options);
             batchReq->AddRequest(req, "get_ban");
         }
 
@@ -341,7 +341,7 @@ private:
                     BannedAttributeName,
                     AddressesAttributeName,
                 });
-            SetCachingHeader(req, connection->GetConfig(), options);
+            SetCachingHeader(req, connection, options);
             batchReq->AddRequest(req, "get_proxies");
         }
 

@@ -81,6 +81,7 @@
 #include <yt/yt/core/rpc/server.h>
 
 #include <yt/yt/core/ytree/public.h>
+#include <yt/yt/core/ytree/convert.h>
 
 #include <yt/yt/core/ypath/token.h>
 
@@ -797,12 +798,12 @@ TJobResult TJobProxy::RunJob()
     return job->Run();
 }
 
-NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionConfigPtr config)
+NApi::NNative::IConnectionPtr TJobProxy::CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config)
 {
-    if (TvmBridge_ && config->TvmId) {
-        YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", *config->TvmId);
+    if (TvmBridge_ && config->Dynamic->TvmId) {
+        YT_LOG_DEBUG("Ensuring destination service id (ServiceId: %v)", *config->Dynamic->TvmId);
 
-        WaitFor(TvmBridge_->EnsureDestinationServiceIds({*config->TvmId}))
+        WaitFor(TvmBridge_->EnsureDestinationServiceIds({*config->Dynamic->TvmId}))
             .ThrowOnError();
 
         YT_LOG_DEBUG("Destination service id is ready");

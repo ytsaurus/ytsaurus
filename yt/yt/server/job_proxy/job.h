@@ -107,7 +107,7 @@ struct IJobHost
 
     virtual IInvokerPtr GetControlInvoker() const = 0;
 
-    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionConfigPtr config) = 0;
+    virtual NApi::NNative::IConnectionPtr CreateNativeConnection(NApi::NNative::TConnectionCompoundConfigPtr config) = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(IJobHost)

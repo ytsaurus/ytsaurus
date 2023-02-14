@@ -578,17 +578,13 @@ public:
         auto proxy = CreateObjectServiceReadProxy(
             Bootstrap_->GetClient(),
             EMasterChannelKind::Cache);
-        auto connectionConfig = Bootstrap_
-            ->GetClient()
-            ->GetNativeConnection()
-            ->GetConfig();
         TMasterReadOptions readOptions;
         readOptions.ReadFrom = EMasterChannelKind::Cache;
 
         auto userClosure = GetSubjectClosure(
             user,
             proxy,
-            connectionConfig,
+            Bootstrap_->GetClient()->GetNativeConnection(),
             readOptions);
 
         auto allowedSubjects = jobShellOwners;

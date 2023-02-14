@@ -34,8 +34,7 @@ TIntrusivePtr<TConfig> LoadConfig(const TString& configFilename)
         THROW_ERROR_EXCEPTION("Error reading scheduler simulator configuration") << ex;
     }
 
-    auto config = New<TConfig>();
-    config->Load(configNode);
+    auto config = ConvertTo<TIntrusivePtr<TConfig>>(configNode);
 
     return config;
 }
@@ -102,7 +101,7 @@ public:
     NEventLog::TEventLogManagerConfigPtr EventLogManager;
 
     std::optional<TString> ConnectionFilename;
-    NApi::NNative::TConnectionConfigPtr Connection;
+    NApi::NNative::TConnectionCompoundConfigPtr Connection;
     TString User;
 
     REGISTER_YSON_STRUCT(TRemoteEventLogConfig);
@@ -121,7 +120,7 @@ public:
         registrar.Postprocessor([] (TThis* config) {
             YT_VERIFY(config->EventLogManager->Path);
             if (config->ConnectionFilename) {
-                config->Connection = LoadConfig<NApi::NNative::TConnectionConfig>(*config->ConnectionFilename);
+                config->Connection = LoadConfig<NApi::NNative::TConnectionCompoundConfig>(*config->ConnectionFilename);
             }
 
             if (!config->User) {

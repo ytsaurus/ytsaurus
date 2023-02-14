@@ -1707,7 +1707,8 @@ public:
     std::optional<TString> ClusterName;
     std::optional<TString> NetworkName;
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
-    std::optional<NApi::NNative::TConnectionConfigPtr> ClusterConnection;
+    // TODO(max42): do we still need this?
+    NApi::NNative::TConnectionCompoundConfigPtr ClusterConnection;
     std::vector<NYPath::TRichYPath> InputTablePaths;
     NYPath::TRichYPath OutputTablePath;
     int MaxChunkCountPerJob;

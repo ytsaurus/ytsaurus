@@ -119,9 +119,7 @@ protected:
         if (RemoteClusterProxy_) {
             // Set controller agent cluster connection.
             auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, NControllerAgent::ControllerAgentLogger);
-            auto clusterConnectionConfig = New<NApi::NNative::TConnectionConfig>();
-            clusterConnectionConfig->Load(clusterConnectionNode);
-            config->ClusterConnection = clusterConnectionConfig;
+            config->ClusterConnection = ConvertTo<NApi::NNative::TConnectionCompoundConfigPtr>(clusterConnectionNode);
         }
 
         // TODO(babenko): This memory leak is intentional.

@@ -200,18 +200,6 @@ void TDynamicConfigManagerConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TClusterNodeConnectionConfig::Register(TRegistrar registrar)
-{
-    registrar.Preprocessor([] (TThis* config) {
-        // Provide a lower channel cache TTL to reduce the total number
-        // of inter-cluster connections. This also gets propagated to job proxy config
-        // and helps decreasing memory footprint.
-        config->IdleChannelTtl = TDuration::Seconds(60);
-    });
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
 void TMasterConnectorConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("lease_trascation_timeout", &TThis::LeaseTransactionTimeout)

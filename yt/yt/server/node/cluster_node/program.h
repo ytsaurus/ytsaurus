@@ -10,6 +10,7 @@
 #include <yt/yt/library/program/program_config_mixin.h>
 #include <yt/yt/library/program/program_pdeathsig_mixin.h>
 #include <yt/yt/library/program/program_setsid_mixin.h>
+
 #include <yt/yt/ytlib/program/helpers.h>
 
 #include <library/cpp/yt/phdr_cache/phdr_cache.h>
@@ -96,7 +97,7 @@ protected:
             tabletCellarConfig = New<NCellarAgent::TCellarConfig>();
             tabletCellarConfig->Size = 5;
 
-            defaultConfig->ClusterConnection = New<TClusterNodeConnectionConfig>();
+            defaultConfig->ClusterConnection = New<NApi::NNative::TConnectionCompoundConfig>();
 
             // Dump it into node and apply patch from config file (if present).
             configNode = NYTree::ConvertToNode(defaultConfig);
@@ -127,7 +128,7 @@ protected:
         if (RemoteClusterProxy_) {
             // Set controller agent cluster connection.
             auto clusterConnectionNode = DownloadClusterConnection(RemoteClusterProxy_, ClusterNodeLogger);
-            config->ClusterConnection->Load(clusterConnectionNode);
+            config->ClusterConnection = ConvertTo<NApi::NNative::TConnectionCompoundConfigPtr>(clusterConnectionNode);
         }
 
         // TODO(babenko): This memory leak is intentional.

@@ -53,15 +53,15 @@ std::vector<TErrorOr<INodePtr>> ListDirs(
     const auto& settings = queryContext->Settings->ListDir;
 
     const auto& client = queryContext->Client();
-    const auto& connectionConfig = client->GetNativeConnection()->GetConfig();
+    const auto& connection = client->GetNativeConnection();
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connectionConfig, masterReadOptions);
+    SetBalancingHeader(batchReq, connection, masterReadOptions);
 
     int index = 0;
     for (auto& path : dirPaths) {
         auto req = TYPathProxy::List(path);
-        SetCachingHeader(req, connectionConfig, masterReadOptions);
+        SetCachingHeader(req, connection, masterReadOptions);
         ToProto(req->mutable_attributes()->mutable_keys(), attributesToFetch);
         req->Tag() = index;
         ++index;
@@ -108,15 +108,15 @@ std::vector<TErrorOr<INodePtr>> GetNodeAttributes(
     NApi::TMasterReadOptions masterReadOptions;
 
     const auto& client = queryContext->Client();
-    const auto& connectionConfig = client->GetNativeConnection()->GetConfig();
+    const auto& connection = DynamicPointerCast<NApi::NNative::IConnection>(client->GetConnection());
     TObjectServiceProxy proxy(client->GetMasterChannelOrThrow(masterReadOptions.ReadFrom));
     auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connectionConfig, masterReadOptions);
+    SetBalancingHeader(batchReq, connection, masterReadOptions);
 
     int index = 0;
     for (auto& path : paths) {
         auto req = TYPathProxy::Get(path + "/@");
-        SetCachingHeader(req, connectionConfig, masterReadOptions);
+        SetCachingHeader(req, connection, masterReadOptions);
         ToProto(req->mutable_attributes()->mutable_keys(), attributesToFetch);
         req->Tag() = index;
         ++index;

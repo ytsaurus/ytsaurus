@@ -30,7 +30,7 @@ public:
         IInvokerPtr controlInvoker,
         TPorts ports,
         TYtConfigPtr config,
-        NApi::NNative::TConnectionConfigPtr connectionConfig);
+        NApi::NNative::TConnectionCompoundConfigPtr connectionConfig);
 
     virtual ~THost() override;
 

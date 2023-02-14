@@ -120,7 +120,7 @@ TFuture<void> TPermissionCache::DoGet(const TPermissionKey& key, bool isPeriodic
         PrimaryMasterCellTagSentinel,
         connection->GetStickyGroupSizeCache());
     auto batchReq = proxy.ExecuteBatch();
-    SetBalancingHeader(batchReq, connection->GetConfig(), GetMasterReadOptions());
+    SetBalancingHeader(batchReq, connection, GetMasterReadOptions());
     batchReq->SetUser(isPeriodicUpdate || Config_->AlwaysUseRefreshUser ? Config_->RefreshUser : key.User);
     batchReq->AddRequest(MakeRequest(connection, key));
 
@@ -226,7 +226,7 @@ NYTree::TYPathRequestPtr TPermissionCache::MakeRequest(
         typedReq->set_ignore_missing_subjects(true);
         req = std::move(typedReq);
     }
-    SetCachingHeader(req, connection->GetConfig(), GetMasterReadOptions());
+    SetCachingHeader(req, connection, GetMasterReadOptions());
     NCypressClient::SetSuppressAccessTracking(req, true);
     return req;
 }

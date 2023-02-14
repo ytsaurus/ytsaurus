@@ -105,7 +105,7 @@ void TBootstrap::Run()
 {
     ControlQueue_ = New<TActionQueue>("Control");
     ConnectionThreadPool_ = CreateThreadPool(
-        Config_->ClusterConnection->ThreadPoolSize,
+        Config_->ClusterConnection->Dynamic->ThreadPoolSize,
         "Connection");
 
     BIND(&TBootstrap::DoRun, this)

@@ -589,16 +589,16 @@ void TClickHouseServerBootstrapConfig::Register(TRegistrar registrar)
             };
 
             if (config->Memory->UncompressedBlockCache) {
-                initDefault(config->ClusterConnection->BlockCache);
-                config->ClusterConnection->BlockCache->UncompressedData->Capacity = *config->Memory->UncompressedBlockCache;
+                initDefault(config->ClusterConnection->Dynamic->BlockCache);
+                config->ClusterConnection->Dynamic->BlockCache->UncompressedData->Capacity = *config->Memory->UncompressedBlockCache;
             }
             if (config->Memory->CompressedBlockCache) {
-                initDefault(config->ClusterConnection->BlockCache);
-                config->ClusterConnection->BlockCache->CompressedData->Capacity = *config->Memory->CompressedBlockCache;
+                initDefault(config->ClusterConnection->Dynamic->BlockCache);
+                config->ClusterConnection->Dynamic->BlockCache->CompressedData->Capacity = *config->Memory->CompressedBlockCache;
             }
             if (config->Memory->ChunkMetaCache) {
-                initDefault(config->ClusterConnection->ChunkMetaCache);
-                config->ClusterConnection->ChunkMetaCache->Capacity = *config->Memory->ChunkMetaCache;
+                initDefault(config->ClusterConnection->Dynamic->ChunkMetaCache);
+                config->ClusterConnection->Dynamic->ChunkMetaCache->Capacity = *config->Memory->ChunkMetaCache;
             }
 
             if (config->Memory->MaxServerMemoryUsage) {
