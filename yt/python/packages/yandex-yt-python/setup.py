@@ -1,9 +1,10 @@
 PACKAGE_NAME = "yandex-yt"
 
+
 def main():
     from helpers import get_version, get_version_branch, recursive, is_debian
 
-    from setuptools import setup, find_packages
+    from setuptools import setup
 
     import os
     import shutil
@@ -40,7 +41,6 @@ def main():
             ],
         }
 
-    find_packages("yt/packages")
     setup(
         name=PACKAGE_NAME,
         version=version,
