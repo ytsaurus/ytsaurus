@@ -221,7 +221,7 @@ void TJournalChunk::DoReadBlockRange(const TReadBlockRangeSessionPtr& session)
             if (blocksOrError.FindMatching(NHydra::EErrorCode::InvalidChangelogState)) {
                 THROW_ERROR error;
             }
-            Location_->Disable(error);
+            Location_->ScheduleDisable(error);
         }
 
         auto readTime = timer.GetElapsedTime();

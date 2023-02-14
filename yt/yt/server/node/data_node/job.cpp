@@ -389,6 +389,7 @@ private:
         auto chunk = chunkIsDead
             ? FindLocalChunk(ChunkId_, mediumIndex)
             : GetLocalChunkOrThrow(ChunkId_, mediumIndex);
+
         if (!chunk) {
             YT_VERIFY(chunkIsDead);
             YT_LOG_INFO("Dead chunk is missing, reporting success");

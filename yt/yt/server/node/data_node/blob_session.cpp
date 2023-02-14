@@ -885,7 +885,7 @@ void TBlobSession::SetFailed(const TError& error, bool fatal)
     MarkAllSlotsFailed(error);
 
     if (fatal) {
-        Location_->Disable(Error_);
+        Location_->ScheduleDisable(Error_);
     }
 }
 

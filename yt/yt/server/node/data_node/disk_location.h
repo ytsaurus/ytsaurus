@@ -12,11 +12,12 @@ namespace NYT::NDataNode {
 
 DEFINE_ENUM(ELocationState,
     (Enabled)
-    (Resurrecting)
+
+    (Enabling)
     (Disabling)
-    (Disabled)
-    (Repairing)
     (Destroying)
+
+    (Disabled)
     (Destroyed)
     (Crashed)
 );
@@ -44,19 +45,36 @@ public:
     //! Returns |true| iff the location is enabled.
     bool IsEnabled() const;
 
+    //! Returns |true| if the location can handle incoming actions.
+    bool CanHandleIncomingActions() const;
+
     // Returns current location state.
     ELocationState GetState() const;
 
+    // Before changing the location state, it is necessary to synchronize the work of some
+    // actions (chunk deletion or initialization) on the location. It is necessary to wait
+    // for the completion of the actions in order to avoid a race.
+    template <class T>
+    TFuture<T> RegisterAction(TCallback<TFuture<T>()> action);
+
 protected:
+    YT_DECLARE_SPIN_LOCK(NThreading::TReaderWriterSpinLock, StateChangingLock_);
+    YT_DECLARE_SPIN_LOCK(NThreading::TSpinLock, ActionsContainerLock_);
+
     const TString Id_;
     const NLogging::TLogger Logger;
 
-    std::atomic<ELocationState> State_ = ELocationState::Disabled;
+    THashSet<TFuture<void>> Actions_;
+    std::atomic<ELocationState> State_ = ELocationState::Enabling;
 
     void ValidateMinimumSpace() const;
     void ValidateLockFile() const;
 
     i64 GetTotalSpace() const;
+
+    bool ChangeState(
+        ELocationState newState,
+        std::optional<ELocationState> expectedState = std::nullopt);
 
 private:
     const TDiskLocationConfigPtr StaticConfig_;
@@ -68,3 +86,6 @@ private:
 
 } // namespace NYT::NDataNode
 
+#define DISK_LOCATION_INL_H_
+#include "disk_location-inl.h"
+#undef DISK_LOCATION_INL_H_

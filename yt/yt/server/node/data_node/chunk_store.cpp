@@ -128,10 +128,7 @@ void TChunkStore::Initialize()
         location->SubscribeDisabled(
             BIND(&TChunkStore::OnLocationDisabled, MakeWeak(this), MakeWeak(location)));
 
-        futures.push_back(
-            BIND(&TChunkStore::InitializeLocation, MakeStrong(this))
-                .AsyncVia(location->GetAuxPoolInvoker())
-                .Run(location));
+        futures.push_back(InitializeLocation(location));
 
         Locations_.push_back(std::move(location));
     }
@@ -184,17 +181,18 @@ void TChunkStore::UpdateConfig(const TDataNodeDynamicConfigPtr& config)
     }
 }
 
-void TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
+TFuture<void> TChunkStore::InitializeLocation(const TStoreLocationPtr& location)
 {
-    VERIFY_INVOKER_AFFINITY(location->GetAuxPoolInvoker());
+    return location->RegisterAction(BIND([=, this, this_ = MakeStrong(this)] () {
+            auto descriptors = location->Scan();
+            for (const auto& descriptor : descriptors) {
+                auto chunk = CreateFromDescriptor(location, descriptor);
+                DoRegisterExistingChunk(chunk);
+            }
 
-    auto descriptors = location->Scan();
-    for (const auto& descriptor : descriptors) {
-        auto chunk = CreateFromDescriptor(location, descriptor);
-        DoRegisterExistingChunk(chunk);
-    }
-
-    location->Start();
+            location->Start();
+        })
+        .AsyncVia(location->GetAuxPoolInvoker()));
 }
 
 void TChunkStore::RegisterNewChunk(
@@ -598,8 +596,12 @@ TFuture<void> TChunkStore::RemoveChunk(const IChunkPtr& chunk)
 
     ChunkRemovalScheduled_.Fire(chunk);
 
-    return chunk->ScheduleRemove().Apply(
-        BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk));
+    return chunk
+        ->GetLocation()
+        ->RegisterAction(BIND([=, this, this_ = MakeStrong(this)] () {
+            return chunk->ScheduleRemove().Apply(
+                BIND(&TChunkStore::UnregisterChunk, MakeStrong(this), chunk));
+        }));
 }
 
 std::tuple<TStoreLocationPtr, TLockedChunkGuard> TChunkStore::AcquireNewChunkLocation(
@@ -803,7 +805,7 @@ void TChunkStore::OnLocationDisabled(const TWeakPtr<TStoreLocation>& weakLocatio
             const auto& chunk = chunkEntry.Chunk;
             if (chunk->GetLocation() == location) {
                 ChunkRemoved_.Fire(chunk);
-                location->UnlockChunk(chunk->GetId());
+                location->RemoveChunkFiles(chunk->GetId(), false);
             } else {
                 newChunkMap.emplace(chunkId, chunkEntry);
             }

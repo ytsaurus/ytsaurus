@@ -158,5 +158,6 @@ class TestHotSwap(YTEnvSetup):
             for location_uuid, _ in get("//sys/cluster_nodes/{}/@chunk_locations".format(node)).items():
                 wait(lambda: not get("//sys/chunk_locations/{}/@statistics/enabled".format(location_uuid)))
                 wait(lambda: get("//sys/chunk_locations/{}/@statistics/session_count".format(location_uuid)) == 0)
+                wait(lambda: get("//sys/chunk_locations/{}/@statistics/chunk_count".format(location_uuid)) == 0)
 
         wait(lambda: not can_write())

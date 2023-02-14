@@ -278,7 +278,7 @@ public:
 
     //! Marks the location as disabled by attempting to create a lock file and marking assinged chunks
     //! as unavailable.
-    bool Disable(const TError& reason);
+    bool ScheduleDisable(const TError& reason);
 
     //! Subscribe callback on disk health check.
     void SubscribeDiskCheckFailed(const TCallback<void(const TError&)> callback);
@@ -346,9 +346,6 @@ public:
 
     //! Returns a full path for a primary chunk file.
     TString GetChunkPath(TChunkId chunkId) const;
-
-    //! Permanently removes the files comprising a given chunk.
-    void RemoveChunkFilesPermanently(TChunkId chunkId);
 
     //! Removes a chunk permanently or moves it to the trash (if available).
     virtual void RemoveChunkFiles(TChunkId chunkId, bool force);
@@ -423,6 +420,8 @@ protected:
 
     i64 GetReadThrottlingLimit() const;
     i64 GetWriteThrottlingLimit() const;
+
+    void RemoveChunkFilesPermanently(TChunkId chunkId);
 
 private:
     friend class TPendingIOGuard;
@@ -551,7 +550,6 @@ public:
 
     //! Returns |true| if the location accepts new writes.
     bool IsWritable() const;
-
 private:
     const TStoreLocationConfigPtr StaticConfig_;
 
