@@ -3,9 +3,10 @@ package chyt
 import (
 	"testing"
 
+	"github.com/stretchr/testify/require"
+
 	"a.yandex-team.ru/library/go/core/log/nop"
 	"a.yandex-team.ru/library/go/ptr"
-	"github.com/stretchr/testify/require"
 )
 
 func createFakeController() (c *Controller) {
@@ -25,13 +26,6 @@ func requireNotNilResources(t *testing.T, r *Resources) {
 	require.NotNil(t, r.InstanceCPU)
 	require.NotNil(t, r.InstanceTotalMemory)
 	require.NotNil(t, r.InstanceMemory)
-
-	require.NotNil(t, r.InstanceMemory.ClickHouse)
-	require.NotNil(t, r.InstanceMemory.ChunkMetaCache)
-	require.NotNil(t, r.InstanceMemory.CompressedCache)
-	require.NotNil(t, r.InstanceMemory.UncompressedCache)
-	require.NotNil(t, r.InstanceMemory.Reader)
-
 }
 
 func TestPopulateResourcesClique(t *testing.T) {
@@ -91,6 +85,8 @@ func TestPopulateResourcesClique(t *testing.T) {
 func TestPopulateResourcesInstance(t *testing.T) {
 	c := createFakeController()
 
+	memDefault := &InstanceMemory{}
+
 	resources := &Resources{
 		InstanceCount: ptr.Uint64(2),
 	}
@@ -100,8 +96,8 @@ func TestPopulateResourcesInstance(t *testing.T) {
 	require.Equal(t, memDefault.totalMemory(), resources.InstanceMemory.totalMemory())
 	require.Equal(t, memDefault.totalMemory(), *resources.InstanceTotalMemory)
 	require.Equal(t, 2*memDefault.totalMemory(), *resources.CliqueMemory)
-	require.Equal(t, uint64(cpu), *resources.InstanceCPU)
-	require.Equal(t, uint64(2*cpu), *resources.CliqueCPU)
+	require.Equal(t, uint64(defaultInstanceCPU), *resources.InstanceCPU)
+	require.Equal(t, uint64(2*defaultInstanceCPU), *resources.CliqueCPU)
 
 	resources = &Resources{
 		InstanceCount:       ptr.Uint64(2),
@@ -110,26 +106,26 @@ func TestPopulateResourcesInstance(t *testing.T) {
 	err = c.populateResourcesInstance(resources)
 	require.NoError(t, err)
 	requireNotNilResources(t, resources)
-	require.Equal(t, uint64(memClickHouse/2), *resources.InstanceMemory.ClickHouse)
-	require.Equal(t, uint64(memChunkMetaCache/2), *resources.InstanceMemory.ChunkMetaCache)
-	require.Equal(t, uint64(memCompressedBlockCache/2), *resources.InstanceMemory.CompressedCache)
-	require.Equal(t, uint64(memUncompressedBlockCache/2), *resources.InstanceMemory.UncompressedCache)
-	require.Equal(t, uint64(memReader/2), *resources.InstanceMemory.Reader)
+	require.Equal(t, uint64(defaultMemoryClickHouse/2), resources.InstanceMemory.ClickHouseOrDefault())
+	require.Equal(t, uint64(defaultMemoryChunkMetaCache/2), resources.InstanceMemory.ChunkMetaCacheOrDefault())
+	require.Equal(t, uint64(defaultMemoryCompressedBlockCache/2), resources.InstanceMemory.CompressedBlockCacheOrDefault())
+	require.Equal(t, uint64(defaultMemoryUncompressedBlockCache/2), resources.InstanceMemory.UncompressedBlockCacheOrDefault())
+	require.Equal(t, uint64(defaultMemoryReader/2), resources.InstanceMemory.ReaderOrDefault())
 
 	resources = &Resources{
 		InstanceCount: ptr.Uint64(2),
 		InstanceMemory: &InstanceMemory{
-			ClickHouse: ptr.Uint64(2 * memClickHouse),
+			ClickHouse: ptr.Uint64(2 * defaultMemoryClickHouse),
 		},
 	}
 	err = c.populateResourcesInstance(resources)
 	require.NoError(t, err)
 	requireNotNilResources(t, resources)
-	require.Equal(t, uint64(2*memClickHouse), *resources.InstanceMemory.ClickHouse)
-	require.Equal(t, uint64(memChunkMetaCache), *resources.InstanceMemory.ChunkMetaCache)
-	require.Equal(t, uint64(memCompressedBlockCache), *resources.InstanceMemory.CompressedCache)
-	require.Equal(t, uint64(memUncompressedBlockCache), *resources.InstanceMemory.UncompressedCache)
-	require.Equal(t, uint64(memReader), *resources.InstanceMemory.Reader)
+	require.Equal(t, uint64(2*defaultMemoryClickHouse), resources.InstanceMemory.ClickHouseOrDefault())
+	require.Equal(t, uint64(defaultMemoryChunkMetaCache), resources.InstanceMemory.ChunkMetaCacheOrDefault())
+	require.Equal(t, uint64(defaultMemoryCompressedBlockCache), resources.InstanceMemory.CompressedBlockCacheOrDefault())
+	require.Equal(t, uint64(defaultMemoryUncompressedBlockCache), resources.InstanceMemory.UncompressedBlockCacheOrDefault())
+	require.Equal(t, uint64(defaultMemoryReader), resources.InstanceMemory.ReaderOrDefault())
 
 	// InstanceCount should be present.
 	resources = &Resources{}
