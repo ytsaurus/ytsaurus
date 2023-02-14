@@ -32,8 +32,6 @@ using namespace NCellMaster;
 using namespace NCellMasterClient;
 using namespace NObjectClient;
 
-using NApi::NNative::TConnectionConfig;
-
 ////////////////////////////////////////////////////////////////////////////////
 
 class TSysNodeProxy
@@ -105,7 +103,9 @@ private:
             case EInternedAttributeKey::ClusterConnection: {
                 auto node = ConvertToNode(newValue);
                 if (node->GetType() != ENodeType::Entity) {
-                    New<TConnectionConfig>()->Load(node);
+                    // Cluster connection must be simultaneously a valid static and dynamic connection config.
+                    New<NApi::NNative::TConnectionDynamicConfig>()->Load(node);
+                    New<NApi::NNative::TConnectionStaticConfig>()->Load(node);
                 }
                 return;
             }

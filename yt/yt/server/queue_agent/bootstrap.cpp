@@ -123,7 +123,7 @@ void TBootstrap::DoRun()
 {
     YT_LOG_INFO(
         "Starting queue agent process (NativeCluster: %v, User: %v)",
-        Config_->ClusterConnection->ClusterName,
+        Config_->ClusterConnection->Static->ClusterName,
         Config_->User);
 
     AgentId_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);

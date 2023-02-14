@@ -1,6 +1,7 @@
 #include "helpers.h"
 
 #include <yt/yt/ytlib/api/native/rpc_helpers.h>
+#include <yt/yt/ytlib/api/native/config.h>
 
 #include <yt/yt/ytlib/object_client/object_service_proxy.h>
 
@@ -20,18 +21,15 @@ using namespace NYson;
 THashSet<TString> GetSubjectClosure(
     const TString& subject,
     NObjectClient::TObjectServiceProxy& proxy,
-    const TConnectionConfigPtr& connectionConfig,
+    const NApi::NNative::IConnectionPtr& connection,
     const NApi::TMasterReadOptions& options)
 {
+    // TODO(max42): Why doing raw YPath request instead of using client method?
     auto batchReq = proxy.ExecuteBatch();
-    if (connectionConfig) {
-        SetBalancingHeader(batchReq, connectionConfig, options);
-    }
+    SetBalancingHeader(batchReq, connection, options);
     for (const auto& path : {GetUserPath(subject), GetGroupPath(subject)}) {
         auto req = TYPathProxy::Get(path + "/@member_of_closure");
-        if (connectionConfig) {
-            SetCachingHeader(req, connectionConfig, options);
-        }
+        SetCachingHeader(req, connection, options);
         batchReq->AddRequest(req);
     }
     auto batchRsp = WaitFor(batchReq->Invoke())

@@ -119,7 +119,7 @@ public:
 
     void Initialize() override
     {
-        auto remoteConnectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
+        auto remoteConnectionConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(TYsonString(RemoteCopyJobSpecExt_.connection_config()));
         RemoteConnection_ = Host_->CreateNativeConnection(remoteConnectionConfig);
 
         TJob::Initialize();

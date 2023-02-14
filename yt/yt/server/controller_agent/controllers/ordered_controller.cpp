@@ -1327,16 +1327,16 @@ private:
             schedulerJobSpecExt->mutable_extensions(),
             BuildDataSinkDirectoryFromOutputTables(OutputTables_));
 
-        auto connectionConfig = CloneYsonSerializable(GetRemoteConnectionConfig());
+        auto connectionConfig = GetRemoteConnectionConfig()->Clone();
         if (Networks_) {
-            connectionConfig->Networks = *Networks_;
+            connectionConfig->Static->Networks = *Networks_;
         }
 
         auto masterCacheAddresses = GetRemoteMasterCacheAddresses();
         if (masterCacheAddresses.empty()) {
             YT_LOG_DEBUG("Not using remote master caches for remote copy operation");
         } else {
-            connectionConfig->OverrideMasterAddresses(masterCacheAddresses);
+            connectionConfig->Static->OverrideMasterAddresses(masterCacheAddresses);
 
             YT_LOG_DEBUG("Using remote master caches for remote copy operation (Addresses: %v)",
                 masterCacheAddresses);
@@ -1357,7 +1357,7 @@ private:
             NNative::TConnectionOptions connectionOptions;
             connectionOptions.ConnectionInvoker = Host->GetConnectionInvoker();
             return NApi::NNative::CreateConnection(
-                *Spec_->ClusterConnection,
+                Spec_->ClusterConnection,
                 std::move(connectionOptions));
         } else if (Spec_->ClusterName) {
             return Host
@@ -1370,15 +1370,9 @@ private:
         }
     }
 
-    NNative::TConnectionConfigPtr GetRemoteConnectionConfig() const
+    NApi::NNative::TConnectionCompoundConfigPtr GetRemoteConnectionConfig() const
     {
-        if (Spec_->ClusterConnection) {
-            return *Spec_->ClusterConnection;
-        } else if (Spec_->ClusterName) {
-            return GetRemoteConnection()->GetConfig();
-        } else {
-            THROW_ERROR_EXCEPTION("No remote cluster is specified");
-        }
+        return GetRemoteConnection()->GetCompoundConfig();
     }
 
     std::vector<TString> GetRemoteMasterCacheAddresses() const

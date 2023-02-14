@@ -175,9 +175,9 @@ TClusterDirectory::TCluster TClusterDirectory::CreateCluster(const TString& name
     TCluster cluster;
     cluster.NativeConnectionConfig = config;
     try {
-        auto typedConfig = ConvertTo<NNative::TConnectionConfigPtr>(config);
-        if (!typedConfig->ClusterName) {
-            typedConfig->ClusterName = name;
+        auto typedConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(config);
+        if (!typedConfig->Static->ClusterName) {
+            typedConfig->Static->ClusterName = name;
         }
         cluster.Connection = NNative::CreateConnection(typedConfig, ConnectionOptions_);
     } catch (const std::exception& ex) {

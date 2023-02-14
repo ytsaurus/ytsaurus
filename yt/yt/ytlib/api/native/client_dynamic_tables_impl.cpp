@@ -893,7 +893,7 @@ TRowset TClient::DoLookupRowsOnce(
         TErrorOr<TRowset> resultOrError;
 
         auto retryCountLimit = tableInfo->ReplicationCardId
-            ? Connection_->GetDynamicConfig()->ReplicaFallbackRetryCount
+            ? Connection_->GetConfig()->ReplicaFallbackRetryCount
             : 0;
 
         for (int retryCount = 0; retryCount <= retryCountLimit; ++retryCount) {
@@ -1506,7 +1506,7 @@ auto TClient::CallAndRetryIfMetadataCacheIsInconsistent(
             error = ex.Error();
         }
 
-        const auto& config = Connection_->GetConfig();
+        const auto& config = Connection_->GetStaticConfig();
         const auto& tableMountCache = Connection_->GetTableMountCache();
 
         std::optional<TErrorCode> retryableErrorCode;
@@ -1882,7 +1882,7 @@ std::vector<TLegacyOwningKey> TClient::PickPivotKeysWithSlicing(
 
     auto expectedTabletSize = DivCeil<i64>(chunksDataWeight, tabletCount);
     i64 minSliceSize = std::max(expectedTabletSize * accuracy / ExpectedAverageOverlapping, 1.);
-    bool enableVerboseLogging = Connection_->GetDynamicConfig()->EnableReshardWithSlicingVerboseLogging;
+    bool enableVerboseLogging = Connection_->GetConfig()->EnableReshardWithSlicingVerboseLogging;
 
     YT_LOG_DEBUG("Initializing pivot keys builder for resharding with slicing"
         " (ChunksDataWeight: %v, ExpectedTabletSize: %v, MinSliceSize: %v, Accuracy: %v, EnableVerboseLogging: %v)",
@@ -3009,7 +3009,7 @@ IChannelPtr TClient::GetChaosChannelByCardId(TReplicationCardId replicationCardI
 
 TReplicationCardPtr TClient::GetSyncReplicationCard(const TTableMountInfoPtr& tableInfo)
 {
-    const auto& mountCacheConfig = Connection_->GetConfig()->TableMountCache;
+    const auto& mountCacheConfig = Connection_->GetStaticConfig()->TableMountCache;
     auto fetchOptions = TReplicationCardFetchOptions{
         .IncludeCoordinators = true,
         .IncludeProgress = true,

@@ -43,8 +43,9 @@ namespace NYT::NApi::NNative {
 struct IConnection
     : public NApi::IConnection
 {
-    virtual const TConnectionConfigPtr& GetConfig() const = 0;
-    virtual TConnectionDynamicConfigPtr GetDynamicConfig() const = 0;
+    virtual const TConnectionStaticConfigPtr& GetStaticConfig() const = 0;
+    virtual TConnectionDynamicConfigPtr GetConfig() const = 0;
+    virtual TConnectionCompoundConfigPtr GetCompoundConfig() const = 0;
 
     virtual const NNodeTrackerClient::TNetworkPreferenceList& GetNetworks() const = 0;
 
@@ -196,7 +197,17 @@ struct TConnectionOptions
 //! Native connection talks directly to the cluster via internal
 //! (and typically not stable) RPC protocols.
 IConnectionPtr CreateConnection(
-    TConnectionConfigPtr config,
+    TConnectionStaticConfigPtr staticConfig,
+    TConnectionDynamicConfigPtr dynamicConfig,
+    TConnectionOptions options = {});
+
+//! A method for creating a connection from a compound config which
+//! contains both static and dynamic connection configurations.
+//! Used in various cases: in components that are not expected to update
+//! their cluster connection from Cypress (e.g. job proxies) or
+//! in legacy components during the transition period.
+IConnectionPtr CreateConnection(
+    TConnectionCompoundConfigPtr compoundConfig,
     TConnectionOptions options = {});
 
 ////////////////////////////////////////////////////////////////////////////////

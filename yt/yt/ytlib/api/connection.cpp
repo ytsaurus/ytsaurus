@@ -27,7 +27,7 @@ IConnectionPtr CreateConnection(
     auto genericConfig = ConvertTo<TConnectionConfigPtr>(config);
     switch (genericConfig->ConnectionType) {
         case EConnectionType::Native: {
-            auto typedConfig = ConvertTo<NNative::TConnectionConfigPtr>(config);
+            auto typedConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(config);
             NNative::TConnectionOptions typedOptions;
             typedOptions.ConnectionInvoker = std::move(options.ConnectionInvoker);
             typedOptions.TvmService = std::move(tvmService);

@@ -11,19 +11,20 @@ using namespace NObjectClient;
 namespace {
 
 bool IsCachingEnabled(
-    const TConnectionConfigPtr& config,
+    const NApi::NNative::IConnectionPtr& connection,
     const TMasterReadOptions& options)
 {
     if (options.ReadFrom == EMasterChannelKind::LocalCache) {
         return true;
     }
 
-    const auto& cache = config->MasterCache;
-    if (!cache) {
+    const auto& config = connection->GetStaticConfig()->MasterCache;
+
+    if (!config) {
         return false;
     }
 
-    if (!cache->EnableMasterCacheDiscovery && !cache->Endpoints && (!cache->Addresses || cache->Addresses->empty())) {
+    if (!config->EnableMasterCacheDiscovery && !config->Endpoints && (!config->Addresses || config->Addresses->empty())) {
         return false;
     }
 
@@ -36,11 +37,11 @@ bool IsCachingEnabled(
 
 void SetCachingHeader(
     const IClientRequestPtr& request,
-    const TConnectionConfigPtr& config,
+    const NApi::NNative::IConnectionPtr& connection,
     const TMasterReadOptions& options,
     NHydra::TRevision refreshRevision)
 {
-    if (!IsCachingEnabled(config, options)) {
+    if (!IsCachingEnabled(connection, options)) {
         return;
     }
 
@@ -56,15 +57,15 @@ void SetCachingHeader(
 
 void SetBalancingHeader(
     const TObjectServiceProxy::TReqExecuteBatchPtr& request,
-    const TConnectionConfigPtr& config,
+    const NApi::NNative::IConnectionPtr& connection,
     const TMasterReadOptions& options)
 {
-    if (!IsCachingEnabled(config, options)) {
+    if (!IsCachingEnabled(connection, options)) {
         return;
     }
 
     request->SetStickyGroupSize(options.CacheStickyGroupSize.value_or(
-        config->DefaultCacheStickyGroupSize));
+        connection->GetConfig()->DefaultCacheStickyGroupSize));
     request->SetEnableClientStickiness(options.EnableClientCacheStickiness);
 }
 

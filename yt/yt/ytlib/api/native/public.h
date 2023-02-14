@@ -4,6 +4,8 @@
 
 #include <yt/yt/client/tablet_client/public.h>
 
+#include <library/cpp/yt/memory/atomic_intrusive_ptr.h>
+
 namespace NYT::NApi::NNative {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -25,8 +27,12 @@ DECLARE_REFCOUNTED_CLASS(TMasterConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TMasterCacheConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TCypressProxyConnectionConfig)
 DECLARE_REFCOUNTED_CLASS(TClockServersConfig)
-DECLARE_REFCOUNTED_CLASS(TConnectionConfig)
+
+DECLARE_REFCOUNTED_CLASS(TConnectionStaticConfig)
 DECLARE_REFCOUNTED_CLASS(TConnectionDynamicConfig)
+DECLARE_REFCOUNTED_STRUCT(TConnectionCompoundConfig)
+
+using TConnectionDynamicConfigAtomicPtr = TAtomicIntrusivePtr<TConnectionDynamicConfig>;
 
 DECLARE_REFCOUNTED_CLASS(TJournalChunkWriterOptions)
 

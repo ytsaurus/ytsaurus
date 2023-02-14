@@ -119,7 +119,7 @@ public:
 
 private:
     const IClientPtr Client_;
-    const TConnectionConfigPtr Config_;
+    const TConnectionDynamicConfigPtr Config_;
     const TTabletCommitOptions Options_;
     const TWeakPtr<TTransaction> Transaction_;
     const TTabletInfoPtr TabletInfo_;

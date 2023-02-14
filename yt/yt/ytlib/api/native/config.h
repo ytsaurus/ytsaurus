@@ -120,33 +120,83 @@ DEFINE_REFCOUNTED_TYPE(TCypressProxyConnectionConfig)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TConnectionConfig
+//! A static cluster connection configuration.
+/*!
+ *  For primary cluster connections (i.e. those created in bootstraps of native servers)
+ *  these options are taken from the static configuration file.
+ *
+ *  For secondary cluster connections (i.e. those taken from cluster directory or other
+ *  dynamic sources) these options are taken from the configuration node as well as dynamic one.
+ *
+ *  NB: we try to keep the size of a statically generated cluster connection (by ytcfgen, YTInstance
+ *  or k8s operator) as small as possible, so do not add new fields here unless it is absolutely necessary.
+ *  A good reason for an option to be here is when it is required for fetching //sys/@cluster_connection.
+ *  In other situations prefer adding fields only to dynamic config.
+ */
+class TConnectionStaticConfig
     : public NApi::TConnectionConfig
-    , public NChunkClient::TChunkTeleporterConfig
     , public NCellMasterClient::TCellDirectoryConfig
 {
 public:
     std::optional<NNodeTrackerClient::TNetworkPreferenceList> Networks;
 
     NTransactionClient::TRemoteTimestampProviderConfigPtr TimestampProvider;
-    NHiveClient::TCellDirectoryConfigPtr CellDirectory;
-    NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
-    NChaosClient::TChaosCellDirectorySynchronizerConfigPtr ChaosCellDirectorySynchronizer;
     TClockServersConfigPtr ClockServers;
 
     //! If |nullptr|, requests are passed directly to masters.
     TCypressProxyConnectionConfigPtr CypressProxy;
 
-    NDiscoveryClient::TDiscoveryConnectionConfigPtr DiscoveryConnection;
-
     NCellMasterClient::TCellDirectorySynchronizerConfigPtr MasterCellDirectorySynchronizer;
 
+    NTransactionClient::TClockManagerConfigPtr ClockManager;
+
+    TAsyncExpiringCacheConfigPtr SyncReplicaCache;
+
+    //! Visible in profiling as tag `connection_name`.
+    TString ConnectionName;
+
+    TSlruCacheConfigPtr BannedReplicaTrackerCache;
+
+    //! Replaces all master addresses with given master cache addresses.
+    //! Used to proxy all job requests through cluster nodes.
+    void OverrideMasterAddresses(const std::vector<TString>& addresses);
+
+    REGISTER_YSON_STRUCT(TConnectionStaticConfig);
+
+    static void Register(TRegistrar registrar);
+};
+
+DEFINE_REFCOUNTED_TYPE(TConnectionStaticConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A dynamic cluster connection configuration which is designed to be taken from //sys/@cluster_connection.
+/*!
+ *  NB: the word "dynamic" represents the origin of this config rather than the ability
+ *  to reconfigure on the fly. Change of some of the options here will not take effect
+ *  for an already existing connection; this may be fixed by writing reconfiguration code in
+ *  #TConnection::Reconfigure method.
+ *
+ *  NB: during the transition period in order to keep the old behavior some of the components may take
+ *  the dynamic config from the static configuration.
+ *
+ */
+class TConnectionDynamicConfig
+    : public NApi::TConnectionDynamicConfig
+    , public NChunkClient::TChunkTeleporterConfig
+{
+public:
+    // TODO(max42): distribute these options into two groups: dynamically reconfigurable and not.
+
+    NHiveClient::TCellDirectoryConfigPtr CellDirectory;
+    NHiveClient::TCellDirectorySynchronizerConfigPtr CellDirectorySynchronizer;
+    NChaosClient::TChaosCellDirectorySynchronizerConfigPtr ChaosCellDirectorySynchronizer;
+    NDiscoveryClient::TDiscoveryConnectionConfigPtr DiscoveryConnection;
     NQueueClient::TQueueAgentConnectionConfigPtr QueueAgent;
     NQueryTrackerClient::TQueryTrackerConnectionConfigPtr QueryTracker;
     NYqlClient::TYqlAgentConnectionConfigPtr YqlAgent;
     NScheduler::TSchedulerConnectionConfigPtr Scheduler;
     NTransactionClient::TTransactionManagerConfigPtr TransactionManager;
-    NTransactionClient::TClockManagerConfigPtr ClockManager;
     NChunkClient::TBlockCacheConfigPtr BlockCache;
     NChunkClient::TClientChunkMetaCacheConfigPtr ChunkMetaCache;
     NChunkClient::TChunkReplicaCacheConfigPtr ChunkReplicaCache;
@@ -209,9 +259,6 @@ public:
     TDuration UploadTransactionTimeout;
     TDuration HiveSyncRpcTimeout;
 
-    //! Visible in profiling as tag `connection_name`.
-    TString ConnectionName;
-
     TAsyncExpiringCacheConfigPtr JobShellDescriptorCache;
 
     NSecurityClient::TPermissionCacheConfigPtr PermissionCache;
@@ -226,8 +273,7 @@ public:
 
     NObjectClient::TReqExecuteBatchWithRetriesConfigPtr ChunkFetchRetries;
 
-    TAsyncExpiringCacheConfigPtr SyncReplicaCache;
-    TSlruCacheConfigPtr BannedReplicaTrackerCache;
+    TSlruCacheDynamicConfigPtr BannedReplicaTrackerCache;
 
     NChaosClient::TReplicationCardChannelConfigPtr ChaosCellChannel;
 
@@ -248,23 +294,6 @@ public:
     int ObjectLifeStageCheckRetryCount;
     TDuration ObjectLifeStageCheckTimeout;
 
-    //! Replaces all master addresses with given master cache addresses.
-    //! Used to proxy all job requests through cluster nodes.
-    void OverrideMasterAddresses(const std::vector<TString>& addresses);
-
-    REGISTER_YSON_STRUCT(TConnectionConfig);
-
-    static void Register(TRegistrar registrar);
-};
-
-DEFINE_REFCOUNTED_TYPE(TConnectionConfig)
-
-////////////////////////////////////////////////////////////////////////////////
-
-class TConnectionDynamicConfig
-    : public NApi::TConnectionDynamicConfig
-{
-public:
     TAsyncExpiringCacheDynamicConfigPtr SyncReplicaCache;
 
     NTransactionClient::TDynamicClockManagerConfigPtr ClockManager;
@@ -280,6 +309,34 @@ public:
 };
 
 DEFINE_REFCOUNTED_TYPE(TConnectionDynamicConfig)
+
+////////////////////////////////////////////////////////////////////////////////
+
+//! A helper over INodePtr to provide access both to static and dynamic parts of cluster connection config.
+//! Used in scenarios when cluster config is deserialized from a single node; in particular
+//! Note that we cannot simply inherit from both TConnectionStaticConfig and TConnectionDynamicConfig
+//! since they share some fields with different types (e.g. SyncReplicaCache).
+struct TConnectionCompoundConfig
+    : public TRefCounted
+{
+    TConnectionStaticConfigPtr Static;
+    TConnectionDynamicConfigPtr Dynamic;
+
+    TConnectionCompoundConfig() = default;
+    TConnectionCompoundConfig(
+        TConnectionStaticConfigPtr staticConfig,
+        TConnectionDynamicConfigPtr dynamicConfig);
+
+    explicit TConnectionCompoundConfig(const NYTree::INodePtr& node);
+
+    TConnectionCompoundConfigPtr Clone() const;
+};
+
+DEFINE_REFCOUNTED_TYPE(TConnectionCompoundConfig)
+
+void Serialize(const TConnectionCompoundConfigPtr& connectionConfig, NYson::IYsonConsumer* consumer);
+void Deserialize(TConnectionCompoundConfigPtr& connectionConfig, const NYTree::INodePtr& node);
+void Deserialize(TConnectionCompoundConfigPtr& connectionConfig, NYson::TYsonPullParserCursor* cursor);
 
 ////////////////////////////////////////////////////////////////////////////////
 

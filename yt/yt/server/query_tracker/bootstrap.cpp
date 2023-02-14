@@ -115,7 +115,7 @@ void TBootstrap::DoRun()
 {
     YT_LOG_INFO(
         "Starting persistent query agent process (NativeCluster: %v, User: %v)",
-        Config_->ClusterConnection->ClusterName,
+        Config_->ClusterConnection->Static->ClusterName,
         Config_->User);
 
     SelfAddress_ = NNet::BuildServiceAddress(NNet::GetLocalHostName(), Config_->RpcPort);

@@ -148,11 +148,11 @@ private:
 
                 auto batchReq = proxy.ExecuteBatch();
                 batchReq->SetSuppressTransactionCoordinatorSync(true);
-                SetBalancingHeader(batchReq, connection->GetConfig(), options);
+                SetBalancingHeader(batchReq, connection, options);
 
                 auto req = NObjectClient::TMasterYPathProxy::GetClusterMeta();
                 req->set_populate_cluster_directory(true);
-                SetCachingHeader(req, connection->GetConfig(), options);
+                SetCachingHeader(req, connection, options);
                 batchReq->AddRequest(req);
 
                 auto batchRsp = WaitFor(batchReq->Invoke())

@@ -220,7 +220,7 @@ private:
                 connection->GetStickyGroupSizeCache(),
                 NRpc::TAuthenticationIdentity(NSecurityClient::TableMountInformerUserName));
             auto batchReq = primaryProxy.ExecuteBatch();
-            SetBalancingHeader(batchReq, connection->GetConfig(), options);
+            SetBalancingHeader(batchReq, connection, options);
 
             {
                 auto req = TTableYPathProxy::Get(Path_ + "/@");
@@ -230,7 +230,7 @@ private:
                     "external_cell_tag"
                 });
 
-                SetCachingHeader(req, connection->GetConfig(), options, refreshPrimaryRevision);
+                SetCachingHeader(req, connection, options, refreshPrimaryRevision);
 
                 size_t hash = 0;
                 HashCombine(hash, FarmHash(Path_.begin(), Path_.size()));
@@ -287,10 +287,10 @@ private:
                 connection->GetStickyGroupSizeCache(),
                 NRpc::TAuthenticationIdentity(NSecurityClient::TableMountInformerUserName));
             auto batchReq = secondaryProxy.ExecuteBatch();
-            SetBalancingHeader(batchReq, connection->GetConfig(), options);
+            SetBalancingHeader(batchReq, connection, options);
 
             auto req = TTableYPathProxy::GetMountInfo(FromObjectId(TableId_));
-            SetCachingHeader(req, connection->GetConfig(), options, refreshSecondaryRevision);
+            SetCachingHeader(req, connection, options, refreshSecondaryRevision);
 
             size_t hash = 0;
             HashCombine(hash, FarmHash(TableId_.Parts64[0]));

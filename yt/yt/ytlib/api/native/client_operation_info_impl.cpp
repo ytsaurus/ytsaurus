@@ -1311,7 +1311,7 @@ TListOperationsResult TClient::DoListOperations(const TListOperationsOptions& ol
         options.AccessFilter->SubjectTransitiveClosure = GetSubjectClosure(
             options.AccessFilter->Subject,
             proxy,
-            Connection_->GetConfig(),
+            Connection_,
             options);
         if (options.AccessFilter->Subject == RootUserName ||
             options.AccessFilter->SubjectTransitiveClosure.contains(SuperusersGroupName))

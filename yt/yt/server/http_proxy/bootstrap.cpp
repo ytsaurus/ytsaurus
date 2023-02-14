@@ -119,7 +119,8 @@ TBootstrap::TBootstrap(TProxyConfigPtr config, INodePtr configNode)
         orchidRoot,
         "http_proxy");
 
-    auto connectionConfig = ConvertTo<NNative::TConnectionConfigPtr>(Config_->Driver);
+    // TODO(max42): YT-18401.
+    auto connectionConfig = ConvertTo<NNative::TConnectionCompoundConfigPtr>(Config_->Driver);
     NNative::TConnectionOptions connectionOptions;
     connectionOptions.RetryRequestQueueSizeLimitExceeded = Config_->RetryRequestQueueSizeLimitExceeded;
     Connection_ = CreateConnection(connectionConfig, connectionOptions);

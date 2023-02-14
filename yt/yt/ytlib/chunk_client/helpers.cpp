@@ -167,7 +167,7 @@ void GetUserObjectBasicAttributes(
             }
         }
         req->Tag() = userObject;
-        NNative::SetCachingHeader(req, client->GetNativeConnection()->GetConfig(), options);
+        NNative::SetCachingHeader(req, client->GetNativeConnection(), options);
         NCypressClient::SetTransactionId(req, userObject->TransactionId.value_or(defaultTransactionId));
         NCypressClient::SetSuppressAccessTracking(req, options.SuppressAccessTracking);
         NCypressClient::SetSuppressExpirationTimeoutRenewal(req, options.SuppressExpirationTimeoutRenewal);

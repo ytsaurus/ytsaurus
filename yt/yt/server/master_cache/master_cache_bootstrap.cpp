@@ -61,10 +61,11 @@ public:
                 GetNativeAuthenticator());
         };
 
-        CachingObjectServices_.push_back(initCachingObjectService(
-            GetConfig()->ClusterConnection->PrimaryMaster));
+        auto connectionStaticConfig = ConvertTo<NNative::TConnectionStaticConfigPtr>(GetConfig()->ClusterConnection);
 
-        for (const auto& masterConfig : GetConfig()->ClusterConnection->SecondaryMasters) {
+        CachingObjectServices_.push_back(initCachingObjectService(connectionStaticConfig->PrimaryMaster));
+
+        for (const auto& masterConfig : connectionStaticConfig->SecondaryMasters) {
             CachingObjectServices_.push_back(initCachingObjectService(masterConfig));
         }
 

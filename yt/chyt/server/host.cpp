@@ -106,7 +106,7 @@ public:
         THost* owner,
         IInvokerPtr controlInvoker,
         TYtConfigPtr config,
-        NApi::NNative::TConnectionConfigPtr connectionConfig,
+        TConnectionCompoundConfigPtr connectionConfig,
         TPorts ports)
         : Owner_(owner)
         , ControlInvoker_(std::move(controlInvoker))
@@ -576,7 +576,7 @@ private:
     const IInvokerPtr ControlInvoker_;
     const TYtConfigPtr Config_;
     TPorts Ports_;
-    const NApi::NNative::TConnectionConfigPtr ConnectionConfig_;
+    const TConnectionCompoundConfigPtr ConnectionConfig_;
     THealthCheckerPtr HealthChecker_;
     TMemoryWatchdogPtr MemoryWatchdog_;
     TQueryRegistryPtr QueryRegistry_;
@@ -872,7 +872,7 @@ THost::THost(
     IInvokerPtr controlInvoker,
     TPorts ports,
     TYtConfigPtr config,
-    NApi::NNative::TConnectionConfigPtr connectionConfig)
+    TConnectionCompoundConfigPtr connectionConfig)
     : Impl_(New<TImpl>(
         this,
         std::move(controlInvoker),

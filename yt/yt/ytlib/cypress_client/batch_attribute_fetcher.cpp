@@ -130,14 +130,12 @@ TFuture<void> TBatchAttributeFetcher::Fetch()
 
 void TBatchAttributeFetcher::SetupBatchRequest(const TObjectServiceProxy::TReqExecuteBatchPtr& batchReq)
 {
-    const auto& config = Client_->GetNativeConnection()->GetConfig();
-    SetBalancingHeader(batchReq, config, MasterReadOptions_);
+    SetBalancingHeader(batchReq, Client_->GetNativeConnection(), MasterReadOptions_);
 }
 
 void TBatchAttributeFetcher::SetupYPathRequest(const TYPathRequestPtr& req)
 {
-    const auto& config = Client_->GetNativeConnection()->GetConfig();
-    SetCachingHeader(req, config, MasterReadOptions_);
+    SetCachingHeader(req, Client_->GetNativeConnection(), MasterReadOptions_);
 }
 
 void TBatchAttributeFetcher::FetchBatchCounts()

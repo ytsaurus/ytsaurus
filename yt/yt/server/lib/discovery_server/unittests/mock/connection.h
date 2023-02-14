@@ -13,11 +13,15 @@ class TMockDistributedThrottlerConnection
 public:
     explicit TMockDistributedThrottlerConnection(NDiscoveryClient::TDiscoveryConnectionConfigPtr config);
 
-    const NApi::NNative::TConnectionConfigPtr& GetConfig() const override
+    const NApi::NNative::TConnectionStaticConfigPtr& GetStaticConfig() const override
     {
         YT_UNIMPLEMENTED();
     }
-    NApi::NNative::TConnectionDynamicConfigPtr GetDynamicConfig() const override
+    NApi::NNative::TConnectionDynamicConfigPtr GetConfig() const override
+    {
+        YT_UNIMPLEMENTED();
+    }
+    NApi::NNative::TConnectionCompoundConfigPtr GetCompoundConfig() const override
     {
         YT_UNIMPLEMENTED();
     }

@@ -29,6 +29,8 @@ namespace NYT::NApi::NNative {
 using namespace NObjectClient;
 using namespace NTransactionClient;
 using namespace NDiscoveryClient;
+using namespace NYTree;
+using namespace NYson;
 
 ////////////////////////////////////////////////////////////////////////////////
 
@@ -79,23 +81,62 @@ void TCypressProxyConnectionConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
-void TConnectionConfig::Register(TRegistrar registrar)
+void TConnectionStaticConfig::Register(TRegistrar registrar)
 {
     registrar.Parameter("networks", &TThis::Networks)
         .Default();
     registrar.Parameter("timestamp_provider", &TThis::TimestampProvider)
         .Default();
-    registrar.Parameter("cell_directory", &TThis::CellDirectory)
-        .DefaultNew();
-    registrar.Parameter("cell_directory_synchronizer", &TThis::CellDirectorySynchronizer)
-        .DefaultNew();
-    registrar.Parameter("chaos_cell_directory_synchronizer", &TThis::ChaosCellDirectorySynchronizer)
-        .DefaultNew();
     registrar.Parameter("clock_servers", &TThis::ClockServers)
         .Default();
     registrar.Parameter("cypress_proxy", &TThis::CypressProxy)
         .Default();
     registrar.Parameter("master_cell_directory_synchronizer", &TThis::MasterCellDirectorySynchronizer)
+        .DefaultNew();
+    registrar.Parameter("clock_manager", &TThis::ClockManager)
+        .DefaultNew();
+    registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
+        .DefaultNew();
+    registrar.Parameter("banned_replica_tracker_cache", &TThis::BannedReplicaTrackerCache)
+        .DefaultNew();
+}
+
+void TConnectionStaticConfig::OverrideMasterAddresses(const std::vector<TString>& addresses)
+{
+    auto patchMasterConnectionConfig = [&] (const TMasterConnectionConfigPtr& config) {
+        config->Addresses = addresses;
+        config->Endpoints = nullptr;
+        if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
+            config->RpcTimeout = *config->RetryTimeout;
+        }
+        config->RetryTimeout = std::nullopt;
+        config->RetryAttempts = 1;
+        config->IgnorePeerState = true;
+    };
+
+    patchMasterConnectionConfig(PrimaryMaster);
+    for (const auto& config : SecondaryMasters) {
+        patchMasterConnectionConfig(config);
+    }
+    if (!MasterCache) {
+        MasterCache = New<TMasterCacheConnectionConfig>();
+        MasterCache->Load(ConvertToNode(PrimaryMaster));
+    }
+    patchMasterConnectionConfig(MasterCache);
+    MasterCache->EnableMasterCacheDiscovery = false;
+
+    MasterCellDirectorySynchronizer->RetryPeriod = std::nullopt;
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+void TConnectionDynamicConfig::Register(TRegistrar registrar)
+{
+    registrar.Parameter("cell_directory", &TThis::CellDirectory)
+        .DefaultNew();
+    registrar.Parameter("cell_directory_synchronizer", &TThis::CellDirectorySynchronizer)
+        .DefaultNew();
+    registrar.Parameter("chaos_cell_directory_synchronizer", &TThis::ChaosCellDirectorySynchronizer)
         .DefaultNew();
     registrar.Parameter("scheduler", &TThis::Scheduler)
         .DefaultNew();
@@ -106,8 +147,6 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("yql_agent", &TThis::YqlAgent)
         .Default();
     registrar.Parameter("transaction_manager", &TThis::TransactionManager)
-        .DefaultNew();
-    registrar.Parameter("clock_manager", &TThis::ClockManager)
         .DefaultNew();
     registrar.Parameter("block_cache", &TThis::BlockCache)
         .DefaultNew();
@@ -245,10 +284,6 @@ void TConnectionConfig::Register(TRegistrar registrar)
     registrar.Parameter("hive_sync_rpc_timeout", &TThis::HiveSyncRpcTimeout)
         .Default(TDuration::Seconds(30));
 
-    registrar.Parameter("connection_name", &TThis::ConnectionName)
-        .Alias("name")
-        .Default("default");
-
     registrar.Parameter("permission_cache", &TThis::PermissionCache)
         .DefaultNew();
 
@@ -273,9 +308,6 @@ void TConnectionConfig::Register(TRegistrar registrar)
         .Default(TDuration::Seconds(15));
 
     registrar.Parameter("chunk_fetch_retries", &TThis::ChunkFetchRetries)
-        .DefaultNew();
-
-    registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
         .DefaultNew();
 
     registrar.Parameter("banned_replica_tracker_cache", &TThis::BannedReplicaTrackerCache)
@@ -322,45 +354,6 @@ void TConnectionConfig::Register(TRegistrar registrar)
         config->BannedReplicaTrackerCache->Capacity = 1000;
     });
 
-    registrar.Postprocessor([] (TThis* config) {
-        if (!config->DiscoveryConnection && config->PrimaryMaster) {
-            config->DiscoveryConnection = New<TDiscoveryConnectionConfig>();
-            config->DiscoveryConnection->Addresses = config->PrimaryMaster->Addresses;
-        }
-    });
-}
-
-void TConnectionConfig::OverrideMasterAddresses(const std::vector<TString>& addresses)
-{
-    auto patchMasterConnectionConfig = [&] (const TMasterConnectionConfigPtr& config) {
-        config->Addresses = addresses;
-        config->Endpoints = nullptr;
-        if (config->RetryTimeout && *config->RetryTimeout > config->RpcTimeout) {
-            config->RpcTimeout = *config->RetryTimeout;
-        }
-        config->RetryTimeout = std::nullopt;
-        config->RetryAttempts = 1;
-        config->IgnorePeerState = true;
-    };
-
-    patchMasterConnectionConfig(PrimaryMaster);
-    for (const auto& config : SecondaryMasters) {
-        patchMasterConnectionConfig(config);
-    }
-    if (!MasterCache) {
-        MasterCache = New<TMasterCacheConnectionConfig>();
-        MasterCache->Load(ConvertToNode(PrimaryMaster));
-    }
-    patchMasterConnectionConfig(MasterCache);
-    MasterCache->EnableMasterCacheDiscovery = false;
-
-    MasterCellDirectorySynchronizer->RetryPeriod = std::nullopt;
-}
-
-////////////////////////////////////////////////////////////////////////////////
-
-void TConnectionDynamicConfig::Register(TRegistrar registrar)
-{
     registrar.Parameter("sync_replica_cache", &TThis::SyncReplicaCache)
         .DefaultNew();
     registrar.Parameter("clock_manager", &TThis::ClockManager)
@@ -370,6 +363,44 @@ void TConnectionDynamicConfig::Register(TRegistrar registrar)
     registrar.Parameter("replica_fallback_retry_count", &TThis::ReplicaFallbackRetryCount)
         .GreaterThanOrEqual(0)
         .Default(3);
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
+TConnectionCompoundConfig::TConnectionCompoundConfig(const INodePtr& node)
+    : Static(ConvertTo<TConnectionStaticConfigPtr>(node))
+    , Dynamic(ConvertTo<TConnectionDynamicConfigPtr>(node))
+{ }
+
+TConnectionCompoundConfig::TConnectionCompoundConfig(
+    TConnectionStaticConfigPtr staticConfig,
+    TConnectionDynamicConfigPtr dynamicConfig)
+    : Static(std::move(staticConfig))
+    , Dynamic(std::move(dynamicConfig))
+{ }
+
+TConnectionCompoundConfigPtr TConnectionCompoundConfig::Clone() const
+{
+    return New<TConnectionCompoundConfig>(CloneYsonSerializable(Static), CloneYsonSerializable(Dynamic));
+}
+
+void Serialize(const TConnectionCompoundConfigPtr& connectionConfig, NYson::IYsonConsumer* consumer)
+{
+    auto node = ConvertToNode(connectionConfig->Static);
+    node = PatchNode(node, ConvertToNode(connectionConfig->Dynamic));
+    Serialize(node, consumer);
+}
+
+void Deserialize(TConnectionCompoundConfigPtr& connectionConfig, const INodePtr& node)
+{
+    connectionConfig = New<TConnectionCompoundConfig>();
+    connectionConfig->Static = ConvertTo<TConnectionStaticConfigPtr>(node);
+    connectionConfig->Dynamic = ConvertTo<TConnectionDynamicConfigPtr>(node);
+}
+
+void Deserialize(TConnectionCompoundConfigPtr& connectionConfig, TYsonPullParserCursor* cursor)
+{
+    Deserialize(connectionConfig, ExtractTo<INodePtr>(cursor));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

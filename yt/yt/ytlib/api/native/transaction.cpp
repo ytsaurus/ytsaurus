@@ -1447,7 +1447,7 @@ private:
             sessions.push_back(session);
         }
 
-        auto dynamicConfig = Client_->GetNativeConnection()->GetDynamicConfig();
+        auto dynamicConfig = Client_->GetNativeConnection()->GetConfig();
         return CommitTabletSessions(
             std::move(sessions),
             dynamicConfig->TabletWriteBackoff,

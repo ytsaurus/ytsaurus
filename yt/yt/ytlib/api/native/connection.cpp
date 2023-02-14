@@ -124,7 +124,7 @@ using namespace NRpc;
 
 namespace {
 
-TString MakeConnectionClusterId(const TConnectionConfigPtr& config)
+TString MakeConnectionClusterId(const TConnectionStaticConfigPtr& config)
 {
     if (config->ClusterName) {
         return Format("Native(Name=%v)", *config->ClusterName);
@@ -141,43 +141,48 @@ class TConnection
 {
 public:
     TConnection(
-        TConnectionConfigPtr config,
+        TConnectionStaticConfigPtr staticConfig,
+        TConnectionDynamicConfigPtr dynamicConfig,
         const TConnectionOptions& options)
-        : Config_(std::move(config))
+        : StaticConfig_(std::move(staticConfig))
+        , Config_(std::move(dynamicConfig))
         , Options_(options)
         , LoggingTag_(Format("PrimaryCellTag: %v, ConnectionId: %v, ConnectionName: %v",
-            CellTagFromId(Config_->PrimaryMaster->CellId),
+            CellTagFromId(StaticConfig_->PrimaryMaster->CellId),
             TGuid::Create(),
-            Config_->ConnectionName))
-        , ClusterId_(MakeConnectionClusterId(Config_))
-        , StickyGroupSizeCache_(Config_->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr)
+            StaticConfig_->ConnectionName))
+        , ClusterId_(MakeConnectionClusterId(StaticConfig_))
         , Logger(ApiLogger.WithRawTag(LoggingTag_))
-        , Profiler_(TProfiler("/connection").WithTag("connection_name", Config_->ConnectionName))
+        , Profiler_(TProfiler("/connection").WithTag("connection_name", StaticConfig_->ConnectionName))
         , TabletSyncReplicaCache_(New<TTabletSyncReplicaCache>())
-        , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(Config_->BannedReplicaTrackerCache, Logger))
-    {
-        ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
-            CreateCachingChannelFactory(
-                NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient),
-                Config_->IdleChannelTtl),
-            Config_->TvmId,
-            Options_.TvmService);
-    }
+        , BannedReplicaTrackerCache_(CreateBannedReplicaTrackerCache(StaticConfig_->BannedReplicaTrackerCache, Logger))
+    { }
 
     void Initialize()
     {
+        auto config = Config_.Acquire();
+
+        StickyGroupSizeCache_ = config->EnableDynamicCacheStickyGroupSize ? New<TStickyGroupSizeCache>() : nullptr;
+
+        ChannelFactory_ = CreateNativeAuthenticationInjectingChannelFactory(
+            CreateCachingChannelFactory(
+                NRpc::NBus::CreateTcpBusChannelFactory(config->BusClient),
+                config->IdleChannelTtl),
+            config->TvmId,
+            Options_.TvmService);
+
         if (!Options_.ConnectionInvoker) {
-            ConnectionThreadPool_ = CreateThreadPool(Config_->ThreadPoolSize, "Connection");
+            ConnectionThreadPool_ = CreateThreadPool(config->ThreadPoolSize, "Connection");
             Options_.ConnectionInvoker = ConnectionThreadPool_->GetInvoker();
         }
 
         MasterCellDirectory_ = New<NCellMasterClient::TCellDirectory>(
-            Config_,
+            StaticConfig_,
             Options_,
             ChannelFactory_,
             Logger);
         MasterCellDirectorySynchronizer_ = New<NCellMasterClient::TCellDirectorySynchronizer>(
-            Config_->MasterCellDirectorySynchronizer,
+            StaticConfig_->MasterCellDirectorySynchronizer,
             MasterCellDirectory_);
 
         InitializeTimestampProvider();
@@ -185,19 +190,19 @@ public:
         InitializeCypressProxyChannel();
 
         ClockManager_ = CreateClockManager(
-            Config_->ClockManager,
+            StaticConfig_->ClockManager,
             this,
             Logger);
 
         SchedulerChannel_ = CreateSchedulerChannel(
-            Config_->Scheduler,
+            config->Scheduler,
             ChannelFactory_,
             GetMasterChannelOrThrow(EMasterChannelKind::Leader),
             GetNetworks());
 
         InitializeQueueAgentChannels();
         QueueConsumerRegistrationManager_ = New<TQueueConsumerRegistrationManager>(
-            Config_->QueueAgent->QueueConsumerRegistrationManager,
+            config->QueueAgent->QueueConsumerRegistrationManager,
             this,
             GetInvoker(),
             Logger);
@@ -205,27 +210,27 @@ public:
         InitializeYqlAgentChannel();
 
         PermissionCache_ = New<TPermissionCache>(
-            Config_->PermissionCache,
+            config->PermissionCache,
             this);
 
         JobShellDescriptorCache_ = New<TJobShellDescriptorCache>(
-            Config_->JobShellDescriptorCache,
+            config->JobShellDescriptorCache,
             SchedulerChannel_);
 
         ClusterDirectory_ = New<TClusterDirectory>(Options_);
         ClusterDirectorySynchronizer_ = New<TClusterDirectorySynchronizer>(
-            Config_->ClusterDirectorySynchronizer,
+            config->ClusterDirectorySynchronizer,
             this,
             ClusterDirectory_);
 
         MediumDirectory_ = New<TMediumDirectory>();
         MediumDirectorySynchronizer_ = New<TMediumDirectorySynchronizer>(
-            Config_->MediumDirectorySynchronizer,
+            config->MediumDirectorySynchronizer,
             this,
             MediumDirectory_);
 
         CellDirectory_ = NHiveClient::CreateCellDirectory(
-            Config_->CellDirectory,
+            config->CellDirectory,
             ChannelFactory_,
             ClusterDirectory_,
             GetNetworks(),
@@ -233,35 +238,35 @@ public:
         ConfigureMasterCells();
 
         CellDirectorySynchronizer_ = CreateCellDirectorySynchronizer(
-            Config_->CellDirectorySynchronizer,
+            config->CellDirectorySynchronizer,
             CellDirectory_,
             GetCellDirectorySynchronizerSourceOfTruthCellIds(),
             Logger);
 
         ChaosCellDirectorySynchronizer_ = CreateChaosCellDirectorySynchronizer(
-            Config_->ChaosCellDirectorySynchronizer,
+            config->ChaosCellDirectorySynchronizer,
             CellDirectory_,
             this,
             Logger);
 
-        if (Config_->ReplicationCardCache || Config_->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
+        if (StaticConfig_->ReplicationCardCache || config->ChaosCellDirectorySynchronizer->SyncAllChaosCells) {
             ChaosCellDirectorySynchronizer_->Start();
         }
 
         ReplicationCardChannelFactory_ = CreateReplicationCardChannelFactory(
             CellDirectory_,
             CreateReplicationCardResidencyCache(
-                Config_->ReplicationCardResidencyCache,
+                config->ReplicationCardResidencyCache,
                 this,
                 Logger),
             ChaosCellDirectorySynchronizer_,
-            Config_->ChaosCellChannel);
+            config->ChaosCellChannel);
 
         if (Options_.BlockCache) {
             BlockCache_ = Options_.BlockCache;
         } else {
             BlockCache_ = CreateClientBlockCache(
-                Config_->BlockCache,
+                config->BlockCache,
                 EBlockType::CompressedData | EBlockType::UncompressedData,
                 /*memoryTracker*/ nullptr,
                 /*blockTracker*/ nullptr,
@@ -270,33 +275,33 @@ public:
 
         if (Options_.ChunkMetaCache) {
             ChunkMetaCache_ = Options_.ChunkMetaCache;
-        } else if (Config_->ChunkMetaCache) {
+        } else if (config->ChunkMetaCache) {
             ChunkMetaCache_ = CreateClientChunkMetaCache(
-                Config_->ChunkMetaCache,
+                config->ChunkMetaCache,
                 Profiler_.WithPrefix("/chunk_meta_cache"));
         } else {
             ChunkMetaCache_ = nullptr;
         }
 
         TableMountCache_ = CreateNativeTableMountCache(
-            Config_->TableMountCache,
+            StaticConfig_->TableMountCache,
             this,
             CellDirectory_,
             Logger,
             Profiler_);
 
-        if (const auto& config = Config_->ReplicationCardCache) {
+        if (const auto& replicationCardCacheConfig = StaticConfig_->ReplicationCardCache) {
             ReplicationCardCache_ = CreateNativeReplicationCardCache(
-                config,
+                replicationCardCacheConfig,
                 this,
                 Logger);
         }
 
-        QueryEvaluator_ = CreateEvaluator(Config_->QueryEvaluator);
-        ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(Config_->ColumnEvaluatorCache);
+        QueryEvaluator_ = CreateEvaluator(config->QueryEvaluator);
+        ColumnEvaluatorCache_ = CreateColumnEvaluatorCache(config->ColumnEvaluatorCache);
 
         SyncReplicaCache_ = New<TSyncReplicaCache>(
-            Config_->SyncReplicaCache,
+            StaticConfig_->SyncReplicaCache,
             this,
             Logger);
 
@@ -329,7 +334,7 @@ public:
 
     const std::optional<TString>& GetClusterName() const override
     {
-        return Config_->ClusterName;
+        return StaticConfig_->ClusterName;
     }
 
     bool IsSameCluster(const NApi::IConnectionPtr& other) const override
@@ -408,19 +413,25 @@ public:
 
     // NNative::IConnection implementation.
 
-    const TConnectionConfigPtr& GetConfig() const override
+    const TConnectionStaticConfigPtr& GetStaticConfig() const override
     {
-        return Config_;
+        return StaticConfig_;
     }
 
-    TConnectionDynamicConfigPtr GetDynamicConfig() const override
+    TConnectionCompoundConfigPtr GetCompoundConfig() const override
     {
-        return DynamicConfig_.Load();
+        return New<TConnectionCompoundConfig>(StaticConfig_, Config_.Acquire());
+    }
+
+    TConnectionDynamicConfigPtr GetConfig() const override
+    {
+        return Config_.Acquire();
     }
 
     const TNetworkPreferenceList& GetNetworks() const override
     {
-        return Config_->Networks ? *Config_->Networks : DefaultNetworkPreferences;
+        // NB: value_or is not applicable here due to cref return value.
+        return StaticConfig_->Networks ? *StaticConfig_->Networks : DefaultNetworkPreferences;
     }
 
     TCellId GetPrimaryMasterCellId() const override
@@ -617,12 +628,13 @@ public:
         TDiscoveryClientConfigPtr clientConfig,
         IChannelFactoryPtr channelFactory) override
     {
-        if (!Config_->DiscoveryConnection) {
+        auto config = Config_.Acquire();
+        if (!config->DiscoveryConnection) {
             THROW_ERROR_EXCEPTION("Missing \"discovery_connection\" parameter in connection configuration");
         }
 
         return NDiscoveryClient::CreateDiscoveryClient(
-            Config_->DiscoveryConnection,
+            config->DiscoveryConnection,
             std::move(clientConfig),
             std::move(channelFactory));
     }
@@ -634,12 +646,13 @@ public:
         TString id,
         TString groupId) override
     {
-        if (!Config_->DiscoveryConnection) {
+        auto config = Config_.Acquire();
+        if (!config->DiscoveryConnection) {
             THROW_ERROR_EXCEPTION("Missing \"discovery_connection\" parameter in connection configuration");
         }
 
         return NDiscoveryClient::CreateMemberClient(
-            Config_->DiscoveryConnection,
+            config->DiscoveryConnection,
             std::move(clientConfig),
             std::move(channelFactory),
             std::move(invoker),
@@ -694,7 +707,7 @@ public:
         THiveServiceProxy proxy(std::move(channel));
 
         auto req = proxy.SyncWithOthers();
-        req->SetTimeout(Config_->HiveSyncRpcTimeout);
+        req->SetTimeout(Config_.Acquire()->HiveSyncRpcTimeout);
         ToProto(req->mutable_src_cell_ids(), srcCellIds);
 
         return req->Invoke()
@@ -717,16 +730,17 @@ public:
 
     void Reconfigure(const TConnectionDynamicConfigPtr& dynamicConfig) override
     {
-        SyncReplicaCache_->Reconfigure(Config_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
-        TableMountCache_->Reconfigure(Config_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
-        ClockManager_->Reconfigure(Config_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
+        SyncReplicaCache_->Reconfigure(StaticConfig_->SyncReplicaCache->ApplyDynamic(dynamicConfig->SyncReplicaCache));
+        TableMountCache_->Reconfigure(StaticConfig_->TableMountCache->ApplyDynamic(dynamicConfig->TableMountCache));
+        ClockManager_->Reconfigure(StaticConfig_->ClockManager->ApplyDynamic(dynamicConfig->ClockManager));
 
-        DynamicConfig_.Store(dynamicConfig);
+        Config_.Store(dynamicConfig);
     }
 
 private:
-    const TConnectionConfigPtr Config_;
-    TAtomicObject<TConnectionDynamicConfigPtr> DynamicConfig_ = New<TConnectionDynamicConfig>();
+    const TConnectionStaticConfigPtr StaticConfig_;
+    // TODO(max42): switch to atomic intrusive ptr.
+    TConnectionDynamicConfigAtomicPtr Config_ = TConnectionDynamicConfigAtomicPtr(New<TConnectionDynamicConfig>());
 
     TConnectionOptions Options_;
 
@@ -734,7 +748,7 @@ private:
     const TString ClusterId_;
 
     NRpc::IChannelFactoryPtr ChannelFactory_;
-    const TStickyGroupSizeCachePtr StickyGroupSizeCache_;
+    TStickyGroupSizeCachePtr StickyGroupSizeCache_;
 
     const NLogging::TLogger Logger;
     const TProfiler Profiler_;
@@ -789,8 +803,8 @@ private:
 
     void ConfigureMasterCells()
     {
-        CellDirectory_->ReconfigureCell(Config_->PrimaryMaster);
-        for (const auto& cellConfig : Config_->SecondaryMasters) {
+        CellDirectory_->ReconfigureCell(StaticConfig_->PrimaryMaster);
+        for (const auto& cellConfig : StaticConfig_->SecondaryMasters) {
             CellDirectory_->ReconfigureCell(cellConfig);
         }
     }
@@ -801,7 +815,8 @@ private:
         // For multicell clusters we sync with a random secondary cell each time
         // to reduce load on the primary cell.
         TCellIdList cellIds;
-        if (Config_->CellDirectorySynchronizer->SyncCellsWithSecondaryMasters) {
+        auto config = Config_.Acquire();
+        if (config->CellDirectorySynchronizer->SyncCellsWithSecondaryMasters) {
             cellIds = MasterCellDirectory_->GetSecondaryMasterCellIds();
         }
         if (cellIds.empty()) {
@@ -812,7 +827,7 @@ private:
 
     void BuildOrchid(IYsonConsumer* consumer)
     {
-        bool hasMasterCache = static_cast<bool>(Config_->MasterCache);
+        bool hasMasterCache = static_cast<bool>(StaticConfig_->MasterCache);
         BuildYsonFluently(consumer)
             .BeginMap()
                 .Item("master_cache")
@@ -835,9 +850,9 @@ private:
 
     void InitializeTimestampProvider()
     {
-        auto timestampProviderConfig = Config_->TimestampProvider;
+        auto timestampProviderConfig = StaticConfig_->TimestampProvider;
         if (!timestampProviderConfig) {
-            timestampProviderConfig = CreateRemoteTimestampProviderConfig(Config_->PrimaryMaster);
+            timestampProviderConfig = CreateRemoteTimestampProviderConfig(StaticConfig_->PrimaryMaster);
         }
 
         TimestampProviderChannel_ = timestampProviderConfig->EnableTimestampProviderDiscovery ?
@@ -853,7 +868,7 @@ private:
 
     void InitializeCypressProxyChannel()
     {
-        const auto& config = Config_->CypressProxy;
+        const auto& config = StaticConfig_->CypressProxy;
         if (!config) {
             return;
         }
@@ -875,7 +890,8 @@ private:
 
     void InitializeQueueAgentChannels()
     {
-        for (const auto& [stage, channelConfig] : Config_->QueueAgent->Stages) {
+        auto config = Config_.Acquire();
+        for (const auto& [stage, channelConfig] : config->QueueAgent->Stages) {
             auto endpointDescription = Format("QueueAgent/%v", stage);
             auto endpointAttributes = ConvertToAttributes(BuildYsonStringFluently()
                 .BeginMap()
@@ -901,7 +917,8 @@ private:
 
     void InitializeYqlAgentChannel()
     {
-        if (!Config_->YqlAgent) {
+        auto config = Config_.Acquire();
+        if (!config->YqlAgent) {
             return;
         }
 
@@ -912,7 +929,7 @@ private:
             .EndMap());
 
         auto channel = CreateBalancingChannel(
-            Config_->YqlAgent->Channel,
+            config->YqlAgent->Channel,
             ChannelFactory_,
             std::move(endpointDescription),
             std::move(endpointAttributes));
@@ -926,6 +943,7 @@ private:
 
     void SetupTvmIdSynchronization()
     {
+        auto config = Config_.Acquire();
         auto tvmService = Options_.TvmService;
         if (!tvmService) {
             tvmService = TNativeAuthenticationManager::Get()->GetTvmService();
@@ -933,16 +951,16 @@ private:
         if (!tvmService) {
             return;
         }
-        if (Config_->TvmId) {
-            tvmService->AddDestinationServiceIds({*Config_->TvmId});
+        if (config->TvmId) {
+            tvmService->AddDestinationServiceIds({*config->TvmId});
         }
         ClusterDirectory_->SubscribeOnClusterUpdated(
             BIND_NO_PROPAGATE([tvmService] (const TString& name, INodePtr nativeConnectionConfig) {
                 static const auto& Logger = TvmSynchronizerLogger;
 
-                NNative::TConnectionConfigPtr config;
+                NNative::TConnectionDynamicConfigPtr config;
                 try {
-                    config = ConvertTo<NNative::TConnectionConfigPtr>(nativeConnectionConfig);
+                    config = ConvertTo<NNative::TConnectionDynamicConfigPtr>(nativeConnectionConfig);
                 } catch (const std::exception& ex) {
                     YT_LOG_ERROR(ex, "Cannot update cluster TVM ids because of invalid connection config (Name: %v)", name);
                     return;
@@ -965,7 +983,7 @@ private:
             clusterConnection = DynamicPointerCast<TConnection>(ClusterDirectory_->GetConnectionOrThrow(cluster));
             YT_VERIFY(clusterConnection);
         }
-        const auto& stages = clusterConnection->Config_->QueryTracker->Stages;
+        const auto& stages = clusterConnection->Config_.Acquire()->QueryTracker->Stages;
         if (auto iter = stages.find(clusterStage); iter != stages.end()) {
             auto client = DynamicPointerCast<IClient>(clusterConnection->CreateClient(TClientOptions::FromUser(QueryTrackerUserName)));
             YT_VERIFY(client);
@@ -982,17 +1000,25 @@ TConnectionOptions::TConnectionOptions(IInvokerPtr invoker)
 }
 
 IConnectionPtr CreateConnection(
-    TConnectionConfigPtr config,
+    TConnectionStaticConfigPtr staticConfig,
+    TConnectionDynamicConfigPtr dynamicConfig,
     TConnectionOptions options)
 {
     NTracing::TNullTraceContextGuard nullTraceContext;
 
-    if (!config->PrimaryMaster) {
+    if (!staticConfig->PrimaryMaster) {
         THROW_ERROR_EXCEPTION("Missing \"primary_master\" parameter in connection configuration");
     }
-    auto connection = New<TConnection>(std::move(config), std::move(options));
+    auto connection = New<TConnection>(std::move(staticConfig), std::move(dynamicConfig), std::move(options));
     connection->Initialize();
     return connection;
+}
+
+IConnectionPtr CreateConnection(
+    TConnectionCompoundConfigPtr compoundConfig,
+    TConnectionOptions options)
+{
+    return CreateConnection(compoundConfig->Static, compoundConfig->Dynamic, std::move(options));
 }
 
 ////////////////////////////////////////////////////////////////////////////////

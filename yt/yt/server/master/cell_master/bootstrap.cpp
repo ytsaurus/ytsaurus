@@ -771,7 +771,7 @@ void TBootstrap::DoInitialize()
     ChannelFactory_ = NAuth::CreateNativeAuthenticationInjectingChannelFactory(
         CreateCachingChannelFactory(
             NRpc::NBus::CreateTcpBusChannelFactory(Config_->BusClient)),
-        Config_->ClusterConnection->TvmId);
+        Config_->ClusterConnection->Dynamic->TvmId);
 
     const auto& networks = Config_->Networks;
 

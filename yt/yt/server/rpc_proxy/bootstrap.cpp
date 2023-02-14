@@ -124,9 +124,8 @@ void TBootstrap::DoRun()
 {
     LocalAddresses_ = NYT::GetLocalAddresses(Config_->Addresses, Config_->RpcPort);
 
-    YT_LOG_INFO("Starting proxy (LocalAddresses: %v, PrimaryMasterAddresses: %v)",
-        GetValues(LocalAddresses_),
-        Config_->ClusterConnection->PrimaryMaster->Addresses);
+    YT_LOG_INFO("Starting proxy (LocalAddresses: %v)",
+        GetValues(LocalAddresses_));
 
     NApi::NNative::TConnectionOptions connectionOptions;
     connectionOptions.ConnectionInvoker = GetWorkerInvoker();

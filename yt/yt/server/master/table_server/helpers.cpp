@@ -37,7 +37,7 @@ TFuture<TYsonString> GetQueueAgentAttributeAsync(
     TInternedAttributeKey key)
 {
     const auto& connection = bootstrap->GetClusterConnection();
-    const auto& clusterName = connection->GetConfig()->ClusterName;
+    const auto& clusterName = connection->GetStaticConfig()->ClusterName;
     if (!clusterName) {
         THROW_ERROR_EXCEPTION("Cluster name is not set in cluster connection config");
     }

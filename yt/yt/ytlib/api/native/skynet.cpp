@@ -88,10 +88,10 @@ TSkynetSharePartsLocationsPtr DoLocateSkynetShare(
         };
 
         auto batchReq = proxy.ExecuteBatch();
-        SetBalancingHeader(batchReq, connection->GetConfig(), masterReadOptions);
+        SetBalancingHeader(batchReq, connection, masterReadOptions);
 
         auto req = TYPathProxy::Get(userObject.GetObjectIdPath() + "/@");
-        SetCachingHeader(req, connection->GetConfig(), masterReadOptions);
+        SetCachingHeader(req, connection, masterReadOptions);
         SetSuppressAccessTracking(req, false);
         ToProto(req->mutable_attributes()->mutable_keys(), std::vector<TString>{
             "chunk_count",

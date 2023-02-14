@@ -141,7 +141,7 @@ TFetchedArtifactKey FetchLayerArtifactKeyIfRevisionChanged(
 
     TMasterReadOptions options;
     options.ReadFrom = EMasterChannelKind::Cache;
-    SetCachingHeader(req, connection->GetConfig(), options);
+    SetCachingHeader(req, connection, options);
     req->add_extension_tags(TProtoExtensionTag<NChunkClient::NProto::TMiscExt>::Value);
 
     batchReq->AddRequest(req);
