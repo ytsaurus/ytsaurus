@@ -257,7 +257,7 @@ void TBlobChunkBase::DoReadMeta(
         auto error = TError(ex);
         if (error.FindMatching(NChunkClient::EErrorCode::BrokenChunkFileMeta)) {
             if (ShouldSyncOnClose()) {
-                Location_->Disable(error);
+                Location_->ScheduleDisable(error);
             } else {
                 YT_LOG_WARNING(error, "Error reading chunk meta, removing it (ChunkId: %v, LocationId: %v)",
                     Id_,
@@ -271,7 +271,7 @@ void TBlobChunkBase::DoReadMeta(
             }
         } else if (error.FindMatching(NFS::EErrorCode::IOError)) {
             // Location is probably broken.
-            Location_->Disable(error);
+            Location_->ScheduleDisable(error);
         }
         cookie.Cancel(error);
         return;
@@ -557,7 +557,7 @@ void TBlobChunkBase::OnBlocksRead(
             << TError(blocksOrError);
         if (blocksOrError.FindMatching(NChunkClient::EErrorCode::IncorrectChunkFileChecksum)) {
             if (ShouldSyncOnClose()) {
-                Location_->Disable(error);
+                Location_->ScheduleDisable(error);
             } else {
                 YT_LOG_WARNING("Block in chunk without \"sync_on_close\" has checksum mismatch, removing it (ChunkId: %v, LocationId: %v)",
                     Id_,
@@ -570,7 +570,7 @@ void TBlobChunkBase::OnBlocksRead(
                 }
             }
         } else if (blocksOrError.FindMatching(NFS::EErrorCode::IOError)) {
-            Location_->Disable(error);
+            Location_->ScheduleDisable(error);
         }
         FailSession(session, error);
         return;

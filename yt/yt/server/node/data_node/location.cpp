@@ -468,6 +468,8 @@ const IInvokerPtr& TChunkLocation::GetAuxPoolInvoker()
 
 std::vector<TChunkDescriptor> TChunkLocation::Scan()
 {
+    VERIFY_INVOKER_AFFINITY(GetAuxPoolInvoker());
+
     try {
         ValidateLockFile();
         ValidateMinimumSpace();
@@ -480,12 +482,12 @@ std::vector<TChunkDescriptor> TChunkLocation::Scan()
 
     // Be optimistic and assume everything will be OK.
     // Also Disable requires State_ to be Enabled.
-    State_.store(ELocationState::Enabled);
+    ChangeState(ELocationState::Enabled);
 
     try {
         return DoScan();
     } catch (const std::exception& ex) {
-        Disable(TError("Location scan failed") << ex);
+        ScheduleDisable(TError("Location scan failed") << ex);
         return {};
     }
 }
@@ -507,7 +509,7 @@ void TChunkLocation::Start()
     try {
         DoStart();
     } catch (const std::exception& ex) {
-        Disable(TError("Location start failed") << ex);
+        ScheduleDisable(TError("Location start failed") << ex);
     }
 }
 
@@ -515,7 +517,7 @@ bool TChunkLocation::ShouldPublish() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto state = State_.load();
+    auto state = GetState();
 
     return state == ELocationState::Enabled ||
         (ChunkStore_->ShouldPublishDisabledLocations() &&
@@ -528,10 +530,7 @@ bool TChunkLocation::StartDestroy()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto previousState = ELocationState::Disabled;
-
-    if (!State_.compare_exchange_weak(previousState, ELocationState::Destroying)) {
-        YT_LOG_WARNING("Location must be disabled before desctruction");
+    if (!ChangeState(ELocationState::Destroying, ELocationState::Disabled)) {
         return false;
     }
 
@@ -548,11 +547,8 @@ bool TChunkLocation::FinishDestroy(
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto previousState = ELocationState::Destroying;
-
     if (destroyResult) {
-        if (!State_.compare_exchange_weak(previousState, ELocationState::Destroyed)) {
-            YT_LOG_WARNING("Location state must be equal ELocationState::Destroying for finish destroy");
+        if (!ChangeState(ELocationState::Destroyed, ELocationState::Destroying)) {
             return false;
         }
 
@@ -560,8 +556,7 @@ bool TChunkLocation::FinishDestroy(
             GetUuid(),
             StaticConfig_->DeviceName);
     } else {
-        if (!State_.compare_exchange_weak(previousState, ELocationState::Disabled)) {
-            YT_LOG_WARNING("Location state must be equal ELocationState::Destroyin for finish destroy");
+        if (!ChangeState(ELocationState::Disabled, ELocationState::Destroying)) {
             return false;
         }
 
@@ -574,30 +569,18 @@ bool TChunkLocation::FinishDestroy(
 bool TChunkLocation::OnDiskRepaired()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
-
-    auto previousState = ELocationState::Destroyed;
-
-    if (!State_.compare_exchange_weak(previousState, ELocationState::Repairing)) {
-        YT_LOG_WARNING("Attempted to change location status from destroyed to disabled, location must be destroyed");
-        return false;
-    }
-
-    State_.store(ELocationState::Disabled);
-    return true;
+    return ChangeState(ELocationState::Disabled, ELocationState::Destroyed);
 }
 
 bool TChunkLocation::Resurrect()
 {
     VERIFY_THREAD_AFFINITY(ControlThread);
 
-    auto previousState = ELocationState::Disabled;
-
-    if (!State_.compare_exchange_weak(previousState, ELocationState::Resurrecting)) {
-        YT_LOG_WARNING("Attempted to enable location, location must be disabled");
+    if (!ChangeState(ELocationState::Enabling, ELocationState::Disabled)) {
         return false;
     }
 
-    BIND([=] () {
+    BIND([=, this, this_ = MakeStrong(this)] () {
         try {
             // Remove disabled lock file if exists.
             auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
@@ -606,13 +589,14 @@ bool TChunkLocation::Resurrect()
                 NFS::Remove(lockFilePath);
             }
 
-            ChunkStore_->InitializeLocation(MakeStrong(dynamic_cast<TStoreLocation*>(this)));
-            ChunkStoreHost_->ScheduleMasterHeartbeat();
+            WaitFor(ChunkStore_->InitializeLocation(MakeStrong(dynamic_cast<TStoreLocation*>(this))))
+                .ThrowOnError();
             LocationDisabledAlert_.Store(TError());
+            ChunkStoreHost_->ScheduleMasterHeartbeat();
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Error during location resurrection");
 
-            State_.store(ELocationState::Disabled);
+            ChangeState(ELocationState::Disabled, ELocationState::Enabling);
         }
     })
         .AsyncVia(GetAuxPoolInvoker())
@@ -632,53 +616,70 @@ void TChunkLocation::Crash(const TError& reason)
             << TErrorAttribute("location_disk", StaticConfig_->DeviceName)
             << reason);
 
-    State_.store(ELocationState::Crashed);
+    ChangeState(ELocationState::Crashed);
 }
 
-bool TChunkLocation::Disable(const TError& reason)
+bool TChunkLocation::ScheduleDisable(const TError& reason)
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    auto previousState = ELocationState::Enabled;
-
-    if (!State_.compare_exchange_weak(previousState, ELocationState::Disabling)) {
-        YT_LOG_WARNING(reason, "Attempted to disable location, location must be enabled");
+    if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         return false;
     }
 
-    YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
+    // No new actions can appear here. Please see TDiskLocation::RegisterAction.
+    // But for the outside world, the location will be considered enabled.
+    auto error = TError("Chunk location at %v is disabled", GetPath());
+    error = error << reason;
+    LocationDisabledAlert_.Store(error);
 
-    Disabled_.Fire();
+    BIND([=, this, this_ = MakeStrong(this)] () {
+        if (Actions_.size() != 0) {
+            std::vector<TFuture<void>> futures(Actions_.begin(), Actions_.end());
 
-    // Save the reason in a file and exit.
-    // Location will be disabled during the scan in the restart process.
-    auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
-    try {
-        TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
-        TUnbufferedFileOutput fileOutput(file);
-        fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
-    } catch (const std::exception& ex) {
-        YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
-        TProgram::Abort(EProgramExitCode::ProgramError);
-    }
+            WaitFor(AllSet(futures))
+                .ValueOrThrow();
 
-    auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
-    if (dynamicConfig->AbortOnLocationDisabled) {
-        TProgram::Abort(EProgramExitCode::ProgramError);
-    }
+            YT_VERIFY(Actions_.empty());
+        }
 
-    LocationDisabledAlert_.Store(TError("Chunk location at %v is disabled", GetPath()));
+        // All actions with this location ended here.
+        YT_LOG_WARNING(reason, "Disabling location (LocationUuid: %v)", GetUuid());
 
-    AvailableSpace_.store(0);
-    UsedSpace_.store(0);
-    for (auto& count : PerTypeSessionCount_) {
-        count.store(0);
-    }
-    ChunkCount_.store(0);
+        // Save the reason in a file and exit.
+        // Location will be disabled during the scan in the restart process.
+        auto lockFilePath = NFS::CombinePaths(GetPath(), DisabledLockFileName);
+        try {
+            TFile file(lockFilePath, CreateAlways | WrOnly | Seq | CloseOnExec);
+            TUnbufferedFileOutput fileOutput(file);
+            fileOutput << ConvertToYsonString(reason, NYson::EYsonFormat::Pretty).AsStringBuf();
+        } catch (const std::exception& ex) {
+            YT_LOG_ERROR(ex, "Error creating location lock file; aborting");
+            TProgram::Abort(EProgramExitCode::ProgramError);
+        }
 
-    ChunkStoreHost_->ScheduleMasterHeartbeat();
+        auto dynamicConfig = DynamicConfigManager_->GetConfig()->DataNode;
+        if (dynamicConfig->AbortOnLocationDisabled) {
+            TProgram::Abort(EProgramExitCode::ProgramError);
+        }
 
-    State_.store(ELocationState::Disabled);
+        Disabled_.Fire();
+
+        AvailableSpace_.store(0);
+        UsedSpace_.store(0);
+        for (auto& count : PerTypeSessionCount_) {
+            count.store(0);
+        }
+        ChunkCount_.store(0);
+
+        ChunkStoreHost_->ScheduleMasterHeartbeat();
+
+        ChangeState(ELocationState::Disabled, ELocationState::Disabling);
+        return true;
+    })
+        .AsyncVia(GetAuxPoolInvoker())
+        .Run();
+
     return true;
 }
 
@@ -716,7 +717,7 @@ i64 TChunkLocation::GetAvailableSpace() const
     } catch (const std::exception& ex) {
         auto error = TError("Failed to compute available space")
             << ex;
-        const_cast<TChunkLocation*>(this)->Disable(error);
+        const_cast<TChunkLocation*>(this)->ScheduleDisable(error);
     }
 
     i64 remainingQuota = std::max(static_cast<i64>(0), GetQuota() - GetUsedSpace());
@@ -922,7 +923,7 @@ void TChunkLocation::RemoveChunkFilesPermanently(TChunkId chunkId)
             "Error removing chunk %v",
             chunkId)
             << ex;
-        Disable(error);
+        ScheduleDisable(error);
     }
 }
 
@@ -1180,7 +1181,7 @@ void TChunkLocation::UnlockChunk(TChunkId chunkId)
 
 void TChunkLocation::OnHealthCheckFailed(const TError& error)
 {
-    Disable(error);
+    ScheduleDisable(error);
 }
 
 bool TChunkLocation::IsLocationDiskOK() const
@@ -1227,9 +1228,7 @@ void TChunkLocation::MarkLocationDiskFailed()
 
 void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
 {
-    auto previousState = ELocationState::Enabled;
-
-    if (!State_.compare_exchange_weak(previousState, ELocationState::Disabling)) {
+    if (!ChangeState(ELocationState::Disabling, ELocationState::Enabled)) {
         return;
     }
 
@@ -1247,7 +1246,7 @@ void TChunkLocation::MarkUninitializedLocationDisabled(const TError& error)
         .WithTag("error_code", ToString(static_cast<int>(error.GetNonTrivialCode())))
         .AddFuncGauge("/disabled", MakeStrong(this), [] { return 1.0; });
 
-    State_.store(ELocationState::Disabled);
+    ChangeState(ELocationState::Disabled, ELocationState::Disabling);
 }
 
 i64 TChunkLocation::GetAdditionalSpace() const
@@ -1636,6 +1635,7 @@ void TStoreLocation::RemoveChunkFiles(TChunkId chunkId, bool force)
     VERIFY_THREAD_AFFINITY_ANY();
 
     auto config = GetRuntimeConfig();
+
     if (force || config->MaxTrashTtl == TDuration::Zero()) {
         RemoveChunkFilesPermanently(chunkId);
     } else {
@@ -1708,7 +1708,7 @@ void TStoreLocation::OnCheckTrash()
     } catch (const std::exception& ex) {
         auto error = TError("Error checking trash")
             << ex;
-        Disable(error);
+        ScheduleDisable(error);
     }
 }
 
@@ -1818,7 +1818,7 @@ void TStoreLocation::MoveChunkFilesToTrash(TChunkId chunkId)
             "Error moving chunk %v to trash",
             chunkId)
             << ex;
-        Disable(error);
+        ScheduleDisable(error);
     }
 }
 

@@ -12,6 +12,7 @@
 
 namespace NYT::NDataNode {
 
+using namespace NConcurrency;
 using namespace NClusterNode;
 using namespace NYTree;
 using namespace NYson;
@@ -53,7 +54,17 @@ bool TDiskLocation::IsEnabled() const
 {
     VERIFY_THREAD_AFFINITY_ANY();
 
-    return State_.load() == ELocationState::Enabled;
+    auto value = State_.load();
+    return value == ELocationState::Enabled;
+}
+
+bool TDiskLocation::CanHandleIncomingActions() const
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    auto currentState = State_.load();
+    return currentState == ELocationState::Enabled ||
+        currentState == ELocationState::Enabling;
 }
 
 ELocationState TDiskLocation::GetState() const
@@ -61,6 +72,34 @@ ELocationState TDiskLocation::GetState() const
     VERIFY_THREAD_AFFINITY_ANY();
 
     return State_.load();
+}
+
+bool TDiskLocation::ChangeState(
+    ELocationState newState,
+    std::optional<ELocationState> expectedState)
+{
+    VERIFY_THREAD_AFFINITY_ANY();
+
+    StateChangingLock_.AcquireWriter();
+
+    auto finally = Finally([=, this, this_ = MakeStrong(this)] {
+        StateChangingLock_.ReleaseWriter();
+    });
+
+    if (expectedState) {
+        ELocationState currentState = State_.load();
+
+        if (expectedState != currentState) {
+            YT_LOG_WARNING(
+                "Incompatible location state (Expected: %v, Actual: %v)",
+                expectedState,
+                currentState);
+            return false;
+        }
+    }
+
+    State_.store(newState);
+    return true;
 }
 
 void TDiskLocation::ValidateLockFile() const

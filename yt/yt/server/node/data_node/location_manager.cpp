@@ -106,7 +106,7 @@ std::vector<TGuid> TLocationManager::DoDisableLocations(const THashSet<TGuid>& l
     for (const auto& location : ChunkStore_->Locations()) {
         if (locationUuids.contains(location->GetUuid())) {
             // Manual location disable.
-            auto result = location->Disable(TError("Manual location disabling")
+            auto result = location->ScheduleDisable(TError("Manual location disabling")
                 << TErrorAttribute("location_uuid", location->GetUuid())
                 << TErrorAttribute("location_path", location->GetPath())
                 << TErrorAttribute("location_disk", location->GetStaticConfig()->DeviceName));

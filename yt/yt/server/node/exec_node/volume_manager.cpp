@@ -315,6 +315,7 @@ public:
 
     void Disable(const TError& error)
     {
+        // TODO(don-dron): Research and fix unconditional Disabled.
         if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
             Sleep(TDuration::Max());
         }
@@ -626,7 +627,7 @@ private:
                 << ex;
         }
 
-        State_.store(ELocationState::Enabled);
+        ChangeState(ELocationState::Enabled);
     }
 
 

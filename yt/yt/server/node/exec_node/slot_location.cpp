@@ -94,7 +94,7 @@ TSlotLocation::TSlotLocation(
 
 TFuture<void> TSlotLocation::Initialize()
 {
-    State_.store(ELocationState::Enabled);
+    ChangeState(ELocationState::Enabled);
 
     return BIND([=, this, this_ = MakeStrong(this)] {
         try {
@@ -151,7 +151,7 @@ void TSlotLocation::DoInitialize()
 
 void TSlotLocation::DoRepair(bool force)
 {
-    if (State_.load() == ELocationState::Enabled && !force) {
+    if (GetState() == ELocationState::Enabled && !force) {
         YT_LOG_DEBUG("Skipping location repair as it is already enabled (Location: %v)", Id_);
         return;
     }
@@ -183,7 +183,7 @@ void TSlotLocation::DoRepair(bool force)
         THROW_ERROR error;
     }
 
-    State_.store(ELocationState::Enabled);
+    ChangeState(ELocationState::Enabled);
 
     YT_LOG_DEBUG("Location repaired (Location: %v)", Id_);
 }
@@ -879,6 +879,7 @@ void TSlotLocation::ValidateEnabled() const
 void TSlotLocation::Disable(const TError& error)
 {
     WaitFor(BIND([=, this, this_ = MakeStrong(this)] {
+        // TODO(don-dron): Research and fix unconditional Disabled.
         if (State_.exchange(ELocationState::Disabled) != ELocationState::Enabled) {
             return;
         }

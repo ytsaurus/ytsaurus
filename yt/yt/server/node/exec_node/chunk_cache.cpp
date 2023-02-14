@@ -141,7 +141,7 @@ private:
         try {
             Underlying_->Write(buf, len);
         } catch (const std::exception& ex) {
-            Location_->Disable(ex);
+            Location_->ScheduleDisable(ex);
         }
     }
 
@@ -150,7 +150,7 @@ private:
         try {
             Underlying_->Write(parts, count);
         } catch (const std::exception& ex) {
-            Location_->Disable(ex);
+            Location_->ScheduleDisable(ex);
         }
     }
 
@@ -159,7 +159,7 @@ private:
         try {
             Underlying_->Flush();
         } catch (const std::exception& ex) {
-            Location_->Disable(ex);
+            Location_->ScheduleDisable(ex);
         }
     }
 
@@ -168,7 +168,7 @@ private:
         try {
             Underlying_->Finish();
         } catch (const std::exception& ex) {
-            Location_->Disable(ex);
+            Location_->ScheduleDisable(ex);
         }
     }
 };
@@ -257,7 +257,7 @@ private:
     {
         return result.Apply(BIND([location = Location_] (const TError& error) {
             if (!error.IsOK()) {
-                location->Disable(error);
+                location->ScheduleDisable(error);
             }
         }));
     }
@@ -673,7 +673,7 @@ private:
         } catch (const std::exception& ex) {
             YT_LOG_INFO(ex, "Chunk is corrupted");
 
-            location->RemoveChunkFilesPermanently(chunkId);
+            location->RemoveChunkFiles(chunkId, true);
 
             DoDownloadArtifact(
                 std::move(cookie),
@@ -713,9 +713,10 @@ private:
         location->UpdateUsedSpace(-descriptor.DiskSpace);
 
         location->GetAuxPoolInvoker()->Invoke(BIND(
-            &TCacheLocation::RemoveChunkFilesPermanently,
+            &TCacheLocation::RemoveChunkFiles,
             location,
-            descriptor.Id));
+            descriptor.Id,
+            true));
     }
 
 
@@ -772,7 +773,7 @@ private:
         if (!inserted) {
             YT_LOG_WARNING("Removing duplicate cached chunk (ChunkId: %v)",
                 chunkId);
-            location->RemoveChunkFilesPermanently(chunkId);
+            location->RemoveChunkFiles(chunkId, true);
             return;
         }
 
@@ -1510,7 +1511,7 @@ private:
 
         auto key = readMeta();
         if (!key) {
-            location->RemoveChunkFilesPermanently(chunkId);
+            location->RemoveChunkFiles(chunkId, true);
         }
         return key;
     }

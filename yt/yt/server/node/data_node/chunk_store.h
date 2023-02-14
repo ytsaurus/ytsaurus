@@ -65,7 +65,7 @@ public:
      */
     void Initialize();
 
-    void InitializeLocation(const TStoreLocationPtr& location);
+    TFuture<void> InitializeLocation(const TStoreLocationPtr& location);
 
     void Shutdown();
 

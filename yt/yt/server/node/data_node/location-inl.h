@@ -15,7 +15,7 @@ TCallback<T()> TChunkLocation::DisableOnError(const TCallback<T()> callback)
         try {
             return callback.Run();
         } catch (const std::exception& ex) {
-            Disable(ex);
+            ScheduleDisable(ex);
             throw;
         }
     });
