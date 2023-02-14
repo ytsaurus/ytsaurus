@@ -2711,9 +2711,10 @@ void TNodeShard::SendInterruptedJobToNode(
     TDuration interruptTimeout) const
 {
     YT_LOG_DEBUG(
-        "Add job to interrupt (JobId: %v, InterruptionReason: %v)",
+        "Add job to interrupt (JobId: %v, InterruptionReason: %v, InterruptTimeout: %v)",
         job->GetId(),
-        job->GetInterruptionReason());
+        job->GetInterruptionReason(),
+        interruptTimeout);
     AddJobToInterrupt(
         response,
         job->GetId(),
