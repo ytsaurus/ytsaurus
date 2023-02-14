@@ -246,7 +246,7 @@ void TJob::Start()
             if (UserJobSpec_->has_prepare_time_limit()) {
                 auto prepareTimeLimit = FromProto<TDuration>(UserJobSpec_->prepare_time_limit());
                 TDelayedExecutor::Submit(
-                    BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), prepareTimeLimit)
+                    BIND(&TJob::OnJobPreparationTimeout, MakeWeak(this), prepareTimeLimit, /*fatal*/ false)
                         .Via(Invoker_),
                     prepareTimeLimit);
             }
