@@ -1148,9 +1148,10 @@ void TScheduleJobsContext::AbortJobsSinceResourcesOvercommit() const
     TJobResources currentResources;
     for (const auto& jobInfo : jobInfos) {
         if (!Dominates(SchedulingContext_->ResourceLimits(), currentResources + jobInfo.Job->ResourceUsage())) {
-            YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v)",
+            YT_LOG_DEBUG("Interrupt job since node resources are overcommitted (JobId: %v, OperationId: %v, NodeAddress: %v)",
                 jobInfo.Job->GetId(),
-                jobInfo.OperationElement->GetId());
+                jobInfo.OperationElement->GetId(),
+                SchedulingContext_->GetNodeDescriptor().Address);
 
             jobInfo.Job->SetPreemptionReason("Preempted due to node resource ovecommit");
             PreemptJob(jobInfo.Job, jobInfo.OperationElement, EJobPreemptionReason::ResourceOvercommit);
