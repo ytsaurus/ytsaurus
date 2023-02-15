@@ -1241,6 +1241,17 @@ const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
     }
 
     const TSchedulerElement* current = element;
+    while (current) {
+        // NB: This option is intended only for testing purposes.
+        if (!IsRegularPreemptionAllowed(current)) {
+            UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::ForbiddenInAncestorConfig);
+            return element;
+        }
+
+        current = current->GetParent();
+    }
+
+    current = element;
     while (current && !current->IsRoot()) {
         // NB(eshcherbin): A bit strange that we check for starvation here and then for satisfaction later.
         // Maybe just satisfaction is enough?
@@ -1268,12 +1279,6 @@ const TSchedulerElement* TScheduleJobsContext::FindPreemptionBlockingAncestor(
                     ? EOperationPreemptionStatus::ForbiddenSinceUnsatisfied
                     : EOperationPreemptionStatus::AllowedConditionally);
             return current;
-        }
-
-        // NB: This option is intended only for testing purposes.
-        if (!IsRegularPreemptionAllowed(current)) {
-            UpdateOperationPreemptionStatusStatistics(element, EOperationPreemptionStatus::ForbiddenInAncestorConfig);
-            return element;
         }
 
         current = current->GetParent();
