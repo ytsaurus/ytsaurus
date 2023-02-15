@@ -85,26 +85,26 @@ public:
             jobEpoch,
             node,
             TSealJob::GetResourceUsage(),
-            TChunkIdWithIndexes(
-                chunkWithIndexes.GetPtr()->GetId(),
-                chunkWithIndexes.GetReplicaIndex(),
-                chunkWithIndexes.GetMediumIndex()))
-        , ChunkWithIndexes_(chunkWithIndexes)
+            TChunkIdWithIndexes(ToChunkIdWithIndexes(chunkWithIndexes)))
+        , Chunk_(chunkWithIndexes.GetPtr())
     { }
 
-    void FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
+    bool FillJobSpec(TBootstrap* /*bootstrap*/, TJobSpec* jobSpec) const override
     {
-        auto* chunk = ChunkWithIndexes_.GetPtr();
+        if (!IsObjectAlive(Chunk_)) {
+            return false;
+        }
+
         auto chunkId = GetChunkIdWithIndexes();
 
         auto* jobSpecExt = jobSpec->MutableExtension(TSealChunkJobSpecExt::seal_chunk_job_spec_ext);
         ToProto(jobSpecExt->mutable_chunk_id(), EncodeChunkId(chunkId));
-        jobSpecExt->set_codec_id(::NYT::ToProto<int>(chunk->GetErasureCodec()));
+        jobSpecExt->set_codec_id(::NYT::ToProto<int>(Chunk_->GetErasureCodec()));
         jobSpecExt->set_medium_index(chunkId.MediumIndex);
-        jobSpecExt->set_row_count(chunk->GetPhysicalSealedRowCount());
+        jobSpecExt->set_row_count(Chunk_->GetPhysicalSealedRowCount());
 
         NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
-        const auto& replicas = chunk->StoredReplicas();
+        const auto& replicas = Chunk_->StoredReplicas();
         builder.Add(replicas);
         for (auto replica : replicas) {
             TNodePtrWithReplicaIndex nodeWithReplicaIndex(
@@ -112,10 +112,12 @@ public:
                 replica.GetReplicaIndex());
             jobSpecExt->add_source_replicas(ToProto<ui32>(nodeWithReplicaIndex));
         }
+
+        return true;
     }
 
 private:
-    const TChunkPtrWithReplicaAndMediumIndex ChunkWithIndexes_;
+    const TEphemeralObjectPtr<TChunk> Chunk_;
 
     static TNodeResources GetResourceUsage()
     {
@@ -234,18 +236,49 @@ public:
                 resourceUsage.seal_slots() < resourceLimits.seal_slots();
         };
 
-        auto& queue = node->ChunkSealQueue();
-        auto it = queue.begin();
-        while (it != queue.end() && hasSpareSealResources()) {
-            auto jt = it++;
-            auto* chunk = jt->GetPtr();
-            if (!chunk->IsRefreshActual()) {
-                queue.erase(jt);
-                ++misscheduledSealJobs;
-            } else if (TryScheduleSealJob(context, *jt)) {
-                queue.erase(jt);
-            } else {
-                ++misscheduledSealJobs;
+        TCompactVector<
+            std::pair<TChunkLocation*, TChunkLocation::TChunkSealQueue::iterator>,
+            TypicalLocationCount> locations;
+        for (auto* location : node->ChunkLocations()) {
+            auto& queue = location->ChunkSealQueue();
+            if (!queue.empty()) {
+                locations.emplace_back(location, queue.begin());
+            }
+        }
+        int activeLocationCount = std::ssize(locations);
+
+        while (activeLocationCount > 0 && hasSpareSealResources()) {
+            for (auto& [location, replicaIterator] : locations) {
+                if (!hasSpareSealResources()) {
+                    break;
+                }
+
+                auto& queue = location->ChunkSealQueue();
+                if (replicaIterator == queue.end()) {
+                    continue;
+                }
+
+                auto replica = replicaIterator;
+                if (++replicaIterator == queue.end()) {
+                    --activeLocationCount;
+                }
+
+                auto* chunk = replica->GetPtr();
+                if (!chunk->IsRefreshActual()) {
+                    queue.erase(replica);
+                    ++misscheduledSealJobs;
+                    continue;
+                }
+
+                TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes(
+                    chunk,
+                    replica->GetReplicaIndex(),
+                    location->GetEffectiveMediumIndex());
+                if (TryScheduleSealJob(context, chunkWithIndexes)) {
+                    queue.erase(replica);
+                } else {
+                    ++misscheduledSealJobs;
+                }
             }
         }
     }

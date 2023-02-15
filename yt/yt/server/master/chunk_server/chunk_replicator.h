@@ -227,16 +227,16 @@ private:
 
     bool TryScheduleReplicationJob(
         IJobSchedulingContext* context,
-        TChunkPtrWithReplicaAndMediumIndex chunkWithIndex,
+        TChunkPtrWithReplicaIndex chunkWithIndex,
         TMedium* targetMedium,
         TNodeId targetNodeId);
     bool TryScheduleBalancingJob(
         IJobSchedulingContext* context,
-        TChunkPtrWithReplicaAndMediumIndex chunkWithIndex,
+        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes,
         double maxFillCoeff);
     bool TryScheduleRemovalJob(
         IJobSchedulingContext* context,
-        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndex,
+        const NChunkClient::TChunkIdWithIndexes& chunkIdWithIndexes,
         TRealChunkLocation* location);
     bool TryScheduleRepairJob(
         IJobSchedulingContext* context,
@@ -355,7 +355,7 @@ private:
 
     void RemoveFromChunkReplicationQueues(
         TNode* node,
-        TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
+        TChunkPtrWithReplicaIndex chunkWithIndex);
     void RemoveChunkFromPullReplicationSet(const TJobPtr& job);
     void UnrefChunkBeingPulled(
         TNodeId nodeId,

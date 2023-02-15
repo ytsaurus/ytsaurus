@@ -1996,13 +1996,16 @@ public:
         }
 
         for (const auto& scheduledJob : schedulingContext.GetScheduledJobs()) {
+            NJobTrackerClient::NProto::TJobSpec jobSpec;
+            jobSpec.set_type(static_cast<int>(scheduledJob->GetType()));
+
+            if (!scheduledJob->FillJobSpec(Bootstrap_, &jobSpec)) {
+                continue;
+            }
+
             auto* jobInfo = response->add_jobs_to_start();
             ToProto(jobInfo->mutable_job_id(), scheduledJob->GetJobId());
             *jobInfo->mutable_resource_limits() = scheduledJob->ResourceUsage();
-
-            NJobTrackerClient::NProto::TJobSpec jobSpec;
-            jobSpec.set_type(static_cast<int>(scheduledJob->GetType()));
-            scheduledJob->FillJobSpec(Bootstrap_, &jobSpec);
 
             auto serializedJobSpec = SerializeProtoToRefWithEnvelope(jobSpec);
             response->Attachments().push_back(serializedJobSpec);

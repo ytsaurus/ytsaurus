@@ -116,12 +116,15 @@ void TChunkLocation::ShrinkHashTables()
     RandomReplicaIter_ = Replicas_.end();
     ShrinkHashTable(UnapprovedReplicas_);
     ShrinkHashTable(ChunkRemovalQueue_);
+    ShrinkHashTable(ChunkSealQueue_);
 }
 
 void TChunkLocation::Reset()
 {
     ChunkRemovalQueue_.clear();
     ResetDestroyedReplicasIterator();
+
+    ChunkSealQueue_.clear();
 }
 
 void TChunkLocation::ClearReplicas()
@@ -200,6 +203,18 @@ void TChunkLocation::AddToChunkRemovalQueue(const TChunkIdWithIndex& replica)
 void TChunkLocation::RemoveFromChunkRemovalQueue(const TChunkIdWithIndex& replica)
 {
     ChunkRemovalQueue_.erase(replica);
+}
+
+void TChunkLocation::AddToChunkSealQueue(TChunkPtrWithReplicaIndex replica)
+{
+    YT_ASSERT(Node_);
+    YT_ASSERT(Node_->ReportedDataNodeHeartbeat());
+    ChunkSealQueue_.insert(replica);
+}
+
+void TChunkLocation::RemoveFromChunkSealQueue(TChunkPtrWithReplicaIndex replica)
+{
+    ChunkSealQueue_.erase(replica);
 }
 
 void TChunkLocation::Save(TSaveContext& context) const

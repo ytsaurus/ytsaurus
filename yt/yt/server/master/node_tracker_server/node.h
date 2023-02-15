@@ -96,6 +96,7 @@ class TNode
 public:
     // Import third-party types into the scope.
     using TChunkPtrWithReplicaInfo = NChunkServer::TChunkPtrWithReplicaInfo;
+    using TChunkPtrWithReplicaIndex = NChunkServer::TChunkPtrWithReplicaIndex;
     using TChunkPtrWithReplicaAndMediumIndex = NChunkServer::TChunkPtrWithReplicaAndMediumIndex;
     using TChunkId = NChunkServer::TChunkId;
     using TChunk = NChunkServer::TChunk;
@@ -252,16 +253,15 @@ public:
     //! Indexed by priority. Each map is as follows:
     //! Key:
     //!   Encodes chunk and one of its parts (for erasure chunks only, others use GenericChunkReplicaIndex).
-    //!   Medium index indicates the medium where this replica is being stored.
     //! Value:
     //!   Indicates media where acting as replication targets for this chunk.
-    using TChunkPushReplicationQueue = THashMap<TChunkPtrWithReplicaAndMediumIndex, TMediumSet>;
+    using TChunkPushReplicationQueue = THashMap<TChunkPtrWithReplicaIndex, TMediumSet>;
     using TChunkPushReplicationQueues = std::vector<TChunkPushReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPushReplicationQueues, ChunkPushReplicationQueues);
 
     //! Has the same structure as push replication queues, but uses chunk ids instead
     //! of chunk pointers to prevent danging pointers after chunk destruction.
-    using TChunkPullReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndexes, TMediumSet>;
+    using TChunkPullReplicationQueue = THashMap<NChunkClient::TChunkIdWithIndex, TMediumSet>;
     using TChunkPullReplicationQueues = std::vector<TChunkPullReplicationQueue>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationQueues, ChunkPullReplicationQueues);
 
@@ -274,12 +274,6 @@ public:
     // Used for CRP-enabled chunks only.
     using TChunkPullReplicationSet = THashMap<TChunkId, TMediumMap<int>>;
     DEFINE_BYREF_RW_PROPERTY(TChunkPullReplicationSet, ChunksBeingPulled);
-
-    //! Key:
-    //!   Indicates an unsealed chunk.
-    //!   Medium index indicates the medium where this replica is being stored.
-    using TChunkSealQueue = THashSet<TChunkPtrWithReplicaAndMediumIndex>;
-    DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
 
     //! Chunk replica announcement requests that should be sent to the node upon next heartbeat.
     //! Non-null revision means that the request was already sent and is pending confirmation.
@@ -377,8 +371,8 @@ public:
     TChunkPtrWithReplicaInfo PickRandomReplica(int mediumIndex);
     void ClearReplicas();
 
-    void AddToChunkPushReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority);
-    void AddToChunkPullReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority);
+    void AddToChunkPushReplicationQueue(TChunkPtrWithReplicaIndex replica, int targetMediumIndex, int priority);
+    void AddToChunkPullReplicationQueue(TChunkPtrWithReplicaIndex replica, int targetMediumIndex, int priority);
     void RefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex);
     void UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex);
 
@@ -386,10 +380,7 @@ public:
     void RemoveTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
     TNodeId GetTargetReplicationNodeId(TChunkId chunkId, int targetMediumIndex);
 
-    void RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaAndMediumIndex replica);
-
-    void AddToChunkSealQueue(TChunkPtrWithReplicaAndMediumIndex chunkWithIndexes);
-    void RemoveFromChunkSealQueue(TChunkPtrWithReplicaAndMediumIndex);
+    void RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaIndex replica);
 
     void ClearSessionHints();
     void AddSessionHint(int mediumIndex, NChunkClient::ESessionType sessionType);

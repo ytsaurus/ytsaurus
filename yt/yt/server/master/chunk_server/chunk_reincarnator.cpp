@@ -439,7 +439,7 @@ TReincarnationJob::TReincarnationJob(
     }
 }
 
-void TReincarnationJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
+bool TReincarnationJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
 {
     auto* jobSpecExt = jobSpec->MutableExtension(
         TReincarnateChunkJobSpecExt::reincarnate_chunk_job_spec_ext);
@@ -464,6 +464,8 @@ void TReincarnationJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) co
     jobSpecExt->set_medium_index(MediumIndex_);
     jobSpecExt->set_enable_skynet_sharing(EnableSkynetSharing_);
     ToProto(jobSpecExt->mutable_source_replicas(), SourceReplicas_);
+
+    return true;
 }
 
 

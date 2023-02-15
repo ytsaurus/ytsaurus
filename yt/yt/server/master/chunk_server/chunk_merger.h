@@ -82,7 +82,7 @@ public:
     DEFINE_BYREF_RO_PROPERTY(TMergeJobInfo, JobInfo);
 
 public:
-    using TChunkVector = TCompactVector<TChunk*, 16>;
+    using TChunkVector = TCompactVector<NObjectServer::TEphemeralObjectPtr<TChunk>, 16>;
     TMergeJob(
         TJobId jobId,
         TJobEpoch jobEpoch,
@@ -94,7 +94,7 @@ public:
         TNodePtrWithReplicaAndMediumIndexList targetReplicas,
         bool validateShallowMerge);
 
-    void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
+    bool FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
 private:
     const TChunkVector InputChunks_;
