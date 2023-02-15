@@ -674,15 +674,41 @@ class TestChunkMerger(YTEnvSetup):
 
         create("table", "//tmp/t")
         create("map_node", "//tmp/m")
+
         with pytest.raises(YtError):
             set("//tmp/t/@chunk_merger_mode", "shallow", authenticated_user="u")
         with pytest.raises(YtError):
             set("//tmp/t/@chunk_merger_mode", "deep", authenticated_user="u")
-
-        set("//sys/@config/chunk_manager/chunk_merger/validate_merger_permission", True)
         with pytest.raises(YtError):
             set("//tmp/m/@chunk_merger_mode", "shallow", authenticated_user="u")
-        set("//tmp/m/@chunk_merger_mode", "shallow")
+
+        set("//sys/@config/chunk_manager/chunk_merger/allow_setting_chunk_merger_mode", True)
+
+        set("//tmp/t/@chunk_merger_mode", "shallow", authenticated_user="u")
+        set("//tmp/t/@chunk_merger_mode", "deep", authenticated_user="u")
+        set("//tmp/m/@chunk_merger_mode", "shallow", authenticated_user="u")
+
+    @authors("aleksandra-zh")
+    def test_ban_from_using_chunk_merger(self):
+        create("table", "//tmp/t")
+
+        write_table("<append=true>//tmp/t", {"a": "b"})
+        write_table("<append=true>//tmp/t", {"b": "c"})
+        write_table("<append=true>//tmp/t", {"c": "d"})
+
+        set("//sys/accounts/tmp/@allow_using_chunk_merger", True)
+
+        set("//sys/accounts/tmp/@merge_job_rate_limit", 10)
+        set("//sys/accounts/tmp/@chunk_merger_node_traversal_concurrency", 1)
+        set("//tmp/t/@chunk_merger_mode", "deep")
+
+        wait(lambda: not get("//tmp/t/@is_being_merged"))
+        assert (get("//tmp/t/@chunk_count") == 3)
+
+        set("//sys/accounts/tmp/@allow_using_chunk_merger", False)
+        # Trigger merge again.
+        set("//tmp/t/@chunk_merger_mode", "deep")
+        wait(lambda: get("//tmp/t/@chunk_count") == 1)
 
     @authors("aleksandra-zh")
     def test_do_not_crash_on_dynamic_table(self):

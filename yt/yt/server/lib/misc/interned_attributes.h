@@ -49,6 +49,7 @@
     XX(BackupError, backup_error) \
     XX(BackupState, backup_state) \
     XX(BackupCheckpointTimestamp, backup_checkpoint_timestamp) \
+    XX(AllowUsingChunkMerger, allow_using_chunk_merger) \
     XX(Banned, banned) \
     XX(BannedNodeCount, banned_node_count) \
     XX(BoundaryKeys, boundary_keys) \

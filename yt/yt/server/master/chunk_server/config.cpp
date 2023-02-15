@@ -132,10 +132,6 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
         .Default(false)
         .DontSerializeDefault();
 
-    registrar.Parameter("validate_merger_permission", &TThis::ValidateMergerPermission)
-        .Default(false)
-        .DontSerializeDefault();
-
     registrar.Parameter("enable_node_statistics_fix", &TThis::EnableNodeStatisticsFix)
         .Default(false)
         .DontSerializeDefault();
@@ -153,6 +149,9 @@ void TDynamicChunkMergerConfig::Register(TRegistrar registrar)
 
     registrar.Parameter("delay_between_iterations", &TThis::DelayBetweenIterations)
         .Default();
+
+    registrar.Parameter("allow_setting_chunk_merger_mode", &TThis::AllowSettingChunkMergerMode)
+        .Default(false);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

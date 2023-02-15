@@ -125,7 +125,7 @@ public:
     int ShallowMergeValidationProbability;
 
     bool RescheduleMergeOnSuccess;
-    bool ValidateMergerPermission;
+    bool AllowSettingChunkMergerMode;
 
     // COMPAT(shakurov)
     bool EnableNodeStatisticsFix;

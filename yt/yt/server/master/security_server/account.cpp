@@ -174,6 +174,7 @@ void TAccount::Save(NCellMaster::TSaveContext& context) const
     }
     Save(context, FolderId_);
     Save(context, ChunkMergerNodeTraversalConcurrency_);
+    Save(context, AllowUsingChunkMerger_);
 }
 
 void TAccount::Load(NCellMaster::TLoadContext& context)
@@ -202,6 +203,10 @@ void TAccount::Load(NCellMaster::TLoadContext& context)
         YT_LOG_INFO("Dropping custom chunk merger traversal concurrency value (Value: %v, AccountId: %v)",
             *value,
             GetId());
+    }
+
+    if (context.GetVersion() >= EMasterReign::AllowSettingChunkMergerMode) {
+        Load(context, AllowUsingChunkMerger_);
     }
 
     MergeJobThrottler_->SetLimit(MergeJobRateLimit_);
