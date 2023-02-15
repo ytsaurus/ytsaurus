@@ -55,7 +55,8 @@ struct TBundleSensors final
     TGauge WriteThreadPoolSize;
     TGauge TabletDynamicSize;
     TGauge TabletStaticSize;
-    TGauge BlockCacheSize;
+    TGauge CompressedBlockCacheSize;
+    TGauge UncompressedBlockCacheSize;
     TGauge VersionedChunkMetaSize;
     TGauge LookupRowCacheSize;
 
@@ -533,11 +534,12 @@ private:
             sensors->WriteThreadPoolSize.Update(targetConfig->CpuLimits->WriteThreadPoolSize);
 
             const auto& memoryLimits = targetConfig->MemoryLimits;
-            sensors->TabletStaticSize.Update(memoryLimits->TabletStatic ? *memoryLimits->TabletStatic : 0);
-            sensors->TabletDynamicSize.Update(memoryLimits->TabletDynamic ? *memoryLimits->TabletDynamic : 0);
-            sensors->BlockCacheSize.Update(memoryLimits->BlockCache ? *memoryLimits->BlockCache : 0);
-            sensors->VersionedChunkMetaSize.Update(memoryLimits->VersionedChunkMeta ? *memoryLimits->VersionedChunkMeta : 0);
-            sensors->LookupRowCacheSize.Update(memoryLimits->LookupRowCache ? *memoryLimits->LookupRowCache : 0);
+            sensors->TabletStaticSize.Update(memoryLimits->TabletStatic.value_or(0));
+            sensors->TabletDynamicSize.Update(memoryLimits->TabletDynamic.value_or(0));
+            sensors->CompressedBlockCacheSize.Update(memoryLimits->CompressedBlockCache.value_or(0));
+            sensors->UncompressedBlockCacheSize.Update(memoryLimits->UncompressedBlockCache.value_or(0));
+            sensors->VersionedChunkMetaSize.Update(memoryLimits->VersionedChunkMeta.value_or(0));
+            sensors->LookupRowCacheSize.Update(memoryLimits->LookupRowCache.value_or(0));
         }
 
         for (const auto& [bundleName, bundleInfo] : input.Bundles) {
@@ -642,7 +644,8 @@ private:
         sensors->MemoryQuota = bundleProfiler.Gauge("/memory_quota");
 
         sensors->WriteThreadPoolSize = bundleProfiler.Gauge("/write_thread_pool_size");
-        sensors->BlockCacheSize = bundleProfiler.Gauge("/block_cache_size");
+        sensors->CompressedBlockCacheSize = bundleProfiler.Gauge("/compressed_block_cache_size");
+        sensors->UncompressedBlockCacheSize = bundleProfiler.Gauge("/uncompressed_block_cache_size");
         sensors->LookupRowCacheSize = bundleProfiler.Gauge("/lookup_row_cache_size");
         sensors->TabletDynamicSize = bundleProfiler.Gauge("/tablet_dynamic_size");
         sensors->TabletStaticSize = bundleProfiler.Gauge("/tablet_static_size");
