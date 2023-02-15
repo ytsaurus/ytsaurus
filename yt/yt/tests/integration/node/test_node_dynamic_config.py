@@ -523,9 +523,49 @@ class TestNodeDynamicConfig(YTEnvSetup):
             wait(lambda: get_thread_pool_size("tablet_lookup") == patch.lookup_threads)
             wait(lambda: get_thread_pool_size("query") == patch.query_threads)
 
+    @authors("capone212")
+    @pytest.mark.parametrize("config_node", ["tablet", "cellar"])
+    def test_bundle_dynamic_config_caches(self, config_node):
+        node_with_tag_NodeA, _ = self._init_zero_slot_nodes(config_node)
+
+        def get_orchid_memory_limits(category):
+            return get(
+                "//sys/tablet_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
+                .format(node_with_tag_NodeA, category))
+
+        bundle_dynamic_config = {
+            "nodeA": {
+                "config_annotation": "nodeA",
+                "cpu_limits": {
+                },
+                "memory_limits": {}
+            },
+            "!nodeA": {
+                "config_annotation": "notNodeA",
+                "cpu_limits": {
+                },
+            },
+        }
+
+        set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
+        bundle_dynamic_config["nodeA"]["memory_limits"]["uncompressed_block_cache"] = 4096
+        bundle_dynamic_config["nodeA"]["memory_limits"]["compressed_block_cache"] = 8192
+        bundle_dynamic_config["nodeA"]["memory_limits"]["versioned_chunk_meta"] = 16384
+
+        set("//sys/tablet_cell_bundles/@config", bundle_dynamic_config)
+        self._check_tablet_nodes_rct()
+        wait(lambda: get_orchid_memory_limits("versioned_chunk_meta") == 16384)
+        wait(lambda: get_orchid_memory_limits("block_cache") == 4096 + 8192)
+
     @authors("starodub")
     def test_versioned_chunk_meta_cache(self):
+        set("//sys/tablet_cell_bundles/@config", {})
         nodes = ls("//sys/cluster_nodes")
+
+        def get_orchid_memory_limits(node, category):
+            return get(
+                "//sys/cluster_nodes/{0}/orchid/node_resource_manager/memory_limit_per_category/{1}"
+                .format(node, category))
 
         set("//sys/cluster_nodes/{0}/@user_tags".format(nodes[0]), ["nodeA"])
         config = {
@@ -543,6 +583,7 @@ class TestNodeDynamicConfig(YTEnvSetup):
             "effective_config/tablet_node/versioned_chunk_meta_cache/capacity"
         )
         wait(lambda: get(key.format(nodes[0])) == 300, ignore_exceptions=True)
+        wait(lambda: get_orchid_memory_limits(nodes[0], "versioned_chunk_meta") == 300)
 
     @authors("orlovorlov")
     def test_security_manager_config_in_dynamic_config_manager(self):

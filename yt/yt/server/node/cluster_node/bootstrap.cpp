@@ -886,7 +886,9 @@ private:
 
         DynamicConfigManager_ = New<TClusterNodeDynamicConfigManager>(this);
         DynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnDynamicConfigChanged, this));
+
         BundleDynamicConfigManager_ = New<NCellarNode::TBundleDynamicConfigManager>(this);
+        BundleDynamicConfigManager_->SubscribeConfigChanged(BIND(&TBootstrap::OnBundleDynamicConfigChanged, this));
 
         IOTracker_ = CreateIOTracker(DynamicConfigManager_->GetConfig()->IOTracker);
 
@@ -1236,6 +1238,36 @@ private:
         OutThrottler_->Reconfigure(throttlerConfig, outBucketsConfig);
     }
 
+    void ReconfigureCaches(
+        const NCellarNode::TBundleDynamicConfigPtr& bundleConfig,
+        const TClusterNodeDynamicConfigPtr& nodeConfig)
+    {
+        auto overrideCapacity = [] (const TSlruCacheDynamicConfigPtr& config, std::optional<i64> capacity) {
+            if (capacity) {
+                config->Capacity = capacity;
+            }
+        };
+
+        auto blockCacheConfig = CloneYsonSerializable(nodeConfig->DataNode->BlockCache);
+        auto versionedChunkMetaConfig = CloneYsonSerializable(nodeConfig->TabletNode->VersionedChunkMetaCache);
+
+        const auto& memoryLimits = bundleConfig->MemoryLimits;
+        overrideCapacity(blockCacheConfig->CompressedData, memoryLimits->CompressedBlockCache);
+        overrideCapacity(blockCacheConfig->UncompressedData, memoryLimits->UncompressedBlockCache);
+        overrideCapacity(versionedChunkMetaConfig, memoryLimits->VersionedChunkMeta);
+
+        ClientBlockCache_->Reconfigure(blockCacheConfig);
+        VersionedChunkMetaManager_->Reconfigure(versionedChunkMetaConfig);
+    }
+
+    void OnBundleDynamicConfigChanged(
+        const NCellarNode::TBundleDynamicConfigPtr& /*oldConfig*/,
+        const NCellarNode::TBundleDynamicConfigPtr& newConfig)
+    {
+        auto nodeConfig = GetDynamicConfigManager()->GetConfig();
+        ReconfigureCaches(newConfig, nodeConfig);
+    }
+
     void OnDynamicConfigChanged(
         const TClusterNodeDynamicConfigPtr& /*oldConfig*/,
         const TClusterNodeDynamicConfigPtr& newConfig)
@@ -1270,10 +1302,6 @@ private:
                 ? newConfig->ExecNode->UserJobContainerCreationThrottler
                 : Config_->ExecNode->UserJobContainerCreationThrottler);
 
-        ClientBlockCache_->Reconfigure(newConfig->DataNode->BlockCache);
-
-        VersionedChunkMetaManager_->Reconfigure(newConfig->TabletNode->VersionedChunkMetaCache);
-
         ObjectServiceCache_->Reconfigure(newConfig->CachingObjectService);
         for (const auto& service : CachingObjectServices_) {
             service->Reconfigure(newConfig->CachingObjectService);
@@ -1295,6 +1323,9 @@ private:
             }
         }
     #endif
+
+        auto bundleConfig = GetBundleDynamicConfigManager()->GetConfig();
+        ReconfigureCaches(bundleConfig, newConfig);
     }
 
     void PopulateAlerts(std::vector<TError>* alerts)

@@ -79,8 +79,6 @@ TMemoryLimitsEnumIndexedVector TMemoryLimits::AsEnumIndexedVector() const
 
     populate(EMemoryCategory::TabletStatic, TabletStatic);
     populate(EMemoryCategory::TabletDynamic, TabletDynamic);
-    populate(EMemoryCategory::BlockCache, BlockCache);
-    populate(EMemoryCategory::VersionedChunkMeta, VersionedChunkMeta);
     populate(EMemoryCategory::LookupRowsCache, LookupRowCache);
 
     return result;
@@ -92,7 +90,9 @@ void TMemoryLimits::Register(TRegistrar registrar)
         .Optional();
     registrar.Parameter("tablet_dynamic", &TThis::TabletDynamic)
         .Optional();
-    registrar.Parameter("block_cache", &TThis::BlockCache)
+    registrar.Parameter("compressed_block_cache", &TThis::CompressedBlockCache)
+        .Optional();
+    registrar.Parameter("uncompressed_block_cache", &TThis::UncompressedBlockCache)
         .Optional();
     registrar.Parameter("versioned_chunk_meta", &TThis::VersionedChunkMeta)
         .Optional();
