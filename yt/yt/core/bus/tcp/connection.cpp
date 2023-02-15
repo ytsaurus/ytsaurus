@@ -572,7 +572,9 @@ void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
     {
         auto guard = Guard(Lock_);
 
-        YT_VERIFY(State_ == EState::Opening);
+        if (State_ != EState::Opening) {
+            return;
+        }
 
         Socket_ = socketOrError.Value();
 
@@ -582,10 +584,9 @@ void TTcpConnection::OnDialerFinished(const TErrorOr<SOCKET>& socketOrError)
         }
 
         Open();
-
-        guard.Release();
-        ReadyPromise_.TrySet();
     }
+
+    ReadyPromise_.TrySet();
 }
 
 const TString& TTcpConnection::GetEndpointDescription() const
