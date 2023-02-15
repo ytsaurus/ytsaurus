@@ -1132,7 +1132,7 @@ def add_register_queue_consumer_parser(add_parser):
     parser = add_parser("register-queue-consumer", yt.register_queue_consumer)
     add_ypath_argument(parser, "queue_path", hybrid=True)
     add_ypath_argument(parser, "consumer_path", hybrid=True)
-    parser.add_argument("vital", type=bool)
+    parser.add_argument("--vital", type=bool, required=True)
 
 
 def add_unregister_queue_consumer_parser(add_parser):
