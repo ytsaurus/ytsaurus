@@ -13,10 +13,9 @@ TIntrusivePtr<T> MakeStrong(const THazardPtr<T>& ptr);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// Operators * and -> for TAtomicPtr are useless because it is not safe to work with atomic ptr such way
-// Safe usage is to convert to TIntrusivePtr. Not HazardPtr. HazardPtr can only be used to try ref count.
-
-template <class T>
+//! Holds an atomic pointer to an instance of ref-counted type |T| enabling concurrent
+//! read and write access.
+template <class T, bool EnableAcquireHazard = false>
 class TAtomicPtr
 {
 public:
@@ -30,15 +29,29 @@ public:
     TAtomicPtr& operator=(TIntrusivePtr<T> other);
     TAtomicPtr& operator=(std::nullptr_t);
 
-    TIntrusivePtr<T> Release();
+    void Reset();
 
+    //! Acquires a hazard pointer.
+    /*!
+     *
+     *  Returning a hazard pointer avoids contention on ref-counter in read-heavy scenarios.
+     *  The user, however, must not keep this hazard pointer alive for longer
+     *  than needed. Currenly there are limits on the number of HPs that a thread
+     *  may concurrently maintain.
+     */
+    THazardPtr<T> AcquireHazard() const;
+
+    //! Attempts to acquire an intrusive pointer.
+    //! May return null in case of a race.
     TIntrusivePtr<T> AcquireWeak() const;
+
+    //! Acquires an intrusive pointer.
     TIntrusivePtr<T> Acquire() const;
 
-    TIntrusivePtr<T> Exchange(TIntrusivePtr<T> other);
+    TAtomicPtr<T, EnableAcquireHazard> Exchange(TIntrusivePtr<T> other);
     void Store(TIntrusivePtr<T> other);
 
-    TIntrusivePtr<T> SwapIfCompare(THazardPtr<T>& compare, TIntrusivePtr<T> target);
+    TAtomicPtr<T, EnableAcquireHazard> SwapIfCompare(THazardPtr<T>& compare, TIntrusivePtr<T> target);
     bool SwapIfCompare(T* comparePtr, TIntrusivePtr<T> target);
     bool SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T> target);
     bool SwapIfCompare(const TIntrusivePtr<T>& compare, TIntrusivePtr<T>* target);
@@ -46,19 +59,18 @@ public:
     explicit operator bool() const;
 
 private:
-    template <class U>
-    friend bool operator==(const TAtomicPtr<U>& lhs, const TIntrusivePtr<U>& rhs);
+    explicit TAtomicPtr(T* ptr);
 
-    template <class U>
-    friend bool operator==(const TIntrusivePtr<U>& lhs, const TAtomicPtr<U>& rhs);
+    template <class T_, bool EnableAcquireHazard_>
+    friend bool operator==(const TAtomicPtr<T_, EnableAcquireHazard_>& lhs, const TIntrusivePtr<T_>& rhs);
 
-    template <class U>
-    friend bool operator!=(const TAtomicPtr<U>& lhs, const TIntrusivePtr<U>& rhs);
+    template <class T_, bool EnableAcquireHazard_>
+    friend bool operator==(const TIntrusivePtr<T_>& lhs, const TAtomicPtr<T_, EnableAcquireHazard_>& rhs);
 
-    template <class U>
-    friend bool operator!=(const TIntrusivePtr<U>& lhs, const TAtomicPtr<U>& rhs);
+    std::atomic<T*> Ptr_ = nullptr;
 
-    std::atomic<T*> Ptr_ = {nullptr};
+    THazardPtr<T> DoAcquireHazard() const;
+    void Drop(T* ptr);
 };
 
 ////////////////////////////////////////////////////////////////////////////////

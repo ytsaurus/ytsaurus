@@ -54,7 +54,7 @@ TConcurrentCache<T>::RenewTable(const TIntrusivePtr<TLookupTable>& head, size_t 
             head->Size.load());
 
         // Head_ swapped, remove third lookup table.
-        head->Next.Release();
+        head->Next.Reset();
         return newHead;
     } else {
         return Head_.Acquire();

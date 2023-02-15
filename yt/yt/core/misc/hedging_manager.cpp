@@ -122,7 +122,7 @@ private:
             HedgingDelay_.Update(currentStatistics->HedgingDelay);
         }
 
-        currentStatistics->PreviousStatistics.Release();
+        currentStatistics->PreviousStatistics.Reset();
 
         return newStatistics;
     }

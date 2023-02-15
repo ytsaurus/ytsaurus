@@ -330,7 +330,7 @@ TSlabAllocator::TSlabAllocator(
 {
     for (size_t rank = 1; rank < NYTAlloc::SmallRankCount; ++rank) {
         // There is no std::make_unique overload with custom deleter.
-        SmallArenas_[rank].Exchange(New<TSmallArena>(rank, TSlabAllocator::SegmentSize, memoryTracker, Profiler_));
+        SmallArenas_[rank].Store(New<TSmallArena>(rank, TSlabAllocator::SegmentSize, memoryTracker, Profiler_));
     }
 
     LargeArena_.reset(new TLargeArena(memoryTracker, profiler));
