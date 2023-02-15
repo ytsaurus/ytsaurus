@@ -4,7 +4,7 @@
         "dat-node" = 10012;
         "exe-node" = 10012;
         "exe-tab-node" = 10012;
-        "tab-node" = 10022;
+        "tab-node" = 10012;
         "chaos-node" = 10023;
         "master" = 10010;
         "master-caches" = 10018;
@@ -16,6 +16,7 @@
         "discovery" = 10020;
         "timestamp-provider" = 10021;
         "queue-agent" = 10017;
+        "grut" = 80;
     };
     "yp_clusters" = [
         "sas";
@@ -46,30 +47,12 @@
             "resolver_min_profiles" = 2;
         };
         {
-            "cluster" = "arnold";
-            "profile_type" = "cpu";
-            "path" = "ytprof/profile";
-            "period" = 600000000000;
-            "probability" = 0.2;
-            "resolver_min_profiles" = 2;
-            "resolver_max_profiles" = 270;
-        };
-        {
             "cluster" = "zeno";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
             "period" = 300000000000;
             "probability" = 0.5;
             "resolver_min_profiles" = 2;
-        };
-        {
-            "cluster" = "seneca-man";
-            "profile_type" = "cpu";
-            "path" = "ytprof/profile";
-            "probability" = 0.5;
-            "resolver_min_profiles" = 2;
-            "resolver_max_profiles" = 70;
-            "period" = 300000000000;
         };
         {
             "cluster" = "pythia";
@@ -80,21 +63,13 @@
             "period" = 300000000000;
         };
         {
-            "cluster" = "landau";
+            "cluster" = "locke";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
-            "probability" = 0.4;
-            "resolver_min_profiles" = 2;
             "period" = 300000000000;
-        };
-        {
-            "cluster" = "seneca-vla";
-            "profile_type" = "cpu";
-            "path" = "ytprof/profile";
-            "probability" = 0.5;
-            "resolver_max_profiles" = 70;
-            "resolver_min_profiles" = 2;
-            "period" = 300000000000;
+            "probability" = 0.6;
+            "resolver_min_profiles" = 3;
+            "resolver_max_profiles" = 8;
         };
         {
             "cluster" = "bohr";
@@ -104,15 +79,6 @@
             "probability" = 0.5;
             "resolver_min_profiles" = 2;
             "resolver_max_profiles" = 120;
-        };
-        {
-            "cluster" = "seneca-sas";
-            "profile_type" = "cpu";
-            "path" = "ytprof/profile";
-            "probability" = 0.5;
-            "resolver_max_profiles" = 70;
-            "resolver_min_profiles" = 2;
-            "period" = 300000000000;
         };
         {
             "cluster" = "hume";
@@ -142,13 +108,22 @@
             "resolver_max_profiles" = 55;
         };
         {
-            "cluster" = "ofd-xdc";
+            "cluster" = "seneca-vla";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
+            "probability" = 0.5;
+            "resolver_max_profiles" = 70;
+            "resolver_min_profiles" = 2;
             "period" = 300000000000;
-            "probability" = 0.7;
-            "resolver_min_profiles" = 3;
-            "resolver_max_profiles" = 10;
+        };
+        {
+            "cluster" = "seneca-sas";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "probability" = 0.5;
+            "resolver_max_profiles" = 70;
+            "resolver_min_profiles" = 2;
+            "period" = 300000000000;
         };
         {
             "cluster" = "vanga";
@@ -158,6 +133,24 @@
             "probability" = 0.6;
             "resolver_min_profiles" = 3;
             "resolver_max_profiles" = 10;
+        };
+        {
+            "cluster" = "ofd-xdc";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "period" = 300000000000;
+            "probability" = 0.7;
+            "resolver_min_profiles" = 3;
+            "resolver_max_profiles" = 10;
+        };
+        {
+            "cluster" = "markov";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "resolver_min_profiles" = 2;
+            "resolver_max_profiles" = 80;
         };
         {
             "cluster" = "none";
@@ -174,6 +167,23 @@
                         };
                         {
                             "podset" = "yt-queue-agent-testing";
+                        };
+                    ]
+                };
+            ]
+        };
+        {
+            "cluster" = "none";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "period" = 300000000000;
+            "probability" = 0.5;
+            "services" = [
+                {
+                    "service_type" = "grut";
+                    "resolvers" = [
+                        {
+                            "endpoint" = "grut-stable.object_api.monitoring";
                         };
                     ]
                 };
