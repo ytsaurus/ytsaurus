@@ -1730,6 +1730,7 @@ message TReqPartitionTables
     required int64 data_weight_per_partition = 6;
     optional int32 max_partition_count = 7;
     optional bool enable_key_guarantee = 8;
+    optional bool adjust_data_weight_per_partition = 9;
 
     optional TTransactionalOptions transactional_options = 100;
 }
