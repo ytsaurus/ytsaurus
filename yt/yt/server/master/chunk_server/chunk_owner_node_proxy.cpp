@@ -681,7 +681,7 @@ void TChunkOwnerNodeProxy::ListSystemAttributes(std::vector<TAttributeDescriptor
         .SetReplicated(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::ChunkMergerMode)
         .SetWritable(true)
-        .SetWritePermission(EPermission::Administer)
+        .SetReplicated(true)
         .SetExternal(isExternal)
         .SetOpaque(true));
     descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::IsBeingMerged)
@@ -1058,6 +1058,12 @@ bool TChunkOwnerNodeProxy::SetBuiltinAttribute(
         }
 
         case EInternedAttributeKey::ChunkMergerMode: {
+            if (config->ChunkMerger->AllowSettingChunkMergerMode) {
+                ValidatePermission(EPermissionCheckScope::This, EPermission::Write);
+            } else {
+                ValidatePermission(EPermissionCheckScope::This, EPermission::Administer);
+            }
+
             ValidateNoTransaction();
 
             SetChunkMergerMode(ConvertTo<EChunkMergerMode>(value));

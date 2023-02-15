@@ -66,6 +66,7 @@ public:
     DEFINE_BYREF_RW_PROPERTY(TClusterResourceLimits, ClusterResourceLimits);
     DEFINE_BYVAL_RW_PROPERTY(bool, AllowChildrenLimitOvercommit);
     DEFINE_BYVAL_RW_PROPERTY(int, ChunkMergerNodeTraversalConcurrency, 0);
+    DEFINE_BYVAL_RW_PROPERTY(bool, AllowUsingChunkMerger, false);
 
     //! Transient property.
     DEFINE_BYREF_RW_PROPERTY(TDetailedMasterMemory, DetailedMasterMemoryUsage);

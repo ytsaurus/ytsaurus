@@ -176,6 +176,9 @@ private:
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer)
             .SetReplicated(true));
+        descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::AllowUsingChunkMerger)
+            .SetWritable(true)
+            .SetReplicated(true));
         descriptors->push_back(TAttributeDescriptor(EInternedAttributeKey::Abc)
             .SetWritable(true)
             .SetWritePermission(EPermission::Administer)
@@ -300,6 +303,12 @@ private:
                 return true;
             }
 
+            case EInternedAttributeKey::AllowUsingChunkMerger: {
+                BuildYsonFluently(consumer)
+                    .Value(account->GetAllowUsingChunkMerger());
+                return true;
+            }
+
             case EInternedAttributeKey::Abc: {
                 if (account->GetAbcConfig()) {
                     BuildYsonFluently(consumer)
@@ -362,6 +371,14 @@ private:
                     THROW_ERROR_EXCEPTION("%Qv cannot be negative", key.Unintern());
                 }
                 account->SetChunkMergerNodeTraversalConcurrency(chunkMergerNodeTraversalConcurrency);
+                return true;
+            }
+
+            case EInternedAttributeKey::AllowUsingChunkMerger: {
+                ValidateSuperuser(key);
+
+                auto allowUsingChunkMerger = ConvertTo<bool>(value);
+                account->SetAllowUsingChunkMerger(allowUsingChunkMerger);
                 return true;
             }
 

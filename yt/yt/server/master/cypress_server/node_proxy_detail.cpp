@@ -1972,7 +1972,7 @@ void TNontemplateCompositeCypressNodeProxyBase::ListSystemAttributes(std::vector
         .SetRemovable(true)); \
     \
     if (EInternedAttributeKey::camelCaseName == EInternedAttributeKey::ChunkMergerMode && \
-        config->ValidateMergerPermission) \
+        !config->AllowSettingChunkMergerMode) \
     { \
         descriptors->back().SetWritePermission(EPermission::Administer); \
     } \

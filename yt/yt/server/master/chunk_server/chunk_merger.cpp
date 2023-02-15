@@ -653,6 +653,14 @@ void TChunkMerger::ScheduleMerge(TChunkOwnerBase* trunkChunkOwner)
         return;
     }
 
+    auto* account = trunkChunkOwner->Account().Get();
+    if (account->GetAllowUsingChunkMerger()) {
+        YT_LOG_DEBUG("Skipping node as its account is banned from using chunk merger (NodeId: %v, Account: %v)",
+            trunkChunkOwner->GetId(),
+            account->GetName());
+        return;
+    }
+
     RegisterSession(trunkChunkOwner);
 }
 
