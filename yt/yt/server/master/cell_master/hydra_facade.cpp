@@ -138,22 +138,8 @@ public:
                 Bootstrap_->GetSnapshotStore(),
                 hydraManagerOptions,
                 Bootstrap_->GetCellManager());
-        } else if (Config_->UseNewHydra) {
-            HydraManager_ = NHydra2::CreateDistributedHydraManager(
-                Config_->HydraManager,
-                Bootstrap_->GetControlInvoker(),
-                GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),
-                Automaton_,
-                Bootstrap_->GetRpcServer(),
-                electionManagerThunk,
-                Bootstrap_->GetCellManager()->GetCellId(),
-                Bootstrap_->GetChangelogStoreFactory(),
-                Bootstrap_->GetSnapshotStore(),
-                Bootstrap_->GetNativeAuthenticator(),
-                hydraManagerOptions,
-                hydraManagerDynamicOptions);
         } else {
-            HydraManager_ = NHydra::CreateDistributedHydraManager(
+            HydraManager_ = NHydra2::CreateDistributedHydraManager(
                 Config_->HydraManager,
                 Bootstrap_->GetControlInvoker(),
                 GetAutomatonInvoker(EAutomatonThreadQueue::Mutation),

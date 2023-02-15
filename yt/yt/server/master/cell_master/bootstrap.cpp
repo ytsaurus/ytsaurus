@@ -608,10 +608,6 @@ void TBootstrap::LoadSnapshotOrThrow(
 
 void TBootstrap::ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames)
 {
-    if (!Config_->UseNewHydra) {
-        THROW_ERROR_EXCEPTION("Dry run is only supported for Hydra2");
-    }
-
     BIND(&TBootstrap::DoReplayChangelogs, this, Passed(std::move(changelogFileNames)))
         .AsyncVia(GetControlInvoker())
         .Run()
@@ -621,10 +617,6 @@ void TBootstrap::ReplayChangelogsOrThrow(std::vector<TString> changelogFileNames
 
 void TBootstrap::BuildSnapshotOrThrow()
 {
-    if (!Config_->UseNewHydra) {
-        THROW_ERROR_EXCEPTION("Dry run is only supported for Hydra2");
-    }
-
     BIND(&TBootstrap::DoBuildSnapshot, this)
         .AsyncVia(GetControlInvoker())
         .Run()
@@ -634,10 +626,6 @@ void TBootstrap::BuildSnapshotOrThrow()
 
 void TBootstrap::FinishDryRunOrThrow()
 {
-    if (!Config_->UseNewHydra) {
-        THROW_ERROR_EXCEPTION("Dry run is olny supported for Hydra2");
-    }
-
     BIND(&TBootstrap::DoFinishDryRun, this)
         .AsyncVia(GetControlInvoker())
         .Run()
@@ -1013,10 +1001,6 @@ void TBootstrap::DoInitialize()
         RpcServer_->RegisterService(service); // cell realm
     }
 
-
-    if (!Config_->UseNewHydra) {
-        RpcServer_->RegisterService(CreateLocalSnapshotService(CellId_, snapshotStore, NativeAuthenticator_)); // cell realm
-    }
     RpcServer_->RegisterService(CreateNodeTrackerService(this));
     RpcServer_->RegisterService(CreateDataNodeTrackerService(this));
     RpcServer_->RegisterService(CreateExecNodeTrackerService(this));
@@ -1211,21 +1195,13 @@ void TBootstrap::DoLoadSnapshot(
     }
     auto snapshotReader = CreateLocalSnapshotReader(fileName, snapshotId, GetSnapshotIOInvoker());
 
-    if (Config_->UseNewHydra) {
-        const auto& hydraManager = HydraFacade_->GetHydraManager();
-        auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
+    const auto& hydraManager = HydraFacade_->GetHydraManager();
+    auto dryRunHydraManager = StaticPointerCast<IDryRunHydraManager>(hydraManager);
 
-        const auto& automaton = HydraFacade_->GetAutomaton();
-        automaton->SetSnapshotValidationOptions({dump, enableTotalWriteCountReport, dumpConfig});
+    const auto& automaton = HydraFacade_->GetAutomaton();
+    automaton->SetSnapshotValidationOptions({dump, enableTotalWriteCountReport, dumpConfig});
 
-        dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader), snapshotId);
-    } else {
-        const auto& automaton = HydraFacade_->GetAutomaton();
-        ValidateSnapshot(
-            automaton,
-            std::move(snapshotReader),
-            /*options*/ {dump, enableTotalWriteCountReport, dumpConfig});
-    }
+    dryRunHydraManager->DryRunLoadSnapshot(std::move(snapshotReader), snapshotId);
 }
 
 void TBootstrap::DoReplayChangelogs(const std::vector<TString>& changelogFileNames)
