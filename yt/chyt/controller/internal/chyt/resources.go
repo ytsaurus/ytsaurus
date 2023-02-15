@@ -52,7 +52,7 @@ type InstanceMemory struct {
 	ClickHouseWatermark        *uint64 `yson:"clickhouse_watermark"`
 	WatchdogOOMWatermark       *uint64 `yson:"watchdog_oom_watermark"`
 	WatchdogOOMWindowWatermark *uint64 `yson:"watchdog_oom_window_watermark"`
-	Footprint                  *uint64 `yson:"footpring"`
+	Footprint                  *uint64 `yson:"footprint"`
 	LogTailer                  *uint64 `yson:"log_tailer"`
 }
 
