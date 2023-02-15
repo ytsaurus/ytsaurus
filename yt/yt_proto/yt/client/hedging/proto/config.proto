@@ -55,7 +55,7 @@ message THedgingClientConfig
     map<string, string> Tags = 4;  // Tags for profiling.
 }
 
-message TReplicaionLagPenaltyProviderConfig
+message TReplicationLagPenaltyProviderConfig
 {
     repeated string ReplicaClusters = 1; // Clusters that need checks for replication lag.
     optional string TablePath = 2; // Table that needs checks for replication lag.
