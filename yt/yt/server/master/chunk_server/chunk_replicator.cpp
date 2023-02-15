@@ -1755,110 +1755,97 @@ void TChunkReplicator::ScheduleRemovalJobs(IJobSchedulingContext* context)
 
     // TODO(gritukan): Use sharded destroyed replica sets here.
     if (GetActiveShardCount() > 0) {
-        TCompactFlatMap<
-            TChunkLocation*,
-            TChunkLocation::TDestroyedReplicasIterator,
-            TypicalLocationCount> activeLocations;
-
+        struct TLocationInfo
+        {
+            TChunkLocation* Location;
+            TChunkLocation::TDestroyedReplicasIterator ReplicaIterator;
+            bool Active = true;
+        };
+        TCompactVector<TLocationInfo, TypicalLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
             if (!location->DestroyedReplicas().empty()) {
-                activeLocations.emplace(location, location->GetDestroyedReplicasIterator());
+                locations.push_back({location, location->GetDestroyedReplicasIterator()});
             }
         }
+        int activeLocationCount = std::ssize(locations);
 
-        auto locationIterator = activeLocations.begin();
-        while (!activeLocations.empty() && hasSpareRemovalResources()) {
-            auto& [location, destroyedReplicaIterator] = *locationIterator;
-            int mediumIndex = location->GetEffectiveMediumIndex();
+        while (activeLocationCount > 0 && hasSpareRemovalResources()) {
+            for (auto& [location, replicaIterator, active] : locations) {
+                if (activeLocationCount <= 0 || !hasSpareRemovalResources()) {
+                    break;
+                }
 
-            TChunkIdWithIndexes destroyedReplica(*destroyedReplicaIterator, mediumIndex);
+                if (!active) {
+                    continue;
+                }
 
-            if (!chunksBeingRemoved.contains(destroyedReplica)) {
-                if (!ShouldProcessChunk(destroyedReplica.Id)) {
-                    location->SetDestroyedReplicasIterator(destroyedReplicaIterator.GetNext());
+                auto mediumIndex = location->GetEffectiveMediumIndex();
+                TChunkIdWithIndexes replica(*replicaIterator, mediumIndex);
+
+                if (!replicaIterator.Advance()) {
+                    active = false;
+                    --activeLocationCount;
+                }
+
+                if (chunksBeingRemoved.contains(replica)) {
+                    continue;
+                }
+
+                if (!ShouldProcessChunk(replica.Id)) {
+                    location->SetDestroyedReplicasIterator(replicaIterator);
                     ++misscheduledRemovalJobs;
-                } else if (TryScheduleRemovalJob(
-                    context,
-                    destroyedReplica,
-                    location->IsImaginary() ? nullptr : location->AsReal()))
-                {
-                    location->SetDestroyedReplicasIterator(destroyedReplicaIterator.GetNext());
+                } else if (TryScheduleRemovalJob(context, replica, location->IsImaginary() ? nullptr : location->AsReal())) {
+                    location->SetDestroyedReplicasIterator(replicaIterator);
                 } else {
                     ++misscheduledRemovalJobs;
                 }
-            }
-
-            if (destroyedReplicaIterator.Advance()) {
-                ++locationIterator;
-                if (locationIterator == activeLocations.end()) {
-                    locationIterator = activeLocations.begin();
-                }
-            } else {
-                activeLocations.erase(locationIterator);
-                locationIterator = activeLocations.begin();
             }
         }
     }
 
     {
-        TCompactFlatMap<
-            TChunkLocation*,
-            TChunkLocation::TChunkRemovalQueue::iterator,
-            TypicalLocationCount> activeLocations;
+        TCompactVector<
+            std::pair<TChunkLocation*, TChunkLocation::TChunkRemovalQueue::iterator>,
+            TypicalLocationCount> locations;
         for (auto* location : node->ChunkLocations()) {
-            auto& removalQueue = location->ChunkRemovalQueue();
-            if (!removalQueue.empty()) {
-                activeLocations.emplace(location, removalQueue.begin());
+            auto& queue = location->ChunkRemovalQueue();
+            if (!queue.empty()) {
+                locations.emplace_back(location, queue.begin());
             }
         }
-        auto locationIterator = activeLocations.begin();
+        int activeLocationCount = std::ssize(locations);
 
-        auto advanceReplicaIterator = [&] {
-            auto& [location, replicaIterator] = *locationIterator;
-            auto& queue = location->ChunkRemovalQueue();
-            ++replicaIterator;
+        while (activeLocationCount > 0 && hasSpareRemovalResources()) {
+            for (auto& [location, replicaIterator] : locations) {
+                if (activeLocationCount <= 0 || !hasSpareRemovalResources()) {
+                    break;
+                }
 
-            if (replicaIterator == queue.end()) {
-                activeLocations.erase(locationIterator);
-                locationIterator = activeLocations.begin();
-                return;
-            }
+                auto& queue = location->ChunkRemovalQueue();
+                if (replicaIterator == queue.end()) {
+                    continue;
+                }
 
-            if (locationIterator == activeLocations.end()) {
-                locationIterator = activeLocations.begin();
-            }
-        };
+                auto replica = replicaIterator;
+                if (++replicaIterator == queue.end()) {
+                    --activeLocationCount;
+                }
 
-        while (!activeLocations.empty() && hasSpareRemovalResources()) {
-            auto* location = locationIterator->first;
-            int mediumIndex = location->GetEffectiveMediumIndex();
-            auto replica = *locationIterator->second;
-            auto& queue = location->ChunkRemovalQueue();
-
-            advanceReplicaIterator();
-
-            auto* chunk = chunkManager->FindChunk(replica.Id);
-            if (!ShouldProcessChunk(replica.Id) || (IsObjectAlive(chunk) && !chunk->IsRefreshActual())) {
-                queue.erase(replica);
-                ++misscheduledRemovalJobs;
-                continue;
-            }
-
-            TChunkIdWithIndexes chunkIdWithIndexes(replica, mediumIndex);
-            if (chunksBeingRemoved.contains(chunkIdWithIndexes)) {
-                YT_LOG_ALERT(
-                    "Trying to schedule a removal job for a chunk that is already being removed (ChunkId: %v)",
-                    chunkIdWithIndexes);
-                continue;
-            }
-            if (TryScheduleRemovalJob(
-                context,
-                chunkIdWithIndexes,
-                location->IsImaginary() ? nullptr : location->AsReal()))
-            {
-                queue.erase(replica);
-            } else {
-                ++misscheduledRemovalJobs;
+                auto* chunk = chunkManager->FindChunk(replica->Id);
+                auto mediumIndex = location->GetEffectiveMediumIndex();
+                TChunkIdWithIndexes chunkIdWithIndexes(*replica, mediumIndex);
+                if (!ShouldProcessChunk(replica->Id) || (IsObjectAlive(chunk) && !chunk->IsRefreshActual())) {
+                    queue.erase(replica);
+                    ++misscheduledRemovalJobs;
+                } else if (chunksBeingRemoved.contains(chunkIdWithIndexes)) {
+                    YT_LOG_ALERT(
+                        "Trying to schedule a removal job for a chunk that is already being removed (ChunkId: %v)",
+                        chunkIdWithIndexes);
+                } else if (TryScheduleRemovalJob(context, chunkIdWithIndexes, location->IsImaginary() ? nullptr : location->AsReal())) {
+                    queue.erase(replica);
+                } else {
+                    ++misscheduledRemovalJobs;
+                }
             }
         }
     }
