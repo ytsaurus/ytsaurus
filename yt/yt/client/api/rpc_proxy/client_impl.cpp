@@ -1538,6 +1538,8 @@ TFuture<NApi::TMultiTablePartitions> TClient::PartitionTables(
         req->set_max_partition_count(*options.MaxPartitionCount);
     }
 
+    req->set_adjust_data_weight_per_partition(options.AdjustDataWeightPerPartition);
+
     req->set_enable_key_guarantee(options.EnableKeyGuarantee);
 
     ToProto(req->mutable_transactional_options(), options);

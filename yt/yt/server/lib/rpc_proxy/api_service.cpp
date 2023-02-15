@@ -5018,17 +5018,20 @@ private:
             options.MaxPartitionCount = request->max_partition_count();
         }
 
+        options.AdjustDataWeightPerPartition = request->adjust_data_weight_per_partition();
+
         options.EnableKeyGuarantee = request->enable_key_guarantee();
 
         if (request->has_transactional_options()) {
             FromProto(&options, request->transactional_options());
         }
 
-        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v",
+        context->SetRequestInfo("Paths: %v, PartitionMode: %v, KeyGuarantee: %v, DataWeightPerPartition: %v, AdjustDataWeightPerPartition: %v",
             paths,
             options.PartitionMode,
             options.EnableKeyGuarantee,
-            options.DataWeightPerPartition);
+            options.DataWeightPerPartition,
+            options.AdjustDataWeightPerPartition);
 
         ExecuteCall(
             context,
