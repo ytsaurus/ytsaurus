@@ -55,6 +55,15 @@
             "resolver_min_profiles" = 2;
         };
         {
+            "cluster" = "nash";
+            "profile_type" = "cpu";
+            "path" = "ytprof/profile";
+            "period" = 300000000000;
+            "probability" = 0.6;
+            "resolver_min_profiles" = 2;
+            "resolver_max_profiles" = 8;
+        };
+        {
             "cluster" = "pythia";
             "profile_type" = "cpu";
             "path" = "ytprof/profile";
