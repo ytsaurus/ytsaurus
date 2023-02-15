@@ -65,7 +65,7 @@ IPenaltyProviderPtr CreateReplicationLagPenaltyProvider(
     const bool clearPenaltiesOnErrors = false,
     const TDuration checkPeriod = CheckPeriod)
 {
-    TReplicaionLagPenaltyProviderConfig config;
+    TReplicationLagPenaltyProviderConfig config;
 
     config.SetTablePath(path);
     config.AddReplicaClusters(cluster);
@@ -75,7 +75,7 @@ IPenaltyProviderPtr CreateReplicationLagPenaltyProvider(
     config.SetLagPenalty(lagPenalty.MilliSeconds());
     config.SetClearPenaltiesOnErrors(clearPenaltiesOnErrors);
 
-    return CreateReplicaionLagPenaltyProvider(config, client);
+    return CreateReplicationLagPenaltyProvider(config, client);
 }
 
 ////////////////////////////////////////////////////////////////////////////////

@@ -42,7 +42,7 @@ class TLagPenaltyProvider
     : public IPenaltyProvider
 {
 public:
-    TLagPenaltyProvider(const TReplicaionLagPenaltyProviderConfig& config, NApi::IClientPtr client)
+    TLagPenaltyProvider(const TReplicationLagPenaltyProviderConfig& config, NApi::IClientPtr client)
         : TablePath_(config.GetTablePath())
         , MaxTabletLag_(TDuration::Seconds(config.GetMaxTabletLag()))
         , LagPenalty_(NProfiling::DurationToCpuDuration(TDuration::MilliSeconds(config.GetLagPenalty())))
@@ -218,8 +218,8 @@ IPenaltyProviderPtr CreateDummyPenaltyProvider()
     return New<TDummyLagProvider>();
 }
 
-IPenaltyProviderPtr CreateReplicaionLagPenaltyProvider(
-        const TReplicaionLagPenaltyProviderConfig& config,
+IPenaltyProviderPtr CreateReplicationLagPenaltyProvider(
+        const TReplicationLagPenaltyProviderConfig& config,
         NApi::IClientPtr client)
 {
     return New<TLagPenaltyProvider>(config, client);

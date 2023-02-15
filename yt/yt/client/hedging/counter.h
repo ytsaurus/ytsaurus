@@ -31,7 +31,7 @@ DEFINE_REFCOUNTED_TYPE(TCounter);
 
 ////////////////////////////////////////////////////////////////////////////////
 
-// ! Counters for TReplicaionLagPenaltyProvider.
+// ! Counters for TReplicationLagPenaltyProvider.
 struct TLagPenaltyProviderCounters final
 {
     TLagPenaltyProviderCounters(const NProfiling::TRegistry& registry, const TVector<TString>& clusters);
