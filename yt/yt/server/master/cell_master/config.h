@@ -253,8 +253,6 @@ public:
 
     bool AbortOnUnrecognizedOptions;
 
-    bool UseNewHydra;
-
     REGISTER_YSON_STRUCT(TCellMasterConfig);
 
     static void Register(TRegistrar registrar);
