@@ -50,10 +50,33 @@ TYPED_TEST(TAtomicPtrTest, Simple)
     auto obj2 = atomicPtr.Acquire();
     EXPECT_EQ(obj1, obj2);
 
-    atomicPtr.Release();
+    atomicPtr.Reset();
     EXPECT_FALSE(atomicPtr.Acquire());
 }
 
+TEST(TAtomicPtrTest, AcquireHazard)
+{
+    TAtomicPtr<TRefCountedObject, /*EnableAcquireHazard*/ true> atomicPtr;
+
+    EXPECT_FALSE(atomicPtr.Acquire());
+
+    auto obj = New<TRefCountedObject>();
+    atomicPtr.Store(obj);
+
+    auto hazardObj = atomicPtr.AcquireHazard();
+    EXPECT_EQ(hazardObj.Get(), obj.Get());
+    EXPECT_EQ(obj->GetRefCount(), 2);
+
+    atomicPtr.Reset();
+    FlushDeleteList();
+
+    EXPECT_EQ(obj->GetRefCount(), 2);
+
+    hazardObj.Reset();
+    FlushDeleteList();
+
+    EXPECT_EQ(obj->GetRefCount(), 1);
+}
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
