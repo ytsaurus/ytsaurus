@@ -46,6 +46,11 @@ public:
     using TChunkRemovalQueue = THashSet<NChunkClient::TChunkIdWithIndex>;
     DEFINE_BYREF_RW_PROPERTY(TChunkRemovalQueue, ChunkRemovalQueue);
 
+    //! Key:
+    //!   Indicates an unsealed chunk.
+    using TChunkSealQueue = THashSet<TChunkPtrWithReplicaIndex>;
+    DEFINE_BYREF_RW_PROPERTY(TChunkSealQueue, ChunkSealQueue);
+
 public:
     TChunkLocation() = default;
     virtual ~TChunkLocation() = default;
@@ -85,6 +90,9 @@ public:
 
     void AddToChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
     void RemoveFromChunkRemovalQueue(const NChunkClient::TChunkIdWithIndex& replica);
+
+    void AddToChunkSealQueue(TChunkPtrWithReplicaIndex chunkWithIndexes);
+    void RemoveFromChunkSealQueue(TChunkPtrWithReplicaIndex);
 
     void ShrinkHashTables();
     void Reset();

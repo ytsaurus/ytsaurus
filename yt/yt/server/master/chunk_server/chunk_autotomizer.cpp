@@ -126,7 +126,7 @@ public:
         , BodySealInfo_(bodySealInfo)
     { }
 
-    virtual void FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const override
+    bool FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const override
     {
         const auto& chunkManager = bootstrap->GetChunkManager();
 
@@ -160,6 +160,8 @@ public:
         jobSpecExt->set_erasure_codec(ToUnderlying(bodyChunk->GetErasureCodec()));
         jobSpecExt->set_replication_factor(replication.Policy().GetReplicationFactor());
         jobSpecExt->set_overlayed(bodyChunk->GetOverlayed());
+
+        return true;
     }
 
     void SetNode(TNode* node)

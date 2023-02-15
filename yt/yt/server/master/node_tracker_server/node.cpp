@@ -839,17 +839,17 @@ void TNode::ClearReplicas()
     }
 }
 
-void TNode::AddToChunkPushReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority)
+void TNode::AddToChunkPushReplicationQueue(TChunkPtrWithReplicaIndex replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
     ChunkPushReplicationQueues_[priority][replica].set(targetMediumIndex);
 }
 
-void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithReplicaAndMediumIndex replica, int targetMediumIndex, int priority)
+void TNode::AddToChunkPullReplicationQueue(TChunkPtrWithReplicaIndex replica, int targetMediumIndex, int priority)
 {
     YT_ASSERT(ReportedDataNodeHeartbeat());
 
-    ChunkPullReplicationQueues_[priority][ToChunkIdWithIndexes(replica)].set(targetMediumIndex);
+    ChunkPullReplicationQueues_[priority][ToChunkIdWithIndex(replica)].set(targetMediumIndex);
 }
 
 void TNode::RefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
@@ -926,35 +926,18 @@ void TNode::UnrefChunkBeingPulled(TChunkId chunkId, int targetMediumIndex)
     }
 }
 
-void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaAndMediumIndex replica)
+void TNode::RemoveFromChunkReplicationQueues(TChunkPtrWithReplicaIndex replica)
 {
     for (auto& queue : ChunkPushReplicationQueues_) {
-        if (auto it = queue.find(replica); it != queue.end()) {
-            queue.erase(it);
-        }
+        queue.erase(replica);
     }
 
     for (auto& queue : ChunkPullReplicationQueues_) {
-        if (auto it = queue.find(ToChunkIdWithIndexes(replica)); it != queue.end()) {
-            queue.erase(it);
-        }
+        queue.erase(ToChunkIdWithIndex(replica));
     }
 
     auto chunkId = replica.GetPtr()->GetId();
-    if (auto it = PushReplicationTargetNodeIds_.find(chunkId); it != PushReplicationTargetNodeIds_.end()) {
-        PushReplicationTargetNodeIds_.erase(it);
-    }
-}
-
-void TNode::AddToChunkSealQueue(TChunkPtrWithReplicaAndMediumIndex replica)
-{
-    YT_ASSERT(ReportedDataNodeHeartbeat());
-    ChunkSealQueue_.insert(replica);
-}
-
-void TNode::RemoveFromChunkSealQueue(TChunkPtrWithReplicaAndMediumIndex replica)
-{
-    ChunkSealQueue_.erase(replica);
+    PushReplicationTargetNodeIds_.erase(chunkId);
 }
 
 void TNode::ClearSessionHints()
@@ -1060,8 +1043,6 @@ void TNode::ShrinkHashTables()
         ShrinkHashTable(queue);
     }
     ShrinkHashTable(ChunksBeingPulled_);
-    ShrinkHashTable(ChunkSealQueue_);
-    ShrinkHashTable(ChunkSealQueue_);
     for (auto* location : ChunkLocations_) {
         location->ShrinkHashTables();
     }
@@ -1097,7 +1078,6 @@ void TNode::Reset(const INodeTrackerPtr& nodeTracker)
     // PushReplicationTargetNodeIds_ should be cleared somewhere else
     // (in order to unref chunks being pulled for other nodes).
 
-    ChunkSealQueue_.clear();
     LoadFactorIterators_.clear();
     DisableWriteSessionsSentToNode_ = false;
     DisableWriteSessionsReportedByNode_ = false;

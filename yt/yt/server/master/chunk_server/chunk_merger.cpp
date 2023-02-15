@@ -119,8 +119,15 @@ TMergeJob::TMergeJob(
     , ValidateShallowMerge_(validateShallowMerge)
 { }
 
-void TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
+bool TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
 {
+    if (!AllOf(InputChunks_, [] (const TEphemeralObjectPtr<TChunk>& chunk) {
+            return IsObjectAlive(chunk);
+        }))
+    {
+        return false;
+    }
+
     auto* jobSpecExt = jobSpec->MutableExtension(TMergeChunksJobSpecExt::merge_chunks_job_spec_ext);
 
     jobSpecExt->set_cell_tag(bootstrap->GetCellTag());
@@ -131,7 +138,7 @@ void TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
 
     NNodeTrackerServer::TNodeDirectoryBuilder builder(jobSpecExt->mutable_node_directory());
 
-    for (auto* chunk : InputChunks_) {
+    for (const auto& chunk : InputChunks_) {
         auto* protoChunk = jobSpecExt->add_input_chunks();
         ToProto(protoChunk->mutable_id(), chunk->GetId());
 
@@ -149,6 +156,8 @@ void TMergeJob::FillJobSpec(TBootstrap* bootstrap, TJobSpec* jobSpec) const
     }
 
     jobSpecExt->set_validate_shallow_merge(ValidateShallowMerge_);
+
+    return true;
 }
 
 TNodeResources TMergeJob::GetResourceUsage(const TChunkVector& inputChunks)
@@ -1349,7 +1358,7 @@ bool TChunkMerger::TryScheduleMergeJob(IJobSchedulingContext* context, const TMe
         if (!IsObjectAlive(chunk)) {
             return false;
         }
-        inputChunks.push_back(chunk);
+        inputChunks.emplace_back(chunk);
     }
 
     auto* chunkRequisitionRegistry = chunkManager->GetChunkRequisitionRegistry();

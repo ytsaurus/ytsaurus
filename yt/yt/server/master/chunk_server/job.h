@@ -50,7 +50,9 @@ public:
         const NNodeTrackerClient::NProto::TNodeResources& resourceUsage,
         NChunkClient::TChunkIdWithIndexes chunkIdWithIndexes);
 
-    virtual void FillJobSpec(NCellMaster::TBootstrap* bootstrap, NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
+    [[nodiscard]] virtual bool FillJobSpec(
+        NCellMaster::TBootstrap* bootstrap,
+        NJobTrackerClient::NProto::TJobSpec* jobSpec) const = 0;
 };
 
 DEFINE_REFCOUNTED_TYPE(TJob)

@@ -25,7 +25,7 @@ public:
         TNodePtrWithReplicaAndMediumIndexList targetReplicas,
         int mediumIndex);
 
-    void FillJobSpec(
+    bool FillJobSpec(
         NCellMaster::TBootstrap* bootstrap,
         NJobTrackerClient::NProto::TJobSpec* jobSpec) const override;
 
