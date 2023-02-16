@@ -99,9 +99,7 @@ private:
         const TErrorOr<ui64>& oldValue,
         const TErrorOr<ui64>& newValue) const;
 
-    TResourceUsage CalculateResourceUsageDelta(
-        const TResourceUsage& oldResourceUsage,
-        const TResourceUsage& newResourceUsage) const;
+    void ReCalculateResourceUsage(const TResourceUsage& newResourceUsage) const;
 
     void UpdateResourceUsageStatisticsIfExpired() const;
 

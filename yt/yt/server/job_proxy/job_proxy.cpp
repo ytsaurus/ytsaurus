@@ -915,6 +915,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
     if (auto environment = FindJobProxyEnvironment()) {
         try {
             auto cpuStatistics = environment->GetCpuStatistics();
+            cpuStatistics.ValidateStatistics();
             statistics.AddSample("/job_proxy/cpu", cpuStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get CPU statistics from resource controller");
@@ -922,6 +923,7 @@ TStatistics TJobProxy::GetEnrichedStatistics() const
 
         try {
             auto blockIOStatistics = environment->GetBlockIOStatistics();
+            blockIOStatistics.ValidateStatistics();
             statistics.AddSample("/job_proxy/block_io", blockIOStatistics);
         } catch (const std::exception& ex) {
             YT_LOG_ERROR(ex, "Unable to get block IO statistics from resource controller");
@@ -1418,6 +1420,7 @@ TDuration TJobProxy::GetSpentCpuTime() const
 
     if (auto environment = FindJobProxyEnvironment()) {
         auto jobProxyCpu = environment->GetCpuStatistics();
+        jobProxyCpu.ValidateStatistics();
         result += jobProxyCpu.SystemUsageTime.ValueOrDefault(TDuration::Zero()) +
             jobProxyCpu.UserUsageTime.ValueOrDefault(TDuration::Zero());
     }

@@ -81,6 +81,7 @@ TJobMemoryStatisticsPtr TMemoryTracker::GetMemoryStatistics()
 #ifdef _linux_
     auto memoryStatistics = New<TJobMemoryStatistics>();
     if (auto statistics = Environment_->GetMemoryStatistics()) {
+        statistics->ValidateStatistics();
         memoryStatistics->Total = *statistics;
     } else {
         std::vector<int> pids;

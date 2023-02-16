@@ -311,11 +311,12 @@ static bool IsCumulativeStatistics(EStatField statistic)
         statistic == EStatField::NetRxDrops;
 }
 
-TResourceUsage TPortoResourceTracker::CalculateResourceUsageDelta(
-    const TResourceUsage& oldResourceUsage,
-    const TResourceUsage& newResourceUsage) const
+void TPortoResourceTracker::ReCalculateResourceUsage(const TResourceUsage& newResourceUsage) const
 {
-    TResourceUsage delta;
+    auto guard = Guard(SpinLock_);
+
+    TResourceUsage resourceUsage;
+    TResourceUsage resourceUsageDelta;
 
     for (const auto& stat : InstanceStatFields) {
         TErrorOr<ui64> oldValue;
@@ -328,40 +329,38 @@ TResourceUsage TPortoResourceTracker::CalculateResourceUsageDelta(
             newValue = newValueIt->second;
         }
 
-        if (IsCumulativeStatistics(stat)) {
-            if (auto oldValueIt = oldResourceUsage.find(stat); oldValueIt.IsEnd()) {
-                // If it is first delta calculating.
-                oldValue = newValue;
-            } else {
-                oldValue = oldValueIt->second;
-            }
-
-            delta[stat] = CalculateCounterDelta(oldValue, newValue);
+        if (auto oldValueIt = ResourceUsage_.find(stat); oldValueIt.IsEnd()) {
+            oldValue = newValue;
         } else {
-            delta[stat] = newValue;
+            oldValue = oldValueIt->second;
+        }
+
+        if (newValue.IsOK()) {
+            resourceUsage[stat] = newValue;
+        } else {
+            resourceUsage[stat] = oldValue;
+        }
+
+        if (IsCumulativeStatistics(stat)) {
+            resourceUsageDelta[stat] = CalculateCounterDelta(oldValue, newValue);
+        } else {
+            if (newValue.IsOK()) {
+                resourceUsageDelta[stat] = newValue;
+            } else {
+                resourceUsageDelta[stat] = oldValue;
+            }
         }
     }
 
-    return delta;
+    ResourceUsage_ = resourceUsage;
+    ResourceUsageDelta_ = resourceUsageDelta;
+    LastUpdateTime_.store(TInstant::Now());
 }
 
 void TPortoResourceTracker::DoUpdateResourceUsage() const
 {
     try {
-        auto newResourceUsage = Instance_->GetResourceUsage();
-
-        {
-            auto guard = Guard(SpinLock_);
-
-            if (IsDeltaTracker_) {
-                ResourceUsageDelta_ = CalculateResourceUsageDelta(
-                    ResourceUsage_,
-                    newResourceUsage);
-            }
-
-            ResourceUsage_ = newResourceUsage;
-            LastUpdateTime_.store(TInstant::Now());
-        }
+        ReCalculateResourceUsage(Instance_->GetResourceUsage());
     } catch (const std::exception& ex) {
         YT_LOG_ERROR(
             ex,
