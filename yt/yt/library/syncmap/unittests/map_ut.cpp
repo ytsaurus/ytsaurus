@@ -40,6 +40,32 @@ TEST(TSyncMap, TestInsertLoop)
     }
 }
 
+TEST(TSyncMap, TestFlush)
+{
+    TSyncMap<int, int> map;
+
+    auto [_, inserted] = map.FindOrInsert(0, [] { return 42; });
+    EXPECT_TRUE(inserted);
+
+    int elementsCount = 0;
+    for (int i = 0; i < 100; ++i) {
+        map.IterateReadOnly([&] (int, int) { ++elementsCount; });
+        EXPECT_EQ(elementsCount, 0);
+    }
+
+    for (int i = 1; i < 100; ++i) {
+        map.Flush();
+        map.IterateReadOnly(
+            [&] (int key, int value) {
+                ++elementsCount;
+                EXPECT_EQ(key, 0);
+                EXPECT_EQ(value, 42);
+            });
+        EXPECT_EQ(elementsCount, i);
+    }
+
+}
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace
