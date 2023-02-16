@@ -1223,7 +1223,9 @@ private:
     std::optional<NContainers::TCpuStatistics> GetUserJobCpuStatistics() const override
     {
         try {
-            return UserJobEnvironment_->GetCpuStatistics();
+            auto statistic = UserJobEnvironment_->GetCpuStatistics();
+            statistic.ValidateStatistics();
+            return statistic;
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Unable to get CPU statistics for user job");
             return std::nullopt;
@@ -1272,6 +1274,7 @@ private:
 
             try {
                 auto blockIOStatistics = UserJobEnvironment_->GetBlockIOStatistics();
+                blockIOStatistics.ValidateStatistics();
                 statistics.AddSample("/user_job/block_io", blockIOStatistics);
             } catch (const std::exception& ex) {
                 YT_LOG_WARNING(ex, "Unable to get block io statistics for user job");
@@ -1280,6 +1283,7 @@ private:
             try {
                 auto networkStatistics = UserJobEnvironment_->GetNetworkStatistics();
                 if (networkStatistics) {
+                    networkStatistics->ValidateStatistics();
                     statistics.AddSample("/user_job/network", *networkStatistics);
                 }
             } catch (const std::exception& ex) {
@@ -1571,6 +1575,7 @@ private:
         NContainers::TBlockIOStatistics blockIOStats;
         try {
             blockIOStats = UserJobEnvironment_->GetBlockIOStatistics();
+            blockIOStats.ValidateStatistics();
         } catch (const std::exception& ex) {
             YT_LOG_WARNING(ex, "Unable to get block io statistics to find a woodpecker");
             return;
