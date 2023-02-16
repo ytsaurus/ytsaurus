@@ -1776,6 +1776,45 @@ def add_get_job_spec_parser(add_parser):
                         help='Whether output table specs should be removed from job spec (false by default)')
 
 
+def add_set_user_password_parser(add_parser):
+    parser = add_parser("set-user-password", yt.set_user_password)
+    parser.add_argument("user", help="user to set password")
+    parser.add_argument("--current-password", type=str, help="current user password")
+    parser.add_argument("--new-password", type=str, help="new user password")
+
+
+@copy_docstring_from(yt.issue_token)
+def issue_token(**kwargs):
+    result = yt.issue_token(**kwargs)
+    print_to_output(result)
+
+
+def add_issue_token_parser(add_parser):
+    parser = add_parser("issue-token", issue_token)
+    parser.add_argument("user", help="user to issue token")
+    parser.add_argument("--password", type=str, help="user password")
+
+
+def add_revoke_token_parser(add_parser):
+    parser = add_parser("revoke-token", yt.revoke_token)
+    parser.add_argument("user", help="user to revoke token")
+    parser.add_argument("--password", type=str, help="user password")
+    parser.add_argument("--token", type=str, help="token to revoke")
+    parser.add_argument("--token-sha256", type=str, help="sha256-encoded token to revoke")
+
+
+@copy_docstring_from(yt.list_user_tokens)
+def list_user_tokens(**kwargs):
+    result = yt.list_user_tokens(**kwargs)
+    print_to_output(result)
+
+
+def add_list_user_tokens(add_parser):
+    parser = add_parser("list-user-tokens", list_user_tokens)
+    parser.add_argument("user", help="user to revoke token")
+    parser.add_argument("--password", type=str, help="user password")
+
+
 @copy_docstring_from(yt.get_supported_features)
 def get_supported_features(**kwargs):
     result = yt.get_supported_features(**kwargs)
@@ -2526,6 +2565,11 @@ def main_func():
     add_list_jobs_parser(add_parser)
     add_get_job_spec_parser(add_parser)
     add_get_job_parser(add_parser)
+
+    add_set_user_password_parser(add_parser)
+    add_issue_token_parser(add_parser)
+    add_revoke_token_parser(add_parser)
+    add_list_user_tokens(add_parser)
 
     add_execute_parser(add_parser)
 
