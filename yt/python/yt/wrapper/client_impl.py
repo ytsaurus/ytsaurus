@@ -1075,6 +1075,20 @@ class YtClient(ClientState):
             table,
             client=self)
 
+    def issue_token(
+            self,
+            user, password=None):
+        """
+        Issues new token for user.
+
+        :param user: user to issue token.
+        :param password: user password.
+
+        """
+        return client_api.issue_token(
+            user, password,
+            client=self)
+
     def iterate_operations(
             self,
             user=None, state=None, type=None, filter=None, pool_tree=None, pool=None, with_failed_jobs=None,
@@ -1180,6 +1194,20 @@ class YtClient(ClientState):
             with_failed_jobs=with_failed_jobs, from_time=from_time, to_time=to_time, cursor_time=cursor_time,
             cursor_direction=cursor_direction, include_archive=include_archive, include_counters=include_counters,
             limit=limit, enable_ui_mode=enable_ui_mode, attributes=attributes, format=format)
+
+    def list_user_tokens(
+            self,
+            user, password=None):
+        """
+        List sha256-encoded user tokens.
+
+        :param str user: user to list tokens.
+        :param str password: user password.
+
+        """
+        return client_api.list_user_tokens(
+            user, password,
+            client=self)
 
     def list_queries(
             self,
@@ -1655,6 +1683,22 @@ class YtClient(ClientState):
             node_address, location_uuids,
             client=self)
 
+    def revoke_token(
+            self,
+            user, password=None, token=None, token_sha256=None):
+        """
+        Revokes user token.
+
+        :param str user: user to revoke token.
+        :param str password: user password.
+        :param str token: token to revoke.
+        :param str token: sha256-encoded token to revoke.
+
+        """
+        return client_api.revoke_token(
+            user, password, token, token_sha256,
+            client=self)
+
     def row_count(
             self,
             table):
@@ -2071,6 +2115,21 @@ class YtClient(ClientState):
         """
         return client_api.set_attribute(
             path, attribute, value,
+            client=self)
+
+    def set_user_password(
+            self,
+            user, new_password, current_password=None):
+        """
+        Updates user password.
+
+        :param str user: user to update password.
+        :param str new_password: password to set.
+        :param str current_password: current user password.
+
+        """
+        return client_api.set_user_password(
+            user, new_password, current_password,
             client=self)
 
     def shuffle_table(

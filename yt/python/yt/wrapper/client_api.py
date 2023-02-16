@@ -33,5 +33,7 @@ from .run_command_with_lock import run_command_with_lock  # noqa
 from .admin_commands import (  # noqa
     add_maintenance, remove_maintenance, disable_chunk_locations,
     destroy_chunk_locations, resurrect_chunk_locations)
+from .auth_commands import (  # noqa
+    set_user_password, issue_token, revoke_token, list_user_tokens)
 
 all_names = [key for key in locals().keys() if not key.startswith("_")]
