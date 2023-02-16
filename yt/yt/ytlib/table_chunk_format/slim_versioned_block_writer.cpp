@@ -573,6 +573,7 @@ TUnversionedValue TSlimVersionedBlockWriter::CaptureValue(TUnversionedValue valu
         ++value.Length;
     }
     ::memcpy(ptr, value.Data.String, length);
+    value.Data.String = beginPtr;
     return value;
 }
 

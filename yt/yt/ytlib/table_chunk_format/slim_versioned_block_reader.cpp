@@ -355,15 +355,15 @@ void TSlimVersionedBlockReader::ReadValues(
                 auto* value = valueCtor(chunkSchemaId);
                 value->Id = readerSchemaId;
                 value->Flags = EValueFlags::None;
-                if (ColumnHunkFlags_[chunkSchemaId]) {
-                    value->Flags |= EValueFlags::Hunk;
-                }
                 if ((valueTag & SlimVersionedValueTagAggregate) != 0) {
                     value->Flags |= EValueFlags::Aggregate;
                 }
                 if ((valueTag & SlimVersionedValueTagNull) != 0) {
                     value->Type = EValueType::Null;
                 } else {
+                    if (ColumnHunkFlags_[chunkSchemaId]) {
+                        value->Flags |= EValueFlags::Hunk;
+                    }
                     value->Type = PhysicalColumnTypes_[chunkSchemaId];
                     if ((valueTag & SlimVersionedValueTagDictionaryPayload) != 0) {
                         ReadNonNullValue(dictionaryPtr, chunkSchemaId, value);
