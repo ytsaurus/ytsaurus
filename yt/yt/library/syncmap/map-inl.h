@@ -106,6 +106,10 @@ auto TSyncMap<TKey, TValue, THash, TEqual, TLock>::AcquireSnapshot() -> THazardP
 template <class TKey, class TValue, class THash, class TEqual, class TLock>
 void TSyncMap<TKey, TValue, THash, TEqual, TLock>::UpdateSnapshot(TIntrusivePtr<TMap> map, bool dirty)
 {
+    if (!dirty) {
+        Misses_ = 0;
+    }
+
     auto newSnapshot = new TSnapshot{std::move(map), dirty};
     auto oldSnapshot = Snapshot_.exchange(newSnapshot);
     ScheduleObjectDeletion(oldSnapshot, [] (void *ptr) {
@@ -125,7 +129,29 @@ void TSyncMap<TKey, TValue, THash, TEqual, TLock>::OnMiss()
         return;
     }
 
-    Misses_ = 0;
+    UpdateSnapshot(std::move(DirtyMap_), false);
+}
+
+template <class TKey, class TValue, class THash, class TEqual, class TLock>
+void TSyncMap<TKey, TValue, THash, TEqual, TLock>::Flush()
+{
+    {
+        auto snapshot = AcquireSnapshot();
+
+        if (!snapshot->Dirty) {
+            return;
+        }
+    }
+
+    auto guard = Guard(Lock_);
+
+    auto snapshot = Snapshot_.load();
+
+    // Do another lookup, in case dirty was promoted.
+    if (!snapshot->Dirty) {
+        return;
+    }
+
     UpdateSnapshot(std::move(DirtyMap_), false);
 }
 

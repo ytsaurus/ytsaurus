@@ -41,7 +41,11 @@ public:
     template <class TCtor, class TFindKey = TKey>
     std::pair<TValue*, bool> FindOrInsert(const TFindKey& key, const TCtor& ctor);
 
-    //! RangeReadOnly iterates over read-only portion of the map.
+    //! Flushes dirty map. All keys inserted before this call will be moved to read-only portion of the map.
+    //! Designed to facilitate usage of IterateReadOnly.
+    void Flush();
+
+    //! IterateReadOnly iterates over read-only portion of the map.
     template <class TFn>
     void IterateReadOnly(const TFn& fn);
 
