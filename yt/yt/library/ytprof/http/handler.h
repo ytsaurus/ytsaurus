@@ -14,6 +14,11 @@ void Register(
     const TString& prefix,
     const TBuildInfo& buildInfo = TBuildInfo::GetDefault());
 
+void Register(
+    const NHttp::IRequestPathMatcherPtr& handlers,
+    const TString& prefix,
+    const TBuildInfo& buildInfo = TBuildInfo::GetDefault());
+
 ////////////////////////////////////////////////////////////////////////////////
 
 } // namespace NYT::NYTProf

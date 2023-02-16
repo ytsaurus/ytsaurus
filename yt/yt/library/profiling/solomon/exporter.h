@@ -98,7 +98,8 @@ public:
         TSolomonExporterConfigPtr config,
         TSolomonRegistryPtr registry = nullptr);
 
-    void Register(const TString& prefix, const NHttp::IServerPtr& server);
+    void Register(const TString& prefix, const NYT::NHttp::IServerPtr& server);
+    void Register(const TString& prefix, const NYT::NHttp::IRequestPathMatcherPtr& handlers);
 
     // ReadJson is compatibility function for bulatman@.
     //
