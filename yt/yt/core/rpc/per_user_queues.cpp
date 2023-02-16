@@ -86,6 +86,7 @@ void TPerUserRequestQueues::EnableThrottling(bool enableWeightThrottling, bool e
     }
 
     if (ReconfigurationCallback_) {
+        RequestQueues_.Flush();
         RequestQueues_.IterateReadOnly([&] (const auto& userName, const auto& queue) {
             ReconfigurationCallback_(userName, queue);
         });
@@ -114,6 +115,7 @@ void TPerUserRequestQueues::ReconfigureDefaultUserThrottlers(const TRequestQueue
 
     DefaultConfigs_.Store(configs);
     if (ReconfigurationCallback_) {
+        RequestQueues_.Flush();
         RequestQueues_.IterateReadOnly([&] (const auto& userName, const auto& queue) {
             ReconfigurationCallback_(userName, queue);
         });
