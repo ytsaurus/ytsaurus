@@ -66,6 +66,7 @@ struct IServer
      *  @see IRequestPathMatcher
      */
     virtual void SetPathMatcher(const IRequestPathMatcherPtr& matcher) = 0;
+    virtual IRequestPathMatcherPtr GetPathMatcher() = 0;
 
 
     // Extension methods
@@ -113,6 +114,7 @@ class IRequestPathMatcher
 {
 public:
     virtual void Add(const TString& pattern, const IHttpHandlerPtr& handler) = 0;
+    virtual void Add(const TString& pattern, TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler) = 0;
     virtual IHttpHandlerPtr Match(TStringBuf path) = 0;
     virtual bool IsEmpty() const = 0;
 
@@ -127,6 +129,7 @@ class TRequestPathMatcher
 {
 public:
     void Add(const TString& pattern, const IHttpHandlerPtr& handler) override;
+    void Add(const TString& pattern, TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler) override;
     IHttpHandlerPtr Match(TStringBuf path) override;
     bool IsEmpty() const override;
 

@@ -215,16 +215,21 @@ TSolomonExporter::TSolomonExporter(
     }
 }
 
-void TSolomonExporter::Register(const TString& prefix, const NHttp::IServerPtr& server)
+void TSolomonExporter::Register(const TString& prefix, const NYT::NHttp::IServerPtr& server)
 {
-    server->AddHandler(prefix + "/", BIND(&TSolomonExporter::HandleIndex, MakeStrong(this), prefix));
-    server->AddHandler(prefix + "/sensors", BIND(&TSolomonExporter::HandleDebugSensors, MakeStrong(this)));
-    server->AddHandler(prefix + "/tags", BIND(&TSolomonExporter::HandleDebugTags, MakeStrong(this)));
-    server->AddHandler(prefix + "/status", BIND(&TSolomonExporter::HandleStatus, MakeStrong(this)));
-    server->AddHandler(prefix + "/all", BIND(&TSolomonExporter::HandleShard, MakeStrong(this), std::nullopt));
+    Register(prefix, server->GetPathMatcher());
+}
+
+void TSolomonExporter::Register(const TString& prefix, const NYT::NHttp::IRequestPathMatcherPtr& handlers)
+{
+    handlers->Add(prefix + "/", BIND(&TSolomonExporter::HandleIndex, MakeStrong(this), prefix));
+    handlers->Add(prefix + "/sensors", BIND(&TSolomonExporter::HandleDebugSensors, MakeStrong(this)));
+    handlers->Add(prefix + "/tags", BIND(&TSolomonExporter::HandleDebugTags, MakeStrong(this)));
+    handlers->Add(prefix + "/status", BIND(&TSolomonExporter::HandleStatus, MakeStrong(this)));
+    handlers->Add(prefix + "/all", BIND(&TSolomonExporter::HandleShard, MakeStrong(this), std::nullopt));
 
     for (const auto& [shardName, shard] : Config_->Shards) {
-        server->AddHandler(
+        handlers->Add(
             prefix + "/shard/" + shardName,
             BIND(&TSolomonExporter::HandleShard, MakeStrong(this), shardName));
     }

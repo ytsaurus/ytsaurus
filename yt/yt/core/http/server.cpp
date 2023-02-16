@@ -111,6 +111,11 @@ public:
         YT_LOG_INFO("Changed path matcher");
     }
 
+    IRequestPathMatcherPtr GetPathMatcher() override
+    {
+        return Handlers_;
+    }
+
 private:
     const TServerConfigPtr Config_;
     const IListenerPtr Listener_;
@@ -476,6 +481,11 @@ void TRequestPathMatcher::Add(const TString& pattern, const IHttpHandlerPtr& han
     } else {
         Exact_[pattern] = handler;
     }
+}
+
+void TRequestPathMatcher::Add(const TString& pattern, TCallback<void(const IRequestPtr&, const IResponseWriterPtr&)> handler)
+{
+    Add(pattern, New<TCallbackHandler>(handler));
 }
 
 IHttpHandlerPtr TRequestPathMatcher::Match(TStringBuf path)

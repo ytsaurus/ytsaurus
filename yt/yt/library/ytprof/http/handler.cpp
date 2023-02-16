@@ -276,26 +276,34 @@ public:
 };
 
 void Register(
-    const IServerPtr& server,
+    const NHttp::IServerPtr& server,
     const TString& prefix,
     const TBuildInfo& buildInfo)
 {
-    server->AddHandler(prefix + "/profile", New<TCpuProfilerHandler>(buildInfo));
+    Register(server->GetPathMatcher(), prefix, buildInfo);
+}
 
-    server->AddHandler(prefix + "/lock", New<TSpinlockProfilerHandler>(buildInfo, false));
-    server->AddHandler(prefix + "/block", New<TSpinlockProfilerHandler>(buildInfo, true));
+void Register(
+    const IRequestPathMatcherPtr& handlers,
+    const TString& prefix,
+    const TBuildInfo& buildInfo)
+{
+    handlers->Add(prefix + "/profile", New<TCpuProfilerHandler>(buildInfo));
 
-    server->AddHandler(prefix + "/heap", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kHeap));
-    server->AddHandler(prefix + "/peak", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kPeakHeap));
-    server->AddHandler(prefix + "/fragmentation", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kFragmentation));
-    server->AddHandler(prefix + "/allocations", New<TTCMallocAllocationProfilerHandler>(buildInfo));
+    handlers->Add(prefix + "/lock", New<TSpinlockProfilerHandler>(buildInfo, false));
+    handlers->Add(prefix + "/block", New<TSpinlockProfilerHandler>(buildInfo, true));
 
-    server->AddHandler(prefix + "/tcmalloc", New<TTCMallocStatHandler>());
+    handlers->Add(prefix + "/heap", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kHeap));
+    handlers->Add(prefix + "/peak", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kPeakHeap));
+    handlers->Add(prefix + "/fragmentation", New<TTCMallocSnapshotProfilerHandler>(buildInfo, tcmalloc::ProfileType::kFragmentation));
+    handlers->Add(prefix + "/allocations", New<TTCMallocAllocationProfilerHandler>(buildInfo));
 
-    server->AddHandler(prefix + "/binary", New<TBinaryHandler>());
+    handlers->Add(prefix + "/tcmalloc", New<TTCMallocStatHandler>());
 
-    server->AddHandler(prefix + "/version", New<TVersionHandler>());
-    server->AddHandler(prefix + "/buildid", New<TBuildIdHandler>());
+    handlers->Add(prefix + "/binary", New<TBinaryHandler>());
+
+    handlers->Add(prefix + "/version", New<TVersionHandler>());
+    handlers->Add(prefix + "/buildid", New<TBuildIdHandler>());
 }
 
 ////////////////////////////////////////////////////////////////////////////////
