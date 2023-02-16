@@ -154,6 +154,11 @@ void Deserialize(EErasureCodecAttr& erasureCodec, const TNode& node)
     erasureCodec = FromString<EErasureCodecAttr>(node.AsString());
 }
 
+void Deserialize(ESchemaModificationAttr& schemaModification, const TNode& node)
+{
+    schemaModification = FromString<ESchemaModificationAttr>(node.AsString());
+}
+
 void Serialize(const TColumnSchema& columnSchema, NYson::IYsonConsumer* consumer)
 {
     BuildYsonFluently(consumer).BeginMap()
@@ -427,6 +432,9 @@ void Serialize(const TRichYPath& path, NYson::IYsonConsumer* consumer)
         .DoIf(path.ErasureCodec_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("erasure_codec").Value(ToString(*path.ErasureCodec_));
         })
+        .DoIf(path.SchemaModification_.Defined(), [&] (TFluentAttributes fluent) {
+            fluent.Item("schema_modification").Value(ToString(*path.SchemaModification_));
+        })
         .DoIf(path.OptimizeFor_.Defined(), [&] (TFluentAttributes fluent) {
             fluent.Item("optimize_for").Value(ToString(*path.OptimizeFor_));
         })
@@ -465,6 +473,7 @@ void Deserialize(TRichYPath& path, const TNode& node)
     DESERIALIZE_ATTR("timestamp", path.Timestamp_);
     DESERIALIZE_ATTR("compression_codec", path.CompressionCodec_);
     DESERIALIZE_ATTR("erasure_codec", path.ErasureCodec_);
+    DESERIALIZE_ATTR("schema_modification", path.SchemaModification_);
     DESERIALIZE_ATTR("optimize_for", path.OptimizeFor_);
     DESERIALIZE_ATTR("transaction_id", path.TransactionId_);
     DESERIALIZE_ATTR("rename_columns", path.RenameColumns_);
