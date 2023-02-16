@@ -152,11 +152,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void UpdateOperationSchedulingSegmentModules(const TString& /*treeId*/, const TOperationIdWithSchedulingSegmentModuleList& /*updates*/) override
-    {
-        YT_UNIMPLEMENTED();
-    }
-
     std::optional<int> FindMediumIndexByName(const TString& /*mediumName*/) const override
     {
         YT_UNIMPLEMENTED();

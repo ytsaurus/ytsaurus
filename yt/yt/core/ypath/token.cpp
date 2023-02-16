@@ -2,6 +2,8 @@
 
 #include <yt/yt/core/misc/error.h>
 
+#include <library/cpp/yt/string/guid.h>
+
 namespace NYT::NYPath {
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -61,6 +63,11 @@ TString ToYPathLiteral(TStringBuf value)
 }
 
 TString ToYPathLiteral(i64 value)
+{
+    return ToString(value);
+}
+
+TString ToYPathLiteral(TGuid value)
 {
     return ToString(value);
 }

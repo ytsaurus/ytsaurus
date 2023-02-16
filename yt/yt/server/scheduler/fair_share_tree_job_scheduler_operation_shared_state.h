@@ -10,8 +10,7 @@ namespace NYT::NScheduler {
 
 ////////////////////////////////////////////////////////////////////////////////
 
-class TFairShareTreeJobSchedulerOperationSharedState
-    : public TRefCounted
+class TFairShareTreeJobSchedulerOperationSharedState final
 {
 public:
     TFairShareTreeJobSchedulerOperationSharedState(
@@ -158,7 +157,8 @@ private:
     void UpdateDiagnosticCounters();
 };
 
-DEFINE_REFCOUNTED_TYPE(TFairShareTreeJobSchedulerOperationSharedState)
+using TFairShareTreeJobSchedulerOperationSharedStatePtr = TIntrusivePtr<TFairShareTreeJobSchedulerOperationSharedState>;
+using TFairShareTreeJobSchedulerSharedOperationStateMap = THashMap<TOperationId, TFairShareTreeJobSchedulerOperationSharedStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

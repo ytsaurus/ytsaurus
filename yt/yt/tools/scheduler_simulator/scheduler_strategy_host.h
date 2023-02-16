@@ -58,7 +58,6 @@ public:
     const std::vector<IInvokerPtr>& GetNodeShardInvokers() const override;
     int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const override;
     void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, NScheduler::EAbortReason reason) override;
-    void UpdateOperationSchedulingSegmentModules(const TString& treeId, const NScheduler::TOperationIdWithSchedulingSegmentModuleList& updates) override;
 
     std::optional<int> FindMediumIndexByName(const TString& mediumName) const override;
     const TString& GetMediumNameByIndex(int mediumIndex) const override;

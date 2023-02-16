@@ -3,6 +3,7 @@
 #include "private.h"
 
 #include <yt/yt/server/lib/scheduler/exec_node_descriptor.h>
+#include <yt/yt/server/lib/scheduler/scheduling_segment_map.h>
 
 #include <yt/yt/ytlib/node_tracker_client/public.h>
 
@@ -28,6 +29,7 @@ void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* co
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Make this refcounted?
 struct TFairShareTreeJobSchedulerNodeState
 {
     std::optional<TExecNodeDescriptor> Descriptor;
@@ -40,6 +42,29 @@ struct TFairShareTreeJobSchedulerNodeState
 };
 
 using TFairShareTreeJobSchedulerNodeStateMap = THashMap<NNodeTrackerClient::TNodeId, TFairShareTreeJobSchedulerNodeState>;
+
+////////////////////////////////////////////////////////////////////////////////
+
+struct TFairShareTreeJobSchedulerOperationState final
+{
+    const TStrategyOperationSpecPtr Spec;
+    const bool IsGang;
+
+    // Initialized after operation's materialization, but should not be modified after that.
+    std::optional<TJobResources> InitialAggregatedMinNeededResources;
+
+    std::optional<ESchedulingSegment> SchedulingSegment;
+    TSchedulingSegmentModule SchedulingSegmentModule;
+    std::optional<THashSet<TString>> SpecifiedSchedulingSegmentModules;
+    std::optional<TInstant> FailingToScheduleAtModuleSince;
+
+    TFairShareTreeJobSchedulerOperationState(
+        TStrategyOperationSpecPtr spec,
+        bool isGang);
+};
+
+using TFairShareTreeJobSchedulerOperationStatePtr = TIntrusivePtr<TFairShareTreeJobSchedulerOperationState>;
+using TFairShareTreeJobSchedulerOperationStateMap = THashMap<TOperationId, TFairShareTreeJobSchedulerOperationStatePtr>;
 
 ////////////////////////////////////////////////////////////////////////////////
 

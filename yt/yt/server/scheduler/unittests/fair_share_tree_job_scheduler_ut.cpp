@@ -149,9 +149,6 @@ public:
         YT_UNIMPLEMENTED();
     }
 
-    void UpdateOperationSchedulingSegmentModules(const TString& /*treeId*/, const TOperationIdWithSchedulingSegmentModuleList& /*updates*/) override
-    { }
-
     std::optional<int> FindMediumIndexByName(const TString& /*mediumName*/) const override
     {
         YT_UNIMPLEMENTED();
@@ -291,11 +288,6 @@ public:
     TFairShareTreeSnapshotPtr GetTreeSnapshot() const noexcept override
     {
         return nullptr;
-    }
-
-    virtual TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const override
-    {
-        return {};
     }
 
 private:
@@ -802,9 +794,8 @@ protected:
 
     TScheduleJobsContextWithDependencies PrepareScheduleJobsContext(
         TSchedulerStrategyHostMock* strategyHost,
-        const TFairShareTreeJobSchedulerPtr& treeScheduler,
-        const TExecNodePtr& execNode,
-        const TSchedulerRootElementPtr& rootElement)
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
+        const TExecNodePtr& execNode)
     {
         auto schedulingContext = CreateSchedulingContext(
             /*nodeShardId*/ 0,
@@ -812,8 +803,6 @@ protected:
             execNode,
             /*runningJobs*/ {},
             strategyHost->GetMediumDirectory());
-
-        auto treeSnapshot = DoFairShareUpdate(strategyHost, treeScheduler, rootElement);
 
         TScheduleJobsContext scheduleJobsContext(
             schedulingContext,
@@ -834,12 +823,11 @@ protected:
 
     void DoTestSchedule(
         TSchedulerStrategyHostMock* strategyHost,
-        const TFairShareTreeJobSchedulerPtr& treeScheduler,
+        const TFairShareTreeSnapshotPtr& treeSnapshot,
         const TExecNodePtr& execNode,
-        const TSchedulerRootElementPtr& rootElement,
         const TSchedulerOperationElementPtr& operationElement)
     {
-        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost, treeScheduler, execNode, rootElement);
+        auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost, treeSnapshot, execNode);
         auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
         context.StartStage(&NonPreemptiveSchedulingStage_);
@@ -955,6 +943,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, DontSuggestMoreResourcesThanOperationNeed
     auto operation = New<TOperationStrategyHostMock>(TJobResourcesWithQuotaList(2, operationJobResources));
     auto operationElement = CreateTestOperationElement(strategyHost.Get(), treeScheduler, operation.Get(), rootElement.Get(), operationOptions);
 
+    auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+
     // We run operation with 2 jobs and simulate 3 concurrent heartbeats.
     // Two of them must succeed and call controller ScheduleJob,
     // the third one must skip ScheduleJob call since resource usage precommit is limited by operation demand.
@@ -977,7 +967,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DontSuggestMoreResourcesThanOperationNeed
     auto actionQueue = New<NConcurrency::TActionQueue>();
     for (int i = 0; i < 2; ++i) {
         auto future = BIND([&, i]() {
-            DoTestSchedule(strategyHost.Get(), treeScheduler, execNodes[i], rootElement, operationElement);
+            DoTestSchedule(strategyHost.Get(), treeSnapshot, execNodes[i], operationElement);
         }).AsyncVia(actionQueue->GetInvoker()).Run();
         futures.push_back(std::move(future));
     }
@@ -987,7 +977,7 @@ TEST_F(TFairShareTreeJobSchedulerTest, DontSuggestMoreResourcesThanOperationNeed
     }
     // Number of expected calls to `operationControllerStrategyHost.ScheduleJob(...)` is set to 2.
     // In this way, the mock object library checks that this heartbeat doesn't get to actual scheduling.
-    DoTestSchedule(strategyHost.Get(), treeScheduler, execNodes[2], rootElement, operationElement);
+    DoTestSchedule(strategyHost.Get(), treeSnapshot, execNodes[2], operationElement);
     readyToGo.Set();
 
     EXPECT_TRUE(AllSucceeded(futures).WithTimeout(TDuration::Seconds(2)).Get().IsOK());
@@ -1151,7 +1141,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestConditionalPreemption)
         EXPECT_EQ(nullptr, starvingOperationElement->GetLowestAggressivelyStarvingAncestor());
     }
 
-    auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeScheduler, execNode, rootElement);
+    auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+    auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
     auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
     context.StartStage(&PreemptiveSchedulingStage_);
@@ -1262,7 +1253,8 @@ TEST_F(TFairShareTreeJobSchedulerTest, TestChildHeap)
             }));
     }
 
-    auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeScheduler, execNode, rootElement);
+    auto treeSnapshot = DoFairShareUpdate(strategyHost.Get(), treeScheduler, rootElement);
+    auto scheduleJobsContextWithDependencies = PrepareScheduleJobsContext(strategyHost.Get(), treeSnapshot, execNode);
     auto& context = scheduleJobsContextWithDependencies.ScheduleJobsContext;
 
     context.StartStage(&NonPreemptiveSchedulingStage_);

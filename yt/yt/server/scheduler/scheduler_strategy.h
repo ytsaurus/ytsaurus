@@ -5,7 +5,6 @@
 #include "job_resources_helpers.h"
 #include "master_connector.h"
 #include "job.h"
-#include "scheduler_tree_structs.h"
 
 #include <yt/yt/server/lib/scheduler/event_log.h>
 #include <yt/yt/server/lib/scheduler/job_metrics.h>
@@ -57,8 +56,6 @@ struct ISchedulerStrategyHost
     virtual int GetNodeShardId(NNodeTrackerClient::TNodeId nodeId) const = 0;
     virtual void AbortJobsAtNode(NNodeTrackerClient::TNodeId nodeId, EAbortReason reason) = 0;
 
-    virtual void UpdateOperationSchedulingSegmentModules(const TString& treeId, const TOperationIdWithSchedulingSegmentModuleList& updates) = 0;
-
     virtual TString FormatResources(const TJobResourcesWithQuota& resources) const = 0;
     virtual TString FormatResourceUsage(
         const TJobResources& usage,
@@ -108,13 +105,6 @@ struct ISchedulerStrategyHost
     virtual TFuture<void> UpdateLastMeteringLogTime(TInstant time) = 0;
 
     virtual const THashMap<TString, TString>& GetUserDefaultParentPoolMap() const = 0;
-};
-
-////////////////////////////////////////////////////////////////////////////////
-
-struct TStrategySchedulingSegmentsState
-{
-    THashMap<TString, TTreeSchedulingSegmentsState> TreeStates;
 };
 
 ////////////////////////////////////////////////////////////////////////////////
@@ -238,8 +228,8 @@ struct ISchedulerStrategy
     //! depending on the operation's demand and current resource usage in each tree.
     virtual TString ChooseBestSingleTreeForOperation(TOperationId operationId, TJobResources newDemand) = 0;
 
-    //! Returns an error if scheduling segment initialization is impossible. This results in operation's failure.
-    virtual TError InitOperationSchedulingSegment(TOperationId operationId) = 0;
+    //! Error results in operation's failure.
+    virtual TError OnOperationMaterialized(TOperationId operationId) = 0;
 
     virtual void ApplyJobMetricsDelta(TOperationIdToOperationJobMetrics operationIdToOperationJobMetrics) = 0;
 

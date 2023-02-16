@@ -206,6 +206,7 @@ void TDelayConfig::Register(TRegistrar registrar)
 
 ////////////////////////////////////////////////////////////////////////////////
 
+// TODO(eshcherbin): Change all delays to TDelayConfigPtr.
 void TTestingOperationOptions::Register(TRegistrar registrar)
 {
     registrar.Parameter("controller_scheduling_delay", &TThis::ControllerSchedulingDelay)
@@ -2196,9 +2197,6 @@ void TOperationFairShareTreeRuntimeParameters::Register(TRegistrar registrar)
         .Default(false);
     registrar.Parameter("probing", &TThis::Probing)
         .Default(false);
-    registrar.Parameter("scheduling_segment_module", &TThis::SchedulingSegmentModule)
-        .Alias("scheduling_segment_data_center")
-        .Default();
 }
 
 ////////////////////////////////////////////////////////////////////////////////

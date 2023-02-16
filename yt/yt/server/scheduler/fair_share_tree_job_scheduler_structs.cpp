@@ -44,4 +44,13 @@ void Serialize(const TRunningJobStatistics& statistics, NYson::IYsonConsumer* co
 
 ////////////////////////////////////////////////////////////////////////////////
 
+TFairShareTreeJobSchedulerOperationState::TFairShareTreeJobSchedulerOperationState(
+    TStrategyOperationSpecPtr spec,
+    bool isGang)
+    : Spec(std::move(spec))
+    , IsGang(isGang)
+{ }
+
+////////////////////////////////////////////////////////////////////////////////
+
 } // namespace NYT::NScheduler

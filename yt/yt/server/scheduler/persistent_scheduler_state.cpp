@@ -79,9 +79,32 @@ void Deserialize(TPersistentNodeSchedulingSegmentState& state, NYson::TYsonPullP
 
 ////////////////////////////////////////////////////////////////////////////////
 
+void Serialize(const TPersistentOperationSchedulingSegmentState& state, IYsonConsumer* consumer)
+{
+    BuildYsonFluently(consumer)
+        .BeginMap()
+            .Item("module").Value(state.Module)
+        .EndMap();
+}
+
+void Deserialize(TPersistentOperationSchedulingSegmentState& state, INodePtr node)
+{
+    auto mapNode = node->AsMap();
+    Deserialize(state.Module, mapNode->GetChildOrThrow("module"));
+}
+
+void Deserialize(TPersistentOperationSchedulingSegmentState& state, NYson::TYsonPullParserCursor* cursor)
+{
+    Deserialize(state, ExtractTo<INodePtr>(cursor));
+}
+
+////////////////////////////////////////////////////////////////////////////////
+
 void TPersistentSchedulingSegmentsState::Register(TRegistrar registrar)
 {
     registrar.Parameter("node_states", &TThis::NodeStates)
+        .Default();
+    registrar.Parameter("operation_states", &TThis::OperationStates)
         .Default();
 }
 

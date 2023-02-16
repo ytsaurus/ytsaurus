@@ -119,7 +119,7 @@ class TestSchedulingSegments(YTEnvSetup):
         create_pool("large_gpu", attributes={"allow_regular_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
-            "initialization_timeout": 100,
+            "initialization_timeout": 1000,
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestSchedulingSegments.DATA_CENTER],
@@ -158,9 +158,9 @@ class TestSchedulingSegments(YTEnvSetup):
 
         create_data_center(TestSchedulingSegments.DATA_CENTER)
         create_rack(TestSchedulingSegments.RACK)
-        set("//sys/racks/" + TestSchedulingSegments.RACK + "/@data_center", TestSchedulingSegments.DATA_CENTER)
+        set("//sys/racks/{}/@data_center".format(TestSchedulingSegments.RACK), TestSchedulingSegments.DATA_CENTER)
         for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/" + node + "/@rack", TestSchedulingSegments.RACK)
+            set("//sys/cluster_nodes/{}/@rack".format(node), TestSchedulingSegments.RACK)
         for node in ls("//sys/cluster_nodes"):
             wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestSchedulingSegments.DATA_CENTER)
 
@@ -297,9 +297,9 @@ class TestSchedulingSegments(YTEnvSetup):
         wait(lambda: get(scheduler_orchid_node_path(expected_node) + "/scheduling_segment", default=None) == "large_gpu")
 
         new_op = run_sleeping_vanilla(
-            job_count=8,
+            job_count=2,
             spec={"pool": "small_gpu"},
-            task_patch={"gpu_limit": 1, "enable_gpu_layers": False},
+            task_patch={"gpu_limit": 4, "enable_gpu_layers": False},
         )
         wait(lambda: are_almost_equal(self._get_usage_ratio(new_op.id), 0.1))
 
@@ -1028,7 +1028,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         for dc, r in dc_to_rack.items():
             create_data_center(dc)
             create_rack(r)
-            set("//sys/racks/" + r + "/@data_center", dc)
+            set("//sys/racks/{}/@data_center".format(r), dc)
 
         dc_count = len(BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS)
 
@@ -1040,7 +1040,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
         nodes = list(ls("//sys/cluster_nodes"))
         for i, node in enumerate(nodes):
-            set("//sys/cluster_nodes/" + node + "/@rack", get_node_rack(i, node))
+            set("//sys/cluster_nodes/{}/@rack".format(node), get_node_rack(i, node))
 
         rack_to_dc = dict(zip(BaseTestSchedulingSegmentsMultiModule.RACKS, BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS))
         for i, node in enumerate(nodes):
@@ -1084,6 +1084,9 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
     def _get_persistent_node_segment_states_path(self, tree="default"):
         return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/node_states".format(tree)
 
+    def _get_persistent_operation_segment_states_path(self, tree="default"):
+        return "//sys/scheduler/strategy_state/tree_states/{}/job_scheduler_state/scheduling_segments_state/operation_states".format(tree)
+
     def setup_method(self, method):
         super(BaseTestSchedulingSegmentsMultiModule, self).setup_method(method)
 
@@ -1092,7 +1095,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         create_pool("large_gpu", attributes={"allow_regular_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
-            "initialization_timeout": 100,
+            "initialization_timeout": 1000,
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS,
@@ -1234,7 +1237,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
         create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
-        set("//sys/cluster_nodes/" + node_to_disappear + "/@user_tags/end", "other")
+        set("//sys/cluster_nodes/{}/@user_tags/end".format(node_to_disappear), "other")
         wait(lambda: are_almost_equal(self._get_usage_ratio(big_op.id), 4. / 9.))
 
         set("//sys/pool_trees/default/@config/scheduling_segments/module_reconsideration_timeout", 5000)
@@ -1295,7 +1298,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
 
         modules = []
         for op in ops:
-            op_module_path = op.get_path() + "/@runtime_parameters/scheduling_options_per_pool_tree/default/scheduling_segment_module"
+            op_module_path = self._get_persistent_operation_segment_states_path() + "/{}/module".format(op.id)
             wait(lambda: exists(op_module_path))
             modules.append(get(op_module_path))
 
@@ -1386,7 +1389,7 @@ class BaseTestSchedulingSegmentsMultiModule(YTEnvSetup):
         node = list(ls("//sys/cluster_nodes"))[0]
         set("//sys/pool_trees/default/@config/nodes_filter", "!other")
         create_pool_tree("other", config={"nodes_filter": "other", "main_resource": "gpu"})
-        set("//sys/cluster_nodes/" + node + "/@user_tags/end", "other")
+        set("//sys/cluster_nodes/{}/@user_tags/end".format(node), "other")
 
         big_op = run_sleeping_vanilla(
             spec={"pool_trees": ["default", "other"]},
@@ -1542,7 +1545,7 @@ class TestSchedulingSegmentsMultiDataCenter(BaseTestSchedulingSegmentsMultiModul
         return BaseTestSchedulingSegmentsMultiModule.DATA_CENTERS
 
     def _get_node_module(self, node_address):
-        return get("//sys/cluster_nodes/" + node_address + "/@data_center", default="")
+        return get("//sys/cluster_nodes/{}/@data_center".format(node_address), default="")
 
     def _get_node_tag_from_module(self, module):
         return module
@@ -1561,7 +1564,7 @@ class TestSchedulingSegmentsMultiInfinibandCluster(BaseTestSchedulingSegmentsMul
         return BaseTestSchedulingSegmentsMultiModule.INFINIBAND_CLUSTERS
 
     def _get_node_module(self, node_address):
-        return get("//sys/cluster_nodes/" + node_address + "/@annotations/infiniband_cluster_tag", default="")
+        return get("//sys/cluster_nodes/{}/@annotations/infiniband_cluster_tag".format(node_address), default="")
 
     def _get_node_tag_from_module(self, module):
         return "infiniband_cluster_tag:{}".format(module)
@@ -1663,7 +1666,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
     def _check_alert(self, message):
         wait(lambda: get("//sys/scheduler/@alerts"))
         alert = get("//sys/scheduler/@alerts")[0]
-        assert alert["attributes"]["alert_type"] == "manage_node_scheduling_segments"
+        assert alert["attributes"]["alert_type"] == "manage_scheduling_segments"
         assert message in alert["inner_errors"][0]["inner_errors"][0]["message"]
 
     def _get_persistent_node_segment_states_path(self, tree="default"):
@@ -1674,7 +1677,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
 
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
-            "initialization_timeout": 100,
+            "initialization_timeout": 1000,
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "infiniband_clusters": TestInfinibandClusterTagValidation.INFINIBAND_CLUSTERS,
@@ -1752,7 +1755,7 @@ class TestInfinibandClusterTagValidation(YTEnvSetup):
 
         wait(lambda: get("//sys/scheduler/@alerts"))
         alert = get("//sys/scheduler/@alerts")[0]
-        assert alert["attributes"]["alert_type"] == "manage_node_scheduling_segments"
+        assert alert["attributes"]["alert_type"] == "manage_scheduling_segments"
         self._check_alert("Node's infiniband cluster tag doesn't match its infiniband cluster from annotations")
 
 
@@ -1809,7 +1812,7 @@ class TestRunningJobStatistics(YTEnvSetup):
         create_pool("large_gpu", attributes={"allow_regular_preemption": False})
         set("//sys/pool_trees/default/@config/scheduling_segments", {
             "mode": "large_gpu",
-            "initialization_timeout": 100,
+            "initialization_timeout": 1000,
             "manage_period": 100,
             "unsatisfied_segments_rebalancing_timeout": 1000,
             "data_centers": [TestRunningJobStatistics.DATA_CENTER],
@@ -1843,9 +1846,9 @@ class TestRunningJobStatistics(YTEnvSetup):
 
         create_data_center(TestRunningJobStatistics.DATA_CENTER)
         create_rack(TestRunningJobStatistics.RACK)
-        set("//sys/racks/" + TestRunningJobStatistics.RACK + "/@data_center", TestRunningJobStatistics.DATA_CENTER)
+        set("//sys/racks/{}/@data_center".format(TestRunningJobStatistics.RACK), TestRunningJobStatistics.DATA_CENTER)
         for node in ls("//sys/cluster_nodes"):
-            set("//sys/cluster_nodes/" + node + "/@rack", TestRunningJobStatistics.RACK)
+            set("//sys/cluster_nodes/{}/@rack".format(node), TestRunningJobStatistics.RACK)
         for node in ls("//sys/cluster_nodes"):
             wait(lambda: get(scheduler_orchid_node_path(node) + "/data_center") == TestRunningJobStatistics.DATA_CENTER)
 

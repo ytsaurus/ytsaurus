@@ -69,7 +69,7 @@ DEFINE_ENUM(ESchedulerAlertType,
     ((TooFewControllerAgentsAlive)                  (12))
     ((UpdateUserToDefaultPoolMap)                   (13))
     ((OperationAlertArchivation)                    (14))
-    ((ManageNodeSchedulingSegments)                 (15))
+    ((ManageSchedulingSegments)                     (15))
     ((UpdateSsdPriorityPreemptionMedia)             (16))
     ((FoundNodesWithUnsupportedInterruption)        (17))
     ((ArchiveIsOutdated)                            (18))

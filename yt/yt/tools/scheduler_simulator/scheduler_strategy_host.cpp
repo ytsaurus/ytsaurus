@@ -165,11 +165,6 @@ void TSchedulerStrategyHost::AbortJobsAtNode(TNodeId /*nodeId*/, NScheduler::EAb
     // Nothing to do.
 }
 
-void TSchedulerStrategyHost::UpdateOperationSchedulingSegmentModules(const TString& /*treeId*/, const NScheduler::TOperationIdWithSchedulingSegmentModuleList& /*updates*/)
-{
-    YT_UNIMPLEMENTED();
-}
-
 std::optional<int> TSchedulerStrategyHost::FindMediumIndexByName(const TString& /*mediumName*/) const
 {
     return {};

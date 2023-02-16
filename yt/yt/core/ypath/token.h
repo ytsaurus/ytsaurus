@@ -24,6 +24,7 @@ DEFINE_ENUM(ETokenType,
 
 TString ToYPathLiteral(TStringBuf value);
 TString ToYPathLiteral(i64 value);
+TString ToYPathLiteral(TGuid value);
 template <class E, class = std::enable_if_t<TEnumTraits<E>::IsEnum>>
 TString ToYPathLiteral(E value);
 

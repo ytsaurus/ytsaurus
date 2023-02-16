@@ -8,7 +8,6 @@
 #include "resource_tree.h"
 #include "scheduler_strategy.h"
 #include "scheduling_context.h"
-#include "scheduling_segment_manager.h"
 #include "serialize.h"
 #include "fair_share_strategy_operation_controller.h"
 #include "fair_share_tree_profiling.h"
@@ -423,16 +422,6 @@ public:
             OperationRunning_.Fire(operationId);
         }
 
-        if (const auto& schedulingSegmentModule = runtimeParameters->SchedulingSegmentModule) {
-            YT_LOG_DEBUG(
-                "Recovering operation's scheduling segment module assignment from runtime parameters "
-                "(OperationId: %v, SchedulingSegmentModule: %v)",
-                operationId,
-                schedulingSegmentModule);
-
-            operationElement->PersistentAttributes().SchedulingSegmentModule = schedulingSegmentModule;
-        }
-
         YT_LOG_INFO("Operation element registered in tree (OperationId: %v, Pool: %v, MarkedAsRunning: %v)",
             operationId,
             poolName.ToString(),
@@ -642,38 +631,6 @@ public:
             deactivationReasons);
         if (!jobSchedulerError.IsOK()) {
             return jobSchedulerError;
-        }
-
-        // NB(eshcherbin): See YT-14393.
-        {
-            const auto& segment = element->SchedulingSegment();
-            const auto& schedulingSegmentModule = element->PersistentAttributes().SchedulingSegmentModule;
-            if (segment && IsModuleAwareSchedulingSegment(*segment) && schedulingSegmentModule && !element->GetSchedulingTagFilter().IsEmpty()) {
-                auto tagFilter = element->GetSchedulingTagFilter().GetBooleanFormula().GetFormula();
-                bool isModuleFilter = false;
-                for (const auto& possibleModule : Config_->SchedulingSegments->GetModules()) {
-                    auto moduleTag = TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(
-                        possibleModule,
-                        Config_->SchedulingSegments->ModuleType);
-                    // NB(eshcherbin): This doesn't cover all the cases, only the most usual.
-                    // Don't really want to check boolean formula satisfiability here.
-                    if (tagFilter == moduleTag) {
-                        isModuleFilter = true;
-                        break;
-                    }
-                }
-
-                auto operationModuleTag = TNodeSchedulingSegmentManager::GetNodeTagFromModuleName(
-                    *schedulingSegmentModule,
-                    Config_->SchedulingSegments->ModuleType);
-                if (isModuleFilter && tagFilter != operationModuleTag) {
-                    return TError(
-                        "Operation has a module specified in the scheduling tag filter, which causes scheduling problems; "
-                        "use \"scheduling_segment_modules\" spec option instead")
-                        << TErrorAttribute("scheduling_tag_filter", tagFilter)
-                        << TErrorAttribute("available_modules", Config_->SchedulingSegments->GetModules());
-                }
-            }
         }
 
         return TError();
@@ -945,32 +902,20 @@ public:
         TreeScheduler_->InitPersistentState(persistentState->JobSchedulerState, oldSchedulingSegmentsState);
     }
 
-    ESchedulingSegment InitOperationSchedulingSegment(TOperationId operationId) override
+    void OnOperationMaterialized(TOperationId operationId) override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
         auto element = GetOperationElement(operationId);
-        element->InitOrUpdateSchedulingSegment(Config_->SchedulingSegments);
-
-        YT_VERIFY(element->SchedulingSegment());
-        return *element->SchedulingSegment();
+        TreeScheduler_->OnOperationMaterialized(element.Get());
     }
 
-    // NB(eshcherbin): This is temporary.
-    TOperationIdWithSchedulingSegmentModuleList GetOperationSchedulingSegmentModuleUpdates() const override
+    TError CheckOperationSchedulingInSeveralTreesAllowed(TOperationId operationId) const override
     {
         VERIFY_INVOKERS_AFFINITY(FeasibleInvokers_);
 
-        TOperationIdWithSchedulingSegmentModuleList result;
-        for (const auto& [operationId, element] : OperationIdToElement_) {
-            auto params = element->GetRuntimeParameters();
-            const auto& schedulingSegmentModule = element->PersistentAttributes().SchedulingSegmentModule;
-            if (params->SchedulingSegmentModule != schedulingSegmentModule) {
-                result.push_back({operationId, schedulingSegmentModule});
-            }
-        }
-
-        return result;
+        auto element = GetOperationElement(operationId);
+        return TreeScheduler_->CheckOperationSchedulingInSeveralTreesAllowed(element.Get());
     }
 
     std::vector<TString> GetAncestorPoolNames(const TSchedulerOperationElement* element) const
@@ -1504,9 +1449,10 @@ private:
 
         ResourceTree_->PerformPostponedActions();
 
-        auto totalResourceLimits = StrategyHost_->GetResourceLimits(Config_->NodesFilter);
+        const auto resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
+        const auto resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
         TFairShareUpdateContext updateContext(
-            totalResourceLimits,
+            resourceLimits,
             Config_->MainResource,
             Config_->IntegralGuarantees->PoolCapacitySaturationPeriod,
             Config_->IntegralGuarantees->SmoothPeriod,
@@ -1577,10 +1523,6 @@ private:
         rootElement->MarkImmutable();
 
         auto treeSnapshotId = TTreeSnapshotId::Create();
-
-        const auto resourceUsage = StrategyHost_->GetResourceUsage(GetNodesFilter());
-        const auto resourceLimits = StrategyHost_->GetResourceLimits(GetNodesFilter());
-
         auto treeSchedulingSnapshot = TreeScheduler_->CreateSchedulingSnapshot(&jobSchedulerPostUpdateContext);
         auto treeSnapshot = New<TFairShareTreeSnapshot>(
             treeSnapshotId,
@@ -2874,8 +2816,6 @@ private:
         fluent
             .Item("pool").Value(parent->GetId())
             .Item("slot_index").Value(element->GetSlotIndex())
-            .Item("scheduling_segment").Value(element->SchedulingSegment())
-            .Item("scheduling_segment_module").Value(element->PersistentAttributes().SchedulingSegmentModule)
             .Item("start_time").Value(element->GetStartTime())
             .OptionalItem("fifo_index", element->Attributes().FifoIndex)
             .Item("detailed_min_needed_job_resources").BeginList()

@@ -508,7 +508,7 @@ const std::vector<TSchedulerTreeAlertDescriptor>& GetSchedulerTreeAlertDescripto
 {
     static const std::vector<TSchedulerTreeAlertDescriptor> SchedulerTreeAlertDescriptors = {
         TSchedulerTreeAlertDescriptor{
-            .Type = ESchedulerAlertType::ManageNodeSchedulingSegments,
+            .Type = ESchedulerAlertType::ManageSchedulingSegments,
             .Message = "Found errors during node scheduling segments management",
         },
     };

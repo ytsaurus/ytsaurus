@@ -40,7 +40,6 @@ void TPersistentAttributes::ResetOnElementEnabled()
     auto resetAttributes = TPersistentAttributes();
     resetAttributes.IntegralResourcesState = IntegralResourcesState;
     resetAttributes.LastNonStarvingTime = TInstant::Now();
-    resetAttributes.SchedulingSegmentModule = SchedulingSegmentModule;
     resetAttributes.AppliedResourceLimits = AppliedResourceLimits;
     *this = resetAttributes;
 }
@@ -1751,17 +1750,6 @@ void TSchedulerOperationElement::OnFifoSchedulableElementCountLimitReached(TFair
     PostUpdateAttributes_.UnschedulableOperationsResourceUsage = GetInstantResourceUsage();
 }
 
-void TSchedulerOperationElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
-{
-    YT_VERIFY(Mutable_);
-
-    if (TreeConfig_->SchedulingSegments->Mode != config->SchedulingSegments->Mode) {
-        InitOrUpdateSchedulingSegment(config->SchedulingSegments);
-    }
-
-    TSchedulerElement::UpdateTreeConfig(config);
-}
-
 void TSchedulerOperationElement::UpdateControllerConfig(const TFairShareStrategyOperationControllerConfigPtr& config)
 {
     YT_VERIFY(Mutable_);
@@ -1772,11 +1760,9 @@ void TSchedulerOperationElement::BuildLoggingStringAttributes(TDelimitedStringBu
 {
     TSchedulerElement::BuildLoggingStringAttributes(delimitedBuilder);
 
-    delimitedBuilder->AppendFormat("PendingJobs: %v, AggregatedMinNeededResources: %v, SchedulingSegment: %v, SchedulingSegmentModule: %v",
+    delimitedBuilder->AppendFormat("PendingJobs: %v, AggregatedMinNeededResources: %v",
         PendingJobCount_,
-        AggregatedMinNeededJobResources_,
-        SchedulingSegment(),
-        PersistentAttributes_.SchedulingSegmentModule);
+        AggregatedMinNeededJobResources_);
 }
 
 bool TSchedulerOperationElement::AreDetailedLogsEnabled() const
@@ -2156,39 +2142,14 @@ void TSchedulerOperationElement::MarkPendingBy(TSchedulerCompositeElement* viola
         violatedPool->GetMaxRunningOperationCount());
 }
 
-void TSchedulerOperationElement::InitOrUpdateSchedulingSegment(
-    const TFairShareStrategySchedulingSegmentsConfigPtr& schedulingSegmentsConfig)
-{
-    auto maybeInitialMinNeededResources = OperationHost_->GetInitialAggregatedMinNeededResources();
-    auto segment = Spec_->SchedulingSegment.value_or(
-        TStrategySchedulingSegmentManager::GetSegmentForOperation(
-            schedulingSegmentsConfig,
-            maybeInitialMinNeededResources.value_or(TJobResources{}),
-            IsGang()));
-
-    if (SchedulingSegment() != segment) {
-        YT_LOG_DEBUG(
-            "Setting new scheduling segment for operation ("
-            "Segment: %v, Mode: %v, AllowOnlyGangOperationsInLargeSegment: %v, IsGang: %v, "
-            "InitialMinNeededResources: %v, SpecifiedSegment: %v)",
-            segment,
-            schedulingSegmentsConfig->Mode,
-            schedulingSegmentsConfig->AllowOnlyGangOperationsInLargeSegment,
-            IsGang(),
-            maybeInitialMinNeededResources,
-            Spec_->SchedulingSegment);
-
-        SchedulingSegment() = segment;
-        SpecifiedSchedulingSegmentModules() = Spec_->SchedulingSegmentModules;
-        if (!IsModuleAwareSchedulingSegment(segment)) {
-            PersistentAttributes_.SchedulingSegmentModule.reset();
-        }
-    }
-}
-
 bool TSchedulerOperationElement::IsLimitingAncestorCheckEnabled() const
 {
     return Spec_->EnableLimitingAncestorCheck;
+}
+
+std::optional<TJobResources> TSchedulerOperationElement::GetInitialAggregatedMinNeededResources() const
+{
+    return OperationHost_->GetInitialAggregatedMinNeededResources();
 }
 
 void TSchedulerOperationElement::CollectResourceTreeOperationElements(std::vector<TResourceTreeElementPtr>* elements) const
@@ -2222,11 +2183,6 @@ TSchedulerRootElement::TSchedulerRootElement(const TSchedulerRootElement& other)
     : TSchedulerCompositeElement(other, nullptr)
     , TSchedulerRootElementFixedState(other)
 { }
-
-void TSchedulerRootElement::UpdateTreeConfig(const TFairShareStrategyTreeConfigPtr& config)
-{
-    TSchedulerCompositeElement::UpdateTreeConfig(config);
-}
 
 void TSchedulerRootElement::PreUpdate(NVectorHdrf::TFairShareUpdateContext* context)
 {
